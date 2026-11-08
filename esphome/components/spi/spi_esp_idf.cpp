@@ -284,8 +284,7 @@ bool SPIComponent::setup_hw_bus_() {
   buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
   auto err = spi_bus_initialize(this->interface_, &buscfg, SPI_DMA_CH_AUTO);
   if (err == ESP_ERR_INVALID_STATE) {
-    // Either another master bus owns the host (usable with its pins) or another driver claimed the peripheral
-    // (devices then fail to attach and report not ready)
+    // Another bus or driver owns this host: devices use its pins, or fail to attach and report not ready
     ESP_LOGW(TAG, "Bus host already in use by another driver, configured pins ignored");
   } else if (err != ESP_OK) {
     ESP_LOGE(TAG, "Bus init failed: %s", esp_err_to_name(err));
