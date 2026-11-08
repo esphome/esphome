@@ -1613,7 +1613,7 @@ def lint_grouped_test_ids(fname, content):
     """CI merges grouped tests, so an id another test can duplicate must be set."""
     from analyze_component_buses import is_groupable  # pylint: disable=import-outside-toplevel
 
-    if not is_groupable(Path(fname).parent):
+    if not is_groupable(Path(root_path) / Path(fname).parent):
         return None
     try:
         root = yaml.compose(
