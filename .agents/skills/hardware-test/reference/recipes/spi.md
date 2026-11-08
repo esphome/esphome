@@ -15,8 +15,7 @@ expected wire data and diffs the two builds by the majority payload per record, 
   `spicommon_cs_initialize` takes over its output and `spi_slave_free` resets it. `gpio_set_direction(..., OUTPUT)`
   turns a pad back into a plain GPIO output, so only call `gpio_input_enable` on pads the master drives.
 - With that slave attached, full duplex reads on the master lose their last bytes after the first read of a boot,
-  even through a MOSI to MISO loopback; a config without the slave reads fine (`spimin.hpp`). Do not judge reads on
-  that layout.
+  even through a MOSI to MISO loopback; a config without the slave reads fine. Do not judge reads on that layout.
 - The slave sees bit-banged mode 1 data one bit late; the interrupt captures decode it correctly.
 - C3, ESP8266 and Pico 2 W: GPIO edge interrupts on SCK and CS take snapshots of the input register. C3 SPI2 cannot
   clock below about 78 kHz; at 80 to 100 kHz the capture works with
@@ -24,8 +23,7 @@ expected wire data and diffs the two builds by the majority payload per record, 
   of a frame in every run and a rebuild did not: compare two builds before calling a missing edge real. Let the log
   output drain (20 ms) before a capture that follows `spi_setup()`.
 - ESP8266: the HSPI pads (12, 13, 14) do not show in `GPI` while in SPI function; the script logs `SPI1CLK`,
-  `SPI1C`, `SPI1U` and `SPI1P` after `beginTransaction()` instead. `GPI` bits 16 to 31 are strapping bits (mask with
-  0xFFFF), and GPIO16 has no interrupt (read `GP16O` for a CS output).
+  `SPI1C`, `SPI1U` and `SPI1P` after each hardware bus operation instead.
 - Pico 2 W: `IO_BANK0` INOVER on the MISO pad forces the SPI receive input low or high (reads 00 and ff).
 - Software bus loopback: MOSI and MISO on one pad with `allow_other_uses`, then set the pad back to output.
 - Seen on dev before #22376: the software bus ignores `data_rate` (`cycle_clock_()` never waits), and SCK moves to

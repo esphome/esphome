@@ -21,7 +21,6 @@ CONFIG_SCHEMA = (
             cv.Required("pb0"): cv.use_id(binary_sensor.BinarySensor),
             cv.Required("pb1"): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional("isr_inta", default=False): cv.boolean,
-            cv.Optional("ioconb_test", default=False): cv.boolean,
             cv.Optional("label", default=""): cv.string,
         }
     )
@@ -45,4 +44,4 @@ async def to_code(config: ConfigType) -> None:
             await cg.get_variable(config["pb0"]), await cg.get_variable(config["pb1"])
         )
     )
-    cg.add(var.set_opts(config["isr_inta"], config["ioconb_test"], config["label"]))
+    cg.add(var.set_opts(config["isr_inta"], config["label"]))

@@ -50,7 +50,6 @@ mcptest:
   address: 0x27
   label: ${name}
   isr_inta: ${isr_inta}
-  ioconb_test: true
   pa0:
     mcp23xxx: mcp
     number: 0

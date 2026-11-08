@@ -1,19 +1,13 @@
 # One fixed entity_id entity and one wizard-linked entity (no entity_id) per homeassistant platform that a wizard
-# input can stand for, plus the three buttons of ha-button-common.yaml, on an ESP8266 (the ramchk interval reads the
-# ESP8266 heap). run.sh adds esphome name and board.
-logger:
-  level: DEBUG
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+# input can stand for, on top of the three buttons of ha-button-common.yaml, on an ESP8266 (the ramchk interval reads
+# the ESP8266 heap). run.sh adds esphome name and board, and ha-wiz-light.yaml unless NO_LIGHT is set.
+packages:
+  buttons: !include ../homeassistant_button/ha-button-common.yaml
 
 api:
-  reboot_timeout: 0s
   wizard:
     pages:
       - inputs:
-          - entity: hab_wiz
           - entity: s_wiz
           - entity: sa_wiz
           - entity: b_wiz
@@ -22,7 +16,6 @@ api:
           - entity: sw_wiz
           - entity: sel_wiz
           - entity: tx_wiz
-          - entity: l_wiz
 
 # Free heap every 5 s, and the heap size, for static + heap used
 interval:
@@ -33,11 +26,6 @@ interval:
           ESP_LOGI("ramchk", "heap_size=%u free=%u max_block=%u", heap_size, ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
 
 # homeassistant entities are internal by default; internal: false lets the API client list and drive them
-button:
-  - {platform: homeassistant, id: hab_btn, internal: false, name: HA button, entity_id: button.doorbell}
-  - {platform: homeassistant, id: hab_input, internal: false, name: HA input, entity_id: input_button.chime}
-  - {platform: homeassistant, id: hab_wiz, internal: false, name: HA wizard}
-
 sensor:
   - {platform: homeassistant, id: s_fix, internal: false, name: S fix, entity_id: sensor.outside}
   - {platform: homeassistant, id: s_wiz, internal: false, name: S wiz}
@@ -69,11 +57,3 @@ text:
 
 light:
   - {platform: homeassistant, id: l_fix, internal: false, name: L fix, entity_id: light.kitchen}
-  - {platform: homeassistant, id: l_wiz, internal: false, name: L wiz}
-
-esphome:
-  on_boot:
-    priority: -100
-    then:
-      - delay: 2s
-      - button.press: hab_btn

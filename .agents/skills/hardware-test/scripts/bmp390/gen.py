@@ -1,10 +1,10 @@
 """Write a BMP390 bench config (ESP32-S3, no Wi-Fi) next to this script.
 
-usage: gen.py NAME [--rate 50Hz] [--iir 128x|'"off"'] [--interval 1s] [--fault --kinds NMTWLSHD --probe-delay MS]
+usage: gen.py NAME [--rate 50Hz] [--iir 128x|off] [--interval 1s] [--fault --kinds NMTWLSHD --probe-delay MS]
               [--reset-at 40,80] [--open-line] [--bus-reset]
 Fault kinds, one per event at 30 s and then every 20 s: N next start write NACKs in software, M every start write
 NACKs for 5 s, T SDA held low for the next start write, W the same for every transfer for 5 s, L a 5 s continuous
-hold, S a 300 ms hold, H and D harness-only held transfers. `--iir off` must be quoted or YAML reads it as false.
+hold, S a 300 ms hold, H and D harness-only held transfers.
 """
 
 import argparse
@@ -17,12 +17,11 @@ FAULT = """
     then:
       - lambda: |-
           bmpt::fault_tick();
-          static constexpr uint32_t AT[] = {30, 50, 70, 90, 110, 130, 150, 170};
           static constexpr char KIND[] = "KINDS";
           static uint8_t i = 0;
           static uint32_t probe_at = 0;
           uint32_t now = millis();
-          if (i < sizeof(AT) / sizeof(AT[0]) && i < sizeof(KIND) - 1 && now >= AT[i] * 1000) {
+          if (i < sizeof(KIND) - 1 && now >= 30000u + 20000u * i) {  // events at 30 s, then every 20 s
             char k = KIND[i++];
             ESP_LOGI("bmpt", "FAULT %c at %u failed=%d warn=%d", k, (unsigned) now, id(bmp)->is_failed(),
                      id(bmp)->status_has_warning());
@@ -171,7 +170,7 @@ sensor:
     temperature:
       name: temperature
       oversampling: {a.tosr}
-    iir_filter: {a.iir}{rate}
+    iir_filter: "{a.iir}"{rate}
     update_interval: {a.interval}
 
 interval:

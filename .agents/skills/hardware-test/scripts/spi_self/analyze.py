@@ -33,10 +33,8 @@ def parse_devs(yaml_path: str) -> dict:
             "hw": hw == "true",
             "idx": len(devs),
         }
-    rates = dict(re.findall(r"- id: (\w+)\n(?:    .*\n)*?    data_rate: (\S+)", text))
-    for n, d in devs.items():
+    for d in devs.values():
         d["tag"] = 0x10 * (d["idx"] + 1)
-        d["rate"] = rates.get(n)
     return devs
 
 
@@ -111,7 +109,7 @@ def fields(s: str) -> dict[str, str]:
 def check(
     devs: dict, recs: list[tuple[int, str]], board: str
 ) -> tuple[int, list[str], dict, dict]:
-    """Return (n_checks, failures list, timing dict)."""
+    """Return (n_checks, failures, us per op, clock period x10 per op), both keyed by (device, step)."""
     fails = []
     n = 0
     timing = defaultdict(list)
@@ -136,7 +134,7 @@ def check(
             timing[(p[2], p[3])].append(int(f["us"]))
         if p[0] == "F" and "per10" in f and int(f["per10"]) > 0:
             per[(p[2], p[3])].append(int(f["per10"]))
-        if "UNTERMINATED" in s or "CAPFAIL" in s:
+        if "UNTERMINATED" in s:
             fails.append(f"boot{boot}: {s}")
         dev = p[2] if len(p) > 2 else None
         if dev not in devs and dev != "mx":
@@ -250,27 +248,24 @@ def check(
     return n, fails, timing, per
 
 
-DEVS = {}
-
-
-def canon(k: tuple | None, pl: str) -> str:
+def canon(devs: dict, k: tuple | None, pl: str) -> str:
     """F records: compare what a device on the wire would latch, not ISR timing."""
     if k is None or k[0] != "F":
         return pl
     f = fields(pl)
-    mode = 0 if k[2] == "mx" else DEVS[k[2]]["mode"]
+    mode = 0 if k[2] == "mx" else devs[k[2]]["mode"]
     e = f.get("e", "-").replace("-", "")
     bits = sample(e, int(f["idle"]), mode)
     b = "lost" if bits is None else "".join(map(str, bits))
     return f"idle={f['idle']} edges={len(e)} ov={f['ov']} bits={b}"
 
 
-def variants(recs: list[tuple[int, str]]) -> dict[tuple, Counter]:
+def variants(devs: dict, recs: list[tuple[int, str]]) -> dict[tuple, Counter]:
     v = defaultdict(Counter)
     for _, s in recs:
         k, pl = key_and_payload(s)
         if k is not None:
-            v[k][canon(k, pl)] += 1
+            v[k][canon(devs, k, pl)] += 1
     return v
 
 
@@ -282,13 +277,12 @@ def main() -> None:
     yaml_path = sys.argv[1]
     board = re.search(r"spi(e32|c3|e66|rp)\.yaml$", yaml_path).group(1)
     devs = parse_devs(yaml_path)
-    DEVS.update(devs)
     caps = sys.argv[2:]
     results = []
     for c in caps:
         recs, boots, heap = load(c)
         n, fails, timing, per = check(devs, recs, board)
-        v = variants(recs)
+        v = variants(devs, recs)
         occ = Counter()
         for _, s in recs:
             k, _pl = key_and_payload(s)

@@ -1,6 +1,5 @@
-# One file per build; the file name must match the name substitution. Add v6hf.yaml or v6inject.yaml to packages.
+# One file per build; run.sh passes the name. Add v6hf.yaml or v6inject.yaml to packages.
 substitutions:
-  name: v6examples3
   min_count: "0"
   cap_ms: "30000"
 

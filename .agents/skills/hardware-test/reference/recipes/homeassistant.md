@@ -48,21 +48,21 @@ The mirrors are not API entities, so read their state from the "Log state" butto
 
 ## Wizard-linked homeassistant entities on every platform (#21908)
 
-`scripts/homeassistant_wizard/`: `ha-all-common.yaml` has one entity with a fixed `entity_id` and one linked to an
-`api: wizard:` input for each of sensor (plus one with `attribute:`), binary_sensor, text_sensor, number, switch,
-select, text, light and button, and logs the ESP8266 heap every 5 s (`ramchk`). `hadrive.py HOST` plays Home
-Assistant over a plaintext API connection: it records the state subscriptions the device asks for, sends states
-(including number and text min, max, step and mode, select options and light supported_color_modes), commands every
-writer, sets each wizard input with `WizardInputSetRequest` (key = FNV-1 hash of the input id), changes it to a
-second ID in another domain, sends an invalid one and reconnects. It prints SUB, STATE and ACTION lines that diff
-cleanly between two builds, and PASS or FAIL. `run.sh LABEL` (env `TREE`, `PORT`, `SC`, `PY`; `NO_LIGHT=1` for a
-build without #21908) flashes a D1 mini, takes three idle boots of heap readings and drives one boot.
-`lightcheck.py HOST` checks again that the wizard light follows only its current ID.
+`scripts/homeassistant_wizard/`: `ha-all-common.yaml` adds to the buttons of `ha-button-common.yaml` one entity with a
+fixed `entity_id` and one linked to an `api: wizard:` input for each of sensor (plus one with `attribute:`),
+binary_sensor, text_sensor, number, switch, select, text and light (the wizard light is in `ha-wiz-light.yaml`), and
+logs the ESP8266 heap every 5 s (`ramchk`). `hadrive.py HOST` plays Home Assistant over a plaintext API connection: it
+records the state subscriptions the device asks for, sends states (including number and text min, max, step and mode,
+select options and light supported_color_modes), commands every writer, sets each wizard input with
+`WizardInputSetRequest` (key = FNV-1 hash of the input id), changes it to a second ID in another domain, sends an
+invalid one and reconnects. It prints SUB, STATE and ACTION lines that diff cleanly between two builds, and PASS or
+FAIL. `run.sh LABEL` (env `TREE`, `PORT`, `SC`, `PY`; `NO_LIGHT=1` for a build without #21908) flashes a D1 mini, takes
+three idle boots of heap readings and drives one boot. `lightcheck.py HOST` checks again that the wizard light follows
+only its current ID.
 
 - Builds before #21908 cannot compile a wizard-linked homeassistant light (the wizard called `set_entity_id()` on the
-  LightState); `NO_LIGHT=1` drops it by the exact `l_wiz` lines, since a plain `l_wiz` pattern also matches `sel_wiz`.
+  LightState); `NO_LIGHT=1` leaves `ha-wiz-light.yaml` out.
 - An unset wizard number or select rejects a command in the core (`> max 0`, `has no options`) before the
   `No entity ID set yet` check; nothing is sent either way.
 - Field 3 of LightStateResponse is brightness, not `missing_state`; SwitchStateResponse has no missing flag.
 - A light publishes only changes, so a report of the state it already has publishes nothing.
-- `Arduino.h` already declares `_heap_start`; a lambda can use `&_heap_start` directly, and a second `extern` fails.

@@ -114,11 +114,6 @@ inline uint32_t do_op(Dev &v, int step, uint8_t *rx, size_t &rxn) {
   uint32_t t0 = (esphome::micros) ();
   d->enable();
   clk_before_ = read_level(v.clk);
-#ifdef USE_ESP8266
-  if (v.hw)  // the HSPI pads are not readable, so record what beginTransaction() programmed
-    snprintf(regs_, sizeof(regs_), " clk=%08x c=%08x u=%08x p=%08x", (unsigned) SPI1CLK, (unsigned) SPI1C,
-             (unsigned) SPI1U, (unsigned) SPI1P);
-#endif
   switch (step) {
     case 0:
     case 5:
@@ -157,7 +152,14 @@ inline uint32_t do_op(Dev &v, int step, uint8_t *rx, size_t &rxn) {
   }
   clk_after_ = read_level(v.clk);
   d->disable();
-  return (esphome::micros) () - t0;
+  uint32_t t1 = (esphome::micros) ();
+#ifdef USE_ESP8266
+  // The HSPI pads are not readable, so record what beginTransaction() programmed; endTransaction() leaves it.
+  if (v.hw)
+    snprintf(regs_, sizeof(regs_), " clk=%08x c=%08x u=%08x p=%08x", (unsigned) SPI1CLK, (unsigned) SPI1C,
+             (unsigned) SPI1U, (unsigned) SPI1P);
+#endif
+  return t1 - t0;
 }
 
 inline void lifecycle(Dev &v, int step) {
@@ -367,34 +369,6 @@ static void SPITEST_ISR isr_rec() {
 static void SPITEST_ISR isr_rec_arg(void *) { isr_rec(); }
 #endif
 inline int read_level(int pin) { return (raw_in() >> pin) & 1; }
-#ifdef USE_ESP8266
-static volatile uint32_t last_in_ = 0;
-static volatile uint32_t ntmr_ = 0, or_in_ = 0, and_in_ = 0xffffffff;
-static void IRAM_ATTR tmr_isr() {
-  uint32_t in = raw_in();
-  ntmr_ = ntmr_ + 1;
-  or_in_ = or_in_ | in;
-  and_in_ = and_in_ & in;
-  if (in != last_in_) {
-    last_in_ = in;
-    isr_rec();
-  }
-}
-inline void poll_start() {
-  ntmr_ = 0;
-  or_in_ = 0;
-  and_in_ = 0xffffffff;
-  last_in_ = raw_in();
-  timer1_attachInterrupt(tmr_isr);
-  timer1_enable(TIM_DIV1, TIM_EDGE, TIM_LOOP);
-  timer1_write(800);  // 100 kHz
-}
-inline void poll_stop() {
-  timer1_disable();
-  timer1_detachInterrupt();
-  ESP_LOGD(TAG, "poll samples=%u toggled=%08x", (unsigned) ntmr_, (unsigned) (or_in_ & ~and_in_));
-}
-#endif
 
 inline void arm(int pin) {
 #ifdef USE_ESP32
@@ -552,15 +526,7 @@ inline void run_step(int pass, int di, int step) {
   isr_rec();
   uint8_t rx[8];
   size_t rxn;
-#ifdef USE_ESP8266
-  if (v.hw)
-    poll_start();
-#endif
   uint32_t us = do_op(v, step, rx, rxn);
-#ifdef USE_ESP8266
-  if (v.hw)
-    poll_stop();
-#endif
   isr_rec();
 #ifdef USE_RP2
   if (v.hw)

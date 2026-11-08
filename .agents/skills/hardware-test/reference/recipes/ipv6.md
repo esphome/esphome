@@ -1,7 +1,7 @@
 # IPv6 link-local and SLAAC on ESP32 Wi-Fi: boot timing and race injection (#22364)
 
-`scripts/ipv6_boot/` (ESP32-S3 and ESP32-C3, native USB console, ESP-IDF). One YAML per build with the file name
-equal to its `name` substitution (`example-s3.yaml`, `example-c3.yaml` show the shape), plus `min_count` (network
+`scripts/ipv6_boot/` (ESP32-S3 and ESP32-C3, native USB console, ESP-IDF). One YAML per build
+(`example-s3.yaml`, `example-c3.yaml` show the shape) with the substitutions `min_count` (network
 `min_ipv6_addr_count`) and `cap_ms`.
 
 - `v6probe.hpp` and `v6common.yaml`: `network: enable_ipv6`, VERBOSE logs, and a 50 ms interval that logs milestones
@@ -10,13 +10,12 @@ equal to its `name` substitution (`example-s3.yaml`, `example-c3.yaml` show the 
   disables Wi-Fi for 3 s and logs `RESULT reconnect ...` the same way, then reboots. A phase ends when SLAAC and the
   connection are both seen, or after `cap_ms` (`timeout=1`).
 - `v6hf.yaml` adds a `HighFrequencyLoopRequester` (a busy main loop, as with a display or audio).
-- `v6inject.yaml` and `components/v6inject` link with `-Wl,--wrap=esp_netif_action_connected`; the wrapper in
+- `v6inject.yaml` links with `-Wl,--wrap=esp_netif_action_connected` and defines `V6_INJECT`; the wrapper in
   `v6probe.hpp` sleeps 300 ms in the event task before esp-netif brings the station interface up, after the wifi
   component already queued STA_CONNECTED. That makes the "interface not up yet" race happen on every connect.
-- `run.sh NAME SECONDS` (env `TREE`, `PORT`, `SC`, `PY`) builds, flashes, prints which link-local call the build's
-  wifi component makes, captures the self-rebooting boots and runs `an.py CAPTURE...`: per phase the
-  `esp_netif_create_ip6_linklocal failed` count, boots without link-local, SLAAC or a connection, connection
-  timeouts, and median and worst times.
+- `run.sh NAME SECONDS` (env `TREE`, `PORT`, `SC`, `PY`) builds `NAME.yaml` as device `NAME`, flashes, captures the
+  self-rebooting boots and runs `an.py CAPTURE...`: per phase the `esp_netif_create_ip6_linklocal failed` count,
+  boots without link-local, SLAAC or a connection, connection timeouts, and median and worst times.
 
 - Check the network first: a computer on the same network shows an `autoconf` IPv6 address when a router advertises
   a prefix. SLAAC arrived about 2 s after link-local on the test network.
@@ -26,4 +25,4 @@ equal to its `name` substitution (`example-s3.yaml`, `example-c3.yaml` show the 
 - An extra event handler registered from `on_boot` cannot inject the race: it runs after esp-netif's handler, when
   the interface is already up. Wrap the esp-netif call instead.
 - `wifi.disable` removes the addresses, so the reconnect phase creates link-local again on the same path.
-- The USB console drops a line now and then; count failures by the probe's `ll=0` too, not only by the warning.
+- Count failures by the probe's `ll=0` too, not only by the warning: the USB console drops lines.

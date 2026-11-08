@@ -1,5 +1,4 @@
 substitutions:
-  name: v6examplec3
   min_count: "0"
   cap_ms: "30000"
 

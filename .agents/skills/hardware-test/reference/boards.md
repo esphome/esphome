@@ -24,6 +24,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   row in the PR.
 - AsyncMqttClient drops inbound topics over 128 characters; topics of 255 or more wrap a counter and
   stall the link until the broker drops TCP.
+- `Arduino.h` already declares `_heap_start`; a lambda can use `&_heap_start` directly, and a second `extern` fails.
+- `GPI` bits 16 to 31 are strapping bits (mask with 0xFFFF). GPIO16 has no interrupt; read `GP16O` for an output.
 
 ## ESP32 classic devkit
 
@@ -52,6 +54,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `Disabling RNG early entropy source`, then 0 bytes, esptool reports `No serial data received`). Only a
   USB replug fixes it. Fallback: `esphome logs --device <name>.local` (API log stream, which drops lines
   while Wi-Fi is off).
+- The USB console drops a line now and then even when it stays up; do not count events by log lines alone.
 - The ESP32-P4 before silicon revision 3 is bricked by rev3-only firmware (boot loop at bootloader entry). The
   Waveshare ESP32-P4-WIFI6 rev1.3 board is such pre-rev3 silicon.
 - S3, C3 and C6 all enumerate as `303a:1001`; confirm the chip with `esptool --port <port> chip_id` before flashing.

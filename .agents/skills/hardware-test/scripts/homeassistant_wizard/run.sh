@@ -6,12 +6,8 @@
 R=$(cd "$(dirname "$0")" && pwd); L=${1:?label}; N=hawiz$L
 T=${TREE:?set TREE}; P=${PORT:?set PORT}; PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}
 OUT=$R/out-$N; rm -rf "$OUT"; mkdir -p "$OUT"
-COMMON=ha-all-common.yaml
-if [ -n "$NO_LIGHT" ]; then
-  # match the l_wiz lines exactly: a plain l_wiz pattern also hits sel_wiz
-  grep -v -E '^ +- entity: l_wiz$|id: l_wiz,' "$R/ha-all-common.yaml" > "$R/ha-all-nolight.yaml"; COMMON=ha-all-nolight.yaml
-fi
-printf 'esphome:\n  name: %s\n\nesp8266:\n  board: d1_mini\n\npackages:\n  common: !include %s\n' "$N" "$COMMON" \
+LIGHT='  light: !include ha-wiz-light.yaml\n'; [ -n "$NO_LIGHT" ] && LIGHT=
+printf "esphome:\n  name: %s\n\nesp8266:\n  board: d1_mini\n\npackages:\n  common: !include ha-all-common.yaml\n$LIGHT" "$N" \
   > "$R/$N.yaml"
 pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$N.yaml" --device "$P" > "$OUT/upload.log" 2>&1) ||

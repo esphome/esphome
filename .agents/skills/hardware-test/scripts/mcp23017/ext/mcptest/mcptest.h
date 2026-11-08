@@ -15,7 +15,7 @@ static volatile uint32_t isr14_count = 0;
 static void IRAM_ATTR isr13() { isr13_count++; }
 static void IRAM_ATTR isr14() { isr14_count++; }
 inline bool pin_level(uint8_t pin) { return digitalRead(pin); }  // NOLINT
-// Defined in mcptest.cpp: the log macros cannot be used in a header
+// Defined in mcptest.cpp: script/ci-custom.py rejects the log macros in .h files, and a component header must be .h
 void log_line(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 class McpTest : public Component, public i2c::I2CDevice {
@@ -28,9 +28,8 @@ class McpTest : public Component, public i2c::I2CDevice {
     this->pb_[0] = b0;
     this->pb_[1] = b1;
   }
-  void set_opts(bool isr_inta, bool ioconb, const char *label) {
+  void set_opts(bool isr_inta, const char *label) {
     this->isr_inta_ = isr_inta;
-    this->ioconb_ = ioconb;
     this->label_ = label;
   }
   float get_setup_priority() const override { return setup_priority::LATE; }
@@ -112,8 +111,7 @@ class McpTest : public Component, public i2c::I2CDevice {
           this->label_, this->iocon_a_, this->iocon_b_, this->inta_low_now_, this->intb_low_now_, this->inta_low_late_,
           this->intb_low_late_, this->loop_ok_, isr13_count - this->isr13_start_, this->isr_inta_ ? "" : "n/a ",
           isr14_count - this->isr14_start_, this->changes_, ESP.getFreeHeap());
-      if (this->ioconb_)
-        this->ioconb_test_();
+      this->ioconb_test_();
       this->phase_ = 3;
     }
   }
@@ -148,7 +146,7 @@ class McpTest : public Component, public i2c::I2CDevice {
  protected:
   GPIOPin *pa_[2];
   binary_sensor::BinarySensor *pb_[2];
-  bool isr_inta_{false}, ioconb_{false};
+  bool isr_inta_{false};
   const char *label_{""};
   int phase_{0};
   uint32_t next_{0};

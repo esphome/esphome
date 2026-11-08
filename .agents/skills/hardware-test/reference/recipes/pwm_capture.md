@@ -13,4 +13,3 @@ and `CONFIG_RMT_ISR_IRAM_SAFE` and `CONFIG_PCNT_ISR_IRAM_SAFE`; build it with `-
   nothing. Positive control: a lambda that changes the duty for a few periods is caught every time.
 - Window boundaries follow RMT chunks (about 1000 periods), so `n` alternates between 199584 and 200592; sum over
   the run.
-- Modem sleep check: ping round trip 79 to 160 ms with `light`, from 4 ms with `none`.

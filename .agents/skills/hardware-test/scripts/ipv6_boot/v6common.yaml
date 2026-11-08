@@ -1,5 +1,5 @@
 # IPv6 boot and reconnect probe (#22364): logs milestones per phase, then disables Wi-Fi for 3 s, measures the
-# reconnect and reboots. Substitutions: name, min_count (network min_ipv6_addr_count), cap_ms (phase time limit).
+# reconnect and reboots. Substitutions: name (run.sh passes it), min_count (network min_ipv6_addr_count), cap_ms (phase time limit).
 esphome:
   name: ${name}
   includes:

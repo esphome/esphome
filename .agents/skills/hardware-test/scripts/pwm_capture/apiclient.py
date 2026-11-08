@@ -6,9 +6,14 @@ With --every, alternates the first light between 30% and 70% brightness every S 
 
 import argparse
 import asyncio
+import pathlib
+import sys
 import time
 
-from aioesphomeapi import APIClient, LightInfo
+from aioesphomeapi import LightInfo
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from apiconn import connect  # noqa: E402
 
 
 def log(msg: str) -> None:
@@ -22,8 +27,7 @@ async def main() -> None:
     ap.add_argument("--every", type=float, default=0)
     ap.add_argument("--transition", type=float, default=1.0)
     a = ap.parse_args()
-    cli = APIClient(a.host, 6053, None)
-    await cli.connect(login=True)
+    cli = await connect(a.host)
     ents, _ = await cli.list_entities_services()
     key = next(e.key for e in ents if isinstance(e, LightInfo))
     states = 0

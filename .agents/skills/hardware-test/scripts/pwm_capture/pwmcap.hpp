@@ -50,7 +50,6 @@ static int64_t win_start = 0;
 static int last_pcnt = 0;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool need_rearm = false;
-static int pin_ = -1;
 
 static void reset_win(Win &w) {
   memset(&w, 0, sizeof(w));
@@ -113,6 +112,48 @@ static bool IRAM_ATTR on_rx(rmt_channel_handle_t, const rmt_rx_done_event_data_t
   return false;
 }
 
+// Mode of a histogram whose bin i counts value base + i, the count more than TOL from the mode and the largest
+// such distance.
+struct HistStats {
+  uint32_t mode, out, dev;
+};
+
+static HistStats hist_stats(const uint32_t *hist, int bins, int base) {
+  HistStats st{0, 0, 0};
+  uint32_t best = 0;
+  for (int i = 0; i < bins; i++) {
+    if (hist[i] > best) {
+      best = hist[i];
+      st.mode = i + base;
+    }
+  }
+  for (int i = 0; i < bins; i++) {
+    int d = i + base - (int) st.mode;
+    uint32_t ad = d < 0 ? -d : d;
+    if (ad > (uint32_t) TOL && hist[i]) {
+      st.out += hist[i];
+      if (ad > st.dev)
+        st.dev = ad;
+    }
+  }
+  return st;
+}
+
+// Logs LABEL, PREFIX and up to 12 bins more than TOL from mode.
+static void log_outliers(const char *label, const char *prefix, const uint32_t *hist, int bins, int base,
+                         uint32_t mode) {
+  char buf[200];
+  int pos = snprintf(buf, sizeof(buf), "%s", prefix);
+  for (int i = 0, k = 0; i < bins && k < 12; i++) {
+    int d = i + base - (int) mode;
+    if ((d > TOL || d < -TOL) && hist[i]) {
+      pos += snprintf(buf + pos, sizeof(buf) - pos, " %d:%" PRIu32, i + base, hist[i]);
+      k++;
+    }
+  }
+  ESP_LOGI(TAG, "%s%s", label, buf);
+}
+
 static void arm() {
   skip_first = true;
   esp_err_t e = rmt_receive(rx, rxbuf, sizeof(rxbuf), &rcfg);
@@ -131,7 +172,6 @@ static void dump_ledc() {
 }
 
 inline void start(int pin) {
-  pin_ = pin;
   reset_win(wins[0]);
   reset_win(wins[1]);
   rmt_rx_channel_config_t cc{};
@@ -194,35 +234,9 @@ inline void report() {
   int pc_delta = pc - last_pcnt;
   last_pcnt = pc;
   Win &w = wins[done];
-  // mode of high time and period
-  uint32_t hm = 0, hmv = 0, pm = 0, pmv = 0;
-  for (int i = 0; i < HBINS; i++)
-    if (w.hist_h[i] > hmv) {
-      hmv = w.hist_h[i];
-      hm = i;
-    }
-  for (int i = 0; i < PBINS; i++)
-    if (w.hist_p[i] > pmv) {
-      pmv = w.hist_p[i];
-      pm = i + PBASE;
-    }
-  uint32_t h_out = w.h_over, p_out = w.p_under + w.p_over, hdev = 0, pdev = 0;
-  for (int i = 0; i < HBINS; i++) {
-    int d = i - (int) hm;
-    if ((d > TOL || d < -TOL) && w.hist_h[i]) {
-      h_out += w.hist_h[i];
-      if ((uint32_t) (d < 0 ? -d : d) > hdev)
-        hdev = d < 0 ? -d : d;
-    }
-  }
-  for (int i = 0; i < PBINS; i++) {
-    int d = i + PBASE - (int) pm;
-    if ((d > TOL || d < -TOL) && w.hist_p[i]) {
-      p_out += w.hist_p[i];
-      if ((uint32_t) (d < 0 ? -d : d) > pdev)
-        pdev = d < 0 ? -d : d;
-    }
-  }
+  HistStats hs = hist_stats(w.hist_h, HBINS, 0);
+  HistStats ps = hist_stats(w.hist_p, PBINS, PBASE);
+  uint32_t h_out = w.h_over + hs.out, p_out = w.p_under + w.p_over + ps.out;
   // spikes: a level change that returns to the previous level within 64 periods; reversals: direction flips
   uint32_t spikes = 0, reversals = 0;
   uint32_t nchg = w.chg_n < CHG ? w.chg_n : CHG;
@@ -245,33 +259,15 @@ inline void report() {
            " mode=%" PRIu32 " max=%" PRIu32 " out=%" PRIu32 " dev=%" PRIu32 "] chg=%" PRIu32 " spikes=%" PRIu32
            " rev=%" PRIu32 " duty_r=%u",
            (now - win_start) / 1000, w.n, pc_delta, w.chunks, w.zero_dur, idle_ends, w.hmin == UINT32_MAX ? 0 : w.hmin,
-           hm, w.hmax, h_out, hdev, w.pmin == UINT32_MAX ? 0 : w.pmin, pm, w.pmax, p_out, pdev, w.chg_n, spikes,
-           reversals, (unsigned) LEDC.channel_group[0].channel[0].duty_rd.duty_r);
+           hs.mode, w.hmax, h_out, hs.dev, w.pmin == UINT32_MAX ? 0 : w.pmin, ps.mode, w.pmax, p_out, ps.dev, w.chg_n,
+           spikes, reversals, (unsigned) LEDC.channel_group[0].channel[0].duty_rd.duty_r);
   // print outlier bins (up to 12) for the static cases
-  if (h_out && w.chg_n < 40) {
-    char buf[200];
-    int pos = 0, k = 0;
-    for (int i = 0; i < HBINS && k < 12; i++) {
-      int d = i - (int) hm;
-      if ((d > TOL || d < -TOL) && w.hist_h[i]) {
-        pos += snprintf(buf + pos, sizeof(buf) - pos, " %d:%" PRIu32, i, w.hist_h[i]);
-        k++;
-      }
-    }
-    ESP_LOGI(TAG, "HOUT%s", buf);
-  }
+  if (h_out && w.chg_n < 40)
+    log_outliers("HOUT", "", w.hist_h, HBINS, 0, hs.mode);
   if (p_out) {
-    char buf[200];
-    int pos = 0, k = 0;
-    pos += snprintf(buf, sizeof(buf), " under=%" PRIu32 " over=%" PRIu32, w.p_under, w.p_over);
-    for (int i = 0; i < PBINS && k < 12; i++) {
-      int d = i + PBASE - (int) pm;
-      if ((d > TOL || d < -TOL) && w.hist_p[i]) {
-        pos += snprintf(buf + pos, sizeof(buf) - pos, " %d:%" PRIu32, i + PBASE, w.hist_p[i]);
-        k++;
-      }
-    }
-    ESP_LOGI(TAG, "POUT%s", buf);
+    char prefix[48];
+    snprintf(prefix, sizeof(prefix), " under=%" PRIu32 " over=%" PRIu32, w.p_under, w.p_over);
+    log_outliers("POUT", prefix, w.hist_p, PBINS, PBASE, ps.mode);
   }
   if (spikes || reversals) {
     char buf[240];

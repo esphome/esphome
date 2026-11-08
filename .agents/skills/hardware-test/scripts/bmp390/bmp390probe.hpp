@@ -90,21 +90,20 @@ class FaultBus : public esphome::i2c::I2CBus {
   explicit FaultBus(esphome::i2c::I2CBus *real) : real_(real) {}
   uint32_t hold_until{0};  // millis() deadline of a timed hold
   bool arm_start{false};   // hold SDA only during the next forced mode start write (PWR_CTRL mode bits 01)
-  uint32_t window_until{
-      0};  // until this deadline every transfer fails on its own: free-bus dummy read, hold, transfer, release
-  uint32_t dummies{0};
+  // until this deadline every transfer fails on its own: free-bus dummy read, hold, transfer, release
+  uint32_t window_until{0};
   bool soft_arm{false};    // next start write fails with NACK in software, the wire is not touched
   uint32_t soft_until{0};  // every start write fails with NACK in software until this deadline
-  uint32_t soft_fails{0};
   uint32_t xfers{0}, fails{0}, start_writes{0}, start_fails{0}, normal_writes{0};
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *w, size_t wn, uint8_t *r, size_t rn) override {
-    bool is_start = wn == 2 && w[0] == 0x1B && ((w[1] >> 4) & 3) == 1;
+    // mode bits of a PWR_CTRL write: 1 forced (a start), 3 normal
+    int mode = wn == 2 && w[0] == 0x1B ? (w[1] >> 4) & 3 : -1;
+    bool is_start = mode == 1;
     bool targeted = is_start && this->arm_start;
     if (is_start && (this->soft_arm || (int32_t) (this->soft_until - esphome::millis()) > 0)) {
       this->soft_arm = false;
       this->start_writes++;
       this->start_fails++;
-      this->soft_fails++;
       this->xfers++;
       this->fails++;
       ESP_LOGI(TAG, "SOFTFAIL start write reg=0x1B val=0x%02X -> NACK", w[1]);
@@ -116,14 +115,13 @@ class FaultBus : public esphome::i2c::I2CBus {
       // let the driver run its post-error FSM reset with free lines, so each injected failure starts from a clean bus
       uint8_t reg = 0x00, v;
       this->real_->write_readv(address, &reg, 1, &v, 1);
-      this->dummies++;
       targeted = true;
     }
     if (timed || targeted)
       sda_hold();  // reasserted per transfer in case the driver re-routes the pin after an error
     if (is_start)
       this->start_writes++;
-    if (wn == 2 && w[0] == 0x1B && ((w[1] >> 4) & 3) == 3)
+    if (mode == 3)
       this->normal_writes++;
     auto err = this->real_->write_readv(address, w, wn, r, rn);
     if (targeted) {

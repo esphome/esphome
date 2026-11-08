@@ -13,7 +13,6 @@ for _ in $(seq 1 60); do
   [ -n "$IP" ] && break; sleep 1
 done
 [ -n "$IP" ] || { echo "no IP in the capture"; kill $CAP; exit 1; }
-sleep 3
 $PY "$R/apiclient.py" "$IP" $((S - 25)) "$@" > "$OUT/api.txt" 2>&1
 wait $CAP
 tail -1 "$OUT/api.txt"

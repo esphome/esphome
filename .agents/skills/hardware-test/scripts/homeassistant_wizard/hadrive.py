@@ -15,74 +15,24 @@ Prints canonical lines (SUB, STATE, ACTION, CHECK) so two builds can be diffed, 
 
 import argparse
 from collections.abc import Callable
-import socket
+import pathlib
 import struct
 import sys
 import time
+from typing import NamedTuple
 
-
-def fnv1_hash(text: str) -> int:
-    value = 2166136261
-    for ch in text:
-        value = (value * 16777619) & 0xFFFFFFFF
-        value ^= ord(ch)
-    return value
-
-
-def varint(v: int) -> bytes:
-    out = bytearray()
-    while True:
-        b = v & 0x7F
-        v >>= 7
-        out.append(b | 0x80 if v else b)
-        if not v:
-            return bytes(out)
-
-
-def read_varint(buf: bytes, pos: int) -> tuple[int, int]:
-    value = shift = 0
-    while True:
-        b = buf[pos]
-        pos += 1
-        value |= (b & 0x7F) << shift
-        if not b & 0x80:
-            return value, pos
-        shift += 7
-
-
-def fields(payload: bytes) -> list[tuple[int, object]]:
-    out = []
-    pos = 0
-    while pos < len(payload):
-        key, pos = read_varint(payload, pos)
-        num, wire = key >> 3, key & 7
-        if wire == 0:
-            value, pos = read_varint(payload, pos)
-        elif wire == 2:
-            length, pos = read_varint(payload, pos)
-            value = payload[pos : pos + length]
-            pos += length
-        elif wire == 5:
-            value = payload[pos : pos + 4]
-            pos += 4
-        else:
-            raise ValueError(f"wire type {wire}")
-        out.append((num, value))
-    return out
-
-
-def f_bytes(num: int, data: bytes | str) -> bytes:
-    if isinstance(data, str):
-        data = data.encode()
-    return varint((num << 3) | 2) + varint(len(data)) + data
-
-
-def f_varint(num: int, value: int) -> bytes:
-    return varint(num << 3) + varint(value)
-
-
-def f_fixed32(num: int, value: int) -> bytes:
-    return varint((num << 3) | 5) + struct.pack("<I", value)
+sys.path.insert(
+    0, str(pathlib.Path(__file__).resolve().parents[1] / "homeassistant_button")
+)
+from habdrive import (  # noqa: E402
+    Client as BaseClient,
+    f_bytes,
+    f_fixed32,
+    f_varint,
+    fields,
+    fnv1_hash,
+    varint,
+)
 
 
 def f_float(num: int, value: float) -> bytes:
@@ -112,25 +62,10 @@ STATE_TYPES = {
     98: "str",
 }
 
-# ESPHome id of each wizard input -> (entity name, first ID, second ID)
-WIZARD = {
-    "hab_wiz": ("HA wizard", "input_button.wiz_one", "button.wiz_two"),
-    "s_wiz": ("S wiz", "sensor.wiz_one", "sensor.wiz_two"),
-    "sa_wiz": ("SA wiz", "climate.wiz_one", "climate.wiz_two"),
-    "b_wiz": ("B wiz", "binary_sensor.wiz_one", "binary_sensor.wiz_two"),
-    "t_wiz": ("T wiz", "sensor.wiz_text_one", "sensor.wiz_text_two"),
-    "n_wiz": ("N wiz", "input_number.wiz_one", "number.wiz_two"),
-    "sw_wiz": ("SW wiz", "input_boolean.wiz_one", "switch.wiz_two"),
-    "sel_wiz": ("SEL wiz", "input_select.wiz_one", "select.wiz_two"),
-    "tx_wiz": ("TX wiz", "input_text.wiz_one", "text.wiz_two"),
-    "l_wiz": ("L wiz", "light.wiz_one", "light.wiz_two"),
-}
 
-
-class Client:
+class Client(BaseClient):
     def __init__(self, host: str) -> None:
-        self.sock = socket.create_connection((host, 6053), timeout=10)
-        self.buf = bytearray()
+        super().__init__(host)
         self.keys: dict[str, int] = {}
         self.names: dict[int, str] = {}
         self.failures: list[str] = []
@@ -138,36 +73,23 @@ class Client:
             str, str
         ] = {}  # the last state the device published, by entity name
 
-    def send(self, msg_type: int, payload: bytes = b"") -> None:
-        self.sock.sendall(b"\x00" + varint(len(payload)) + varint(msg_type) + payload)
-
-    def pump(self, secs: float, until: int | None = None) -> list[tuple[int, bytes]]:
-        end = time.time() + secs
-        got = []
-        while time.time() < end:
-            self.sock.settimeout(max(0.05, end - time.time()))
-            try:
-                chunk = self.sock.recv(4096)
-            except TimeoutError:
-                break
-            if not chunk:
-                raise ConnectionError("the device closed the API connection")
-            self.buf.extend(chunk)
-            while len(self.buf) >= 3:
-                try:
-                    length, pos = read_varint(self.buf, 1)
-                    msg_type, pos = read_varint(self.buf, pos)
-                except IndexError:
-                    break
-                if len(self.buf) < pos + length:
-                    break
-                got.append((msg_type, bytes(self.buf[pos : pos + length])))
-                del self.buf[: pos + length]
-                if msg_type == 7:  # PingRequest
-                    self.send(8)
-                if msg_type == until:
-                    return got
-        return got
+    def login(
+        self, name: str, connect_wait: float = 1, list_entities: bool = True
+    ) -> None:
+        """Hello (API 1.14) and Connect, then ListEntities into keys and names."""
+        self.send(1, f_bytes(1, name) + f_varint(2, 1) + f_varint(3, 14))
+        self.pump(10, until=2)
+        self.send(3)
+        self.pump(connect_wait)
+        if not list_entities:
+            return
+        self.send(11)
+        for msg_type, payload in self.pump(10, until=19):
+            if msg_type in LIST_TYPES:
+                d = dict(fields(payload))
+                key, name = struct.unpack("<I", d[2])[0], d[3].decode()
+                self.keys[name] = key
+                self.names[key] = name
 
     def report(
         self, frames: list[tuple[int, bytes]], label: str
@@ -301,21 +223,44 @@ def expected_state(platform: str, n: int) -> str | None:
     }.get(platform)
 
 
-# (fixed name, fixed entity_id, wizard name, wizard input id, platform)
+class Row(NamedTuple):
+    fix: str | None  # name of the fixed entity_id entity
+    fix_id: str | None
+    wiz: str | None  # name of the wizard-linked entity
+    input_id: str | None  # ESPHome id of its wizard input
+    platform: str
+    one: str | None  # the first and second entity IDs the wizard input is set to
+    two: str | None
+
+
+# fmt: off
 PLATFORMS = [
-    ("S fix", "sensor.outside", "S wiz", "s_wiz", "sensor"),
-    (None, None, "SA wiz", "sa_wiz", "sensor_attr"),
-    ("B fix", "binary_sensor.door", "B wiz", "b_wiz", "binary_sensor"),
-    ("T fix", "sensor.weather", "T wiz", "t_wiz", "text_sensor"),
-    ("N fix", "input_number.target", "N wiz", "n_wiz", "number"),
-    ("SW fix", "switch.porch", "SW wiz", "sw_wiz", "switch"),
-    ("SEL fix", "input_select.mode", "SEL wiz", "sel_wiz", "select"),
-    ("TX fix", "input_text.note", "TX wiz", "tx_wiz", "text"),
-    ("L fix", "light.kitchen", "L wiz", "l_wiz", "light"),
+    Row("S fix", "sensor.outside", "S wiz", "s_wiz", "sensor", "sensor.wiz_one", "sensor.wiz_two"),
+    Row(None, None, "SA wiz", "sa_wiz", "sensor_attr", "climate.wiz_one", "climate.wiz_two"),
+    Row("B fix", "binary_sensor.door", "B wiz", "b_wiz", "binary_sensor", "binary_sensor.wiz_one",
+        "binary_sensor.wiz_two"),
+    Row("T fix", "sensor.weather", "T wiz", "t_wiz", "text_sensor", "sensor.wiz_text_one", "sensor.wiz_text_two"),
+    Row("N fix", "input_number.target", "N wiz", "n_wiz", "number", "input_number.wiz_one", "number.wiz_two"),
+    Row("SW fix", "switch.porch", "SW wiz", "sw_wiz", "switch", "input_boolean.wiz_one", "switch.wiz_two"),
+    Row("SEL fix", "input_select.mode", "SEL wiz", "sel_wiz", "select", "input_select.wiz_one", "select.wiz_two"),
+    Row("TX fix", "input_text.note", "TX wiz", "tx_wiz", "text", "input_text.wiz_one", "text.wiz_two"),
+    Row("L fix", "light.kitchen", "L wiz", "l_wiz", "light", "light.wiz_one", "light.wiz_two"),
 ]
+# fmt: on
+# the fixed buttons come from ha-button-common.yaml
+WIZARD_BUTTON = Row(
+    None,
+    None,
+    "HA wizard",
+    "hab_wiz",
+    "button",
+    "input_button.wiz_one",
+    "button.wiz_two",
+)
 
 # The subscriptions each platform sends for one entity ID
 SUBS = {
+    "button": [],
     "sensor": ["{} -"],
     "sensor_attr": ["{} temperature"],
     "binary_sensor": ["{} -"],
@@ -375,34 +320,24 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("host")
     c = Client(parser.parse_args().host)
-    c.send(1, f_bytes(1, "hadrive") + f_varint(2, 1) + f_varint(3, 14))
-    c.pump(10, until=2)
-    c.send(3)
-    c.pump(2)
-    c.send(11)
-    for msg_type, payload in c.pump(10, until=19):
-        if msg_type in LIST_TYPES:
-            d = dict(fields(payload))
-            name = d[3].decode()
-            c.keys[name] = struct.unpack("<I", d[2])[0]
-            c.names[c.keys[name]] = name
+    c.login("hadrive", connect_wait=2)
     print("entities", len(c.keys), sorted(c.keys))
     # A config may leave a wizard entity out (dev cannot build a wizard-linked light)
-    for input_id, (name, _, _) in list(WIZARD.items()):
-        if name not in c.keys:
-            print(f"  skipping {name}: not on the device")
-            del WIZARD[input_id]
-    PLATFORMS[:] = [
-        row if row[2] in c.keys else (*row[:2], None, None, row[4]) for row in PLATFORMS
-    ]
-    PLATFORMS[:] = [row for row in PLATFORMS if row[0] or row[2]]
+    rows: list[Row] = []
+    for row in [*PLATFORMS, WIZARD_BUTTON]:
+        if row.wiz and row.wiz not in c.keys:
+            print(f"  skipping {row.wiz}: not on the device")
+            row = row._replace(wiz=None, input_id=None)
+        if row.fix or row.wiz:
+            rows.append(row)
+    wizard = [row for row in rows if row.wiz]
     c.send(20)  # SubscribeStatesRequest
     c.report(c.pump(3), "INIT")
     c.send(34)  # SubscribeHomeassistantServicesRequest
     c.pump(1)
     c.send(38)  # SubscribeHomeAssistantStatesRequest
     expected = sorted(
-        s.format(eid) for fix, eid, _, _, p in PLATFORMS if fix for s in SUBS[p]
+        s.format(r.fix_id) for r in rows if r.fix for s in SUBS[r.platform]
     )
     subs = c.collect("A", lambda o: len(o["SUB"]) >= len(expected), 10, 2)["SUB"]
     c.check(
@@ -473,25 +408,23 @@ def main() -> None:
                 )  # Home Assistant echoes the change
                 c.collect(f"{label}-echo {name}", None, 1.5)
 
-    fixed = [(fix, eid, p) for fix, eid, _, _, p in PLATFORMS if fix]
+    fixed = [(r.fix, r.fix_id, r.platform) for r in rows if r.fix]
     fixed += [
         ("HA button", "button.doorbell", "button"),
         ("HA input", "input_button.chime", "button"),
     ]
-    wiz = [(name, None, p) for _, _, name, _, p in PLATFORMS if name] + [
-        ("HA wizard", None, "button")
-    ]
+    wiz = [(r.wiz, None, r.platform) for r in wizard]
     print("== A: fixed entities, wizard inputs not set")
     drive("A", fixed + wiz, 1, ["sensor.wiz_one", "climate.wiz_one"])
 
     def set_all(label: str, idx: int) -> dict[str, str]:
         ids = {}
-        for input_id, (name, one, two) in WIZARD.items():
-            eid = one if idx == 1 else two
+        for row in wizard:
+            name = row.wiz
+            eid = row.one if idx == 1 else row.two
             ids[name] = eid
-            c.wizard(input_id, eid)
-            platform = next((p for _, _, n, _, p in PLATFORMS if n == name), "button")
-            want = sorted(s.format(eid) for s in SUBS.get(platform, []))
+            c.wizard(row.input_id, eid)
+            want = sorted(s.format(eid) for s in SUBS[row.platform])
             n_want = len(want)
             if want:
                 subs = c.collect(
@@ -513,7 +446,7 @@ def main() -> None:
     ids = set_all("B", 1)
     drive("B", [(name, ids[name], p) for name, _, p in wiz], 2, [])
     print("== C: wizard inputs changed to the second IDs")
-    old = [one for _, one, _ in WIZARD.values()]
+    old = [row.one for row in wizard]
     ids = set_all("C", 2)
     drive("C", [(name, ids[name], p) for name, _, p in wiz], 3, old)
     print("== D: invalid ID rejected")
@@ -534,14 +467,11 @@ def main() -> None:
     print("== E: a new connection gets every subscription with the current IDs")
     c.sock.close()
     c2 = Client(parser.parse_args().host)
-    c2.send(1, f_bytes(1, "hadrive2") + f_varint(2, 1) + f_varint(3, 14))
-    c2.pump(10, until=2)
-    c2.send(3)
-    c2.pump(1)
+    c2.login("hadrive2", list_entities=False)
     c2.send(38)
     expected = sorted(
-        [s.format(eid) for fix, eid, _, _, p in PLATFORMS if fix for s in SUBS[p]]
-        + [s.format(ids[n]) for _, _, n, _, p in PLATFORMS if n for s in SUBS[p]]
+        [s.format(r.fix_id) for r in rows if r.fix for s in SUBS[r.platform]]
+        + [s.format(ids[r.wiz]) for r in wizard for s in SUBS[r.platform]]
     )
     subs = c2.collect("E", lambda o: len(o["SUB"]) >= len(expected), 10, 2)["SUB"]
     c.check(

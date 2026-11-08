@@ -5,25 +5,14 @@ Sends on and off states for both IDs and prints what the device publishes after 
 "L wiz". A light publishes only changes, so a repeated state shows nothing.
 """
 
-import struct
 import sys
 
-from hadrive import LIST_TYPES, Client, f_bytes, f_varint, fields
+from hadrive import Client
 
 
 def main() -> None:
     c = Client(sys.argv[1])
-    c.send(
-        1, f_bytes(1, "lightcheck") + f_varint(2, 1) + f_varint(3, 14)
-    )  # HelloRequest, API 1.14
-    c.pump(10, until=2)
-    c.send(3)  # ConnectRequest
-    c.pump(1)
-    c.send(11)  # ListEntitiesRequest
-    for msg_type, payload in c.pump(10, until=19):
-        if msg_type in LIST_TYPES:
-            d = dict(fields(payload))
-            c.names[struct.unpack("<I", d[2])[0]] = d[3].decode()
+    c.login("lightcheck")
     c.send(20)  # SubscribeStatesRequest
     c.collect("init", None, 3)
     c.send(38)  # SubscribeHomeAssistantStatesRequest
