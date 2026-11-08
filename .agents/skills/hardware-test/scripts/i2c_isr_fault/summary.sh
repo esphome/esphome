@@ -6,5 +6,5 @@ for f in "$@"; do
   echo "   sw=$(grep -a -c 'software timeout' "$f") hw=$(grep -a -c 'hardware timeout detected' "$f") trans=$(grep -a -c 'transaction timeout detected' "$f") busy=$(grep -a -c 'still busy' "$f") ina_garbage_lines=$(grep -a -c 'INA bus voltage garbage' "$f")"
   grep -a 'MASTER' "$f" | tail -1 | sed 's/^.*MASTER/   MASTER/'
   grep -a 'SLAVE' "$f" | tail -1 | sed 's/^.*SLAVE/   SLAVE/'
-  echo "   ok per 30s window (min over windows after arm): $(grep -a MASTER "$f" | sed 's/.* ok=\([0-9]*\).*/\1/' | awk 'NR>2{d=$1-p; if(min==""||d<min)min=d} {p=$1} END{print min}')"
+  echo "   ok per 30s window (min over windows after arm): $(grep -a MASTER "$f" | sed 's/.* ok=\([0-9]*\).*/\1/' | awk 'NR>2{d=$1-p; if(min==""||d<min)min=d} {p=$1} END{print (min == "" ? "n/a (fewer than 3 MASTER windows)" : min)}')"
 done

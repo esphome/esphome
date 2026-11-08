@@ -28,10 +28,18 @@ def with_platform(args: list[str]) -> list[str]:
         return args
     found = list((Path.home() / ".platformio" / "platforms").glob("libretiny*"))
     platforms = [p for p in found if _version(p)]
+    for p in found:
+        if p not in platforms:
+            print(
+                f"lt_platform: skipped {p} (no numeric version in platform.json)",
+                file=sys.stderr,
+            )
     if not platforms:
         print(
             f"lt_platform: no versioned LibreTiny platform in {[str(p) for p in found]}, using ltchiptool's default",
             file=sys.stderr,
         )
         return args
-    return ["-L", str(max(platforms, key=_version)), *args]
+    chosen = max(platforms, key=_version)
+    print(f"lt_platform: using {chosen}", file=sys.stderr)
+    return ["-L", str(chosen), *args]

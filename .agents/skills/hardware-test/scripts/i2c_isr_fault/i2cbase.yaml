@@ -74,6 +74,11 @@ interval:
             inasim::p_fault = ${p_fault};
             inasim::fault_mask = ${fault_mask};
             inasim::hold_max_ms = ${hold_max_ms};
+            // The ISR picks faults until one is in the mask, so an empty mask would spin there forever
+            if (inasim::p_fault && !(inasim::fault_mask & ((1u << inasim::F_COUNT) - 1))) {
+              ESP_LOGE("inasim", "fault_mask 0x%x selects no fault, faults not armed", (unsigned) inasim::fault_mask);
+              return;
+            }
             inasim::armed = true;
             ESP_LOGI("inasim", "faults armed p=%u/1000 mask=0x%x", (unsigned) inasim::p_fault, (unsigned) inasim::fault_mask);
           }
