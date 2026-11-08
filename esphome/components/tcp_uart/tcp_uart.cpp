@@ -370,10 +370,19 @@ void TcpUart::write_array(const uint8_t *data, size_t len) {
   if (queued < len) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
+      // With clients open, writes find no connection before the first turn and after the last holder closed.
+      ESP_LOGW(TAG, "%s, dropped %u bytes",
+               link != nullptr && link->connected() ? LOG_STR_LITERAL("TX buffer full")
+               : this->is_connected()               ? LOG_STR_LITERAL("No connection holds the turn")
+                                                    : LOG_STR_LITERAL("Not connected"),
+               static_cast<unsigned>(len - queued));
+#else
       ESP_LOGW(
           TAG, "%s, dropped %u bytes",
           link != nullptr && link->connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
           static_cast<unsigned>(len - queued));
+#endif
       this->last_drop_log_ms_ = now;
     }
   }
