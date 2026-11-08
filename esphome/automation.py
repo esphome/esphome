@@ -1461,13 +1461,14 @@ async def choose_action_to_code(
     return var
 
 
-def _has_lambda(value: Any) -> bool:
-    if isinstance(value, Lambda):
+def _config_any(value: Any, test: Callable[[Any], bool]) -> bool:
+    """Whether ``test`` holds for ``value`` or any value nested in its dicts and lists."""
+    if test(value):
         return True
     if isinstance(value, dict):
-        return any(_has_lambda(v) for v in value.values())
+        return any(_config_any(v, test) for v in value.values())
     if isinstance(value, list):
-        return any(_has_lambda(v) for v in value)
+        return any(_config_any(v, test) for v in value)
     return False
 
 
@@ -1477,7 +1478,7 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
     if (
         body
         and not has_non_synchronous_actions(body)
-        and not _has_lambda(config[CONF_CONDITION])
+        and not _config_any(config[CONF_CONDITION], cg.is_template)
     ):
         _LOGGER.warning(
             "The body of a 'while' loop never waits, so it holds up the rest of the device: "
@@ -1897,11 +1898,9 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
 
 def _options_have_non_synchronous_actions(options: Any) -> bool:
     """Search an action's options for nested action lists, without treating option keys as actions."""
-    if isinstance(options, list):
-        return has_non_synchronous_actions(options)
-    if isinstance(options, dict):
-        return any(_options_have_non_synchronous_actions(v) for v in options.values())
-    return False
+    return _config_any(
+        options, lambda v: isinstance(v, list) and has_non_synchronous_actions(v)
+    )
 
 
 def owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
