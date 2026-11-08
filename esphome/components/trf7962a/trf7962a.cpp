@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
-#include <iterator>
 
 namespace esphome::trf7962a {
 
@@ -256,8 +255,9 @@ void TRF7962A::finish_scan_(const uint8_t *rx) {
   this->miss_count_ = 0;
 
   // The UID arrives LSB first; report it MSB first, as printed on tags
-  const nfc::NfcTagUid uid(std::make_reverse_iterator(rx + INVENTORY_RESPONSE_LENGTH),
-                           std::make_reverse_iterator(rx + 2));
+  nfc::NfcTagUid uid;
+  for (uint8_t i = INVENTORY_RESPONSE_LENGTH; i > 2; i--)
+    uid.push_back(rx[i - 1]);
 
   if (tag_present) {
     const auto &current = this->tag_.get_uid();
