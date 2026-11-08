@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_ESP32
+#include <cmath>
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -37,6 +38,9 @@ class MainControlUnitHub : public FendtCaravanHubBase, public Parented<FendtCara
 
  private:
   int hs_key_state_ = -1;
+  // Latest reported values, published by update()
+  float temp_in_{NAN};
+  float temp_out_{NAN};
 };
 }  // namespace esphome::fendt_caravan
 #endif

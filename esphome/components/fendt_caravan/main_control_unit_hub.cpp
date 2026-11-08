@@ -29,15 +29,12 @@ void MainControlUnitHub::dump_config() {
   LOG_TEXT_SENSOR(TAG, "  Panel Version", this->panel_version_text_sensor_);
 }
 
+// The panel reports temperatures many times a second; publish only the latest one once per update interval
 void MainControlUnitHub::update() {
-  if (this->temp_in_sensor_) {
-    float state = this->temp_in_sensor_->state;
-    this->temp_in_sensor_->publish_state(state);
-  }
-  if (this->temp_out_sensor_) {
-    float state = this->temp_out_sensor_->state;
-    this->temp_out_sensor_->publish_state(state);
-  }
+  if (this->temp_in_sensor_ != nullptr && !std::isnan(this->temp_in_))
+    this->temp_in_sensor_->publish_state(this->temp_in_);
+  if (this->temp_out_sensor_ != nullptr && !std::isnan(this->temp_out_))
+    this->temp_out_sensor_->publish_state(this->temp_out_);
 }
 
 void MainControlUnitHub::write_state(switch_::Switch *sw, bool state) {
@@ -76,15 +73,11 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
   ESP_LOGD(TAG, "Handled key: %s, value: %s", key, value);
   switch (static_cast<Key>(i)) {
     case Key::KEY_TEMP_IN: {
-      float temp_in_state = DeviceDecoders::decode_float(value);
-      if (this->temp_in_sensor_ != nullptr)
-        this->temp_in_sensor_->state = temp_in_state;
+      this->temp_in_ = DeviceDecoders::decode_float(value);
       break;
     }
     case Key::KEY_TEMP_OUT: {
-      float temp_out_state = DeviceDecoders::decode_float(value);
-      if (this->temp_out_sensor_ != nullptr)
-        this->temp_out_sensor_->state = temp_out_state;
+      this->temp_out_ = DeviceDecoders::decode_float(value);
       break;
     }
     case Key::KEY_WATER_LEVEL: {
