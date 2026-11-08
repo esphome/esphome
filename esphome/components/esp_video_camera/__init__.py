@@ -57,7 +57,7 @@ CONF_XCLK_PIN = "xclk_pin"
 CONF_XCLK_FREQUENCY = "xclk_frequency"
 CONF_USB_PERIPHERAL_MAP = "usb_peripheral_map"
 
-# Output formats each sensor ships in esp_cam_sensor 2.3.0. A MIPI sensor's size
+# Output formats each sensor ships in esp_cam_sensor 2.6. A MIPI sensor's size
 # is fixed at build time, so `resolution:` picks the CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_*
 # Kconfig choice; where a size has several variants this is the lowest-bandwidth one.
 _SENSOR_FORMATS = {
@@ -88,7 +88,9 @@ _SENSOR_FORMATS = {
 _SENSOR_TUNING = {"sc202cs": "sc202cs.json"}
 
 # Also pinned in esphome/idf_component.yml for the clang-tidy builds.
-_ESP_VIDEO_VERSION = "2.3.0"
+# 2.4.1 is the first release that follows the MIPI-CSI driver rewrite in
+# ESP-IDF 5.5.6. Older ones build but capture no frames at all.
+_ESP_VIDEO_VERSION = "2.5.0"
 
 # The SC2356 module (M5Stack Tab5, reTerminal) is SC202CS silicon behind a
 # different part number, and is driven by the SC202CS driver.
@@ -372,7 +374,7 @@ async def to_code(config):
 
     add_idf_component(name="espressif/esp_video", ref=_ESP_VIDEO_VERSION)
     if uvc:
-        # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
+        # USB-UVC host driver, aligned with esp_video 2.5.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
     # The ISP pipeline controller runs auto white balance and exposure; without it the image is unprocessed.

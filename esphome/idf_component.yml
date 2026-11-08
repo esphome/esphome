@@ -46,7 +46,9 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_video:
-    version: "2.3.0"
+    # 2.4.1 is the first release that follows the MIPI-CSI driver rewrite in
+    # ESP-IDF 5.5.6. Older ones build but capture no frames at all.
+    version: "2.5.0"
     rules:
       - if: "target in [esp32p4]"
   francescopace/espectre:
