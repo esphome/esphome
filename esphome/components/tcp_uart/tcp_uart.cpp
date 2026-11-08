@@ -51,10 +51,11 @@ void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TCP UART:\n"
                 "  %s: %s:%u\n"
-                "  Reconnect Interval: %" PRIu32 "ms",
+                "  Reconnect Interval: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval());
+                this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   if (!this->extra_.empty()) {
     ESP_LOGCONFIG(TAG,
@@ -136,7 +137,8 @@ size_t TcpUart::read_socket_(socket::TcpClientLink &link, size_t limit) {
   }
   size_t room = std::min(RX_BUFFER_SIZE - this->rx_end_, limit);
   if (room == 0) {
-    // Only a read that filled all free space gets here, so rx_pending_ is already set.
+    // Unread bytes are waiting on the consumer. The peer is not idle.
+    this->link_.note_io();
     return 0;
   }
   ssize_t count = link.read(this->rx_ + this->rx_end_, room);
@@ -184,6 +186,7 @@ void TcpUart::loop() {
     this->read_socket_(this->link_);
   }
   this->link_.flush_tx();
+  this->link_.check_idle();
 }
 
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
