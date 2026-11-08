@@ -83,7 +83,7 @@ bool MCP251XFD::configure_() {
     this->write_byte_(REG_INT + 2, INT_RX_ENABLE);
   }
 
-  ESP_LOGD(TAG, "Setup complete");
+  ESP_LOGV(TAG, "Setup complete");
   return true;
 }
 
