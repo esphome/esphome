@@ -264,6 +264,24 @@ TEST(ModbusTcpUartClient, UnknownFunctionCodeIsFramedByItsCrc) {
   EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
 }
 
+TEST(ModbusTcpUartClient, FrameInTwoPiecesTakesTheStrayZerosBehindIt) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  // Frame 02 49 02 AA BB has CRC 0x8FD4, sent low byte first: D4 8F. It comes in two writes, and two stray 0x00
+  // follow it in the second.
+  const uint8_t first[] = {0x02, 0x49, 0x02, 0xAA};
+  const uint8_t second[] = {0xBB, 0xD4, 0x8F, 0x00, 0x00};
+  link.write_array(first, sizeof(first));
+  EXPECT_EQ(pipe.n_, 0u);
+  link.write_array(second, sizeof(second));
+  // Both 0x00 keep the CRC at 0, so they end the frame: the PDU carries both CRC bytes, and no byte stays held.
+  // MBAP header: transaction 1, protocol 0, length 7 for unit 2 and the 6 PDU bytes 49 02 AA BB D4 8F.
+  const uint8_t want[] = {0x00, 0x01, 0, 0, 0, 7, 2, 0x49, 0x02, 0xAA, 0xBB, 0xD4, 0x8F};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+  EXPECT_EQ(link.held(), 0u);
+}
+
 TEST(ModbusTcpUartClient, NoRoomWhileAWholeFrameWaitsForTheTransport) {
   Pipe pipe;
   pipe.room_ = 0;

@@ -172,6 +172,43 @@ TEST(MbapTest, TakeRtuTakesTheZeroThatEndsACrc) {
   EXPECT_EQ(len, sizeof(frame));
 }
 
+TEST(MbapTest, TakeRtuTakesStrayZerosIntoTheFrame) {
+  // Frame 02 49 02 AA BB has CRC 0x8FD4, sent low byte first: D4 8F. Two stray 0x00 follow in the same read.
+  const uint8_t bytes[] = {0x02, 0x49, 0x02, 0xAA, 0xBB, 0xD4, 0x8F, 0x00, 0x00};
+  ASSERT_EQ(crc16(bytes, 5), 0x8FD4);
+  // A 0x00 behind a frame keeps the CRC at 0, so it checks after 7, 8 and 9 bytes. The last match ends the frame:
+  // all 9 bytes, as a reply and as a request.
+  size_t len = 0;
+  ASSERT_EQ(take_rtu(bytes, sizeof(bytes), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 9u);
+  ASSERT_EQ(take_rtu(bytes, sizeof(bytes), false, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 9u);
+}
+
+TEST(MbapTest, TakeRtuGoesOnPastAMatchAtFourBytes) {
+  // Frame 02 49 C1 has CRC 0x0026, sent low byte first: 26 00. One stray 0x00 follows in the same read.
+  const uint8_t bytes[] = {0x02, 0x49, 0xC1, 0x26, 0x00, 0x00};
+  ASSERT_EQ(crc16(bytes, 3), 0x0026);
+  // Its CRC ends in 0x00: after the low byte 26 the running CRC equals the high byte 00, so it already checks after
+  // 4 bytes, the first length the scan tries, and again after 5 and 6. The last match ends the frame: all 6 bytes.
+  size_t len = 0;
+  ASSERT_EQ(take_rtu(bytes, sizeof(bytes), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 6u);
+}
+
+TEST(MbapTest, TakeRtuSplitsTwoFramesAfterTheZerosBetweenThem) {
+  // Two replies in one read: 02 49 02 AA BB with CRC D4 8F, two stray 0x00, then 03 49 01 CC with CRC D0 73.
+  const uint8_t bytes[] = {0x02, 0x49, 0x02, 0xAA, 0xBB, 0xD4, 0x8F, 0x00, 0x00, 0x03, 0x49, 0x01, 0xCC, 0xD0, 0x73};
+  // Both 0x00 keep the CRC at 0, so the first frame takes them: 9 bytes. The address 03 then moves the CRC off 0,
+  // and no later length checks.
+  size_t len = 0;
+  ASSERT_EQ(take_rtu(bytes, sizeof(bytes), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 9u);
+  // The second reply then starts the buffer and is taken on its own: 6 bytes.
+  ASSERT_EQ(take_rtu(bytes + 9, sizeof(bytes) - 9, true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 6u);
+}
+
 TEST(MbapTest, TakeRtuReadsTheByteCountOfAFifoReply) {
   // The Read FIFO Queue reply of [APP 6.18]: byte count 6, FIFO count 2, values 0x01B8 and 0x1284, CRC.
   const uint8_t reply[] = {0x01, 0x18, 0x00, 0x06, 0x00, 0x02, 0x01, 0xB8, 0x12, 0x84, 0x19, 0x18};
