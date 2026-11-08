@@ -1,0 +1,225 @@
+# Classic ESP32 devkit, no LEDs or wires: two esp32_rmt_led_strip strips and an spi_led_strip, read back off their
+# own pads by wire.hpp (RMT RX at 10 MHz, SPI2 DMA slave). The S0..S8 steps log RMT/SPI/GET lines and DONE, then a
+# 300 frame stress counts bad frames. Capture one strip per run, with that strip at 192 symbols (a whole frame);
+# the other run: -s grb_rx -1 -s grbw_rx 17 -s grb_symbols 64 -s grbw_symbols 192. -1 skips that RX channel.
+substitutions:
+  name: led-wire
+  grb_rx: "16"
+  grbw_rx: "-1"
+  grb_symbols: "192"
+  grbw_symbols: "64"
+
+esphome:
+  name: ${name}
+  includes:
+    - wire.hpp
+  on_boot:
+    priority: -100
+    then:
+      - delay: 3s
+      - lambda: wire::init(${grb_rx}, "grb", 7, ${grbw_rx}, "grbw", 4, 18, 23);
+      - script.execute: sequence
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  logs:
+    esp32_rmt_led_strip: INFO
+
+spi:
+  interface: spi3
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+
+output:
+  - platform: template
+    id: out_r
+    type: float
+    write_action:
+      - logger.log:
+          format: "OUT r %.4f"
+          args: [state]
+  - platform: template
+    id: out_g
+    type: float
+    write_action:
+      - logger.log:
+          format: "OUT g %.4f"
+          args: [state]
+  - platform: template
+    id: out_b
+    type: float
+    write_action:
+      - logger.log:
+          format: "OUT b %.4f"
+          args: [state]
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: s_grb
+    name: GRB strip
+    chipset: ws2812
+    rgb_order: GRB
+    num_leds: 6
+    pin: GPIO16
+    rmt_symbols: ${grb_symbols}
+    default_transition_length: 0s
+    color_correct: [90%, 80%, 70%]
+    effects:
+      - addressable_lambda:
+          name: Pattern
+          update_interval: 100ms
+          lambda: |-
+            if (!initial_run) return;
+            for (int i = 0; i < it.size(); i++)
+              it[i] = Color(i * 30, 255 - i * 20, i * 7);
+            it[-1].set_hsv(ESPHSVColor(100, 200, 150));
+  - platform: esp32_rmt_led_strip
+    id: s_grbw
+    name: GRBW strip
+    chipset: sk6812
+    rgb_order: GRB
+    is_rgbw: true
+    num_leds: 4
+    pin: GPIO17
+    rmt_symbols: ${grbw_symbols}
+    default_transition_length: 0s
+    power_estimation:
+      ma_per_led_red: 16.0
+      ma_per_led_green: 11.0
+      ma_per_led_blue: 15.0
+      ma_per_led_white: 20.0
+      idle_ma_per_led: 1.0
+      max_current_ma: 60.0
+  - platform: spi_led_strip
+    id: s_spi
+    name: SPI strip
+    num_leds: 5
+    data_rate: 1MHz
+    default_transition_length: 0s
+  - platform: rgb
+    id: single
+    name: Single
+    red: out_r
+    green: out_g
+    blue: out_b
+    default_transition_length: 0s
+  - platform: partition
+    id: part
+    name: Partition
+    default_transition_length: 0s
+    segments:
+      - id: s_grb
+        from: 0
+        to: 3
+      - id: s_grbw
+        from: 1
+        to: 3
+        reversed: true
+      - single_light_id: single
+      - id: s_spi
+        from: 1
+        to: 2
+
+script:
+  - id: stress
+    then:
+      - light.turn_on: {id: s_grb, red: 100%, green: 50%, blue: 25%, brightness: 80%}
+      - light.turn_on: {id: s_grbw, red: 20%, green: 40%, blue: 60%, white: 100%, brightness: 100%}
+      - delay: 300ms
+      - repeat:
+          count: 300
+          then:
+            - lambda: |-
+                wire::arm();
+                static_cast<light::AddressableLight *>(id(s_grb).get_output())->schedule_show();
+                static_cast<light::AddressableLight *>(id(s_grbw).get_output())->schedule_show();
+            - delay: 40ms
+            - lambda: wire::stress_step();
+      - lambda: wire::stress_report();
+  - id: dump
+    parameters:
+      step: string
+    then:
+      - delay: 500ms
+      - lambda: |-
+          const char *s = step.c_str();
+          wire::report(s);
+          wire::readback(s, "grb", id(s_grb));
+          wire::readback(s, "grbw", id(s_grbw));
+          wire::readback(s, "spi", id(s_spi));
+          ESP_LOGI("wire", "DONE %s", s);
+          wire::arm();
+  - id: sequence
+    then:
+      - lambda: wire::arm();
+      - script.execute: {id: dump, step: S0_boot}
+      - script.wait: dump
+      - light.turn_on: {id: s_grb, red: 100%, green: 50%, blue: 25%, brightness: 80%}
+      - light.turn_on: {id: s_grbw, red: 20%, green: 40%, blue: 60%, white: 100%, brightness: 100%}
+      - light.turn_on: {id: s_spi, red: 0%, green: 100%, blue: 50%, brightness: 50%}
+      - script.execute: {id: dump, step: S1_on}
+      - script.wait: dump
+      - light.addressable_set: {id: s_grb, range_from: 2, range_to: 4, red: 100%, green: 20%, blue: 0%}
+      - light.addressable_set: {id: s_grbw, range_from: 1, range_to: 1, red: 0%, green: 0%, blue: 100%, white: 30%}
+      - light.addressable_set: {id: s_spi, range_from: 4, range_to: 4, red: 10%, green: 70%, blue: 90%}
+      - script.execute: {id: dump, step: S2_addrset}
+      - script.wait: dump
+      - lambda: |-
+          auto *a = static_cast<light::AddressableLight *>(id(s_grb).get_output());
+          (*a)[0] = Color(200, 10, 60);
+          (*a)[-2] = (*a)[-2].get() + Color(20, 20, 20);
+          a->range(1, 3).fade_to_black(64);
+          (*a)[4].darken(30);
+          (*a)[5].lighten(40);
+          a->shift_left(1);
+          a->schedule_show();
+          auto *w = static_cast<light::AddressableLight *>(id(s_grbw).get_output());
+          for (auto view : *w)
+            view.set_white(view.get_white() / 2 + 10);
+          (*w)[0].set_rgbw(1, 2, 3, 4);
+          (*w)[3] = (*w)[1].get();
+          w->range(2, 4) = Color(90, 80, 70, 60);
+          w->shift_right(1);
+          w->schedule_show();
+          auto *p = static_cast<light::AddressableLight *>(id(s_spi).get_output());
+          (*p)[0].fade_to_white(100);
+          (*p)[1].set_red(33);
+          (*p)[2].set_hsv(ESPHSVColor(10, 255, 255));
+          p->all().darken(5);
+          p->schedule_show();
+      - script.execute: {id: dump, step: S3_lambda}
+      - script.wait: dump
+      - light.turn_on: {id: part, red: 90%, green: 10%, blue: 30%, brightness: 70%}
+      - script.execute: {id: dump, step: S4_partition}
+      - script.wait: dump
+      - lambda: |-
+          auto *a = static_cast<light::AddressableLight *>(id(part).get_output());
+          for (int i = 0; i < a->size(); i++)
+            (*a)[i] = Color(i * 20, 100, 255 - i * 15, 5);
+          (*a)[-1] = Color(1, 2, 3);
+          a->schedule_show();
+          ESP_LOGI("peek", "PART size %d", (int) a->size());
+          wire::readback("S5_partlambda", "part", id(part));
+      - script.execute: {id: dump, step: S5_partlambda}
+      - script.wait: dump
+      - light.turn_on: {id: s_grb, effect: Pattern}
+      - delay: 1s
+      - light.turn_on: {id: s_grb, effect: None}
+      - script.execute: {id: dump, step: S6_effect}
+      - script.wait: dump
+      - light.turn_on: {id: s_grbw, brightness: 40%, red: 100%, green: 100%, blue: 100%, white: 100%}
+      - script.execute: {id: dump, step: S7_power}
+      - script.wait: dump
+      - light.turn_off: s_grb
+      - light.turn_off: s_grbw
+      - light.turn_off: s_spi
+      - light.turn_off: part
+      - script.execute: {id: dump, step: S8_off}
+      - script.wait: dump
+      - logger.log: "SEQUENCE END"
+      - script.execute: stress

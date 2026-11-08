@@ -64,12 +64,14 @@ class Tuya : public Component {
   void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
+  void set_string_datapoint_value(uint8_t datapoint_id, const char *value);
   void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
   void set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
   void force_set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void force_set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void force_set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
   void force_set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
+  void force_set_string_datapoint_value(uint8_t datapoint_id, const char *value);
   void force_set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
   void force_set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
@@ -87,7 +89,7 @@ class Tuya : public Component {
   void dump_datapoints_();
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
                                     uint8_t length, bool forced);
-  void set_string_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool forced);
+  void set_string_datapoint_value_(uint8_t datapoint_id, const char *value, size_t len, bool forced);
   void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   /// Deliver a datapoint value to the MCU over the subclass's transport.
   virtual void send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
