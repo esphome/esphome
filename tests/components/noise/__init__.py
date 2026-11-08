@@ -14,6 +14,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_NOISE_SPARE_EPHEMERAL")
         # The stream gtests link the filtered stream source, with a key set at runtime.
         noise.require_stream()
+        cg.add_define("USE_NOISE_STREAM_INITIATOR")
+        cg.add_define("USE_NOISE_STREAM_RESPONDER")
         cg.add_define("USE_NOISE_STREAM_RUNTIME_KEY")
         # One stream gtest reads the log.
         logger.request_log_listener()

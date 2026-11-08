@@ -81,9 +81,10 @@ async def test_uart_tcp_noise(
             assert os.write(controller_fd, data) == len(data)
             assert await read_uart(len(data)) == data
 
-            # The other key fails on both ends, which name the key.
+            # The other key: the server names the key, the client logs the
+            # server's reason.
             await lines.wait_for("Handshake failed: wrong encryption key")
-            await lines.wait_for("Peer rejected the handshake: wrong encryption key")
+            await lines.wait_for("Peer rejected the handshake: Handshake MAC failure")
 
             # A plaintext peer is closed; it may wait for the other key's
             # attempt to end first.

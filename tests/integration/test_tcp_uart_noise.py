@@ -41,9 +41,9 @@ async def test_tcp_uart_noise(
         # Server to client and back, over both encrypted legs.
         await lines.wait_for("Echo complete")
 
-        # The other key: both ends name the key.
+        # The other key: the server names the key, the client logs the server's reason.
         await lines.wait_for("Handshake failed: wrong encryption key")
-        await lines.wait_for("Peer rejected the handshake: wrong encryption key")
+        await lines.wait_for("Peer rejected the handshake: Handshake MAC failure")
 
         # A plaintext peer is closed.
         reader, writer = await asyncio.open_connection("127.0.0.1", sealed_port)

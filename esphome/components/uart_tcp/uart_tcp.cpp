@@ -13,15 +13,10 @@ ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
-#ifdef USE_NOISE_STREAM
-  if (this->noise_ != nullptr) {
-    this->noise_->set_log_tag(TAG);
 #ifdef USE_NOISE_STREAM_RUNTIME_KEY
-    // Without a key the link stays closed: a client does not dial, a server does not listen
-    if (!this->noise_->load_key()) {
-      this->disable_loop();
-    }
-#endif
+  // Without a key the link stays closed: a client does not dial, a server does not listen
+  if (this->noise_ != nullptr && !this->noise_->load_key()) {
+    this->disable_loop();
   }
 #endif
 #ifdef USE_SOCKET_TCP_LISTENER
@@ -177,7 +172,6 @@ void UartTcp::loop() {
   if (!this->link_was_up_) {
     return;
   }
-  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }

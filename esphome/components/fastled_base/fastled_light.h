@@ -24,6 +24,9 @@ class FastLEDLightOutput final : public light::AddressableLight {
 
   inline int32_t size() const override { return this->num_leds_; }
 
+  /// `effect_data` holds one byte per LED, a static array from code generation
+  void set_effect_data(uint8_t *effect_data) { this->internal_accessor_.effect_data = effect_data; }
+
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 

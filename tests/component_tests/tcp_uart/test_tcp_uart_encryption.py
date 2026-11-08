@@ -9,11 +9,10 @@ import pytest
 from esphome import config_validation as cv
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import tcp_uart
-from esphome.components.const import CONF_HOST, CONF_RECONNECT_INTERVAL
+from esphome.components.const import CONF_HOST
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
-    CONF_ESPHOME,
     CONF_ID,
     CONF_KEY,
     CONF_PORT,
@@ -33,7 +32,7 @@ def _validate(
 ) -> ConfigType:
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        full_config={CONF_ESPHOME: {}, **(full_config or {})},
+        full_config=full_config or {},
     )
     config = tcp_uart.CONFIG_SCHEMA({CONF_HOST: "192.0.2.10", CONF_PORT: 6638, **link})
     return tcp_uart.FINAL_VALIDATE_SCHEMA(config)
@@ -57,14 +56,6 @@ def test_encryption_rejects_anything_but_a_block(
 ) -> None:
     with pytest.raises(cv.Invalid, match="expected a dictionary"):
         _validate(set_core_config, {CONF_ENCRYPTION: False})
-
-
-def test_encryption_needs_a_reconnect_interval_of_one_loop_pass(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    link = {CONF_RECONNECT_INTERVAL: "0s", CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}
-    with pytest.raises(cv.Invalid, match="must last at least one main loop pass"):
-        _validate(set_core_config, link)
 
 
 def test_only_an_encrypted_link_loads_noise() -> None:

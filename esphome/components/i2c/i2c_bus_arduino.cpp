@@ -18,7 +18,7 @@ void ArduinoI2CBus::setup() {
   this->recover_();
 
 #if defined(USE_ESP8266)
-  wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
+  this->wire_ = &Wire;  // TwoWire state is static on ESP8266, so every bus shares the global instance
 #elif defined(USE_RP2)
   // Select Wire instance based on pin assignment, not definition order.
   // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1

@@ -117,10 +117,10 @@ class UartTcpNoise : public ::testing::Test {
   }
 
   NoiseFakeUart uart_;
-  noise::NoiseStream bridge_stream_{KEY, true};
+  noise::NoiseStream bridge_stream_{"uart_tcp", KEY, true};
   UartTcp bridge_;
   binary_sensor::BinarySensor sensor_;
-  noise::NoiseStream peer_stream_{KEY, false};
+  noise::NoiseStream peer_stream_{"peer", KEY, false};
   socket::TcpClientLink peer_;
   int listen_fd_{-1};
   uint32_t now_{100000};

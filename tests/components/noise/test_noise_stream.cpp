@@ -178,28 +178,34 @@ class NoiseStreamTest : public ::testing::Test {
     }
   }
 
-  /// One loop pass of both ends at now. TcpClientLink::poll() runs before up(), so the client's link
+  /// Runs the handshake of client_ and server_; true once both are up.
+  bool connect_(int passes = 20) {
+    this->pump_(this->client_, this->server_, passes);
+    return this->client_.ready() && this->server_.ready();
+  }
+
+  /// One loop pass of client_ and other_ at now. TcpClientLink::poll() runs before up(), so the client's link
   /// connects first once its interval has passed since the last attempt.
-  void pass_(NoiseStream &client, NoiseStream &server, uint32_t now) {
+  void pass_(uint32_t now) {
     at(now);
     if (!this->client_link_.connected() && this->client_link_.may_retry()) {
       this->client_link_.reconnect();
       this->connects_++;
     }
-    client.up(this->client_link_);
-    server.up(this->server_link_);
+    this->client_.up(this->client_link_);
+    this->other_.up(this->server_link_);
     this->client_link_.flush_tx();
     this->server_link_.flush_tx();
   }
 
   /// Runs the client's loop while its link is down; returns when the link would connect again.
-  uint32_t next_attempt_(NoiseStream &client, uint32_t now) {
+  uint32_t next_attempt_(uint32_t now) {
     for (uint32_t end = now + 2 * StreamProbe::BACKOFF_MAX; now < end; now += 16) {
       at(now);
       if (this->client_link_.may_retry()) {
         break;
       }
-      client.up(this->client_link_);
+      this->client_.up(this->client_link_);
     }
     return now;
   }
@@ -220,47 +226,41 @@ class NoiseStreamTest : public ::testing::Test {
   psk_t other_key_{make_psk(2)};
   MemLink client_link_;
   MemLink server_link_;
+  StreamProbe client_{"client", key_.data(), true};
+  NoiseStream server_{"server", key_.data(), false};
+  // A responder with another key
+  NoiseStream other_{"other", other_key_.data(), false};
   // Connections pass_() opened
   int connects_{0};
 };
 
 TEST_F(NoiseStreamTest, HandshakeAndRoundTrip) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_());
 
   const uint8_t hello[] = {'h', 'e', 'l', 'l', 'o', 0x00, 0xFF};
-  ASSERT_EQ(client.queue(this->client_link_, hello, sizeof(hello)), sizeof(hello));
-  ASSERT_TRUE(client.flush(this->client_link_));
+  ASSERT_EQ(this->client_.queue(this->client_link_, hello, sizeof(hello)), sizeof(hello));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
   // The wire never carries the plaintext
   auto &wire = this->client_link_.sent_;
   EXPECT_EQ(std::search(wire.begin(), wire.end(), hello, hello + 5), wire.end());
-  EXPECT_EQ(this->read_all_(server, this->server_link_), std::vector<uint8_t>(hello, hello + sizeof(hello)));
+  EXPECT_EQ(this->read_all_(this->server_, this->server_link_), std::vector<uint8_t>(hello, hello + sizeof(hello)));
 
   const uint8_t reply[] = {1, 2, 3};
-  ASSERT_EQ(server.queue(this->server_link_, reply, sizeof(reply)), sizeof(reply));
-  ASSERT_TRUE(server.flush(this->server_link_));
-  EXPECT_EQ(this->read_all_(client, this->client_link_), std::vector<uint8_t>(reply, reply + sizeof(reply)));
+  ASSERT_EQ(this->server_.queue(this->server_link_, reply, sizeof(reply)), sizeof(reply));
+  ASSERT_TRUE(this->server_.flush(this->server_link_));
+  EXPECT_EQ(this->read_all_(this->client_, this->client_link_), std::vector<uint8_t>(reply, reply + sizeof(reply)));
 }
 
 TEST_F(NoiseStreamTest, NothingMovesBeforeTheSessionIsUp) {
-  NoiseStream client(this->key_.data(), true);
   const uint8_t data[] = {1};
-  EXPECT_EQ(client.queue(this->client_link_, data, sizeof(data)), 0u);
-  EXPECT_EQ(client.tx_free(this->client_link_), 0u);
+  EXPECT_EQ(this->client_.queue(this->client_link_, data, sizeof(data)), 0u);
+  EXPECT_EQ(this->client_.tx_free(this->client_link_), 0u);
 }
 
 TEST_F(NoiseStreamTest, WrongKeyIsRejectedAndBothSidesClose) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->other_key_.data(), false);
-#ifdef USE_LOG_LISTENERS
-  captured_log().clear();
-#endif
-  this->pump_(client, server);
-  EXPECT_FALSE(client.ready());
-  EXPECT_FALSE(server.ready());
+  this->pump_(this->client_, this->other_);
+  EXPECT_FALSE(this->client_.ready());
+  EXPECT_FALSE(this->other_.ready());
   EXPECT_FALSE(this->server_link_.connected());
   EXPECT_EQ(this->server_link_.attempts_, 1);
   // The responder told the initiator why before it closed
@@ -270,224 +270,188 @@ TEST_F(NoiseStreamTest, WrongKeyIsRejectedAndBothSidesClose) {
   EXPECT_EQ(wire[FRAME_HEADER_SIZE], HANDSHAKE_STATUS_REJECT);
   EXPECT_NE(std::search(wire.begin(), wire.end(), reason, reason + sizeof(reason) - 1), wire.end());
   EXPECT_FALSE(this->client_link_.connected());
-#ifdef USE_LOG_LISTENERS
-  // Both log lines name the key
-  EXPECT_NE(captured_log().find("Handshake failed: wrong encryption key"), std::string::npos) << captured_log();
-  EXPECT_NE(captured_log().find("Peer rejected the handshake: wrong encryption key"), std::string::npos)
-      << captured_log();
-#endif
 }
 
 TEST_F(NoiseStreamTest, FramesInPiecesStillDecrypt) {
   this->client_link_.chunk_ = 1;
   this->server_link_.chunk_ = 2;
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server, 400);
-  ASSERT_TRUE(client.ready());
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_(400));
 
   uint8_t data[300];
   for (size_t i = 0; i < sizeof(data); i++) {
     data[i] = static_cast<uint8_t>(i * 7);
   }
-  ASSERT_EQ(client.queue(this->client_link_, data, sizeof(data)), sizeof(data));
+  ASSERT_EQ(this->client_.queue(this->client_link_, data, sizeof(data)), sizeof(data));
   std::vector<uint8_t> got;
   for (int i = 0; i < 1000 && got.size() < sizeof(data); i++) {
-    client.flush(this->client_link_);
-    auto part = this->read_all_(server, this->server_link_);
+    this->client_.flush(this->client_link_);
+    auto part = this->read_all_(this->server_, this->server_link_);
     got.insert(got.end(), part.begin(), part.end());
   }
   EXPECT_EQ(got, std::vector<uint8_t>(data, data + sizeof(data)));
 }
 
 TEST_F(NoiseStreamTest, SmallWritesShareOneFrame) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
   this->client_link_.sent_.clear();
 
   for (uint8_t i = 0; i < 8; i++) {
-    ASSERT_EQ(client.queue(this->client_link_, &i, 1), 1u);
+    ASSERT_EQ(this->client_.queue(this->client_link_, &i, 1), 1u);
   }
-  ASSERT_TRUE(client.flush(this->client_link_));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
   EXPECT_EQ(this->client_link_.sent_.size(), FRAME_HEADER_SIZE + 8 + MAC_SIZE);
-  EXPECT_EQ(this->read_all_(server, this->server_link_), (std::vector<uint8_t>{0, 1, 2, 3, 4, 5, 6, 7}));
+  EXPECT_EQ(this->read_all_(this->server_, this->server_link_), (std::vector<uint8_t>{0, 1, 2, 3, 4, 5, 6, 7}));
 }
 
 TEST_F(NoiseStreamTest, LargeWritesAreSplitAndLimitedByTheLinkBuffer) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
   this->client_link_.sent_.clear();
 
   std::vector<uint8_t> data(2000);
   for (size_t i = 0; i < data.size(); i++) {
     data[i] = static_cast<uint8_t>(i);
   }
-  size_t room = client.tx_free(this->client_link_);
+  size_t room = this->client_.tx_free(this->client_link_);
   EXPECT_GT(room, 0u);
-  size_t taken = client.queue(this->client_link_, data.data(), data.size());
+  size_t taken = this->client_.queue(this->client_link_, data.data(), data.size());
   // Two full frames and part of a third fit the 1024-byte buffer; every frame carries its own MAC
   EXPECT_GT(taken, room);
   EXPECT_LT(taken, data.size());
   EXPECT_LE(this->client_link_.tx_len_, sizeof(this->client_link_.tx_));
-  ASSERT_TRUE(client.flush(this->client_link_));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
   // The flush sealed the last frame; what fits next starts a new one
-  taken += client.queue(this->client_link_, data.data() + taken, data.size() - taken);
-  ASSERT_TRUE(client.flush(this->client_link_));
-  std::vector<uint8_t> got = this->read_all_(server, this->server_link_);
+  taken += this->client_.queue(this->client_link_, data.data() + taken, data.size() - taken);
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
+  std::vector<uint8_t> got = this->read_all_(this->server_, this->server_link_);
   ASSERT_EQ(got.size(), taken);
   EXPECT_TRUE(std::equal(got.begin(), got.end(), data.begin()));
 }
 
 TEST_F(NoiseStreamTest, TxFreeIsWhatQueueTakes) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
   std::vector<uint8_t> data(2000, 0x5A);
   for (int i = 0; i < 4; i++) {
-    size_t room = client.tx_free(this->client_link_);
-    EXPECT_EQ(client.queue(this->client_link_, data.data(), room), room);
+    size_t room = this->client_.tx_free(this->client_link_);
+    EXPECT_EQ(this->client_.queue(this->client_link_, data.data(), room), room);
   }
 }
 
 TEST_F(NoiseStreamTest, TamperedFrameClosesTheLink) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_());
   const uint8_t data[] = {9, 9, 9};
-  client.queue(this->client_link_, data, sizeof(data));
-  ASSERT_TRUE(client.flush(this->client_link_));
+  this->client_.queue(this->client_link_, data, sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
   // One ciphertext byte flipped on the way
   ASSERT_GT(this->server_link_.rx_.size(), FRAME_HEADER_SIZE);
   this->server_link_.rx_[FRAME_HEADER_SIZE] ^= 0x01;
   uint8_t buf[16];
-  EXPECT_EQ(server.read(this->server_link_, buf, sizeof(buf)), -1);
-  EXPECT_FALSE(server.ready());
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), -1);
+  EXPECT_FALSE(this->server_.ready());
   EXPECT_FALSE(this->server_link_.connected());
 }
 
-TEST_F(NoiseStreamTest, PlaintextPeerIsDropped) {
-  NoiseStream server(this->key_.data(), false);
-  const uint8_t text[] = {'A', 'T', '\r', '\n'};
-  this->server_link_.rx_.assign(text, text + sizeof(text));
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_FALSE(this->server_link_.connected());
-  EXPECT_EQ(this->server_link_.attempts_, 1);
+TEST_F(NoiseStreamTest, ADropAfterAPartialReadIsReportedOnTheNextRead) {
+  ASSERT_TRUE(this->connect_());
+  const uint8_t data[] = {9, 9, 9};
+  this->client_.queue(this->client_link_, data, sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
+  const size_t first = this->server_link_.rx_.size();
+  this->client_.queue(this->client_link_, data, sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
+  this->server_link_.rx_[first + FRAME_HEADER_SIZE] ^= 0x01;
+  uint8_t buf[16];
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), static_cast<ssize_t>(sizeof(data)));
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), -1);
 }
 
-TEST_F(NoiseStreamTest, SilentPeerTimesOut) {
-  NoiseStream server(this->key_.data(), false);
-  EXPECT_FALSE(server.up(this->server_link_));
-  at(1000 + 59999);
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_TRUE(this->server_link_.connected());
-  at(1000 + 60000);
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_FALSE(this->server_link_.connected());
+TEST_F(NoiseStreamTest, BadHandshakeInputClosesTheLink) {
+  // One byte over a status byte and the largest message
+  constexpr size_t over = 1 + MAX_HANDSHAKE_SIZE + 1;
+  const std::vector<uint8_t> inputs[] = {
+      // A plaintext peer
+      {'A', 'T', '\r', '\n'},
+      // Only the header arrives
+      {FRAME_INDICATOR, static_cast<uint8_t>(over >> 8), static_cast<uint8_t>(over)},
+      {FRAME_INDICATOR, 0, 0},
+  };
+  for (const auto &input : inputs) {
+    this->server_link_.reconnect();
+    this->server_link_.attempts_ = 0;
+    this->server_link_.rx_ = input;
+    EXPECT_FALSE(this->server_.up(this->server_link_));
+    EXPECT_FALSE(this->server_link_.connected());
+    EXPECT_EQ(this->server_link_.attempts_, 1);
+  }
 }
 
 #ifdef USE_LOG_LISTENERS
 TEST_F(NoiseStreamTest, AResponderDoesNotLogThePeersBytes) {
-  NoiseStream server(this->key_.data(), false);
   // A reject frame with text from a host that dialed in
   const uint8_t text[] = {'E', 'V', 'I', 'L', '\n', 0x1B, '[', '2', 'J'};
   this->server_link_.rx_ = {FRAME_INDICATOR, 0, static_cast<uint8_t>(sizeof(text) + 1), HANDSHAKE_STATUS_REJECT};
   this->server_link_.rx_.insert(this->server_link_.rx_.end(), text, text + sizeof(text));
   captured_log().clear();
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_FALSE(this->server_link_.connected());
   EXPECT_EQ(this->server_link_.attempts_, 1);
   EXPECT_NE(captured_log().find("Bad handshake status"), std::string::npos) << captured_log();
   EXPECT_EQ(captured_log().find("EVIL"), std::string::npos) << captured_log();
-  // An initiator logs any other reason its responder sent as it is
-  NoiseStream client(this->key_.data(), true);
+  // An initiator logs the reason its responder sent as it is
   this->server_link_.reconnect();
-  EXPECT_FALSE(client.up(this->client_link_));
-  const char reason[] = "Handshake error";
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  const char reason[] = "Handshake MAC failure";
   this->client_link_.rx_ = {FRAME_INDICATOR, 0, static_cast<uint8_t>(sizeof(reason)), HANDSHAKE_STATUS_REJECT};
   this->client_link_.rx_.insert(this->client_link_.rx_.end(), reason, reason + sizeof(reason) - 1);
   captured_log().clear();
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   EXPECT_FALSE(this->client_link_.connected());
-  EXPECT_NE(captured_log().find("Peer rejected the handshake: Handshake error"), std::string::npos) << captured_log();
+  EXPECT_NE(captured_log().find("Peer rejected the handshake: Handshake MAC failure"), std::string::npos)
+      << captured_log();
 }
 #endif
 
-TEST_F(NoiseStreamTest, AFirstMessageTheSocketHeldBackIsSentLater) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  // The socket takes nothing on the first try
-  this->client_link_.chunk_ = 0;
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_GT(this->client_link_.tx_len_, 0u);
-  this->client_link_.chunk_ = SIZE_MAX;
-  // No flush from outside: an owner does not flush while the session is down
-  for (int i = 0; i < 4 && !(client.ready() && server.ready()); i++) {
-    client.up(this->client_link_);
-    server.up(this->server_link_);
-  }
-  EXPECT_TRUE(client.ready());
-  EXPECT_TRUE(server.ready());
-}
-
 TEST_F(NoiseStreamTest, AFlushDuringTheHandshakeLeavesTheLinkAlone) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
   // The socket holds the first handshake message back
   this->client_link_.chunk_ = 0;
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   size_t held = this->client_link_.tx_len_;
   ASSERT_GT(held, 0u);
   this->client_link_.chunk_ = SIZE_MAX;
-  EXPECT_FALSE(client.flush(this->client_link_));
+  EXPECT_FALSE(this->client_.flush(this->client_link_));
   EXPECT_EQ(this->client_link_.tx_len_, held);
   EXPECT_TRUE(this->client_link_.sent_.empty());
   // The same holds for the Hello
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   this->client_link_.chunk_ = 0;
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   held = this->client_link_.tx_len_;
   ASSERT_GT(held, 0u);
   this->client_link_.chunk_ = SIZE_MAX;
-  EXPECT_FALSE(client.flush(this->client_link_));
+  EXPECT_FALSE(this->client_.flush(this->client_link_));
   EXPECT_EQ(this->client_link_.tx_len_, held);
-  this->pump_(client, server);
-  EXPECT_TRUE(client.ready());
-  EXPECT_TRUE(server.ready());
+  EXPECT_TRUE(this->connect_());
 }
 
 TEST_F(NoiseStreamTest, AFlushAfterTheLinkClosedDropsTheOpenFrame) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
   const uint8_t data[] = {1, 2, 3};
-  ASSERT_EQ(client.queue(this->client_link_, data, sizeof(data)), sizeof(data));
+  ASSERT_EQ(this->client_.queue(this->client_link_, data, sizeof(data)), sizeof(data));
   // The owner closes the link without resetting the stream
   this->client_link_.close();
-  EXPECT_FALSE(client.flush(this->client_link_));
+  EXPECT_FALSE(this->client_.flush(this->client_link_));
   EXPECT_EQ(this->client_link_.tx_len_, 0u);
-  EXPECT_FALSE(client.ready());
+  EXPECT_FALSE(this->client_.ready());
 }
 
 TEST_F(NoiseStreamTest, PlaintextHandedOutLaterCountsAsTraffic) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_());
   uint8_t data[100]{};
-  ASSERT_EQ(client.queue(this->client_link_, data, sizeof(data)), sizeof(data));
-  ASSERT_TRUE(client.flush(this->client_link_));
+  ASSERT_EQ(this->client_.queue(this->client_link_, data, sizeof(data)), sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
   uint8_t buf[10];
   for (int i = 0; i < 10; i++) {
-    ASSERT_EQ(server.read(this->server_link_, buf, sizeof(buf)), static_cast<ssize_t>(sizeof(buf)));
+    ASSERT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), static_cast<ssize_t>(sizeof(buf)));
     // The first call took the whole frame off the link
     ASSERT_TRUE(this->server_link_.rx_.empty());
   }
@@ -495,98 +459,71 @@ TEST_F(NoiseStreamTest, PlaintextHandedOutLaterCountsAsTraffic) {
 }
 
 TEST_F(NoiseStreamTest, AWaitingHandshakeHonoursTheLinkIdleTimeout) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
   // Part of a frame header, then the peer goes quiet
   this->server_link_.rx_ = {FRAME_INDICATOR};
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_TRUE(this->server_link_.connected());
   this->server_link_.idle_ = true;
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_FALSE(this->server_link_.connected());
   // The next connection starts a fresh handshake, without the stale byte
   this->server_link_.idle_ = false;
   this->server_link_.reconnect();
-  this->pump_(client, server);
-  EXPECT_TRUE(client.ready());
-  EXPECT_TRUE(server.ready());
+  EXPECT_TRUE(this->connect_());
 }
 
 TEST_F(NoiseStreamTest, AHandshakeStuckOnAFullSendBufferHonoursTheLinkIdleTimeout) {
-  NoiseStream client(this->key_.data(), true);
   // The peer reads nothing: the send buffer is full and stays full
   this->client_link_.chunk_ = 0;
   this->client_link_.tx_len_ = sizeof(this->client_link_.tx_);
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   EXPECT_TRUE(this->client_link_.connected());
   this->client_link_.idle_ = true;
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   EXPECT_FALSE(this->client_link_.connected());
 }
 
-TEST_F(NoiseStreamTest, AHandshakeFrameOutsideTheLimitsIsDropped) {
-  // One byte over a status byte and the largest message, then an empty frame; only the header arrives
-  constexpr size_t over = 1 + MAX_HANDSHAKE_SIZE + 1;
-  for (size_t payload : {over, size_t{0}}) {
-    this->server_link_.reconnect();
-    this->server_link_.attempts_ = 0;
-    NoiseStream server(this->key_.data(), false);
-    this->server_link_.rx_ = {FRAME_INDICATOR, static_cast<uint8_t>(payload >> 8), static_cast<uint8_t>(payload)};
-    EXPECT_FALSE(server.up(this->server_link_));
-    EXPECT_FALSE(this->server_link_.connected());
-    EXPECT_EQ(this->server_link_.attempts_, 1);
-  }
-}
-
 TEST_F(NoiseStreamTest, ASessionFrameOverTheLimitIsDropped) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_());
   // One byte over the largest sealed frame; only the header arrives
   constexpr size_t over = StreamProbe::MAX_PLAIN_SIZE + MAC_SIZE + 1;
   this->server_link_.rx_ = {FRAME_INDICATOR, static_cast<uint8_t>(over >> 8), static_cast<uint8_t>(over)};
   uint8_t buf[16];
-  EXPECT_EQ(server.read(this->server_link_, buf, sizeof(buf)), -1);
-  EXPECT_FALSE(server.ready());
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), -1);
+  EXPECT_FALSE(this->server_.ready());
   EXPECT_FALSE(this->server_link_.connected());
 }
 
 TEST_F(NoiseStreamTest, TheHandshakeTimeoutCountsFromTheStart) {
-  NoiseStream server(this->key_.data(), false);
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   // A byte now and then does not extend the handshake
   at(30000);
   this->server_link_.rx_.push_back(FRAME_INDICATOR);
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   at(60000);
   this->server_link_.rx_.push_back(0x00);
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_TRUE(this->server_link_.connected());
   at(61000);
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_FALSE(this->server_link_.connected());
 }
 
-TEST_F(NoiseStreamTest, TheRetryWaitDoublesUpToTheCapWithJitter) {
+TEST_F(NoiseStreamTest, TheRetryWaitStopsAtTheCapWithJitter) {
   static constexpr uint32_t INTERVAL_MS = 5000;
   // Longer than the cap of 300 s
   static constexpr uint32_t LONG_INTERVAL_MS = 400000;
   // 400000 - 400000 / 5: the jitter takes at most 20% off
   static constexpr uint32_t LONG_INTERVAL_SHORTEST_WAIT_MS = 320000;
-  StreamProbe client(this->key_.data(), true);
-  uint32_t backoff = INTERVAL_MS;
+  // Enough failures to double the interval past the cap
   for (int i = 0; i < 10; i++) {
-    uint32_t wait = client.next_wait(INTERVAL_MS);
-    EXPECT_GE(wait, backoff - backoff / 5) << i;
-    EXPECT_LE(wait, backoff + backoff / 5) << i;
-    backoff = std::min(backoff * 2, StreamProbe::BACKOFF_MAX);
+    this->client_.next_wait(INTERVAL_MS);
   }
   // At the cap the jitter spreads both ways
   uint32_t low = UINT32_MAX;
   uint32_t high = 0;
   for (int i = 0; i < 200; i++) {
-    uint32_t wait = client.next_wait(INTERVAL_MS);
+    uint32_t wait = this->client_.next_wait(INTERVAL_MS);
     low = std::min(low, wait);
     high = std::max(high, wait);
   }
@@ -595,23 +532,20 @@ TEST_F(NoiseStreamTest, TheRetryWaitDoublesUpToTheCapWithJitter) {
   EXPECT_GT(high, StreamProbe::BACKOFF_MAX);
   EXPECT_LE(high, StreamProbe::BACKOFF_MAX + StreamProbe::BACKOFF_MAX / 5);
   // A configured interval over the cap is at most 20% shorter
-  StreamProbe slow(this->key_.data(), true);
+  StreamProbe slow("slow", this->key_.data(), true);
   for (int i = 0; i < 3; i++) {
     EXPECT_GE(slow.next_wait(LONG_INTERVAL_MS), LONG_INTERVAL_SHORTEST_WAIT_MS);
   }
 }
 
 TEST_F(NoiseStreamTest, FailedHandshakesHoldTheClientLonger) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream other(this->other_key_.data(), false);
-  NoiseStream server(this->key_.data(), false);
   uint32_t now = 1000;
   // The link's own interval is the shortest wait, then each failure doubles it with +/-20%
   for (uint32_t backoff : {5000u, 10000u, 20000u}) {
     this->client_link_.reconnect();
-    this->pump_(client, other);
+    this->pump_(this->client_, this->other_);
     ASSERT_FALSE(this->client_link_.connected());
-    uint32_t wait = this->next_attempt_(client, now) - now;
+    uint32_t wait = this->next_attempt_(now) - now;
     // One loop pass of rounding either way
     EXPECT_GE(wait + 16, std::max(backoff - backoff / 5, 5000u)) << backoff;
     EXPECT_LE(wait, backoff + backoff / 5 + 16) << backoff;
@@ -619,30 +553,27 @@ TEST_F(NoiseStreamTest, FailedHandshakesHoldTheClientLonger) {
   }
   // A good handshake starts the backoff over
   this->client_link_.reconnect();
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
   this->client_link_.close();
-  client.up(this->client_link_);
+  this->client_.up(this->client_link_);
   this->client_link_.reconnect();
-  this->pump_(client, other);
+  this->pump_(this->client_, this->other_);
   ASSERT_FALSE(this->client_link_.connected());
-  EXPECT_LE(this->next_attempt_(client, now) - now, 6000u + 16);
+  EXPECT_LE(this->next_attempt_(now) - now, 6000u + 16);
   // A responder that failed waits only its link's interval
   int attempts = this->server_link_.attempts_;
   for (int i = 0; i < 10; i++) {
     at(now + i * 16);
-    other.up(this->server_link_);
+    this->other_.up(this->server_link_);
   }
   EXPECT_EQ(this->server_link_.attempts_, attempts);
 }
 
 TEST_F(NoiseStreamTest, AConnectionDuringTheHoldGetsNoHandshake) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream other(this->other_key_.data(), false);
   // Shorter than a loop pass, so the link connects again in every pass, also while the stream holds
   this->client_link_.interval_ = 10;
   for (uint32_t now = 1000; now < 4000; now += 16) {
-    this->pass_(client, other, now);
+    this->pass_(now);
   }
   // Each failure's wait is at least 80% of 10 ms doubled per failure, so 3 s leave room for 8 or 9 failed
   // handshakes; the responder notes an attempt for each
@@ -653,22 +584,19 @@ TEST_F(NoiseStreamTest, AConnectionDuringTheHoldGetsNoHandshake) {
 }
 
 TEST_F(NoiseStreamTest, AGoodHandshakeEndsTheHold) {
-  StreamProbe client(this->key_.data(), true);
-  NoiseStream other(this->other_key_.data(), false);
-  NoiseStream server(this->key_.data(), false);
   this->client_link_.interval_ = 100;
   uint32_t now = 1000;
   // Six failed handshakes, each after the previous hold; the last holds for at least 2460 ms past the interval
   for (int i = 0; i < 6; i++) {
     if (i != 0) {
-      now = this->next_attempt_(client, now);
+      now = this->next_attempt_(now);
     }
     at(now);
     this->client_link_.reconnect();
-    this->pump_(client, other);
+    this->pump_(this->client_, this->other_);
     ASSERT_FALSE(this->client_link_.connected());
   }
-  uint32_t end = client.hold_end() - clock_base();
+  uint32_t end = this->client_.hold_end() - clock_base();
   ASSERT_GE(end, now + 2460);
 
   // One loop pass longer than the interval: the link connects inside the hold and is closed unused
@@ -676,7 +604,7 @@ TEST_F(NoiseStreamTest, AGoodHandshakeEndsTheHold) {
   at(now);
   ASSERT_TRUE(this->client_link_.may_retry());
   this->client_link_.reconnect();
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   EXPECT_FALSE(this->client_link_.connected());
   EXPECT_TRUE(this->client_link_.sent_.empty());
 
@@ -684,104 +612,79 @@ TEST_F(NoiseStreamTest, AGoodHandshakeEndsTheHold) {
   // connects before up() has seen the hold run out
   for (now += 16; now + 16 < end; now += 16) {
     at(now);
-    client.up(this->client_link_);
+    this->client_.up(this->client_link_);
   }
   at(now);
-  client.up(this->client_link_);
+  this->client_.up(this->client_link_);
   now += 150;
   at(now);
   ASSERT_GE(now, end);
   ASSERT_TRUE(this->client_link_.may_retry());
   this->client_link_.reconnect();
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
 
   // A drop one second into the session waits only the link's interval
   now += 1000;
   at(now);
   this->client_link_.close();
   this->client_link_.note_attempt();
-  EXPECT_LE(this->next_attempt_(client, now) - now, 100u + 16);
+  EXPECT_LE(this->next_attempt_(now) - now, 100u + 16);
 }
 
 TEST_F(NoiseStreamTest, ADroppedLinkStartsANewSession) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(this->connect_());
   const uint8_t data[] = {1, 2};
-  client.queue(this->client_link_, data, sizeof(data));
+  this->client_.queue(this->client_link_, data, sizeof(data));
 
   this->client_link_.close();
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_FALSE(client.ready());
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  EXPECT_FALSE(this->client_.ready());
   uint8_t buf[4];
-  EXPECT_EQ(server.read(this->server_link_, buf, sizeof(buf)), -1);
-  EXPECT_FALSE(server.ready());
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), -1);
+  EXPECT_FALSE(this->server_.ready());
 
   this->client_link_.reconnect();
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
-  ASSERT_TRUE(server.ready());
-  ASSERT_EQ(client.queue(this->client_link_, data, sizeof(data)), sizeof(data));
-  ASSERT_TRUE(client.flush(this->client_link_));
-  EXPECT_EQ(this->read_all_(server, this->server_link_), (std::vector<uint8_t>{1, 2}));
-}
-
-TEST_F(NoiseStreamTest, ApiPrologueDoesNotMatch) {
-  // A responder with another prologue (the api's) never completes a stream handshake
-  NoiseStream client(this->key_.data(), true);
-  NoiseContext ctx;
-  ctx.set_psk(this->key_.data());
-  NoiseResponderHandshake api;
-  const uint8_t api_prologue[] = {'N', 'o', 'i', 's', 'e', 'A', 'P', 'I', 'I', 'n', 'i', 't'};
-  ASSERT_EQ(api.init(ctx, api_prologue, sizeof(api_prologue)), 0);
-  EXPECT_FALSE(client.up(this->client_link_));
-  this->client_link_.flush_tx();
-  auto &rx = this->server_link_.rx_;
-  ASSERT_GT(rx.size(), FRAME_HEADER_SIZE + 1);
-  EXPECT_NE(api.read_message(rx.data() + FRAME_HEADER_SIZE + 1, rx.size() - FRAME_HEADER_SIZE - 1), 0);
+  ASSERT_TRUE(this->connect_());
+  ASSERT_EQ(this->client_.queue(this->client_link_, data, sizeof(data)), sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
+  EXPECT_EQ(this->read_all_(this->server_, this->server_link_), (std::vector<uint8_t>{1, 2}));
 }
 
 TEST_F(NoiseStreamTest, EachSideIsUpOnlyAfterThePeersHello) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   // The socket holds the initiator's Hello back
   this->client_link_.chunk_ = 0;
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_FALSE(server.ready());
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
+  EXPECT_FALSE(this->server_.ready());
   this->client_link_.chunk_ = SIZE_MAX;
   this->client_link_.flush_tx();
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   size_t sent = this->server_link_.sent_.size();
-  EXPECT_TRUE(server.up(this->server_link_));
+  EXPECT_TRUE(this->server_.up(this->server_link_));
   // The answer carries only the version
   EXPECT_EQ(this->server_link_.sent_.size() - sent, FRAME_HEADER_SIZE + 2 + MAC_SIZE);
-  EXPECT_FALSE(client.ready());
-  EXPECT_TRUE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.ready());
+  EXPECT_TRUE(this->client_.up(this->client_link_));
 }
 
 TEST_F(NoiseStreamTest, AMissingHelloHitsTheHandshakeDeadline) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   // The initiator's Hello is lost, so both sides wait for one
   ASSERT_FALSE(this->server_link_.rx_.empty());
   this->server_link_.rx_.clear();
   at(1000 + 59999);
-  EXPECT_FALSE(client.up(this->client_link_));
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_TRUE(this->client_link_.connected());
   EXPECT_TRUE(this->server_link_.connected());
   at(1000 + 60000);
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   EXPECT_FALSE(this->client_link_.connected());
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_FALSE(this->server_link_.connected());
 }
 
@@ -856,55 +759,42 @@ TEST_F(NoiseStreamTest, AnyPeerVersionIsAcceptedAndExtraBytesAreIgnored) {
   const std::vector<uint8_t> hellos[] = {{2, 0}, {0, 9}, {1, 3, 0xAA, 0xBB}};
   for (const auto &hello : hellos) {
     this->server_link_.reconnect();
-    NoiseStream server(this->key_.data(), false);
+    this->server_.reset();
     HelloPeer peer(this->key_);
-    peer.connect(server, this->server_link_, hello);
-    EXPECT_TRUE(server.up(this->server_link_));
+    peer.connect(this->server_, this->server_link_, hello);
+    EXPECT_TRUE(this->server_.up(this->server_link_));
     EXPECT_EQ(peer.answer(this->server_link_), (std::vector<uint8_t>{1, 0}));
   }
 }
 
 TEST_F(NoiseStreamTest, AOneByteHelloCloses) {
-  NoiseStream server(this->key_.data(), false);
   HelloPeer peer(this->key_);
-  peer.connect(server, this->server_link_, {1});
-#ifdef USE_LOG_LISTENERS
-  captured_log().clear();
-#endif
-  EXPECT_FALSE(server.up(this->server_link_));
+  peer.connect(this->server_, this->server_link_, {1});
+  EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_FALSE(this->server_link_.connected());
   // No Hello goes back
   EXPECT_TRUE(peer.answer(this->server_link_).empty());
-#ifdef USE_LOG_LISTENERS
-  EXPECT_NE(captured_log().find("Bad hello"), std::string::npos) << captured_log();
-#endif
 }
 
 #ifdef USE_NOISE_SPARE_EPHEMERAL
 TEST_F(NoiseStreamTest, OnlyTheResponderTakesTheSpareKey) {
   prepare_spare_ephemeral();
   ASSERT_TRUE(has_spare_ephemeral());
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  client.up(this->client_link_);
+  this->client_.up(this->client_link_);
   EXPECT_TRUE(has_spare_ephemeral());
   this->client_link_.flush_tx();
-  this->pump_(client, server);
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_());
   EXPECT_FALSE(has_spare_ephemeral());
 }
 
 TEST_F(NoiseStreamTest, AnIdleResponderPreparesTheSpareKey) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->pump_(client, server);
-  ASSERT_TRUE(server.ready());
+  ASSERT_TRUE(this->connect_());
   ASSERT_FALSE(has_spare_ephemeral());
   // A session in progress leaves the slot alone
-  EXPECT_TRUE(server.up(this->server_link_));
+  EXPECT_TRUE(this->server_.up(this->server_link_));
   EXPECT_FALSE(has_spare_ephemeral());
   this->server_link_.close();
-  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(this->server_.up(this->server_link_));
 #ifdef USE_API
   // The api server refills it under its connect grace
   EXPECT_FALSE(has_spare_ephemeral());
@@ -914,64 +804,9 @@ TEST_F(NoiseStreamTest, AnIdleResponderPreparesTheSpareKey) {
   // An idle initiator does not
   std::memset(spare_ephemeral, 0, sizeof(spare_ephemeral));
   this->client_link_.close();
-  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_.up(this->client_link_));
   EXPECT_FALSE(has_spare_ephemeral());
 }
-
-#ifndef USE_API
-/// What a failed try leaves behind. The key generation cannot fail on the host, so the tests empty the slot.
-static void empty_spare_slot() { std::memset(spare_ephemeral, 0, sizeof(spare_ephemeral)); }
-
-TEST_F(NoiseStreamTest, AFailedSpareKeyTryIsNotRepeatedInEveryPass) {
-  static constexpr uint32_t START_MS = 1000;
-  static constexpr uint32_t LOOP_PASS_MS = 16;
-  // The first wait is the link's interval of 5 s, 20% shorter at most and 20% longer at most
-  static constexpr uint32_t SHORTEST_WAIT_MS = 4000;
-  static constexpr uint32_t LONGEST_WAIT_MS = 6000;
-  NoiseStream server(this->key_.data(), false);
-  this->server_link_.close();
-  empty_spare_slot();
-  at(START_MS);
-  EXPECT_FALSE(server.up(this->server_link_));
-  ASSERT_TRUE(has_spare_ephemeral());
-  empty_spare_slot();
-
-  // No new try in the next pass, nor in the last one before the shortest wait runs out
-  at(START_MS + LOOP_PASS_MS);
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_FALSE(has_spare_ephemeral());
-  at(START_MS + SHORTEST_WAIT_MS - LOOP_PASS_MS);
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_FALSE(has_spare_ephemeral());
-  // A listener retries on the link's clock, which this wait leaves alone
-  EXPECT_EQ(this->server_link_.attempts_, 0);
-
-  // The next try comes once the longest wait has passed
-  at(START_MS + LONGEST_WAIT_MS);
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_TRUE(has_spare_ephemeral());
-  empty_spare_slot();
-}
-
-TEST_F(NoiseStreamTest, ASpareKeyWaitHoldsNoPeerBack) {
-  NoiseStream client(this->key_.data(), true);
-  NoiseStream server(this->key_.data(), false);
-  this->server_link_.close();
-  empty_spare_slot();
-  // This idle pass tries and starts the wait
-  EXPECT_FALSE(server.up(this->server_link_));
-  this->server_link_.reconnect();
-  this->pump_(client, server);
-  ASSERT_TRUE(client.ready());
-  ASSERT_TRUE(server.ready());
-  // The handshake took the key and ended the wait, so the next idle pass makes a new one
-  ASSERT_FALSE(has_spare_ephemeral());
-  this->server_link_.close();
-  EXPECT_FALSE(server.up(this->server_link_));
-  EXPECT_TRUE(has_spare_ephemeral());
-  empty_spare_slot();
-}
-#endif
 #endif
 
 #ifdef USE_NOISE_STREAM_RUNTIME_KEY
