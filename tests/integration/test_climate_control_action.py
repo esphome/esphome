@@ -7,18 +7,12 @@ multiple field combinations and the lambda path.
 
 from __future__ import annotations
 
-import asyncio
+from functools import partial
 
-from aioesphomeapi import (
-    ButtonInfo,
-    ClimateInfo,
-    ClimateMode,
-    ClimateState,
-    EntityState,
-)
+from aioesphomeapi import ClimateInfo, ClimateMode, ClimateState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import press_and_wait, require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -29,56 +23,34 @@ async def test_climate_control_action(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test climate ControlAction with constants and lambdas."""
-    loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
-        climate_state_future: asyncio.Future[ClimateState] | None = None
-
-        def on_state(state: EntityState) -> None:
-            if (
-                isinstance(state, ClimateState)
-                and climate_state_future is not None
-                and not climate_state_future.done()
-            ):
-                climate_state_future.set_result(state)
-
-        async def wait_for_climate_state(timeout: float = 5.0) -> ClimateState:
-            nonlocal climate_state_future
-            climate_state_future = loop.create_future()
-            try:
-                return await asyncio.wait_for(climate_state_future, timeout)
-            finally:
-                climate_state_future = None
-
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
 
         require_entity(entities, "test_climate", ClimateInfo)
 
-        async def press_and_wait(name: str) -> ClimateState:
-            btn = require_entity(entities, name.lower().replace(" ", "_"), ButtonInfo)
-            client.button_command(btn.key)
-            return await wait_for_climate_state()
+        press = partial(
+            press_and_wait, client, entities, sub.waiter, state_type=ClimateState
+        )
 
         # mode only — set HEAT
-        state = await press_and_wait("Set Mode Heat")
+        state = await press("set_mode_heat")
         assert state.mode == ClimateMode.HEAT
 
         # mode + target_temperature_low + target_temperature_high
-        state = await press_and_wait("Set Mode Temps")
+        state = await press("set_mode_temps")
         assert state.mode == ClimateMode.HEAT_COOL
         assert state.target_temperature_low == pytest.approx(19.0, abs=0.5)
         assert state.target_temperature_high == pytest.approx(23.0, abs=0.5)
 
         # target_temperature_low only
-        state = await press_and_wait("Set Low Only")
+        state = await press("set_low_only")
         assert state.target_temperature_low == pytest.approx(17.5, abs=0.5)
 
         # lambda path: target_temperature_high computed at runtime
-        state = await press_and_wait("Lambda High")
+        state = await press("lambda_high")
         assert state.target_temperature_high == pytest.approx(21.5, abs=0.5)
 
         # mode only — turn off via mode
-        state = await press_and_wait("Set Off")
+        state = await press("set_off")
         assert state.mode == ClimateMode.OFF

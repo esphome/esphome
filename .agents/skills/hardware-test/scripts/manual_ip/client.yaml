@@ -1,0 +1,36 @@
+# Joins the DUT's AP and fetches its page every 10 s.
+substitutions:
+  name: mip-client
+  plat: esp32
+
+esphome:
+  name: ${name}
+
+packages:
+  plat: !include plat-${plat}.yaml
+
+logger:
+
+wifi:
+  ssid: mip-ap-test
+  password: mipaptest1
+  reboot_timeout: 0s
+
+http_request:
+  verify_ssl: false
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition: wifi.connected
+          then:
+            - http_request.get:
+                url: http://10.42.7.1/
+                capture_response: false
+                on_response:
+                  then:
+                    - lambda: ESP_LOGI("client", "GET http://10.42.7.1/ status=%d", response->status_code);
+                on_error:
+                  then:
+                    - logger.log: "GET http://10.42.7.1/ failed"

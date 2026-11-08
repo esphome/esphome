@@ -20,9 +20,9 @@ import pytest
 from .host_prefs import clear_host_prefs
 from .log_utils import LineWaiter
 from .state_utils import (
-    InitialStateHelper,
     require_entity,
     require_only_entity,
+    subscribe_after_initial_states,
     wait_for_state,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -49,7 +49,6 @@ async def test_template_climate_set_actions(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
         test_climate = require_only_entity(entities, ClimateInfo)
 
         report_button = require_entity(entities, "report_device_state", ButtonInfo)
@@ -57,10 +56,7 @@ async def test_template_climate_set_actions(
             entities, "report_unsupported_mode", ButtonInfo
         )
 
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(lambda state: None)
-        )
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities)
 
         # Both traits are derived from the low/high and humidity set actions, not declared.
         assert test_climate.supports_two_point_target_temperature
