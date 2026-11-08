@@ -652,6 +652,22 @@ def test_run_shared_id_tests_skips_component_that_fails_alone(
     assert results == []
 
 
+def test_run_shared_id_tests_skips_group_with_failing_partner(
+    fake_grouped: Callable[..., list[dict[str, object]]],
+    tmp_path: Path,
+) -> None:
+    """A partner that fails alone would make the group fail and blame the component."""
+    calls = fake_grouped()
+    results = _run_partners(
+        tmp_path,
+        {"gy39"},
+        _buses(gy39=_GY39_ESP32),
+        prior_results=[_result(["tca9548a"], False)],
+    )
+    assert calls == []
+    assert results == []
+
+
 def test_run_shared_id_tests_fails_fast_without_continue_on_fail(
     fake_grouped: Callable[..., list[dict[str, object]]],
     tmp_path: Path,

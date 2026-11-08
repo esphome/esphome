@@ -777,8 +777,8 @@ def run_shared_id_tests(
 ) -> list[TestResult]:
     """Validate each component merged with partners that add a second candidate id.
 
-    Catches a missing i2c_id/motion_id/one_wire_id that only grouping exposes. A test
-    that already failed alone is skipped, so its shared-id failure cannot blame grouping.
+    Catches a missing i2c_id/motion_id/one_wire_id that only grouping exposes. A group
+    with a member that already failed alone is skipped, so it cannot blame grouping.
     """
     failed_alone = {
         (r.components[0], r.platform)
@@ -801,10 +801,11 @@ def run_shared_id_tests(
             partner_csv = ",".join(partners)
             for base_file in ctx.platform_bases.get(platform, []):
                 platform_with_version = extract_platform_with_version(base_file)
-                if (component, platform_with_version) in failed_alone:
+                group = [component, *partners]
+                if any((m, platform_with_version) in failed_alone for m in group):
                     continue
                 result = ctx.run_config(
-                    [component, *partners], platform, platform_with_version, base_file
+                    group, platform, platform_with_version, base_file
                 )
                 result.test_id = (
                     f"SHARED_ID[{component}+{partner_csv}].{platform_with_version}"
