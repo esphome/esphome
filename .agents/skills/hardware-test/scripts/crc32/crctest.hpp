@@ -14,7 +14,8 @@ inline void check(const char *name, uint32_t got, uint32_t want) {
     fail_n++;
   ESP_LOGI("crctest", "%s %s got=%08X want=%08X", got == want ? "PASS" : "FAIL", name, (unsigned) got, (unsigned) want);
 }
-inline void run() {
+// unqualified: a crc32() of "123456789" computed in the caller's lambda, or -1 to skip that check
+inline void run(int64_t unqualified = -1) {
   pass_n = fail_n = 0;
   const uint8_t *s = reinterpret_cast<const uint8_t *>("123456789");
   check("check-123456789", esphome::crc32(0, s, 9), 0xCBF43926u);
@@ -63,6 +64,8 @@ inline void run() {
   check("8KiB", r, 0xF6950930u);
   free(pat);
   ESP_LOGI("crctest", "CRCSPEED 8192 bytes in %u us = %.1f us/KiB", (unsigned) best, best / 8.0f);
+  if (unqualified >= 0)
+    check("unqualified", (uint32_t) unqualified, 0xCBF43926u);
   ESP_LOGI("crctest", "CRCRESULT pass=%d fail=%d", pass_n, fail_n);
 }
 }  // namespace crctest

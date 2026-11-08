@@ -6,10 +6,8 @@ esphome:
       then:
         - delay: 3s
         - lambda: |-
-            crctest::run();
-            // unqualified call, as a lambda user would write it
-            const uint32_t u = crc32(0, reinterpret_cast<const uint8_t *>("123456789"), 9);
-            crctest::check("unqualified", u, 0xCBF43926u);
+            // unqualified call, as a lambda user would write it; counted in the CRCRESULT totals
+            crctest::run(crc32(0, reinterpret_cast<const uint8_t *>("123456789"), 9));
 
 interval:
   - interval: 20s
