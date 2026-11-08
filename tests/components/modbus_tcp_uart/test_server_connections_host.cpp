@@ -44,6 +44,7 @@ class ModbusServerTwoClients : public ::testing::Test {
     this->socket_.set_server(true);
     this->socket_.set_port(this->port_);
     this->socket_.set_max_connections(2);
+    this->socket_.set_idle_timeout(this->idle_timeout_);
     this->socket_.setup();
     this->link_.set_server(true);
     this->loops(1);
@@ -119,6 +120,12 @@ class ModbusServerTwoClients : public ::testing::Test {
     ssize_t n = ::read(fd, buf, sizeof(buf));
     return n > 0 ? std::vector<uint8_t>(buf, buf + n) : std::vector<uint8_t>{};
   }
+  // True when the server closed the client's connection within 200 ms.
+  static bool closed(int fd) {
+    struct pollfd pfd{fd, POLLIN, 0};
+    uint8_t byte;
+    return ::poll(&pfd, 1, 200) == 1 && ::read(fd, &byte, 1) == 0;
+  }
   // Runs the loop until the hub has a whole RTU request (8 bytes) and returns its register.
   int hub_takes_request() {
     for (int i = 0; i < 50 && this->link_.available() < 8; i++) {
@@ -152,6 +159,8 @@ class ModbusServerTwoClients : public ::testing::Test {
   Socket socket_;
   ModbusTcpUart link_{&this->socket_};
   uint16_t port_{0};
+  // 0 leaves quiet connections open.
+  uint32_t idle_timeout_{0};
   int a_{-1};
   int b_{-1};
 };
@@ -317,6 +326,65 @@ TEST_F(ModbusServerTwoClients, RequestWhoseRestFollowsTheReplyIsAnswered) {
   this->hub_answers(90);
   this->loops(1);
   EXPECT_EQ(this->hub_takes_request(), 3);
+}
+
+// The two-client server with a 500 ms idle timeout on the tcp_uart: a connection that moves no byte for 500 ms is
+// closed. The reply timeout stays at 1000 ms. Clients A and B connected at 1000 ms.
+class ModbusServerIdleTimeout : public ModbusServerTwoClients {
+ protected:
+  ModbusServerIdleTimeout() { this->idle_timeout_ = 500; }
+};
+
+TEST_F(ModbusServerIdleTimeout, QuietClientIsClosedWhileTheOtherKeepsAsking) {
+  // A asks for register 1 every 250 ms from 1000 to 2000 and gets each reply. B sends nothing.
+  uint16_t txn = 1;
+  for (uint32_t ms : {1000u, 1250u, 1500u, 1750u, 2000u}) {
+    this->at(ms);
+    send(this->a_, read_request(txn, 1));
+    EXPECT_EQ(this->hub_takes_request(), 1);
+    this->hub_answers(10);
+    this->loops(1);
+    EXPECT_EQ(received(this->a_), read_reply(txn, 10));
+    txn++;
+  }
+  // B has been quiet since it connected at 1000, so it was closed at 1500. A is still open.
+  EXPECT_TRUE(closed(this->b_));
+  EXPECT_EQ(this->socket_.open_connections(), 1);
+}
+
+TEST_F(ModbusServerIdleTimeout, SlowReplyKeepsTheAskingAndTheWaitingClientOpen) {
+  // A and B ask at 1000. The hub needs 800 ms for A's reply: longer than the 500 ms idle timeout, within the
+  // 1000 ms reply timeout.
+  send(this->a_, read_request(1, 1));
+  send(this->b_, read_request(1, 2));
+  EXPECT_EQ(this->hub_takes_request(), 1);
+  this->at(1800);
+  this->loops(3);
+  // A waits for its reply and B's request for its turn, so neither connection is quiet.
+  EXPECT_EQ(this->socket_.open_connections(), 2);
+  this->hub_answers(10);
+  this->loops(1);
+  EXPECT_EQ(received(this->a_), read_reply(1, 10));
+
+  EXPECT_EQ(this->hub_takes_request(), 2);
+  this->hub_answers(20);
+  this->loops(1);
+  EXPECT_EQ(received(this->b_), read_reply(1, 20));
+}
+
+TEST_F(ModbusServerIdleTimeout, UnansweredClientIsClosedAfterTheReplyTimeoutAndTheIdleTimeout) {
+  // A asks at 1000 and the hub never answers. At 2000 the 1000 ms reply timeout is up and A no longer waits.
+  send(this->a_, read_request(1, 1));
+  EXPECT_EQ(this->hub_takes_request(), 1);
+  this->at(2000);
+  this->loops(2);
+  // From then on A is quiet, and 500 ms later it is closed.
+  this->at(2400);
+  this->loops(2);
+  EXPECT_FALSE(closed(this->a_));
+  this->at(2500);
+  this->loops(2);
+  EXPECT_TRUE(closed(this->a_));
 }
 
 }  // namespace
