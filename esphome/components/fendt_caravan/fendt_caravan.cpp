@@ -26,12 +26,16 @@ void FendtCaravan::loop() {
     auto status = esp_ble_gattc_write_char(
         this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, chunk.len,
         reinterpret_cast<uint8_t *>(chunk.data.data()), ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status) {
-      ESP_LOGE(TAG, "Writing command failed (%d)", status);
+    this->last_command_time_ = time_stamp;
+    if (status != ESP_OK) {
+      // Keep the chunk queued and retry; a disconnect clears the queue, so this cannot retry forever
+      ESP_LOGW(TAG, "Writing command failed (%d), will retry", status);
+      this->status_set_warning();
+      return;
     }
+    this->status_clear_warning();
 
     ESP_LOGD(TAG, "Command sent: %.*s", chunk.len, chunk.data.data());
-    this->last_command_time_ = time_stamp;
     this->commands_.pop();
   }
 }
