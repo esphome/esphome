@@ -69,15 +69,12 @@ bool MCP251XFD::setup_internal() {
   if (!this->set_mode_(this->mcp_mode_))
     return false;
 
-  if (!this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0))
-    return false;
-
-  if (!this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
+  if (!this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0) ||
+      !this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
     return false;
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
-    // Only RX-not-empty drives INT; error flags are polled.
     this->write_byte_(REG_INT + 2, INT_RX_ENABLE);
   }
 
@@ -382,7 +379,7 @@ canbus::CanEventFlags MCP251XFD::get_events() {
   if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size()))
     return (this->last_error_flags_ & ERROR_BUS_OFF) != 0 ? canbus::CAN_EVENT_BUS_OFF : canbus::CanEventFlags{};
   const uint8_t controller_flags = interrupt_flags[1];
-  // Interrupt flags are polled even without an INT pin. Keep polling TREC through error recovery.
+  // Keep polling TREC through error recovery.
   const bool trec_needed = controller_flags != 0 || this->last_error_flags_ != 0 || (this->last_trec_ >> 16) != 0;
   const bool trec_read = trec_needed && this->read_register_(REG_TREC, this->last_trec_);
   const uint8_t error_flags = trec_read ? this->last_trec_ >> 16 : this->last_error_flags_;

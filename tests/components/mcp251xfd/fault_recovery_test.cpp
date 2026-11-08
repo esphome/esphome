@@ -189,47 +189,36 @@ TEST(MCP251XFDRecovery, DefersModeRequestWhileBusOff) {
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
 }
 
-TEST(MCP251XFDRecovery, FailedModeReadLeavesFaultFlagsPending) {
-  RegisterDelegate spi;
-  TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
-  spi.registers[REG_INT] = INT_MODE_CHANGE;
-  spi.registers[REG_INT + 1] = INT_SYSTEM_ERROR;
-  spi.corrupt_next_reads(REG_CON + 2);
+TEST(MCP251XFDRecovery, FailedReadDefersModeRecoveryAndFlagClearing) {
+  struct Case {
+    uint16_t failed_register;
+    uint8_t controller_flags;
+    unsigned mode_reads;
+  };
+  // A failed mode read, and a failed error-state read that skips the mode check
+  for (const auto &test :
+       {Case{REG_CON + 2, INT_SYSTEM_ERROR, 3}, Case{REG_TREC, INT_SYSTEM_ERROR | INT_CAN_ERROR, 0}}) {
+    SCOPED_TRACE(test.failed_register);
+    RegisterDelegate spi;
+    TestMCP251XFD controller(&spi);
+    spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
+    spi.registers[REG_INT] = INT_MODE_CHANGE;
+    spi.registers[REG_INT + 1] = test.controller_flags;
+    spi.corrupt_next_reads(test.failed_register);
 
-  controller.poll(100);
-  EXPECT_EQ(spi.reads[REG_CON + 2], 3u);
-  EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, INT_MODE_CHANGE);
-  EXPECT_EQ(spi.registers[REG_INT + 1] & INT_SYSTEM_ERROR, INT_SYSTEM_ERROR);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 0u);
-  EXPECT_TRUE(controller.status_has_warning());
+    controller.poll(100);
+    EXPECT_EQ(spi.reads[REG_CON + 2], test.mode_reads);
+    EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, INT_MODE_CHANGE);
+    EXPECT_EQ(spi.registers[REG_INT + 1], test.controller_flags);
+    EXPECT_EQ(spi.writes_to(REG_CON + 3), 0u);
+    EXPECT_TRUE(controller.status_has_warning());
 
-  controller.poll(200);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
-  EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
-  EXPECT_EQ(spi.registers[REG_INT + 1] & INT_SYSTEM_ERROR, 0);
-  EXPECT_FALSE(controller.status_has_warning());
-}
-
-TEST(MCP251XFDRecovery, FailedErrorStateReadDefersModeRecoveryAndFlagClearing) {
-  RegisterDelegate spi;
-  TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
-  spi.registers[REG_INT] = INT_MODE_CHANGE;
-  spi.registers[REG_INT + 1] = INT_SYSTEM_ERROR | INT_CAN_ERROR;
-  spi.corrupt_next_reads(REG_TREC);
-
-  controller.poll(100);
-  EXPECT_EQ(spi.reads[REG_CON + 2], 0u);
-  EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, INT_MODE_CHANGE);
-  EXPECT_EQ(spi.registers[REG_INT + 1] & (INT_SYSTEM_ERROR | INT_CAN_ERROR), INT_SYSTEM_ERROR | INT_CAN_ERROR);
-  EXPECT_TRUE(controller.status_has_warning());
-
-  controller.poll(200);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
-  EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
-  EXPECT_EQ(spi.registers[REG_INT + 1] & (INT_SYSTEM_ERROR | INT_CAN_ERROR), 0);
-  EXPECT_FALSE(controller.status_has_warning());
+    controller.poll(200);
+    EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+    EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
+    EXPECT_EQ(spi.registers[REG_INT + 1], 0);
+    EXPECT_FALSE(controller.status_has_warning());
+  }
 }
 
 TEST(MCP251XFDRecovery, SpiRecoveryDoesNotClearBusOffWarning) {

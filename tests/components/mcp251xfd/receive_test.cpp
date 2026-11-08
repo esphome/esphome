@@ -107,15 +107,9 @@ TEST(MCP251XFDTransmit, WritesHeaderAndZeroPaddedPayloadInOneTransfer) {
   ASSERT_EQ(controller.send_message(&frame), canbus::ERROR_OK);
   ASSERT_EQ(spi.writes.size(), 2u);
   EXPECT_EQ(spi.writes[0].address, RAM_START);
-  const uint32_t id = (frame.can_id >> 18) | ((frame.can_id & EXTENDED_ID_LOW_MASK) << 11);
-  std::vector<uint8_t> expected{static_cast<uint8_t>(id),
-                                static_cast<uint8_t>(id >> 8),
-                                static_cast<uint8_t>(id >> 16),
-                                static_cast<uint8_t>(id >> 24),
-                                9 | MESSAGE_IDE | MESSAGE_FDF | MESSAGE_BRS,
-                                0,
-                                0,
-                                0};
+  std::vector<uint8_t> expected(MESSAGE_HEADER_SIZE);
+  put_le32(expected.data(), (frame.can_id >> 18) | ((frame.can_id & EXTENDED_ID_LOW_MASK) << 11));
+  expected[4] = 9 | MESSAGE_IDE | MESSAGE_FDF | MESSAGE_BRS;
   for (size_t i = 0; i < 12; i++)
     expected.push_back(0xA0 + i);
   EXPECT_EQ(spi.writes[0].data, expected);
