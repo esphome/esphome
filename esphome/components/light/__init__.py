@@ -90,6 +90,7 @@ from .types import (  # noqa: F401
     LightStateTrigger,
     LightTurnOffTrigger,
     LightTurnOnTrigger,
+    PowerEstimation,
     light_ns,
 )
 
@@ -706,6 +707,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add_define("USE_LIGHT_POWER_ESTIMATION")
         cg.add(
             output_var.set_power_estimation(
+                cg.static_buffer(config[CONF_OUTPUT_ID], PowerEstimation, 1),
                 power_estimation[CONF_MA_PER_LED_RED],
                 power_estimation[CONF_MA_PER_LED_GREEN],
                 power_estimation[CONF_MA_PER_LED_BLUE],
