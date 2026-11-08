@@ -32,6 +32,8 @@ inline void run(int64_t unqualified = -1) {
   uint8_t *pat = static_cast<uint8_t *>(malloc(4100 + 8192));
   if (pat == nullptr) {
     ESP_LOGE("crctest", "malloc failed");
+    fail_n++;
+    ESP_LOGI("crctest", "CRCRESULT pass=%d fail=%d", pass_n, fail_n);
     return;
   }
   for (int i = 0; i < 4100; i++)

@@ -170,27 +170,29 @@ inline void cs_init(int gpio) {
     cs_unit = nullptr;
   }
 }
-inline int cs_count() {
-  int c = 0;
-  if (cs_unit) {
-    const esp_err_t e = pcnt_unit_get_count(cs_unit, &c);
-    if (e != ESP_OK)
-      ESP_LOGW("canlb", "CS counter read failed: %s", esp_err_to_name(e));
-  }
-  return c;
+// False when there is no counter or the read failed
+inline bool cs_count(int &c) {
+  c = 0;
+  if (cs_unit == nullptr)
+    return false;
+  const esp_err_t e = pcnt_unit_get_count(cs_unit, &c);
+  if (e != ESP_OK)
+    ESP_LOGW("canlb", "CS counter read failed: %s", esp_err_to_name(e));
+  return e == ESP_OK;
 }
 inline int cs_mark_count = 0;
+inline bool cs_mark_ok = false;
 inline uint32_t cs_mark_time = 0;
 inline void cs_mark() {
-  cs_mark_count = cs_count();
+  cs_mark_ok = cs_count(cs_mark_count);
   cs_mark_time = esphome::millis();
 }
 inline void cs_report(const char *tag) {
-  if (cs_unit == nullptr) {
-    ESP_LOGW("canlb", "CSRATE %s unavailable (no CS counter)", tag);
+  int c;
+  if (!cs_mark_ok || !cs_count(c)) {
+    ESP_LOGW("canlb", "CSRATE %s unavailable (no CS counter or a failed read)", tag);
     return;
   }
-  const int c = cs_count();
   const uint32_t ms = esphome::millis() - cs_mark_time;
   ESP_LOGI("canlb", "CSRATE %s transactions=%d in %u ms = %.2f/s", tag, c - cs_mark_count, (unsigned) ms,
            (c - cs_mark_count) * 1000.0f / ms);
