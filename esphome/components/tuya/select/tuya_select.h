@@ -1,10 +1,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/select/select.h"
-
-#include <vector>
 
 namespace esphome::tuya {
 
@@ -19,7 +18,7 @@ class TuyaSelect final : public select::Select, public Component {
     this->select_id_ = select_id;
     this->datapoint_type_ = datapoint_type;
   }
-  void set_select_mappings(std::vector<uint8_t> mappings) { this->mappings_ = std::move(mappings); }
+  void set_select_mappings(std::initializer_list<uint8_t> mappings) { this->mappings_ = mappings; }
 
  protected:
   void control(size_t index) override;
@@ -27,7 +26,7 @@ class TuyaSelect final : public select::Select, public Component {
   Tuya *parent_;
   bool optimistic_ = false;
   uint8_t select_id_;
-  std::vector<uint8_t> mappings_;
+  FixedVector<uint8_t> mappings_;
   TuyaDatapointType datapoint_type_ = TuyaDatapointType::ENUM;
 };
 

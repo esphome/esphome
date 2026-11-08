@@ -117,7 +117,8 @@ async def to_code(config):
 
     var = await select.new_select(config, options=options)
     await cg.register_component(var, config)
-    cg.add(var.set_select_mappings(mappings))
+    if mappings:
+        cg.add(var.set_select_mappings(mappings))
     await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
     if (string_datapoint := config.get(CONF_STRING_DATAPOINT, None)) is not None:
         cg.add(var.set_select_id(string_datapoint, TuyaDatapointType.STRING))

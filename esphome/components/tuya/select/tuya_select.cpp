@@ -35,12 +35,12 @@ void TuyaSelect::setup() {
       uint8_t enum_value = datapoint.value_enum;
       ESP_LOGV(TAG, "MCU reported select %u value %u", this->select_id_, enum_value);
       const auto &mappings = this->mappings_;
-      auto it = std::find(mappings.cbegin(), mappings.cend(), enum_value);
+      auto it = std::find(mappings.begin(), mappings.end(), enum_value);
       if (it == mappings.end()) {
         ESP_LOGW(TAG, "Invalid value %u", enum_value);
         return;
       }
-      size_t mapping_idx = std::distance(mappings.cbegin(), it);
+      size_t mapping_idx = std::distance(mappings.begin(), it);
       this->publish_state(mapping_idx);
     }
   });
@@ -63,7 +63,7 @@ void TuyaSelect::control(size_t index) {
     }
   } else {
     // ENUM/INTEGER type: send the mapped value
-    uint8_t mapping = this->mappings_.at(index);
+    uint8_t mapping = this->mappings_[index];
     ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, this->option_at(index));
     if (this->datapoint_type_ == TuyaDatapointType::INTEGER) {
       this->parent_->set_integer_datapoint_value(this->select_id_, mapping);
@@ -96,7 +96,7 @@ void TuyaSelect::dump_config() {
     if (this->datapoint_type_ == TuyaDatapointType::STRING) {
       ESP_LOGCONFIG(TAG, "    %s", options.at(i));
     } else {
-      ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options.at(i));
+      ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_[i], options.at(i));
     }
   }
 }
