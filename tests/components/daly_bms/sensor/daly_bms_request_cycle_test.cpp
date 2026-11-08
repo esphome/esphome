@@ -49,7 +49,7 @@ class DalyBmsRequestCycleTest : public ::testing::Test {
   }
 
   // Lets the requests time out one after the other until the given one has been sent.
-  void advance_to(uint8_t data_id) {
+  void advance_to_(uint8_t data_id) {
     while (last_request(this->uart_) != data_id) {
       this->now_ += TIMEOUT_MS;
       loop_at(this->bms_, this->now_);
@@ -88,7 +88,7 @@ TEST_F(DalyBmsRequestCycleTest, NextRequestFollowsCompleteResponse) {
 
 // A frame arriving shortly after the first one belongs to the same response and delays the next request.
 TEST_F(DalyBmsRequestCycleTest, MultiFrameResponseIsReadToTheEnd) {
-  this->advance_to(0x95);
+  this->advance_to_(0x95);
   receive(this->uart_, response_frame(0x95));
   loop_at(this->bms_, this->now_ + 10);
   receive(this->uart_, response_frame(0x95));
@@ -102,7 +102,7 @@ TEST_F(DalyBmsRequestCycleTest, MultiFrameResponseIsReadToTheEnd) {
 // Bytes that reached the buffer while the loop was held up are part of the response, even if the line
 // looked quiet long enough: they are read first, the next request waits for the gap after them.
 TEST_F(DalyBmsRequestCycleTest, BufferedBytesHoldTheNextRequest) {
-  this->advance_to(0x95);
+  this->advance_to_(0x95);
   receive(this->uart_, response_frame(0x95));
   loop_at(this->bms_, this->now_ + 10);
   receive(this->uart_, response_frame(0x95));
@@ -144,7 +144,7 @@ TEST_F(DalyBmsRequestCycleTest, UpdateDuringCycleDoesNotRestartIt) {
 // response, not only at the next update.
 TEST_F(DalyBmsRequestCycleTest, RequestedCycleFollowsTheRunningOne) {
   this->bms_.update();
-  this->advance_to(0x96);
+  this->advance_to_(0x96);
   receive(this->uart_, response_frame(0x96));
   loop_at(this->bms_, this->now_ + 10);
   EXPECT_EQ(request_count(this->uart_), 7u);
@@ -155,7 +155,7 @@ TEST_F(DalyBmsRequestCycleTest, RequestedCycleFollowsTheRunningOne) {
 
 // An update right after the last request waits for its response instead of sending into it.
 TEST_F(DalyBmsRequestCycleTest, UpdateWhileLastResponseIsPendingWaitsForIt) {
-  this->advance_to(0x96);
+  this->advance_to_(0x96);
   this->bms_.update();
   loop_at(this->bms_, this->now_ + 10);
   EXPECT_EQ(request_count(this->uart_), 7u);
@@ -170,7 +170,7 @@ TEST_F(DalyBmsRequestCycleTest, UpdateWhileLastResponseIsPendingWaitsForIt) {
 
 // Without a new update the component stays quiet after the cycle, and the next update starts at once.
 TEST_F(DalyBmsRequestCycleTest, UpdateAfterCompleteCycleStartsANewOne) {
-  this->advance_to(0x96);
+  this->advance_to_(0x96);
   ASSERT_EQ(request_count(this->uart_), 7u);
   loop_at(this->bms_, this->now_ + TIMEOUT_MS);
   loop_at(this->bms_, this->now_ + 2 * TIMEOUT_MS);
