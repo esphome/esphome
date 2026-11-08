@@ -22,13 +22,13 @@ class TRF7962A final : public PollingComponent,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
+  TRF7962A(GPIOPin *select_pin, InternalGPIOPin *irq_pin) : select_pin_(select_pin), irq_pin_(irq_pin) {}
+
   void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
 
-  void set_select_pin(GPIOPin *pin) { this->select_pin_ = pin; }
-  void set_irq_pin(InternalGPIOPin *pin) { this->irq_pin_ = pin; }
   void set_supply_5v(bool supply_5v) { this->supply_5v_ = supply_5v; }
   void set_half_power(bool half_power) { this->half_power_ = half_power; }
 
@@ -56,9 +56,10 @@ class TRF7962A final : public PollingComponent,
   void remove_tag_();
 
   TRF7962AReadClient read_client_;
-  GPIOPin *select_pin_{nullptr};
-  InternalGPIOPin *irq_pin_{nullptr};
+  GPIOPin *select_pin_;
+  InternalGPIOPin *irq_pin_;
   nfc::NfcTag tag_{nfc::NfcTagUid{}, "ISO 15693"};
+  std::string uid_str_;
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_callback_;
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_removed_callback_;
   uint32_t state_start_{0};

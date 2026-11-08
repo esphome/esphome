@@ -6,11 +6,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_RATE,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_IRQ_PIN,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["nfc"]
@@ -63,18 +65,30 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.polling_component_schema("500ms"))
 
-FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
-    "trf7962a", require_miso=True, require_mosi=True
+
+def _validate_no_shared_ethernet(config: ConfigType) -> ConfigType:
+    # Ethernet runs in its own task and can take the bus between the two phases of a read
+    if (
+        fv.full_config.get().get(CONF_ETHERNET, {}).get(CONF_SPI_ID)
+        == config[CONF_SPI_ID]
+    ):
+        raise cv.Invalid("The TRF7962A can't share an SPI bus with SPI Ethernet")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    spi.final_validate_device_schema("trf7962a", require_miso=True, require_mosi=True),
+    _validate_no_shared_ethernet,
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    cs_pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
+    irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    var = cg.new_Pvariable(config[CONF_ID], cs_pin, irq_pin)
     await cg.register_component(var, config)
     await cg.add_variable(var.set_spi_parent, config[CONF_SPI_ID])
     cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
-    await cg.add_pin(var.set_select_pin, config[CONF_CS_PIN])
-    await cg.add_pin(var.set_irq_pin, config[CONF_IRQ_PIN])
     cg.add(var.set_supply_5v(config[CONF_VIN]))
     cg.add(var.set_half_power(config[CONF_RF_POWER]))
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

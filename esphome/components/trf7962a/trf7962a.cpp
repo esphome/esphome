@@ -8,9 +8,9 @@ namespace esphome::trf7962a {
 ESPHOME_LOG_TAG(TAG, "trf7962a");
 
 // Address/command word bits
-static constexpr uint8_t COMMAND = 0x80;
-static constexpr uint8_t READ = 0x40;
-static constexpr uint8_t CONTINUOUS = 0x20;
+static constexpr uint8_t ADDR_COMMAND = 0x80;
+static constexpr uint8_t ADDR_READ = 0x40;
+static constexpr uint8_t ADDR_CONTINUOUS = 0x20;
 
 // Direct commands
 static constexpr uint8_t CMD_IDLE = 0x00;
@@ -81,6 +81,8 @@ void TRF7962A::setup() {
     this->mark_failed(LOG_STR("No response"));
     return;
   }
+  // Reserved once so tag callbacks don't allocate
+  this->uid_str_.reserve(nfc::FORMAT_UID_BUFFER_SIZE);
   this->disable_loop();
 }
 
@@ -161,7 +163,7 @@ void TRF7962A::select_(bool selected) { this->select_pin_->digital_write(!select
 
 void TRF7962A::direct_command_(uint8_t command) {
   // A stand-alone command needs extra clocks before CS rises (SLOA140B 1.3)
-  const uint8_t data[2] = {static_cast<uint8_t>(COMMAND | command), 0x00};
+  const uint8_t data[2] = {static_cast<uint8_t>(ADDR_COMMAND | command), 0x00};
   this->select_(true);
   this->enable();
   this->write_array(data, sizeof(data));
@@ -181,7 +183,7 @@ void TRF7962A::write_register_(uint8_t reg, uint8_t value) {
 void TRF7962A::write_registers_(uint8_t reg, const uint8_t *data, size_t len) {
   this->select_(true);
   this->enable();
-  this->write_byte(CONTINUOUS | reg);
+  this->write_byte(ADDR_CONTINUOUS | reg);
   this->write_array(data, len);
   this->disable();
   this->select_(false);
@@ -191,7 +193,7 @@ void TRF7962A::read_registers_(uint8_t reg, uint8_t *data, size_t len) {
   // CS stays low across the address write and the read, which use opposite clock phases
   this->select_(true);
   this->enable();
-  this->write_byte(READ | (len > 1 ? CONTINUOUS : 0) | reg);
+  this->write_byte(ADDR_READ | (len > 1 ? ADDR_CONTINUOUS : 0) | reg);
   this->disable();
   this->read_client_.enable();
   this->read_client_.read_array(data, len);
@@ -227,7 +229,13 @@ void TRF7962A::send_inventory_() {
   this->direct_command_(CMD_RESET_FIFO);
   // Command, TX length (3 bytes, in the high nibble of byte 2) and FIFO data in one CS window
   const uint8_t data[] = {
-      COMMAND | CMD_TRANSMIT_CRC, CONTINUOUS | REG_TX_LENGTH_1, 0x00, 0x30, INVENTORY_FLAGS, INVENTORY_COMMAND, 0x00,
+      ADDR_COMMAND | CMD_TRANSMIT_CRC,
+      ADDR_CONTINUOUS | REG_TX_LENGTH_1,
+      0x00,
+      0x30,
+      INVENTORY_FLAGS,
+      INVENTORY_COMMAND,
+      0x00,
   };
   this->select_(true);
   this->enable();
@@ -279,8 +287,10 @@ void TRF7962A::finish_scan_(bool response_ok) {
   char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
   nfc::format_uid_to(uid_buf, uid);
   ESP_LOGI(TAG, "Tag detected: %s", uid_buf);
-  if (!this->on_tag_callback_.empty())
-    this->on_tag_callback_.call(std::string(uid_buf), this->tag_);
+  if (!this->on_tag_callback_.empty()) {
+    this->uid_str_ = uid_buf;
+    this->on_tag_callback_.call(this->uid_str_, this->tag_);
+  }
 #ifdef NFC_TAG_LISTENER_COUNT
   for (auto *listener : this->tag_listeners_)
     listener->tag_on(this->tag_);
@@ -291,8 +301,10 @@ void TRF7962A::remove_tag_() {
   char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
   nfc::format_uid_to(uid_buf, this->tag_.get_uid());
   ESP_LOGI(TAG, "Tag removed: %s", uid_buf);
-  if (!this->on_tag_removed_callback_.empty())
-    this->on_tag_removed_callback_.call(std::string(uid_buf), this->tag_);
+  if (!this->on_tag_removed_callback_.empty()) {
+    this->uid_str_ = uid_buf;
+    this->on_tag_removed_callback_.call(this->uid_str_, this->tag_);
+  }
 #ifdef NFC_TAG_LISTENER_COUNT
   for (auto *listener : this->tag_listeners_)
     listener->tag_off(this->tag_);
