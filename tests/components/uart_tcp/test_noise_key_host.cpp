@@ -133,11 +133,11 @@ class UartTcpKey : public ::testing::Test {
   }
 
   KeyFakeUart uart_;
-  noise::NoiseStream bridge_stream_{uint32_t{7}, true};
+  noise::NoiseStream bridge_stream_{"uart_tcp", uint32_t{7}, true};
   UartTcp bridge_;
   binary_sensor::BinarySensor sensor_;
-  noise::NoiseStream key_peer_{KEY, false};
-  noise::NoiseStream other_key_peer_{OTHER_KEY, false};
+  noise::NoiseStream key_peer_{"peer", KEY, false};
+  noise::NoiseStream other_key_peer_{"other_peer", OTHER_KEY, false};
   noise::NoiseStream *peer_stream_{&key_peer_};
   socket::TcpClientLink peer_;
   std::string received_;

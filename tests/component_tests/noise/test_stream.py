@@ -1,4 +1,4 @@
-"""Tests for the noise stream helpers: the key, interval and set key action checks and codegen."""
+"""Tests for the noise stream helpers: the link key schema, the checks and codegen."""
 
 from __future__ import annotations
 
@@ -205,13 +205,13 @@ def test_new_stream_without_a_key_takes_it_at_runtime(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
-    stream = noise.new_stream(ID("link", is_declaration=True), None, True)
+    stream = noise.new_stream(ID("link", is_declaration=True), None, True, "my_link")
     defines = {define.name for define in CORE.defines}
     assert {"USE_NOISE_STREAM", "USE_NOISE_STREAM_RUNTIME_KEY"} <= defines
     assert str(stream) == "link_noise"
     # The preference hash is per entry
     key_hash = fnv1_hash("noise_stream_key:link")
-    assert f"noise::NoiseStream({key_hash}UL, true)" in CORE.cpp_main_section
+    assert f'noise::NoiseStream("my_link", {key_hash}UL, true)' in CORE.cpp_main_section
     # Without api and ota there is no key to keep apart
     CORE.config = {}
     CORE.flush_tasks()
@@ -223,6 +223,6 @@ def test_a_key_in_yaml_compiles_no_runtime_key(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
-    noise.new_stream(ID("link", is_declaration=True), LINK_KEY, True)
+    noise.new_stream(ID("link", is_declaration=True), LINK_KEY, True, "my_link")
     defines = {define.name for define in CORE.defines}
     assert "USE_NOISE_STREAM_RUNTIME_KEY" not in defines

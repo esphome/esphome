@@ -841,9 +841,9 @@ class NoiseStreamKeyTest : public NoiseStreamTest {
 };
 
 TEST_F(NoiseStreamKeyTest, WithoutAKeyNoHandshakeStarts) {
-  StreamProbe client(KEY_HASH, true);
+  StreamProbe client("client", KEY_HASH, true);
   EXPECT_FALSE(client.load_key());
-  NoiseStream server(this->key_.data(), false);
+  NoiseStream server("server", this->key_.data(), false);
   this->pump_(client, server);
   EXPECT_FALSE(client.ready());
   EXPECT_FALSE(server.ready());
@@ -853,8 +853,8 @@ TEST_F(NoiseStreamKeyTest, WithoutAKeyNoHandshakeStarts) {
 
   // A keyless responder closes too
   this->client_link_.reconnect();
-  NoiseStream keyed(this->key_.data(), true);
-  StreamProbe responder(KEY_HASH + 1, false);
+  NoiseStream keyed("keyed", this->key_.data(), true);
+  StreamProbe responder("responder", KEY_HASH + 1, false);
   EXPECT_FALSE(responder.load_key());
   this->pump_(keyed, responder);
   EXPECT_FALSE(responder.ready());
@@ -864,24 +864,24 @@ TEST_F(NoiseStreamKeyTest, WithoutAKeyNoHandshakeStarts) {
 
 TEST_F(NoiseStreamKeyTest, ASavedKeyIsLoadedAfterARestart) {
   {
-    NoiseStream before(KEY_HASH, true);
+    NoiseStream before("before", KEY_HASH, true);
     ASSERT_FALSE(before.load_key());
     EXPECT_TRUE(before.set_key(this->client_link_, KEY_B64));
   }
-  NoiseStream client(KEY_HASH, true);
+  NoiseStream client("client", KEY_HASH, true);
   ASSERT_TRUE(client.load_key());
-  NoiseStream server(this->key_.data(), false);
+  NoiseStream server("server", this->key_.data(), false);
   this->client_link_.reconnect();
   this->pump_(client, server);
   EXPECT_TRUE(client.ready());
   EXPECT_TRUE(server.ready());
   // Each stream has its own record
-  NoiseStream other(KEY_HASH + 1, true);
+  NoiseStream other("other", KEY_HASH + 1, true);
   EXPECT_FALSE(other.load_key());
 }
 
 TEST_F(NoiseStreamKeyTest, OnlyAValidKeyIsSaved) {
-  NoiseStream stream(KEY_HASH, true);
+  NoiseStream stream("stream", KEY_HASH, true);
   ASSERT_FALSE(stream.load_key());
   for (const std::string &bad : {std::string("AAECAw=="), std::string("not base64"), std::string(),
                                  // 33 bytes: refused, not cut to 32
@@ -891,14 +891,14 @@ TEST_F(NoiseStreamKeyTest, OnlyAValidKeyIsSaved) {
     // A refused key leaves the link alone
     EXPECT_TRUE(this->client_link_.connected()) << bad;
   }
-  NoiseStream reloaded(KEY_HASH, true);
+  NoiseStream reloaded("reloaded", KEY_HASH, true);
   EXPECT_FALSE(reloaded.load_key());
   // The unpadded form and trailing junk decode to the same key, as the api accepts them
   EXPECT_TRUE(stream.set_key(this->client_link_, KEY_B64.substr(0, 43) + "\n"));
 }
 
 TEST_F(NoiseStreamKeyTest, TheApiAndOtaKeysAreRefused) {
-  NoiseStream stream(KEY_HASH, true);
+  NoiseStream stream("stream", KEY_HASH, true);
   ASSERT_FALSE(stream.load_key());
   NoiseContext api;
   stream.set_api_context(api);
@@ -911,25 +911,25 @@ TEST_F(NoiseStreamKeyTest, TheApiAndOtaKeysAreRefused) {
   EXPECT_FALSE(stream.set_key(this->client_link_, KEY_B64));
   EXPECT_FALSE(stream.set_key(this->client_link_, OTHER_KEY_B64));
   EXPECT_TRUE(this->client_link_.connected());
-  NoiseStream reloaded(KEY_HASH, true);
+  NoiseStream reloaded("reloaded", KEY_HASH, true);
   ASSERT_TRUE(reloaded.load_key());
   // The saved key is still the third one: it talks to a server holding it
   psk_t third = make_psk(3);
-  NoiseStream server(third.data(), false);
+  NoiseStream server("server", third.data(), false);
   this->pump_(reloaded, server);
   EXPECT_TRUE(reloaded.ready());
 }
 
 TEST_F(NoiseStreamKeyTest, ASavedApiOrOtaKeyIsNotUsed) {
   {
-    NoiseStream before(KEY_HASH, true);
+    NoiseStream before("before", KEY_HASH, true);
     ASSERT_FALSE(before.load_key());
     ASSERT_TRUE(before.set_key(this->client_link_, KEY_B64));
   }
   // Since the key was saved, the api got it at runtime or an update made it an ota key
   NoiseContext api;
   api.set_psk(this->key_.data());
-  NoiseStream with_api(KEY_HASH, true);
+  NoiseStream with_api("with_api", KEY_HASH, true);
   with_api.set_api_context(api);
 #ifdef USE_LOG_LISTENERS
   captured_log().clear();
@@ -939,11 +939,11 @@ TEST_F(NoiseStreamKeyTest, ASavedApiOrOtaKeyIsNotUsed) {
 #ifdef USE_LOG_LISTENERS
   EXPECT_NE(captured_log().find("Saved key equals the api or ota key"), std::string::npos) << captured_log();
 #endif
-  NoiseStream with_ota(KEY_HASH, true);
+  NoiseStream with_ota("with_ota", KEY_HASH, true);
   with_ota.set_ota_key(this->key_.data());
   EXPECT_FALSE(with_ota.load_key());
   // No session starts on it, and a new key is taken
-  NoiseStream server(this->key_.data(), false);
+  NoiseStream server("server", this->key_.data(), false);
   this->client_link_.reconnect();
   this->pump_(with_ota, server);
   EXPECT_FALSE(with_ota.ready());
@@ -953,7 +953,7 @@ TEST_F(NoiseStreamKeyTest, ASavedApiOrOtaKeyIsNotUsed) {
 }
 
 TEST_F(NoiseStreamKeyTest, AKeyBeforeSetupIsRefused) {
-  NoiseStream stream(KEY_HASH, true);
+  NoiseStream stream("stream", KEY_HASH, true);
 #ifdef USE_LOG_LISTENERS
   captured_log().clear();
 #endif
@@ -971,8 +971,8 @@ TEST_F(NoiseStreamKeyTest, AKeyBeforeSetupIsRefused) {
 }
 
 TEST_F(NoiseStreamKeyTest, ANewKeyEndsTheSessionAndTheHold) {
-  StreamProbe client(KEY_HASH, true);
-  StreamProbe server(KEY_HASH + 1, false);
+  StreamProbe client("client", KEY_HASH, true);
+  StreamProbe server("server", KEY_HASH + 1, false);
   ASSERT_FALSE(client.load_key());
   ASSERT_FALSE(server.load_key());
   ASSERT_TRUE(client.set_key(this->client_link_, KEY_B64));

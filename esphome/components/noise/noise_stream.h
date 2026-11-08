@@ -49,7 +49,7 @@ class NoiseStream {
   void set_api_context(const NoiseContext &api) { this->api_ctx_ = &api; }
   void set_ota_key(const uint8_t *key) { this->ota_key_ = key; }
   /// True when there is a key, from yaml or saved earlier; a saved api or ota key does not count. Call once from
-  /// setup(), after set_log_tag(); set_key() refuses keys until then.
+  /// setup(); set_key() refuses keys until then.
   bool load_key();
   bool has_key() const { return this->ctx_.has_psk(); }
   /// Save a base64 key and close the link, so the next session uses it. False when the key is refused, unchanged or

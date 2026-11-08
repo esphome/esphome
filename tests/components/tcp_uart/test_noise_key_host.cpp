@@ -25,7 +25,7 @@ static const std::string OTHER_KEY_B64 = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR
 
 class KeyUart : public TcpUart {
  public:
-  KeyUart(uint32_t key_hash, bool initiator) : stream_(key_hash, initiator) {
+  KeyUart(uint32_t key_hash, bool initiator) : stream_("tcp_uart", key_hash, initiator) {
     this->set_host("peer");
     this->set_port(1);
     this->set_noise_stream(&this->stream_);
