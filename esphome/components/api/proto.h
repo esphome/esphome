@@ -726,11 +726,7 @@ class DumpBuffer {
   size_t pos() const { return pos_; }
   /// Update position after buf_append_printf call
   void set_pos(size_t pos) {
-    if (pos >= CAPACITY) {
-      pos_ = CAPACITY - 1;
-    } else {
-      pos_ = pos;
-    }
+    pos_ = pos >= CAPACITY ? CAPACITY - 1 : pos;
     buf_[pos_] = '\0';
   }
 

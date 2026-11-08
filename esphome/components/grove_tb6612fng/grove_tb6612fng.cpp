@@ -61,11 +61,7 @@ void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t channel, int16_t speed) {
   speed = clamp<int16_t>(speed, -255, 255);
 
   buffer_[0] = channel;
-  if (speed >= 0) {
-    buffer_[1] = speed;
-  } else {
-    buffer_[1] = (uint8_t) (-speed);
-  }
+  buffer_[1] = speed >= 0 ? speed : (uint8_t) (-speed);
 
   if (speed >= 0) {
     if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_CW, buffer_, 2) != i2c::ERROR_OK) {

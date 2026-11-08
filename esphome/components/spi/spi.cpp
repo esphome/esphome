@@ -96,11 +96,7 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
 
   for (uint8_t i = 0; i != num_bits; i++) {
     uint8_t shift;
-    if (bit_order_ == BIT_ORDER_MSB_FIRST) {
-      shift = num_bits - 1 - i;
-    } else {
-      shift = i;
-    }
+    shift = bit_order_ == BIT_ORDER_MSB_FIRST ? num_bits - 1 - i : i;
 
     if (clock_phase_ == CLOCK_PHASE_LEADING) {
       // sampling on leading edge

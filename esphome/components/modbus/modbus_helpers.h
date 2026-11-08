@@ -682,11 +682,7 @@ PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits);
 template<typename Container> void float_to_payload(Container &data, float value, SensorValueType value_type) {
   int64_t val;
 
-  if (value_type_is_float(value_type)) {
-    val = bit_cast<uint32_t>(value);
-  } else {
-    val = llroundf(value);
-  }
+  val = value_type_is_float(value_type) ? bit_cast<uint32_t>(value) : llroundf(value);
 
   number_to_payload(data, val, value_type);
 }

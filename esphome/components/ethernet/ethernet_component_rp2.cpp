@@ -67,11 +67,7 @@ void EthernetComponent::setup() {
 
   // Begin with fixed MAC or auto-generated
   bool success;
-  if (this->fixed_mac_.has_value()) {
-    success = this->eth_->begin(this->fixed_mac_->data());
-  } else {
-    success = this->eth_->begin();
-  }
+  success = this->fixed_mac_.has_value() ? this->eth_->begin(this->fixed_mac_->data()) : this->eth_->begin();
 
   if (!success) {
     ESP_LOGE(TAG, "Failed to initialize Ethernet");

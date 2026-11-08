@@ -116,26 +116,10 @@ struct Color {
   }
   inline Color operator+(const Color &add) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    if (uint8_t(add.r + this->r) < this->r) {
-      ret.r = 255;
-    } else {
-      ret.r = this->r + add.r;
-    }
-    if (uint8_t(add.g + this->g) < this->g) {
-      ret.g = 255;
-    } else {
-      ret.g = this->g + add.g;
-    }
-    if (uint8_t(add.b + this->b) < this->b) {
-      ret.b = 255;
-    } else {
-      ret.b = this->b + add.b;
-    }
-    if (uint8_t(add.w + this->w) < this->w) {
-      ret.w = 255;
-    } else {
-      ret.w = this->w + add.w;
-    }
+    ret.r = uint8_t(add.r + this->r) < this->r ? 255 : this->r + add.r;
+    ret.g = uint8_t(add.g + this->g) < this->g ? 255 : this->g + add.g;
+    ret.b = uint8_t(add.b + this->b) < this->b ? 255 : this->b + add.b;
+    ret.w = uint8_t(add.w + this->w) < this->w ? 255 : this->w + add.w;
     return ret;
   }
   inline Color &operator+=(const Color &add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
@@ -143,26 +127,10 @@ struct Color {
   inline Color &operator+=(uint8_t add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
   inline Color operator-(const Color &subtract) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    if (subtract.r > this->r) {
-      ret.r = 0;
-    } else {
-      ret.r = this->r - subtract.r;
-    }
-    if (subtract.g > this->g) {
-      ret.g = 0;
-    } else {
-      ret.g = this->g - subtract.g;
-    }
-    if (subtract.b > this->b) {
-      ret.b = 0;
-    } else {
-      ret.b = this->b - subtract.b;
-    }
-    if (subtract.w > this->w) {
-      ret.w = 0;
-    } else {
-      ret.w = this->w - subtract.w;
-    }
+    ret.r = subtract.r > this->r ? 0 : this->r - subtract.r;
+    ret.g = subtract.g > this->g ? 0 : this->g - subtract.g;
+    ret.b = subtract.b > this->b ? 0 : this->b - subtract.b;
+    ret.w = subtract.w > this->w ? 0 : this->w - subtract.w;
     return ret;
   }
   inline Color &operator-=(const Color &subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }

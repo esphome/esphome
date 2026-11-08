@@ -80,11 +80,7 @@ void MICS4514Component::update() {
 
   if (this->nitrogen_dioxide_sensor_ != nullptr) {
     float nitrogendioxide = 0.0f;
-    if (ox_f < 0.3f) {
-      nitrogendioxide = 0.0;
-    } else {
-      nitrogendioxide = 0.164f * powf(ox_f, 0.975f);
-    }
+    nitrogendioxide = ox_f < 0.3f ? 0.0f : 0.164f * powf(ox_f, 0.975f);
     this->nitrogen_dioxide_sensor_->publish_state(nitrogendioxide);
   }
 

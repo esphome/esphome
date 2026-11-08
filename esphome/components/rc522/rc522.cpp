@@ -111,11 +111,7 @@ void RC522::loop() {
 
   StatusCode status = STATUS_ERROR;  // For lint passing. TODO: refactor this
   if (awaiting_comm_) {
-    if (state_ == STATE_SELECT_SERIAL_DONE) {
-      status = await_crc_();
-    } else {
-      status = await_transceive_();
-    }
+    status = state_ == STATE_SELECT_SERIAL_DONE ? await_crc_() : await_transceive_();
 
     if (status == STATUS_WAITING) {
       return;
