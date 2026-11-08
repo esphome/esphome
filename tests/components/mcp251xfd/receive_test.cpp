@@ -91,4 +91,43 @@ TEST(MCP251XFDReceive, ClassicModeUsesEightBytePayloadObjects) {
   EXPECT_EQ(spi.writes_to(REG_RX_FIFO_CON + 1), increments + 1);
 }
 
+TEST(MCP251XFDTransmit, WritesHeaderAndZeroPaddedPayloadInOneTransfer) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  spi.registers[REG_TX_FIFO_STA] = FIFO_NOT_FULL_NOT_EMPTY;
+
+  canbus::CanFrame frame{};
+  frame.can_id = 0x12345678 & canbus::CAN_EXTENDED_ID_MAX;
+  frame.use_extended_id = true;
+  frame.fd = true;
+  frame.bit_rate_switch = true;
+  frame.can_data_length_code = 9;
+  for (size_t i = 0; i < 12; i++)
+    frame.data[i] = 0xA0 + i;
+  ASSERT_EQ(controller.send_message(&frame), canbus::ERROR_OK);
+  ASSERT_EQ(spi.writes.size(), 2u);
+  EXPECT_EQ(spi.writes[0].address, RAM_START);
+  const uint32_t id = (frame.can_id >> 18) | ((frame.can_id & EXTENDED_ID_LOW_MASK) << 11);
+  std::vector<uint8_t> expected{static_cast<uint8_t>(id),
+                                static_cast<uint8_t>(id >> 8),
+                                static_cast<uint8_t>(id >> 16),
+                                static_cast<uint8_t>(id >> 24),
+                                9 | MESSAGE_IDE | MESSAGE_FDF | MESSAGE_BRS,
+                                0,
+                                0,
+                                0};
+  for (size_t i = 0; i < 12; i++)
+    expected.push_back(0xA0 + i);
+  EXPECT_EQ(spi.writes[0].data, expected);
+  EXPECT_EQ(spi.writes[1].address, REG_TX_FIFO_CON + 1);
+
+  // A shorter frame pads its last word with zeros, not with bytes left from the previous frame
+  frame = canbus::CanFrame{};
+  frame.can_id = 0x123;
+  frame.can_data_length_code = 1;
+  frame.data[0] = 0x55;
+  ASSERT_EQ(controller.send_message(&frame), canbus::ERROR_OK);
+  EXPECT_EQ(spi.writes[2].data, (std::vector<uint8_t>{0x23, 0x01, 0, 0, 1, 0, 0, 0, 0x55, 0, 0, 0}));
+}
+
 }  // namespace esphome::mcp251xfd::testing

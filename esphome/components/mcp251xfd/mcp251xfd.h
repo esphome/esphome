@@ -56,6 +56,8 @@ class MCP251XFD : public canbus::Canbus,
   bool set_comm_fault_(const LogString *reason);
   bool should_log_fault_(uint32_t now);
   bool recover_mode_if_needed_(bool bus_off, bool retry_due);
+  // Writes length bytes that follow two free bytes at transfer, which hold the command.
+  void write_transfer_(uint16_t address, uint8_t *transfer, size_t length);
   void write_registers_(uint16_t address, const uint8_t *data, size_t length);
   void write_register_(uint16_t address, uint32_t value);
   void write_byte_(uint16_t address, uint8_t value);

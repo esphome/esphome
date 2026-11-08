@@ -144,6 +144,7 @@ class TestMCP251XFD : public MCP251XFD {
   void log_events(canbus::CanEventFlags events, uint32_t now) { this->log_events_(events, now); }
   bool mode_fault_active() const { return this->mode_fault_active_; }
   using MCP251XFD::read_message;
+  using MCP251XFD::send_message;
 };
 
 }  // namespace

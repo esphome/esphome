@@ -39,7 +39,7 @@ bool MCP251XFD::setup_internal() {
 
   // Leave TEF, TXQ, automatic RTR responses and timestamps disabled. ESI follows the controller's error state.
   // Leave RTXAT clear for unlimited retransmissions, as in the MCP2515 driver.
-  std::array<uint8_t, 16> config_data;
+  std::array<uint8_t, MAX_REGISTER_WRITE_SIZE> config_data;
   uint8_t *out =
       put_le32(config_data.data(), (static_cast<uint32_t>(CanMode::CAN_MODE_CONFIGURATION) << 24) | CON_ISO_CRC_ENABLE);
   out = put_le32(out, this->nominal_bit_timing_);
@@ -232,14 +232,18 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
   return true;
 }
 
-void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t length) {
-  std::array<uint8_t, 2 + MAX_MESSAGE_SIZE> transfer;
-  std::memcpy(put_be16(transfer.data(), (INSTRUCTION_WRITE << 8) | address), data, length);
-
+void MCP251XFD::write_transfer_(uint16_t address, uint8_t *transfer, size_t length) {
+  put_be16(transfer, (INSTRUCTION_WRITE << 8) | address);
   // One buffered transfer keeps the CS-low window tight (errata DS80000792, section 1).
   this->enable();
-  this->write_array(transfer.data(), length + 2);
+  this->write_array(transfer, length + 2);
   this->disable();
+}
+
+void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t length) {
+  std::array<uint8_t, 2 + MAX_REGISTER_WRITE_SIZE> transfer;
+  std::memcpy(transfer.data() + 2, data, length);
+  this->write_transfer_(address, transfer.data(), length);
 }
 
 void MCP251XFD::write_register_(uint16_t address, uint32_t value) {
@@ -275,27 +279,28 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), 0, TX_FIFO_DEPTH, address))
     return canbus::ERROR_FAILTX;
 
-  std::array<uint8_t, MAX_MESSAGE_SIZE> message{};
+  // The object follows the two write command bytes, so it goes out without a copy.
+  std::array<uint8_t, 2 + MAX_MESSAGE_SIZE> transfer;
   uint32_t id;
   if (frame->use_extended_id) {
     id = (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11);
   } else {
     id = frame->can_id;
   }
-  put_le32(message.data(), id);
-  message[4] = frame->can_data_length_code;
-  assign_bits(message[4], MESSAGE_IDE, frame->use_extended_id);
-  assign_bits(message[4], MESSAGE_RTR, frame->remote_transmission_request);
+  uint32_t flags = frame->can_data_length_code;
+  assign_bits(flags, MESSAGE_IDE, frame->use_extended_id);
+  assign_bits(flags, MESSAGE_RTR, frame->remote_transmission_request);
 #ifdef USE_CANBUS_FD
-  assign_bits(message[4], MESSAGE_FDF, frame->fd);
-  assign_bits(message[4], MESSAGE_BRS, frame->bit_rate_switch);
+  assign_bits(flags, MESSAGE_FDF, frame->fd);
+  assign_bits(flags, MESSAGE_BRS, frame->bit_rate_switch);
 #endif
+  uint8_t *payload = put_le32(put_le32(transfer.data() + 2, id), flags);
   const size_t payload_length = frame->remote_transmission_request ? 0 : frame->payload_length();
-  if (payload_length != 0)
-    std::memcpy(message.data() + 8, frame->data, payload_length);
-
-  // RAM writes must contain whole words. Unused bytes in the last word stay zero.
-  this->write_registers_(address, message.data(), 8 + ((payload_length + 3) & ~size_t{3}));
+  // RAM writes must contain whole words. Unused bytes in the last word are zero.
+  const size_t padded_length = (payload_length + 3) & ~size_t{3};
+  std::memcpy(payload, frame->data, payload_length);
+  std::fill(payload + payload_length, payload + padded_length, 0);
+  this->write_transfer_(address, transfer.data(), MESSAGE_HEADER_SIZE + padded_length);
   this->write_byte_(REG_TX_FIFO_CON + 1, FIFO_INCREMENT | FIFO_TX_REQUEST);
   return canbus::ERROR_OK;
 }

@@ -43,7 +43,9 @@ static constexpr uint16_t RAM_SIZE = 2048;
 static constexpr size_t MESSAGE_HEADER_SIZE = 8;
 static constexpr size_t MESSAGE_SIZE = MESSAGE_HEADER_SIZE + 64;
 static constexpr size_t CLASSIC_MESSAGE_SIZE = MESSAGE_HEADER_SIZE + 8;
-// Largest object this build sends or receives, and largest read: the header with 8 data bytes or the rest of a payload
+// The CON to TDC block written in setup is the largest register write.
+static constexpr size_t MAX_REGISTER_WRITE_SIZE = 16;
+// Largest object this build sends, and largest read: the header with 8 data bytes or the rest of a payload
 static constexpr size_t MAX_MESSAGE_SIZE = MESSAGE_HEADER_SIZE + canbus::CAN_FRAME_DATA_LENGTH;
 static constexpr size_t MAX_READ_SIZE = std::max<size_t>(MESSAGE_HEADER_SIZE + canbus::CAN_MAX_DATA_LENGTH,
                                                          canbus::CAN_FRAME_DATA_LENGTH - canbus::CAN_MAX_DATA_LENGTH);
