@@ -292,6 +292,25 @@ TEST(MCP251XFDRecovery, DefersModeRequestWhileBusOff) {
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
 }
 
+TEST(MCP251XFDRecovery, FaultFirstSeenDuringBusOffRecoversWhenTheBusRecovers) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  controller.poll(100);  // a healthy periodic check, so the next one is not due for 5 s
+
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
+  spi.set_error_flags(ERROR_BUS_OFF);
+  spi.registers[REG_INT] = INT_MODE_CHANGE;
+  spi.registers[REG_INT + 1] = INT_CAN_ERROR;
+  EXPECT_EQ(controller.poll(200), canbus::CAN_EVENT_BUS_OFF);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 0u);
+
+  spi.registers[REG_INT] = 0;
+  spi.set_error_flags(0);
+  controller.poll(300);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+}
+
 TEST(MCP251XFDRecovery, FailedReadDefersModeRecoveryAndFlagClearing) {
   struct Case {
     uint16_t failed_register;

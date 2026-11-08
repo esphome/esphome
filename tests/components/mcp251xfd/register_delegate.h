@@ -13,10 +13,8 @@
 
 namespace esphome::mcp251xfd::testing {
 
-namespace {
-
 // Compute the controller's SPI CRC independently of the driver.
-uint16_t spi_crc(const uint8_t *data, size_t length, uint16_t crc = 0xFFFF) {
+inline uint16_t spi_crc(const uint8_t *data, size_t length, uint16_t crc = 0xFFFF) {
   for (size_t i = 0; i < length; i++) {
     crc ^= static_cast<uint16_t>(data[i]) << 8;
     for (uint8_t bit = 0; bit < 8; bit++)
@@ -180,7 +178,5 @@ class TestMCP251XFD : public MCP251XFD {
   unsigned spi_setups{0};
   unsigned spi_teardowns{0};
 };
-
-}  // namespace
 
 }  // namespace esphome::mcp251xfd::testing
