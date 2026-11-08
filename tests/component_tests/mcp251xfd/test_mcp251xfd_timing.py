@@ -27,6 +27,16 @@ def decode_timing(timing: int, data_phase: bool) -> tuple[int, int, int, int]:
     )
 
 
+def assert_rate(
+    clock: str, timing: int, data_phase: bool, expected: float
+) -> tuple[int, int, int, int]:
+    """Check that a phase register runs within 0.5% of the expected rate."""
+    prescaler, segment1, segment2, sjw = decode_timing(timing, data_phase)
+    actual = mcp251xfd.SYSTEM_CLOCK[clock] / (prescaler * (1 + segment1 + segment2))
+    assert abs(actual / expected - 1) <= 0.005
+    return prescaler, segment1, segment2, sjw
+
+
 @pytest.fixture
 def configure() -> Callable[..., dict]:
     """Validate MCP251xFD configuration."""
@@ -60,13 +70,10 @@ def test_default_data_rate(
     config = configure(clock=clock, bit_rate=rate, data_bit_rate=rate)
     assert config["data_bit_rate"] == rate
     nominal, data, tdc = mcp251xfd.bit_timings(clock, rate, rate)
-    system_clock = mcp251xfd.SYSTEM_CLOCK[clock]
     expected = mcp251xfd._exact_rate(rate)
     assert nominal >> 24 == data >> 24
     for timing, data_phase in ((nominal, False), (data, True)):
-        prescaler, segment1, segment2, sjw = decode_timing(timing, data_phase)
-        actual = system_clock / (prescaler * (1 + segment1 + segment2))
-        assert abs(actual / expected - 1) <= 0.005
+        _, segment1, segment2, sjw = assert_rate(clock, timing, data_phase, expected)
         assert sjw <= min(segment1, segment2)
     if expected >= 1_000_000:
         prescaler, segment1, _, _ = decode_timing(data, True)
@@ -122,11 +129,8 @@ def test_low_nominal_with_faster_data(
     assert config["data_bit_rate"] == "5KBPS"
     nominal, data, _ = mcp251xfd.bit_timings(clock, "1KBPS", "5KBPS")
     assert nominal >> 24 == data >> 24
-    system_clock = mcp251xfd.SYSTEM_CLOCK[clock]
-    for timing, data_phase, expected in ((nominal, False, 1000), (data, True, 5000)):
-        prescaler, segment1, segment2, _ = decode_timing(timing, data_phase)
-        actual = system_clock / (prescaler * (1 + segment1 + segment2))
-        assert abs(actual / expected - 1) <= 0.005
+    assert_rate(clock, nominal, False, 1000)
+    assert_rate(clock, data, True, 5000)
 
 
 def test_codegen(
@@ -158,7 +162,5 @@ def test_classic_nominal_only(configure: Callable[..., dict], clock: str) -> Non
     """CLASSIC searches only the nominal phase, so 5 kbps works without a data phase."""
     configure(mode="CLASSIC", clock=clock, bit_rate="5KBPS")
     nominal, data, tdc = mcp251xfd.bit_timings(clock, "5KBPS", None)
-    prescaler, segment1, segment2, _ = decode_timing(nominal, False)
-    actual = mcp251xfd.SYSTEM_CLOCK[clock] / (prescaler * (1 + segment1 + segment2))
-    assert abs(actual / 5000 - 1) <= 0.005
+    assert_rate(clock, nominal, False, 5000)
     assert (data, tdc) == (mcp251xfd.DATA_BIT_TIMING_RESET, mcp251xfd.TDC_RESET)
