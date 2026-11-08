@@ -60,8 +60,8 @@ void TLV320DAC3100::setup() {
     this->mark_failed(LOG_STR("Reset failed"));
     return;
   }
-  // Internal memories initialize within 1 ms of a reset
-  delay(1);
+  // Internal memories initialize within 1 ms of a reset; delay(1) can end sooner
+  delay(2);
 
   const bool uses_pll = (this->clock_mux_ & 0x03) == 0x03;
   // P = 8 is written as 0
@@ -161,10 +161,15 @@ bool TLV320DAC3100::write_page_(uint8_t page, uint8_t reg, uint8_t value) {
   return this->write_byte(REG_PAGE, page) && this->write_byte(reg, value);
 }
 
+bool TLV320DAC3100::report_write_(bool ok) {
+  // Until the DAC is up, power_up_dac_() owns the warning status
+  return this->dac_powered_ ? this->status_comm_result(ok) : ok;
+}
+
 bool TLV320DAC3100::write_mute_() {
   if (this->is_failed())
     return false;
-  if (!this->write_page_(0, REG_DAC_MUTE, this->is_muted_ ? 0x0C : 0x00)) {
+  if (!this->report_write_(this->write_page_(0, REG_DAC_MUTE, this->is_muted_ ? 0x0C : 0x00))) {
     ESP_LOGE(TAG, "Writing mute failed");
     return false;
   }
@@ -175,7 +180,8 @@ bool TLV320DAC3100::write_volume_() {
   if (this->is_failed())
     return false;
   const auto volume = static_cast<int8_t>(lroundf(VOLUME_MIN * (1.0f - this->volume_)));
-  if (!this->write_page_(0, REG_DAC_VOLUME_L, volume) || !this->write_byte(REG_DAC_VOLUME_R, volume)) {
+  if (!this->report_write_(this->write_page_(0, REG_DAC_VOLUME_L, volume) &&
+                           this->write_byte(REG_DAC_VOLUME_R, volume))) {
     ESP_LOGE(TAG, "Writing volume failed");
     return false;
   }

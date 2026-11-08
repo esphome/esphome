@@ -45,6 +45,7 @@ class TLV320DAC3100 final : public audio_dac::AudioDac, public Component, public
 
  protected:
   bool write_page_(uint8_t page, uint8_t reg, uint8_t value);
+  bool report_write_(bool ok);
   bool write_mute_();
   bool write_volume_();
   void power_up_dac_();
