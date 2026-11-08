@@ -15,6 +15,9 @@
 
 namespace esphome::canopen {
 
+// Drops the buffer's frame if it still waits to be sent (driver_can.cpp).
+void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
+
 // CANopen on CANopenNode: an SDO client on the bus. It reads and writes objects of other CANopen devices (drives,
 // sensors, I/O modules) from automations (canopen.sdo_read / canopen.sdo_write) and lambdas; the hub isn't a CANopen
 // node itself (no node id, NMT, heartbeat or SDO server), so only CANopenNode's CAN driver, SDO client and OD access
@@ -59,9 +62,10 @@ class CANopenComponent : public Component {
     return this->write_sdo(node_id, index, sub, raw, sizeof(T), callback, context);
   }
   // buffer transfers (strings, domains): segmented (every server supports it, block transfer is optional);
-  // reads up to 1024 bytes.
-  // write_sdo_data() doesn't copy: data must stay valid until the callback.
-  bool read_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, SDOCallback callback, void *context);
+  // the buffers are the caller's and must stay valid until the callback (so not on the stack).
+  // read_sdo_data(): an object longer than capacity is aborted; reply.data is data.
+  bool read_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, uint8_t *data, size_t capacity, SDOCallback callback,
+                     void *context);
   bool write_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, const uint8_t *data, size_t len,
                       SDOCallback callback = nullptr, void *context = nullptr);
 
@@ -86,13 +90,14 @@ class CANopenComponent : public Component {
     SDOKind kind;
     uint8_t size;  // read: expected size (0 = any); write: value size
     uint32_t value;
-    const uint8_t *data;  // WRITE_DATA, owned by the caller
-    size_t len;
+    uint8_t *data;  // READ_DATA, WRITE_DATA (only read): owned by the caller
+    size_t len;     // READ_DATA: capacity of data
     SDOCallback callback;
     void *context;
   };
   static constexpr size_t SDO_QUEUE_SIZE = 16;
-  static constexpr size_t SDO_MAX_UPLOAD = 1024;
+  // a value read only counts the bytes (SIZE_MISMATCH above 4); longer objects are aborted
+  static constexpr size_t SDO_MAX_VALUE_UPLOAD = 1024;
   void add_sdo_client_od_();
   void config_sdo_client_(CO_config_t &cfg);
   bool init_sdo_client_();
@@ -117,10 +122,9 @@ class CANopenComponent : public Component {
   bool sdo_busy_{false};
   size_t sdo_offset_{0};  // WRITE/WRITE_DATA: bytes handed to the client fifo
   // READ/READ_DATA: bytes received (also those beyond the buffer, for the size checks), kept in sdo_rx_value_ (READ)
-  // or sdo_rx_buf_ (READ_DATA)
+  // or the caller's buffer (READ_DATA)
   size_t sdo_rx_len_{0};
   std::array<uint8_t, 4> sdo_rx_value_{};
-  std::array<uint8_t, SDO_MAX_UPLOAD> sdo_rx_buf_{};
 };
 
 }  // namespace esphome::canopen

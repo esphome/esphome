@@ -7,6 +7,13 @@
 
 namespace esphome::canopen {
 
+void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
+  if (buf->bufferFull) {
+    buf->bufferFull = false;
+    mod->CANtxCount--;
+  }
+}
+
 static bool send_frame(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
   return static_cast<CANopenComponent *>(mod->CANptr)->transmit(buf->ident, buf->data, buf->DLC);
 }
@@ -18,11 +25,10 @@ void CANopenComponent::set_canbus(canbus::Canbus *canbus) {
 
 void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   // CANopen (CiA 301) uses classic CAN frames with 11-bit ids
-  if (frame.use_extended_id)
+  const uint8_t len = frame.payload_length();
+  if (frame.use_extended_id || len > 8)
     return;
-  uint8_t len = frame.payload_length();
-  this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data,
-                 len > 8 ? 8 : len);
+  this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
   this->process_();
 }
 
@@ -44,12 +50,12 @@ void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {
   if (this->canbus_ == nullptr)
     return false;
-  // the (data, len) overload is in ESPHome dev since after 2026.9 (not in 2026.9.x releases)
   return this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, data, len) == canbus::ERROR_OK;
 }
 
 }  // namespace esphome::canopen
 
+using esphome::canopen::discard_pending_tx;
 using esphome::canopen::send_frame;
 
 extern "C" {
@@ -104,9 +110,10 @@ CO_CANtx_t *CO_CANtxBufferInit(CO_CANmodule_t *CANmodule, uint16_t index, uint16
   if (CANmodule == nullptr || index >= CANmodule->txSize)
     return nullptr;
   CO_CANtx_t *tx = &CANmodule->txArray[index];
+  // the SDO client sets its buffer up again for every request
+  discard_pending_tx(CANmodule, tx);
   tx->ident = (ident & 0x7FF) | (rtr ? 0x800 : 0);
   tx->DLC = noOfBytes;
-  tx->bufferFull = false;
   tx->syncFlag = syncFlag;
   return tx;
 }

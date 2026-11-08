@@ -45,6 +45,9 @@ void CANopenComponent::loop() { this->process_(); }
 void CANopenComponent::process_() {
   if (this->co_ == nullptr || this->is_failed())
     return;
+  // nothing to do without a request or a frame to send
+  if (this->co_->CANmodule->CANtxCount == 0 && !this->sdo_busy_ && this->sdo_count_ == 0)
+    return;
   uint32_t now = micros();
   uint32_t dt = now - this->last_us_;
   this->last_us_ = now;

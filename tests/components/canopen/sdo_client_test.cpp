@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <array>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -79,7 +80,8 @@ TEST_F(SdoClient, ExpeditedWrite) {
 }
 
 TEST_F(SdoClient, SegmentedRead) {
-  ASSERT_TRUE(this->hub_.read_sdo_data(0x21, 0x1008, 0, on_reply, this));
+  std::array<uint8_t, 32> buffer{};
+  ASSERT_TRUE(this->hub_.read_sdo_data(0x21, 0x1008, 0, buffer.data(), buffer.size(), on_reply, this));
   this->hub_.loop();
   // initiate response: segmented, 10 bytes
   this->hub_.frame(0x5A1, {0x41, 0x08, 0x10, 0, 10, 0, 0, 0});
