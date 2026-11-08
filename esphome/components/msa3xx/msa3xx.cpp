@@ -232,10 +232,8 @@ void MSA3xxComponent::loop() {
 
   RegMotionInterrupt old_motion_int = this->status_.motion_int;
 
-  if (!this->read_data_() || !this->read_motion_status_()) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_data_() && this->read_motion_status_()))
     return;
-  }
 
   this->process_motions_(old_motion_int);
 }

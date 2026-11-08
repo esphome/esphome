@@ -12,10 +12,8 @@ ESPHOME_LOG_TAG(TAG, "dht12");
 
 void DHT12Component::update() {
   uint8_t data[5];
-  if (!this->read_data_(data)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_data_(data)))
     return;
-  }
   const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
   float temperature = raw_temperature / 10.0f;
   if ((data[3] & 0x80) != 0) {

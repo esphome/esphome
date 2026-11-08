@@ -135,10 +135,8 @@ void SCD30Component::update() {
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[6];
-    if (!this->read_data(raw_data, 6)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_data(raw_data, 6)))
       return;
-    }
 
     union uint32_float_t {
       uint32_t uint32;

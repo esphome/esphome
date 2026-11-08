@@ -108,10 +108,8 @@ void BMP280Component::update() {
   meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_value |= 0b01;  // Forced mode
-  if (!this->bmp_write_byte(BMP280_REGISTER_CONTROL, meas_value)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->bmp_write_byte(BMP280_REGISTER_CONTROL, meas_value)))
     return;
-  }
 
   float meas_time = 1;
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);

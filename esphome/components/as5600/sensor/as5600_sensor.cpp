@@ -47,16 +47,12 @@ void AS5600Sensor::update() {
   PUBLISH_STATE(this->status_sensor_, this->parent_->read_magnet_status());
 
   auto pos = this->parent_->read_position();
-  if (!pos.has_value()) {
-    this->status_set_warning();
+  if (!this->status_comm_check(pos.has_value()))
     return;
-  }
 
   auto raw = this->parent_->read_raw_position();
-  if (!raw.has_value()) {
-    this->status_set_warning();
+  if (!this->status_comm_check(raw.has_value()))
     return;
-  }
 
   if (this->out_of_range_mode_ == OUT_RANGE_MODE_NAN) {
     this->publish_state(this->parent_->in_range(raw.value()) ? pos.value() : NAN);
