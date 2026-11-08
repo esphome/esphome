@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS, UNIT_PERCENT
+from esphome.const import (
+    CONF_ADDRESS,
+    DEVICE_CLASS_TEMPERATURE,
+    UNIT_CELSIUS,
+    UNIT_MINUTE,
+    UNIT_PERCENT,
+)
 from esphome.types import ConfigType
 
 from .. import (
@@ -22,12 +28,14 @@ DucoNightboostTemperature = duco_ns.class_("DucoNightboostTemperature", DucoDevi
 DucoNightboostMax = duco_ns.class_("DucoNightboostMax", DucoDevice, number.Number)
 DucoBoxVentilationMin = duco_ns.class_("DucoBoxVentilationMin", DucoDevice, number.Number)
 DucoBoxVentilationMax = duco_ns.class_("DucoBoxVentilationMax", DucoDevice, number.Number)
+DucoManualTime = duco_ns.class_("DucoManualTime", DucoDevice, number.Number)
 
 CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_NIGHTBOOST_TEMPERATURE = "nightboost_temperature"
 CONF_NIGHTBOOST_MAX = "nightboost_max"
 CONF_BOX_VENTILATION_MIN = "box_ventilation_min"
 CONF_BOX_VENTILATION_MAX = "box_ventilation_max"
+CONF_MANUAL_TIME = "manual_time"
 
 COMFORT_TEMPERATURE_SCHEMA = (
     number.number_schema(
@@ -65,6 +73,12 @@ BOX_VENTILATION_MAX_SCHEMA = number.number_schema(DucoBoxVentilationMax, unit_of
     cv.polling_component_schema("60s")
 )
 
+MANUAL_TIME_SCHEMA = (
+    number.number_schema(DucoManualTime, unit_of_measurement=UNIT_MINUTE)
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45)})
+    .extend(cv.polling_component_schema("60s"))
+)
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_SCHEMA,
     DUCO_COMPONENT_SCHEMA.extend(
@@ -74,6 +88,7 @@ CONFIG_SCHEMA = cv.Any(
             cv.Optional(CONF_NIGHTBOOST_MAX): NIGHTBOOST_MAX_SCHEMA,
             cv.Optional(CONF_BOX_VENTILATION_MIN): BOX_VENTILATION_MIN_SCHEMA,
             cv.Optional(CONF_BOX_VENTILATION_MAX): BOX_VENTILATION_MAX_SCHEMA,
+            cv.Optional(CONF_MANUAL_TIME): cv.ensure_list(MANUAL_TIME_SCHEMA),
         }
     ),
 )
@@ -86,6 +101,7 @@ async def to_code(config: ConfigType) -> None:
         CONF_NIGHTBOOST_MAX,
         CONF_BOX_VENTILATION_MIN,
         CONF_BOX_VENTILATION_MAX,
+        CONF_MANUAL_TIME,
     )
     if all(key not in config for key in grouped_keys):
         var = await number.new_number(config, min_value=10.0, max_value=25.5, step=0.1)
@@ -112,4 +128,9 @@ async def to_code(config: ConfigType) -> None:
 
     if entity_config := config.get(CONF_BOX_VENTILATION_MAX):
         var = await number.new_number(entity_config, min_value=10, max_value=100, step=5)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    for entity_config in config.get(CONF_MANUAL_TIME, []):
+        var = await number.new_number(entity_config, min_value=5, max_value=720, step=5)
+        cg.add(var.set_address(entity_config[CONF_ADDRESS]))
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
