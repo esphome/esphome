@@ -13,7 +13,6 @@ import re
 import sys
 import time
 
-from analyze_component_buses import ISOLATED_COMPONENTS
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 import yaml
@@ -1561,10 +1560,8 @@ def lint_test_package_key_matches_bus(fname, content):
     return errs
 
 
-# IDs a test entity must name because CI can merge its test with another test
-# that adds a second candidate, and the id is then ambiguous ("Too many candidates")
 GROUPED_TEST_IDS = {
-    # tca9548a adds buses next to the shared i2c package bus
+    # tca9548a adds I2C buses next to the shared package bus
     "i2c_id": ("i2c_device_schema", "i2c.I2CDevice"),
     # several tests define their own IMU or one-wire bus
     "motion_id": ("CONF_MOTION_ID",),
@@ -1589,46 +1586,52 @@ def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
     )
 
 
-@lint_content_check(
-    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
-)
-def lint_grouped_test_ids(fname, content):
-    """Grouped test configs name the bus or parent ids that can be ambiguous after a merge."""
-    if Path(fname).parent.name in ISOLATED_COMPONENTS:
-        return None
-    try:
-        root = yaml.compose(content, Loader=yaml.SafeLoader)
-    except yaml.YAMLError:
-        return None
-    if not isinstance(root, yaml.MappingNode):
-        return None
-    # A test that defines the parent itself (its own i2c: bus, time:, ...) is isolated or picks that one
-    top_level = {k.value for k, _ in root.value}
-    errs: list[tuple[int, int, str]] = []
+def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNode]]:
+    """(domain, entry) for each top-level entry, list items included."""
     for key_node, value_node in root.value:
-        entries = (
+        items = (
             value_node.value
             if isinstance(value_node, yaml.SequenceNode)
             else [value_node]
         )
-        for entry in entries:
-            if not isinstance(entry, yaml.MappingNode):
-                continue
-            keys = {
-                k.value: v for k, v in entry.value if isinstance(k, yaml.ScalarNode)
-            }
-            platform = keys["platform"].value if "platform" in keys else None
-            for id_key in _grouped_test_ids(key_node.value, platform):
-                if id_key in keys or id_key.removesuffix("_id") in top_level:
-                    continue
-                errs.append(
-                    (
-                        entry.start_mark.line + 1,
-                        1,
-                        f"Set {highlight(id_key)}: CI merges this test with others that add a second "
-                        "candidate, and an omitted id is then ambiguous.",
-                    )
-                )
+        for item in items:
+            if isinstance(item, yaml.MappingNode):
+                yield key_node.value, item
+
+
+@lint_content_check(
+    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
+)
+def lint_grouped_test_ids(fname, content):
+    """CI merges grouped tests, so an id another test can duplicate must be set."""
+    from analyze_component_buses import (  # pylint: disable=import-outside-toplevel
+        is_groupable,
+    )
+
+    if not is_groupable(Path(fname).parent):
+        return None
+    try:
+        root = yaml.compose(
+            content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+        )
+    except yaml.YAMLError:
+        return None
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    errs: list[tuple[int, int, str]] = []
+    for domain, entry in _yaml_entries(root):
+        keys = {
+            k.value: v.value for k, v in entry.value if isinstance(k, yaml.ScalarNode)
+        }
+        errs.extend(
+            (
+                entry.start_mark.line + 1,
+                entry.start_mark.column + 1,
+                f"Set {highlight(id_key)}: a grouped CI build can add a second candidate",
+            )
+            for id_key in _grouped_test_ids(domain, keys.get("platform"))
+            if id_key not in keys
+        )
     return errs
 
 

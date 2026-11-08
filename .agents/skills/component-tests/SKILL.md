@@ -88,10 +88,8 @@ Components that define buses directly are flagged as "NEEDS MIGRATION" and canno
 CI build time. `!extend` and `!remove` in a `test.*.yaml` also make the component ungroupable; add a
 standalone entity with its own id instead.
 
-An I2C device, a one-wire device or a `motion` child in a grouped test sets `i2c_id: i2c_bus`,
-`one_wire_id` or `motion_id` even when there is only one candidate: tca9548a adds I2C buses and other tests
-add their own IMUs and one-wire buses, so after a merge an omitted id fails with "Too many candidates".
-`script/ci-custom.py` reports a missing one.
+In a grouped test, set `i2c_id: i2c_bus`, `one_wire_id` and `motion_id` even with one candidate: a merged
+batch can add a second one ("Too many candidates"). `script/ci-custom.py` checks this.
 
 A test that needs a shared component in a particular state (`esp32_ble` security settings, an option that
 PSRAM rejects) cannot be grouped: the merged block wins and the whole batch fails. Add the component to
