@@ -49,6 +49,21 @@ def test_string_datapoint_rejects_empty_list() -> None:
         CONFIG_SCHEMA(_config(string_datapoint=5, options=[]))
 
 
+def test_string_datapoint_rejects_embedded_nul() -> None:
+    with pytest.raises(cv.Invalid, match="NUL"):
+        CONFIG_SCHEMA(_config(string_datapoint=5, options=["auto\0junk", "eco"]))
+
+
+def test_string_datapoint_rejects_duplicate_options() -> None:
+    with pytest.raises(cv.Invalid, match="duplicate"):
+        CONFIG_SCHEMA(_config(string_datapoint=5, options=["auto", "auto", "eco"]))
+
+
+def test_enum_datapoint_rejects_duplicate_option_names() -> None:
+    with pytest.raises(cv.Invalid, match="unique"):
+        CONFIG_SCHEMA(_config(enum_datapoint=5, options={0: "low", 1: "low"}))
+
+
 def test_option_map_shape_is_extractable() -> None:
     # The language-schema dumper must see the numeric mapping form of
     # 'options', not the string-list branch of the cv.Any

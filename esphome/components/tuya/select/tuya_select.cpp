@@ -7,6 +7,14 @@ ESPHOME_LOG_TAG(TAG, "tuya.select");
 
 void TuyaSelect::setup() {
   this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {
+    // The parent dispatches by datapoint ID alone; a report of the wrong
+    // type would otherwise be read from the wrong union field
+    if (datapoint.type != this->datapoint_type_ &&
+        !(datapoint.type == TuyaDatapointType::INTEGER && this->datapoint_type_ == TuyaDatapointType::ENUM) &&
+        !(datapoint.type == TuyaDatapointType::ENUM && this->datapoint_type_ == TuyaDatapointType::INTEGER)) {
+      ESP_LOGW(TAG, "Select %u got a report of unexpected type %u", this->select_id_, (unsigned) datapoint.type);
+      return;
+    }
     if (this->datapoint_type_ == TuyaDatapointType::STRING) {
       // STRING type: match value_string against option names
       ESP_LOGV(TAG, "MCU reported select %u string value %s", this->select_id_, datapoint.value_string.c_str());
