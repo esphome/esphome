@@ -63,13 +63,31 @@ void CST816Touchscreen::update_touches() {
   uint8_t data[13];
   if (!this->status_comm_result(this->read_bytes(REG_STATUS, data, sizeof data)))
     return;
-  uint8_t num_of_touches = data[REG_TOUCH_NUM] & 3;
+
+  // Some CST8xx controllers return 0xFF for the touch count when idle or
+  // after disabling auto-sleep. Without this check, 0xFF is masked to 3
+  // touches and the 0xFFF coordinates become a phantom touch at the
+  // maximum screen position.
+  if (data[REG_TOUCH_NUM] == 0xFF) {
+    return;
+  }
+
+  // CST816/CST820 are single-touch; CST826/CST836 can report two points, but
+  // this driver only reads the first point.
+  uint8_t num_of_touches = data[REG_TOUCH_NUM] & 0x0F;
   if (num_of_touches == 0) {
+    return;
+  }
+  if (num_of_touches > 2) {
     return;
   }
 
   uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
   uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
+  if (x == 0x0FFF || y == 0x0FFF || x > this->x_raw_max_ || y > this->y_raw_max_) {
+    return;
+  }
+
   ESP_LOGV(TAG, "Read touch %d/%d", x, y);
   this->add_raw_touch_position_(0, x, y);
 }
