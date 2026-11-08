@@ -295,22 +295,28 @@ async def to_code(config: ConfigType) -> None:
         (0x26, 0x80),
         (0x00, 0x00),
     )
+    # Written by power_up_dac_() after the setup entries, around the DAC level writes
+    power_up = (
+        # DAC data path: both channels on; the mono speaker gets (L + R) / 2
+        (0x00, 0x00),
+        (0x3F, 0xD4 if headphone else 0xF4),
+        # Output drivers unmuted (D2)
+        (0x00, 0x01),
+        (0x28, 0x06 if headphone else 0x02),
+        (0x29, 0x06 if headphone else 0x02),
+        (0x2A, gain | speaker << 2),
+        (0x00, 0x00),
+    )
     table = cg.shared_progmem_array(
         "tlv320dac3100_setup",
         I2CRegValue,
         cg.ArrayInitializer(
-            *(cg.RawExpression(f"{{0x{r:02X}, 0x{v:02X}}}") for r, v in setup),
+            *(
+                cg.RawExpression(f"{{0x{r:02X}, 0x{v:02X}}}")
+                for r, v in setup + power_up
+            ),
             multiline=True,
         ),
     )
-    var = await i2c.new_i2c_component(
-        config,
-        table,
-        len(setup),
-        # DAC data path: both channels on; the mono speaker gets (L + R) / 2
-        0xD4 if headphone else 0xF4,
-        # Output drivers unmuted (D2)
-        0x06 if headphone else 0x02,
-        gain | speaker << 2,
-    )
+    var = await i2c.new_i2c_component(config, table, len(setup))
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
