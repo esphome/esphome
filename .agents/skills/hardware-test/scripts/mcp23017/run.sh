@@ -1,0 +1,15 @@
+#!/bin/bash
+# run.sh VARIANT LABEL: build VARIANT.yaml (int-od, int-pp or no-int) from TREE as mcp<VARIANT><LABEL>, flash the
+# ESP8266 and capture 14 s into out-mcp<VARIANT><LABEL>.txt, then print the mcptest SUMMARY and IOCONB_TEST lines.
+# The esptool reset keeps the expander powered, so a reflash shows whether register bits from the last build survive.
+# env: TREE (esphome checkout), PORT (serial port), SC (path to serial_capture.py), PY (checkout python)
+R=$(cd "$(dirname "$0")" && pwd); V=${1:?variant}; L=${2:?label}
+T=${TREE:?set TREE}; P=${PORT:?set PORT}; PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}; N=mcp${V//-/}$L
+[ -f "$R/$V.yaml" ] || { echo "no $V.yaml"; exit 1; }
+pkill -f "[s]erial_capture.py $P"
+(cd "$T" && $PY -m esphome -s name "$N" run --no-logs "$R/$V.yaml" --device "$P" > "$R/out-$N-upload.log" 2>&1) ||
+  { echo "build or upload failed"; tail -5 "$R/out-$N-upload.log"; exit 1; }
+$PY "$SC" "$P" 14 "$R/out-$N.txt" > /dev/null 2>&1
+[ -s "$R/out-$N.txt" ] || { echo "serial capture got nothing"; exit 1; }
+grep -a "mcptest\|\[E\]\|\[W\]\|rst cause" "$R/out-$N.txt" | cut -c1-400
+grep -a -q "SUMMARY" "$R/out-$N.txt" || { echo "FAIL: no SUMMARY line"; exit 1; }

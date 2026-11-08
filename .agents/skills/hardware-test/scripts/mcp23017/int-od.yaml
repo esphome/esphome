@@ -1,0 +1,15 @@
+# INTA drives the hub's interrupt_pin, open drain
+substitutions:
+  isr_inta: "false"
+
+packages:
+  common: !include common.yaml
+
+mcp23017:
+  - id: mcp
+    address: 0x27
+    interrupt_pin:
+      number: GPIO14
+      mode:
+        input: true
+    open_drain_interrupt: true
