@@ -14,7 +14,6 @@
 #include "framing.h"
 
 namespace esphome::fendt_caravan {
-using namespace std;
 
 class FendtCaravan : public Component, public ble_client::BLEClientNode {
  public:
@@ -25,7 +24,6 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 
-  void set_address(uint64_t address) { address_ = address; }
   void set_mcu_hub(FendtCaravanHubBase *mcu_hub) { this->mcu_hub_ = mcu_hub; }
 
   void dump_config() override;
@@ -42,7 +40,8 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   };
 
   bool add_command_(const char *cmd, size_t len);
-  void on_data_received_(const char *data);
+  // Splits the report in place at the first ':'
+  void on_data_received_(char *data);
   void reset_session_();
 
  private:

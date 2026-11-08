@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 namespace esphome::fendt_caravan {
-ESPHOME_LOG_TAG(TAG, "FC.CU");
+ESPHOME_LOG_TAG(TAG, "fendt_caravan.mcu");
 
 enum class Key : uint8_t {
   KEY_TEMP_IN,
@@ -70,7 +70,7 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
     i++;
   if (i == std::size(KEY_NAMES))
     return false;
-  ESP_LOGD(TAG, "Handled key: %s, value: %s", key, value);
+  ESP_LOGV(TAG, "Handled key: %s, value: %s", key, value);
   switch (static_cast<Key>(i)) {
     case Key::KEY_TEMP_IN: {
       this->temp_in_ = DeviceDecoders::decode_float(value);
@@ -81,41 +81,29 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
       break;
     }
     case Key::KEY_WATER_LEVEL: {
-      int water_level = DeviceDecoders::decode_int(value);
-      if (this->water_level_sensor_ != nullptr)
-        this->water_level_sensor_->publish_state(float(water_level * 100) / 4.0f);
+      PUBLISH_STATE(this->water_level_sensor_, float(DeviceDecoders::decode_int(value) * 100) / 4.0f);
       break;
     }
     case Key::KEY_LINE_EN: {
-      if (this->power_status_binary_sensor_ != nullptr) {
-        bool line_en = DeviceDecoders::decode_bool(value);
-        this->power_status_binary_sensor_->publish_state(line_en);
-      }
+      PUBLISH_STATE(this->power_status_binary_sensor_, DeviceDecoders::decode_bool(value));
       break;
     }
     case Key::KEY_HS_KEY_STATE: {
       this->hs_key_state_ = DeviceDecoders::decode_int(value);
-      if (this->main_switch_switch_)
-        this->main_switch_switch_->publish_state(this->hs_key_state_ > 0);
-      if (this->all_lights_switch_)
-        this->all_lights_switch_->publish_state(this->hs_key_state_ == 2);
+      PUBLISH_STATE(this->main_switch_switch_, this->hs_key_state_ > 0);
+      PUBLISH_STATE(this->all_lights_switch_, this->hs_key_state_ == 2);
       break;
     }
     case Key::KEY_FLOOR_HEATER_ON: {
-      if (this->floor_heater_switch_ != nullptr) {
-        bool floor_heater_on = DeviceDecoders::decode_bool(value);
-        this->floor_heater_switch_->publish_state(floor_heater_on);
-      }
+      PUBLISH_STATE(this->floor_heater_switch_, DeviceDecoders::decode_bool(value));
       break;
     }
     case Key::KEY_SOFTWARE_VERSION: {
-      if (this->software_version_text_sensor_ != nullptr)
-        this->software_version_text_sensor_->publish_state(value);
+      PUBLISH_STATE(this->software_version_text_sensor_, value);
       break;
     }
     case Key::KEY_PANEL_VERSION: {
-      if (this->panel_version_text_sensor_ != nullptr)
-        this->panel_version_text_sensor_->publish_state(value);
+      PUBLISH_STATE(this->panel_version_text_sensor_, value);
       break;
     }
     default:

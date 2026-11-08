@@ -10,11 +10,11 @@ namespace esphome::fendt_caravan {
 
 class Commands {
  public:
-  static std::string update_toggle(const std::string &name, bool value = true) {
+  static std::string update_toggle(const std::string &name) {
     std::string command = "cmd-tgl:" + name;
     return command;
   }
-  static std::string update_run(const std::string &name, bool value = true) {
+  static std::string update_run(const std::string &name) {
     std::string ret_value;
     if (name == "HS_KEY" || name == "HS_KEY_LONG") {
       ret_value = "net-" + name;

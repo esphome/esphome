@@ -6,8 +6,8 @@ namespace esphome::fendt_caravan {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-using namespace std;
-const uint8_t WAIT_COMMAND = 200;
+// Gap between two chunk writes
+static constexpr uint32_t WAIT_COMMAND_MS = 200;
 ESPHOME_LOG_TAG(TAG, "fendt_caravan");
 static const char *const SERVICE_UUID = "C7841029-FE7C-4894-8532-F97908EF1AE4";
 static constexpr uint16_t CHARACTERISTIC_UUID = 0x0001;
@@ -21,7 +21,7 @@ void FendtCaravan::loop() {
   if (this->commands_.empty() || this->wait_handshake_)
     return;
 
-  if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND) {
+  if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND_MS) {
     Chunk &chunk = this->commands_.front();
     auto status = esp_ble_gattc_write_char(
         this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, chunk.len,
@@ -35,7 +35,7 @@ void FendtCaravan::loop() {
     }
     this->status_clear_warning();
 
-    ESP_LOGD(TAG, "Command sent: %.*s", chunk.len, chunk.data.data());
+    ESP_LOGV(TAG, "Command sent: %.*s", chunk.len, chunk.data.data());
     this->commands_.pop();
   }
 }
@@ -89,7 +89,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       if (result == FrameResult::FRAME_RESULT_OVERFLOW) {
         ESP_LOGW(TAG, "Report too long, dropped");
       } else if (result == FrameResult::FRAME_RESULT_COMPLETE) {
-        ESP_LOGD(TAG, "Notified value: %s", this->rx_.data());
+        ESP_LOGV(TAG, "Notified value: %s", this->rx_.data());
         this->on_data_received_(this->rx_.data());
         this->rx_.reset();
       }
@@ -139,14 +139,14 @@ void FendtCaravan::reset_session_() {
   this->rx_.reset();
 }
 
-void FendtCaravan::on_data_received_(const char *data) {
+void FendtCaravan::on_data_received_(char *data) {
   char *value = strchr(data, ':');
   if (value == nullptr) {
     ESP_LOGW(TAG, "Report without a key: %s", data);
     return;
   }
   *value++ = '\0';
-  ESP_LOGD(TAG, "Data: '%s', Value: '%s'", data, value);
+  ESP_LOGV(TAG, "Data: '%s', Value: '%s'", data, value);
 
   if (!strncmp(data, "BT_START", 8)) {
     this->wait_handshake_ = true;
