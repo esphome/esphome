@@ -151,13 +151,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_address(entity_config[CONF_ADDRESS]))
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
 
-    for key, item in (
-        (CONF_FLOW_LEVEL_MANUAL_1, 0x06),
-        (CONF_FLOW_LEVEL_MANUAL_2, 0x07),
-        (CONF_FLOW_LEVEL_MANUAL_3, 0x08),
+    for key, item, min_value, max_value in (
+        (CONF_FLOW_LEVEL_MANUAL_1, 0x06, 0, 50),
+        (CONF_FLOW_LEVEL_MANUAL_2, 0x07, 10, 100),
+        (CONF_FLOW_LEVEL_MANUAL_3, 0x08, 50, 100),
     ):
         for entity_config in config.get(key, []):
-            var = await number.new_number(entity_config, min_value=0, max_value=100, step=5)
+            var = await number.new_number(entity_config, min_value=min_value, max_value=max_value, step=5)
             cg.add(var.set_address(entity_config[CONF_ADDRESS]))
             cg.add(var.set_item(item))
             await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
