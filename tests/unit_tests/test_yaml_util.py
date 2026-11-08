@@ -2668,6 +2668,31 @@ def test_env_var_tag(
     }
 
 
+def test_env_var_tag_requires_a_name(
+    tmp_path: Path, yaml_util_module: ModuleType
+) -> None:
+    """An empty !env_var tag raises a proper yaml error, not an IndexError."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("a: !env_var\n")
+    with pytest.raises(EsphomeError, match="requires a variable name"):
+        yaml_util_module.load_yaml(yaml_file)
+
+
+def test_env_var_tag_quoted_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, yaml_util_module: ModuleType
+) -> None:
+    """A default is a plain scalar, so surrounding quotes are literal characters and are stripped."""
+    monkeypatch.delenv("ESPHOME_TEST_UNSET", raising=False)
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        'a: !env_var ESPHOME_TEST_UNSET ""\nb: !env_var ESPHOME_TEST_UNSET "my default"\n'
+    )
+    assert yaml_util_module.load_yaml(yaml_file) == {
+        "a": "",
+        "b": "my default",
+    }
+
+
 def test_construct_secret_missing_file_in_main_config(
     tmp_path: Path, yaml_util_module: ModuleType
 ) -> None:
