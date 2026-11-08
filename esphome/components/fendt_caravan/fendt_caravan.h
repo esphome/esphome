@@ -1,10 +1,13 @@
 #pragma once
 
 #ifdef USE_ESP32
+#include <array>
+#include <string>
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_client/ble_characteristic.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "fendt_caravan_hub_base.h"
@@ -30,10 +33,16 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   void send_command(const std::string &command);
 
  protected:
-  static constexpr size_t QUEUE_SIZE = 4;
+  // The handshake alone takes 3 chunks
+  static constexpr size_t QUEUE_SIZE = 8;
   static constexpr size_t REPORT_MAX = 128;
 
-  void add_command_(const std::string &cmd);
+  struct Chunk {
+    std::array<char, CHUNK_SIZE + 1> data;
+    uint8_t len;
+  };
+
+  bool add_command_(const char *cmd, size_t len);
   void on_data_received_(const char *data);
   void reset_session_();
 
@@ -42,7 +51,7 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   volatile bool wait_buffer_ = false;
   volatile bool wait_handshake_ = false;
   uint16_t char_handle_ = 0;
-  StaticRingBuffer<std::string, QUEUE_SIZE> commands_;
+  StaticRingBuffer<Chunk, QUEUE_SIZE> commands_;
   uint32_t last_command_time_ = 0;
   FrameAssembler<REPORT_MAX> rx_;
 

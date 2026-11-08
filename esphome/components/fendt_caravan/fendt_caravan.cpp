@@ -11,6 +11,7 @@ const uint8_t WAIT_COMMAND = 200;
 ESPHOME_LOG_TAG(TAG, "fendt_caravan");
 static const char *const SERVICE_UUID = "C7841029-FE7C-4894-8532-F97908EF1AE4";
 static constexpr uint16_t CHARACTERISTIC_UUID = 0x0001;
+static constexpr char BT_VARS_COMMAND[] = "net-BT_VARS";
 
 void FendtCaravan::loop() {
   if (this->parent()->state() != espbt::ClientState::ESTABLISHED)
@@ -21,15 +22,15 @@ void FendtCaravan::loop() {
     return;
 
   if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND && !this->wait_buffer_) {
-    std::string cmd = this->commands_.front();
-    auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                           this->char_handle_, cmd.size(), reinterpret_cast<uint8_t *>(cmd.data()),
-                                           ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+    Chunk &chunk = this->commands_.front();
+    auto status = esp_ble_gattc_write_char(
+        this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, chunk.len,
+        reinterpret_cast<uint8_t *>(chunk.data.data()), ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status) {
       ESP_LOGE(TAG, "Writing command failed (%d)", status);
     }
 
-    ESP_LOGD(TAG, "Command sent: %s", cmd.c_str());
+    ESP_LOGD(TAG, "Command sent: %.*s", chunk.len, chunk.data.data());
     this->last_command_time_ = time_stamp;
     this->commands_.pop();
   }
@@ -69,8 +70,8 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         ESP_LOGW(TAG, "Error sending CCC descriptor write request, status=%d", status);
         break;
       }
-      this->add_command_(this->handshake_);
-      this->add_command_("net-BT_VARS");
+      this->add_command_(this->handshake_, strlen(this->handshake_));
+      this->add_command_(BT_VARS_COMMAND, sizeof(BT_VARS_COMMAND) - 1);
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -106,29 +107,26 @@ void FendtCaravan::dump_config() {
 
 void FendtCaravan::send_command(const std::string &command) {
   ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
-  if (command.empty() || this->wait_handshake_)
+  if (this->wait_handshake_)
     return;
-  this->add_command_(command);
+  this->add_command_(command.data(), command.size());
 }
 
-void FendtCaravan::add_command_(const std::string &cmd) {
-  size_t total_length = cmd.length();
-  size_t start_index = 0;
-  const size_t chunk_size = 17;
-
-  while (start_index < total_length) {
-    size_t remaining = total_length - start_index;
-    std::string chunk;
-
-    if (remaining > chunk_size) {
-      chunk = cmd.substr(start_index, chunk_size) + "@";
-      start_index += chunk_size;
-    } else {
-      chunk = cmd.substr(start_index, remaining);
-      start_index += remaining;
-    }
+bool FendtCaravan::add_command_(const char *cmd, size_t len) {
+  if (len == 0)
+    return false;
+  // All chunks of a command are queued or none: a partial command would leave the panel waiting for the rest
+  const size_t needed = (len + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  if (needed > QUEUE_SIZE - this->commands_.size()) {
+    ESP_LOGW(TAG, "Command queue full, dropped: %.*s", static_cast<int>(len), cmd);
+    return false;
+  }
+  for (size_t pos = 0; pos < len; pos += CHUNK_SIZE) {
+    Chunk chunk;
+    chunk.len = next_chunk(cmd, len, pos, chunk.data.data());
     this->commands_.push(chunk);
   }
+  return true;
 }
 
 // A link lost mid-session must not leave the next session waiting for a BT_STOP that never comes
