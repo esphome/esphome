@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "zigbee.light");
 // convertion between float 0.0 - 1.0 scale and zigbee uint8_t scale 1 - 254 with 255 = NaN.
 // theoretically 1 should map to the minimum brightness the light can still show, so should
 // set this to 0+e.
-float level_to_brightness_(uint8_t level) {
+float level_to_brightness(uint8_t level) {
   if (level == 255)
     return std::numeric_limits<float>::quiet_NaN();
   if (level == 0)
@@ -19,7 +19,7 @@ float level_to_brightness_(uint8_t level) {
   return static_cast<float>(level - 1) / 253;
 }
 
-uint8_t brightness_to_level_(float brightness) {
+uint8_t brightness_to_level(float brightness) {
   if (std::isnan(brightness))
     return 255;
   return static_cast<uint8_t>(roundf(253.0f * brightness) + 1);  // 1 to 254
@@ -85,7 +85,7 @@ void ZigbeeLight::setup() {
     this->level_forwarder_ = new ZigbeeOnValueForwarder<uint8_t, ZigbeeLight>(this, EZB_ZCL_ATTR_TYPE_UINT8,
                                                                               &ZigbeeLight::apply_level_, false);
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER);
-    uint8_t value = brightness_to_level_(values.get_brightness());
+    uint8_t value = brightness_to_level(values.get_brightness());
     this->zb_->add_attr(this->level_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
                         EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, value);
 
@@ -134,7 +134,7 @@ void ZigbeeLight::apply_on_off_(bool on) {
         ESP_LOGD(TAG, "got level");
         uint8_t lvl;
         ezb_zcl_attr_desc_get_value(current_level, &lvl);
-        float brightness = level_to_brightness_(lvl);  // integer level between 0 and 254
+        float brightness = level_to_brightness(lvl);  // integer level between 0 and 254
         this->next_call_.set_brightness(brightness);
         ESP_LOGD(TAG, "set brightness: %f", brightness);
       }
@@ -145,7 +145,7 @@ void ZigbeeLight::apply_on_off_(bool on) {
 }
 
 void ZigbeeLight::apply_level_(uint8_t level) {
-  float brightness = level_to_brightness_(level);  // integer level between 0 and 254
+  float brightness = level_to_brightness(level);  // integer level between 0 and 254
   this->next_call_.set_brightness(brightness);
   ESP_LOGD(TAG, "set brightness: %f", brightness);
   this->schedule_call_();
@@ -161,7 +161,7 @@ void ZigbeeLight::set_attr_internal() {
                            EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, EZB_ZCL_STD_MANUF_CODE, &on, false);
     ESP_LOGI(TAG, "Set %s", values.is_on() ? "ON" : "OFF");
     if (this->level_forwarder_ && color_mode & light::ColorCapability::BRIGHTNESS) {
-      uint8_t level = brightness_to_level_(values.get_brightness());
+      uint8_t level = brightness_to_level(values.get_brightness());
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
                              EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, EZB_ZCL_STD_MANUF_CODE, &level, false);
     }
