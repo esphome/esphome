@@ -144,7 +144,7 @@ static void log_outliers(const char *label, const char *prefix, const uint32_t *
                          uint32_t mode) {
   char buf[200];
   int pos = snprintf(buf, sizeof(buf), "%s", prefix);
-  for (int i = 0, k = 0; i < bins && k < 12; i++) {
+  for (int i = 0, k = 0; i < bins && k < 12 && pos < (int) sizeof(buf); i++) {
     int d = i + base - (int) mode;
     if ((d > TOL || d < -TOL) && hist[i]) {
       pos += snprintf(buf + pos, sizeof(buf) - pos, " %d:%" PRIu32, i + base, hist[i]);
@@ -152,6 +152,12 @@ static void log_outliers(const char *label, const char *prefix, const uint32_t *
     }
   }
   ESP_LOGI(TAG, "%s%s", label, buf);
+}
+
+static bool check(esp_err_t e, const char *what) {
+  if (e != ESP_OK)
+    ESP_LOGE(TAG, "%s: %s", what, esp_err_to_name(e));
+  return e == ESP_OK;
 }
 
 static void arm() {
@@ -187,8 +193,12 @@ inline void start(int pin) {
   }
   rmt_rx_event_callbacks_t cbs{};
   cbs.on_recv_done = on_rx;
-  rmt_rx_register_event_callbacks(rx, &cbs, nullptr);
-  rmt_enable(rx);
+  if (!check(rmt_rx_register_event_callbacks(rx, &cbs, nullptr), "rmt callbacks") ||
+      !check(rmt_enable(rx), "rmt_enable")) {
+    rmt_del_channel(rx);
+    rx = nullptr;
+    return;
+  }
   rcfg.signal_range_min_ns = 100;
   rcfg.signal_range_max_ns = 300000;
   rcfg.flags.en_partial_rx = 1;
@@ -197,17 +207,19 @@ inline void start(int pin) {
   uc.low_limit = -1;
   uc.high_limit = 30000;
   uc.flags.accum_count = 1;
-  pcnt_new_unit(&uc, &pcnt);
+  // a PCNT failure leaves pcnt=0 in every WIN line, which summ.py flags against n
   pcnt_chan_config_t pc{};
   pc.edge_gpio_num = pin;
   pc.level_gpio_num = -1;
   pcnt_channel_handle_t ch;
-  pcnt_new_channel(pcnt, &pc, &ch);
-  pcnt_channel_set_edge_action(ch, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD);
-  pcnt_unit_add_watch_point(pcnt, 30000);
-  pcnt_unit_enable(pcnt);
-  pcnt_unit_clear_count(pcnt);
-  pcnt_unit_start(pcnt);
+  if (check(pcnt_new_unit(&uc, &pcnt), "pcnt_new_unit") && check(pcnt_new_channel(pcnt, &pc, &ch), "pcnt channel")) {
+    check(pcnt_channel_set_edge_action(ch, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD),
+          "pcnt edge action");
+    check(pcnt_unit_add_watch_point(pcnt, 30000), "pcnt watch point");
+    check(pcnt_unit_enable(pcnt), "pcnt_unit_enable");
+    check(pcnt_unit_clear_count(pcnt), "pcnt_unit_clear_count");
+    check(pcnt_unit_start(pcnt), "pcnt_unit_start");
+  }
   // The drivers only add input; make sure LEDC still drives the pad.
   gpio_ll_output_enable(&GPIO, pin);
   gpio_pullup_dis((gpio_num_t) pin);
@@ -218,8 +230,10 @@ inline void start(int pin) {
 
 // Called from the main loop every 10 s.
 inline void report() {
-  if (rx == nullptr)
+  if (rx == nullptr) {
+    ESP_LOGE(TAG, "WIN capture=off");
     return;
+  }
   if (need_rearm) {
     need_rearm = false;
     arm();

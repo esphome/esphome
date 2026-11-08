@@ -1,6 +1,6 @@
 """Drive every homeassistant platform over a plaintext native API connection, playing Home Assistant.
 
-usage: hadrive.py HOST   (exits 1 on any failed check)
+usage: hadrive.py HOST [--no-light]   (exits 1 on any failed check)
 
 Matches ha-all-common.yaml: one fixed entity_id entity and one wizard-linked entity per platform. The client
 subscribes to entity states, Home Assistant actions and Home Assistant state subscriptions, then:
@@ -319,14 +319,20 @@ def action_for(template: str, eid: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("host")
-    c = Client(parser.parse_args().host)
+    parser.add_argument(
+        "--no-light", action="store_true", help="the config has no wizard light"
+    )
+    args = parser.parse_args()
+    c = Client(args.host)
     c.login("hadrive", connect_wait=2)
     print("entities", len(c.keys), sorted(c.keys))
-    # A config may leave a wizard entity out (dev cannot build a wizard-linked light)
+    # only the wizard light may be left out (builds before #21908 cannot compile it)
     rows: list[Row] = []
     for row in [*PLATFORMS, WIZARD_BUTTON]:
         if row.wiz and row.wiz not in c.keys:
-            print(f"  skipping {row.wiz}: not on the device")
+            c.check(
+                f"{row.wiz} listed", args.no_light and row.wiz == "L wiz", "missing"
+            )
             row = row._replace(wiz=None, input_id=None)
         if row.fix or row.wiz:
             rows.append(row)

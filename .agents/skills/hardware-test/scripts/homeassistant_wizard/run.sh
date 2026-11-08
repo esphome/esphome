@@ -6,7 +6,7 @@
 R=$(cd "$(dirname "$0")" && pwd); L=${1:?label}; N=hawiz$L
 T=${TREE:?set TREE}; P=${PORT:?set PORT}; PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}
 OUT=$R/out-$N; rm -rf "$OUT"; mkdir -p "$OUT"
-LIGHT='  light: !include ha-wiz-light.yaml\n'; [ -n "$NO_LIGHT" ] && LIGHT=
+LIGHT='  light: !include ha-wiz-light.yaml\n'; NL=(); [ -n "$NO_LIGHT" ] && { LIGHT=; NL=(--no-light); }
 printf "esphome:\n  name: %s\n\nesp8266:\n  board: d1_mini\n\npackages:\n  common: !include ha-all-common.yaml\n$LIGHT" "$N" \
   > "$R/$N.yaml"
 pkill -f "[s]erial_capture.py $P"
@@ -24,7 +24,7 @@ for _ in $(seq 1 30); do
 done
 [ -n "$IP" ] || { echo "no IP in the capture"; kill $CAP; exit 1; }
 sleep 8
-$PY "$R/hadrive.py" "$IP" > "$OUT/drive.txt" 2>&1; RC=$?
+$PY "$R/hadrive.py" "$IP" "${NL[@]}" > "$OUT/drive.txt" 2>&1; RC=$?
 sleep 6; kill $CAP
 echo "drive rc=$RC $(tail -1 "$OUT/drive.txt" | cut -c1-300)"
 echo "after-client $(grep -a 'ramchk' "$OUT/serial.txt" | tail -1 | sed -E 's/.*(heap_size)/\1/')"

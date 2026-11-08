@@ -4,6 +4,8 @@
 # Build and flash first with: esphome -s name NAME -s ps light|none run --no-logs common.yaml
 # env: TREE (esphome checkout), PORT (serial port), SC (path to serial_capture.py), PY (python with aioesphomeapi)
 R=$(cd "$(dirname "$0")" && pwd); N=${1:?name}; S=${2:?seconds}; shift 2
+# the API client holds SECONDS - 25 (boot and Wi-Fi take up to 25 s)
+[ "$S" -ge 40 ] || { echo "SECONDS must be at least 40"; exit 1; }
 T=${TREE:?set TREE}; P=${PORT:?set PORT}; PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}
 OUT=$R/out-$N; rm -rf "$OUT"; mkdir -p "$OUT"
 pkill -f "[s]erial_capture.py $P"
@@ -18,4 +20,6 @@ API_RC=$?
 wait $CAP
 tail -1 "$OUT/api.txt"
 $PY "$R/summ.py" "$OUT/cap.txt"
+SUMM_RC=$?
 [ $API_RC = 0 ] || { echo "FAIL: API driver exited $API_RC"; exit 1; }
+[ $SUMM_RC = 0 ] || exit 1

@@ -70,7 +70,7 @@ RESET = """
             delay(10);
             ESP_LOGI("bmpt", "SOFTRESET ok=%d", ok);
             bmpt::dump_regs(ADDR);
-            bmpt::wr(ADDR, 0x19, 0x42);
+            ESP_LOGI("bmpt", "DRDY ok=%d", bmpt::wr(ADDR, 0x19, 0x42));
           }
 """
 
@@ -112,7 +112,11 @@ def main() -> None:
 
     rate = f"\n    data_rate: {a.rate}" if a.rate else ""
     # data ready on INT, push-pull, active high; the driver's soft reset in setup clears it
-    drdy = "" if a.no_drdy else f"            bmpt::wr({a.addr}, 0x19, 0x42);\n"
+    drdy = (
+        ""
+        if a.no_drdy
+        else f'            ESP_LOGI("bmpt", "DRDY ok=%d", bmpt::wr({a.addr}, 0x19, 0x42));\n'
+    )
     extra = ""
     if a.fault:
         extra += (

@@ -122,13 +122,12 @@ def check(
             frames[(boot, p[1], p[2], p[3])].append(s)
     for boot, s in recs:
         p = s.split()
-        try:
-            f = fields(s)
-        except ValueError:
+        if not p or p[0] not in ("S", "T", "N", "F"):
             continue
-        if len(p) < 4 or not p[1].isdigit():
-            continue
-        if p[0] == "T" and "us" not in f:
+        f = fields(s)
+        # the USB console can splice or truncate lines; a damaged record must not pass as clean
+        if len(p) < 4 or not p[1].isdigit() or (p[0] == "T" and "us" not in f):
+            fails.append(f"boot{boot}: malformed record {s}")
             continue
         if p[0] == "T":
             timing[(p[2], p[3])].append(int(f["us"]))
@@ -197,6 +196,8 @@ def check(
                     if bits is None or len(bits) != 16 or ff["ov"] != "0":
                         fails.append(f"boot{boot}: {fr} :: mx frame decode {bits}")
                 continue
+            if not fl and nf:
+                fails.append(f"boot{boot}: {s} :: no F record")
             if len(fl) != 1:
                 continue
             ff = fields(fl[0])
@@ -248,6 +249,34 @@ def check(
     return n, fails, timing, per
 
 
+def completeness(recs: list[tuple[int, str]]) -> list[str]:
+    """Every boot but the last must reach DONE with one S (wire capture) or N record per scheduled item."""
+    kind = "S" if any(s.startswith("S ") for _, s in recs) else "N"
+    items: dict[int, int] = {}
+    done: set[int] = set()
+    count: Counter = Counter()
+    for boot, s in recs:
+        p = s.split()
+        if p and p[0] == "START":
+            items[boot] = int(fields(s).get("items", -1))
+        elif p and p[0] == "DONE":
+            done.add(boot)
+        elif len(p) > 1 and p[0] == kind and p[1].isdigit():
+            count[boot] += 1
+    fails = []
+    last = max(items, default=0)
+    for boot, want in items.items():
+        if boot in done and count[boot] != want:
+            fails.append(f"boot{boot}: {count[boot]} {kind} records for {want} items")
+        elif boot not in done and boot != last:
+            fails.append(
+                f"boot{boot}: restarted before DONE after {count[boot]} of {want} items"
+            )
+    if not done:
+        fails.append("no boot reached DONE")
+    return fails
+
+
 def canon(devs: dict, k: tuple | None, pl: str) -> str:
     """F records: compare what a device on the wire would latch, not ISR timing."""
     if k is None or k[0] != "F":
@@ -283,6 +312,7 @@ def main() -> None:
     for c in caps:
         recs, boots, heap = load(c)
         n, fails, timing, per = check(devs, recs, board)
+        fails += completeness(recs)
         failed |= n == 0 or bool(fails)
         v = variants(devs, recs)
         occ = Counter()
@@ -292,7 +322,7 @@ def main() -> None:
                 occ[k] += 1
         fk = defaultdict(list)
         for fl in fails:
-            body = fl.split(": ", 1)[1].split(" :: ")[0]
+            body = fl.split(": ", 1)[-1].split(" :: ")[0]
             k, _pl = key_and_payload(body)
             fk[k].append(fl)
         systematic = {k: f for k, f in fk.items() if k is None or len(f) * 2 > occ[k]}

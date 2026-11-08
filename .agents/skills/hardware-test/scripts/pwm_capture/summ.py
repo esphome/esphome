@@ -3,7 +3,8 @@
 usage: summ.py CAPTURE...
 Sums periods, PCNT edges, out-of-tolerance high times and periods, level changes, spikes and reversals over every
 full 10 s window, and prints the high time and period ranges. Window boundaries follow RMT chunks, so sum over the
-run instead of comparing single windows.
+run instead of comparing single windows. Exits 1 when a capture has no full window, no periods, or RMT and PCNT
+period totals more than 1% apart.
 """
 
 import pathlib
@@ -11,13 +12,13 @@ import re
 import sys
 
 WIN = re.compile(
-    r"WIN dt=(\d+)ms n=(\d+) pcnt=(\d+) chunks=\d+ zero=(\d+) idle=(\d+) "
+    r"WIN dt=(\d+)ms n=(\d+) pcnt=(-?\d+) chunks=\d+ zero=(\d+) idle=(\d+) "
     r"h\[min=(\d+) mode=(\d+) max=(\d+) out=(\d+) dev=(\d+)\] "
     r"p\[min=(\d+) mode=(\d+) max=(\d+) out=(\d+) dev=(\d+)\] chg=(\d+) spikes=(\d+) rev=(\d+)"
 )
 
 
-def summarize(path: str) -> None:
+def summarize(path: str) -> bool:
     tot = dict.fromkeys(
         ("n", "pcnt", "h_out", "p_out", "spikes", "rev", "chg", "zero"), 0
     )
@@ -47,11 +48,16 @@ def summarize(path: str) -> None:
         tot,
         f"h {hmin}..{hmax} modes={sorted(modes)[:6]} hdev={hdev} p {pmin}..{pmax} pdev={pdev} idle={idle}",
     )
+    if wins and tot["n"] and abs(tot["n"] - tot["pcnt"]) * 100 <= tot["n"]:
+        return True
+    print(f"FAIL: {path} windows={wins} n={tot['n']} pcnt={tot['pcnt']}")
+    return False
 
 
 def main() -> None:
-    for path in sys.argv[1:]:
-        summarize(path)
+    results = [summarize(path) for path in sys.argv[1:]]
+    if not results or not all(results):
+        sys.exit(1)
 
 
 if __name__ == "__main__":

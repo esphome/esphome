@@ -20,8 +20,7 @@ static Times t{};
 inline void tick(uint32_t cap_ms) {
   using esphome::millis;
   uint32_t now = millis();
-  esp_netif_t *nif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-  if (nif == nullptr || phase == 3)
+  if (phase == 3)
     return;
   if (phase == 1) {
     if (now - start >= 3000) {
@@ -39,14 +38,16 @@ inline void tick(uint32_t cap_ms) {
     t.assoc = rel;
     ESP_LOGI(PTAG, "MS assoc %u", rel);
   }
+  // a missing netif still has to reach the cap_ms timeout below
+  esp_netif_t *nif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
   esp_netif_ip_info_t ip;
-  if (!t.v4 && esp_netif_get_ip_info(nif, &ip) == ESP_OK && ip.ip.addr != 0) {
+  if (!t.v4 && nif != nullptr && esp_netif_get_ip_info(nif, &ip) == ESP_OK && ip.ip.addr != 0) {
     t.v4 = rel;
     ESP_LOGI(PTAG, "MS ipv4 %u", rel);
   }
   esp_ip6_addr_t a[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  int n;
-  {
+  int n = 0;
+  if (nif != nullptr) {
     esphome::LwIPLock lock;
     n = esp_netif_get_all_ip6(nif, a);
   }

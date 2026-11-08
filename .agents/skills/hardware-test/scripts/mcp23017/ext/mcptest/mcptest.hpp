@@ -53,6 +53,13 @@ class McpTest : public Component, public i2c::I2CDevice {
     return v;
   }
 
+  // A failed write reads back unchanged and would look like no aliasing; run.sh fails on the [E] line.
+  void wr(uint8_t reg, uint8_t v) {
+    if (!this->write_byte(reg, v)) {
+      ESP_LOGE(TAG, "write 0x%02X failed", reg);
+    }
+  }
+
   void loop() override {
     uint32_t now = millis();
     if (this->phase_ == 0) {
@@ -116,22 +123,22 @@ class McpTest : public Component, public i2c::I2CDevice {
   void ioconb_test_() {
     uint8_t a0 = this->rd(0x0A), b0 = this->rd(0x0B);
     const uint8_t bit = 0x08;  // HAEN, ignored by the I2C part
-    this->write_byte(0x0B, b0 ^ bit);
+    this->wr(0x0B, b0 ^ bit);
     uint8_t a1 = this->rd(0x0A), b1 = this->rd(0x0B);
-    this->write_byte(0x0B, b0);
+    this->wr(0x0B, b0);
     uint8_t a2 = this->rd(0x0A), b2 = this->rd(0x0B);
-    this->write_byte(0x0A, a0 ^ bit);
+    this->wr(0x0A, a0 ^ bit);
     uint8_t a3 = this->rd(0x0A), b3 = this->rd(0x0B);
-    this->write_byte(0x0A, a0);
+    this->wr(0x0A, a0);
     uint8_t a4 = this->rd(0x0A), b4 = this->rd(0x0B);
     ESP_LOGI(TAG,
              "[%s] IOCONB_TEST start A=0x%02X B=0x%02X | write B^0x08 -> A=0x%02X B=0x%02X | restore -> A=0x%02X "
              "B=0x%02X | write A^0x08 -> A=0x%02X B=0x%02X | restore -> A=0x%02X B=0x%02X",
              this->label_, a0, b0, a1, b1, a2, b2, a3, b3, a4, b4);
     // Second probe on a bit that matters (MIRROR) to rule out HAEN being read-only
-    this->write_byte(0x0B, b0 ^ 0x40);
+    this->wr(0x0B, b0 ^ 0x40);
     uint8_t a5 = this->rd(0x0A), b5 = this->rd(0x0B);
-    this->write_byte(0x0B, b0);
+    this->wr(0x0B, b0);
     uint8_t a6 = this->rd(0x0A), b6 = this->rd(0x0B);
     ESP_LOGI(TAG, "[%s] IOCONB_TEST2 write B^0x40 -> A=0x%02X B=0x%02X | restore -> A=0x%02X B=0x%02X", this->label_,
              a5, b5, a6, b6);

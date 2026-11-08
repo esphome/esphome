@@ -18,3 +18,7 @@ $PY "$SC" "$P" 14 "$R/out-$N.txt" > /dev/null 2>&1
 [ -s "$R/out-$N.txt" ] || { echo "serial capture got nothing"; exit 1; }
 grep -a "mcptest\|\[E\]\|\[W\]\|rst cause" "$R/out-$N.txt" | cut -c1-400
 grep -a -q "SUMMARY" "$R/out-$N.txt" || { echo "FAIL: no SUMMARY line"; exit 1; }
+grep -a -q "SUMMARY.*loopback_ok=20/20" "$R/out-$N.txt" || { echo "FAIL: loopback_ok is not 20/20"; exit 1; }
+! grep -a -q "\[E\]" "$R/out-$N.txt" || { echo "FAIL: [E] line in the capture"; exit 1; }
+# the boot after the upload may show one ROM line; a second one is a reset during the test
+[ "$(grep -a -c "rst cause" "$R/out-$N.txt")" -le 1 ] || { echo "FAIL: reset during the capture"; exit 1; }
