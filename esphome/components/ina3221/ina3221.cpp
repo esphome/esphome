@@ -171,6 +171,7 @@ void INA3221Component::read_data_() {
   PUBLISH_STATE(this->sum_current_sensor_, total_current_a);
   PUBLISH_STATE(this->sum_power_sensor_, total_power_w);
 #endif
+  this->status_clear_warning();
 }
 
 void INA3221Component::on_powerdown() {
