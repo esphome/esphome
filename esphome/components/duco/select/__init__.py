@@ -42,6 +42,7 @@ DucoPassiveCooling = duco_ns.class_("DucoPassiveCooling", DucoDevice, select.Sel
 DucoNightboost = duco_ns.class_("DucoNightboost", DucoDevice, select.Select)
 DucoNightboostMonthStart = duco_ns.class_("DucoNightboostMonthStart", DucoDevice, select.Select)
 DucoNightboostMonthStop = duco_ns.class_("DucoNightboostMonthStop", DucoDevice, select.Select)
+DucoUcErrorMode = duco_ns.class_("DucoUcErrorMode", DucoDevice, select.Select)
 
 TYPE_MODE = "mode"
 TYPE_TIME_FILTER = "time_filter"
@@ -53,6 +54,7 @@ CONF_PASSIVE_COOLING = "passive_cooling"
 CONF_NIGHTBOOST = "nightboost"
 CONF_NIGHTBOOST_MONTH_START = "nightboost_month_start"
 CONF_NIGHTBOOST_MONTH_STOP = "nightboost_month_stop"
+CONF_UC_ERROR_MODE = "uc_error_mode"
 
 TIME_FILTER_OPTIONS = ["90 days", "180 days", "270 days", "360 days"]
 BYPASS_OPTIONS = ["AUTO", "OPEN", "CLOSED"]
@@ -60,6 +62,7 @@ ADAPTIVE_BYPASS_OPTIONS = ["ON", "OFF"]
 FROST_HEATER_OPTIONS = ["ALLOW", "REFUSE"]
 PASSIVE_COOLING_OPTIONS = ["AUTO", "ON", "OFF"]
 NIGHTBOOST_OPTIONS = ["ON", "OFF"]
+UC_ERROR_MODE_OPTIONS = ["DISABLED", "ON INPUT", "AUTOMATIC"]
 MONTH_OPTIONS = [
     "January",
     "February",
@@ -108,6 +111,12 @@ NIGHTBOOST_MONTH_START_SCHEMA = select.select_schema(DucoNightboostMonthStart).e
 
 NIGHTBOOST_MONTH_STOP_SCHEMA = select.select_schema(DucoNightboostMonthStop).extend(cv.polling_component_schema("60s"))
 
+UC_ERROR_MODE_SCHEMA = (
+    select.select_schema(DucoUcErrorMode)
+    .extend(cv.polling_component_schema("60s"))
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45)})
+)
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_MODE_SCHEMA,
     TIME_FILTER_SCHEMA,
@@ -121,6 +130,7 @@ CONFIG_SCHEMA = cv.Any(
             cv.Optional(CONF_NIGHTBOOST): NIGHTBOOST_SCHEMA,
             cv.Optional(CONF_NIGHTBOOST_MONTH_START): NIGHTBOOST_MONTH_START_SCHEMA,
             cv.Optional(CONF_NIGHTBOOST_MONTH_STOP): NIGHTBOOST_MONTH_STOP_SCHEMA,
+            cv.Optional(CONF_UC_ERROR_MODE): cv.ensure_list(UC_ERROR_MODE_SCHEMA),
         }
     ),
 )
@@ -169,6 +179,13 @@ async def to_code(config: ConfigType) -> None:
         grouped = True
         var = await select.new_select(entity_config, options=MONTH_OPTIONS)
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if CONF_UC_ERROR_MODE in config:
+        grouped = True
+        for entity_config in config[CONF_UC_ERROR_MODE]:
+            var = await select.new_select(entity_config, options=UC_ERROR_MODE_OPTIONS)
+            await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+            cg.add(var.set_address(entity_config[CONF_ADDRESS]))
 
     if grouped:
         return
