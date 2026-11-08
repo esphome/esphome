@@ -2,14 +2,15 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include <span>
 
 namespace esphome::sm16716 {
 
 class SM16716 final : public Component {
  public:
-  /// @param pwm_amounts storage for num_channels duty values, owned by the caller for the life of the program.
-  SM16716(GPIOPin *data_pin, GPIOPin *clock_pin, uint8_t *pwm_amounts, uint8_t num_channels)
-      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts), num_channels_(num_channels) {}
+  /// @param pwm_amounts one duty value per channel, a static array from code generation.
+  SM16716(GPIOPin *data_pin, GPIOPin *clock_pin, std::span<uint8_t> pwm_amounts)
+      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts) {}
 
   void setup() override;
   void dump_config() override;
@@ -19,7 +20,7 @@ class SM16716 final : public Component {
 
   void write_channel(uint8_t channel, float state) {
     auto value = uint8_t(state * 0xFF);
-    uint8_t index = this->num_channels_ - channel - 1;
+    uint8_t index = this->pwm_amounts_.size() - channel - 1;
     if (this->pwm_amounts_[index] != value) {
       this->pwm_amounts_[index] = value;
       this->enable_loop();
@@ -40,8 +41,7 @@ class SM16716 final : public Component {
 
   GPIOPin *const data_pin_;
   GPIOPin *const clock_pin_;
-  uint8_t *const pwm_amounts_;
-  const uint8_t num_channels_;
+  const std::span<uint8_t> pwm_amounts_;
 };
 
 }  // namespace esphome::sm16716

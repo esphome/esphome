@@ -14,8 +14,8 @@ void SM16716::setup() {
 void SM16716::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SM16716:\n"
-                "  Total number of channels: %u",
-                this->num_channels_);
+                "  Total number of channels: %zu",
+                this->pwm_amounts_.size());
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
 }
@@ -26,7 +26,7 @@ void SM16716::loop() {
   }
 
   // send 25 bits (1 start bit plus 24 data bits) for each chip
-  for (uint8_t index = 0; index < this->num_channels_; index++) {
+  for (size_t index = 0; index < this->pwm_amounts_.size(); index++) {
     // send a start bit initially and after every 3 channels
     if (index % 3 == 0) {
       this->write_bit_(true);

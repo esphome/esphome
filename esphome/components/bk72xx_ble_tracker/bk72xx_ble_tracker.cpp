@@ -41,9 +41,6 @@ constexpr uint32_t ble_units_to_ms(uint32_t units) { return units * 5 / 8; }
 // ---------------------------------------------------------------------------
 
 void BK72xxBLETracker::setup() {
-  // Receive the controller's scan reports; the controller queues them from the
-  // BLE task and delivers here on the main task.
-  this->parent_->register_scan_listener(this);
   // Merged (and unmerged) frames go to the shared dispatcher; unclaimed
   // devices are logged only on one-shot scans (continuous would spam).
   this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
