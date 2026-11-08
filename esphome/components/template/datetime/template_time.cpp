@@ -79,9 +79,9 @@ void TemplateTime::control(const datetime::TimeCall &call) {
 
   if (this->restore_value_) {
     datetime::TimeEntityRestoreState temp = {};
-    temp.hour = has_hour ? *opt_hour : this->hour_;
-    temp.minute = has_minute ? *opt_minute : this->minute_;
-    temp.second = has_second ? *opt_second : this->second_;
+    temp.hour = opt_hour.value_or(this->hour_);
+    temp.minute = opt_minute.value_or(this->minute_);
+    temp.second = opt_second.value_or(this->second_);
 
     this->pref_.save(&temp);
   }

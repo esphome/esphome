@@ -160,7 +160,11 @@ uint64_t IRAM_ATTR DS2484OneWireBus::search_int() {
 
     // compute branch value for the case when there is a discrepancy
     // (there are devices with both 0s and 1s at this bit)
-    branch = bit_number < this->last_discrepancy_ ? (address & bit_mask) > 0 : bit_number == this->last_discrepancy_;
+    if (bit_number < this->last_discrepancy_) {
+      branch = (address & bit_mask) > 0;
+    } else {
+      branch = bit_number == this->last_discrepancy_;
+    }
 
     bool id_bit, cmp_id_bit;
     bool branch_before = branch;

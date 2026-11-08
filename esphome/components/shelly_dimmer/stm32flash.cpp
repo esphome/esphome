@@ -985,7 +985,11 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
     crc ^= data;
 
     for (size_t i = 0; i < 32; ++i) {
-      crc = crc & CRC_MSBMASK ? (crc << 1) ^ CRCPOLY_BE : (crc << 1);
+      if (crc & CRC_MSBMASK) {
+        crc = (crc << 1) ^ CRCPOLY_BE;
+      } else {
+        crc = (crc << 1);
+      }
     }
   }
   return crc;

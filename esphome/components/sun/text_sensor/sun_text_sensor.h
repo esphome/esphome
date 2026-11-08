@@ -18,8 +18,8 @@ class SunTextSensor final : public text_sensor::TextSensor, public PollingCompon
   void set_format(const std::string &format) = delete;
 
   void update() override {
-    optional<ESPTime> res;
-    res = this->sunrise_ ? this->parent_->sunrise(this->elevation_) : this->parent_->sunset(this->elevation_);
+    optional<ESPTime> res =
+        this->sunrise_ ? this->parent_->sunrise(this->elevation_) : this->parent_->sunset(this->elevation_);
     if (!res) {
       this->publish_state("");
       return;

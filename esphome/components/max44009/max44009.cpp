@@ -32,7 +32,11 @@ void MAX44009Sensor::setup() {
      * regardless of integration time
      * - On continuous mode, the IC continuously measures lux intensity
      */
-    state_ok = this->get_update_interval() < 800 ? this->set_continuous_mode() : this->set_low_power_mode();
+    if (this->get_update_interval() < 800) {
+      state_ok = this->set_continuous_mode();
+    } else {
+      state_ok = this->set_low_power_mode();
+    }
   }
   if (!state_ok)
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -111,12 +115,12 @@ bool MAX44009Sensor::set_low_power_mode() {
 
 uint8_t MAX44009Sensor::read_(uint8_t reg) {
   uint8_t data = 0;
-  this->error_ = !this->read_byte(reg, &data) ? MAX44009_ERROR_WIRE_REQUEST : MAX44009_OK;
+  this->error_ = this->read_byte(reg, &data) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
   return data;
 }
 
 void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
-  this->error_ = !this->write_byte(reg, value) ? MAX44009_ERROR_WIRE_REQUEST : MAX44009_OK;
+  this->error_ = this->write_byte(reg, value) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
 }
 
 }  // namespace esphome::max44009

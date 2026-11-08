@@ -106,12 +106,12 @@ void TemplateDateTime::control(const datetime::DateTimeCall &call) {
 
   if (this->restore_value_) {
     datetime::DateTimeEntityRestoreState temp = {};
-    temp.year = has_year ? *opt_year : this->year_;
-    temp.month = has_month ? *opt_month : this->month_;
-    temp.day = has_day ? *opt_day : this->day_;
-    temp.hour = has_hour ? *opt_hour : this->hour_;
-    temp.minute = has_minute ? *opt_minute : this->minute_;
-    temp.second = has_second ? *opt_second : this->second_;
+    temp.year = opt_year.value_or(this->year_);
+    temp.month = opt_month.value_or(this->month_);
+    temp.day = opt_day.value_or(this->day_);
+    temp.hour = opt_hour.value_or(this->hour_);
+    temp.minute = opt_minute.value_or(this->minute_);
+    temp.second = opt_second.value_or(this->second_);
 
     this->pref_.save(&temp);
   }

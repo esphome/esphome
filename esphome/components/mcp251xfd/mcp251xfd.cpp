@@ -304,8 +304,8 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
 
   // The object follows the two write command bytes, so it goes out without a copy.
   std::array<uint8_t, 2 + MAX_MESSAGE_SIZE> transfer;
-  uint32_t id;
-  id = frame->use_extended_id ? (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11) : frame->can_id;
+  const uint32_t id =
+      frame->use_extended_id ? (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11) : frame->can_id;
   uint32_t flags = frame->can_data_length_code;
   assign_bits(flags, MESSAGE_IDE, frame->use_extended_id);
   assign_bits(flags, MESSAGE_RTR, frame->remote_transmission_request);

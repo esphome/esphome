@@ -116,10 +116,10 @@ struct Color {
   }
   inline Color operator+(const Color &add) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    ret.r = uint8_t(add.r + this->r) < this->r ? 255 : this->r + add.r;
-    ret.g = uint8_t(add.g + this->g) < this->g ? 255 : this->g + add.g;
-    ret.b = uint8_t(add.b + this->b) < this->b ? 255 : this->b + add.b;
-    ret.w = uint8_t(add.w + this->w) < this->w ? 255 : this->w + add.w;
+    ret.r = std::min(this->r + add.r, 255);
+    ret.g = std::min(this->g + add.g, 255);
+    ret.b = std::min(this->b + add.b, 255);
+    ret.w = std::min(this->w + add.w, 255);
     return ret;
   }
   inline Color &operator+=(const Color &add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
@@ -127,10 +127,10 @@ struct Color {
   inline Color &operator+=(uint8_t add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
   inline Color operator-(const Color &subtract) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    ret.r = subtract.r > this->r ? 0 : this->r - subtract.r;
-    ret.g = subtract.g > this->g ? 0 : this->g - subtract.g;
-    ret.b = subtract.b > this->b ? 0 : this->b - subtract.b;
-    ret.w = subtract.w > this->w ? 0 : this->w - subtract.w;
+    ret.r = std::max(this->r - subtract.r, 0);
+    ret.g = std::max(this->g - subtract.g, 0);
+    ret.b = std::max(this->b - subtract.b, 0);
+    ret.w = std::max(this->w - subtract.w, 0);
     return ret;
   }
   inline Color &operator-=(const Color &subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }

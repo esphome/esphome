@@ -173,7 +173,11 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
       branch = id_bit;
     } else {
       // there are devices with both 0s and 1s at this bit
-      branch = bit_number < this->last_discrepancy_ ? (address & bit_mask) > 0 : bit_number == this->last_discrepancy_;
+      if (bit_number < this->last_discrepancy_) {
+        branch = (address & bit_mask) > 0;
+      } else {
+        branch = bit_number == this->last_discrepancy_;
+      }
 
       if (!branch) {
         last_zero = bit_number;
