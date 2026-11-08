@@ -308,15 +308,7 @@ async def to_code(config: ConfigType) -> None:
         (0x00, 0x00),
     )
     table = cg.shared_progmem_array(
-        "tlv320dac3100_setup",
-        I2CRegValue,
-        cg.ArrayInitializer(
-            *(
-                cg.RawExpression(f"{{0x{r:02X}, 0x{v:02X}}}")
-                for r, v in setup + power_up
-            ),
-            multiline=True,
-        ),
+        "tlv320dac3100_setup", I2CRegValue, cg.ArrayInitializer(*setup, *power_up)
     )
     var = await i2c.new_i2c_component(config, table, len(setup))
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
