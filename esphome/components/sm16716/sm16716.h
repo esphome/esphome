@@ -2,15 +2,17 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <vector>
+#include <span>
 
 namespace esphome::sm16716 {
 
 class SM16716 final : public Component {
  public:
+  /// One value per channel, a static array from code generation.
+  explicit SM16716(std::span<uint8_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
+
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_num_channels(uint8_t num_channels) { num_channels_ = num_channels; }
   void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
 
   void setup() override;
@@ -24,7 +26,7 @@ class SM16716 final : public Component {
 
   void write_channel(uint8_t channel, float state) {
     auto value = uint8_t(state * 0xFF);
-    uint8_t index = this->num_channels_ - channel - 1;
+    uint8_t index = this->pwm_amounts_.size() - channel - 1;
     if (this->pwm_amounts_[index] != value) {
       this->update_ = true;
     }
@@ -45,9 +47,8 @@ class SM16716 final : public Component {
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
-  uint8_t num_channels_;
   uint8_t num_chips_;
-  std::vector<uint8_t> pwm_amounts_;
+  std::span<uint8_t> pwm_amounts_;
   bool update_{true};
 };
 
