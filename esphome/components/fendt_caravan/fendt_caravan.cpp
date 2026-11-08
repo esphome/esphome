@@ -21,7 +21,7 @@ void FendtCaravan::loop() {
   if (this->commands_.empty() || this->wait_handshake_)
     return;
 
-  if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND && !this->wait_buffer_) {
+  if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND) {
     Chunk &chunk = this->commands_.front();
     auto status = esp_ble_gattc_write_char(
         this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, chunk.len,
@@ -85,7 +85,6 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle != this->char_handle_)
         break;
-      this->wait_buffer_ = true;
       const FrameResult result = this->rx_.push(param->notify.value, param->notify.value_len);
       if (result == FrameResult::FRAME_RESULT_OVERFLOW) {
         ESP_LOGW(TAG, "Report too long, dropped");
@@ -94,7 +93,6 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         this->on_data_received_(this->rx_.data());
         this->rx_.reset();
       }
-      this->wait_buffer_ = false;
       break;
     }
     default:
@@ -136,7 +134,6 @@ bool FendtCaravan::add_command_(const char *cmd, size_t len) {
 // A link lost mid-session must not leave the next session waiting for a BT_STOP that never comes
 void FendtCaravan::reset_session_() {
   this->wait_handshake_ = false;
-  this->wait_buffer_ = false;
   this->char_handle_ = 0;
   this->commands_.clear();
   this->rx_.reset();
