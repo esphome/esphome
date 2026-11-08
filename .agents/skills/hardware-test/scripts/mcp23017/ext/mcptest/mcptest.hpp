@@ -15,8 +15,6 @@ static volatile uint32_t isr14_count = 0;
 static void IRAM_ATTR isr13() { isr13_count++; }
 static void IRAM_ATTR isr14() { isr14_count++; }
 inline bool pin_level(uint8_t pin) { return digitalRead(pin); }  // NOLINT
-// Defined in mcptest.cpp: script/ci-custom.py rejects the log macros in .h files, and a component header must be .h
-void log_line(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 class McpTest : public Component, public i2c::I2CDevice {
  public:
@@ -50,7 +48,7 @@ class McpTest : public Component, public i2c::I2CDevice {
   uint8_t rd(uint8_t reg) {
     uint8_t v = 0xEE;
     if (!this->read_byte(reg, &v)) {
-      log_line(ESPHOME_LOG_LEVEL_ERROR, "read 0x%02X failed", reg);
+      ESP_LOGE(TAG, "read 0x%02X failed", reg);
     }
     return v;
   }
@@ -62,8 +60,7 @@ class McpTest : public Component, public i2c::I2CDevice {
         return;
       this->iocon_a_ = this->rd(0x0A);
       this->iocon_b_ = this->rd(0x0B);
-      log_line(ESPHOME_LOG_LEVEL_INFO,
-               "[%s] IOCON 0x0A=0x%02X 0x0B=0x%02X GPINTENB=0x%02X IODIRA=0x%02X IODIRB=0x%02X INT13=%d INT14=%d",
+      ESP_LOGI(TAG, "[%s] IOCON 0x0A=0x%02X 0x0B=0x%02X GPINTENB=0x%02X IODIRA=0x%02X IODIRB=0x%02X INT13=%d INT14=%d",
                this->label_, this->iocon_a_, this->iocon_b_, this->rd(0x05), this->rd(0x00), this->rd(0x01),
                pin_level(13), pin_level(14));
       this->isr13_start_ = isr13_count;
@@ -104,8 +101,8 @@ class McpTest : public Component, public i2c::I2CDevice {
       return;
     }
     if (this->phase_ == 2) {
-      log_line(
-          ESPHOME_LOG_LEVEL_INFO,
+      ESP_LOGI(
+          TAG,
           "[%s] SUMMARY iocon_a=0x%02X iocon_b=0x%02X toggles=20 inta_low_now=%u intb_low_now=%u inta_low_200ms=%u "
           "intb_low_200ms=%u loopback_ok=%u/20 isr_intb=%u isr_inta=%s%u bs_changes=%u heap_free=%u",
           this->label_, this->iocon_a_, this->iocon_b_, this->inta_low_now_, this->intb_low_now_, this->inta_low_late_,
@@ -127,7 +124,7 @@ class McpTest : public Component, public i2c::I2CDevice {
     uint8_t a3 = this->rd(0x0A), b3 = this->rd(0x0B);
     this->write_byte(0x0A, a0);
     uint8_t a4 = this->rd(0x0A), b4 = this->rd(0x0B);
-    log_line(ESPHOME_LOG_LEVEL_INFO,
+    ESP_LOGI(TAG,
              "[%s] IOCONB_TEST start A=0x%02X B=0x%02X | write B^0x08 -> A=0x%02X B=0x%02X | restore -> A=0x%02X "
              "B=0x%02X | write A^0x08 -> A=0x%02X B=0x%02X | restore -> A=0x%02X B=0x%02X",
              this->label_, a0, b0, a1, b1, a2, b2, a3, b3, a4, b4);
@@ -136,9 +133,8 @@ class McpTest : public Component, public i2c::I2CDevice {
     uint8_t a5 = this->rd(0x0A), b5 = this->rd(0x0B);
     this->write_byte(0x0B, b0);
     uint8_t a6 = this->rd(0x0A), b6 = this->rd(0x0B);
-    log_line(ESPHOME_LOG_LEVEL_INFO,
-             "[%s] IOCONB_TEST2 write B^0x40 -> A=0x%02X B=0x%02X | restore -> A=0x%02X B=0x%02X", this->label_, a5, b5,
-             a6, b6);
+    ESP_LOGI(TAG, "[%s] IOCONB_TEST2 write B^0x40 -> A=0x%02X B=0x%02X | restore -> A=0x%02X B=0x%02X", this->label_,
+             a5, b5, a6, b6);
   }
 
   void count_change() { this->changes_++; }
