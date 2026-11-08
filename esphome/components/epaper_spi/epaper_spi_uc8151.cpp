@@ -91,7 +91,7 @@ bool HOT EPaperUC8151::write_plane_(uint8_t command) {
 
 bool HOT EPaperUC8151::transfer_data() {
   if (this->partial_ && this->current_data_index_ == 0)
-    this->set_partial_window_(0, this->width_ - 1, 0, this->height_ - 1);
+    this->set_partial_window(0, this->width_ - 1, 0, this->height_ - 1);
   return this->write_plane_(CMD_DTM2);
 }
 
@@ -120,7 +120,7 @@ void EPaperUC8151::power_off() {
   this->command(CMD_POWER_OFF);
 }
 
-void EPaperUC8151::set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) {
+void EPaperUC8151::set_partial_window(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) {
   this->command(CMD_PARTIAL_IN);
   this->cmd_data(CMD_PARTIAL_WINDOW, {static_cast<uint8_t>(x_start & 0xF8), static_cast<uint8_t>(x_end | 0x07),
                                       static_cast<uint8_t>(y_start >> 8), static_cast<uint8_t>(y_start & 0xFF),

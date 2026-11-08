@@ -23,7 +23,7 @@ void EPaperUltraChip::send_deep_sleep_() {
 
 void EPaperUltraChip::on_safe_shutdown() { this->send_deep_sleep_(); }
 
-void EPaperUltraChip::set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) {
+void EPaperUltraChip::set_partial_window(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) {
   this->command(CMD_PARTIAL_IN);
   this->cmd_data(CMD_PARTIAL_WINDOW,
                  {hi(x_start), static_cast<uint8_t>(lo(x_start) & 0xF8), hi(x_end),

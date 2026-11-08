@@ -37,7 +37,7 @@ class EPaperUltraChip : public EPaperBase {
   // Sends the deep-sleep command unconditionally; deep_sleep() skips it while partial updates are in use
   void send_deep_sleep_();
   // Enters partial mode and sets the refresh window; x is rounded out to whole bytes
-  virtual void set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end);
+  virtual void set_partial_window(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end);
 };
 
 }  // namespace esphome::epaper_spi

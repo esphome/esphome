@@ -33,7 +33,7 @@ class EPaperUC8151 : public EPaperUltraChip {
   bool after_refresh() override;
   void power_off() override;
   // The UC8151 window has one byte for each horizontal bound
-  void set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) override;
+  void set_partial_window(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) override;
 
   // Loads the partial-refresh waveform and the settings it needs into the controller registers
   void send_partial_settings_();

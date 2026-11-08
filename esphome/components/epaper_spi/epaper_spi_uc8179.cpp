@@ -33,7 +33,7 @@ void EPaperUC8179::set_refresh_mode_() {
   if (this->partial_) {
     this->cmd_data(CMD_TSSET, {0x6E});
     // Partial mode, with the window set to the full screen
-    this->set_partial_window_(0, this->width_ - 1, 0, this->height_ - 1);
+    this->set_partial_window(0, this->width_ - 1, 0, this->height_ - 1);
   } else {
     this->cmd_data(CMD_TSSET, {0x5A});
     this->command(CMD_PARTIAL_OUT);  // exit partial mode
