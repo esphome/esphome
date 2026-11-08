@@ -25,9 +25,15 @@ FAULT = """
             char k = KIND[i++];
             ESP_LOGI("bmpt", "FAULT %c at %u failed=%d warn=%d", k, (unsigned) now, id(bmp)->is_failed(),
                      id(bmp)->status_has_warning());
-            if (k == 'S') bmpt::g_fb->hold_until = now + 300;
+            // S and L hold SDA at once; fault_tick() releases it at the deadline
+            if (k == 'S') {
+              bmpt::g_fb->hold_until = now + 300;
+              bmpt::sda_hold();
+            }
             if (k == 'W') bmpt::g_fb->window_until = now + 5000;
             if (k == 'L' || k == 'D') bmpt::g_fb->hold_until = now + 5000;
+            if (k == 'L')
+              bmpt::sda_hold();
             if (k == 'N') bmpt::g_fb->soft_arm = true;
             if (k == 'M') bmpt::g_fb->soft_until = now + 5000;
             if (k == 'H') {

@@ -279,9 +279,11 @@ def main() -> None:
     devs = parse_devs(yaml_path)
     caps = sys.argv[2:]
     results = []
+    failed = False
     for c in caps:
         recs, boots, heap = load(c)
         n, fails, timing, per = check(devs, recs, board)
+        failed |= n == 0 or bool(fails)
         v = variants(devs, recs)
         occ = Counter()
         for _, s in recs:
@@ -329,6 +331,9 @@ def main() -> None:
             pb_ = statistics.median(pb[k]) / 10 if pb.get(k) else None
             if k[1] in ("0", "7"):
                 print(f"  {k[0]} step{k[1]}: {a} -> {b} us   period {pa_} -> {pb_} us")
+
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

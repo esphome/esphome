@@ -14,6 +14,8 @@ for _ in $(seq 1 60); do
 done
 [ -n "$IP" ] || { echo "no IP in the capture"; kill $CAP; exit 1; }
 $PY "$R/apiclient.py" "$IP" $((S - 25)) "$@" > "$OUT/api.txt" 2>&1
+API_RC=$?
 wait $CAP
 tail -1 "$OUT/api.txt"
 $PY "$R/summ.py" "$OUT/cap.txt"
+[ $API_RC = 0 ] || { echo "FAIL: API driver exited $API_RC"; exit 1; }
