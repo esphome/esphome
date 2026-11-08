@@ -247,7 +247,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
         `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
-        poll uses `status_comm_check(ok)`, which only sets it; in `setup()`,
+        poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
