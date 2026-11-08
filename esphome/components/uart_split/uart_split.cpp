@@ -62,10 +62,10 @@ void UartSplit::mirror_tx(const UartSplitOutput *from, const uint8_t *data, size
   }
 }
 
-void UartSplit::push_(uint8_t index, const uint8_t *data, size_t len) {
+void UartSplit::push_(size_t index, const uint8_t *data, size_t len) {
   UartSplitOutput *output = this->outputs_[index];
   if (!output->inject_rx(data, len) && output->start_dropping()) {
-    ESP_LOGW(TAG, "Output %u is full; dropping bytes until it has been read", index);
+    ESP_LOGW(TAG, "Output %u is full; dropping bytes until it has been read", static_cast<unsigned>(index));
   }
 }
 

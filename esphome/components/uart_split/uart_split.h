@@ -76,7 +76,7 @@ class UartSplit final : public Component {
   void mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len);
 
  protected:
-  void push_(uint8_t index, const uint8_t *data, size_t len);
+  void push_(size_t index, const uint8_t *data, size_t len);
 
   uart::UARTComponent *parent_;
   StaticVector<UartSplitOutput *, UART_SPLIT_OUTPUT_COUNT> outputs_;
