@@ -505,7 +505,7 @@ async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
         zb,
         ep_num,
     )
-    # await cg.register_component(var, config["zigbee_ep"])
+    await cg.register_component(var, config["zigbee_ep"])
     cg.add(var.connect(entity))
 
 

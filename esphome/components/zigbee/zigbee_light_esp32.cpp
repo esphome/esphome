@@ -14,13 +14,6 @@ void ZigbeeLight::on_light_remote_values_update() {
   this->set_attr_internal();
   // auto values = light_state_->remote_values;
   // const auto color_mode = values.get_color_mode();
-  //  set attributes
-  // if (color_mode & light::ColorCapability::ON_OFF)
-  // onoff_attr_->set_attr(values.is_on());
-  // ESP_LOGI(TAG, "Set %s", values.is_on() ? "ON" : "OFF");
-  // if (color_mode & light::ColorCapability::BRIGHTNESS && brightness_attr_ != nullptr)
-  // if (brightness_attr_ != nullptr)
-  // brightness_attr_->set_attr(light::to_uint8_scale(values.get_brightness()));
   /**
     if (color_mode & light::ColorCapability::RGB && color_attr_ != nullptr) {
       color_attr_->set_attr(to_uint8_scale(values.get_red()));
@@ -42,8 +35,9 @@ void ZigbeeLight::on_light_remote_values_update() {
     }*/
 }
 
-void ZigbeeLight::connect(light::LightState *light_state) {
-  this->light_state_ = light_state;
+void ZigbeeLight::connect(light::LightState *light_state) { this->light_state_ = light_state; }
+
+void ZigbeeLight::setup() {
   auto values = this->light_state_->remote_values;
   light::LightTraits traits = this->light_state_->get_traits();
   bool onoff = traits.supports_color_capability(light::ColorCapability::ON_OFF);
@@ -70,9 +64,11 @@ void ZigbeeLight::connect(light::LightState *light_state) {
 
   // setup level cluster
   if (level) {
+    this->level_forwarder_ = new ZigbeeOnValueForwarder<uint8_t, ZigbeeLight>(this, EZB_ZCL_ATTR_TYPE_UINT8,
+                                                                              &ZigbeeLight::apply_level_, false);
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER);
     uint8_t value = light::to_uint8_scale(values.get_brightness());
-    this->zb_->add_attr(&this->level_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
+    this->zb_->add_attr(this->level_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
                         EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, value);
 
     // static attributes for level cluster
@@ -140,7 +136,7 @@ void ZigbeeLight::set_attr_internal() {
     ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_ON_OFF, EZB_ZCL_CLUSTER_SERVER,
                            EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, EZB_ZCL_STD_MANUF_CODE, &on, false);
     ESP_LOGI(TAG, "Set %s", values.is_on() ? "ON" : "OFF");
-    if (color_mode & light::ColorCapability::BRIGHTNESS) {
+    if (this->level_forwarder_ && color_mode & light::ColorCapability::BRIGHTNESS) {
       uint8_t level = static_cast<uint8_t>(roundf(253.0f * values.get_brightness()) + 1);  // 1 to 254
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
                              EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, EZB_ZCL_STD_MANUF_CODE, &level, false);

@@ -41,12 +41,14 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
  public:
   ZigbeeLight(ZigbeeComponent *parent, uint8_t endpoint_id)
       : ZigbeeDeviceBase(parent, endpoint_id),
-        on_off_forwarder_(this, EZB_ZCL_ATTR_TYPE_BOOL, &ZigbeeLight::apply_on_off_, true),
-        level_forwarder_(this, EZB_ZCL_ATTR_TYPE_UINT8, &ZigbeeLight::apply_level_, false) {}
+        on_off_forwarder_(this, EZB_ZCL_ATTR_TYPE_BOOL, &ZigbeeLight::apply_on_off_, true) {}
 
+  void setup() override;
   void on_light_remote_values_update() override;
   void on_value(ezb_zcl_attribute_t attribute) override {};
   void connect(light::LightState *light_state);
+  // Setup before ZigbeeComponent
+  float get_setup_priority() const override { return setup_priority::WIFI + 1; }
 
  protected:
   void set_attr_internal() override;
@@ -54,7 +56,7 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   void apply_on_off_(bool on);
   void apply_level_(uint8_t level);
   ZigbeeOnValueForwarder<bool, ZigbeeLight> on_off_forwarder_;
-  ZigbeeOnValueForwarder<uint8_t, ZigbeeLight> level_forwarder_;
+  ZigbeeOnValueForwarder<uint8_t, ZigbeeLight> *level_forwarder_{nullptr};
   light::LightState *light_state_;
   bool synchronizing_from_zigbee_{false};
 };
