@@ -56,24 +56,21 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
       this->char_handle_ = chr->handle;
-      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(),
-                                                      chr->handle);
-      if (status) {
-        ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
+      // The client writes the CCC descriptor and releases its service list once every node is established
+      auto status = this->parent()->register_for_notify(chr->handle);
+      if (status != ESP_OK) {
+        ESP_LOGW(TAG, "register_for_notify failed, status=%d", status);
       }
-      auto *descr = chr->get_descriptor(0x2902);
-      if (descr == nullptr) {
-        ESP_LOGW(TAG, "No CCC descriptor found at service");
+      break;
+    }
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      if (param->reg_for_notify.handle != this->char_handle_)
+        break;
+      if (param->reg_for_notify.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Registering for notifications failed, status=%d", param->reg_for_notify.status);
         break;
       }
-      uint8_t cccd_value[2] = {1, 0};
-      status =
-          esp_ble_gattc_write_char_descr(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), descr->handle,
-                                         2, cccd_value, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-      if (status) {
-        ESP_LOGW(TAG, "Error sending CCC descriptor write request, status=%d", status);
-        break;
-      }
+      this->node_state = espbt::ClientState::ESTABLISHED;
       this->add_command_(this->handshake_, strlen(this->handshake_));
       this->add_command_(BT_VARS_COMMAND, sizeof(BT_VARS_COMMAND) - 1);
       break;
