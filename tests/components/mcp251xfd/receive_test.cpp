@@ -83,6 +83,12 @@ TEST(MCP251XFDReceive, ClassicModeUsesEightBytePayloadObjects) {
     spi.queue_rx_message(offset, 8, 8);
     EXPECT_EQ(controller.read_message(&frame), canbus::ERROR_FAIL);
   }
+
+  // A CAN FD frame is dropped rather than left at the FIFO head
+  spi.queue_rx_message(rx_start, MESSAGE_FDF | 8, 8);
+  const size_t increments = spi.writes_to(REG_RX_FIFO_CON + 1);
+  EXPECT_EQ(controller.read_message(&frame), canbus::ERROR_FAIL);
+  EXPECT_EQ(spi.writes_to(REG_RX_FIFO_CON + 1), increments + 1);
 }
 
 }  // namespace esphome::mcp251xfd::testing

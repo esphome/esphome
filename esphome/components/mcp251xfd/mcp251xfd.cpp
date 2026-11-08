@@ -315,22 +315,23 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
                                     this->rx_fifo_depth_(), address))
     return canbus::ERROR_FAIL;
 
-  // Most frames carry at most 8 bytes, so read the header and 8 data bytes first and fetch the rest of a longer
-  // CAN FD payload in a second transaction, rather than always reading the whole 72-byte object.
-  static constexpr size_t FIRST_READ_SIZE = MESSAGE_HEADER_SIZE + canbus::CAN_MAX_DATA_LENGTH;
-  std::array<uint8_t, MAX_MESSAGE_SIZE> message;
-  if (!this->read_registers_(address, message.data(), FIRST_READ_SIZE))
+  // Most frames carry at most 8 bytes, so read the header and 8 data bytes first and read the rest of a longer
+  // CAN FD payload straight into the frame, rather than always reading the whole 72-byte object.
+  std::array<uint8_t, MESSAGE_HEADER_SIZE + canbus::CAN_MAX_DATA_LENGTH> message;
+  if (!this->read_registers_(address, message.data(), message.size()))
     return canbus::ERROR_FAIL;
+  const bool fd = (message[4] & MESSAGE_FDF) != 0;
 #ifdef USE_CANBUS_FD
-  const uint8_t fd_length = (message[4] & MESSAGE_FDF) != 0 ? canbus::can_dlc_to_len(message[4] & MESSAGE_DLC_MASK) : 0;
-  if (fd_length > canbus::CAN_MAX_DATA_LENGTH) {
-    // RAM reads are whole words
-    const size_t rest = (fd_length - canbus::CAN_MAX_DATA_LENGTH + 3) & ~size_t{3};
-    if (!this->read_registers_(address + FIRST_READ_SIZE, message.data() + FIRST_READ_SIZE, rest))
-      return canbus::ERROR_FAIL;
-  }
+  // CAN FD lengths above 8 are 8 plus whole words, as RAM reads need.
+  const uint8_t length = fd ? canbus::can_dlc_to_len(message[4] & MESSAGE_DLC_MASK) : 0;
+  if (length > canbus::CAN_MAX_DATA_LENGTH &&
+      !this->read_registers_(address + message.size(), frame->data + canbus::CAN_MAX_DATA_LENGTH,
+                             length - canbus::CAN_MAX_DATA_LENGTH))
+    return canbus::ERROR_FAIL;
 #endif
   this->write_byte_(REG_RX_FIFO_CON + 1, FIFO_INCREMENT);
+  if (fd && this->classic_())
+    return canbus::ERROR_FAIL;
 
   const uint32_t id = encode_value_le<uint32_t>(message.data());
   frame->use_extended_id = (message[4] & MESSAGE_IDE) != 0;
@@ -339,25 +340,21 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   } else {
     frame->can_id = id & canbus::CAN_STANDARD_ID_MAX;
   }
-#ifdef USE_CANBUS_FD
-  frame->fd = (message[4] & MESSAGE_FDF) != 0;
-  if (frame->fd && this->classic_())
-    return canbus::ERROR_FAIL;
   // In a CAN FD frame the RTR position is the reserved RRS bit
-  frame->remote_transmission_request = !frame->fd && (message[4] & MESSAGE_RTR);
+  frame->remote_transmission_request = !fd && (message[4] & MESSAGE_RTR);
+#ifdef USE_CANBUS_FD
   // The base clears the other CAN FD flags before each read
-  if (frame->fd) {
+  frame->fd = fd;
+  if (fd) {
     frame->bit_rate_switch = (message[4] & MESSAGE_BRS) != 0;
     frame->error_state_indicator = (message[5] & MESSAGE_ESI) != 0;
   }
-#else
-  if (message[4] & MESSAGE_FDF)
-    return canbus::ERROR_FAIL;
-  frame->remote_transmission_request = (message[4] & MESSAGE_RTR) != 0;
 #endif
   frame->can_data_length_code = message[4] & MESSAGE_DLC_MASK;
-  if (!frame->remote_transmission_request)
-    std::memcpy(frame->data, message.data() + 8, frame->payload_length());
+  if (!frame->remote_transmission_request) {
+    std::memcpy(frame->data, message.data() + MESSAGE_HEADER_SIZE,
+                std::min<size_t>(frame->payload_length(), canbus::CAN_MAX_DATA_LENGTH));
+  }
   return canbus::ERROR_OK;
 }
 
