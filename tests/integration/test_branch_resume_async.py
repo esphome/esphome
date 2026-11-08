@@ -52,6 +52,13 @@ async def test_branch_resume_async(
         assert count("while-body-4") == 0
         assert count("after-while") == 1
 
+        # A body that finishes without deferring loops again from the main loop
+        await client.execute_service(service["run_sync_body_while"], {})
+        await waiter.wait_for("after-sync-while", timeout=2.0)
+        assert [count(f"sync-while-body-{i}") for i in (1, 2, 3)] == [1, 1, 1]
+        assert count("sync-while-body-4") == 0
+        assert count("after-sync-while") == 1
+
         await client.execute_service(service["run_stop_in_branch"], {})
         await waiter.wait_for("stop-check-done", timeout=3.0)
         assert count("stop-running=0") == 1

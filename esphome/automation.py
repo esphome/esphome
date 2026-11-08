@@ -988,7 +988,7 @@ DelayAction = cg.esphome_ns.class_("DelayAction", Action)
 LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
 StatelessLambdaAction = cg.esphome_ns.class_("StatelessLambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
-WhileAction = cg.esphome_ns.class_("WhileAction", Action)
+WhileAction = cg.esphome_ns.class_("WhileAction", Action, cg.Component)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
 UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
@@ -1469,7 +1469,8 @@ async def choose_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
-    synchronous=True,
+    # A body that finishes at once loops again from the main loop, keeping its arguments
+    synchronous=False,
 )
 async def while_action_to_code(
     config: ConfigType,
@@ -1498,6 +1499,7 @@ async def while_action_to_code(
     for action in _emit_action_plan(actions, template_arg, args):
         cg.add(var.add_then_action(action))
     cg.add(var.finish_then())
+    await cg.register_component(var, {})
     return var
 
 

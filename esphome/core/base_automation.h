@@ -360,7 +360,10 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
 };
 
-template<typename... Ts> class WhileAction : public Action<Ts...> {
+/// Loops its body while the condition holds. A body that finishes without deferring (no delay or wait inside)
+/// resumes from the main loop: looping from inside the body would nest one call chain per pass, and a
+/// condition that only changes from the main loop could never end it.
+template<typename... Ts> class WhileAction : public Action<Ts...>, public Component {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
@@ -372,6 +375,13 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   }
   void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
   void finish_then() { this->then_.set_owner(this); }
+
+  void setup() override {
+    // play_complex() may already have run, e.g. from on_boot at the same priority
+    if (this->pending_.empty()) {
+      this->disable_loop();
+    }
+  }
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
@@ -391,24 +401,66 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       this->play_next_(x...);
       return;
     }
-    this->then_.play(x...);
+    this->play_body_(x...);
   }
 
   // Branch-end resume hook: loop again or continue
   void play(const Ts &...x) override {
+    if (this->body_depth_ > 0 && this->num_running_ > 0) {
+      // Still inside play_body_(): the body finished at once, so check the condition from the main loop
+      this->pending_.emplace_back(x...);
+      this->enable_loop();
+      return;
+    }
+    this->resume_(x...);
+  }
+
+  void loop() override {
+    // A pass can re-enter this action and add to or clear pending_, so iterate a local list
+    std::list<std::tuple<stored_trigger_arg_t<Ts>...>> pending;
+    pending.swap(this->pending_);
+    const uint8_t generation = this->stop_generation_;
+    for (auto &args : pending) {
+      std::apply([this](auto &...x) { this->resume_(x...); }, args);
+      if (generation != this->stop_generation_) {
+        // stop() ran inside the pass: the passes still held here were cancelled
+        break;
+      }
+    }
+    if (this->pending_.empty()) {
+      this->disable_loop();
+    }
+  }
+
+  void stop() override {
+    this->pending_.clear();
+    this->stop_generation_++;
+    this->then_.stop();
+  }
+
+ protected:
+  void resume_(const Ts &...x) {
     // The condition may stop this automation
     if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
-      this->then_.play(x...);
+      this->play_body_(x...);
     } else {
       this->play_next_(x...);
     }
   }
 
-  void stop() override { this->then_.stop(); }
+  void play_body_(const Ts &...x) {
+    this->body_depth_++;
+    this->then_.play(x...);
+    this->body_depth_--;
+  }
 
- protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  // Passes whose body finished at once, resumed by loop()
+  std::list<std::tuple<stored_trigger_arg_t<Ts>...>> pending_;
+  uint8_t body_depth_{0};
+  // Bumped by stop() so loop() can detect a stop from inside a pass
+  uint8_t stop_generation_{0};
 };
 
 // Forward declaration for RepeatLoopContinuation

@@ -45,6 +45,27 @@ script:
                 args: ['id(counter)']
       - logger.log: "after-while"
 
+  # light.dim_relative has its own action class, so this body is not merged into a C++ loop
+  # and finishes without deferring: each pass must resume from the main loop
+  - id: sync_body_while
+    then:
+      - lambda: 'id(counter) = 0;'
+      - light.turn_on:
+          id: dim_light
+          brightness: 10%
+      - while:
+          condition:
+            lambda: 'return id(counter) < 3;'
+          then:
+            - light.dim_relative:
+                id: dim_light
+                relative_brightness: 10%
+            - lambda: 'id(counter) += 1;'
+            - logger.log:
+                format: "sync-while-body-%d"
+                args: ['id(counter)']
+      - logger.log: "after-sync-while"
+
   - id: stop_in_branch
     then:
       - if:
@@ -206,6 +227,20 @@ globals:
     type: int
     initial_value: '0'
 
+output:
+  - platform: template
+    id: dim_output
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: monochromatic
+    name: "Dim Light"
+    id: dim_light
+    output: dim_output
+    default_transition_length: 0s
+
 api:
   actions:
     - action: run_delay_in_if
@@ -217,6 +252,9 @@ api:
     - action: run_delay_in_while
       then:
         - script.execute: delay_in_while
+    - action: run_sync_body_while
+      then:
+        - script.execute: sync_body_while
     - action: run_stop_in_branch
       then:
         - script.execute: stop_in_branch

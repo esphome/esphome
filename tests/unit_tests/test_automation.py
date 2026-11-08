@@ -3112,6 +3112,7 @@ async def test_inline_while_checks_condition_and_stops() -> None:
 @pytest.mark.usefixtures("apply_actions")
 async def test_inline_while_with_empty_body_keeps_its_object() -> None:
     """An empty body exits a WhileAction at once, which a C++ loop would not do."""
+    CORE.component_ids.add("act_w")
     config = [
         {
             "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: []},
@@ -3124,6 +3125,8 @@ async def test_inline_while_with_empty_body_keeps_its_object() -> None:
     await build_action_list(config, TEMPLATE_ARG, [])
 
     assert "new(act_w) WhileAction<>(" in CORE.cpp_main_section
+    # The object resumes a body that finished at once from loop()
+    assert "App.register_component_(act_w" in CORE.cpp_main_section
 
 
 @pytest.mark.asyncio

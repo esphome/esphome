@@ -248,7 +248,34 @@ TEST(ActionBranchOwner, WhileConditionStoppingOnALaterPassEndsTheLoop) {
 
   list.play();
   EXPECT_EQ(log, (Log{1}));
+  EXPECT_TRUE(list.is_running());
+  loop.loop();  // the second check stops the list
+  EXPECT_EQ(log, (Log{1}));
   EXPECT_FALSE(list.is_running());
+}
+
+// A stop between two passes of a body that finishes at once drops the pending pass
+TEST(ActionBranchOwner, StopBetweenPassesClearsPending) {
+  Log log;
+  FlagCondition cond;
+  WhileAction<> loop(&cond);
+  RecordAction body(&log, 1), after(&log, 2);
+  loop.add_then({&body});
+  ActionList<> top;
+  top.add_actions({&loop, &after});
+
+  top.play();
+  EXPECT_EQ(log, (Log{1}));
+  EXPECT_TRUE(top.is_running());
+  top.stop();
+  EXPECT_FALSE(top.is_running());
+  loop.loop();
+  EXPECT_EQ(log, (Log{1}));
+
+  // A fresh run works after the stop
+  cond.value = false;
+  top.play();
+  EXPECT_EQ(log, (Log{1, 2}));
 }
 
 TEST(ActionBranchOwner, IfResumesAfterDeferredLastAction) {
@@ -339,6 +366,7 @@ TEST(ActionBranchOwner, EmptyBranchesFinishImmediately) {
   EXPECT_FALSE(top2.is_running());
 }
 
+// A body that finishes at once runs one pass per main loop
 TEST(ActionBranchOwner, WhileRechecksEachPassAndExits) {
   Log log;
   CountdownCondition cond(3);
@@ -349,8 +377,15 @@ TEST(ActionBranchOwner, WhileRechecksEachPassAndExits) {
   ActionList<> top;
   top.add_actions({&loop, &after});
   top.play();
+  EXPECT_EQ(log, (Log{1}));
+  EXPECT_TRUE(top.is_running());
+  loop.loop();
+  EXPECT_EQ(log, (Log{1, 1}));
+  loop.loop();
   EXPECT_EQ(log, (Log{1, 1, 1, 2}));
   EXPECT_FALSE(top.is_running());
+  loop.loop();  // nothing pending
+  EXPECT_EQ(log, (Log{1, 1, 1, 2}));
 }
 
 TEST(ActionBranchOwner, StopMidBranchClearsRunning) {
