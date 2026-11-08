@@ -1620,7 +1620,7 @@ def lint_grouped_test_ids(fname, content):
             content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader)
         )
     except yaml.YAMLError:
-        return None
+        return None  # yamllint and the build test report broken YAML
     if not isinstance(root, yaml.MappingNode):
         return None
     errs: list[tuple[int, int, str]] = []
