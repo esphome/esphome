@@ -11,8 +11,6 @@ duco:
   discovery: {}
   time:
     time_id: sntp_time
-  disable_crc: false
-  allow_dangerous_controls: false
 
 text_sensor:
   - platform: duco
@@ -63,6 +61,16 @@ select:
       name: NightBoost Start Month
     nightboost_month_stop:
       name: NightBoost Stop Month
+    uc_error_mode:
+      - name: Box UC Error Mode
+      - name: Node 2 UC Error Mode
+        address: 2
+    rh_delta_mode:
+      - name: Node 2 RH Delta Mode
+        address: 2
+    co2_temperature_dependent_control:
+      - name: Node 3 CO2 Temperature Dependent Control
+        address: 3
   - platform: duco
     type: time_filter
     name: Time Filter
@@ -85,6 +93,9 @@ sensor:
     flow_level:
       name: Flow Level
       update_interval: 5s
+    flow_level_request:
+      - name: Node 3 Flow Level Request
+        address: 3
     time_remaining:
       name: Mode Time Remaining
       update_interval: 5s
@@ -121,6 +132,28 @@ number:
       name: Box Ventilation Minimum
     box_ventilation_max:
       name: Box Ventilation Maximum
+    manual_time:
+      - name: Box Manual Ventilation Time
+      - name: Node 3 Manual Ventilation Time
+        address: 3
+    flow_level_manual_1:
+      - name: Node 3 Manual Ventilation Level 1
+        address: 3
+    flow_level_manual_2:
+      - name: Node 3 Manual Ventilation Level 2
+        address: 3
+    flow_level_manual_3:
+      - name: Node 3 Manual Ventilation Level 3
+        address: 3
+    co2_setpoint:
+      - name: Node 3 CO2 Setpoint
+        address: 3
+    rh_setpoint:
+      - name: Node 2 RH Setpoint
+        address: 2
+    show_sensor_level:
+      - name: Node 2 Show Sensor Level
+        address: 2
 
 switch:
   - platform: duco
@@ -134,5 +167,7 @@ switch:
 
 button:
   - platform: duco
-    type: reboot
-    name: Reboot
+    reboot:
+      - name: Reboot
+      - name: Reboot Node 4
+        address: 4
