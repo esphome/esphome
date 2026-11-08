@@ -344,43 +344,53 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
 /// so entity states can change. With arguments it never yields: they may only be valid while the trigger runs.
 static constexpr uint32_t WHILE_YIELD_AFTER_MS = 20;
 
-/// A while with no trigger arguments whose condition and body codegen merged into one step function.
-/// Step runs the body once and returns true, or returns false once the condition is false or the run stopped.
-template<auto Step> class ApplyWhileAction final : public Action<> {
- public:
-  void play_complex() override {
-    this->num_running_++;
-    this->run_();
+/// The one scheduler friend for both while actions.
+struct WhileYield {
+  /// Arms `resume` for the next main loop pass and returns true once the loop started at `start` ran too long.
+  template<typename F> static bool due(const void *self, uint32_t start, bool parallel, F &&resume) {
+    if (millis() - start <= WHILE_YIELD_AFTER_MS)
+      return false;
+    App.scheduler.set_action_timeout_(self, 0, std::forward<F>(resume), parallel);
+    return true;
   }
+};
 
+/// Shared by every ApplyWhileAction, so each step function adds only its own play_complex() and vtable.
+class ApplyWhileActionBase : public Action<> {
+ public:
   void play() override { /* ignore - see play_complex */ }
 
   void stop() override { App.scheduler.cancel_timeout(this); }
 
  protected:
-  void run_() {
-    // Any other type would bind the function's const int & to a temporary that never sees a stop
+  using StepFn = bool (*)(const int &running);
+
+  void run_(StepFn step) {
+    // Any other type would bind the step's const int & to a temporary that never sees a stop
     static_assert(std::is_same_v<decltype(this->num_running_), int>);
     const uint32_t start = millis();
-    while (Step(this->num_running_)) {
-      if (millis() - start > WHILE_YIELD_AFTER_MS) {
-        App.scheduler.set_action_timeout_(
-            this, 0, [this]() { this->run_(); }, /* parallel= */ this->num_running_ > 1);
+    while (step(this->num_running_)) {
+      if (WhileYield::due(this, start, this->num_running_ > 1, [this, step]() { this->run_(step); }))
         return;
-      }
     }
     this->play_next_();
   }
 };
 
-#ifdef USE_WHILE_ACTION
-/// The while body that is running synchronously, kept on the stack by WhileAction::run_loop_().
-/// One for all loops instead of a member, as the main loop runs one body at a time.
-struct WhileBodyFrame {
-  const void *owner;
-  bool ended;
+/// A while with no trigger arguments whose condition and body codegen merged into one step function.
+/// Step runs the body once and returns true, or returns false once the condition is false or the run stopped.
+template<auto Step> class ApplyWhileAction final : public ApplyWhileActionBase {
+ public:
+  void play_complex() override {
+    this->num_running_++;
+    this->run_(Step);
+  }
 };
-inline WhileBodyFrame *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#ifdef USE_WHILE_ACTION
+/// The WhileAction whose body is running synchronously; play() clears it when that body ends.
+/// One for all loops instead of a member, as the main loop runs one body at a time.
+inline const void *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
@@ -408,8 +418,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // Branch-end resume hook
   void play(const Ts &...x) override {
     // A body that did not wait ended inside run_loop_(), which loops again itself
-    if (active_while_body != nullptr && active_while_body->owner == this) {
-      active_while_body->ended = true;
+    if (active_while_body == this) {
+      active_while_body = nullptr;
       return;
     }
     this->run_loop_(x...);
@@ -424,28 +434,25 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   // Runs the body in a loop, not by recursion, while it ends without waiting
   void run_loop_(const Ts &...x) {
-    [[maybe_unused]] const uint32_t start = sizeof...(Ts) == 0 ? millis() : 0;
+    [[maybe_unused]] const uint32_t start = millis();
     while (true) {
-      // The condition may stop this automation. A false start must not stop the body of another run.
+      // The condition may stop this automation
       if (this->num_running_ == 0 || !this->condition_->check(x...) || this->num_running_ == 0) {
         this->play_next_(x...);
         return;
       }
-      // On the stack, as the body can start this action again
-      WhileBodyFrame frame{this, false};
-      WhileBodyFrame *outer = active_while_body;
-      active_while_body = &frame;
+      // Saved on the stack, as the body can start this action again
+      const void *outer = active_while_body;
+      active_while_body = this;
       this->then_.play(x...);
+      const bool ended = active_while_body != this;
       active_while_body = outer;
       // A body that waits resumes through play() later
-      if (!frame.ended)
+      if (!ended)
         return;
       if constexpr (sizeof...(Ts) == 0) {
-        if (millis() - start > WHILE_YIELD_AFTER_MS) {
-          App.scheduler.set_action_timeout_(
-              this, 0, [this]() { this->run_loop_(); }, /* parallel= */ this->num_running_ > 1);
+        if (WhileYield::due(this, start, this->num_running_ > 1, [this]() { this->run_loop_(); }))
           return;
-        }
       }
     }
   }

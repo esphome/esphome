@@ -1472,8 +1472,7 @@ def _has_lambda(value: Any) -> bool:
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # A lambda condition can test a value the body changes, so it is not a busy loop.
-    # has_non_synchronous_actions also finds every action that waits. An empty body ends the loop at once.
+    # A lambda condition can test a value the body changes. An empty body ends the loop at once.
     body = config[CONF_THEN]
     if (
         body
@@ -1481,8 +1480,9 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
         and not _has_lambda(config[CONF_CONDITION])
     ):
         _LOGGER.warning(
-            "The body of a 'while' loop never waits, so the rest of the device cannot run "
-            "while it loops. Add a 'delay' inside the loop."
+            "The body of a 'while' loop never waits, so it holds up the rest of the device: "
+            "other components only run every 20 ms, and not at all in an automation with "
+            "arguments. Add a 'delay' inside the loop."
         )
     return config
 
@@ -1512,13 +1512,14 @@ async def while_action_to_code(
     actions = await build_list(config[CONF_THEN], template_arg, args)
     # An empty body exits the loop at once, unlike an empty C++ loop body
     if _is_collecting(action_id) and actions and _plans_inline(actions):
+        check = f"const bool esphome__condition = {_condition_expression(condition, args)};"
         if args:
-            # Arguments may only be valid while the trigger runs, so this loop never yields
+            # Never yields, see WHILE_YIELD_AFTER_MS
             return _collect_control_flow(
                 action_id,
                 [
                     "while (true) {",
-                    f"const bool esphome__condition = {_condition_expression(condition, args)};",
+                    check,
                     _STOP_CHECK,
                     "if (!esphome__condition)\n  break;",
                     *_plan_statements(actions),
@@ -1526,7 +1527,8 @@ async def while_action_to_code(
                     "}",
                 ],
             )
-        # Its own object, which can give the main loop a turn between steps
+        # A step function the ApplyWhileAction runs once per pass
+        stop = f"if (!{_RUNNING_PARAM})\n  return false;"
         step_id = action_id.copy()
         step_id.type = ApplyWhileAction
         step = apply_static_function(
@@ -1534,13 +1536,12 @@ async def while_action_to_code(
             cg.bool_,
             [(cg.RawExpression("const int &"), _RUNNING_PARAM)],
             [
-                f"if (!{_RUNNING_PARAM})\n  return false;",
-                f"const bool esphome__condition = {_condition_expression(condition, args)};",
+                check,
                 f"if (!{_RUNNING_PARAM} || !esphome__condition)\n  return false;",
-                # A stop inside the body returns from this lambda
-                "[&]() {",
-                *_plan_statements(actions),
-                "}();",
+                *(
+                    stop if statement == _STOP_CHECK else statement
+                    for statement in _plan_statements(actions)
+                ),
                 "return true;",
             ],
         )

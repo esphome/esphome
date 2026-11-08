@@ -79,10 +79,10 @@ class StopOnCheckCondition : public Condition<> {
 };
 
 // Turns its condition off after a number of checks
-class CountdownCondition : public Condition<> {
+template<typename... Ts> class CountdownCondition : public Condition<Ts...> {
  public:
   explicit CountdownCondition(int passes) : passes_(passes) {}
-  bool check() override { return this->passes_-- > 0; }
+  bool check(const Ts &.../*x*/) override { return this->passes_-- > 0; }
 
  protected:
   int passes_;
@@ -177,7 +177,7 @@ TEST(ActionBranchOwner, PerItemIfAndWhileResumeAfterTheirBranch) {
   EXPECT_EQ(log, (Log{1, 2, 4, 3, 4}));
 
   log.clear();
-  CountdownCondition loop_cond(2);
+  CountdownCondition<> loop_cond(2);
   WhileAction<> loop(&loop_cond);
   DeferredAction wait(&log, 5);
   RecordAction after2(&log, 6);
@@ -341,7 +341,7 @@ TEST(ActionBranchOwner, EmptyBranchesFinishImmediately) {
 
 TEST(ActionBranchOwner, WhileRechecksEachPassAndExits) {
   Log log;
-  CountdownCondition cond(3);
+  CountdownCondition<> cond(3);
   WhileAction<> loop(&cond);
   RecordAction body(&log, 1);
   RecordAction after(&log, 2);
@@ -379,7 +379,7 @@ TEST(ActionBranchOwner, StopMidBranchClearsRunning) {
 
 TEST(ActionBranchOwner, NestedIfInsideWhileResumesEachOwner) {
   Log log;
-  CountdownCondition loop_cond(2);
+  CountdownCondition<> loop_cond(2);
   FlagCondition if_cond;
   WhileAction<> loop(&loop_cond);
   IfAction<false> inner(&if_cond);
@@ -407,32 +407,12 @@ class CountAction : public Action<int> {
   int total{0};
 };
 
-class IntCountdownCondition : public Condition<int> {
- public:
-  explicit IntCountdownCondition(int passes) : passes_(passes) {}
-  bool check(const int & /*x*/) override { return this->passes_-- > 0; }
-
- protected:
-  int passes_;
-};
-
-class IntRecordAction : public Action<int> {
- public:
-  explicit IntRecordAction(Log *log) : log_(log) {}
-  void play(const int &x) override { this->log_->push_back(x); }
-
- protected:
-  Log *log_;
-};
-
 // Enough passes to overflow the stack if each one nested another call chain
 TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
   static constexpr int PASSES = 200000;
-  IntCountdownCondition cond(PASSES);
+  CountdownCondition<int> cond(PASSES);
   WhileAction<int> loop(&cond);
-  CountAction body;
-  Log log;
-  IntRecordAction after(&log);
+  CountAction body, after;
   loop.add_then({&body});
   ActionList<int> list;
   list.add_actions({&loop, &after});
@@ -440,7 +420,7 @@ TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
   list.play(1);
   // With an argument the loop never yields, so it ends before play() returns
   EXPECT_EQ(body.total, PASSES);
-  EXPECT_EQ(log, (Log{1}));
+  EXPECT_EQ(after.total, 1);
   EXPECT_FALSE(list.is_running());
 }
 
@@ -457,36 +437,30 @@ static bool count_step(const int &running) {
   return true;
 }
 
-TEST(ActionBranchOwner, ApplyWhileRunsStepsThenContinues) {
+// Runs an ApplyWhileAction of count_step that stops its run on pass `stop_on` (0 for never)
+static Log run_apply_while(int stop_on) {
   step_passes = 0;
-  step_stop_on = 0;
-  Log log;
-  ApplyWhileAction<count_step> loop;
-  RecordAction after(&log, 1);
-  ActionList<> list;
-  list.add_actions({&loop, &after});
-
-  list.play();
-  EXPECT_EQ(step_passes, 3);
-  EXPECT_EQ(log, (Log{1}));
-  EXPECT_FALSE(list.is_running());
-}
-
-TEST(ActionBranchOwner, ApplyWhileStoppedInAStepEndsTheRun) {
-  step_passes = 0;
-  step_stop_on = 2;
+  step_stop_on = stop_on;
   Log log;
   ApplyWhileAction<count_step> loop;
   RecordAction after(&log, 1);
   ActionList<> list;
   list.add_actions({&loop, &after});
   step_list = &list;
-
   list.play();
   step_list = nullptr;
-  EXPECT_EQ(step_passes, 2);
-  EXPECT_TRUE(log.empty());
   EXPECT_FALSE(list.is_running());
+  return log;
+}
+
+TEST(ActionBranchOwner, ApplyWhileRunsStepsThenContinues) {
+  EXPECT_EQ(run_apply_while(0), (Log{1}));
+  EXPECT_EQ(step_passes, 3);
+}
+
+TEST(ActionBranchOwner, ApplyWhileStoppedInAStepEndsTheRun) {
+  EXPECT_TRUE(run_apply_while(2).empty());
+  EXPECT_EQ(step_passes, 2);
 }
 
 }  // namespace esphome::core::testing

@@ -3153,16 +3153,19 @@ async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
 @pytest.mark.usefixtures("apply_actions")
 async def test_inline_while_without_arguments_is_a_step_action() -> None:
     """Without arguments it is an ApplyWhileAction, which can give the main loop a turn."""
-    result = await build_action_list(_while([_action("my.a", "act_a")]), TEMPLATE_ARG, [])
+    body = [_action("my.a", "act_a"), _action("my.b", "act_b")]
+    result = await build_action_list(_while(body), TEMPLATE_ARG, [])
 
     assert [str(action) for action in result] == ["act_w"]
     assert "new(act_w) ApplyWhileAction<esphome__act_w__fn>();" in CORE.cpp_main_section
     text = CORE.cpp_global_section
     assert "static bool esphome__act_w__fn(const int & esphome__running)" in text
     assert "while (true)" not in text
-    # The stop check inside the body returns from the lambda, then the step reports the pass
-    assert text.index("[&]() {") < text.index("::comp->do_a();") < text.index("}();")
-    assert "return true;" in text
+    # A stop between body actions ends the loop like a false condition
+    stop = text.index("if (!esphome__running)\n", text.index("::comp->do_a();"))
+    assert stop < text.index("return false;", stop) < text.index("::comp->do_b();")
+    assert "return;" not in text
+    assert text.index("::comp->do_b();") < text.rindex("return true;")
     assert not _uses_while_action()
 
 

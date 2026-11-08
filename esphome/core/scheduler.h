@@ -18,13 +18,12 @@ namespace esphome {
 class Component;
 
 class Scheduler {
-  // Allow DelayAction and the while actions to call set_action_timeout_, which keeps one timeout per parallel run.
+  // Allow DelayAction and WhileYield to call set_action_timeout_, which skips cancel for parallel runs.
   // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
   // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
   // to accumulate and overload the scheduler if misused.
   template<typename... Ts> friend class DelayAction;
-  template<typename... Ts> friend class WhileAction;
-  template<auto Step> friend class ApplyWhileAction;
+  friend struct WhileYield;
 
  public:
   /** Set a timeout with a const char* name.
