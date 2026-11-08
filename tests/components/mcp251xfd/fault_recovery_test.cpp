@@ -48,6 +48,17 @@ TEST(MCP251XFDFaults, ClearsFifoOverflowWithoutClearingOtherBits) {
   EXPECT_EQ(controller.get_status().rx_overrun_count, 1u);
 }
 
+TEST(MCP251XFDFaults, UnhandledFlagDoesNotForceErrorStateReads) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  spi.registers[REG_INT + 1] = 0x40;  // WAKIF, which the driver never clears
+
+  controller.poll(100);
+  controller.poll(200);
+  EXPECT_EQ(spi.reads[REG_TREC], 0u);
+  EXPECT_EQ(spi.registers[REG_INT + 1], 0x40);
+}
+
 TEST(MCP251XFDFaults, FailedStatusReadLeavesFaultPendingForRetry) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);

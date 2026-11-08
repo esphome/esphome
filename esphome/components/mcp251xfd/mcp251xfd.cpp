@@ -418,7 +418,9 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     }
     return (this->last_error_flags_ & ERROR_BUS_OFF) != 0 ? canbus::CAN_EVENT_BUS_OFF : canbus::CanEventFlags{};
   }
-  const uint8_t controller_flags = interrupt_flags[1];
+  // Only the handled flags, so a stray latched one cannot force a TREC read on every poll
+  const uint8_t controller_flags =
+      interrupt_flags[1] & (INT_SYSTEM_ERROR | INT_CAN_ERROR | INT_INVALID_MESSAGE | INT_RX_OVERFLOW);
   // Keep polling TREC through error recovery.
   const bool trec_needed = controller_flags != 0 || this->last_error_flags_ != 0 || (this->last_trec_ >> 16) != 0;
   const bool trec_read = trec_needed && this->read_register_(REG_TREC, this->last_trec_);
