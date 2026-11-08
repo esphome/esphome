@@ -8,7 +8,6 @@
 #include "esphome/components/spi/spi.h"
 
 #include <algorithm>
-#include <memory>
 #include <string>
 
 namespace esphome::trf7962a {
@@ -38,7 +37,7 @@ class TRF7962A final : public PollingComponent,
   }
 
  protected:
-  enum class State : uint8_t { IDLE, FIELD_SETTLE, WAIT_RESPONSE };
+  enum class State : uint8_t { STATE_IDLE, STATE_FIELD_SETTLE, STATE_WAIT_RESPONSE };
 
   void select_(bool selected);
   void direct_command_(uint8_t command);
@@ -56,14 +55,15 @@ class TRF7962A final : public PollingComponent,
   TRF7962AReadClient read_client_;
   GPIOPin *select_pin_{nullptr};
   InternalGPIOPin *irq_pin_{nullptr};
-  std::unique_ptr<nfc::NfcTag> current_tag_;
+  nfc::NfcTag tag_{nfc::NfcTagUid{}, "ISO 15693"};
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_callback_;
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_removed_callback_;
   uint32_t state_start_{0};
-  State state_{State::IDLE};
+  State state_{State::STATE_IDLE};
   uint8_t rx_[10]{};
   uint8_t rx_len_{0};
   uint8_t miss_count_{0};
+  bool tag_present_{false};
   bool supply_5v_{true};
   bool half_power_{false};
 };

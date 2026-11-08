@@ -1,5 +1,6 @@
 #include "trf7962a.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::trf7962a {
@@ -72,6 +73,10 @@ void TRF7962A::setup() {
   this->read_client_.set_cs_pin(nullptr);
   this->read_client_.set_data_rate(this->data_rate_);
   this->read_client_.spi_setup();
+  if (!this->spi_is_ready() || !this->read_client_.spi_is_ready()) {
+    this->mark_failed(LOG_STR("SPI device is not ready"));
+    return;
+  }
 
   if (!this->configure_()) {
     this->mark_failed(LOG_STR("No response"));
@@ -109,30 +114,32 @@ bool TRF7962A::configure_() {
 }
 
 void TRF7962A::update() {
-  if (this->state_ != State::IDLE)
+  if (this->state_ != State::STATE_IDLE)
     return;
   this->set_field_(true);
   this->rx_len_ = 0;
-  this->state_ = State::FIELD_SETTLE;
-  this->state_start_ = millis();
+  this->state_ = State::STATE_FIELD_SETTLE;
+  // Same clock as loop(), which can lag millis()
+  this->state_start_ = App.get_loop_component_start_time();
   this->enable_loop();
 }
 
 void TRF7962A::loop() {
-  const uint32_t elapsed = millis() - this->state_start_;
+  const uint32_t now = App.get_loop_component_start_time();
+  const uint32_t elapsed = now - this->state_start_;
   const bool irq = this->irq_pin_->digital_read();
   switch (this->state_) {
-    case State::IDLE:
+    case State::STATE_IDLE:
       this->disable_loop();
       break;
-    case State::FIELD_SETTLE:
+    case State::STATE_FIELD_SETTLE:
       if (elapsed >= FIELD_SETTLE_MS) {
         this->send_inventory_();
-        this->state_ = State::WAIT_RESPONSE;
-        this->state_start_ = millis();
+        this->state_ = State::STATE_WAIT_RESPONSE;
+        this->state_start_ = now;
       }
       break;
-    case State::WAIT_RESPONSE:
+    case State::STATE_WAIT_RESPONSE:
       // One IRQ read may carry TX, RX and FIFO bits if loop() ran late
       if (irq) {
         const uint8_t status = this->read_irq_status_();
@@ -142,7 +149,9 @@ void TRF7962A::loop() {
         } else if (status & (IRQ_RX_ERRORS | IRQ_NO_RESPONSE)) {
           this->finish_scan_(false);
         }
-      } else if (elapsed >= RESPONSE_TIMEOUT_MS) {
+      }
+      // Also covers an IRQ line that stays asserted without a terminal status
+      if (this->state_ == State::STATE_WAIT_RESPONSE && elapsed >= RESPONSE_TIMEOUT_MS) {
         ESP_LOGV(TAG, "Response timed out");
         this->finish_scan_(false);
       }
@@ -184,14 +193,14 @@ void TRF7962A::read_registers_(uint8_t reg, uint8_t *data, size_t len) {
 }
 
 uint8_t TRF7962A::read_register_(uint8_t reg) {
-  uint8_t value;
+  uint8_t value = 0;
   this->read_registers_(reg, &value, 1);
   return value;
 }
 
 uint8_t TRF7962A::read_irq_status_() {
   // The register only clears after an extra byte is clocked out
-  uint8_t data[2];
+  uint8_t data[2] = {};
   this->read_registers_(REG_IRQ_STATUS, data, sizeof(data));
   return data[0];
 }
@@ -231,14 +240,14 @@ bool TRF7962A::read_response_() {
 void TRF7962A::finish_scan_(bool response_ok) {
   this->direct_command_(CMD_RESET_FIFO);
   this->set_field_(false);
-  this->state_ = State::IDLE;
+  this->state_ = State::STATE_IDLE;
   this->disable_loop();
 
   // Response flags bit 0 is the tag's error flag
   response_ok = response_ok && this->rx_len_ == INVENTORY_RESPONSE_LENGTH && (this->rx_[0] & 0x01) == 0 &&
                 this->rx_[INVENTORY_RESPONSE_LENGTH - 1] == UID_MSB;
   if (!response_ok) {
-    if (this->current_tag_ != nullptr && ++this->miss_count_ >= MISS_THRESHOLD)
+    if (this->tag_present_ && ++this->miss_count_ >= MISS_THRESHOLD)
       this->remove_tag_();
     return;
   }
@@ -249,36 +258,37 @@ void TRF7962A::finish_scan_(bool response_ok) {
   for (uint8_t i = INVENTORY_RESPONSE_LENGTH - 1; i >= 2; i--)
     uid.push_back(this->rx_[i]);
 
-  if (this->current_tag_ != nullptr) {
-    const auto &current = this->current_tag_->get_uid();
+  if (this->tag_present_) {
+    const auto &current = this->tag_.get_uid();
     if (std::equal(current.begin(), current.end(), uid.begin(), uid.end()))
       return;
     this->remove_tag_();
   }
 
-  this->current_tag_ = make_unique<nfc::NfcTag>(uid, "ISO 15693");
+  this->tag_.get_uid() = uid;
+  this->tag_present_ = true;
   char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
   nfc::format_uid_to(uid_buf, uid);
   ESP_LOGI(TAG, "Tag detected: %s", uid_buf);
   if (!this->on_tag_callback_.empty())
-    this->on_tag_callback_.call(std::string(uid_buf), *this->current_tag_);
+    this->on_tag_callback_.call(std::string(uid_buf), this->tag_);
 #ifdef NFC_TAG_LISTENER_COUNT
   for (auto *listener : this->tag_listeners_)
-    listener->tag_on(*this->current_tag_);
+    listener->tag_on(this->tag_);
 #endif
 }
 
 void TRF7962A::remove_tag_() {
   char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
-  nfc::format_uid_to(uid_buf, this->current_tag_->get_uid());
+  nfc::format_uid_to(uid_buf, this->tag_.get_uid());
   ESP_LOGI(TAG, "Tag removed: %s", uid_buf);
   if (!this->on_tag_removed_callback_.empty())
-    this->on_tag_removed_callback_.call(std::string(uid_buf), *this->current_tag_);
+    this->on_tag_removed_callback_.call(std::string(uid_buf), this->tag_);
 #ifdef NFC_TAG_LISTENER_COUNT
   for (auto *listener : this->tag_listeners_)
-    listener->tag_off(*this->current_tag_);
+    listener->tag_off(this->tag_);
 #endif
-  this->current_tag_.reset();
+  this->tag_present_ = false;
   this->miss_count_ = 0;
 }
 

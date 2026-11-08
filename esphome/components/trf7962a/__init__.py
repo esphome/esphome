@@ -28,6 +28,9 @@ TRF7962A = trf7962a_ns.class_("TRF7962A", nfc.Nfcc, cg.PollingComponent, spi.SPI
 RF_POWER = {"FULL": False, "HALF": True}
 VIN = {"3.3V": False, "5V": True}
 
+# Datasheet absolute SPI limit
+MAX_DATA_RATE = 10e6
+
 _TAG_ARGS = [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")]
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_TAG, "add_on_tag_callback", _TAG_ARGS),
@@ -36,6 +39,13 @@ _CALLBACK_AUTOMATIONS = (
     ),
 )
 
+
+def _validate_data_rate(value: float) -> float:
+    if value > MAX_DATA_RATE:
+        raise cv.Invalid("The TRF7962A SPI clock must not exceed 10MHz")
+    return value
+
+
 # Reads and writes use opposite clock phases in one CS window, so CS and SPI mode are fixed
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -43,8 +53,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_SPI_ID): cv.use_id(spi.SPIComponent),
         cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_DATA_RATE, default="2MHz"): spi.SPI_DATA_RATE_SCHEMA,
-        cv.Optional(CONF_VIN, default="5V"): cv.enum(VIN),
+        cv.Optional(CONF_DATA_RATE, default="2MHz"): cv.All(
+            spi.SPI_DATA_RATE_SCHEMA, _validate_data_rate
+        ),
+        cv.Optional(CONF_VIN, default="5V"): cv.enum(VIN, upper=True),
         cv.Optional(CONF_RF_POWER, default="FULL"): cv.enum(RF_POWER, upper=True),
         cv.Optional(CONF_ON_TAG): automation.validate_automation({}),
         cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation({}),
