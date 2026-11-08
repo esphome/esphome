@@ -20,6 +20,10 @@ static constexpr uint32_t STALL_DROP_US = 1000000;
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // Closer to a deadline than this, or while a FIFO is fed, the loop runs at full speed.
 static constexpr uint32_t FAST_WAIT_US = 20000;
+// While passes follow closely, collect_() tests the frame end before reading and times the newest byte from the
+// previous pass: a frame ends after more than 3/4 of the gap less one character (over 1.5 characters).
+static constexpr uint32_t CLOSE_PASS_GAP_PARTS = 4;
+static constexpr uint32_t EARLY_RX_GAP_PARTS = 8;
 
 static uint32_t bits_per_char(UARTComponent *uart) {
   // 0 means never set: 8N1.
@@ -146,19 +150,33 @@ void UARTBridgePipe::collect_(uint32_t now_us) {
     }
     return;
   }
-  const size_t have = this->from_->available();
-  if (have != 0) {
-    const size_t n = std::min(have, BLOCK_SIZE - this->len_);
-    if (!this->from_->read_array(this->buf_ + this->len_, n)) {
+  const auto frame_ended = [this, now_us] {
+    return this->len_ == BLOCK_SIZE ||
+           (this->len_ != 0 && now_us - this->last_rx_us_ >= (this->batched_ ? this->batch_us_ : this->gap_us_));
+  };
+  // While passes follow closely, test the frame end first so the next frame stays in the driver; after a longer
+  // pass the waiting bytes may still belong to this frame.
+  const uint32_t prev_pass_us = this->last_pass_us_;
+  this->last_pass_us_ = now_us;
+  const uint32_t since_pass_us = now_us - prev_pass_us;
+  const bool test_first = since_pass_us < this->gap_us_ / (this->rx_early_ ? EARLY_RX_GAP_PARTS : CLOSE_PASS_GAP_PARTS);
+  if (!test_first || !frame_ended()) {
+    const size_t have = this->from_->available();
+    if (have != 0) {
+      const size_t n = std::min(have, BLOCK_SIZE - this->len_);
+      if (!this->from_->read_array(this->buf_ + this->len_, n)) {
+        return;
+      }
+      // Timed from the previous pass, the frame end is found before the next frame can start. The first bytes of a
+      // frame are timed from now: the line was not watched before them.
+      this->rx_early_ = this->len_ != 0 && since_pass_us < this->gap_us_ / EARLY_RX_GAP_PARTS;
+      this->last_rx_us_ = this->rx_early_ ? prev_pass_us : now_us;
+      this->len_ += static_cast<uint16_t>(n);
+      this->batched_ = this->batch_bytes_ != 0 && n >= this->batch_bytes_;
+    }
+    if (!frame_ended()) {
       return;
     }
-    this->len_ += static_cast<uint16_t>(n);
-    this->last_rx_us_ = now_us;
-    this->batched_ = this->batch_bytes_ != 0 && n >= this->batch_bytes_;
-  }
-  if (this->len_ == 0 ||
-      (this->len_ < BLOCK_SIZE && now_us - this->last_rx_us_ < (this->batched_ ? this->batch_us_ : this->gap_us_))) {
-    return;
   }
   this->block_len_ = this->len_;
   // The block after a cut one follows without a gap.

@@ -605,6 +605,159 @@ TEST(UARTBridge, PolledSourceGivesAVirtualDestinationTheWholeBlock) {
   EXPECT_EQ(b.writes[0], frame(209));
 }
 
+// 115200 baud 8N1: a byte is on the wire for 86.8 us, here 87 us. Modbus RTU allows the next frame after 3.5 quiet
+// characters, which is 1750 us above 19200 baud. The loop passes every 100 us while the bridge has bytes. The
+// destinations below take each block in one write, so their writes show where the bridge ended each frame.
+static constexpr uint32_t CHAR_115200_US = 87;
+static constexpr uint32_t T35_115200_US = 1750;
+static constexpr uint32_t PASS_US = 100;
+
+// When each byte of `frames` is in at the receiving UART: one per character, each frame `gap_us` after the last.
+static std::vector<uint32_t> line_times(const std::vector<std::vector<uint8_t>> &frames, uint32_t start_us,
+                                        uint32_t gap_us) {
+  std::vector<uint32_t> at;
+  uint32_t t = start_us;
+  for (const auto &f : frames) {
+    for (size_t i = 0; i < f.size(); i++) {
+      t += CHAR_115200_US;
+      at.push_back(t);
+    }
+    t += gap_us;
+  }
+  return at;
+}
+
+// As the ESP32 driver hands the bytes over: all that are in once more than `threshold` are, or 2 quiet characters
+// after the last one.
+static std::vector<uint32_t> in_bursts(const std::vector<uint32_t> &at, size_t threshold) {
+  std::vector<uint32_t> shown(at.size());
+  size_t first = 0;
+  for (size_t i = 0; i < at.size(); i++) {
+    const bool full = i + 1 - first > threshold;
+    const bool quiet = i + 1 == at.size() || at[i + 1] - at[i] > 2 * CHAR_115200_US;
+    if (full || quiet) {
+      for (size_t k = first; k <= i; k++) {
+        shown[k] = full ? at[i] : at[i] + 2 * CHAR_115200_US;
+      }
+      first = i + 1;
+    }
+  }
+  return shown;
+}
+
+// Hands the bytes of `frames` to `a` at the times in `shown` and polls the pipe on every loop pass until all is out.
+static void play(UARTBridgePipe &pipe, WireUart &a, WireUart &b, const std::vector<std::vector<uint8_t>> &frames,
+                 const std::vector<uint32_t> &shown, uint32_t pass_us = PASS_US) {
+  std::vector<uint8_t> bytes;
+  for (const auto &f : frames) {
+    bytes.insert(bytes.end(), f.begin(), f.end());
+  }
+  size_t next = 0;
+  // 100 ms after the last byte everything is out.
+  for (uint32_t now = 0; now < shown.back() + 100000; now += pass_us) {
+    for (; next < bytes.size() && shown[next] <= now; next++) {
+      a.rx.push_back(bytes[next]);
+    }
+    b.clock_us = now;
+    pipe.poll(now);
+  }
+}
+
+static std::vector<size_t> sizes(const std::vector<std::vector<uint8_t>> &blocks) {
+  std::vector<size_t> out;
+  for (const auto &block : blocks) {
+    out.push_back(block.size());
+  }
+  return out;
+}
+
+TEST(UARTBridge, LoneFrameArrivingByteByByteLeavesWhole) {
+  // A driver that hands over each byte as it comes in (ESP8266 hardware serial, RP2040): a 64-byte frame is read over
+  // many passes and leaves as one block.
+  const auto reply = frame(64);
+  WireUart a(115200);
+  WireUart b(115200);
+  b.room = UARTBridgePipe::BLOCK_SIZE;
+  UARTBridgePipe pipe(&a, &b);
+  pipe.set_from_wire();
+  pipe.set_to_wire();
+  pipe.setup();
+  play(pipe, a, b, {reply}, line_times({reply}, 1000, T35_115200_US));
+  EXPECT_EQ(sizes(b.writes), std::vector<size_t>{64});
+  EXPECT_EQ(b.joined(), reply);
+}
+
+TEST(UARTBridge, RequestsAtTheModbusGapStayApartWhenBytesComeOneByOne) {
+  // Two 8-byte requests 3.5 characters apart, from a driver that hands over each byte as it comes in. Whatever the
+  // offset between the line and the loop passes, and also with a busier loop that passes every 300 us, the destination
+  // gets two blocks.
+  const auto first = frame(8);
+  const auto second = frame(8, 0x40);
+  std::vector<uint8_t> both(first);
+  both.insert(both.end(), second.begin(), second.end());
+  for (uint32_t pass_us : {PASS_US, 3 * PASS_US}) {
+    for (uint32_t offset = 0; offset < pass_us; offset += pass_us / 10) {
+      SCOPED_TRACE(::testing::Message() << "pass " << pass_us << " us, offset " << offset << " us");
+      WireUart a(115200);
+      WireUart b(115200);
+      b.room = UARTBridgePipe::BLOCK_SIZE;
+      UARTBridgePipe pipe(&a, &b);
+      pipe.set_from_wire();
+      pipe.set_to_wire();
+      pipe.setup();
+      play(pipe, a, b, {first, second}, line_times({first, second}, 1000 + offset, T35_115200_US), pass_us);
+      EXPECT_EQ(sizes(b.writes), (std::vector<size_t>{8, 8}));
+      EXPECT_EQ(b.joined(), both);
+    }
+  }
+}
+
+TEST(UARTBridge, LongRepliesAtTheModbusGapStayWholeWhenBytesComeOneByOne) {
+  // Two replies of 255 bytes (125 registers) 3.5 characters apart, byte by byte as above. If the first byte of the
+  // second reply went out with the first, the rest of it would wait for its own gap: a pause of more than 1.5
+  // characters inside the second reply on the destination line.
+  const auto first = frame(255);
+  const auto second = frame(255, 0x80);
+  std::vector<uint8_t> both(first);
+  both.insert(both.end(), second.begin(), second.end());
+  for (uint32_t offset = 0; offset < PASS_US; offset += 10) {
+    SCOPED_TRACE(offset);
+    WireUart a(115200);
+    WireUart b(115200);
+    b.room = UARTBridgePipe::BLOCK_SIZE;
+    UARTBridgePipe pipe(&a, &b);
+    pipe.set_from_wire();
+    pipe.set_to_wire();
+    pipe.setup();
+    play(pipe, a, b, {first, second}, line_times({first, second}, 1000 + offset, T35_115200_US));
+    EXPECT_EQ(sizes(b.writes), (std::vector<size_t>{255, 255}));
+    EXPECT_EQ(b.joined(), both);
+  }
+}
+
+TEST(UARTBridge, FramesAtTheModbusGapStayApartWhenTheDriverHandsOverBursts) {
+  // The ESP32 driver at 115200 hands over its FIFO once more than 114 bytes are in (10 ms) or 2 quiet characters
+  // after the last byte, so the next frame shows up only when it is complete or 115 bytes long.
+  for (size_t len : {8u, 255u}) {
+    const auto first = frame(len);
+    const auto second = frame(len, 0x80);
+    for (uint32_t offset = 0; offset < PASS_US; offset += 10) {
+      SCOPED_TRACE(offset);
+      WireUart a(115200);
+      WireUart b(115200);
+      b.room = UARTBridgePipe::BLOCK_SIZE;
+      a.set_rx_full_threshold(114);
+      a.set_rx_timeout(2);
+      UARTBridgePipe pipe(&a, &b);
+      pipe.set_from_wire();
+      pipe.set_to_wire();
+      pipe.setup();
+      play(pipe, a, b, {first, second}, in_bursts(line_times({first, second}, 1000 + offset, T35_115200_US), 114));
+      EXPECT_EQ(sizes(b.writes), (std::vector<size_t>{len, len}));
+    }
+  }
+}
+
 TEST(UARTBridge, TwoVirtualEndsNeedNoLoop) {
   VirtualEnd a;
   VirtualEnd b;

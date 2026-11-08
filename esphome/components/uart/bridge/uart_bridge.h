@@ -58,6 +58,8 @@ class UARTBridgePipe final : public UARTSink {
   UARTComponent *from_;
   UARTComponent *to_;
   uint32_t last_rx_us_{0};
+  // When collect_() last looked at the source.
+  uint32_t last_pass_us_{0};
   uint32_t gap_us_{0};
   uint32_t batch_us_{0};
   // 0 unless the destination is a line.
@@ -81,6 +83,8 @@ class UARTBridgePipe final : public UARTSink {
   bool to_wire_{false};
   // The last read was a full driver batch; more may still be in the FIFO.
   bool batched_{false};
+  // last_rx_us_ is the pass before the read, up to an eighth of the gap before the newest byte came in.
+  bool rx_early_{false};
   bool stalled_{false};
   // The block going out starts a frame; the last polled block was cut at BLOCK_SIZE.
   bool new_frame_{true};
