@@ -1576,6 +1576,10 @@ GROUPED_TEST_IDS = {
 }
 
 
+YAML_NULL_TAG = "tag:yaml.org,2002:null"
+YAML_MAP_TAG = "tag:yaml.org,2002:map"
+
+
 @functools.cache
 def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
     """The GROUPED_TEST_IDS the entity's own schema file takes."""
@@ -1604,6 +1608,11 @@ def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNod
         for item in items:
             if isinstance(item, yaml.MappingNode):
                 yield key_node.value, item
+            elif item.tag == YAML_NULL_TAG:  # `as5600:` is an empty mapping
+                yield (
+                    key_node.value,
+                    yaml.MappingNode(YAML_MAP_TAG, [], item.start_mark),
+                )
 
 
 @lint_content_check(
@@ -1625,8 +1634,11 @@ def lint_grouped_test_ids(fname, content):
         return None
     errs: list[tuple[int, int, str]] = []
     for domain, entry in _yaml_entries(root):
+        # An empty `i2c_id:` is the same as leaving it out
         keys = {
-            k.value: v.value for k, v in entry.value if isinstance(k, yaml.ScalarNode)
+            k.value: v.value
+            for k, v in entry.value
+            if isinstance(k, yaml.ScalarNode) and v.tag != YAML_NULL_TAG
         }
         errs.extend(
             (

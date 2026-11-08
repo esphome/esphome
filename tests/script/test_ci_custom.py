@@ -586,6 +586,11 @@ GY39_NO_ID = "sensor:\n  - platform: gy39\n    illuminance:\n      name: Lux\n"
             "one_wire_id",
             id="one-wire",
         ),
+        pytest.param(
+            "sensor:\n  - platform: gy39\n    i2c_id:\n",
+            "i2c_id",
+            id="empty-id",
+        ),
     ],
 )
 def test_grouped_test_ids_flags_omitted_id(content: str, id_key: str) -> None:
@@ -612,3 +617,11 @@ def test_grouped_test_ids_flags_omitted_id(content: str, id_key: str) -> None:
 )
 def test_grouped_test_ids_accepts(fname: str, content: str) -> None:
     assert not ci_custom.lint_grouped_test_ids(fname, content)
+
+
+def test_grouped_test_ids_flags_empty_hub_declaration() -> None:
+    errs = ci_custom.lint_grouped_test_ids(
+        "tests/components/gy39/common.yaml", "as5600:\n"
+    )
+    assert [(line, col) for line, col, _ in errs] == [(1, 8)]
+    assert "i2c_id" in errs[0][2]
