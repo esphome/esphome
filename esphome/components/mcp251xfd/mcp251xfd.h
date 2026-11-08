@@ -30,8 +30,9 @@ class MCP251XFD : public canbus::Canbus,
   uint32_t data_bit_timing_;
   uint32_t transmitter_delay_compensation_;
   uint32_t last_trec_{0};
-  uint32_t last_fault_log_time_{0};
-  uint32_t last_mode_recovery_time_{0};
+  // Start one interval back so the first fault logs and the first recovery runs at once.
+  uint32_t last_fault_log_time_{0u - FAULT_LOG_INTERVAL_MS};
+  uint32_t last_mode_recovery_time_{0u - MODE_RECOVERY_INTERVAL_MS};
   // Latched flags are polled, so these count observations rather than exact losses.
   uint32_t rx_overrun_count_{0};
   uint32_t bus_error_count_{0};
@@ -39,8 +40,6 @@ class MCP251XFD : public canbus::Canbus,
   CanMode mcp_mode_;
   uint8_t last_error_flags_{0};
   bool comm_fault_active_{false};
-  bool fault_log_started_{false};
-  bool mode_recovery_attempted_{false};
   bool mode_fault_active_{false};
 
   bool setup_internal() override;

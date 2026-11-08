@@ -65,7 +65,8 @@ static constexpr uint8_t FIFO_TX_REQUEST = 1U << 1;
 static constexpr uint8_t FIFO_RESET = 1U << 2;
 static constexpr uint8_t FILTER_ENABLE_RX_FIFO = 0x80 | 2;
 static constexpr uint8_t OSC_PLL_ENABLE = 1U << 0;
-static constexpr uint8_t OSC_PLL_READY = 1U << 0;  // Byte 1 of OSC.
+static constexpr uint8_t OSC_CLKODIV_10 = 3U << 5;  // Reset value: CLKO is SYSCLK / 10.
+static constexpr uint8_t OSC_PLL_READY = 1U << 0;   // Byte 1 of OSC.
 static constexpr uint8_t OSC_READY = 1U << 2;
 static constexpr uint8_t ERROR_RX_PASSIVE = 1U << 3;  // Byte 2 of TREC.
 static constexpr uint8_t ERROR_TX_PASSIVE = 1U << 4;
@@ -80,7 +81,7 @@ static constexpr uint8_t MESSAGE_ESI = 1U << 0;  // Byte 5 of the message header
 static constexpr uint32_t STANDARD_ID_MASK = 0x7FF;
 static constexpr uint32_t EXTENDED_ID_LOW_MASK = 0x3FFFF;
 
-// Faults the driver logs; the other flags are reported through canbus events and status.
-static constexpr uint8_t INT_LOGGED_FAULTS = INT_SYSTEM_ERROR | INT_SPI_CRC_ERROR;
+static constexpr uint32_t FAULT_LOG_INTERVAL_MS = 5000;
+static constexpr uint32_t MODE_RECOVERY_INTERVAL_MS = 5000;
 
 }  // namespace esphome::mcp251xfd

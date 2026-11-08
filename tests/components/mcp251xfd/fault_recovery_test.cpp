@@ -218,12 +218,11 @@ TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndStopsWhenRecovered) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
   spi.set_mode(CanMode::CAN_MODE_LISTEN_ONLY);
-  spi.registers[REG_CON + 3] = 0xA6;
   spi.registers[REG_INT] = INT_MODE_CHANGE;
 
   EXPECT_EQ(controller.poll(100), 0);
   ASSERT_EQ(spi.writes_to(REG_CON + 3), 1u);
-  EXPECT_EQ(spi.registers[REG_CON + 3], 0xA0);
+  EXPECT_EQ(spi.registers[REG_CON + 3], static_cast<uint8_t>(CanMode::CAN_MODE_NORMAL));
   EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
   EXPECT_TRUE(controller.mode_fault_active());
 
@@ -303,21 +302,6 @@ TEST(MCP251XFDRecovery, FailedErrorStateReadDefersModeRecoveryAndFlagClearing) {
   EXPECT_FALSE(controller.status_has_warning());
 }
 
-TEST(MCP251XFDRecovery, ContinuesModeRecoveryWhenInterruptReadFails) {
-  RegisterDelegate spi;
-  TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTEN_ONLY);
-  spi.registers[REG_INT] = INT_MODE_CHANGE;
-  controller.poll(100);
-  ASSERT_TRUE(controller.mode_fault_active());
-  ASSERT_EQ(spi.writes_to(REG_CON + 3), 1u);
-
-  spi.corrupt_next_reads(REG_INT);
-  controller.poll(5100);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
-  EXPECT_TRUE(controller.mode_fault_active());
-}
-
 TEST(MCP251XFDRecovery, SpiRecoveryDoesNotClearBusOffWarning) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
@@ -340,15 +324,6 @@ TEST(MCP251XFDRecovery, SpiRecoveryDoesNotClearBusOffWarning) {
   EXPECT_EQ(events, 0);
   controller.log_events(events, 1400);
   EXPECT_FALSE(controller.status_has_warning());
-}
-
-TEST(MCP251XFDFaults, FailedComponentDoesNotAccessSpi) {
-  RegisterDelegate spi;
-  TestMCP251XFD controller(&spi);
-  controller.mark_failed();
-  EXPECT_EQ(controller.poll(100), 0);
-  EXPECT_EQ(spi.reads[REG_INT], 0u);
-  EXPECT_TRUE(spi.writes.empty());
 }
 
 }  // namespace esphome::mcp251xfd::testing

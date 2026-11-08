@@ -9,27 +9,27 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::mcp251xfd {
 
 ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 
-namespace {
-
-constexpr uint32_t FAULT_LOG_INTERVAL_MS = 5000;
-constexpr uint32_t MODE_RECOVERY_INTERVAL_MS = 5000;
-
-}  // namespace
+// Indexed by CanMode, which is the CON REQOP/OPMOD value.
+PROGMEM_STRING_TABLE(CanModeStrings, "NORMAL", "SLEEP", "LOOPBACK", "LISTENONLY", "CONFIGURATION", "EXTERNAL LOOPBACK",
+                     "CLASSIC", "UNKNOWN");
 
 bool MCP251XFD::setup_internal() {
   // A 4 MHz oscillator starts without the PLL. Keep SPI below 0.85 * SYSCLK / 2 until it locks.
   const uint32_t operating_data_rate = this->data_rate_;
-  this->set_data_rate(std::min(operating_data_rate, uint32_t{1000000}));
+  const bool slow_start = this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ && operating_data_rate > 1000000;
+  if (slow_start)
+    this->set_data_rate(1000000);
   this->spi_setup();
   if (!this->reset_() || !this->configure_clock_())
     return false;
 
-  if (this->data_rate_ != operating_data_rate) {
+  if (slow_start) {
     this->spi_teardown();
     this->set_data_rate(operating_data_rate);
     this->spi_setup();
@@ -53,18 +53,14 @@ bool MCP251XFD::setup_internal() {
     return false;
   }
 
-  std::array<uint8_t, 64> zeros{};
-  for (uint16_t address = RAM_START; address < RAM_START + RAM_SIZE; address += zeros.size())
-    this->write_registers_(address, zeros.data(), zeros.size());
-
   // Enable the local overflow summary for polling; only RX-not-empty is enabled on the INT pin.
   this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
   this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | FIFO_RX_OVERFLOW_ENABLE |
                                              (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0));
 
   // Filter 0 accepts both standard and extended IDs and routes them to FIFO 2.
-  this->write_registers_(REG_FLTCON, zeros.data(), REG_FLTOBJ0 - REG_FLTCON);
-  this->write_registers_(REG_FLTOBJ0, zeros.data(), 8);
+  const std::array<uint8_t, 8> zeros{};
+  this->write_registers_(REG_FLTOBJ0, zeros.data(), zeros.size());
   this->write_byte_(REG_FLTCON, FILTER_ENABLE_RX_FIFO);
 
   if (!this->set_mode_(this->mcp_mode_))
@@ -93,7 +89,9 @@ void MCP251XFD::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 
   ESP_LOGCONFIG(TAG, "  Oscillator: %u MHz", static_cast<uint8_t>(this->mcp_clock_));
-  ESP_LOGCONFIG(TAG, "  Mode: %u", static_cast<uint8_t>(this->mcp_mode_));
+  ESP_LOGCONFIG(
+      TAG, "  Mode: %s",
+      LOG_STR_ARG(CanModeStrings::get_log_str(static_cast<uint8_t>(this->mcp_mode_), CanModeStrings::LAST_INDEX)));
   ESP_LOGCONFIG(TAG, "  Nominal Bit Timing: 0x%08" PRIX32, this->nominal_bit_timing_);
   ESP_LOGCONFIG(TAG, "  Data Bit Timing: 0x%08" PRIX32, this->data_bit_timing_);
   ESP_LOGCONFIG(TAG, "  Transmitter Delay Compensation: 0x%08" PRIX32, this->transmitter_delay_compensation_);
@@ -107,7 +105,7 @@ bool MCP251XFD::reset_() {
 
   const std::array<uint8_t, 2> command{INSTRUCTION_RESET, 0};
   this->enable();
-  this->write_array(command.data(), command.size());
+  this->write_array(command);
   this->disable();
   delay(10);
 
@@ -115,9 +113,12 @@ bool MCP251XFD::reset_() {
 }
 
 bool MCP251XFD::configure_clock_() {
-  const bool use_pll = this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ;
-  this->write_byte_(REG_OSC, use_pll ? OSC_PLL_ENABLE : 0);
-  const uint8_t ready = OSC_READY | (use_pll ? OSC_PLL_READY : 0);
+  uint8_t ready = OSC_READY;
+  if (this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ) {
+    // Keep the reset CLKO divider; only PLLEN changes.
+    this->write_byte_(REG_OSC, OSC_CLKODIV_10 | OSC_PLL_ENABLE);
+    ready |= OSC_PLL_READY;
+  }
   return this->wait_for_register_(REG_OSC + 1, ready, ready);
 }
 
@@ -135,11 +136,8 @@ bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expec
 }
 
 bool MCP251XFD::set_mode_(CanMode mode, uint16_t timeout_ms) {
-  uint8_t control;
-  if (!this->read_registers_(REG_CON + 3, &control, 1)) {
-    return false;
-  }
-  this->write_byte_(REG_CON + 3, (control & ~CON_MODE_MASK) | static_cast<uint8_t>(mode));
+  // The rest of this byte is ABAT and TXBWS, which the driver leaves clear.
+  this->write_byte_(REG_CON + 3, static_cast<uint8_t>(mode));
   return this->wait_for_register_(REG_CON + 2, CON_MODE_MASK << CON_MODE_SHIFT,
                                   static_cast<uint8_t>(mode) << CON_MODE_SHIFT, timeout_ms);
 }
@@ -194,18 +192,17 @@ bool MCP251XFD::read_register_(uint16_t address, uint32_t &value) {
 }
 
 bool MCP251XFD::should_log_fault_(uint32_t now) {
-  if (this->fault_log_started_ && now - this->last_fault_log_time_ < FAULT_LOG_INTERVAL_MS)
+  if (now - this->last_fault_log_time_ < FAULT_LOG_INTERVAL_MS)
     return false;
   this->last_fault_log_time_ = now;
-  this->fault_log_started_ = true;
   return true;
 }
 
 bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
-  std::array<uint8_t, 2> mode;
-  if (!this->read_registers_(REG_CON + 2, mode.data(), mode.size()))
+  uint8_t mode;
+  if (!this->read_registers_(REG_CON + 2, &mode, 1))
     return false;
-  const uint8_t current_mode = (mode[0] >> CON_MODE_SHIFT) & CON_MODE_MASK;
+  const uint8_t current_mode = (mode >> CON_MODE_SHIFT) & CON_MODE_MASK;
   const uint8_t target_mode = static_cast<uint8_t>(this->mcp_mode_);
   if (current_mode == target_mode) {
     if (this->mode_fault_active_) {
@@ -219,12 +216,11 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
     this->mode_fault_active_ = true;
     ESP_LOGW(TAG, "Unexpected CAN controller mode %u, configured mode is %u", current_mode, target_mode);
   }
-  if (bus_off || (this->mode_recovery_attempted_ && now - this->last_mode_recovery_time_ < MODE_RECOVERY_INTERVAL_MS))
+  if (bus_off || now - this->last_mode_recovery_time_ < MODE_RECOVERY_INTERVAL_MS)
     return true;
 
   this->last_mode_recovery_time_ = now;
-  this->mode_recovery_attempted_ = true;
-  this->write_byte_(REG_CON + 3, (mode[1] & ~CON_MODE_MASK) | target_mode);
+  this->write_byte_(REG_CON + 3, target_mode);
   return true;
 }
 
@@ -303,8 +299,6 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
 }
 
 canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
-  if (this->is_failed())
-    return canbus::ERROR_FAIL;
   // INT stays low until the RX FIFO is empty, so a high pin means there is nothing to read.
   if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
     return canbus::ERROR_NOMSG;
@@ -351,7 +345,6 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   frame->remote_transmission_request = (message[4] & MESSAGE_RTR) != 0;
 #endif
   frame->can_data_length_code = message[4] & MESSAGE_DLC_MASK;
-  std::memset(frame->data, 0, sizeof(frame->data));
   if (!frame->remote_transmission_request)
     std::memcpy(frame->data, message.data() + 8, frame->payload_length());
   return canbus::ERROR_OK;
@@ -370,18 +363,11 @@ canbus::CanStatus MCP251XFD::get_status() {
 }
 
 canbus::CanEventFlags MCP251XFD::get_events() {
-  if (this->is_failed())
-    return canbus::CanEventFlags{};
-
   const uint32_t now = App.get_loop_component_start_time();
 
   std::array<uint8_t, 2> interrupt_flags;
-  if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size())) {
-    const bool bus_off = (this->last_error_flags_ & ERROR_BUS_OFF) != 0;
-    if (this->mode_fault_active_)
-      this->recover_mode_if_needed_(bus_off, now);
-    return bus_off ? canbus::CAN_EVENT_BUS_OFF : canbus::CanEventFlags{};
-  }
+  if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size()))
+    return (this->last_error_flags_ & ERROR_BUS_OFF) != 0 ? canbus::CAN_EVENT_BUS_OFF : canbus::CanEventFlags{};
   const uint8_t controller_flags = interrupt_flags[1];
   // Interrupt flags are polled even without an INT pin. Keep polling TREC through error recovery.
   const bool trec_needed = controller_flags != 0 || this->last_error_flags_ != 0 || (this->last_trec_ >> 16) != 0;
@@ -430,7 +416,7 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     const std::array<uint8_t, 2> clear_flags{static_cast<uint8_t>(~mode_flags), static_cast<uint8_t>(~direct_flags)};
     this->write_registers_(REG_INT, clear_flags.data(), clear_flags.size());
   }
-  if ((controller_flags & INT_LOGGED_FAULTS) && this->should_log_fault_(now)) {
+  if ((controller_flags & (INT_SYSTEM_ERROR | INT_SPI_CRC_ERROR)) && this->should_log_fault_(now)) {
     ESP_LOGW(TAG, "Controller fault:%s%s RX errors=%u, TX errors=%u",
              controller_flags & INT_SPI_CRC_ERROR ? LOG_STR_LITERAL(" SPI CRC/format error;") : LOG_STR_LITERAL(""),
              controller_flags & INT_SYSTEM_ERROR ? LOG_STR_LITERAL(" system error (possible RX loss or halted TX);")
