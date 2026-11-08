@@ -182,8 +182,8 @@ uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) {
   crc = ~crc;
   while (len--) {
     crc ^= *data++;
-    crc = (crc >> 4) ^ progmem_read_uint32(&CRC32_NYBBLE_TABLE[crc & 0x0F]);
-    crc = (crc >> 4) ^ progmem_read_uint32(&CRC32_NYBBLE_TABLE[crc & 0x0F]);
+    crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
+    crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
   }
   return ~crc;
 #endif
