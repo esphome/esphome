@@ -83,9 +83,4 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   int sensors_received_ = -1;
 };
 
-class HydreonRGxxBinaryComponent final : public Component {
- public:
-  HydreonRGxxBinaryComponent(HydreonRGxxComponent *parent) {}
-};
-
 }  // namespace esphome::hydreon_rgxx
