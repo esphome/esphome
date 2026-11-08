@@ -1,5 +1,4 @@
 #include "spi.h"
-#include <vector>
 
 #ifdef USE_SPI_PSRAM_DMA
 #include <esp_memory_utils.h>
@@ -253,30 +252,14 @@ class SPIDelegateHw : public SPIDelegate {
   bool write_only_{false};
 };
 
-class SPIBusHw : public SPIBus {
- public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {}
-
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                            bool release_device, bool write_only) override {
-    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin, release_device,
-                             write_only || Utility::get_pin_no(this->sdi_pin_) == -1);
-  }
-
- protected:
-  SPIInterface channel_{};
-
-  bool is_hw() override { return true; }
-};
-
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                              const std::vector<uint8_t> &data_pins) {
+bool SPIComponent::setup_hw_bus_() {
   spi_bus_config_t buscfg = {};
-  buscfg.sclk_io_num = Utility::get_pin_no(clk);
+  buscfg.sclk_io_num = Utility::get_pin_no(this->clk_pin_);
   buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
+  const auto &data_pins = this->data_pins_;
   if (data_pins.empty()) {
-    buscfg.mosi_io_num = Utility::get_pin_no(sdo);
-    buscfg.miso_io_num = Utility::get_pin_no(sdi);
+    buscfg.mosi_io_num = Utility::get_pin_no(this->sdo_pin_);
+    buscfg.miso_io_num = Utility::get_pin_no(this->sdi_pin_);
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
   } else {
@@ -299,15 +282,21 @@ SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo
     }
   }
   buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
-  auto err = spi_bus_initialize(interface, &buscfg, SPI_DMA_CH_AUTO);
+  auto err = spi_bus_initialize(this->interface_, &buscfg, SPI_DMA_CH_AUTO);
   if (err == ESP_ERR_INVALID_STATE) {
     // The host stays usable, but with the other driver's pins
     ESP_LOGW(TAG, "Bus already initialized by another driver, configured pins ignored");
   } else if (err != ESP_OK) {
     ESP_LOGE(TAG, "Bus init failed: %s", esp_err_to_name(err));
-    return nullptr;
+    return false;
   }
-  return new SPIBusHw(clk, sdo, sdi, interface);  // NOLINT
+  return true;
+}
+
+SPIDelegate *SPIComponent::new_hw_delegate_(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                            bool release_device, bool write_only) {
+  return new SPIDelegateHw(this->interface_, data_rate, bit_order, mode, cs_pin, release_device,  // NOLINT
+                           write_only || Utility::get_pin_no(this->sdi_pin_) == -1);
 }
 
 #endif  // USE_ESP32
