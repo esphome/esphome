@@ -387,7 +387,6 @@ template<auto Step> class ApplyWhileAction final : public ApplyWhileActionBase {
   }
 };
 
-#ifdef USE_WHILE_ACTION
 /// The WhileAction whose body is running synchronously; play() clears it when that body ends.
 /// One for all loops instead of a member, as the main loop runs one body at a time.
 inline const void *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -460,7 +459,6 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
 };
-#endif  // USE_WHILE_ACTION
 
 // Forward declaration for RepeatLoopContinuation
 template<typename... Ts> class RepeatAction;

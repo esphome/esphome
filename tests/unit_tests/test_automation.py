@@ -3126,10 +3126,6 @@ def _while(body: list[ConfigType]) -> list[ConfigType]:
     ]
 
 
-def _uses_while_action() -> bool:
-    return any(define.name == "USE_WHILE_ACTION" for define in CORE.defines)
-
-
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
@@ -3146,7 +3142,6 @@ async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
     assert "while (true) {" in text
     assert "if (!esphome__condition)\n" in text
     assert text.count("if (!esphome__running)") == 2
-    assert not _uses_while_action()
 
 
 @pytest.mark.asyncio
@@ -3166,7 +3161,6 @@ async def test_inline_while_without_arguments_is_a_step_action() -> None:
     assert stop < text.index("return false;", stop) < text.index("::comp->do_b();")
     assert "return;" not in text
     assert text.index("::comp->do_b();") < text.rindex("return true;")
-    assert not _uses_while_action()
 
 
 @pytest.mark.asyncio
@@ -3184,7 +3178,6 @@ async def test_while_with_an_object_body_is_a_while_action(
     await build_action_list(_while([_delay("act_d")]), template_arg, args)
 
     assert f"new(act_w) WhileAction{template}(" in CORE.cpp_main_section
-    assert _uses_while_action()
 
 
 @pytest.mark.asyncio
@@ -3194,7 +3187,6 @@ async def test_while_with_empty_body_keeps_its_object() -> None:
     await build_action_list(_while([]), TEMPLATE_ARG, [])
 
     assert "new(act_w) WhileAction<>(" in CORE.cpp_main_section
-    assert _uses_while_action()
 
 
 @pytest.mark.asyncio

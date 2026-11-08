@@ -1546,7 +1546,6 @@ async def while_action_to_code(
             ],
         )
         return cg.new_Pvariable(step_id, cg.TemplateArguments(step))
-    cg.add_define("USE_WHILE_ACTION")
     var = cg.new_Pvariable(action_id, template_arg, _condition_object(condition))
     for action in _emit_action_plan(actions, template_arg, args):
         cg.add(var.add_then_action(action))
