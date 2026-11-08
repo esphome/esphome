@@ -80,6 +80,5 @@ std::string DeviceDecoders::decode_int_str(const std::string &value, const std::
   val = result.value();
   return list.at(val);
 }
-
 }  // namespace esphome::fendt_caravan
 #endif
