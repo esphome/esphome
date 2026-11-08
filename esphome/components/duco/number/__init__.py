@@ -6,6 +6,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     UNIT_CELSIUS,
     UNIT_MINUTE,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
@@ -30,6 +31,7 @@ DucoBoxVentilationMin = duco_ns.class_("DucoBoxVentilationMin", DucoDevice, numb
 DucoBoxVentilationMax = duco_ns.class_("DucoBoxVentilationMax", DucoDevice, number.Number)
 DucoManualTime = duco_ns.class_("DucoManualTime", DucoDevice, number.Number)
 DucoManualFlowLevel = duco_ns.class_("DucoManualFlowLevel", DucoDevice, number.Number)
+DucoCo2Setpoint = duco_ns.class_("DucoCo2Setpoint", DucoDevice, number.Number)
 
 CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_NIGHTBOOST_TEMPERATURE = "nightboost_temperature"
@@ -40,6 +42,7 @@ CONF_MANUAL_TIME = "manual_time"
 CONF_FLOW_LEVEL_MANUAL_1 = "flow_level_manual_1"
 CONF_FLOW_LEVEL_MANUAL_2 = "flow_level_manual_2"
 CONF_FLOW_LEVEL_MANUAL_3 = "flow_level_manual_3"
+CONF_CO2_SETPOINT = "co2_setpoint"
 
 COMFORT_TEMPERATURE_SCHEMA = (
     number.number_schema(
@@ -89,6 +92,12 @@ MANUAL_FLOW_LEVEL_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
+CO2_SETPOINT_SCHEMA = (
+    number.number_schema(DucoCo2Setpoint, unit_of_measurement=UNIT_PARTS_PER_MILLION)
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45)})
+    .extend(cv.polling_component_schema("60s"))
+)
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_SCHEMA,
     DUCO_COMPONENT_SCHEMA.extend(
@@ -102,6 +111,7 @@ CONFIG_SCHEMA = cv.Any(
             cv.Optional(CONF_FLOW_LEVEL_MANUAL_1): cv.ensure_list(MANUAL_FLOW_LEVEL_SCHEMA),
             cv.Optional(CONF_FLOW_LEVEL_MANUAL_2): cv.ensure_list(MANUAL_FLOW_LEVEL_SCHEMA),
             cv.Optional(CONF_FLOW_LEVEL_MANUAL_3): cv.ensure_list(MANUAL_FLOW_LEVEL_SCHEMA),
+            cv.Optional(CONF_CO2_SETPOINT): cv.ensure_list(CO2_SETPOINT_SCHEMA),
         }
     ),
 )
@@ -118,6 +128,7 @@ async def to_code(config: ConfigType) -> None:
         CONF_FLOW_LEVEL_MANUAL_1,
         CONF_FLOW_LEVEL_MANUAL_2,
         CONF_FLOW_LEVEL_MANUAL_3,
+        CONF_CO2_SETPOINT,
     )
     if all(key not in config for key in grouped_keys):
         var = await number.new_number(config, min_value=10.0, max_value=25.5, step=0.1)
@@ -161,3 +172,8 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_address(entity_config[CONF_ADDRESS]))
             cg.add(var.set_item(item))
             await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    for entity_config in config.get(CONF_CO2_SETPOINT, []):
+        var = await number.new_number(entity_config, min_value=0, max_value=2000, step=10)
+        cg.add(var.set_address(entity_config[CONF_ADDRESS]))
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
