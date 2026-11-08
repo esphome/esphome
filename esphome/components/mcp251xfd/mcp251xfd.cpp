@@ -226,18 +226,20 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
     // The first fault is fixed at once; the check interval spaces out later attempts.
     return true;
   }
+  // The driver never requests Configuration mode and leaves it there, so this is a chip reset, which cleared the bit
+  // timing, FIFOs and filter. NBTCFG cannot show it: its reset value is also the common 500 kbps timing.
+  constexpr uint8_t configuration = static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION);
+  const bool chip_reset = current_mode == configuration && requested_mode == configuration;
   const uint32_t now = App.get_loop_component_start_time();
-  if (bus_off) {
+  // A reset chip reports bus-off (TXBO) until it is configured again, so only a running controller waits it out
+  if (bus_off && !chip_reset) {
     // Retry as soon as the bus recovers rather than on the next interval
     this->last_mode_check_time_ = now - MODE_RECOVERY_INTERVAL_MS;
     return true;
   }
   this->last_mode_check_time_ = now;
 
-  // The driver never requests Configuration mode and leaves it there, so this is a chip reset, which cleared the bit
-  // timing, FIFOs and filter. NBTCFG cannot show it: its reset value is also the common 500 kbps timing.
-  constexpr uint8_t configuration = static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION);
-  if (current_mode == configuration && requested_mode == configuration) {
+  if (chip_reset) {
     ESP_LOGW(TAG, "Configuration lost, reconfiguring");
     // A partial setup may already have left Configuration; go back so the next check retries it all
     if (!this->configure_())

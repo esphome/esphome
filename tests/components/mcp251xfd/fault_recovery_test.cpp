@@ -195,6 +195,20 @@ TEST(MCP251XFDRecovery, ChipResetReconfiguresWithoutReregisteringSpi) {
   EXPECT_EQ(spi.writes_to(REG_CON), 1u);
 }
 
+TEST(MCP251XFDRecovery, ChipResetDuringBusErrorsIsNotHeldBackByBusOff) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  // Earlier bus errors keep TREC polled, and a reset chip reports bus-off until it is configured
+  spi.set_error_flags(ERROR_TX_PASSIVE);
+  spi.registers[REG_INT + 1] = INT_CAN_ERROR;
+  controller.poll(100);
+  spi.reset();
+
+  controller.poll(5100);
+  EXPECT_EQ(spi.writes_to(REG_CON), 1u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+}
+
 TEST(MCP251XFDRecovery, PendingExitFromConfigurationIsNotAChipReset) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);

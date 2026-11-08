@@ -126,6 +126,7 @@ class RegisterDelegate : public spi::SPIDelegate {
     put_le32(this->registers.data() + REG_CON, 0x04980760);
     put_le32(this->registers.data() + REG_NBTCFG, 0x003E0F0F);
     put_le32(this->registers.data() + REG_OSC, 0x00000460);
+    put_le32(this->registers.data() + REG_TREC, 0x00200000);  // TXBO is set while in Configuration mode
   }
   void set_error_flags(uint8_t flags) { this->registers[REG_TREC + 2] = flags; }
 
