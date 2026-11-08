@@ -1,5 +1,6 @@
 """Unit tests for script/test_build_components.py logging helpers."""
 
+from collections.abc import Callable
 from pathlib import Path
 import sys
 
@@ -425,6 +426,7 @@ _DECOY_BUSES: dict[str, dict[str, list[str]]] = {
     "ds2484": {"esp32-idf": ["i2c"], "rp2040-ard": ["i2c"]},
     "ds248x": {"esp32-idf": ["i2c"], "rp2040-ard": ["i2c"]},
 }
+_GY39_ESP32 = {"esp32-idf": ["i2c"]}
 
 
 @pytest.fixture
@@ -438,29 +440,52 @@ def _buses(**extra: dict[str, list[str]]) -> dict[str, dict[str, list[str]]]:
 
 
 @pytest.mark.parametrize(
-    ("component", "buses", "platform", "expected"),
+    ("component", "buses", "platform", "expected", "non_groupable"),
     [
         # One decoy per type, preferred candidates first
-        ("gy39", {"esp32-idf": ["i2c"]}, "esp32-idf", ["tca9548a", "bmi270", "ds2484"]),
+        ("gy39", _GY39_ESP32, "esp32-idf", ["tca9548a", "bmi270", "ds2484"], set()),
         # No bmi270 test on rp2040: motion falls back to icm20689
         (
             "gy39",
             {"rp2040-ard": ["i2c"]},
             "rp2040-ard",
             ["tca9548a", "icm20689", "ds2484"],
+            set(),
         ),
         # Only tca9548a has an nrf52 test
-        ("gy39", {"nrf52-adafruit": ["i2c"]}, "nrf52-adafruit", ["tca9548a"]),
+        ("gy39", {"nrf52-adafruit": ["i2c"]}, "nrf52-adafruit", ["tca9548a"], set()),
         # A component without buses can be grouped with any decoy
-        ("template", {"esp32-idf": []}, "esp32-idf", ["tca9548a", "bmi270", "ds2484"]),
+        (
+            "template",
+            {"esp32-idf": []},
+            "esp32-idf",
+            ["tca9548a", "bmi270", "ds2484"],
+            set(),
+        ),
         # A different i2c package config never shares a build with the decoys
-        ("bh1900nux", {"esp32-idf": ["i2c_low_freq"]}, "esp32-idf", ["icm20689"]),
+        (
+            "bh1900nux",
+            {"esp32-idf": ["i2c_low_freq"]},
+            "esp32-idf",
+            ["icm20689"],
+            set(),
+        ),
         # Never its own decoy: next candidate, or none if there is no other
-        ("tca9548a", None, "esp32-idf", ["bmi270", "ds2484"]),
-        ("bmi270", None, "esp32-idf", ["tca9548a", "icm20689", "ds2484"]),
-        ("ds2484", None, "esp32-idf", ["tca9548a", "bmi270", "ds248x"]),
+        ("tca9548a", None, "esp32-idf", ["bmi270", "ds2484"], set()),
+        ("bmi270", None, "esp32-idf", ["tca9548a", "icm20689", "ds2484"], set()),
+        ("ds2484", None, "esp32-idf", ["tca9548a", "bmi270", "ds248x"], set()),
         # Platform the component has no test for
-        ("gy39", {"esp32-idf": ["i2c"]}, "esp8266-ard", []),
+        ("gy39", _GY39_ESP32, "esp8266-ard", [], set()),
+        # Non-groupable (isolated, base bus, direct bus) never meets a decoy in CI
+        ("gy39", _GY39_ESP32, "esp32-idf", [], {"gy39"}),
+        # A non-groupable decoy falls through to the next candidate
+        (
+            "gy39",
+            _GY39_ESP32,
+            "esp32-idf",
+            ["tca9548a", "icm20689", "ds2484"],
+            {"bmi270"},
+        ),
     ],
 )
 def test_select_decoys(
@@ -469,40 +494,25 @@ def test_select_decoys(
     buses: dict[str, list[str]] | None,
     platform: str,
     expected: list[str],
+    non_groupable: set[str],
 ) -> None:
     component_buses = _buses() if buses is None else _buses(**{component: buses})
-    assert tbc.select_decoys(component, platform, component_buses, set()) == expected
-
-
-@pytest.mark.parametrize("component", ["i2c", "animation", "direct_bus_comp"])
-def test_select_decoys_skips_components_never_grouped(
-    _no_conflicts: None, component: str
-) -> None:
-    """Base bus, isolated and non-groupable tests never meet a decoy in CI."""
-    component_buses = _buses(**{component: {"esp32-idf": ["i2c"]}})
     assert (
-        tbc.select_decoys(component, "esp32-idf", component_buses, {"direct_bus_comp"})
-        == []
+        tbc.select_decoys(component, platform, component_buses, non_groupable)
+        == expected
     )
 
 
-def test_select_decoys_skips_non_groupable_decoy(_no_conflicts: None) -> None:
-    component_buses = _buses(gy39={"esp32-idf": ["i2c"]})
-    assert tbc.select_decoys("gy39", "esp32-idf", component_buses, {"bmi270"}) == [
-        "tca9548a",
-        "icm20689",
-        "ds2484",
-    ]
-
-
-def test_select_decoys_skips_conflicting_decoy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_select_decoys_skips_conflicting_decoy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A decoy that conflicts with the component or an earlier decoy is skipped."""
     monkeypatch.setattr(
         tbc,
         "components_conflict",
         lambda a, b, platform: {a, b} in ({"gy39", "ds2484"}, {"tca9548a", "bmi270"}),
     )
-    component_buses = _buses(gy39={"esp32-idf": ["i2c"]})
+    component_buses = _buses(gy39=_GY39_ESP32)
     assert tbc.select_decoys("gy39", "esp32-idf", component_buses, set()) == [
         "tca9548a",
         "icm20689",
@@ -510,11 +520,13 @@ def test_select_decoys_skips_conflicting_decoy(monkeypatch: pytest.MonkeyPatch) 
     ]
 
 
-def _decoy_result(components: list[str], success: bool, output: str) -> object:
+def _decoy_result(
+    components: list[str], success: bool, output: str, platform: str = "esp32-idf"
+) -> tbc.TestResult:
     return tbc.TestResult(
         test_id="GROUPED",
         components=components,
-        platform="esp32-idf",
+        platform=platform,
         success=success,
         duration=0.0,
         test_type="config",
@@ -522,38 +534,65 @@ def _decoy_result(components: list[str], success: bool, output: str) -> object:
     )
 
 
+_GY39_FAILURE = (
+    "INFO noise\nFailed config\n\nsensor.gy39:\n"
+    "  Too many candidates found for 'i2c_id'"
+)
+
+
+@pytest.fixture
+def fake_grouped(
+    _no_conflicts: None, monkeypatch: pytest.MonkeyPatch
+) -> Callable[..., list[dict[str, object]]]:
+    """Patch run_grouped_test to record its calls and return a fixed outcome."""
+
+    def setup(success: bool = True, output: str = "") -> list[dict[str, object]]:
+        calls: list[dict[str, object]] = []
+
+        def fake(**kwargs: object) -> tbc.TestResult:
+            calls.append(kwargs)
+            return _decoy_result(
+                kwargs["components"], success, output, kwargs["platform_with_version"]
+            )
+
+        monkeypatch.setattr(tbc, "run_grouped_test", fake)
+        return calls
+
+    return setup
+
+
+def _run_decoys(
+    tmp_path: Path,
+    components: set[str],
+    component_buses: dict[str, dict[str, list[str]]],
+    platform_filter: str | None = None,
+) -> list[tbc.TestResult]:
+    return tbc.run_decoy_tests(
+        components=components,
+        all_tests={c: [] for c in component_buses},
+        platform_filter=platform_filter,
+        platform_bases={
+            p: [tmp_path / f"build_components_base.{p}.yaml"]
+            for p in ("esp32-idf", "rp2040-ard")
+        },
+        tests_dir=tmp_path,
+        build_dir=tmp_path,
+        component_buses=component_buses,
+        non_groupable={"animation"},
+    )
+
+
 def test_run_decoy_tests_reports_failure(
-    _no_conflicts: None,
-    monkeypatch: pytest.MonkeyPatch,
+    fake_grouped: Callable[..., list[dict[str, object]]],
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Only changed, non-isolated components run, config-only, and a failure names everything."""
-    component_buses = _buses(
-        gy39={"esp32-idf": ["i2c"]}, animation={"esp32-idf": ["i2c"]}
-    )
-    monkeypatch.setattr(
-        tbc, "analyze_all_components", lambda tests_dir: (component_buses, set(), set())
-    )
-    calls: list[dict[str, object]] = []
-
-    def fake_grouped(**kwargs: object) -> object:
-        calls.append(kwargs)
-        return _decoy_result(
-            kwargs["components"],
-            False,
-            "INFO noise\nFailed config\n\nsensor.gy39:\n  Too many candidates found for 'i2c_id'",
-        )
-
-    monkeypatch.setattr(tbc, "run_grouped_test", fake_grouped)
-    base_file = tmp_path / "build_components_base.esp32-idf.yaml"
-    results = tbc.run_decoy_tests(
-        components={"gy39", "animation", "not_in_batch"},
-        all_tests={"gy39": [], "animation": []},
-        platform_filter=None,
-        platform_bases={"esp32-idf": [base_file]},
-        tests_dir=tmp_path,
-        build_dir=tmp_path,
+    """Only changed, groupable components run, config-only, and a failure names everything."""
+    calls = fake_grouped(False, _GY39_FAILURE)
+    results = _run_decoys(
+        tmp_path,
+        {"gy39", "animation", "not_in_batch"},
+        _buses(gy39=_GY39_ESP32, animation=_GY39_ESP32),
     )
     assert [c["components"] for c in calls] == [
         ["gy39", "tca9548a", "bmi270", "ds2484"]
@@ -563,39 +602,72 @@ def test_run_decoy_tests_reports_failure(
     assert [r.test_id for r in results] == [
         "DECOY[gy39+tca9548a,bmi270,ds2484].esp32-idf"
     ]
+    assert all(r.decoy for r in results)
     out = capsys.readouterr().out
     assert "gy39 fails config validation on esp32-idf" in out
-    assert "tca9548a, bmi270, ds2484" in out
+    assert "tca9548a,bmi270,ds2484" in out
     assert "Too many candidates found for 'i2c_id'" in out
     assert "INFO noise" not in out
 
 
 def test_run_decoy_tests_respects_platform_filter(
-    _no_conflicts: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    fake_grouped: Callable[..., list[dict[str, object]]],
+    tmp_path: Path,
 ) -> None:
-    component_buses = _buses(gy39={"esp32-idf": ["i2c"], "rp2040-ard": ["i2c"]})
-    monkeypatch.setattr(
-        tbc, "analyze_all_components", lambda tests_dir: (component_buses, set(), set())
-    )
-    calls: list[str] = []
-
-    def fake_grouped(**kwargs: object) -> object:
-        calls.append(kwargs["platform"])
-        return _decoy_result(kwargs["components"], True, "")
-
-    monkeypatch.setattr(tbc, "run_grouped_test", fake_grouped)
-    tbc.run_decoy_tests(
-        components={"gy39"},
-        all_tests={"gy39": []},
+    calls = fake_grouped()
+    _run_decoys(
+        tmp_path,
+        {"gy39"},
+        _buses(gy39={"esp32-idf": ["i2c"], "rp2040-ard": ["i2c"]}),
         platform_filter="rp2040-ard",
-        platform_bases={
-            "esp32-idf": [tmp_path / "build_components_base.esp32-idf.yaml"],
-            "rp2040-ard": [tmp_path / "build_components_base.rp2040-ard.yaml"],
-        },
-        tests_dir=tmp_path,
-        build_dir=tmp_path,
     )
-    assert calls == ["rp2040-ard"]
+    assert [c["platform"] for c in calls] == ["rp2040-ard"]
+
+
+def test_reproduce_commands_keep_decoy_groups_apart() -> None:
+    """A decoy failure gets its own command, never folded into the per-platform list."""
+    decoy = _decoy_result(["gy39", "tca9548a", "bmi270", "ds2484"], False, "")
+    decoy.decoy = True
+    plain = _decoy_result(["foo"], False, "")
+    assert tbc.reproduce_commands([plain, decoy], "gcc") == [
+        "script/test_build_components.py -c foo -t esp32-idf -e config --toolchain gcc",
+        (
+            "script/test_build_components.py -e config -c gy39,tca9548a,bmi270,ds2484 "
+            "-t esp32-idf --toolchain gcc"
+        ),
+    ]
+    assert tbc.group_components_by_platform([plain, decoy]) == {
+        ("esp32-idf", "config"): ["foo"]
+    }
+
+
+def test_github_summary_uses_decoy_reproduce_command() -> None:
+    decoy = _decoy_result(["gy39", "tca9548a"], False, "")
+    decoy.decoy = True
+    summary = tbc.format_github_summary([decoy])
+    assert "-e config -c gy39,tca9548a -t esp32-idf" in summary
+
+
+def _patch_component_runs(
+    monkeypatch: pytest.MonkeyPatch,
+    grouped: list[tbc.TestResult],
+    decoys: list[tbc.TestResult],
+) -> list[set[str]]:
+    seen: list[set[str]] = []
+    monkeypatch.setattr(
+        tbc, "analyze_all_components", lambda tests_dir: ({}, set(), set())
+    )
+    monkeypatch.setattr(
+        tbc, "run_grouped_component_tests", lambda **kwargs: (set(), grouped)
+    )
+    monkeypatch.setattr(tbc, "run_individual_component_test", lambda **kwargs: None)
+
+    def fake_decoys(**kwargs: object) -> list[tbc.TestResult]:
+        seen.append(kwargs["components"])
+        return decoys
+
+    monkeypatch.setattr(tbc, "run_decoy_tests", fake_decoys)
+    return seen
 
 
 @pytest.mark.parametrize(
@@ -609,22 +681,32 @@ def test_components_runs_decoys_only_for_isolated_config(
     expected: int,
 ) -> None:
     """The --isolate config run is the hook; compile runs never pay for it."""
-    seen: list[set[str]] = []
-    monkeypatch.setattr(
-        tbc, "run_grouped_component_tests", lambda **kwargs: (set(), [])
-    )
-    monkeypatch.setattr(
-        tbc,
-        "run_individual_component_test",
-        lambda **kwargs: None,
-    )
-    monkeypatch.setattr(
-        tbc, "run_decoy_tests", lambda **kwargs: seen.append(kwargs["components"]) or []
-    )
+    seen = _patch_component_runs(monkeypatch, [], [])
     tbc.test_components(
         ["gy39"], "esp32-idf", command, True, isolated_components=isolate
     )
     assert len(seen) == expected
+
+
+def test_components_decoy_run_does_not_count_as_build(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--fail-on-no-tests ignores decoy runs that mention a requested component."""
+    decoy = _decoy_result(["gy39", "tca9548a"], True, "")
+    decoy.decoy = True
+    _patch_component_runs(monkeypatch, [], [decoy])
+    rc = tbc.test_components(
+        ["gy39", "tca9548a"],
+        "esp32-idf",
+        "config",
+        True,
+        isolated_components={"gy39"},
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No tests ran for requested pattern(s): gy39, tca9548a" in (
+        capsys.readouterr().out
+    )
 
 
 def test_run_grouped_test_capture_output(
@@ -633,27 +715,35 @@ def test_run_grouped_test_capture_output(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Captured output is kept on the result and still printed."""
+    """Captured output is printed, and kept on the result only when the run fails."""
+    returncodes = iter([1, 0])
 
     def fake_run(cmd: list[str], **kwargs: object) -> _FakeCompleted:
         assert kwargs["stdout"] is tbc.subprocess.PIPE
-        result = _FakeCompleted(1)
+        result = _FakeCompleted(next(returncodes))
         result.stdout = "Failed config\nboom\n"
         return result
 
     monkeypatch.setattr(tbc.subprocess, "run", fake_run)
     monkeypatch.setattr(tbc, "merge_component_configs", lambda **k: None)
-    result = tbc.run_grouped_test(
-        components=["foo", "bar"],
-        platform="esp32-idf",
-        platform_with_version="esp32-idf",
-        base_file=_make_base_file(tmp_path),
-        build_dir=tmp_path,
-        tests_dir=tmp_path,
-        esphome_command="config",
-        continue_on_fail=True,
-        capture_output=True,
-    )
-    assert not result.success
-    assert result.output == "Failed config\nboom\n"
+
+    def run() -> tbc.TestResult:
+        return tbc.run_grouped_test(
+            components=["foo", "bar"],
+            platform="esp32-idf",
+            platform_with_version="esp32-idf",
+            base_file=_make_base_file(tmp_path),
+            build_dir=tmp_path,
+            tests_dir=tmp_path,
+            esphome_command="config",
+            continue_on_fail=True,
+            capture_output=True,
+        )
+
+    failed = run()
+    assert not failed.success
+    assert failed.output == "Failed config\nboom\n"
     assert "boom" in capsys.readouterr().out
+    passed = run()
+    assert passed.success
+    assert passed.output == ""

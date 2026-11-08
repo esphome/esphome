@@ -62,7 +62,8 @@ class TestResult:
     duration: float
     command: str = ""
     test_type: str = "compile"  # "config" or "compile"
-    output: str = ""  # Only filled when the run captured its output
+    output: str = ""  # Captured esphome output, kept only for failed runs
+    decoy: bool = False  # Grouped with decoys; reproduced with its own command
 
 
 # Tests that add a second instance of a type that other tests reference by
@@ -210,6 +211,8 @@ def group_components_by_platform(
     """
     platform_components: dict[tuple[str, str], list[str]] = {}
     for result in failed_results:
+        if result.decoy:
+            continue
         key = (result.platform, result.test_type)
         if key not in platform_components:
             platform_components[key] = []
@@ -219,6 +222,27 @@ def group_components_by_platform(
     return {
         key: sorted(set(components)) for key, components in platform_components.items()
     }
+
+
+def reproduce_commands(
+    failed_results: list[TestResult], toolchain: str | None = None
+) -> list[str]:
+    """Return copy-paste commands that reproduce the failed results."""
+    extra_arguments = f" --toolchain {toolchain}" if toolchain else ""
+    platform_components = group_components_by_platform(failed_results)
+    commands = [
+        f"script/test_build_components.py -c {','.join(platform_components[key])} "
+        f"-t {key[0]} -e {key[1]}{extra_arguments}"
+        for key in sorted(platform_components)
+    ]
+    # A decoy group must run alone so grouping recreates exactly that merge
+    commands.extend(
+        f"script/test_build_components.py -e config -c {','.join(r.components)} "
+        f"-t {r.platform}{extra_arguments}"
+        for r in failed_results
+        if r.decoy
+    )
+    return commands
 
 
 def format_github_summary(test_results: list[TestResult], toolchain=None) -> str:
@@ -270,14 +294,9 @@ def format_github_summary(test_results: list[TestResult], toolchain=None) -> str
         lines.append("<summary>Commands to reproduce failures</summary>\n\n")
         lines.append("```bash\n")
 
-        # Generate one command per platform and test type
-        extra_arguments = f" --toolchain {toolchain}" if toolchain else ""
-        platform_components = group_components_by_platform(failed_results)
-        for platform, test_type in sorted(platform_components.keys()):
-            components_csv = ",".join(platform_components[(platform, test_type)])
-            lines.append(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}{extra_arguments}\n"
-            )
+        lines.extend(
+            f"{cmd}\n" for cmd in reproduce_commands(failed_results, toolchain)
+        )
 
         lines.append("```\n")
         lines.append("</details>\n")
@@ -602,20 +621,17 @@ def run_grouped_test(
 
     # Always close the group, even if the subprocess or disk-space reporting
     # raises, so later output is never folded into the wrong CI log section.
-    output = ""
     try:
-        if capture_output:
-            result = subprocess.run(
-                cmd,
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            output = result.stdout or ""
+        result = subprocess.run(
+            cmd,
+            check=False,
+            stdout=subprocess.PIPE if capture_output else None,
+            stderr=subprocess.STDOUT if capture_output else None,
+            text=capture_output,
+        )
+        output = (result.stdout or "") if capture_output else ""
+        if output:
             print(output, end="")
-        else:
-            result = subprocess.run(cmd, check=False)
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
     finally:
@@ -642,7 +658,7 @@ def run_grouped_test(
         duration=duration,
         command=cmd_str,
         test_type=esphome_command,
-        output=output,
+        output="" if success else output,
     )
 
 
@@ -653,11 +669,7 @@ def _groupable_buses(
     non_groupable: set[str],
 ) -> tuple[str, ...] | None:
     """Return the common bus packages of a groupable test, or None if it is never grouped."""
-    if (
-        component in ISOLATED_COMPONENTS
-        or component in BASE_BUS_COMPONENTS
-        or component in non_groupable
-    ):
+    if component in non_groupable:
         return None
     buses = component_buses.get(component, {}).get(platform)
     if buses is None:
@@ -672,30 +684,28 @@ def select_decoys(
     component_buses: dict[str, dict[str, list[str]]],
     non_groupable: set[str],
 ) -> list[str]:
-    """Pick one decoy per DECOY_COMPONENTS type that CI could group with component.
-
-    A decoy needs a test.<platform>.yaml, must be groupable, must not be the
-    component itself, and its buses and CONFLICTS_WITH must allow the merge.
-    """
+    """Pick one compatible decoy per DECOY_COMPONENTS type."""
     buses = _groupable_buses(component, platform, component_buses, non_groupable)
     if buses is None:
         return []
-    members = [component]
+    picked: list[str] = []
     for candidates in DECOY_COMPONENTS.values():
         for decoy in candidates:
-            if decoy in members:
+            if decoy == component:
                 continue
             decoy_buses = _groupable_buses(
                 decoy, platform, component_buses, non_groupable
             )
             if decoy_buses is None or not are_buses_compatible(buses, decoy_buses):
                 continue
-            if any(components_conflict(decoy, m, platform) for m in members):
+            if any(
+                components_conflict(decoy, m, platform) for m in (component, *picked)
+            ):
                 continue
-            members.append(decoy)
-            buses = tuple(sorted(set(buses) | set(decoy_buses)))
+            picked.append(decoy)
+            buses = tuple(sorted({*buses, *decoy_buses}))
             break
-    return members[1:]
+    return picked
 
 
 def _config_error_excerpt(output: str, max_lines: int = 30) -> str:
@@ -707,6 +717,23 @@ def _config_error_excerpt(output: str, max_lines: int = 30) -> str:
     return "\n".join(lines[-max_lines:])
 
 
+def _print_decoy_failure(
+    component: str, platform_with_version: str, decoys: str, output: str
+) -> None:
+    print(f"\n{'=' * 80}")
+    print(
+        f"{component} fails config validation on {platform_with_version} "
+        f"when CI groups it with {decoys}."
+    )
+    print(
+        "These tests add a second I2C bus, motion or one_wire instance; "
+        "set the id the error names (e.g. i2c_id: i2c_bus)."
+    )
+    print(f"{'=' * 80}")
+    print(_config_error_excerpt(output))
+    print(f"{'=' * 80}\n")
+
+
 def run_decoy_tests(
     components: set[str],
     all_tests: dict[str, list[Path]],
@@ -714,27 +741,26 @@ def run_decoy_tests(
     platform_bases: dict[str, list[Path]],
     tests_dir: Path,
     build_dir: Path,
+    component_buses: dict[str, dict[str, list[str]]],
+    non_groupable: set[str],
     toolchain: str | None = None,
 ) -> list[TestResult]:
     """Validate each component merged with decoys that add a second candidate id.
 
-    Isolated runs never see another test's buses, so a test that omits
-    i2c_id, motion_id or one_wire_id passes until CI groups it with one.
+    Catches a missing i2c_id/motion_id/one_wire_id that only grouping exposes.
     """
-    targets = sorted(
-        c for c in components if c in all_tests and c not in ISOLATED_COMPONENTS
-    )
-    if not targets:
-        return []
-    component_buses, non_groupable, _ = analyze_all_components(tests_dir)
     results: list[TestResult] = []
-    for component in targets:
-        for platform in sorted(component_buses.get(component, {})):
-            if platform_filter and platform != platform_filter:
-                continue
+    for component in sorted(components & all_tests.keys()):
+        platforms = (
+            [platform_filter]
+            if platform_filter
+            else sorted(component_buses.get(component, {}))
+        )
+        for platform in platforms:
             decoys = select_decoys(component, platform, component_buses, non_groupable)
             if not decoys:
                 continue
+            decoy_csv = ",".join(decoys)
             for base_file in platform_bases.get(platform, []):
                 platform_with_version = extract_platform_with_version(base_file)
                 result = run_grouped_test(
@@ -749,23 +775,14 @@ def run_decoy_tests(
                     toolchain=toolchain,
                     capture_output=True,
                 )
-                decoy_list = ", ".join(decoys)
                 result.test_id = (
-                    f"DECOY[{component}+{','.join(decoys)}].{platform_with_version}"
+                    f"DECOY[{component}+{decoy_csv}].{platform_with_version}"
                 )
+                result.decoy = True
                 if not result.success:
-                    print(f"\n{'=' * 80}")
-                    print(
-                        f"{component} fails config validation on {platform_with_version} "
-                        f"when CI groups it with {decoy_list}."
+                    _print_decoy_failure(
+                        component, platform_with_version, decoy_csv, result.output
                     )
-                    print(
-                        "These tests add a second I2C bus, motion or one_wire instance; "
-                        "set the id the error names (e.g. i2c_id: i2c_bus)."
-                    )
-                    print(f"{'=' * 80}")
-                    print(_config_error_excerpt(result.output))
-                    print(f"{'=' * 80}\n")
                 results.append(result)
     return results
 
@@ -781,6 +798,7 @@ def run_grouped_component_tests(
     additional_isolated: set[str] | None = None,
     toolchain: str | None = None,
     skip_bootloader: bool = False,
+    analysis: tuple[dict[str, dict[str, list[str]]], set[str], set[str]] | None = None,
 ) -> tuple[set[tuple[str, str]], list[TestResult]]:
     """Run grouped component tests.
 
@@ -793,6 +811,7 @@ def run_grouped_component_tests(
         esphome_command: ESPHome command (config/compile)
         continue_on_fail: Whether to continue on failure
         additional_isolated: Additional components to treat as isolated (not grouped)
+        analysis: analyze_all_components() result, computed here when not given
 
     Returns:
         Tuple of (tested_components, test_results)
@@ -805,8 +824,8 @@ def run_grouped_component_tests(
     print("\n" + "=" * 80)
     print("Analyzing components for intelligent grouping...")
     print("=" * 80)
-    component_buses, non_groupable, direct_bus_components = analyze_all_components(
-        tests_dir
+    component_buses, non_groupable, direct_bus_components = (
+        analysis or analyze_all_components(tests_dir)
     )
 
     # Track why components can't be grouped (for detailed output)
@@ -1288,6 +1307,7 @@ def test_components(
 
     # First, run grouped tests if grouping is enabled
     if enable_grouping:
+        analysis = analyze_all_components(tests_dir)
         tested_components, grouped_results = run_grouped_component_tests(
             all_tests=all_tests,
             platform_filter=platform_filter,
@@ -1299,22 +1319,25 @@ def test_components(
             additional_isolated=isolated_components,
             toolchain=toolchain,
             skip_bootloader=skip_bootloader,
+            analysis=analysis,
         )
         test_results.extend(grouped_results)
 
-    # Directly changed tests run isolated, so also check them grouped with decoys
-    if esphome_command == "config" and enable_grouping and isolated_components:
-        test_results.extend(
-            run_decoy_tests(
-                components=isolated_components,
-                all_tests=all_tests,
-                platform_filter=platform_filter,
-                platform_bases=platform_bases,
-                tests_dir=tests_dir,
-                build_dir=build_dir,
-                toolchain=toolchain,
+        # Directly changed tests run isolated, so also check them grouped with decoys
+        if esphome_command == "config" and isolated_components:
+            test_results.extend(
+                run_decoy_tests(
+                    components=isolated_components,
+                    all_tests=all_tests,
+                    platform_filter=platform_filter,
+                    platform_bases=platform_bases,
+                    tests_dir=tests_dir,
+                    build_dir=build_dir,
+                    component_buses=analysis[0],
+                    non_groupable=analysis[1],
+                    toolchain=toolchain,
+                )
             )
-        )
 
     # Then run individual tests for components not in groups
     for component, test_files in sorted(all_tests.items()):
@@ -1385,7 +1408,8 @@ def test_components(
         # pass CI. Per pattern so one silent pattern cannot hide behind
         # the others; opt-in because some legs legitimately match nothing;
         # deferred past the summary so reproduce commands still print.
-        built = {c for r in test_results for c in r.components}
+        # Decoy runs must not count as a build of a requested component
+        built = {c for r in test_results if not r.decoy for c in r.components}
         # A pattern is silent when it matched no fixture, or when none of
         # its matched components produced a build (wildcards included)
         silent = [
@@ -1414,13 +1438,8 @@ def test_components(
         print("\n" + "=" * 80)
         print("Commands to reproduce failures (copy-paste to reproduce locally):")
         print("=" * 80)
-        extra_arguments = f" --toolchain {toolchain}" if toolchain else ""
-        platform_components = group_components_by_platform(failed_results)
-        for platform, test_type in sorted(platform_components.keys()):
-            components_csv = ",".join(platform_components[(platform, test_type)])
-            print(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}{extra_arguments}"
-            )
+        for cmd in reproduce_commands(failed_results, toolchain):
+            print(cmd)
         print()
 
     # Write GitHub Actions job summary if in CI
