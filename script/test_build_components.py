@@ -749,12 +749,16 @@ class DecoyContext:
     toolchain: str | None = None
 
     def run_config(
-        self, components: list[str], platform: str, base_file: Path
+        self,
+        components: list[str],
+        platform: str,
+        platform_with_version: str,
+        base_file: Path,
     ) -> TestResult:
         return run_grouped_test(
             components=components,
             platform=platform,
-            platform_with_version=extract_platform_with_version(base_file),
+            platform_with_version=platform_with_version,
             base_file=base_file,
             build_dir=self.build_dir,
             tests_dir=self.tests_dir,
@@ -766,14 +770,18 @@ class DecoyContext:
 
 
 def run_decoy_tests(
-    ctx: DecoyContext,
-    components: set[str],
-    failed_alone: frozenset[tuple[str, str]] | set[tuple[str, str]] = frozenset(),
+    ctx: DecoyContext, components: set[str], prior_results: list[TestResult]
 ) -> list[TestResult]:
     """Validate each component merged with decoys that add a second candidate id.
 
-    Catches a missing i2c_id/motion_id/one_wire_id that only grouping exposes.
+    Catches a missing i2c_id/motion_id/one_wire_id that only grouping exposes. A test
+    that already failed alone is skipped, so its decoy failure cannot blame grouping.
     """
+    failed_alone = {
+        (r.components[0], r.platform)
+        for r in prior_results
+        if not r.success and len(r.components) == 1
+    }
     results: list[TestResult] = []
     for component in sorted(components):
         platforms = (
@@ -792,7 +800,9 @@ def run_decoy_tests(
                 platform_with_version = extract_platform_with_version(base_file)
                 if (component, platform_with_version) in failed_alone:
                     continue
-                result = ctx.run_config([component, *decoys], platform, base_file)
+                result = ctx.run_config(
+                    [component, *decoys], platform, platform_with_version, base_file
+                )
                 result.test_id = (
                     f"DECOY[{component}+{decoy_csv}].{platform_with_version}"
                 )
@@ -1407,14 +1417,8 @@ def test_components(
                         skip_bootloader=skip_bootloader,
                     )
 
-    # Directly changed tests run isolated, so also check them grouped with decoys.
-    # A test that already fails alone is skipped: its decoy failure would blame grouping.
+    # Directly changed tests run isolated, so also check them grouped with decoys
     if enable_grouping and esphome_command == "config" and isolated_components:
-        failed_alone = {
-            (r.components[0], r.platform)
-            for r in test_results
-            if not r.success and len(r.components) == 1
-        }
         ctx = DecoyContext(
             platform_bases=platform_bases,
             platform_filter=platform_filter,
@@ -1425,7 +1429,7 @@ def test_components(
             toolchain=toolchain,
         )
         test_results.extend(
-            run_decoy_tests(ctx, isolated_components & all_tests.keys(), failed_alone)
+            run_decoy_tests(ctx, isolated_components & all_tests.keys(), test_results)
         )
 
     silent: list[str] = []
