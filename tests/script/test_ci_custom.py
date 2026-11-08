@@ -599,7 +599,7 @@ def test_grouped_test_ids_flags_omitted_id(content: str, id_key: str) -> None:
     [
         pytest.param(
             "tests/components/gy39/common.yaml",
-            GY39_NO_ID.replace("gy39\n", "gy39\n    i2c_id: i2c_bus\n"),
+            "sensor:\n  - platform: gy39\n    i2c_id: i2c_bus\n    illuminance:\n      name: Lux\n",
             id="named-bus",
         ),
         pytest.param("tests/components/lvgl/common.yaml", GY39_NO_ID, id="isolated"),

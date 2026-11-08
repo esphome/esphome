@@ -334,12 +334,7 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 def _is_non_groupable(
     component_name: str, has_extend_remove: bool, has_direct_bus_config: bool
 ) -> bool:
-    """Whether CI tests the component on its own instead of merged with others.
-
-    Isolated components have known merge issues; base bus components (i2c, spi,
-    ...) define the buses the packages provide; !extend/!remove only work inside
-    the component's own packages; and a bus defined directly gets a unique id.
-    """
+    """Isolated, base bus, !extend/!remove, or a bus defined directly."""
     return (
         component_name in ISOLATED_COMPONENTS
         or component_name in BASE_BUS_COMPONENTS
@@ -648,12 +643,9 @@ def main() -> None:
             if platform_buses:
                 components[comp] = platform_buses
             # Note: Components using $component_dir are now groupable
-            if comp in ISOLATED_COMPONENTS:
-                non_groupable.add(comp)
-            if comp in BASE_BUS_COMPONENTS:
+            if _is_non_groupable(comp, has_extend_remove, has_direct_bus_config):
                 non_groupable.add(comp)
             if has_direct_bus_config and comp not in BASE_BUS_COMPONENTS:
-                non_groupable.add(comp)
                 direct_bus_components.add(comp)
     else:
         # Analyze all components

@@ -14,7 +14,14 @@ import sys
 import time
 
 import colorama
-from helpers import filter_changed, git_ls_files, print_error_for_file, styled
+from helpers import (
+    ESPHOME_COMPONENTS_PATH,
+    filter_changed,
+    git_ls_files,
+    print_error_for_file,
+    root_path,
+    styled,
+)
 import yaml
 
 sys.path.append(str(Path(__file__).parent))
@@ -1572,7 +1579,7 @@ GROUPED_TEST_IDS = {
 @functools.cache
 def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
     """The GROUPED_TEST_IDS the entity's own schema file takes."""
-    base = Path(__file__).parent.parent / "esphome" / "components"
+    base = Path(root_path) / ESPHOME_COMPONENTS_PATH
     paths = (
         [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
         if platform
