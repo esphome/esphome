@@ -43,10 +43,12 @@ class TRF7962A final : public PollingComponent,
   void select_(bool selected);
   void direct_command_(uint8_t command);
   void write_register_(uint8_t reg, uint8_t value);
+  void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
   void read_registers_(uint8_t reg, uint8_t *data, size_t len);
   uint8_t read_register_(uint8_t reg);
   uint8_t read_irq_status_();
   bool configure_();
+  uint8_t chip_status_(bool field_on) const;
   void set_field_(bool on);
   void send_inventory_();
   bool read_response_();

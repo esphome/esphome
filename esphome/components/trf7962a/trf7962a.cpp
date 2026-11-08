@@ -22,7 +22,6 @@ static constexpr uint8_t CMD_TRANSMIT_CRC = 0x11;
 static constexpr uint8_t REG_CHIP_STATUS = 0x00;
 static constexpr uint8_t REG_ISO_CONTROL = 0x01;
 static constexpr uint8_t REG_RX_NO_RESPONSE_WAIT = 0x07;
-static constexpr uint8_t REG_RX_WAIT = 0x08;
 static constexpr uint8_t REG_MODULATOR = 0x09;
 static constexpr uint8_t REG_IRQ_STATUS = 0x0C;
 static constexpr uint8_t REG_IRQ_MASK = 0x0D;
@@ -100,12 +99,11 @@ bool TRF7962A::configure_() {
   this->direct_command_(CMD_SOFT_INIT);
   delay(1);
   this->direct_command_(CMD_IDLE);
-  this->set_field_(false);
-  this->write_register_(REG_ISO_CONTROL, ISO_15693_HIGH_RATE);
-  // Writing the ISO control register reloads these, so they follow it
-  this->write_register_(REG_RX_NO_RESPONSE_WAIT, RX_NO_RESPONSE_WAIT);
-  this->write_register_(REG_RX_WAIT, RX_WAIT);
-  this->write_register_(REG_MODULATOR, MODULATOR_OOK);
+  const uint8_t status_iso[] = {this->chip_status_(false), ISO_15693_HIGH_RATE};
+  this->write_registers_(REG_CHIP_STATUS, status_iso, sizeof(status_iso));
+  // Writing the ISO control register reloads the wait times, so this block follows it
+  const uint8_t timing[] = {RX_NO_RESPONSE_WAIT, RX_WAIT, MODULATOR_OOK};
+  this->write_registers_(REG_RX_NO_RESPONSE_WAIT, timing, sizeof(timing));
   this->write_register_(REG_IRQ_MASK, IRQ_MASK);
   this->read_irq_status_();
   // The chip has no ID register; a protocol register reading back proves it is there
@@ -180,6 +178,15 @@ void TRF7962A::write_register_(uint8_t reg, uint8_t value) {
   this->select_(false);
 }
 
+void TRF7962A::write_registers_(uint8_t reg, const uint8_t *data, size_t len) {
+  this->select_(true);
+  this->enable();
+  this->write_byte(CONTINUOUS | reg);
+  this->write_array(data, len);
+  this->disable();
+  this->select_(false);
+}
+
 void TRF7962A::read_registers_(uint8_t reg, uint8_t *data, size_t len) {
   // CS stays low across the address write and the read, which use opposite clock phases
   this->select_(true);
@@ -205,14 +212,16 @@ uint8_t TRF7962A::read_irq_status_() {
   return data[0];
 }
 
-void TRF7962A::set_field_(bool on) {
+uint8_t TRF7962A::chip_status_(bool field_on) const {
   uint8_t status = this->supply_5v_ ? CHIP_STATUS_5V : 0;
   if (this->half_power_)
     status |= CHIP_STATUS_HALF_POWER;
-  if (on)
+  if (field_on)
     status |= CHIP_STATUS_RF_ON;
-  this->write_register_(REG_CHIP_STATUS, status);
+  return status;
 }
+
+void TRF7962A::set_field_(bool on) { this->write_register_(REG_CHIP_STATUS, this->chip_status_(on)); }
 
 void TRF7962A::send_inventory_() {
   this->direct_command_(CMD_RESET_FIFO);
