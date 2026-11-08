@@ -222,10 +222,6 @@ class TimeoutFilterLast : public TimeoutFilterBase {
  public:
   explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
   bool new_value(std::string &value) override;
-  void reset() override {
-    TimeoutFilterBase::reset();
-    this->last_.clear();
-  }
 
  protected:
   void send_timeout_value() override { this->send_(this->last_.data(), this->last_.size()); }
@@ -240,7 +236,7 @@ class TimeoutThrottleFilter : public TimeoutFilterLast {
       : TimeoutFilterLast(time_period), prioritized_(prioritized) {}
   bool new_value(std::string &value) override;
   void reset() override {
-    TimeoutFilterLast::reset();
+    TimeoutFilterBase::reset();
     this->last_input_ = 0;
   }
 
