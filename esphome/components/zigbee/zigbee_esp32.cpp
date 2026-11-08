@@ -21,6 +21,7 @@ ESPHOME_LOG_TAG(TAG, "zigbee");
 
 static constexpr uint32_t COMMISSIONING_RETRY_TIMEOUT_ID = 0;
 static constexpr uint32_t PARENT_LINK_TIMEOUT_ID = 1;
+static constexpr uint32_t PARENT_LINK_RETRY_TIMEOUT_ID = 2;
 
 // Since esp-zigbee-lib 2.0.5 every lost poll or transmission raises PARENT_LINK_FAILURE, even during a short radio
 // outage such as a BLE scan. After a failure the device polls at least every 3 s. It rejoins only after failures in
@@ -205,8 +206,12 @@ void ZigbeeComponent::on_parent_link_failure_() {
 
 // Runs on the main loop when no failure was counted for two poll intervals
 void ZigbeeComponent::end_parent_link_failures_(uint8_t seq) {
-  esp_zigbee_lock_acquire(portMAX_DELAY);
-  // A failure that came while waiting for the lock has set a new timeout
+  if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
+    // Retry with its own id, so that it cannot replace the timeout of a newer failure
+    this->set_timeout(PARENT_LINK_RETRY_TIMEOUT_ID, 100, [this, seq]() { this->end_parent_link_failures_(seq); });
+    return;
+  }
+  // A newer failure has set its own timeout, which ends the series instead
   const uint8_t failures = seq == this->link_failure_seq_ ? this->link_failures_ : 0;
   if (failures > 0) {
     this->reset_parent_link_failures_();
