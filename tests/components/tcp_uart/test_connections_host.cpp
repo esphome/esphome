@@ -40,6 +40,7 @@ class TcpUartTwoClients : public ::testing::Test {
     this->uart_.set_port(this->port_);
     this->uart_.set_max_connections(this->slots_);
     this->uart_.set_turn_timeout(100);
+    this->uart_.set_idle_timeout(this->idle_timeout_);
     this->uart_.set_disconnects_sensor(&this->disconnects_);
     this->uart_.setup();
     // Opens the listener.
@@ -121,6 +122,8 @@ class TcpUartTwoClients : public ::testing::Test {
   sensor::Sensor disconnects_;
   uint16_t port_{0};
   uint8_t slots_{2};
+  // 0 leaves quiet connections open.
+  uint32_t idle_timeout_{0};
   int a_{-1};
   int b_{-1};
   int c_{-1};
@@ -446,6 +449,137 @@ TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseRequestWaits) {
   this->uart_.release_turn();
   this->wait_for_bytes(2);
   EXPECT_EQ(this->read_all(), "hi");
+}
+
+// The two-client server with a 1000 ms idle timeout: a connection that moves no byte for 1000 ms is closed.
+// Clients A and B connected at 1000 ms.
+class TcpUartIdleTimeout : public TcpUartTwoClients {
+ protected:
+  TcpUartIdleTimeout() { this->idle_timeout_ = 1000; }
+};
+
+TEST_F(TcpUartIdleTimeout, OnlyTheQuietClientIsClosed) {
+  // A sends a request at 1500 and gets its reply. B sends nothing.
+  this->at(1500);
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+  EXPECT_EQ(this->read_all(), "ping");
+  this->write("pong");
+  this->loops(1);
+  EXPECT_EQ(received(this->a_), "pong");
+
+  // B has been quiet since it connected at 1000, so its 1000 ms are up at 2000. A's last bytes moved at 1500.
+  this->at(1999);
+  this->loops(2);
+  EXPECT_EQ(this->uart_.open_connections(), 2);
+  this->at(2000);
+  this->loops(2);
+  EXPECT_EQ(received(this->b_), "<closed>");
+  EXPECT_EQ(this->uart_.open_connections(), 1);
+  EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
+
+  // A goes on exchanging data.
+  send(this->a_, "hi");
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+  this->write("ok");
+  this->loops(1);
+  EXPECT_EQ(received(this->a_), "ok");
+}
+
+TEST_F(TcpUartIdleTimeout, ClientThatKeepsSendingStaysOpen) {
+  // B sends a request every 500 ms until 4000 and gets each reply: 3000 ms, three times the timeout.
+  for (uint32_t ms = 1500; ms <= 4000; ms += 500) {
+    this->at(ms);
+    send(this->b_, "x");
+    this->wait_for_bytes(1);
+    EXPECT_EQ(this->read_all(), "x");
+    this->write("y");
+    this->loops(1);
+    EXPECT_EQ(received(this->b_), "y");
+  }
+  // Only A, quiet since 1000, was closed.
+  EXPECT_EQ(received(this->a_), "<closed>");
+  EXPECT_EQ(this->uart_.open_connections(), 1);
+}
+
+TEST_F(TcpUartIdleTimeout, HeldTurnKeepsItsClientOpenUntilReleased) {
+  // A's request takes the turn at 1000. Its reply takes 1500 ms, and the turn is held meanwhile.
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+  this->uart_.hold_turn();
+  EXPECT_EQ(this->read_all(), "ping");
+  this->at(2500);
+  this->loops(2);
+  // A sent nothing for 1500 ms, but it waits for its reply. B, quiet since 1000, is closed.
+  EXPECT_EQ(received(this->b_), "<closed>");
+  EXPECT_EQ(this->uart_.open_connections(), 1);
+  this->write("pong");
+  this->uart_.release_turn();
+  this->loops(1);
+  EXPECT_EQ(received(this->a_), "pong");
+
+  // Once answered, A is quiet like any other connection: 1000 ms after its reply it is closed too.
+  this->at(3500);
+  this->loops(2);
+  EXPECT_EQ(received(this->a_), "<closed>");
+}
+
+TEST_F(TcpUartIdleTimeout, RequestWaitingForItsTurnKeepsItsClientOpen) {
+  // As above, A's request takes the turn at 1000 and A holds it for its reply. This time B's request waits.
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+  this->uart_.hold_turn();
+  EXPECT_EQ(this->read_all(), "ping");
+  send(this->b_, "hi");
+  this->at(2500);
+  this->loops(2);
+  // At 2500 none of B's bytes has moved for 1500 ms, but they wait for their turn, so B is not quiet.
+  EXPECT_EQ(this->uart_.open_connections(), 2);
+
+  // A is answered, and B's request gets the next turn.
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+}
+
+TEST_F(TcpUartIdleTimeout, FullReceiveBufferKeepsItsOwnClientOpen) {
+  // B fills the 1024-byte receive buffer at 1000 and stops; nothing reads the buffer. A sends nothing.
+  const std::string block(1024, 'b');
+  send(this->b_, block.c_str());
+  this->wait_for_bytes(1024);
+
+  // At 2000 neither client has sent anything for 1000 ms. B's bytes still wait here, so only A is closed.
+  this->at(2000);
+  this->loops(2);
+  EXPECT_EQ(received(this->a_), "<closed>");
+  EXPECT_EQ(this->uart_.open_connections(), 1);
+  EXPECT_EQ(this->uart_.available(), 1024u);
+}
+
+TEST_F(TcpUartIdleTimeout, BytesLeftInTheSocketKeepTheirClientOpen) {
+  // B sends 1500 bytes at 1000. The 1024-byte receive buffer takes 1024 of them, and they are consumed;
+  // 476 stay in B's socket.
+  const std::string block(1500, 'b');
+  send(this->b_, block.c_str());
+  this->wait_for_bytes(1024);
+  uint8_t taken[1024];
+  ASSERT_TRUE(this->uart_.read_array(taken, sizeof(taken)));
+  // At 1500 B's turn is released, and A's request takes the turn and holds it. B's 476 bytes wait.
+  send(this->a_, "ping");
+  this->at(1500);
+  this->uart_.release_turn();
+  this->wait_for_bytes(4);
+  EXPECT_EQ(this->read_all(), "ping");
+  this->uart_.hold_turn();
+
+  // At 2500 no socket is reported ready, as with lwIP fast select (ESP32, LibreTiny) after a read that stopped early.
+  this->at(2500);
+  internal::wakeable_delay(5);
+  FD_ZERO(&internal::g_read_fds);
+  this->uart_.loop();
+  // B's bytes still wait for their turn, so B is not quiet and stays open.
+  EXPECT_EQ(received(this->b_), "");
 }
 
 }  // namespace esphome::tcp_uart::testing
