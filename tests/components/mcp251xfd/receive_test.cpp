@@ -142,4 +142,24 @@ TEST(MCP251XFDTransmit, WritesHeaderAndZeroPaddedPayloadInOneTransfer) {
   EXPECT_EQ(spi.writes[2].data, (std::vector<uint8_t>{0x23, 0x01, 0, 0, 1, 0, 0, 0, 0x55, 0, 0, 0}));
 }
 
+TEST(MCP251XFDInterruptPin, EnablesReceiveInterruptAndSkipsReadsWhilePinIsHigh) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  InternalGPIOPin pin;
+  controller.set_interrupt_pin(&pin);
+  spi.reset();
+  controller.poll(100);  // reconfigures the reset chip
+  EXPECT_EQ(spi.registers[REG_INT + 2], INT_RX_ENABLE);
+  EXPECT_EQ(spi.registers[REG_RX_FIFO_CON] & FIFO_RX_NOT_EMPTY_ENABLE, FIFO_RX_NOT_EMPTY_ENABLE);
+
+  // The host pin reads as its inverted flag; INT is active low
+  canbus::CanFrame frame{};
+  pin.set_inverted(true);
+  EXPECT_EQ(controller.read_message(&frame), canbus::ERROR_NOMSG);
+  EXPECT_EQ(spi.reads[REG_RX_FIFO_STA], 0u);
+  pin.set_inverted(false);
+  EXPECT_EQ(controller.read_message(&frame), canbus::ERROR_NOMSG);
+  EXPECT_EQ(spi.reads[REG_RX_FIFO_STA], 1u);
+}
+
 }  // namespace esphome::mcp251xfd::testing

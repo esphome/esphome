@@ -108,17 +108,19 @@ TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndKeepsCheckingWhenRecov
   spi.registers[REG_INT] = INT_MODE_CHANGE;
 
   EXPECT_EQ(controller.poll(100), 0);
-  // Configuration mode first, then the configured mode
-  ASSERT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  // The first attempt requests the configured mode directly, without Configuration mode resetting the FIFOs
+  ASSERT_EQ(spi.writes_to(REG_CON + 3), 1u);
+  EXPECT_EQ(spi.writes[0].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_NORMAL)}));
   EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
   EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
   EXPECT_TRUE(controller.mode_fault_active());
 
+  // A retry goes through Configuration mode
   spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   controller.poll(5099);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
   controller.poll(5100);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 3u);
   EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
 
   controller.poll(10100);
@@ -128,7 +130,7 @@ TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndKeepsCheckingWhenRecov
   EXPECT_EQ(spi.reads[REG_CON + 2], mode_reads);
   controller.poll(15100);
   EXPECT_EQ(spi.reads[REG_CON + 2], mode_reads + 1);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 3u);
 }
 
 TEST(MCP251XFDRecovery, FirstModeFaultRecoversBeforeCheckIsDue) {
@@ -141,7 +143,7 @@ TEST(MCP251XFDRecovery, FirstModeFaultRecoversBeforeCheckIsDue) {
   spi.registers[REG_INT] = INT_MODE_CHANGE;
   controller.poll(200);
   EXPECT_TRUE(controller.mode_fault_active());
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
   EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
 
   // While the fault is active, the interval from that attempt limits the next one
@@ -149,9 +151,9 @@ TEST(MCP251XFDRecovery, FirstModeFaultRecoversBeforeCheckIsDue) {
   spi.registers[REG_INT] = INT_MODE_CHANGE;
   controller.poll(300);
   controller.poll(5100);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
   controller.poll(5200);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 3u);
   EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
 }
 
@@ -163,16 +165,20 @@ TEST(MCP251XFDRecovery, RefusedDirectModeChangeRecoversThroughConfiguration) {
   ASSERT_EQ(spi.mode(), CanMode::CAN_MODE_LOOPBACK);
 
   controller.poll(100);
-  // Only the two mode requests, without a reconfiguration
-  ASSERT_EQ(spi.writes.size(), 2u);
-  ASSERT_EQ(spi.writes_to(REG_CON + 3), 2u);
-  EXPECT_EQ(spi.writes[0].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)}));
-  EXPECT_EQ(spi.writes[1].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CLASSIC)}));
-  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_CLASSIC);
+  ASSERT_EQ(spi.writes_to(REG_CON + 3), 1u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_LOOPBACK);
 
   controller.poll(5100);
+  // Only the mode requests, without a reconfiguration
+  ASSERT_EQ(spi.writes.size(), 3u);
+  ASSERT_EQ(spi.writes_to(REG_CON + 3), 3u);
+  EXPECT_EQ(spi.writes[1].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)}));
+  EXPECT_EQ(spi.writes[2].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CLASSIC)}));
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_CLASSIC);
+
+  controller.poll(10100);
   EXPECT_FALSE(controller.mode_fault_active());
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 3u);
 }
 
 TEST(MCP251XFDRecovery, ChipResetReconfiguresWithoutReregisteringSpi) {
@@ -217,7 +223,7 @@ TEST(MCP251XFDRecovery, PendingExitFromConfigurationIsNotAChipReset) {
   controller.poll(100);
   EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
   EXPECT_EQ(spi.writes_to(REG_CON), 0u);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
 }
 
 TEST(MCP251XFDRecovery, ChipResetWith4MHzOscillatorReconfiguresAtSlowSpiRate) {
@@ -293,7 +299,7 @@ TEST(MCP251XFDRecovery, PeriodicCheckFixesStrayModeRequest) {
   EXPECT_EQ(spi.reads[REG_CON + 2], 1u);
   controller.poll(5100);
   EXPECT_TRUE(controller.mode_fault_active());
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
   EXPECT_EQ(spi.registers[REG_CON + 3], static_cast<uint8_t>(CanMode::CAN_MODE_NORMAL));
   EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
 
@@ -364,7 +370,7 @@ TEST(MCP251XFDRecovery, FailedReadDefersModeRecoveryAndFlagClearing) {
     EXPECT_TRUE(controller.status_has_warning());
 
     controller.poll(200);
-    EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+    EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
     EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
     EXPECT_EQ(spi.registers[REG_INT + 1], 0);
     EXPECT_FALSE(controller.status_has_warning());

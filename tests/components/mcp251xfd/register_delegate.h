@@ -115,9 +115,14 @@ class RegisterDelegate : public spi::SPIDelegate {
     this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT;
     this->registers[REG_CON + 3] = static_cast<uint8_t>(mode);
   }
-  // A request completes at once, but only into or out of Configuration mode, like the controller for some changes.
+  // A request completes at once, but only into or out of Configuration mode or between Listen Only and a Normal mode,
+  // like the controller for some changes.
   void request_mode(CanMode mode) {
-    if (mode == CanMode::CAN_MODE_CONFIGURATION || this->mode() == CanMode::CAN_MODE_CONFIGURATION)
+    const CanMode current = this->mode();
+    const auto normal = [](CanMode m) { return m == CanMode::CAN_MODE_NORMAL || m == CanMode::CAN_MODE_CLASSIC; };
+    if (mode == CanMode::CAN_MODE_CONFIGURATION || current == CanMode::CAN_MODE_CONFIGURATION ||
+        (current == CanMode::CAN_MODE_LISTENONLY && normal(mode)) ||
+        (mode == CanMode::CAN_MODE_LISTENONLY && normal(current)))
       this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT;
   }
   // Like a chip reset: datasheet reset values, Configuration mode, PLL off, oscillator running.

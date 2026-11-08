@@ -2,6 +2,7 @@ canbus:
   - platform: mcp251xfd
     id: mcp251xfd_can
     cs_pin: ${cs_pin}
+    interrupt_pin: ${interrupt_pin}
     can_id: 0x123
     bit_rate: 1000KBPS
     data_bit_rate: 8000KBPS

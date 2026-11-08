@@ -221,7 +221,8 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
     return true;
   }
 
-  if (!this->mode_fault_active_) {
+  const bool first_attempt = !this->mode_fault_active_;
+  if (first_attempt) {
     this->mode_fault_active_ = true;
     ESP_LOGW(TAG, "Unexpected mode %s, requested %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
              LOG_STR_ARG(mode_str(requested_mode)), LOG_STR_ARG(mode_str(target_mode)));
@@ -247,8 +248,9 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
     this->configure_();
     return true;
   }
-  // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.
-  if (this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
+  // A direct request keeps the FIFOs, as after a TX MAB underflow (errata DS80000792). The controller refuses some
+  // direct changes, such as LOOPBACK to CLASSIC, so a retry goes through Configuration, which resets the FIFOs.
+  if (first_attempt || this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
     this->write_byte_(REG_CON + 3, target_mode);
   return true;
 }
