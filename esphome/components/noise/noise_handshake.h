@@ -11,7 +11,7 @@
 namespace esphome::noise {
 
 /** Sans-IO Noise_NNpsk0_25519_ChaChaPoly_SHA256 handshake: the responder for api and ota, and with
- * USE_NOISE_STREAM also the initiator of a device-to-device stream.
+ * USE_NOISE_STREAM_INITIATOR also the initiator of a device-to-device stream.
  *
  * Owns only the noise-c handshake state; the caller moves the raw handshake
  * messages (no framing) over its own transport, driven by action():
@@ -43,7 +43,7 @@ class NoiseResponderHandshake {
   [[nodiscard]] int init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
     return this->init_<NOISE_ROLE_RESPONDER>(ctx, prologue, prologue_len);
   }
-#ifdef USE_NOISE_STREAM
+#ifdef USE_NOISE_STREAM_INITIATOR
   /// The same handshake from the side that speaks first, for a link between
   /// two devices. It generates its own ephemeral key and leaves the spare.
   [[nodiscard]] int init_initiator(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {

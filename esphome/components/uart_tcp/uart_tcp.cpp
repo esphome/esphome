@@ -166,7 +166,6 @@ void UartTcp::loop() {
   if (!this->link_was_up_) {
     return;
   }
-  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }

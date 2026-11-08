@@ -22,7 +22,7 @@ static const uint8_t OTHER_KEY[32] = {32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22
 
 class NoiseUart : public TcpUart {
  public:
-  NoiseUart(const uint8_t *key, bool initiator) : stream_(key, initiator) {
+  NoiseUart(const uint8_t *key, bool initiator) : stream_("noise_test", key, initiator) {
     this->set_host("peer");
     this->set_port(1);
     this->link_.begin("noise_test");

@@ -73,7 +73,6 @@ CONFIG_SCHEMA = cv.All(
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     socket.final_validate_idle_timeout,
-    noise.final_validate_reconnect_interval,
     noise.final_validate_stream_key(DOMAIN),
 )
 
@@ -102,6 +101,6 @@ async def to_code(config: ConfigType) -> None:
     if (encryption := config.get(CONF_ENCRYPTION)) is not None:
         # The TCP client starts the handshake
         stream = noise.new_stream(
-            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client"
+            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client", DOMAIN
         )
         cg.add(var.set_noise_stream(stream))

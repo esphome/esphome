@@ -24,12 +24,12 @@ namespace esphome::noise {
  */
 class NoiseStream {
  public:
-  NoiseStream(const uint8_t *psk, bool initiator) : initiator_(initiator) { this->ctx_.set_psk(psk); }
+  /// tag names the owner's log lines.
+  NoiseStream(const char *tag, const uint8_t *psk, bool initiator) : tag_(tag), initiator_(initiator) {
+    this->ctx_.set_psk(psk);
+  }
   NoiseStream(const NoiseStream &) = delete;
   NoiseStream &operator=(const NoiseStream &) = delete;
-
-  /// tag names the owner's log lines.
-  void set_log_tag(const char *tag) { this->tag_ = tag; }
   bool ready() const { return this->state_ == State::STATE_READY; }
 
   /// True once the session is secure and both Hellos are through. Runs the handshake while the link is up and
@@ -48,6 +48,9 @@ class NoiseStream {
   /// Plaintext out of the link. Same returns as TcpClientLink::read(); a frame that fails to decrypt
   /// closes the link.
   template<typename Link> ssize_t read(Link &link, uint8_t *buf, size_t len) {
+    // A drop that an earlier partial read returned data for is reported here
+    if (this->state_ != State::STATE_READY && !link.connected())
+      return -1;
     size_t got = this->take_plain_(buf, len);
     while (got < len && this->state_ == State::STATE_READY) {
       size_t want = 0;
@@ -81,18 +84,14 @@ class NoiseStream {
     }
     size_t taken = 0;
     while (taken < len) {
+      size_t count = std::min(len - taken, this->tx_free(link));
+      if (count == 0) {
+        break;
+      }
       if (this->open_len_ == 0) {
-        if (link.tx_free() <= FRAME_OVERHEAD) {
-          break;
-        }
         // The header is written when the frame is sealed
         link.tx_commit(FRAME_HEADER_SIZE);
       }
-      size_t free = link.tx_free();
-      if (free <= MAC_SIZE) {
-        break;
-      }
-      size_t count = std::min({len - taken, MAX_PLAIN - this->open_len_, free - MAC_SIZE});
       std::memcpy(link.tx_tail(), data + taken, count);
       link.tx_commit(count);
       this->open_len_ += static_cast<uint16_t>(count);
@@ -155,14 +154,29 @@ class NoiseStream {
   // Longest wait between an initiator's failed handshakes, as the api's outgoing connection
   static constexpr uint32_t BACKOFF_MAX_MS = 300000;
 
+#if defined(USE_NOISE_STREAM_INITIATOR) && defined(USE_NOISE_STREAM_RESPONDER)
+  bool is_initiator_() const { return this->initiator_; }
+#else
+  // Only one role is compiled in, so the other role's branches drop out
+  constexpr bool is_initiator_() const {
+#ifdef USE_NOISE_STREAM_INITIATOR
+    return true;
+#else
+    return false;
+#endif
+  }
+#endif
+
   template<typename Link> bool up_slow_(Link &link) {
     if (this->state_ == State::STATE_IDLE) {
-      if (this->initiator_ && this->holding_()) {
+#ifdef USE_NOISE_STREAM_INITIATOR
+      if (this->is_initiator_() && this->holding_()) {
         // A loop pass longer than the link's interval let it connect before the hold ran out
         link.close();
         link.note_attempt();
         return false;
       }
+#endif
       const LogString *error = this->start_();
       if (error != nullptr) {
         this->fail_(link, error, nullptr);
@@ -178,11 +192,7 @@ class NoiseStream {
           if (link.tx_free() < HANDSHAKE_FRAME_SIZE) {
             link.flush_tx();
             // A peer that reads nothing hits the link's idle timeout, as one that sends nothing does
-            link.check_idle();
-            if (!link.connected()) {
-              this->abort_(link.reconnect_interval());
-            }
-            return false;
+            return this->stall_(link);
           }
           size_t frame = this->write_handshake_(link.tx_tail());
           if (frame == 0) {
@@ -201,11 +211,7 @@ class NoiseStream {
           ssize_t count = link.read(space, want);
           if (count <= 0) {
             // The link's idle timeout also holds while the handshake waits for the peer
-            link.check_idle();
-            if (!link.connected()) {
-              this->abort_(link.reconnect_interval());
-            }
-            return false;
+            return this->stall_(link);
           }
           const LogString *reject = nullptr;
           const LogString *error = this->rx_commit_(static_cast<size_t>(count), &reject);
@@ -216,7 +222,8 @@ class NoiseStream {
           break;
         }
         case Step::STEP_DONE:
-          return link.connected();
+          // up() and the end of every step checked the link
+          return true;
         default:
           this->fail_(link, LOG_STR("Handshake failed"), nullptr);
           return false;
@@ -226,6 +233,15 @@ class NoiseStream {
         return false;
       }
     }
+  }
+
+  /// The handshake waits on the peer: check the link's idle timeout and abort when the link closed.
+  template<typename Link> bool stall_(Link &link) {
+    link.check_idle();
+    if (!link.connected()) {
+      this->abort_(link.reconnect_interval());
+    }
+    return false;
   }
 
   template<typename Link> bool flush_slow_(Link &link) {
@@ -238,16 +254,14 @@ class NoiseStream {
   }
 
   /// Log, send a responder's reject reason when there is one, close the link and abort.
-  template<typename Link> void fail_(Link &link, const LogString *error, const LogString *reject) {
+  template<typename Link> void fail_(Link &link, const LogString *error, [[maybe_unused]] const LogString *reject) {
     this->log_failure_(error);
-    if (reject != nullptr && !this->initiator_) {
-      if (link.tx_free() >= HANDSHAKE_FRAME_SIZE) {
-        link.tx_commit(this->write_reject_(link.tx_tail(), reject));
-        link.flush_tx();
-      } else {
-        this->log_reject_unsent_();
-      }
+#ifdef USE_NOISE_STREAM_RESPONDER
+    if (reject != nullptr && !this->is_initiator_() && link.tx_free() >= HANDSHAKE_FRAME_SIZE) {
+      link.tx_commit(this->write_reject_(link.tx_tail(), reject));
+      link.flush_tx();
     }
+#endif
     link.close();
     link.note_attempt();
     this->abort_(link.reconnect_interval());
@@ -267,49 +281,47 @@ class NoiseStream {
 
   /// No link: reset, hold an initiator's next attempt after a failed handshake, and without the api a
   /// responder prepares the spare key for its next peer.
-  template<typename Link> void idle_(Link &link) {
+  template<typename Link> void idle_([[maybe_unused]] Link &link) {
     if (this->state_ != State::STATE_IDLE) {
       this->reset();
     }
+#ifdef USE_NOISE_STREAM_INITIATOR
     if (this->hold_ms_ != 0) {
       if (!this->holding_()) {
         this->hold_ms_ = 0;
-      } else if (this->initiator_) {
+      } else {
         // The link retries one interval after its last attempt, so the hold keeps that clock at now
         link.note_attempt();
       }
     }
-#if defined(USE_NOISE_SPARE_EPHEMERAL) && !defined(USE_API)
-    // With the api, APIServer::loop refills it under its connect grace
-    if (!this->initiator_ && this->hold_ms_ == 0 && !has_spare_ephemeral()) {
+#endif
+#if defined(USE_NOISE_SPARE_EPHEMERAL) && defined(USE_NOISE_STREAM_RESPONDER) && !defined(USE_API)
+    // With the api, APIServer::loop refills it under its connect grace; a failed try is retried next pass
+    if (!this->is_initiator_() && !has_spare_ephemeral()) {
       // Generating the key pair cannot be split across loop passes
       UnavoidableBlockingScope scope;
       prepare_spare_ephemeral();
-      // A try that fails leaves the slot empty, so the next one waits as after a failed handshake
-      this->started_ms_ = App.get_loop_component_start_time();
-      this->hold_ms_ = this->next_retry_wait_(link.reconnect_interval());
     }
 #endif
   }
-  /// A hold has not run out: an initiator's after a failed handshake, a responder's after a try at the spare key.
-  bool holding_() const { return App.get_loop_component_start_time() - this->started_ms_ < this->hold_ms_; }
   const LogString *start_();
+  int init_handshake_(const uint8_t *prologue);
   bool timed_out_() const;
   /// The handshake ended without a session: reset, and an initiator holds its next attempt for the next
   /// retry wait. interval is the link's own wait, part of the hold and the shortest one.
   void abort_(uint32_t interval);
+#ifdef USE_NOISE_STREAM_INITIATOR
+  /// An initiator's hold after a failed handshake has not run out.
+  bool holding_() const;
   /// The wait after one more failed handshake: the backoff with +/-20% jitter, then the backoff doubles.
-  uint32_t next_retry_wait_(uint32_t interval) {
-    // The rule of the api's outgoing connection, starting at the link's interval
-    uint32_t backoff = std::max(this->backoff_ms_, interval);
-    uint32_t jitter_span = backoff / 5;
-    this->backoff_ms_ = std::min(backoff * 2, BACKOFF_MAX_MS);
-    return backoff - jitter_span + (random_uint32() % (2 * jitter_span + 1));
-  }
+  uint32_t next_retry_wait_(uint32_t interval);
+#endif
   Step next_step_();
   /// Frame the next handshake message or the Hello at out (room for HANDSHAKE_FRAME_SIZE); 0 on error.
   size_t write_handshake_(uint8_t *out);
+#ifdef USE_NOISE_STREAM_RESPONDER
   size_t write_reject_(uint8_t *out, const LogString *reason);
+#endif
   /// Where the next received bytes go and how many the current frame still needs.
   uint8_t *rx_space_(size_t &want);
   /// Count bytes landed in rx_space_(). A complete frame is processed; non-null is the failure.
@@ -317,22 +329,23 @@ class NoiseStream {
   size_t take_plain_(uint8_t *buf, size_t len);
   bool seal_frame_(uint8_t *frame, size_t len);
   void log_failure_(const LogString *error);
-  void log_reject_unsent_();
 
   NoiseContext ctx_;
   NoiseResponderHandshake handshake_;
   NoiseCipherState *send_{nullptr};
   NoiseCipherState *recv_{nullptr};
-  const char *tag_{"noise"};
+  const char *tag_;
   // Start of the handshake or of a hold.
   uint32_t started_ms_{0};
-  // Hold time, for an initiator past the link's own interval; 0 when no hold runs.
+#ifdef USE_NOISE_STREAM_INITIATOR
+  // Hold time past the link's own interval; 0 when no hold runs.
   uint32_t hold_ms_{0};
   // Backoff for the next hold; 0 starts at the link's interval.
   uint32_t backoff_ms_{0};
+#endif
   // rx_ holds the frame being read, then its plaintext at [plain_off_, plain_end_).
   uint16_t rx_have_{0};
-  uint16_t rx_need_{0};
+  uint16_t rx_need_{FRAME_HEADER_SIZE};
   uint16_t plain_off_{0};
   uint16_t plain_end_{0};
   // Plaintext bytes of the open frame at the link's tail; 0 means no frame is open.

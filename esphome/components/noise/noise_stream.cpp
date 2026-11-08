@@ -17,7 +17,7 @@ static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 static constexpr char PROLOGUE[] PROGMEM = "NoiseStreamInit";
 static constexpr size_t PROLOGUE_LEN = sizeof(PROLOGUE) - 1;
 
-// start_() and rx_commit_() return this after they logged the cause, so log_failure_() skips it
+// rx_commit_() returns this after it logged the peer's reason, so log_failure_() skips it
 static constexpr char ALREADY_LOGGED[] PROGMEM = "";
 
 // Stream version in the Hello, apart from the ESPHome release. Every peer version is accepted; a later minor
@@ -37,26 +37,35 @@ void NoiseStream::reset() {
     this->recv_ = nullptr;
   }
   this->rx_have_ = 0;
-  this->rx_need_ = 0;
+  this->rx_need_ = FRAME_HEADER_SIZE;
   this->plain_off_ = 0;
   this->plain_end_ = 0;
   this->open_len_ = 0;
   this->state_ = State::STATE_IDLE;
 }
 
+int NoiseStream::init_handshake_(const uint8_t *prologue) {
+#ifdef USE_NOISE_STREAM_INITIATOR
+  if (this->is_initiator_()) {
+    return this->handshake_.init_initiator(this->ctx_, prologue, PROLOGUE_LEN);
+  }
+#endif
+  return this->handshake_.init(this->ctx_, prologue, PROLOGUE_LEN);
+}
+
 const LogString *NoiseStream::start_() {
   uint8_t prologue[PROLOGUE_LEN];
   progmem_memcpy(prologue, PROLOGUE, PROLOGUE_LEN);
-  int err = this->initiator_ ? this->handshake_.init_initiator(this->ctx_, prologue, PROLOGUE_LEN)
-                             : this->handshake_.init(this->ctx_, prologue, PROLOGUE_LEN);
+  int err = this->init_handshake_(prologue);
   if (err != 0) {
-    ESP_LOGW(this->tag_, "Handshake init failed: %s", LOG_STR_ARG(noise_err_to_logstr(err)));
-    return reinterpret_cast<const LogString *>(ALREADY_LOGGED);
+    return noise_err_to_logstr(err);
   }
   this->state_ = State::STATE_HANDSHAKE;
   this->started_ms_ = App.get_loop_component_start_time();
+#ifdef USE_NOISE_STREAM_INITIATOR
   // started_ms_ now dates the handshake, so a hold that ran out must not count from it after a later drop
   this->hold_ms_ = 0;
+#endif
   return nullptr;
 }
 
@@ -64,14 +73,27 @@ bool NoiseStream::timed_out_() const {
   return App.get_loop_component_start_time() - this->started_ms_ >= HANDSHAKE_TIMEOUT_MS;
 }
 
-void NoiseStream::abort_(uint32_t interval) {
+void NoiseStream::abort_([[maybe_unused]] uint32_t interval) {
   this->reset();
-  if (this->initiator_) {
+#ifdef USE_NOISE_STREAM_INITIATOR
+  if (this->is_initiator_()) {
     uint32_t wait = this->next_retry_wait_(interval);
     this->started_ms_ = App.get_loop_component_start_time();
     this->hold_ms_ = wait > interval ? wait - interval : 0;
   }
+#endif
 }
+
+#ifdef USE_NOISE_STREAM_INITIATOR
+bool NoiseStream::holding_() const { return App.get_loop_component_start_time() - this->started_ms_ < this->hold_ms_; }
+
+uint32_t NoiseStream::next_retry_wait_(uint32_t interval) {
+  uint32_t backoff = std::max(this->backoff_ms_, interval);
+  uint32_t jitter_span = backoff / 5;
+  this->backoff_ms_ = std::min(backoff * 2, BACKOFF_MAX_MS);
+  return backoff - jitter_span + (random_uint32() % (2 * jitter_span + 1));
+}
+#endif
 
 NoiseStream::Step NoiseStream::next_step_() {
   switch (this->state_) {
@@ -81,7 +103,9 @@ NoiseStream::Step NoiseStream::next_step_() {
       return Step::STEP_READ;
     case State::STATE_READY:
       // Once per session: from now on up() returns before up_slow_()
+#ifdef USE_NOISE_STREAM_INITIATOR
       this->backoff_ms_ = 0;
+#endif
       ESP_LOGD(this->tag_, "Session encrypted");
       return Step::STEP_DONE;
     default:
@@ -97,8 +121,8 @@ NoiseStream::Step NoiseStream::next_step_() {
         return Step::STEP_FAILED;
       }
       // The initiator's Hello goes first
-      this->state_ = this->initiator_ ? State::STATE_HELLO_SEND : State::STATE_HELLO_WAIT;
-      return this->initiator_ ? Step::STEP_WRITE : Step::STEP_READ;
+      this->state_ = this->is_initiator_() ? State::STATE_HELLO_SEND : State::STATE_HELLO_WAIT;
+      return this->is_initiator_() ? Step::STEP_WRITE : Step::STEP_READ;
     default:
       return Step::STEP_FAILED;
   }
@@ -112,7 +136,7 @@ size_t NoiseStream::write_handshake_(uint8_t *out) {
       return 0;
     }
     // The responder's Hello answers the initiator's
-    this->state_ = this->initiator_ ? State::STATE_HELLO_WAIT : State::STATE_READY;
+    this->state_ = this->is_initiator_() ? State::STATE_HELLO_WAIT : State::STATE_READY;
     return FRAME_OVERHEAD + HELLO_SIZE;
   }
   size_t len = 0;
@@ -124,16 +148,15 @@ size_t NoiseStream::write_handshake_(uint8_t *out) {
   return FRAME_HEADER_SIZE + 1 + len;
 }
 
+#ifdef USE_NOISE_STREAM_RESPONDER
 size_t NoiseStream::write_reject_(uint8_t *out, const LogString *reason) {
   size_t len = format_reject_payload(out + FRAME_HEADER_SIZE, 1 + MAX_HANDSHAKE_SIZE, reason);
   write_frame_header(out, static_cast<uint16_t>(len));
   return FRAME_HEADER_SIZE + len;
 }
+#endif
 
 uint8_t *NoiseStream::rx_space_(size_t &want) {
-  if (this->rx_need_ == 0) {
-    this->rx_need_ = FRAME_HEADER_SIZE;
-  }
   want = this->rx_need_ - this->rx_have_;
   return this->rx_ + this->rx_have_;
 }
@@ -144,7 +167,7 @@ const LogString *NoiseStream::rx_commit_(size_t count, const LogString **reject)
     return nullptr;
   }
   if (this->rx_need_ == FRAME_HEADER_SIZE) {
-    size_t payload = (static_cast<size_t>(this->rx_[1]) << 8) | this->rx_[2];
+    size_t payload = encode_uint16(this->rx_[1], this->rx_[2]);
     size_t limit = this->state_ > State::STATE_HANDSHAKE ? MAX_PLAIN + MAC_SIZE : 1 + MAX_HANDSHAKE_SIZE;
     if (this->rx_[0] != FRAME_INDICATOR || payload == 0 || payload > limit) {
       return LOG_STR("Bad frame");
@@ -155,7 +178,7 @@ const LogString *NoiseStream::rx_commit_(size_t count, const LogString **reject)
   uint8_t *payload = this->rx_ + FRAME_HEADER_SIZE;
   size_t payload_len = this->rx_need_ - FRAME_HEADER_SIZE;
   this->rx_have_ = 0;
-  this->rx_need_ = 0;
+  this->rx_need_ = FRAME_HEADER_SIZE;
   if (this->state_ > State::STATE_HANDSHAKE) {
     NoiseBuffer mbuf;
     noise_buffer_init(mbuf);
@@ -168,7 +191,7 @@ const LogString *NoiseStream::rx_commit_(size_t count, const LogString **reject)
         return LOG_STR("Bad hello");
       }
       ESP_LOGV(this->tag_, "Peer version %u.%u", payload[0], payload[1]);
-      this->state_ = this->initiator_ ? State::STATE_READY : State::STATE_HELLO_SEND;
+      this->state_ = this->is_initiator_() ? State::STATE_READY : State::STATE_HELLO_SEND;
       return nullptr;
     }
     this->plain_off_ = FRAME_HEADER_SIZE;
@@ -176,18 +199,16 @@ const LogString *NoiseStream::rx_commit_(size_t count, const LogString **reject)
     return nullptr;
   }
   if (payload[0] != HANDSHAKE_STATUS_OK) {
-    // Only a responder sends a reason; the bytes of a peer that dialed in are not logged
-    if (!this->initiator_) {
-      return LOG_STR("Bad handshake status");
+#ifdef USE_NOISE_STREAM_INITIATOR
+    // Only a responder sends a reason
+    if (this->is_initiator_()) {
+      ESP_LOGW(this->tag_, "Peer rejected the handshake: %.*s", static_cast<int>(payload_len - 1),
+               reinterpret_cast<const char *>(payload + 1));
+      return reinterpret_cast<const LogString *>(ALREADY_LOGGED);
     }
-    const char *reason = reinterpret_cast<const char *>(payload + 1);
-    // A wrong key arrives as the api's MAC failure text; name the key instead
-    if (payload_len == MAC_FAILURE_PAYLOAD_SIZE &&
-        ESPHOME_strncmp_P(reason, LOG_STR_ARG(reject_reason_for(NOISE_ERROR_MAC_FAILURE)), payload_len - 1) == 0) {
-      return LOG_STR("Peer rejected the handshake: wrong encryption key");
-    }
-    ESP_LOGW(this->tag_, "Peer rejected the handshake: %.*s", static_cast<int>(payload_len - 1), reason);
-    return reinterpret_cast<const LogString *>(ALREADY_LOGGED);
+#endif
+    // The bytes of a peer that dialed in are not logged
+    return LOG_STR("Bad handshake status");
   }
   int err = this->handshake_.read_message(payload + 1, payload_len - 1);
   if (err != 0) {
@@ -226,8 +247,6 @@ void NoiseStream::log_failure_(const LogString *error) {
   }
   ESP_LOGW(this->tag_, "%s", LOG_STR_ARG(error));
 }
-
-void NoiseStream::log_reject_unsent_() { ESP_LOGV(this->tag_, "No room to send the reject reason"); }
 
 }  // namespace esphome::noise
 

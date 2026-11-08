@@ -14,11 +14,6 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 
 void TcpUart::setup() {
   this->link_.begin(TAG);
-#ifdef USE_NOISE_STREAM
-  if (this->noise_ != nullptr) {
-    this->noise_->set_log_tag(TAG);
-  }
-#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
@@ -134,7 +129,6 @@ void TcpUart::loop() {
   if (!this->link_was_up_) {
     return;
   }
-  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
