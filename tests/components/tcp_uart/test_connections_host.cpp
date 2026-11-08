@@ -10,6 +10,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 #include "esphome/core/application.h"
@@ -117,6 +118,16 @@ class TcpUartTwoClients : public ::testing::Test {
     return std::string(buf, n);
   }
   void write(const char *text) { this->uart_.write_array(reinterpret_cast<const uint8_t *>(text), strlen(text)); }
+  // Writes text and returns what that logged. The test logger only prints while it has a baud rate.
+  std::string write_logged(const char *text) {
+    const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+    logger::global_logger->set_baud_rate(115200);
+    ::testing::internal::CaptureStdout();
+    this->write(text);
+    std::string log = ::testing::internal::GetCapturedStdout();
+    logger::global_logger->set_baud_rate(baud_rate);
+    return log;
+  }
 
   TcpUartConnectionsUnderTest uart_;
   sensor::Sensor disconnects_;
@@ -388,7 +399,9 @@ TEST_F(TcpUartTwoClients, WriteAfterTheLastHolderClosedNeverReachesTheNextClient
   EXPECT_NE(this->uart_.turn(), turn_of_a);
   // C takes the slot A left.
   this->c_ = this->connect_client();
-  this->write("late");
+  // B and C are open, so the warning names the missing turn, not a missing connection.
+  const std::string log = this->write_logged("late");
+  EXPECT_NE(log.find("No connection holds the turn, dropped 4 bytes"), std::string::npos) << log;
   this->loops(1);
   EXPECT_EQ(received(this->c_), "");
   EXPECT_EQ(received(this->b_), "");
