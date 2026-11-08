@@ -53,6 +53,14 @@ def validate_options_shape(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_no_nul(value: str) -> str:
+    """A string option is sent verbatim and matched with NUL-terminated
+    strings at runtime, so an embedded NUL byte can never round-trip."""
+    if "\0" in value:
+        raise cv.Invalid("Option must not contain NUL bytes")
+    return value
+
+
 @schema_extractor("schema")
 def validate_options(value: ConfigType | list) -> ConfigType | list | cv.Schema:
     """Mapping from datapoint values to option names (enum/int datapoints), or
@@ -66,7 +74,7 @@ def validate_options(value: ConfigType | list) -> ConfigType | list | cv.Schema:
         return OPTIONS_MAP_SCHEMA
     return cv.Any(
         ensure_option_map,
-        cv.All(cv.ensure_list(cv.string_strict), cv.Length(min=1)),
+        cv.All(cv.ensure_list(cv.string_strict, validate_no_nul), cv.Length(min=1)),
     )(value)
 
 

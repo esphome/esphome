@@ -10,6 +10,9 @@ void TuyaFan::setup() {
   auto speed_id = this->speed_id_;
   if (speed_id.has_value()) {
     this->parent_->register_listener(*speed_id, [this](const TuyaDatapoint &datapoint) {
+      // Record the type first: publish_state() runs automations which may
+      // write the speed back, and that write uses speed_type_
+      this->speed_type_ = datapoint.type;
       if (datapoint.type == TuyaDatapointType::ENUM) {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
         if (datapoint.value_enum >= this->speed_count_) {
@@ -23,8 +26,11 @@ void TuyaFan::setup() {
         this->speed = datapoint.value_int;
         this->publish_state();
       } else if (datapoint.type == TuyaDatapointType::STRING) {
+        // parse_number() stops at an embedded NUL, so "2\0junk" would
+        // otherwise be accepted as 2
+        bool has_nul = datapoint.value_string.find('\0') != std::string::npos;
         auto speed = parse_number<int>(datapoint.value_string);
-        if (!speed.has_value() || *speed < 0 || *speed > this->speed_count_) {
+        if (has_nul || !speed.has_value() || *speed < 0 || *speed > this->speed_count_) {
           ESP_LOGE(TAG, "Speed has invalid value '%s'", datapoint.value_string.c_str());
         } else {
           ESP_LOGV(TAG, "MCU reported speed of: %d", *speed);
@@ -32,7 +38,6 @@ void TuyaFan::setup() {
           this->publish_state();
         }
       }
-      this->speed_type_ = datapoint.type;
     });
   }
   auto switch_id = this->switch_id_;
