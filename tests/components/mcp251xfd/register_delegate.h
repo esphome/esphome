@@ -52,7 +52,7 @@ class RegisterDelegate : public spi::SPIDelegate {
   void transfer(uint8_t *data, size_t length) override {
     ASSERT_GE(length, 5u);
     ASSERT_EQ(data[0] & 0xF0, INSTRUCTION_READ_CRC);
-    const uint16_t address = ((data[0] & 0x0F) << 8) | data[1];
+    const uint16_t address = encode_uint16(data[0] & 0x0F, data[1]);
     const size_t data_length = length - 5;
     ASSERT_LE(address + data_length, this->registers.size());
     EXPECT_EQ(data[2], address >= RAM_START && address < RAM_START + RAM_SIZE ? data_length / 4 : data_length);
@@ -73,14 +73,13 @@ class RegisterDelegate : public spi::SPIDelegate {
       this->corrupt_reads--;
       crc ^= 1;
     }
-    data[3 + data_length] = crc >> 8;
-    data[4 + data_length] = crc;
+    put_be16(data + 3 + data_length, crc);
   }
 
   void write_array(const uint8_t *data, size_t length) override {
     ASSERT_GE(length, 2u);
     ASSERT_EQ(data[0] & 0xF0, INSTRUCTION_WRITE);
-    const uint16_t address = ((data[0] & 0x0F) << 8) | data[1];
+    const uint16_t address = encode_uint16(data[0] & 0x0F, data[1]);
     ASSERT_LE(address + length - 2, this->registers.size());
     this->writes.push_back({address, {data + 2, data + length}});
     for (size_t i = 2; i < length; i++) {

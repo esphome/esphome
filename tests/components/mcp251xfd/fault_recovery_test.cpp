@@ -102,7 +102,7 @@ TEST(MCP251XFDFaults, ReportsErrorStateTransitionsAndPreservesUnrelatedInterrupt
 TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndStopsWhenRecovered) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTEN_ONLY);
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   spi.registers[REG_INT] = INT_MODE_CHANGE;
 
   EXPECT_EQ(controller.poll(100), 0);
@@ -128,7 +128,7 @@ TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndStopsWhenRecovered) {
 TEST(MCP251XFDRecovery, DefersModeRequestWhileBusOff) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTEN_ONLY);
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   spi.set_error_flags(ERROR_BUS_OFF);
   spi.registers[REG_INT] = INT_MODE_CHANGE;
   spi.registers[REG_INT + 1] = INT_CAN_ERROR;
@@ -147,7 +147,7 @@ TEST(MCP251XFDRecovery, DefersModeRequestWhileBusOff) {
 TEST(MCP251XFDRecovery, FailedModeReadLeavesFaultFlagsPending) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTEN_ONLY);
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   spi.registers[REG_INT] = INT_MODE_CHANGE;
   spi.registers[REG_INT + 1] = INT_SYSTEM_ERROR;
   spi.corrupt_next_reads(REG_CON + 2);
@@ -169,7 +169,7 @@ TEST(MCP251XFDRecovery, FailedModeReadLeavesFaultFlagsPending) {
 TEST(MCP251XFDRecovery, FailedErrorStateReadDefersModeRecoveryAndFlagClearing) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
-  spi.set_mode(CanMode::CAN_MODE_LISTEN_ONLY);
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   spi.registers[REG_INT] = INT_MODE_CHANGE;
   spi.registers[REG_INT + 1] = INT_SYSTEM_ERROR | INT_CAN_ERROR;
   spi.corrupt_next_reads(REG_TREC);

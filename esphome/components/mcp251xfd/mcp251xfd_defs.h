@@ -11,7 +11,7 @@ enum class CanClock : uint8_t { CAN_CLOCK_4MHZ = 4, CAN_CLOCK_20MHZ = 20, CAN_CL
 enum class CanMode : uint8_t {
   CAN_MODE_NORMAL = 0,
   CAN_MODE_LOOPBACK = 2,
-  CAN_MODE_LISTEN_ONLY = 3,
+  CAN_MODE_LISTENONLY = 3,
   CAN_MODE_CONFIGURATION = 4,
   CAN_MODE_CLASSIC = 6,
 };
@@ -83,7 +83,6 @@ static constexpr uint8_t MESSAGE_RTR = 1U << 5;
 static constexpr uint8_t MESSAGE_BRS = 1U << 6;
 static constexpr uint8_t MESSAGE_FDF = 1U << 7;
 static constexpr uint8_t MESSAGE_ESI = 1U << 0;  // Byte 5 of the message header.
-static constexpr uint32_t STANDARD_ID_MASK = 0x7FF;
 static constexpr uint32_t EXTENDED_ID_LOW_MASK = 0x3FFFF;
 
 static constexpr uint32_t FAULT_LOG_INTERVAL_MS = 5000;

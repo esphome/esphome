@@ -25,12 +25,9 @@ CAN_CLOCK = CanClock.options(*SYSTEM_CLOCK, prefix="CAN_CLOCK_")
 DATA_BIT_TIMING_RESET = 0x000E0303
 TDC_RESET = 0x00021000
 
-MCP_MODE = {
-    "NORMAL": CanMode.CAN_MODE_NORMAL,
-    "CLASSIC": CanMode.CAN_MODE_CLASSIC,
-    "LOOPBACK": CanMode.CAN_MODE_LOOPBACK,
-    "LISTENONLY": CanMode.CAN_MODE_LISTEN_ONLY,
-}
+MCP_MODE = CanMode.options(
+    "NORMAL", "CLASSIC", "LOOPBACK", "LISTENONLY", prefix="CAN_MODE_"
+)
 
 
 def _exact_rate(value: str) -> float:

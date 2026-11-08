@@ -144,9 +144,9 @@ bool MCP251XFD::set_mode_(CanMode mode, uint16_t timeout_ms) {
 }
 
 bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) {
-  const std::array<uint8_t, 3> command{
-      static_cast<uint8_t>(INSTRUCTION_READ_CRC | (address >> 8)), static_cast<uint8_t>(address),
-      static_cast<uint8_t>(address >= RAM_START && address < RAM_START + RAM_SIZE ? length / 4 : length)};
+  std::array<uint8_t, 3> command;
+  put_be16(command.data(), (INSTRUCTION_READ_CRC << 8) | address);
+  command[2] = address >= RAM_START && address < RAM_START + RAM_SIZE ? length / 4 : length;
 
   // Errata DS80000792, section 1: SPI pauses during a RAM read can cost a frame (SERRIF), so each read is one
   // transfer. Plain READ can return corrupt data, so READ_CRC is retried on a mismatch.
@@ -227,9 +227,7 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
 
 void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t length) {
   std::array<uint8_t, MESSAGE_SIZE + 2> transfer;
-  transfer[0] = static_cast<uint8_t>(INSTRUCTION_WRITE | (address >> 8));
-  transfer[1] = static_cast<uint8_t>(address);
-  std::memcpy(transfer.data() + 2, data, length);
+  std::memcpy(put_be16(transfer.data(), (INSTRUCTION_WRITE << 8) | address), data, length);
 
   // One buffered transfer keeps the CS-low window tight (errata DS80000792, section 1).
   this->enable();
@@ -255,7 +253,7 @@ bool MCP251XFD::validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t
 }
 
 canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
-  if (this->is_failed() || this->mcp_mode_ == CanMode::CAN_MODE_LISTEN_ONLY)
+  if (this->is_failed() || this->mcp_mode_ == CanMode::CAN_MODE_LISTENONLY)
     return canbus::ERROR_FAILTX;
   if (frame->can_data_length_code > MESSAGE_DLC_MASK)
     return canbus::ERROR_FAILTX;
@@ -279,15 +277,11 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   }
   put_le32(message.data(), id);
   message[4] = frame->can_data_length_code;
-  if (frame->use_extended_id)
-    message[4] |= MESSAGE_IDE;
-  if (frame->remote_transmission_request)
-    message[4] |= MESSAGE_RTR;
+  assign_bits(message[4], MESSAGE_IDE, frame->use_extended_id);
+  assign_bits(message[4], MESSAGE_RTR, frame->remote_transmission_request);
 #ifdef USE_CANBUS_FD
-  if (frame->fd)
-    message[4] |= MESSAGE_FDF;
-  if (frame->bit_rate_switch)
-    message[4] |= MESSAGE_BRS;
+  assign_bits(message[4], MESSAGE_FDF, frame->fd);
+  assign_bits(message[4], MESSAGE_BRS, frame->bit_rate_switch);
 #endif
   const size_t payload_length = frame->remote_transmission_request ? 0 : frame->payload_length();
   if (payload_length != 0)
@@ -334,9 +328,9 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   const uint32_t id = encode_value_le<uint32_t>(message.data());
   frame->use_extended_id = (message[4] & MESSAGE_IDE) != 0;
   if (frame->use_extended_id) {
-    frame->can_id = ((id & STANDARD_ID_MASK) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK);
+    frame->can_id = ((id & canbus::CAN_STANDARD_ID_MAX) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK);
   } else {
-    frame->can_id = id & STANDARD_ID_MASK;
+    frame->can_id = id & canbus::CAN_STANDARD_ID_MAX;
   }
 #ifdef USE_CANBUS_FD
   frame->fd = (message[4] & MESSAGE_FDF) != 0;
