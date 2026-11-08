@@ -1,16 +1,8 @@
 #pragma once
 
 #ifdef USE_ESP32
-#include "esphome/core/log.h"
-#include "esphome/core/string_ref.h"
-#include <algorithm>
 #include <cctype>
-#include <cstdint>
-#include <ctime>
-#include <iomanip>
-#include <optional>
-#include <string>
-#include <vector>
+#include <cstring>
 
 namespace esphome::fendt_caravan {
 
@@ -28,11 +20,6 @@ class DeviceDecoders {
 
   static float decode_float(const char *data);
   static int decode_int(const char *value);
-  static time_t decode_date(const std::string &data);
-  static time_t decode_time(const std::string &data);
-
-  static std::string decode_heater_el(const std::string &data) { return data; }
-  static std::string decode_int_str(const std::string &value, const std::vector<std::string> &list);
 };
 
 }  // namespace esphome::fendt_caravan
