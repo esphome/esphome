@@ -1,0 +1,189 @@
+---
+name: Move Shared Constants
+
+# When the CI "Run script/ci-custom" job fails because a CONF_ or UNIT_ constant is
+# defined in 3 or more files, open one PR per constant against dev that moves
+# the constant into esphome/const.py or esphome/components/const/__init__.py.
+# The PR head is only ever read as text (script/move_shared_constants.py find);
+# the move itself is computed from the trusted dev branch.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  find:
+    name: Find constants to move
+    runs-on: ubuntu-24.04
+    if: >
+      github.repository == 'esphome/esphome' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'failure'
+    permissions:
+      actions: read        # gh api to list the jobs of the CI run
+      contents: read       # actions/checkout of dev and of the PR head
+      pull-requests: read  # gh api to look up the PR number by head SHA
+    outputs:
+      constants: ${{ steps.find.outputs.constants }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Check that ci-custom failed
+        id: gate
+        run: |
+          conclusion=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | select(.name == "Run script/ci-custom") | .conclusion')
+          echo "ci-custom conclusion: ${conclusion:-none}"
+          if [ "$conclusion" = "failure" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out trusted dev
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: dev
+          persist-credentials: false
+
+      - name: Check out PR head (data only)
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: pr
+          persist-credentials: false
+
+      - name: Setup Python
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Find constants
+        id: find
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          constants=$(python script/move_shared_constants.py find --root pr)
+          echo "Constants to move: $constants"
+          echo "constants=$constants" >> "$GITHUB_OUTPUT"
+
+      - name: Look up PR number
+        id: pr
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          pr_number=$(gh api --paginate "repos/$REPO/pulls" \
+            --jq ".[] | select(.head.sha == \"$HEAD_SHA\") | .number" | head -n 1)
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+
+  move:
+    name: Move ${{ matrix.constant }}
+    needs: find
+    runs-on: ubuntu-24.04
+    if: needs.find.outputs.constants != '' && needs.find.outputs.constants != '[]'
+    permissions:
+      contents: read  # actions/checkout of dev; repo writes use the App token minted below
+    strategy:
+      fail-fast: false
+      matrix:
+        constant: ${{ fromJSON(needs.find.outputs.constants) }}
+    concurrency:
+      group: move-shared-constant-${{ matrix.constant }}
+    env:
+      CONSTANT: ${{ matrix.constant }}
+      PR_NUMBER: ${{ needs.find.outputs.pr_number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write       # push the auto/move-const/* branch
+          permission-pull-requests: write  # gh pr list and gh pr create
+
+      - name: Check out dev
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: dev
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Check for an existing branch or PR
+        id: existing
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          branch="auto/move-const/$(echo "$CONSTANT" | tr '[:upper:]' '[:lower:]')"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "Branch $branch already exists, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          prs=$(gh pr list --repo "$REPO" --head "$branch" --state all --json number --jq 'length')
+          if [ "$prs" != "0" ]; then
+            echo "A PR already used $branch, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python
+        if: steps.existing.outputs.skip != 'true'
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Install ruff
+        if: steps.existing.outputs.skip != 'true'
+        run: pip install "$(grep '^ruff==' requirements_test.txt | cut -d' ' -f1)"
+
+      - name: Move the constant
+        id: move
+        if: steps.existing.outputs.skip != 'true'
+        run: |
+          home=$(python script/move_shared_constants.py move "$CONSTANT")
+          echo "home=$home" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        if: steps.move.outputs.home != ''
+        env:
+          BRANCH: ${{ steps.existing.outputs.branch }}
+          HOME_FILE: ${{ steps.move.outputs.home }}
+        run: |
+          git config user.name "esphome[bot]"
+          git config user.email "115708604+esphome[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -a -m "[const] Move $CONSTANT to $HOME_FILE"
+          git push origin "$BRANCH"
+
+      - name: Create pull request
+        if: steps.move.outputs.home != ''
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          BRANCH: ${{ steps.existing.outputs.branch }}
+          HOME_FILE: ${{ steps.move.outputs.home }}
+        run: |
+          if [ "$HOME_FILE" = "esphome/const.py" ]; then
+            title="[core] Move $CONSTANT to esphome/const.py"
+          else
+            title="[const] Move $CONSTANT to shared component constants"
+          fi
+          files=$(git diff --name-only origin/dev..HEAD | grep -v -e "^$HOME_FILE\$" -e '^script/ci-custom.py$' | paste -sd ',' - | sed 's/,/, /g')
+          desc="Moves \`$CONSTANT\` to \`$HOME_FILE\`. It was defined in several files (${files}), which \`script/ci-custom.py\` rejects. Only the constant definitions and import lines change."
+          if [ -n "$PR_NUMBER" ]; then
+            desc="$desc Opened automatically after the check failed on #$PR_NUMBER."
+          fi
+          # Fill the PR template: description goes under the first heading, tick "Code quality improvements".
+          body=$(awk -v desc="$desc" '
+            /^<!-- Quick description/ { print desc; next }
+            /^- \[ \] Code quality improvements/ { sub(/\[ \]/, "[x]") }
+            { print }
+          ' .github/PULL_REQUEST_TEMPLATE.md)
+          gh pr create --repo "$REPO" --base dev --head "$BRANCH" --title "$title" --body "$body"

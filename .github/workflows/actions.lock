@@ -58,6 +58,10 @@ workflows:
     '.github/workflows/issue-codeowner-notify.yml':
         - 'actions/github-script@v9.0.0'
     '.github/workflows/lock.yml': []
+    '.github/workflows/move-shared-constants.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'actions/create-github-app-token@v3.3.0'
+        - 'actions/setup-python@v7.1.0'
     '.github/workflows/pr-title-check.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/github-script@v9.0.0'
