@@ -12,13 +12,8 @@ CODEOWNERS = ["@dwmw2", "@ssieb"]
 DOMAIN = "tuya"
 
 
-def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
-    """Auto-load uart for an explicit `tuya:` block.
-
-    An AutoLoad config means another transport pulled in the base class only,
-    with no UART. A falsy config is a tooling probe for the maximal set, which
-    also keeps the uart->tuya edge in the CI test dependency graph.
-    """
+# AutoLoad: another transport pulled in only the base class. None: CI dependency probe.
+def AUTO_LOAD(config: ConfigType | AutoLoad | None) -> list[str]:
     if isinstance(config, AutoLoad):
         return []
     return ["uart"]
@@ -72,10 +67,7 @@ def _validate_time_options(config: ConfigType) -> ConfigType:
     return config
 
 
-# Options handled by the transport-agnostic Tuya base class, shared by all
-# transport implementations. Transport components extend this schema and call
-# register_tuya() from their to_code().
-BASE_SCHEMA = cv.Schema(
+TUYA_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(cv.uint8_t),
         cv.Optional(CONF_ON_DATAPOINT_UPDATE): automation.validate_automation(
@@ -90,7 +82,7 @@ BASE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 UART_SCHEMA = cv.All(
-    BASE_SCHEMA.extend(
+    TUYA_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TuyaUART),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
@@ -107,8 +99,6 @@ def _validate_config(value: ConfigType | AutoLoad) -> ConfigType | AutoLoad | cv
     if value is SCHEMA_EXTRACT:
         # Expose the UART schema to the language-schema dumper
         return UART_SCHEMA
-    # When auto-loaded as a base class by another transport component, there
-    # is no `tuya:` config block and no UART device to validate.
     if isinstance(value, AutoLoad):
         return value
     return UART_SCHEMA(value)
@@ -117,15 +107,10 @@ def _validate_config(value: ConfigType | AutoLoad) -> ConfigType | AutoLoad | cv
 CONFIG_SCHEMA = _validate_config
 
 
-async def register_tuya(var: MockObj, config: ConfigType) -> None:
-    """Register config options handled by the Tuya base class.
-
-    Called by transport components (UART here, others such as TCP elsewhere)
-    after creating their component instance.
-    """
-    if CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS in config:
-        for dp in config[CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS]:
-            cg.add(var.add_ignore_mcu_update_on_datapoints(dp))
+async def setup_tuya(var: MockObj, config: ConfigType) -> None:
+    """Apply the base-class options; called from a transport's to_code()."""
+    for dp in config.get(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS, []):
+        cg.add(var.add_ignore_mcu_update_on_datapoints(dp))
     for conf in config.get(CONF_ON_DATAPOINT_UPDATE, []):
         type_, expected, field = DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]]
         forward = None
@@ -137,8 +122,7 @@ async def register_tuya(var: MockObj, config: ConfigType) -> None:
         cg.add(var.register_listener(conf[CONF_SENSOR_DATAPOINT], callback))
 
 
-async def to_code(config):
-    # Auto-loaded as a base class only; no component to instantiate.
+async def to_code(config: ConfigType | AutoLoad) -> None:
     if isinstance(config, AutoLoad):
         return
 
@@ -148,7 +132,7 @@ async def to_code(config):
         if config[CONF_FORCE_TIME_SYNC]:
             cg.add(var.set_force_time_sync(True))
     await cg.add_pin(var.set_status_pin, config.get(CONF_STATUS_PIN))
-    await register_tuya(var, config)
+    await setup_tuya(var, config)
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

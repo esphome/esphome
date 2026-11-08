@@ -9,7 +9,7 @@ namespace esphome::fake_tuya_transport {
 /// their initial-state callbacks.
 class FakeTuyaTransport : public tuya::Tuya {
  public:
-  void setup() override { this->initialized_callback_.call(); }
+  void setup() override { this->mark_initialized_(); }
 
  protected:
   void send_datapoint_command(uint8_t datapoint_id, tuya::TuyaDatapointType datapoint_type,

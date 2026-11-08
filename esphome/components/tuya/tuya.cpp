@@ -7,11 +7,6 @@ namespace esphome::tuya {
 
 ESPHOME_LOG_TAG(TAG, "tuya");
 
-void Tuya::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya:");
-  this->dump_datapoints_();
-}
-
 void Tuya::dump_datapoints_() {
   for (auto &info : this->datapoints_) {
     if (info.type == TuyaDatapointType::RAW) {

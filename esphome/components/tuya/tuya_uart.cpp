@@ -267,7 +267,7 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_config(); });
-        this->initialized_callback_.call();
+        this->mark_initialized_();
       }
       this->handle_datapoints_(buffer, len);
 

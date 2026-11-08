@@ -44,19 +44,11 @@ struct TuyaDatapointListener {
   Callback<void(const TuyaDatapoint &)> on_datapoint;
 };
 
-/** Transport-agnostic base class for Tuya MCU controllers.
- *
- * Holds the datapoint store, listener registration and the datapoint setters.
- * A subclass provides the transport by implementing send_datapoint_command()
- * and feeding received datapoints to handle_datapoint_(). When the transport
- * has finished initializing (first datapoint report received), it must call
- * initialized_callback_.call(); the fan, cover and number platforms rely on
- * it for state restore and initial-value handling.
- */
+/// Transport-agnostic Tuya controller. Subclasses implement send_datapoint_command(), feed received datapoints
+/// to handle_datapoint_(), and call mark_initialized_() once the MCU has reported.
 class Tuya : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
-  void dump_config() override;
   template<typename F> void register_listener(uint8_t datapoint_id, F &&func) {
     this->register_listener_(datapoint_id, Callback<void(const TuyaDatapoint &)>::create(std::forward<F>(func)));
   }
@@ -85,6 +77,7 @@ class Tuya : public Component {
   void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   /// Store a datapoint received from the MCU and notify listeners.
   void handle_datapoint_(const TuyaDatapoint &datapoint);
+  void mark_initialized_() { this->initialized_callback_.call(); }
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
   void dump_datapoints_();
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
@@ -98,6 +91,8 @@ class Tuya : public Component {
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
+
+ private:
   CallbackManager<void()> initialized_callback_{};
 };
 

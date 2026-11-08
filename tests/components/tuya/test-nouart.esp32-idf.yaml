@@ -12,9 +12,3 @@ switch:
     tuya_id: fake_tuya
     name: Fake Switch
     switch_datapoint: 1
-
-sensor:
-  - platform: tuya
-    tuya_id: fake_tuya
-    name: Fake Sensor
-    sensor_datapoint: 2
