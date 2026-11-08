@@ -13,8 +13,10 @@ import re
 import sys
 import time
 
+from analyze_component_buses import ISOLATED_COMPONENTS
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
+import yaml
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -1556,6 +1558,77 @@ def lint_test_package_key_matches_bus(fname, content):
                     ),
                 )
             )
+    return errs
+
+
+# IDs a test entity must name because CI can merge its test with another test
+# that adds a second candidate, and the id is then ambiguous ("Too many candidates")
+GROUPED_TEST_IDS = {
+    # tca9548a adds buses next to the shared i2c package bus
+    "i2c_id": ("i2c_device_schema", "i2c.I2CDevice"),
+    # several tests define their own IMU or one-wire bus
+    "motion_id": ("CONF_MOTION_ID",),
+    "one_wire_id": ("one_wire_device_schema",),
+}
+
+
+@functools.cache
+def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
+    """The GROUPED_TEST_IDS the entity's own schema file takes."""
+    base = Path("esphome/components")
+    paths = (
+        [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
+        if platform
+        else [base / domain / "__init__.py"]
+    )
+    text = "".join(p.read_text() for p in paths if p.exists())
+    return tuple(
+        key
+        for key, markers in GROUPED_TEST_IDS.items()
+        if any(m in text for m in markers)
+    )
+
+
+@lint_content_check(
+    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
+)
+def lint_grouped_test_ids(fname, content):
+    """Grouped test configs name the bus or parent ids that can be ambiguous after a merge."""
+    if Path(fname).parent.name in ISOLATED_COMPONENTS:
+        return None
+    try:
+        root = yaml.compose(content, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    # A test that defines the parent itself (its own i2c: bus, time:, ...) is isolated or picks that one
+    top_level = {k.value for k, _ in root.value}
+    errs: list[tuple[int, int, str]] = []
+    for key_node, value_node in root.value:
+        entries = (
+            value_node.value
+            if isinstance(value_node, yaml.SequenceNode)
+            else [value_node]
+        )
+        for entry in entries:
+            if not isinstance(entry, yaml.MappingNode):
+                continue
+            keys = {
+                k.value: v for k, v in entry.value if isinstance(k, yaml.ScalarNode)
+            }
+            platform = keys["platform"].value if "platform" in keys else None
+            for id_key in _grouped_test_ids(key_node.value, platform):
+                if id_key in keys or id_key.removesuffix("_id") in top_level:
+                    continue
+                errs.append(
+                    (
+                        entry.start_mark.line + 1,
+                        1,
+                        f"Set {highlight(id_key)}: CI merges this test with others that add a second "
+                        "candidate, and an omitted id is then ambiguous.",
+                    )
+                )
     return errs
 
 

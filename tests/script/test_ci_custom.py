@@ -567,3 +567,37 @@ def test_every_component_defines_its_domain() -> None:
         )
     ]
     assert missing == []
+
+
+GY39_NO_ID = "sensor:\n  - platform: gy39\n    illuminance:\n      name: Lux\n"
+
+
+def test_grouped_test_ids_flags_omitted_i2c_id() -> None:
+    errs = ci_custom.lint_grouped_test_ids(
+        "tests/components/gy39/common.yaml", GY39_NO_ID
+    )
+    assert [line for line, _, _ in errs] == [2]
+    assert "i2c_id" in errs[0][2]
+
+
+def test_grouped_test_ids_accepts_named_bus() -> None:
+    content = GY39_NO_ID.replace("gy39\n", "gy39\n    i2c_id: i2c_bus\n")
+    assert (
+        ci_custom.lint_grouped_test_ids("tests/components/gy39/common.yaml", content)
+        == []
+    )
+
+
+def test_grouped_test_ids_skips_test_with_its_own_bus() -> None:
+    content = "i2c:\n  sda: 4\n  scl: 5\n" + GY39_NO_ID
+    assert (
+        ci_custom.lint_grouped_test_ids("tests/components/gy39/common.yaml", content)
+        == []
+    )
+
+
+def test_grouped_test_ids_skips_isolated_component() -> None:
+    assert (
+        ci_custom.lint_grouped_test_ids("tests/components/lvgl/common.yaml", GY39_NO_ID)
+        is None
+    )
