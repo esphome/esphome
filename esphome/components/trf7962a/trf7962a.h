@@ -7,7 +7,6 @@
 #include "esphome/components/nfc/nfc_tag.h"
 #include "esphome/components/spi/spi.h"
 
-#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -22,15 +21,14 @@ class TRF7962A final : public PollingComponent,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
-  TRF7962A(GPIOPin *select_pin, InternalGPIOPin *irq_pin) : select_pin_(select_pin), irq_pin_(irq_pin) {}
+  // base_chip_status holds the supply and RF power bits, computed in Python
+  TRF7962A(GPIOPin *select_pin, InternalGPIOPin *irq_pin, uint8_t base_chip_status)
+      : select_pin_(select_pin), irq_pin_(irq_pin), base_chip_status_(base_chip_status) {}
 
   void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
-
-  void set_supply_5v(bool supply_5v) { this->supply_5v_ = supply_5v; }
-  void set_half_power(bool half_power) { this->half_power_ = half_power; }
 
   template<typename F> void add_on_tag_callback(F &&callback) { this->on_tag_callback_.add(std::forward<F>(callback)); }
   template<typename F> void add_on_tag_removed_callback(F &&callback) {
@@ -43,33 +41,32 @@ class TRF7962A final : public PollingComponent,
   void select_(bool selected);
   void direct_command_(uint8_t command);
   void write_register_(uint8_t reg, uint8_t value);
-  void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
   void read_registers_(uint8_t reg, uint8_t *data, size_t len);
   uint8_t read_register_(uint8_t reg);
   uint8_t read_irq_status_();
   bool configure_();
-  uint8_t chip_status_(bool field_on) const;
   void set_field_(bool on);
   void send_inventory_();
-  bool read_response_();
-  void finish_scan_(bool response_ok);
+  bool read_response_(uint8_t *rx);
+  void end_scan_();
+  // rx is nullptr when no valid response arrived
+  void finish_scan_(const uint8_t *rx);
   void remove_tag_();
 
   TRF7962AReadClient read_client_;
   GPIOPin *select_pin_;
   InternalGPIOPin *irq_pin_;
+  // An empty UID means no tag is present
   nfc::NfcTag tag_{nfc::NfcTagUid{}, "ISO 15693"};
-  std::string uid_str_;
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_callback_;
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_removed_callback_;
   uint32_t state_start_{0};
   State state_{State::STATE_IDLE};
-  uint8_t rx_[10]{};
-  uint8_t rx_len_{0};
+  uint8_t base_chip_status_;
   uint8_t miss_count_{0};
-  bool tag_present_{false};
-  bool supply_5v_{true};
-  bool half_power_{false};
+
+ private:
+  void write_frame_(const uint8_t *data, size_t len);
 };
 
 }  // namespace esphome::trf7962a

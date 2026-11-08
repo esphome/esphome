@@ -3,6 +3,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <iterator>
+
 namespace esphome::trf7962a {
 
 ESPHOME_LOG_TAG(TAG, "trf7962a");
@@ -45,6 +48,7 @@ static constexpr uint8_t IRQ_MASK = 0x3F;
 
 static constexpr uint8_t IRQ_RX = 0x40;
 static constexpr uint8_t IRQ_RX_ERRORS = 0x1E;  // CRC, parity, framing, collision
+static constexpr uint8_t IRQ_COLLISION = 0x02;
 static constexpr uint8_t IRQ_NO_RESPONSE = 0x01;
 static constexpr uint8_t FIFO_COUNT_MASK = 0x0F;
 
@@ -66,10 +70,8 @@ void TRF7962A::setup() {
   this->select_(false);
   this->irq_pin_->setup();
 
-  this->set_cs_pin(nullptr);
   this->spi_setup();
   this->read_client_.set_spi_parent(this->parent_);
-  this->read_client_.set_cs_pin(nullptr);
   this->read_client_.set_data_rate(this->data_rate_);
   this->read_client_.spi_setup();
   if (!this->spi_is_ready() || !this->read_client_.spi_is_ready()) {
@@ -81,8 +83,6 @@ void TRF7962A::setup() {
     this->mark_failed(LOG_STR("No response"));
     return;
   }
-  // Reserved once so tag callbacks don't allocate
-  this->uid_str_.reserve(nfc::FORMAT_UID_BUFFER_SIZE);
   this->disable_loop();
 }
 
@@ -90,8 +90,8 @@ void TRF7962A::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TRF7962A:\n"
                 "  Supply: %s, RF power: %s",
-                this->supply_5v_ ? LOG_STR_LITERAL("5V") : LOG_STR_LITERAL("3.3V"),
-                this->half_power_ ? LOG_STR_LITERAL("half") : LOG_STR_LITERAL("full"));
+                (this->base_chip_status_ & CHIP_STATUS_5V) ? LOG_STR_LITERAL("5V") : LOG_STR_LITERAL("3.3V"),
+                (this->base_chip_status_ & CHIP_STATUS_HALF_POWER) ? LOG_STR_LITERAL("half") : LOG_STR_LITERAL("full"));
   LOG_PIN("  CS Pin: ", this->select_pin_);
   LOG_PIN("  IRQ Pin: ", this->irq_pin_);
   LOG_UPDATE_INTERVAL(this);
@@ -101,11 +101,11 @@ bool TRF7962A::configure_() {
   this->direct_command_(CMD_SOFT_INIT);
   delay(1);
   this->direct_command_(CMD_IDLE);
-  const uint8_t status_iso[] = {this->chip_status_(false), ISO_15693_HIGH_RATE};
-  this->write_registers_(REG_CHIP_STATUS, status_iso, sizeof(status_iso));
+  const uint8_t status_iso[] = {ADDR_CONTINUOUS | REG_CHIP_STATUS, this->base_chip_status_, ISO_15693_HIGH_RATE};
+  this->write_frame_(status_iso, sizeof(status_iso));
   // Writing the ISO control register reloads the wait times, so this block follows it
-  const uint8_t timing[] = {RX_NO_RESPONSE_WAIT, RX_WAIT, MODULATOR_OOK};
-  this->write_registers_(REG_RX_NO_RESPONSE_WAIT, timing, sizeof(timing));
+  const uint8_t timing[] = {ADDR_CONTINUOUS | REG_RX_NO_RESPONSE_WAIT, RX_NO_RESPONSE_WAIT, RX_WAIT, MODULATOR_OOK};
+  this->write_frame_(timing, sizeof(timing));
   this->write_register_(REG_IRQ_MASK, IRQ_MASK);
   this->read_irq_status_();
   // The chip has no ID register; a protocol register reading back proves it is there
@@ -117,7 +117,6 @@ void TRF7962A::update() {
   if (this->state_ != State::STATE_IDLE)
     return;
   this->set_field_(true);
-  this->rx_len_ = 0;
   this->state_ = State::STATE_FIELD_SETTLE;
   // Same clock as loop(), which can lag millis()
   this->state_start_ = App.get_loop_component_start_time();
@@ -127,7 +126,6 @@ void TRF7962A::update() {
 void TRF7962A::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   const uint32_t elapsed = now - this->state_start_;
-  const bool irq = this->irq_pin_->digital_read();
   switch (this->state_) {
     case State::STATE_IDLE:
       this->disable_loop();
@@ -141,19 +139,24 @@ void TRF7962A::loop() {
       break;
     case State::STATE_WAIT_RESPONSE:
       // One IRQ read may carry TX, RX and FIFO bits if loop() ran late
-      if (irq) {
+      if (this->irq_pin_->digital_read()) {
         const uint8_t status = this->read_irq_status_();
         ESP_LOGV(TAG, "IRQ 0x%02X", status);
-        if ((status & IRQ_RX) && !(status & IRQ_RX_ERRORS) && this->read_response_()) {
-          this->finish_scan_(true);
+        uint8_t rx[INVENTORY_RESPONSE_LENGTH];
+        if ((status & IRQ_RX) && !(status & IRQ_RX_ERRORS) && this->read_response_(rx)) {
+          this->finish_scan_(rx);
+        } else if (status & IRQ_COLLISION) {
+          // Several tags answered; the present one is still there, so this is not a miss
+          ESP_LOGD(TAG, "Collision, more than one tag in the field");
+          this->end_scan_();
         } else if (status & (IRQ_RX_ERRORS | IRQ_NO_RESPONSE)) {
-          this->finish_scan_(false);
+          this->finish_scan_(nullptr);
         }
       }
       // Also covers an IRQ line that stays asserted without a terminal status
       if (this->state_ == State::STATE_WAIT_RESPONSE && elapsed >= RESPONSE_TIMEOUT_MS) {
         ESP_LOGV(TAG, "Response timed out");
-        this->finish_scan_(false);
+        this->finish_scan_(nullptr);
       }
       break;
   }
@@ -161,32 +164,23 @@ void TRF7962A::loop() {
 
 void TRF7962A::select_(bool selected) { this->select_pin_->digital_write(!selected); }
 
+void TRF7962A::write_frame_(const uint8_t *data, size_t len) {
+  this->select_(true);
+  this->enable();
+  this->write_array(data, len);
+  this->disable();
+  this->select_(false);
+}
+
 void TRF7962A::direct_command_(uint8_t command) {
   // A stand-alone command needs extra clocks before CS rises (SLOA140B 1.3)
   const uint8_t data[2] = {static_cast<uint8_t>(ADDR_COMMAND | command), 0x00};
-  this->select_(true);
-  this->enable();
-  this->write_array(data, sizeof(data));
-  this->disable();
-  this->select_(false);
+  this->write_frame_(data, sizeof(data));
 }
 
 void TRF7962A::write_register_(uint8_t reg, uint8_t value) {
   const uint8_t data[2] = {reg, value};
-  this->select_(true);
-  this->enable();
-  this->write_array(data, sizeof(data));
-  this->disable();
-  this->select_(false);
-}
-
-void TRF7962A::write_registers_(uint8_t reg, const uint8_t *data, size_t len) {
-  this->select_(true);
-  this->enable();
-  this->write_byte(ADDR_CONTINUOUS | reg);
-  this->write_array(data, len);
-  this->disable();
-  this->select_(false);
+  this->write_frame_(data, sizeof(data));
 }
 
 void TRF7962A::read_registers_(uint8_t reg, uint8_t *data, size_t len) {
@@ -214,16 +208,9 @@ uint8_t TRF7962A::read_irq_status_() {
   return data[0];
 }
 
-uint8_t TRF7962A::chip_status_(bool field_on) const {
-  uint8_t status = this->supply_5v_ ? CHIP_STATUS_5V : 0;
-  if (this->half_power_)
-    status |= CHIP_STATUS_HALF_POWER;
-  if (field_on)
-    status |= CHIP_STATUS_RF_ON;
-  return status;
+void TRF7962A::set_field_(bool on) {
+  this->write_register_(REG_CHIP_STATUS, this->base_chip_status_ | (on ? CHIP_STATUS_RF_ON : 0));
 }
-
-void TRF7962A::set_field_(bool on) { this->write_register_(REG_CHIP_STATUS, this->chip_status_(on)); }
 
 void TRF7962A::send_inventory_() {
   this->direct_command_(CMD_RESET_FIFO);
@@ -237,45 +224,42 @@ void TRF7962A::send_inventory_() {
       INVENTORY_COMMAND,
       0x00,
   };
-  this->select_(true);
-  this->enable();
-  this->write_array(data, sizeof(data));
-  this->disable();
-  this->select_(false);
+  this->write_frame_(data, sizeof(data));
 }
 
-bool TRF7962A::read_response_() {
+bool TRF7962A::read_response_(uint8_t *rx) {
   // Read once the whole response is in the FIFO; the count field holds bytes - 1
   const uint8_t available = (this->read_register_(REG_FIFO_STATUS) & FIFO_COUNT_MASK) + 1;
   if (available < INVENTORY_RESPONSE_LENGTH)
     return false;
-  this->read_registers_(REG_FIFO, this->rx_, INVENTORY_RESPONSE_LENGTH);
-  this->rx_len_ = INVENTORY_RESPONSE_LENGTH;
+  this->read_registers_(REG_FIFO, rx, INVENTORY_RESPONSE_LENGTH);
   return true;
 }
 
-void TRF7962A::finish_scan_(bool response_ok) {
+void TRF7962A::end_scan_() {
   this->direct_command_(CMD_RESET_FIFO);
   this->set_field_(false);
   this->state_ = State::STATE_IDLE;
   this->disable_loop();
+}
+
+void TRF7962A::finish_scan_(const uint8_t *rx) {
+  this->end_scan_();
 
   // Response flags bit 0 is the tag's error flag
-  response_ok = response_ok && this->rx_len_ == INVENTORY_RESPONSE_LENGTH && (this->rx_[0] & 0x01) == 0 &&
-                this->rx_[INVENTORY_RESPONSE_LENGTH - 1] == UID_MSB;
-  if (!response_ok) {
-    if (this->tag_present_ && ++this->miss_count_ >= MISS_THRESHOLD)
+  const bool tag_present = !this->tag_.get_uid().empty();
+  if (rx == nullptr || (rx[0] & 0x01) != 0 || rx[INVENTORY_RESPONSE_LENGTH - 1] != UID_MSB) {
+    if (tag_present && ++this->miss_count_ >= MISS_THRESHOLD)
       this->remove_tag_();
     return;
   }
   this->miss_count_ = 0;
 
   // The UID arrives LSB first; report it MSB first, as printed on tags
-  nfc::NfcTagUid uid;
-  for (uint8_t i = INVENTORY_RESPONSE_LENGTH - 1; i >= 2; i--)
-    uid.push_back(this->rx_[i]);
+  const nfc::NfcTagUid uid(std::make_reverse_iterator(rx + INVENTORY_RESPONSE_LENGTH),
+                           std::make_reverse_iterator(rx + 2));
 
-  if (this->tag_present_) {
+  if (tag_present) {
     const auto &current = this->tag_.get_uid();
     if (std::equal(current.begin(), current.end(), uid.begin(), uid.end()))
       return;
@@ -283,14 +267,11 @@ void TRF7962A::finish_scan_(bool response_ok) {
   }
 
   this->tag_.get_uid() = uid;
-  this->tag_present_ = true;
   char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
   nfc::format_uid_to(uid_buf, uid);
   ESP_LOGI(TAG, "Tag detected: %s", uid_buf);
-  if (!this->on_tag_callback_.empty()) {
-    this->uid_str_ = uid_buf;
-    this->on_tag_callback_.call(this->uid_str_, this->tag_);
-  }
+  if (!this->on_tag_callback_.empty())
+    this->on_tag_callback_.call(std::string(uid_buf), this->tag_);
 #ifdef NFC_TAG_LISTENER_COUNT
   for (auto *listener : this->tag_listeners_)
     listener->tag_on(this->tag_);
@@ -301,15 +282,13 @@ void TRF7962A::remove_tag_() {
   char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
   nfc::format_uid_to(uid_buf, this->tag_.get_uid());
   ESP_LOGI(TAG, "Tag removed: %s", uid_buf);
-  if (!this->on_tag_removed_callback_.empty()) {
-    this->uid_str_ = uid_buf;
-    this->on_tag_removed_callback_.call(this->uid_str_, this->tag_);
-  }
+  if (!this->on_tag_removed_callback_.empty())
+    this->on_tag_removed_callback_.call(std::string(uid_buf), this->tag_);
 #ifdef NFC_TAG_LISTENER_COUNT
   for (auto *listener : this->tag_listeners_)
     listener->tag_off(this->tag_);
 #endif
-  this->tag_present_ = false;
+  this->tag_.get_uid().clear();
   this->miss_count_ = 0;
 }
 
