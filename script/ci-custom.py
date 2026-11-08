@@ -1604,9 +1604,7 @@ def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNod
 )
 def lint_grouped_test_ids(fname, content):
     """CI merges grouped tests, so an id another test can duplicate must be set."""
-    from analyze_component_buses import (  # pylint: disable=import-outside-toplevel
-        is_groupable,
-    )
+    from analyze_component_buses import is_groupable  # pylint: disable=import-outside-toplevel
 
     if not is_groupable(Path(fname).parent):
         return None
