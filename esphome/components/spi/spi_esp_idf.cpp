@@ -1,6 +1,7 @@
 #include "spi.h"
 
 #ifdef USE_ESP32
+#include <esp_err.h>
 #include <esp_private/spi_common_internal.h>  // spi_bus_get_attr()
 #endif
 #ifdef USE_SPI_PSRAM_DMA
