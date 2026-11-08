@@ -572,12 +572,26 @@ def test_every_component_defines_its_domain() -> None:
 GY39_NO_ID = "sensor:\n  - platform: gy39\n    illuminance:\n      name: Lux\n"
 
 
-def test_grouped_test_ids_flags_omitted_i2c_id() -> None:
-    errs = ci_custom.lint_grouped_test_ids(
-        "tests/components/gy39/common.yaml", GY39_NO_ID
-    )
+@pytest.mark.parametrize(
+    ("content", "id_key"),
+    [
+        pytest.param(GY39_NO_ID, "i2c_id", id="i2c"),
+        pytest.param(
+            "sensor:\n  - platform: motion\n    type: acceleration_x\n",
+            "motion_id",
+            id="motion",
+        ),
+        pytest.param(
+            "sensor:\n  - platform: dallas_temp\n    address: 0x1C\n",
+            "one_wire_id",
+            id="one-wire",
+        ),
+    ],
+)
+def test_grouped_test_ids_flags_omitted_id(content: str, id_key: str) -> None:
+    errs = ci_custom.lint_grouped_test_ids("tests/components/gy39/common.yaml", content)
     assert [(line, col) for line, col, _ in errs] == [(2, 5)]
-    assert "i2c_id" in errs[0][2]
+    assert id_key in errs[0][2]
 
 
 @pytest.mark.parametrize(

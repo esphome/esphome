@@ -1572,7 +1572,7 @@ GROUPED_TEST_IDS = {
 @functools.cache
 def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
     """The GROUPED_TEST_IDS the entity's own schema file takes."""
-    base = Path("esphome/components")
+    base = Path(__file__).parent.parent / "esphome" / "components"
     paths = (
         [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
         if platform
