@@ -1512,7 +1512,9 @@ async def while_action_to_code(
     actions = await build_list(config[CONF_THEN], template_arg, args)
     # An empty body exits the loop at once, unlike an empty C++ loop body
     if _is_collecting(action_id) and actions and _plans_inline(actions):
-        check = f"const bool esphome__condition = {_condition_expression(condition, args)};"
+        check = (
+            f"const bool esphome__condition = {_condition_expression(condition, args)};"
+        )
         if args:
             # Never yields, see WHILE_YIELD_AFTER_MS
             return _collect_control_flow(

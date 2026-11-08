@@ -40,7 +40,9 @@ async def test_while_without_wait(
 
         # A busy loop without arguments yields after the first slow pass; with arguments it does not
         await client.execute_service(require_service(services, "run_busy_loops"), {})
-        await waiter.wait_count("WAITING_ARG done 3", 1, 5.0, "waiting loop did not end")
+        await waiter.wait_count(
+            "WAITING_ARG done 3", 1, 5.0, "waiting loop did not end"
+        )
         await waiter.wait_count("EMPTY_BODY done", 1, 5.0, "empty loop did not end")
         assert index("BUSY_INLINE_NOARG caller") < index("BUSY_INLINE_NOARG done")
         assert index("BUSY_OBJECT_NOARG caller") < index("BUSY_OBJECT_NOARG done")
