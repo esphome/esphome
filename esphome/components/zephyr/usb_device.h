@@ -7,8 +7,6 @@ namespace esphome::zephyr {
 /// device_next). Safe to call from several components; only the first call starts the device.
 /// Call from the main thread. Returns 0 or a negative error code.
 int usb_device_enable();
-#else
-inline int usb_device_enable() { return 0; }
 #endif
 
 }  // namespace esphome::zephyr
