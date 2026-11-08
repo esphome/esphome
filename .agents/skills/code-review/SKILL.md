@@ -31,6 +31,9 @@ including its `filter.*`, `binary_sensor/`, `number/`, ...), the buses
 Flag it and ask for the shared change to move into its own PR, which lands first
 and is reviewed by that code's owners; the component PR then builds on it. This
 holds even when the shared change is small or only the component uses it today.
+The exception is a shared change that must update several components in the same
+PR so none of them breaks in between (a `[core]` or `[components]` PR that adds a
+helper and moves its callers at once).
 
 Not shared code: the component's own platform files (`esphome/components/<c>/sensor.py`,
 `text_sensor/__init__.py`, ...), its new `USE_*` lines in `esphome/core/defines.h`,
