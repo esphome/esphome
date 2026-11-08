@@ -116,6 +116,26 @@ TEST_F(SM300D2Test, BadChecksumIsNotPublished) {
   EXPECT_TRUE(this->sut_.status_has_warning());
 }
 
+// The sensor sometimes sends a checksum 0x80 off, for example at negative temperatures. frame(400) and frame(2300)
+// have checksums above and below 0x80, so one arrives 0x80 lower and the other 0x80 higher.
+TEST_F(SM300D2Test, ChecksumOffBy0x80IsPublished) {
+  std::vector<uint8_t> lower = frame(400);
+  lower[16] -= 0x80;  // 0xA5 - 0x80 = 0x25
+  this->receive_(lower);
+  this->sut_.update();
+  EXPECT_FALSE(this->sut_.status_has_warning());
+
+  std::vector<uint8_t> higher = frame(2300);
+  higher[16] += 0x80;  // 0x18 + 0x80 = 0x98
+  this->receive_(higher);
+  this->sut_.update();
+  EXPECT_FALSE(this->sut_.status_has_warning());
+
+  ASSERT_EQ(this->co2_published_.size(), 2u);
+  EXPECT_FLOAT_EQ(this->co2_published_[0], 400);
+  EXPECT_FLOAT_EQ(this->co2_published_[1], 2300);
+}
+
 // A frame with a bad checksum is dropped as it arrives, so the poll publishes the good frame before it.
 TEST_F(SM300D2Test, BadFrameDoesNotReplaceTheGoodOne) {
   std::vector<uint8_t> bad = frame(410);
