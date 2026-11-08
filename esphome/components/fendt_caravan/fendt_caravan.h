@@ -20,7 +20,6 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
  public:
   /// `handshake` is the "net-BT_ID-..." line that opens the session; a string literal from codegen
   explicit FendtCaravan(const char *handshake) : handshake_(handshake) {}
-  void setup() override {};
   void loop() override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
