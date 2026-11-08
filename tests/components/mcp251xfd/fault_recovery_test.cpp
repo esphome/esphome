@@ -131,6 +131,30 @@ TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndKeepsCheckingWhenRecov
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
 }
 
+TEST(MCP251XFDRecovery, FirstModeFaultRecoversBeforeCheckIsDue) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  controller.poll(100);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 0u);
+
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
+  spi.registers[REG_INT] = INT_MODE_CHANGE;
+  controller.poll(200);
+  EXPECT_TRUE(controller.mode_fault_active());
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+
+  // While the fault is active, the interval from that attempt limits the next one
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
+  spi.registers[REG_INT] = INT_MODE_CHANGE;
+  controller.poll(300);
+  controller.poll(5100);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  controller.poll(5200);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+}
+
 TEST(MCP251XFDRecovery, RefusedDirectModeChangeRecoversThroughConfiguration) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi, CanMode::CAN_MODE_CLASSIC);

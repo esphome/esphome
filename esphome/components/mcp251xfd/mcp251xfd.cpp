@@ -214,13 +214,16 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
     return true;
   }
 
-  if (!this->mode_fault_active_) {
+  const bool first_fault = !this->mode_fault_active_;
+  if (first_fault) {
     this->mode_fault_active_ = true;
     ESP_LOGW(TAG, "Unexpected mode %s, requested %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
              LOG_STR_ARG(mode_str(requested_mode)), LOG_STR_ARG(mode_str(target_mode)));
   }
-  if (bus_off || !retry_due)
+  // The first fault is fixed at once; the check interval spaces out later attempts.
+  if (bus_off || !(retry_due || first_fault))
     return true;
+  this->last_mode_check_time_ = App.get_loop_component_start_time();
 
   // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.
   if (current_mode != static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)) {
