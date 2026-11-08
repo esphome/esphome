@@ -24,14 +24,12 @@ CONF_BT_ID = "bt_id"
 CONF_PARENT_ID = "parent_id"
 CONF_MAIN_CONTROL_UNIT = "main_control_unit"
 
-# The address the panel was paired with; it drops the link when given any other one
-DEFAULT_BT_ID = "C0:EE:FB:90:B0:A7"
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(FendtCaravan),
-            cv.Optional(CONF_BT_ID, default=DEFAULT_BT_ID): cv.mac_address,
+            # The address the panel was paired with; it drops the link when given any other one
+            cv.Required(CONF_BT_ID): cv.mac_address,
             cv.Required(ble_client.CONF_BLE_CLIENT_ID): cv.use_id(ble_client.BLEClient),
             cv.Required(CONF_MAIN_CONTROL_UNIT): cv.Schema(
                 {
