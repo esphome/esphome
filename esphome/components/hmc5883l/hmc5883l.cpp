@@ -69,7 +69,7 @@ void HMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
 void HMC5883LComponent::update() {
-  uint16_t raw_x, raw_y, raw_z;
+  uint16_t raw_x = 0, raw_y = 0, raw_z = 0;
   if (!this->status_comm_result(this->read_byte_16(HMC5883L_REGISTER_DATA_X_MSB, &raw_x) &&
                                 this->read_byte_16(HMC5883L_REGISTER_DATA_Y_MSB, &raw_y) &&
                                 this->read_byte_16(HMC5883L_REGISTER_DATA_Z_MSB, &raw_z)))
