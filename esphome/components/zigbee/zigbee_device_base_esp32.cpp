@@ -32,6 +32,8 @@ void ZigbeeDeviceBase::report() {
 }
 
 void ZigbeeDeviceBase::loop() {
+  bool can_disable = this->loop_internal();
+
   if (this->set_attr_requested_) {
     this->set_attr_internal();
   }
@@ -40,7 +42,7 @@ void ZigbeeDeviceBase::loop() {
     this->report_internal(false);
   }
 
-  if (!this->report_requested_ && !this->set_attr_requested_) {
+  if (!this->report_requested_ && !this->set_attr_requested_ && can_disable) {
     this->disable_loop();
   }
 }

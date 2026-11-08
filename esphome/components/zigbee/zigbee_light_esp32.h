@@ -51,6 +51,9 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   float get_setup_priority() const override { return setup_priority::WIFI + 1; }
 
  protected:
+  void schedule_call_();
+  void make_call_();
+  bool loop_internal();
   void set_attr_internal() override;
   void report_internal(bool has_lock) override;
   void apply_on_off_(bool on);
@@ -58,7 +61,9 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   ZigbeeOnValueForwarder<bool, ZigbeeLight> on_off_forwarder_;
   ZigbeeOnValueForwarder<uint8_t, ZigbeeLight> *level_forwarder_{nullptr};
   light::LightState *light_state_;
+  light::LightCall next_call_ = light::LightCall(nullptr);
   bool synchronizing_from_zigbee_{false};
+  bool call_pending_{false};
 };
 
 }  // namespace esphome::zigbee

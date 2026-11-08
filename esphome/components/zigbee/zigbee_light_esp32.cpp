@@ -38,6 +38,7 @@ void ZigbeeLight::on_light_remote_values_update() {
 void ZigbeeLight::connect(light::LightState *light_state) { this->light_state_ = light_state; }
 
 void ZigbeeLight::setup() {
+  this->next_call_ = this->light_state_->make_call();
   auto values = this->light_state_->remote_values;
   light::LightTraits traits = this->light_state_->get_traits();
   bool onoff = traits.supports_color_capability(light::ColorCapability::ON_OFF);
@@ -82,13 +83,30 @@ void ZigbeeLight::setup() {
   }
 }
 
-void ZigbeeLight::apply_on_off_(bool on) {
-  if (on && this->light_state_->remote_values.is_on() == on) {
-    ESP_LOGD(TAG, "return");
-    return;
+bool ZigbeeLight::loop_internal() {
+  if (this->call_pending_) {
+    this->make_call_();
   }
-  auto call = this->light_state_->make_call();
-  call.set_state(on);
+  return true;
+}
+
+void ZigbeeLight::schedule_call_() {
+  this->call_pending_ = true;
+  this->enable_loop();
+}
+
+void ZigbeeLight::make_call_() {
+  this->call_pending_ = false;
+  this->next_call_.set_transition_length(0);
+  this->synchronizing_from_zigbee_ = true;
+  this->next_call_.perform();
+  this->synchronizing_from_zigbee_ = false;
+  this->next_call_ = this->light_state_->make_call();
+}
+
+void ZigbeeLight::apply_on_off_(bool on) {
+  this->next_call_.set_state(on);
+  ESP_LOGD(TAG, "set state");
   if (!on) {                                 // recover level
     esp_zigbee_lock_acquire(portMAX_DELAY);  // Todo: limit time?
     if (ezb_zcl_get_cluster_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER) != NULL) {
@@ -100,28 +118,20 @@ void ZigbeeLight::apply_on_off_(bool on) {
         uint8_t lvl;
         ezb_zcl_attr_desc_get_value(current_level, &lvl);
         float brightness = static_cast<float>(lvl) / 254;  // integer level between 0 and 254
-        call.set_brightness(brightness);
+        this->next_call_.set_brightness(brightness);
+        ESP_LOGD(TAG, "set brightness: %f", brightness);
       }
     }
     esp_zigbee_lock_release();
   }
-  call.set_transition_length(0);
-  this->synchronizing_from_zigbee_ = true;
-  call.perform();
-  this->synchronizing_from_zigbee_ = false;
+  this->schedule_call_();
 }
 
 void ZigbeeLight::apply_level_(uint8_t level) {
   float brightness = static_cast<float>(level) / 254;  // integer level between 0 and 254
-  if (std::fabs(this->light_state_->remote_values.get_brightness() - brightness) < (0.5f / 254.0f)) {
-    return;
-  }
-  auto call = this->light_state_->make_call();
-  call.set_brightness(brightness);
-  call.set_transition_length(0);
-  this->synchronizing_from_zigbee_ = true;
-  call.perform();
-  this->synchronizing_from_zigbee_ = false;
+  this->next_call_.set_brightness(brightness);
+  ESP_LOGD(TAG, "set brightness: %f", brightness);
+  this->schedule_call_();
 }
 
 void ZigbeeLight::set_attr_internal() {
