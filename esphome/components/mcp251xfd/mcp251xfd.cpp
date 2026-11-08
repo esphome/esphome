@@ -201,13 +201,15 @@ bool MCP251XFD::should_log_fault_(uint32_t now) {
   return true;
 }
 
-bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
-  uint8_t mode;
-  if (!this->read_registers_(REG_CON + 2, &mode, 1))
+bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
+  // OPMOD is in byte 2 of CON and REQOP in byte 3. A refused request leaves REQOP pending, which stalls TX.
+  std::array<uint8_t, 2> con;
+  if (!this->read_registers_(REG_CON + 2, con.data(), con.size()))
     return false;
-  const uint8_t current_mode = (mode >> CON_MODE_SHIFT) & CON_MODE_MASK;
+  const uint8_t current_mode = (con[0] >> CON_MODE_SHIFT) & CON_MODE_MASK;
+  const uint8_t requested_mode = con[1] & CON_MODE_MASK;
   const uint8_t target_mode = static_cast<uint8_t>(this->mcp_mode_);
-  if (current_mode == target_mode) {
+  if (current_mode == target_mode && requested_mode == target_mode) {
     if (this->mode_fault_active_) {
       this->mode_fault_active_ = false;
       ESP_LOGI(TAG, "Mode %s restored", LOG_STR_ARG(mode_str(target_mode)));
@@ -217,13 +219,16 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
 
   if (!this->mode_fault_active_) {
     this->mode_fault_active_ = true;
-    ESP_LOGW(TAG, "Unexpected mode %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
-             LOG_STR_ARG(mode_str(target_mode)));
+    ESP_LOGW(TAG, "Unexpected mode %s, requested %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
+             LOG_STR_ARG(mode_str(requested_mode)), LOG_STR_ARG(mode_str(target_mode)));
   }
-  if (bus_off || now - this->last_mode_recovery_time_ < MODE_RECOVERY_INTERVAL_MS)
+  if (bus_off || !retry_due)
     return true;
 
-  this->last_mode_recovery_time_ = now;
+  // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.
+  if (current_mode != static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION) &&
+      !this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
+    return true;
   this->write_byte_(REG_CON + 3, target_mode);
   return true;
 }
@@ -413,10 +418,16 @@ canbus::CanEventFlags MCP251XFD::get_events() {
   if (!trec_read)
     direct_flags &= ~INT_CAN_ERROR;
   uint8_t mode_flags = interrupt_flags[0] & INT_MODE_CHANGE;
-  const bool mode_check_needed = this->mode_fault_active_ || mode_flags != 0 || (controller_flags & INT_SYSTEM_ERROR);
-  if (mode_check_needed && ((trec_needed && !trec_read) || !this->recover_mode_if_needed_(is_bus_off, now))) {
+  // A refused mode request sets no flag, so the mode is also checked on an interval.
+  const bool mode_check_due = now - this->last_mode_check_time_ >= MODE_RECOVERY_INTERVAL_MS;
+  const bool mode_check_needed = mode_check_due || mode_flags != 0 || (controller_flags & INT_SYSTEM_ERROR);
+  if (mode_check_needed &&
+      ((trec_needed && !trec_read) || !this->recover_mode_if_needed_(is_bus_off, mode_check_due))) {
     mode_flags = 0;
     direct_flags &= ~INT_SYSTEM_ERROR;
+  } else if (mode_check_due && !is_bus_off) {
+    // While bus-off the check repeats each poll, so a retry follows as soon as the bus recovers.
+    this->last_mode_check_time_ = now;
   }
   if (mode_flags != 0 || direct_flags != 0) {
     // Both bytes have write-zero-to-clear flags; ones preserve unrelated and newly latched flags.

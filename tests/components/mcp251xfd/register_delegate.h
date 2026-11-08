@@ -89,6 +89,8 @@ class RegisterDelegate : public spi::SPIDelegate {
       } else {
         this->registers[reg] = data[i];
       }
+      if (reg == REG_CON + 3)
+        this->request_mode(static_cast<CanMode>(data[i] & CON_MODE_MASK));
     }
   }
 
@@ -97,7 +99,17 @@ class RegisterDelegate : public spi::SPIDelegate {
     this->corrupt_reads = count;
   }
 
-  void set_mode(CanMode mode) { this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT; }
+  CanMode mode() const { return static_cast<CanMode>(this->registers[REG_CON + 2] >> CON_MODE_SHIFT); }
+  // Sets the operating and requested modes, as after a completed change.
+  void set_mode(CanMode mode) {
+    this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT;
+    this->registers[REG_CON + 3] = static_cast<uint8_t>(mode);
+  }
+  // A request completes at once, but only into or out of Configuration mode, like the controller for some changes.
+  void request_mode(CanMode mode) {
+    if (mode == CanMode::CAN_MODE_CONFIGURATION || this->mode() == CanMode::CAN_MODE_CONFIGURATION)
+      this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT;
+  }
   void set_error_flags(uint8_t flags) { this->registers[REG_TREC + 2] = flags; }
 
   // Puts a message at the RX FIFO head; payload byte i holds i + 1.

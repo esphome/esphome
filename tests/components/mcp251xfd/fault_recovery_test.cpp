@@ -63,6 +63,8 @@ TEST(MCP251XFDFaults, FailedStatusReadLeavesFaultPendingForRetry) {
     SCOPED_TRACE(test.status_register);
     RegisterDelegate spi;
     TestMCP251XFD controller(&spi);
+    // Run the first mode check now; its successful read would clear the warning under test.
+    controller.poll(0);
     spi.registers[test.status_register] = test.fault;
     spi.corrupt_next_reads(test.status_register);
 
@@ -99,30 +101,73 @@ TEST(MCP251XFDFaults, ReportsErrorStateTransitionsAndPreservesUnrelatedInterrupt
   EXPECT_EQ(controller.get_status().bus_error_count, 1u);
 }
 
-TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndStopsWhenRecovered) {
+TEST(MCP251XFDRecovery, RetriesModeRequestAfterIntervalAndKeepsCheckingWhenRecovered) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);
   spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   spi.registers[REG_INT] = INT_MODE_CHANGE;
 
   EXPECT_EQ(controller.poll(100), 0);
-  ASSERT_EQ(spi.writes_to(REG_CON + 3), 1u);
-  EXPECT_EQ(spi.registers[REG_CON + 3], static_cast<uint8_t>(CanMode::CAN_MODE_NORMAL));
+  // Configuration mode first, then the configured mode
+  ASSERT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
   EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
   EXPECT_TRUE(controller.mode_fault_active());
 
+  spi.set_mode(CanMode::CAN_MODE_LISTENONLY);
   controller.poll(5099);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
-  controller.poll(5100);
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  controller.poll(5100);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
 
-  spi.set_mode(CanMode::CAN_MODE_NORMAL);
-  controller.poll(5200);
+  controller.poll(10100);
   EXPECT_FALSE(controller.mode_fault_active());
   const auto mode_reads = spi.reads[REG_CON + 2];
-  controller.poll(10300);
+  controller.poll(15099);
   EXPECT_EQ(spi.reads[REG_CON + 2], mode_reads);
+  controller.poll(15100);
+  EXPECT_EQ(spi.reads[REG_CON + 2], mode_reads + 1);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 4u);
+}
+
+TEST(MCP251XFDRecovery, RefusedDirectModeChangeRecoversThroughConfiguration) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi, CanMode::CAN_MODE_CLASSIC);
+  spi.set_mode(CanMode::CAN_MODE_LOOPBACK);
+  spi.request_mode(CanMode::CAN_MODE_CLASSIC);
+  ASSERT_EQ(spi.mode(), CanMode::CAN_MODE_LOOPBACK);
+
+  controller.poll(100);
+  ASSERT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.writes[0].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)}));
+  EXPECT_EQ(spi.writes[1].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CLASSIC)}));
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_CLASSIC);
+
+  controller.poll(5100);
+  EXPECT_FALSE(controller.mode_fault_active());
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+}
+
+TEST(MCP251XFDRecovery, PeriodicCheckFixesStrayModeRequest) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  controller.poll(100);
+  EXPECT_EQ(spi.reads[REG_CON + 2], 1u);
+  EXPECT_FALSE(controller.mode_fault_active());
+
+  // A refused request stays in REQOP without changing OPMOD or raising MODIF
+  spi.registers[REG_CON + 3] = static_cast<uint8_t>(CanMode::CAN_MODE_LISTENONLY);
+  controller.poll(200);
+  EXPECT_EQ(spi.reads[REG_CON + 2], 1u);
+  controller.poll(5100);
+  EXPECT_TRUE(controller.mode_fault_active());
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+  EXPECT_EQ(spi.registers[REG_CON + 3], static_cast<uint8_t>(CanMode::CAN_MODE_NORMAL));
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+
+  controller.poll(10100);
+  EXPECT_FALSE(controller.mode_fault_active());
 }
 
 TEST(MCP251XFDRecovery, DefersModeRequestWhileBusOff) {
@@ -141,7 +186,7 @@ TEST(MCP251XFDRecovery, DefersModeRequestWhileBusOff) {
 
   spi.set_error_flags(0);
   EXPECT_EQ(controller.poll(300), 0);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
 }
 
 TEST(MCP251XFDRecovery, FailedModeReadLeavesFaultFlagsPending) {
@@ -160,7 +205,7 @@ TEST(MCP251XFDRecovery, FailedModeReadLeavesFaultFlagsPending) {
   EXPECT_TRUE(controller.status_has_warning());
 
   controller.poll(200);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
   EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
   EXPECT_EQ(spi.registers[REG_INT + 1] & INT_SYSTEM_ERROR, 0);
   EXPECT_FALSE(controller.status_has_warning());
@@ -181,7 +226,7 @@ TEST(MCP251XFDRecovery, FailedErrorStateReadDefersModeRecoveryAndFlagClearing) {
   EXPECT_TRUE(controller.status_has_warning());
 
   controller.poll(200);
-  EXPECT_EQ(spi.writes_to(REG_CON + 3), 1u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
   EXPECT_EQ(spi.registers[REG_INT] & INT_MODE_CHANGE, 0);
   EXPECT_EQ(spi.registers[REG_INT + 1] & (INT_SYSTEM_ERROR | INT_CAN_ERROR), 0);
   EXPECT_FALSE(controller.status_has_warning());
