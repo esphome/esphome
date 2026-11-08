@@ -149,8 +149,7 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
 /// body never waits, so entity states can change. Other arguments may only be valid while the trigger runs, or
 /// cannot be copied, so with them the loop never yields.
 inline constexpr uint32_t WHILE_YIELD_AFTER_MS = 20;
-template<typename... Ts>
-inline constexpr bool WHILE_CAN_YIELD = (std::is_arithmetic_v<std::remove_cvref_t<Ts>> && ...);
+template<typename... Ts> inline constexpr bool WHILE_CAN_YIELD = (std::is_arithmetic_v<std::remove_cvref_t<Ts>> && ...);
 
 template<typename... Ts> class DelayAction;
 template<typename... Ts> class WhileAction;
@@ -221,7 +220,6 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 };
 #endif
-
 
 template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
@@ -458,8 +456,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     if constexpr (sizeof...(Ts) == 0) {
       return nullptr;
     } else {
-      return [](const auto &first, const auto &.../*rest*/) { return static_cast<const void *>(std::addressof(first)); }(
-          x...);
+      return [](const auto &first, const auto &.../*rest*/) {
+        return static_cast<const void *>(std::addressof(first));
+      }(x...);
     }
   }
 
@@ -485,9 +484,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
         return;
       if constexpr (WHILE_CAN_YIELD<Ts...>) {
         // The numbers are copied; `mutable` as in DelayAction
-        if (this->num_running_ > 0 &&
-            ActionTimer::yield_if_due(this, start, this->num_running_ > 1,
-                                      [this, x...]() mutable { this->run_loop_(x...); }))
+        if (this->num_running_ > 0 && ActionTimer::yield_if_due(this, start, this->num_running_ > 1,
+                                                                [this, x...]() mutable { this->run_loop_(x...); }))
           return;
       }
     }
