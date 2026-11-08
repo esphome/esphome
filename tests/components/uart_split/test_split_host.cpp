@@ -32,6 +32,8 @@ class FakeUart : public uart::UARTComponent {
   }
   size_t available() override { return this->rx_len_ - this->rx_pos_; }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  void set_rx_full_threshold(size_t threshold) override { this->rx_full_threshold_ = threshold; }
+  void set_rx_timeout(size_t timeout) override { this->rx_timeout_ = timeout; }
 
   void rx(const uint8_t *data, size_t len) {
     for (size_t i = 0; i < len && this->rx_len_ < sizeof(this->rx_); i++) {
@@ -113,6 +115,15 @@ TEST_F(UartSplitCopy, SettingsChangedOnAnOutputAreRestored) {
   this->bus_.copy_settings();
   EXPECT_EQ(this->bus_.get_baud_rate(), 19200u);
   EXPECT_EQ(this->bus_.get_parity(), this->pins_.get_parity());
+}
+
+TEST_F(UartSplitCopy, OutputReportsTheRxFullThresholdAndTimeoutOfThePins) {
+  // An ESP32 UART at 9600 baud hands over its bytes once more than 8 are in, or after 2 characters of silence.
+  this->pins_.set_rx_full_threshold(8);
+  this->pins_.set_rx_timeout(2);
+  this->bus_.copy_settings();
+  EXPECT_EQ(this->bus_.get_rx_full_threshold(), 8u);
+  EXPECT_EQ(this->bus_.get_rx_timeout(), 2u);
 }
 
 TEST_F(UartSplitCopy, OutputReportsItsBufferSize) { EXPECT_EQ(this->bus_.get_rx_buffer_size(), RX_BUFFER_SIZE); }

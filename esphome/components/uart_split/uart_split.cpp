@@ -91,6 +91,8 @@ void UartSplitOutput::copy_settings() {
   this->set_data_bits(parent->get_data_bits());
   this->set_parity(parent->get_parity());
   this->set_stop_bits(parent->get_stop_bits());
+  this->rx_full_threshold_ = parent->get_rx_full_threshold();
+  this->rx_timeout_ = parent->get_rx_timeout();
 }
 
 #if defined(USE_ESP8266) || defined(USE_ESP32)

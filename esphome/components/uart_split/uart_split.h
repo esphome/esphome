@@ -36,7 +36,7 @@ class UartSplitOutput final : public uart::VirtualUARTComponent {
       this->dropping_ = false;
     }
   }
-  /// Take the baud rate, data bits, parity and stop bits of the UART that is split.
+  /// Take the baud rate, data bits, parity, stop bits, RX full threshold and RX timeout of the UART that is split.
   void copy_settings();
 
   void write_array(const uint8_t *data, size_t len) override;
