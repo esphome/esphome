@@ -56,9 +56,11 @@ static int usbd_add_speed(usbd_speed speed, usbd_config_node *config) {
   int err = usbd_add_configuration(&esphome_usbd, speed, config);
   if (err == 0)
     err = usbd_register_all_classes(&esphome_usbd, speed, 1, nullptr);
+#ifdef CONFIG_USBD_CDC_ACM_CLASS
   // Each CDC ACM function has an Interface Association Descriptor
   if (err == 0)
     err = usbd_device_set_code_triple(&esphome_usbd, speed, USB_BCC_MISCELLANEOUS, 0x02, 0x01);
+#endif
   return err;
 }
 
