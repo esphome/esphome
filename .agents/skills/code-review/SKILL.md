@@ -26,7 +26,8 @@ Check the file list first. A PR titled for one component (`[ld2450] ...`) must
 not also change code other components build on: `esphome/core/`, the entity
 platform components (`esphome/components/sensor/`, `esphome/components/text_sensor/`
 including its `filter.*`, `binary_sensor/`, `number/`, ...), the buses
-(`esphome/components/{i2c,spi,uart}/`), `network/`, `socket/`,
+(`esphome/components/{i2c,spi,uart}/`), `network/`, `socket/`, the shared
+constants (`esphome/components/const/`, `esphome/const.py`),
 `esphome/automation.py`, `esphome/cpp_generator.py` or `esphome/config_validation.py`.
 Flag it and ask for the shared change to move into its own PR, which lands first
 and is reviewed by that code's owners; the component PR then builds on it. This
