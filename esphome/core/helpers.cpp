@@ -16,6 +16,8 @@
 
 #ifdef USE_ESP32
 #include "esp_rom_crc.h"
+#elif defined(USE_LIBRETINY)
+#include <flashdb.h>
 #endif
 
 namespace esphome {
@@ -63,7 +65,7 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
                                                0x9188, 0x83b9, 0xb5ea, 0xa7db, 0xd94c, 0xcb7d, 0xfd2e, 0xef1f};
 #endif
 
-#ifndef USE_ESP32
+#if !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 // Nybble-at-a-time CRC-32: 64 bytes of table instead of the usual 1 KiB, at
 // roughly half the byte-table speed. PROGMEM keeps it out of RAM on ESP8266.
 static const uint32_t CRC32_NYBBLE_TABLE[16] PROGMEM = {
@@ -178,6 +180,9 @@ uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) {
 #ifdef USE_ESP32
   // The lookup table and loop live in the mask ROM
   return esp_rom_crc32_le(crc, data, len);
+#elif defined(USE_LIBRETINY)
+  // FlashDB is always linked on LibreTiny for preferences
+  return fdb_calc_crc32(crc, data, len);
 #else
   crc = ~crc;
   while (len--) {
