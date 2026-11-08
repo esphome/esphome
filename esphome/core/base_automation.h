@@ -375,10 +375,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
-    // Initial condition check
+    // A false start must not stop the body of another run
     if (!this->condition_->check(x...)) {
-      // If new condition check failed, stop loop if running
-      this->then_.stop();
       this->play_next_(x...);
       return;
     }
@@ -391,24 +389,85 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       this->play_next_(x...);
       return;
     }
-    this->then_.play(x...);
+    this->run_loop_(x...);
   }
 
-  // Branch-end resume hook: loop again or continue
+  // Branch-end resume hook
   void play(const Ts &...x) override {
+    // A body that did not wait ended inside run_loop_(), which loops again itself
+    if (this->in_body_) {
+      this->resumed_ = true;
+      return;
+    }
+    this->continue_(x...);
+  }
+
+  void stop() override {
+    this->then_.stop();
+    App.scheduler.cancel_timeout(this);
+  }
+
+ protected:
+  // A body that never waits gives the main loop a turn after this long, so entity states can change
+  static constexpr uint32_t YIELD_AFTER_MS = 20;
+
+  // Loop again or continue
+  void continue_(const Ts &...x) {
     // The condition may stop this automation
     if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
-      this->then_.play(x...);
+      this->run_loop_(x...);
     } else {
       this->play_next_(x...);
     }
   }
 
-  void stop() override { this->then_.stop(); }
+  // Runs the body again in a loop, not by recursion, while it ends without waiting
+  void run_loop_(const Ts &...x) {
+    // The body can start this action again
+    const bool outer_in_body = this->in_body_;
+    const bool outer_resumed = this->resumed_;
+    const uint32_t start = millis();
+    while (true) {
+      this->in_body_ = true;
+      this->resumed_ = false;
+      this->then_.play(x...);
+      const bool ended = this->resumed_;
+      this->in_body_ = outer_in_body;
+      this->resumed_ = outer_resumed;
+      // A body that waits resumes through play() later
+      if (!ended)
+        return;
+      if (this->num_running_ == 0 || !this->condition_->check(x...) || this->num_running_ == 0) {
+        this->play_next_(x...);
+        return;
+      }
+      if (millis() - start > YIELD_AFTER_MS) {
+        this->yield_(x...);
+        return;
+      }
+    }
+  }
 
- protected:
+  void yield_(const Ts &...x) {
+    if constexpr (sizeof...(Ts) == 0) {
+      this->set_yield_timer_([this]() { this->continue_(); });
+    } else {
+      // See DelayAction for why the arguments are copied and the lambda is mutable
+      this->set_yield_timer_([this, x...]() mutable { this->continue_(x...); });
+    }
+  }
+
+  void set_yield_timer_(std::function<void()> &&f) {
+    App.scheduler.set_timer_common_(
+        /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+        /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, /* delay= */ 0, std::move(f),
+        /* skip_cancel= */ this->num_running_ > 1, /* source= */ App.get_current_source());
+  }
+
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  bool in_body_{false};
+  bool resumed_{false};
 };
 
 // Forward declaration for RepeatLoopContinuation

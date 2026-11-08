@@ -40,6 +40,7 @@ from esphome.automation import (
     WhileAction,
     XorCondition,
     _shadow_iteration,
+    _warn_while_without_wait,
     apply_action_builder,
     apply_statements_action,
     build_action,
@@ -383,6 +384,37 @@ def test_owning_args_swaps_every_string_ref(
         (cg.std_string, "key"),
         (cg.std_string, "value"),
     ]
+
+
+_WHILE_WARNING = "body of a 'while' loop never waits"
+
+
+@pytest.mark.parametrize(
+    ("condition", "body", "warns"),
+    [
+        ({"binary_sensor.is_on": "button"}, [{"logger.log": "hi"}], True),
+        ({"binary_sensor.is_on": "button"}, [{"delay": "1s"}], False),
+        (
+            {"binary_sensor.is_on": "button"},
+            [{"if": {CONF_THEN: [{"delay": "1s"}]}}],
+            False,
+        ),
+        ({"lambda": Lambda("return true;")}, [{"logger.log": "hi"}], False),
+        ({"and": [{"lambda": Lambda("return true;")}]}, [{"logger.log": "hi"}], False),
+        ({"binary_sensor.is_on": "button"}, [], False),
+    ],
+)
+def test_warn_while_without_wait(
+    mock_registry: dict[str, RegistryEntry],
+    caplog: pytest.LogCaptureFixture,
+    condition: ConfigType,
+    body: list[ConfigType],
+    warns: bool,
+) -> None:
+    """Only a body that never waits, under a condition with no lambda, gets the warning."""
+    config = {CONF_CONDITION: condition, CONF_THEN: body}
+    assert _warn_while_without_wait(config) is config
+    assert (_WHILE_WARNING in caplog.text) is warns
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(
@@ -3085,36 +3117,12 @@ async def test_not_condition_is_an_object_when_its_if_keeps_one() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-async def test_inline_while_checks_condition_and_stops() -> None:
+@pytest.mark.parametrize("body", [[_action("my.a", "act_a")], []])
+async def test_while_is_never_an_inline_loop(body: list[ConfigType]) -> None:
+    """A C++ loop could not let the main loop run, and an empty body exits a WhileAction at once."""
     config = [
         {
-            "while": {
-                CONF_CONDITION: _inline_condition(),
-                CONF_THEN: [_action("my.a", "act_a")],
-            },
-            CONF_TYPE_ID: ID(
-                "act_w", is_declaration=True, type=WhileAction, is_manual=False
-            ),
-        }
-    ]
-
-    result = await build_action_list(config, TEMPLATE_ARG, [])
-
-    assert [str(action) for action in result] == ["act_w"]
-    assert "WhileAction" not in CORE.cpp_main_section
-    text = CORE.cpp_global_section
-    assert "while (true) {" in text
-    assert "if (!esphome__condition)\n" in text
-    assert text.count("if (!esphome__running)") == 2
-
-
-@pytest.mark.asyncio
-@pytest.mark.usefixtures("apply_actions")
-async def test_inline_while_with_empty_body_keeps_its_object() -> None:
-    """An empty body exits a WhileAction at once, which a C++ loop would not do."""
-    config = [
-        {
-            "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: []},
+            "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: body},
             CONF_TYPE_ID: ID(
                 "act_w", is_declaration=True, type=WhileAction, is_manual=False
             ),
@@ -3124,6 +3132,7 @@ async def test_inline_while_with_empty_body_keeps_its_object() -> None:
     await build_action_list(config, TEMPLATE_ARG, [])
 
     assert "new(act_w) WhileAction<>(" in CORE.cpp_main_section
+    assert "while (true) {" not in CORE.cpp_global_section
 
 
 @pytest.mark.asyncio

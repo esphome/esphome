@@ -1,0 +1,68 @@
+esphome:
+  name: test-while-without-wait
+
+host:
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: count
+    type: int
+    initial_value: "0"
+
+binary_sensor:
+  - platform: template
+    id: held
+    name: Held
+
+script:
+  - id: release_later
+    then:
+      - delay: 300ms
+      - binary_sensor.template.publish:
+          id: held
+          state: false
+  - id: noop
+    then:
+      - logger.log:
+          level: VERBOSE
+          format: "noop"
+
+api:
+  actions:
+    # The body only runs a lambda, so it could become one C++ loop
+    - action: run_lambda_body
+      then:
+        - lambda: id(count) = 0;
+        - binary_sensor.template.publish:
+            id: held
+            state: true
+        - script.execute: release_later
+        - while:
+            condition:
+              binary_sensor.is_on: held
+            then:
+              - lambda: id(count) += 1;
+        - logger.log:
+            format: "LAMBDA_BODY done %d"
+            args: [id(count)]
+    # An argument is copied into the timer that lets the main loop run
+    - action: run_script_body
+      variables:
+        tag: int
+      then:
+        - lambda: id(count) = 0;
+        - binary_sensor.template.publish:
+            id: held
+            state: true
+        - script.execute: release_later
+        - while:
+            condition:
+              binary_sensor.is_on: held
+            then:
+              - lambda: id(count) += 1;
+              - script.execute: noop
+        - logger.log:
+            format: "SCRIPT_BODY done tag=%d count=%d"
+            args: [tag, id(count)]

@@ -210,8 +210,9 @@ run, so prefer `register_apply_action` wherever the action allows it. Because of
 return fewer objects than the config has entries. A builder that wraps `apply_action_builder` may do other work
 first, but must return its result unchanged and not use it. A builder that must generate its own statements, and
 is registered with `automation.ApplyAction`, can call `apply_statements_action` and still merge; `script.execute`
-is an example. `if`, `choose`, `while` and `repeat` whose bodies are all inline become C++ control flow in the
-same function, and `register_apply_condition` and `lambda:` conditions become plain expressions there.
+is an example. `if`, `choose` and `repeat` whose bodies are all inline become C++ control flow in the
+same function, and `register_apply_condition` and `lambda:` conditions become plain expressions there. `while`
+always keeps its `WhileAction`, which lets the main loop run when a body that never waits loops for long.
 
 ## Conditions
 

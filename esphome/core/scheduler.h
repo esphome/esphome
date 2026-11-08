@@ -23,6 +23,8 @@ class Scheduler {
   // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
   // to accumulate and overload the scheduler if misused.
   template<typename... Ts> friend class DelayAction;
+  // WhileAction yields to the main loop with the same timer, one per parallel run.
+  template<typename... Ts> friend class WhileAction;
 
  public:
   /** Set a timeout with a const char* name.

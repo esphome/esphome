@@ -1460,14 +1460,43 @@ async def choose_action_to_code(
     return var
 
 
+def _has_lambda(value: Any) -> bool:
+    if isinstance(value, Lambda):
+        return True
+    if isinstance(value, dict):
+        return any(_has_lambda(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_has_lambda(v) for v in value)
+    return False
+
+
+def _warn_while_without_wait(config: ConfigType) -> ConfigType:
+    # A lambda condition can test a value the body changes; an entity state cannot change.
+    # An empty body ends the loop at once.
+    body = config[CONF_THEN]
+    if (
+        body
+        and not has_non_synchronous_actions(body)
+        and not _has_lambda(config[CONF_CONDITION])
+    ):
+        _LOGGER.warning(
+            "The body of a 'while' loop never waits, so other components do not run between "
+            "checks of its condition and entity states cannot change. Add a 'delay' inside the loop."
+        )
+    return config
+
+
 @register_action(
     "while",
     WhileAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_CONDITION): validate_potentially_and_condition,
-            cv.Required(CONF_THEN): validate_action_list,
-        }
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+                cv.Required(CONF_THEN): validate_action_list,
+            }
+        ),
+        _warn_while_without_wait,
     ),
     synchronous=True,
 )
@@ -1480,20 +1509,7 @@ async def while_action_to_code(
     build_cond, build_list = _control_flow_builders(action_id)
     condition = await build_cond(config[CONF_CONDITION], template_arg, args)
     actions = await build_list(config[CONF_THEN], template_arg, args)
-    # An empty body exits the loop at once, unlike an empty C++ loop body
-    if _is_collecting(action_id) and actions and _plans_inline(actions):
-        return _collect_control_flow(
-            action_id,
-            [
-                "while (true) {",
-                f"const bool esphome__condition = {_condition_expression(condition, args)};",
-                _STOP_CHECK,
-                "if (!esphome__condition)\n  break;",
-                *_plan_statements(actions),
-                _STOP_CHECK,
-                "}",
-            ],
-        )
+    # Never one inline C++ loop: WhileAction lets the main loop run when the body does not wait
     var = cg.new_Pvariable(action_id, template_arg, _condition_object(condition))
     for action in _emit_action_plan(actions, template_arg, args):
         cg.add(var.add_then_action(action))

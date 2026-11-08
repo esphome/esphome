@@ -74,8 +74,7 @@ async def test_automation_merged_actions(
         assert count("LOOP_STOP condition then") == 0
         assert count("LOOP_STOP condition after") == 0
 
-        # With an inline body, a nested run whose while condition is false does not end the
-        # outer run. WhileAction, still used for a deferring body, stops its body there.
+        # A nested run whose while condition is false does not end the outer run
         await client.execute_service(service["run_while_reentry"], {})
         await waiter.wait_for("WHILE_REENTER running", timeout=5.0)
         assert count("WHILE_REENTER after nested") == 1
