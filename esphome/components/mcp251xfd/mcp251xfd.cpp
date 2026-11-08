@@ -28,14 +28,15 @@ bool MCP251XFD::setup_internal() {
   if (slow_start)
     this->set_data_rate(1000000);
   this->spi_setup();
-  if (!this->reset_() || !this->configure_clock_())
-    return false;
-
+  const bool clock_ready = this->reset_() && this->configure_clock_();
+  // Restore the rate even on failure, so a later reconfiguration starts from it
   if (slow_start) {
     this->spi_teardown();
     this->set_data_rate(operating_data_rate);
     this->spi_setup();
   }
+  if (!clock_ready)
+    return false;
 
   // Leave TEF, TXQ, automatic RTR responses and timestamps disabled. ESI follows the controller's error state.
   // Leave RTXAT clear for unlimited retransmissions, as in the MCP2515 driver.
@@ -222,9 +223,21 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
     return true;
 
   // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.
-  if (current_mode != static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION) &&
-      !this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
-    return true;
+  if (current_mode != static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)) {
+    if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
+      return true;
+  } else {
+    // A chip reset also lands in Configuration mode, with the bit timing, FIFOs and filter cleared
+    uint32_t nominal_bit_timing;
+    if (!this->read_register_(REG_NBTCFG, nominal_bit_timing))
+      return false;
+    if (nominal_bit_timing != this->nominal_bit_timing_) {
+      ESP_LOGW(TAG, "Configuration lost, reconfiguring");
+      this->spi_teardown();
+      this->setup_internal();
+      return true;
+    }
+  }
   this->write_byte_(REG_CON + 3, target_mode);
   return true;
 }

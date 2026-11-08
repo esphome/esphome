@@ -149,6 +149,31 @@ TEST(MCP251XFDRecovery, RefusedDirectModeChangeRecoversThroughConfiguration) {
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
 }
 
+TEST(MCP251XFDRecovery, ConfigurationModeReconfiguresOnlyWhenBitTimingWasLost) {
+  for (const bool lost : {true, false}) {
+    SCOPED_TRACE(lost);
+    RegisterDelegate spi;
+    TestMCP251XFD controller(&spi);
+    spi.set_mode(CanMode::CAN_MODE_CONFIGURATION);
+    spi.registers[REG_OSC + 1] = OSC_READY;
+    put_le32(spi.registers.data() + REG_NBTCFG, lost ? 0 : TEST_NOMINAL_BIT_TIMING);
+
+    controller.poll(100);
+    EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+    EXPECT_EQ(spi.resets, lost ? 1u : 0u);
+    EXPECT_EQ(spi.writes_to(REG_CON), lost ? 1u : 0u);
+    EXPECT_EQ(spi.writes_to(REG_FLTCON), lost ? 1u : 0u);
+    EXPECT_EQ(encode_value_le<uint32_t>(spi.registers.data() + REG_NBTCFG), TEST_NOMINAL_BIT_TIMING);
+    if (!lost) {
+      ASSERT_EQ(spi.writes.size(), 1u);
+      EXPECT_EQ(spi.writes[0].address, REG_CON + 3);
+    }
+
+    controller.poll(5100);
+    EXPECT_FALSE(controller.mode_fault_active());
+  }
+}
+
 TEST(MCP251XFDRecovery, PeriodicCheckFixesStrayModeRequest) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);

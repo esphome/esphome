@@ -44,6 +44,7 @@ class RegisterDelegate : public spi::SPIDelegate {
   std::vector<Read> ram_reads;
   uint16_t corrupt_address{0xFFFF};
   unsigned corrupt_reads{0};
+  unsigned resets{0};
 
   void begin_transaction() override {}
   void end_transaction() override {}
@@ -78,6 +79,10 @@ class RegisterDelegate : public spi::SPIDelegate {
 
   void write_array(const uint8_t *data, size_t length) override {
     ASSERT_GE(length, 2u);
+    if (data[0] == INSTRUCTION_RESET) {
+      this->reset();
+      return;
+    }
     ASSERT_EQ(data[0] & 0xF0, INSTRUCTION_WRITE);
     const uint16_t address = encode_uint16(data[0] & 0x0F, data[1]);
     ASSERT_LE(address + length - 2, this->registers.size());
@@ -110,6 +115,13 @@ class RegisterDelegate : public spi::SPIDelegate {
     if (mode == CanMode::CAN_MODE_CONFIGURATION || this->mode() == CanMode::CAN_MODE_CONFIGURATION)
       this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT;
   }
+  // Like a chip reset: registers cleared, Configuration mode, oscillator running.
+  void reset() {
+    this->resets++;
+    this->registers.fill(0);
+    this->set_mode(CanMode::CAN_MODE_CONFIGURATION);
+    this->registers[REG_OSC + 1] = OSC_READY;
+  }
   void set_error_flags(uint8_t flags) { this->registers[REG_TREC + 2] = flags; }
 
   // Puts a message at the RX FIFO head; payload byte i holds i + 1.
@@ -129,12 +141,19 @@ class RegisterDelegate : public spi::SPIDelegate {
   }
 };
 
+// 500 kbps at 40 MHz; nonzero, so a cleared NBTCFG shows a lost configuration
+static constexpr uint32_t TEST_NOMINAL_BIT_TIMING = 0x003E0F0F;
+
 class TestMCP251XFD : public MCP251XFD {
  public:
   explicit TestMCP251XFD(RegisterDelegate *delegate, CanMode mode = CanMode::CAN_MODE_NORMAL)
-      : MCP251XFD(CanClock::CAN_CLOCK_40MHZ, mode, 0, 0, 0) {
+      : MCP251XFD(CanClock::CAN_CLOCK_40MHZ, mode, TEST_NOMINAL_BIT_TIMING, 0, 0), spi_(delegate) {
     this->delegate_ = delegate;
   }
+
+  // There is no SPI bus component, so keep the fake delegate across a reconfiguration
+  void spi_setup() override { this->delegate_ = this->spi_; }
+  void spi_teardown() override {}
 
   canbus::CanEventFlags poll(uint32_t now) {
     LoopBlockingGuard{nullptr, nullptr, now};
@@ -145,6 +164,9 @@ class TestMCP251XFD : public MCP251XFD {
   bool mode_fault_active() const { return this->mode_fault_active_; }
   using MCP251XFD::read_message;
   using MCP251XFD::send_message;
+
+ protected:
+  RegisterDelegate *spi_;
 };
 
 }  // namespace
