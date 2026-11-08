@@ -20,6 +20,19 @@ esphome:
       - component.update: version_node_3
       - component.update: errors_node_1
       - component.update: comfort_temperature
+      - component.update: manual_time_box
+      - component.update: manual_time_node_3
+      - component.update: flow_level_manual_1
+      - component.update: flow_level_manual_2
+      - component.update: flow_level_manual_3
+      - component.update: co2_setpoint
+      - component.update: rh_setpoint
+      - component.update: show_sensor_level
+      - component.update: uc_error_mode_box
+      - component.update: uc_error_mode_node_2
+      - component.update: rh_delta_mode
+      - component.update: co2_temperature_dependent_control
+      - component.update: flow_level_request
 
 host:
 api:
@@ -51,6 +64,28 @@ uart_mock:
             static std::vector<uint8_t> rx;
             static uint8_t mode = 0x04;
             static uint8_t comfort = 210;
+            struct NodeSetting {
+              uint8_t address;
+              uint8_t item;
+              uint16_t value;
+              uint16_t step;
+              uint16_t minimum;
+              uint16_t maximum;
+            };
+            static NodeSetting settings[] = {
+                {1, 0x09, 60, 5, 5, 720},    // Manual time
+                {3, 0x09, 15, 5, 5, 720},    // Manual time
+                {2, 0x04, 70, 5, 0, 90},     // RH setpoint
+                {2, 0x05, 1, 1, 0, 1},       // RH delta mode
+                {2, 0x12, 50, 5, 0, 100},    // Show sensor level
+                {1, 0x14, 1, 1, 0, 2},       // UC error mode
+                {2, 0x14, 2, 1, 0, 2},
+                {3, 0x03, 800, 10, 0, 2000}, // CO2 setpoint
+                {3, 0x06, 10, 5, 0, 50},     // Manual level 1
+                {3, 0x07, 50, 5, 10, 100},   // Manual level 2
+                {3, 0x08, 100, 5, 50, 100},  // Manual level 3
+                {3, 0x0E, 1, 1, 0, 1},       // Temperature-dependent CO2
+            };
             rx.insert(rx.end(), data.begin(), data.end());
             while (rx.size() >= 3) {
               if (rx[0] != 0xAA || rx[1] != 0x55) {
@@ -107,8 +142,27 @@ uart_mock:
                 reply(0x12, serial);
               } else if (function == 0x10 && d[3] == 0x00 && d[4] == 0x04) {
                 reply(0x12, {0, 0, 0xBE, 0x00, 0x04, 0x05, 0x06});
+              } else if (function == 0x18) {
+                NodeSetting *setting = nullptr;
+                for (auto &candidate : settings) {
+                  if (candidate.address == d[1] && candidate.item == d[2]) {
+                    setting = &candidate;
+                    break;
+                  }
+                }
+                if (setting != nullptr && d[0] == 0x00) {
+                  reply(0x1a, {setting->address, static_cast<uint8_t>(setting->value),
+                                static_cast<uint8_t>(setting->value >> 8), static_cast<uint8_t>(setting->step),
+                                static_cast<uint8_t>(setting->step >> 8), static_cast<uint8_t>(setting->minimum),
+                                static_cast<uint8_t>(setting->minimum >> 8), static_cast<uint8_t>(setting->maximum),
+                                static_cast<uint8_t>(setting->maximum >> 8)});
+                } else if (setting != nullptr && d[0] == 0x01) {
+                  setting->value = (static_cast<uint16_t>(d[3]) << 8) | d[4];
+                  ESP_LOGI("sim", "Node setting %u/%02X set to %u", setting->address, setting->item, setting->value);
+                  reply(0x1a, {setting->address});
+                }
               } else if (function == 0x30) {
-                reply(0x32, {0x01, 0x00, 0x1F, 0x13, 0x01});
+                reply(0x32, {0x01, 0x00, 0x1F, 0x13, 0x01, 0x00});
               } else if (function == 0x24 && d[0] == 0x00) {
                 int16_t value = 0;
                 if (d[2] == 0x0a && d[1] == 0x12)
@@ -175,6 +229,24 @@ select:
     nightboost_month_stop:
       id: nightboost_month_stop
       name: NightBoost Stop Month
+    uc_error_mode:
+      - id: uc_error_mode_box
+        name: Box UC Error Mode
+        update_interval: never
+      - id: uc_error_mode_node_2
+        name: Node 2 UC Error Mode
+        address: 2
+        update_interval: never
+    rh_delta_mode:
+      - id: rh_delta_mode
+        name: RH Delta Mode
+        address: 2
+        update_interval: never
+    co2_temperature_dependent_control:
+      - id: co2_temperature_dependent_control
+        name: CO2 Temperature Dependent Control
+        address: 3
+        update_interval: never
   - platform: duco
     type: time_filter
     id: time_filter
@@ -205,6 +277,44 @@ number:
     box_ventilation_max:
       id: ventilation_max
       name: Ventilation Max
+    manual_time:
+      - id: manual_time_box
+        name: Manual Time Box
+        update_interval: never
+      - id: manual_time_node_3
+        name: Manual Time Node 3
+        address: 3
+        update_interval: never
+    flow_level_manual_1:
+      - id: flow_level_manual_1
+        name: Manual Flow Level 1
+        address: 3
+        update_interval: never
+    flow_level_manual_2:
+      - id: flow_level_manual_2
+        name: Manual Flow Level 2
+        address: 3
+        update_interval: never
+    flow_level_manual_3:
+      - id: flow_level_manual_3
+        name: Manual Flow Level 3
+        address: 3
+        update_interval: never
+    co2_setpoint:
+      - id: co2_setpoint
+        name: CO2 Setpoint
+        address: 3
+        update_interval: never
+    rh_setpoint:
+      - id: rh_setpoint
+        name: RH Setpoint
+        address: 2
+        update_interval: never
+    show_sensor_level:
+      - id: show_sensor_level
+        name: Show Sensor Level
+        address: 2
+        update_interval: never
 
 text_sensor:
   - platform: duco
@@ -272,6 +382,11 @@ sensor:
       id: flow_level
       name: Flow Level
       update_interval: never
+    flow_level_request:
+      - id: flow_level_request
+        name: Flow Level Request
+        address: 3
+        update_interval: never
     time_remaining:
       id: time_remaining
       name: Time Remaining
