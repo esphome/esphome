@@ -37,7 +37,6 @@ class ZigbeeDeviceBase : public Component, public ZigbeeAttributeInterface {
   bool set_attr_requested_{false};
   bool report_requested_{false};
   bool force_report_{false};
-  template<typename T> T invalid_value_();
 };
 
 }  // namespace esphome::zigbee
