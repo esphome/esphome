@@ -7,4 +7,5 @@ for f in "$@"; do
   grep -a 'MASTER' "$f" | tail -1 | sed 's/^.*MASTER/   MASTER/'
   grep -a 'SLAVE' "$f" | tail -1 | sed 's/^.*SLAVE/   SLAVE/'
   echo "   ok per 30s window (min over windows after arm): $(grep -a MASTER "$f" | sed 's/.* ok=\([0-9]*\).*/\1/' | awk 'NR>2{d=$1-p; if(min==""||d<min)min=d} {p=$1} END{print (min == "" ? "n/a (fewer than 3 MASTER windows)" : min)}')"
+  echo "   harness: install_errors=$(grep -a -c -E 'task creation failed|slave ISR install failed|slave install did not finish|selects no fault' "$f") $(grep -a -o 'selftest1 write=[-0-9]* read=[-0-9]* val=[0-9A-F]*' "$f" | head -1)"
 done

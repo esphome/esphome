@@ -12,4 +12,5 @@ $PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1 || { echo "serial
 for b in 2 3; do $PY "$SC" "$P" 8 "$OUT/boot$b.txt" --reset > /dev/null 2>&1 || echo "boot$b capture got nothing"; done
 grep -a -h -o "BOOTFREE [0-9]* TOTAL [0-9]*" "$OUT/serial.txt" "$OUT/boot2.txt" "$OUT/boot3.txt"
 grep -a -E "canlb|mcp251xfd" "$OUT/serial.txt" | grep -a -v "failed with error" | sed 's/^.*\]\[/[/' | cut -c1-200
+grep -a -q "PHASES DONE" "$OUT/serial.txt" || { echo "FAIL: phases did not finish within $S s"; exit 1; }
 echo "spi_device lines: $(grep -a -c spi_device "$OUT/serial.txt")  failed sends: $(grep -a -c 'failed with error' "$OUT/serial.txt")"
