@@ -8,7 +8,6 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import noise
-from esphome.components.const import CONF_RECONNECT_INTERVAL
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
@@ -43,14 +42,26 @@ def _link(key: str) -> ConfigType:
     return {CONF_ID: ID("link"), CONF_ENCRYPTION: {CONF_KEY: key}}
 
 
-def test_the_link_key_is_required() -> None:
-    with pytest.raises(cv.Invalid, match="required key not provided"):
-        noise.STREAM_ENCRYPTION_SCHEMA({})
+def test_the_link_key_is_accepted() -> None:
     assert noise.STREAM_ENCRYPTION_SCHEMA({CONF_KEY: LINK_KEY})[CONF_KEY] == LINK_KEY
-    with pytest.raises(cv.Invalid, match="all-zeros key is reserved") as err:
-        noise.STREAM_ENCRYPTION_SCHEMA({CONF_KEY: ZERO_KEY})
-    # The key cannot be left out, so the error does not suggest it
-    assert "omit" not in str(err.value)
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({}, "required key not provided"),
+        # The key cannot be left out, so the error does not suggest it
+        (
+            {CONF_KEY: ZERO_KEY},
+            "all-zeros key is reserved and provides no protection; generate",
+        ),
+        ({CONF_KEY: "not base64!"}, "Invalid key format"),
+    ],
+    ids=["missing", "all-zeros", "not-base64"],
+)
+def test_a_bad_link_key_is_rejected(config: ConfigType, message: str) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        noise.STREAM_ENCRYPTION_SCHEMA(config)
 
 
 def test_only_an_encrypted_entry_loads_noise() -> None:
@@ -65,80 +76,50 @@ def test_only_an_encrypted_entry_loads_noise() -> None:
     assert auto_load() == ["socket", "noise"]
 
 
-def test_a_link_without_encryption_is_not_checked(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    _check(
-        set_core_config,
-        {CONF_ID: ID("link")},
-        {CONF_API: {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}},
-    )
+def _ota(key: str) -> list[ConfigType]:
+    return [{CONF_PLATFORM: CONF_ESPHOME, CONF_ENCRYPTION: {CONF_KEY: key}}]
 
 
-def test_a_key_differing_from_api_and_ota_is_accepted(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    _check(
-        set_core_config,
-        _link(LINK_KEY),
-        {
-            CONF_API: {CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}},
-            CONF_OTA: [
-                {CONF_PLATFORM: CONF_ESPHOME, CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}
-            ],
-        },
-    )
-
-
-def test_the_api_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
-    with pytest.raises(
-        cv.Invalid,
-        match=r"'my_link' encryption key must differ from the 'api' encryption key; "
-        r"the peer device holds this key",
-    ) as err:
-        _check(
-            set_core_config,
-            _link(LINK_KEY),
-            {CONF_API: {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}},
-        )
-    assert err.value.path == [CONF_ENCRYPTION, CONF_KEY]
-
-
-def test_the_ota_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
-    with pytest.raises(cv.Invalid, match=r"must differ from the 'ota' encryption key"):
-        _check(
-            set_core_config,
+@pytest.mark.parametrize(
+    ("link", "full_config"),
+    [
+        ({CONF_ID: ID("link")}, {CONF_API: {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}}),
+        (
             _link(LINK_KEY),
             {
-                CONF_OTA: [
-                    {CONF_PLATFORM: CONF_ESPHOME, CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}
-                ]
+                CONF_API: {CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}},
+                CONF_OTA: _ota(OTHER_KEY),
             },
-        )
-
-
-def test_a_runtime_api_key_cannot_be_compared(
-    set_core_config: SetCoreConfigCallable,
+        ),
+        # A key provisioned at runtime cannot be compared
+        (_link(LINK_KEY), {CONF_API: {CONF_ENCRYPTION: {}}}),
+    ],
+    ids=["no-encryption", "different-keys", "runtime-api-key"],
+)
+def test_the_link_key_check_accepts(
+    set_core_config: SetCoreConfigCallable, link: ConfigType, full_config: ConfigType
 ) -> None:
-    _check(set_core_config, _link(LINK_KEY), {CONF_API: {CONF_ENCRYPTION: {}}})
+    _check(set_core_config, link, full_config)
 
 
-def test_encryption_needs_a_reconnect_interval_of_one_loop_pass(
-    set_core_config: SetCoreConfigCallable,
+@pytest.mark.parametrize(
+    ("full_config", "owner"),
+    [
+        ({CONF_API: {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}}, CONF_API),
+        ({CONF_OTA: _ota(LINK_KEY)}, CONF_OTA),
+    ],
+    ids=["api", "ota"],
+)
+def test_the_link_key_check_rejects_a_shared_key(
+    set_core_config: SetCoreConfigCallable, full_config: ConfigType, owner: str
 ) -> None:
-    set_core_config(PlatformFramework.ESP32_IDF, full_config={CONF_ESPHOME: {}})
-    encrypted = {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}
-    zero = {CONF_RECONNECT_INTERVAL: cv.positive_time_period_milliseconds("0s")}
     with pytest.raises(
         cv.Invalid,
-        match=r"With encryption, reconnect_interval must last at least one main loop "
-        r"pass \(loop_interval of 16ms\)",
+        match=rf"'my_link' encryption key must differ from the '{owner}' encryption "
+        r"key; the peer device holds this key",
     ) as err:
-        noise.final_validate_reconnect_interval({**zero, **encrypted})
-    assert err.value.path == [CONF_RECONNECT_INTERVAL]
-    noise.final_validate_reconnect_interval(zero)
-    one_pass = {CONF_RECONNECT_INTERVAL: cv.positive_time_period_milliseconds("16ms")}
-    noise.final_validate_reconnect_interval({**one_pass, **encrypted})
+        _check(set_core_config, _link(LINK_KEY), full_config)
+    assert err.value.path == [CONF_ENCRYPTION, CONF_KEY]
 
 
 @pytest.mark.parametrize(
@@ -150,9 +131,13 @@ def test_new_stream_compiles_the_stream(
     set_core_config(PlatformFramework.ESP32_IDF)
     # The stream source compiles only on request
     assert noise.FILTER_SOURCE_FILES() == ["noise_stream.cpp"]
-    stream = noise.new_stream(ID("link", is_declaration=True), LINK_KEY, initiator)
+    stream = noise.new_stream(
+        ID("link", is_declaration=True), LINK_KEY, initiator, "my_link"
+    )
     assert noise.FILTER_SOURCE_FILES() == []
     defines = {define.name for define in CORE.defines}
     assert "USE_NOISE_STREAM" in defines
     assert ("USE_NOISE_SPARE_EPHEMERAL" in defines) is spare
+    assert ("USE_NOISE_STREAM_INITIATOR" in defines) is initiator
+    assert ("USE_NOISE_STREAM_RESPONDER" in defines) is not initiator
     assert str(stream) == "link_noise"

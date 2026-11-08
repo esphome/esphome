@@ -1,11 +1,11 @@
 import base64
 import binascii
 from collections.abc import Callable
+from functools import partial
 import secrets
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_RECONNECT_INTERVAL
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_PLATFORM,
 )
 from esphome.core import CORE, ID
-from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -41,7 +40,7 @@ def generate_encryption_key() -> str:
     return base64.b64encode(secrets.token_bytes(32)).decode()
 
 
-def validate_encryption_key(value: Any) -> str:
+def validate_encryption_key(value: Any, *, required: bool = False) -> str:
     value = cv.string_strict(value)
     try:
         decoded = base64.b64decode(value, validate=True)
@@ -53,10 +52,12 @@ def validate_encryption_key(value: Any) -> str:
     if not any(decoded):
         # The device treats the all-zeros key as no key at all (it is the
         # provisioning sentinel), so it must never reach a build
+        omit = (
+            "" if required else f"omit the {CONF_KEY} to provision it at runtime, or "
+        )
         raise cv.Invalid(
             f"The all-zeros {CONF_KEY} is reserved and provides no protection; "
-            f"omit the {CONF_KEY} to provision it at runtime, or generate a real "
-            "key with: openssl rand -base64 32"
+            f"{omit}generate a real key with: openssl rand -base64 32"
         )
 
     # Return original data for roundtrip conversion
@@ -102,24 +103,11 @@ def new_psk_progmem(key: str) -> MockObj:
     )
 
 
-def _validate_required_key(value: Any) -> str:
-    """validate_encryption_key for a key that cannot be left out."""
-    value = cv.string_strict(value)
-    try:
-        decoded = base64.b64decode(value, validate=True)
-    except binascii.Error:
-        decoded = None
-    if decoded == bytes(32):
-        raise cv.Invalid(
-            f"The all-zeros {CONF_KEY} is reserved; generate a real key with: "
-            "openssl rand -base64 32"
-        )
-    return validate_encryption_key(value)
-
-
 STREAM_ENCRYPTION_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_KEY): cv.sensitive(_validate_required_key),
+        cv.Required(CONF_KEY): cv.sensitive(
+            partial(validate_encryption_key, required=True)
+        ),
     }
 )
 
@@ -153,22 +141,6 @@ def final_validate_stream_key(owner: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
-def final_validate_reconnect_interval(config: ConfigType) -> ConfigType:
-    """A reconnect_interval under one loop pass voids the wait after a failed
-    handshake."""
-    if CONF_ENCRYPTION not in config:
-        return config
-    loop_interval = get_loop_interval()
-    if config[CONF_RECONNECT_INTERVAL] < loop_interval:
-        raise cv.Invalid(
-            f"With {CONF_ENCRYPTION}, {CONF_RECONNECT_INTERVAL} must last at least one "
-            f"main loop pass ({CONF_LOOP_INTERVAL} of {loop_interval}). Set it to "
-            f"{loop_interval} or more.",
-            path=[CONF_RECONNECT_INTERVAL],
-        )
-    return config
-
-
 def require_stream() -> None:
     """Compile NoiseStream; call from a consumer's to_code."""
     cg.add_define("USE_NOISE_STREAM")
@@ -192,14 +164,23 @@ def stream_auto_load(domain: str, base: list[str]) -> Callable[[], list[str]]:
     return auto_load
 
 
-def new_stream(owner_id: ID, key: str, initiator: bool) -> MockObj:
-    """Create the NoiseStream of one link. The side that answers takes the
-    spare ephemeral key, as the api server does."""
+def new_stream(owner_id: ID, key: str, initiator: bool, log_tag: str) -> MockObj:
+    """Create the NoiseStream of one link; log_tag names its log lines. Only the
+    roles in use are compiled, and the side that answers takes the spare
+    ephemeral key, as the api server does."""
     require_stream()
-    if not initiator:
+    if initiator:
+        cg.add_define("USE_NOISE_STREAM_INITIATOR")
+    else:
+        cg.add_define("USE_NOISE_STREAM_RESPONDER")
         enable_spare_ephemeral()
     stream_id = ID(f"{owner_id.id}_noise", is_declaration=True, type=NoiseStream)
-    return cg.new_Pvariable(stream_id, new_psk_progmem(key), initiator)
+    return cg.new_Pvariable(
+        stream_id,
+        cg.shared_progmem_string(log_tag),
+        new_psk_progmem(key),
+        initiator,
+    )
 
 
 def encryption_schema(config: ConfigType | None) -> ConfigType:

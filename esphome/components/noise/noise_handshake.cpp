@@ -73,7 +73,7 @@ int NoiseResponderHandshake::init_(const NoiseContext &ctx, const uint8_t *prolo
 }
 
 template int NoiseResponderHandshake::init_<NOISE_ROLE_RESPONDER>(const NoiseContext &, const uint8_t *, size_t);
-#ifdef USE_NOISE_STREAM
+#ifdef USE_NOISE_STREAM_INITIATOR
 template int NoiseResponderHandshake::init_<NOISE_ROLE_INITIATOR>(const NoiseContext &, const uint8_t *, size_t);
 #endif
 
