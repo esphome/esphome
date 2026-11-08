@@ -10,8 +10,8 @@ transactions (garbage bits, NACK, clock stretch, SCL/SDA held low up to `hold_ma
 register read every `hammer`, a boot self test, and 30 s `MASTER`/`SLAVE` counter lines (ok, timeouts by kind,
 garbage, longest failed run, loop stalls). `example.yaml` shows the substitutions: framework and version (`fw`,
 `fwver`), `seed` (seed 1 at 5 % hangs dev with an interrupt watchdog on CPU0 at about 245 s, the #22270 report),
-`p_fault`, `fault_mask`. `run.sh LABEL [SECONDS]`
-builds, flashes and captures (640 s default), `summary.sh` prints crashes, watchdogs, timeout kinds and the minimum ok reads per window.
+`p_fault`, `fault_mask`. `run.sh LABEL [SECONDS]` builds, flashes and captures (640 s default); `summary.sh` prints
+crashes, watchdogs, timeout kinds and the minimum ok reads per window.
 
 Findings: ESP-IDF 5.4.2 has a different failure (the driver waits for bus idle with no timeout after a NACK, so the task
 watchdog reboots in a loop with or without the guard); 5.5.5, 5.5.6 and 6.0.1 hang on the storm without the guard and
