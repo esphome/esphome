@@ -35,6 +35,7 @@ UNIT_DAYS = "d"
 CONF_BYPASS = "bypass"
 CONF_FILTER_REMAINING = "filter_remaining"
 CONF_FLOW_LEVEL = "flow_level"
+CONF_FLOW_LEVEL_REQUEST = "flow_level_request"
 CONF_TEMPERATURE_EHA = "temperature_eha"
 CONF_TEMPERATURE_ETA = "temperature_eta"
 CONF_TEMPERATURE_ODA = "temperature_oda"
@@ -120,6 +121,11 @@ SENSORS = {
         DucoReading.DUCO_READING_FLOW_LEVEL,
         BOX_NODE,
         _schema(unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0),
+    ),
+    CONF_FLOW_LEVEL_REQUEST: (
+        DucoReading.DUCO_READING_FLOW_LEVEL,
+        None,
+        _node_schema(unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0),
     ),
     CONF_TIME_REMAINING: (
         DucoReading.DUCO_READING_TIME_REMAINING,
