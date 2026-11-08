@@ -52,38 +52,30 @@ TEST(MCP251XFDFaults, ClearsFifoAndSpiFaultsWithoutClearingOtherBits) {
   EXPECT_EQ(controller.get_status().rx_overrun_count, 1u);
 }
 
-TEST(MCP251XFDFaults, FailedFifoStatusReadLeavesOverflowPendingForRetry) {
-  RegisterDelegate spi;
-  TestMCP251XFD controller(&spi);
-  spi.registers[REG_RX_FIFO_STA] = FIFO_RX_OVERFLOW;
-  spi.corrupt_next_reads(REG_RX_FIFO_STA);
+TEST(MCP251XFDFaults, FailedStatusReadLeavesFaultPendingForRetry) {
+  struct Case {
+    uint16_t status_register;
+    uint8_t fault;
+    canbus::CanEventFlags events;
+  };
+  for (const auto &test : {Case{REG_RX_FIFO_STA, FIFO_RX_OVERFLOW, canbus::CAN_EVENT_RX_QUEUE_FULL},
+                           Case{REG_CRC + 2, CRC_CRC_ERROR, canbus::CanEventFlags{}}}) {
+    SCOPED_TRACE(test.status_register);
+    RegisterDelegate spi;
+    TestMCP251XFD controller(&spi);
+    spi.registers[test.status_register] = test.fault;
+    spi.corrupt_next_reads(test.status_register);
 
-  EXPECT_EQ(controller.poll(100), canbus::CAN_EVENT_RX_QUEUE_FULL);
-  EXPECT_EQ(spi.registers[REG_RX_FIFO_STA], FIFO_RX_OVERFLOW);
-  EXPECT_EQ(spi.writes_to(REG_RX_FIFO_STA), 0u);
-  EXPECT_TRUE(controller.status_has_warning());
+    EXPECT_EQ(controller.poll(100), test.events);
+    EXPECT_EQ(spi.registers[test.status_register], test.fault);
+    EXPECT_EQ(spi.writes_to(test.status_register), 0u);
+    EXPECT_TRUE(controller.status_has_warning());
 
-  EXPECT_EQ(controller.poll(200), canbus::CAN_EVENT_RX_QUEUE_FULL);
-  EXPECT_EQ(spi.registers[REG_RX_FIFO_STA], 0);
-  EXPECT_EQ(spi.writes_to(REG_RX_FIFO_STA), 1u);
-  EXPECT_FALSE(controller.status_has_warning());
-}
-
-TEST(MCP251XFDFaults, FailedCrcStatusReadLeavesSpiFaultPendingForRetry) {
-  RegisterDelegate spi;
-  TestMCP251XFD controller(&spi);
-  spi.registers[REG_CRC + 2] = CRC_CRC_ERROR;
-  spi.corrupt_next_reads(REG_CRC + 2);
-
-  EXPECT_EQ(controller.poll(100), 0);
-  EXPECT_EQ(spi.registers[REG_CRC + 2], CRC_CRC_ERROR);
-  EXPECT_EQ(spi.writes_to(REG_CRC + 2), 0u);
-  EXPECT_TRUE(controller.status_has_warning());
-
-  EXPECT_EQ(controller.poll(200), 0);
-  EXPECT_EQ(spi.registers[REG_CRC + 2], 0);
-  EXPECT_EQ(spi.writes_to(REG_CRC + 2), 1u);
-  EXPECT_FALSE(controller.status_has_warning());
+    EXPECT_EQ(controller.poll(200), test.events);
+    EXPECT_EQ(spi.registers[test.status_register], 0);
+    EXPECT_EQ(spi.writes_to(test.status_register), 1u);
+    EXPECT_FALSE(controller.status_has_warning());
+  }
 }
 
 TEST(MCP251XFDFaults, ReportsErrorStateTransitionsAndPreservesUnrelatedInterrupts) {
