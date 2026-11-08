@@ -172,14 +172,19 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
   if (this->fast_decimation_ && input_stream_info.get_sample_rate() != this->target_sample_rate_) {
     // Keep the callback output within its setup-time reservation.
     const size_t max_input_bytes = input_stream_info.ms_to_bytes(BUFFER_DURATION_MS);
-    for (size_t offset = 0; offset < data.size(); offset += max_input_bytes) {
-      const size_t bytes = std::min(max_input_bytes, data.size() - offset);
-      if (!this->dsp_decimator_.process(data.data() + offset, bytes, this->output_buffer_)) {
+    for (size_t offset = 0; offset < capture.data.size(); offset += max_input_bytes) {
+      const size_t bytes = std::min(max_input_bytes, capture.data.size() - offset);
+      if (!this->dsp_decimator_.process(capture.data.data() + offset, bytes, this->output_buffer_)) {
         ESP_LOGE(TAG, "ESP-DSP decimator reset failed");
         return;
       }
-      if (!this->output_buffer_.empty())
-        this->data_callbacks_.call(this->output_buffer_);
+      if (!this->output_buffer_.empty()) {
+        const int64_t time_us = capture.capture_time_us == 0
+                                    ? 0
+                                    : capture.capture_time_us + input_stream_info.frames_to_microseconds(
+                                                                    input_stream_info.bytes_to_frames(offset));
+        this->publish_audio_(this->output_buffer_, this->audio_stream_info_, time_us);
+      }
     }
     return;
   }
