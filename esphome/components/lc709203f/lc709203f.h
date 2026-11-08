@@ -20,6 +20,10 @@ enum LC709203FBatteryVoltage {
 };
 
 class Lc709203f final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(battery_remaining)
+  SUB_SENSOR(temperature)
+
  public:
   void setup() override;
   void update() override;
@@ -28,20 +32,12 @@ class Lc709203f final : public sensor::Sensor, public PollingComponent, public i
   void set_pack_size(uint16_t pack_size);
   void set_thermistor_b_constant(uint16_t b_constant) { this->b_constant_ = b_constant; }
   void set_pack_voltage(LC709203FBatteryVoltage pack_voltage) { this->pack_voltage_ = pack_voltage; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_battery_remaining_sensor(sensor::Sensor *battery_remaining_sensor) {
-    battery_remaining_sensor_ = battery_remaining_sensor;
-  }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
 
  private:
   uint8_t get_register_(uint8_t register_to_read, uint16_t *register_value);
   uint8_t set_register_(uint8_t register_to_set, uint16_t value_to_set);
 
  protected:
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *battery_remaining_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
   uint16_t pack_size_;
   uint16_t apa_;
   uint16_t b_constant_;

@@ -71,10 +71,8 @@ void BH1745Component::setup() {
     this->mark_failed(LOG_STR("Wrong part ID"));
     return;
   }
-  if (!this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)))
     return;
-  }
 
   // Light lost behind glass is scaled back up, as the other light sensors do
   this->lux_scale_ = 160.0f * this->glass_attenuation_factor_ /
@@ -85,10 +83,8 @@ void BH1745Component::setup() {
       // High threshold 0 and low threshold 0xFFFF (low byte first) make the interrupt condition always
       // true, so the INT pin simply follows the enable bit, which drives the breakout's LEDs.
       static constexpr uint8_t THRESHOLDS[4] = {0x00, 0x00, 0xFF, 0xFF};
-      if (!this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))) {
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->setup_check(this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))))
         return;
-      }
     }
     // RGBC_EN makes the chip measure continuously; update() reads the latest result.
     if (!this->write_byte(REG_MODE_CONTROL1, static_cast<uint8_t>(this->measurement_time_)) ||
@@ -143,21 +139,15 @@ void BH1745Component::update() {
   const uint16_t clear = buffer[3];
   ESP_LOGV(TAG, "Red: %u, Green: %u, Blue: %u, Clear: %u", red, green, blue, clear);
 
-  if (this->red_counts_sensor_ != nullptr)
-    this->red_counts_sensor_->publish_state(red);
-  if (this->green_counts_sensor_ != nullptr)
-    this->green_counts_sensor_->publish_state(green);
-  if (this->blue_counts_sensor_ != nullptr)
-    this->blue_counts_sensor_->publish_state(blue);
-  if (this->clear_counts_sensor_ != nullptr)
-    this->clear_counts_sensor_->publish_state(clear);
+  PUBLISH_STATE(this->red_counts_sensor_, red);
+  PUBLISH_STATE(this->green_counts_sensor_, green);
+  PUBLISH_STATE(this->blue_counts_sensor_, blue);
+  PUBLISH_STATE(this->clear_counts_sensor_, clear);
 
   // The datasheet picks its coefficients by whether clear / green < 0.160 (= 4 / 25).
   const bool low_clear_ratio = static_cast<uint32_t>(clear) * 25 < static_cast<uint32_t>(green) * 4;
-  if (this->illuminance_sensor_ != nullptr)
-    this->illuminance_sensor_->publish_state(calculate_lux(red, green, low_clear_ratio, this->lux_scale_));
-  if (this->color_temperature_sensor_ != nullptr)
-    this->color_temperature_sensor_->publish_state(calculate_cct(red, green, blue, low_clear_ratio));
+  PUBLISH_STATE(this->illuminance_sensor_, calculate_lux(red, green, low_clear_ratio, this->lux_scale_));
+  PUBLISH_STATE(this->color_temperature_sensor_, calculate_cct(red, green, blue, low_clear_ratio));
 }
 
 void BH1745Component::set_interrupt_state(bool on) {

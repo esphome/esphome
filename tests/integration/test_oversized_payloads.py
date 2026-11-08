@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -221,26 +222,16 @@ async def test_noise_corrupt_encrypted_frame(
     This should fail decryption and cause disconnection.
     """
     noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
-    process_exited = False
-    cipherstate_event = asyncio.Event()
+    waiter = LineWaiter()
+    # Either the VV log from noise or the W log from the connection
+    cipherstate_future = waiter.expect(
+        re.compile(
+            r"\[VV\]\[api\.noise.*noise_cipherstate_decrypt failed: MAC_FAILURE"
+            r"|\[W\]\[api\.connection.*Reading failed CIPHERSTATE_DECRYPT_FAILED"
+        )
+    )
 
-    def check_logs(line: str) -> None:
-        nonlocal process_exited
-        # Check for signs that the process exited/crashed
-        if "Segmentation fault" in line or "core dumped" in line:
-            process_exited = True
-        # Check for the expected log about decryption failure
-        # This can appear as either a VV-level log from noise or a W-level log from connection
-        if (
-            "[VV][api.noise" in line
-            and "noise_cipherstate_decrypt failed: MAC_FAILURE" in line
-        ) or (
-            "[W][api.connection" in line
-            and "Reading failed CIPHERSTATE_DECRYPT_FAILED" in line
-        ):
-            cipherstate_event.set()
-
-    async with run_compiled(yaml_config, line_callback=check_logs):
+    async with run_compiled(yaml_config, line_callback=waiter.callback):
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
             client,
             disconnect_event,
@@ -269,12 +260,12 @@ async def test_noise_corrupt_encrypted_frame(
             await asyncio.wait_for(disconnect_event.wait(), timeout=5.0)
 
         # After disconnection, verify process didn't crash
-        assert not process_exited, (
+        assert not _crashed(waiter), (
             "ESPHome process should not crash on corrupt encrypted frames"
         )
         # Wait for the expected log message (may arrive after disconnect event)
-        await wait_or_fail(
-            cipherstate_event,
+        await waiter.wait(
+            cipherstate_future,
             2.0,
             "Expected to see log about noise_cipherstate_decrypt failure"
             " or CIPHERSTATE_DECRYPT_FAILED",

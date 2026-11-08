@@ -254,12 +254,9 @@ void MSA3xxComponent::update() {
            orientation_z_to_string(this->status_.orientation.orient_z));
 
 #ifdef USE_SENSOR
-  if (this->acceleration_x_sensor_ != nullptr)
-    this->acceleration_x_sensor_->publish_state(this->data_.x);
-  if (this->acceleration_y_sensor_ != nullptr)
-    this->acceleration_y_sensor_->publish_state(this->data_.y);
-  if (this->acceleration_z_sensor_ != nullptr)
-    this->acceleration_z_sensor_->publish_state(this->data_.z);
+  PUBLISH_STATE(this->acceleration_x_sensor_, this->data_.x);
+  PUBLISH_STATE(this->acceleration_y_sensor_, this->data_.y);
+  PUBLISH_STATE(this->acceleration_z_sensor_, this->data_.z);
 #endif
 
 #ifdef USE_TEXT_SENSOR

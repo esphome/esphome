@@ -540,10 +540,12 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
   media_source::MediaSource *active_source = ps.active_source;
   bool has_internal_playlist = (active_source != nullptr) && active_source->has_internal_playlist();
 
-  // Determine target source: prefer active, fall back to last
+  // Prefer the active source, then a pending source awaiting its PLAYING callback, then the last source.
   media_source::MediaSource *target_source = nullptr;
   if (active_source != nullptr) {
     target_source = active_source;
+  } else if (ps.pending_source != nullptr) {
+    target_source = ps.pending_source;
   } else if (ps.last_source != nullptr) {
     target_source = ps.last_source;
   }
@@ -598,14 +600,21 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
     }
 
     case media_player::MEDIA_PLAYER_COMMAND_STOP: {
-      if (!has_internal_playlist) {
-        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
-        ps.playlist.clear();
-        ps.shuffle_indices.clear();
-        ps.playlist_index = 0;
-      }
+      // Cleared for every source: the stop suppresses the advance that would otherwise end the playlist
+      this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
+      ps.playlist.clear();
+      ps.shuffle_indices.clear();
+      ps.playlist_index = 0;
       if (target_source != nullptr) {
+        ps.stopping_source = target_source;
         target_source->handle_command(media_source::MediaSourceCommand::STOP);
+        // A cancelled startup may already be IDLE and emit no state transition; the decoder sources' stop() joins
+        // their tasks and drops pending events, so no PLAYING follows.
+        if (target_source->get_state() == media_source::MediaSourceState::IDLE) {
+          if (ps.pending_source == target_source)
+            ps.pending_source = nullptr;
+          ps.stopping_source = nullptr;
+        }
       }
       break;
     }

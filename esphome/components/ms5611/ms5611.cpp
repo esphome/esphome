@@ -18,16 +18,12 @@ static const uint8_t MS5611_CMD_CONV_D2 = 0x50;
 static const uint8_t MS5611_CMD_READ_PROM = 0xA2;
 
 void MS5611Component::setup() {
-  if (!this->write_bytes(MS5611_CMD_RESET, nullptr, 0)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_bytes(MS5611_CMD_RESET, nullptr, 0)))
     return;
-  }
   this->set_timeout(100, [this]() {
     for (uint8_t offset = 0; offset < 6; offset++) {
-      if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->setup_check(this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])))
         return;
-      }
     }
   });
 }
@@ -116,10 +112,8 @@ void MS5611Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   const float pressure = p / 100.0f;
   ESP_LOGD(TAG, "Got temperature=%0.02f°C pressure=%0.01fhPa", temperature, pressure);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);  // hPa
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);  // hPa
   this->status_clear_warning();
 }
 
