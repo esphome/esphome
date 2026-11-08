@@ -34,6 +34,7 @@ void TcpUart::setup() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   for (auto &link : this->extra_) {
     link.begin(TAG);
+    link.set_idle_timeout(this->link_.idle_timeout());
   }
 #endif
 #ifdef USE_SOCKET_TCP_LISTENER
@@ -118,6 +119,8 @@ void TcpUart::sync_link_() {
   this->link_was_up_ = up;
   // Each session is a turn of its own.
   this->turn_++;
+  // A hold belongs to the session that took it.
+  this->held_ = false;
   if (up) {
     // Unread bytes of the last session stay readable while down, never into the next one.
     this->rx_start_ = this->rx_end_ = 0;
@@ -138,7 +141,7 @@ size_t TcpUart::read_socket_(socket::TcpClientLink &link, size_t limit) {
   size_t room = std::min(RX_BUFFER_SIZE - this->rx_end_, limit);
   if (room == 0) {
     // Unread bytes are waiting on the consumer. The peer is not idle.
-    this->link_.note_io();
+    link.note_io();
     return 0;
   }
   ssize_t count = link.read(this->rx_ + this->rx_end_, room);
@@ -186,6 +189,10 @@ void TcpUart::loop() {
     this->read_socket_(this->link_);
   }
   this->link_.flush_tx();
+  if (this->held_) {
+    // The peer waits for its reply.
+    this->link_.note_io();
+  }
   this->link_.check_idle();
 }
 
@@ -216,7 +223,16 @@ void TcpUart::loop_pool_(bool waiting) {
     this->pick_holder_(now);
   }
   for (uint8_t i = 0; i < count; i++) {
-    this->slot_(i).flush_tx();
+    socket::TcpClientLink &link = this->slot_(i);
+    link.flush_tx();
+    // Bytes still waiting in its socket, for their turn or for room, are not a quiet peer. Nor is a held turn's peer:
+    // it waits for its reply.
+    const bool busy =
+        (this->pending_mask_ & (1u << i)) != 0 || (i == this->holder_ && (this->rx_pending_ || this->held_));
+    if (busy || link.ready()) {
+      link.note_io();
+    }
+    link.check_idle();
   }
 }
 

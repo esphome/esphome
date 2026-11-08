@@ -53,9 +53,10 @@ class TcpUart : public uart::UARTComponent, public Component {
   /// Reads come from that connection only, writes go to it.
   uint16_t turn() const { return this->turn_; }
   /// Keeps a started turn on its connection until release_turn(). Held after a release, the turn reads nothing new.
+  /// A held turn counts as traffic, so the idle timeout does not close a connection that waits for its reply.
   void hold_turn() {
-#ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = true;
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->rest_ = 0;
 #endif
   }
@@ -63,8 +64,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   /// Before that it reads only the `rest` bytes missing from a request started in them, until turn_timeout of quiet.
   /// Pass `rest` no later than the loop() that takes the last available byte; each call replaces it.
   void release_turn(uint16_t rest = 0) {
-#ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = false;
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->release_ = true;
     this->rest_ = rest;
 #endif
@@ -148,7 +149,6 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint8_t up_mask_{0};
   // Slots whose last read stopped before EAGAIN; ready() stays false for them.
   uint8_t pending_mask_{0};
-  bool held_{false};
   bool release_{false};
   // Bytes the released turn may still read: the rest of a request started in the bytes already read.
   uint16_t rest_{0};
@@ -158,6 +158,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint16_t rx_end_{0};
   uint16_t turn_{0};
   bool server_{false};
+  // A consumer holds the turn until its reply.
+  bool held_{false};
   // The link state loop() saw last; edges publish the sensor, the up edge clears rx_.
   bool link_was_up_{false};
   // A read stopped before EAGAIN. ready() stays false until new data arrives.
