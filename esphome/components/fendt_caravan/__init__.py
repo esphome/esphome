@@ -19,16 +19,10 @@ FendtCaravanHubBase = fendt_caravan_ns.class_(
     "FendtCaravanHubBase", cg.PollingComponent
 )
 MainControlUnitHub = fendt_caravan_ns.class_("MainControlUnitHub", FendtCaravanHubBase)
-AldeDeviceHub = fendt_caravan_ns.class_("AldeDeviceHub", FendtCaravanHubBase)
-LighthingDeviceHub = fendt_caravan_ns.class_("LightingDeviceHub", FendtCaravanHubBase)
-FridgeDeviceHub = fendt_caravan_ns.class_("FridgeDeviceHub", FendtCaravanHubBase)
 
 CONF_BT_ID = "bt_id"
 CONF_PARENT_ID = "parent_id"
 CONF_MAIN_CONTROL_UNIT = "main_control_unit"
-CONF_ALDE_UNIT = "alde_unit"
-CONF_LIGHTING_UNIT = "lighting_unit"
-CONF_FRIDGE_UNIT = "fridge_unit"
 
 # The address the panel was paired with; it drops the link when given any other one
 DEFAULT_BT_ID = "C0:EE:FB:90:B0:A7"
@@ -42,21 +36,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAIN_CONTROL_UNIT): cv.Schema(
                 {
                     cv.GenerateID(): cv.declare_id(MainControlUnitHub),
-                }
-            ).extend(cv.polling_component_schema("60s")),
-            cv.Optional(CONF_ALDE_UNIT): cv.Schema(
-                {
-                    cv.GenerateID(): cv.declare_id(AldeDeviceHub),
-                }
-            ).extend(cv.polling_component_schema("60s")),
-            cv.Required(CONF_LIGHTING_UNIT): cv.Schema(
-                {
-                    cv.GenerateID(): cv.declare_id(LighthingDeviceHub),
-                }
-            ).extend(cv.polling_component_schema("60s")),
-            cv.Optional(CONF_FRIDGE_UNIT): cv.Schema(
-                {
-                    cv.GenerateID(): cv.declare_id(FridgeDeviceHub),
                 }
             ).extend(cv.polling_component_schema("60s")),
         }
@@ -74,18 +53,3 @@ async def to_code(config):
     await cg.register_parented(hub, var)
     await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])
     cg.add(var.set_mcu_hub(hub))
-    if CONF_ALDE_UNIT in config:
-        hub = cg.new_Pvariable(config[CONF_ALDE_UNIT][CONF_ID])
-        await cg.register_parented(hub, var)
-        await cg.register_component(hub, config[CONF_ALDE_UNIT])
-        cg.add(var.set_alde_unit_hub(hub))
-    if CONF_LIGHTING_UNIT in config:
-        hub = cg.new_Pvariable(config[CONF_LIGHTING_UNIT][CONF_ID])
-        await cg.register_parented(hub, var)
-        await cg.register_component(hub, config[CONF_LIGHTING_UNIT])
-        cg.add(var.set_lighting_unit_hub(hub))
-    if CONF_FRIDGE_UNIT in config:
-        hub = cg.new_Pvariable(config[CONF_FRIDGE_UNIT][CONF_ID])
-        await cg.register_parented(hub, var)
-        await cg.register_component(hub, config[CONF_FRIDGE_UNIT])
-        cg.add(var.set_fridge_unit_hub(hub))
