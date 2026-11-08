@@ -75,8 +75,11 @@ bool MCP251XFD::configure_() {
   this->write_byte_(REG_FLTCON, FILTER_ENABLE_RX_FIFO);
 
   if (!this->set_mode_(this->mcp_mode_) || !this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0) ||
-      !this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
+      !this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0)) {
+    // Back to Configuration, so a later mode check sees the reset and retries all of the setup
+    this->set_mode_(CanMode::CAN_MODE_CONFIGURATION);
     return false;
+  }
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -241,9 +244,7 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
 
   if (chip_reset) {
     ESP_LOGW(TAG, "Configuration lost, reconfiguring");
-    // A partial setup may already have left Configuration; go back so the next check retries it all
-    if (!this->configure_())
-      this->set_mode_(CanMode::CAN_MODE_CONFIGURATION);
+    this->configure_();
     return true;
   }
   // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.

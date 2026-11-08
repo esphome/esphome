@@ -248,6 +248,20 @@ TEST(MCP251XFDRecovery, ChipResetWith4MHzOscillatorReconfiguresAtSlowSpiRate) {
   EXPECT_FALSE(controller.status_has_warning());
 }
 
+TEST(MCP251XFDRecovery, FailedFifoResetLeavesTheChipInConfigurationForRetry) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  spi.reset();
+  // The FIFO reset read fails after the operating mode was requested
+  spi.corrupt_next_reads(REG_TX_FIFO_CON + 1, 4);
+  controller.poll(100);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_CONFIGURATION);
+
+  controller.poll(5100);
+  EXPECT_EQ(spi.writes_to(REG_CON), 2u);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+}
+
 TEST(MCP251XFDRecovery, OneFailedReadDoesNotResetA4MHzChip) {
   RegisterDelegate spi;
   spi.oscillator_4mhz = true;
