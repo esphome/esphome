@@ -2,7 +2,7 @@ from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.components.const import CONF_AQI
+from esphome.components.const import CONF_AQI, CONF_ERROR_CODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ECO2,
@@ -55,7 +55,6 @@ CONF_RAW_HUMIDITY = "raw_humidity"
 CONF_RS0 = "rs0"
 CONF_RS2 = "rs2"
 CONF_RS3 = "rs3"
-CONF_ERROR_CODE = "error_code"
 
 apc1_ns = cg.esphome_ns.namespace("apc1")
 APC1Component = apc1_ns.class_("APC1Component", uart.UARTDevice, cg.Component)

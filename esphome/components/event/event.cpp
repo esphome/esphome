@@ -17,11 +17,11 @@ void Event::trigger(const char *event_type) {
     }
   }
   if (found == nullptr) {
-    ESP_LOGE(TAG, "'%s': invalid event type for trigger(): %s", this->get_name().c_str(), event_type);
+    ESP_LOGE(TAG, "'%s': invalid event type for trigger(): %s", LOG_STR_ARG(this->get_log_name()), event_type);
     return;
   }
   this->last_event_type_ = found;
-  ESP_LOGV(TAG, "'%s' >> '%s'", this->get_name().c_str(), this->last_event_type_);
+  ESP_LOGV(TAG, "'%s' >> '%s'", LOG_STR_ARG(this->get_log_name()), this->last_event_type_);
   this->event_callback_.call(StringRef(found));
 #if defined(USE_EVENT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_event(this);

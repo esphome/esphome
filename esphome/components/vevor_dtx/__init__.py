@@ -44,5 +44,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await remote_base.register_listener(var, config)
     cg.add(var.set_bit_time_us(config[CONF_BIT_TIME]))
-    if (station_id := config.get(CONF_STATION_ID)) is not None:
-        cg.add(var.set_station_id(station_id))
+    cg.add_optional(var.set_station_id, config.get(CONF_STATION_ID))

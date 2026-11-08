@@ -22,7 +22,7 @@ class AudioStreamInfo {
    */
  public:
   AudioStreamInfo()
-      : AudioStreamInfo(16, 1, 16000){};  // Default values represent ESPHome's audio components historical values
+      : AudioStreamInfo(16, 1, 16000) {};  // Default values represent ESPHome's audio components historical values
   AudioStreamInfo(uint8_t bits_per_sample, uint8_t channels, uint32_t sample_rate);
 
   uint8_t get_bits_per_sample() const { return this->bits_per_sample_; }

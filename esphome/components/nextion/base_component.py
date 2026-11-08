@@ -31,6 +31,7 @@ CONF_PRECISION = "precision"
 CONF_SKIP_CONNECTION_HANDSHAKE = "skip_connection_handshake"
 CONF_START_UP_PAGE = "start_up_page"
 CONF_STARTUP_OVERRIDE_MS = "startup_override_ms"
+CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX = "tft_upload_http_buffer_size_tx"
 CONF_TFT_UPLOAD_HTTP_RETRIES = "tft_upload_http_retries"
 CONF_TFT_UPLOAD_HTTP_TIMEOUT = "tft_upload_http_timeout"
 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT = "tft_upload_watchdog_timeout"
@@ -128,8 +129,6 @@ async def setup_component_core_(var, config, arg):
         var.set_foreground_pressed_color, config.get(CONF_FOREGROUND_PRESSED_COLOR)
     )
 
-    if CONF_FONT_ID in config:
-        cg.add(var.set_font_id(config[CONF_FONT_ID]))
+    cg.add_optional(var.set_font_id, config.get(CONF_FONT_ID))
 
-    if CONF_VISIBLE in config:
-        cg.add(var.set_visible(config[CONF_VISIBLE]))
+    cg.add_optional(var.set_visible, config.get(CONF_VISIBLE))

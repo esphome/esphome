@@ -91,8 +91,7 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    if CONF_TEMPERATURE_OFFSET in config:
-        cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
+    cg.add_optional(var.set_temperature_offset, config.get(CONF_TEMPERATURE_OFFSET))
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 

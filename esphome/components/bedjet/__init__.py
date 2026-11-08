@@ -43,5 +43,4 @@ async def register_bedjet_child(var: MockObj, config: ConfigType) -> None:
 async def to_code(config: ConfigType) -> None:
     var = await ble_client.new_ble_node_component(config)
     await cg.add_variable(var.set_time_id, config.get(CONF_TIME_ID))
-    if (receive_timeout := config.get(CONF_RECEIVE_TIMEOUT)) is not None:
-        cg.add(var.set_status_timeout(receive_timeout))
+    cg.add_optional(var.set_status_timeout, config.get(CONF_RECEIVE_TIMEOUT))

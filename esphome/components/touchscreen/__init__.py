@@ -157,8 +157,7 @@ async def register_touchscreen(var: MockObj, config: ConfigType) -> None:
 
     await cg.add_variable(var.set_display, config[CONF_DISPLAY])
 
-    if CONF_TOUCH_TIMEOUT in config:
-        cg.add(var.set_touch_timeout(config[CONF_TOUCH_TIMEOUT]))
+    cg.add_optional(var.set_touch_timeout, config.get(CONF_TOUCH_TIMEOUT))
 
     if CONF_TRANSFORM in config:
         transform = config[CONF_TRANSFORM]

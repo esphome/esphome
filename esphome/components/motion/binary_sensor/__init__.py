@@ -2,6 +2,7 @@ from collections.abc import Callable
 import math
 from typing import Any
 
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
@@ -10,6 +11,8 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_MOTION_ID,
+    DATA,
+    DATA_PUBLISHER,
     MotionComponent,
     check_has_accelerometer,
     check_update_interval,
@@ -104,14 +107,14 @@ async def to_code(config: ConfigType) -> None:
     sensor_type = config[CONF_TYPE]
     parent = await cg.get_variable(config[CONF_MOTION_ID])
 
-    var = cg.new_Pvariable(config[CONF_ID], parent, SENSOR_TYPES[sensor_type])
+    var = cg.new_Pvariable(config[CONF_ID], SENSOR_TYPES[sensor_type])
     await binary_sensor.register_binary_sensor(var, config)
     await cg.register_component(var, config)
+    DATA_PUBLISHER.add(parent, parent_ref(var).process_motion_data(DATA))
 
     threshold = config[CONF_THRESHOLD]
     if sensor_type in ANGLE_THRESHOLD_TYPES:
         # Convert the configured tilt angle (degrees) to the cosine the C++ side expects.
         threshold = round(math.cos(math.radians(threshold)), 6)
     cg.add(var.set_threshold(threshold))
-    if (duration := config.get(CONF_DURATION)) is not None:
-        cg.add(var.set_duration(duration))
+    cg.add_optional(var.set_duration, config.get(CONF_DURATION))

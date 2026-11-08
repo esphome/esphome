@@ -100,10 +100,8 @@ async def to_code(config: ConfigType) -> None:
 
     await cg.add_pin(var.set_reset_pin, config.get(CONF_PIN_RESET))
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-    if CONF_MIN_VALUE in config:
-        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    if CONF_MAX_VALUE in config:
-        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+    cg.add_optional(var.set_min_value, config.get(CONF_MIN_VALUE))
+    cg.add_optional(var.set_max_value, config.get(CONF_MAX_VALUE))
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

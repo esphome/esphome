@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
 )
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CONF_GPS_ID = "gps_id"
@@ -40,6 +41,15 @@ GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
+
+_register_listener = cg.slot_list("GPS_LISTENER_COUNT", "register_listener", DOMAIN)
+
+
+async def register_listener(hub: MockObj, var: MockObj) -> None:
+    """Register a listener with its GPS."""
+    cg.add(_register_listener(hub, var))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {

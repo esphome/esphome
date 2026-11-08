@@ -15,6 +15,8 @@ enum CM1106ABCLogic : uint8_t {
 };
 
 class CM1106Component final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(co2)
+
  public:
   void setup() override;
   void update() override;
@@ -24,7 +26,6 @@ class CM1106Component final : public PollingComponent, public uart::UARTDevice {
   void abc_enable() { this->abc_set_(true); }
   void abc_disable() { this->abc_set_(false); }
 
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
   void set_abc(bool enabled, uint8_t cycle_days, uint16_t baseline_ppm) {
     this->abc_boot_logic_ = enabled ? CM1106_ABC_ENABLED : CM1106_ABC_DISABLED;
     this->abc_cycle_ = cycle_days;
@@ -37,7 +38,6 @@ class CM1106Component final : public PollingComponent, public uart::UARTDevice {
   bool send_command_expect_ack_(const uint8_t *command, size_t command_len, const uint8_t *ack);
   void abc_set_(bool enabled);
 
-  sensor::Sensor *co2_sensor_{nullptr};
   CM1106ABCLogic abc_boot_logic_{CM1106_ABC_NONE};
   uint8_t abc_cycle_{15};
   uint16_t abc_baseline_{400};
