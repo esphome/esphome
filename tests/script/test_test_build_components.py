@@ -571,20 +571,20 @@ def _run_decoys(
     components: set[str],
     component_buses: dict[str, dict[str, list[str]]],
     platform_filter: str | None = None,
+    failed_alone: frozenset[tuple[str, str]] = frozenset(),
 ) -> list[tbc.TestResult]:
-    return tbc.run_decoy_tests(
-        components=components,
-        all_tests={c: [] for c in component_buses},
-        platform_filter=platform_filter,
+    ctx = tbc.DecoyContext(
         platform_bases={
             p: [tmp_path / f"build_components_base.{p}.yaml"]
             for p in ("esp32-idf", "rp2040-ard")
         },
+        platform_filter=platform_filter,
         tests_dir=tmp_path,
         build_dir=tmp_path,
         component_buses=component_buses,
         non_groupable={"animation"},
     )
+    return tbc.run_decoy_tests(ctx, components, failed_alone)
 
 
 def test_run_decoy_tests_reports_failure(
@@ -596,7 +596,7 @@ def test_run_decoy_tests_reports_failure(
     calls = fake_grouped(False, _GY39_FAILURE)
     results = _run_decoys(
         tmp_path,
-        {"gy39", "animation", "not_in_batch"},
+        {"gy39", "animation"},
         _buses(gy39=_GY39_ESP32, animation=_GY39_ESP32),
     )
     assert [c["components"] for c in calls] == [
@@ -627,6 +627,22 @@ def test_run_decoy_tests_respects_platform_filter(
         platform_filter="rp2040-ard",
     )
     assert [c["platform"] for c in calls] == ["rp2040-ard"]
+
+
+def test_run_decoy_tests_skips_component_that_fails_alone(
+    fake_grouped: Callable[..., list[dict[str, object]]],
+    tmp_path: Path,
+) -> None:
+    """A test that already fails on its own gets no decoy run blaming grouping."""
+    calls = fake_grouped()
+    results = _run_decoys(
+        tmp_path,
+        {"gy39"},
+        _buses(gy39=_GY39_ESP32),
+        failed_alone=frozenset({("gy39", "esp32-idf")}),
+    )
+    assert calls == []
+    assert results == []
 
 
 def test_reproduce_commands_keep_decoy_groups_apart() -> None:
@@ -662,8 +678,10 @@ def _patch_component_runs(
     )
     monkeypatch.setattr(tbc, "run_individual_component_test", lambda **kwargs: None)
 
-    def fake_decoys(**kwargs: object) -> list[tbc.TestResult]:
-        seen.append(kwargs["components"])
+    def fake_decoys(
+        ctx: tbc.DecoyContext, components: set[str], failed_alone: object
+    ) -> list[tbc.TestResult]:
+        seen.append(components)
         return decoys
 
     monkeypatch.setattr(tbc, "run_decoy_tests", fake_decoys)
