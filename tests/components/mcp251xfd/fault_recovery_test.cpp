@@ -163,6 +163,8 @@ TEST(MCP251XFDRecovery, RefusedDirectModeChangeRecoversThroughConfiguration) {
   ASSERT_EQ(spi.mode(), CanMode::CAN_MODE_LOOPBACK);
 
   controller.poll(100);
+  // Only the two mode requests, without a reconfiguration
+  ASSERT_EQ(spi.writes.size(), 2u);
   ASSERT_EQ(spi.writes_to(REG_CON + 3), 2u);
   EXPECT_EQ(spi.writes[0].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)}));
   EXPECT_EQ(spi.writes[1].data, (std::vector<uint8_t>{static_cast<uint8_t>(CanMode::CAN_MODE_CLASSIC)}));
@@ -173,29 +175,63 @@ TEST(MCP251XFDRecovery, RefusedDirectModeChangeRecoversThroughConfiguration) {
   EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
 }
 
-TEST(MCP251XFDRecovery, ConfigurationModeReconfiguresOnlyWhenBitTimingWasLost) {
-  for (const bool lost : {true, false}) {
-    SCOPED_TRACE(lost);
-    RegisterDelegate spi;
-    TestMCP251XFD controller(&spi);
-    spi.set_mode(CanMode::CAN_MODE_CONFIGURATION);
-    spi.registers[REG_OSC + 1] = OSC_READY;
-    put_le32(spi.registers.data() + REG_NBTCFG, lost ? 0 : TEST_NOMINAL_BIT_TIMING);
+TEST(MCP251XFDRecovery, ChipResetReconfiguresWithoutReregisteringSpi) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  // NBTCFG's reset value matches the configured timing, so only the mode shows the reset
+  spi.reset();
+  ASSERT_EQ(encode_value_le<uint32_t>(spi.registers.data() + REG_NBTCFG), TEST_NOMINAL_BIT_TIMING);
 
-    controller.poll(100);
-    EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
-    EXPECT_EQ(spi.resets, lost ? 1u : 0u);
-    EXPECT_EQ(spi.writes_to(REG_CON), lost ? 1u : 0u);
-    EXPECT_EQ(spi.writes_to(REG_FLTCON), lost ? 1u : 0u);
-    EXPECT_EQ(encode_value_le<uint32_t>(spi.registers.data() + REG_NBTCFG), TEST_NOMINAL_BIT_TIMING);
-    if (!lost) {
-      ASSERT_EQ(spi.writes.size(), 1u);
-      EXPECT_EQ(spi.writes[0].address, REG_CON + 3);
-    }
+  controller.poll(100);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+  EXPECT_EQ(spi.writes_to(REG_CON), 1u);
+  EXPECT_EQ(spi.writes_to(REG_FLTCON), 1u);
+  EXPECT_EQ(spi.registers[REG_FLTCON], FILTER_ENABLE_RX_FIFO);
+  EXPECT_EQ(controller.spi_setups, 0u);
+  EXPECT_EQ(controller.spi_teardowns, 0u);
 
-    controller.poll(5100);
-    EXPECT_FALSE(controller.mode_fault_active());
-  }
+  controller.poll(5100);
+  EXPECT_FALSE(controller.mode_fault_active());
+  EXPECT_EQ(spi.writes_to(REG_CON), 1u);
+}
+
+TEST(MCP251XFDRecovery, PendingExitFromConfigurationIsNotAChipReset) {
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  spi.registers[REG_CON + 2] = static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION) << CON_MODE_SHIFT;
+
+  controller.poll(100);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+  EXPECT_EQ(spi.writes_to(REG_CON), 0u);
+  EXPECT_EQ(spi.writes_to(REG_CON + 3), 2u);
+}
+
+TEST(MCP251XFDRecovery, ChipResetWith4MHzOscillatorReconfiguresAtSlowSpiRate) {
+  RegisterDelegate spi;
+  spi.oscillator_4mhz = true;
+  TestMCP251XFD controller(&spi, CanMode::CAN_MODE_NORMAL, CanClock::CAN_CLOCK_4MHZ);
+  const uint32_t operating_rate = spi.data_rate;
+  ASSERT_GT(operating_rate, 1000000u);
+  spi.registers[REG_OSC] = OSC_PLL_ENABLE;
+  controller.poll(100);
+  ASSERT_FALSE(controller.status_has_warning());
+
+  // With the PLL off every read at the operating rate fails, the mode read included
+  spi.reset();
+  controller.poll(200);
+  EXPECT_TRUE(controller.status_has_warning());
+  EXPECT_EQ(spi.writes_to(REG_CON), 0u);
+
+  controller.poll(5100);
+  EXPECT_EQ(spi.writes_to(REG_CON), 1u);
+  EXPECT_EQ(spi.registers[REG_OSC] & OSC_PLL_ENABLE, OSC_PLL_ENABLE);
+  EXPECT_EQ(spi.mode(), CanMode::CAN_MODE_NORMAL);
+  EXPECT_EQ(spi.data_rate, operating_rate);
+  EXPECT_EQ(controller.spi_setups, 2u);
+  EXPECT_EQ(controller.spi_teardowns, 2u);
+
+  controller.poll(5200);
+  EXPECT_FALSE(controller.status_has_warning());
 }
 
 TEST(MCP251XFDRecovery, PeriodicCheckFixesStrayModeRequest) {

@@ -47,6 +47,8 @@ class MCP251XFD : public canbus::Canbus,
   canbus::Error send_message(canbus::CanFrame *frame) override;
   canbus::Error read_message(canbus::CanFrame *frame) override;
 
+  // Resets and configures the chip; SPI must be registered.
+  bool configure_();
   bool reset_();
   bool configure_clock_();
   bool set_mode_(CanMode mode, uint16_t timeout_ms = 100);

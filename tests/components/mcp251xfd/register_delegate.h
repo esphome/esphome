@@ -44,7 +44,9 @@ class RegisterDelegate : public spi::SPIDelegate {
   std::vector<Read> ram_reads;
   uint16_t corrupt_address{0xFFFF};
   unsigned corrupt_reads{0};
-  unsigned resets{0};
+  // With a 4 MHz oscillator, reads above 1 MHz fail CRC while the PLL is off
+  bool oscillator_4mhz{false};
+  uint32_t data_rate{0};
 
   void begin_transaction() override {}
   void end_transaction() override {}
@@ -74,6 +76,8 @@ class RegisterDelegate : public spi::SPIDelegate {
       this->corrupt_reads--;
       crc ^= 1;
     }
+    if (this->oscillator_4mhz && (this->registers[REG_OSC] & OSC_PLL_ENABLE) == 0 && this->data_rate > 1000000)
+      crc ^= 1;
     put_be16(data + 3 + data_length, crc);
   }
 
@@ -96,6 +100,9 @@ class RegisterDelegate : public spi::SPIDelegate {
       }
       if (reg == REG_CON + 3)
         this->request_mode(static_cast<CanMode>(data[i] & CON_MODE_MASK));
+      // The PLL locks at once
+      if (reg == REG_OSC)
+        assign_bits(this->registers[REG_OSC + 1], OSC_PLL_READY, data[i] & OSC_PLL_ENABLE);
     }
   }
 
@@ -115,12 +122,12 @@ class RegisterDelegate : public spi::SPIDelegate {
     if (mode == CanMode::CAN_MODE_CONFIGURATION || this->mode() == CanMode::CAN_MODE_CONFIGURATION)
       this->registers[REG_CON + 2] = static_cast<uint8_t>(mode) << CON_MODE_SHIFT;
   }
-  // Like a chip reset: registers cleared, Configuration mode, oscillator running.
+  // Like a chip reset: datasheet reset values, Configuration mode, PLL off, oscillator running.
   void reset() {
-    this->resets++;
     this->registers.fill(0);
-    this->set_mode(CanMode::CAN_MODE_CONFIGURATION);
-    this->registers[REG_OSC + 1] = OSC_READY;
+    put_le32(this->registers.data() + REG_CON, 0x04980760);
+    put_le32(this->registers.data() + REG_NBTCFG, 0x003E0F0F);
+    put_le32(this->registers.data() + REG_OSC, 0x00000460);
   }
   void set_error_flags(uint8_t flags) { this->registers[REG_TREC + 2] = flags; }
 
@@ -141,19 +148,24 @@ class RegisterDelegate : public spi::SPIDelegate {
   }
 };
 
-// 500 kbps at 40 MHz; nonzero, so a cleared NBTCFG shows a lost configuration
+// 500 kbps at 40 MHz, which is also the NBTCFG reset value
 static constexpr uint32_t TEST_NOMINAL_BIT_TIMING = 0x003E0F0F;
 
 class TestMCP251XFD : public MCP251XFD {
  public:
-  explicit TestMCP251XFD(RegisterDelegate *delegate, CanMode mode = CanMode::CAN_MODE_NORMAL)
-      : MCP251XFD(CanClock::CAN_CLOCK_40MHZ, mode, TEST_NOMINAL_BIT_TIMING, 0, 0), spi_(delegate) {
+  explicit TestMCP251XFD(RegisterDelegate *delegate, CanMode mode = CanMode::CAN_MODE_NORMAL,
+                         CanClock clock = CanClock::CAN_CLOCK_40MHZ)
+      : MCP251XFD(clock, mode, TEST_NOMINAL_BIT_TIMING, 0, 0) {
     this->delegate_ = delegate;
+    delegate->data_rate = this->data_rate_;
   }
 
-  // There is no SPI bus component, so keep the fake delegate across a reconfiguration
-  void spi_setup() override { this->delegate_ = this->spi_; }
-  void spi_teardown() override {}
+  // There is no SPI bus component, so the fake delegate stays registered
+  void spi_setup() override {
+    this->spi_setups++;
+    static_cast<RegisterDelegate *>(this->delegate_)->data_rate = this->data_rate_;
+  }
+  void spi_teardown() override { this->spi_teardowns++; }
 
   canbus::CanEventFlags poll(uint32_t now) {
     LoopBlockingGuard{nullptr, nullptr, now};
@@ -165,8 +177,8 @@ class TestMCP251XFD : public MCP251XFD {
   using MCP251XFD::read_message;
   using MCP251XFD::send_message;
 
- protected:
-  RegisterDelegate *spi_;
+  unsigned spi_setups{0};
+  unsigned spi_teardowns{0};
 };
 
 }  // namespace

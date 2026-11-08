@@ -22,12 +22,19 @@ PROGMEM_STRING_TABLE(CanModeStrings, "NORMAL", "SLEEP", "LOOPBACK", "LISTENONLY"
 static const LogString *mode_str(uint8_t mode) { return CanModeStrings::get_log_str(mode, CanModeStrings::LAST_INDEX); }
 
 bool MCP251XFD::setup_internal() {
+  this->spi_setup();
+  return this->configure_();
+}
+
+bool MCP251XFD::configure_() {
   // A 4 MHz oscillator starts without the PLL. Keep SPI below 0.85 * SYSCLK / 2 until it locks.
   const uint32_t operating_data_rate = this->data_rate_;
   const bool slow_start = this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ && operating_data_rate > 1000000;
-  if (slow_start)
+  if (slow_start) {
+    this->spi_teardown();
     this->set_data_rate(1000000);
-  this->spi_setup();
+    this->spi_setup();
+  }
   const bool clock_ready = this->reset_() && this->configure_clock_();
   // Restore the rate even on failure, so a later reconfiguration starts from it
   if (slow_start) {
@@ -214,34 +221,29 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
     return true;
   }
 
-  const bool first_fault = !this->mode_fault_active_;
-  if (first_fault) {
+  if (!this->mode_fault_active_) {
     this->mode_fault_active_ = true;
     ESP_LOGW(TAG, "Unexpected mode %s, requested %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
              LOG_STR_ARG(mode_str(requested_mode)), LOG_STR_ARG(mode_str(target_mode)));
+  } else if (!retry_due) {
+    // The first fault is fixed at once; the check interval spaces out later attempts.
+    return true;
   }
-  // The first fault is fixed at once; the check interval spaces out later attempts.
-  if (bus_off || !(retry_due || first_fault))
+  if (bus_off)
     return true;
   this->last_mode_check_time_ = App.get_loop_component_start_time();
 
-  // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.
-  if (current_mode != static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION)) {
-    if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
-      return true;
-  } else {
-    // A chip reset also lands in Configuration mode, with the bit timing, FIFOs and filter cleared
-    uint32_t nominal_bit_timing;
-    if (!this->read_register_(REG_NBTCFG, nominal_bit_timing))
-      return false;
-    if (nominal_bit_timing != this->nominal_bit_timing_) {
-      ESP_LOGW(TAG, "Configuration lost, reconfiguring");
-      this->spi_teardown();
-      this->setup_internal();
-      return true;
-    }
+  // The driver never requests Configuration mode and leaves it there, so this is a chip reset, which cleared the bit
+  // timing, FIFOs and filter. NBTCFG cannot show it: its reset value is also the common 500 kbps timing.
+  constexpr uint8_t configuration = static_cast<uint8_t>(CanMode::CAN_MODE_CONFIGURATION);
+  if (current_mode == configuration && requested_mode == configuration) {
+    ESP_LOGW(TAG, "Configuration lost, reconfiguring");
+    this->configure_();
+    return true;
   }
-  this->write_byte_(REG_CON + 3, target_mode);
+  // The controller refuses some direct changes, such as LOOPBACK to CLASSIC, but accepts any from Configuration.
+  if (this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
+    this->write_byte_(REG_CON + 3, target_mode);
   return true;
 }
 
@@ -393,10 +395,19 @@ canbus::CanStatus MCP251XFD::get_status() {
 
 canbus::CanEventFlags MCP251XFD::get_events() {
   const uint32_t now = App.get_loop_component_start_time();
+  // A refused mode request sets no flag, so the mode is also checked on an interval.
+  const bool mode_check_due = now - this->last_mode_check_time_ >= MODE_RECOVERY_INTERVAL_MS;
 
   std::array<uint8_t, 2> interrupt_flags;
-  if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size()))
+  if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size())) {
+    // A chip reset turns the PLL off, which leaves a 4 MHz SYSCLK too slow for the SPI rate, so every read fails
+    if (this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ && mode_check_due) {
+      this->last_mode_check_time_ = now;
+      ESP_LOGW(TAG, "SPI reads failing, reconfiguring");
+      this->configure_();
+    }
     return (this->last_error_flags_ & ERROR_BUS_OFF) != 0 ? canbus::CAN_EVENT_BUS_OFF : canbus::CanEventFlags{};
+  }
   const uint8_t controller_flags = interrupt_flags[1];
   // Keep polling TREC through error recovery.
   const bool trec_needed = controller_flags != 0 || this->last_error_flags_ != 0 || (this->last_trec_ >> 16) != 0;
@@ -435,8 +446,6 @@ canbus::CanEventFlags MCP251XFD::get_events() {
   if (!trec_read)
     direct_flags &= ~INT_CAN_ERROR;
   uint8_t mode_flags = interrupt_flags[0] & INT_MODE_CHANGE;
-  // A refused mode request sets no flag, so the mode is also checked on an interval.
-  const bool mode_check_due = now - this->last_mode_check_time_ >= MODE_RECOVERY_INTERVAL_MS;
   const bool mode_check_needed = mode_check_due || mode_flags != 0 || (controller_flags & INT_SYSTEM_ERROR);
   if (mode_check_needed &&
       ((trec_needed && !trec_read) || !this->recover_mode_if_needed_(is_bus_off, mode_check_due))) {
