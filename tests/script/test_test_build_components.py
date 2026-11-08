@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -576,6 +577,7 @@ def _run_partners(
     component_buses: dict[str, dict[str, list[str]]],
     platform_filter: str | None = None,
     prior_results: list[tbc.TestResult] | None = None,
+    continue_on_fail: bool = True,
 ) -> list[tbc.TestResult]:
     ctx = tbc.SharedIdContext(
         platform_bases={
@@ -587,6 +589,7 @@ def _run_partners(
         build_dir=tmp_path,
         component_buses=component_buses,
         non_groupable={"animation"},
+        continue_on_fail=continue_on_fail,
     )
     return tbc.run_shared_id_tests(ctx, components, prior_results or [])
 
@@ -647,6 +650,24 @@ def test_run_shared_id_tests_skips_component_that_fails_alone(
     )
     assert calls == []
     assert results == []
+
+
+def test_run_shared_id_tests_fails_fast_without_continue_on_fail(
+    fake_grouped: Callable[..., list[dict[str, object]]],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Without -f the first shared-id failure stops the run after its diagnostic."""
+    calls = fake_grouped(False, _GY39_FAILURE)
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_partners(
+            tmp_path,
+            {"gy39", "lm75b"},
+            _buses(gy39=_GY39_ESP32, lm75b=_GY39_ESP32),
+            continue_on_fail=False,
+        )
+    assert len(calls) == 1
+    assert "gy39 fails config validation" in capsys.readouterr().out
 
 
 def test_reproduce_commands_keep_shared_id_groups_apart() -> None:

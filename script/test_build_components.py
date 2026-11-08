@@ -749,6 +749,7 @@ class SharedIdContext:
     component_buses: dict[str, dict[str, list[str]]]
     non_groupable: set[str]
     toolchain: str | None = None
+    continue_on_fail: bool = True
 
     def run_config(
         self,
@@ -813,6 +814,9 @@ def run_shared_id_tests(
                     _print_shared_id_failure(
                         component, platform_with_version, partner_csv, result.output
                     )
+                    if not ctx.continue_on_fail:
+                        # Fail fast like the other paths, after the diagnostic
+                        raise subprocess.CalledProcessError(1, result.command)
                 results.append(result)
     return results
 
@@ -1429,6 +1433,7 @@ def test_components(
             component_buses=component_buses,
             non_groupable=non_groupable,
             toolchain=toolchain,
+            continue_on_fail=continue_on_fail,
         )
         test_results.extend(
             run_shared_id_tests(
