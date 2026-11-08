@@ -1487,7 +1487,11 @@ _NUMBER_TYPES = frozenset(
 
 
 def _all_numbers(args: TemplateArgsType) -> bool:
-    return all(str(type_) in _NUMBER_TYPES for type_, _ in args)
+    """Python side of WHILE_CAN_YIELD: the base types, without const and reference."""
+    return all(
+        str(type_).removeprefix("const ").rstrip("& ") in _NUMBER_TYPES
+        for type_, _ in args
+    )
 
 
 def _referenced_ids(value: Any) -> set[str]:

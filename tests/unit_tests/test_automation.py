@@ -107,7 +107,7 @@ from esphome.core import (
 )
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, RegistryEntry
 from tests.component_tests.helpers import get_define_value
 
@@ -3162,15 +3162,20 @@ async def test_inline_while_without_arguments_is_a_step_action() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-async def test_inline_while_with_number_arguments_keeps_its_object() -> None:
+@pytest.mark.parametrize(
+    "type_", [cg.uint32, cg.RawExpression("const float &"), cg.RawExpression("int&")]
+)
+async def test_inline_while_with_number_arguments_keeps_its_object(
+    type_: SafeExpType,
+) -> None:
     """Numbers, such as a repeat iteration, can be kept for a yield, so WhileAction stays."""
     await build_action_list(
         [_while_action(_action("my.a", "act_a"))],
-        cg.TemplateArguments(cg.uint32),
-        [(cg.uint32, "iteration")],
+        cg.TemplateArguments(type_),
+        [(type_, "x")],
     )
 
-    assert "new(act_w) WhileAction<uint32_t>(" in CORE.cpp_main_section
+    assert "new(act_w) WhileAction<" in CORE.cpp_main_section
     assert "while (true)" not in CORE.cpp_global_section
 
 

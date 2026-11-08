@@ -494,6 +494,38 @@ TEST(ActionBranchOwner, WhileTellsRunsApartWhenAnotherBodyEndsInside) {
   EXPECT_FALSE(list.is_running());
 }
 
+class CountPassAction : public Action<> {
+ public:
+  void play() override { this->passes++; }
+  int passes{0};
+};
+
+// Without arguments a wait_until timeout of one run can end inside another run's pass. Runs without arguments
+// are alike: whichever frame takes that end loops once for it, so every pass and every run still continues once.
+TEST(ActionBranchOwner, WhileWithoutArgumentsKeepsRunsWhenAWaitTimesOutInside) {
+  CountdownCondition<> cond(3);
+  WhileAction<> loop(&cond);
+  CountPassAction pass;
+  FlagCondition never;
+  never.value = false;
+  WaitUntilAction<> wait(&never);
+  wait.set_timeout_value([]() -> uint32_t { return 10; });
+  Log log;
+  RecordAction after(&log, 1);
+  loop.add_then({&pass, &wait});
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();  // run A waits
+  delay(15);
+  list.play();  // run B's pass releases A, whose wait timed out, inside it
+  delay(15);
+  wait.loop();  // the remaining waits time out
+  EXPECT_EQ(pass.passes, 3);
+  EXPECT_EQ(log, (Log{1, 1}));
+  EXPECT_FALSE(list.is_running());
+}
+
 static int step_passes = 0;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static ActionList<> *step_list = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static int step_stop_on = 0;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

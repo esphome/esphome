@@ -435,8 +435,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   // Branch-end resume hook
   void play(const Ts &...x) override {
-    // A body that did not wait ended inside run_loop_(), which loops again itself. A run ending here
-    // synchronously from a wait of another run passes other argument storage. Runs without arguments are alike.
+    // A body that did not wait ended inside run_loop_(), which loops again itself. A wait of another run that
+    // ends here synchronously (a wait_until timeout) passes other argument storage. Runs without arguments carry
+    // nothing to tell them apart: whichever frame takes such an end loops once for it, so each run continues once.
     WhileBody *body = active_while_body;
     if (body != nullptr && body->owner == this && body->args == args_key_(x...)) {
       body->ended = true;
