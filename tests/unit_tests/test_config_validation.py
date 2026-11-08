@@ -73,9 +73,11 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    Sensitive,
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
+    dump,
     load_yaml,
     make_data_base,
     parse_yaml,
@@ -205,6 +207,17 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert isinstance(result, SensitiveStr)
     assert isinstance(result, str)
     assert result == "hunter2"
+
+
+def test_sensitive__marks_a_lambda_without_changing_its_value() -> None:
+    """A lambda credential is marked so store_yaml can find it; dumps still see a lambda."""
+    result = cv.sensitive(cv.templatable(cv.string))(Lambda("return id(pw).state;"))
+
+    assert isinstance(result, Lambda)
+    assert isinstance(result, Sensitive)
+    assert (
+        dump({"password": result}) == "password: !lambda |-\n  return id(pw).state;\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -2308,6 +2321,12 @@ def test_color_temperature_negative() -> None:
         cv.color_temperature("-1 mireds")
 
 
+@pytest.mark.parametrize("value", ["0 K", "0K", "0.0 Kelvin"])
+def test_color_temperature_zero_kelvin(value: str) -> None:
+    with pytest.raises(Invalid, match="cannot be 0 K"):
+        cv.color_temperature(value)
+
+
 # ---------------------------------------------------------------------------
 # validate_bytes
 # ---------------------------------------------------------------------------
@@ -2398,6 +2417,13 @@ def test_ssid_empty() -> None:
 def test_ssid_too_long() -> None:
     with pytest.raises(Invalid, match="longer than 32"):
         cv.ssid("x" * 33)
+
+
+def test_ssid_multibyte_measured_in_bytes() -> None:
+    # 802.11 limits the SSID to 32 octets, not 32 characters
+    assert cv.ssid("é" * 16) == "é" * 16  # exactly 32 bytes
+    with pytest.raises(Invalid, match="longer than 32 bytes \\(got 34 bytes"):
+        cv.ssid("é" * 17)
 
 
 # ---------------------------------------------------------------------------
@@ -2574,12 +2600,26 @@ def test_conflicts_with_component_not_loaded() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_percentage_int_with_percent() -> None:
-    assert cv.percentage_int("50%") == 50
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (85, 85),
+        (0, 0),
+        (85.0, 85),
+        ("85", 85),
+        ("85%", 85),
+        ("85 %", 85),
+        ("0%", 0),
+    ],
+)
+def test_percentage_int_valid(value: float | str, expected: int) -> None:
+    assert cv.percentage_int(value) == expected
 
 
-def test_percentage_int_plain() -> None:
-    assert cv.percentage_int(50) == 50
+@pytest.mark.parametrize("value", ["abc", "85.5", "85.5%", "%", "", 85.5])
+def test_percentage_int_invalid(value: float | str) -> None:
+    with pytest.raises(Invalid):
+        cv.percentage_int(value)
 
 
 def test_invalid_always_raises() -> None:
@@ -2857,6 +2897,18 @@ def test_dimensions_string_invalid() -> None:
         cv.dimensions("notdimensions")
 
 
+@pytest.mark.parametrize("value", ["320x240px", "320x240,", "320x240junk"])
+def test_dimensions_string_trailing_garbage(value: str) -> None:
+    # re.match() left the pattern unanchored at the end, so trailing garbage
+    # was silently dropped instead of rejected
+    with pytest.raises(Invalid, match="Only WIDTHxHEIGHT"):
+        cv.dimensions(value)
+
+
+def test_dimensions_string_whitespace_still_valid() -> None:
+    assert cv.dimensions(" 320 x 240 ") == [320, 240]
+
+
 # ---------------------------------------------------------------------------
 # entity_id
 # ---------------------------------------------------------------------------
@@ -2874,6 +2926,14 @@ def test_entity_id_no_dot() -> None:
 def test_entity_id_invalid_char() -> None:
     with pytest.raises(Invalid, match="Invalid character"):
         cv.entity_id("light.living!room")
+
+
+@pytest.mark.parametrize("value", ["sensor.", ".sensor", "."])
+def test_entity_id_empty_part(value: str) -> None:
+    # The per-character check never ran for an empty part, so a trailing or
+    # leading dot silently passed validation
+    with pytest.raises(Invalid, match="form '<domain>\\.<object_id>'"):
+        cv.entity_id(value)
 
 
 # ---------------------------------------------------------------------------
@@ -3108,9 +3168,21 @@ def test_git_ref_valid() -> None:
     assert cv.git_ref("v1.2.3") == "v1.2.3"
 
 
-def test_git_ref_invalid() -> None:
+@pytest.mark.parametrize("ref", ["main", "release/v6.0", "feat+x", "a1b2c3d4"])
+def test_git_ref_valid_chars(ref: str) -> None:
+    assert cv.git_ref(ref) == ref
+
+
+@pytest.mark.parametrize("ref", ["main hi there", "a:b", "x~1", "", "main\n"])
+def test_git_ref_invalid(ref: str) -> None:
     with pytest.raises(Invalid, match="Not a valid git ref"):
-        cv.git_ref("!!!")
+        cv.git_ref(ref)
+
+
+@pytest.mark.parametrize("ref", [1.0, 2025, None])
+def test_git_ref_not_string(ref: object) -> None:
+    with pytest.raises(Invalid, match="Must be string"):
+        cv.git_ref(ref)
 
 
 def test_source_refresh_always() -> None:
@@ -3276,6 +3348,34 @@ def test_validate_source_shorthand_github_no_ref(setup_core: Path) -> None:
 def test_validate_source_shorthand_github_pr(setup_core: Path) -> None:
     result = cv.validate_source_shorthand("github://pr#1234")
     assert result[CONF_REF] == "pull/1234/head"
+
+
+def test_validate_source_shorthand_github_ref_with_slash(setup_core: Path) -> None:
+    result = cv.validate_source_shorthand("github://user/repo@release/v1")
+    assert result[CONF_REF] == "release/v1"
+
+
+def test_validate_source_shorthand_github_ref_keeps_all_chars(
+    setup_core: Path,
+) -> None:
+    result = cv.validate_source_shorthand("github://user/repo@feat+x")
+    assert result[CONF_REF] == "feat+x"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "github://esphome/esphome/esphome/components@dev",
+        "github://user/repo/",
+        "github://user/repo@main hi",
+        "github://pr#1234abc",
+    ],
+)
+def test_validate_source_shorthand_rejects_trailing_text(
+    setup_core: Path, value: str
+) -> None:
+    with pytest.raises(Invalid, match="not a file system path"):
+        cv.validate_source_shorthand(value)
 
 
 def test_validate_source_shorthand_invalid(setup_core: Path) -> None:

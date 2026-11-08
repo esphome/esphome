@@ -169,6 +169,82 @@ class MapFilter : public Filter {
   const Substitution *mappings_;
 };
 
+/// Drops a value that comes sooner than `min_time_between_inputs` after the last one let through.
+class ThrottleFilter : public Filter {
+ public:
+  explicit ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
+/// Same as ThrottleFilter, but a value in `prioritized` always passes. `prioritized` is a codegen table
+/// in flash, shared by filters with the same list and ended by nullptr.
+class ThrottleWithPriorityFilter : public ThrottleFilter {
+ public:
+  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const char *const *prioritized)
+      : ThrottleFilter(min_time_between_inputs), prioritized_(prioritized) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  const char *const *prioritized_;
+};
+
+/// Passes every value on and, once none has come for `time_period`, sends one value again. A Component rather than
+/// a scheduler timeout for the reason given on the sensor's TimeoutFilterBase: it re-arms on every value.
+class TimeoutFilterBase : public Filter, public Component {
+ public:
+  bool new_value(std::string &value) override;
+  void loop() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+ protected:
+  explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) { this->disable_loop(); }
+  /// Sends `text`; never moves a stored string on, so it keeps its buffer.
+  void send_(const char *text, size_t len);
+  virtual void send_timeout_value() = 0;
+
+  uint32_t time_period_;
+  uint32_t timeout_start_time_{0};
+};
+
+/// Sends the last value again.
+class TimeoutFilterLast : public TimeoutFilterBase {
+ public:
+  explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  void send_timeout_value() override { this->send_(this->last_.data(), this->last_.size()); }
+  std::string last_;
+};
+
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` with the same period, as one
+/// object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  TimeoutThrottleFilter(uint32_t time_period, const char *const *prioritized)
+      : TimeoutFilterLast(time_period), prioritized_(prioritized) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  void send_timeout_value() override;
+  const char *const *prioritized_;
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
+/// Sends the configured text.
+class TimeoutFilterConfigured : public TimeoutFilterBase {
+ public:
+  TimeoutFilterConfigured(uint32_t time_period, const char *value) : TimeoutFilterBase(time_period), value_(value) {}
+
+ protected:
+  void send_timeout_value() override { this->send_(this->value_, strlen(this->value_)); }
+  const char *value_;
+};
+
 }  // namespace esphome::text_sensor
 
 #endif  // USE_TEXT_SENSOR_FILTER

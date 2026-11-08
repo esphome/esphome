@@ -416,10 +416,13 @@ void Application::teardown_components(uint32_t timeout_ms) {
   }
 }
 
-void Application::add_looping_components_by_state_(bool match_loop_done) {
+void Application::add_looping_components_by_state_(bool inactive) {
   for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
+    if (!obj->has_overridden_loop()) {
+      continue;
+    }
+    const uint8_t state = obj->get_component_state() & COMPONENT_STATE_MASK;
+    if ((state == COMPONENT_STATE_LOOP_DONE || state == COMPONENT_STATE_FAILED) == inactive) {
       this->looping_components_.push_back(obj);
     }
   }

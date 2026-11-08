@@ -24,6 +24,9 @@ class FastLEDLightOutput final : public light::AddressableLight {
 
   inline int32_t size() const override { return this->num_leds_; }
 
+  /// `effect_data` holds one byte per LED, a static array from code generation
+  void set_effect_data(uint8_t *effect_data) { this->internal_accessor_.effect_data = effect_data; }
+
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
@@ -215,20 +218,13 @@ class FastLEDLightOutput final : public light::AddressableLight {
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->size()); }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return {&this->leds_[index].r,      &this->leds_[index].g, &this->leds_[index].b, nullptr,
-            &this->effect_data_[index], &this->correction_};
-  }
-
+  light::CorrectedBufferColorAccessor internal_accessor_{
+      nullptr, nullptr, {offsetof(CRGB, r), offsetof(CRGB, g), offsetof(CRGB, b)}, &this->correction_};
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
-  uint8_t *effect_data_{nullptr};
   int num_leds_{0};
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};

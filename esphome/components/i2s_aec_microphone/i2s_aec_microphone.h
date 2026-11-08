@@ -57,7 +57,7 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
  protected:
   static void on_tx_dma(const uint8_t *data, size_t bytes, void *context);
   static void task_entry(void *context);
-  void on_microphone_(const std::vector<uint8_t> &data);
+  void on_microphone_(const microphone::AudioCapture &capture);
   void run_();
   void drain_tx_();
   void setup_reference_converter_();

@@ -1,0 +1,17 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+light:
+  - platform: esp32_rmt_led_strip
+    chipset: WS2812
+    channel_colors: GRB
+    id: strip
+    pin: GPIO13
+    num_leds: 5
+    # The original ESP32 has blocks of 64 symbols
+    rmt_symbols: 48

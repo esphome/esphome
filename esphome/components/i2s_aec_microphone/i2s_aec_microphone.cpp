@@ -63,7 +63,7 @@ void I2SAECMicrophone::setup() {
     this->mark_failed(LOG_STR("AEC task creation failed"));
     return;
   }
-  this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->on_microphone_(data); });
+  this->source_->add_data_callback([this](const microphone::AudioCapture &capture) { this->on_microphone_(capture); });
   this->bus_->set_tx_dma_observer(&I2SAECMicrophone::on_tx_dma, this);
 }
 
@@ -182,7 +182,8 @@ void IRAM_ATTR I2SAECMicrophone::on_tx_dma(const uint8_t *data, size_t bytes, vo
   self->tx_total_.store(first + frames / ratio, std::memory_order_release);
 }
 
-void I2SAECMicrophone::on_microphone_(const std::vector<uint8_t> &data) {
+void I2SAECMicrophone::on_microphone_(const microphone::AudioCapture &capture) {
+  const auto data = capture.data;
   if (this->listeners_.load(std::memory_order_relaxed) == 0 || this->mic_ring_ == nullptr || data.size() % 2 != 0)
     return;
   const size_t count = data.size() / sizeof(int16_t);
@@ -560,7 +561,7 @@ void I2SAECMicrophone::run_() {
       if (current_generation != this->generation_.load() || this->listeners_ == 0)
         break;
       memcpy(this->output_.data(), out_frame, sizeof(out_frame));
-      this->data_callbacks_.call(this->output_);
+      this->publish_audio_(this->output_, this->audio_stream_info_);
       this->mic_read_ += FRAME;
     }
   }

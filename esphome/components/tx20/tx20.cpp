@@ -1,22 +1,21 @@
 #include "tx20.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <array>
 
 namespace esphome::tx20 {
 
 ESPHOME_LOG_TAG(TAG, "tx20");
-static const uint8_t MAX_BUFFER_SIZE = 41;
-static const uint16_t TX20_MAX_TIME = MAX_BUFFER_SIZE * 1200 + 5000;
-static const uint16_t TX20_BIT_TIME = 1200;
-static const char *const DIRECTIONS[] = {"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-                                         "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
+static constexpr uint16_t TX20_MAX_TIME = TX20_BUFFER_SIZE * 1200 + 5000;
+static constexpr uint16_t TX20_BIT_TIME = 1200;
+PROGMEM_STRING_TABLE(DirectionStrings, "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W",
+                     "WNW", "NW", "NNW");
 
 void Tx20Component::setup() {
   this->pin_->setup();
 
-  this->store_.buffer = new uint16_t[MAX_BUFFER_SIZE];
   this->store_.pin = this->pin_->to_isr();
   this->store_.reset();
 
@@ -37,29 +36,33 @@ void Tx20Component::loop() {
   }
 }
 
-std::string Tx20Component::get_wind_cardinal_direction() const { return this->wind_cardinal_direction_; }
+std::string Tx20Component::get_wind_cardinal_direction() const {
+  if (this->wind_direction_index_ >= DirectionStrings::COUNT)
+    return {};
+  return progmem_string(DirectionStrings::get_progmem_str(this->wind_direction_index_, 0));
+}
 
 void Tx20Component::decode_and_publish_() {
   ESP_LOGVV(TAG, "Decode Tx20");
 
-  std::array<bool, MAX_BUFFER_SIZE> bit_buffer{};
+  std::array<bool, TX20_BUFFER_SIZE> bit_buffer{};
   size_t bit_pos = 0;
   bool current_bit = true;
-  // Cap at MAX_BUFFER_SIZE - 1 to prevent out-of-bounds access (buffer_index can exceed MAX_BUFFER_SIZE in ISR)
+  // Cap at TX20_BUFFER_SIZE - 1 to prevent out-of-bounds access (buffer_index can exceed TX20_BUFFER_SIZE in ISR)
   const int max_buffer_index =
-      std::min(static_cast<int>(this->store_.buffer_index), static_cast<int>(MAX_BUFFER_SIZE - 1));
+      std::min(static_cast<int>(this->store_.buffer_index), static_cast<int>(TX20_BUFFER_SIZE - 1));
 
   for (int i = 1; i <= max_buffer_index; i++) {
     uint8_t repeat = this->store_.buffer[i] / TX20_BIT_TIME;
     // ignore segments at the end that were too short
-    for (uint8_t j = 0; j < repeat && bit_pos < MAX_BUFFER_SIZE; j++) {
+    for (uint8_t j = 0; j < repeat && bit_pos < TX20_BUFFER_SIZE; j++) {
       bit_buffer[bit_pos++] = current_bit;
     }
     current_bit = !current_bit;
   }
   current_bit = !current_bit;
   size_t bits_before_padding = bit_pos;
-  while (bit_pos < MAX_BUFFER_SIZE) {
+  while (bit_pos < TX20_BUFFER_SIZE) {
     bit_buffer[bit_pos++] = current_bit;
   }
 
@@ -112,14 +115,14 @@ void Tx20Component::decode_and_publish_() {
   for (int i = 1; i <= max_buffer_index; i++) {
     debug_pos = buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%u, ", this->store_.buffer[i]);
   }
-  if (bits_before_padding < MAX_BUFFER_SIZE) {
-    buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%zu, ", MAX_BUFFER_SIZE - bits_before_padding);
+  if (bits_before_padding < TX20_BUFFER_SIZE) {
+    buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%zu, ", TX20_BUFFER_SIZE - bits_before_padding);
   }
-  char bits_buf[MAX_BUFFER_SIZE + 1];
-  for (size_t i = 0; i < MAX_BUFFER_SIZE; i++) {
+  char bits_buf[TX20_BUFFER_SIZE + 1];
+  for (size_t i = 0; i < TX20_BUFFER_SIZE; i++) {
     bits_buf[i] = bit_buffer[i] ? '1' : '0';
   }
-  bits_buf[MAX_BUFFER_SIZE] = '\0';
+  bits_buf[TX20_BUFFER_SIZE] = '\0';
   ESP_LOGVV(TAG, "BUFFER %s", debug_buf);
   ESP_LOGVV(TAG, "Decoded bits %s", bits_buf);
 #endif
@@ -129,18 +132,15 @@ void Tx20Component::decode_and_publish_() {
       if (tx20_sf == tx20_sc) {
         tx20_wind_speed_kmh = float(tx20_sc) * 0.36f;
         ESP_LOGV(TAG, "WindSpeed %f", tx20_wind_speed_kmh);
-        if (this->wind_speed_sensor_ != nullptr)
-          this->wind_speed_sensor_->publish_state(tx20_wind_speed_kmh);
+        PUBLISH_STATE(this->wind_speed_sensor_, tx20_wind_speed_kmh);
         value_set = true;
       }
       if (tx20_se == tx20_sb) {
         tx20_wind_direction = tx20_se;
-        if (tx20_wind_direction < 16) {
-          wind_cardinal_direction_ = DIRECTIONS[tx20_wind_direction];
-        }
+        if (tx20_wind_direction < DirectionStrings::COUNT)
+          this->wind_direction_index_ = tx20_wind_direction;
         ESP_LOGV(TAG, "WindDirection %d", tx20_wind_direction);
-        if (this->wind_direction_degrees_sensor_ != nullptr)
-          this->wind_direction_degrees_sensor_->publish_state(float(tx20_wind_direction) * 22.5f);
+        PUBLISH_STATE(this->wind_direction_degrees_sensor_, float(tx20_wind_direction) * 22.5f);
         value_set = true;
       }
       if (!value_set) {
@@ -190,7 +190,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
     arg->tx20_available = true;
     return;
   }
-  if (index < MAX_BUFFER_SIZE) {
+  if (index < TX20_BUFFER_SIZE) {
     arg->buffer[index] = delay;
   }
   arg->spent_time += delay;

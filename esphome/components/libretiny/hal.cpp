@@ -1,6 +1,7 @@
 #ifdef USE_LIBRETINY
 
 #include "core.h"
+#include "crash_handler.h"
 #include "esphome/core/hal.h"
 #include "preferences.h"
 
@@ -27,6 +28,9 @@ namespace esphome {
 void arch_init() {
   libretiny::setup_preferences();
   lt_wdt_enable(10000L);
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  libretiny::crash_handler_install();
+#endif
 #ifdef USE_BK72XX
   // BK72xx SDK creates the main Arduino task at priority 3, which is lower than
   // all WiFi (4-5), LwIP (4), and TCP/IP (7) tasks. This causes ~100ms loop
