@@ -104,9 +104,16 @@ class UARTComponent {
   // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
   virtual size_t available_for_write() { return SIZE_MAX; }
 
-  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time at 10 bits
-  // per byte since last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
-  size_t paced_write_room(uint32_t last_write_ms);
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the whole bytes the line
+  // sent at 10 bits per byte since last_write_us: at most one loop interval and one byte, at least one byte.
+  size_t paced_write_room(uint32_t last_write_us);
+  // Call right after a write that paced_write_room() sized. Where it paced, stores in last_write_us when the write
+  // returned, less the part of a byte the line sent after the last whole one, so that part counts for the next write.
+  void paced_write_done(uint32_t &last_write_us) {
+    if (this->paces_writes_) {
+      last_write_us = this->paced_stamp_(micros(), last_write_us);
+    }
+  }
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
@@ -236,6 +243,10 @@ class UARTComponent {
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
+  // The whole bytes the line sends in span_us: at most one loop interval and one byte, at least one byte.
+  size_t paced_room_(uint32_t span_us) const;
+  // last_write_us moved on towards now_us by whole bytes of line time.
+  uint32_t paced_stamp_(uint32_t now_us, uint32_t last_write_us) const;
 
   InternalGPIOPin *tx_pin_{};
   InternalGPIOPin *rx_pin_{};
@@ -249,6 +260,8 @@ class UARTComponent {
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
   UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
+  // paced_write_room() found that available_for_write() cannot tell.
+  bool paces_writes_{false};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};

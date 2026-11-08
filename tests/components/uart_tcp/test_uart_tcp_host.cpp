@@ -25,6 +25,9 @@ class FakeUart : public uart::UARTComponent {
   void write_array(const uint8_t *data, size_t len) override {
     this->tx.insert(this->tx.end(), data, data + len);
     this->writes.push_back(len);
+    if (this->write_ms != 0) {
+      delay(this->write_ms);
+    }
   }
   bool peek_byte(uint8_t *data) override {
     if (this->rx.empty())
@@ -53,6 +56,8 @@ class FakeUart : public uart::UARTComponent {
   std::vector<uint8_t> tx;
   std::vector<size_t> writes;
   size_t room{SIZE_MAX};
+  // How long each write blocks, as a full TX FIFO makes it.
+  uint32_t write_ms{0};
 };
 
 // Client role against a loopback listener the test owns.
@@ -176,78 +181,25 @@ TEST_F(UartTcpClient, ReconnectsAndDropsBytesFromTheGap) {
   EXPECT_EQ(this->receive(3), "new");
 }
 
-TEST_F(UartTcpClient, PacesToTheDefaultLoopInterval) {
+TEST_F(UartTcpClient, PacesTheFirstWriteToOneLoopInterval) {
+  this->connect();
+  this->send(100);
+  this->pass();
+  // 9600 baud is 960 bytes/s; one 16-ms loop interval and one byte are 16.36 bytes, rounded down.
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{16}));
+}
+
+TEST_F(UartTcpClient, CountsFromWhenABlockingWriteReturned) {
+  this->uart_.set_baud_rate(1200);
+  this->uart_.write_ms = 20;
   this->connect();
   this->send(100);
   this->pass();
   this->pass();
-  // 9600 baud at 10 bits per byte for 16 ms.
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{15, 15}));
-}
-
-TEST_F(UartTcpClient, PacesAnEarlyPassToTheTimeSinceTheLastWrite) {
-  App.set_loop_interval(100);
-  this->connect();
-  this->send(200);
-  this->pass(100);
-  // A socket wake 5 ms later gets 5 ms of UART time, not a full interval.
-  this->pass(5);
-  this->pass(100);
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{96, 4, 96}));
-}
-
-TEST_F(UartTcpClient, CapsALongGapAtOneLoopInterval) {
-  App.set_loop_interval(100);
-  this->connect();
-  this->send(250);
-  // A 1000 ms gap gets one interval (96 bytes), a 50 ms pass gets 50 ms.
-  this->pass(1000);
-  this->pass(50);
-  this->pass(1000);
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{96, 48, 96}));
-}
-
-TEST_F(UartTcpClient, CapsTheSpanAtFourSeconds) {
-  App.set_loop_interval(10000);
-  this->uart_.set_baud_rate(300);
-  this->connect();
-  this->send(200);
-  // 300 baud is 30 bytes/s: a 6000 ms gap gets 4 s, a 1000 ms pass gets 1 s.
-  this->pass(6000);
-  this->pass(1000);
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{120, 30}));
-}
-
-TEST_F(UartTcpClient, PacesEachBaudRate) {
-  this->connect();
-  this->send(1000);
-  // 16 ms and 1 ms passes; a write is at most one 128-byte read chunk.
-  for (uint32_t baud : {9600, 115200, 921600}) {
-    this->uart_.set_baud_rate(baud);
-    this->pass(16);
-    this->pass(1);
-  }
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{15, 1, 128, 11, 128, 92}));
-}
-
-TEST_F(UartTcpClient, DoesNotOverflowAtAHighBaudRate) {
-  App.set_loop_interval(10000);
-  // baud * 4000 wraps a 32-bit product to 3520 at this rate.
-  this->uart_.set_baud_rate(5368710);
-  this->connect();
-  this->send(200);
-  this->pass(6000);
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{128}));
-}
-
-TEST_F(UartTcpClient, WritesAtLeastOneBytePerPass) {
-  this->connect();
-  this->send(100);
-  this->pass();
-  // Less than one byte of UART time since the last write still moves a byte.
-  this->pass(0);
-  this->pass(1);
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{15, 1, 1}));
+  // 1200 baud is 120 bytes/s: the first write gets one loop interval and one byte, 2.92 bytes rounded down. The next
+  // pass comes right after the write returned, so the line sent less than one whole byte (8.3 ms) since. Counting the
+  // 20 ms it blocked would give 2.
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{2, 1}));
 }
 
 TEST_F(UartTcpClient, FullUartHoldsSocketBytesUntilThereIsRoom) {

@@ -1,6 +1,5 @@
 #include "uart_tcp.h"
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -73,7 +72,7 @@ void UartTcp::sync_link_() {
 void UartTcp::read_socket_() {
   // A hardware write blocks until the driver takes every byte. Leave what does
   // not fit in the socket, so TCP flow control throttles the peer.
-  size_t room = this->parent_->paced_write_room(this->last_write_ms_);
+  size_t room = this->parent_->paced_write_room(this->last_write_us_);
   if (room == 0) {
     // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
@@ -92,7 +91,7 @@ void UartTcp::read_socket_() {
   }
   this->rx_pending_ = static_cast<size_t>(count) == want;
   this->write_array(tmp, static_cast<size_t>(count));
-  this->last_write_ms_ = App.get_loop_component_start_time();
+  this->parent_->paced_write_done(this->last_write_us_);
 }
 
 void UartTcp::discard_uart_() {
