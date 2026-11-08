@@ -31,6 +31,9 @@ static bool wakeable_delay_feed_wdt(uint32_t ms) {
   return false;
 }
 
+// A wake from System OFF is not told apart from a reset yet.
+WakeupCause get_wakeup_cause() { return WAKEUP_CAUSE_NONE; }
+
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
 void DeepSleepComponent::dump_config_platform_() {}

@@ -31,12 +31,6 @@ static constexpr uint32_t LOAD_READ_DELAY_MS = 300;
 static constexpr uint32_t CYCLE_TIMEOUT_ID = 0;
 static constexpr uint32_t LOAD_READ_ID = 1;
 
-static void publish(sensor::Sensor *s, float value) {
-  if (s != nullptr) {
-    s->publish_state(value);
-  }
-}
-
 void RenogyInverterBle::dump_config() {
   ESP_LOGCONFIG(TAG, "Renogy Inverter BLE:");
   LOG_UPDATE_INTERVAL(this);
@@ -66,9 +60,7 @@ void RenogyInverterBle::read_register_(uint16_t start_register, uint16_t word_co
                              static_cast<uint8_t>(start_register),
                              static_cast<uint8_t>(word_count >> 8),
                              static_cast<uint8_t>(word_count)};
-  const uint16_t crc = crc16(req.data(), 6);
-  req[6] = crc & 0xFF;  // Modbus sends the CRC low byte first
-  req[7] = crc >> 8;
+  put_le16(req.data() + 6, crc16(req.data(), 6));  // Modbus sends the CRC low byte first
 
   this->frame_len_ = 0;
   const esp_err_t status =
@@ -138,13 +130,13 @@ void RenogyInverterBle::on_frame_complete_(uint16_t len) {
   auto reg16 = [this](uint8_t i) { return encode_uint16(this->frame_[3 + 2 * i], this->frame_[4 + 2 * i]); };
 
   if (this->state_ == State::MAIN) {
-    publish(this->ac_input_voltage_sensor_, reg16(0) * 0.1f);
-    publish(this->ac_output_voltage_sensor_, reg16(2) * 0.1f);
-    publish(this->ac_output_current_sensor_, reg16(3) * 0.01f);
-    publish(this->ac_output_frequency_sensor_, reg16(4) * 0.01f);
-    publish(this->battery_voltage_sensor_, reg16(5) * 0.1f);
-    publish(this->temperature_sensor_, reg16(6) * 0.1f);
-    publish(this->input_frequency_sensor_, reg16(9) * 0.01f);
+    PUBLISH_STATE(this->ac_input_voltage_sensor_, reg16(0) * 0.1f);
+    PUBLISH_STATE(this->ac_output_voltage_sensor_, reg16(2) * 0.1f);
+    PUBLISH_STATE(this->ac_output_current_sensor_, reg16(3) * 0.01f);
+    PUBLISH_STATE(this->ac_output_frequency_sensor_, reg16(4) * 0.01f);
+    PUBLISH_STATE(this->battery_voltage_sensor_, reg16(5) * 0.1f);
+    PUBLISH_STATE(this->temperature_sensor_, reg16(6) * 0.1f);
+    PUBLISH_STATE(this->input_frequency_sensor_, reg16(9) * 0.01f);
     this->frame_len_ = 0;
     this->set_timeout(LOAD_READ_ID, LOAD_READ_DELAY_MS, [this]() {
       this->state_ = State::LOAD;
@@ -152,9 +144,9 @@ void RenogyInverterBle::on_frame_complete_(uint16_t len) {
     });
     return;
   }
-  publish(this->load_current_sensor_, reg16(0) * 0.01f);
-  publish(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
-  publish(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
+  PUBLISH_STATE(this->load_current_sensor_, reg16(0) * 0.01f);
+  PUBLISH_STATE(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
+  PUBLISH_STATE(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
   this->abort_cycle_();
 }
 

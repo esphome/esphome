@@ -83,15 +83,19 @@ void LightState::setup() {
   call.set_color_temperature_if_supported(recovered.color_temp);
   call.set_cold_white_if_supported(recovered.cold_white);
   call.set_warm_white_if_supported(recovered.warm_white);
-  if (recovered.effect != 0) {
+  if (recovered.state && recovered.effect != 0) {
     call.set_effect(recovered.effect);
   } else {
+#ifdef USE_LIGHT_RESUME_EFFECT
+    // An off light cannot start its effect now; keep it for the first turn-on instead
+    this->previous_effect_index_ = recovered.effect;
+#endif  // USE_LIGHT_RESUME_EFFECT
     call.set_transition_length_if_supported(0);
   }
   call.perform();
 }
 void LightState::dump_config() {
-  ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
 #ifdef USE_LIGHT_GAMMA_LUT

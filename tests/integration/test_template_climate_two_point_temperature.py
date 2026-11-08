@@ -8,17 +8,16 @@ changed via a physical remote).
 
 from __future__ import annotations
 
-import asyncio
-
 import aioesphomeapi
 from aioesphomeapi import ButtonInfo, ClimateInfo, ClimateMode
 import pytest
 
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import (
-    InitialStateHelper,
     require_entity,
     require_only_entity,
+    subscribe_after_initial_states,
     wait_for_state,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -35,14 +34,10 @@ async def test_template_climate_two_point_temperature(
     """Two-point target temperature + humidity: booleans, on_control, and publish precedence."""
     clear_host_prefs(DEVICE_NAME)
 
-    log_lines: list[str] = []
-
-    def on_log_line(line: str) -> None:
-        if "on_control " in line:
-            log_lines.append(line)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -54,7 +49,6 @@ async def test_template_climate_two_point_temperature(
             )
 
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
         test_climate = require_only_entity(entities, ClimateInfo)
         assert test_climate.name == "Test Two-Point Heatpump"
         assert test_climate.supports_two_point_target_temperature
@@ -62,16 +56,9 @@ async def test_template_climate_two_point_temperature(
 
         report_button = require_entity(entities, "simulate_device_report", ButtonInfo)
 
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(lambda state: None)
-        )
+        sub = await subscribe_after_initial_states(client, entities)
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        initial = initial_state_helper.initial_states.get(test_climate.key)
+        initial = sub.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
         # Nothing has been published yet: settable fields have no sensor to seed them from, so
@@ -96,19 +83,16 @@ async def test_template_climate_two_point_temperature(
         state = await wait_for_climate_state()
         assert state.target_temperature_low == pytest.approx(19.0, abs=0.1)
         assert state.target_temperature_high == pytest.approx(25.0, abs=0.1)
-        await asyncio.sleep(0.2)
-        assert any(
-            "on_control target_temperature_low=19.0" in line for line in log_lines
-        )
-        assert any(
-            "on_control target_temperature_high=25.0" in line for line in log_lines
+        await waiter.wait_for_each(
+            "on_control target_temperature_low=19.0",
+            "on_control target_temperature_high=25.0",
+            timeout=5.0,
         )
 
         client.climate_command(test_climate.key, target_humidity=45.0)
         state = await wait_for_climate_state()
         assert state.target_humidity == pytest.approx(45.0, abs=0.1)
-        await asyncio.sleep(0.2)
-        assert any("on_control target_humidity=45.0" in line for line in log_lines)
+        await waiter.wait_for("on_control target_humidity=45.0", timeout=5.0)
 
         # The device's next report is authoritative and overrides whatever was optimistically
         # applied above -- this is the whole point of climate.template.publish: a device that owns

@@ -44,7 +44,6 @@ from esphome.platformio.library import (
     normalize_dependencies,
     parse_library_json,
     parse_library_properties,
-    warn_properties_depends,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -283,7 +282,6 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
                 "resolved automatically; add them with add_library() if needed",
                 name,
             )
-        warn_properties_depends(name, data)
         build = data.get("build")
         if isinstance(build, dict) and build.get("extraScript"):
             # Scripts only run on the converted path; building without

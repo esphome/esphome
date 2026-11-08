@@ -139,7 +139,7 @@ button:
     on_press:
       - lambda: |-
           // Start polling now that the test has subscribed.
-          id(modbus_controller_1).set_update_interval(1000);
+          id(modbus_controller_1).set_update_interval(300);
           id(modbus_controller_1).start_poller();
           // Broadcast (address 0) write single register: reg 0x10 = 777 on every server.
           // PDU is function code + data (no address/CRC); the hub prepends address 0 and appends CRC.

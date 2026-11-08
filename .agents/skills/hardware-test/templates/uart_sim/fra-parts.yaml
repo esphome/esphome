@@ -1,0 +1,86 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          sim::loopback(id(u_w));
+          sim::loopback(id(u_d));
+
+uart:
+  - id: u_w
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 9600
+  - id: u_d
+    tx_pin: GPIO32
+    rx_pin: GPIO33
+    baud_rate: 9600
+
+sensor:
+  - platform: wts01
+    id: wts
+    name: WTS01 Temperature
+    uart_id: u_w
+    accuracy_decimals: 2
+    filters: []
+  - platform: ds1603l
+    name: DS1603L Distance
+    uart_id: u_d
+
+button:
+  - platform: template
+    name: W Good
+    on_press:
+      - lambda: sim::send(id(u_w), "W Good 22.18", sim::wts01(22, 18));
+  - platform: template
+    name: W Negative
+    on_press:
+      - lambda: sim::send(id(u_w), "W Negative -5.50", sim::wts01(0x85, 50));
+  - platform: template
+    name: W Extra 55
+    on_press:
+      - lambda: sim::send(id(u_w), "W Extra 55 then 23.25", sim::cat({0x55}, sim::wts01(23, 25)));
+  - platform: template
+    name: W 55 Breaks Header
+    on_press:
+      - lambda: sim::send(id(u_w), "W 55 01 01 then 26.00", sim::cat({0x55, 0x01, 0x01}, sim::wts01(26, 0)));
+  - platform: template
+    name: W Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_w), "W bad checksum 30.00", sim::wts01(30, 0, true));
+  - platform: template
+    name: W Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_w), "W garbage then 24.50", sim::cat({0x01, 0x02, 0x55, 0x01, 0x99}, sim::wts01(24, 50)));
+  - platform: template
+    name: W Split
+    on_press:
+      - lambda: sim::send(id(u_w), "W split head 27.75", sim::part(sim::wts01(27, 75), 0, 5));
+      - delay: 300ms
+      - lambda: sim::send(id(u_w), "W split rest", sim::part(sim::wts01(27, 75), 5, 9));
+  - platform: template
+    name: W Two Frames
+    on_press:
+      - lambda: sim::send(id(u_w), "W 20.01 then 20.02", sim::cat(sim::wts01(20, 1), sim::wts01(20, 2)));
+  - platform: template
+    name: D Good
+    on_press:
+      - lambda: sim::send(id(u_d), "D Good 1000", sim::ds1603l(1000));
+  - platform: template
+    name: D Misaligned
+    on_press:
+      - lambda: sim::send(id(u_d), "D FF 01 then 1234", sim::cat({0xFF, 0x01}, sim::ds1603l(1234)));
+  - platform: template
+    name: D Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_d), "D bad checksum 2000", sim::ds1603l(2000, true));
+  - platform: template
+    name: D Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_d), "D garbage then 500", sim::cat({0x12, 0x34}, sim::ds1603l(500)));
+  - platform: template
+    name: D Split
+    on_press:
+      - lambda: sim::send(id(u_d), "D split head 777", sim::part(sim::ds1603l(777), 0, 2));
+      - delay: 300ms
+      - lambda: sim::send(id(u_d), "D split rest", sim::part(sim::ds1603l(777), 2, 4));

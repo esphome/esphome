@@ -331,6 +331,8 @@ class FloatLiteral(Literal):
     def __str__(self):
         if math.isnan(self.f):
             return "NAN"
+        if math.isinf(self.f):
+            return "INFINITY" if self.f > 0 else "-INFINITY"
         return f"{self.f}f"
 
 
@@ -484,6 +486,17 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+def unique_global_id(name: str, type_: "MockObjClass") -> ID:
+    """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS
+
+    used = {str(i) for i, _ in iter_ids(CORE.config)}
+    used |= {str(i) for i in CORE.variables}
+    used |= set(RESERVED_IDS) | CORE.loaded_integrations
+    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+
+
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
     __slots__ = ()
 
@@ -517,9 +530,6 @@ def shared_progmem_array(
     ``constexpr=False`` is for tables of generated object pointers: each top level variable
     element must pass ``is_static_pointer`` or ``EsphomeError`` is raised.
     """
-    from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
-
     arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
     rhs = safe_exp(rhs)
     if not constexpr and isinstance(rhs, ArrayInitializer):
@@ -532,12 +542,11 @@ def shared_progmem_array(
     key = f"{type_} {rhs} {constexpr}"
     if share and (array := arrays.get(key)) is not None:
         return array
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
-    # Global, so any scope can use it; anything a lambda references is already declared.
-    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs, constexpr))
+    id_ = unique_global_id(name, type_)
+    # After the user includes, so a lambda in the table can use what their headers declare.
+    CORE.add_global_after_includes(
+        ProgmemAssignmentExpression(type_, id_, rhs, constexpr)
+    )
     array = MockObj(id_, ".")
     CORE.register_variable(id_, array)
     if share:
@@ -556,6 +565,40 @@ def shared_progmem_string(value: str) -> Expression:
     if CORE.is_esp8266:
         return shared_progmem_array("progmem_str", char, text)
     return text
+
+
+def static_buffer(
+    owner: ID,
+    type_: "MockObjClass",
+    size: "int | str | Expression",
+    *,
+    psram: bool = False,
+    align: int | None = None,
+) -> "MockObj":
+    """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
+
+    Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
+    ``size`` may be a C++ constant expression. With ``psram=True`` a build with PSRAM enabled
+    gets a ``psram_buffer<type_>(size)`` call instead, which allocates each time it is
+    evaluated, so pass the result once; it is nullptr if the allocation fails.
+    ``align`` prefixes the declaration with ``alignas(align)``.
+    """
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    if psram and align is not None and align > 4:
+        raise EsphomeError(
+            "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
+        )
+    # Same condition as the USE_PSRAM define: psram is configured and not disabled
+    if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
+        return MockObj(f"psram_buffer<{type_}>({size})", ".")
+    base = unique_global_id(f"{owner.id}_buffer", type_)
+    name = _pstorage_name(owner.type, base)
+    prefix = "" if align is None else f"alignas({align}) "
+    CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
+    buffer = MockObj(name, ".")
+    CORE.register_variable(base, buffer)
+    return buffer
 
 
 def static_const_array(id_, rhs) -> "MockObj":
@@ -660,6 +703,11 @@ def new_variable(
     return obj
 
 
+def _pstorage_name(type_: Any, name: Any) -> str:
+    """``<component>__<name>__pstorage``, the static storage name ``esphome analyze-memory`` attributes."""
+    return f"{_extract_component_ns(str(type_))}__{name}__pstorage"
+
+
 def _extract_component_ns(type_str: str) -> str:
     """Extract the component namespace from a fully-qualified C++ type string.
 
@@ -717,9 +765,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         if call_expr.template_args is not None:
             actual_type = f"{actual_type}{call_expr.template_args}"
         pointer_type = id_.type
-        # Extract component namespace from type for memory analysis attribution
-        component_ns = _extract_component_ns(str(actual_type))
-        storage_name = f"{component_ns}__{id_.id}__pstorage"
+        storage_name = _pstorage_name(actual_type, id_.id)
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
@@ -784,20 +830,21 @@ def static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
+    body: list[str | Statement],
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
 
-    Every id the body names must already be declared, which holds when the statements were
-    rendered through ``get_variable`` or ``process_lambda``.
+    The declaration goes with the other globals, so a template argument can name the function
+    at once; the body goes after the user includes, where every id and everything those
+    headers declare is in scope.
     """
-    params = ParameterListExpression(*parameters)
-    add_global(
-        RawStatement(
-            f"static {safe_exp(return_type)} {name}({params}) {{\n"
-            f"{indent(chr(10).join(body))}\n}}"
-        )
+    signature = (
+        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    )
+    add_global(RawStatement(f"{signature};"))
+    add_global_after_includes(
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
 
@@ -814,6 +861,13 @@ def add(expression: Expression | Statement, prepend: bool = False):
 def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
     CORE.add_global(expression, prepend)
+
+
+def add_global_after_includes(expression: SafeExpType | Statement):
+    """Add a global after the user's ``includes:`` headers, for generated code whose
+    lambdas may use what those headers declare.
+    """
+    CORE.add_global_after_includes(expression)
 
 
 def add_library(name: str, version: str | None, repository: str | None = None):
@@ -1316,10 +1370,23 @@ class MockObjClass(MockObj):
             # pylint: disable=protected-access
             self._parents += paren._parents
 
+    @property
+    def parents(self) -> list["MockObjClass"]:
+        """Every ancestor class: each direct parent followed by its own parents."""
+        return self._parents
+
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
         return any(str(parent) == str(other) for parent in self._parents)
+
+    def const_ref(self) -> MockObj:
+        """``const T &``, for a parameter that takes this type by reference."""
+        return self.operator("const").operator("ref")
+
+    def static_(self, name: str) -> MockObj:
+        """The static member ``Class::name``; call it for ``Class::name(args)``."""
+        return MockObj(f"{self.base}::{name}", "::")
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
@@ -1350,6 +1417,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
     This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
     """

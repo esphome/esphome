@@ -66,7 +66,7 @@ template class Aggregator<uint32_t>;
 
 void ADCSensor::update() {
   float value_v = this->sample();
-  ESP_LOGV(TAG, "'%s': Voltage=%.4fV", this->get_name().c_str(), value_v);
+  ESP_LOGV(TAG, "'%s': Voltage=%.4fV", LOG_STR_ARG(this->get_log_name()), value_v);
   this->publish_state(value_v);
 }
 

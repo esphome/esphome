@@ -3,6 +3,8 @@ esphome:
     then:
       - audio_adc.set_mic_gain: 0db
       - audio_adc.set_mic_gain: !lambda 'return 4;'
+      - audio_adc.set_mic_gain:
+          mic_gain: 6db
 
 audio_adc:
   - platform: es7210

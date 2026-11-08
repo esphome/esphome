@@ -32,49 +32,22 @@ bool MPU6050Component::setup_registers_() {
   }
 
   ESP_LOGV(TAG, "  Setting up Power Management");
-  // Setup power management
-  uint8_t power_management;
-  if (!this->read_byte(MPU6050_REGISTER_POWER_MANAGEMENT_1, &power_management)) {
-    return false;
-  }
-  ESP_LOGV(TAG, "  Input power_management: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(power_management));
-  // Set clock source - X-Gyro
-  power_management &= 0b11111000;
-  power_management |= MPU6050_CLOCK_SOURCE_X_GYRO;
-  // Disable sleep
-  power_management &= ~(1 << MPU6050_BIT_SLEEP_ENABLED);
-  // Enable temperature
-  power_management &= ~(1 << MPU6050_BIT_TEMPERATURE_DISABLED);
-  ESP_LOGV(TAG, "  Output power_management: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(power_management));
-  if (!this->write_byte(MPU6050_REGISTER_POWER_MANAGEMENT_1, power_management)) {
+  // Clock source X-Gyro, sleep off, temperature on
+  if (!this->update_register(MPU6050_REGISTER_POWER_MANAGEMENT_1,
+                             0b111 | (1 << MPU6050_BIT_SLEEP_ENABLED) | (1 << MPU6050_BIT_TEMPERATURE_DISABLED),
+                             MPU6050_CLOCK_SOURCE_X_GYRO)) {
     return false;
   }
 
   ESP_LOGV(TAG, "  Setting up Gyro Config");
   // Set scale - 2000DPS
-  uint8_t gyro_config;
-  if (!this->read_byte(MPU6050_REGISTER_GYRO_CONFIG, &gyro_config)) {
-    return false;
-  }
-  ESP_LOGV(TAG, "  Input gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
-  gyro_config &= 0b11100111;
-  gyro_config |= MPU6050_SCALE_2000_DPS << 3;
-  ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
-  if (!this->write_byte(MPU6050_REGISTER_GYRO_CONFIG, gyro_config)) {
+  if (!this->update_register(MPU6050_REGISTER_GYRO_CONFIG, 0b00011000, MPU6050_SCALE_2000_DPS << 3)) {
     return false;
   }
 
   ESP_LOGV(TAG, "  Setting up Accel Config");
   // Set range - 2G
-  uint8_t accel_config;
-  if (!this->read_byte(MPU6050_REGISTER_ACCEL_CONFIG, &accel_config)) {
-    return false;
-  }
-  ESP_LOGV(TAG, "    Input accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  accel_config &= 0b11100111;
-  accel_config |= (MPU6050_RANGE_2G << 3);
-  ESP_LOGV(TAG, "    Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  return this->write_byte(MPU6050_REGISTER_ACCEL_CONFIG, accel_config);
+  return this->update_register(MPU6050_REGISTER_ACCEL_CONFIG, 0b00011000, MPU6050_RANGE_2G << 3);
 }
 void MPU6050Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPU6050:");
@@ -113,22 +86,15 @@ void MPU6050Component::update() {
            "gyro={x=%.3f °/s, y=%.3f °/s, z=%.3f °/s}, temp=%.3f°C",
            accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, temperature);
 
-  if (this->accel_x_sensor_ != nullptr)
-    this->accel_x_sensor_->publish_state(accel_x);
-  if (this->accel_y_sensor_ != nullptr)
-    this->accel_y_sensor_->publish_state(accel_y);
-  if (this->accel_z_sensor_ != nullptr)
-    this->accel_z_sensor_->publish_state(accel_z);
+  PUBLISH_STATE(this->accel_x_sensor_, accel_x);
+  PUBLISH_STATE(this->accel_y_sensor_, accel_y);
+  PUBLISH_STATE(this->accel_z_sensor_, accel_z);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
-  if (this->gyro_x_sensor_ != nullptr)
-    this->gyro_x_sensor_->publish_state(gyro_x);
-  if (this->gyro_y_sensor_ != nullptr)
-    this->gyro_y_sensor_->publish_state(gyro_y);
-  if (this->gyro_z_sensor_ != nullptr)
-    this->gyro_z_sensor_->publish_state(gyro_z);
+  PUBLISH_STATE(this->gyro_x_sensor_, gyro_x);
+  PUBLISH_STATE(this->gyro_y_sensor_, gyro_y);
+  PUBLISH_STATE(this->gyro_z_sensor_, gyro_z);
 
   this->status_clear_warning();
 }

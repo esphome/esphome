@@ -38,12 +38,14 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
     const auto *bytes = reinterpret_cast<const uint8_t *>(&addr6->sin6_addr);
     uint32_t prefix[3];
     memcpy(prefix, bytes, sizeof(prefix));
+#if USE_NETWORK_IPV4
     // A dual-stack listener reports an IPv4 peer as ::ffff:a.b.c.d
     if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == htonl(0xFFFFUL)) {
       target.family = AF_INET;
       memcpy(target.addr, bytes + sizeof(prefix), sizeof(struct in_addr));
       return true;
     }
+#endif
     // A link-local target is only reachable through the interface it came in
     // on. Device platforms number interfaces from one; a host build can hand
     // out an index too large to store, and a truncated one dials the wrong
@@ -57,6 +59,7 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
     return true;
   }
 #endif
+#if USE_NETWORK_IPV4
   if (family != AF_INET) {
     return false;
   }
@@ -64,6 +67,9 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
   target.family = AF_INET;
   memcpy(target.addr, &addr4->sin_addr, sizeof(addr4->sin_addr));
   return true;
+#else
+  return false;
+#endif
 }
 #endif
 
@@ -85,6 +91,7 @@ socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *a
     return sizeof(*addr6);
   }
 #endif
+#if USE_NETWORK_IPV4
   if (this->saved_.family != AF_INET) {
     return 0;
   }
@@ -94,6 +101,9 @@ socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *a
   addr4->sin_port = htons(API_OUTGOING_CONNECTION_PORT);
   memcpy(&addr4->sin_addr, this->saved_.addr, sizeof(addr4->sin_addr));
   return sizeof(*addr4);
+#else
+  return 0;
+#endif
 #endif
 }
 

@@ -56,26 +56,20 @@ float STTS22HComponent::read_temperature_() {
 void STTS22HComponent::initialize_sensor_() {
   // Read current CTRL_REG configuration
   uint8_t ctrl_value;
-  if (this->read_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_register(CTRL_REG, &ctrl_value, 1) == i2c::NO_ERROR))
     return;
-  }
 
   // Enable low ODR mode and enable ADD_INC
   // Before low ODR mode can be used,
   // FREERUN bit must be cleared (see sensor documentation)
   ctrl_value &= ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
-  if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(CTRL_REG, &ctrl_value, 1) == i2c::NO_ERROR))
     return;
-  }
 
   // Enable LOW ODR mode and ADD_INC
   ctrl_value |= LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
-  if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(CTRL_REG, &ctrl_value, 1) == i2c::NO_ERROR))
     return;
-  }
 }
 
 }  // namespace esphome::stts22h
