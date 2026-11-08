@@ -1,0 +1,78 @@
+esphome:
+  name: canlb-classic
+  includes:
+    - canlb.hpp
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("ram", "BOOTFREE %u TOTAL %u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned) heap_caps_get_total_size(MALLOC_CAP_INTERNAL));
+            canlb::chip = id(can0);
+            canlb::classic = true;
+            canlb::cs_init(32);
+            canlb::regs("boot");
+            canlb::start(id(can0));
+        - delay: 20s
+        - lambda: canlb::phase = canlb::PAUSED;
+        - lambda: canlb::force_via_config(2, "lb1");
+        - wait_until:
+            condition:
+              lambda: return canlb::opmod() == 6;
+            timeout: 8s
+        - lambda: canlb::force_via_config(2, "lb2");
+        - lambda: canlb::burst(48, "classic48");
+        - delay: 300ms
+        - lambda: canlb::queue_report("classic48");
+        - lambda: canlb::rtr_test();
+        - delay: 300ms
+        - lambda: canlb::queue_report("rtr-classic");
+        - lambda: canlb::phase = canlb::PAUSED;
+        - delay: 8s
+        - lambda: canlb::regs("after-window");
+        - lambda: canlb::timing("pre-reset");
+        - lambda: canlb::chip_reset();
+        - lambda: canlb::watch_start(6);
+        - delay: 10s
+        - lambda: canlb::timing("reset+10s");
+        - lambda: canlb::regs("reset+10s");
+        - delay: 5s
+        - lambda: canlb::report();
+        - lambda: ESP_LOGI("canlb", "PHASES DONE");
+
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+spi:
+  clk_pin: GPIO25
+  mosi_pin: GPIO26
+  miso_pin: GPIO27
+
+canbus:
+  - platform: mcp251xfd
+    id: can0
+    cs_pin: GPIO32
+    interrupt_pin: GPIO33
+    can_id: 0x7FF
+    mode: CLASSIC
+    clock: 20MHZ
+    bit_rate: 1000KBPS
+
+interval:
+  - interval: 2ms
+    then:
+      - lambda: canlb::step();
+  - interval: 10s
+    then:
+      - lambda: canlb::report();
+
+sensor:
+  - platform: pulse_counter
+    pin: GPIO34
+    name: clko
+    internal_filter: 0us
+    update_interval: 60s

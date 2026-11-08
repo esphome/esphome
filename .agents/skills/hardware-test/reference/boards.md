@@ -147,6 +147,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   assuming either.
 - `flash_bk72xx.py` misses the link now and then (`Timed out attempting to link with chip`); retry up to 3
   times before suspecting the board.
+- ltchiptool reads its chip list from `~/.platformio/platforms/libretiny`. If an older LibreTiny is installed there,
+  a BK7238 UF2 fails with `UF2 of unsupported family`; pass the platform the build used with
+  `flash_bk72xx.py -L ~/.platformio/platforms/libretiny@<...> flash write ...` (`platform.json` gives its version).
 - Crashes: `__builtin_trap()` and a call into unmapped memory both end as an undefined-instruction trap
   (`bk_misc_get_start_type()` 6, `lt_get_reboot_reason()` Crash); reads, unaligned loads and stores to
   unmapped addresses never fault on the ARM968. Without Wi-Fi the SDK trap handler spins with interrupts off

@@ -1,0 +1,17 @@
+esphome:
+  includes:
+    - crctest.hpp
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 3s
+        - lambda: |-
+            crctest::run();
+            // unqualified call, as a lambda user would write it
+            const uint32_t u = crc32(0, reinterpret_cast<const uint8_t *>("123456789"), 9);
+            ESP_LOGI("crctest", "UNQUALIFIED %08X", (unsigned) u);
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: crctest::run();
