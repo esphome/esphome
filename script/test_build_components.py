@@ -211,8 +211,6 @@ def group_components_by_platform(
     """
     platform_components: dict[tuple[str, str], list[str]] = {}
     for result in failed_results:
-        if result.decoy:
-            continue
         key = (result.platform, result.test_type)
         if key not in platform_components:
             platform_components[key] = []
@@ -229,20 +227,24 @@ def reproduce_commands(
 ) -> list[str]:
     """Return copy-paste commands that reproduce the failed results."""
     extra_arguments = f" --toolchain {toolchain}" if toolchain else ""
-    platform_components = group_components_by_platform(failed_results)
-    commands = [
-        f"script/test_build_components.py -c {','.join(platform_components[key])} "
-        f"-t {key[0]} -e {key[1]}{extra_arguments}"
-        for key in sorted(platform_components)
-    ]
-    # A decoy group must run alone so grouping recreates exactly that merge
-    commands.extend(
-        f"script/test_build_components.py -e config -c {','.join(r.components)} "
-        f"-t {r.platform}{extra_arguments}"
+
+    def command(components: list[str], platform: str, test_type: str) -> str:
+        return (
+            f"script/test_build_components.py -c {','.join(components)} "
+            f"-t {platform} -e {test_type}{extra_arguments}"
+        )
+
+    platform_components = group_components_by_platform(
+        [r for r in failed_results if not r.decoy]
+    )
+    # A decoy group runs alone so grouping recreates exactly that merge
+    return [
+        command(platform_components[key], *key) for key in sorted(platform_components)
+    ] + [
+        command(r.components, r.platform, r.test_type)
         for r in failed_results
         if r.decoy
-    )
-    return commands
+    ]
 
 
 def format_github_summary(test_results: list[TestResult], toolchain=None) -> str:
@@ -795,10 +797,12 @@ def run_grouped_component_tests(
     build_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
+    component_buses: dict[str, dict[str, list[str]]],
+    non_groupable: set[str],
+    direct_bus_components: set[str],
     additional_isolated: set[str] | None = None,
     toolchain: str | None = None,
     skip_bootloader: bool = False,
-    analysis: tuple[dict[str, dict[str, list[str]]], set[str], set[str]] | None = None,
 ) -> tuple[set[tuple[str, str]], list[TestResult]]:
     """Run grouped component tests.
 
@@ -810,8 +814,8 @@ def run_grouped_component_tests(
         build_dir: Path to build directory
         esphome_command: ESPHome command (config/compile)
         continue_on_fail: Whether to continue on failure
+        component_buses, non_groupable, direct_bus_components: analyze_all_components() result
         additional_isolated: Additional components to treat as isolated (not grouped)
-        analysis: analyze_all_components() result, computed here when not given
 
     Returns:
         Tuple of (tested_components, test_results)
@@ -824,9 +828,6 @@ def run_grouped_component_tests(
     print("\n" + "=" * 80)
     print("Analyzing components for intelligent grouping...")
     print("=" * 80)
-    component_buses, non_groupable, direct_bus_components = (
-        analysis or analyze_all_components(tests_dir)
-    )
 
     # Track why components can't be grouped (for detailed output)
     non_groupable_reasons = {}
@@ -1307,7 +1308,9 @@ def test_components(
 
     # First, run grouped tests if grouping is enabled
     if enable_grouping:
-        analysis = analyze_all_components(tests_dir)
+        component_buses, non_groupable, direct_bus_components = analyze_all_components(
+            tests_dir
+        )
         tested_components, grouped_results = run_grouped_component_tests(
             all_tests=all_tests,
             platform_filter=platform_filter,
@@ -1319,7 +1322,9 @@ def test_components(
             additional_isolated=isolated_components,
             toolchain=toolchain,
             skip_bootloader=skip_bootloader,
-            analysis=analysis,
+            component_buses=component_buses,
+            non_groupable=non_groupable,
+            direct_bus_components=direct_bus_components,
         )
         test_results.extend(grouped_results)
 
@@ -1333,8 +1338,8 @@ def test_components(
                     platform_bases=platform_bases,
                     tests_dir=tests_dir,
                     build_dir=build_dir,
-                    component_buses=analysis[0],
-                    non_groupable=analysis[1],
+                    component_buses=component_buses,
+                    non_groupable=non_groupable,
                     toolchain=toolchain,
                 )
             )

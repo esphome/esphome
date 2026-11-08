@@ -520,8 +520,12 @@ def test_select_decoys_skips_conflicting_decoy(
     ]
 
 
-def _decoy_result(
-    components: list[str], success: bool, output: str, platform: str = "esp32-idf"
+def _result(
+    components: list[str],
+    success: bool,
+    output: str,
+    platform: str = "esp32-idf",
+    decoy: bool = False,
 ) -> tbc.TestResult:
     return tbc.TestResult(
         test_id="GROUPED",
@@ -531,6 +535,7 @@ def _decoy_result(
         duration=0.0,
         test_type="config",
         output=output,
+        decoy=decoy,
     )
 
 
@@ -551,7 +556,7 @@ def fake_grouped(
 
         def fake(**kwargs: object) -> tbc.TestResult:
             calls.append(kwargs)
-            return _decoy_result(
+            return _result(
                 kwargs["components"], success, output, kwargs["platform_with_version"]
             )
 
@@ -626,26 +631,21 @@ def test_run_decoy_tests_respects_platform_filter(
 
 def test_reproduce_commands_keep_decoy_groups_apart() -> None:
     """A decoy failure gets its own command, never folded into the per-platform list."""
-    decoy = _decoy_result(["gy39", "tca9548a", "bmi270", "ds2484"], False, "")
-    decoy.decoy = True
-    plain = _decoy_result(["foo"], False, "")
+    decoy = _result(["gy39", "tca9548a", "bmi270", "ds2484"], False, "", decoy=True)
+    plain = _result(["foo"], False, "")
     assert tbc.reproduce_commands([plain, decoy], "gcc") == [
         "script/test_build_components.py -c foo -t esp32-idf -e config --toolchain gcc",
         (
-            "script/test_build_components.py -e config -c gy39,tca9548a,bmi270,ds2484 "
-            "-t esp32-idf --toolchain gcc"
+            "script/test_build_components.py -c gy39,tca9548a,bmi270,ds2484 "
+            "-t esp32-idf -e config --toolchain gcc"
         ),
     ]
-    assert tbc.group_components_by_platform([plain, decoy]) == {
-        ("esp32-idf", "config"): ["foo"]
-    }
 
 
 def test_github_summary_uses_decoy_reproduce_command() -> None:
-    decoy = _decoy_result(["gy39", "tca9548a"], False, "")
-    decoy.decoy = True
+    decoy = _result(["gy39", "tca9548a"], False, "", decoy=True)
     summary = tbc.format_github_summary([decoy])
-    assert "-e config -c gy39,tca9548a -t esp32-idf" in summary
+    assert "-c gy39,tca9548a -t esp32-idf -e config" in summary
 
 
 def _patch_component_runs(
@@ -692,8 +692,7 @@ def test_components_decoy_run_does_not_count_as_build(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """--fail-on-no-tests ignores decoy runs that mention a requested component."""
-    decoy = _decoy_result(["gy39", "tca9548a"], True, "")
-    decoy.decoy = True
+    decoy = _result(["gy39", "tca9548a"], True, "", decoy=True)
     _patch_component_runs(monkeypatch, [], [decoy])
     rc = tbc.test_components(
         ["gy39", "tca9548a"],
