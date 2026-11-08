@@ -1,5 +1,6 @@
 esp32_ble:
   io_capability: keyboard_only
+  advertising: true
 
 button:
   - platform: template

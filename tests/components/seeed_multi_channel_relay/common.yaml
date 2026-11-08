@@ -1,5 +1,6 @@
 seeed_multi_channel_relay:
   id: seeed_multi_channel_relay_hub
+  i2c_id: i2c_bus
 
 switch:
   - platform: seeed_multi_channel_relay
@@ -20,3 +21,7 @@ button:
     name: seeed_multi_channel_relay change address
     on_press:
       - seeed_multi_channel_relay.change_address: 0x12
+      - seeed_multi_channel_relay.change_address:
+          address: 0x13
+      - seeed_multi_channel_relay.change_address:
+          address: !lambda return 0x14;

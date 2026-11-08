@@ -13,7 +13,11 @@ import pytest
 
 from .host_prefs import clear_host_prefs
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper, require_only_entity, wait_for_state
+from .state_utils import (
+    require_only_entity,
+    subscribe_after_initial_states,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-oc-order"
@@ -43,13 +47,9 @@ async def test_template_climate_on_control_ordering(
             )
 
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
         test_climate = require_only_entity(entities, ClimateInfo)
 
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(lambda state: None)
-        )
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities)
 
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
         state = await wait_for_climate_state()

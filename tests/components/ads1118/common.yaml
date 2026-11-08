@@ -1,0 +1,17 @@
+ads1118:
+  - id: ads1118_hub
+    cs_pin: ${cs_pin}
+
+sensor:
+  - platform: ads1118
+    id: ads1118_adc
+    ads1118_id: ads1118_hub
+    type: adc
+    multiplexer: A0_A1
+    gain: 1.024
+    update_interval: 5s
+  - platform: ads1118
+    id: ads1118_temperature
+    ads1118_id: ads1118_hub
+    type: temperature
+    update_interval: 5s

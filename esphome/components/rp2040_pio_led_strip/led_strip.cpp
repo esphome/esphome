@@ -19,7 +19,7 @@ ESPHOME_LOG_TAG(TAG, "rp2040_pio_led_strip");
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
   uint32_t channel = dma_hw->ints0;
-  for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
+  for (uint dma_chan = 0; dma_chan < NUM_DMA_CHANNELS; ++dma_chan) {
     if (RP2040PIOLEDStripLightOutput::dma_chan_active[dma_chan] && (channel & (1u << dma_chan))) {
       dma_hw->ints0 = (1u << dma_chan);                                              // Clear the interrupt
       sem_release(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[dma_chan]);  // Handle the interrupt
@@ -28,71 +28,58 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  size_t buffer_size = this->get_buffer_size_();
-
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size);
-    this->mark_failed();
+  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_),
+                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
-
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate effect data of size %u", this->num_leds_);
-    this->mark_failed();
-    return;
-  }
 
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
-  if (this->pio_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to claim PIO instance");
-    this->mark_failed();
+  if (!this->setup_check(this->pio_ != nullptr, LOG_STR("Failed to claim PIO instance")))
     return;
-  }
 
-  // if there are multiple strips, we can reuse the same PIO program and save space
-  // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
+  // There are only 4 state machines on each PIO, so at most 4 strips per PIO
+  auto &loaded = RP2040PIOLEDStripLightOutput::loaded_programs[pio_get_index(this->pio_)];
+  if (!this->setup_check(loaded.strips < NUM_PIO_STATE_MACHINES, LOG_STR("Too many instances of PIO program")))
+    return;
+
+  // Strips with the same program on the same PIO share one copy of it in instruction memory
   uint offset = 0;
-
-  if (RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1] >= 4) {
-    ESP_LOGE(TAG, "Too many instances of PIO program");
-    this->mark_failed();
-    return;
+  for (uint8_t i = 0; i < NUM_PIO_STATE_MACHINES; i++) {
+    if (loaded.program[i] == nullptr) {
+      // The SDK panics when instruction memory is full
+      if (!this->setup_check(pio_can_add_program(this->pio_, this->program_),
+                             LOG_STR("No PIO instruction memory left")))
+        return;
+      offset = pio_add_program(this->pio_, this->program_);
+      loaded.program[i] = this->program_;
+      loaded.offset[i] = offset;
+      break;
+    }
+    if (loaded.program[i] == this->program_) {
+      offset = loaded.offset[i];
+      break;
+    }
   }
-  // keep track of how many instances of the PIO program are running on each PIO
-  RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1]++;
-
-  // if there are multiple strips of the same chipset, we can reuse the same PIO program and save space
-  if (RP2040PIOLEDStripLightOutput::conf_count[this->chipset_]) {
-    offset = RP2040PIOLEDStripLightOutput::chipset_offsets[this->chipset_];
-  } else {
-    // Load the assembled program into the PIO and get its location in the PIO's instruction memory and save it
-    offset = pio_add_program(this->pio_, this->program_);
-    RP2040PIOLEDStripLightOutput::chipset_offsets[this->chipset_] = offset;
-    RP2040PIOLEDStripLightOutput::conf_count[this->chipset_] = true;
-  }
+  loaded.strips++;
 
   // Configure the state machine's PIO, and start it
-  this->sm_ = pio_claim_unused_sm(this->pio_, true);
-  if (this->sm_ < 0) {
-    // in theory this code should never be reached
-    ESP_LOGE(TAG, "Failed to claim PIO state machine");
-    this->mark_failed();
+  int sm = pio_claim_unused_sm(this->pio_, false);
+  if (sm < 0) {
+    this->mark_failed(LOG_STR("Failed to claim PIO state machine"));
     return;
   }
+  this->sm_ = sm;
 
-  // Initalize the DMA channel (Note: There are 12 DMA channels and 8 state machines so we won't run out)
-
-  this->dma_chan_ = dma_claim_unused_channel(true);
-  if (this->dma_chan_ < 0) {
-    ESP_LOGE(TAG, "Failed to claim DMA channel");
-    this->mark_failed();
+  // Other code may already hold every DMA channel
+  int dma_chan = dma_claim_unused_channel(false);
+  if (dma_chan < 0) {
+    pio_sm_unclaim(this->pio_, this->sm_);
+    this->mark_failed(LOG_STR("Failed to claim DMA channel"));
     return;
   }
+  this->dma_chan_ = dma_chan;
 
   // Mark the DMA channel as active
   RP2040PIOLEDStripLightOutput::dma_chan_active[this->dma_chan_] = true;
@@ -107,10 +94,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
                           pio_get_dreq(this->pio_, this->sm_, true));  // set the DREQ to the state machine's TX FIFO
 
   dma_channel_configure(this->dma_chan_, &this->dma_config_,
-                        &this->pio_->txf[this->sm_],  // write to the state machine's TX FIFO
-                        this->buf_,                   // read from memory
-                        this->get_buffer_size_(),     // number of bytes to transfer
-                        false                         // don't start yet
+                        &this->pio_->txf[this->sm_],          // write to the state machine's TX FIFO
+                        this->internal_accessor_.color_data,  // read from memory
+                        this->get_buffer_size_(),             // number of bytes to transfer
+                        false                                 // don't start yet
   );
 
   // Initialize the semaphore for this DMA channel
@@ -121,6 +108,8 @@ void RP2040PIOLEDStripLightOutput::setup() {
   irq_set_enabled(DMA_IRQ_0, true);                                  // enable interrupt
 
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
@@ -131,25 +120,14 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-  if (this->buf_ == nullptr) {
+  if (this->internal_accessor_.color_data == nullptr) {
     ESP_LOGW(TAG, "Buffer is null, not writing state.");
     return;
   }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
   sem_acquire_blocking(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[this->dma_chan_]);
-  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
-}
-
-light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
+  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->internal_accessor_.color_data, this->get_buffer_size_());
 }
 
 void RP2040PIOLEDStripLightOutput::dump_config() {
@@ -160,7 +138,8 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
                 "  Number of LEDs: %d\n"
                 "  Channel colors: %s\n"
                 "  Max Refresh Rate: %f Hz",
-                this->pin_, this->num_leds_, this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_);
+                this->pin_, this->num_leds_, this->internal_accessor_.channel_colors.to_string(channel_colors),
+                this->max_refresh_rate_);
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
