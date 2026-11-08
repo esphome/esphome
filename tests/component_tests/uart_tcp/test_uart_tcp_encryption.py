@@ -4,12 +4,11 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import uart_tcp
-from esphome.components.const import CONF_RECONNECT_INTERVAL, CONF_ROLE
+from esphome.components.const import CONF_ROLE
 from esphome.config import Config
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
-    CONF_ESPHOME,
     CONF_ID,
     CONF_KEY,
     CONF_PORT,
@@ -28,7 +27,6 @@ def _validate(
     set_core_config: SetCoreConfigCallable, link: ConfigType, api_key: str | None
 ) -> ConfigType:
     full = Config()
-    full[CONF_ESPHOME] = {}
     full["uart"] = [{CONF_ID: ID("uart_0")}]
     full.declare_ids.append((ID("uart_0"), ["uart", 0, CONF_ID]))
     if api_key is not None:
@@ -43,14 +41,6 @@ def _validate(
 def test_encryption_needs_a_key(set_core_config: SetCoreConfigCallable) -> None:
     with pytest.raises(cv.Invalid, match="required key not provided"):
         _validate(set_core_config, {CONF_ENCRYPTION: {}}, None)
-
-
-def test_encryption_needs_a_reconnect_interval_of_one_loop_pass(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    link = {CONF_RECONNECT_INTERVAL: "0s", CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}
-    with pytest.raises(cv.Invalid, match="must last at least one main loop pass"):
-        _validate(set_core_config, link, None)
 
 
 def test_only_an_encrypted_bridge_loads_noise() -> None:

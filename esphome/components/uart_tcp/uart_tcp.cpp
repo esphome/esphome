@@ -13,11 +13,6 @@ ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
-#ifdef USE_NOISE_STREAM
-  if (this->noise_ != nullptr) {
-    this->noise_->set_log_tag(TAG);
-  }
-#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
