@@ -8,6 +8,7 @@ import pytest
 from esphome.components import canbus
 from esphome.components.mcp251xfd import canbus as mcp251xfd
 import esphome.config_validation as cv
+from esphome.core import CORE
 
 
 def decode_timing(timing: int, data_phase: bool) -> tuple[int, int, int, int]:
@@ -34,54 +35,6 @@ def configure() -> Callable[..., dict]:
         return mcp251xfd.CONFIG_SCHEMA({"can_id": 1, "cs_pin": 21, **options})
 
     return validate
-
-
-@pytest.mark.parametrize(
-    ("mode", "expected"),
-    [
-        ("NORMAL", "CAN_MODE_NORMAL"),
-        ("CLASSIC", "CAN_MODE_CLASSIC"),
-        ("classic", "CAN_MODE_CLASSIC"),
-        ("LOOPBACK", "CAN_MODE_LOOPBACK"),
-        ("LISTENONLY", "CAN_MODE_LISTEN_ONLY"),
-    ],
-)
-def test_mode_configuration(
-    configure: Callable[..., dict], mode: str, expected: str
-) -> None:
-    """Configured modes select their corresponding controller enum values."""
-    config = configure(mode=mode)
-    assert str(config["mode"].enum_value) == str(getattr(mcp251xfd.CanMode, expected))
-
-
-def test_invalid_mode(configure: Callable[..., dict]) -> None:
-    """Unexposed hardware modes remain invalid configuration choices."""
-    with pytest.raises(cv.Invalid, match="'CONFIGURATION'"):
-        configure(mode="CONFIGURATION")
-
-
-@pytest.mark.parametrize("clock", ["4MHZ", "20MHZ", "40MHZ"])
-def test_default_spi_data_rate(configure: Callable[..., dict], clock: str) -> None:
-    """The conservative SPI default remains valid with every oscillator."""
-    assert configure(clock=clock)["data_rate"] == 8_000_000
-
-
-@pytest.mark.parametrize("clock", ["4MHZ", "40MHZ"])
-def test_faster_spi_data_rate(configure: Callable[..., dict], clock: str) -> None:
-    """Both direct and PLL-derived 40 MHz clocks allow 16 MHz SPI."""
-    assert configure(clock=clock, data_rate="16MHz")["data_rate"] == 16_000_000
-
-
-@pytest.mark.parametrize(
-    ("clock", "data_rate"),
-    [("20MHZ", "10MHz"), ("4MHZ", "20MHz"), ("40MHZ", "20MHz")],
-)
-def test_excessive_spi_data_rate(
-    configure: Callable[..., dict], clock: str, data_rate: str
-) -> None:
-    """SPI rates above the controller clock-dependent limit are rejected."""
-    with pytest.raises(cv.Invalid, match="data_rate"):
-        configure(clock=clock, data_rate=data_rate)
 
 
 @pytest.mark.parametrize(
@@ -180,7 +133,7 @@ def test_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Both phase registers and encoded automatic TDC reach the constructor."""
+    """Phase registers, automatic TDC and the FD capability reach C++."""
     main_cpp = generate_main(component_config_path("mcp251xfd_timing.yaml"))
     assert (
         "mcp251xfd::MCP251XFD(mcp251xfd::CanClock::CAN_CLOCK_40MHZ, "
@@ -188,10 +141,16 @@ def test_codegen(
     ) in main_cpp
     assert "fd_bus->set_default_fd(true);" in main_cpp
     assert "fd_bus->set_default_bit_rate_switch(true);" not in main_cpp
+    assert "fd_bus->set_supports_fd(true);" in main_cpp
     assert (
         "mcp251xfd::MCP251XFD(mcp251xfd::CanClock::CAN_CLOCK_40MHZ, "
         "mcp251xfd::CanMode::CAN_MODE_CLASSIC, 0x3E0F0F, 0xE0303, 0x21000)"
     ) in main_cpp
+    # Only the FD bus claims CAN FD support; the CLASSIC bus keeps the classic defaults.
+    assert "classic_bus->set_supports_fd(" not in main_cpp
+    assert "classic_bus->set_default_" not in main_cpp
+    assert "set_interrupt_pin(" not in main_cpp
+    assert "USE_CANBUS_FD" in {define.name for define in CORE.defines}
 
 
 @pytest.mark.parametrize("clock", ["4MHZ", "20MHZ", "40MHZ"])

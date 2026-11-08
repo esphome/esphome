@@ -2,16 +2,8 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import canbus, spi
 from esphome.components.canbus import CONF_BIT_RATE, CanbusComponent
-from esphome.components.spi import CONF_SPI_MODE
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ALLOW_OTHER_USES,
-    CONF_DATA_RATE,
-    CONF_ID,
-    CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-)
+from esphome.const import CONF_DATA_RATE, CONF_ID, CONF_INTERRUPT_PIN, CONF_MODE
 from esphome.core import HexInt
 from esphome.types import ConfigType
 
@@ -115,14 +107,6 @@ def bit_timings(
     return best[1]
 
 
-def validate_interrupt_pin(value: ConfigType) -> ConfigType:
-    if value.get(CONF_INVERTED):
-        raise cv.Invalid("MCP251XFD INT is active-low. inverted: true is not supported")
-    if value.get(CONF_ALLOW_OTHER_USES):
-        raise cv.Invalid("MCP251XFD INT does not support sharing the interrupt pin")
-    return value
-
-
 def validate_bit_timing(config: ConfigType) -> ConfigType:
     bit_timings(
         config[CONF_CLOCK], config[CONF_BIT_RATE], config.get(CONF_DATA_BIT_RATE)
@@ -133,7 +117,8 @@ def validate_bit_timing(config: ConfigType) -> ConfigType:
 def validate_data_rate(config: ConfigType) -> ConfigType:
     """Limit SPI SCK to 0.85 * SYSCLK / 2 per Microchip DS20006027B, section 4.0."""
     maximum = SYSTEM_CLOCK[config[CONF_CLOCK]] * 85 // 200
-    if config[CONF_DATA_RATE] > maximum:
+    # 8 MHz is the SPIDevice template default in mcp251xfd.h
+    if config.get(CONF_DATA_RATE, 8_000_000) > maximum:
         raise cv.Invalid(
             f"data_rate must not exceed {maximum} Hz with a {config[CONF_CLOCK]} oscillator",
             path=[CONF_DATA_RATE],
@@ -148,42 +133,29 @@ _DEVICE_SCHEMA = cv.Schema(
         cv.Optional(CONF_BIT_RATE, default="500KBPS"): cv.enum(
             canbus.CAN_SPEEDS, upper=True
         ),
-        cv.Optional(CONF_INTERRUPT_PIN): cv.All(
-            pins.internal_gpio_input_pin_schema, validate_interrupt_pin
-        ),
+        cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
     }
-).extend(
-    spi.spi_device_schema(True, "8MHz"),
+).extend(spi.spi_device_schema(True))
+
+_FD_SCHEMA = canbus.CANBUS_FD_SCHEMA.extend(
+    _DEVICE_SCHEMA,
     {
-        cv.Optional(CONF_SPI_MODE, default="MODE0"): cv.enum(
-            {key: spi.SPI_MODE_OPTIONS[key] for key in ("MODE0", "MODE3")},
-            upper=True,
+        cv.Optional(CONF_DATA_BIT_RATE, default="2000KBPS"): cv.enum(
+            canbus.CAN_DATA_SPEEDS, upper=True
         ),
     },
 )
 
-
-def _fd_schema(default_fd: bool) -> cv.Schema:
-    return (
-        canbus.canbus_fd_schema(default_fd)
-        .extend(_DEVICE_SCHEMA)
-        .extend(
-            {
-                cv.Optional(CONF_DATA_BIT_RATE, default="2000KBPS"): cv.enum(
-                    canbus.CAN_DATA_SPEEDS, upper=True
-                ),
-            }
-        )
-    )
-
-
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "NORMAL": _fd_schema(True),
+            # NORMAL sends CAN FD frames by default; the test modes default to classic frames.
+            "NORMAL": _FD_SCHEMA.extend(
+                {cv.Optional(canbus.CONF_DEFAULT_FD, default=True): cv.boolean}
+            ),
             "CLASSIC": canbus.CANBUS_SCHEMA.extend(_DEVICE_SCHEMA),
-            "LOOPBACK": _fd_schema(False),
-            "LISTENONLY": _fd_schema(False),
+            "LOOPBACK": _FD_SCHEMA,
+            "LISTENONLY": _FD_SCHEMA,
         },
         key=CONF_MODE,
         default_type="NORMAL",

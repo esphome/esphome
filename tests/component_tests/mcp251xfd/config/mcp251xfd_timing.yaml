@@ -12,7 +12,6 @@ canbus:
     id: fd_bus
     can_id: 1
     cs_pin: 21
-    bit_rate: 500kbps
     data_bit_rate: 8000kbps
   - platform: mcp251xfd
     id: classic_bus
