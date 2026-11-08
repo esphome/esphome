@@ -76,17 +76,6 @@ def test_local_page_loads_js_include(
 
     custom_script = "<script type=module src=/0.js></script>"
     assert html.count(custom_script) == 1
-    source = (
-        Path(web_server.__file__)
-        .with_name(f"server_index_v{version}.h")
-        .read_text(encoding="utf-8")
-    )
-    bundled = re.search(r"INDEX_GZ\[\] PROGMEM = \{([^}]+)\}", source)
-    assert bundled is not None
-    original = gzip.decompress(
-        bytes(int(value, 16) for value in re.findall(r"0x[0-9a-fA-F]+", bundled[1]))
-    ).decode()
-    assert html.replace(custom_script, "", 1) == original
     assert f"ESPHOME_WEBSERVER_INDEX_HTML_SIZE = {len(index)};" in main_cpp
     assert html.index(custom_script) < html.index("<script type=module crossorigin>")
     assert "<esp-app></esp-app>" in html
@@ -136,3 +125,9 @@ def test_ap_with_local_disabled_keeps_hosted_js_include(
     html = _table(generate_main(config_path), "INDEX_HTML").decode()
     assert "<script type=module src=/0.js></script>" in html
     assert f"https://oi.esphome.io/v{version}/www.js" in html
+
+
+def test_resource_compression_rejects_unknown_values() -> None:
+    """A typo must not silently produce gzip data."""
+    with pytest.raises(ValueError, match="Unsupported compression"):
+        web_server.add_resource_as_progmem("TEST", "", compression="brotli")

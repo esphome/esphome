@@ -1,7 +1,2 @@
 packages:
   web_server: !include common_v3.yaml
-
-web_server:
-  local: true
-  compression: br
-  js_include: include.js

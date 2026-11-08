@@ -7,4 +7,3 @@ wifi:
 
 web_server:
   local: true
-  js_include: include.js

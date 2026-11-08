@@ -5,7 +5,7 @@ import gzip
 import logging
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, Literal
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -55,7 +55,7 @@ from esphome.const import (  # noqa: F401
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import WEBSERVER_SORTING_SCHEMA  # noqa: F401
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
@@ -498,40 +498,35 @@ def build_local_index_html(version: int) -> str:
     """Add the custom module before the embedded interface is initialized."""
     source = (
         Path(__file__)
-        .with_name(f"server_index_v{version}.h")
+        .with_name(f"server_index_v{version}.html")
         .read_text(encoding="utf-8")
     )
-    if (match := re.search(r"INDEX_GZ\[\] PROGMEM = \{([^}]+)\}", source)) is None:
-        raise EsphomeError("Embedded web interface gzip data not found")
-    data = bytes(int(value, 16) for value in re.findall(r"0x[0-9a-fA-F]+", match[1]))
-    html = gzip.decompress(data).decode("utf-8")
-    if "<script type=module" not in html:
-        raise EsphomeError("Embedded web interface module script not found")
-    return html.replace(
-        "<script type=module",
-        "<script type=module src=/0.js></script><script type=module",
-        1,
+    injection_point = "<!-- ESPHOME_JS_INCLUDE -->"
+    if source.count(injection_point) != 1:
+        raise ValueError("Embedded web interface JavaScript injection point not found")
+    return source.replace(
+        injection_point, "<script type=module src=/0.js></script>", 1
     )
 
 
 def add_resource_as_progmem(
     resource_name: str,
     content: str,
-    compress: bool = True,
-    compression: str = "gzip",
+    compression: Literal["gzip", "br"] | None = "gzip",
 ) -> None:
     """Add a resource to progmem."""
     content_encoded = content.encode("utf-8")
-    if compress:
-        if compression == "br":
-            try:
-                import brotlicffi as brotli
-            except ImportError:
-                import brotli
+    if compression == "br":
+        try:
+            import brotlicffi as brotli
+        except ImportError:
+            import brotli
 
-            content_encoded = brotli.compress(content_encoded)
-        else:
-            content_encoded = gzip.compress(content_encoded, mtime=0)
+        content_encoded = brotli.compress(content_encoded)
+    elif compression == "gzip":
+        content_encoded = gzip.compress(content_encoded, mtime=0)
+    elif compression is not None:
+        raise ValueError(f"Unsupported compression: {compression}")
     cg.extern_progmem_array(
         f"ESPHOME_WEBSERVER_{resource_name}", cg.uint8, list(content_encoded)
     )
@@ -573,7 +568,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             # Don't compress the index HTML as the data sizes are almost the same.
             add_resource_as_progmem(
-                "INDEX_HTML", build_index_html(config), compress=False
+                "INDEX_HTML", build_index_html(config), compression=None
             )
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
