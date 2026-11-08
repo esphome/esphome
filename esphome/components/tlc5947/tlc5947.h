@@ -14,7 +14,7 @@ class TLC5947 final : public Component {
   // Must match CHANNELS_PER_CHIP in __init__.py, which validates the channel range
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
 
-  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
+  /// @param pwm_amounts N_CHANNELS_PER_CHIP duty values per chip, a static buffer from code generation.
   TLC5947(GPIOPin *data_pin, GPIOPin *clock_pin, GPIOPin *lat_pin, std::span<uint16_t> pwm_amounts)
       : data_pin_(data_pin), clock_pin_(clock_pin), lat_pin_(lat_pin), pwm_amounts_(pwm_amounts) {}
 
