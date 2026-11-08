@@ -504,9 +504,7 @@ def build_local_index_html(version: int) -> str:
     injection_point = "<!-- ESPHOME_JS_INCLUDE -->"
     if source.count(injection_point) != 1:
         raise ValueError("Embedded web interface JavaScript injection point not found")
-    return source.replace(
-        injection_point, "<script type=module src=/0.js></script>", 1
-    )
+    return source.replace(injection_point, "<script type=module src=/0.js></script>", 1)
 
 
 def add_resource_as_progmem(
