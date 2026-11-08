@@ -6,12 +6,19 @@ from fractions import Fraction
 
 import pytest
 
+from esphome.components.i2s_audio import (
+    CONF_I2S_AUDIO_ID,
+    CONF_I2S_MCLK_PIN,
+    CONF_I2S_MODE,
+    CONF_MCLK_MULTIPLE,
+)
 from esphome.components.tlv320dac3100.audio_dac import (
     BITS_PER_SAMPLE,
     CLKIN_BCLK,
     CLKIN_MCLK,
     CLKIN_PLL,
     CODEC_CLKIN_MAX,
+    CONF_MCLK_FREQUENCY,
     DAC_CLK_MAX,
     DAC_MOD_CLK_MAX,
     DOSR_FS_MAX,
@@ -166,3 +173,45 @@ def test_mismatched_i2s_speaker_is_rejected(speaker: dict) -> None:
     fv.full_config.set({"speaker": [speaker]})
     with pytest.raises(cv.Invalid, match="must match"):
         _final_validate(_DAC)
+
+
+_MCLK_DAC = {**_DAC, CONF_MCLK_FREQUENCY: 11_289_600}
+
+
+def _mclk_speaker(mode: str = "primary", multiple: int = 256) -> dict:
+    return {
+        **_speaker(),
+        CONF_I2S_AUDIO_ID: "bus",
+        CONF_I2S_MODE: mode,
+        CONF_MCLK_MULTIPLE: multiple,
+    }
+
+
+def _bus(has_mclk_pin: bool = True) -> dict:
+    return {CONF_ID: "bus"} | ({CONF_I2S_MCLK_PIN: 15} if has_mclk_pin else {})
+
+
+def test_mclk_matching_the_i2s_bus_is_accepted() -> None:
+    fv.full_config.set({"speaker": [_mclk_speaker()], "i2s_audio": [_bus()]})
+    _final_validate(_MCLK_DAC)
+
+
+def test_mclk_not_matching_the_i2s_bus_is_rejected() -> None:
+    fv.full_config.set(
+        {"speaker": [_mclk_speaker(multiple=384)], "i2s_audio": [_bus()]}
+    )
+    with pytest.raises(cv.Invalid, match="outputs 16934400"):
+        _final_validate(_MCLK_DAC)
+
+
+@pytest.mark.parametrize(
+    ("mode", "has_mclk_pin"), [("secondary", True), ("primary", False)]
+)
+def test_mclk_from_elsewhere_is_not_compared(mode: str, has_mclk_pin: bool) -> None:
+    fv.full_config.set(
+        {
+            "speaker": [_mclk_speaker(mode=mode, multiple=384)],
+            "i2s_audio": [_bus(has_mclk_pin)],
+        }
+    )
+    _final_validate(_MCLK_DAC)

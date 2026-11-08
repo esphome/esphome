@@ -5,6 +5,14 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
+from esphome.components.i2s_audio import (
+    CONF_I2S_AUDIO_ID,
+    CONF_I2S_MCLK_PIN,
+    CONF_I2S_MODE,
+    CONF_MCLK_MULTIPLE,
+    CONF_PRIMARY,
+    DOMAIN as I2S_AUDIO_DOMAIN,
+)
 from esphome.components.speaker import DOMAIN as SPEAKER_DOMAIN, get_audio_dac_ids
 import esphome.config_validation as cv
 from esphome.const import (
@@ -197,6 +205,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _generated_mclk(speaker: ConfigType) -> int | None:
+    """Return the MCLK the speaker's I2S bus outputs, or None if it drives no MCLK."""
+    if speaker[CONF_I2S_MODE] != CONF_PRIMARY:
+        return None
+    for bus in fv.full_config.get().get(I2S_AUDIO_DOMAIN, []):
+        if bus[CONF_ID] == speaker[CONF_I2S_AUDIO_ID] and CONF_I2S_MCLK_PIN in bus:
+            return speaker[CONF_SAMPLE_RATE] * speaker[CONF_MCLK_MULTIPLE]
+    return None
+
+
 def _final_validate(config: ConfigType) -> None:
     # Only the i2s_audio speaker reports that its clocks are running
     speakers = [
@@ -217,6 +235,14 @@ def _final_validate(config: ConfigType) -> None:
                     f"{key} is {config[key]} but the i2s_audio speaker using this "
                     f"audio_dac has {speaker[key]}; they must match"
                 )
+        if (mclk := config.get(CONF_MCLK_FREQUENCY)) is not None and (
+            generated := _generated_mclk(speaker)
+        ) not in (None, mclk):
+            raise cv.Invalid(
+                f"{CONF_MCLK_FREQUENCY} is {mclk} but the i2s_audio speaker using "
+                f"this audio_dac outputs {generated} ({CONF_SAMPLE_RATE} x "
+                f"{CONF_MCLK_MULTIPLE})"
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
