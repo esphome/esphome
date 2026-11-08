@@ -139,6 +139,9 @@ bool UARTBridgePipe::receive_(uint32_t now_us) {
     this->last_write_end_us_ = now_us;
     this->paced_write_ = false;
   }
+  if (this->cut_ && this->len_ == this->block_len_) {
+    this->watch_after_cut_(now_us);
+  }
   if (!this->from_pushes_ && this->block_len_ == 0) {
     this->collect_(now_us);
   }
@@ -153,12 +156,27 @@ bool UARTBridgePipe::receive_(uint32_t now_us) {
   } else if (this->sent_ == 0 && this->new_frame_) {
     wait = remaining(now_us - this->tx_start_us_, this->tx_busy_us_ + this->to_gap_us_);
   }
-  if (busy && !this->stalled_ && wait < FAST_WAIT_US) {
+  if ((busy || this->cut_) && !this->stalled_ && wait < FAST_WAIT_US) {
     this->fast_.start();
   } else {
     this->fast_.stop();
   }
   return busy;
+}
+
+// After a block cut at BLOCK_SIZE, until the next one is collected: if the source stays quiet for a frame gap past the
+// cut block's last byte, the frame ended with it, and the next block starts a frame.
+void UARTBridgePipe::watch_after_cut_(uint32_t now_us) {
+  const uint32_t since_pass_us = now_us - this->last_pass_us_;
+  const bool empty = this->from_->available() == 0;
+  if (empty) {
+    this->last_pass_us_ = now_us;
+  }
+  // As in collect_(): bytes found while passes follow closely came after the last look that found the source empty.
+  const bool close = since_pass_us < this->gap_us_ / (this->rx_early_ ? EARLY_RX_GAP_PARTS : CLOSE_PASS_GAP_PARTS);
+  if ((empty || close) && now_us - this->last_rx_us_ >= (this->batched_ ? this->batch_us_ : this->gap_us_)) {
+    this->cut_ = false;
+  }
 }
 
 void UARTBridgePipe::collect_(uint32_t now_us) {

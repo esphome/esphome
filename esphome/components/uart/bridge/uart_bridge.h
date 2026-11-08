@@ -29,7 +29,7 @@ class UARTBridgePipe final : public UARTSink {
   void set_to_wire() { this->to_wire_ = true; }
   void setup();
   bool poll() {
-    if (this->len_ == 0 && (this->from_pushes_ || this->from_->available() == 0)) {
+    if (this->len_ == 0 && !this->cut_ && (this->from_pushes_ || this->from_->available() == 0)) {
       this->fast_.stop();
       return false;
     }
@@ -54,6 +54,7 @@ class UARTBridgePipe final : public UARTSink {
   bool paced_();
   size_t paced_room_(uint32_t now_us) const;
   bool receive_(uint32_t now_us);
+  void watch_after_cut_(uint32_t now_us);
   void collect_(uint32_t now_us);
   void clear_();
   void drop_(size_t len, const LogString *why);
@@ -61,7 +62,7 @@ class UARTBridgePipe final : public UARTSink {
   UARTComponent *from_;
   UARTComponent *to_;
   uint32_t last_rx_us_{0};
-  // When collect_() last looked at the source.
+  // When collect_() last looked at the source, or watch_after_cut_() found it empty.
   uint32_t last_pass_us_{0};
   uint32_t gap_us_{0};
   uint32_t batch_us_{0};
@@ -93,7 +94,7 @@ class UARTBridgePipe final : public UARTSink {
   bool stalled_{false};
   // send_() made a paced write; receive_() takes its clock as the time the write returned.
   bool paced_write_{false};
-  // The block going out starts a frame; the last polled block was cut at BLOCK_SIZE.
+  // The block going out starts a frame; the last polled block was cut at BLOCK_SIZE and no frame gap has followed.
   bool new_frame_{true};
   bool cut_{false};
   uint8_t buf_[BLOCK_SIZE]{};

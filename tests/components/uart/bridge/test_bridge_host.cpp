@@ -760,6 +760,29 @@ TEST(UARTBridge, FramesAtTheModbusGapStayApartWhenTheDriverHandsOverBursts) {
   }
 }
 
+TEST(UARTBridge, FrameThatFillsABlockStaysApartFromTheNextOne) {
+  // A 256-byte frame fills one block, so its length cannot tell whether more follows. The source then stays quiet for
+  // 3.5 characters, so the next 8-byte frame is a frame of its own: on the destination it waits until the first one is
+  // out, 256 characters of 87 us (22223 us), and the line was quiet for 3.5 characters.
+  const auto first = frame(256);
+  const auto second = frame(8, 0x40);
+  for (uint32_t pass_us : {PASS_US, 3 * PASS_US}) {
+    for (uint32_t offset = 0; offset < pass_us; offset += pass_us / 10) {
+      SCOPED_TRACE(::testing::Message() << "pass " << pass_us << " us, offset " << offset << " us");
+      WireUart a(115200);
+      WireUart b(115200);
+      b.room = UARTBridgePipe::BLOCK_SIZE;
+      UARTBridgePipe pipe(&a, &b);
+      pipe.set_from_wire();
+      pipe.set_to_wire();
+      pipe.setup();
+      play(pipe, a, b, {first, second}, line_times({first, second}, 1000 + offset, T35_115200_US), pass_us);
+      ASSERT_EQ(sizes(b.writes), (std::vector<size_t>{256, 8}));
+      EXPECT_GE(b.write_us[1] - b.write_us[0], 22223 + T35_115200_US);
+    }
+  }
+}
+
 // A line whose UART cannot report its room, as on the RP2040: a write returns once its last byte is in the 32-byte TX
 // FIFO, so while the FIFO is full it blocks and moves the clock on. With tx_fifo 0, as ESP8266 software serial, a write
 // returns once its last byte is on the line. Received bytes wait in 256 bytes of buffer and the 32-byte RX FIFO; more
