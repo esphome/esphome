@@ -74,10 +74,7 @@ bool MCP251XFD::configure_() {
   this->write_registers_(REG_FLTOBJ0, zeros.data(), zeros.size());
   this->write_byte_(REG_FLTCON, FILTER_ENABLE_RX_FIFO);
 
-  if (!this->set_mode_(this->mcp_mode_))
-    return false;
-
-  if (!this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0) ||
+  if (!this->set_mode_(this->mcp_mode_) || !this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0) ||
       !this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
     return false;
 
