@@ -4,7 +4,10 @@ import importlib.util
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import runpy
+import shutil
+import subprocess
 import sys
+import sysconfig
 from types import ModuleType
 from unittest.mock import Mock, call, patch
 
@@ -436,6 +439,138 @@ def test_install_git_hooks_skips_copy_when_hooks_dir_missing(
     assert not (common_dir / "hooks").exists()
 
 
+# --- install_tree_aware_shim --------------------------------------------------
+
+
+def _fake_venv(script_setup: ModuleType, tmp_path: Path) -> tuple[Path, Path]:
+    venv = tmp_path / "venv"
+    scripts = script_setup.bin_dir(venv)
+    scripts.mkdir(parents=True)
+    esphome_bin = scripts / "esphome"
+    esphome_bin.write_text("#!/usr/bin/python\n# console script\n")
+    return venv, esphome_bin
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+def test_install_tree_aware_shim_replaces_console_script(
+    script_setup: ModuleType, tmp_path: Path
+) -> None:
+    venv, esphome_bin = _fake_venv(script_setup, tmp_path)
+    script_setup.install_tree_aware_shim(venv)
+
+    assert esphome_bin.read_text().startswith("#!/bin/sh\n")
+    assert os.access(esphome_bin, os.X_OK)
+    assert sorted(p.name for p in esphome_bin.parent.iterdir()) == ["esphome"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+def test_install_tree_aware_shim_is_idempotent(
+    script_setup: ModuleType, tmp_path: Path
+) -> None:
+    venv, esphome_bin = _fake_venv(script_setup, tmp_path)
+    script_setup.install_tree_aware_shim(venv)
+    first = esphome_bin.read_text()
+    script_setup.install_tree_aware_shim(venv)
+
+    assert esphome_bin.read_text() == first
+
+
+_FAKE_MAIN = (
+    "import enum, sys, types\ndef main():\n    print(__file__)\n    print(sys.argv)\n"
+)
+
+
+def _fake_package(parent: Path) -> Path:
+    package = parent / "esphome"
+    (package / "components" / "esphome").mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    (package / "__main__.py").write_text(_FAKE_MAIN)
+    (package / "components" / "esphome" / "__init__.py").write_text("")
+    return package
+
+
+@pytest.fixture
+def shim_env(script_setup: ModuleType, tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Install the shim, plus a fake installed esphome and a fake checkout.
+
+    The interpreter path holds shell metacharacters to prove the shim quotes it.
+    """
+    venv, esphome_bin = _fake_venv(script_setup, tmp_path)
+    python = tmp_path / 'py $HOME `x` "q"'
+    python.write_text(f'#!/bin/sh\nexec {sys.executable} "$@"\n')
+    python.chmod(0o755)
+    with patch.object(script_setup, "venv_python", return_value=python):
+        script_setup.install_tree_aware_shim(venv)
+
+    installed = _fake_package(tmp_path / "site-packages")
+    checkout = tmp_path / "checkout"
+    package = _fake_package(checkout)
+    # Same names as stdlib modules; they break `python -m` run from this directory.
+    (package / "enum.py").write_text("raise ImportError('shadowed')\n")
+    (package / "types.py").write_text("raise ImportError('shadowed')\n")
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    return esphome_bin, installed, checkout
+
+
+def _run_shim(esphome_bin: Path, installed: Path, cwd: Path) -> list[str]:
+    env = dict(os.environ, PYTHONPATH=str(installed.parent))
+    result = subprocess.run(
+        [str(esphome_bin), "version", "a b"],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.splitlines()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+@pytest.mark.parametrize(
+    "subdir", ["", "esphome", "esphome/components", "esphome/components/esphome"]
+)
+def test_shim_runs_checkout_containing_cwd(
+    shim_env: tuple[Path, Path, Path], subdir: str
+) -> None:
+    esphome_bin, installed, checkout = shim_env
+    lines = _run_shim(esphome_bin, installed, checkout / subdir)
+    assert lines == [
+        str(checkout / "esphome" / "__main__.py"),
+        "['esphome', 'version', 'a b']",
+    ]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_shim_outside_checkout_runs_installed_esphome(
+    shim_env: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    esphome_bin, installed, _ = shim_env
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    subprocess.run(["git", "init", "-q", str(outside)], check=True)
+    lines = _run_shim(esphome_bin, installed, outside)
+    assert lines == [str(installed / "__main__.py"), "['esphome', 'version', 'a b']"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+def test_install_tree_aware_shim_missing_console_script_raises(
+    script_setup: ModuleType, tmp_path: Path
+) -> None:
+    with pytest.raises(SystemExit, match="esphome console script not found"):
+        script_setup.install_tree_aware_shim(tmp_path / "venv")
+
+
+def test_install_tree_aware_shim_skipped_on_windows(
+    script_setup: ModuleType, tmp_path: Path
+) -> None:
+    venv = tmp_path / "missing-venv"
+    with patch.object(script_setup.os, "name", "nt"):
+        script_setup.install_tree_aware_shim(venv)
+    assert not venv.exists()
+
+
 # --- report ------------------------------------------------------------------
 
 
@@ -489,12 +624,14 @@ def test_main_uses_active_virtual_env(
         patch.object(script_setup, "create_venv") as mock_create_venv,
         patch.object(script_setup, "install_dependencies") as mock_install_deps,
         patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_tree_aware_shim") as mock_install_shim,
         patch.object(script_setup, "report") as mock_report,
     ):
         script_setup.main()
     mock_create_venv.assert_not_called()
     mock_install_deps.assert_called_once()
     mock_install_hooks.assert_called_once()
+    mock_install_shim.assert_called_once()
     mock_report.assert_called_once_with(script_setup.VENV_ACTIVE, active_venv)
     assert (tmp_path / ".temp").is_dir()
 
@@ -514,12 +651,14 @@ def test_main_reuses_existing_venv(
         patch.object(script_setup, "create_venv") as mock_create_venv,
         patch.object(script_setup, "install_dependencies") as mock_install_deps,
         patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_tree_aware_shim") as mock_install_shim,
         patch.object(script_setup, "report") as mock_report,
     ):
         script_setup.main()
     mock_create_venv.assert_not_called()
     mock_install_deps.assert_called_once()
     mock_install_hooks.assert_called_once()
+    mock_install_shim.assert_called_once()
     mock_report.assert_called_once_with(script_setup.VENV_REUSED, default_venv)
     assert (tmp_path / ".temp").is_dir()
 
@@ -536,12 +675,14 @@ def test_main_creates_new_venv(
         patch.object(script_setup, "create_venv") as mock_create_venv,
         patch.object(script_setup, "install_dependencies") as mock_install_deps,
         patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_tree_aware_shim") as mock_install_shim,
         patch.object(script_setup, "report") as mock_report,
     ):
         script_setup.main()
     mock_create_venv.assert_called_once_with(default_venv)
     mock_install_deps.assert_called_once()
     mock_install_hooks.assert_called_once()
+    mock_install_shim.assert_called_once()
     mock_report.assert_called_once_with(script_setup.VENV_CREATED, default_venv)
     assert (tmp_path / ".temp").is_dir()
 
@@ -549,6 +690,11 @@ def test_main_creates_new_venv(
 def test_run_as_script_calls_main(tmp_path: Path) -> None:
     """The __main__ guard runs the whole flow, with every side effect stubbed."""
     completed = Mock(returncode=0, stdout="")
+    scripts = Path(
+        sysconfig.get_path("scripts", "venv", vars={"base": str(tmp_path / "env")})
+    )
+    scripts.mkdir(parents=True)
+    (scripts / "esphome").write_text("#!/bin/sh\n")
     with (
         patch("subprocess.run", return_value=completed) as mock_run,
         patch("shutil.which", return_value="/usr/bin/uv"),
