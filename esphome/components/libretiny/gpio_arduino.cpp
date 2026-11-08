@@ -31,11 +31,8 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   }
 }
 
-// The ISR copy is the pin itself, so both share the stored mode and level. Pins are never freed.
-ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(
-      const_cast<ArduinoInternalGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-}
+// The ISR copy is the pin itself, so both share the stored mode and level.
+ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = (PinStatus) 255;
