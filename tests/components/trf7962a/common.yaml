@@ -2,6 +2,9 @@ trf7962a:
   id: trf7962a_nfcc
   cs_pin: ${cs_pin}
   irq_pin: ${irq_pin}
+  data_rate: 4MHz
+  vin: 3.3v
+  rf_power: half
   on_tag:
     then:
       - logger.log:
