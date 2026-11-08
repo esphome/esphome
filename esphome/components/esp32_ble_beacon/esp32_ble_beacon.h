@@ -54,6 +54,7 @@ class ESP32BLEBeacon final : public Component {
 
  protected:
   void on_advertise_();
+  void schedule_retry_();
 
   std::array<uint8_t, 16> uuid_;
   uint16_t major_{};

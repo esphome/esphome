@@ -90,8 +90,18 @@ void ESP32BLEBeacon::on_advertise_() {
   err = esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_config_adv_data_raw failed: %s", esp_err_to_name(err));
+    this->schedule_retry_();
     return;
   }
+}
+
+// With advertise_services off a lone beacon is never restarted by the rotation,
+// so a failed start has to retry itself.
+void ESP32BLEBeacon::schedule_retry_() {
+  this->set_timeout("retry", 1000, [this]() {
+    if (this->advertising_)
+      this->on_advertise_();
+  });
 }
 
 void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -104,6 +114,7 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
       err = esp_ble_gap_start_advertising(&this->ble_adv_params_);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %s", esp_err_to_name(err));
+        this->schedule_retry_();
       }
       break;
     }
@@ -111,6 +122,7 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
       err = param->adv_start_cmpl.status;
       if (err != ESP_BT_STATUS_SUCCESS) {
         ESP_LOGE(TAG, "BLE adv start failed: %s", esp_err_to_name(err));
+        this->schedule_retry_();
       }
       break;
     }

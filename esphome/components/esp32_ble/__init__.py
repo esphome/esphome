@@ -485,6 +485,21 @@ def final_validation(config: ConfigType) -> None:
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
 
+    if not config[CONF_ADVERTISE_SERVICES]:
+        # Without a beacon there is no raw advertisement to rotate to, and the
+        # setter only exists when USE_ESP32_BLE_ADVERTISING is defined.
+        if "esp32_ble_beacon" not in full_config:
+            raise cv.Invalid(
+                f"'{CONF_ADVERTISE_SERVICES}: false' requires 'esp32_ble_beacon'; "
+                "otherwise there is nothing left to advertise"
+            )
+        if "esp32_ble_server" in full_config:
+            _LOGGER.warning(
+                "'%s: false' stops the GATT server (and Improv) from being "
+                "advertised, so clients can no longer discover or connect to it",
+                CONF_ADVERTISE_SERVICES,
+            )
+
     # Validate connection slots usage
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     validate_connection_slots(max_connections)
