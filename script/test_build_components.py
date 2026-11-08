@@ -63,12 +63,14 @@ class TestResult:
     command: str = ""
     test_type: str = "compile"  # "config" or "compile"
     output: str = ""  # Captured esphome output, kept only for failed runs
-    decoy: bool = False  # Grouped with decoys; reproduced with its own command
+    shared_id_check: bool = (
+        False  # Grouped with partners; reproduced with its own command
+    )
 
 
 # Tests that add a second instance of a type that other tests reference by
 # its single default id. Candidates per type are in order of preference.
-DECOY_COMPONENTS: dict[str, tuple[str, ...]] = {
+SHARED_ID_COMPONENTS: dict[str, tuple[str, ...]] = {
     "i2c": ("tca9548a",),
     "motion": ("bmi270", "icm20689"),
     "one_wire": ("ds2484", "ds248x"),
@@ -235,15 +237,15 @@ def reproduce_commands(
         )
 
     platform_components = group_components_by_platform(
-        [r for r in failed_results if not r.decoy]
+        [r for r in failed_results if not r.shared_id_check]
     )
-    # A decoy group runs alone so grouping recreates exactly that merge
+    # A shared-id group runs alone so grouping recreates exactly that merge
     return [
         command(platform_components[key], *key) for key in sorted(platform_components)
     ] + [
         command(r.components, r.platform, r.test_type)
         for r in failed_results
-        if r.decoy
+        if r.shared_id_check
     ]
 
 
@@ -680,32 +682,32 @@ def _groupable_buses(
     return tuple(signature.split("+")) if signature else ()
 
 
-def select_decoys(
+def select_shared_id_partners(
     component: str,
     platform: str,
     component_buses: dict[str, dict[str, list[str]]],
     non_groupable: set[str],
 ) -> list[str]:
-    """Pick one compatible decoy per DECOY_COMPONENTS type."""
+    """Pick one compatible partner per SHARED_ID_COMPONENTS type."""
     buses = _groupable_buses(component, platform, component_buses, non_groupable)
     if buses is None:
         return []
     picked: list[str] = []
-    for candidates in DECOY_COMPONENTS.values():
-        for decoy in candidates:
-            if decoy == component:
+    for candidates in SHARED_ID_COMPONENTS.values():
+        for partner in candidates:
+            if partner == component:
                 continue
-            decoy_buses = _groupable_buses(
-                decoy, platform, component_buses, non_groupable
+            partner_buses = _groupable_buses(
+                partner, platform, component_buses, non_groupable
             )
-            if decoy_buses is None or not are_buses_compatible(buses, decoy_buses):
+            if partner_buses is None or not are_buses_compatible(buses, partner_buses):
                 continue
             if any(
-                components_conflict(decoy, m, platform) for m in (component, *picked)
+                components_conflict(partner, m, platform) for m in (component, *picked)
             ):
                 continue
-            picked.append(decoy)
-            buses = tuple(sorted({*buses, *decoy_buses}))
+            picked.append(partner)
+            buses = tuple(sorted({*buses, *partner_buses}))
             break
     return picked
 
@@ -719,13 +721,13 @@ def _config_error_excerpt(output: str, max_lines: int = 30) -> str:
     return "\n".join(lines[-max_lines:])
 
 
-def _print_decoy_failure(
-    component: str, platform_with_version: str, decoys: str, output: str
+def _print_shared_id_failure(
+    component: str, platform_with_version: str, partners: str, output: str
 ) -> None:
     print(f"\n{'=' * 80}")
     print(
         f"{component} fails config validation on {platform_with_version} "
-        f"when CI groups it with {decoys}."
+        f"when CI groups it with {partners}."
     )
     print(
         "These tests add a second I2C bus, motion or one_wire instance; "
@@ -737,8 +739,8 @@ def _print_decoy_failure(
 
 
 @dataclass(frozen=True)
-class DecoyContext:
-    """Settings shared by every decoy run in a batch."""
+class SharedIdContext:
+    """Settings shared by every shared-id run in a batch."""
 
     platform_bases: dict[str, list[Path]]
     platform_filter: str | None
@@ -769,13 +771,13 @@ class DecoyContext:
         )
 
 
-def run_decoy_tests(
-    ctx: DecoyContext, components: set[str], prior_results: list[TestResult]
+def run_shared_id_tests(
+    ctx: SharedIdContext, components: set[str], prior_results: list[TestResult]
 ) -> list[TestResult]:
-    """Validate each component merged with decoys that add a second candidate id.
+    """Validate each component merged with partners that add a second candidate id.
 
     Catches a missing i2c_id/motion_id/one_wire_id that only grouping exposes. A test
-    that already failed alone is skipped, so its decoy failure cannot blame grouping.
+    that already failed alone is skipped, so its shared-id failure cannot blame grouping.
     """
     failed_alone = {
         (r.components[0], r.platform)
@@ -790,26 +792,26 @@ def run_decoy_tests(
             else sorted(ctx.component_buses.get(component, {}))
         )
         for platform in platforms:
-            decoys = select_decoys(
+            partners = select_shared_id_partners(
                 component, platform, ctx.component_buses, ctx.non_groupable
             )
-            if not decoys:
+            if not partners:
                 continue
-            decoy_csv = ",".join(decoys)
+            partner_csv = ",".join(partners)
             for base_file in ctx.platform_bases.get(platform, []):
                 platform_with_version = extract_platform_with_version(base_file)
                 if (component, platform_with_version) in failed_alone:
                     continue
                 result = ctx.run_config(
-                    [component, *decoys], platform, platform_with_version, base_file
+                    [component, *partners], platform, platform_with_version, base_file
                 )
                 result.test_id = (
-                    f"DECOY[{component}+{decoy_csv}].{platform_with_version}"
+                    f"SHARED_ID[{component}+{partner_csv}].{platform_with_version}"
                 )
-                result.decoy = True
+                result.shared_id_check = True
                 if not result.success:
-                    _print_decoy_failure(
-                        component, platform_with_version, decoy_csv, result.output
+                    _print_shared_id_failure(
+                        component, platform_with_version, partner_csv, result.output
                     )
                 results.append(result)
     return results
@@ -1417,9 +1419,9 @@ def test_components(
                         skip_bootloader=skip_bootloader,
                     )
 
-    # Directly changed tests run isolated, so also check them grouped with decoys
+    # Directly changed tests run isolated, so also check them grouped with partners
     if enable_grouping and esphome_command == "config" and isolated_components:
-        ctx = DecoyContext(
+        ctx = SharedIdContext(
             platform_bases=platform_bases,
             platform_filter=platform_filter,
             tests_dir=tests_dir,
@@ -1429,7 +1431,9 @@ def test_components(
             toolchain=toolchain,
         )
         test_results.extend(
-            run_decoy_tests(ctx, isolated_components & all_tests.keys(), test_results)
+            run_shared_id_tests(
+                ctx, isolated_components & all_tests.keys(), test_results
+            )
         )
 
     silent: list[str] = []
@@ -1438,8 +1442,8 @@ def test_components(
         # pass CI. Per pattern so one silent pattern cannot hide behind
         # the others; opt-in because some legs legitimately match nothing;
         # deferred past the summary so reproduce commands still print.
-        # Decoy runs must not count as a build of a requested component
-        built = {c for r in test_results if not r.decoy for c in r.components}
+        # Shared-id runs must not count as a build of a requested component
+        built = {c for r in test_results if not r.shared_id_check for c in r.components}
         # A pattern is silent when it matched no fixture, or when none of
         # its matched components produced a build (wildcards included)
         silent = [
