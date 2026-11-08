@@ -81,7 +81,10 @@ void UARTBridgePipe::send_(uint32_t now_us) {
     return;
   }
   size_t n = this->block_len_ - this->sent_;
-  if (!this->to_virtual_) {
+  const bool paced = this->paced_();
+  if (paced) {
+    n = std::min(n, this->paced_room_(now_us));
+  } else if (!this->to_virtual_) {
     // A UART that cannot report its room (SIZE_MAX) takes the whole block in one blocking write.
     n = std::min(n, this->to_->available_for_write());
   }
@@ -90,6 +93,7 @@ void UARTBridgePipe::send_(uint32_t now_us) {
     return;
   }
   this->to_->write_array(this->buf_ + this->sent_, n);
+  this->paced_write_ = paced;
   if (now_us - this->tx_start_us_ >= this->tx_busy_us_) {
     this->tx_start_us_ = now_us;
     this->tx_busy_us_ = 0;
@@ -109,7 +113,32 @@ void UARTBridgePipe::send_(uint32_t now_us) {
   this->sent_ = 0;
 }
 
+bool UARTBridgePipe::paced_() {
+#ifdef USE_ESP8266
+  // There the only UART that cannot report its room is software serial. It has no TX FIFO, so a pause between two
+  // writes would be one on the line.
+  return false;
+#else
+  // A line that cannot report its room gets the blocks of a stream, cut at BLOCK_SIZE, at the line rate, so the loop
+  // and the other direction run in between. A shorter frame, and every pushed block, keeps its one write.
+  return this->to_baud_ != 0 && (this->cut_ || !this->new_frame_) && this->to_->available_for_write() == SIZE_MAX;
+#endif
+}
+
+// What the line sent since the last paced write returned, rounded up, so its FIFO stays full: at least one byte, at
+// most one loop interval of line time.
+size_t UARTBridgePipe::paced_room_(uint32_t now_us) const {
+  const uint64_t span_us = std::min<uint64_t>(now_us - this->last_write_end_us_, App.get_loop_interval() * 1000ULL);
+  const uint64_t char_bits_us = static_cast<uint64_t>(this->to_bits_) * US_PER_SEC;
+  return static_cast<size_t>(std::max<uint64_t>(1, (span_us * this->to_baud_ + char_bits_us - 1) / char_bits_us));
+}
+
 bool UARTBridgePipe::receive_(uint32_t now_us) {
+  if (this->paced_write_) {
+    // The clock read after a paced write: the time it returned.
+    this->last_write_end_us_ = now_us;
+    this->paced_write_ = false;
+  }
   if (!this->from_pushes_ && this->block_len_ == 0) {
     this->collect_(now_us);
   }
@@ -183,7 +212,10 @@ void UARTBridgePipe::collect_(uint32_t now_us) {
   this->new_frame_ = !this->cut_;
   this->cut_ = this->len_ == BLOCK_SIZE;
   this->progress_us_ = now_us;
-  this->send_(now_us);
+  // A paced block leaves from the next pass, which reads the clock again after each write.
+  if (!this->paced_()) {
+    this->send_(now_us);
+  }
 }
 
 void UARTBridgePipe::on_block(const uint8_t *data, size_t len) {

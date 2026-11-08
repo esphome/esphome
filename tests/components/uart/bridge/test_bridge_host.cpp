@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -343,6 +344,7 @@ TEST(UARTBridge, StreamCutIntoBlocksKeepsUpWithTheLine) {
   // destination at the same rate never falls behind.
   WireUart a(115200);
   WireUart b(115200);
+  b.room = UARTBridgePipe::BLOCK_SIZE;
   UARTBridgePipe pipe(&a, &b);
   pipe.set_from_wire();
   pipe.set_to_wire();
@@ -756,6 +758,168 @@ TEST(UARTBridge, FramesAtTheModbusGapStayApartWhenTheDriverHandsOverBursts) {
       EXPECT_EQ(sizes(b.writes), (std::vector<size_t>{len, len}));
     }
   }
+}
+
+// A line whose UART cannot report its room, as on the RP2040: a write returns once its last byte is in the 32-byte TX
+// FIFO, so while the FIFO is full it blocks and moves the clock on. With tx_fifo 0, as ESP8266 software serial, a write
+// returns once its last byte is on the line. Received bytes wait in 256 bytes of buffer and the 32-byte RX FIFO; more
+// are lost. Both ends of a bridge share one clock.
+class Rp2040Line : public WireUart {
+ public:
+  static constexpr size_t RX_ROOM = 256 + 32;
+
+  Rp2040Line(uint32_t baud, uint32_t &clock_us)
+      : WireUart(baud), char_us((10 * 1000000 + baud - 1) / baud), clock_us_(clock_us) {}
+
+  void write_array(const uint8_t *data, size_t len) override {
+    WireUart::write_array(data, len);
+    for (size_t i = 0; i < len; i++) {
+      this->on_line_us.push_back(std::max(this->line_free_us_, this->clock_us_));
+      this->line_free_us_ = this->on_line_us.back() + this->char_us;
+    }
+    const uint32_t fifo_us = this->tx_fifo * this->char_us;
+    if (this->line_free_us_ > this->clock_us_ + fifo_us) {
+      this->clock_us_ = this->line_free_us_ - fifo_us;
+    }
+  }
+  // A byte from the other device has come in.
+  void hear(uint8_t byte) {
+    if (this->rx.size() < RX_ROOM) {
+      this->rx.push_back(byte);
+    } else {
+      this->lost++;
+    }
+  }
+  // The longest silence between two written bytes on the line.
+  uint32_t longest_pause_us() const {
+    uint32_t longest = 0;
+    for (size_t i = 1; i < this->on_line_us.size(); i++) {
+      longest = std::max(longest, this->on_line_us[i] - this->on_line_us[i - 1] - this->char_us);
+    }
+    return longest;
+  }
+
+  const uint32_t char_us;
+  uint32_t tx_fifo{32};
+  std::vector<uint32_t> on_line_us;  // when each written byte starts on the line
+  size_t lost{0};
+
+ protected:
+  uint32_t &clock_us_;
+  uint32_t line_free_us_{0};
+};
+
+// One loop pass: both directions are polled as UARTBridge::loop() does, then other components take pass_us.
+static void loop_pass(UARTBridgePipe &ab, UARTBridgePipe *ba, uint32_t &clock_us, uint32_t pass_us = PASS_US) {
+  ab.poll(clock_us);
+  if (ba != nullptr) {
+    ba->poll(clock_us);
+  }
+  clock_us += pass_us;
+}
+
+TEST(UARTBridge, LineThatCannotReportItsRoomStillRunsFull) {
+  // 115200 baud with the room unknown, as on the RP2040. Each write takes what the line sent since the last one
+  // returned, so no write blocks for a whole block. 4096 bytes waiting in the source keep the line busy, also when a
+  // loop pass takes 1 or 2 ms (the TX FIFO lasts 32 characters, 2.8 ms): they are out in 4096 characters of 87 us,
+  // within 3 %, without a pause between two bytes.
+  for (uint32_t pass_us : {PASS_US, 1000u, 2000u}) {
+    SCOPED_TRACE(pass_us);
+    uint32_t clock_us = 1000000;
+    Rp2040Line a(115200, clock_us);
+    Rp2040Line b(115200, clock_us);
+    UARTBridgePipe pipe(&a, &b);
+    pipe.set_from_wire();
+    pipe.set_to_wire();
+    pipe.setup();
+    a.receive(4096);
+    while (b.on_line_us.size() < 4096 && clock_us < 2000000) {
+      loop_pass(pipe, nullptr, clock_us, pass_us);
+    }
+    ASSERT_EQ(b.joined(), frame(4096));
+    // More writes than the 16 blocks: none of them waited for a whole block.
+    EXPECT_GT(b.writes.size(), 16u);
+    EXPECT_LE(b.on_line_us.back() + b.char_us - b.on_line_us.front(), 4096 * b.char_us * 103 / 100);
+    EXPECT_EQ(b.longest_pause_us(), 0u);
+  }
+}
+
+TEST(UARTBridge, FrameLeavesInOneWriteToALineWithoutTxFifo) {
+  // A line that cannot report its room and has no TX FIFO, as ESP8266 software serial: a pause between two writes is a
+  // pause on the line. A 64-byte frame at 19200 baud with loop passes of 1 ms leaves in one write, without a pause
+  // inside (1.5 characters are 781 us there).
+  uint32_t clock_us = 1000000;
+  WireUart a(19200);
+  Rp2040Line b(19200, clock_us);
+  b.tx_fifo = 0;
+  UARTBridgePipe pipe(&a, &b);
+  pipe.set_from_wire();
+  pipe.set_to_wire();
+  pipe.setup();
+  a.receive(64);
+  for (int pass = 0; pass < 100; pass++) {
+    loop_pass(pipe, nullptr, clock_us, 1000);
+  }
+  ASSERT_EQ(b.joined(), frame(64));
+  EXPECT_EQ(b.writes.size(), 1u);
+  EXPECT_EQ(b.longest_pause_us(), 0u);
+}
+
+TEST(UARTBridge, PushedBlockGoesOutWholeToALineThatCannotReportItsRoom) {
+  // A pushed block has no driver buffer to wait in. It goes out in one write, so a second push right after it fits
+  // behind it and is not dropped.
+  VirtualEnd a;
+  WireUart b(115200);
+  UARTBridgePipe pipe(&a, &b);
+  pipe.set_from_virtual(&a);
+  pipe.set_to_wire();
+  pipe.setup();
+  const auto first = frame(256);
+  const auto second = frame(100, 0x80);
+  a.inject_rx(first.data(), first.size());
+  a.inject_rx(second.data(), second.size());
+  ASSERT_FALSE(b.writes.empty());
+  EXPECT_EQ(b.writes[0], first);
+  // The second block waits for the line and a frame gap: 256 characters of 87 us, then 1750 us.
+  for (uint32_t t = 1000000; pipe.poll(t) && t < 2000000; t += PASS_US) {
+  }
+  std::vector<uint8_t> both(first);
+  both.insert(both.end(), second.begin(), second.end());
+  EXPECT_EQ(b.joined(), both);
+}
+
+TEST(UARTBridge, BothWaysAtOnceLoseNothingOnLinesThatCannotReportTheirRoom) {
+  // Two RP2040 UARTs at 9600 baud stream 2000 bytes at each other at the same time. One write of a whole 256-byte block
+  // would block for 233 ms, while 224 bytes come in at the other end. Paced, both directions get every byte and finish
+  // within a character of each other.
+  uint32_t clock_us = 1000000;
+  Rp2040Line a(9600, clock_us);
+  Rp2040Line b(9600, clock_us);
+  UARTBridgePipe ab(&a, &b);
+  UARTBridgePipe ba(&b, &a);
+  for (UARTBridgePipe *pipe : {&ab, &ba}) {
+    pipe->set_from_wire();
+    pipe->set_to_wire();
+    pipe->setup();
+  }
+  const uint32_t start_us = clock_us;
+  size_t heard = 0;
+  // 2000 characters of 1042 us take 2.1 s; 3 s leave time for the last block.
+  while (clock_us < start_us + 3000000) {
+    // Each sender puts one byte per character on its line.
+    for (; heard < 2000 && start_us + (heard + 1) * a.char_us <= clock_us; heard++) {
+      a.hear(static_cast<uint8_t>(heard));
+      b.hear(static_cast<uint8_t>(heard));
+    }
+    loop_pass(ab, &ba, clock_us);
+  }
+  EXPECT_EQ(a.lost, 0u);
+  EXPECT_EQ(b.lost, 0u);
+  EXPECT_EQ(b.joined(), frame(2000));
+  EXPECT_EQ(a.joined(), frame(2000));
+  const uint32_t a_end = a.on_line_us.back();
+  const uint32_t b_end = b.on_line_us.back();
+  EXPECT_LE(std::max(a_end, b_end) - std::min(a_end, b_end), a.char_us);
 }
 
 TEST(UARTBridge, TwoVirtualEndsNeedNoLoop) {

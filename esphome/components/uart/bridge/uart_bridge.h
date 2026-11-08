@@ -37,8 +37,9 @@ class UARTBridgePipe final : public UARTSink {
     // Read the clock again: a blocking write can take most of the block's wire time.
     return this->receive_(micros());
   }
-  /// Returns true while a block is collected, waits or goes out.
-  bool poll(uint32_t now_us) {
+  /// Returns true while a block is collected, waits or goes out. now_us is read again after the write, as poll() reads
+  /// the clock again, so a destination in a test can move it on while it blocks.
+  bool poll(const uint32_t &now_us) {
     this->send_(now_us);
     return this->receive_(now_us);
   }
@@ -50,6 +51,8 @@ class UARTBridgePipe final : public UARTSink {
 
  protected:
   void send_(uint32_t now_us);
+  bool paced_();
+  size_t paced_room_(uint32_t now_us) const;
   bool receive_(uint32_t now_us);
   void collect_(uint32_t now_us);
   void clear_();
@@ -69,6 +72,8 @@ class UARTBridgePipe final : public UARTSink {
   uint32_t tx_start_us_{0};
   uint32_t tx_busy_us_{0};
   uint32_t progress_us_{0};
+  // When the last paced write returned; what the line sent since then fits again.
+  uint32_t last_write_end_us_{0};
   uint32_t drop_log_ms_{0};
   // buf_[0, len_): the block going out (block_len_, sent_ written), then at most one pushed block behind it.
   uint16_t len_{0};
@@ -86,6 +91,8 @@ class UARTBridgePipe final : public UARTSink {
   // last_rx_us_ is the pass before the read, up to an eighth of the gap before the newest byte came in.
   bool rx_early_{false};
   bool stalled_{false};
+  // send_() made a paced write; receive_() takes its clock as the time the write returned.
+  bool paced_write_{false};
   // The block going out starts a frame; the last polled block was cut at BLOCK_SIZE.
   bool new_frame_{true};
   bool cut_{false};

@@ -133,8 +133,11 @@ async def test_uart_bridge_copy(
         await asyncio.wait_for(done, timeout=15.0)
 
     assert log.end_kinds == {"A": ("polled", 1750), "B": ("polled", 1750)}
-    # 30: the three pieces of 10 bytes leave as one frame.
-    # 256: each later step writes four pieces of 64 at once; they fill end_a's 256-byte
-    # buffer and one bridge block exactly and leave as that block.
-    # Four times 256 = 1024: no byte of the telegram is lost.
-    assert log.tx["end_b"] == [30, 256, 256, 256, 256]
+    # 30: the three pieces of 10 bytes leave as one frame, in one write.
+    # Each later step writes four pieces of 64 at once; they fill end_a's 256-byte buffer and
+    # one bridge block exactly. end_b cannot report its free room, so a full block goes out at
+    # the line rate: at most 16 ms of its 115200 line per write, 185 bytes.
+    # 30 + four times 256: no byte of the telegram is lost.
+    assert log.tx["end_b"][0] == 30
+    assert max(log.tx["end_b"]) == 185
+    assert sum(log.tx["end_b"]) == 30 + 4 * 256
