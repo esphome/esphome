@@ -386,7 +386,7 @@ def test_owning_args_swaps_every_string_ref(
     ]
 
 
-_WHILE_WARNING = "body of a 'while' loop never waits"
+_WHILE_WARNING = "body of a 'while' loop never waits, so it runs as a busy loop"
 
 
 @pytest.mark.parametrize(

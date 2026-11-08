@@ -18,12 +18,11 @@ namespace esphome {
 class Component;
 
 class Scheduler {
-  // Allow DelayAction to call set_timer_common_ with skip_cancel=true for parallel script delays.
+  // Allow DelayAction and WhileAction to call set_action_timeout_, which keeps one timeout per parallel run.
   // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
   // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
   // to accumulate and overload the scheduler if misused.
   template<typename... Ts> friend class DelayAction;
-  // WhileAction yields to the main loop with the same timer, one per parallel run.
   template<typename... Ts> friend class WhileAction;
 
  public:
@@ -267,6 +266,10 @@ class Scheduler {
       return component != nullptr ? component->get_component_log_str() : LOG_STR("unknown");
     }
   };
+
+  // A timeout named by the action `self`; `parallel` keeps the timeouts of other runs of it.
+  // Records the owning script, if any, so the blocking warning can name it.
+  void set_action_timeout_(const void *self, uint32_t delay, std::function<void()> &&func, bool parallel);
 
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id

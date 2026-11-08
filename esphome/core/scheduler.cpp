@@ -110,6 +110,11 @@ uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
   return static_cast<uint32_t>((static_cast<uint64_t>(random_uint32()) * max_offset) >> 32);
 }
 
+void Scheduler::set_action_timeout_(const void *self, uint32_t delay, std::function<void()> &&func, bool parallel) {
+  this->set_timer_common_(nullptr, SchedulerItem::TIMEOUT, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          delay, std::move(func), parallel, App.get_current_source());
+}
+
 // Common implementation for both timeout and interval
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,

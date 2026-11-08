@@ -210,32 +210,12 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // Users should set max_runs on parallel scripts to limit concurrent executions.
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.
 
-    // Optimization: For no-argument delays (most common case), use direct lambda
-    // to avoid overhead from capturing arguments by value
-    if constexpr (sizeof...(Ts) == 0) {
-      auto f = [this]() { this->play_next_(); };
-      App.scheduler.set_timer_common_(
-          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
-          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
-          std::move(f),
-          /* skip_cancel= */ this->num_running_ > 1,
-          // Record the owning script (if any) so the blocking warning can name it; propagates across
-          // chained delays via the scheduler.
-          /* source= */ App.get_current_source());
-    } else {
-      // For delays with arguments, capture by value to preserve argument values
-      // Arguments must be copied because original references may be invalid after delay
-      // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
-      // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
-      auto f = [this, x...]() mutable { this->play_next_(x...); };
-      App.scheduler.set_timer_common_(
-          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
-          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
-          std::move(f),
-          /* skip_cancel= */ this->num_running_ > 1,
-          // See the no-argument branch above: record the owning script for log attribution.
-          /* source= */ App.get_current_source());
-    }
+    // Arguments must be copied because original references may be invalid after delay
+    // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
+    // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
+    App.scheduler.set_action_timeout_(
+        this, this->delay_.value(x...), [this, x...]() mutable { this->play_next_(x...); },
+        /* parallel= */ this->num_running_ > 1);
   }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */ }
@@ -375,15 +355,6 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
-    // A false start must not stop the body of another run
-    if (!this->condition_->check(x...)) {
-      this->play_next_(x...);
-      return;
-    }
-
-    // The condition may have stopped this automation
-    if (this->num_running_ == 0)
-      return;
     // An empty body cannot resume the loop
     if (this->then_.empty()) {
       this->play_next_(x...);
@@ -395,11 +366,11 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // Branch-end resume hook
   void play(const Ts &...x) override {
     // A body that did not wait ended inside run_loop_(), which loops again itself
-    if (this->in_body_) {
-      this->resumed_ = true;
+    if (this->body_ended_ != nullptr) {
+      *this->body_ended_ = true;
       return;
     }
-    this->continue_(x...);
+    this->run_loop_(x...);
   }
 
   void stop() override {
@@ -411,63 +382,36 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // A body that never waits gives the main loop a turn after this long, so entity states can change
   static constexpr uint32_t YIELD_AFTER_MS = 20;
 
-  // Loop again or continue
-  void continue_(const Ts &...x) {
-    // The condition may stop this automation
-    if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
-      this->run_loop_(x...);
-    } else {
-      this->play_next_(x...);
-    }
-  }
-
-  // Runs the body again in a loop, not by recursion, while it ends without waiting
+  // Runs the body in a loop, not by recursion, while it ends without waiting
   void run_loop_(const Ts &...x) {
-    // The body can start this action again
-    const bool outer_in_body = this->in_body_;
-    const bool outer_resumed = this->resumed_;
     const uint32_t start = millis();
     while (true) {
-      this->in_body_ = true;
-      this->resumed_ = false;
-      this->then_.play(x...);
-      const bool ended = this->resumed_;
-      this->in_body_ = outer_in_body;
-      this->resumed_ = outer_resumed;
-      // A body that waits resumes through play() later
-      if (!ended)
-        return;
+      // The condition may stop this automation. A false start must not stop the body of another run.
       if (this->num_running_ == 0 || !this->condition_->check(x...) || this->num_running_ == 0) {
         this->play_next_(x...);
         return;
       }
+      // On the stack, as the body can start this action again
+      bool ended = false;
+      bool *outer = this->body_ended_;
+      this->body_ended_ = &ended;
+      this->then_.play(x...);
+      this->body_ended_ = outer;
+      // A body that waits resumes through play() later
+      if (!ended)
+        return;
       if (millis() - start > YIELD_AFTER_MS) {
-        this->yield_(x...);
+        // See DelayAction for why the arguments are copied and the lambda is mutable
+        App.scheduler.set_action_timeout_(
+            this, 0, [this, x...]() mutable { this->run_loop_(x...); }, /* parallel= */ this->num_running_ > 1);
         return;
       }
     }
   }
 
-  void yield_(const Ts &...x) {
-    if constexpr (sizeof...(Ts) == 0) {
-      this->set_yield_timer_([this]() { this->continue_(); });
-    } else {
-      // See DelayAction for why the arguments are copied and the lambda is mutable
-      this->set_yield_timer_([this, x...]() mutable { this->continue_(x...); });
-    }
-  }
-
-  void set_yield_timer_(std::function<void()> &&f) {
-    App.scheduler.set_timer_common_(
-        /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
-        /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, /* delay= */ 0, std::move(f),
-        /* skip_cancel= */ this->num_running_ > 1, /* source= */ App.get_current_source());
-  }
-
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  bool in_body_{false};
-  bool resumed_{false};
+  bool *body_ended_{nullptr};
 };
 
 // Forward declaration for RepeatLoopContinuation

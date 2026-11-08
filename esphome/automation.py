@@ -1470,9 +1470,13 @@ def _has_lambda(value: Any) -> bool:
     return False
 
 
+# WhileAction::YIELD_AFTER_MS
+_WHILE_YIELD_AFTER_MS = 20
+
+
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # A lambda condition can test a value the body changes; an entity state cannot change.
-    # An empty body ends the loop at once.
+    # A lambda condition can test a value the body changes, so it is not a busy loop.
+    # has_non_synchronous_actions also finds every action that waits. An empty body ends the loop at once.
     body = config[CONF_THEN]
     if (
         body
@@ -1480,8 +1484,9 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
         and not _has_lambda(config[CONF_CONDITION])
     ):
         _LOGGER.warning(
-            "The body of a 'while' loop never waits, so other components do not run between "
-            "checks of its condition and entity states cannot change. Add a 'delay' inside the loop."
+            "The body of a 'while' loop never waits, so it runs as a busy loop that holds up "
+            "the rest of the device for up to %d ms at a time. Add a 'delay' inside the loop.",
+            _WHILE_YIELD_AFTER_MS,
         )
     return config
 
@@ -1506,12 +1511,11 @@ async def while_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    build_cond, build_list = _control_flow_builders(action_id)
-    condition = await build_cond(config[CONF_CONDITION], template_arg, args)
-    actions = await build_list(config[CONF_THEN], template_arg, args)
     # Never one inline C++ loop: WhileAction lets the main loop run when the body does not wait
-    var = cg.new_Pvariable(action_id, template_arg, _condition_object(condition))
-    for action in _emit_action_plan(actions, template_arg, args):
+    condition = await build_condition(config[CONF_CONDITION], template_arg, args)
+    actions = await build_action_list(config[CONF_THEN], template_arg, args)
+    var = cg.new_Pvariable(action_id, template_arg, condition)
+    for action in actions:
         cg.add(var.add_then_action(action))
     cg.add(var.finish_then())
     return var

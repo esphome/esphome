@@ -31,7 +31,7 @@ script:
 
 api:
   actions:
-    # The body only runs a lambda, so it could become one C++ loop
+    # A body of inline actions only, which used to become one C++ loop
     - action: run_lambda_body
       then:
         - lambda: id(count) = 0;
