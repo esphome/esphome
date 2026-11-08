@@ -88,6 +88,7 @@ from .types import (  # noqa: F401
     LightStateTrigger,
     LightTurnOffTrigger,
     LightTurnOnTrigger,
+    PowerEstimation,
     light_ns,
 )
 
@@ -249,19 +250,10 @@ def validate_channel_colors(value: str) -> str:
     return value
 
 
-def channel_colors_struct(value: str) -> cg.StructInitializer:
+def channel_colors_struct(value: str) -> cg.MockObj:
     """Build the C++ `light::ChannelColors` for a validated channel order string."""
-    return cg.StructInitializer(
-        ChannelColors,
-        ("r", value.index("R")),
-        ("g", value.index("G")),
-        ("b", value.index("B")),
-        (
-            "w",
-            value.index("W")
-            if "W" in value
-            else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
-        ),
+    return ChannelColors(
+        *(value.index(channel) for channel in "RGBW" if channel in value)
     )
 
 
@@ -711,6 +703,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add_define("USE_LIGHT_POWER_ESTIMATION")
         cg.add(
             output_var.set_power_estimation(
+                cg.static_buffer(config[CONF_OUTPUT_ID], PowerEstimation, 1),
                 power_estimation[CONF_MA_PER_LED_RED],
                 power_estimation[CONF_MA_PER_LED_GREEN],
                 power_estimation[CONF_MA_PER_LED_BLUE],

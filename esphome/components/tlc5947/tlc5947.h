@@ -5,21 +5,18 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <span>
+
 namespace esphome::tlc5947 {
 
 class TLC5947 final : public Component {
  public:
-  // Must match CHANNELS_PER_CHIP in __init__.py, which sizes the duty buffer
+  // Must match CHANNELS_PER_CHIP in __init__.py, which validates the channel range
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
 
-  /// @param pwm_amounts storage for num_chips * N_CHANNELS_PER_CHIP duty values, owned by the caller for the life
-  /// of the program.
-  TLC5947(GPIOPin *data_pin, GPIOPin *clock_pin, GPIOPin *lat_pin, uint16_t *pwm_amounts, uint8_t num_chips)
-      : data_pin_(data_pin),
-        clock_pin_(clock_pin),
-        lat_pin_(lat_pin),
-        pwm_amounts_(pwm_amounts),
-        num_chips_(num_chips) {}
+  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
+  TLC5947(GPIOPin *data_pin, GPIOPin *clock_pin, GPIOPin *lat_pin, std::span<uint16_t> pwm_amounts)
+      : data_pin_(data_pin), clock_pin_(clock_pin), lat_pin_(lat_pin), pwm_amounts_(pwm_amounts) {}
 
   void set_outenable_pin(GPIOPin *outenable_pin) { this->outenable_pin_ = outenable_pin; }
 
@@ -40,8 +37,7 @@ class TLC5947 final : public Component {
   GPIOPin *const clock_pin_;
   GPIOPin *const lat_pin_;
   GPIOPin *outenable_pin_{nullptr};
-  uint16_t *const pwm_amounts_;
-  const uint8_t num_chips_;
+  const std::span<uint16_t> pwm_amounts_;
 };
 
 }  // namespace esphome::tlc5947
