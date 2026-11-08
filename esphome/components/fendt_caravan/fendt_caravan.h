@@ -2,14 +2,13 @@
 
 #ifdef USE_ESP32
 #include <array>
-#include <string>
+#include <cstring>
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_client/ble_characteristic.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/string_ref.h"
 #include "fendt_caravan_hub_base.h"
 #include "framing.h"
 
@@ -27,7 +26,8 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   void set_mcu_hub(FendtCaravanHubBase *mcu_hub) { this->mcu_hub_ = mcu_hub; }
 
   void dump_config() override;
-  void send_command(const std::string &command);
+  /// Queues a NUL-terminated command; nullptr (a command that did not fit its buffer) is ignored
+  void send_command(const char *command);
 
  protected:
   // The handshake alone takes 3 chunks

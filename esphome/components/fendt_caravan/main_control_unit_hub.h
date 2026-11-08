@@ -7,7 +7,6 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
-#include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
 #include "fendt_caravan_hub_base.h"
 #include "esphome/core/log.h"

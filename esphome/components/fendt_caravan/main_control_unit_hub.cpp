@@ -19,10 +19,12 @@ static constexpr const char *KEY_NAMES[] = {"TEMP_IN",      "TEMP_OUT",        "
 
 void MainControlUnitHub::dump_config() {
   ESP_LOGCONFIG(TAG, "Fendt Control Unit");
+  LOG_UPDATE_INTERVAL(this);
   LOG_SWITCH(TAG, "  Main Switch", this->main_switch_switch_);
   LOG_SWITCH(TAG, "  All Lights Status", this->all_lights_switch_);
   LOG_SENSOR(TAG, "  Temp In", this->temp_in_sensor_);
   LOG_SENSOR(TAG, "  Temp Out", this->temp_out_sensor_);
+  LOG_SENSOR(TAG, "  Water Level", this->water_level_sensor_);
   LOG_BINARY_SENSOR(TAG, "  Power Status", this->power_status_binary_sensor_);
   LOG_TEXT_SENSOR(TAG, "  Software Version", this->software_version_text_sensor_);
   LOG_SWITCH(TAG, "  Floor Heater", this->floor_heater_switch_);
@@ -39,28 +41,19 @@ void MainControlUnitHub::update() {
 
 void MainControlUnitHub::write_state(switch_::Switch *sw, bool state) {
   ESP_LOGD(TAG, "Write state called for switch: %p, state: %s", sw, TRUEFALSE(state));
-  if (sw != nullptr) {
-    if (sw == this->main_switch_switch_) {
-      bool current_state = this->hs_key_state_ > 0;
-      if (current_state == state)
-        return;
-      if (state) {
-        std::string cmd = Commands::update_run("HS_KEY_LONG");
-        this->parent_->send_command(cmd);
-      } else {
-        std::string cmd = Commands::update_run("HS_KEY");
-        this->parent_->send_command(cmd);
-      }
-    } else if (sw == this->all_lights_switch_) {
-      bool current_state = this->hs_key_state_ == 2;
-      if (current_state == state)
-        return;
-      std::string cmd = Commands::update_run("HS_KEY");
-      this->parent_->send_command(cmd);
-    } else if (sw == this->floor_heater_switch_) {
-      std::string cmd = Commands::update_toggle("FLOOR_HEATER_ON");
-      this->parent_->send_command(cmd);
-    }
+  if (sw == nullptr)
+    return;
+  char cmd[COMMAND_MAX];
+  if (sw == this->main_switch_switch_) {
+    if ((this->hs_key_state_ > 0) == state)
+      return;
+    this->parent_->send_command(Commands::update_run(cmd, state ? "HS_KEY_LONG" : "HS_KEY"));
+  } else if (sw == this->all_lights_switch_) {
+    if ((this->hs_key_state_ == 2) == state)
+      return;
+    this->parent_->send_command(Commands::update_run(cmd, "HS_KEY"));
+  } else if (sw == this->floor_heater_switch_) {
+    this->parent_->send_command(Commands::update_toggle(cmd, "FLOOR_HEATER_ON"));
   }
 }
 

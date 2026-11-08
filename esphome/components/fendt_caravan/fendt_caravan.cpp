@@ -104,11 +104,15 @@ void FendtCaravan::dump_config() {
                 this->parent()->address_str());
 }
 
-void FendtCaravan::send_command(const std::string &command) {
-  ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
+void FendtCaravan::send_command(const char *command) {
+  if (command == nullptr) {
+    ESP_LOGW(TAG, "Command too long, dropped");
+    return;
+  }
+  ESP_LOGV(TAG, "send_command: %s", command);
   if (this->wait_handshake_)
     return;
-  this->add_command_(command.data(), command.size());
+  this->add_command_(command, strlen(command));
 }
 
 bool FendtCaravan::add_command_(const char *cmd, size_t len) {
