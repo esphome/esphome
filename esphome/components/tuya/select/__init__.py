@@ -11,7 +11,7 @@ from esphome.const import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
-from .. import CONF_TUYA_ID, Tuya, tuya_ns
+from .. import CONF_TUYA_ID, Tuya, TuyaDatapointType, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@bearpawmaxim"]
@@ -114,10 +114,9 @@ async def to_code(config):
     cg.add(var.set_select_mappings(mappings))
     await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
     if (string_datapoint := config.get(CONF_STRING_DATAPOINT, None)) is not None:
-        cg.add(var.set_select_id(string_datapoint, False))
-        cg.add(var.set_is_string(True))
+        cg.add(var.set_select_id(string_datapoint, TuyaDatapointType.STRING))
     if (enum_datapoint := config.get(CONF_ENUM_DATAPOINT, None)) is not None:
-        cg.add(var.set_select_id(enum_datapoint, False))
+        cg.add(var.set_select_id(enum_datapoint, TuyaDatapointType.ENUM))
     if (int_datapoint := config.get(CONF_INT_DATAPOINT, None)) is not None:
-        cg.add(var.set_select_id(int_datapoint, True))
+        cg.add(var.set_select_id(int_datapoint, TuyaDatapointType.INTEGER))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))

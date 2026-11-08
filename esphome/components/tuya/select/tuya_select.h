@@ -15,12 +15,11 @@ class TuyaSelect final : public select::Select, public Component {
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  void set_select_id(uint8_t select_id, bool is_int) {
+  void set_select_id(uint8_t select_id, TuyaDatapointType datapoint_type) {
     this->select_id_ = select_id;
-    this->is_int_ = is_int;
+    this->datapoint_type_ = datapoint_type;
   }
   void set_select_mappings(std::vector<uint8_t> mappings) { this->mappings_ = std::move(mappings); }
-  void set_is_string(bool is_string) { this->is_string_ = is_string; }
 
  protected:
   void control(size_t index) override;
@@ -29,8 +28,7 @@ class TuyaSelect final : public select::Select, public Component {
   bool optimistic_ = false;
   uint8_t select_id_;
   std::vector<uint8_t> mappings_;
-  bool is_int_ = false;
-  bool is_string_ = false;
+  TuyaDatapointType datapoint_type_ = TuyaDatapointType::ENUM;
 };
 
 }  // namespace esphome::tuya
