@@ -35,9 +35,9 @@ def summarize(path: str) -> None:
                 state = m[3]
     print(path.rsplit("/", 1)[-1])
     for key, (counted, rises, windows) in sorted(counters.items()):
-        ratio = counted / rises if rises else 0.0
+        ratio = f"{counted / rises:.3f}" if rises else "n/a (no generated edges)"
         print(
-            f"  {key}: windows {windows} counted {counted:.0f} gen_rise {rises} ratio_to_rise {ratio:.3f}"
+            f"  {key}: windows {windows} counted {counted:.0f} gen_rise {rises} ratio_to_rise {ratio}"
         )
     print(f"  BS: windows {bs[2]} changes {bs[0]} gen_edges {bs[1]} last_state {state}")
 

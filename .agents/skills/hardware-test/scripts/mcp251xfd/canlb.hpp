@@ -74,11 +74,11 @@ inline int compare(const CanFrame &got, const CanFrame &want) {
 
 // expected queue for the non-stream phases
 inline CanFrame q[64];
-inline uint32_t q_rtr = 0, q_rtr_dirty = 0;
+inline uint32_t q_rtr = 0, q_rtr_dirty = 0, q_send_err = 0;
 inline uint32_t q_head = 0, q_tail = 0, q_rx = 0, q_bad = 0, q_stray = 0, q_tx_bad = 0, q_tx_ok = 0;
 inline void q_reset() {
   q_head = q_tail = q_rx = q_bad = q_stray = q_tx_bad = q_tx_ok = 0;
-  q_rtr = q_rtr_dirty = 0;
+  q_rtr = q_rtr_dirty = q_send_err = 0;
 }
 
 inline void on_frame(const CanFrame &got) {
@@ -146,18 +146,29 @@ inline void cs_init(int gpio) {
   uc.low_limit = -30000;
   uc.high_limit = 30000;
   uc.flags.accum_count = true;
-  pcnt_new_unit(&uc, &cs_unit);
   pcnt_chan_config_t cc = {};
   cc.edge_gpio_num = gpio;
   cc.level_gpio_num = -1;
-  pcnt_channel_handle_t ch;
-  pcnt_new_channel(cs_unit, &cc, &ch);
-  pcnt_channel_set_edge_action(ch, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD);
-  pcnt_unit_add_watch_point(cs_unit, 30000);
-  pcnt_unit_add_watch_point(cs_unit, -30000);
-  pcnt_unit_enable(cs_unit);
-  pcnt_unit_clear_count(cs_unit);
-  pcnt_unit_start(cs_unit);
+  pcnt_channel_handle_t ch = nullptr;
+  esp_err_t e = pcnt_new_unit(&uc, &cs_unit);
+  if (e == ESP_OK)
+    e = pcnt_new_channel(cs_unit, &cc, &ch);
+  if (e == ESP_OK)
+    e = pcnt_channel_set_edge_action(ch, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD);
+  if (e == ESP_OK)
+    e = pcnt_unit_add_watch_point(cs_unit, 30000);
+  if (e == ESP_OK)
+    e = pcnt_unit_add_watch_point(cs_unit, -30000);
+  if (e == ESP_OK)
+    e = pcnt_unit_enable(cs_unit);
+  if (e == ESP_OK)
+    e = pcnt_unit_clear_count(cs_unit);
+  if (e == ESP_OK)
+    e = pcnt_unit_start(cs_unit);
+  if (e != ESP_OK) {
+    ESP_LOGE("canlb", "CS counter setup failed: %s", esp_err_to_name(e));
+    cs_unit = nullptr;
+  }
 }
 inline int cs_count() {
   int c = 0;
@@ -172,6 +183,10 @@ inline void cs_mark() {
   cs_mark_time = esphome::millis();
 }
 inline void cs_report(const char *tag) {
+  if (cs_unit == nullptr) {
+    ESP_LOGW("canlb", "CSRATE %s unavailable (no CS counter)", tag);
+    return;
+  }
   const int c = cs_count();
   const uint32_t ms = esphome::millis() - cs_mark_time;
   ESP_LOGI("canlb", "CSRATE %s transactions=%d in %u ms = %.2f/s", tag, c - cs_mark_count, (unsigned) ms,
@@ -313,10 +328,11 @@ inline void burst(uint32_t n, const char *tag) {
   ESP_LOGI("canlb", "BURST %s sent=%u overrun_before=%u", tag, sent, before);
 }
 inline void queue_report(const char *tag) {
-  ESP_LOGI("canlb",
-           "QUEUE %s rx=%u bad=%u stray=%u missing=%u tx_obj_ok=%u tx_obj_bad=%u rtr=%u rtr_dirty=%u overrun=%u", tag,
-           q_rx, q_bad, q_stray, q_tail - q_head, q_tx_ok, q_tx_bad, q_rtr, q_rtr_dirty,
-           bus->get_status().rx_overrun_count);
+  ESP_LOGI(
+      "canlb",
+      "QUEUE %s rx=%u bad=%u stray=%u missing=%u tx_obj_ok=%u tx_obj_bad=%u rtr=%u rtr_dirty=%u send_err=%u overrun=%u",
+      tag, q_rx, q_bad, q_stray, q_tail - q_head, q_tx_ok, q_tx_bad, q_rtr, q_rtr_dirty, q_send_err,
+      bus->get_status().rx_overrun_count);
 }
 
 // send one frame and check the TX object the driver wrote into chip RAM, including the padding
@@ -345,9 +361,10 @@ inline void tx_one(const CanFrame &f) {
     q_tx_ok++;
   else {
     q_tx_bad++;
+    // A 64-byte payload fills the object, so there are no pad bytes to show
+    auto pad = [&](size_t k) -> unsigned { return 8 + len + k < sizeof(obj) ? obj[8 + len + k] : 0; };
     ESP_LOGW("canlb", "TXOBJ bad id=%08X/%08X flags=%02X/%02X len=%u pad=%02X %02X %02X", (unsigned) got_id,
-             (unsigned) id, (unsigned) (got_flags & 0xFF), (unsigned) flags, (unsigned) len, obj[8 + len],
-             obj[8 + len + 1], obj[8 + len + 2]);
+             (unsigned) id, (unsigned) (got_flags & 0xFF), (unsigned) flags, (unsigned) len, pad(0), pad(1), pad(2));
   }
 }
 inline void tx_dirty(bool ext) {
@@ -433,10 +450,15 @@ inline void rtr_test() {
     r.can_id = 0x322;
     r.remote_transmission_request = true;
     r.can_data_length_code = dlc;
-    if (bus->send_data(d) == esphome::canbus::ERROR_OK)
-      q[q_tail++ % 64] = d;
-    if (bus->send_data(r) == esphome::canbus::ERROR_OK)
-      q[q_tail++ % 64] = r;
+    for (const CanFrame &f : {d, r}) {
+      const auto e = bus->send_data(f);
+      if (e == esphome::canbus::ERROR_OK) {
+        q[q_tail++ % 64] = f;
+      } else {
+        q_send_err++;
+        ESP_LOGW("canlb", "RTR test send failed: %d", (int) e);
+      }
+    }
   }
 }
 inline void chip_reset() {

@@ -6,6 +6,8 @@ build used (BK7238 UF2s then fail with "UF2 of unsupported family").
 
 import json
 from pathlib import Path
+import re
+import sys
 
 
 def _version(platform: Path) -> tuple[int, ...]:
@@ -13,19 +15,23 @@ def _version(platform: Path) -> tuple[int, ...]:
         text = json.loads((platform / "platform.json").read_text(encoding="utf-8"))[
             "version"
         ]
-        return tuple(int(p) for p in text.split(".")[:3])
     except (OSError, KeyError, ValueError):
         return ()
+    # Numeric prefix of each part, so 1.9.0-dev still sorts
+    return tuple(
+        int(m[1]) for part in text.split(".")[:3] if (m := re.match(r"(\d+)", part))
+    )
 
 
 def with_platform(args: list[str]) -> list[str]:
-    if "-L" in args or "--libretiny-path" in args:
+    if any(a.startswith(("-L", "--libretiny-path")) for a in args):
         return args
-    platforms = [
-        p
-        for p in (Path.home() / ".platformio" / "platforms").glob("libretiny*")
-        if _version(p)
-    ]
+    found = list((Path.home() / ".platformio" / "platforms").glob("libretiny*"))
+    platforms = [p for p in found if _version(p)]
     if not platforms:
+        print(
+            f"lt_platform: no versioned LibreTiny platform in {[str(p) for p in found]}, using ltchiptool's default",
+            file=sys.stderr,
+        )
         return args
     return ["-L", str(max(platforms, key=_version)), *args]

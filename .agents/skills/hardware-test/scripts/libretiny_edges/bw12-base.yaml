@@ -1,5 +1,6 @@
 # Package: BW12 heartbeat, pull-toggle edge generator, BS binary sensor on ${bs_pin}, meas lines every 10 s
 esphome:
+  name: ${name}
   friendly_name: BW12 ISR Test
   platformio_options:
     upload_speed: 115200

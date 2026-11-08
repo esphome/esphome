@@ -1,5 +1,6 @@
 # Layout A: BS on PA22; F13/I13 on PA12/PA00, F0/I0 on PA14/PA15, B13 on PA19 counting both edges
 substitutions:
+  name: bw12-edges-a
   bs_pin: PA22
 
 packages:

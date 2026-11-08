@@ -10,13 +10,14 @@ esphome:
             if (${seed} != 0) inasim::rng = ${seed};
             inasim::install();
             uint8_t w[3] = {0x05, 0x12, 0x34};
-            auto e1 = id(bus_a)->write_readv(0x40, w, 3, nullptr, 0);
-            uint8_t r = 0x05, b[2] = {0, 0};
-            auto e2 = id(bus_a)->write_readv(0x40, &r, 1, b, 2);
-            auto e3 = id(bus_a)->write_readv(0x40, w, 3, nullptr, 0);
-            auto e4 = id(bus_a)->write_readv(0x40, &r, 1, b, 2);
-            ESP_LOGI("inasim", "selftest2 write=%d read=%d val=%02X%02X", e3, e4, b[0], b[1]);
-            ESP_LOGI("inasim", "selftest write=%d read=%d val=%02X%02X starts=%u", e1, e2, b[0], b[1], (unsigned) inasim::st.starts);
+            uint8_t r = 0x05;
+            for (int pass = 1; pass <= 2; pass++) {
+              uint8_t b[2] = {0, 0};
+              auto ew = id(bus_a)->write_readv(0x40, w, 3, nullptr, 0);
+              auto er = id(bus_a)->write_readv(0x40, &r, 1, b, 2);
+              ESP_LOGI("inasim", "selftest%d write=%d read=%d val=%02X%02X starts=%u", pass, ew, er, b[0], b[1],
+                       (unsigned) inasim::st.starts);
+            }
 
 esp32:
   board: pico32

@@ -1,4 +1,9 @@
+substitutions:
+  name: pulse-bk
+  inv: "false"
+
 esphome:
+  name: ${name}
   platformio_options:
     build_flags:
       - -DGEN_PIN_A=26

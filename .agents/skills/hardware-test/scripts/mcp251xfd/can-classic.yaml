@@ -27,6 +27,7 @@ script:
           condition:
             lambda: return canlb::opmod() == 6;
           timeout: 8s
+      - lambda: canlb::regs("after-lb1");
       - lambda: canlb::force_via_config(2, "lb2");
       - lambda: canlb::burst(48, "classic48");
       - delay: 300ms

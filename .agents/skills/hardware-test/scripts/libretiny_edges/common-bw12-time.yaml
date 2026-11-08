@@ -1,4 +1,8 @@
+substitutions:
+  name: bw12-time
+
 esphome:
+  name: ${name}
   friendly_name: BW12 Time Test
   platformio_options:
     upload_speed: 115200

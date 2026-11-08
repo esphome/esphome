@@ -28,7 +28,11 @@ def sign(image: str, out: str, *keys: str) -> bytes:
     args = [sys.executable, "-m", "espsecure", "sign-data", "-v", "2"]
     for k in keys:
         args += ["-k", k]
-    subprocess.run([*args, "-o", out, image], check=True, capture_output=True)
+    result = subprocess.run(
+        [*args, "-o", out, image], check=False, capture_output=True, text=True
+    )
+    if result.returncode:
+        raise SystemExit(f"espsecure failed for {out}:\n{result.stderr}")
     return pathlib.Path(out).read_bytes()
 
 

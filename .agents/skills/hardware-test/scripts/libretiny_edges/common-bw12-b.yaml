@@ -1,5 +1,6 @@
 # Layout B: BS on PA19; F0/I0 moved to PA12/PA00
 substitutions:
+  name: bw12-edges-b
   bs_pin: PA19
 
 packages:

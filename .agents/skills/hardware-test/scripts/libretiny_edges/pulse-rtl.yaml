@@ -1,4 +1,11 @@
+substitutions:
+  name: pulse-rtl
+  inv: "false"
+  filt: 13us
+  key: PC
+
 esphome:
+  name: ${name}
   platformio_options:
     build_flags:
       - -DGEN_PIN_NAME=17

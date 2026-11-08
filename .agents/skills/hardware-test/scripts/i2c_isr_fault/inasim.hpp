@@ -391,11 +391,16 @@ inline void install_task(void *) {
 }
 
 inline void install() {
-  xTaskCreatePinnedToCore(holder_task, "inahold", 3072, nullptr, configMAX_PRIORITIES - 2, &holder, 0);
-  xTaskCreatePinnedToCore(monitor_task, "inamon", 3072, nullptr, configMAX_PRIORITIES - 1, nullptr, 0);
-  xTaskCreatePinnedToCore(install_task, "inainst", 3072, nullptr, 5, nullptr, 0);
-  while (!installed)
+  if (xTaskCreatePinnedToCore(holder_task, "inahold", 3072, nullptr, configMAX_PRIORITIES - 2, &holder, 0) != pdPASS ||
+      xTaskCreatePinnedToCore(monitor_task, "inamon", 3072, nullptr, configMAX_PRIORITIES - 1, nullptr, 0) != pdPASS ||
+      xTaskCreatePinnedToCore(install_task, "inainst", 3072, nullptr, 5, nullptr, 0) != pdPASS) {
+    ESP_LOGE(TAG, "task creation failed, slave not installed");
+    return;
+  }
+  for (int i = 0; i < 1000 && !installed; i++)
     vTaskDelay(1);
+  if (!installed)
+    ESP_LOGE(TAG, "slave install did not finish");
 }
 
 inline void drain() {
