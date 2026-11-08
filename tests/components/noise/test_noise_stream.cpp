@@ -340,6 +340,20 @@ TEST_F(NoiseStreamTest, TamperedFrameClosesTheLink) {
   EXPECT_FALSE(this->server_link_.connected());
 }
 
+TEST_F(NoiseStreamTest, ADropAfterAPartialReadIsReportedOnTheNextRead) {
+  ASSERT_TRUE(this->connect_());
+  const uint8_t data[] = {9, 9, 9};
+  this->client_.queue(this->client_link_, data, sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
+  const size_t first = this->server_link_.rx_.size();
+  this->client_.queue(this->client_link_, data, sizeof(data));
+  ASSERT_TRUE(this->client_.flush(this->client_link_));
+  this->server_link_.rx_[first + FRAME_HEADER_SIZE] ^= 0x01;
+  uint8_t buf[16];
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), static_cast<ssize_t>(sizeof(data)));
+  EXPECT_EQ(this->server_.read(this->server_link_, buf, sizeof(buf)), -1);
+}
+
 TEST_F(NoiseStreamTest, BadHandshakeInputClosesTheLink) {
   // One byte over a status byte and the largest message
   constexpr size_t over = 1 + MAX_HANDSHAKE_SIZE + 1;

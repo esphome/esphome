@@ -48,6 +48,9 @@ class NoiseStream {
   /// Plaintext out of the link. Same returns as TcpClientLink::read(); a frame that fails to decrypt
   /// closes the link.
   template<typename Link> ssize_t read(Link &link, uint8_t *buf, size_t len) {
+    // A drop that an earlier partial read returned data for is reported here
+    if (this->state_ != State::STATE_READY && !link.connected())
+      return -1;
     size_t got = this->take_plain_(buf, len);
     while (got < len && this->state_ == State::STATE_READY) {
       size_t want = 0;
