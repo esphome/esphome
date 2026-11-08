@@ -49,7 +49,7 @@ def configure() -> Callable[..., dict]:
 
 @pytest.mark.parametrize(
     ("clock", "maximum"),
-    [("20MHZ", 8_500_000), ("4MHZ", 17_000_000), ("40MHZ", 17_000_000)],
+    [("20MHZ", 8_000_000), ("4MHZ", 17_000_000), ("40MHZ", 17_000_000)],
 )
 def test_spi_data_rate_boundary(clock: str, maximum: int) -> None:
     """Check the datasheet limit independently of host SPI clock divisors."""

@@ -112,8 +112,12 @@ def validate_bit_timing(config: ConfigType) -> ConfigType:
 
 
 def validate_data_rate(config: ConfigType) -> ConfigType:
-    """Limit SPI SCK to 0.85 * SYSCLK / 2 per Microchip DS20006027B, section 4.0."""
-    maximum = SYSTEM_CLOCK[config[CONF_CLOCK]] * 85 // 200
+    """Limit SPI SCK to 0.85 * SYSCLK / 2 per Microchip DS20006027B, section 4.0.
+
+    Rounded down to whole MHz, as hosts round to their own divisors: ESP32 turns the
+    8.5 MHz limit of a 20 MHz oscillator into about 8.9 MHz.
+    """
+    maximum = SYSTEM_CLOCK[config[CONF_CLOCK]] * 85 // 200 // 1_000_000 * 1_000_000
     # 8 MHz is the SPIDevice template default in mcp251xfd.h
     if config.get(CONF_DATA_RATE, 8_000_000) > maximum:
         raise cv.Invalid(
