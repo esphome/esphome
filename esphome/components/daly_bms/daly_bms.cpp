@@ -20,47 +20,47 @@ static const uint8_t DALY_REQUEST_STATUS = 0x94;
 static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
-// next_request_ value once every request of a cycle has been sent
-static const uint8_t DALY_REQUEST_CYCLE_DONE = 7;
+// The requests of one cycle, in the order they are sent.
+static const uint8_t DALY_REQUESTS[] = {
+    DALY_REQUEST_BATTERY_LEVEL, DALY_REQUEST_MIN_MAX_VOLTAGE, DALY_REQUEST_MIN_MAX_TEMPERATURE, DALY_REQUEST_MOS,
+    DALY_REQUEST_STATUS,        DALY_REQUEST_CELL_VOLTAGE,    DALY_REQUEST_TEMPERATURE};
+static const uint8_t DALY_REQUEST_COUNT = sizeof(DALY_REQUESTS);
 // A response can span several frames (three cell voltages per frame). Once a frame is complete and the line
 // stays quiet this long, the response is over and the next request can go out.
 static const uint32_t DALY_RESPONSE_GAP_MS = 50;
-
-void DalyBmsComponent::setup() { this->next_request_ = 0; }
+// Without a response, the next request goes out after this time.
+static const uint32_t DALY_RESPONSE_TIMEOUT_MS = 250;
 
 void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
 void DalyBmsComponent::update() {
-  if (this->next_request_ != 0 && this->next_request_ != DALY_REQUEST_CYCLE_DONE) {
-    // Restarting now would starve the last requests (cell voltages, temperatures) when the update interval is
-    // shorter than a request cycle. The running cycle finishes first, the next update starts a new one.
-    ESP_LOGV(TAG, "Request cycle still running, update skipped");
-    return;
-  }
-  this->trigger_next_ = true;
-  this->next_request_ = 0;
+  // A cycle that is still running (update interval shorter than a cycle) finishes first, or the last requests
+  // (cell voltages, temperatures) would never be sent. The new cycle then follows right after its last response.
+  this->cycle_requested_ = true;
+  if (!this->cycle_running_)
+    this->trigger_next_ = true;
 }
 
 void DalyBmsComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  const size_t avail = this->available();
   if (this->receiving_ && (now - this->last_transmission_ >= 200)) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");
     this->data_.clear();
     this->receiving_ = false;
   }
-  if (this->frame_received_ && !this->receiving_ && (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) &&
-      !this->trigger_next_) {
-    // response complete -> trigger next request without waiting for the timeout
+  if (this->frame_received_ && !this->receiving_ && avail == 0 &&
+      (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) && !this->trigger_next_) {
+    // response complete and nothing more on the line -> trigger next request without waiting for the timeout
     this->last_transmission_ = now;
     this->trigger_next_ = true;
   }
-  if ((now - this->last_transmission_ >= 250) && !this->trigger_next_) {
-    // last transmittion longer than 0.25s ago -> trigger next request
+  if ((now - this->last_transmission_ >= DALY_RESPONSE_TIMEOUT_MS) && !this->trigger_next_) {
+    // no response -> trigger next request
     this->last_transmission_ = now;
     this->trigger_next_ = true;
   }
-  const size_t avail = this->available();
   if (avail > 0)
     this->last_transmission_ = now;
   this->read_available(
@@ -74,53 +74,35 @@ void DalyBmsComponent::loop() {
         if (this->data_.size() == 4)
           this->data_count_ = c;
         if ((this->data_.size() > 4) and (data_.size() == this->data_count_ + 5)) {
+          // only a frame answering the last request counts; a late one for an earlier request does not
+          if (this->data_[2] == this->last_request_)
+            this->frame_received_ = true;
           this->decode_data_(this->data_);
           this->data_.clear();
           this->receiving_ = false;
-          this->frame_received_ = true;
         }
       },
       avail);
 
-  if (this->trigger_next_) {
-    this->trigger_next_ = false;
-    this->frame_received_ = false;
-    // the response timeout counts from the request, also for the first request of a cycle started by update()
-    this->last_transmission_ = now;
-    switch (this->next_request_) {
-      case 0:
-        this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
-        this->next_request_ = 1;
-        break;
-      case 1:
-        this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
-        this->next_request_ = 2;
-        break;
-      case 2:
-        this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
-        this->next_request_ = 3;
-        break;
-      case 3:
-        this->request_data_(DALY_REQUEST_MOS);
-        this->next_request_ = 4;
-        break;
-      case 4:
-        this->request_data_(DALY_REQUEST_STATUS);
-        this->next_request_ = 5;
-        break;
-      case 5:
-        this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
-        this->next_request_ = 6;
-        break;
-      case 6:
-        this->request_data_(DALY_REQUEST_TEMPERATURE);
-        this->next_request_ = DALY_REQUEST_CYCLE_DONE;
-        break;
-      case DALY_REQUEST_CYCLE_DONE:
-      default:
-        break;
-    }
+  if (!this->trigger_next_)
+    return;
+  this->trigger_next_ = false;
+  this->frame_received_ = false;
+  if (this->next_request_ >= DALY_REQUEST_COUNT) {
+    // the response to the last request is in or has timed out: the cycle is over
+    this->cycle_running_ = false;
+    this->next_request_ = 0;
   }
+  if (!this->cycle_running_) {
+    if (!this->cycle_requested_)
+      return;  // idle until the next update()
+    this->cycle_requested_ = false;
+    this->cycle_running_ = true;
+  }
+  // the response timeout counts from the request
+  this->last_transmission_ = now;
+  this->last_request_ = DALY_REQUESTS[this->next_request_++];
+  this->request_data_(this->last_request_);
 }
 
 void DalyBmsComponent::request_data_(uint8_t data_id) {

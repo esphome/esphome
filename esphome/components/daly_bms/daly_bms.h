@@ -66,7 +66,6 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   SUB_BINARY_SENSOR(discharging_mos_enabled)
 #endif
 
-  void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
@@ -81,10 +80,17 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
 
   std::vector<uint8_t> data_;
   bool receiving_{false};
-  uint8_t data_count_;
+  uint8_t data_count_{0};
   uint32_t last_transmission_{0};
   bool trigger_next_{false};
+  // update() asked for a request cycle; it starts once no cycle is running
+  bool cycle_requested_{false};
+  // a cycle is running until the response to its last request is in or has timed out
+  bool cycle_running_{false};
+  // a frame answering the last request has been decoded
   bool frame_received_{false};
+  uint8_t last_request_{0};
+  // index of the next request of the cycle
   uint8_t next_request_{0};
 };
 
