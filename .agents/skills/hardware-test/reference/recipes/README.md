@@ -67,3 +67,6 @@ One file per component, named after it:
 - [`mdns.md`](mdns.md): legacy unicast mDNS dump, hammer and latency straight to the device
 - [`sim_buses.md`](sim_buses.md): PCF8574/HD44780, MAX7219, SPI spy, packet_interface and SN74HC165 simulators, status LED probe, fake Home Assistant, cg.static_buffer probes
 - [`sigma_delta.md`](sigma_delta.md): pulse density of the sigma_delta speaker pin read inside the ESP32-P4, rtttl note onset and release
+- [`microphone_http_stream.md`](microphone_http_stream.md): raw PCM over HTTP with a counter fake mic or a USB mic, multi-reader client
+- [`i2s_audio.md`](i2s_audio.md): I2S microphone fed by an I2S TX channel on the same S3 through three jumpers
+- [`voice_assistant.md`](voice_assistant.md): late TTS start on the Voice PE with a slow announcement URL
