@@ -172,8 +172,11 @@ inline void cs_init(int gpio) {
 }
 inline int cs_count() {
   int c = 0;
-  if (cs_unit)
-    pcnt_unit_get_count(cs_unit, &c);
+  if (cs_unit) {
+    const esp_err_t e = pcnt_unit_get_count(cs_unit, &c);
+    if (e != ESP_OK)
+      ESP_LOGW("canlb", "CS counter read failed: %s", esp_err_to_name(e));
+  }
   return c;
 }
 inline int cs_mark_count = 0;
@@ -319,8 +322,11 @@ inline void burst(uint32_t n, const char *tag) {
     esphome::canbus::Error e;
     while ((e = bus->send_data(f)) == esphome::canbus::ERROR_ALLTXBUSY && esphome::micros() - t0 < 20000) {
     }
-    if (e != esphome::canbus::ERROR_OK)
+    if (e != esphome::canbus::ERROR_OK) {
+      q_send_err++;
+      ESP_LOGW("canlb", "BURST %s send error %d at frame %u", tag, (int) e, (unsigned) i);
       break;
+    }
     q[q_tail++ % 64] = f;
     sent++;
   }

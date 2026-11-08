@@ -9,16 +9,20 @@ pkill -f "[s]erial_capture.py $P"
 : > "$LOG"
 $PY "$SC" "$P" 1800 "$LOG" > /dev/null 2>&1 &
 CAP=$!
+fail=0
 verdicts() { grep -a -c -E "Signature check: (image|no trusted)|BUILDTAG" "$LOG" || true; }
 for f in "$@"; do
   kill -0 $CAP 2>/dev/null || { echo "serial capture died, stopping"; exit 1; }
   up=0; for i in $(seq 1 40); do nc -z -w2 "$IP" 3232 && { up=1; break; }; sleep 3; done
-  [ $up = 1 ] || { echo "$f: device unreachable, stopping"; break; }
+  [ $up = 1 ] || { echo "$f: device unreachable, stopping; not sent: $*"; fail=1; break; }
   before=$(verdicts)
   (cd "$T" && $PY -m esphome upload --file "$W/$f" --device "$IP" > "$W/up-$f.log" 2>&1)
   rc=$?
+  shift
   got=0; for i in $(seq 1 60); do [ "$(verdicts)" -gt "$before" ] && { got=1; break; }; sleep 1; done
+  [ $got = 1 ] || fail=1
   echo "$f rc=$rc $([ $got = 1 ] || echo 'NO VERDICT ')$(grep -a -E 'ERROR|OTA successful' "$W/up-$f.log" | tail -1 | cut -c1-120)"
 done
 kill $CAP; wait
 grep -a -E "BUILDTAG|Signature check" "$LOG"
+exit $fail

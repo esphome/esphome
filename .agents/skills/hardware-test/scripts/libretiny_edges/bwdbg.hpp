@@ -42,12 +42,14 @@ inline void report() {
   for (int i = 0; i < NP; i++) {
     uint8_t p = PINS[i];
     PinInfo *info = pinInfo(p);
-    uint32_t e = info ? info->enabled : 0xffffffff;
+    // -1 marks a pin with no PinInfo entry
+    const uint32_t e = info ? info->enabled : 0;
+    const int gpio = info ? !!(e & PIN_GPIO) : -1, irq = info ? !!(e & PIN_IRQ) : -1, pwm = info ? !!(e & PIN_PWM) : -1;
     ESP_LOGI("dbg",
              "PA%02u LT 0x%x (GPIO %d IRQ %d PWM %d) HW int_en %u mask %u edge %u pol_high %u deb %u lvl %u | "
              "mismatch %u isr digitalRead %u task digitalRead %u",
-             p, e, !!(e & PIN_GPIO), !!(e & PIN_IRQ), !!(e & PIN_PWM), (en >> p) & 1, (mask >> p) & 1, (type >> p) & 1,
-             (pol >> p) & 1, (deb >> p) & 1, (lvl >> p) & 1, mismatch[i], isr_reads[p], task_reads[p]);
+             p, e, gpio, irq, pwm, (en >> p) & 1, (mask >> p) & 1, (type >> p) & 1, (pol >> p) & 1, (deb >> p) & 1,
+             (lvl >> p) & 1, mismatch[i], isr_reads[p], task_reads[p]);
   }
 }
 }  // namespace bwdbg

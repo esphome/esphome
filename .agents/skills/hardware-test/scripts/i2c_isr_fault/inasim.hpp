@@ -381,12 +381,18 @@ inline volatile bool installed = false;
 inline void install_task(void *) {
   rel_sda = reg(out_sel_addr(SDA));
   rel_scl = reg(out_sel_addr(SCL));
+  // ESP_ERR_INVALID_STATE: the service is already installed, which is fine
   esp_err_t e1 = gpio_install_isr_service(0);
-  gpio_set_intr_type((gpio_num_t) SDA, GPIO_INTR_NEGEDGE);
+  esp_err_t et = gpio_set_intr_type((gpio_num_t) SDA, GPIO_INTR_NEGEDGE);
   esp_err_t e2 = gpio_isr_handler_add((gpio_num_t) SDA, slave_isr, nullptr);
-  ESP_LOGI(TAG, "slave on core %d: isr service %d, handler %d, rel_sda 0x%x rel_scl 0x%x", xPortGetCoreID(), e1, e2,
-           (unsigned) rel_sda, (unsigned) rel_scl);
-  installed = true;
+  ESP_LOGI(TAG, "slave on core %d: isr service %d, intr type %d, handler %d, rel_sda 0x%x rel_scl 0x%x",
+           xPortGetCoreID(), e1, et, e2, (unsigned) rel_sda, (unsigned) rel_scl);
+  if ((e1 == ESP_OK || e1 == ESP_ERR_INVALID_STATE) && et == ESP_OK && e2 == ESP_OK) {
+    installed = true;
+  } else {
+    ESP_LOGE(TAG, "slave ISR install failed: service %s, intr type %s, handler %s", esp_err_to_name(e1),
+             esp_err_to_name(et), esp_err_to_name(e2));
+  }
   vTaskDelete(nullptr);
 }
 
@@ -406,7 +412,12 @@ inline void install() {
 inline void drain() {
   static const char *const NAMES[F_COUNT] = {"garbage",     "nack",       "stretch_us", "hold_scl_ms",
                                              "hold_sda_ms", "glitch_scl", "glitch_sda", "vanish"};
-  while (ring_r != ring_w) {
+  const uint32_t w = ring_w;
+  if (w - ring_r > 64) {
+    ESP_LOGW(TAG, "F dropped %u events (ring overrun)", (unsigned) (w - ring_r - 64));
+    ring_r = w - 64;
+  }
+  while (ring_r != w) {
     const FaultEv &e = ring[ring_r & 63];
     ESP_LOGI(TAG, "F (%u) %s %u", (unsigned) e.ms, NAMES[e.type], (unsigned) e.arg);
     ring_r++;
