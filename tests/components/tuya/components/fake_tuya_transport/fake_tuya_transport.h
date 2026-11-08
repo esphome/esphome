@@ -12,8 +12,8 @@ class FakeTuyaTransport : public tuya::Tuya {
   void setup() override { this->mark_initialized_(); }
 
  protected:
-  void send_datapoint_command(uint8_t datapoint_id, tuya::TuyaDatapointType datapoint_type,
-                              const std::vector<uint8_t> &data) override {}
+  void send_datapoint_command(uint8_t datapoint_id, tuya::TuyaDatapointType datapoint_type, const uint8_t *data,
+                              size_t len) override {}
 };
 
 }  // namespace esphome::fake_tuya_transport

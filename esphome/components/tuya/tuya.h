@@ -78,15 +78,16 @@ class Tuya : public Component {
   /// Store a datapoint received from the MCU and notify listeners.
   void handle_datapoint_(const TuyaDatapoint &datapoint);
   void mark_initialized_() { this->initialized_callback_.call(); }
-  optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
+  const TuyaDatapoint *get_datapoint_(uint8_t datapoint_id) const;
   void dump_datapoints_();
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
                                     uint8_t length, bool forced);
   void set_string_datapoint_value_(uint8_t datapoint_id, const char *value, size_t len, bool forced);
   void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   /// Deliver a datapoint value to the MCU over the subclass's transport.
-  virtual void send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
-                                      const std::vector<uint8_t> &data) = 0;
+  /// The payload is borrowed for the duration of the call only.
+  virtual void send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint8_t *data,
+                                      size_t len) = 0;
 
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;

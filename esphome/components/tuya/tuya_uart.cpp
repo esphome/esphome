@@ -507,8 +507,8 @@ void TuyaUART::process_command_queue_() {
   }
 }
 
-void TuyaUART::send_command_(const TuyaCommand &command) {
-  command_queue_.push_back(command);
+void TuyaUART::send_command_(TuyaCommand command) {
+  command_queue_.push_back(std::move(command));
   process_command_queue_();
 }
 
@@ -516,16 +516,17 @@ void TuyaUART::send_empty_command_(TuyaCommandType command) {
   send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{}});
 }
 
-void TuyaUART::send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
-                                      const std::vector<uint8_t> &data) {
+void TuyaUART::send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint8_t *data,
+                                      size_t len) {
   std::vector<uint8_t> buffer;
+  buffer.reserve(4 + len);
   buffer.push_back(datapoint_id);
   buffer.push_back(static_cast<uint8_t>(datapoint_type));
-  buffer.push_back(data.size() >> 8);
-  buffer.push_back(data.size() >> 0);
-  buffer.insert(buffer.end(), data.begin(), data.end());
+  buffer.push_back(len >> 8);
+  buffer.push_back(len >> 0);
+  buffer.insert(buffer.end(), data, data + len);
 
-  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = buffer});
+  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = std::move(buffer)});
 }
 
 void TuyaUART::set_status_pin_() {
