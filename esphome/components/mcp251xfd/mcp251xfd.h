@@ -59,7 +59,10 @@ class MCP251XFD : public canbus::Canbus,
   void write_registers_(uint16_t address, const uint8_t *data, size_t length);
   void write_register_(uint16_t address, uint32_t value);
   void write_byte_(uint16_t address, uint8_t value);
-  bool validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t size, uint16_t &address);
+  bool validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t depth, uint16_t &address);
+  bool classic_() const { return this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC; }
+  uint32_t message_size_() const { return this->classic_() ? CLASSIC_MESSAGE_SIZE : MESSAGE_SIZE; }
+  uint32_t rx_fifo_depth_() const { return this->classic_() ? CLASSIC_RX_FIFO_DEPTH : RX_FIFO_DEPTH; }
 };
 
 }  // namespace esphome::mcp251xfd

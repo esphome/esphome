@@ -54,8 +54,9 @@ bool MCP251XFD::setup_internal() {
   }
 
   // Enable the local overflow summary for polling; only RX-not-empty is enabled on the INT pin.
-  this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
-  this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | FIFO_RX_OVERFLOW_ENABLE |
+  const uint32_t payload_size = this->classic_() ? FIFO_PAYLOAD_8 : FIFO_PAYLOAD_64;
+  this->write_register_(REG_TX_FIFO_CON, payload_size | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
+  this->write_register_(REG_RX_FIFO_CON, payload_size | ((this->rx_fifo_depth_() - 1) << 24) | FIFO_RX_OVERFLOW_ENABLE |
                                              (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0));
 
   // Filter 0 accepts both standard and extended IDs and routes them to FIFO 2.
@@ -244,8 +245,9 @@ void MCP251XFD::write_register_(uint16_t address, uint32_t value) {
 
 void MCP251XFD::write_byte_(uint16_t address, uint8_t value) { this->write_registers_(address, &value, 1); }
 
-bool MCP251XFD::validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t size, uint16_t &address) {
-  if (offset < start || offset >= start + size || (offset - start) % MESSAGE_SIZE != 0) {
+bool MCP251XFD::validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t depth, uint16_t &address) {
+  const uint32_t message_size = this->message_size_();
+  if (offset < start || offset >= start + depth * message_size || (offset - start) % message_size != 0) {
     return this->set_comm_fault_(LOG_STR("Invalid FIFO address"));
   }
   address = RAM_START + offset;
@@ -265,8 +267,7 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     return canbus::ERROR_ALLTXBUSY;
 
   uint16_t address;
-  if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), 0, TX_FIFO_DEPTH * MESSAGE_SIZE,
-                                    address))
+  if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), 0, TX_FIFO_DEPTH, address))
     return canbus::ERROR_FAILTX;
 
   std::array<uint8_t, MESSAGE_SIZE> message{};
@@ -309,16 +310,25 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     return canbus::ERROR_NOMSG;
 
   uint16_t address;
-  if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), RX_FIFO_OFFSET,
-                                    RX_FIFO_DEPTH * MESSAGE_SIZE, address))
+  if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), TX_FIFO_DEPTH * this->message_size_(),
+                                    this->rx_fifo_depth_(), address))
     return canbus::ERROR_FAIL;
 
+  // Most frames carry at most 8 bytes, so read the header and 8 data bytes first and fetch the rest of a longer
+  // CAN FD payload in a second transaction, rather than always reading the whole 72-byte object.
+  static constexpr size_t FIRST_READ_SIZE = MESSAGE_HEADER_SIZE + canbus::CAN_MAX_DATA_LENGTH;
   std::array<uint8_t, MESSAGE_SIZE> message;
-  // Read the maximum for the mode in one transaction. A second SPI transaction costs more than the extra bytes.
-  const size_t read_size =
-      this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC ? 8 + canbus::CAN_MAX_DATA_LENGTH : MESSAGE_SIZE;
-  if (!this->read_registers_(address, message.data(), read_size))
+  if (!this->read_registers_(address, message.data(), FIRST_READ_SIZE))
     return canbus::ERROR_FAIL;
+#ifdef USE_CANBUS_FD
+  const uint8_t fd_length = (message[4] & MESSAGE_FDF) != 0 ? canbus::can_dlc_to_len(message[4] & MESSAGE_DLC_MASK) : 0;
+  if (fd_length > canbus::CAN_MAX_DATA_LENGTH) {
+    // RAM reads are whole words
+    const size_t rest = (fd_length - canbus::CAN_MAX_DATA_LENGTH + 3) & ~size_t{3};
+    if (!this->read_registers_(address + FIRST_READ_SIZE, message.data() + FIRST_READ_SIZE, rest))
+      return canbus::ERROR_FAIL;
+  }
+#endif
   this->write_byte_(REG_RX_FIFO_CON + 1, FIFO_INCREMENT);
 
   const uint32_t id = encode_value_le<uint32_t>(message.data());

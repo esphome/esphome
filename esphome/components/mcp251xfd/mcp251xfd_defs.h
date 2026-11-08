@@ -36,11 +36,15 @@ static constexpr uint16_t REG_CRC = 0xE08;
 
 static constexpr uint16_t RAM_START = 0x400;
 static constexpr uint16_t RAM_SIZE = 2048;
-static constexpr size_t MESSAGE_SIZE = 72;  // Two header words and 64 data bytes, no timestamp.
+// FIFO objects are two header words and the payload, no timestamp. CLASSIC uses 8-byte payloads.
+static constexpr size_t MESSAGE_HEADER_SIZE = 8;
+static constexpr size_t MESSAGE_SIZE = MESSAGE_HEADER_SIZE + 64;
+static constexpr size_t CLASSIC_MESSAGE_SIZE = MESSAGE_HEADER_SIZE + 8;
 static constexpr uint32_t TX_FIFO_DEPTH = 8;
 static constexpr uint32_t RX_FIFO_DEPTH = 20;
-static constexpr uint32_t RX_FIFO_OFFSET = TX_FIFO_DEPTH * MESSAGE_SIZE;
+static constexpr uint32_t CLASSIC_RX_FIFO_DEPTH = 32;
 static_assert((TX_FIFO_DEPTH + RX_FIFO_DEPTH) * MESSAGE_SIZE <= RAM_SIZE);
+static_assert((TX_FIFO_DEPTH + CLASSIC_RX_FIFO_DEPTH) * CLASSIC_MESSAGE_SIZE <= RAM_SIZE);
 
 static constexpr uint32_t CON_ISO_CRC_ENABLE = 1UL << 5;
 static constexpr uint8_t CON_MODE_MASK = 0x07;
@@ -54,6 +58,7 @@ static constexpr uint8_t INT_RX_OVERFLOW = 1U << 3;      // RXOVIF in byte 1 of 
 static constexpr uint8_t INT_RX_ENABLE = 1U << 1;        // RXIE in byte 2 of INT.
 static constexpr uint8_t CRC_CRC_ERROR = 1U << 0;        // CRCERRIF in byte 2 of CRC.
 static constexpr uint8_t CRC_FORMAT_ERROR = 1U << 1;     // FERRIF in byte 2 of CRC.
+static constexpr uint32_t FIFO_PAYLOAD_8 = 0;
 static constexpr uint32_t FIFO_PAYLOAD_64 = 7UL << 29;
 static constexpr uint32_t FIFO_TX_ENABLE = 1UL << 7;
 static constexpr uint8_t FIFO_RX_NOT_EMPTY_ENABLE = 1U << 0;
