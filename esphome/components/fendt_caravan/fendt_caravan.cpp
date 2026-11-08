@@ -73,6 +73,10 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->add_command_("net-BT_VARS");
       break;
     }
+    case ESP_GATTC_DISCONNECT_EVT: {
+      this->reset_session_();
+      break;
+    }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle != this->char_handle_)
         break;
@@ -125,6 +129,15 @@ void FendtCaravan::add_command_(const std::string &cmd) {
     }
     this->commands_.push(chunk);
   }
+}
+
+// A link lost mid-session must not leave the next session waiting for a BT_STOP that never comes
+void FendtCaravan::reset_session_() {
+  this->wait_handshake_ = false;
+  this->wait_buffer_ = false;
+  this->char_handle_ = 0;
+  this->commands_.clear();
+  this->rx_.reset();
 }
 
 void FendtCaravan::on_data_received_(const char *data) {

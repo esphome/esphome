@@ -35,6 +35,7 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
 
   void add_command_(const std::string &cmd);
   void on_data_received_(const char *data);
+  void reset_session_();
 
  private:
   const char *handshake_;
