@@ -16,8 +16,6 @@
 
 #ifdef USE_ESP32
 #include "esp_rom_crc.h"
-#elif defined(USE_LIBRETINY)
-#include <flashdb.h>
 #endif
 
 namespace esphome {
@@ -176,14 +174,8 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   return refout ? (crc ^ 0xffff) : crc;
 }
 
+#if !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) {
-#ifdef USE_ESP32
-  // The lookup table and loop live in the mask ROM
-  return esp_rom_crc32_le(crc, data, len);
-#elif defined(USE_LIBRETINY)
-  // FlashDB is always linked on LibreTiny for preferences
-  return fdb_calc_crc32(crc, data, len);
-#else
   crc = ~crc;
   while (len--) {
     crc ^= *data++;
@@ -191,8 +183,8 @@ uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) {
     crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
   }
   return ~crc;
-#endif
 }
+#endif
 
 // FNV-1 hash - deprecated, use fnv1a_hash() for new code
 uint32_t fnv1_hash(const char *str) {
