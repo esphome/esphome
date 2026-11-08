@@ -45,11 +45,13 @@ def validate_options_shape(config: ConfigType) -> ConfigType:
     if CONF_STRING_DATAPOINT in config:
         if not isinstance(config[CONF_OPTIONS], list):
             raise cv.Invalid(
-                f"With '{CONF_STRING_DATAPOINT}', '{CONF_OPTIONS}' must be a list of strings"
+                f"With '{CONF_STRING_DATAPOINT}', '{CONF_OPTIONS}' must be a list of strings",
+                path=[CONF_OPTIONS],
             )
     elif not isinstance(config[CONF_OPTIONS], dict):
         raise cv.Invalid(
-            f"'{CONF_OPTIONS}' must be a mapping from datapoint value to option name"
+            f"'{CONF_OPTIONS}' must be a mapping from datapoint value to option name",
+            path=[CONF_OPTIONS],
         )
     return config
 
