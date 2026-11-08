@@ -35,6 +35,7 @@ from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
     NO_BUSES_SIGNATURE,
     analyze_all_components,
+    are_buses_compatible,
     create_grouping_signature,
     is_platform_component,
     merge_compatible_bus_groups,
@@ -61,6 +62,16 @@ class TestResult:
     duration: float
     command: str = ""
     test_type: str = "compile"  # "config" or "compile"
+    output: str = ""  # Only filled when the run captured its output
+
+
+# Tests that add a second instance of a type that other tests reference by
+# its single default id. Candidates per type are in order of preference.
+DECOY_COMPONENTS: dict[str, tuple[str, ...]] = {
+    "i2c": ("tca9548a",),
+    "motion": ("bmi270", "icm20689"),
+    "one_wire": ("ds2484", "ds248x"),
+}
 
 
 def show_disk_space_if_ci(esphome_command: str) -> None:
@@ -482,6 +493,7 @@ def run_grouped_test(
     continue_on_fail: bool,
     toolchain: str | None = None,
     skip_bootloader: bool = False,
+    capture_output: bool = False,
 ) -> TestResult:
     """Run esphome test for a group of components with shared bus configs.
 
@@ -494,6 +506,7 @@ def run_grouped_test(
         tests_dir: Path to tests/components directory
         esphome_command: ESPHome command (config/compile)
         continue_on_fail: Whether to continue on failure
+        capture_output: Keep the esphome output in TestResult.output
 
     Returns:
         TestResult object with test details and timing
@@ -533,6 +546,7 @@ def run_grouped_test(
             duration=0.0,
             command=f"# Failed during config merge: {e}",
             test_type=esphome_command,
+            output=str(e),
         )
 
     # Create test file that includes merged config
@@ -588,8 +602,20 @@ def run_grouped_test(
 
     # Always close the group, even if the subprocess or disk-space reporting
     # raises, so later output is never folded into the wrong CI log section.
+    output = ""
     try:
-        result = subprocess.run(cmd, check=False)
+        if capture_output:
+            result = subprocess.run(
+                cmd,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            output = result.stdout or ""
+            print(output, end="")
+        else:
+            result = subprocess.run(cmd, check=False)
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
     finally:
@@ -616,7 +642,132 @@ def run_grouped_test(
         duration=duration,
         command=cmd_str,
         test_type=esphome_command,
+        output=output,
     )
+
+
+def _groupable_buses(
+    component: str,
+    platform: str,
+    component_buses: dict[str, dict[str, list[str]]],
+    non_groupable: set[str],
+) -> tuple[str, ...] | None:
+    """Return the common bus packages of a groupable test, or None if it is never grouped."""
+    if (
+        component in ISOLATED_COMPONENTS
+        or component in BASE_BUS_COMPONENTS
+        or component in non_groupable
+    ):
+        return None
+    buses = component_buses.get(component, {}).get(platform)
+    if buses is None:
+        return None
+    signature = create_grouping_signature({platform: buses}, platform)
+    return tuple(signature.split("+")) if signature else ()
+
+
+def select_decoys(
+    component: str,
+    platform: str,
+    component_buses: dict[str, dict[str, list[str]]],
+    non_groupable: set[str],
+) -> list[str]:
+    """Pick one decoy per DECOY_COMPONENTS type that CI could group with component.
+
+    A decoy needs a test.<platform>.yaml, must be groupable, must not be the
+    component itself, and its buses and CONFLICTS_WITH must allow the merge.
+    """
+    buses = _groupable_buses(component, platform, component_buses, non_groupable)
+    if buses is None:
+        return []
+    members = [component]
+    for candidates in DECOY_COMPONENTS.values():
+        for decoy in candidates:
+            if decoy in members:
+                continue
+            decoy_buses = _groupable_buses(
+                decoy, platform, component_buses, non_groupable
+            )
+            if decoy_buses is None or not are_buses_compatible(buses, decoy_buses):
+                continue
+            if any(components_conflict(decoy, m, platform) for m in members):
+                continue
+            members.append(decoy)
+            buses = tuple(sorted(set(buses) | set(decoy_buses)))
+            break
+    return members[1:]
+
+
+def _config_error_excerpt(output: str, max_lines: int = 30) -> str:
+    """Return the part of esphome config output that explains the failure."""
+    lines = output.rstrip().splitlines()
+    for i, line in enumerate(lines):
+        if "Failed config" in line:
+            return "\n".join(lines[i : i + max_lines])
+    return "\n".join(lines[-max_lines:])
+
+
+def run_decoy_tests(
+    components: set[str],
+    all_tests: dict[str, list[Path]],
+    platform_filter: str | None,
+    platform_bases: dict[str, list[Path]],
+    tests_dir: Path,
+    build_dir: Path,
+    toolchain: str | None = None,
+) -> list[TestResult]:
+    """Validate each component merged with decoys that add a second candidate id.
+
+    Isolated runs never see another test's buses, so a test that omits
+    i2c_id, motion_id or one_wire_id passes until CI groups it with one.
+    """
+    targets = sorted(
+        c for c in components if c in all_tests and c not in ISOLATED_COMPONENTS
+    )
+    if not targets:
+        return []
+    component_buses, non_groupable, _ = analyze_all_components(tests_dir)
+    results: list[TestResult] = []
+    for component in targets:
+        for platform in sorted(component_buses.get(component, {})):
+            if platform_filter and platform != platform_filter:
+                continue
+            decoys = select_decoys(component, platform, component_buses, non_groupable)
+            if not decoys:
+                continue
+            for base_file in platform_bases.get(platform, []):
+                platform_with_version = extract_platform_with_version(base_file)
+                result = run_grouped_test(
+                    components=[component, *decoys],
+                    platform=platform,
+                    platform_with_version=platform_with_version,
+                    base_file=base_file,
+                    build_dir=build_dir,
+                    tests_dir=tests_dir,
+                    esphome_command="config",
+                    continue_on_fail=True,
+                    toolchain=toolchain,
+                    capture_output=True,
+                )
+                decoy_list = ", ".join(decoys)
+                result.test_id = (
+                    f"DECOY[{component}+{','.join(decoys)}].{platform_with_version}"
+                )
+                if not result.success:
+                    print(f"\n{'=' * 80}")
+                    print(
+                        f"{component} fails config validation on {platform_with_version} "
+                        f"when CI groups it with {decoy_list}."
+                    )
+                    print(
+                        "These tests add a second I2C bus, motion or one_wire instance; "
+                        "set the id the error names (e.g. i2c_id: i2c_bus)."
+                    )
+                    print(f"{'=' * 80}")
+                    print(_config_error_excerpt(result.output))
+                    print(f"{'=' * 80}\n")
+                results.append(result)
+    return results
 
 
 def run_grouped_component_tests(
@@ -1150,6 +1301,20 @@ def test_components(
             skip_bootloader=skip_bootloader,
         )
         test_results.extend(grouped_results)
+
+    # Directly changed tests run isolated, so also check them grouped with decoys
+    if esphome_command == "config" and enable_grouping and isolated_components:
+        test_results.extend(
+            run_decoy_tests(
+                components=isolated_components,
+                all_tests=all_tests,
+                platform_filter=platform_filter,
+                platform_bases=platform_bases,
+                tests_dir=tests_dir,
+                build_dir=build_dir,
+                toolchain=toolchain,
+            )
+        )
 
     # Then run individual tests for components not in groups
     for component, test_files in sorted(all_tests.items()):
