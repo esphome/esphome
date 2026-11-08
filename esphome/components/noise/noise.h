@@ -55,7 +55,7 @@ void prepare_spare_ephemeral();
 int consume_spare_ephemeral(NoiseHandshakeState *state);
 #endif
 
-// Shared wire format for the noise transports (api and ota): every frame is
+// Shared wire format for the noise transports (api, ota and the stream): every frame is
 // FRAME_INDICATOR, a 16-bit big-endian payload length, then the payload.
 // Handshake payloads start with a status byte; transport payloads end with
 // the ChaCha20-Poly1305 MAC.

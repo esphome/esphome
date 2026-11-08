@@ -427,6 +427,8 @@
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL
 #define USE_NOISE_STREAM
+#define USE_NOISE_STREAM_INITIATOR
+#define USE_NOISE_STREAM_RESPONDER
 #define USE_SHA256
 #if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
@@ -599,6 +601,7 @@
 #define USE_SPEAKER
 #define USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 #define USE_SPI
+#define USE_SPI_SOFTWARE
 #define USE_SPI_PSRAM_DMA
 #define USE_VOICE_ASSISTANT
 #ifndef USE_HOST
@@ -782,6 +785,7 @@
 #define USE_SOCKET_IMPL_LWIP_TCP
 
 #define USE_SPI
+#define USE_SPI_SOFTWARE
 
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
@@ -823,6 +827,7 @@
 #define USE_RP2040_VARIANT_RP2040
 #define USE_RP2_WATCHDOG_TIMEOUT 8000
 #define USE_SPI
+#define USE_SPI_SOFTWARE
 #ifndef USE_ETHERNET
 #define USE_ETHERNET
 #endif
