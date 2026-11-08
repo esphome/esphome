@@ -12,6 +12,11 @@ from esphome.components.i2s_audio import (
     CONF_I2S_MODE,
     CONF_MCLK_MULTIPLE,
 )
+from esphome.components.i2s_audio.speaker import (
+    CONF_DAC_TYPE,
+    CONF_I2S_COMM_FMT,
+    CONF_SPDIF_MODE,
+)
 from esphome.components.tlv320dac3100.audio_dac import (
     BITS_PER_SAMPLE,
     CLKIN_BCLK,
@@ -23,11 +28,13 @@ from esphome.components.tlv320dac3100.audio_dac import (
     DAC_MOD_CLK_MAX,
     DOSR_FS_MAX,
     DOSR_FS_MIN,
+    MCLK_IN_MAX,
     PLL_OUT_MAX,
     PLL_OUT_MIN,
     PROCESSING_BLOCKS,
     ClockConfig,
     _final_validate,
+    _validate_mclk_frequency,
     solve_clock,
 )
 import esphome.config_validation as cv
@@ -143,6 +150,8 @@ def _speaker(platform: str = "i2s_audio", rate: int = 44100, bits: int = 16) -> 
         CONF_AUDIO_DAC: "dac",
         CONF_SAMPLE_RATE: rate,
         CONF_BITS_PER_SAMPLE: bits,
+        CONF_DAC_TYPE: "external",
+        CONF_I2S_COMM_FMT: "stand_i2s",
     }
 
 
@@ -215,3 +224,36 @@ def test_mclk_from_elsewhere_is_not_compared(mode: str, has_mclk_pin: bool) -> N
         }
     )
     _final_validate(_MCLK_DAC)
+
+
+@pytest.mark.parametrize("fmt", ["stand_i2s", "stand_pcm_long", "i2s_msb", "pcm_long"])
+def test_standard_i2s_formats_are_accepted(fmt: str) -> None:
+    fv.full_config.set({"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: fmt}]})
+    _final_validate(_DAC)
+
+
+@pytest.mark.parametrize(
+    "fmt", ["stand_msb", "i2s_lsb", "stand_pcm_short", "pcm_short", "pcm"]
+)
+def test_non_standard_i2s_formats_are_rejected(fmt: str) -> None:
+    fv.full_config.set({"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: fmt}]})
+    with pytest.raises(cv.Invalid, match="needs standard I2S"):
+        _final_validate(_DAC)
+
+
+def test_spdif_speaker_is_rejected() -> None:
+    fv.full_config.set({"speaker": [{**_speaker(), CONF_SPDIF_MODE: True}]})
+    with pytest.raises(cv.Invalid, match="spdif_mode"):
+        _final_validate(_DAC)
+
+
+def test_internal_dac_speaker_is_rejected() -> None:
+    fv.full_config.set({"speaker": [{**_speaker(), CONF_DAC_TYPE: "internal"}]})
+    with pytest.raises(cv.Invalid, match="dac_type: external"):
+        _final_validate(_DAC)
+
+
+def test_mclk_is_capped_at_the_datasheet_limit() -> None:
+    assert _validate_mclk_frequency(MCLK_IN_MAX) == MCLK_IN_MAX
+    with pytest.raises(cv.Invalid):
+        _validate_mclk_frequency(MCLK_IN_MAX + 1)

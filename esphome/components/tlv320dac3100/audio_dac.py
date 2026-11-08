@@ -13,6 +13,11 @@ from esphome.components.i2s_audio import (
     CONF_PRIMARY,
     DOMAIN as I2S_AUDIO_DOMAIN,
 )
+from esphome.components.i2s_audio.speaker import (
+    CONF_DAC_TYPE,
+    CONF_I2S_COMM_FMT,
+    CONF_SPDIF_MODE,
+)
 from esphome.components.speaker import DOMAIN as SPEAKER_DOMAIN, get_audio_dac_ids
 import esphome.config_validation as cv
 from esphome.const import (
@@ -37,11 +42,9 @@ TLV320DAC3100 = tlv320dac3100_ns.class_(
 )
 
 TLV320DAC3100Output = tlv320dac3100_ns.enum("TLV320DAC3100Output", is_class=True)
-OUTPUTS = {
-    "SPEAKER": TLV320DAC3100Output.TLV320DAC3100_OUTPUT_SPEAKER,
-    "HEADPHONE": TLV320DAC3100Output.TLV320DAC3100_OUTPUT_HEADPHONE,
-    "BOTH": TLV320DAC3100Output.TLV320DAC3100_OUTPUT_BOTH,
-}
+OUTPUTS = TLV320DAC3100Output.options(
+    "SPEAKER", "HEADPHONE", "BOTH", prefix="TLV320DAC3100_OUTPUT_"
+)
 
 # Page 1 / register 42 bits D4-D3
 SPEAKER_GAINS = {6.0: 0, 12.0: 1, 18.0: 2, 24.0: 3}
@@ -52,6 +55,7 @@ BITS_PER_SAMPLE = {16: (0, 32), 24: (2, 48), 32: (3, 64)}
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 # Clock limits from the datasheet (DVDD >= 1.65 V)
+MCLK_IN_MAX = 50_000_000
 PLL_IN_MIN = 512_000
 PLL_IN_MAX = 20_000_000
 PLL_IN_FRACTIONAL_MIN = 10_000_000
@@ -69,6 +73,9 @@ PROCESSING_BLOCKS = (
     (96_000, 7, 4, 6),  # PRB_P7, filter B
     (192_000, 17, 2, 3),  # PRB_P17, filter C
 )
+
+# i2s_comm_fmt values the speaker clocks as standard I2S, the DAC's fixed mode
+STANDARD_I2S_FORMATS = ("stand_i2s", "stand_pcm_long", "i2s_msb", "pcm_long")
 
 # Page 0 / register 4: PLL_CLKIN and CODEC_CLKIN sources
 CLKIN_MCLK = 0
@@ -173,14 +180,20 @@ def solve_clock(clkin: int, from_mclk: bool, sample_rate: int) -> ClockConfig:
     return ClockConfig((source << 2) | CLKIN_PLL, *pll, *divs, prb)
 
 
-def _validate_clock(config: ConfigType) -> ConfigType:
+def _solve_config_clock(config: ConfigType) -> ClockConfig:
     sample_rate = config[CONF_SAMPLE_RATE]
-    if CONF_MCLK_FREQUENCY in config:
-        solve_clock(config[CONF_MCLK_FREQUENCY], True, sample_rate)
-    else:
-        frame = BITS_PER_SAMPLE[config[CONF_BITS_PER_SAMPLE]][1]
-        solve_clock(sample_rate * frame, False, sample_rate)
+    if (mclk := config.get(CONF_MCLK_FREQUENCY)) is not None:
+        return solve_clock(mclk, True, sample_rate)
+    frame = BITS_PER_SAMPLE[config[CONF_BITS_PER_SAMPLE]][1]
+    return solve_clock(sample_rate * frame, False, sample_rate)
+
+
+def _validate_clock(config: ConfigType) -> ConfigType:
+    _solve_config_clock(config)
     return config
+
+
+_validate_mclk_frequency = cv.int_range(min=PLL_IN_MIN, max=MCLK_IN_MAX)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -191,7 +204,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.All(
                 _validate_bits, cv.int_, cv.one_of(*BITS_PER_SAMPLE)
             ),
-            cv.Optional(CONF_MCLK_FREQUENCY): cv.int_range(min=PLL_IN_MIN),
+            cv.Optional(CONF_MCLK_FREQUENCY): _validate_mclk_frequency,
             cv.Optional(CONF_OUTPUT, default="BOTH"): cv.enum(OUTPUTS, upper=True),
             cv.Optional(CONF_SPEAKER_GAIN, default="6dB"): cv.All(
                 cv.decibel, cv.enum(SPEAKER_GAINS)
@@ -215,6 +228,22 @@ def _generated_mclk(speaker: ConfigType) -> int | None:
     return None
 
 
+def _validate_speaker_format(speaker: ConfigType) -> None:
+    if speaker[CONF_DAC_TYPE] != "external":
+        raise cv.Invalid(
+            "The i2s_audio speaker using this audio_dac must set 'dac_type: external'"
+        )
+    if speaker.get(CONF_SPDIF_MODE, False):
+        raise cv.Invalid(
+            "The i2s_audio speaker using this audio_dac can't use 'spdif_mode'"
+        )
+    if (fmt := speaker[CONF_I2S_COMM_FMT]) not in STANDARD_I2S_FORMATS:
+        raise cv.Invalid(
+            f"The i2s_audio speaker using this audio_dac has i2s_comm_fmt {fmt}; "
+            "the DAC needs standard I2S"
+        )
+
+
 def _final_validate(config: ConfigType) -> None:
     # Only the i2s_audio speaker reports that its clocks are running
     speakers = [
@@ -229,6 +258,7 @@ def _final_validate(config: ConfigType) -> None:
             "the DAC powers up when that speaker starts its clocks"
         )
     for speaker in speakers:
+        _validate_speaker_format(speaker)
         for key in (CONF_SAMPLE_RATE, CONF_BITS_PER_SAMPLE):
             if speaker[key] != config[key]:
                 raise cv.Invalid(
@@ -251,12 +281,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
-    sample_rate = config[CONF_SAMPLE_RATE]
-    word_length, frame = BITS_PER_SAMPLE[config[CONF_BITS_PER_SAMPLE]]
-    if (mclk := config.get(CONF_MCLK_FREQUENCY)) is not None:
-        clock = solve_clock(mclk, True, sample_rate)
-    else:
-        clock = solve_clock(sample_rate * frame, False, sample_rate)
+    clock = _solve_config_clock(config)
+    word_length = BITS_PER_SAMPLE[config[CONF_BITS_PER_SAMPLE]][0]
 
     cg.add(
         var.set_clock(

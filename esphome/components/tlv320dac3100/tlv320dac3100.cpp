@@ -1,5 +1,7 @@
 #include "tlv320dac3100.h"
 
+#include <cmath>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -160,6 +162,8 @@ bool TLV320DAC3100::write_page_(uint8_t page, uint8_t reg, uint8_t value) {
 }
 
 bool TLV320DAC3100::write_mute_() {
+  if (this->is_failed())
+    return false;
   if (!this->write_page_(0, REG_DAC_MUTE, this->is_muted_ ? 0x0C : 0x00)) {
     ESP_LOGE(TAG, "Writing mute failed");
     return false;
@@ -168,6 +172,8 @@ bool TLV320DAC3100::write_mute_() {
 }
 
 bool TLV320DAC3100::write_volume_() {
+  if (this->is_failed())
+    return false;
   const auto volume = static_cast<int8_t>(lroundf(VOLUME_MIN * (1.0f - this->volume_)));
   if (!this->write_page_(0, REG_DAC_VOLUME_L, volume) || !this->write_byte(REG_DAC_VOLUME_R, volume)) {
     ESP_LOGE(TAG, "Writing volume failed");
