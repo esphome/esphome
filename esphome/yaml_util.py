@@ -946,9 +946,19 @@ class ESPHomeLoaderMixin:
     @_add_data_ref
     def construct_env_var(self, node: yaml.Node) -> str:
         args = node.value.split()
+        if not args:
+            raise yaml.MarkedYAMLError(
+                "Environment variable tag requires a variable name", node.start_mark
+            )
         # Check for a default value
         if len(args) > 1:
-            return os.getenv(args[0], " ".join(args[1:]))
+            default = " ".join(args[1:])
+            # The default is a plain scalar, so surrounding quotes are literal
+            # characters - strip one matching pair so `!env_var VAR ""` gives an
+            # empty default instead of the two-character string `""`
+            if len(default) >= 2 and default[0] == default[-1] and default[0] in "\"'":
+                default = default[1:-1]
+            return os.getenv(args[0], default)
         if args[0] in os.environ:
             return os.environ[args[0]]
         raise yaml.MarkedYAMLError(
