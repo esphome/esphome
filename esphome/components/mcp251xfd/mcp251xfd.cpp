@@ -19,6 +19,8 @@ ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 PROGMEM_STRING_TABLE(CanModeStrings, "NORMAL", "SLEEP", "LOOPBACK", "LISTENONLY", "CONFIGURATION", "EXTERNAL LOOPBACK",
                      "CLASSIC", "UNKNOWN");
 
+static const LogString *mode_str(uint8_t mode) { return CanModeStrings::get_log_str(mode, CanModeStrings::LAST_INDEX); }
+
 bool MCP251XFD::setup_internal() {
   // A 4 MHz oscillator starts without the PLL. Keep SPI below 0.85 * SYSCLK / 2 until it locks.
   const uint32_t operating_data_rate = this->data_rate_;
@@ -85,23 +87,23 @@ bool MCP251XFD::setup_internal() {
 
 void MCP251XFD::dump_config() {
   canbus::Canbus::dump_config();
-  ESP_LOGCONFIG(TAG, "MCP251XFD (CAN FD):");
+  ESP_LOGCONFIG(TAG,
+                "MCP251XFD (CAN FD):\n"
+                "  Oscillator: %u MHz\n"
+                "  Mode: %s\n"
+                "  Nominal Bit Timing: 0x%08" PRIX32 "\n"
+                "  Data Bit Timing: 0x%08" PRIX32 "\n"
+                "  Transmitter Delay Compensation: 0x%08" PRIX32,
+                static_cast<uint8_t>(this->mcp_clock_), LOG_STR_ARG(mode_str(static_cast<uint8_t>(this->mcp_mode_))),
+                this->nominal_bit_timing_, this->data_bit_timing_, this->transmitter_delay_compensation_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-
-  ESP_LOGCONFIG(TAG, "  Oscillator: %u MHz", static_cast<uint8_t>(this->mcp_clock_));
-  ESP_LOGCONFIG(
-      TAG, "  Mode: %s",
-      LOG_STR_ARG(CanModeStrings::get_log_str(static_cast<uint8_t>(this->mcp_mode_), CanModeStrings::LAST_INDEX)));
-  ESP_LOGCONFIG(TAG, "  Nominal Bit Timing: 0x%08" PRIX32, this->nominal_bit_timing_);
-  ESP_LOGCONFIG(TAG, "  Data Bit Timing: 0x%08" PRIX32, this->data_bit_timing_);
-  ESP_LOGCONFIG(TAG, "  Transmitter Delay Compensation: 0x%08" PRIX32, this->transmitter_delay_compensation_);
 }
 
 bool MCP251XFD::reset_() {
   // Configuration mode waits for the bus to go idle, so a reset does not cut a frame on the bus.
   if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION, 250)) {
-    ESP_LOGW(TAG, "Could not confirm Configuration mode before reset, resetting anyway");
+    ESP_LOGW(TAG, "Config mode not confirmed before reset");
   }
 
   const std::array<uint8_t, 2> command{INSTRUCTION_RESET, 0};
@@ -132,7 +134,7 @@ bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expec
       return true;
     delay(1);
   }
-  ESP_LOGE(TAG, "Timeout waiting for register 0x%03X", address);
+  ESP_LOGW(TAG, "Timeout waiting for register 0x%03X", address);
   return false;
 }
 
@@ -208,14 +210,15 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
   if (current_mode == target_mode) {
     if (this->mode_fault_active_) {
       this->mode_fault_active_ = false;
-      ESP_LOGI(TAG, "CAN controller returned to configured mode %u", target_mode);
+      ESP_LOGI(TAG, "Mode %s restored", LOG_STR_ARG(mode_str(target_mode)));
     }
     return true;
   }
 
   if (!this->mode_fault_active_) {
     this->mode_fault_active_ = true;
-    ESP_LOGW(TAG, "Unexpected CAN controller mode %u, configured mode is %u", current_mode, target_mode);
+    ESP_LOGW(TAG, "Unexpected mode %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
+             LOG_STR_ARG(mode_str(target_mode)));
   }
   if (bus_off || now - this->last_mode_recovery_time_ < MODE_RECOVERY_INTERVAL_MS)
     return true;
@@ -421,10 +424,9 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     this->write_registers_(REG_INT, clear_flags.data(), clear_flags.size());
   }
   if ((controller_flags & (INT_SYSTEM_ERROR | INT_SPI_CRC_ERROR)) && this->should_log_fault_(now)) {
-    ESP_LOGW(TAG, "Controller fault:%s%s RX errors=%u, TX errors=%u",
-             controller_flags & INT_SPI_CRC_ERROR ? LOG_STR_LITERAL(" SPI CRC/format error;") : LOG_STR_LITERAL(""),
-             controller_flags & INT_SYSTEM_ERROR ? LOG_STR_LITERAL(" system error (possible RX loss or halted TX);")
-                                                 : LOG_STR_LITERAL(""),
+    ESP_LOGW(TAG, "Controller fault:%s%s, RX errors=%u, TX errors=%u",
+             controller_flags & INT_SPI_CRC_ERROR ? LOG_STR_LITERAL(" SPI CRC") : LOG_STR_LITERAL(""),
+             controller_flags & INT_SYSTEM_ERROR ? LOG_STR_LITERAL(" system error") : LOG_STR_LITERAL(""),
              static_cast<uint8_t>(this->last_trec_), static_cast<uint8_t>(this->last_trec_ >> 8));
   }
 
