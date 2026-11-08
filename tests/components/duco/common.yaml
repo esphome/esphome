@@ -4,13 +4,13 @@ wifi:
 
 time:
   - platform: sntp
-    id: duco_sntp_time
+    id: sntp_time
 
 duco:
   id: duco_box
   discovery: {}
   time:
-    time_id: duco_sntp_time
+    time_id: sntp_time
 
 text_sensor:
   - platform: duco

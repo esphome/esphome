@@ -1,4 +1,5 @@
 #include "tcl112.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::tcl112 {
@@ -114,10 +115,7 @@ void Tcl112Climate::transmit_state() {
   for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
     remote_state[TCL112_STATE_LENGTH - 1] += remote_state[checksum_byte];
 
-  ESP_LOGV(TAG, "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12],
-           remote_state[13]);
+  ESP_LOGV_HEX(TAG, remote_state, TCL112_STATE_LENGTH, TCL112_STATE_LENGTH, "Sending: %s");
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
@@ -162,10 +160,7 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  ESP_LOGV(TAG, "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X",
-           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-           remote_state[12], remote_state[13]);
+  ESP_LOGV_HEX(TAG, remote_state, TCL112_STATE_LENGTH, TCL112_STATE_LENGTH, "Received: %s");
 
   // two first bytes are constant
   if (remote_state[0] != 0x23 || remote_state[1] != 0xCB)

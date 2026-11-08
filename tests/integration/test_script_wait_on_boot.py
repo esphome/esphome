@@ -19,11 +19,9 @@ loop in setup() if num_running_ is 0.
 
 from __future__ import annotations
 
-import asyncio
-import re
-
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -40,50 +38,22 @@ async def test_script_wait_on_boot(
     This reproduces issue #12043 where script.wait would hang forever when
     triggered from on_boot due to a race condition in ScriptWaitAction::setup().
     """
-    test_complete = asyncio.Event()
+    # Boot sequence log lines, in order
+    boot_start = "on_boot: Starting boot sequence"
+    show_start = "show_start_page: Starting"
+    show_complete = "show_start_page: Completed"
+    first_wait = "on_boot: First script completed"
+    flip_start = "flip_thru_pages: Starting"
+    flip_complete = "flip_thru_pages: Completed"
 
-    # Track progress through the boot sequence
-    boot_started = False
-    first_script_started = False
-    first_script_completed = False
-    first_wait_returned = False
-    second_script_started = False
-    second_script_completed = False
-    all_completed = False
+    waiter = LineWaiter()
+    test_complete = waiter.expect("on_boot: All boot scripts completed")
 
-    # Patterns for boot sequence logs
-    boot_start_pattern = re.compile(r"on_boot: Starting boot sequence")
-    show_start_pattern = re.compile(r"show_start_page: Starting")
-    show_complete_pattern = re.compile(r"show_start_page: Completed")
-    first_wait_pattern = re.compile(r"on_boot: First script completed")
-    flip_start_pattern = re.compile(r"flip_thru_pages: Starting")
-    flip_complete_pattern = re.compile(r"flip_thru_pages: Completed")
-    all_complete_pattern = re.compile(r"on_boot: All boot scripts completed")
-
-    def check_output(line: str) -> None:
-        """Check log output for boot sequence progress."""
-        nonlocal boot_started, first_script_started, first_script_completed
-        nonlocal first_wait_returned, second_script_started, second_script_completed
-        nonlocal all_completed
-
-        if boot_start_pattern.search(line):
-            boot_started = True
-        elif show_start_pattern.search(line):
-            first_script_started = True
-        elif show_complete_pattern.search(line):
-            first_script_completed = True
-        elif first_wait_pattern.search(line):
-            first_wait_returned = True
-        elif flip_start_pattern.search(line):
-            second_script_started = True
-        elif flip_complete_pattern.search(line):
-            second_script_completed = True
-        elif all_complete_pattern.search(line):
-            all_completed = True
-            test_complete.set()
+    def seen(text: str) -> bool:
+        return waiter.count(text) > 0
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
@@ -94,14 +64,14 @@ async def test_script_wait_on_boot(
         # Timeout is generous to allow for delays in the scripts
         def progress() -> list[str]:
             steps = (
-                (boot_started, "boot started"),
-                (first_script_started, "show_start_page started"),
-                (first_script_completed, "show_start_page completed"),
-                (first_wait_returned, "first script.wait returned"),
-                (second_script_started, "flip_thru_pages started"),
-                (second_script_completed, "flip_thru_pages completed"),
+                (boot_start, "boot started"),
+                (show_start, "show_start_page started"),
+                (show_complete, "show_start_page completed"),
+                (first_wait, "first script.wait returned"),
+                (flip_start, "flip_thru_pages started"),
+                (flip_complete, "flip_thru_pages completed"),
             )
-            return [name for done, name in steps if done]
+            return [name for text, name in steps if seen(text)]
 
         await wait_or_fail(
             test_complete,
@@ -109,15 +79,14 @@ async def test_script_wait_on_boot(
             "Boot sequence did not complete",
             progress=progress,
             issue_12043_script_wait_hung=lambda: (
-                first_script_completed and not first_wait_returned
+                seen(show_complete) and not seen(first_wait)
             ),
         )
 
         # Verify the complete boot sequence executed in order
-        assert boot_started, "on_boot did not start"
-        assert first_script_started, "show_start_page did not start"
-        assert first_script_completed, "show_start_page did not complete"
-        assert first_wait_returned, "First script.wait did not return"
-        assert second_script_started, "flip_thru_pages did not start"
-        assert second_script_completed, "flip_thru_pages did not complete"
-        assert all_completed, "Boot sequence did not complete"
+        assert seen(boot_start), "on_boot did not start"
+        assert seen(show_start), "show_start_page did not start"
+        assert seen(show_complete), "show_start_page did not complete"
+        assert seen(first_wait), "First script.wait did not return"
+        assert seen(flip_start), "flip_thru_pages did not start"
+        assert seen(flip_complete), "flip_thru_pages did not complete"

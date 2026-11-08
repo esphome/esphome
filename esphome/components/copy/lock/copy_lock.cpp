@@ -21,4 +21,6 @@ void CopyLock::control(const lock::LockCall &call) {
   call2.perform();
 }
 
+void CopyLock::open_latch() { this->source_->open(); }
+
 }  // namespace esphome::copy

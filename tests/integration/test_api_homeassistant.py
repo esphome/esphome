@@ -16,6 +16,7 @@ import re
 from aioesphomeapi import HomeassistantServiceCall, SensorInfo, SensorState
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import (
     assert_device_name,
     require_entity,
@@ -35,46 +36,19 @@ async def test_api_homeassistant(
     """Comprehensive test for Home Assistant API functionality."""
     loop = asyncio.get_running_loop()
 
-    # Create futures for patterns that capture values
-    lambda_computed_future = loop.create_future()
-    ha_temp_state_future = loop.create_future()
-    ha_humidity_state_future = loop.create_future()
-    ha_motion_state_future = loop.create_future()
-    ha_weather_state_future = loop.create_future()
-
-    # State update futures
-    temp_update_future = loop.create_future()
-    humidity_update_future = loop.create_future()
-    motion_update_future = loop.create_future()
-    weather_update_future = loop.create_future()
-    long_attr_future = loop.create_future()
-
-    # Number future
-    ha_number_future = loop.create_future()
-
-    tests_complete_future = loop.create_future()
-
-    # Patterns to match in logs - only keeping patterns that capture values
-    lambda_computed_pattern = re.compile(r"Lambda computed value: (\d+)")
-    ha_temp_state_pattern = re.compile(r"Current HA Temperature: ([\d.]+)")
-    ha_humidity_state_pattern = re.compile(r"Current HA Humidity: ([\d.]+)")
-    ha_motion_state_pattern = re.compile(r"Current HA Motion: (ON|OFF)")
-    ha_weather_state_pattern = re.compile(r"Current HA Weather: (\w+)")
-
-    # State update patterns
-    temp_update_pattern = re.compile(r"HA Temperature state updated: ([\d.]+)")
-    humidity_update_pattern = re.compile(r"HA Humidity state updated: ([\d.]+)")
-    motion_update_pattern = re.compile(r"HA Motion state changed: (ON|OFF)")
-    weather_update_pattern = re.compile(r"HA Weather condition updated: (\w+)")
-    long_attr_pattern = re.compile(r"HA Long attribute received, length: (\d+)")
-
-    # Number pattern
-    ha_number_pattern = re.compile(r"Setting HA number to: ([\d.]+)")
-
-    tests_complete_pattern = re.compile(r"=== All tests completed ===")
-
-    # Track all log lines for debugging
-    log_lines: list[str] = []
+    # Log lines the tests wait for; the regex captures hold the logged values
+    waiter = LineWaiter()
+    lambda_computed_future = waiter.expect(re.compile(r"Lambda computed value: (\d+)"))
+    ha_temp_state_future = waiter.expect(re.compile(r"Current HA Temperature: [\d.]+"))
+    ha_humidity_state_future = waiter.expect(re.compile(r"Current HA Humidity: [\d.]+"))
+    ha_motion_state_future = waiter.expect(re.compile(r"Current HA Motion: (ON|OFF)"))
+    ha_weather_state_future = waiter.expect(re.compile(r"Current HA Weather: \w+"))
+    long_attr_future = waiter.expect(
+        re.compile(r"HA Long attribute received, length: (\d+)")
+    )
+    ha_number_future = waiter.expect(re.compile(r"Setting HA number to: ([\d.]+)"))
+    action_error_received_future = waiter.expect("Action error received:")
+    tests_complete_future = waiter.expect("=== All tests completed ===")
 
     # Track HomeAssistant service calls
     ha_service_calls: list[HomeassistantServiceCall] = []
@@ -101,9 +75,6 @@ async def test_api_homeassistant(
             "input_number.test_real_input_number",
         ): loop.create_future(),
     }
-
-    # Future for error message test
-    action_error_received_future = loop.create_future()
 
     # Store client reference for use in callback
     client_ref: list = []  # Use list to allow modification in nested function
@@ -133,61 +104,9 @@ async def test_api_homeassistant(
                 error_message=test_error_message,
             )
 
-    def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-        log_lines.append(line)
-
-        # Check for patterns that capture values
-        if not lambda_computed_future.done():
-            match = lambda_computed_pattern.search(line)
-            if match:
-                lambda_computed_future.set_result(match.group(1))
-        elif not ha_temp_state_future.done() and ha_temp_state_pattern.search(line):
-            ha_temp_state_future.set_result(line)
-        elif not ha_humidity_state_future.done() and ha_humidity_state_pattern.search(
-            line
-        ):
-            ha_humidity_state_future.set_result(line)
-        elif not ha_motion_state_future.done() and ha_motion_state_pattern.search(line):
-            ha_motion_state_future.set_result(line)
-        elif not ha_weather_state_future.done() and ha_weather_state_pattern.search(
-            line
-        ):
-            ha_weather_state_future.set_result(line)
-
-        # Check state update patterns
-        elif not temp_update_future.done() and temp_update_pattern.search(line):
-            temp_update_future.set_result(line)
-        elif not humidity_update_future.done() and humidity_update_pattern.search(line):
-            humidity_update_future.set_result(line)
-        elif not motion_update_future.done() and motion_update_pattern.search(line):
-            motion_update_future.set_result(line)
-        elif not weather_update_future.done() and weather_update_pattern.search(line):
-            weather_update_future.set_result(line)
-
-        # Check long attribute pattern - separate if since it can come at different times
-        if not long_attr_future.done():
-            match = long_attr_pattern.search(line)
-            if match:
-                long_attr_future.set_result(int(match.group(1)))
-
-        # Check number pattern - separate if since it can come at different times
-        if not ha_number_future.done():
-            match = ha_number_pattern.search(line)
-            if match:
-                ha_number_future.set_result(match.group(1))
-
-        # Check for action error message (tests StringRef -> std::string conversion)
-        # Use separate if (not elif) since this can come after tests_complete
-        if not action_error_received_future.done() and "Action error received:" in line:
-            action_error_received_future.set_result(line)
-
-        if not tests_complete_future.done() and tests_complete_pattern.search(line):
-            tests_complete_future.set_result(True)
-
     # Run with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
@@ -254,13 +173,13 @@ async def test_api_homeassistant(
         # Wait for all tests to complete with appropriate timeouts
         # Shown when a log line or service call does not arrive
         ctx = {
-            "logged": log_lines,
+            "logged": waiter.lines,
             "calls": lambda: [call.service for call in ha_service_calls],
         }
         # Templated service test - the main bug fix
-        computed_value = await wait_or_fail(
-            lambda_computed_future, 5.0, "no templated value", **ctx
-        )
+        computed_value = (
+            await wait_or_fail(lambda_computed_future, 5.0, "no templated value", **ctx)
+        ).group(1)
         # Verify the computed value is reasonable (75 * 255 / 100 = 191.25 -> 191)
         assert computed_value in ["191", "192"], (
             f"Unexpected computed value: {computed_value}"
@@ -270,33 +189,34 @@ async def test_api_homeassistant(
         temp_line = await wait_or_fail(
             ha_temp_state_future, 5.0, "no HA temperature", **ctx
         )
-        assert "Current HA Temperature: 22.5" in temp_line
+        assert "Current HA Temperature: 22.5" in temp_line.string
 
         humidity_line = await wait_or_fail(
             ha_humidity_state_future, 5.0, "no HA humidity", **ctx
         )
-        assert "Current HA Humidity: 65.0" in humidity_line
+        assert "Current HA Humidity: 65.0" in humidity_line.string
 
         motion_line = await wait_or_fail(
             ha_motion_state_future, 5.0, "no HA motion", **ctx
         )
-        assert "Current HA Motion: ON" in motion_line
+        assert "Current HA Motion: ON" in motion_line.string
 
         weather_line = await wait_or_fail(
             ha_weather_state_future, 5.0, "no HA weather", **ctx
         )
-        assert "Current HA Weather: sunny" in weather_line
+        assert "Current HA Weather: sunny" in weather_line.string
 
         # Number test
-        number_value = await wait_or_fail(
-            ha_number_future, 5.0, "no HA number value", **ctx
-        )
+        number_value = (
+            await wait_or_fail(ha_number_future, 5.0, "no HA number value", **ctx)
+        ).group(1)
         assert number_value == "42.5", f"Unexpected number value: {number_value}"
 
         # Long attribute test - verify 300 chars weren't truncated to 255
-        long_attr_len = await wait_or_fail(
+        long_attr_match = await wait_or_fail(
             long_attr_future, 5.0, "no long attribute", **ctx
         )
+        long_attr_len = int(long_attr_match.group(1))
         assert long_attr_len == 300, (
             f"Long attribute was truncated! Expected 300 chars, got {long_attr_len}. "
             "This indicates the 256-byte truncation bug."

@@ -52,7 +52,7 @@ DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
 DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor", cg.Component)
 VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
-VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", cg.Component)
+VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", sensor.Sensor)
 
 CONF_FLOW_RATE = "flow_rate"
 CONF_HEAT_QUANTITY = "heat_quantity"

@@ -46,4 +46,16 @@ TEST(SwitchRestore, DefaultAppliesOnlyWhenTheModeIsDisabled) {
   EXPECT_EQ(on.writes, std::vector<bool>{true});
 }
 
+TEST(SwitchRestore, InitialWriteStateAppliesInversion) {
+  RecordingSwitch on, inverted, disabled;
+  on.set_restore_mode(SWITCH_ALWAYS_ON);
+  inverted.set_restore_mode(SWITCH_ALWAYS_ON);
+  inverted.set_inverted(true);
+  disabled.set_restore_mode(SWITCH_RESTORE_DISABLED);
+  disabled.set_inverted(true);
+  EXPECT_EQ(on.get_initial_write_state(), optional<bool>(true));
+  EXPECT_EQ(inverted.get_initial_write_state(), optional<bool>(false));
+  EXPECT_FALSE(disabled.get_initial_write_state().has_value());
+}
+
 }  // namespace esphome::switch_::testing

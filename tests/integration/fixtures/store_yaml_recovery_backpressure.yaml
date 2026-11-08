@@ -1,0 +1,24 @@
+esphome:
+  name: store-yaml-backpressure
+
+host:
+
+logger:
+
+api:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [sndbuf_pin_component]
+
+# Pins the device's socket send buffers for deterministic TCP backpressure
+sndbuf_pin_component:
+  buffer_size: SERVER_SNDBUF
+
+store_yaml:
+  allow_unencrypted: true
+
+substitutions:
+# GENERATED_SUBSTITUTIONS

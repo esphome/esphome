@@ -1,6 +1,9 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+import dataclasses
+from dataclasses import dataclass
+import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from esphome import automation
 import esphome.codegen as cg
@@ -53,11 +56,20 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import ID, coroutine
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    Lambda,
+    coroutine,
+    coroutine_with_priority,
+)
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]
 DOMAIN = "remote_base"
@@ -115,9 +127,10 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 )
 
 
-# Listener and dumper lists are StaticVectors sized from these counts, so every registration
-# must go through add_listener / add_dumper. Every receiver's list gets the same capacity, so
-# the slots are keyed by receiver and the define is the largest count any one receiver needs.
+# Listener lists are StaticVectors sized from these counts, so every registration must go
+# through add_listener. Every receiver's list gets the same capacity, so the slots are keyed by
+# receiver and the define is the largest count any one receiver needs. Dumpers go into an exact
+# per receiver table; their define only marks that dumper storage and register_dumper are compiled in.
 LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
 DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
 
@@ -131,9 +144,43 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
     cg.add(receiver.register_listener(listener))
 
 
+@dataclass
+class _RemoteBaseData:
+    # receiver id -> (receiver, its dumpers in registration order)
+    tables: dict[str, tuple[MockObj, list[MockObj]]] = dataclasses.field(
+        default_factory=dict
+    )
+    # dumper type -> its one flash object, shared by every receiver that lists it
+    flash_dumpers: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+def _get_data() -> _RemoteBaseData:
+    return CORE.data.setdefault(DOMAIN, _RemoteBaseData())
+
+
+def _get_dumper_tables() -> dict[str, tuple[MockObj, list[MockObj]]]:
+    return _get_data().tables
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_dumper_tables() -> None:
+    for receiver, dumpers in _get_dumper_tables().values():
+        table = cg.shared_progmem_array(
+            "remote_dumpers",
+            RemoteReceiverDumperBase.operator("ptr"),
+            cg.ArrayInitializer(*dumpers),
+            constexpr=False,
+        )
+        cg.add(receiver.set_dumpers(table, len(dumpers)))
+
+
 def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
+    # Raises once the define is written, so a late dumper can't miss the tables
     _request_dumper_slot(str(receiver))
-    cg.add(receiver.register_dumper(dumper))
+    receivers = _get_dumper_tables()
+    if not receivers:
+        CORE.add_job(_emit_dumper_tables)
+    receivers.setdefault(str(receiver), (receiver, []))[1].append(dumper)
 
 
 async def register_listener(var: MockObj, config: ConfigType) -> None:
@@ -233,7 +280,32 @@ def register_trigger(name, type, data_type):
     return decorator
 
 
+def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
+    """Place a stateless dumper in flash; the receiver only ever calls it."""
+    flash_dumpers = _get_data().flash_dumpers
+    if (storage := flash_dumpers.get(str(dumper_id.type))) is None:
+        # A generated name a config id cannot take; registered so later globals avoid it too
+        storage_id = cg.unique_global_id(f"{dumper_id.id}__flash", dumper_id.type)
+        storage = flash_dumpers[str(dumper_id.type)] = storage_id.id
+        CORE.register_variable(storage_id, cg.MockObj(storage))
+        CORE.add_global_after_includes(
+            cg.RawStatement(
+                f"static_assert(sizeof({dumper_id.type}) == sizeof(void *) && "
+                f"std::is_trivially_destructible_v<{dumper_id.type}>, "
+                '"a dumper kept in flash must have no data members or destructor");'
+            )
+        )
+        CORE.add_global_after_includes(
+            cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
+        )
+    # A constant address for the receiver's flash table; lambdas get a pointer-like object
+    address = f"const_cast<{dumper_id.type} *>(&{storage})"
+    CORE.register_variable(dumper_id, cg.MockObj(address, "->"))
+    return cg.RawExpression(address)
+
+
 def register_dumper(name, type, schema=None):
+    """Dumpers are stateless, so each is a flash object; one with data members fails the build."""
     if schema is None:
         schema = {}
     registerer = DUMPER_REGISTRY.register(name, type, schema)
@@ -241,7 +313,7 @@ def register_dumper(name, type, schema=None):
     def decorator(func):
         async def new_func(config, dumper_id):
             _request_protocol_if_in_tree(name)
-            var = cg.new_Pvariable(dumper_id)
+            var = _new_flash_dumper(dumper_id)
             await coroutine(func)(var, config)
             return var
 
@@ -365,8 +437,18 @@ def register_protocol_action(
         call=f"{call}<{ns.class_(f'{protocol}Protocol')}>",
         id_key=CONF_TRANSMITTER_ID,
     )
+    _register_apply_transmit(name, action, validator, builder)
 
-    async def protocol_builder(
+
+def _register_apply_transmit(
+    name: str,
+    action: str,
+    validator: Any,
+    builder: Callable[..., Awaitable[MockObj]],
+) -> None:
+    """Register ``builder`` for ``action`` as a core ``ApplyAction`` that keeps the protocol's source."""
+
+    async def transmit_builder(
         config: ConfigType,
         action_id: ID,
         template_arg: cg.TemplateArguments,
@@ -377,7 +459,70 @@ def register_protocol_action(
 
     automation.register_action(
         action, automation.ApplyAction, validator, synchronous=True
-    )(protocol_builder)
+    )(transmit_builder)
+
+
+# The transmit data the statements of a ``_register_transmit_action`` encoder fill
+_CALL_DATA = "esphome__call.get_data()"
+
+
+async def _transmit_value(
+    value: Any,
+    args: TemplateArgsType,
+    type_: SafeExpType,
+    const_fn: Callable[[Any], Any] = cg.safe_exp,
+) -> str:
+    """Argument text for one templatable transmit value.
+
+    A lambda keeps the trigger's own argument types and is always called, so its body may
+    modify its by-value arguments.
+    """
+    if isinstance(value, Lambda):
+        lamb = await cg.process_lambda(value, args, return_type=type_)
+        return str(automation.immediate_lambda_call(lamb))
+    return str(const_fn(value))
+
+
+def _register_transmit_action(
+    name: str,
+    schema: cv.Schema,
+    encode: Callable[[ConfigType, TemplateArgsType], Awaitable[list[str]]],
+) -> None:
+    """Register ``transmit_<name>`` as inline statements, with no C++ action class.
+
+    ``encode(config, args)`` returns the statements that fill ``_CALL_DATA``;
+    they run before ``repeat`` is read and the call is performed, in the order the old
+    ``RemoteTransmitterActionBase::play()`` used.
+    """
+    action, _, validator = _transmit_action(name, schema, None)
+
+    async def builder(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: TemplateArgsType,
+    ) -> MockObj:
+        _request_protocol_if_in_tree(name)
+        transmitter = automation.parent_ref(
+            await cg.get_variable(config[CONF_TRANSMITTER_ID])
+        )
+        statements = [
+            f"auto esphome__call = {transmitter.transmit()};",
+            *await encode(config, args),
+        ]
+        if (repeat := config.get(CONF_REPEAT)) is not None:
+            for key, setter in (
+                (CONF_TIMES, "set_send_times"),
+                (CONF_WAIT_TIME, "set_send_wait"),
+            ):
+                value = await _transmit_value(repeat[key], args, cg.uint32)
+                statements.append(f"esphome__call.{setter}({value});")
+        statements.append("esphome__call.perform();")
+        return automation.apply_statements_action(
+            action_id, template_arg, args, statements
+        )
+
+    _register_apply_transmit(name, action, validator, builder)
 
 
 def declare_protocol(name):
@@ -1277,12 +1422,16 @@ register_protocol_action(
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+    }
+)
+PRONTO_BINARY_SENSOR_SCHEMA = PRONTO_SCHEMA.extend(
+    {
         cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
 
 
-@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_SCHEMA)
+@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_BINARY_SENSOR_SCHEMA)
 def pronto_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -1305,7 +1454,6 @@ def pronto_dumper(var, config):
     pass
 
 
-# delta only matters when matching a received code
 register_protocol_action(
     "pronto", "Pronto", PRONTO_SCHEMA, (CONF_DATA, "data", cg.std_string)
 )
@@ -1500,7 +1648,8 @@ def validate_raw_alternating(value):
     return value
 
 
-RawData, RawBinarySensor, RawTrigger, RawAction, RawDumper = declare_protocol("Raw")
+RawData, RawBinarySensor, RawTrigger, _, RawDumper = declare_protocol("Raw")
+encode_raw_timings = ns.encode_raw_timings
 CONF_CODE_STORAGE_ID = "code_storage_id"
 RAW_SCHEMA = cv.Schema(
     {
@@ -1532,9 +1681,32 @@ def raw_dumper(var, config):
     pass
 
 
-@register_action(
+async def _raw_encode(config: ConfigType, args: TemplateArgsType) -> list[str]:
+    data = _CALL_DATA
+    code = config[CONF_CODE]
+    if config[CONF_CODE_STORAGE_ID].is_manual:
+        _LOGGER.warning(
+            "transmit_raw ignores code_storage_id '%s'; equal codes share one table",
+            config[CONF_CODE_STORAGE_ID],
+        )
+    if isinstance(code, Lambda):
+        timings = await _transmit_value(code, args, cg.std_vector.template(cg.int32))
+        statements = [f"{data}->set_data({timings});"]
+    else:
+        # Equal codes share one flash table
+        table = cg.shared_progmem_array(
+            "remote_base_raw_code", cg.int32, cg.ArrayInitializer(*code)
+        )
+        statements = [f"{encode_raw_timings}({data}, ::{table}, {len(code)});"]
+    # transmit() already resets the frequency to 0
+    if (frequency := config[CONF_CARRIER_FREQUENCY]) != 0:
+        frequency = await _transmit_value(frequency, args, cg.uint32)
+        statements.append(f"{data}->set_carrier_frequency({frequency});")
+    return statements
+
+
+_register_transmit_action(
     "raw",
-    RawAction,
     RAW_SCHEMA.extend(
         {
             cv.Optional(CONF_CARRIER_FREQUENCY, default="0Hz"): cv.All(
@@ -1542,18 +1714,8 @@ def raw_dumper(var, config):
             ),
         }
     ),
+    _raw_encode,
 )
-async def raw_action(var, config, args):
-    code_ = config[CONF_CODE]
-    if cg.is_template(code_):
-        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.int32))
-        cg.add(var.set_code_template(template_))
-    else:
-        code_ = config[CONF_CODE]
-        arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
-        cg.add(var.set_code_static(arr, len(code_)))
-    templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
-    cg.add(var.set_carrier_frequency(templ))
 
 
 # Drayton
@@ -1911,15 +2073,11 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
 rc_switch_protocol = ns.rc_switch_protocol
 rc_switch_protocol_copy = ns.rc_switch_protocol_copy
 RC_SWITCH_PROTOCOLS = ns.RC_SWITCH_PROTOCOLS
+decode_binary_string = ns.decode_binary_string
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
 RCSwitchDumper = ns.class_("RCSwitchDumper", RemoteReceiverDumperBase)
-RCSwitchRawAction = ns.class_("RCSwitchRawAction", RemoteTransmitterActionBase)
-RCSwitchTypeAAction = ns.class_("RCSwitchTypeAAction", RemoteTransmitterActionBase)
-RCSwitchTypeBAction = ns.class_("RCSwitchTypeBAction", RemoteTransmitterActionBase)
-RCSwitchTypeCAction = ns.class_("RCSwitchTypeCAction", RemoteTransmitterActionBase)
-RCSwitchTypeDAction = ns.class_("RCSwitchTypeDAction", RemoteTransmitterActionBase)
 RCSwitchRawReceiver = ns.class_("RCSwitchRawReceiver", RemoteReceiverBinarySensorBase)
 
 
@@ -1927,19 +2085,6 @@ RCSwitchRawReceiver = ns.class_("RCSwitchRawReceiver", RemoteReceiverBinarySenso
 def rc_switch_raw_binary_sensor(var, config):
     cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
-
-
-@register_action(
-    "rc_switch_raw",
-    RCSwitchRawAction,
-    RC_SWITCH_RAW_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
-)
-async def rc_switch_raw_action(var, config, args):
-    proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
-    )
-    cg.add(var.set_protocol(proto))
-    cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
 
 
 @register_binary_sensor(
@@ -1950,23 +2095,6 @@ def rc_switch_type_a_binary_sensor(var, config):
     cg.add(var.set_type_a(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
-@register_action(
-    "rc_switch_type_a",
-    RCSwitchTypeAAction,
-    RC_SWITCH_TYPE_A_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
-)
-async def rc_switch_type_a_action(var, config, args):
-    proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
-    )
-    cg.add(var.set_protocol(proto))
-    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
-    cg.add(
-        var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.std_string))
-    )
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
-
-
 @register_binary_sensor(
     "rc_switch_type_b", RCSwitchRawReceiver, RC_SWITCH_TYPE_B_SCHEMA
 )
@@ -1975,21 +2103,6 @@ def rc_switch_type_b_binary_sensor(var, config):
     cg.add(
         var.set_type_b(config[CONF_ADDRESS], config[CONF_CHANNEL], config[CONF_STATE])
     )
-
-
-@register_action(
-    "rc_switch_type_b",
-    RCSwitchTypeBAction,
-    RC_SWITCH_TYPE_B_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
-)
-async def rc_switch_type_b_action(var, config, args):
-    proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
-    )
-    cg.add(var.set_protocol(proto))
-    cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
-    cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -2007,24 +2120,6 @@ def rc_switch_type_c_binary_sensor(var, config):
     )
 
 
-@register_action(
-    "rc_switch_type_c",
-    RCSwitchTypeCAction,
-    RC_SWITCH_TYPE_C_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
-)
-async def rc_switch_type_c_action(var, config, args):
-    proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
-    )
-    cg.add(var.set_protocol(proto))
-    cg.add(
-        var.set_family(await cg.templatable(config[CONF_FAMILY], args, cg.std_string))
-    )
-    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
-    cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
-
-
 @register_binary_sensor(
     "rc_switch_type_d",
     RCSwitchRawReceiver,
@@ -2035,19 +2130,141 @@ def rc_switch_type_d_binary_sensor(var, config):
     cg.add(var.set_type_d(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
-@register_action(
-    "rc_switch_type_d",
-    RCSwitchTypeDAction,
-    RC_SWITCH_TYPE_D_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
-)
-async def rc_switch_type_d_action(var, config, args):
-    proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
+def _rc_switch_bits(code: str) -> int:
+    """``decode_binary_string()`` at build time: every character but ``0`` is a one."""
+    return int("".join("0" if c == "0" else "1" for c in code), 2)
+
+
+def _rc_switch_letter_index(value: str) -> int:
+    """A family or group letter as its index, as the C++ ``tolower(value[0]) - 'a'``."""
+    return ord(value[0].lower()) - ord("a")
+
+
+class _RCSwitchArg(NamedTuple):
+    """One argument of an ``RCSwitchBase::type_*_code()`` call, read from config."""
+
+    key: str
+    # What the user lambda returns, and how its value becomes the argument
+    lambda_type: SafeExpType = cg.uint8
+    convert: str = "{}"
+    const_fn: Callable[[Any], Any] = cg.safe_exp
+
+
+def _rc_switch_binary(key: str) -> _RCSwitchArg:
+    return _RCSwitchArg(
+        key, cg.std_string, f"{decode_binary_string}({{}})", _rc_switch_bits
     )
-    cg.add(var.set_protocol(proto))
-    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
-    cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
+
+
+def _rc_switch_letter(key: str) -> _RCSwitchArg:
+    return _RCSwitchArg(
+        key,
+        cg.std_string,
+        "static_cast<uint8_t>(tolower({}[0]) - 'a')",
+        _rc_switch_letter_index,
+    )
+
+
+_RC_SWITCH_STATE = _RCSwitchArg(CONF_STATE, cg.bool_)
+
+
+async def _rc_switch_send(
+    config: ConfigType, args: TemplateArgsType, code: str, nbits: str
+) -> str:
+    """The statement that sends ``code``; the protocol is read last, as before."""
+    proto = await _transmit_value(
+        config[CONF_PROTOCOL], args, RCSwitchBase, rc_switch_protocol_value
+    )
+    return f"{proto}.transmit({_CALL_DATA}, {code}, {nbits});"
+
+
+async def _rc_switch_raw_encode(
+    config: ConfigType, args: TemplateArgsType
+) -> list[str]:
+    code = config[CONF_CODE]
+    if isinstance(code, Lambda):
+        value = await _transmit_value(code, args, cg.std_string)
+        statements = [f"const std::string esphome__code = {value};"]
+        bits, nbits = f"{decode_binary_string}(esphome__code)", "esphome__code.size()"
+    else:
+        statements = []
+        bits, nbits = str(cg.safe_exp(_rc_switch_bits(code))), str(len(code))
+    return [*statements, await _rc_switch_send(config, args, bits, nbits)]
+
+
+def _rc_switch_type_encode(
+    type_code: str, *fields: _RCSwitchArg
+) -> Callable[[ConfigType, TemplateArgsType], Awaitable[list[str]]]:
+    """Statements running ``RCSwitchBase::<type_code>`` on the fields, in order, then sending."""
+
+    async def encode(config: ConfigType, args: TemplateArgsType) -> list[str]:
+        statements: list[str] = []
+        values: list[str] = []
+        for field in fields:
+            value = config[field.key]
+            arg = await _transmit_value(value, args, field.lambda_type, field.const_fn)
+            if isinstance(value, Lambda):
+                # A local per lambda keeps the old evaluation order
+                local = f"esphome__{field.key}"
+                statements.append(f"const auto {local} = {field.convert.format(arg)};")
+                arg = local
+            values.append(arg)
+        return [
+            *statements,
+            "uint64_t esphome__code;",
+            "uint8_t esphome__nbits;",
+            f"{RCSwitchBase}::{type_code}({', '.join(values)}, &esphome__code, &esphome__nbits);",
+            await _rc_switch_send(config, args, "esphome__code", "esphome__nbits"),
+        ]
+
+    return encode
+
+
+for _name, _schema, _encode in (
+    ("rc_switch_raw", RC_SWITCH_RAW_SCHEMA, _rc_switch_raw_encode),
+    (
+        "rc_switch_type_a",
+        RC_SWITCH_TYPE_A_SCHEMA,
+        _rc_switch_type_encode(
+            "type_a_code",
+            _rc_switch_binary(CONF_GROUP),
+            _rc_switch_binary(CONF_DEVICE),
+            _RC_SWITCH_STATE,
+        ),
+    ),
+    (
+        "rc_switch_type_b",
+        RC_SWITCH_TYPE_B_SCHEMA,
+        _rc_switch_type_encode(
+            "type_b_code",
+            _RCSwitchArg(CONF_ADDRESS),
+            _RCSwitchArg(CONF_CHANNEL),
+            _RC_SWITCH_STATE,
+        ),
+    ),
+    (
+        "rc_switch_type_c",
+        RC_SWITCH_TYPE_C_SCHEMA,
+        _rc_switch_type_encode(
+            "type_c_code",
+            _rc_switch_letter(CONF_FAMILY),
+            _RCSwitchArg(CONF_GROUP),
+            _RCSwitchArg(CONF_DEVICE),
+            _RC_SWITCH_STATE,
+        ),
+    ),
+    (
+        "rc_switch_type_d",
+        RC_SWITCH_TYPE_D_SCHEMA,
+        _rc_switch_type_encode(
+            "type_d_code",
+            _rc_switch_letter(CONF_GROUP),
+            _RCSwitchArg(CONF_DEVICE),
+            _RC_SWITCH_STATE,
+        ),
+    ),
+):
+    _register_transmit_action(_name, _schema.extend(RC_SWITCH_TRANSMITTER), _encode)
 
 
 @register_trigger("rc_switch", RCSwitchTrigger, RCSwitchData)
@@ -2797,27 +3014,56 @@ register_protocol_action(
     TotoDumper,
 ) = declare_protocol("Toto")
 
+# The fields of the old most-significant-bit-first reading of code, still accepted
+_TOTO_LEGACY_KEYS = (CONF_RC_CODE_1, CONF_RC_CODE_2, CONF_COMMAND)
+
 TOTO_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_RC_CODE_1, default=0): cv.hex_int_range(0, 0xF),
-        cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_int_range(0, 0xF),
-        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+        cv.Optional(CONF_CODE): cv.hex_uint16_t,
+        cv.Optional(CONF_RC_CODE_1): cv.hex_int_range(0, 0xF),
+        cv.Optional(CONF_RC_CODE_2): cv.hex_int_range(0, 0xF),
+        cv.Optional(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
 
 
-@register_binary_sensor("toto", TotoBinarySensor, TOTO_SCHEMA)
-def toto_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                TotoData,
-                ("rc_code_1", config[CONF_RC_CODE_1]),
-                ("rc_code_2", config[CONF_RC_CODE_2]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
+def _reverse_byte(value: int) -> int:
+    return int(f"{value:08b}"[::-1], 2)
+
+
+def _toto_legacy_code(config: ConfigType) -> int:
+    rc_codes = config.get(CONF_RC_CODE_1, 0) << 4 | config.get(CONF_RC_CODE_2, 0)
+    return _reverse_byte(config[CONF_COMMAND]) << 8 | _reverse_byte(rc_codes)
+
+
+def _toto_warn_legacy(config: ConfigType) -> ConfigType:
+    if CONF_COMMAND not in config:
+        if CONF_RC_CODE_1 in config or CONF_RC_CODE_2 in config:
+            raise cv.Invalid("'rc_code_1' and 'rc_code_2' need 'command'")
+        return config
+    if any(cg.is_template(config.get(key)) for key in _TOTO_LEGACY_KEYS):
+        replacement = "'code'"
+    else:
+        replacement = f"'code: 0x{_toto_legacy_code(config):04X}'"
+    _LOGGER.warning(
+        "Toto 'rc_code_1', 'rc_code_2' and 'command' are deprecated, use %s. Removed in 2027.6.0",
+        replacement,
     )
+    return config
+
+
+_validate_toto_form = cv.All(
+    cv.has_exactly_one_key(CONF_CODE, CONF_COMMAND),
+    _toto_warn_legacy,
+)
+
+
+@register_binary_sensor(
+    "toto", TotoBinarySensor, cv.All(TOTO_SCHEMA, _validate_toto_form)
+)
+def toto_binary_sensor(var, config):
+    code = _toto_legacy_code(config) if CONF_COMMAND in config else config[CONF_CODE]
+    cg.add(var.set_data(cg.StructInitializer(TotoData, ("code", code))))
 
 
 @register_trigger("toto", TotoTrigger, TotoData)
@@ -2841,10 +3087,18 @@ register_protocol_action(
     "toto",
     "Toto",
     TOTO_SCHEMA,
-    (CONF_RC_CODE_1, "rc_code_1", cg.uint8),
-    (CONF_RC_CODE_2, "rc_code_2", cg.uint8),
-    (CONF_COMMAND, "command", cg.uint8),
-    validate=_toto_default_repeat,
+    (CONF_CODE, "code", cg.uint16),
+    # The legacy fields set their bits of code, so they also work as lambdas
+    automation.ApplyField(
+        CONF_RC_CODE_1, "data.code |= reverse_bits(uint8_t(({}) << 4))", cg.uint8
+    ),
+    automation.ApplyField(
+        CONF_RC_CODE_2, "data.code |= reverse_bits(uint8_t(({}) & 0x0F))", cg.uint8
+    ),
+    automation.ApplyField(
+        CONF_COMMAND, "data.code |= reverse_bits(uint8_t({})) << 8", cg.uint8
+    ),
+    validate=cv.All(_validate_toto_form, _toto_default_repeat),
 )
 
 
@@ -2978,4 +3232,74 @@ register_protocol_action(
     (CONF_REMOTE_ID, "remote_id", cg.uint32),
     (CONF_CHANNELS, "channels", cg.uint16),
     (CONF_COMMAND, "command", cg.uint8),
+)
+
+
+# Cardin S438
+(
+    CardinS438Data,
+    CardinS438BinarySensor,
+    CardinS438Trigger,
+    _,
+    CardinS438Dumper,
+) = declare_protocol("CardinS438")
+
+
+CARDIN_S438_CHANNELS = {
+    "A": 0x02,
+    "B": 0x00,
+    "C": 0x03,
+    "D": 0x01,
+}
+
+
+def _validate_cardin_s438_code(code):
+    """Accept the DIP switches as a 14-character binary string."""
+    code = cv.string_strict(code)
+    if len(code) != 14 or any(bit not in "01" for bit in code):
+        raise cv.Invalid("code must be exactly 14 binary digits, e.g. '10100110101010'")
+    return int(code, 2)
+
+
+CARDIN_S438_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): _validate_cardin_s438_code,
+        cv.Optional(CONF_CHANNEL, default="A"): cv.enum(
+            CARDIN_S438_CHANNELS, upper=True
+        ),
+        cv.Optional(CONF_COMMAND_REPEATS, default=3): cv.int_range(min=1, max=255),
+    }
+)
+
+
+@register_binary_sensor("cardin_s438", CardinS438BinarySensor, CARDIN_S438_SCHEMA)
+def cardin_s438_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CardinS438Data,
+                ("code", config[CONF_CODE]),
+                ("channel", config[CONF_CHANNEL]),
+            )
+        )
+    )
+
+
+@register_trigger("cardin_s438", CardinS438Trigger, CardinS438Data)
+def cardin_s438_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("cardin_s438", CardinS438Dumper)
+def cardin_s438_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "cardin_s438",
+    "CardinS438",
+    CARDIN_S438_SCHEMA,
+    (CONF_CODE, "code", cg.uint16),
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_COMMAND_REPEATS, "repeats", cg.uint8),
 )
