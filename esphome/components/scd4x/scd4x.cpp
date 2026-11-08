@@ -158,7 +158,7 @@ void SCD4XComponent::update() {
     }
     // Read off sensor data
     uint16_t raw_data[3];
-    if (!this->status_comm_check(this->read_data(raw_data, 3)))
+    if (!this->status_comm_result(this->read_data(raw_data, 3)))
       return;
     PUBLISH_STATE(this->co2_sensor_, raw_data[0]);
 
@@ -170,7 +170,6 @@ void SCD4XComponent::update() {
       const float humidity = (100.0f * raw_data[2]) / (1 << 16);
       this->humidity_sensor_->publish_state(humidity);
     }
-    this->status_clear_warning();
   });  // set_timeout
 }
 

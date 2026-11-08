@@ -157,7 +157,7 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
   }
 
   uint16_t raw_conversion;
-  if (!this->status_comm_check(this->read_byte_16(ADS1115_REGISTER_CONVERSION, &raw_conversion)))
+  if (!this->status_comm_result(this->read_byte_16(ADS1115_REGISTER_CONVERSION, &raw_conversion)))
     return NAN;
 
   if (resolution == ADS1015_12_BITS) {
@@ -192,7 +192,6 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
       millivolts = NAN;
   }
 
-  this->status_clear_warning();
   return millivolts / 1e3f;
 }
 

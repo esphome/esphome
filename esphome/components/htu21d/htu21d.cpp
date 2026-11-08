@@ -53,7 +53,7 @@ void HTU21DComponent::update() {
 
     this->set_timeout(50, [this]() {
       uint16_t raw_humidity;
-      if (!this->status_comm_check(this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) == i2c::ERROR_OK))
+      if (!this->status_comm_result(this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) == i2c::ERROR_OK))
         return;
       raw_humidity = i2c::i2ctohs(raw_humidity);
 
@@ -62,8 +62,6 @@ void HTU21DComponent::update() {
       ESP_LOGD(TAG, "Got Humidity=%.1f%%", humidity);
 
       PUBLISH_STATE(this->humidity_sensor_, humidity);
-
-      this->status_clear_warning();
 
       // HTU21D does have a heater module but does not have heater level
       // Setting heater level to 1 in case the heater is ON

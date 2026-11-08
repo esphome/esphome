@@ -135,7 +135,7 @@ void SCD30Component::update() {
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[6];
-    if (!this->status_comm_check(this->read_data(raw_data, 6)))
+    if (!this->status_comm_result(this->read_data(raw_data, 6)))
       return;
 
     union uint32_float_t {
@@ -155,8 +155,6 @@ void SCD30Component::update() {
     PUBLISH_STATE(this->co2_sensor_, co2.value);
     PUBLISH_STATE(this->temperature_sensor_, temperature.value);
     PUBLISH_STATE(this->humidity_sensor_, humidity.value);
-
-    this->status_clear_warning();
   });
 }
 

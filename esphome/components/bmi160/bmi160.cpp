@@ -218,7 +218,7 @@ void BMI160Component::update() {
   float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
 
   int16_t raw_temperature;
-  if (!this->status_comm_check(this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)))
+  if (!this->status_comm_result(this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)))
     return;
   float temperature = (float) raw_temperature / (float) INT16_MAX * 64.5f + 23.f;
 
@@ -236,8 +236,6 @@ void BMI160Component::update() {
   PUBLISH_STATE(this->gyro_x_sensor_, gyro_x);
   PUBLISH_STATE(this->gyro_y_sensor_, gyro_y);
   PUBLISH_STATE(this->gyro_z_sensor_, gyro_z);
-
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::bmi160

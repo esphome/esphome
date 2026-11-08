@@ -17,7 +17,7 @@ void LM75BComponent::dump_config() {
 void LM75BComponent::update() {
   // Create a temporary buffer
   uint8_t buff[2];
-  if (!this->status_comm_check(this->read_register(LM75B_REG_TEMPERATURE, buff, 2) == i2c::ERROR_OK))
+  if (!this->status_comm_result(this->read_register(LM75B_REG_TEMPERATURE, buff, 2) == i2c::ERROR_OK))
     return;
   // Obtain combined 16-bit value
   int16_t raw_temperature = encode_value<int16_t>(buff);
@@ -25,9 +25,6 @@ void LM75BComponent::update() {
   raw_temperature >>= 5;
   // Publish the temperature in °C
   this->publish_state(raw_temperature * 0.125);
-  if (this->status_has_warning()) {
-    this->status_clear_warning();
-  }
 }
 
 }  // namespace esphome::lm75b

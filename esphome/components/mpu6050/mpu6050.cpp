@@ -65,7 +65,7 @@ void MPU6050Component::dump_config() {
 void MPU6050Component::update() {
   ESP_LOGV(TAG, "Updating");
   uint16_t raw_data[7];
-  if (!this->status_comm_check(this->read_bytes_16(MPU6050_REGISTER_ACCEL_XOUT_H, raw_data, 7)))
+  if (!this->status_comm_result(this->read_bytes_16(MPU6050_REGISTER_ACCEL_XOUT_H, raw_data, 7)))
     return;
   auto *data = reinterpret_cast<int16_t *>(raw_data);
 
@@ -93,8 +93,6 @@ void MPU6050Component::update() {
   PUBLISH_STATE(this->gyro_x_sensor_, gyro_x);
   PUBLISH_STATE(this->gyro_y_sensor_, gyro_y);
   PUBLISH_STATE(this->gyro_z_sensor_, gyro_z);
-
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::mpu6050

@@ -35,7 +35,7 @@ void TOF10120Sensor::update() {
   if (!this->status_comm_check(this->write(&TOF10120_DISTANCE_REGISTER, 1) == i2c::ERROR_OK))
     return;
   delay(TOF10120_DEFAULT_DELAY);
-  if (!this->status_comm_check(this->read(data, 2) == i2c::ERROR_OK))
+  if (!this->status_comm_result(this->read(data, 2) == i2c::ERROR_OK))
     return;
 
   uint32_t distance_mm = encode_uint16(data[0], data[1]);
@@ -47,7 +47,6 @@ void TOF10120Sensor::update() {
   } else {
     this->publish_state(distance_mm / 1000.0f);
   }
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::tof10120
