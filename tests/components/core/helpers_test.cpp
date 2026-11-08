@@ -96,6 +96,33 @@ TEST(HelpersTest, XorBytes) {
   static_assert(xor_bytes(FRAME, 2) == 0x02, "usable in constant expressions");
 }
 
+TEST(HelpersTest, Crc32CheckValue) {
+  static constexpr uint8_t DATA[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+  EXPECT_EQ(crc32(0, DATA, sizeof(DATA)), 0xCBF43926);
+}
+
+TEST(HelpersTest, Crc32AllByteValues) {
+  uint8_t data[256];
+  for (size_t i = 0; i < sizeof(data); i++)
+    data[i] = i;
+  EXPECT_EQ(crc32(0, data, sizeof(data)), 0x29058C73);  // zlib.crc32(bytes(range(256)))
+}
+
+TEST(HelpersTest, Crc32Chained) {
+  uint8_t data[256];
+  for (size_t i = 0; i < sizeof(data); i++)
+    data[i] = i * 7;
+  const uint32_t whole = crc32(0, data, sizeof(data));
+  EXPECT_EQ(crc32(crc32(0, data, 100), data + 100, sizeof(data) - 100), whole);
+  EXPECT_EQ(crc32(crc32(crc32(0, data, 1), data + 1, 254), data + 255, 1), whole);
+}
+
+TEST(HelpersTest, Crc32EmptyReturnsSeed) {
+  static constexpr uint8_t DATA[] = {0x00};
+  EXPECT_EQ(crc32(0, DATA, 0), 0u);
+  EXPECT_EQ(crc32(0x12345678, DATA, 0), 0x12345678u);
+}
+
 TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
   StaticVector<uint8_t, 5> small{0x03, 0x00, 0x10, 0x00, 0x01};
   StaticVector<uint8_t, 253> big = small;
