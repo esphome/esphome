@@ -234,6 +234,24 @@ TEST(MCP251XFDRecovery, ChipResetWith4MHzOscillatorReconfiguresAtSlowSpiRate) {
   EXPECT_FALSE(controller.status_has_warning());
 }
 
+TEST(MCP251XFDRecovery, OneFailedReadDoesNotResetA4MHzChip) {
+  RegisterDelegate spi;
+  spi.oscillator_4mhz = true;
+  TestMCP251XFD controller(&spi, CanMode::CAN_MODE_NORMAL, CanClock::CAN_CLOCK_4MHZ);
+  spi.registers[REG_OSC] = OSC_PLL_ENABLE;
+  controller.poll(100);
+
+  // A burst of noise on the due poll fails the INT read and its retries, with no earlier fault
+  spi.corrupt_next_reads(REG_INT);
+  controller.poll(5100);
+  EXPECT_TRUE(controller.status_has_warning());
+  EXPECT_EQ(spi.writes_to(REG_CON), 0u);
+  EXPECT_EQ(controller.spi_teardowns, 0u);
+
+  controller.poll(5200);
+  EXPECT_FALSE(controller.status_has_warning());
+}
+
 TEST(MCP251XFDRecovery, PeriodicCheckFixesStrayModeRequest) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);

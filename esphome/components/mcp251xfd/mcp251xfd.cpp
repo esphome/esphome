@@ -399,9 +399,11 @@ canbus::CanEventFlags MCP251XFD::get_events() {
   const bool mode_check_due = now - this->last_mode_check_time_ >= MODE_RECOVERY_INTERVAL_MS;
 
   std::array<uint8_t, 2> interrupt_flags;
+  const bool comm_fault_persisted = this->comm_fault_active_;
   if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size())) {
-    // A chip reset turns the PLL off, which leaves a 4 MHz SYSCLK too slow for the SPI rate, so every read fails
-    if (this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ && mode_check_due) {
+    // A chip reset turns the PLL off, which leaves a 4 MHz SYSCLK too slow for the SPI rate, so every read fails;
+    // a fault that outlived an earlier poll tells that apart from one burst of noise
+    if (this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ && mode_check_due && comm_fault_persisted) {
       this->last_mode_check_time_ = now;
       ESP_LOGW(TAG, "SPI reads failing, reconfiguring");
       this->configure_();
