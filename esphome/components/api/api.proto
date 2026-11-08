@@ -467,7 +467,7 @@ message DeviceWizardRequest {
 //
 //   {"version": 1,
 //    "pages": [{"title": "...", "description": "...",
-//      "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+//      "entities": [{"key": 123, "device_id": 456, "description": "...", "role": "..."}],
 //      "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
 //        "entity_filters": [{"integration": "...", "domain": ["..."],
 //                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -480,6 +480,9 @@ message DeviceWizardRequest {
 // An entity is an entity of this device that the page shows to the user (for example to
 // turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
 // device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+// Its role, when set, is a stable name that the device's firmware gives the entity
+// (always <component>.<name>), so a client can recognise it. The user cannot change it,
+// and no two entities of a wizard share one.
 //
 // An input is filled in by the user with the id of a Home Assistant entity. It either
 // stands for one entity of the device's homeassistant platform (sensor, binary_sensor,

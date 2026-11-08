@@ -1,0 +1,52 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: i2c_bus
+    scl: GPIO16
+    sda: GPIO17
+
+bq25820:
+  - id: charger_defaults
+    i2c_id: i2c_bus
+  - id: charger_set
+    i2c_id: i2c_bus
+    address: 0x75
+    update_interval: 30s
+    charge_current: 3A
+    precharge_current: 1A
+    input_current_limit: 8A
+    input_voltage_limit: 40V
+    reverse_system_voltage: 3.3V
+    charge_voltage: 1.55V
+    watchdog: 40s
+    charge_timer: 12h
+    topoff_timer: 30m
+    hiz_enabled: true
+    charge_enabled: false
+    ideal_diode: true
+    mppt_enabled: true
+    mppt_sweep_timer: 10m
+    force_mppt_sweep: true
+    temp_en: false
+    ts_t1: 5C
+    ts_t2: 20C
+    ts_t3: 55C
+    ts_t5: 65C
+
+sensor:
+  - platform: bq25820
+    bq25820_id: charger_defaults
+    temp_in_c:
+      name: Default NTC
+  - platform: bq25820
+    bq25820_id: charger_set
+    temp_in_c:
+      name: Custom NTC
+      b_constant: 3950
+      reference_resistance: 100kΩ
+      reference_temperature: 30°C
+      resistor: 47kΩ

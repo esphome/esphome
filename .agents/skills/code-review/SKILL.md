@@ -20,6 +20,26 @@ flagging in a review; read the matching skill for the detail behind any item.
 Only raise findings that the diff actually introduces or changes. Do not ask for
 drive-by cleanup of pre-existing code the PR did not touch.
 
+## Scope: shared code does not ride a component PR
+
+Check the file list first. A PR titled for one component (`[ld2450] ...`) must
+not also change code other components build on: `esphome/core/`, the entity
+platform components (`esphome/components/sensor/`, `esphome/components/text_sensor/`
+including its `filter.*`, `binary_sensor/`, `number/`, ...), the buses
+(`esphome/components/{i2c,spi,uart}/`), `network/`, `socket/`, the shared
+constants (`esphome/components/const/`, `esphome/const.py`),
+`esphome/automation.py`, `esphome/cpp_generator.py` or `esphome/config_validation.py`.
+Flag it and ask for the shared change to move into its own PR, which lands first
+and is reviewed by that code's owners; the component PR then builds on it. This
+holds even when the shared change is small or only the component uses it today.
+The exception is a shared change that must update several components in the same
+PR so none of them breaks in between (a `[core]` or `[components]` PR that adds a
+helper and moves its callers at once).
+
+Not shared code: the component's own platform files (`esphome/components/<c>/sensor.py`,
+`text_sensor/__init__.py`, ...), its new `USE_*` lines in `esphome/core/defines.h`,
+and its `CODEOWNERS` entry.
+
 ## Memory and embedded constraints (highest value)
 
 Heap allocation after `setup()` is treated as a reliability bug, not a
@@ -128,6 +148,18 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
   group builds. List-style packages or top-level merge keys block grouping.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
+
+## Naming user-facing functions
+
+Documented lambda methods, actions and config keys are public API, so a bad name
+is hard to fix once released. Flag:
+
+- A boolean where `true` means off (`display_off(true)`): name the positive
+  state, e.g. `set_power(bool on)`.
+- A name that differs from a sibling component's name for the same operation.
+
+Before a release, rename outright; after, follow the breaking-change policy
+below.
 
 ## Breaking changes and public API
 
