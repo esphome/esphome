@@ -7,7 +7,11 @@
 
 namespace esphome::tlv320dac3100 {
 
-enum class TLV320DAC3100Output : uint8_t { SPEAKER, HEADPHONE, BOTH };
+enum class TLV320DAC3100Output : uint8_t {
+  TLV320DAC3100_OUTPUT_SPEAKER,
+  TLV320DAC3100_OUTPUT_HEADPHONE,
+  TLV320DAC3100_OUTPUT_BOTH,
+};
 
 class TLV320DAC3100 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
@@ -44,10 +48,9 @@ class TLV320DAC3100 final : public audio_dac::AudioDac, public Component, public
   bool write_mute_();
   bool write_volume_();
   void power_up_dac_();
-  bool clocked_from_bclk_() const;
 
-  bool has_speaker_() const { return this->output_ != TLV320DAC3100Output::HEADPHONE; }
-  bool has_headphone_() const { return this->output_ != TLV320DAC3100Output::SPEAKER; }
+  bool has_speaker_() const { return this->output_ != TLV320DAC3100Output::TLV320DAC3100_OUTPUT_HEADPHONE; }
+  bool has_headphone_() const { return this->output_ != TLV320DAC3100Output::TLV320DAC3100_OUTPUT_SPEAKER; }
 
   GPIOPin *reset_pin_{nullptr};
   float volume_{1.0f};
@@ -62,7 +65,7 @@ class TLV320DAC3100 final : public audio_dac::AudioDac, public Component, public
   uint8_t processing_block_{1};
   uint8_t word_length_{0};
   uint8_t speaker_gain_{0};
-  TLV320DAC3100Output output_{TLV320DAC3100Output::BOTH};
+  TLV320DAC3100Output output_{TLV320DAC3100Output::TLV320DAC3100_OUTPUT_BOTH};
   bool outputs_ready_{false};
   bool clock_running_{false};
   bool dac_powered_{false};

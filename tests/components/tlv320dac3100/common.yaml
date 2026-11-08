@@ -12,6 +12,7 @@ audio_dac:
     id: dac_bclk
     i2c_id: i2c_bus
     sample_rate: 44100
+    bits_per_sample: 32bit
     output: SPEAKER
     speaker_gain: 24dB
     reset_pin: ${reset_pin}
@@ -19,7 +20,17 @@ audio_dac:
     id: dac_mclk
     i2c_id: i2c_bus
     address: 0x19
-    sample_rate: 48000
+    sample_rate: 44100
     bits_per_sample: 32bit
-    mclk_frequency: 12288000
+    mclk_frequency: 11289600
     output: HEADPHONE
+
+speaker:
+  - platform: i2s_audio
+    id: tlv320dac3100_speaker
+    i2s_audio_id: i2s_audio_bus
+    audio_dac: [dac_bclk, dac_mclk]
+    dac_type: external
+    i2s_dout_pin: GPIO13
+    sample_rate: 44100
+    bits_per_sample: 32bit

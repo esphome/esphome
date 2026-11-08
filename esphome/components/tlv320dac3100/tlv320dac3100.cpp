@@ -102,8 +102,7 @@ void TLV320DAC3100::setup() {
     return;
   }
 
-  // DAC power-up needs the output ramp done and CODEC_CLKIN running (BCLK mode: I2S started)
-  this->clock_running_ = !this->clocked_from_bclk_();
+  // DAC power-up needs the output ramp done and CODEC_CLKIN running; see on_audio_started()
   this->set_timeout(OUTPUT_POWER_UP_MS, [this]() {
     this->outputs_ready_ = true;
     this->power_up_dac_();
@@ -115,12 +114,6 @@ void TLV320DAC3100::on_audio_started() {
   this->power_up_dac_();
 }
 
-bool TLV320DAC3100::clocked_from_bclk_() const {
-  const uint8_t codec_clkin = this->clock_mux_ & 0x03;
-  const uint8_t pll_clkin = (this->clock_mux_ >> 2) & 0x03;
-  return codec_clkin == 0x01 || (codec_clkin == 0x03 && pll_clkin == 0x01);
-}
-
 void TLV320DAC3100::power_up_dac_() {
   if (this->dac_powered_ || !this->outputs_ready_ || !this->clock_running_ || this->is_failed())
     return;
@@ -128,13 +121,12 @@ void TLV320DAC3100::power_up_dac_() {
   const uint8_t data_path = this->has_headphone_() ? 0xD4 : 0xF4;
   const uint8_t hp_driver = this->has_headphone_() ? HP_DRIVER_UNMUTED : HP_DRIVER_MUTED;
   const uint8_t spk_driver = (this->speaker_gain_ << 3) | (this->has_speaker_() ? SPK_DRIVER_UNMUTED : 0x00);
-  if (!this->write_page_(0, REG_DAC_DATA_PATH, data_path) || !this->write_volume_() || !this->write_mute_() ||
-      !this->write_page_(1, REG_HPL_DRIVER, hp_driver) || !this->write_byte(REG_HPR_DRIVER, hp_driver) ||
-      !this->write_byte(REG_SPK_DRIVER, spk_driver) || !this->write_byte(REG_PAGE, 0x00)) {
-    this->mark_failed(LOG_STR("DAC power-up failed"));
-    return;
-  }
-  this->dac_powered_ = true;
+  // On failure dac_powered_ stays false, so the next audio start retries
+  this->dac_powered_ = this->status_comm_result(
+      this->write_page_(0, REG_DAC_DATA_PATH, data_path) && this->write_volume_() && this->write_mute_() &&
+          this->write_page_(1, REG_HPL_DRIVER, hp_driver) && this->write_byte(REG_HPR_DRIVER, hp_driver) &&
+          this->write_byte(REG_SPK_DRIVER, spk_driver) && this->write_byte(REG_PAGE, 0x00),
+      LOG_STR("DAC power-up failed"));
 }
 
 void TLV320DAC3100::dump_config() {

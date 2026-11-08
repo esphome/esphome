@@ -5,13 +5,17 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
+from esphome.components.speaker import DOMAIN as SPEAKER_DOMAIN, get_audio_dac_ids
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
+    CONF_ID,
     CONF_OUTPUT,
+    CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_SAMPLE_RATE,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -26,16 +30,18 @@ TLV320DAC3100 = tlv320dac3100_ns.class_(
 
 TLV320DAC3100Output = tlv320dac3100_ns.enum("TLV320DAC3100Output", is_class=True)
 OUTPUTS = {
-    "SPEAKER": TLV320DAC3100Output.SPEAKER,
-    "HEADPHONE": TLV320DAC3100Output.HEADPHONE,
-    "BOTH": TLV320DAC3100Output.BOTH,
+    "SPEAKER": TLV320DAC3100Output.TLV320DAC3100_OUTPUT_SPEAKER,
+    "HEADPHONE": TLV320DAC3100Output.TLV320DAC3100_OUTPUT_HEADPHONE,
+    "BOTH": TLV320DAC3100Output.TLV320DAC3100_OUTPUT_BOTH,
 }
 
 # Page 1 / register 42 bits D4-D3
-SPEAKER_GAINS = {"6dB": 0, "12dB": 1, "18dB": 2, "24dB": 3}
+SPEAKER_GAINS = {6.0: 0, 12.0: 1, 18.0: 2, 24.0: 3}
 
 # I2S word length (page 0 / register 27 D5-D4) and BCLK periods per frame
-BITS_PER_SAMPLE = {"16bit": (0, 32), "24bit": (2, 64), "32bit": (3, 64)}
+BITS_PER_SAMPLE = {16: (0, 32), 24: (2, 48), 32: (3, 64)}
+
+_validate_bits = cv.float_with_unit("bits", "bit")
 
 # Clock limits from the datasheet (DVDD >= 1.65 V)
 PLL_IN_MIN = 512_000
@@ -174,12 +180,14 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(TLV320DAC3100),
             cv.Required(CONF_SAMPLE_RATE): cv.int_range(min=8000, max=192000),
-            cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.one_of(
-                *BITS_PER_SAMPLE, lower=True
+            cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.All(
+                _validate_bits, cv.int_, cv.one_of(*BITS_PER_SAMPLE)
             ),
             cv.Optional(CONF_MCLK_FREQUENCY): cv.int_range(min=PLL_IN_MIN),
             cv.Optional(CONF_OUTPUT, default="BOTH"): cv.enum(OUTPUTS, upper=True),
-            cv.Optional(CONF_SPEAKER_GAIN, default="6dB"): cv.enum(SPEAKER_GAINS),
+            cv.Optional(CONF_SPEAKER_GAIN, default="6dB"): cv.All(
+                cv.decibel, cv.enum(SPEAKER_GAINS)
+            ),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         }
     )
@@ -187,6 +195,31 @@ CONFIG_SCHEMA = cv.All(
     .extend(i2c.i2c_device_schema(0x18)),
     _validate_clock,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    # Only the i2s_audio speaker reports that its clocks are running
+    speakers = [
+        speaker
+        for speaker in fv.full_config.get().get(SPEAKER_DOMAIN, [])
+        if speaker[CONF_PLATFORM] == "i2s_audio"
+        and config[CONF_ID] in get_audio_dac_ids(speaker)
+    ]
+    if not speakers:
+        raise cv.Invalid(
+            f"An i2s_audio speaker must set 'audio_dac: {config[CONF_ID]}'; "
+            "the DAC powers up when that speaker starts its clocks"
+        )
+    for speaker in speakers:
+        for key in (CONF_SAMPLE_RATE, CONF_BITS_PER_SAMPLE):
+            if speaker[key] != config[key]:
+                raise cv.Invalid(
+                    f"{key} is {config[key]} but the i2s_audio speaker using this "
+                    f"audio_dac has {speaker[key]}; they must match"
+                )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

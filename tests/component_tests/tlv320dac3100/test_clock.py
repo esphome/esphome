@@ -7,6 +7,7 @@ from fractions import Fraction
 import pytest
 
 from esphome.components.tlv320dac3100.audio_dac import (
+    BITS_PER_SAMPLE,
     CLKIN_BCLK,
     CLKIN_MCLK,
     CLKIN_PLL,
@@ -19,9 +20,18 @@ from esphome.components.tlv320dac3100.audio_dac import (
     PLL_OUT_MIN,
     PROCESSING_BLOCKS,
     ClockConfig,
+    _final_validate,
     solve_clock,
 )
 import esphome.config_validation as cv
+from esphome.const import (
+    CONF_AUDIO_DAC,
+    CONF_BITS_PER_SAMPLE,
+    CONF_ID,
+    CONF_PLATFORM,
+    CONF_SAMPLE_RATE,
+)
+import esphome.final_validate as fv
 
 RATES = [8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000, 176400, 192000]
 
@@ -54,7 +64,7 @@ def _check(clock: ClockConfig, clkin: int, sample_rate: int) -> None:
 
 
 @pytest.mark.parametrize("sample_rate", RATES)
-@pytest.mark.parametrize("frame", [32, 64])
+@pytest.mark.parametrize("frame", [32, 48, 64])
 def test_bclk_clocks_are_within_limits(sample_rate: int, frame: int) -> None:
     """Every rate the BCLK can feed the PLL with meets the datasheet limits."""
     clkin = sample_rate * frame
@@ -113,3 +123,46 @@ def test_processing_block_follows_the_rate(
     """Filter A up to 48 kHz, B up to 96 kHz, C above."""
     clock = solve_clock(sample_rate * 64, False, sample_rate)
     assert clock.processing_block == processing_block
+
+
+def test_24_bit_frame_matches_the_i2s_speaker_slots() -> None:
+    """The i2s_audio speaker clocks 24-bit audio in 24-bit slots."""
+    assert BITS_PER_SAMPLE[24][1] == 48
+
+
+def _speaker(platform: str = "i2s_audio", rate: int = 44100, bits: int = 16) -> dict:
+    return {
+        CONF_PLATFORM: platform,
+        CONF_AUDIO_DAC: "dac",
+        CONF_SAMPLE_RATE: rate,
+        CONF_BITS_PER_SAMPLE: bits,
+    }
+
+
+_DAC = {CONF_ID: "dac", CONF_SAMPLE_RATE: 44100, CONF_BITS_PER_SAMPLE: 16}
+
+
+def test_matching_i2s_speaker_is_accepted() -> None:
+    fv.full_config.set({"speaker": [_speaker()]})
+    _final_validate(_DAC)
+
+
+@pytest.mark.parametrize(
+    "speakers",
+    [
+        [],
+        [{CONF_PLATFORM: "i2s_audio", CONF_SAMPLE_RATE: 44100}],
+        [_speaker(platform="mixer")],
+    ],
+)
+def test_dac_needs_a_direct_i2s_speaker(speakers: list[dict]) -> None:
+    fv.full_config.set({"speaker": speakers})
+    with pytest.raises(cv.Invalid, match="must set 'audio_dac: dac'"):
+        _final_validate(_DAC)
+
+
+@pytest.mark.parametrize("speaker", [_speaker(rate=48000), _speaker(bits=32)])
+def test_mismatched_i2s_speaker_is_rejected(speaker: dict) -> None:
+    fv.full_config.set({"speaker": [speaker]})
+    with pytest.raises(cv.Invalid, match="must match"):
+        _final_validate(_DAC)
