@@ -1,6 +1,14 @@
 #pragma once
-// pulse22391b: drive GEN_PIN_A and GEN_PIN_B with the same pulse train, one shape per stage
+// One pulse shape per 35 s stage on GEN_PIN_A and GEN_PIN_B (BK72xx analogWrite) or GEN_PIN_NAME (AmebaZ2 pwmout)
 #include <Arduino.h>
+#ifdef GEN_PIN_NAME
+// mbed pwmout API (its header clashes with Arduino's PinMode); pwmout_t is held in an oversized buffer
+extern "C" {
+void pwmout_init(void *obj, int pin);
+void pwmout_period_us(void *obj, int us);
+void pwmout_pulsewidth_us(void *obj, int us);
+}
+#endif
 #include "esphome/core/log.h"
 namespace pulsegen {
 struct Stage {
@@ -14,20 +22,37 @@ static constexpr Stage STAGES[] = {
 };
 static constexpr int N = sizeof(STAGES) / sizeof(STAGES[0]);
 static constexpr uint32_t STAGE_MS = 35000;
-inline void apply(uint8_t pin, const Stage &s) {
+#ifdef GEN_PIN_NAME
+// Arduino analogWrite re-init faults on the 2nd period change on AmebaZ2: keep one pwmout and retune it
+inline void apply(const Stage &st) {
+  alignas(8) static uint8_t pwm[512];
+  static bool init = false;
+  if (!init) {
+    pwmout_init(pwm, GEN_PIN_NAME);
+    init = true;
+  }
+  pwmout_period_us(pwm, st.period_us);
+  pwmout_pulsewidth_us(pwm, st.high_us);
+}
+#else
+inline void apply_pin(uint8_t pin, const Stage &s) {
   pinMode(pin, INPUT);  // drop PWM mode so the new period is taken
   analogWriteResolution(16);
   analogWritePeriod(s.period_us);
   analogWrite(pin, (int) (65535.0f * s.high_us / s.period_us + 0.5f));
 }
+inline void apply(const Stage &st) {
+  apply_pin(GEN_PIN_A, st);
+  apply_pin(GEN_PIN_B, st);
+}
+#endif
 inline void tick() {
   static int last = -1;
   int s = (millis() / STAGE_MS) % N;
   if (s == last)
     return;
   last = s;
-  apply(GEN_PIN_A, STAGES[s]);
-  apply(GEN_PIN_B, STAGES[s]);
+  apply(STAGES[s]);
   ESP_LOGI("gen", "STAGE %d period %u high %u expect_per_min %.1f", s, STAGES[s].period_us, STAGES[s].high_us,
            60e6f / STAGES[s].period_us);
 }

@@ -1,111 +1,11 @@
-esphome:
+# NORMAL with no node acknowledging, so the controller cycles error passive and bus-off; three forced REQOP faults
+# and three chip resets, each sent while TREC shows bus-off
+substitutions:
   name: canlb-normal
-  includes:
-    - canlb.hpp
-  on_boot:
-    - priority: -100
-      then:
-        - lambda: |-
-            ESP_LOGI("ram", "BOOTFREE %u TOTAL %u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned) heap_caps_get_total_size(MALLOC_CAP_INTERNAL));
-            canlb::chip = id(can0);
-            canlb::classic = false;
-            canlb::cs_init(32);
-            canlb::regs("boot");
-            canlb::start(id(can0));
-        - delay: 10s
-        - wait_until:
-            condition:
-              lambda: return (canlb::rd32(0x034) & 0x00200000) != 0;
-            timeout: 30s
-        - lambda: ESP_LOGI("canlb", "FAULTINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));
-        - lambda: canlb::force_mode(3);
-        - lambda: canlb::watch_start(0);
-        - wait_until:
-            condition:
-              lambda: return !canlb::watching;
-            timeout: 20s
-        - delay: 3s
-        - wait_until:
-            condition:
-              lambda: return (canlb::rd32(0x034) & 0x00200000) != 0;
-            timeout: 30s
-        - lambda: ESP_LOGI("canlb", "FAULTINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));
-        - lambda: canlb::force_mode(3);
-        - lambda: canlb::watch_start(0);
-        - wait_until:
-            condition:
-              lambda: return !canlb::watching;
-            timeout: 20s
-        - delay: 3s
-        - wait_until:
-            condition:
-              lambda: return (canlb::rd32(0x034) & 0x00200000) != 0;
-            timeout: 30s
-        - lambda: ESP_LOGI("canlb", "FAULTINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));
-        - lambda: canlb::force_mode(3);
-        - lambda: canlb::watch_start(0);
-        - wait_until:
-            condition:
-              lambda: return !canlb::watching;
-            timeout: 20s
-        - delay: 3s
-        - wait_until:
-            condition:
-              lambda: return (canlb::rd32(0x034) & 0x00200000) != 0;
-            timeout: 30s
-        - lambda: ESP_LOGI("canlb", "RESETINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));
-        - lambda: canlb::chip_reset();
-        - lambda: canlb::watch_start(0);
-        - wait_until:
-            condition:
-              lambda: return !canlb::watching;
-            timeout: 20s
-        - lambda: canlb::timing("reset-after");
-        - lambda: canlb::regs("reset-after");
-        - delay: 3s
-        - wait_until:
-            condition:
-              lambda: return (canlb::rd32(0x034) & 0x00200000) != 0;
-            timeout: 30s
-        - lambda: ESP_LOGI("canlb", "RESETINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));
-        - lambda: canlb::chip_reset();
-        - lambda: canlb::watch_start(0);
-        - wait_until:
-            condition:
-              lambda: return !canlb::watching;
-            timeout: 20s
-        - lambda: canlb::timing("reset-after");
-        - lambda: canlb::regs("reset-after");
-        - delay: 3s
-        - wait_until:
-            condition:
-              lambda: return (canlb::rd32(0x034) & 0x00200000) != 0;
-            timeout: 30s
-        - lambda: ESP_LOGI("canlb", "RESETINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));
-        - lambda: canlb::chip_reset();
-        - lambda: canlb::watch_start(0);
-        - wait_until:
-            condition:
-              lambda: return !canlb::watching;
-            timeout: 20s
-        - lambda: canlb::timing("reset-after");
-        - lambda: canlb::regs("reset-after");
-        - delay: 3s
-        - lambda: canlb::report();
-        - lambda: ESP_LOGI("canlb", "PHASES DONE");
+  classic: "false"
 
-esp32:
-  board: pico32
-  framework:
-    type: esp-idf
-
-logger:
-  level: DEBUG
-
-spi:
-  clk_pin: GPIO25
-  mosi_pin: GPIO26
-  miso_pin: GPIO27
+packages:
+  common: !include common-can.yaml
 
 canbus:
   - platform: mcp251xfd
@@ -118,17 +18,41 @@ canbus:
     bit_rate: 1000KBPS
     data_bit_rate: 2000KBPS
 
-interval:
-  - interval: 2ms
+script:
+  - id: phases
     then:
-      - lambda: canlb::step();
-  - interval: 10s
-    then:
+      - delay: 10s
+      - repeat:
+          count: 3
+          then:
+            - wait_until:
+                condition:
+                  lambda: return canlb::busoff();
+                timeout: 30s
+            - lambda: 'ESP_LOGI("canlb", "FAULTINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));'
+            - lambda: canlb::force_mode(3);
+            - lambda: canlb::watch_start(0);
+            - wait_until:
+                condition:
+                  lambda: return !canlb::watching;
+                timeout: 20s
+            - delay: 3s
+      - repeat:
+          count: 3
+          then:
+            - wait_until:
+                condition:
+                  lambda: return canlb::busoff();
+                timeout: 30s
+            - lambda: 'ESP_LOGI("canlb", "RESETINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));'
+            - lambda: canlb::chip_reset();
+            - lambda: canlb::watch_start(0);
+            - wait_until:
+                condition:
+                  lambda: return !canlb::watching;
+                timeout: 20s
+            - lambda: canlb::timing("reset-after");
+            - lambda: canlb::regs("reset-after");
+            - delay: 3s
       - lambda: canlb::report();
-
-sensor:
-  - platform: pulse_counter
-    pin: GPIO34
-    name: clko
-    internal_filter: 0us
-    update_interval: 60s
+      - lambda: ESP_LOGI("canlb", "PHASES DONE");

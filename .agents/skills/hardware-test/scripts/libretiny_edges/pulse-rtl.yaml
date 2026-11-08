@@ -3,7 +3,7 @@ esphome:
     build_flags:
       - -DGEN_PIN_NAME=17
   includes:
-    - pulsegen-rtl.hpp
+    - pulsegen.hpp
 
 rtl87xx:
   board: bw15

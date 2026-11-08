@@ -178,8 +178,11 @@ inline void cs_report(const char *tag) {
            (c - cs_mark_count) * 1000.0f / ms);
 }
 
-inline void start(esphome::canbus::Canbus *b) {
+inline uint32_t start_ms = 0;
+inline void start(esphome::mcp251xfd::MCP251XFD *b) {
   bus = b;
+  chip = b;
+  start_ms = esphome::millis();
   b->add_frame_callback([](const CanFrame &f) { on_frame(f); });
 }
 inline void txcheck_step();
@@ -196,7 +199,8 @@ inline void step() {
     txcheck_step();
     return;
   }
-  if (phase != STREAM)
+  // Hold the stream until the boot dump_config is out, or a frame stalled past the 50 ms timeout shifts the count
+  if (phase != STREAM || esphome::millis() - start_ms < 5000)
     return;
   const uint32_t now = esphome::micros();
   if (inflight) {
@@ -253,6 +257,8 @@ inline void wr8(uint16_t a, uint8_t v) {
   chip->write_array(b, 3);
   chip->disable();
 }
+// TREC TXBO: bus-off, also set while the controller sits in Configuration mode
+inline bool busoff() { return (rd32(0x034) & 0x00200000) != 0; }
 inline uint8_t opmod() { return (rd32(0x000) >> 21) & 7; }
 inline bool wait_opmod(uint8_t m) {
   for (int i = 0; i < 100; i++) {
@@ -280,7 +286,7 @@ inline void force_via_config(uint8_t m, const char *tag) {
   ESP_LOGI("canlb", "FORCEVIA %s config=%d mode%u=%d CON=%08X", tag, c, m, l, (unsigned) rd32(0x000));
 }
 
-// send n frames without letting the loop drain RX; returns frames accepted
+// send n frames without letting the loop drain RX
 inline void burst(uint32_t n, const char *tag) {
   phase = QUEUE;
   q_reset();

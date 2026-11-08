@@ -91,11 +91,10 @@ interval:
           } else {
             id(streak)++;
             if (id(streak) > id(max_streak)) id(max_streak) = id(streak);
+            if (e == i2c::ERROR_TIMEOUT) id(n_to)++;
+            else if (e == i2c::ERROR_NOT_ACKNOWLEDGED) id(n_nack)++;
+            else id(n_other)++;
           }
-          if (e == i2c::ERROR_OK) {
-          } else if (e == i2c::ERROR_TIMEOUT) id(n_to)++;
-          else if (e == i2c::ERROR_NOT_ACKNOWLEDGED) id(n_nack)++;
-          else id(n_other)++;
   - interval: 30s
     then:
       - lambda: |-
