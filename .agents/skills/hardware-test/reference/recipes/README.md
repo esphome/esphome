@@ -57,6 +57,8 @@ One file per component, named after it:
 - [`ezo_fake_bus.md`](ezo_fake_bus.md): the ezo component against a fake I2C bus that answers like an EZO circuit
 - [`twai_self.md`](twai_self.md): esp32_can on_frame with the controller hearing its own transmit pad, no transceiver
 - [`buttons.md`](buttons.md): output button pad timing, homeassistant button through a raw API client with the wizard input, uart button on the UART0 loopback
+- [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
+- [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
 - [`automation_trace.md`](automation_trace.md): automation codegen A/B, a marker trace of chains, conditions, loops and script modes over the API
 - [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in
 - [`crash_report.md`](crash_report.md): crash buttons, fetching the previous boot's crash report over the API, per-chip abort facts
