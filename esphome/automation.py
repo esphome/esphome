@@ -326,6 +326,8 @@ _COLLECTED_ACTION = _CollectedAction("esphome__collected_action", "->")
 _RUNNING_PARAM = "esphome__running"
 # One statement of its own, so a function that nothing can stop can leave them all out
 _STOP_CHECK = f"if (!{_RUNNING_PARAM})\n  return;"
+# The same for a while step, where a stop ends the loop like a false condition
+_STOP_STEP = f"if (!{_RUNNING_PARAM})\n  return false;"
 
 
 def _is_collecting(id_: ID) -> bool:
@@ -1461,29 +1463,55 @@ async def choose_action_to_code(
     return var
 
 
-def _config_any(value: Any, test: Callable[[Any], bool]) -> bool:
-    """Whether ``test`` holds for ``value`` or any value nested in its dicts and lists."""
+def _config_any(
+    value: Any, test: Callable[[Any], bool], into_lists: bool = True
+) -> bool:
+    """Whether ``test`` holds for ``value`` or any value nested in its dicts (and lists)."""
     if test(value):
         return True
     if isinstance(value, dict):
-        return any(_config_any(v, test) for v in value.values())
-    if isinstance(value, list):
-        return any(_config_any(v, test) for v in value)
+        return any(_config_any(v, test, into_lists) for v in value.values())
+    if into_lists and isinstance(value, list):
+        return any(_config_any(v, test, into_lists) for v in value)
     return False
 
 
+_NUMBER_TYPES = frozenset(
+    str(type_)
+    for type_ in (
+        *(cg.uint8, cg.uint16, cg.uint32, cg.uint64),
+        *(cg.int8, cg.int16, cg.int32, cg.int64, cg.int_),
+        *(cg.float_, cg.double, cg.bool_, cg.size_t),
+    )
+)
+
+
+def _all_numbers(args: TemplateArgsType) -> bool:
+    return all(str(type_) in _NUMBER_TYPES for type_, _ in args)
+
+
+def _referenced_ids(value: Any) -> set[str]:
+    # Lazy: importing esphome.config here would load it for every entity component
+    from esphome.config import iter_ids
+
+    return {id_.id for id_, _ in iter_ids(value) if not id_.is_declaration}
+
+
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # A lambda condition can test a value the body changes. An empty body ends the loop at once.
+    # The body can change what a lambda condition tests, or the entity the condition reads.
+    # An empty body ends the loop at once.
     body = config[CONF_THEN]
+    condition = config[CONF_CONDITION]
     if (
         body
         and not has_non_synchronous_actions(body)
-        and not _config_any(config[CONF_CONDITION], cg.is_template)
+        and not _config_any(condition, cg.is_template)
+        and not _referenced_ids(condition) & _referenced_ids(body)
     ):
         _LOGGER.warning(
             "The body of a 'while' loop never waits, so it holds up the rest of the device: "
-            "other components only run every 20 ms, and not at all in an automation with "
-            "arguments. Add a 'delay' inside the loop."
+            "other components only run between some passes, and not at all in an automation "
+            "with arguments. Add a 'delay' inside the loop."
         )
     return config
 
@@ -1511,8 +1539,14 @@ async def while_action_to_code(
     build_cond, build_list = _control_flow_builders(action_id)
     condition = await build_cond(config[CONF_CONDITION], template_arg, args)
     actions = await build_list(config[CONF_THEN], template_arg, args)
-    # An empty body exits the loop at once, unlike an empty C++ loop body
-    if _is_collecting(action_id) and actions and _plans_inline(actions):
+    # An empty body exits the loop at once, unlike an empty C++ loop body. Numbers can be kept
+    # for a yield (WHILE_CAN_YIELD), so a while with only those keeps its WhileAction.
+    if (
+        _is_collecting(action_id)
+        and actions
+        and _plans_inline(actions)
+        and not (args and _all_numbers(args))
+    ):
         check = (
             f"const bool esphome__condition = {_condition_expression(condition, args)};"
         )
@@ -1531,24 +1565,24 @@ async def while_action_to_code(
                 ],
             )
         # A step function the ApplyWhileAction runs once per pass
-        stop = f"if (!{_RUNNING_PARAM})\n  return false;"
-        step_id = action_id.copy()
-        step_id.type = ApplyWhileAction
-        step = apply_static_function(
-            step_id,
+        return _new_running_action(
+            action_id,
+            ApplyWhileAction,
             cg.bool_,
-            [(cg.RawExpression("const int &"), _RUNNING_PARAM)],
             [
                 check,
                 f"if (!{_RUNNING_PARAM} || !esphome__condition)\n  return false;",
+                # Every stop check, also those of nested inline if and repeat, is its own line
                 *(
-                    stop if statement == _STOP_CHECK else statement
-                    for statement in _plan_statements(actions)
+                    _STOP_STEP if line == _STOP_CHECK else line
+                    for line in _plan_statements(actions)
                 ),
-                "return true;",
+                # The last body action can stop the automation too
+                f"return {_RUNNING_PARAM} != 0;",
             ],
+            template_arg,
+            args,
         )
-        return cg.new_Pvariable(step_id, cg.TemplateArguments(step))
     var = cg.new_Pvariable(action_id, template_arg, _condition_object(condition))
     for action in _emit_action_plan(actions, template_arg, args):
         cg.add(var.add_then_action(action))
@@ -1798,16 +1832,31 @@ def _emit_inline_run(
     """
     if len(run) == 1 and run[0].emit is not None:
         return run[0].emit()
-    statements = _run_statements(run)
-    id_ = run[0].id_.copy()
-    id_.type = ApplyRunAction
+    return _new_running_action(
+        run[0].id_,
+        ApplyRunAction,
+        cg.void,
+        _run_statements(run),
+        template_arg,
+        args,
+    )
+
+
+def _new_running_action(
+    source_id: ID,
+    action_type: MockObjClass,
+    return_type: SafeExpType,
+    statements: list[str],
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    """An ``action_type`` object running a generated function that reads ``num_running_``."""
+    id_ = source_id.copy()
+    id_.type = action_type
     fn = apply_static_function(
         id_,
-        cg.void,
-        [
-            (cg.RawExpression("const int &"), _RUNNING_PARAM),
-            *_apply_params(args),
-        ],
+        return_type,
+        [(cg.RawExpression("const int &"), _RUNNING_PARAM), *_apply_params(args)],
         statements,
     )
     return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
@@ -1899,7 +1948,9 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
 def _options_have_non_synchronous_actions(options: Any) -> bool:
     """Search an action's options for nested action lists, without treating option keys as actions."""
     return _config_any(
-        options, lambda v: isinstance(v, list) and has_non_synchronous_actions(v)
+        options,
+        lambda v: isinstance(v, list) and has_non_synchronous_actions(v),
+        into_lists=False,
     )
 
 

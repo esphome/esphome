@@ -4,7 +4,6 @@ esphome:
 host:
 
 logger:
-  level: DEBUG
 
 globals:
   - id: count
@@ -23,11 +22,6 @@ script:
       - binary_sensor.template.publish:
           id: held
           state: false
-  - id: noop
-    then:
-      - logger.log:
-          level: VERBOSE
-          format: "noop"
 
   # No arguments, inline body: ApplyWhileAction, which yields
   - id: inline_noarg
@@ -38,7 +32,7 @@ script:
           then:
             - lambda: id(count) += 1;
       - logger.log: "INLINE_NOARG done"
-  # No arguments, a body with its own action object: WhileAction<>, which yields
+  # No arguments, a body with its own action object (wait_until ends at once): WhileAction<>, which yields
   - id: object_noarg
     then:
       - while:
@@ -46,14 +40,17 @@ script:
             binary_sensor.is_on: held
           then:
             - lambda: id(count) += 1;
-            - script.execute: noop
+            - wait_until:
+                condition:
+                  lambda: return true;
       - logger.log: "OBJECT_NOARG done"
 
-  # Busy bodies that take longer than the yield time: without arguments the caller runs first
+  # Busy bodies longer than the yield time. Without arguments or with only numbers the caller runs
+  # first; with other arguments the loop never yields and ends before the caller goes on.
   - id: busy_inline_noarg
     then:
       - lambda: id(count) = 0;
-      - while:
+      - while: &busy_inline
           condition:
             lambda: return id(count) < 2;
           then:
@@ -64,17 +61,18 @@ script:
   - id: busy_object_noarg
     then:
       - lambda: id(count) = 0;
-      - while:
+      - while: &busy_object
           condition:
             lambda: return id(count) < 2;
           then:
             - lambda: |-
                 delay(25);
                 id(count) += 1;
-            - script.execute: noop
+            - wait_until:
+                condition:
+                  lambda: return true;
       - logger.log: "BUSY_OBJECT_NOARG done"
-  # With arguments the loop never yields, so it ends before the caller goes on
-  - id: busy_inline_arg
+  - id: busy_inline_num
     parameters:
       n: int
     then:
@@ -87,24 +85,26 @@ script:
                 delay(25);
                 id(count) += 1;
       - logger.log:
-          format: "BUSY_INLINE_ARG done %d"
-          args: [id(count)]
-  - id: busy_object_arg
+          format: "BUSY_INLINE_NUM done %d"
+          args: [n]
+  - id: busy_inline_str
     parameters:
-      n: int
+      tag: string
     then:
       - lambda: id(count) = 0;
-      - while:
-          condition:
-            lambda: return id(count) < n;
-          then:
-            - lambda: |-
-                delay(25);
-                id(count) += 1;
-            - script.execute: noop
+      - while: *busy_inline
       - logger.log:
-          format: "BUSY_OBJECT_ARG done %d"
-          args: [id(count)]
+          format: "BUSY_INLINE_STR done %s"
+          args: [tag.c_str()]
+  - id: busy_object_str
+    parameters:
+      tag: string
+    then:
+      - lambda: id(count) = 0;
+      - while: *busy_object
+      - logger.log:
+          format: "BUSY_OBJECT_STR done %s"
+          args: [tag.c_str()]
 
   # A body that waits resumes through the scheduler
   - id: waiting_arg
@@ -122,14 +122,6 @@ script:
           format: "WAITING_ARG done %d"
           args: [id(count)]
 
-  - id: empty_body
-    then:
-      - while:
-          condition:
-            lambda: return true;
-          then: []
-      - logger.log: "EMPTY_BODY done"
-
 api:
   actions:
     - action: run_entity_loops
@@ -139,13 +131,6 @@ api:
             state: true
         - script.execute: release_later
         - script.execute: inline_noarg
-        - wait_until:
-            not:
-              script.is_running: inline_noarg
-        - binary_sensor.template.publish:
-            id: held
-            state: true
-        - script.execute: release_later
         - script.execute: object_noarg
     - action: run_busy_loops
       then:
@@ -155,17 +140,21 @@ api:
         - logger.log: "BUSY_OBJECT_NOARG caller"
         - delay: 200ms
         - script.execute:
-            id: busy_inline_arg
+            id: busy_inline_num
             n: 2
-        - logger.log: "BUSY_INLINE_ARG caller"
+        - logger.log: "BUSY_INLINE_NUM caller"
+        - delay: 200ms
         - script.execute:
-            id: busy_object_arg
-            n: 2
-        - logger.log: "BUSY_OBJECT_ARG caller"
+            id: busy_inline_str
+            tag: a
+        - logger.log: "BUSY_INLINE_STR caller"
+        - script.execute:
+            id: busy_object_str
+            tag: b
+        - logger.log: "BUSY_OBJECT_STR caller"
         - script.execute:
             id: waiting_arg
             n: 3
-        - script.execute: empty_body
     - action: run_stop_while_yielded
       then:
         - binary_sensor.template.publish:

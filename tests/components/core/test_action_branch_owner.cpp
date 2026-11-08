@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <set>
 #include <vector>
 
 #include "esphome/core/automation.h"
@@ -400,27 +401,96 @@ TEST(ActionBranchOwner, NestedIfInsideWhileResumesEachOwner) {
   EXPECT_EQ(top.num_running(), 0);
 }
 
-// Counts the passes of a body that never waits, for a trigger with an argument
-class CountAction : public Action<int> {
+// A trigger argument that is not a number, so a while never yields with it
+struct Tag {
+  int value;
+};
+
+// Counts the passes of a body that never waits
+class CountAction : public Action<Tag> {
  public:
-  void play(const int &x) override { this->total += x; }
+  void play(const Tag &x) override { this->total += x.value; }
   int total{0};
 };
 
 // Enough passes to overflow the stack if each one nested another call chain
 TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
   static constexpr int PASSES = 200000;
-  CountdownCondition<int> cond(PASSES);
-  WhileAction<int> loop(&cond);
+  CountdownCondition<Tag> cond(PASSES);
+  WhileAction<Tag> loop(&cond);
   CountAction body, after;
   loop.add_then({&body});
-  ActionList<int> list;
+  ActionList<Tag> list;
   list.add_actions({&loop, &after});
 
-  list.play(1);
-  // With an argument the loop never yields, so it ends before play() returns
+  list.play(Tag{1});
+  // A loop that cannot yield ends before play() returns
   EXPECT_EQ(body.total, PASSES);
   EXPECT_EQ(after.total, 1);
+  EXPECT_FALSE(list.is_running());
+}
+
+// Waits like wait_until, keeping a copy of the argument; a new run releases the waiting one synchronously
+class HandoffAction : public Action<Tag> {
+ public:
+  void play_complex(const Tag &x) override {
+    this->num_running_++;
+    if (this->waiting_) {
+      this->waiting_ = false;
+      Tag released = this->kept_;
+      this->play_next_(released);
+    }
+    this->kept_ = x;
+    this->waiting_ = true;
+  }
+  void play(const Tag & /*x*/) override {}
+  void finish() {
+    if (this->waiting_) {
+      this->waiting_ = false;
+      Tag released = this->kept_;
+      this->play_next_(released);
+    }
+  }
+
+ protected:
+  Tag kept_{};
+  bool waiting_{false};
+};
+
+// True once for each tag value
+class OncePerTagCondition : public Condition<Tag> {
+ public:
+  bool check(const Tag &x) override { return this->seen_.insert(x.value).second; }
+
+ protected:
+  std::set<int> seen_;
+};
+
+class RecordTagAction : public Action<Tag> {
+ public:
+  explicit RecordTagAction(Log *log) : log_(log) {}
+  void play(const Tag &x) override { this->log_->push_back(x.value); }
+
+ protected:
+  Log *log_;
+};
+
+// The end of another run's body inside this run's body must resume that run, not end this one
+TEST(ActionBranchOwner, WhileTellsRunsApartWhenAnotherBodyEndsInside) {
+  OncePerTagCondition cond;
+  WhileAction<Tag> loop(&cond);
+  HandoffAction wait;
+  Log log;
+  RecordTagAction after(&log);
+  loop.add_then({&wait});
+  ActionList<Tag> list;
+  list.add_actions({&loop, &after});
+
+  list.play(Tag{1});
+  list.play(Tag{2});
+  EXPECT_EQ(log, (Log{1}));
+  wait.finish();
+  EXPECT_EQ(log, (Log{1, 2}));
   EXPECT_FALSE(list.is_running());
 }
 

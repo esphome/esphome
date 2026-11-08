@@ -1,9 +1,4 @@
-"""Every shape of a while loop whose body never waits ends without a crash or hang.
-
-Without trigger arguments the loop gives the main loop a turn, so a condition the main loop
-changes can end it. With arguments it never yields, as they may only be valid while the
-trigger runs.
-"""
+"""A while whose body never waits ends without a crash or hang; it yields only without arguments."""
 
 from __future__ import annotations
 
@@ -38,16 +33,15 @@ async def test_while_without_wait(
         await waiter.wait_count("INLINE_NOARG done", 1, 5.0, "inline loop did not end")
         await waiter.wait_count("OBJECT_NOARG done", 1, 5.0, "object loop did not end")
 
-        # A busy loop without arguments yields after the first slow pass; with arguments it does not
+        # A busy loop yields after the first slow pass, unless an argument is not a number
         await client.execute_service(require_service(services, "run_busy_loops"), {})
         await waiter.wait_count(
             "WAITING_ARG done 3", 1, 5.0, "waiting loop did not end"
         )
-        await waiter.wait_count("EMPTY_BODY done", 1, 5.0, "empty loop did not end")
-        assert index("BUSY_INLINE_NOARG caller") < index("BUSY_INLINE_NOARG done")
-        assert index("BUSY_OBJECT_NOARG caller") < index("BUSY_OBJECT_NOARG done")
-        assert index("BUSY_INLINE_ARG done 2") < index("BUSY_INLINE_ARG caller")
-        assert index("BUSY_OBJECT_ARG done 2") < index("BUSY_OBJECT_ARG caller")
+        for name in ("BUSY_INLINE_NOARG", "BUSY_OBJECT_NOARG", "BUSY_INLINE_NUM"):
+            assert index(f"{name} caller") < index(f"{name} done"), name
+        for name in ("BUSY_INLINE_STR", "BUSY_OBJECT_STR"):
+            assert index(f"{name} done") < index(f"{name} caller"), name
 
         # A stop while the loop waits for its next turn ends it for good
         done_before = waiter.count("NOARG done")

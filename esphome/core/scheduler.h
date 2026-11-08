@@ -18,12 +18,11 @@ namespace esphome {
 class Component;
 
 class Scheduler {
-  // Allow DelayAction and WhileYield to call set_action_timeout_, which skips cancel for parallel runs.
+  // Allow ActionTimer (delay and while) to call set_action_timeout_, which skips cancel for parallel runs.
   // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
   // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
   // to accumulate and overload the scheduler if misused.
-  template<typename... Ts> friend class DelayAction;
-  friend struct WhileYield;
+  friend class ActionTimer;
 
  public:
   /** Set a timeout with a const char* name.

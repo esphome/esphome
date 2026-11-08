@@ -386,22 +386,21 @@ def test_owning_args_swaps_every_string_ref(
     ]
 
 
-_WHILE_WARNING = "body of a 'while' loop never waits"
+_BUTTON_ON = {"binary_sensor.is_on": ID("button")}
 
 
 @pytest.mark.parametrize(
     ("condition", "body", "warns"),
     [
-        ({"binary_sensor.is_on": "button"}, [{"logger.log": "hi"}], True),
-        ({"binary_sensor.is_on": "button"}, [{"delay": "1s"}], False),
-        (
-            {"binary_sensor.is_on": "button"},
-            [{"if": {CONF_THEN: [{"delay": "1s"}]}}],
-            False,
-        ),
+        (_BUTTON_ON, [{"logger.log": "hi"}], True),
+        (_BUTTON_ON, [{"delay": "1s"}], False),
+        (_BUTTON_ON, [{"if": {CONF_THEN: [{"delay": "1s"}]}}], False),
         ({"lambda": Lambda("return true;")}, [{"logger.log": "hi"}], False),
         ({"and": [{"lambda": Lambda("return true;")}]}, [{"logger.log": "hi"}], False),
-        ({"binary_sensor.is_on": "button"}, [], False),
+        # The body can turn the condition's own entity off
+        (_BUTTON_ON, [{"binary_sensor.template.publish": {"id": ID("button")}}], False),
+        (_BUTTON_ON, [{"binary_sensor.template.publish": {"id": ID("other")}}], True),
+        (_BUTTON_ON, [], False),
     ],
 )
 def test_warn_while_without_wait(
@@ -411,10 +410,9 @@ def test_warn_while_without_wait(
     body: list[ConfigType],
     warns: bool,
 ) -> None:
-    """Only a body that never waits, under a condition with no lambda, gets the warning."""
     config = {CONF_CONDITION: condition, CONF_THEN: body}
     assert _warn_while_without_wait(config) is config
-    assert (_WHILE_WARNING in caplog.text) is warns
+    assert ("body of a 'while' loop never waits" in caplog.text) is warns
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(
@@ -3115,25 +3113,23 @@ async def test_not_condition_is_an_object_when_its_if_keeps_one() -> None:
     assert "new(act_if) IfAction<false>(neg);" in main
 
 
-def _while(body: list[ConfigType]) -> list[ConfigType]:
-    return [
-        {
-            "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: body},
-            CONF_TYPE_ID: ID(
-                "act_w", is_declaration=True, type=WhileAction, is_manual=False
-            ),
-        }
-    ]
+def _while_action(*body: ConfigType) -> ConfigType:
+    return {
+        "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: list(body)},
+        CONF_TYPE_ID: ID(
+            "act_w", is_declaration=True, type=WhileAction, is_manual=False
+        ),
+    }
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
-    """With arguments the loop never yields, so it stays one C++ loop in the merged function."""
+    """With arguments that are not all numbers it never yields, so it stays one C++ loop."""
     result = await build_action_list(
-        _while([_action("my.a", "act_a")]),
-        cg.TemplateArguments(cg.int_),
-        [(cg.int_, "x")],
+        [_while_action(_action("my.a", "act_a"))],
+        cg.TemplateArguments(cg.std_string),
+        [(cg.std_string, "x")],
     )
 
     assert [str(action) for action in result] == ["act_w"]
@@ -3148,8 +3144,8 @@ async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
 @pytest.mark.usefixtures("apply_actions")
 async def test_inline_while_without_arguments_is_a_step_action() -> None:
     """Without arguments it is an ApplyWhileAction, which can give the main loop a turn."""
-    body = [_action("my.a", "act_a"), _action("my.b", "act_b")]
-    result = await build_action_list(_while(body), TEMPLATE_ARG, [])
+    body = _while_action(_action("my.a", "act_a"), _action("my.b", "act_b"))
+    result = await build_action_list([body], TEMPLATE_ARG, [])
 
     assert [str(action) for action in result] == ["act_w"]
     assert "new(act_w) ApplyWhileAction<esphome__act_w__fn>();" in CORE.cpp_main_section
@@ -3160,31 +3156,57 @@ async def test_inline_while_without_arguments_is_a_step_action() -> None:
     stop = text.index("if (!esphome__running)\n", text.index("::comp->do_a();"))
     assert stop < text.index("return false;", stop) < text.index("::comp->do_b();")
     assert "return;" not in text
-    assert text.index("::comp->do_b();") < text.rindex("return true;")
+    # The last body action can stop the run too
+    assert text.index("::comp->do_b();") < text.index("return esphome__running != 0;")
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-@pytest.mark.parametrize(
-    ("args", "template"),
-    [([], "<>"), ([(cg.int_, "x")], "<int>")],
-)
+async def test_inline_while_with_number_arguments_keeps_its_object() -> None:
+    """Numbers, such as a repeat iteration, can be kept for a yield, so WhileAction stays."""
+    await build_action_list(
+        [_while_action(_action("my.a", "act_a"))],
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "iteration")],
+    )
+
+    assert "new(act_w) WhileAction<uint32_t>(" in CORE.cpp_main_section
+    assert "while (true)" not in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_step_action_replaces_nested_stop_checks() -> None:
+    """A stop check inside a nested inline if must also return false from the bool step."""
+    body = _while_action(_if_action(_action("my.a", "act_a"), _action("my.b", "act_b")))
+
+    await build_action_list([body], TEMPLATE_ARG, [])
+
+    text = CORE.cpp_global_section
+    assert "ApplyWhileAction<esphome__act_w__fn>" in CORE.cpp_main_section
+    assert "return;" not in text
+    assert text.count("return false;") >= 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize("args", [[], [(cg.int_, "x")]])
 async def test_while_with_an_object_body_is_a_while_action(
-    args: TemplateArgsType, template: str
+    args: TemplateArgsType,
 ) -> None:
     """A body that keeps an object, here a delay, needs WhileAction with or without arguments."""
     template_arg = cg.TemplateArguments(*[type_ for type_, _ in args])
 
-    await build_action_list(_while([_delay("act_d")]), template_arg, args)
+    await build_action_list([_while_action(_delay("act_d"))], template_arg, args)
 
-    assert f"new(act_w) WhileAction{template}(" in CORE.cpp_main_section
+    assert f"new(act_w) WhileAction{template_arg}(" in CORE.cpp_main_section
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_while_with_empty_body_keeps_its_object() -> None:
     """An empty body exits a WhileAction at once, which a C++ loop or a step would not do."""
-    await build_action_list(_while([]), TEMPLATE_ARG, [])
+    await build_action_list([_while_action()], TEMPLATE_ARG, [])
 
     assert "new(act_w) WhileAction<>(" in CORE.cpp_main_section
 

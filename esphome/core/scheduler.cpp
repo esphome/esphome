@@ -264,8 +264,7 @@ bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
 // (see matches_item_locked_'s SELF_POINTER branch). No Component pointer is stored, so
 // is_failed() skip and component-based log attribution don't apply.
 void HOT Scheduler::set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func) {
-  this->set_timer_common_(nullptr, SchedulerItem::TIMEOUT, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
-                          timeout, std::move(func));
+  this->set_action_timeout_(self, timeout, std::move(func), false);
 }
 void HOT Scheduler::set_interval(const void *self, uint32_t interval, std::function<void()> &&func) {
   this->set_timer_common_(nullptr, SchedulerItem::INTERVAL, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
