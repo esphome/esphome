@@ -32,10 +32,11 @@ def ensure_option_map(value):
     cv.check_not_templatable(value)
     value = OPTIONS_MAP_SCHEMA(value)
 
-    all_values = list(value.keys())
-    unique_values = set(value.keys())
-    if len(all_values) != len(unique_values):
-        raise cv.Invalid("Mapping values must be unique.")
+    # Keys are inherently unique in a parsed mapping; the option names must
+    # be too, or an MCU report can only ever resolve to the first duplicate
+    all_names = list(value.values())
+    if len(all_names) != len(set(all_names)):
+        raise cv.Invalid("Option names must be unique.")
 
     return value
 
@@ -72,9 +73,14 @@ def validate_options(value: ConfigType | list) -> ConfigType | list | cv.Schema:
     """
     if value is SCHEMA_EXTRACT:
         return OPTIONS_MAP_SCHEMA
-    return cv.Any(
-        ensure_option_map,
-        cv.All(cv.ensure_list(cv.string_strict, validate_no_nul), cv.Length(min=1)),
+    # Dispatch on the shape explicitly: with cv.Any a failing list reported
+    # the mapping branch's unhelpful "expected a dictionary"
+    if isinstance(value, dict):
+        return ensure_option_map(value)
+    return cv.All(
+        cv.ensure_list(cv.string_strict, validate_no_nul),
+        cv.Length(min=1),
+        cv.Unique(),
     )(value)
 
 
