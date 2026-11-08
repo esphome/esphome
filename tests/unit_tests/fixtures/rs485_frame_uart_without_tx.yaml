@@ -1,0 +1,26 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# A hub that transmits needs a TX pin. Must be rejected.
+uart:
+  id: uart_bus
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  - id: hub
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum8
+    tx:
+      gate:
+        frame_type: [0x01, 0x01]

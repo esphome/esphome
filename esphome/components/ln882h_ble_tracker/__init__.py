@@ -126,10 +126,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    await cg.register_parented(var, config[CONF_LN882H_BLE_ID])
-    # The tracker registers itself as a controller scan listener in setup();
-    # request the codegen-sized StaticVector slot for it.
-    ln882h_ble.request_scan_listener_slot()
+    parent = await cg.get_variable(config[CONF_LN882H_BLE_ID])
+    await cg.register_parented(var, parent)
+    cg.add(ln882h_ble.register_scan_listener(parent, var))
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
