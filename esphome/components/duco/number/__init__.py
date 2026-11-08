@@ -32,6 +32,7 @@ DucoBoxVentilationMax = duco_ns.class_("DucoBoxVentilationMax", DucoDevice, numb
 DucoManualTime = duco_ns.class_("DucoManualTime", DucoDevice, number.Number)
 DucoManualFlowLevel = duco_ns.class_("DucoManualFlowLevel", DucoDevice, number.Number)
 DucoCo2Setpoint = duco_ns.class_("DucoCo2Setpoint", DucoDevice, number.Number)
+DucoRhSetpoint = duco_ns.class_("DucoRhSetpoint", DucoDevice, number.Number)
 
 CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_NIGHTBOOST_TEMPERATURE = "nightboost_temperature"
@@ -43,6 +44,7 @@ CONF_FLOW_LEVEL_MANUAL_1 = "flow_level_manual_1"
 CONF_FLOW_LEVEL_MANUAL_2 = "flow_level_manual_2"
 CONF_FLOW_LEVEL_MANUAL_3 = "flow_level_manual_3"
 CONF_CO2_SETPOINT = "co2_setpoint"
+CONF_RH_SETPOINT = "rh_setpoint"
 
 COMFORT_TEMPERATURE_SCHEMA = (
     number.number_schema(
@@ -98,6 +100,12 @@ CO2_SETPOINT_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
+RH_SETPOINT_SCHEMA = (
+    number.number_schema(DucoRhSetpoint, unit_of_measurement=UNIT_PERCENT)
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45)})
+    .extend(cv.polling_component_schema("60s"))
+)
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_SCHEMA,
     DUCO_COMPONENT_SCHEMA.extend(
@@ -112,6 +120,7 @@ CONFIG_SCHEMA = cv.Any(
             cv.Optional(CONF_FLOW_LEVEL_MANUAL_2): cv.ensure_list(MANUAL_FLOW_LEVEL_SCHEMA),
             cv.Optional(CONF_FLOW_LEVEL_MANUAL_3): cv.ensure_list(MANUAL_FLOW_LEVEL_SCHEMA),
             cv.Optional(CONF_CO2_SETPOINT): cv.ensure_list(CO2_SETPOINT_SCHEMA),
+            cv.Optional(CONF_RH_SETPOINT): cv.ensure_list(RH_SETPOINT_SCHEMA),
         }
     ),
 )
@@ -129,6 +138,7 @@ async def to_code(config: ConfigType) -> None:
         CONF_FLOW_LEVEL_MANUAL_2,
         CONF_FLOW_LEVEL_MANUAL_3,
         CONF_CO2_SETPOINT,
+        CONF_RH_SETPOINT,
     )
     if all(key not in config for key in grouped_keys):
         var = await number.new_number(config, min_value=10.0, max_value=25.5, step=0.1)
@@ -175,5 +185,10 @@ async def to_code(config: ConfigType) -> None:
 
     for entity_config in config.get(CONF_CO2_SETPOINT, []):
         var = await number.new_number(entity_config, min_value=0, max_value=2000, step=10)
+        cg.add(var.set_address(entity_config[CONF_ADDRESS]))
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    for entity_config in config.get(CONF_RH_SETPOINT, []):
+        var = await number.new_number(entity_config, min_value=0, max_value=90, step=5)
         cg.add(var.set_address(entity_config[CONF_ADDRESS]))
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
