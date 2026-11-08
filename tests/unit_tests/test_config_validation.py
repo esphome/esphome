@@ -2340,6 +2340,12 @@ def test_validate_bytes_with_unit() -> None:
     assert cv.validate_bytes("2kB") == 2000
 
 
+def test_validate_bytes_uppercase_kb() -> None:
+    # KB is the most common spelling of kilobytes and every other uppercase
+    # prefix (MB, GB, TB) is accepted, so KB must not be the odd one out
+    assert cv.validate_bytes("64KB") == 64000
+
+
 def test_validate_bytes_no_match() -> None:
     with pytest.raises(Invalid, match="Expected number of bytes"):
         cv.validate_bytes("abc")

@@ -1506,6 +1506,9 @@ METRIC_SUFFIXES = {
     "G": 1e9,  # Giga
     "M": 1e6,  # Mega
     "k": 1e3,  # Kilo
+    # not an SI spelling, but KB is the common way to write kilobytes and
+    # rejecting it while accepting MB/GB/TB is a confusing inconsistency
+    "K": 1e3,  # Kilo
     "h": 1e2,  # Hecto
     "da": 1e1,  # Deca
     "": 1e0,  # No prefix
