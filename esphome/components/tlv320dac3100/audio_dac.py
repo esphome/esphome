@@ -295,10 +295,11 @@ async def to_code(config: ConfigType) -> None:
         (0x26, 0x80),
         (0x00, 0x00),
     )
-    # Written by power_up_dac_() after the setup entries, around the DAC level writes
+    # Written after the setup entries: the DAC comes up muted, then the drivers and levels once it has settled
     power_up = (
         # DAC data path: both channels on; the mono speaker gets (L + R) / 2
         (0x00, 0x00),
+        (0x40, 0x0C),  # Digital mute until unmute_outputs_()
         (0x3F, 0xD4 if headphone else 0xF4),
         # Output drivers unmuted (D2)
         (0x00, 0x01),

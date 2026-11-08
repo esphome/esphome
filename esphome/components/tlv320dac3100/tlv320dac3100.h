@@ -28,11 +28,13 @@ class TLV320DAC3100 final : public audio_dac::AudioDac, public Component, public
  protected:
   bool write_levels_();
   void power_up_dac_();
+  void unmute_outputs_();
 
   const uint8_t setup_count_;
   bool outputs_ready_{false};
   bool clock_running_{false};
   bool dac_powered_{false};
+  bool dac_settling_{false};
   const i2c::I2CRegValue *const table_;
   GPIOPin *reset_pin_{nullptr};
   float volume_{1.0f};

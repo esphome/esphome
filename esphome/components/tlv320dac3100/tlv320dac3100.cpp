@@ -16,12 +16,16 @@ static constexpr uint8_t REG_RESET = 0x01;
 static constexpr uint8_t REG_DAC_MUTE = 0x40;
 static constexpr uint8_t REG_DAC_VOLUME_L = 0x41;
 static constexpr uint8_t REG_DAC_VOLUME_R = 0x42;
-// Power-up entries after the setup ones in the generated table: page 0 and the data path, then the drivers
-static constexpr uint8_t DATA_PATH_COUNT = 2;
+// Power-up entries after the setup ones in the generated table: page 0, digital mute and the data path, then the
+// drivers
+static constexpr uint8_t DATA_PATH_COUNT = 3;
 static constexpr uint8_t DRIVERS_COUNT = 5;
 
 // Covers the 1.22 s HP driver power-on set up in the setup table
 static constexpr uint32_t OUTPUT_POWER_UP_MS = 1300;
+// The DAC's power-on transient pops the speaker if the outputs unmute before it has passed
+static constexpr uint32_t DAC_SETTLE_MS = 120;
+static constexpr uint32_t DAC_SETTLE_TIMEOUT_ID = 0;
 // Digital volume range in 0.5 dB steps: -63.5 dB to 0 dB
 static constexpr int8_t VOLUME_MIN = -127;
 
@@ -51,14 +55,22 @@ void TLV320DAC3100::on_audio_started() {
 }
 
 void TLV320DAC3100::power_up_dac_() {
-  if (this->dac_powered_ || !this->outputs_ready_ || !this->clock_running_ || this->is_failed())
+  if (this->dac_powered_ || this->dac_settling_ || !this->outputs_ready_ || !this->clock_running_ || this->is_failed())
     return;
-  const i2c::I2CRegValue *power_up = this->table_ + this->setup_count_;
-  // Levels before the output drivers; on failure dac_powered_ stays false, so the next audio start retries
-  this->dac_powered_ =
-      this->status_comm_result(this->write_registers(power_up, DATA_PATH_COUNT) && this->write_levels_() &&
-                                   this->write_registers(power_up + DATA_PATH_COUNT, DRIVERS_COUNT),
-                               LOG_STR("DAC power-up failed"));
+  if (!this->status_comm_result(this->write_registers(this->table_ + this->setup_count_, DATA_PATH_COUNT),
+                                LOG_STR("DAC power-up failed")))
+    return;
+  this->dac_settling_ = true;
+  this->set_timeout(DAC_SETTLE_TIMEOUT_ID, DAC_SETTLE_MS, [this]() { this->unmute_outputs_(); });
+}
+
+void TLV320DAC3100::unmute_outputs_() {
+  this->dac_settling_ = false;
+  // Levels last; on failure dac_powered_ stays false, so the next audio start retries
+  this->dac_powered_ = this->status_comm_result(
+      this->write_registers(this->table_ + this->setup_count_ + DATA_PATH_COUNT, DRIVERS_COUNT) &&
+          this->write_levels_(),
+      LOG_STR("DAC power-up failed"));
 }
 
 void TLV320DAC3100::dump_config() {
