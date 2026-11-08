@@ -13,6 +13,7 @@ from esphome.components.i2s_audio import (
     CONF_I2S_MODE,
     CONF_MCLK_MULTIPLE,
     CONF_PRIMARY,
+    CONF_SPDIF_MODE,
     DOMAIN as I2S_AUDIO_DOMAIN,
 )
 from esphome.components.speaker import DOMAIN as SPEAKER_DOMAIN, get_audio_dac_ids
@@ -234,6 +235,10 @@ def _final_validate(config: ConfigType) -> None:
             "the DAC powers up when that speaker starts its clocks"
         )
     for speaker in speakers:
+        if speaker.get(CONF_SPDIF_MODE, False):
+            raise cv.Invalid(
+                "The i2s_audio speaker using this audio_dac can't use 'spdif_mode'"
+            )
         fmt = speaker.get(CONF_I2S_COMM_FMT, "stand_i2s")
         if fmt not in STANDARD_I2S_FORMATS:
             raise cv.Invalid(

@@ -12,6 +12,7 @@ from esphome.components.i2s_audio import (
     CONF_I2S_MCLK_PIN,
     CONF_I2S_MODE,
     CONF_MCLK_MULTIPLE,
+    CONF_SPDIF_MODE,
 )
 from esphome.components.tlv320dac3100.audio_dac import (
     CLKIN_BCLK,
@@ -199,6 +200,7 @@ def test_final_validate_accepts(dac: dict, config: dict) -> None:
             {"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: "stand_msb"}]},
             "needs standard I2S",
         ),
+        (_DAC, {"speaker": [{**_speaker(), CONF_SPDIF_MODE: True}]}, "spdif_mode"),
         (
             _MCLK_DAC,
             {"speaker": [_mclk_speaker(multiple=384)], "i2s_audio": [_bus()]},
