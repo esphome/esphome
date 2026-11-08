@@ -253,7 +253,7 @@ template<typename... Ts> class BLEClientPasskeyReplyAction final : public Action
   BLEClientPasskeyReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
   void play(const Ts &...x) override {
-    const uint32_t passkey = has_simple_value_ ? this->value_.simple : this->value_.template_func(x...);
+    const uint32_t passkey = this->has_simple_value_ ? this->value_.simple : this->value_.template_func(x...);
     if (passkey > 999999)
       return;
     esp_bd_addr_t remote_bda;
