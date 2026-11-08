@@ -153,10 +153,9 @@ bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) 
   // Errata DS80000792, section 1: SPI pauses during a RAM read can cost a frame (SERRIF), so each read is one
   // transfer. Plain READ can return corrupt data, so READ_CRC is retried on a mismatch.
   // ESP32 SPI DMA writes in 4-byte units, so the buffer is aligned and padded.
-  alignas(4) std::array<uint8_t, (MESSAGE_SIZE + 5 + 3) & ~size_t{3}> transfer;
+  alignas(4) std::array<uint8_t, (MAX_READ_SIZE + 5 + 3) & ~size_t{3}> transfer;
   for (uint8_t attempt = 0; attempt < 3; attempt++) {
-    transfer.fill(0);
-    std::copy(command.begin(), command.end(), transfer.begin());
+    std::fill_n(std::copy(command.begin(), command.end(), transfer.begin()), length + 2, 0);
 
     this->enable();
     this->transfer_array(transfer.data(), length + command.size() + 2);
@@ -234,7 +233,7 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
 }
 
 void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t length) {
-  std::array<uint8_t, MESSAGE_SIZE + 2> transfer;
+  std::array<uint8_t, 2 + MAX_MESSAGE_SIZE> transfer;
   std::memcpy(put_be16(transfer.data(), (INSTRUCTION_WRITE << 8) | address), data, length);
 
   // One buffered transfer keeps the CS-low window tight (errata DS80000792, section 1).
@@ -276,7 +275,7 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), 0, TX_FIFO_DEPTH, address))
     return canbus::ERROR_FAILTX;
 
-  std::array<uint8_t, MESSAGE_SIZE> message{};
+  std::array<uint8_t, MAX_MESSAGE_SIZE> message{};
   uint32_t id;
   if (frame->use_extended_id) {
     id = (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11);
@@ -319,7 +318,7 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   // Most frames carry at most 8 bytes, so read the header and 8 data bytes first and fetch the rest of a longer
   // CAN FD payload in a second transaction, rather than always reading the whole 72-byte object.
   static constexpr size_t FIRST_READ_SIZE = MESSAGE_HEADER_SIZE + canbus::CAN_MAX_DATA_LENGTH;
-  std::array<uint8_t, MESSAGE_SIZE> message;
+  std::array<uint8_t, MAX_MESSAGE_SIZE> message;
   if (!this->read_registers_(address, message.data(), FIRST_READ_SIZE))
     return canbus::ERROR_FAIL;
 #ifdef USE_CANBUS_FD
@@ -342,7 +341,7 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   }
 #ifdef USE_CANBUS_FD
   frame->fd = (message[4] & MESSAGE_FDF) != 0;
-  if (frame->fd && this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC)
+  if (frame->fd && this->classic_())
     return canbus::ERROR_FAIL;
   // In a CAN FD frame the RTR position is the reserved RRS bit
   frame->remote_transmission_request = !frame->fd && (message[4] & MESSAGE_RTR);
