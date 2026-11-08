@@ -7,9 +7,9 @@ namespace esphome::matrix_keypad {
 
 class MatrixKeypadBinarySensor final : public MatrixKeypadListener, public binary_sensor::BinarySensorInitiallyOff {
  public:
-  MatrixKeypadBinarySensor(uint8_t key) : has_key_(true), key_(key){};
-  MatrixKeypadBinarySensor(const char *key) : has_key_(true), key_((uint8_t) key[0]){};
-  MatrixKeypadBinarySensor(int row, int col) : has_key_(false), row_(row), col_(col){};
+  MatrixKeypadBinarySensor(uint8_t key) : has_key_(true), key_(key) {};
+  MatrixKeypadBinarySensor(const char *key) : has_key_(true), key_((uint8_t) key[0]) {};
+  MatrixKeypadBinarySensor(int row, int col) : has_key_(false), row_(row), col_(col) {};
 
   void key_pressed(uint8_t key) override {
     if (!this->has_key_)

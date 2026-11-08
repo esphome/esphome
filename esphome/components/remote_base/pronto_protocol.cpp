@@ -37,7 +37,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.pronto";
+ESPHOME_LOG_TAG(TAG, "remote.pronto");
 
 bool ProntoData::operator==(const ProntoData &rhs) const {
   std::vector<uint16_t> data1 = encode_pronto(data);
@@ -190,7 +190,7 @@ std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase,
   return dump_number_((duration + timebase / 2) / timebase, end);
 }
 
-std::string ProntoProtocol::compensate_and_dump_sequence_(const RawTimings &data, uint16_t timebase) {
+std::string ProntoProtocol::compensate_and_dump_sequence_(RawTimingsView data, uint16_t timebase) {
   std::string out;
 
   for (int32_t t_length : data) {
@@ -211,7 +211,7 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   ProntoData out;
 
   uint16_t frequency = 38000U;
-  auto &data = src.get_raw_data();
+  auto data = src.get_raw_data();
   std::string prontodata;
 
   prontodata += dump_number_(frequency > 0 ? LEARNED_TOKEN : LEARNED_NON_MODULATED_TOKEN);

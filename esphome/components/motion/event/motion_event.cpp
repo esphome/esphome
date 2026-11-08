@@ -5,13 +5,7 @@
 
 namespace esphome::motion {
 
-static const char *const TAG = "motion.event";
-
-MotionEvent::MotionEvent(MotionComponent *parent) : parent_(parent) {}
-
-void MotionEvent::setup() {
-  this->parent_->add_listener([this](MotionData const &data) { this->process_motion_data_(data); });
-}
+ESPHOME_LOG_TAG(TAG, "motion.event");
 
 void MotionEvent::dump_config() {
   LOG_EVENT("", "Motion Event", this);
@@ -21,7 +15,7 @@ void MotionEvent::dump_config() {
                 this->threshold_, this->cooldown_);
 }
 
-void MotionEvent::process_motion_data_(const MotionData &data) {
+void MotionEvent::process_motion_data(const MotionData &data) {
   float ax = data.acceleration[X_AXIS];
   float ay = data.acceleration[Y_AXIS];
   float az = data.acceleration[Z_AXIS];

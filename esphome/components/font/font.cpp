@@ -6,7 +6,7 @@
 #include "esphome/components/unicode/unicode.h"
 
 namespace esphome::font {
-static const char *const TAG = "font";
+ESPHOME_LOG_TAG(TAG, "font");
 
 #ifdef USE_LVGL_FONT
 static const uint8_t OPA4_TABLE[16] = {0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255};
@@ -182,11 +182,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
       continue;
     }
 
-    if (!has_char) {
-      min_x = glyph->offset_x;
-    } else {
-      min_x = std::min(min_x, x + glyph->offset_x);
-    }
+    min_x = !has_char ? glyph->offset_x : std::min(min_x, x + glyph->offset_x);
     x += glyph->advance;
 
     has_char = true;

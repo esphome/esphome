@@ -4,6 +4,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <cstring>
+
 namespace esphome::ili9xxx {
 
 static const uint16_t SPI_SETUP_US = 100;         // estimated fixed overhead in microseconds for an SPI write
@@ -67,7 +70,7 @@ void ILI9XXXDisplay::alloc_buffer_() {
     this->init_internal_(this->get_buffer_length_());
   }
   if (this->buffer_ == nullptr) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to allocate the display buffer"));
   }
 }
 
@@ -119,9 +122,6 @@ void ILI9XXXDisplay::dump_config() {
                 this->color_order_ == display::COLOR_ORDER_BGR ? LOG_STR_LITERAL("BGR") : LOG_STR_LITERAL("RGB"),
                 YESNO(this->swap_xy_), YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->pre_invertcolors_));
 
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -162,7 +162,7 @@ void ILI9XXXDisplay::fill(Color color) {
       }
       return;
     default:
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_332(color);
       break;
   }
   memset(this->buffer_, (uint8_t) new_color, this->get_buffer_length_());
@@ -183,7 +183,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
       break;
     case BITS_16:
       pos = pos * 2;
-      new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_565(color);
       if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
         this->buffer_[pos] = (uint8_t) (new_color >> 8);
         updated = true;
@@ -192,7 +192,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
       new_color = new_color & 0xFF;
       break;
     default:
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_332(color);
       break;
   }
 
@@ -313,23 +313,42 @@ void ILI9XXXDisplay::display_() {
   this->y_high_ = 0;
 }
 
-// note that this bypasses the buffer and writes directly to the display.
-void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                    display::ColorOrder order, display::ColorBitness bitness, bool big_endian,
-                                    int x_offset, int y_offset, int x_pad) {
+// Outside update() this bypasses the buffer and writes directly to the display. Inside it the block goes into the
+// buffer, or the flush at the end of update() would paint the old buffer contents over it.
+void ILI9XXXDisplay::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                          display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                          int x_pad) {
   if (w <= 0 || h <= 0)
     return;
   // if color mapping or software rotation is required, hand this off to the parent implementation. This will
   // do color conversion pixel-by-pixel into the buffer and draw it later. If this is happening the user has not
   // configured the renderer well.
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian ||
+      this->is_clipping() || (this->prossing_update_ && this->buffer_color_mode_ != BITS_16)) {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
+  // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
+  auto stride = x_offset + w + x_pad;
+  if (this->prossing_update_) {
+    if (!this->check_buffer_())
+      return;
+    // The buffer holds big endian RGB565, the same layout as the block
+    const int first_col = std::max(0, -x_start), end_col = std::min(w, this->get_width_internal() - x_start);
+    const int first_row = std::max(0, -y_start), end_row = std::min(h, this->get_height_internal() - y_start);
+    if (first_col >= end_col || first_row >= end_row)
+      return;
+    for (int y = first_row; y != end_row; y++) {
+      memcpy(this->buffer_ + ((y_start + y) * this->width_ + x_start + first_col) * 2,
+             ptr + ((y_offset + y) * stride + x_offset + first_col) * 2, (end_col - first_col) * 2);
+    }
+    this->x_low_ = std::min<int>(this->x_low_, x_start + first_col);
+    this->y_low_ = std::min<int>(this->y_low_, y_start + first_row);
+    this->x_high_ = std::max<int>(this->x_high_, x_start + end_col - 1);
+    this->y_high_ = std::max<int>(this->y_high_, y_start + end_row - 1);
     return;
   }
   this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
-  // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
-  auto stride = x_offset + w + x_pad;
   if (!this->is_18bitdisplay_) {
     if (x_offset == 0 && x_pad == 0 && y_offset == 0) {
       // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother

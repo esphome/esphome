@@ -30,27 +30,19 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_exactly_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
+    cv.key_requires(CONF_RECEIVER_FREQUENCY, CONF_REMOTE_RECEIVER_ID),
 )
 
 
 def _final_validate(config: dict[str, Any]) -> None:
     """Validate that transmitters have a proper carrier duty cycle."""
-    # receiver_frequency is only meaningful for receiver configurations
-    if CONF_RECEIVER_FREQUENCY in config and CONF_REMOTE_RECEIVER_ID not in config:
-        raise cv.Invalid(
-            f"'{CONF_RECEIVER_FREQUENCY}' can only be used with '{CONF_REMOTE_RECEIVER_ID}', "
-            "not with a transmitter"
-        )
-
     # Only validate duty cycle if this is an infrared (not RF) configuration with a transmitter
     if config.get(CONF_FREQUENCY, 0) != 0 or CONF_REMOTE_TRANSMITTER_ID not in config:
         return
 
     # Get the transmitter configuration
     transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
-    full_config = fv.full_config.get()
-    transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
-    transmitter_config = full_config.get_config_for_path(transmitter_path)
+    transmitter_config = fv.get_declaring_config(transmitter_id)
 
     # Check if carrier_duty_percent set to 0 or 100
     # Note: remote_transmitter schema requires this field and validates 1-100%,
@@ -84,5 +76,4 @@ async def to_code(config: dict[str, Any]) -> None:
         await remote_base.attach_receiver(var, config, CONF_REMOTE_RECEIVER_ID)
 
     # Set receiver demodulation frequency if specified (metadata only, no hardware effect)
-    if CONF_RECEIVER_FREQUENCY in config:
-        cg.add(var.set_receiver_frequency(config[CONF_RECEIVER_FREQUENCY]))
+    cg.add_optional(var.set_receiver_frequency, config.get(CONF_RECEIVER_FREQUENCY))

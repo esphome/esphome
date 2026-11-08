@@ -9,7 +9,7 @@
 
 namespace esphome::async_tcp {
 
-static const char *const TAG = "async_tcp";
+ESPHOME_LOG_TAG(TAG, "async_tcp");
 
 // Read buffer size matches TCP MSS (1500 MTU - 40 bytes IP/TCP headers).
 // This implementation only runs on ESP-IDF and host which have ample stack.

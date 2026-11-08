@@ -1,0 +1,41 @@
+# wifi_info channel sensor (a package): the bench AP at priority 10 and your normal network at 0, Wi-Fi off and on
+# every 90 s (the interval also fires once right after boot). The per-run file supplies the board and name.
+logger:
+  level: DEBUG
+
+wifi:
+  networks:
+    - ssid: !secret bench_ssid
+      password: !secret bench_password
+      priority: 10
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+      priority: 0
+
+text_sensor:
+  - platform: wifi_info
+    ssid:
+      name: ssid
+      on_value:
+        - logger.log: {format: "EV ssid '%s'", args: [x.c_str()], level: INFO}
+    bssid:
+      name: bssid
+
+sensor:
+  - platform: wifi_info
+    channel:
+      name: channel
+      on_value:
+        - logger.log:
+            format: "EV channel %.0f (component reports %d, connected %d)"
+            args: [x, (int) wifi::global_wifi_component->get_wifi_channel(), (int) wifi::global_wifi_component->is_connected()]
+            level: INFO
+
+interval:
+  - interval: 90s
+    then:
+      - logger.log: {format: "EV wifi off", level: INFO}
+      - wifi.disable:
+      - delay: 5s
+      - logger.log: {format: "EV wifi on", level: INFO}
+      - wifi.enable:

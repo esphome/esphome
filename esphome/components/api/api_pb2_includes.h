@@ -15,6 +15,7 @@
 #endif
 
 #ifdef USE_LIGHT
+#include "esphome/components/light/light_effect_names.h"
 #include "esphome/components/light/light_traits.h"
 #endif
 
@@ -24,6 +25,10 @@
 
 #ifdef USE_SELECT
 #include "esphome/components/select/select_traits.h"
+#endif
+
+#ifdef USE_CRASH_REPORT
+#include "esphome/core/crash_report.h"
 #endif
 
 // Standard library includes that might be needed

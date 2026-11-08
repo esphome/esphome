@@ -50,6 +50,14 @@ class RecordingPin : public GPIOPin {
   bool level{true};
 };
 
+/// A busy pin the test can hold at "busy" and release.
+class SwitchableBusyPin : public RecordingPin {
+ public:
+  bool digital_read() override { return this->busy; }
+
+  bool busy{false};
+};
+
 /// SPI delegate that records what reaches the bus, filing each payload under the command it
 /// followed; commands are the bytes written while D/C is low. Optionally burns wall-clock time on
 /// each data row, so a transfer can be driven past its yield deadline.

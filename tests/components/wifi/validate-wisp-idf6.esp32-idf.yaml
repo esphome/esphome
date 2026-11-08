@@ -1,0 +1,16 @@
+# A second DNS server needs ESP-IDF 6.0; config-only, a build would re-use the 5.x build dir
+esp32:
+  framework:
+    version: 6.0.1
+
+wifi:
+  ap:
+    ssid: WISP AP
+    password: wisp12345678
+    ap_mode: wisp
+    dns_servers:
+      - 8.8.8.8
+      - 8.8.4.4
+
+packages:
+  wifi: !include common.yaml

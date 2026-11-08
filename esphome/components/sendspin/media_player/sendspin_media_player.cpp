@@ -16,7 +16,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.media_player";
+ESPHOME_LOG_TAG(TAG, "sendspin.media_player");
 
 // THREAD CONTEXT: Main loop. The callbacks registered here also fire on the main loop,
 // since SendspinHub dispatches group updates and controller state from client_->loop().

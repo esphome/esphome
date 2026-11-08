@@ -19,7 +19,7 @@
 
 namespace esphome::aht10 {
 
-static const char *const TAG = "aht10";
+ESPHOME_LOG_TAG(TAG, "aht10");
 static const uint8_t AHT10_INITIALIZE_CMD[] = {0xE1, 0x08, 0x00};
 static const uint8_t AHT20_INITIALIZE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
@@ -51,32 +51,23 @@ void AHT10Component::setup() {
       error_code = this->write(AHT10_INITIALIZE_CMD, sizeof(AHT10_INITIALIZE_CMD));
       break;
   }
-  if (error_code != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+  if (!this->setup_check(error_code == i2c::ERROR_OK))
     return;
-  }
   uint8_t cal_attempts = 0;
   uint8_t data = AHT10_STATUS_BUSY;
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
-    if (this->read(&data, 1) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->mark_failed();
+    if (!this->setup_check(this->read(&data, 1) == i2c::ERROR_OK))
       return;
-    }
     ++cal_attempts;
     if (cal_attempts > AHT10_INIT_ATTEMPTS) {
-      ESP_LOGE(TAG, "Initialization timed out");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Initialization timed out"));
       return;
     }
   }
-  if ((data & 0x68) != 0x08) {  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-    ESP_LOGE(TAG, "Initialization failed");
-    this->mark_failed();
+  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
+  if (!this->setup_check((data & 0x68) == 0x08, LOG_STR("Initialization failed")))
     return;
-  }
 }
 
 void AHT10Component::restart_read_() {
@@ -124,10 +115,7 @@ void AHT10Component::read_data_() {
   uint32_t raw_temperature = encode_uint24(data[3] & 0xF, data[4], data[5]);
   uint32_t raw_humidity = encode_uint24(data[1], data[2], data[3]) >> 4;
 
-  if (this->temperature_sensor_ != nullptr) {
-    float temperature = ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f;
-    this->temperature_sensor_->publish_state(temperature);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f);
   if (this->humidity_sensor_ != nullptr) {
     float humidity = raw_humidity == 0 ? NAN : static_cast<float>(raw_humidity) * 100.0f / AHT10_DIVISOR;
     if (std::isnan(humidity)) {
@@ -152,9 +140,6 @@ void AHT10Component::update() {
 void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }

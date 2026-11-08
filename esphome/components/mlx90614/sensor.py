@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -49,9 +48,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_AMBIENT, var.set_ambient_sensor)

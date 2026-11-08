@@ -36,6 +36,8 @@ const uint32_t DAIKIN_HEADER_SPACE = 1760;
 const uint32_t DAIKIN_BIT_MARK = 400;
 const uint32_t DAIKIN_ONE_SPACE = 1300;
 const uint32_t DAIKIN_ZERO_SPACE = 480;
+static constexpr remote_base::BitTimings DAIKIN_BIT_TIMINGS{
+    .bit_mark = DAIKIN_BIT_MARK, .one_space = DAIKIN_ONE_SPACE, .zero_space = DAIKIN_ZERO_SPACE};
 const uint32_t DAIKIN_MESSAGE_SPACE = 35000;
 
 const uint8_t DAIKIN_DBG_TOLERANCE = 25;

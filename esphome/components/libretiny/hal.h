@@ -8,6 +8,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "esphome/core/main_task.h"
 #include "esphome/core/time_64.h"
 
 // IRAM_ATTR places a function in executable RAM so it is callable from an
@@ -84,6 +85,10 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 #endif
 }
 
+/// Before setup() stores the handle every task counts as background; the wake is a no-op until then.
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
+}
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }

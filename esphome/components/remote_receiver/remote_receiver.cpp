@@ -7,8 +7,10 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver";
+ESPHOME_LOG_TAG(TAG, "remote_receiver");
 
+// The timer backend has its own setup() and loop() in remote_receiver_bk72xx.cpp
+#ifndef USE_REMOTE_RECEIVER_TIMER_SAMPLING
 static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_t delta, bool level) {
   // convert level to -1 or +1 and write the delta to the buffer
   int32_t multiplier = ((int32_t) level << 1) - 1;
@@ -65,9 +67,6 @@ void RemoteReceiverComponent::setup() {
   this->store_.idle_us = this->idle_us_;
   this->store_.filter_us = this->filter_us_;
   this->store_.pin = this->pin_->to_isr();
-  // rounded up so a size that is not a multiple of four never holds less than requested
-  this->store_.buffer_entries = (this->buffer_size_ + sizeof(int32_t) - 1) / sizeof(int32_t);
-  this->store_.buffer = new int32_t[this->store_.buffer_entries];
   this->store_.prev_micros = micros();
   this->store_.commit_micros = this->store_.prev_micros;
   this->store_.prev_level = this->pin_->digital_read();
@@ -75,8 +74,21 @@ void RemoteReceiverComponent::setup() {
   this->pin_->attach_interrupt(RemoteReceiverComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
   this->high_freq_.start();
 }
+#endif
 
 void RemoteReceiverComponent::dump_config() {
+#ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+  // the timer backend keeps only tick counts, and its buffer holds two frames
+  const uint32_t pulses = this->store_.frame_entries;
+  const uint32_t buffer_size = pulses * 2 * sizeof(int32_t);
+  const uint32_t filter_us = this->store_.filter_ticks / TIMER_TICKS_PER_US;
+  const uint32_t idle_us = this->store_.idle_ticks / TIMER_TICKS_PER_US;
+#else
+  const uint32_t pulses = this->store_.buffer_entries;
+  const uint32_t buffer_size = pulses * sizeof(int32_t);
+  const uint32_t filter_us = this->filter_us_;
+  const uint32_t idle_us = this->idle_us_;
+#endif
   ESP_LOGCONFIG(
       TAG,
       "Remote Receiver:\n"
@@ -84,12 +96,19 @@ void RemoteReceiverComponent::dump_config() {
       "  Tolerance: %" PRIu32 "%s\n"
       "  Filter out pulses shorter than: %" PRIu32 " us\n"
       "  Signal is done after %" PRIu32 " us of no changes",
-      this->buffer_size_, this->store_.buffer_entries, this->tolerance_,
+      buffer_size, pulses, this->tolerance_,
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
-      this->filter_us_, this->idle_us_);
+      filter_us, idle_us);
+#ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+  ESP_LOGCONFIG(TAG, "  Sampling: timer, every %u us", this->store_.sample_period_us);
+#endif
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  this->warn_extra_secondaries_();
+#endif
 }
 
+#ifndef USE_REMOTE_RECEIVER_TIMER_SAMPLING
 void RemoteReceiverComponent::loop() {
   // check for overflow
   auto &s = this->store_;
@@ -138,6 +157,7 @@ void RemoteReceiverComponent::loop() {
   // call the listeners and dumpers
   this->call_listeners_dumpers_();
 }
+#endif
 
 }  // namespace esphome::remote_receiver
 

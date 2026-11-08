@@ -7,6 +7,47 @@
 
 namespace esphome::core::testing {
 
+// --- truncate_name_to() ---
+
+TEST(TruncateNameTo, NameThatFitsIsCopied) {
+  char buffer[21];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 7), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, NameOfExactlyTheLimitIsCopied) {
+  char buffer[8];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 0), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, CutsTheEndWithoutASuffix) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-here";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 0), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-device-n");
+}
+
+TEST(TruncateNameTo, KeepsTheSuffixAndRemovesTheMiddle) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-d-a1b2c3");
+}
+
+TEST(TruncateNameTo, SuffixLongerThanTheBufferIsCut) {
+  char buffer[5];
+  const char *name = "name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 4u);
+  EXPECT_STREQ(buffer, "b2c3");
+}
+
+TEST(TruncateNameTo, ZeroBufferSize) {
+  char buffer[1] = {'x'};
+  EXPECT_EQ(truncate_name_to(buffer, 0, "name", 4, 0), 0u);
+  EXPECT_EQ(buffer[0], 'x');
+}
+
 // --- format_hex_to() ---
 
 TEST(FormatHexTo, Basic) {
@@ -125,6 +166,7 @@ TEST(SmallPow10, Zero) { EXPECT_EQ(small_pow10(0), 1u); }
 TEST(SmallPow10, One) { EXPECT_EQ(small_pow10(1), 10u); }
 TEST(SmallPow10, Two) { EXPECT_EQ(small_pow10(2), 100u); }
 TEST(SmallPow10, Three) { EXPECT_EQ(small_pow10(3), 1000u); }
+TEST(SmallPow10, Four) { EXPECT_EQ(small_pow10(4), 10000u); }
 
 // --- frac_to_str_unchecked() ---
 
@@ -424,6 +466,17 @@ TEST(RAMAllocatorMakeUnique, ValueInitializesLikeMakeUnique) {
   ASSERT_NE(p, nullptr);
   // Under ASan fresh blocks are filled with 0xbe, so this holds even when the dirtied block is not reused
   EXPECT_TRUE(std::all_of(std::begin(p->words), std::end(p->words), [](uint32_t w) { return w == 0; }));
+}
+
+TEST(PsramBuffer, ZeroedAndRejectsOverflow) {
+  uint32_t *buffer = psram_buffer<uint32_t>(4);
+  ASSERT_NE(buffer, nullptr);
+  for (size_t i = 0; i < 4; i++)
+    EXPECT_EQ(buffer[i], 0u);
+  buffer[3] = 0xFFFFFFFF;  // all four elements are in the allocation
+  RAMAllocator<uint32_t>().deallocate(buffer, 4);
+  EXPECT_EQ(psram_buffer<uint32_t>(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
+  EXPECT_EQ(psram_buffer<uint32_t>(0), nullptr);
 }
 
 TEST(RAMAllocatorMakeUnique, ArrayFormRejectsOverflowAndZero) {

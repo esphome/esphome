@@ -3,7 +3,6 @@ import logging
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -23,7 +22,6 @@ from esphome.const import (
     CONF_TILT_COMMAND_TOPIC,
     CONF_TILT_STATE_TOPIC,
     CONF_TRIGGER_ID,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
     DEVICE_CLASS_CURTAIN,
@@ -36,9 +34,10 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -62,6 +61,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "cover"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,11 +79,9 @@ COVER_STATES = {
 validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
 CoverOperation = cover_ns.enum("CoverOperation")
-COVER_OPERATIONS = {
-    "IDLE": CoverOperation.COVER_OPERATION_IDLE,
-    "OPENING": CoverOperation.COVER_OPERATION_OPENING,
-    "CLOSING": CoverOperation.COVER_OPERATION_CLOSING,
-}
+COVER_OPERATIONS = CoverOperation.options(
+    "IDLE", "OPENING", "CLOSING", prefix="COVER_OPERATION_"
+)
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
@@ -100,6 +98,7 @@ CONF_ON_CLOSED = "on_closed"
 CONF_ON_OPENED = "on_opened"
 CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
+CONF_STOP_TILT = "stop_tilt"
 
 TRIGGERS = {
     CONF_ON_OPEN: CoverOpenedTrigger,  # Deprecated, use on_opened
@@ -112,11 +111,13 @@ TRIGGERS = {
 
 
 _COVER_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTCoverComponent")
+            ),
             cv.Optional(CONF_MQTT_JSON_STATE_PAYLOAD): cv.All(
                 cv.requires_component("mqtt"), cv.boolean
             ),
@@ -202,10 +203,8 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(trigger, [], conf)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None:
         if (position_state_topic := config.get(CONF_POSITION_STATE_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_position_state_topic(position_state_topic))
         if (
@@ -219,9 +218,6 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
             cg.add(mqtt_.set_custom_tilt_state_topic(tilt_state_topic))
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_command_topic(tilt_command_topic))
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_cover(var: MockObj, config: ConfigType) -> None:
@@ -249,6 +245,7 @@ for _name, _command in (
     ("cover.open", "set_command_open()"),
     ("cover.close", "set_command_close()"),
     ("cover.stop", "set_command_stop()"),
+    ("cover.stop_tilt", "set_command_stop_tilt()"),
     ("cover.toggle", "set_command_toggle()"),
 ):
     automation.register_apply_action(
@@ -260,6 +257,7 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Cover),
         cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
+        cv.Optional(CONF_STOP_TILT): cv.templatable(cv.boolean),
         cv.Exclusive(CONF_STATE, "pos"): cv.templatable(validate_cover_state),
         cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
         cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
@@ -273,6 +271,7 @@ automation.register_apply_action(
     "cover.control",
     COVER_CONTROL_ACTION_SCHEMA,
     automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STOP_TILT, "set_stop_tilt", cg.bool_),
     automation.ApplyField(CONF_STATE, "set_position", cg.float_),
     automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
     automation.ApplyField(CONF_TILT, "set_tilt", cg.float_),

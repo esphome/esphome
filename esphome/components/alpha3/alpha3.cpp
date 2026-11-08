@@ -14,7 +14,7 @@
 namespace esphome::alpha3 {
 namespace {
 
-const char *const TAG = "alpha3";
+ESPHOME_LOG_TAG(TAG, "alpha3");
 
 constexpr uint16_t CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_UUID = 0x2902;
 constexpr uint8_t ALARM_PARAMETER_ID = 158;
@@ -298,7 +298,8 @@ void Alpha3::set_ready_(bool ready, bool force_publish) {
   if (this->ready_binary_sensor_ != nullptr)
     this->ready_binary_sensor_->publish_state(this->ready_);
 #endif
-  ESP_LOGI(TAG, "[%s] control %s", this->parent()->address_str(), this->ready_ ? "ready" : "not ready");
+  ESP_LOGI(TAG, "[%s] control %s", this->parent()->address_str(),
+           this->ready_ ? LOG_STR_LITERAL("ready") : LOG_STR_LITERAL("not ready"));
 }
 
 void Alpha3::reset_connection_state_() {

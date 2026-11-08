@@ -11,7 +11,7 @@
 
 namespace esphome::factory_reset {
 
-static const char *const TAG = "factory_reset";
+ESPHOME_LOG_TAG(TAG, "factory_reset");
 static const uint32_t POWER_CYCLES_KEY = 0xFA5C0DE;
 
 static bool was_power_cycled() {

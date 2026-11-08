@@ -1,0 +1,8 @@
+substitutions:
+  cs_pin: GPIO15
+  irq_pin: GPIO4
+  reset_pin: GPIO5
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  st25r_spi: !include common.yaml

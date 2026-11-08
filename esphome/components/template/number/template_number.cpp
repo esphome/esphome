@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.number";
+ESPHOME_LOG_TAG(TAG, "template.number");
 
 void TemplateNumber::setup() {
   if (this->f_.has_value())
@@ -15,11 +15,7 @@ void TemplateNumber::setup() {
   } else {
     this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
-      if (!std::isnan(this->initial_value_)) {
-        value = this->initial_value_;
-      } else {
-        value = this->traits.get_min_value();
-      }
+      value = !std::isnan(this->initial_value_) ? this->initial_value_ : this->traits.get_min_value();
     }
   }
   this->publish_state(value);

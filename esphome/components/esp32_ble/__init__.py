@@ -16,12 +16,17 @@ from esphome.components.ble_device_base import (  # noqa: F401  # pylint: disabl
 )
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import (
+    ROM_SSCANF_VARIANTS,
     add_idf_sdkconfig_option,
+    add_src_cmake,
     const,
     get_esp32_variant,
+    idf_version,
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.components.esp32_hosted import DOMAIN as ESP32_HOSTED_DOMAIN
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -277,7 +282,7 @@ DEFAULT_MAX_CONNECTIONS = 3
 IDF_MAX_CONNECTIONS = 9
 
 # Connection slot tracking keys
-KEY_ESP32_BLE = "esp32_ble"
+KEY_ESP32_BLE = DOMAIN
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
 
 # Export for use by other components (bluetooth_proxy, etc.)
@@ -291,12 +296,21 @@ __all__ = [
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
+# Give bluedroid_hex_wraps.cpp Bluedroid's private headers so its ESP-IDF drift
+# checks compile; the bt target's include dirs are read at generate time. Only
+# the native ESP-IDF toolchain generates src/CMakeLists.txt.
+BLUEDROID_HEADERS_CMAKE = """\
+idf_component_get_property(esphome_bt_lib bt COMPONENT_LIB)
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/esphome/components/esp32_ble/bluedroid_hex_wraps.cpp"
+    PROPERTIES
+        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${esphome_bt_lib},INCLUDE_DIRECTORIES>"
+        COMPILE_DEFINITIONS USE_ESP32_BLE_BLUEDROID_HEADERS
+)
+"""
+
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
-
-BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
-BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
-BLEDisableAction = esp32_ble_ns.class_("BLEDisableAction", automation.Action)
 
 IoCapability = esp32_ble_ns.enum("IoCapability")
 IO_CAPABILITY = {
@@ -308,16 +322,17 @@ IO_CAPABILITY = {
 }
 
 AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
-AUTH_REQ_MODE = {
-    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
-    "bond": AuthReqMode.AUTH_REQ_BOND,
-    "mitm": AuthReqMode.AUTH_REQ_MITM,
-    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
-    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
-    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
-    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
-    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
-}
+AUTH_REQ_MODE = AuthReqMode.options(
+    "no_bond",
+    "bond",
+    "mitm",
+    "bond_mitm",
+    "sc_only",
+    "sc_bond",
+    "sc_mitm",
+    "sc_mitm_bond",
+    prefix="AUTH_REQ_",
+)
 
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
 
@@ -361,7 +376,7 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
         cv.Optional(CONF_USE_PSRAM): cv.All(
-            cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+            cv.only_on_esp32, cv.requires_component(PSRAM_DOMAIN), cv.boolean
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -404,7 +419,7 @@ def consume_connection_slots(
     """
 
     def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
-        data: dict[str, Any] = CORE.data.setdefault(KEY_ESP32_BLE, {})
+        data: dict[str, Any] = CORE.data.setdefault(DOMAIN, {})
         slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
         slots.extend([consumer] * value)
         return config
@@ -418,7 +433,7 @@ def validate_connection_slots(max_connections: int) -> None:
     if CORE.testing_mode:
         return
 
-    ble_data = CORE.data.get(KEY_ESP32_BLE, {})
+    ble_data = CORE.data.get(DOMAIN, {})
     used_slots = ble_data.get(KEY_USED_CONNECTION_SLOTS, [])
     num_used = len(used_slots)
 
@@ -473,18 +488,12 @@ def final_validation(config: ConfigType) -> None:
     validate_connection_slots(max_connections)
 
     # Check if hosted bluetooth is being used
-    if "esp32_hosted" in full_config:
-        from esphome.components.esp32_hosted import uses_esp_hosted_3x
-
+    if ESP32_HOSTED_DOMAIN in full_config:
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
-        if uses_esp_hosted_3x():
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
-        else:
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
@@ -536,16 +545,12 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
 
-    if CONF_AUTH_REQ_MODE in config:
-        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
-    if CONF_MAX_KEY_SIZE in config:
-        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
-    if CONF_MIN_KEY_SIZE in config:
-        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+    cg.add_optional(var.set_auth_req, config.get(CONF_AUTH_REQ_MODE))
+    cg.add_optional(var.set_max_key_size, config.get(CONF_MAX_KEY_SIZE))
+    cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
-    if (name := config.get(CONF_NAME)) is not None:
-        cg.add(var.set_name(name))
+    cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
@@ -553,6 +558,20 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     request_bluetooth()
+
+    # Replace Bluedroid's only two sscanf callers so newlib's scanf engine is not
+    # linked; see bluedroid_hex_wraps.cpp. IDF 6.0+ uses picolibc, not newlib.
+    if (
+        not CORE.using_arduino
+        and idf_version() < cv.Version(6, 0, 0)
+        and get_esp32_variant() not in ROM_SSCANF_VARIANTS
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS")
+        for symbol in ("btc_config_get_bin", "string_to_bdaddr"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
+            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+        add_src_cmake(BLUEDROID_HEADERS_CMAKE)
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
@@ -610,31 +629,21 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_UUID")
 
 
-automation.register_bare_condition(
-    "ble.enabled",
-    BLEEnabledCondition,
-    cv.Schema({}),
-)
+BLE_AUTOMATION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(ESP32BLE)})
 
+automation.register_apply_condition("ble.enabled", BLE_AUTOMATION_SCHEMA, "is_active()")
 
-automation.register_bare_action(
-    "ble.enable",
-    BLEEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "ble.disable",
-    BLEDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
+    automation.register_apply_action(
+        _name, BLE_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
 # when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING"}
+    {
+        "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
+        "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
+    }
 )

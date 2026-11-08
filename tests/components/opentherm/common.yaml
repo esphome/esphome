@@ -25,6 +25,8 @@ opentherm:
     then:
       - lambda: |-
           ESP_LOGW("OT", ">> Sending message %d", x.id);
+          if (x.id == 0)
+            x.valueHB |= 0x01;
   before_process_response:
     then:
       - lambda: |-

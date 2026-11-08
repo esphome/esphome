@@ -6,7 +6,7 @@
 
 namespace esphome::zephyr_pwm {
 
-static const char *const TAG = "zephyr_pwm";
+ESPHOME_LOG_TAG(TAG, "zephyr_pwm");
 
 void ZephyrPWMChannel::setup() {
   if (!device_is_ready(this->device_)) {

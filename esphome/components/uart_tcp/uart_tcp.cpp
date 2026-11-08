@@ -9,10 +9,7 @@
 
 namespace esphome::uart_tcp {
 
-static const char *const TAG = "uart_tcp";
-
-// Keeps the pacing product in 32 bits up to about 10 Mbaud.
-static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
+ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
@@ -20,14 +17,10 @@ void UartTcp::setup() {
   this->listener_.begin(TAG);
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
 #endif
 #ifdef USE_SENSOR
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->disconnects_sensor_, 0);
 #endif
 }
 
@@ -35,15 +28,16 @@ void UartTcp::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "UART TCP:\n"
                 "  %s: %s:%u\n"
-                "  Reconnect Interval: %" PRIu32 "ms",
+                "  Reconnect Interval: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval());
+                this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
@@ -65,9 +59,7 @@ void UartTcp::sync_link_() {
     this->discard_uart_();
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, up);
 #endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.
@@ -81,18 +73,11 @@ void UartTcp::sync_link_() {
 void UartTcp::read_socket_() {
   // A hardware write blocks until the driver takes every byte. Leave what does
   // not fit in the socket, so TCP flow control throttles the peer.
-  size_t room = this->parent_->available_for_write();
-  if (room == SIZE_MAX) {
-    // Capacity unknown on this platform; pace to the UART time since the last write,
-    // at most one loop interval and 4 s, so a pass woken early by the socket writes little.
-    uint32_t span = std::min(
-        {App.get_loop_component_start_time() - this->last_write_ms_, App.get_loop_interval(), MAX_PACE_SPAN_MS});
-    // 10 bits per byte on the line.
-    uint32_t paced = this->parent_->get_baud_rate() / 10 * span / 1000;
-    room = std::max<size_t>(1, paced);
-  }
+  size_t room = this->parent_->paced_write_room(this->last_write_ms_);
   if (room == 0) {
+    // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
+    this->link_.note_io();
     return;
   }
   uint8_t tmp[READ_CHUNK];
@@ -154,6 +139,7 @@ void UartTcp::loop() {
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
   this->link_.flush_tx();
+  this->link_.check_idle();
 }
 
 }  // namespace esphome::uart_tcp

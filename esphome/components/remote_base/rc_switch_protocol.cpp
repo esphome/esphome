@@ -6,7 +6,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.rc_switch";
+ESPHOME_LOG_TAG(TAG, "remote.rc_switch");
 
 RCSwitchBase rc_switch_protocol(uint8_t index) {
   // entry 0 is the all-zero protocol, so an out of range index from a lambda transmits nothing

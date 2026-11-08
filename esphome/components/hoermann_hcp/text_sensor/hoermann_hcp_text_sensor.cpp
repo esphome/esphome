@@ -1,13 +1,11 @@
 #include "hoermann_hcp_text_sensor.h"
 
-#include <cstring>
-
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.text_sensor";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.text_sensor");
 
 // Indexed by DoorState. Each fits the 15 characters std::string keeps inline, so publishing never allocates.
 PROGMEM_STRING_TABLE(DoorStateStrings, "Open", "Opening", "Closed", "Closing", "Half open", "Moving to vent",
@@ -37,13 +35,7 @@ void HoermannHcpDoorStateTextSensor::update_from_state_() {
     return;
   this->published_ = true;
   this->published_state_ = state;
-  char text[16];
-  ESPHOME_strncpy_P(text,
-                    reinterpret_cast<ESPHOME_PGM_P>(
-                        DoorStateStrings::get_progmem_str(static_cast<uint8_t>(state), DoorStateStrings::LAST_INDEX)),
-                    sizeof(text));
-  text[sizeof(text) - 1] = '\0';
-  this->publish_state(text);
+  this->publish_state(DoorStateStrings::get_progmem_str(static_cast<uint8_t>(state), DoorStateStrings::LAST_INDEX));
 }
 
 }  // namespace esphome::hoermann_hcp

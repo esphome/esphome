@@ -1,5 +1,6 @@
 import base64
 import binascii
+import secrets
 from typing import Any
 
 import esphome.codegen as cg
@@ -10,6 +11,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "noise"
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
@@ -19,6 +21,11 @@ LIBSODIUM_VERSION = "1.10021.12"
 noise_ns = cg.esphome_ns.namespace("noise")
 
 CONFIG_SCHEMA = cv.Schema({})
+
+
+def generate_encryption_key() -> str:
+    """A fresh random key in the base64 form the yaml takes."""
+    return base64.b64encode(secrets.token_bytes(32)).decode()
 
 
 def validate_encryption_key(value: Any) -> str:

@@ -3,7 +3,7 @@
 
 namespace esphome::sht3xd {
 
-static const char *const TAG = "sht3xd";
+ESPHOME_LOG_TAG(TAG, "sht3xd");
 
 // https://sensirion.com/media/documents/E5762713/63D103C2/Sensirion_electronic_identification_code_SHT3x.pdf
 // indicates two possible read serial number registers either with clock stretching enabled or disabled.
@@ -34,10 +34,9 @@ void SHT3XDComponent::setup() {
   }
   this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
 
-  if (!this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
-    this->mark_failed(LOG_STR("Failed to set heater mode"));
-    return;
-  }
+  this->setup_check(
+      this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE),
+      LOG_STR("Failed to set heater mode"));
 }
 
 void SHT3XDComponent::dump_config() {
@@ -73,10 +72,8 @@ void SHT3XDComponent::update() {
     float humidity = 100.0f * float(raw_data[1]) / 65535.0f;
 
     ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   });
 }

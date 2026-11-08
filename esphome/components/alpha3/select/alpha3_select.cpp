@@ -5,7 +5,7 @@
 
 namespace esphome::alpha3 {
 
-static const char *const TAG = "alpha3.select";
+ESPHOME_LOG_TAG(TAG, "alpha3.select");
 
 void Alpha3Select::control(size_t index) {
   switch (this->type_) {

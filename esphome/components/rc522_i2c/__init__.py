@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["rc522"]
+DOMAIN = "rc522_i2c"
 MULTI_CONF = True
 
 rc522_i2c_ns = cg.esphome_ns.namespace("rc522_i2c")

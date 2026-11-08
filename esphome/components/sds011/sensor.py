@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_RX_ONLY,
@@ -21,18 +20,11 @@ sds011_ns = cg.esphome_ns.namespace("sds011")
 SDS011Component = sds011_ns.class_("SDS011Component", uart.UARTDevice, cg.Component)
 
 
-def validate_sds011_rx_mode(value: ConfigType) -> ConfigType:
-    if CONF_UPDATE_INTERVAL in value and not value.get(CONF_RX_ONLY):
-        update_interval = value[CONF_UPDATE_INTERVAL]
-        if update_interval.total_minutes > 30:
-            raise cv.Invalid("Maximum update interval is 30min")
-    elif value.get(CONF_RX_ONLY) and CONF_UPDATE_INTERVAL in value:
-        # update_interval does not affect anything in rx-only mode, let's warn user about
-        # that
-        raise cv.Invalid(
-            "update_interval has no effect in rx_only mode. Please remove it.",
-            path=["update_interval"],
-        )
+def validate_update_interval(value: ConfigType) -> ConfigType:
+    if (
+        update_interval := value.get(CONF_UPDATE_INTERVAL)
+    ) is not None and update_interval.total_minutes > 30:
+        raise cv.Invalid("Maximum update interval is 30min")
     return value
 
 
@@ -60,7 +52,8 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA),
-    validate_sds011_rx_mode,
+    cv.only_when(CONF_UPDATE_INTERVAL, CONF_RX_ONLY, False),
+    validate_update_interval,
 )
 
 
@@ -85,9 +78,7 @@ async def to_code(config: ConfigType) -> None:
     # Pop update_interval before register_component so it doesn't generate
     # a set_update_interval call — sds011 handles this via set_update_interval_min
     update_interval = config.pop(CONF_UPDATE_INTERVAL, None)
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     if update_interval is not None:
         cg.add(var.set_update_interval_min(update_interval))

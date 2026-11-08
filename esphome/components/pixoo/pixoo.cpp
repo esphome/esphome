@@ -1,6 +1,8 @@
 #include "pixoo.h"
+#include "esphome/components/display/display_color_utils.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>
@@ -8,7 +10,7 @@
 
 namespace esphome::pixoo {
 
-static const char *const TAG = "pixoo";
+ESPHOME_LOG_TAG(TAG, "pixoo");
 
 // Divoom LED-board packet protocol.
 static constexpr uint8_t PACKET_HEAD = 0xAA;
@@ -18,14 +20,12 @@ static constexpr uint8_t CMD_LIGHT = 0x01;
 static constexpr uint8_t CMD_UNUSED = 0x21;
 static constexpr uint8_t CMD_SET_RGB_IOUT = 0x22;
 static constexpr size_t PACKET_HEADER_LEN = 4;  // head + len(2) + cmd
-static constexpr size_t PACKET_STATIC_LEN = 5;  // header + tail
 static constexpr uint8_t DEFAULT_IOUT = 75;     // per-channel LED current / white balance default
 
 // Pack a `0xAA len cmd data 0xBB` packet into buf; returns the packet length.
 static inline size_t build_packet(uint8_t *buf, uint8_t cmd, const uint8_t *data, uint16_t len) {
   buf[0] = PACKET_HEAD;
-  buf[1] = static_cast<uint8_t>(len & 0xFF);
-  buf[2] = static_cast<uint8_t>((len >> 8) & 0xFF);
+  put_le16(buf + 1, len);
   buf[3] = cmd;
   if (data != nullptr && len > 0)
     std::memcpy(buf + PACKET_HEADER_LEN, data, len);
@@ -35,10 +35,8 @@ static inline size_t build_packet(uint8_t *buf, uint8_t cmd, const uint8_t *data
 
 // Fill `total` bytes at buf with a single UNUSED padding packet.
 static inline void pad_unused(uint8_t *buf, size_t total) {
-  const uint16_t len = static_cast<uint16_t>(total - PACKET_STATIC_LEN);
   buf[0] = PACKET_HEAD;
-  buf[1] = static_cast<uint8_t>(len & 0xFF);
-  buf[2] = static_cast<uint8_t>((len >> 8) & 0xFF);
+  put_le16(buf + 1, total - PACKET_STATIC_LEN);
   buf[3] = CMD_UNUSED;
   buf[total - 1] = PACKET_TAIL;
 }
@@ -46,33 +44,16 @@ static inline void pad_unused(uint8_t *buf, size_t total) {
 float Pixoo::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void Pixoo::setup() {
-  const uint32_t num_pixels = static_cast<uint32_t>(this->model_) * this->model_;
-  this->data_size_ = num_pixels * 3;
-  // The frame is a DATA packet (header + RGB888 + tail) followed by a DMA-chunk-sized UNUSED
-  // packet, so the LED board completes its final DMA block.
-  this->frame_size_ = this->data_size_ + PACKET_STATIC_LEN + DMA_CHUNK;
-
-  if (!this->buffer_.init(this->data_size_)) {
-    this->mark_failed(LOG_STR("Failed to allocate draw buffer"));
+  const size_t image_bytes = data_size(this->model_);
+  if (!this->setup_check(this->buffer_.init(image_bytes), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
-  // The frame is shipped in one SPI transfer, so keep it in DMA-capable internal RAM.
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->frame_buffer_ = allocator.allocate(this->frame_size_);
-  if (this->frame_buffer_ == nullptr) {
-    this->buffer_.free();
-    this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
-    return;
-  }
-  std::memset(this->frame_buffer_, 0, this->frame_size_);
   // Pre-build the constant DATA-packet framing; only the RGB888 payload changes per frame.
   this->frame_buffer_[0] = PACKET_HEAD;
-  this->frame_buffer_[1] = static_cast<uint8_t>(this->data_size_ & 0xFF);
-  this->frame_buffer_[2] = static_cast<uint8_t>((this->data_size_ >> 8) & 0xFF);
+  put_le16(this->frame_buffer_ + 1, image_bytes);
   this->frame_buffer_[3] = CMD_DATA;
-  this->frame_buffer_[PACKET_HEADER_LEN + this->data_size_] = PACKET_TAIL;
-  pad_unused(this->frame_buffer_ + this->data_size_ + PACKET_STATIC_LEN, DMA_CHUNK);
+  this->frame_buffer_[PACKET_HEADER_LEN + image_bytes] = PACKET_TAIL;
+  pad_unused(this->frame_buffer_ + image_bytes + PACKET_STATIC_LEN, DMA_CHUNK);
 
   this->spi_setup();
 
@@ -105,10 +86,11 @@ void Pixoo::set_panel_brightness(float brightness) {
 
 void Pixoo::update() {
   this->do_update_();
-  for (size_t i = 0; i < this->data_size_; i++)
+  const size_t image_bytes = data_size(this->model_);
+  for (size_t i = 0; i < image_bytes; i++)
     this->frame_buffer_[PACKET_HEADER_LEN + i] = this->buffer_[i];
   this->enable();
-  this->write_array(this->frame_buffer_, this->frame_size_);
+  this->write_array(this->frame_buffer_, frame_size(this->model_));
   this->disable();
 }
 
@@ -144,17 +126,16 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
   this->set_pixel_(static_cast<uint32_t>(y) * side + x, color);
 }
 
-void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                           display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  // Fast path for the common LVGL/image blit: RGB565, RGB order, no rotation, no active clipping.
+// flatten keeps the RGB565 decode inlined in the pixel loop, as in Display's own per pixel loop.
+void __attribute__((flatten)) Pixoo::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                                          display::ColorBitness bitness, bool big_endian, int x_offset,
+                                                          int y_offset, int x_pad) {
+  // Fast path for the common LVGL/image blit: RGB565, no rotation, no active clipping.
   // Anything else defers to the base implementation, which decodes per pixel and routes through
   // draw_pixel_at() so rotation, clipping and other color formats stay correct.
-  // NOTE: the stride/index math and 565->888 expansion below mirror Display::draw_pixels_at (the
-  // source of truth) -- keep them in sync if the base ever changes its source layout or decoding.
-  if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+  if (bitness != display::COLOR_BITNESS_565 || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES ||
+      this->is_clipping()) {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const int side = static_cast<int>(this->model_);
@@ -168,14 +149,10 @@ void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t
       const int dst_x = x_start + x;
       if (dst_x < 0 || dst_x >= side)
         continue;
-      const size_t byte_idx = source_idx * 2;
-      const uint16_t rgb565 =
-          big_endian ? (ptr[byte_idx] << 8) | ptr[byte_idx + 1] : ptr[byte_idx] | (ptr[byte_idx + 1] << 8);
-      const uint8_t r5 = (rgb565 >> 11) & 0x1F;
-      const uint8_t g6 = (rgb565 >> 5) & 0x3F;
-      const uint8_t b5 = rgb565 & 0x1F;
       this->set_pixel_(static_cast<uint32_t>(dst_y) * side + dst_x,
-                       Color((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2)));
+                       display::ColorUtil::to_color(
+                           display::ColorUtil::read_packed<display::COLOR_BITNESS_565>(ptr, source_idx, big_endian),
+                           display::COLOR_BITNESS_565));
     }
   }
 }
@@ -185,7 +162,8 @@ void Pixoo::fill(Color color) {
     display::Display::fill(color);
     return;
   }
-  for (size_t i = 0; i < this->data_size_; i += 3) {
+  const size_t image_bytes = data_size(this->model_);
+  for (size_t i = 0; i < image_bytes; i += 3) {
     this->buffer_[i] = color.r;
     this->buffer_[i + 1] = color.g;
     this->buffer_[i + 2] = color.b;

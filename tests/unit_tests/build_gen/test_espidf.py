@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -242,9 +243,18 @@ def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
 
 
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
-    """The link declares the map so size can build in the same ninja run."""
+    """The map is a link byproduct only when IDF has not declared it itself."""
     content = _render()
-    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map" in content
+    assert (
+        "get_source_file_property(esphome_map_declared\n"
+        "    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map GENERATED)"
+    ) in content
+    assert (
+        "set(esphome_map_byproducts BYPRODUCTS "
+        "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map)"
+    ) in content
+    assert "    ${esphome_map_byproducts}\n    WORKING_DIRECTORY" in content
+    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map\n" not in content
 
 
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
@@ -351,15 +361,52 @@ def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None
     assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd" not in content
 
 
-def test_get_project_cmakelists_minimal_emits_exclude_components() -> None:
-    """The discovery (minimal) write also excludes components so they never
-    register in project_description.json."""
+def test_get_project_cmakelists_minimal_excludes_only_managed_components(
+    tmp_path: Path,
+) -> None:
+    """The discovery (minimal) write lets built-in components register so
+    the cached list serves every exclusion set; managed ones stay excluded."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "espressif__esp_hosted"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        minimal = _render(minimal=True)
+        full = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted")' in minimal
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted;unity")' in full
+
+
+def test_get_project_cmakelists_minimal_keeps_exclusions_for_custom_idf_path(
+    tmp_path: Path,
+) -> None:
+    """Nothing is cached for a user-supplied IDF_PATH, so its discovery write
+    keeps every exclusion."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
     register_exclude_components_cmake_arg()
 
-    content = _render(minimal=True)
+    with (
+        patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path),
+        patch.dict(os.environ, {"IDF_PATH": str(tmp_path)}),
+    ):
+        content = _render(minimal=True)
 
     assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+
+
+def test_get_project_cmakelists_minimal_drops_exclude_line_when_all_builtin(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        content = _render(minimal=True)
+
+    assert "EXCLUDE_COMPONENTS" not in content
 
 
 def test_get_project_cmakelists_no_exclude_components_line_when_empty() -> None:
@@ -429,9 +476,39 @@ def test_get_component_cmakelists_single_link_flag() -> None:
 
     content = get_component_cmakelists()
     assert (
-        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--gc-sections"\n)'
         in content
     )
+
+
+def test_get_component_cmakelists_emits_src_cmake_blocks_in_order() -> None:
+    """Blocks registered with add_src_cmake() follow idf_component_register() in order."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+    from esphome.components.esp32 import KEY_SRC_CMAKE, add_src_cmake
+
+    CORE.build_flags = set()
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE] = []
+    add_src_cmake('ulp_embed_binary(ulp_main "a.c" "main.cpp")')
+    add_src_cmake("target_compile_definitions(${COMPONENT_LIB} PRIVATE SECOND)")
+
+    content = get_component_cmakelists()
+    register = content.index("idf_component_register(")
+    link = content.index("target_link_options(${COMPONENT_LIB}")
+    first = content.index("ulp_embed_binary(ulp_main")
+    second = content.index("PRIVATE SECOND)")
+    assert register < link < first < second
+
+
+def test_get_component_cmakelists_without_src_cmake_blocks() -> None:
+    """No registered blocks leaves nothing between target_link_options and the pch block."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+    from esphome.components.esp32 import KEY_SRC_CMAKE
+
+    CORE.build_flags = set()
+    CORE.data[KEY_ESP32].pop(KEY_SRC_CMAKE, None)
+    content = get_component_cmakelists()
+    assert "ulp_embed_binary" not in content
+    assert content.count("target_link_options(") == 1
 
 
 def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
@@ -442,9 +519,9 @@ def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
     content = get_component_cmakelists()
     expected = (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        "    -Wl,--gc-sections\n"
-        "    -Wl,-Map=out.map\n"
-        "    -Wl,-z,noexecstack\n"
+        '    "-Wl,--gc-sections"\n'
+        '    "-Wl,-Map=out.map"\n'
+        '    "-Wl,-z,noexecstack"\n'
         ")"
     )
     assert expected in content
@@ -561,6 +638,182 @@ def test_get_project_cmakelists_cxx_build_flags(tmp_path: Path) -> None:
     flag_pos = content.index(flag_line)
     project_pos = content.index("project(test)")
     assert include_pos < flag_pos < project_pos
+
+
+@pytest.mark.parametrize(
+    ("flag", "lines"),
+    [
+        # One entry with several flags is split, as PlatformIO does
+        ("-DA=1 -DB=2", ['"-DA=1"', '"-DB=2"']),
+        # Shell quotes are removed and escaped quotes are kept as a C string
+        ('-DMY_STR="hello"', ['"-DMY_STR=hello"']),
+        ('-DMY_STR=\\"hello\\"', ['"-DMY_STR=\\"hello\\""']),
+        # CMake must not expand ${...} or read \ as an escape
+        ("-DY=${HOME}", ['"-DY=\\${HOME}"']),
+        ("-DP='a\\b'", ['"-DP=a\\\\b"']),
+    ],
+)
+def test_get_project_cmakelists_quotes_compile_flags(
+    flag: str, lines: list[str]
+) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {flag}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    emitted = [
+        line.removeprefix("idf_build_set_property(COMPILE_OPTIONS ").removesuffix(
+            " APPEND)"
+        )
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert emitted == lines
+
+
+def test_get_component_cmakelists_quotes_link_flags() -> None:
+    CORE.build_flags = {"-Wl,--defsym=a=1 -Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--defsym=a=1,--gc-sections"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DTEST=1 -Wl,--wrap=malloc", "-Wl,--wrap=malloc -DTEST=1"]
+)
+def test_mixed_entry_routes_each_flag(entry: str) -> None:
+    """An entry holding a define and a linker flag sends each flag to its own
+    place, whichever comes first."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        project = get_project_cmakelists(minimal=True)
+        component = get_component_cmakelists()
+
+    compile_lines = [
+        line
+        for line in project.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert compile_lines == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DTEST=1" APPEND)'
+    ]
+    assert (
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--wrap=malloc"\n)'
+    ) in component
+
+
+def test_linker_groups_stay_whole() -> None:
+    """The linker flags of one entry stay in the order written, joined into
+    one -Wl, flag, so CMake does not drop the markers of a second group as
+    repeated options."""
+    CORE.build_flags = {
+        "-Wl,--start-group -Wl,-lfoo -Wl,--end-group",
+        "-Wl,--start-group -Wl,-lbar -Wl,--end-group",
+    }
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--start-group,-lbar,--end-group"\n'
+        '    "-Wl,--start-group,-lfoo,--end-group"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DLEVEL=2 -DLEVEL=1", "-DLEVEL=1 -DLEVEL=2 -DLEVEL=1"]
+)
+def test_split_defines_keep_their_order(entry: str) -> None:
+    """A repeated define keeps the order written, so the last one wins as on
+    the command line. CMake drops repeated compile options after the first,
+    so only the last copy of an identical define is emitted."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert [
+        line
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ] == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=2" APPEND)',
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=1" APPEND)',
+    ]
+
+
+def test_dropped_flag_warns_once_per_entry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A flag that native ESP-IDF does not pass on is named in one warning
+    per entry, however often the project files are written. A flag holding
+    ';' is dropped too, as CMake would split it into two."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(
+            CORE,
+            "build_flags",
+            {
+                "-DFOO=1 -fno-rtti",
+                "-DBAR=2 -fno-rtti",
+                "-O2",
+                "-DA=1;-O2",
+                "-std=gnu++23",
+            },
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        for _ in range(2):
+            get_project_cmakelists(minimal=True)
+            get_component_cmakelists()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [
+        "Build flag '-DA=1;-O2' is ignored: CMake splits arguments at ';'"
+    ] + [
+        (
+            f"Build flag '-fno-rtti' in '{entry}' is ignored: native "
+            "ESP-IDF builds only pass -D, -W and -Wl, flags"
+        )
+        for entry in ("-DBAR=2 -fno-rtti", "-DFOO=1 -fno-rtti")
+    ] + [
+        (
+            "Build flag '-O2' is ignored: native ESP-IDF builds only pass -D, -W "
+            "and -Wl, flags"
+        ),
+        (
+            "Build flag '-std=gnu++23' is ignored: native ESP-IDF builds only pass "
+            "-D, -W and -Wl, flags"
+        ),
+    ]
 
 
 def test_get_component_cmakelists_no_compile_features() -> None:

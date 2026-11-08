@@ -6,9 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_OUTPUT,
     CONF_PULLUP,
 )
@@ -18,6 +15,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Mat931"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["gpio_expander"]
+DOMAIN = "pca6416a"
 MULTI_CONF = True
 pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
 
@@ -31,59 +29,30 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA6416AComponent),
-            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
     .extend(i2c.i2c_device_schema(0x21))
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    var = await i2c.new_i2c_component(config)
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_PULLUP] and not value[CONF_INPUT]:
-        raise cv.Invalid("Pullup only available with input")
-    return value
-
-
-PCA6416A_PIN_SCHEMA = cv.All(
+PCA6416A_PIN_SCHEMA = pins.gpio_base_schema(
+    PCA6416AGPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_PULLUP, CONF_OUTPUT],
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(PCA6416AGPIOPin),
         cv.Required(CONF_PCA6416A): pins.use_id_or_address(PCA6416AComponent),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCA6416A, PCA6416A_PIN_SCHEMA)
 async def pca6416a_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_PCA6416A])
-
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await pins.new_parented_pin(config, CONF_PCA6416A)

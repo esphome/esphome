@@ -6,7 +6,7 @@
 
 namespace esphome::stcc4 {
 
-static const char *const TAG = "stcc4";
+ESPHOME_LOG_TAG(TAG, "stcc4");
 
 // I2C Commands
 static constexpr uint16_t STCC4_CMD_START_CONTINUOUS_MEASUREMENT = 0x218b;
@@ -76,25 +76,20 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
       uint64_t serial_number = (uint64_t(raw_product_id[2]) << 48) | (uint64_t(raw_product_id[3]) << 32) |
                                (uint64_t(raw_product_id[4]) << 16) | raw_product_id[5];
       ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
-      if (product_id != STCC4_PRODUCT_ID) {
-        ESP_LOGE(TAG, "Unsupported product ID");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->setup_check(product_id == STCC4_PRODUCT_ID, LOG_STR("Unsupported product ID")))
         return;
-      }
 
       // Set static ambient pressure compensation if configured
       if (this->ambient_pressure_in_pa_2_ != 0) {
-        if (!this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)) {
-          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        if (!this->setup_check(this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)))
           return;
-        }
       }
 
       // Apply the dynamic compensation sources' current values, if configured
-      if (this->temperature_source_ != nullptr && this->humidity_source_ != nullptr) {
+      if (this->temperature_source_sensor_ != nullptr && this->humidity_source_sensor_ != nullptr) {
         this->update_rht_compensation_from_source_();
       }
-      if (this->ambient_pressure_source_ != nullptr) {
+      if (this->ambient_pressure_source_sensor_ != nullptr) {
         this->update_ambient_pressure_compensation_from_source_();
       }
 
@@ -105,11 +100,9 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
       }
 
       // Start continuous measurement
-      if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
-        ESP_LOGE(TAG, "Failed to start continuous measurement");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->setup_check(this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT),
+                             LOG_STR("Failed to start continuous measurement")))
         return;
-      }
       this->schedule_continuous_update_(false);
       this->finish_setup_();
       return;
@@ -123,19 +116,20 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
     return;
   }
 
-  ESP_LOGE(TAG, "Failed to stop continuous measurements and read product ID");
-  this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->mark_failed(LOG_STR("Failed to stop continuous measurements and read product ID"));
 }
 
 void STCC4Component::finish_setup_() {
   this->ready_ = true;
   // Follow the sources only once measuring started, so a failed setup stops writing to the device
-  if (this->temperature_source_ != nullptr && this->humidity_source_ != nullptr) {
-    this->temperature_source_->add_on_state_callback([this](float) { this->update_rht_compensation_from_source_(); });
-    this->humidity_source_->add_on_state_callback([this](float) { this->update_rht_compensation_from_source_(); });
+  if (this->temperature_source_sensor_ != nullptr && this->humidity_source_sensor_ != nullptr) {
+    this->temperature_source_sensor_->add_on_state_callback(
+        [this](float) { this->update_rht_compensation_from_source_(); });
+    this->humidity_source_sensor_->add_on_state_callback(
+        [this](float) { this->update_rht_compensation_from_source_(); });
   }
-  if (this->ambient_pressure_source_ != nullptr) {
-    this->ambient_pressure_source_->add_on_state_callback(
+  if (this->ambient_pressure_source_sensor_ != nullptr) {
+    this->ambient_pressure_source_sensor_->add_on_state_callback(
         [this](float) { this->update_ambient_pressure_compensation_from_source_(); });
   }
 }
@@ -143,24 +137,23 @@ void STCC4Component::finish_setup_() {
 void STCC4Component::dump_config() {
   ESP_LOGCONFIG(TAG, "STCC4:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  Measurement mode: %s",
                 this->measurement_mode_ == MeasurementMode::CONTINUOUS ? LOG_STR_LITERAL("Continuous (1s)")
                                                                        : LOG_STR_LITERAL("Single shot"));
-  if (this->ambient_pressure_source_ != nullptr) {
+  if (this->ambient_pressure_source_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  this->ambient_pressure_source_->get_name().c_str());
+                  LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
   } else if (this->ambient_pressure_in_pa_2_ != 0) {
     ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %f hPa",
                   pressure_in_pa_2_to_hpa(this->ambient_pressure_in_pa_2_));
   }
-  if (this->temperature_source_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'", this->temperature_source_->get_name().c_str());
+  if (this->temperature_source_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'",
+                  LOG_STR_ARG(this->temperature_source_sensor_->get_log_name()));
   }
-  if (this->humidity_source_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Humidity compensation using '%s'", this->humidity_source_->get_name().c_str());
+  if (this->humidity_source_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Humidity compensation using '%s'",
+                  LOG_STR_ARG(this->humidity_source_sensor_->get_log_name()));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
@@ -218,19 +211,15 @@ bool STCC4Component::read_measurement_(uint8_t sensirion_options) {
     this->co2_sensor_->publish_state(co2_raw);
   }
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_in_ticks_to_c(raw_data[1]));
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature_in_ticks_to_c(raw_data[1]));
 
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(humidity_in_ticks_to_percent(raw_data[2]));
-  }
+  PUBLISH_STATE(this->humidity_sensor_, humidity_in_ticks_to_percent(raw_data[2]));
   return true;
 }
 
 void STCC4Component::update_rht_compensation_from_source_() {
-  const float temperature_in_c = this->temperature_source_->state;
-  const float humidity_in_percent = this->humidity_source_->state;
+  const float temperature_in_c = this->temperature_source_sensor_->state;
+  const float humidity_in_percent = this->humidity_source_sensor_->state;
   if (std::isnan(temperature_in_c) || std::isnan(humidity_in_percent))
     return;
 
@@ -248,7 +237,7 @@ void STCC4Component::set_ambient_pressure_compensation(float pressure_in_hpa) {
 }
 
 void STCC4Component::update_ambient_pressure_compensation_from_source_() {
-  const float pressure_in_hpa = this->ambient_pressure_source_->state;
+  const float pressure_in_hpa = this->ambient_pressure_source_sensor_->state;
   if (std::isnan(pressure_in_hpa))
     return;
 

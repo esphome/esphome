@@ -4,7 +4,7 @@
 
 namespace esphome::lc709203f {
 
-static const char *const TAG = "lc709203f.sensor";
+ESPHOME_LOG_TAG(TAG, "lc709203f.sensor");
 
 // Device I2C address. This address is fixed.
 static const uint8_t LC709203F_I2C_ADDR_DEFAULT = 0x0B;
@@ -192,7 +192,7 @@ uint8_t Lc709203f::get_register_(uint8_t register_to_read, uint16_t *register_va
       snprintf(buf, sizeof(buf), "CRC error reading from register 0x%02X", register_to_read);
       this->status_set_warning(buf);
     } else {
-      *register_value = ((uint16_t) read_buffer[4] << 8) | (uint16_t) read_buffer[3];
+      *register_value = encode_uint16(read_buffer[4], read_buffer[3]);
       return i2c::NO_ERROR;
     }
   }
@@ -217,8 +217,7 @@ uint8_t Lc709203f::set_register_(uint8_t register_to_set, uint16_t value_to_set)
   //  part of the CRC calculation.
   write_buffer[0] = (this->address_) << 1;
   write_buffer[1] = register_to_set;
-  write_buffer[2] = value_to_set & 0xFF;         // Low byte
-  write_buffer[3] = (value_to_set >> 8) & 0xFF;  // High byte
+  put_le16(write_buffer + 2, value_to_set);
   write_buffer[4] = crc8(write_buffer, 4, 0x00, 0x07, true);
 
   for (uint8_t i = 0; i <= LC709203F_I2C_RETRY_COUNT; i++) {

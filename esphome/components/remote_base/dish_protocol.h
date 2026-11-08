@@ -20,17 +20,4 @@ class DishProtocol : public RemoteProtocol<DishData> {
 
 DECLARE_REMOTE_PROTOCOL(Dish)
 
-template<typename... Ts> class DishAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    DishData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    DishProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

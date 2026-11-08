@@ -6,7 +6,7 @@
 
 namespace esphome::tmp117 {
 
-static const char *const TAG = "tmp117";
+ESPHOME_LOG_TAG(TAG, "tmp117");
 
 void TMP117Component::update() {
   int16_t data;
@@ -24,23 +24,16 @@ void TMP117Component::update() {
   }
 }
 void TMP117Component::setup() {
-  if (!this->write_config_(this->config_)) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_config_(this->config_)))
     return;
-  }
 
   int16_t data;
-  if (!this->read_data_(&data)) {
-    this->mark_failed();
+  if (!this->setup_check(this->read_data_(&data)))
     return;
-  }
 }
 void TMP117Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TMP117:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this);
 }
 

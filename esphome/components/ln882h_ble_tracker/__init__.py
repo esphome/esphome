@@ -28,6 +28,7 @@ CONF_LN882H_BLE_ID = "ln882h_ble_id"
 DEPENDENCIES = ["ln882x"]
 AUTO_LOAD = ["ble_device_base", "ln882h_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "ln882h_ble_tracker"
 
 ble_device_base.register_hub_provider("ln882h_ble_tracker")
 
@@ -126,10 +127,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[CONF_LN882H_BLE_ID])
-    cg.add(var.set_parent(parent))
-    # The tracker registers itself as a controller scan listener in setup();
-    # request the codegen-sized StaticVector slot for it.
-    ln882h_ble.request_scan_listener_slot()
+    await cg.register_parented(var, parent)
+    cg.add(ln882h_ble.register_scan_listener(parent, var))
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()

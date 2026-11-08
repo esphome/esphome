@@ -4,6 +4,9 @@
 
 namespace esphome::esp32 {
 
+/// The tag the crash record is logged under, so a client can check the level in force for it
+inline constexpr const char *CRASH_LOG_TAG = "esp32.crash";
+
 /// Log crash data if a crash was detected on previous boot.
 void crash_handler_log();
 

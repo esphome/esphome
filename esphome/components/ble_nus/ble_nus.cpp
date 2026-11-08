@@ -19,7 +19,7 @@ RING_BUF_DECLARE(global_ble_rx_ring_buf, ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE);
 #endif
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-static const char *const TAG = "ble_nus";
+ESPHOME_LOG_TAG(TAG, "ble_nus");
 
 void BLENUS::write_array(const uint8_t *data, size_t len) {
   if (atomic_get(&this->tx_status_) == TX_DISABLED) {

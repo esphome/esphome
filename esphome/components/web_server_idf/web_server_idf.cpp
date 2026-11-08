@@ -45,6 +45,9 @@ namespace esphome::web_server_idf {
 #ifndef HTTPD_401
 #define HTTPD_401 "401 Unauthorized"
 #endif
+#ifndef HTTPD_403
+#define HTTPD_403 "403 Forbidden"
+#endif
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
 #endif
@@ -55,7 +58,7 @@ namespace esphome::web_server_idf {
 #define CRLF_STR "\r\n"
 #define CRLF_LEN (sizeof(CRLF_STR) - 1)
 
-static const char *const TAG = "web_server_idf";
+ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
 // Only prepare_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
@@ -76,6 +79,13 @@ DefaultHeaders default_headers_instance;
 }  // namespace
 
 DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
+
+void DefaultHeaders::apply_(httpd_req_t *req, uint8_t skip_mask) const {
+  for (size_t i = 0; i < this->headers_.size(); i++) {
+    if (!(skip_mask & (1U << i)))
+      httpd_resp_set_hdr(req, this->headers_[i].name, this->headers_[i].value);
+  }
+}
 
 namespace {
 // Non-blocking send function to prevent watchdog timeouts when TCP buffers are full
@@ -152,6 +162,7 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.stack_size = 4512;
   config.server_port = this->port_;
+  config.max_open_sockets = WEB_SERVER_MAX_OPEN_SOCKETS;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
   // When max sockets is reached, the oldest connection is closed to make room for new ones.
@@ -310,6 +321,10 @@ esp_err_t AsyncWebServer::handle_raw_body_(httpd_req_t *r, const char *content_t
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
+#ifdef USE_WEBSERVER_OTA
+  if (this->on_disconnect_)
+    this->on_disconnect_();
+#endif
   delete this->rsp_;
   for (auto *param : this->params_) {
     delete param;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -320,6 +335,10 @@ bool AsyncWebServerRequest::hasHeader(const char *name) const { return request_h
 
 optional<std::string> AsyncWebServerRequest::get_header(const char *name) const {
   return request_get_header(*this, name);
+}
+
+size_t AsyncWebServerRequest::get_header_to(const char *name, std::span<char> buf) const {
+  return request_get_header_to(*this, name, buf);
 }
 
 StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
@@ -334,9 +353,9 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   return StringRef(buffer.data(), decoded_len);
 }
 
-void AsyncWebServerRequest::redirect(const std::string &url) {
+void AsyncWebServerRequest::redirect(const char *url) {
   httpd_resp_set_status(*this, "302 Found");
-  httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Location", url);
   httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
@@ -356,6 +375,9 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       break;
     case 401:
       status = HTTPD_401;
+      break;
+    case 403:
+      status = HTTPD_403;
       break;
     case 404:
       status = HTTPD_404;
@@ -377,12 +399,18 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(*this, header.name, header.value);
-  }
+  // A response object sends the defaults in send(), after its own headers, so one it set itself can
+  // replace a default of the same name (httpd_resp_set_hdr only appends).
+  if (rsp == nullptr)
+    DefaultHeaders::Instance().apply_(*this);
 
   delete this->rsp_;
   this->rsp_ = rsp;
+}
+
+void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
+  DefaultHeaders::Instance().apply_(*this, response->replaced_defaults_);
+  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
 
 #ifdef USE_WEBSERVER_AUTH
@@ -675,6 +703,11 @@ std::string AsyncWebServerRequest::arg(const char *name) {
 }
 
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
+  const auto &defaults = DefaultHeaders::Instance().headers_;
+  for (size_t i = 0; i < defaults.size(); i++) {
+    if (str_equals_case_insensitive(name, defaults[i].name))
+      this->replaced_defaults_ |= 1U << i;
+  }
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
@@ -792,14 +825,13 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
-                                             message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary processing
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->deferrable_send_state(source, event_type, message_generator);
+      ses->deferrable_send_state(source, detail_all, message_generator);
     }
   }
 }
@@ -816,9 +848,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, header.name, header.value);
-  }
+  DefaultHeaders::Instance().apply_(req);
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
 
@@ -849,7 +879,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   for (auto &group : ws->sorting_groups_) {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
-    root["name"] = group.second.name;
+    root["name"] = json::linked(group.second.name);
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
 
@@ -1003,7 +1033,7 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   if (!this->owns_session_(fd)) {
     return 0;
   }
-  struct msghdr msg {};
+  struct msghdr msg{};
   msg.msg_iov = iov;
   msg.msg_iovlen = iovcnt;
   const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
@@ -1283,23 +1313,12 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   return this->stash_chunk_(prefix, prefix_len, message, message_len, g.total, sent);
 }
 
-void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
+void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_all,
                                                      message_generator_t *message_generator) {
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
-  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
+  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
+  // initial connect sends less
+  if (!detail_all && !this->entities_iterator_.completed())
     return;
-
-  if (source == nullptr)
-    return;
-  if (event_type == nullptr)
-    return;
-  if (message_generator == nullptr)
-    return;
-
-  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
-    ESP_LOGE(TAG, "Can't defer non-state event");
-  }
 
   drain_tail_();
   process_deferred_queue_();

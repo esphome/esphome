@@ -14,7 +14,7 @@
 
 namespace esphome::bluetooth_proxy {
 
-static const char *const TAG = "bluetooth_proxy";
+ESPHOME_LOG_TAG(TAG, "bluetooth_proxy");
 
 // BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE is defined during code generation
 // It sets the batch size for BLE advertisements to maximize WiFi efficiency

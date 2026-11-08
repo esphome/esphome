@@ -5,7 +5,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion";
+ESPHOME_LOG_TAG(TAG, "nextion");
 
 // Sleep safe commands
 void Nextion::soft_reset() { this->send_command_("rest"); }

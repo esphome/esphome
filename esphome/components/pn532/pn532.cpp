@@ -14,24 +14,21 @@
 
 namespace esphome::pn532 {
 
-static const char *const TAG = "pn532";
+ESPHOME_LOG_TAG(TAG, "pn532");
 
 void PN532::setup() {
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
     ESP_LOGW(TAG, "Error sending version command, trying again");
-    if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-      ESP_LOGE(TAG, "Error sending version command");
-      this->mark_failed();
+    if (!this->setup_check(this->write_command_({PN532_COMMAND_VERSION_DATA}),
+                           LOG_STR("Error sending version command")))
       return;
-    }
   }
 
   PN532Frame version_data;
   // GetFirmwareVersion returns IC, Ver, Rev and Support
   if (!this->read_response(PN532_COMMAND_VERSION_DATA, version_data) || version_data.size() < 3) {
-    ESP_LOGE(TAG, "Error getting version");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Error getting version"));
     return;
   }
   ESP_LOGD(TAG, "Found chip PN5%02X, Firmware v%d.%d", version_data[0], version_data[1], version_data[2]);
@@ -42,17 +39,14 @@ void PN532::setup() {
           0x14,  // timeout: 20 x 50 ms (only used in virtual card mode)
           0x01,  // use IRQ
       })) {
-    ESP_LOGE(TAG, "No wakeup ack");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("No wakeup ack"));
     return;
   }
 
   PN532Frame wakeup_result;
-  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
-    this->error_code_ = WAKEUP_FAILED;
-    this->mark_failed();
+  if (!this->setup_check(this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result),
+                         LOG_STR("Wake Up command failed")))
     return;
-  }
 
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);
@@ -62,8 +56,7 @@ void PN532::setup() {
           sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
           0x01,         // Enable IRQ
       })) {
-    this->error_code_ = SAM_COMMAND_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SAM command failed"));
     return;
   }
 
@@ -73,8 +66,7 @@ void PN532::setup() {
     for (uint8_t dat : sam_result) {
       ESP_LOGV(TAG, " 0x%02X", dat);
     }
-    this->error_code_ = SAM_COMMAND_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SAM command failed"));
     return;
   }
 
@@ -107,21 +99,18 @@ void PN532::update() {
   if (!updates_enabled_)
     return;
 
-#ifdef PN532_BINARY_SENSOR_COUNT
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
-#endif
 
-  if (!this->write_command_({
-          PN532_COMMAND_INLISTPASSIVETARGET,
-          0x01,  // max 1 card
-          0x00,  // baud rate ISO14443A (106 kbit/s)
-      })) {
+  const bool ok = this->write_command_({
+      PN532_COMMAND_INLISTPASSIVETARGET,
+      0x01,  // max 1 card
+      0x00,  // baud rate ISO14443A (106 kbit/s)
+  });
+  if (!this->status_comm_result(ok)) {
     ESP_LOGW(TAG, "Requesting tag read failed!");
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
   this->requested_read_ = true;
 }
 
@@ -146,13 +135,11 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-    if (!this->current_uid_.empty()) {
+    if (!this->triggers_ontagremoved_.empty() && !this->current_uid_.empty()) {
       auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
-#endif
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -161,13 +148,11 @@ void PN532::loop() {
   uint8_t num_targets = read.empty() ? 0 : read[0];
   if (num_targets != 1) {
     // no tags found or too many
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-    if (!this->current_uid_.empty()) {
+    if (!this->triggers_ontagremoved_.empty() && !this->current_uid_.empty()) {
       auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
-#endif
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -189,13 +174,11 @@ void PN532::loop() {
   const uint8_t tag_type = tag_type_from_sel_res(sel_res);
 
   bool report = true;
-#ifdef PN532_BINARY_SENSOR_COUNT
   for (auto *bin_sens : this->binary_sensors_) {
     if (bin_sens->process(nfcid)) {
       report = false;
     }
   }
-#endif
 
   if (nfcid.size() == this->current_uid_.size()) {
     bool same_uid = true;
@@ -209,10 +192,8 @@ void PN532::loop() {
 
   if (next_task_ == READ) {
     auto tag = this->read_tag_(nfcid, tag_type);
-#ifdef PN532_ON_TAG_TRIGGER_COUNT
     for (auto *trigger : this->triggers_ontag_)
       trigger->process(tag);
-#endif
 
     if (report) {
       char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
@@ -482,24 +463,12 @@ bool PN532::mifare_read_(uint8_t address, MifareReadData &data) {
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case WAKEUP_FAILED:
-      ESP_LOGE(TAG, "Wake Up command failed!");
-      break;
-    case SAM_COMMAND_FAILED:
-      ESP_LOGE(TAG, "SAM command failed!");
-      break;
-  }
 
   LOG_UPDATE_INTERVAL(this);
 
-#ifdef PN532_BINARY_SENSOR_COUNT
   for (auto *child : this->binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Tag", child);
   }
-#endif
 }
 
 bool PN532BinarySensor::process(const nfc::NfcTagUid &data) {

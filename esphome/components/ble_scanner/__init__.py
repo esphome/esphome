@@ -1,0 +1,1 @@
+DOMAIN = "ble_scanner"

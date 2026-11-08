@@ -9,18 +9,22 @@ import textwrap
 from esphome.build_helpers import pch
 from esphome.build_helpers.ccache import CCACHE_PCH_MIN_VERSION
 from esphome.components.esp32 import (
+    KEY_SRC_CMAKE,
     get_esp32_variant,
     get_excluded_builtin_components,
     get_managed_component_require_names,
     idf_version,
 )
 import esphome.config_validation as cv
+from esphome.const import KEY_ESP32
 from esphome.core import CORE
 from esphome.espidf import variant_to_idf_target
 from esphome.framework_helpers import (
-    get_project_compile_flags,
+    get_cmake_compile_flags,
+    get_cmake_link_flags,
     get_project_cxx_compile_flags,
-    get_project_link_flags,
+    lex_cmake_build_flags,
+    quote_cmake_args,
 )
 from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
 
@@ -238,6 +242,35 @@ def idf_macro_matches(idf_path: Path) -> bool:
     return live == _EXPECTED_MACRO
 
 
+def _cmake_args_for_write(minimal: bool) -> dict[str, str]:
+    """The cg.add_cmake_arg() values for one project write.
+
+    The discovery (minimal) write lets every built-in component register so
+    the list it finds, cached per target, serves any exclusion set; the full
+    write drops the excluded names from that list and passes all of them to
+    IDF. Names outside the framework's components directory (managed
+    components) stay excluded on the discovery write too, since the list
+    only holds built-in ones. A checkout supplied through IDF_PATH caches
+    nothing, so its discovery keeps every exclusion.
+    """
+    from esphome.espidf.toolchain import _esphome_manages_idf, _get_idf_path
+
+    args = dict(CORE.cmake_args)
+    if (
+        not minimal
+        or not _esphome_manages_idf()
+        or not (excluded := args.get("EXCLUDE_COMPONENTS"))
+    ):
+        return args
+    root = _get_idf_path() / "components"
+    outside = [name for name in excluded.split(";") if not (root / name).is_dir()]
+    if outside:
+        args["EXCLUDE_COMPONENTS"] = ";".join(outside)
+    else:
+        del args["EXCLUDE_COMPONENTS"]
+    return args
+
+
 def get_project_cmakelists(
     minimal: bool = False, builtin_components: list[str] | None = None
 ) -> str:
@@ -263,18 +296,19 @@ def get_project_cmakelists(
     # esphome__micro-mp3) rather than just src/. Required so suppressions
     # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
     # third-party components we don't author.
-    project_compile_opts = get_project_compile_flags()
     extra_compile_options = "\n".join(
-        f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
-        for flag in project_compile_opts
+        f"idf_build_set_property(COMPILE_OPTIONS {flag} APPEND)"
+        for flag in quote_cmake_args(
+            get_cmake_compile_flags(lex_cmake_build_flags("ESP-IDF"))
+        )
     )
 
     # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
     # (not COMPILE_OPTIONS) because GCC warns when a C++-only flag such as
     # -Wno-volatile is passed on a C compile.
     cxx_compile_options = "\n".join(
-        f'idf_build_set_property(CXX_COMPILE_OPTIONS "{flag}" APPEND)'
-        for flag in get_project_cxx_compile_flags()
+        f"idf_build_set_property(CXX_COMPILE_OPTIONS {flag} APPEND)"
+        for flag in quote_cmake_args(get_project_cxx_compile_flags())
     )
 
     cpp_standard_options = (
@@ -301,11 +335,10 @@ def get_project_cmakelists(
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
-    # set when project.cmake seeds the component list, and on minimal
-    # (discovery) writes too so excluded components never register.
+    # set when project.cmake seeds the component list.
     cmake_args = "\n".join(
         f"set({name} {_cmake_quote(value)})"
-        for name, value in sorted(CORE.cmake_args.items())
+        for name, value in sorted(_cmake_args_for_write(minimal).items())
     )
 
     # Per-project list exposed as a CMake variable so converted PIO libs
@@ -328,10 +361,10 @@ def get_project_cmakelists(
     # component's REQUIRES including real IDF components). Referenced by
     # src/CMakeLists and by each converted PIO lib's CMakeLists. Skipped
     # on minimal writes because project_description.json may be stale.
-    # Excluded components are dropped here as well: a stale
-    # project_description.json from a build without exclusions may still
-    # list them, and requiring an excluded component pulls it back into
-    # the build (IDF requirement expansion overrides EXCLUDE_COMPONENTS).
+    # Excluded components are dropped here as well: the discovery list
+    # (cached per target) still holds them, and requiring an excluded
+    # component pulls it back into the build (IDF requirement expansion
+    # overrides EXCLUDE_COMPONENTS).
     # Derived from the EXCLUDE_COMPONENTS cmake arg emitted above so the
     # two can never disagree within one generated file.
     builtin_components_property = (
@@ -398,15 +431,24 @@ project({CORE.name})
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.
-# The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
-# target depends on the map and can then be built in the same run as all.
-# IDF's cmakev2 declares the map itself, so drop this line on that switch.
+# IDF's size target depends on the map, so ninja has to know the link
+# writes it for size to build in the same run as all. IDF declares the
+# map itself since espressif/esp-idf#19201 (and in cmakev2), and ninja
+# rejects two rules for one output, so declare it here only when IDF has
+# not. add_custom_command(OUTPUT) marks its outputs GENERATED.
+get_source_file_property(esphome_map_declared
+    ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map GENERATED)
+if(esphome_map_declared)
+    set(esphome_map_byproducts)
+else()
+    set(esphome_map_byproducts BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map)
+endif()
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
-    BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map
+    ${{esphome_map_byproducts}}
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
     VERBATIM
 )
@@ -422,8 +464,9 @@ def get_component_cmakelists() -> str:
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
-    link_opts = get_project_link_flags()
+    link_opts = quote_cmake_args(get_cmake_link_flags(lex_cmake_build_flags("ESP-IDF")))
     link_opts_str = "\n    ".join(link_opts) if link_opts else ""
+    src_cmake = "\n".join(CORE.data[KEY_ESP32].get(KEY_SRC_CMAKE, []))
 
     return f"""\
 # Auto-generated by ESPHome
@@ -469,6 +512,7 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
+{src_cmake}
 {_pch_cmake_block()}"""
 
 
@@ -571,10 +615,9 @@ def write_project(
     )
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a
-    # discovery reconfigure when it changes. Excluded components never
-    # register in project_description.json, so re-including one (e.g. a
-    # config gains mqtt) requires a fresh discovery pass before the
-    # ESPHOME_PROJECT_BUILTIN_COMPONENTS property can list it.
+    # reconfigure when it changes. The ESPHOME_PROJECT_BUILTIN_COMPONENTS
+    # property drops excluded names, so re-including one (e.g. a config
+    # gains mqtt) needs a reconfigure to rebuild it from the discovery list.
     write_file_if_changed(
         CORE.relative_build_path("exclude_components.esphomeinternal"),
         ";".join(get_excluded_builtin_components()),

@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import ble_client, sensor
 from esphome.components.const import CONF_OPERATING_HOURS
 import esphome.config_validation as cv
@@ -7,7 +6,6 @@ from esphome.const import (
     CONF_ENERGY,
     CONF_FLOW,
     CONF_HEAD,
-    CONF_ID,
     CONF_POWER,
     CONF_SPEED,
     CONF_VOLTAGE,
@@ -104,9 +102,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_FLOW, var.set_flow_sensor)

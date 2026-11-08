@@ -1,26 +1,17 @@
 #ifdef USE_HOST
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace host {
 
-static const char *const TAG = "host";
+ESPHOME_LOG_TAG(TAG, "host");
 
-struct ISRPinArg {
-  uint8_t pin;
-  bool inverted;
-};
+ISRInternalGPIOPin HostGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
-ISRInternalGPIOPin HostGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = pin_;
-  arg->inverted = inverted_;
-  return ISRInternalGPIOPin((void *) arg);
-}
-
-void HostGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void HostGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   ESP_LOGD(TAG, "Attaching interrupt %p to pin %d and mode %d", func, pin_, (uint32_t) type);
 }
 void HostGPIOPin::pin_mode(gpio::Flags flags) { ESP_LOGD(TAG, "Setting pin %d mode to %02X", pin_, (uint32_t) flags); }
@@ -38,16 +29,12 @@ void HostGPIOPin::detach_interrupt() const {}
 
 using namespace host;
 
-bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return arg->inverted;
-}
+bool IRAM_ATTR ISRInternalGPIOPin::digital_read() { return static_cast<HostGPIOPin *>(this->arg_)->is_inverted(); }
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   // pass
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  ESP_LOGD(TAG, "Clearing interrupt for pin %d", arg->pin);
+  ESP_LOGD(TAG, "Clearing interrupt for pin %d", static_cast<HostGPIOPin *>(this->arg_)->get_pin());
 }
 
 }  // namespace esphome

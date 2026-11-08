@@ -4,7 +4,7 @@
 
 namespace esphome::ade7953_i2c {
 
-static const char *const TAG = "ade7953";
+ESPHOME_LOG_TAG(TAG, "ade7953");
 
 void AdE7953I2c::dump_config() {
   ESP_LOGCONFIG(TAG, "ADE7953_i2c:");
@@ -13,33 +13,25 @@ void AdE7953I2c::dump_config() {
 }
 bool AdE7953I2c::ade_write_8(uint16_t reg, uint8_t value) {
   uint8_t data[3];
-  data[0] = reg >> 8;
-  data[1] = reg >> 0;
+  put_be16(data, reg);
   data[2] = value;
   return this->write(data, 3) != i2c::ERROR_OK;
 }
 bool AdE7953I2c::ade_write_16(uint16_t reg, uint16_t value) {
   uint8_t data[4];
-  data[0] = reg >> 8;
-  data[1] = reg >> 0;
-  data[2] = value >> 8;
-  data[3] = value >> 0;
+  put_be16(data, reg);
+  put_be16(data + 2, value);
   return this->write(data, 4) != i2c::ERROR_OK;
 }
 bool AdE7953I2c::ade_write_32(uint16_t reg, uint32_t value) {
   uint8_t data[6];
-  data[0] = reg >> 8;
-  data[1] = reg >> 0;
-  data[2] = value >> 24;
-  data[3] = value >> 16;
-  data[4] = value >> 8;
-  data[5] = value >> 0;
+  put_be16(data, reg);
+  put_be32(data + 2, value);
   return this->write(data, 6) != i2c::ERROR_OK;
 }
 bool AdE7953I2c::ade_read_8(uint16_t reg, uint8_t *value) {
   uint8_t reg_data[2];
-  reg_data[0] = reg >> 8;
-  reg_data[1] = reg >> 0;
+  put_be16(reg_data, reg);
   i2c::ErrorCode err = this->write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;
@@ -48,8 +40,7 @@ bool AdE7953I2c::ade_read_8(uint16_t reg, uint8_t *value) {
 }
 bool AdE7953I2c::ade_read_16(uint16_t reg, uint16_t *value) {
   uint8_t reg_data[2];
-  reg_data[0] = reg >> 8;
-  reg_data[1] = reg >> 0;
+  put_be16(reg_data, reg);
   i2c::ErrorCode err = this->write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;
@@ -62,8 +53,7 @@ bool AdE7953I2c::ade_read_16(uint16_t reg, uint16_t *value) {
 }
 bool AdE7953I2c::ade_read_32(uint16_t reg, uint32_t *value) {
   uint8_t reg_data[2];
-  reg_data[0] = reg >> 8;
-  reg_data[1] = reg >> 0;
+  put_be16(reg_data, reg);
   i2c::ErrorCode err = this->write(reg_data, 2);
   if (err != i2c::ERROR_OK)
     return true;

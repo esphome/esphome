@@ -1,0 +1,153 @@
+#include <gtest/gtest.h>
+
+#include <cmath>
+#include <cstdint>
+#include <numbers>
+#include <string>
+
+#include "esphome/components/rtttl/rtttl.h"
+
+namespace esphome::rtttl::testing {
+
+// Reads the parser state the tests check; Rtttl is final, so this is a friend rather than a subclass.
+class RtttlParserAccess {
+ public:
+  static uint8_t denominator(const Rtttl &p) { return p.default_note_denominator_; }
+  static uint8_t octave(const Rtttl &p) { return p.default_octave_; }
+  static uint16_t wholenote(const Rtttl &p) { return p.wholenote_duration_; }
+  static uint16_t note_duration(const Rtttl &p) { return p.note_duration_; }
+  static uint32_t freq(const Rtttl &p) { return p.output_freq_; }
+  static size_t position(const Rtttl &p) { return p.position_; }
+  static char at(const Rtttl &p, size_t pos) { return p.song_at_(pos); }
+  static void set_running(Rtttl &p) { p.state_ = State::RUNNING; }
+  static int16_t sine(uint32_t phase) { return Rtttl::sine_sample(phase); }
+  static int16_t fade(int16_t value, uint32_t from_start, uint32_t to_end) {
+    return Rtttl::fade_sample(value, from_start, to_end);
+  }
+};
+
+using Access = RtttlParserAccess;
+
+static const char SONG[] = "test:d=8,o=5,b=100:c";
+
+// The straight line between table entries strays by up to 2.5 counts; rounding and truncation add up to 1.5 more.
+TEST(RtttlSine, MatchesSineWithinFourCounts) {
+  constexpr uint32_t step = 0x00FFF1C7;  // An arbitrary step that visits every part of the table
+  uint32_t phase = 0;
+  for (uint32_t i = 0; i != 100000; i++, phase += step) {
+    const double expected = INT16_MAX * std::sin(phase * (2.0 * std::numbers::pi / 4294967296.0));
+    ASSERT_NEAR(Access::sine(phase), expected, 4.0) << "phase " << phase;
+  }
+}
+
+TEST(RtttlSine, HitsTheQuarterPointsOfTheWave) {
+  EXPECT_EQ(Access::sine(0), 0);
+  EXPECT_NEAR(Access::sine(0x40000000), INT16_MAX, 1);
+  EXPECT_EQ(Access::sine(0x80000000), 0);
+  EXPECT_NEAR(Access::sine(0xC0000000), -INT16_MAX, 1);
+  EXPECT_NEAR(Access::sine(0xFFFFFFFF), 0, 1);
+}
+
+TEST(RtttlFade, FirstAndLastSamplesOfANoteAreSilent) {
+  EXPECT_EQ(Access::fade(INT16_MAX, 0, 1000), 0);
+  EXPECT_EQ(Access::fade(INT16_MIN, 1000, 0), 0);
+}
+
+TEST(RtttlFade, RampsAcrossTheFade) {
+  EXPECT_EQ(Access::fade(3200, 16, 1000), 1600);
+  EXPECT_EQ(Access::fade(3200, 1000, 16), 1600);
+  EXPECT_EQ(Access::fade(-3200, 16, 1000), -1600);
+  EXPECT_EQ(Access::fade(3200, 31, 1000), 3100);
+}
+
+TEST(RtttlFade, LeavesTheMiddleOfANoteUnchanged) {
+  EXPECT_EQ(Access::fade(INT16_MAX, 32, 32), INT16_MAX);
+  EXPECT_EQ(Access::fade(INT16_MIN, 1000, 1000), INT16_MIN);
+}
+
+TEST(RtttlFade, UsesTheNearerEndOfAVeryShortNote) { EXPECT_EQ(Access::fade(3200, 16, 8), 800); }
+
+TEST(RtttlParser, StaticSongParsesTheHeader) {
+  Rtttl player;
+  player.play(StaticSong{SONG});
+  EXPECT_EQ(Access::denominator(player), 8);
+  EXPECT_EQ(Access::octave(player), 5);
+  EXPECT_EQ(Access::wholenote(player), 60 * 1000 * 4 / 100);
+  // Positioned on the first note after the second ':'
+  EXPECT_EQ(Access::position(player), 19u);
+  EXPECT_EQ(Access::at(player, Access::position(player)), 'c');
+}
+
+TEST(RtttlParser, OwnedSongParsesTheSameAndOutlivesTheCaller) {
+  Rtttl player;
+  {
+    std::string song(SONG);
+    player.play(song);
+  }
+  EXPECT_EQ(Access::denominator(player), 8);
+  EXPECT_EQ(Access::octave(player), 5);
+  EXPECT_EQ(Access::at(player, 0), 't');
+  EXPECT_EQ(Access::at(player, Access::position(player)), 'c');
+  EXPECT_EQ(Access::at(player, 100), '\0');
+}
+
+TEST(RtttlParser, ControlOrderDoesNotMatter) {
+  for (const char *song : {"a:b=100,o=5,d=8:c", "a:o=5,b=100,d=8:c", "a:d=8,b=100,o=5:c"}) {
+    Rtttl player;
+    player.play(StaticSong{song});
+    EXPECT_EQ(Access::denominator(player), 8) << song;
+    EXPECT_EQ(Access::octave(player), 5) << song;
+    EXPECT_EQ(Access::wholenote(player), 2400) << song;
+  }
+}
+
+TEST(RtttlParser, MissingControlsUseDefaults) {
+  Rtttl player;
+  player.play(StaticSong{"a::c"});
+  EXPECT_EQ(Access::denominator(player), DEFAULT_NOTE_DENOMINATOR);
+  EXPECT_EQ(Access::octave(player), DEFAULT_OCTAVE);
+  EXPECT_EQ(Access::wholenote(player), 60 * 1000 * 4 / 63);
+}
+
+TEST(RtttlParser, NotesReadFromStaticStorage) {
+  Rtttl player;
+  player.play(StaticSong{"t:d=4,o=5,b=120:8c,p"});
+  Access::set_running(player);
+  player.loop();
+  // C5 at 523 Hz for an eighth of a 2000 ms whole note
+  EXPECT_EQ(Access::freq(player), 523u);
+  EXPECT_EQ(Access::note_duration(player), 250);
+  player.loop();
+  // A pause for a default quarter note
+  EXPECT_EQ(Access::freq(player), 0u);
+  EXPECT_EQ(Access::note_duration(player), 500);
+  player.loop();
+  // End of the song
+  EXPECT_EQ(Access::at(player, Access::position(player)), '\0');
+}
+
+TEST(RtttlParser, RefusesANewSongWhilePlaying) {
+  Rtttl player;
+  player.play(StaticSong{"first:d=8:c"});
+  Access::set_running(player);
+  player.play(std::string("second:d=16:c"));
+  EXPECT_EQ(Access::denominator(player), 8);
+  EXPECT_EQ(Access::at(player, 0), 'f');
+}
+
+TEST(RtttlParser, ClampsASongLongerThanTheLengthField) {
+  Rtttl player;
+  player.play(std::string(70000, 'a'));
+  EXPECT_EQ(Access::at(player, 65534), 'a');
+  EXPECT_EQ(Access::at(player, 65535), '\0');
+  EXPECT_EQ(Access::note_duration(player), 0);
+}
+
+TEST(RtttlParser, RejectsASongWithoutAName) {
+  Rtttl player;
+  player.play(StaticSong{"no colon here"});
+  EXPECT_EQ(Access::note_duration(player), 0);
+  EXPECT_EQ(Access::position(player), 13u);
+}
+
+}  // namespace esphome::rtttl::testing

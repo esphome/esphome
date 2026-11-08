@@ -1,0 +1,2 @@
+packages:
+  mdns: !include common.yaml

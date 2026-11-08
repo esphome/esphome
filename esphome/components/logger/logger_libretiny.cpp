@@ -2,10 +2,13 @@
 #include "logger.h"
 
 #include "esphome/components/libretiny/core.h"
+#ifdef USE_LIBRETINY_CRASH_HANDLER
+#include "esphome/components/libretiny/crash_handler.h"
+#endif
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
@@ -52,6 +55,9 @@ void Logger::pre_setup() {
 
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_LIBRETINY_CRASH_HANDLER
+  libretiny::crash_handler_log();
+#endif
 }
 
 const LogString *Logger::get_uart_selection_() {
@@ -67,6 +73,11 @@ const LogString *Logger::get_uart_selection_() {
       return LOG_STR("UART2");
   }
 }
+
+#ifdef USE_LIBRETINY_CRASH_HANDLER
+bool crash_log_pending() { return libretiny::crash_handler_has_data(); }
+void log_crash_to_client() { libretiny::crash_handler_log(); }
+#endif
 
 }  // namespace esphome::logger
 

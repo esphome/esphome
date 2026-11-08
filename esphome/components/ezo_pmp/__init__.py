@@ -13,6 +13,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@carlos-sarmiento"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "ezo_pmp"
 MULTI_CONF = True
 
 CONF_VOLUME_PER_MINUTE = "volume_per_minute"
@@ -33,9 +34,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await i2c.new_i2c_component(config)
 
 
 EZO_PMP_NO_ARGS_ACTION_SCHEMA = maybe_simple_id(

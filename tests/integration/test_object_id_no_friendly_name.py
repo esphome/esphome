@@ -20,6 +20,7 @@ import pytest
 from esphome.helpers import fnv1_hash_object_id
 
 from .entity_utils import compute_object_id, verify_all_entities
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Host platform default MAC: 98:35:69:ab:f6:79 -> suffix "abf679"
@@ -45,12 +46,8 @@ async def test_object_id_no_friendly_name_with_mac_suffix(
     This was arguably a bug, but we maintain it for compatibility.
     """
     async with run_compiled(yaml_config), api_client_connected() as client:
-        device_info = await client.device_info()
-        assert device_info is not None
-
         # Device name should include MAC suffix
-        expected_device_name = f"test-device-{MAC_SUFFIX}"
-        assert device_info.name == expected_device_name
+        device_info = await assert_device_name(client, f"test-device-{MAC_SUFFIX}")
 
         # Friendly name should be empty (not set in config)
         assert device_info.friendly_name == ""
@@ -101,11 +98,8 @@ async def test_object_id_no_friendly_name_no_mac_suffix(
     Result: object_id = sanitize(snake_case(device_name))
     """
     async with run_compiled(yaml_config), api_client_connected() as client:
-        device_info = await client.device_info()
-        assert device_info is not None
-
         # Device name should NOT include MAC suffix
-        assert device_info.name == "test-device"
+        device_info = await assert_device_name(client, "test-device")
 
         # Friendly name should be empty (not set in config)
         assert device_info.friendly_name == ""

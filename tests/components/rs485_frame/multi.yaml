@@ -1,0 +1,37 @@
+# Two hubs, each on its own UART: a hub drains its UART's receive stream, so hubs cannot share one.
+rs485_frame:
+  # Sniffer-only with CRC16-Modbus and double escaping: a literal DLE is sent as DLE DLE
+  # rather than with a separate escape byte.
+  - id: rs485_frame_sniffer
+    uart_id: uart_bus
+    sniffer_only: true
+    framing:
+      escape:
+        mode: double
+    crc:
+      type: crc16_modbus
+
+  # Raw hub with no command_format, a fixed_delay gate, a FIFO queue and the little-endian
+  # 16-bit sum CRC.
+  - id: rs485_frame_fixed_delay
+    uart_id: uart_bus_2
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum16_little_endian
+    tx:
+      gate:
+        mode: fixed_delay
+        interval: 500ms
+      queue_policy: fifo
+      max_queue_size: 4
+
+script:
+  - id: send_probe_fixed_delay
+    then:
+      - rs485_frame.send_frame:
+          id: rs485_frame_fixed_delay
+          frame_type: [0x00, 0xA2]
+          payload: [0x42, 0x00]

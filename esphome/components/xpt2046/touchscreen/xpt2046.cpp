@@ -13,7 +13,7 @@ static constexpr uint8_t XPT_READ_Y = 0x90;
 static constexpr uint8_t XPT_ADC_ON = 0x01;
 static constexpr uint8_t XPT_VREF_ON = 0x02;
 
-static const char *const TAG = "xpt2046";
+ESPHOME_LOG_TAG(TAG, "xpt2046");
 
 void XPT2046Component::setup() {
   if (this->irq_pin_ != nullptr) {
@@ -82,8 +82,6 @@ void XPT2046Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-// float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
-
 int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t value3) {
   int16_t delta_a, delta_b, delta_c;
   int16_t reta = 0;
@@ -112,7 +110,7 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 
   this->transfer_array(data, sizeof(data));
 
-  return ((data[1] << 8) | data[2]) >> 3;
+  return encode_uint16(data[1], data[2]) >> 3;
 }
 
 }  // namespace esphome::xpt2046

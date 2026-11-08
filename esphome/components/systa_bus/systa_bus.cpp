@@ -6,21 +6,14 @@
 
 namespace esphome::systa_bus {
 
-static const char *const TAG = "systa_bus";
+ESPHOME_LOG_TAG(TAG, "systa_bus");
 
 void SystaBus::dump_config() { ESP_LOGCONFIG(TAG, "SystaBus:"); }
 
-static bool checksum(std::span<const uint8_t> data) {
-  uint8_t csum = 0;
-  for (uint8_t i : data)
-    csum += i;
-  return csum == 0;
-}
+static bool checksum(std::span<const uint8_t> data) { return sum_bytes(data.data(), data.size()) == 0; }
 
 void SystaBus::loop() {
-  uint8_t c;
-  while (this->available() && this->read_byte(&c))
-    this->handle_byte_(c);
+  this->read_available([this](uint8_t c) { this->handle_byte_(c); });
 }
 
 void SystaBus::handle_byte_(uint8_t c) {
