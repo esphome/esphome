@@ -53,7 +53,7 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
  protected:
   void schedule_call_();
   void make_call_();
-  bool loop_internal();
+  bool loop_internal() override;
   void set_attr_internal() override;
   void report_internal(bool has_lock) override;
   void apply_on_off_(bool on);
