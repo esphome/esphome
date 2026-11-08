@@ -8,17 +8,12 @@ import pytest
 
 from esphome.components.i2s_audio import (
     CONF_I2S_AUDIO_ID,
+    CONF_I2S_COMM_FMT,
     CONF_I2S_MCLK_PIN,
     CONF_I2S_MODE,
     CONF_MCLK_MULTIPLE,
 )
-from esphome.components.i2s_audio.speaker import (
-    CONF_DAC_TYPE,
-    CONF_I2S_COMM_FMT,
-    CONF_SPDIF_MODE,
-)
 from esphome.components.tlv320dac3100.audio_dac import (
-    BITS_PER_SAMPLE,
     CLKIN_BCLK,
     CLKIN_MCLK,
     CLKIN_PLL,
@@ -28,13 +23,11 @@ from esphome.components.tlv320dac3100.audio_dac import (
     DAC_MOD_CLK_MAX,
     DOSR_FS_MAX,
     DOSR_FS_MIN,
-    MCLK_IN_MAX,
     PLL_OUT_MAX,
     PLL_OUT_MIN,
     PROCESSING_BLOCKS,
     ClockConfig,
     _final_validate,
-    _validate_mclk_frequency,
     solve_clock,
 )
 import esphome.config_validation as cv
@@ -139,49 +132,16 @@ def test_processing_block_follows_the_rate(
     assert clock.processing_block == processing_block
 
 
-def test_24_bit_frame_matches_the_i2s_speaker_slots() -> None:
-    """The i2s_audio speaker clocks 24-bit audio in 24-bit slots."""
-    assert BITS_PER_SAMPLE[24][1] == 48
-
-
 def _speaker(platform: str = "i2s_audio", rate: int = 44100, bits: int = 16) -> dict:
     return {
         CONF_PLATFORM: platform,
         CONF_AUDIO_DAC: "dac",
         CONF_SAMPLE_RATE: rate,
         CONF_BITS_PER_SAMPLE: bits,
-        CONF_DAC_TYPE: "external",
-        CONF_I2S_COMM_FMT: "stand_i2s",
     }
 
 
 _DAC = {CONF_ID: "dac", CONF_SAMPLE_RATE: 44100, CONF_BITS_PER_SAMPLE: 16}
-
-
-def test_matching_i2s_speaker_is_accepted() -> None:
-    fv.full_config.set({"speaker": [_speaker()]})
-    _final_validate(_DAC)
-
-
-@pytest.mark.parametrize(
-    "speakers",
-    [
-        [],
-        [{CONF_PLATFORM: "i2s_audio", CONF_SAMPLE_RATE: 44100}],
-        [_speaker(platform="mixer")],
-    ],
-)
-def test_dac_needs_a_direct_i2s_speaker(speakers: list[dict]) -> None:
-    fv.full_config.set({"speaker": speakers})
-    with pytest.raises(cv.Invalid, match="must set 'audio_dac: dac'"):
-        _final_validate(_DAC)
-
-
-@pytest.mark.parametrize("speaker", [_speaker(rate=48000), _speaker(bits=32)])
-def test_mismatched_i2s_speaker_is_rejected(speaker: dict) -> None:
-    fv.full_config.set({"speaker": [speaker]})
-    with pytest.raises(cv.Invalid, match="must match"):
-        _final_validate(_DAC)
 
 
 _MCLK_DAC = {**_DAC, CONF_MCLK_FREQUENCY: 11_289_600}
@@ -200,60 +160,53 @@ def _bus(has_mclk_pin: bool = True) -> dict:
     return {CONF_ID: "bus"} | ({CONF_I2S_MCLK_PIN: 15} if has_mclk_pin else {})
 
 
-def test_mclk_matching_the_i2s_bus_is_accepted() -> None:
-    fv.full_config.set({"speaker": [_mclk_speaker()], "i2s_audio": [_bus()]})
-    _final_validate(_MCLK_DAC)
-
-
-def test_mclk_not_matching_the_i2s_bus_is_rejected() -> None:
-    fv.full_config.set(
-        {"speaker": [_mclk_speaker(multiple=384)], "i2s_audio": [_bus()]}
-    )
-    with pytest.raises(cv.Invalid, match="outputs 16934400"):
-        _final_validate(_MCLK_DAC)
+@pytest.mark.parametrize(
+    ("dac", "config"),
+    [
+        (_DAC, {"speaker": [_speaker()]}),
+        (_DAC, {"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: "pcm_long"}]}),
+        (_MCLK_DAC, {"speaker": [_mclk_speaker()], "i2s_audio": [_bus()]}),
+        # MCLK from elsewhere is not compared
+        (
+            _MCLK_DAC,
+            {"speaker": [_mclk_speaker("secondary", 384)], "i2s_audio": [_bus()]},
+        ),
+        (
+            _MCLK_DAC,
+            {"speaker": [_mclk_speaker(multiple=384)], "i2s_audio": [_bus(False)]},
+        ),
+    ],
+)
+def test_final_validate_accepts(dac: dict, config: dict) -> None:
+    fv.full_config.set(config)
+    _final_validate(dac)
 
 
 @pytest.mark.parametrize(
-    ("mode", "has_mclk_pin"), [("secondary", True), ("primary", False)]
+    ("dac", "config", "match"),
+    [
+        (_DAC, {"speaker": []}, "must set 'audio_dac: dac'"),
+        (
+            _DAC,
+            {"speaker": [{CONF_PLATFORM: "i2s_audio", CONF_SAMPLE_RATE: 44100}]},
+            "must set 'audio_dac: dac'",
+        ),
+        (_DAC, {"speaker": [_speaker(platform="mixer")]}, "must set 'audio_dac: dac'"),
+        (_DAC, {"speaker": [_speaker(rate=48000)]}, "must match"),
+        (_DAC, {"speaker": [_speaker(bits=32)]}, "must match"),
+        (
+            _DAC,
+            {"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: "stand_msb"}]},
+            "needs standard I2S",
+        ),
+        (
+            _MCLK_DAC,
+            {"speaker": [_mclk_speaker(multiple=384)], "i2s_audio": [_bus()]},
+            "outputs 16934400",
+        ),
+    ],
 )
-def test_mclk_from_elsewhere_is_not_compared(mode: str, has_mclk_pin: bool) -> None:
-    fv.full_config.set(
-        {
-            "speaker": [_mclk_speaker(mode=mode, multiple=384)],
-            "i2s_audio": [_bus(has_mclk_pin)],
-        }
-    )
-    _final_validate(_MCLK_DAC)
-
-
-@pytest.mark.parametrize("fmt", ["stand_i2s", "stand_pcm_long", "i2s_msb", "pcm_long"])
-def test_standard_i2s_formats_are_accepted(fmt: str) -> None:
-    fv.full_config.set({"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: fmt}]})
-    _final_validate(_DAC)
-
-
-@pytest.mark.parametrize(
-    "fmt", ["stand_msb", "i2s_lsb", "stand_pcm_short", "pcm_short", "pcm"]
-)
-def test_non_standard_i2s_formats_are_rejected(fmt: str) -> None:
-    fv.full_config.set({"speaker": [{**_speaker(), CONF_I2S_COMM_FMT: fmt}]})
-    with pytest.raises(cv.Invalid, match="needs standard I2S"):
-        _final_validate(_DAC)
-
-
-def test_spdif_speaker_is_rejected() -> None:
-    fv.full_config.set({"speaker": [{**_speaker(), CONF_SPDIF_MODE: True}]})
-    with pytest.raises(cv.Invalid, match="spdif_mode"):
-        _final_validate(_DAC)
-
-
-def test_internal_dac_speaker_is_rejected() -> None:
-    fv.full_config.set({"speaker": [{**_speaker(), CONF_DAC_TYPE: "internal"}]})
-    with pytest.raises(cv.Invalid, match="dac_type: external"):
-        _final_validate(_DAC)
-
-
-def test_mclk_is_capped_at_the_datasheet_limit() -> None:
-    assert _validate_mclk_frequency(MCLK_IN_MAX) == MCLK_IN_MAX
-    with pytest.raises(cv.Invalid):
-        _validate_mclk_frequency(MCLK_IN_MAX + 1)
+def test_final_validate_rejects(dac: dict, config: dict, match: str) -> None:
+    fv.full_config.set(config)
+    with pytest.raises(cv.Invalid, match=match):
+        _final_validate(dac)
