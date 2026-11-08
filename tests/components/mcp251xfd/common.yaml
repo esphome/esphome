@@ -5,7 +5,6 @@ canbus:
     can_id: 0x123
     bit_rate: 1000KBPS
     data_bit_rate: 8000KBPS
-    clock: 40MHZ
     on_frame:
       - can_id: 0x123
         then:
@@ -15,7 +14,6 @@ canbus:
     id: mcp251xfd_default
     cs_pin: ${cs_pin_default}
     can_id: 0x456
-    bit_rate: 500KBPS
     clock: 20MHZ
 
 interval:

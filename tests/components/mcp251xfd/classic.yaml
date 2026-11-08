@@ -5,7 +5,6 @@ canbus:
     can_id: 0x123
     mode: CLASSIC
     bit_rate: 10KBPS
-    clock: 40MHZ
 
 interval:
   - interval: 1s
