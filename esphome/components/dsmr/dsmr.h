@@ -21,8 +21,14 @@
 // esp_mbedtls_esp8266, but that build leaves MBEDTLS_GCM_C disabled so the
 // gcm.h symbols are unresolved at link time. Force BearSSL on ESP8266 to
 // avoid that linker error.
-#if __has_include(<psa/crypto.h>)
+// On the host, mbedtls 2.x has <psa/crypto.h> but not the multi-part AEAD functions of
+// Aes128GcmTfPsa, so the host uses the mbedtls GCM API; mbedtls 4 has no public gcm.h and uses PSA.
+#if defined(USE_HOST) && __has_include(<mbedtls/gcm.h>)
+#include <dsmr_parser/decryption/aes128gcm_mbedtls.h>
+#elif __has_include(<psa/crypto.h>)
 #include <dsmr_parser/decryption/aes128gcm_tfpsa.h>
+#elif defined(USE_HOST)
+#error "dsmr on the host needs the Mbed TLS development files: apt install libmbedtls-dev or brew install mbedtls"
 #elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
@@ -36,7 +42,9 @@
 
 namespace esphome::dsmr {
 
-#if __has_include(<psa/crypto.h>)
+#if defined(USE_HOST) && __has_include(<mbedtls/gcm.h>)
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
+#elif __has_include(<psa/crypto.h>)
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
 #elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
