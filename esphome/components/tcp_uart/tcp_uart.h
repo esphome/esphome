@@ -39,7 +39,7 @@ class TcpUart : public uart::UARTComponent, public Component {
 #ifdef USE_NOISE_STREAM
   void set_noise_stream(noise::NoiseStream *stream) { this->noise_ = stream; }
 #endif
-  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
+  void set_idle_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
