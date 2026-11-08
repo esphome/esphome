@@ -1,15 +1,12 @@
-packages:
-  ble: !include ../../test_build_components/common/ble/esp32-idf.yaml
-
 ble_client:
-  - mac_address: DE:00:40:10:62:39
+  - mac_address: AA:BB:CC:DD:EE:FF
     id: my_ble_client
     auto_connect: true
 
 fendt_caravan:
   id: my_caravan
   ble_client_id: my_ble_client
-  bt_id: C0:EE:FB:90:B0:A7
+  bt_id: 11:22:33:44:55:66
   main_control_unit:
     id: fendt_caravan_mcu
     update_interval: 60s
@@ -63,86 +60,7 @@ text_sensor:
     type: software_version
     name: Software Version
 
-# climate:
-#   - platform: fendt_caravan
-#     parent_id: fendt_caravan_alde
-#     type: alde
-#     name: Alde Climate
-#     id: alde_climate
-#     heater_switch: alde_heater_switch
-#     sensor: temp_in
-
-# select:
-#   - platform: fendt_caravan
-#     parent_id: fendt_caravan_alde
-#     type: alde_heater_electricity
-#     name: Heater Electric Power
-#     id: heater_electric_power
-
-#   - platform: fendt_caravan
-#     parent_id: fendt_caravan_fridge
-#     type: fridge_mode
-#     name: Fridge Mode
-#     id: fridge_mode
-
-#   - platform: fendt_caravan
-#     parent_id: fendt_caravan_fridge
-#     type: fridge_temperature
-#     name: Fridge Temperature
-#     id: fridge_temperature
-
-# light:
-#   - platform: fendt_caravan
-#     name: Living Room(Bottom)
-#     parent_id: fendt_caravan_lighting
-#     id: light_sw0
-#     variable_name: LIGHT_SW0
-#     light_type: switch
-
-#   - platform: fendt_caravan
-#     name: Awning Light
-#     parent_id: fendt_caravan_lighting
-#     id: light_sw1
-#     variable_name: LIGHT_SW1
-#     light_type: switch
-
-#   - platform: fendt_caravan
-#     name: Bed Room(Bottom)
-#     parent_id: fendt_caravan_lighting
-#     id: light_sw2
-#     variable_name: LIGHT_SW2
-#     light_type: switch
-
-#   - platform: fendt_caravan
-#     name: Celing
-#     parent_id: fendt_caravan_lighting
-#     id: light_dim0
-#     variable_name: LIGHT_DIM0
-#     light_type: dimmable
-
-#   - platform: fendt_caravan
-#     name: Living Room(Top)
-#     parent_id: fendt_caravan_lighting
-#     id: light_dim1
-#     variable_name: LIGHT_DIM1
-#     light_type: dimmable
-
-#   - platform: fendt_caravan
-#     name: Ambience Awning Light(Top)
-#     parent_id: fendt_caravan_lighting
-#     id: light_dim2
-#     variable_name: LIGHT_DIM2
-#     light_type: dimmable
-
-# #  - platform: fendt_caravan
-# #    name: light_dim_sw3
-# #    parent_id: lighting_device
-# #    id: light_dim3
-# #    type: light_dim3
-
-#   - platform: fendt_caravan
-#     name: Bed Room(Top)
-#     parent_id: fendt_caravan_lighting
-#     id: light_dim4
-#     variable_name: LIGHT_DIM4
-#     light_type: dimmable
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: panel_version
+    name: Panel Version

@@ -2,8 +2,9 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE
+from esphome.types import ConfigType
 
-from .. import CONF_PARENT_ID, FendtCaravanHubBase
+from .. import CONF_PARENT_ID, MainControlUnitHub
 
 CONF_MAIN_SWITCH = "main_switch"
 CONF_ALL_LIGHTS = "all_lights"
@@ -16,7 +17,7 @@ def _switch_schema(icon: str = cv.UNDEFINED) -> cv.Schema:
         icon=icon,
     ).extend(
         {
-            cv.Required(CONF_PARENT_ID): cv.use_id(FendtCaravanHubBase),
+            cv.Required(CONF_PARENT_ID): cv.use_id(MainControlUnitHub),
         }
     )
 
@@ -30,7 +31,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_PARENT_ID])
     switches = switch.sub_switches(config, parent=hub)
     await switches.create(

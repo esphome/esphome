@@ -2,10 +2,10 @@ import esphome.codegen as cg
 from esphome.components import ble_client, esp32_ble_tracker
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
-AUTO_LOAD = []
 PLATFORMS = ["esp32"]
 DOMAIN = "fendt_caravan"
 
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # The handshake carries the paired address in lower case
     bt_id = ":".join(f"{part:02x}" for part in config[CONF_BT_ID].parts)
     var = cg.new_Pvariable(config[CONF_ID], f"net-BT_ID-{bt_id}")

@@ -8,8 +8,9 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
-from .. import CONF_PARENT_ID, FendtCaravanHubBase
+from .. import CONF_PARENT_ID, MainControlUnitHub
 
 CONF_TEMP_IN = "temp_in"
 CONF_TEMP_OUT = "temp_out"
@@ -31,7 +32,7 @@ def _sensor_schema(
         icon=icon,
     ).extend(
         {
-            cv.Required(CONF_PARENT_ID): cv.use_id(FendtCaravanHubBase),
+            cv.Required(CONF_PARENT_ID): cv.use_id(MainControlUnitHub),
         }
     )
 
@@ -60,7 +61,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_PARENT_ID])
     var = await sensor.new_sensor(config)
     cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_sensor")(var))

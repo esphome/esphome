@@ -2,8 +2,9 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE
+from esphome.types import ConfigType
 
-from .. import CONF_PARENT_ID, FendtCaravanHubBase
+from .. import CONF_PARENT_ID, MainControlUnitHub
 
 CONF_SOFTWARE_VERSION = "software_version"
 CONF_PANEL_VERSION = "panel_version"
@@ -20,7 +21,7 @@ def _text_schema(
         icon=icon,
     ).extend(
         {
-            cv.Required(CONF_PARENT_ID): cv.use_id(FendtCaravanHubBase),
+            cv.Required(CONF_PARENT_ID): cv.use_id(MainControlUnitHub),
         }
     )
 
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_PARENT_ID])
     var = await text_sensor.new_text_sensor(config)
     cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_text_sensor")(var))
