@@ -31,11 +31,8 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   }
 }
 
-// The ISR copy is the pin itself, so both share the stored mode and level. Pins are never freed.
-ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(
-      const_cast<ArduinoInternalGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-}
+// The ISR copy is the pin itself, so both share the stored mode and level.
+ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = (PinStatus) 255;
@@ -120,6 +117,13 @@ size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
 }
 
 bool ArduinoInternalGPIOPin::digital_read() {
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+  // The Arduino read switches the pin back to GPIO and frees its interrupt, so read through the interrupt instead.
+  // Remove once LibreTiny's Arduino pin read handles this. The IRQ bit is only set once data->irq exists.
+  PinInfo *info = pinInfo(this->pin_);
+  if (info != nullptr && (info->enabled & PIN_IRQ))
+    return bool(gpio_irq_read(info->data->irq)) ^ this->inverted_;
+#endif
   return bool(digitalRead(this->pin_)) ^ this->inverted_;  // NOLINT
 }
 void ArduinoInternalGPIOPin::digital_write(bool value) {

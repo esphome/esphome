@@ -39,6 +39,12 @@
 #ifdef USE_ESP32
 #include <esp_system.h>
 #include <esp_heap_caps.h>
+#include <esp_rom_crc.h>
+#endif
+
+#ifdef USE_LIBRETINY
+// From FlashDB, which LibreTiny always links; the full flashdb.h pulls in its storage layer
+extern "C" uint32_t fdb_calc_crc32(uint32_t crc, const void *buf, size_t size);
 #endif
 
 #if defined(USE_ESP32)
@@ -1010,6 +1016,17 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_
                bool refin = false, bool refout = false);
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t poly = 0x1021, bool refin = false,
                  bool refout = false);
+
+/// Calculate the standard reflected CRC-32 (as zlib, polynomial 0xEDB88320) of \p data with size \p len.
+/// Seed with 0, or with a previous result to continue across chunks.
+#if defined(USE_ESP32)
+// The lookup table and loop live in the mask ROM, so callers call it directly
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) { return esp_rom_crc32_le(crc, data, len); }
+#elif defined(USE_LIBRETINY)
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) { return fdb_calc_crc32(crc, data, len); }
+#else
+uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len);
+#endif
 
 /// Calculate a FNV-1 hash of \p str.
 /// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
@@ -2583,6 +2600,15 @@ template<class T> class RAMAllocator {
 
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
+
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().make_unique_array_for_overwrite(count).release();
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
+  return buffer;
+}
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
