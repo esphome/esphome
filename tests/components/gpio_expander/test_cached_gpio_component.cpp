@@ -4,7 +4,7 @@
 
 namespace esphome::gpio_expander::testing {
 
-class FakeComponent : public CachedGpioExpanderComponent<uint8_t, 8> {
+class FakeComponent : public CachedGpioExpanderComponent<uint8_t, 16> {
  public:
   void setup() override { this->setup_interrupt_pin_(); }
   void pin_mode(uint8_t pin, gpio::Flags flags) {
@@ -12,14 +12,15 @@ class FakeComponent : public CachedGpioExpanderComponent<uint8_t, 8> {
       this->enable_polling_loop_();
   }
 
+  uint8_t chip[2]{};
   unsigned reads{0};
 
  protected:
   bool digital_read_hw(uint8_t pin) override {
     this->reads++;
+    this->input_[pin / 8] = this->chip[pin / 8];
     return true;
   }
-  bool digital_read_cache(uint8_t pin) override { return false; }
   void digital_write_hw(uint8_t pin, bool value) override {}
 };
 
@@ -57,13 +58,20 @@ TEST_F(CachedGpioComponentTest, WithoutAnInterruptPinEveryReadHitsTheChip) {
 TEST_F(CachedGpioComponentTest, InterruptPinKeepsTheCacheUntilTheLoopRuns) {
   this->component_.set_interrupt_pin(&this->int_pin_);
   this->component_.setup();
-  this->component_.digital_read(0);
-  this->component_.digital_read(0);
-  EXPECT_EQ(this->component_.reads, 1u);
+  this->component_.chip[0] = 0x01;
+  this->component_.chip[1] = 0x80;
+  EXPECT_TRUE(this->component_.digital_read(0));
+  EXPECT_TRUE(this->component_.digital_read(15));
+  this->component_.chip[0] = 0x00;
+  this->component_.chip[1] = 0x00;
+  EXPECT_TRUE(this->component_.digital_read(0));
+  EXPECT_TRUE(this->component_.digital_read(15));
+  EXPECT_EQ(this->component_.reads, 2u);
 
   this->component_.loop();
-  this->component_.digital_read(0);
-  EXPECT_EQ(this->component_.reads, 2u);
+  EXPECT_FALSE(this->component_.digital_read(0));
+  EXPECT_FALSE(this->component_.digital_read(15));
+  EXPECT_EQ(this->component_.reads, 4u);
 }
 
 TEST_F(CachedGpioComponentTest, LoopStaysOnUntilIntIsReleased) {

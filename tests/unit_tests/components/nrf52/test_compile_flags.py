@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from esphome.components import nrf52
+from esphome.components.lvgl import lv_conf_path_flag
 from esphome.components.zephyr import zephyr_to_code
 from esphome.core import CORE
 
@@ -37,6 +38,31 @@ def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
         "set_source_files_properties(${APP_SOURCES} PROPERTIES\n"
         '  COMPILE_OPTIONS "-Wno-double-promotion"\n)'
     ) in text
+
+
+def test_project_flags_reach_the_libraries(tmp_path: Path) -> None:
+    """Libraries such as LVGL find their configuration through a project-wide define."""
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = tmp_path / "build"
+    CORE.name = "livingroom"
+    # Escaped quotes stay escaped, so CMake reads them as quotes, as for the app
+    CORE.build_flags.add(lv_conf_path_flag(Path("/build/src/lv_conf.h")))
+    CORE.build_flags.add("-Wno-double-promotion")
+    with (
+        patch(
+            "esphome.components.zephyr.library.generate_zephyr_modules",
+            return_value=[tmp_path / "lvgl"],
+        ),
+        patch.object(nrf52, "get_cmake_link_flags", return_value=[]),
+    ):
+        nrf52._generate_cmake_lists(False)
+    text = (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
+    # Set before find_package(Zephyr), which builds the library modules
+    before = text.split("find_package(Zephyr REQUIRED)", 1)[0]
+    # -W flags would come before the warnings inherited from zephyr_interface
+    assert (
+        'set(ESPHOME_LIBRARY_DEFINES "-DLV_CONF_PATH=\\"/build/src/lv_conf.h\\"")'
+    ) in before
 
 
 def test_build_flags_are_split_and_quoted(tmp_path: Path) -> None:
