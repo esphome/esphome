@@ -93,8 +93,9 @@ verification_keys: [keyA.pem]`):
    signature check without secure boot), copy each `firmware.ota.bin`.
 3. `sign_variants.py <image> keyA.pem keyB.pem <prefix>` writes key A, key B, B then A, stored CRC flipped, byte 2
    changed (covered only by the CRC), the same with the CRC recomputed by zlib, and B then A with block 1's CRC flipped.
-4. `otaseq.sh <ip> <files...>` sends them with `esphome upload --file` and waits for each verdict in the device log;
-   send the rejects first so every check runs in the same build, then the accepted ones (each logs its `BUILDTAG`).
+4. `otaseq.sh <ip> FILE=reject... FILE=<tag>...` sends them with `esphome upload --file` and checks the first verdict
+   in the device log and the upload result against the expectation (a rejection, or the `BUILDTAG` of that build);
+   send the rejects first so every check runs in the same build, then the accepted ones.
 Expected: unsigned, B only and every CRC edit rejected; A, B+A and the zlib-fixed CRC accepted. The byte 2 pair isolates
 the CRC from the signature and key digest.
 
