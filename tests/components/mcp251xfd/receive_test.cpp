@@ -91,6 +91,24 @@ TEST(MCP251XFDReceive, ClassicModeUsesEightBytePayloadObjects) {
   EXPECT_EQ(spi.writes_to(REG_RX_FIFO_CON + 1), increments + 1);
 }
 
+TEST(MCP251XFDReceive, RemoteRequestZeroesPayloadAndKeepsDlc) {
+  constexpr uint32_t offset = TX_FIFO_DEPTH * MESSAGE_SIZE;
+  RegisterDelegate spi;
+  TestMCP251XFD controller(&spi);
+  spi.queue_rx_message(offset, 8, 8);
+  canbus::CanFrame frame{};
+  ASSERT_EQ(controller.read_message(&frame), canbus::ERROR_OK);
+  ASSERT_EQ(frame.data[0], 1);
+
+  // The RTR object still holds bytes in RAM, which must not reach the frame either
+  spi.queue_rx_message(offset, MESSAGE_RTR | 6, 8);
+  ASSERT_EQ(controller.read_message(&frame), canbus::ERROR_OK);
+  EXPECT_TRUE(frame.remote_transmission_request);
+  EXPECT_EQ(frame.can_data_length_code, 6);
+  for (size_t i = 0; i < 6; i++)
+    EXPECT_EQ(frame.data[i], 0);
+}
+
 TEST(MCP251XFDTransmit, WritesHeaderAndZeroPaddedPayloadInOneTransfer) {
   RegisterDelegate spi;
   TestMCP251XFD controller(&spi);

@@ -353,9 +353,12 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   }
 #endif
   frame->can_data_length_code = message[4] & MESSAGE_DLC_MASK;
-  if (!frame->remote_transmission_request) {
-    std::memcpy(frame->data, message.data() + MESSAGE_HEADER_SIZE,
-                std::min<size_t>(frame->payload_length(), canbus::CAN_MAX_DATA_LENGTH));
+  const size_t payload_length = std::min<size_t>(frame->payload_length(), canbus::CAN_MAX_DATA_LENGTH);
+  // A remote request carries no data, so zero its bytes rather than keep the previous frame's
+  if (frame->remote_transmission_request) {
+    std::memset(frame->data, 0, payload_length);
+  } else {
+    std::memcpy(frame->data, message.data() + MESSAGE_HEADER_SIZE, payload_length);
   }
   return canbus::ERROR_OK;
 }
