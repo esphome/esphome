@@ -6,10 +6,7 @@ namespace esphome::fendt_caravan {
 class FendtBinaryLightOutput : public FendtLightOutput {
  public:
   void write_state(light::LightState *state) override {
-    if (this->is_on_ != state->remote_values.is_on()) {
-      this->parent_->get_parent()->send_command(Commands::update_toggle(this->variable_name_));
-      this->is_on_ = state->remote_values.is_on();
-    }
+    this->parent_->write_state(this->variable_name_.c_str(), state);
   }
 };
 }  // namespace esphome::fendt_caravan

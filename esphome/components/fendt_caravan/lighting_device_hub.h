@@ -9,6 +9,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "device_decoders.h"
+#include "device_commands.h"
 #include "fendt_caravan.h"
 
 namespace esphome::fendt_caravan {
@@ -16,15 +17,16 @@ namespace esphome::fendt_caravan {
 struct LightEntry {
   StringRef key;             // Non-owning, points to flash literal
   light::LightState *state;  // Pointer to light state
+  bool is_on;
 };
 
 class LightingDeviceHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
   void dump_config() override;
-
   void set_binary_light_state(const char *key_name, light::LightState *state);
   void set_float_light_state(const char *key_name, light::LightState *state);
   bool decode(const char *key, const char *value) override;
+  void write_state(const char *key_name, light::LightState *state);
 
  protected:
 #ifdef LIGHTING_DEVICE_BINARY_LIGHT_COUNT

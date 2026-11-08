@@ -8,10 +8,9 @@ namespace esphome::fendt_caravan {
 class FendtFloatLightOutput : public FendtLightOutput {
  public:
   FendtFloatLightOutput() : FendtLightOutput(light::ColorMode::BRIGHTNESS) {};
-  void write_state(light::LightState *state) override;
-
- protected:
-  int last_brightness_{-1};  // Track last sent brightness to avoid redundant commands
+  void write_state(light::LightState *state) override {
+    this->parent_->write_state(this->variable_name_.c_str(), state);
+  };
 };
 }  // namespace esphome::fendt_caravan
 #endif

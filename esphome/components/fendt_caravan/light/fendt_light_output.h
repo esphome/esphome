@@ -7,7 +7,7 @@
 
 namespace esphome::fendt_caravan {
 
-class FendtLightOutput : public light::LightOutput, public Component, public Parented<LightingDeviceHub> {
+class FendtLightOutput : public light::LightOutput, public Parented<LightingDeviceHub> {
  public:
   FendtLightOutput() { this->color_mode_ = light::ColorMode::ON_OFF; }
   explicit FendtLightOutput(light::ColorMode color_mode) { this->color_mode_ = color_mode; }
@@ -22,7 +22,6 @@ class FendtLightOutput : public light::LightOutput, public Component, public Par
 
  protected:
   std::string variable_name_{};
-  bool is_on_ = false;
 
  private:
   light::ColorMode color_mode_ = light::ColorMode::ON_OFF;
