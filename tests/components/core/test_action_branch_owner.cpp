@@ -526,6 +526,46 @@ TEST(ActionBranchOwner, WhileWithoutArgumentsKeepsRunsWhenAWaitTimesOutInside) {
   EXPECT_FALSE(list.is_running());
 }
 
+// Releases the run that waits here, then lets the current run go on at once: two ends in one pass
+class ReleaseAndPassAction : public Action<> {
+ public:
+  void play_complex() override {
+    this->num_running_++;
+    if (this->waiting_) {
+      this->waiting_ = false;
+      this->play_next_();
+    }
+    if (this->pass) {
+      this->play_next_();
+      return;
+    }
+    this->waiting_ = true;
+  }
+  void play() override {}
+  bool pass{false};
+
+ protected:
+  bool waiting_{false};
+};
+
+// Without arguments both ends of one pass mark the same body; the second must still continue its run
+TEST(ActionBranchOwner, WhileWithoutArgumentsContinuesBothEndsOfOnePass) {
+  CountdownCondition<> cond(2);
+  WhileAction<> loop(&cond);
+  ReleaseAndPassAction wait;
+  Log log;
+  RecordAction after(&log, 1);
+  loop.add_then({&wait});
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();  // run A waits
+  wait.pass = true;
+  list.play();  // run B's pass releases A and ends itself
+  EXPECT_EQ(log, (Log{1, 1}));
+  EXPECT_FALSE(list.is_running());
+}
+
 static int step_passes = 0;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static ActionList<> *step_list = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static int step_stop_on = 0;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

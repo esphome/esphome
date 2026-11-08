@@ -437,9 +437,10 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   void play(const Ts &...x) override {
     // A body that did not wait ended inside run_loop_(), which loops again itself. A wait of another run that
     // ends here synchronously (a wait_until timeout) passes other argument storage. Runs without arguments carry
-    // nothing to tell them apart: whichever frame takes such an end loops once for it, so each run continues once.
+    // nothing to tell them apart: whichever frame takes such an end loops once for it, and a second end in the
+    // same pass loops on its own, so each run continues once.
     WhileBody *body = active_while_body;
-    if (body != nullptr && body->owner == this && body->args == args_key_(x...)) {
+    if (body != nullptr && !body->ended && body->owner == this && body->args == args_key(x...)) {
       body->ended = true;
       return;
     }
@@ -453,7 +454,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   }
 
  protected:
-  static const void *args_key_(const Ts &...x) {
+  static const void *args_key(const Ts &...x) {
     if constexpr (sizeof...(Ts) == 0) {
       return nullptr;
     } else {
@@ -475,7 +476,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
         return;
       }
       // On the stack, as the body can start this action again
-      WhileBody body{this, args_key_(x...), false};
+      WhileBody body{this, args_key(x...), false};
       WhileBody *outer = active_while_body;
       active_while_body = &body;
       this->then_.play(x...);
