@@ -442,14 +442,6 @@ canbus::CanEventFlags MCP251XFD::get_events() {
   }
   if (controller_flags & (INT_CAN_ERROR | INT_INVALID_MESSAGE))
     this->bus_error_count_++;
-  if (controller_flags & INT_SPI_CRC_ERROR) {
-    uint8_t crc_status;
-    if (this->read_registers_(REG_CRC + 2, &crc_status, 1)) {
-      const uint8_t crc_flags = crc_status & (CRC_CRC_ERROR | CRC_FORMAT_ERROR);
-      if (crc_flags != 0)
-        this->write_byte_(REG_CRC + 2, static_cast<uint8_t>(~crc_flags));
-    }
-  }
 
   uint8_t direct_flags = controller_flags & (INT_SYSTEM_ERROR | INT_CAN_ERROR | INT_INVALID_MESSAGE);
   // Leave CERRIF pending when its error-state read failed, so the next poll retries it.
@@ -470,11 +462,9 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     const std::array<uint8_t, 2> clear_flags{static_cast<uint8_t>(~mode_flags), static_cast<uint8_t>(~direct_flags)};
     this->write_registers_(REG_INT, clear_flags.data(), clear_flags.size());
   }
-  if ((controller_flags & (INT_SYSTEM_ERROR | INT_SPI_CRC_ERROR)) && this->should_log_fault_(now)) {
-    ESP_LOGW(TAG, "Controller fault:%s%s, RX errors=%u, TX errors=%u",
-             controller_flags & INT_SPI_CRC_ERROR ? LOG_STR_LITERAL(" SPI CRC") : LOG_STR_LITERAL(""),
-             controller_flags & INT_SYSTEM_ERROR ? LOG_STR_LITERAL(" system error") : LOG_STR_LITERAL(""),
-             static_cast<uint8_t>(this->last_trec_), static_cast<uint8_t>(this->last_trec_ >> 8));
+  if ((controller_flags & INT_SYSTEM_ERROR) && this->should_log_fault_(now)) {
+    ESP_LOGW(TAG, "Controller system error, RX errors=%u, TX errors=%u", static_cast<uint8_t>(this->last_trec_),
+             static_cast<uint8_t>(this->last_trec_ >> 8));
   }
 
   return static_cast<canbus::CanEventFlags>(events);

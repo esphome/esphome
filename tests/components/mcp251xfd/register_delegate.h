@@ -66,8 +66,6 @@ class RegisterDelegate : public spi::SPIDelegate {
     if (address == REG_INT && data_length >= 2) {
       if (this->registers[REG_RX_FIFO_STA] & FIFO_RX_OVERFLOW)
         data[4] |= INT_RX_OVERFLOW;
-      if (this->registers[REG_CRC + 2] & (CRC_CRC_ERROR | CRC_FORMAT_ERROR))
-        data[4] |= INT_SPI_CRC_ERROR;
     }
     crc = spi_crc(data + 3, data_length, crc);
     if (address == this->corrupt_address && this->corrupt_reads > 0) {
@@ -91,7 +89,7 @@ class RegisterDelegate : public spi::SPIDelegate {
     this->writes.push_back({address, {data + 2, data + length}});
     for (size_t i = 2; i < length; i++) {
       const uint16_t reg = address + i - 2;
-      if (reg == REG_INT || reg == REG_INT + 1 || reg == REG_RX_FIFO_STA || reg == REG_CRC + 2) {
+      if (reg == REG_INT || reg == REG_INT + 1 || reg == REG_RX_FIFO_STA) {
         this->registers[reg] &= data[i];
       } else {
         this->registers[reg] = data[i];
