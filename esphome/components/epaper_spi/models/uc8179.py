@@ -2,6 +2,8 @@
 
 Supported models:
 - waveshare-7.5in-v2: 7.5" mono display, 800x480 pixels (EPD_7in5_V2)
+- goodisplay-gdew075t7-7.5: Good Display GDEW075T7, the same 7.5" 800x480
+  panel, also sold by Seeed as 075BN-T7-D2
 - seeed-reterminal-e1001: Seeed reTerminal E1001, which uses the same
   7.5" 800x480 panel on an integrated ESP32-S3 board
 - goodisplay-gdey0583t81-5.83: Good Display GDEY0583T81 5.83" mono display,
@@ -76,6 +78,13 @@ waveshare_7_5_v2 = uc8179.extend(
     width=800,
     height=480,
 )
+
+# Good Display GDEW075T7, 7.5" mono 800x480, UC8179; the panel used in the Waveshare 7.5" V2.
+# Replaces the waveshare_epaper models 7.50inv2 and 7.50inv2p (use full_update_every for partial updates).
+goodisplay_gdew075t7 = waveshare_7_5_v2.extend("goodisplay-gdew075t7-7.5")
+
+# Name printed on the panel's label as sold by Seeed
+goodisplay_gdew075t7.extend("075bn-t7-d2")
 
 # Good Display GDEY0583T81, 5.83" mono 648x480, UC8179; also sold by Seeed as 0583BN-T81-D2.
 # Replaces the waveshare_epaper model gdey0583t81. Busy is low while busy, so set inverted: true.
