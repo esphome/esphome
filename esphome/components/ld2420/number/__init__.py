@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_MOVE_THRESHOLD,
     CONF_STILL_THRESHOLD,
-    DEVICE_CLASS_DISTANCE,
     ENTITY_CATEGORY_CONFIG,
     ICON_MOTION_SENSOR,
     ICON_SCALE,
@@ -41,19 +40,16 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Inclusive(CONF_MIN_GATE_DISTANCE, TIMEOUT_GROUP): number.number_schema(
             LD2420MinDistanceNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Inclusive(CONF_MAX_GATE_DISTANCE, TIMEOUT_GROUP): number.number_schema(
             LD2420MaxDistanceNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Inclusive(CONF_GATE_SELECT, GATE_GROUP): number.number_schema(
             LD2420GateSelectNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
@@ -69,13 +65,11 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_GATE_MOVE_SENSITIVITY): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SCALE,
         ),
         cv.Optional(CONF_GATE_STILL_SENSITIVITY): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_SCALE,
         ),
