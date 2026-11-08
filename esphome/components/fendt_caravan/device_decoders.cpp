@@ -1,4 +1,5 @@
 #include "device_decoders.h"
+#include <cstdlib>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 

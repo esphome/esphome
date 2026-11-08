@@ -1,8 +1,10 @@
 #pragma once
 
 #ifdef USE_ESP32
-#include "esphome/core/string_ref.h"
-#include "esphome/core/log.h"
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
+#include <string>
 
 namespace esphome::fendt_caravan {
 
