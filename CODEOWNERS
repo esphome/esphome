@@ -262,6 +262,7 @@ esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/gsl3670/* @clydebarrow
 esphome/components/gt911/* @clydebarrow @jesserockz
+esphome/components/gy39/* @St0fF-NPL-ToM
 esphome/components/haier/* @paveldn
 esphome/components/haier_tundra/* @fauxpark
 esphome/components/haier_tundra/switch/* @fauxpark
@@ -538,6 +539,7 @@ esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rp2_ble_tracker/* @bdraco
 esphome/components/rpi_dpi_rgb/* @clydebarrow
+esphome/components/rs485_frame/* @b3nj1
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtsp_server/* @max246
 esphome/components/rtttl/* @glmnet @ximex
