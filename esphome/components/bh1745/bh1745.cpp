@@ -151,9 +151,7 @@ void BH1745Component::update() {
 void BH1745Component::set_interrupt_state(bool on) {
   if (this->is_failed())
     return;
-  if (!this->write_byte(REG_INTERRUPT, on ? INTERRUPT_ENABLE : 0x00)) {
-    this->status_set_warning();
-  }
+  this->status_comm_check(this->write_byte(REG_INTERRUPT, on ? INTERRUPT_ENABLE : 0x00));
 }
 
 }  // namespace esphome::bh1745

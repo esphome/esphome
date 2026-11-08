@@ -85,10 +85,11 @@ void MMC5603Component::update() {
                                this->read_byte(MMC56X3_ADDR_YOUT2, &buffer[5])))
     return;
 
-  if (!this->status_comm_check(this->read_byte(MMC56X3_ADDR_ZOUT0, &buffer[6]) &&
-                               this->read_byte(MMC56X3_ADDR_ZOUT1, &buffer[7]) &&
-                               this->read_byte(MMC56X3_ADDR_ZOUT2, &buffer[8])))
+  if (!this->read_byte(MMC56X3_ADDR_ZOUT0, &buffer[6]) || !this->read_byte(MMC56X3_ADDR_ZOUT1, &buffer[7]) ||
+      !this->read_byte(MMC56X3_ADDR_ZOUT2, &buffer[8])) {
+    this->status_set_warning();
     return;
+  }
 
   int32_t raw_x = 0;
   raw_x |= buffer[0] << 12;

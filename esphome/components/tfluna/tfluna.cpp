@@ -58,10 +58,7 @@ bool TFLuna::configure_() {
   }
 
   uint8_t raw_version[3];
-  if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return true;
-  } else {
+  if (this->status_comm_check(this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version)))) {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
     PUBLISH_STATE(this->version_text_sensor_, this->version_);

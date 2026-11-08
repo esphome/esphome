@@ -26,8 +26,9 @@ void TOF10120Sensor::dump_config() {
 void TOF10120Sensor::setup() {}
 
 void TOF10120Sensor::update() {
-  if (!this->status_comm_check(this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD,
-                                                 sizeof(TOF10120_READ_DISTANCE_CMD))))
+  const bool ok =
+      this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD));
+  if (!this->status_comm_check(ok))
     return;
 
   uint8_t data[2];
