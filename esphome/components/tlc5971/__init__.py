@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
 from esphome.types import ConfigType
 
-# Must match N_CHANNELS_PER_CHIP in tlc5971.h, for the channel range check
+# Must match N_CHANNELS_PER_CHIP in tlc5971.h, for the output channel range check
 CHANNELS_PER_CHIP = 12
 
 CODEOWNERS = ["@IJIJI"]
