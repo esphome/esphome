@@ -19,6 +19,19 @@ climate:
       - logger.log:
           format: "Climate mode %d"
           args: [x.mode]
+      # A while with an argument that cannot be copied, inline and with its own action object
+      - while:
+          condition:
+            lambda: return false;
+          then:
+            - logger.log: inline body
+      - while:
+          condition:
+            lambda: return false;
+          then:
+            - wait_until:
+                condition:
+                  lambda: return true;
     on_control:
       - lambda: |-
           if (x.get_mode().has_value())

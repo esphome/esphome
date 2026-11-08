@@ -107,7 +107,7 @@ from esphome.core import (
 )
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, RegistryEntry
 from tests.component_tests.helpers import get_define_value
 
@@ -386,7 +386,7 @@ def test_owning_args_swaps_every_string_ref(
     ]
 
 
-_WHILE_WARNING = "body of a 'while' loop never waits, so it runs as a busy loop"
+_WHILE_WARNING = "body of a 'while' loop never waits"
 
 
 @pytest.mark.parametrize(
@@ -3115,12 +3115,8 @@ async def test_not_condition_is_an_object_when_its_if_keeps_one() -> None:
     assert "new(act_if) IfAction<false>(neg);" in main
 
 
-@pytest.mark.asyncio
-@pytest.mark.usefixtures("apply_actions")
-@pytest.mark.parametrize("body", [[_action("my.a", "act_a")], []])
-async def test_while_is_never_an_inline_loop(body: list[ConfigType]) -> None:
-    """A C++ loop could not let the main loop run, and an empty body exits a WhileAction at once."""
-    config = [
+def _while(body: list[ConfigType]) -> list[ConfigType]:
+    return [
         {
             "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: body},
             CONF_TYPE_ID: ID(
@@ -3129,10 +3125,73 @@ async def test_while_is_never_an_inline_loop(body: list[ConfigType]) -> None:
         }
     ]
 
-    await build_action_list(config, TEMPLATE_ARG, [])
+
+def _uses_while_action() -> bool:
+    return any(define.name == "USE_WHILE_ACTION" for define in CORE.defines)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
+    """With arguments the loop never yields, so it stays one C++ loop in the merged function."""
+    result = await build_action_list(
+        _while([_action("my.a", "act_a")]),
+        cg.TemplateArguments(cg.int_),
+        [(cg.int_, "x")],
+    )
+
+    assert [str(action) for action in result] == ["act_w"]
+    assert "WhileAction" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "while (true) {" in text
+    assert "if (!esphome__condition)\n" in text
+    assert text.count("if (!esphome__running)") == 2
+    assert not _uses_while_action()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_while_without_arguments_is_a_step_action() -> None:
+    """Without arguments it is an ApplyWhileAction, which can give the main loop a turn."""
+    result = await build_action_list(_while([_action("my.a", "act_a")]), TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_w"]
+    assert "new(act_w) ApplyWhileAction<esphome__act_w__fn>();" in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "static bool esphome__act_w__fn(const int & esphome__running)" in text
+    assert "while (true)" not in text
+    # The stop check inside the body returns from the lambda, then the step reports the pass
+    assert text.index("[&]() {") < text.index("::comp->do_a();") < text.index("}();")
+    assert "return true;" in text
+    assert not _uses_while_action()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    ("args", "template"),
+    [([], "<>"), ([(cg.int_, "x")], "<int>")],
+)
+async def test_while_with_an_object_body_is_a_while_action(
+    args: TemplateArgsType, template: str
+) -> None:
+    """A body that keeps an object, here a delay, needs WhileAction with or without arguments."""
+    template_arg = cg.TemplateArguments(*[type_ for type_, _ in args])
+
+    await build_action_list(_while([_delay("act_d")]), template_arg, args)
+
+    assert f"new(act_w) WhileAction{template}(" in CORE.cpp_main_section
+    assert _uses_while_action()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_while_with_empty_body_keeps_its_object() -> None:
+    """An empty body exits a WhileAction at once, which a C++ loop or a step would not do."""
+    await build_action_list(_while([]), TEMPLATE_ARG, [])
 
     assert "new(act_w) WhileAction<>(" in CORE.cpp_main_section
-    assert "while (true) {" not in CORE.cpp_global_section
+    assert _uses_while_action()
 
 
 @pytest.mark.asyncio

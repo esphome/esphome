@@ -400,4 +400,93 @@ TEST(ActionBranchOwner, NestedIfInsideWhileResumesEachOwner) {
   EXPECT_EQ(top.num_running(), 0);
 }
 
+// Counts the passes of a body that never waits, for a trigger with an argument
+class CountAction : public Action<int> {
+ public:
+  void play(const int &x) override { this->total += x; }
+  int total{0};
+};
+
+class IntCountdownCondition : public Condition<int> {
+ public:
+  explicit IntCountdownCondition(int passes) : passes_(passes) {}
+  bool check(const int & /*x*/) override { return this->passes_-- > 0; }
+
+ protected:
+  int passes_;
+};
+
+class IntRecordAction : public Action<int> {
+ public:
+  explicit IntRecordAction(Log *log) : log_(log) {}
+  void play(const int &x) override { this->log_->push_back(x); }
+
+ protected:
+  Log *log_;
+};
+
+// Enough passes to overflow the stack if each one nested another call chain
+TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
+  static constexpr int PASSES = 200000;
+  IntCountdownCondition cond(PASSES);
+  WhileAction<int> loop(&cond);
+  CountAction body;
+  Log log;
+  IntRecordAction after(&log);
+  loop.add_then({&body});
+  ActionList<int> list;
+  list.add_actions({&loop, &after});
+
+  list.play(1);
+  // With an argument the loop never yields, so it ends before play() returns
+  EXPECT_EQ(body.total, PASSES);
+  EXPECT_EQ(log, (Log{1}));
+  EXPECT_FALSE(list.is_running());
+}
+
+static int step_passes = 0;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static ActionList<> *step_list = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static int step_stop_on = 0;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Like a generated step: false once the condition is false or the run stopped
+static bool count_step(const int &running) {
+  if (!running || step_passes >= 3)
+    return false;
+  if (++step_passes == step_stop_on)
+    step_list->stop();
+  return true;
+}
+
+TEST(ActionBranchOwner, ApplyWhileRunsStepsThenContinues) {
+  step_passes = 0;
+  step_stop_on = 0;
+  Log log;
+  ApplyWhileAction<count_step> loop;
+  RecordAction after(&log, 1);
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();
+  EXPECT_EQ(step_passes, 3);
+  EXPECT_EQ(log, (Log{1}));
+  EXPECT_FALSE(list.is_running());
+}
+
+TEST(ActionBranchOwner, ApplyWhileStoppedInAStepEndsTheRun) {
+  step_passes = 0;
+  step_stop_on = 2;
+  Log log;
+  ApplyWhileAction<count_step> loop;
+  RecordAction after(&log, 1);
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+  step_list = &list;
+
+  list.play();
+  step_list = nullptr;
+  EXPECT_EQ(step_passes, 2);
+  EXPECT_TRUE(log.empty());
+  EXPECT_FALSE(list.is_running());
+}
+
 }  // namespace esphome::core::testing

@@ -340,6 +340,48 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
 };
 
+/// A while with no trigger arguments gives the main loop a turn after this long when its body never waits,
+/// so entity states can change. With arguments it never yields: they may only be valid while the trigger runs.
+static constexpr uint32_t WHILE_YIELD_AFTER_MS = 20;
+
+/// A while with no trigger arguments whose condition and body codegen merged into one step function.
+/// Step runs the body once and returns true, or returns false once the condition is false or the run stopped.
+template<auto Step> class ApplyWhileAction final : public Action<> {
+ public:
+  void play_complex() override {
+    this->num_running_++;
+    this->run_();
+  }
+
+  void play() override { /* ignore - see play_complex */ }
+
+  void stop() override { App.scheduler.cancel_timeout(this); }
+
+ protected:
+  void run_() {
+    // Any other type would bind the function's const int & to a temporary that never sees a stop
+    static_assert(std::is_same_v<decltype(this->num_running_), int>);
+    const uint32_t start = millis();
+    while (Step(this->num_running_)) {
+      if (millis() - start > WHILE_YIELD_AFTER_MS) {
+        App.scheduler.set_action_timeout_(
+            this, 0, [this]() { this->run_(); }, /* parallel= */ this->num_running_ > 1);
+        return;
+      }
+    }
+    this->play_next_();
+  }
+};
+
+#ifdef USE_WHILE_ACTION
+/// The while body that is running synchronously, kept on the stack by WhileAction::run_loop_().
+/// One for all loops instead of a member, as the main loop runs one body at a time.
+struct WhileBodyFrame {
+  const void *owner;
+  bool ended;
+};
+inline WhileBodyFrame *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
@@ -366,8 +408,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // Branch-end resume hook
   void play(const Ts &...x) override {
     // A body that did not wait ended inside run_loop_(), which loops again itself
-    if (this->body_ended_ != nullptr) {
-      *this->body_ended_ = true;
+    if (active_while_body != nullptr && active_while_body->owner == this) {
+      active_while_body->ended = true;
       return;
     }
     this->run_loop_(x...);
@@ -375,16 +417,14 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void stop() override {
     this->then_.stop();
-    App.scheduler.cancel_timeout(this);
+    if constexpr (sizeof...(Ts) == 0)
+      App.scheduler.cancel_timeout(this);
   }
 
  protected:
-  // A body that never waits gives the main loop a turn after this long, so entity states can change
-  static constexpr uint32_t YIELD_AFTER_MS = 20;
-
   // Runs the body in a loop, not by recursion, while it ends without waiting
   void run_loop_(const Ts &...x) {
-    const uint32_t start = millis();
+    [[maybe_unused]] const uint32_t start = sizeof...(Ts) == 0 ? millis() : 0;
     while (true) {
       // The condition may stop this automation. A false start must not stop the body of another run.
       if (this->num_running_ == 0 || !this->condition_->check(x...) || this->num_running_ == 0) {
@@ -392,27 +432,28 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
         return;
       }
       // On the stack, as the body can start this action again
-      bool ended = false;
-      bool *outer = this->body_ended_;
-      this->body_ended_ = &ended;
+      WhileBodyFrame frame{this, false};
+      WhileBodyFrame *outer = active_while_body;
+      active_while_body = &frame;
       this->then_.play(x...);
-      this->body_ended_ = outer;
+      active_while_body = outer;
       // A body that waits resumes through play() later
-      if (!ended)
+      if (!frame.ended)
         return;
-      if (millis() - start > YIELD_AFTER_MS) {
-        // See DelayAction for why the arguments are copied and the lambda is mutable
-        App.scheduler.set_action_timeout_(
-            this, 0, [this, x...]() mutable { this->run_loop_(x...); }, /* parallel= */ this->num_running_ > 1);
-        return;
+      if constexpr (sizeof...(Ts) == 0) {
+        if (millis() - start > WHILE_YIELD_AFTER_MS) {
+          App.scheduler.set_action_timeout_(
+              this, 0, [this]() { this->run_loop_(); }, /* parallel= */ this->num_running_ > 1);
+          return;
+        }
       }
     }
   }
 
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  bool *body_ended_{nullptr};
 };
+#endif  // USE_WHILE_ACTION
 
 // Forward declaration for RepeatLoopContinuation
 template<typename... Ts> class RepeatAction;

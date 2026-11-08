@@ -989,6 +989,7 @@ LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
 StatelessLambdaAction = cg.esphome_ns.class_("StatelessLambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
+ApplyWhileAction = cg.esphome_ns.class_("ApplyWhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
 UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
@@ -1470,10 +1471,6 @@ def _has_lambda(value: Any) -> bool:
     return False
 
 
-# WhileAction::YIELD_AFTER_MS
-_WHILE_YIELD_AFTER_MS = 20
-
-
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
     # A lambda condition can test a value the body changes, so it is not a busy loop.
     # has_non_synchronous_actions also finds every action that waits. An empty body ends the loop at once.
@@ -1484,9 +1481,8 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
         and not _has_lambda(config[CONF_CONDITION])
     ):
         _LOGGER.warning(
-            "The body of a 'while' loop never waits, so it runs as a busy loop that holds up "
-            "the rest of the device for up to %d ms at a time. Add a 'delay' inside the loop.",
-            _WHILE_YIELD_AFTER_MS,
+            "The body of a 'while' loop never waits, so the rest of the device cannot run "
+            "while it loops. Add a 'delay' inside the loop."
         )
     return config
 
@@ -1511,11 +1507,47 @@ async def while_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    # Never one inline C++ loop: WhileAction lets the main loop run when the body does not wait
-    condition = await build_condition(config[CONF_CONDITION], template_arg, args)
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
-    var = cg.new_Pvariable(action_id, template_arg, condition)
-    for action in actions:
+    build_cond, build_list = _control_flow_builders(action_id)
+    condition = await build_cond(config[CONF_CONDITION], template_arg, args)
+    actions = await build_list(config[CONF_THEN], template_arg, args)
+    # An empty body exits the loop at once, unlike an empty C++ loop body
+    if _is_collecting(action_id) and actions and _plans_inline(actions):
+        if args:
+            # Arguments may only be valid while the trigger runs, so this loop never yields
+            return _collect_control_flow(
+                action_id,
+                [
+                    "while (true) {",
+                    f"const bool esphome__condition = {_condition_expression(condition, args)};",
+                    _STOP_CHECK,
+                    "if (!esphome__condition)\n  break;",
+                    *_plan_statements(actions),
+                    _STOP_CHECK,
+                    "}",
+                ],
+            )
+        # Its own object, which can give the main loop a turn between steps
+        step_id = action_id.copy()
+        step_id.type = ApplyWhileAction
+        step = apply_static_function(
+            step_id,
+            cg.bool_,
+            [(cg.RawExpression("const int &"), _RUNNING_PARAM)],
+            [
+                f"if (!{_RUNNING_PARAM})\n  return false;",
+                f"const bool esphome__condition = {_condition_expression(condition, args)};",
+                f"if (!{_RUNNING_PARAM} || !esphome__condition)\n  return false;",
+                # A stop inside the body returns from this lambda
+                "[&]() {",
+                *_plan_statements(actions),
+                "}();",
+                "return true;",
+            ],
+        )
+        return cg.new_Pvariable(step_id, cg.TemplateArguments(step))
+    cg.add_define("USE_WHILE_ACTION")
+    var = cg.new_Pvariable(action_id, template_arg, _condition_object(condition))
+    for action in _emit_action_plan(actions, template_arg, args):
         cg.add(var.add_then_action(action))
     cg.add(var.finish_then())
     return var
