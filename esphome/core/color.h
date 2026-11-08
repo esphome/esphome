@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "defines.h"
 #include "component.h"
 #include "helpers.h"
