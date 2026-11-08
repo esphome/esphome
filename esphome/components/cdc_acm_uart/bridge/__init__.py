@@ -1,7 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, uart, usb_cdc_acm
-from esphome.components.bridge import claim_exclusive
+from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
 from esphome.components.const import CONF_DTR_PIN, CONF_RTS_PIN
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
@@ -48,11 +48,16 @@ def _reject_debug(uart_conf: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # The CDC instance is itself a uart::UARTComponent, so other components can bind
-    # either interface through uart_id and would race the worker tasks.
-    claim_exclusive(config, CONF_UART_ID, "UART")
-    claim_exclusive(config, CONF_USB_CDC_ACM_ID, "USB CDC-ACM interface")
+    # Before the claim, which rejects only a dummy_receiver, not the whole debug block.
     fv.id_declaration_match_schema(_reject_debug)(config[CONF_UART_ID])
+    # Bridges of any platform must own their interfaces exclusively; shared ring
+    # buffers and overwritten callbacks would corrupt both streams silently. The
+    # bridge domain owns the claims, so all bridge platforms share them.
+    # Other components bind either interface through uart_id (the CDC instance is
+    # itself a uart::UARTComponent) or usb_cdc_acm_id and would race the worker tasks.
+    # Bare `id:` references (a uart.write action) cannot be distinguished; not caught.
+    uart.claim_exclusive(config, BRIDGE_DOMAIN)
+    uart.claim_exclusive(config, BRIDGE_DOMAIN, CONF_USB_CDC_ACM_ID)
     return config
 
 
