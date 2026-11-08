@@ -31,7 +31,6 @@ void MY9231OutputComponent::setup() {
   this->pin_di_->digital_write(false);
   this->pin_dcki_->setup();
   this->pin_dcki_->digital_write(false);
-  this->pwm_amounts_.resize(this->num_channels_, 0);
   uint8_t command = 0;
   if (this->bit_depth_ <= 8) {
     this->bit_depth_ = 8;
@@ -59,10 +58,10 @@ void MY9231OutputComponent::setup() {
 void MY9231OutputComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "MY9231:\n"
-                "  Total number of channels: %u\n"
+                "  Total number of channels: %zu\n"
                 "  Number of chips: %u\n"
                 "  Bit depth: %u",
-                this->num_channels_, this->num_chips_, this->bit_depth_);
+                this->pwm_amounts_.size(), this->num_chips_, this->bit_depth_);
   LOG_PIN("  DI Pin: ", this->pin_di_);
   LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
 }
@@ -83,7 +82,7 @@ void MY9231OutputComponent::loop() {
 void MY9231OutputComponent::write_channel(uint16_t channel, float state) {
   auto value = uint16_t(state * this->get_max_amount_());
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
-  uint16_t index = this->num_channels_ - channel - 1;
+  uint16_t index = this->pwm_amounts_.size() - channel - 1;
   if (this->pwm_amounts_[index] != value) {
     this->update_ = true;
   }

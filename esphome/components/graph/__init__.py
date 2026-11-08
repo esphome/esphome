@@ -162,6 +162,11 @@ async def to_code(config: ConfigType) -> None:
     # Trace options
     for trace in config[CONF_TRACES]:
         tr = cg.new_Pvariable(trace[CONF_ID], GraphTrace())
+        cg.add(
+            tr.set_samples(
+                cg.static_buffer(trace[CONF_ID], cg.float_, config[CONF_WIDTH])
+            )
+        )
         await cg.add_variable(tr.set_source_sensor, trace[CONF_SENSOR])
         if CONF_NAME in trace:
             cg.add(tr.set_name(trace[CONF_NAME]))

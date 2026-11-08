@@ -1,0 +1,11 @@
+wait:3
+press:JSN Good
+press:JSN Bad Checksum
+press:JSN Garbage Then Frame
+press:JSN Repeated Header
+press:JSN Cut Then Frame
+press:JSN Too Close
+press:JSN Split
+press:JSN Two Frames
+press:JSN Bad Then Good
+press:JSN Good After
