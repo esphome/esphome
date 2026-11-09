@@ -168,7 +168,7 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
-  // A restart deferred while configs were in flight
+  // The only sender of the services advertising: after the event drain, once no config is in flight
   if (this->restart_pending_ && !this->config_pending_()) {
     this->restart_pending_ = false;
     this->start();
