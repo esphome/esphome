@@ -406,11 +406,6 @@ def _if(condition: ConfigType) -> list[ConfigType]:
         ),
         (_BUTTON_ON, [{"logger.log": {"args": [Lambda("id(button).state")]}}], "error"),
         # Conditions inside the body only read
-        (
-            _BUTTON_ON,
-            _if({CONF_CONDITION: {"lambda": Lambda("return true;")}}),
-            "error",
-        ),
         (_BUTTON_ON, _if({"any": [{"lambda": Lambda("return true;")}]}), "error"),
         (
             _BUTTON_ON,

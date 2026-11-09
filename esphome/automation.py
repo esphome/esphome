@@ -43,7 +43,6 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
 
-# _iter_actions knows this shape: a list of choices whose if: holds a condition
 CONF_CHOOSE = "choose"
 CONF_CHOICE_ID = "choice_id"
 
@@ -1503,6 +1502,28 @@ def _condition_has_code(value: Any) -> bool:
     return False
 
 
+# The fix for a while whose body never waits, for the error and the warning
+_WHILE_FIX = "Add '- delay: 100ms' as the last action under this loop's 'then:'."
+
+
+def _condition_name(condition: ConfigType) -> str:
+    """The condition's name, with its place in the file when known.
+
+    A list condition is wrapped in an `and:` that has no place in the file, so its first entry names it.
+    """
+    key = _registry_key(condition)
+    if (
+        not hasattr(key, "esp_range")
+        and isinstance(items := condition[key], list)
+        and items
+    ):
+        key = _registry_key(items[0])
+    if (location := getattr(key, "esp_range", None)) is None:
+        return f"'{key}'"
+    mark = location.start_mark
+    return f"'{key}' ({mark.document}:{mark.line + 1}:{mark.column + 1})"
+
+
 def _validate_while_waits(config: ConfigType) -> ConfigType:
     """Reject or warn about a while whose body never waits and cannot change its condition.
 
@@ -1511,41 +1532,27 @@ def _validate_while_waits(config: ConfigType) -> ConfigType:
     """
     body = config[CONF_THEN]
     # An empty body ends the loop at once
-    if not body:
+    if not body or has_non_synchronous_actions(body):
         return config
     actions = list(_iter_actions(body))
-    if any(_is_deferring(key) for key, _ in actions):
-        return config
     condition = config[CONF_CONDITION]
     # An action on an id the condition (or its lambda) reads, or a lambda action naming one, may change it
-    if _referenced_ids(condition) & _action_ids(actions):
+    if (read := _referenced_ids(condition)) and read & _action_ids(actions):
         return config
-    while not hasattr(key := _registry_key(condition), "esp_range") and (
-        isinstance(items := condition[key], list) and items
+    if not _condition_has_code(condition) and all(
+        action not in _WHILE_CODE_ACTIONS for action, _ in actions
     ):
-        # A list condition is wrapped in an `and:` that has no place in the file
-        condition = items[0]
-    if not _condition_has_code(config[CONF_CONDITION]) and not any(
-        key in _WHILE_CODE_ACTIONS for key, _ in actions
-    ):
-        # Only the main loop could change this condition, and it never runs: a sure crash
         raise cv.Invalid(
-            f"The body of this 'while' loop on '{key}' never waits and does not change "
-            "the condition, so the condition can never become false and the device would "
-            "crash. Let the device run between passes: add '- delay: 100ms' as the last "
-            "action under this loop's 'then:'.",
+            f"The body of this 'while' loop on {_condition_name(condition)} never waits and "
+            "cannot change the condition, so the condition never becomes false and the device "
+            f"would crash. {_WHILE_FIX}",
             [CONF_THEN],
         )
-    # Lazy, see _referenced_ids
-    from esphome.config import _format_location
-
-    location = getattr(key, "esp_range", None)
     _LOGGER.warning(
-        "%sThe body of this 'while' loop on '%s' never waits, so other components cannot run "
-        "until the body itself changes the condition; if it does not, the device crashes. "
-        "Add '- delay: 100ms' as the last action under this loop's 'then:'.",
-        f"{_format_location(location.start_mark)}: " if location else "",
-        key,
+        "The body of the 'while' loop on %s never waits, so nothing else runs until the body "
+        "changes the condition; if it does not, the device crashes. %s",
+        _condition_name(condition),
+        _WHILE_FIX,
     )
     return config
 
