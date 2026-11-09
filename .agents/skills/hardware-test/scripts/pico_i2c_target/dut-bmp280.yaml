@@ -1,0 +1,20 @@
+# Two sensors on the one fake: A with default oversampling, B with pressure oversampling NONE.
+sensor:
+  - platform: bmp280_i2c
+    address: 0x76
+    update_interval: 5s
+    temperature:
+      name: AT
+      accuracy_decimals: 3
+    pressure:
+      name: AP
+      accuracy_decimals: 3
+  - platform: bmp280_i2c
+    address: 0x76
+    update_interval: 5s
+    temperature:
+      name: BT
+      accuracy_decimals: 3
+    pressure:
+      name: BP
+      oversampling: NONE

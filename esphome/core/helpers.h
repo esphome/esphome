@@ -29,6 +29,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <core_esp8266_features.h>  // xt_rsil, xt_wsr_ps
 #include <pgmspace.h>
 #endif
 
@@ -39,6 +40,12 @@
 #ifdef USE_ESP32
 #include <esp_system.h>
 #include <esp_heap_caps.h>
+#include <esp_rom_crc.h>
+#endif
+
+#ifdef USE_LIBRETINY
+// From FlashDB, which LibreTiny always links; the full flashdb.h pulls in its storage layer
+extern "C" uint32_t fdb_calc_crc32(uint32_t crc, const void *buf, size_t size);
 #endif
 
 #if defined(USE_ESP32)
@@ -57,6 +64,18 @@
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
+
+/// Declares the `<name>_publisher_` function pointer and `set_<name>_publisher()` that a cg.HubFunction named
+/// `<name>` fills; the pointer stays nullptr when no child added an item, so check it before calling.
+/// Use it in a public section: it ends on `public:`.
+#define HUB_PUBLISHER(name, ...) HUB_PUBLISHER_RETURNING(void, name, __VA_ARGS__)
+/// HUB_PUBLISHER for a cg.HubFunction that returns `ret` (bool: whether any item was true).
+#define HUB_PUBLISHER_RETURNING(ret, name, ...) \
+ protected: \
+  ret (*name##_publisher_)(__VA_ARGS__){nullptr}; \
+\
+ public: \
+  void set_##name##_publisher(ret (*publisher)(__VA_ARGS__)) { this->name##_publisher_ = publisher; }
 
 namespace esphome {
 
@@ -77,13 +96,14 @@ using std::is_invocable;
 using std::bit_cast;
 #else
 /// Convert data between types, without aliasing issues or undefined behaviour.
+/// Forced inline: GCC 10 for ESP8266 otherwise emits it out of line at -Os.
 template<
     typename To, typename From,
     enable_if_t<sizeof(To) == sizeof(From) && is_trivially_copyable<From>::value && is_trivially_copyable<To>::value,
                 int> = 0>
-To bit_cast(const From &src) {
+ESPHOME_ALWAYS_INLINE inline To bit_cast(const From &src) {
   To dst;
-  memcpy(&dst, &src, sizeof(To));
+  __builtin_memcpy(&dst, &src, sizeof(To));
   return dst;
 }
 #endif
@@ -397,6 +417,35 @@ template<typename T, size_t N> class StaticVector {
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
+/// Always-empty `StaticVector` stand-in; takes no space as a `[[no_unique_address]]` member.
+template<typename T> class EmptyList {
+ public:
+  static constexpr T *begin() { return nullptr; }
+  static constexpr T *end() { return nullptr; }
+  static constexpr size_t size() { return 0; }
+  static constexpr bool empty() { return true; }
+  [[noreturn]] T &operator[](size_t /*i*/) const { __builtin_trap(); }
+  void push_back(const T & /*value*/) {}
+};
+
+/// `StaticVector<T, N>`, or `EmptyList<T>` when `N` is 0.
+template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, EmptyList<T>, StaticVector<T, N>>;
+
+/// Put before a hand-written register method; it does not compile when `count` is 0.
+#define SLOT_LIST_REQUIRES(count) \
+  template<size_t SLOT_LIST_COUNT = (count)> \
+    requires(SLOT_LIST_COUNT > 0)
+
+/// Declare a `SlotList<type *, count>` member and a `register_fn(type *)` that appends to it.
+/// Use it in a public section; it ends on `public:`.
+#define SLOT_LIST(type, member, register_fn, count) \
+ protected: \
+  [[no_unique_address]] SlotList<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
+\
+ public: \
+  SLOT_LIST_REQUIRES(count) \
+  void register_fn(type *item) { /* NOLINT(bugprone-macro-parentheses) */ this->member.push_back(item); }
+
 /// Fixed-size circular buffer with FIFO semantics and iteration support.
 ///
 /// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
@@ -444,6 +493,17 @@ template<typename T, size_t N> class StaticRingBuffer {
     }
     this->data_[this->tail_] = value;
     this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
+  /// Insert `value` so it is popped next; returns false when full.
+  bool push_front(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->head_ = (this->head_ + N - 1) % N;
+    this->data_[this->head_] = value;
     ++this->count_;
     return true;
   }
@@ -863,6 +923,53 @@ template<typename T> class FixedVector {
   const T *end() const { return data_ + size_; }
 };
 
+/// FixedVector over caller-owned raw storage (cg.static_storage): elements are destroyed, the storage is never freed.
+template<typename T> class StaticFixedVector {
+ public:
+  StaticFixedVector() = default;
+  ~StaticFixedVector() { this->clear(); }
+  StaticFixedVector(const StaticFixedVector &) = delete;
+  StaticFixedVector &operator=(const StaticFixedVector &) = delete;
+
+  /// Called once by code generation, on an empty vector
+  void init(std::span<T> storage) {
+    this->data_ = storage.data();
+    this->capacity_ = static_cast<uint16_t>(storage.size());
+  }
+  void clear() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (T &item : *this)
+        item.~T();
+    }
+    this->size_ = 0;
+  }
+
+  /// Ignores pushes beyond the storage
+  void push_back(const T &value) { this->emplace_back(value); }
+  void push_back(T &&value) { this->emplace_back(std::move(value)); }
+  /// The new element, or nullptr when full
+  template<typename... Args> T *emplace_back(Args &&...args) {
+    if (this->size_ >= this->capacity_)
+      return nullptr;
+    return new (&this->data_[this->size_++]) T(std::forward<Args>(args)...);
+  }
+
+  size_t size() const { return this->size_; }
+  bool empty() const { return this->size_ == 0; }
+  size_t capacity() const { return this->capacity_; }
+  T &operator[](size_t i) { return this->data_[i]; }
+  const T &operator[](size_t i) const { return this->data_[i]; }
+  T *begin() { return this->data_; }
+  T *end() { return this->data_ + this->size_; }
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size_; }
+
+ private:
+  T *data_{nullptr};
+  uint16_t capacity_{0};
+  uint16_t size_{0};
+};
+
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
@@ -957,6 +1064,17 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_
                bool refin = false, bool refout = false);
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t poly = 0x1021, bool refin = false,
                  bool refout = false);
+
+/// Calculate the standard reflected CRC-32 (as zlib, polynomial 0xEDB88320) of \p data with size \p len.
+/// Seed with 0, or with a previous result to continue across chunks.
+#if defined(USE_ESP32)
+// The lookup table and loop live in the mask ROM, so callers call it directly
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) { return esp_rom_crc32_le(crc, data, len); }
+#elif defined(USE_LIBRETINY)
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) { return fdb_calc_crc32(crc, data, len); }
+#else
+uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len);
+#endif
 
 /// Calculate a FNV-1 hash of \p str.
 /// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
@@ -2249,8 +2367,14 @@ class LockGuard {
  */
 class InterruptLock {
  public:
+#ifdef USE_ESP8266
+  // Inline: saves two calls per lock, and the lock sits on bit-banged timing paths
+  ESPHOME_ALWAYS_INLINE InterruptLock() : state_(xt_rsil(15)) {}
+  ESPHOME_ALWAYS_INLINE ~InterruptLock() { xt_wsr_ps(this->state_); }
+#else
   InterruptLock();
   ~InterruptLock();
+#endif
 
  protected:
 #if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
@@ -2530,6 +2654,15 @@ template<class T> class RAMAllocator {
 
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
+
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().make_unique_array_for_overwrite(count).release();
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
+  return buffer;
+}
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 

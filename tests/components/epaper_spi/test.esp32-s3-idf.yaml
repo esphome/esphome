@@ -305,10 +305,62 @@ display:
       allow_other_uses: true
       number: GPIO4
 
+  # Good Display GDEY0213B74 2.13" mono e-paper (122x250, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey0213b74-2.13
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
   # Seeed 029BN-T94-D2, the GDEY029T94 panel under its label name
   - platform: epaper_spi
     spi_id: spi_bus
     model: 029BN-T94-D2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # Seeed 0213BN-B74, the label name of the GDEY0213B74 panel
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 0213BN-B74
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # LilyGO TTGO T5 2.13" B74 board (GDEY0213B74 panel)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: ttgo-t5-2.13in-b74
     cs_pin:
       allow_other_uses: true
       number: GPIO5
@@ -514,6 +566,80 @@ display:
     lambda: |-
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
+
+  # Good Display GDEW075T7 7.5" mono e-paper (800x480, UC8179)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdew075t7-7.5
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  # Seeed 075BN-T7-D2, the label name of the GDEW075T7 panel
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 075BN-T7-D2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  # Good Display GDEY0583T81 5.83" mono e-paper (648x480, UC8179)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey0583t81-5.83
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  # Seeed 0583BN-T81-D2, the GDEY0583T81 panel under its label name
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 0583BN-T81-D2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
 
   # Seeed reTerminal E1001 - 7.5" mono e-paper (800x480, UC8179)
   # Pins overridden to avoid conflicts with the E1002 defaults above

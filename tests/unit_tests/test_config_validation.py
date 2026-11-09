@@ -139,7 +139,10 @@ def test_validate_id_name__valid(value):
     assert actual == value
 
 
-@pytest.mark.parametrize("value", ("id of mine", "id-4", "{name_id}", "id::name"))
+@pytest.mark.parametrize(
+    "value",
+    ("id of mine", "id-4", "{name_id}", "id::name", "looping_components_storage"),
+)
 def test_validate_id_name__invalid(value):
     with pytest.raises(Invalid):
         cv.validate_id_name(value)

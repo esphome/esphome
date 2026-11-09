@@ -17,7 +17,7 @@ class NfcTagBinarySensor final : public binary_sensor::BinarySensor, public Comp
   // Both keep the pointer; the string must outlive the sensor (codegen passes a literal)
   void set_ndef_match_string(const char *str);
   void set_tag_name(const char *str);
-  void set_uid(const NfcTagUid &uid);
+  void set_uid(const NfcTagUid &uid) { this->uid_ = uid; }
 
   bool tag_match_ndef_string(const std::shared_ptr<NdefMessage> &msg);
   bool tag_match_tag_name(const std::shared_ptr<NdefMessage> &msg);
