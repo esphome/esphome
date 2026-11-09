@@ -117,6 +117,18 @@ def test_device_that_transmits_on_a_receive_only_output_is_rejected(
     ), errors
 
 
+def test_device_listed_before_the_split_on_a_receive_only_output_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """The device is checked first, after uart_split's CONFIG_SCHEMA has marked tap."""
+    yaml = BASE + DFPLAYER.format(uart_id="tap") + UART.format(baud_rate=9600) + SPLIT
+    errors = _errors(tmp_path, yaml)
+    assert any(
+        "dfplayer requires the uart referenced by uart_id to transmit" in err
+        for err in errors
+    ), errors
+
+
 def test_two_writers_are_rejected(tmp_path: Path) -> None:
     yaml = BASE + UART.format(baud_rate=9600) + TWO_WRITERS
     errors = _errors(tmp_path, yaml)
