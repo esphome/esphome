@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 import logging
@@ -18,8 +18,10 @@ from esphome.const import (
     CONF_CONDITION,
     CONF_COUNT,
     CONF_ELSE,
+    CONF_FOR,
     CONF_ID,
     CONF_IF,
+    CONF_LAMBDA,
     CONF_THEN,
     CONF_TIME,
     CONF_TIMEOUT,
@@ -41,6 +43,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
 
+# _iter_actions knows this shape: a list of choices whose if: holds a condition
 CONF_CHOOSE = "choose"
 CONF_CHOICE_ID = "choice_id"
 
@@ -1460,14 +1463,104 @@ async def choose_action_to_code(
     return var
 
 
+# Body actions that run code, which may change anything the condition reads
+_WHILE_CODE_ACTIONS = frozenset((CONF_LAMBDA, "script.execute", "component.update"))
+
+
+def _is_id_reference(id_: Any) -> bool:
+    # An id generated later is still None during validation
+    return isinstance(id_, ID) and not id_.is_declaration and id_.id is not None
+
+
+def _action_ids(actions: list[tuple[str, Any]]) -> set[str]:
+    """The ids the actions act on: their ``id`` option or shorthand id, and every id a lambda action names."""
+    ids: set[str] = set()
+    for key, options in actions:
+        if key == CONF_LAMBDA:
+            ids |= _referenced_ids(options)
+        elif _is_id_reference(
+            target := options.get(CONF_ID) if isinstance(options, dict) else options
+        ):
+            ids.add(target.id)
+    return ids
+
+
+def _referenced_ids(value: Any) -> set[str]:
+    # Lazy: importing esphome.config here would load it for every entity component
+    from esphome.config import iter_ids
+
+    return {id_.id for id_, _ in iter_ids(value) if _is_id_reference(id_)}
+
+
+def _condition_has_code(value: Any) -> bool:
+    """Whether a condition runs a lambda or depends on time (``for:``), so it can change on its own."""
+    if isinstance(value, Lambda):
+        return True
+    if isinstance(value, dict):
+        return CONF_FOR in value or any(_condition_has_code(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_condition_has_code(v) for v in value)
+    return False
+
+
+def _validate_while_waits(config: ConfigType) -> ConfigType:
+    """Reject or warn about a while whose body never waits and cannot change its condition.
+
+    Such a loop runs its body again from inside the previous pass and never lets other components run, so
+    a condition only they can change stays true until the device runs out of stack or the watchdog resets it.
+    """
+    body = config[CONF_THEN]
+    # An empty body ends the loop at once
+    if not body:
+        return config
+    actions = list(_iter_actions(body))
+    if any(_is_deferring(key) for key, _ in actions):
+        return config
+    condition = config[CONF_CONDITION]
+    # An action on an id the condition (or its lambda) reads, or a lambda action naming one, may change it
+    if _referenced_ids(condition) & _action_ids(actions):
+        return config
+    while not hasattr(key := _registry_key(condition), "esp_range") and (
+        isinstance(items := condition[key], list) and items
+    ):
+        # A list condition is wrapped in an `and:` that has no place in the file
+        condition = items[0]
+    if not _condition_has_code(config[CONF_CONDITION]) and not any(
+        key in _WHILE_CODE_ACTIONS for key, _ in actions
+    ):
+        # Only the main loop could change this condition, and it never runs: a sure crash
+        raise cv.Invalid(
+            f"The body of this 'while' loop on '{key}' never waits and does not change "
+            "the condition, so the condition can never become false and the device would "
+            "crash. Let the device run between passes: add '- delay: 100ms' as the last "
+            "action under this loop's 'then:'.",
+            [CONF_THEN],
+        )
+    # Lazy, see _referenced_ids
+    from esphome.config import _format_location
+
+    location = getattr(key, "esp_range", None)
+    _LOGGER.warning(
+        "%sThe body of this 'while' loop on '%s' never waits, so other components cannot run "
+        "until the body itself changes the condition; if it does not, the device crashes. "
+        "Add '- delay: 100ms' as the last action under this loop's 'then:'.",
+        f"{_format_location(location.start_mark)}: " if location else "",
+        key,
+    )
+    return config
+
+
 @register_action(
     "while",
     WhileAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_CONDITION): validate_potentially_and_condition,
-            cv.Required(CONF_THEN): validate_action_list,
-        }
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+                cv.Required(CONF_THEN): validate_action_list,
+            }
+        ),
+        _validate_while_waits,
     ),
     synchronous=True,
 )
@@ -1694,10 +1787,14 @@ def _check_collected(result: MockObj, collector: _InlineCollector) -> None:
         )
 
 
+def _registry_key(full_config: ConfigType) -> str:
+    """The action or condition name of a validated entry."""
+    return next(key for key in full_config if key != CONF_TYPE_ID)
+
+
 def _builder_name(full_config: ConfigType) -> str:
     """For an error: the id is usually generated, so the registry key tells the author where to look."""
-    name = next(key for key in full_config if key != CONF_TYPE_ID)
-    return f"'{name}' ({full_config[CONF_TYPE_ID]})"
+    return f"'{_registry_key(full_config)}' ({full_config[CONF_TYPE_ID]})"
 
 
 async def _build_condition_or_inline(
@@ -1830,24 +1927,44 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     option that shares a name with an action, such as the ``delay:`` option of
     ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
+    return any(_is_deferring(key) for key, _ in _iter_actions(actions))
+
+
+def _is_deferring(key: str) -> bool:
+    return key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous
+
+
+def _iter_actions(actions: Any) -> Iterator[tuple[str, Any]]:
+    """Yield ``(key, options)`` of every action in an action list, a single action or an automation.
+
+    Nested action lists (``then:``, ``else:``, ...) are searched; other options, including conditions, are not
+    taken for actions.
+    """
     if isinstance(actions, list):
-        return any(has_non_synchronous_actions(item) for item in actions)
-    if isinstance(actions, dict):
+        for item in actions:
+            yield from _iter_actions(item)
+    elif isinstance(actions, dict):
         for key, options in actions.items():
-            if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
-                return True
-            if _options_have_non_synchronous_actions(options):
-                return True
-    return False
+            yield key, options
+            if key == CONF_CHOOSE:
+                # A list of choices, not of actions
+                for choice in options:
+                    yield from _iter_option_actions(choice)
+            else:
+                yield from _iter_option_actions(options)
 
 
-def _options_have_non_synchronous_actions(options: Any) -> bool:
-    """Search an action's options for nested action lists, without treating option keys as actions."""
+# Options that hold conditions, not actions, though and:/or: are lists
+_CONDITION_OPTIONS = frozenset((CONF_CONDITION, CONF_ANY, CONF_ALL, CONF_IF))
+
+
+def _iter_option_actions(options: Any) -> Iterator[tuple[str, Any]]:
     if isinstance(options, list):
-        return has_non_synchronous_actions(options)
-    if isinstance(options, dict):
-        return any(_options_have_non_synchronous_actions(v) for v in options.values())
-    return False
+        yield from _iter_actions(options)
+    elif isinstance(options, dict):
+        for key, value in options.items():
+            if key not in _CONDITION_OPTIONS:
+                yield from _iter_option_actions(value)
 
 
 def owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:

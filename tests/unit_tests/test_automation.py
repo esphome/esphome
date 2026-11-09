@@ -40,6 +40,7 @@ from esphome.automation import (
     WhileAction,
     XorCondition,
     _shadow_iteration,
+    _validate_while_waits,
     apply_action_builder,
     apply_statements_action,
     build_action,
@@ -383,6 +384,117 @@ def test_owning_args_swaps_every_string_ref(
         (cg.std_string, "key"),
         (cg.std_string, "value"),
     ]
+
+
+_BUTTON_ON = {"binary_sensor.is_on": ID("button")}
+_LOG = [{"logger.log": "hi"}]
+
+
+def _if(condition: ConfigType) -> list[ConfigType]:
+    return [{"if": {**condition, CONF_THEN: _LOG}}]
+
+
+@pytest.mark.parametrize(
+    ("condition", "body", "outcome"),
+    [
+        # Only the main loop could change the condition, and the body never lets it run
+        (_BUTTON_ON, _LOG, "error"),
+        (
+            _BUTTON_ON,
+            [{"binary_sensor.template.publish": {"id": ID("other")}}],
+            "error",
+        ),
+        (_BUTTON_ON, [{"logger.log": {"args": [Lambda("id(button).state")]}}], "error"),
+        # Conditions inside the body only read
+        (
+            _BUTTON_ON,
+            _if({CONF_CONDITION: {"lambda": Lambda("return true;")}}),
+            "error",
+        ),
+        (_BUTTON_ON, _if({"any": [{"lambda": Lambda("return true;")}]}), "error"),
+        (
+            _BUTTON_ON,
+            [
+                {
+                    "choose": [
+                        {
+                            "if": {"and": [{"lambda": Lambda("return true;")}]},
+                            CONF_THEN: _LOG,
+                        }
+                    ]
+                }
+            ],
+            "error",
+        ),
+        # Ids generated later are still None and match nothing
+        (
+            {"binary_sensor.is_on": {"id": ID(None)}},
+            [{"switch.turn_off": {"id": ID(None)}}],
+            "error",
+        ),
+        # A body that waits, or an empty one, is fine
+        (_BUTTON_ON, [{"delay": "1s"}], None),
+        (_BUTTON_ON, [{"if": {CONF_THEN: [{"delay": "1s"}]}}], None),
+        (_BUTTON_ON, [], None),
+        # The body acts on what the condition reads
+        (_BUTTON_ON, [{"binary_sensor.template.publish": {"id": ID("button")}}], None),
+        (
+            {"lambda": Lambda("return id(s).state;")},
+            [{"switch.turn_off": {"id": ID("s")}}],
+            None,
+        ),
+        (
+            {"lambda": Lambda("return id(n) < 5;")},
+            [{"lambda": Lambda("id(n) += 1;")}],
+            None,
+        ),
+        (
+            _BUTTON_ON,
+            [
+                {
+                    "if": {
+                        CONF_THEN: [
+                            {"lambda": Lambda("id(button).publish_state(false);")}
+                        ]
+                    }
+                }
+            ],
+            None,
+        ),
+        # Code in the condition or the body might still end the loop
+        ({"lambda": Lambda("return id(s).state;")}, _LOG, "warn"),
+        ({"and": [{"lambda": Lambda("return millis() < 5;")}]}, _LOG, "warn"),
+        ({"binary_sensor.is_on": {"id": ID("button"), "for": "1s"}}, _LOG, "warn"),
+        (_BUTTON_ON, [{"lambda": Lambda("id(n) += 1;")}], "warn"),
+        (_BUTTON_ON, [{"script.execute": ID("release")}], "warn"),
+        (_BUTTON_ON, [{"component.update": ID("other")}], "warn"),
+    ],
+)
+def test_validate_while_waits(
+    mock_registry: dict[str, RegistryEntry],
+    caplog: pytest.LogCaptureFixture,
+    condition: ConfigType,
+    body: list[ConfigType],
+    outcome: str | None,
+) -> None:
+    config = {CONF_CONDITION: condition, CONF_THEN: body}
+    if outcome == "error":
+        with pytest.raises(cv.Invalid, match="never waits.*the device would crash"):
+            _validate_while_waits(config)
+        return
+    assert _validate_while_waits(config) is config
+    assert ("never waits" in caplog.text) is (outcome == "warn")
+
+
+def test_validate_while_waits_names_the_condition_inside_a_list(
+    mock_registry: dict[str, RegistryEntry],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A list condition is wrapped in an `and:`; the warning names the condition in it."""
+    _validate_while_waits(
+        {CONF_CONDITION: {"and": [{"lambda": Lambda("return true;")}]}, CONF_THEN: _LOG}
+    )
+    assert "on 'lambda'" in caplog.text
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(
