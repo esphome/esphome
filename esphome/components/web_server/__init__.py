@@ -417,6 +417,11 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "web_server will act as a captive portal while the %saccess point is active.",
             "" if ap_only else "fallback ",
         )
+    if local and custom_frontend(config):
+        _LOGGER.warning(
+            "web_server local mode embeds the built-in interface and ignores custom "
+            "css_url/js_url values; use css_include/js_include to add local assets."
+        )
     # An embedded interface on an AP (AP only, or a fallback with local: true) that is not
     # on port 80 cannot be a captive portal; say so, unless captive_portal has that role.
     if (
@@ -494,7 +499,7 @@ def build_index_html(config: ConfigType) -> str:
     return html
 
 
-def build_local_index_html(version: int) -> str:
+def build_local_index_html(version: int, config: ConfigType) -> str:
     """Add the custom module before the embedded interface is initialized."""
     source = (
         Path(__file__)
@@ -504,7 +509,12 @@ def build_local_index_html(version: int) -> str:
     injection_point = "<!-- ESPHOME_JS_INCLUDE -->"
     if source.count(injection_point) != 1:
         raise ValueError("Embedded web interface JavaScript injection point not found")
-    return source.replace(injection_point, "<script type=module src=/0.js></script>", 1)
+    includes = []
+    if config.get(CONF_CSS_INCLUDE):
+        includes.append("<link rel=stylesheet href=/0.css>")
+    if config.get(CONF_JS_INCLUDE):
+        includes.append("<script type=module src=/0.js></script>")
+    return source.replace(injection_point, "".join(includes), 1)
 
 
 def add_resource_as_progmem(
@@ -557,10 +567,10 @@ async def to_code(config: ConfigType) -> None:
         enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
-        if local and CONF_JS_INCLUDE in config:
+        if local and (CONF_JS_INCLUDE in config or CONF_CSS_INCLUDE in config):
             add_resource_as_progmem(
                 "INDEX_HTML",
-                build_local_index_html(version),
+                build_local_index_html(version, config),
                 compression=config[CONF_COMPRESSION],
             )
         else:
