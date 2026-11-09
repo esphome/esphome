@@ -132,7 +132,7 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
 }
 
 bool BLEServer::add_service_(BLEService &service, bool owned) {
-  const ESPBTUUID uuid = service.get_uuid();
+  const ESPBTUUID &uuid = service.get_uuid();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char uuid_buf[esp32_ble::UUID_STR_LEN];
   uuid.to_str(uuid_buf);

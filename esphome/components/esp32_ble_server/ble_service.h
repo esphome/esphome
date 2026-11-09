@@ -39,8 +39,8 @@ class BLEService final {
   /// Adds a characteristic the caller keeps alive (a static or member object); it is never freed here.
   void add_characteristic(BLECharacteristic &characteristic) { this->characteristics_.push_back(&characteristic); }
 
-  ESPBTUUID get_uuid() { return this->uuid_; }
-  uint8_t get_inst_id() { return this->inst_id_; }
+  const ESPBTUUID &get_uuid() const { return this->uuid_; }
+  uint8_t get_inst_id() const { return this->inst_id_; }
   BLECharacteristic *get_last_created_characteristic() { return this->last_created_characteristic_; }
   uint16_t get_handle() { return this->handle_; }
 
