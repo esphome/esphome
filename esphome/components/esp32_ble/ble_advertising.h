@@ -42,7 +42,6 @@ class BLEAdvertising {
   bool scan_response_;
   bool include_name_in_adv_{false};
   esp_ble_adv_data_t advertising_data_;
-  esp_ble_adv_data_t scan_response_data_;
   esp_ble_adv_params_t advertising_params_;
   std::vector<ESPBTUUID> advertising_uuids_;
 

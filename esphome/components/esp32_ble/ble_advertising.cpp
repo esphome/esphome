@@ -98,12 +98,12 @@ esp_err_t BLEAdvertising::services_advertisement_() {
 
   if (this->scan_response_) {
     // Name and tx power only: service UUIDs and data are already in the advertising data, and repeating them
-    // overflows the 31 byte scan response
-    this->scan_response_data_ = {};
-    this->scan_response_data_.set_scan_rsp = true;
-    this->scan_response_data_.include_name = true;
-    this->scan_response_data_.include_txpower = true;
-    err = esp_ble_gap_config_adv_data(&this->scan_response_data_);
+    // overflows the 31 byte scan response. A local is enough, the call copies it.
+    esp_ble_adv_data_t scan_response{};
+    scan_response.set_scan_rsp = true;
+    scan_response.include_name = true;
+    scan_response.include_txpower = true;
+    err = esp_ble_gap_config_adv_data(&scan_response);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %s", esp_err_to_name(err));
       return err;
