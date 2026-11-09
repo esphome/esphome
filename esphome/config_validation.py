@@ -897,6 +897,30 @@ def only_on(platforms):
     return validator_
 
 
+def only_on_zephyr_rtos(obj: typing.Any) -> typing.Any:
+    """Allow this option only on Zephyr builds other than nrf52."""
+    if not CORE.using_zephyr_rtos:
+        raise Invalid(
+            "This feature is only available when using the zephyr framework "
+            "on a supported platform"
+        )
+    return obj
+
+
+def only_on_or_zephyr_rtos(
+    platforms: str | list[str],
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow this option on the given platforms and on Zephyr builds other than nrf52."""
+    on_platforms = only_on(platforms)
+
+    def validator_(obj: typing.Any) -> typing.Any:
+        if CORE.using_zephyr_rtos:
+            return obj
+        return on_platforms(obj)
+
+    return validator_
+
+
 def only_with_framework(
     frameworks: Framework | str | list[Framework | str], suggestions=None
 ):

@@ -993,6 +993,26 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.ESP_IDF
         assert target.using_toolchain_sdk_nrf is False
 
+    @pytest.mark.parametrize(
+        ("platform", "framework", "expected"),
+        [
+            ("stm32", "zephyr", True),
+            (const.PLATFORM_NRF52, "zephyr", False),
+            (const.PLATFORM_ESP32, "esp-idf", False),
+        ],
+    )
+    def test_using_zephyr_rtos(
+        self, target, platform: str, framework: str, expected: bool
+    ) -> None:
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: platform,
+            const.KEY_TARGET_FRAMEWORK: framework,
+        }
+        assert target.using_zephyr_rtos is expected
+
+    def test_using_zephyr_rtos__no_target_set(self, target) -> None:
+        assert target.using_zephyr_rtos is False
+
     def test_using_toolchain_arduino(self, target):
         """A toolchain choice, distinct from the arduino target framework."""
         target.toolchain = const.Toolchain.ARDUINO

@@ -46,6 +46,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_HOST,
     PLATFORM_LN882X,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
     SCHEDULER_DONT_RUN,
@@ -1780,6 +1781,46 @@ def test_only_on_list_platform_match() -> None:
 def test_only_on_wrong_platform() -> None:
     _set_core_target(PLATFORM_ESP8266, "arduino")
     validator = cv.only_on(PLATFORM_ESP32)
+    with pytest.raises(Invalid, match="only available on"):
+        validator("x")
+
+
+def test_only_on_zephyr_rtos_accepts_zephyr_rtos_platform() -> None:
+    _set_core_target("stm32", "zephyr")
+    assert cv.only_on_zephyr_rtos("x") == "x"
+
+
+@pytest.mark.parametrize(
+    ("platform", "framework"),
+    [(PLATFORM_NRF52, "zephyr"), (PLATFORM_ESP32, "esp-idf")],
+)
+def test_only_on_zephyr_rtos_rejects_other_builds(
+    platform: str, framework: str
+) -> None:
+    _set_core_target(platform, framework)
+    with pytest.raises(Invalid, match="only available when using the zephyr framework"):
+        cv.only_on_zephyr_rtos("x")
+
+
+@pytest.mark.parametrize(
+    ("platform", "framework"),
+    [("stm32", "zephyr"), (PLATFORM_ESP32, "esp-idf")],
+)
+def test_only_on_or_zephyr_rtos_accepts(platform: str, framework: str) -> None:
+    _set_core_target(platform, framework)
+    validator = cv.only_on_or_zephyr_rtos(PLATFORM_ESP32)
+    assert validator("x") == "x"
+
+
+@pytest.mark.parametrize(
+    ("platform", "framework"),
+    [(PLATFORM_NRF52, "zephyr"), (PLATFORM_ESP8266, "arduino")],
+)
+def test_only_on_or_zephyr_rtos_rejects_unlisted_platform(
+    platform: str, framework: str
+) -> None:
+    _set_core_target(platform, framework)
+    validator = cv.only_on_or_zephyr_rtos([PLATFORM_ESP32])
     with pytest.raises(Invalid, match="only available on"):
         validator("x")
 
