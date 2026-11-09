@@ -1,5 +1,6 @@
 #include "epaper_spi_uc8179_gray4.h"
 
+#include "colorconv.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
