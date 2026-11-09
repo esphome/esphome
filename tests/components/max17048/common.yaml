@@ -1,6 +1,12 @@
+esphome:
+  on_boot:
+    then:
+      - max17048.sleep_mode: max17048_id
+
 sensor:
   - platform: max17048
     i2c_id: i2c_bus
+    id: max17048_id
     battery_voltage:
       name: Battery Voltage
     battery_level:

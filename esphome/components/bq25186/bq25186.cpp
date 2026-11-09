@@ -1,10 +1,4 @@
 #include "bq25186.h"
-#ifdef USE_BINARY_SENSOR
-#include "bq25186_binary_sensor.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "bq25186_text_sensor.h"
-#endif
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -28,13 +22,10 @@ bool BQ25186Component::write_register_(uint8_t reg, uint8_t value) {
 }
 
 bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value) {
-  uint8_t reg_value;
-  if (!this->read_byte(reg, &reg_value)) {
-    ESP_LOGW(TAG, "Failed to read register 0x%02X", reg);
-    return false;
-  }
-  reg_value = (reg_value & ~mask) | (value & mask);
-  return this->write_register_(reg, reg_value);
+  if (this->update_register(reg, mask, value))
+    return true;
+  ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  return false;
 }
 
 uint8_t BQ25186Component::expected_register_(size_t index) const {
@@ -92,7 +83,7 @@ void BQ25186Component::setup() {
     // The poll below puts the pin in output mode; without a restore mode the switch takes its level from it
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
     if (initial.has_value())
-      this->pg_gpo_switch_->publish_state(*initial);  // the first poll writes it to the pin
+      this->pg_gpo_switch_->publish_state(*initial != this->pg_gpo_switch_->is_inverted());  // the first poll writes it
   }
 #endif
   // The poller first runs after a random share of the interval; the entities get a state now
@@ -112,7 +103,11 @@ void BQ25186Component::check_pg_gpo_(const BQ25186StatusRegisters &status, bool 
   const bool level = (status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0;
   if (!this->pg_gpo_switch_->has_state()) {
     this->pg_gpo_switch_->publish_state(level);
-  } else if (level != this->pg_gpo_switch_->state && !this->write_pg_gpo_level(this->pg_gpo_switch_->state)) {
+    return;
+  }
+  // state is what the switch shows; an inverted switch drives the opposite level
+  const bool wanted = this->pg_gpo_switch_->state != this->pg_gpo_switch_->is_inverted();
+  if (level != wanted && !this->write_pg_gpo_level(wanted)) {
     this->status_set_warning(LOG_STR("PG/GPO level write failed"));
     pending = true;
   }
@@ -143,13 +138,9 @@ void BQ25186Component::update() {
 #endif
   if (!pending)
     this->status_clear_warning();
-#ifdef BQ25186_BINARY_SENSOR_COUNT
-  for (auto *sensor : this->binary_sensors_)
-    sensor->on_status(status);
-#endif
-#ifdef BQ25186_TEXT_SENSOR_COUNT
-  for (auto *sensor : this->text_sensors_)
-    sensor->on_status(status);
+#ifdef USE_BQ25186_STATUS_PUBLISHER
+  if (this->status_publisher_ != nullptr)
+    this->status_publisher_(status);
 #endif
 }
 

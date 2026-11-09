@@ -79,11 +79,6 @@ static uint16_t slot_copy(OtaUdpDatagram *p, void *dst, uint16_t len, uint16_t o
 static void slot_free(OtaUdpDatagram *p) { delete p; }
 #endif
 
-static void put_u16(uint8_t *at, uint16_t value) {
-  at[0] = value >> 8;
-  at[1] = value & 0xFF;
-}
-
 ESPHomeOTAComponent::UdpLink::~UdpLink() { this->release(); }
 
 void ESPHomeOTAComponent::UdpLink::release() {
@@ -114,9 +109,9 @@ void ESPHomeOTAComponent::udp_send_ack(UdpLink &link, uint16_t prompted_by) {
 #endif
   ack[0] = UDP_MSG_ACK;
   memcpy(ack + 1, link.reply, 4);
-  put_u16(ack + 5, link.received);
-  put_u16(ack + 7, prompted_by);
-  put_u16(ack + 9, link.out_base);
+  put_be16(ack + 5, link.received);
+  put_be16(ack + 7, prompted_by);
+  put_be16(ack + 9, link.out_base);
   uint8_t window = (UDP_WINDOW - static_cast<uint16_t>(link.received - link.consumed)) << 4;
   for (uint8_t k = 1; k < UDP_WINDOW; k++) {
     if (link.queue[(link.received + k) % UDP_WINDOW] != nullptr)
@@ -222,10 +217,13 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
   if (!random_bytes(token, sizeof(token)))
     return;
 #ifdef ESPHOME_OTA_UDP_LWIP
+#if USE_NETWORK_IPV4
   uint32_t ipv4;
   if (socket::sockaddr_to_ipv4(reinterpret_cast<const struct sockaddr *>(&peer), &ipv4)) {
     ip_addr_set_ip4_u32(&link.peer_ip, ipv4);
-  } else {
+  } else
+#endif
+  {
 #if USE_NETWORK_IPV6 && LWIP_IPV6
     inet6_addr_to_ip6addr(ip_2_ip6(&link.peer_ip), &reinterpret_cast<const sockaddr_in6 *>(&peer)->sin6_addr);
     IP_SET_TYPE_VAL(link.peer_ip, IPADDR_TYPE_V6);

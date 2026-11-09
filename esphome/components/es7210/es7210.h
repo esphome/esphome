@@ -40,13 +40,6 @@ class ES7210 final : public audio_adc::AudioAdc, public Component, public i2c::I
   float mic_gain() override { return this->channel_gains_[0]; };
 
  protected:
-  /// @brief Updates an I2C registry address by modifying the current state
-  /// @param reg_addr I2C register address
-  /// @param update_bits Mask of allowed bits to be modified
-  /// @param data Bit values to be written
-  /// @return True if successful, false otherwise
-  bool es7210_update_reg_bit_(uint8_t reg_addr, uint8_t update_bits, uint8_t data);
-
   /// @brief Convert floating point mic gain value to register value
   /// @param mic_gain Gain value to convert
   /// @return Corresponding register value for specified gain

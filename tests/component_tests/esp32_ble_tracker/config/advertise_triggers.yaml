@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+  on_ble_service_data_advertise:
+    - service_uuid: ABCD
+      then:
+        - logger.log: s16
+    - service_uuid: ABCDABCD
+      mac_address: AC:37:43:77:5F:4C
+      then:
+        - logger.log: s32
+    - service_uuid: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      then:
+        - logger.log: s128
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      mac_address: 11:22:33:44:55:66
+      then:
+        - logger.log: m16
+    - manufacturer_id: ABCDABCD
+      then:
+        - logger.log: m32
+    - manufacturer_id: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      then:
+        - logger.log: m128

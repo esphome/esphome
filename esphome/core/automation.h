@@ -6,8 +6,10 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
+#include <algorithm>
 #include <concepts>
 #include <functional>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -81,9 +83,9 @@ template<typename T, typename... X> class TemplatableFn {
 
 /// Byte payload that is either a stateless lambda or a static table, which may be in PROGMEM.
 /// 8 bytes on 32-bit; codegen stores constant payloads as shared flash tables.
-template<typename... Ts> class TemplatableBytes {
+template<typename B, typename... Ts> class TemplatableBuffer {
  public:
-  void set_template(std::vector<uint8_t> (*func)(Ts...)) {
+  void set_template(B (*func)(Ts...)) {
     this->code_.func = func;
     this->len_ = -1;
   }
@@ -96,52 +98,67 @@ template<typename... Ts> class TemplatableBytes {
   const uint8_t *data() const { return this->code_.data; }
   /// Only valid when is_static().
   size_t size() const { return static_cast<size_t>(this->len_); }
-  std::vector<uint8_t> value(const Ts &...x) const {
+  B value(const Ts &...x) const {
     if (this->len_ < 0)
       return this->code_.func(x...);
-    return to_vector(this->code_.data, this->size());
+    return to_buffer(this->code_.data, this->size());
   }
-  /// Calls fn(const uint8_t *data, size_t len) with the payload readable from RAM: a lambda's vector, a static
+  /// Calls fn(const uint8_t *data, size_t len) with the payload readable from RAM: the lambda's buffer, a static
   /// table directly, or on ESP8266 a copy of the PROGMEM table (on the stack up to N bytes).
   template<size_t N = 64, typename F> void visit(F &&fn, const Ts &...x) const {
     if (this->len_ < 0) {
-      const std::vector<uint8_t> bytes = this->code_.func(x...);
+      const B bytes = this->code_.func(x...);
       fn(bytes.data(), bytes.size());
       return;
     }
+    const size_t len = this->static_len_();
 #ifdef USE_ESP8266
-    SmallBufferWithHeapFallback<N> buf(this->size());
-    if (this->len_ != 0)
-      progmem_memcpy(buf.get(), this->code_.data, this->size());
-    fn(buf.get(), this->size());
+    SmallBufferWithHeapFallback<N> buf(len);
+    if (len != 0)
+      progmem_memcpy(buf.get(), this->code_.data, len);
+    fn(buf.get(), len);
 #else
-    fn(this->code_.data, this->size());
+    fn(this->code_.data, len);
 #endif
   }
 
  protected:
-  static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
-    std::vector<uint8_t> out(len);
+  // A fixed-capacity B keeps only what fits, so visit() passes what value() returns
+  size_t static_len_() const {
+    if constexpr (requires { B::capacity(); }) {
+      return std::min(this->size(), B::capacity());
+    } else {
+      return this->size();
+    }
+  }
+
+  static B to_buffer(const uint8_t *data, size_t len) {
+    B out;
+    out.resize(len);
     // An empty payload is (nullptr, 0), and memcpy from nullptr is undefined even for zero bytes.
-    if (len != 0)
-      progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
+    if (out.size() != 0)
+      progmem_memcpy(out.data(), data, out.size());  // byte loads from flash fault on ESP8266
     return out;
   }
 
   union {
-    std::vector<uint8_t> (*func)(Ts...);
+    B (*func)(Ts...);
     const uint8_t *data;
   } code_{};
   int32_t len_{-1};  // -1: lambda, otherwise the length of the static table
 };
 
-#define TEMPLATABLE_BYTES(name) \
+template<typename... Ts> using TemplatableBytes = TemplatableBuffer<std::vector<uint8_t>, Ts...>;
+
+#define TEMPLATABLE_BUFFER(name, ...) \
  protected: \
-  TemplatableBytes<Ts...> name##_{}; \
+  TemplatableBuffer<__VA_ARGS__, Ts...> name##_{}; \
 \
  public: \
-  void set_##name##_template(std::vector<uint8_t> (*func)(Ts...)) { this->name##_.set_template(func); } \
+  void set_##name##_template(__VA_ARGS__ (*func)(Ts...)) { this->name##_.set_template(func); } \
   void set_##name##_static(const uint8_t *data, uint16_t len) { this->name##_.set_static(data, len); }
+
+#define TEMPLATABLE_BYTES(name) TEMPLATABLE_BUFFER(name, std::vector<uint8_t>)
 
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
@@ -392,6 +409,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 
   bool has_value() const { return this->type_ != NONE; }
+  /// Whether the value comes from a lambda, so it may differ between reads.
+  bool is_lambda() const { return this->type_ == LAMBDA || this->type_ == STATELESS_LAMBDA; }
 
   std::string value(X... x) const {
     switch (this->type_) {
@@ -749,6 +768,29 @@ template<typename... Ts> class Automation {
 
  protected:
   ActionList<Ts...> actions_;
+};
+
+/// Triggers each automation in order; shared by every AutomationList size with the same arguments.
+template<typename... Ts>
+void trigger_automations(std::span<Automation<Ts...> *const> automations, const std::type_identity_t<Ts> &...x) {
+  for (auto *automation : automations)
+    automation->trigger(x...);
+}
+
+/// Automations a component triggers itself, sized at codegen time (count from cg.slot_counter).
+template<size_t N, typename... Ts> class AutomationList {
+ public:
+  void add(Automation<Ts...> *automation) { this->automations_.push_back(automation); }
+  bool empty() const { return this->automations_.empty(); }
+  /// Arguments convert to Ts only when the list is not empty (e.g. `const char *` to std::string).
+  template<typename... Args> void trigger(Args &&...x) {
+    if (this->automations_.empty())
+      return;
+    trigger_automations<Ts...>(std::span<Automation<Ts...> *const>(this->automations_), x...);
+  }
+
+ protected:
+  StaticVector<Automation<Ts...> *, N> automations_;
 };
 
 /// Callback forwarder that triggers an Automation directly.
