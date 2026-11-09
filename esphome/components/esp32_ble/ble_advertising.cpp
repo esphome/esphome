@@ -15,7 +15,7 @@ namespace esphome::esp32_ble {
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 // Give up on a completion event after this long, so a lost event cannot stop advertising updates for good
 static constexpr uint32_t CONFIG_COMPLETE_TIMEOUT_MS = 1000;
-// A 31 byte packet fits at most 14 16-bit UUIDs (2 byte header + 2 bytes each); more can never be sent
+// A 31 byte packet holds at most 14 16-bit UUIDs
 static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
 BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
@@ -102,9 +102,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
   this->config_sent_time_ = static_cast<uint16_t>(App.get_loop_component_start_time());
 
-  // Bluedroid copies the UUIDs during each config call, so a local buffer is enough. A priority UUID goes
-  // first and alone in the advertising packet, which it fills exactly with the service data; the rest go to the
-  // scan response.
+  // Bluedroid copies these during each config call; a priority UUID goes first and alone in the advertising packet
   const bool priority = this->priority_uuid_.is_set();
   const size_t max_services = MAX_ADVERTISED_UUIDS + (priority ? 1 : 0);
   uint8_t uuids[16 * (MAX_ADVERTISED_UUIDS + 1)];
@@ -125,7 +123,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = this->include_name_in_adv_ || !this->scan_response_;
   this->advertising_data_.include_txpower = !this->scan_response_;
-  // A priority UUID leaves no room for these in the advertising packet; they go to the scan response instead
+  // No room for these next to a priority UUID; they go to the scan response
   const uint16_t manufacturer_len = this->advertising_data_.manufacturer_len;
   const uint16_t appearance = this->advertising_data_.appearance;
   if (priority) {
@@ -148,7 +146,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     this->scan_response_data_.include_txpower = true;
     this->scan_response_data_.flag = 0;
     if (priority) {
-      // The other service UUIDs, after the priority one; the service data is already in the advertising packet
+      // The other UUIDs; the service data is already in the advertising packet
       this->scan_response_data_.service_uuid_len = 16 * (num_services - 1);
       this->scan_response_data_.p_service_uuid = num_services > 1 ? uuids + 16 : nullptr;
       this->scan_response_data_.service_data_len = 0;

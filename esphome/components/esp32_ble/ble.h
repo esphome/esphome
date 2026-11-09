@@ -133,8 +133,7 @@ class ESP32BLE final : public Component {
   void advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name);
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
-  /// Keep `uuid` and the service data in the advertising packet itself, for passive scanners; see
-  /// BLEAdvertising::set_priority_uuid(). Applies on the next advertising refresh, such as advertising_start().
+  /// Keep `uuid` and the service data in the advertising packet; applies on the next refresh.
   void advertising_set_priority_uuid(ESPBTUUID uuid);
   void advertising_clear_priority_uuid();
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
