@@ -45,10 +45,16 @@ dependencies:
     version: 3.0.10
     rules:
       - if: "target in [esp32h2, esp32p4]"
+  # Keep in sync with esphome/components/esp_video_camera/__init__.py
   espressif/esp_video:
-    # 2.4.1 is the first release that follows the MIPI-CSI driver rewrite in
-    # ESP-IDF 5.5.6. Older ones build but capture no frames at all.
-    version: "2.5.0"
+    # ESP-IDF 5.5.6 rewrote the MIPI-CSI driver and every published esp_video,
+    # 2.5.0 included, still hands the CSI the sensor's format where the ISP's
+    # output is now expected. An ESP32-P4 below rev v3.0 cannot convert between
+    # them, so the camera never starts. The fix is one line, and no release
+    # carries it yet; back to a plain version once one does.
+    git: https://github.com/espressif/esp-video-components.git
+    version: 79ae6117e58e0cf831c8e96820af72e877b5fb82
+    path: esp_video
     rules:
       - if: "target in [esp32p4]"
   francescopace/espectre:
