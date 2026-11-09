@@ -1,0 +1,37 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  command_format:
+    preamble: [0x00, 0x83, 0x01]
+    value_element_bytes: 1
+    postamble: [0x00]
+
+button:
+  # value 0x100 does not fit the 1-byte value_element_bytes; it must be rejected instead of masked to 0x00.
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Too Wide"
+    value: 0x100
