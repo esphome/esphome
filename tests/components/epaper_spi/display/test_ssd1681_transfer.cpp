@@ -13,21 +13,14 @@ class TestableSSD1681 : public EPaperSSD1681 {
  public:
   TestableSSD1681(uint16_t width, uint16_t height) : EPaperSSD1681("test", width, height, nullptr, 0) {}
 
-  void install(spi::SPIDelegate *delegate, uint8_t full_update_every, bool keep_previous_frame = true) {
+  void install(spi::SPIDelegate *delegate, uint8_t full_update_every) {
     this->delegate_ = delegate;
     this->set_dc_pin(&this->dc);
     this->set_reset_pin(&this->reset_pin);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
-    if (keep_previous_frame)
-      this->init_sent_frame_(this->buffer_length_);
   }
 
-  bool has_comparison_frame() const { return this->sent_.is_valid(); }
-  size_t sent_frame_length() const override {
-    return this->comparison_frame_fails ? 0 : EPaperSSD1681::sent_frame_length();
-  }
-  bool comparison_frame_fails{false};
   EPaperState state() const { return this->state_; }
   void step() { this->process_state_(); }
   uint8_t update_count() const { return this->update_count_; }
@@ -84,10 +77,9 @@ TEST(EPaperSSD1681, FullRefreshSendsTheWholeFrameToBothBanks) {
   EXPECT_EQ(bus.data[0x22], (Bytes{0xF7}));
 }
 
-/// Before a partial refresh 0x26 gets the frame on the panel and 0x24 the new one, both in full,
-/// with 0x26 compared as it is. An inverted 0x26 makes the controller drive every pixel with the
-/// short partial waveform, which leaves speckles in white areas on this panel.
-TEST(EPaperSSD1681, PartialRefreshWritesThePreviousAndTheNewFrameInFull) {
+/// A partial refresh writes the whole new frame to 0x24 and leaves 0x26 alone: the controller's RAM
+/// ping-pong carries the last 0x24 over to 0x26, so 0x26 already holds the image on the panel.
+TEST(EPaperSSD1681, PartialRefreshWritesTheWholeNewFrameToTheNewImageBankOnly) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
@@ -100,20 +92,19 @@ TEST(EPaperSSD1681, PartialRefreshWritesThePreviousAndTheNewFrameInFull) {
   display.set_dirty(8, 1, 16, 2);  // only the last byte changed
   display.run_update();
 
-  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
-  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
-  EXPECT_EQ(bus.data[0x44], (Bytes{0, 1}));
-  EXPECT_EQ(bus.data[0x45], (Bytes{0, 0, 1, 0}));
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00})) << "the whole frame was not sent to 0x24";
+  EXPECT_EQ(bus.data.count(0x26), 0u) << "0x26 was written";
   EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00})) << "0x26 is not compared as it is";
   EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
 }
 
 /// Regression test for successive partial refreshes alternating between two images.
 ///
-/// The RAM ping-pong the panel's OTP may enable swaps the bank that 0x24 and 0x26 reach after each
-/// refresh, so writing only the changed window left the other bank holding the image from two
-/// frames ago. Each partial refresh must send the frame last shown and the new frame in full.
-TEST(EPaperSSD1681, SuccessivePartialRefreshesEachSendTheFrameLastShown) {
+/// The RAM ping-pong the panel's OTP may enable swaps the bank that 0x24 reaches after each refresh,
+/// so writing only the changed window left the next bank holding the image from two frames ago.
+/// Writing the whole new frame to 0x24 every time overwrites that stale bank, with no copy kept on
+/// the microcontroller.
+TEST(EPaperSSD1681, SuccessivePartialRefreshesEachSendTheWholeNewFrame) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
@@ -123,97 +114,15 @@ TEST(EPaperSSD1681, SuccessivePartialRefreshesEachSendTheFrameLastShown) {
 
   const std::vector<Bytes> frames{
       {0x7F, 0xFF, 0xFF, 0xFF}, {0x7F, 0xFE, 0xFF, 0xFF}, {0x7F, 0xFE, 0x7F, 0xFF}, {0x7F, 0xFE, 0x7F, 0xFE}};
-  Bytes shown{0xFF, 0xFF, 0xFF, 0xFF};
   for (const Bytes &frame : frames) {
     bus.clear();
     display.set_frame({frame[0], frame[1], frame[2], frame[3]});
     display.set_dirty(0, 0, 16, 2);
     display.run_update();
-    EXPECT_EQ(bus.data[0x26], shown);
-    EXPECT_EQ(bus.data[0x24], frame);
+    EXPECT_EQ(bus.data[0x24], frame) << "the whole frame was not sent to 0x24";
+    EXPECT_EQ(bus.data.count(0x26), 0u) << "0x26 was written";
     EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
-    shown = frame;
   }
-}
-
-/// The previous frame goes out in chunks so the main loop keeps running, and arrives whole.
-TEST(EPaperSSD1681, PreviousFrameIsSentInChunks) {
-  TestableSSD1681 display(16, 2);
-  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 1);
-  display.install(&bus, 5);
-
-  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
-  display.run_update();
-  bus.clear();
-
-  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
-  display.set_dirty(0, 0, 16, 2);
-  display.run_update_state();
-  int transfer_steps = 0;
-  while (display.state() != EPaperState::IDLE) {
-    if (display.state() == EPaperState::TRANSFER_DATA)
-      transfer_steps++;
-    display.step();
-  }
-
-  EXPECT_GT(transfer_steps, 3) << "previous frame was not sent in chunks";
-  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
-  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
-}
-
-/// Partial updates turned on after setup, as a switch calling set_full_update_every() does, still
-/// get the previous frame: it is allocated by the next update, a full one, and used by the partial
-/// ones after it.
-TEST(EPaperSSD1681, PartialUpdatesTurnedOnAfterSetupAllocateThePreviousFrame) {
-  TestableSSD1681 display(16, 2);
-  RecordingDelegate bus(&display.dc);
-  display.install(&bus, 1, false);
-  ASSERT_FALSE(display.has_comparison_frame());
-
-  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
-  display.run_update();
-  EXPECT_FALSE(display.has_comparison_frame()) << "previous frame allocated without partial updates";
-  bus.clear();
-
-  display.set_full_update_every(5);
-  display.set_frame({0x0F, 0xF0, 0x3C, 0x3C});
-  display.set_dirty(0, 0, 16, 2);
-  display.run_update();
-  EXPECT_TRUE(display.has_comparison_frame());
-  EXPECT_EQ(bus.data[0x22], (Bytes{0xF7}));
-  bus.clear();
-
-  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
-  display.set_dirty(0, 0, 16, 2);
-  display.run_update();
-  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0x3C}));
-  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
-  EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
-}
-
-/// With no memory for the previous frame there is nothing to put in 0x26, so a partial refresh
-/// becomes a full one. The allocation is not retried on every update.
-TEST(EPaperSSD1681, PartialRefreshWithoutThePreviousFrameIsAFullOne) {
-  TestableSSD1681 display(16, 2);
-  RecordingDelegate bus(&display.dc);
-  display.comparison_frame_fails = true;
-  display.install(&bus, 5, false);
-
-  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
-  display.run_update();
-  ASSERT_FALSE(display.has_comparison_frame());
-  display.comparison_frame_fails = false;  // a failed allocation is not tried again
-  bus.clear();
-
-  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
-  display.set_dirty(8, 1, 16, 2);
-  display.run_update();
-
-  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
-  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
-  EXPECT_EQ(bus.data[0x21], (Bytes{0x40, 0x00}));
-  EXPECT_EQ(bus.data[0x22], (Bytes{0xF7}));
-  EXPECT_FALSE(display.has_comparison_frame()) << "failed allocation was tried again";
 }
 
 /// The software reset 0x12 puts the display option register back to its default, which drops the
@@ -264,7 +173,6 @@ TEST(EPaperSSD1681, UnchangedFrameSkipsTheRefresh) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
-  ASSERT_TRUE(display.has_comparison_frame());
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   display.set_dirty(0, 0, 16, 2);
@@ -316,9 +224,9 @@ TEST(EPaperSSD1681, RequestedFullUpdateIsNotSkipped) {
   EXPECT_EQ(display.update_count(), 1);
 }
 
-/// The comparison frame holds what was sent, so a change that was drawn but not pushed yet
-/// (because it was drawn during a push) is still sent by the next update.
-TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
+/// A pixel drawn while a refresh is in flight is sent by the next update: the whole frame goes to
+/// 0x24 each time, so nothing drawn is lost.
+TEST(EPaperSSD1681, PixelDrawnDuringARefreshIsSentNext) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
@@ -339,7 +247,6 @@ TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
 
   display.set_dirty(0, 0, 16, 2);
   EXPECT_TRUE(display.run_update()) << "pixel drawn during the refresh was never sent";
-  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(bus.data[0x24], (Bytes{0x07, 0xF0, 0x3C, 0x00}));
 }
 
