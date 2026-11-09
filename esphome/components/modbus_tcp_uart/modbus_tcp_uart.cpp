@@ -171,6 +171,13 @@ void ModbusTcpUart::release_turn_() {
   this->turn_held_ = false;
 }
 
+void ModbusTcpUart::end_request_() {
+  if (this->server_) {
+    this->txn_pending_ = false;
+    this->release_turn_();
+  }
+}
+
 size_t ModbusTcpUart::request_left_() const {
   if (this->tcp_len_ < MBAP_HEADER_SIZE) {
     return MBAP_HEADER_SIZE - this->tcp_len_;
@@ -344,10 +351,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   if (!this->is_connected()) {
     this->note_drop_(LOG_STR("Not connected, dropped the Modbus frame"));
     this->clear_tx_();
-    if (this->server_) {
-      this->txn_pending_ = false;
-      this->release_turn_();
-    }
+    this->end_request_();
     return;
   }
   uint16_t txn;
@@ -361,8 +365,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
     if (this->parent_->turn() != this->request_turn_) {
       this->note_drop_(LOG_STR("Reply to a connection whose turn ended, dropped"));
       this->consume_tx_(this->tx_frame_len_);
-      this->txn_pending_ = false;
-      this->turn_held_ = false;
+      this->end_request_();
       return;
     }
     txn = this->txn_;
@@ -374,10 +377,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   if (n == 0) {
     this->note_drop_(LOG_STR("Cannot encode the Modbus frame, dropped"));
     this->consume_tx_(this->tx_frame_len_);
-    if (this->server_) {
-      this->txn_pending_ = false;
-      this->release_turn_();
-    }
+    this->end_request_();
     return;
   }
   // Never put a partial MBAP frame on the wire; hold and retry.

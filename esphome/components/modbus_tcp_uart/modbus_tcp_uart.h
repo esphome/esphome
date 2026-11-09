@@ -47,6 +47,8 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   /// Server: bytes still missing from the request at the front of tcp_buf_.
   size_t request_left_() const;
   void release_turn_();
+  /// Server: ends the open request whose reply was dropped and gives the turn back.
+  void end_request_();
   bool drop_log_due_();
   void note_drop_(const LogString *message);
 
