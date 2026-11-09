@@ -67,8 +67,8 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   const uint32_t target = this->target_time_ + usec;
   if (this->carrier_duty_percent_ < 100 && (on_time > 0 || off_time > 0)) {
     while (true) {  // Modulate with carrier frequency
-      // Skip whole periods an interrupt already used up, instead of catching up with runt pulses
-      while ((int32_t) (micros() - (this->target_time_ + on_time + off_time)) > 0)
+      // Skip whole periods an interrupt already used up, so the falling edge is never already due (a runt pulse)
+      while ((int32_t) (micros() - (this->target_time_ + on_time)) >= 0)
         this->target_time_ += on_time + off_time;
       this->target_time_ += on_time;
       if ((int32_t) (this->target_time_ - target) >= 0)
