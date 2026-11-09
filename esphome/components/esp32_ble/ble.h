@@ -129,15 +129,13 @@ class ESP32BLE final : public Component {
   void advertising_stop();
   /// Apply the current payload and request count: advertise while requested, otherwise stop.
   void advertising_refresh();
-  /// Drop a send queued for the next loop, where refreshes are merged (the controller stopped advertising).
-  void advertising_cancel_deferred();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
   void advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name);
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
-  /// Keep `uuid` and up to 8 bytes of service data in the advertising packet; applies on the next refresh.
+  /// Keep `uuid` and the service data alone in the advertising packet; applies on the next refresh.
   void advertising_set_priority_uuid(ESPBTUUID uuid);
   void advertising_clear_priority_uuid();
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
@@ -205,6 +203,7 @@ class ESP32BLE final : public Component {
   }
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
+  void advertising_cancel_deferred_();
 #endif
 
   // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop

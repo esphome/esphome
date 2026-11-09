@@ -26,10 +26,11 @@ class AdvPayload {
       this->add_(0x01, &flags, 1);
   }
   void add_appearance(uint16_t appearance) {
+    if (appearance == 0 || this->left_() <= 3)
+      return;
     uint8_t value[2];
     put_le16(value, appearance);
-    if (appearance != 0 && this->left_() > 3)
-      this->add_(0x19, value, sizeof(value));
+    this->add_(0x19, value, sizeof(value));
   }
   /// Complete name, or the shortened name type with what fits.
   void add_name(const char *name, size_t len) {

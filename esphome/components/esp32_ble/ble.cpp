@@ -188,7 +188,7 @@ void ESP32BLE::advertising_stop() {
   this->advertising_refresh();
 }
 
-void ESP32BLE::advertising_cancel_deferred() {
+void ESP32BLE::advertising_cancel_deferred_() {
   if (this->advertising_ != nullptr)
     this->advertising_->cancel_deferred_restart();
 }
@@ -529,6 +529,11 @@ void ESP32BLE::loop() {
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
         esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
+#ifdef USE_ESP32_BLE_ADVERTISING
+        // A peripheral connect stops advertising, so drop a queued send; a handler that wants more refreshes again
+        if (event == ESP_GATTS_CONNECT_EVT && param->connect.link_role == 1)
+          this->advertising_cancel_deferred_();
+#endif
         this->gatts_event_callbacks_.call(event, gatts_if, param);
         break;
       }
@@ -638,8 +643,7 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     }
     this->drain_ble_events_();
 #ifdef USE_ESP32_BLE_ADVERTISING
-    if (this->advertising_ != nullptr)
-      this->advertising_->cancel_deferred_restart();
+    this->advertising_cancel_deferred_();
 #endif
     // A status callback may have asked for BLE back; the stack is down now, so
     // that request becomes a bring-up.

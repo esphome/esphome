@@ -136,7 +136,7 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
-  // The only sender of the services advertising, after the event drain
+  // Send a queued start after the event drain
   if (this->restart_pending_) {
     this->restart_pending_ = false;
     this->start();
