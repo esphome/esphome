@@ -29,6 +29,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <core_esp8266_features.h>  // xt_rsil, xt_wsr_ps
 #include <pgmspace.h>
 #endif
 
