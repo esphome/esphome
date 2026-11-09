@@ -3124,12 +3124,13 @@ def _while_action(*body: ConfigType) -> ConfigType:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
-    """With arguments that are not all numbers it never yields, so it stays one C++ loop."""
+@pytest.mark.parametrize("type_", [cg.int_, cg.std_string])
+async def test_inline_while_with_arguments_is_a_cpp_loop(type_: SafeExpType) -> None:
+    """With arguments it never yields, so it stays one C++ loop in the merged function."""
     result = await build_action_list(
         [_while_action(_action("my.a", "act_a"))],
-        cg.TemplateArguments(cg.std_string),
-        [(cg.std_string, "x")],
+        cg.TemplateArguments(type_),
+        [(type_, "x")],
     )
 
     assert [str(action) for action in result] == ["act_w"]
@@ -3158,25 +3159,6 @@ async def test_inline_while_without_arguments_is_a_step_action() -> None:
     assert "return;" not in text
     # The last body action can stop the run too
     assert text.index("::comp->do_b();") < text.index("return esphome__running != 0;")
-
-
-@pytest.mark.asyncio
-@pytest.mark.usefixtures("apply_actions")
-@pytest.mark.parametrize(
-    "type_", [cg.uint32, cg.RawExpression("const float &"), cg.RawExpression("int&")]
-)
-async def test_inline_while_with_number_arguments_keeps_its_object(
-    type_: SafeExpType,
-) -> None:
-    """Numbers, such as a repeat iteration, can be kept for a yield, so WhileAction stays."""
-    await build_action_list(
-        [_while_action(_action("my.a", "act_a"))],
-        cg.TemplateArguments(type_),
-        [(type_, "x")],
-    )
-
-    assert "new(act_w) WhileAction<" in CORE.cpp_main_section
-    assert "while (true)" not in CORE.cpp_global_section
 
 
 @pytest.mark.asyncio

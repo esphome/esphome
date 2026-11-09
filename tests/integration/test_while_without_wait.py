@@ -33,14 +33,14 @@ async def test_while_without_wait(
         await waiter.wait_count("INLINE_NOARG done", 1, 5.0, "inline loop did not end")
         await waiter.wait_count("OBJECT_NOARG done", 1, 5.0, "object loop did not end")
 
-        # A busy loop yields after the first slow pass, unless an argument is not a number
+        # A busy loop yields after the first slow pass, unless it has arguments
         await client.execute_service(require_service(services, "run_busy_loops"), {})
         await waiter.wait_count(
             "WAITING_ARG done 3", 1, 5.0, "waiting loop did not end"
         )
-        for name in ("BUSY_INLINE_NOARG", "BUSY_OBJECT_NOARG", "BUSY_INLINE_NUM"):
+        for name in ("BUSY_INLINE_NOARG", "BUSY_OBJECT_NOARG"):
             assert index(f"{name} caller") < index(f"{name} done"), name
-        for name in ("BUSY_INLINE_STR", "BUSY_OBJECT_STR"):
+        for name in ("BUSY_INLINE_INT", "BUSY_INLINE_STR", "BUSY_OBJECT_STR"):
             assert index(f"{name} done") < index(f"{name} caller"), name
 
         # A stop while the loop waits for its next turn ends it for good

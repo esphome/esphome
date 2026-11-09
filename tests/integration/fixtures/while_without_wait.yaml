@@ -45,8 +45,8 @@ script:
                   lambda: return true;
       - logger.log: "OBJECT_NOARG done"
 
-  # Busy bodies longer than the yield time. Without arguments or with only numbers the caller runs
-  # first; with other arguments the loop never yields and ends before the caller goes on.
+  # Busy bodies longer than the yield time. Without arguments the caller runs first; with arguments
+  # the loop never yields and ends before the caller goes on.
   - id: busy_inline_noarg
     then:
       - lambda: id(count) = 0;
@@ -72,7 +72,7 @@ script:
                 condition:
                   lambda: return true;
       - logger.log: "BUSY_OBJECT_NOARG done"
-  - id: busy_inline_num
+  - id: busy_inline_int
     parameters:
       n: int
     then:
@@ -85,7 +85,7 @@ script:
                 delay(25);
                 id(count) += 1;
       - logger.log:
-          format: "BUSY_INLINE_NUM done %d"
+          format: "BUSY_INLINE_INT done %d"
           args: [n]
   - id: busy_inline_str
     parameters:
@@ -140,9 +140,9 @@ api:
         - logger.log: "BUSY_OBJECT_NOARG caller"
         - delay: 200ms
         - script.execute:
-            id: busy_inline_num
+            id: busy_inline_int
             n: 2
-        - logger.log: "BUSY_INLINE_NUM caller"
+        - logger.log: "BUSY_INLINE_INT caller"
         - delay: 200ms
         - script.execute:
             id: busy_inline_str

@@ -1476,24 +1476,6 @@ def _config_any(
     return False
 
 
-_NUMBER_TYPES = frozenset(
-    str(type_)
-    for type_ in (
-        *(cg.uint8, cg.uint16, cg.uint32, cg.uint64),
-        *(cg.int8, cg.int16, cg.int32, cg.int64, cg.int_),
-        *(cg.float_, cg.double, cg.bool_, cg.size_t),
-    )
-)
-
-
-def _all_numbers(args: TemplateArgsType) -> bool:
-    """Python side of WHILE_CAN_YIELD: the base types, without const and reference."""
-    return all(
-        str(type_).removeprefix("const ").rstrip("& ") in _NUMBER_TYPES
-        for type_, _ in args
-    )
-
-
 def _referenced_ids(value: Any) -> set[str]:
     # Lazy: importing esphome.config here would load it for every entity component
     from esphome.config import iter_ids
@@ -1543,14 +1525,8 @@ async def while_action_to_code(
     build_cond, build_list = _control_flow_builders(action_id)
     condition = await build_cond(config[CONF_CONDITION], template_arg, args)
     actions = await build_list(config[CONF_THEN], template_arg, args)
-    # An empty body exits the loop at once, unlike an empty C++ loop body. Numbers can be kept
-    # for a yield (WHILE_CAN_YIELD), so a while with only those keeps its WhileAction.
-    if (
-        _is_collecting(action_id)
-        and actions
-        and _plans_inline(actions)
-        and not (args and _all_numbers(args))
-    ):
+    # An empty body exits the loop at once, unlike an empty C++ loop body
+    if _is_collecting(action_id) and actions and _plans_inline(actions):
         check = (
             f"const bool esphome__condition = {_condition_expression(condition, args)};"
         )

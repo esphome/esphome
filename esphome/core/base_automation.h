@@ -11,6 +11,7 @@
 
 #include <array>
 #include <list>
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -145,11 +146,9 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
   uint32_t last_inactive_{0};
 };
 
-/// A while whose trigger arguments are all numbers (or none) gives the main loop a turn after this long when its
-/// body never waits, so entity states can change. Other arguments may only be valid while the trigger runs, or
-/// cannot be copied, so with them the loop never yields.
+/// A while with no trigger arguments gives the main loop a turn after this long when its body never waits,
+/// so entity states can change. With arguments it never yields: they may only be valid while the trigger runs.
 inline constexpr uint32_t WHILE_YIELD_AFTER_MS = 20;
-template<typename... Ts> inline constexpr bool WHILE_CAN_YIELD = (std::is_arithmetic_v<std::remove_cvref_t<Ts>> && ...);
 
 template<typename... Ts> class DelayAction;
 template<typename... Ts> class WhileAction;
@@ -378,6 +377,8 @@ class ApplyWhileActionBase : public Action<> {
   using StepFn = bool (*)(const int &running);
 
   void run_(StepFn step) {
+    // Any other type would bind the step's const int & to a temporary that never sees a stop
+    static_assert(std::is_same_v<decltype(this->num_running_), int>);
     const uint32_t start = millis();
     while (step(this->num_running_)) {
       if (ActionTimer::yield_if_due(this, start, this->num_running_ > 1, [this]() { this->play(); }))
@@ -449,7 +450,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void stop() override {
     this->then_.stop();
-    if constexpr (WHILE_CAN_YIELD<Ts...>)
+    if constexpr (sizeof...(Ts) == 0)
       App.scheduler.cancel_timeout(this);
   }
 
@@ -467,7 +468,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // Runs the body in a loop, not by recursion, while it ends without waiting
   void run_loop_(const Ts &...x) {
     [[maybe_unused]] uint32_t start{};
-    if constexpr (WHILE_CAN_YIELD<Ts...>)
+    if constexpr (sizeof...(Ts) == 0)
       start = millis();
     while (true) {
       // The condition may stop this automation
@@ -484,10 +485,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       // A body that waits resumes through play() later
       if (!body.ended)
         return;
-      if constexpr (WHILE_CAN_YIELD<Ts...>) {
-        // The numbers are copied; `mutable` as in DelayAction
-        if (this->num_running_ > 0 && ActionTimer::yield_if_due(this, start, this->num_running_ > 1,
-                                                                [this, x...]() mutable { this->run_loop_(x...); }))
+      if constexpr (sizeof...(Ts) == 0) {
+        if (this->num_running_ > 0 &&
+            ActionTimer::yield_if_due(this, start, this->num_running_ > 1, [this]() { this->run_loop_(); }))
           return;
       }
     }
