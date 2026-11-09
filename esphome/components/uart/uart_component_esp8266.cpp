@@ -265,17 +265,16 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   // load_settings() re-enters here
   if (this->gpio_rx_pin_ != nullptr)
     this->gpio_rx_pin_->detach_interrupt();
-  if (this->blocking_rx_) {
-    this->blocking_rx_ = false;
+  // This instance counted itself if its RX ran the whole-byte interrupt
+  if (this->lock_frame_ && this->gpio_rx_pin_ != nullptr)
     blocking_rx_count--;
-  }
   this->bit_time_ = F_CPU / baud_rate;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
   const bool edge_mode = baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD;
-  // Above the edge mode limit TX locks the whole frame, well under 1 ms: the RX interrupt there reads a whole byte
-  // and must not run between TX bits
+  // Above the edge mode limit a bit is 52 us or less, so an interrupt between bits would stretch one; the whole frame
+  // is locked instead, well under 1 ms
   this->lock_frame_ = !edge_mode;
   // to_isr() allocates, so call it only for a new or changed pin
   if (tx_pin != nullptr) {
@@ -302,7 +301,6 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
     } else {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-      this->blocking_rx_ = true;
       blocking_rx_count++;
     }
   }
@@ -404,7 +402,7 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   }
   if (need_parity_bit)
     this->write_bit_(parity_bit, &wait, start, bit_time);
-  // Stop bits
+  // Stop bits: write_bit_ waits before its edge, so the stop bit is held with wait_
   this->write_bit_(true, &wait, start, bit_time);
   this->wait_(&wait, start, bit_time);
   if (this->stop_bits_ == 2)
@@ -419,7 +417,8 @@ bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &
   this->wait_(wait, start, bit_time);
   return this->rx_pin_.digital_read();
 }
-// Interrupts stay on until MAX_TX_LOCK_CYCLES before the edge and are back on right after it
+// Locks only from MAX_TX_LOCK_CYCLES before the edge to the edge, so a pending interrupt runs right after it; a bit
+// longer than that (below about 5000 baud) spins with interrupts on first. Nests inside a frame lock.
 void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   while (arch_get_cpu_cycle_count() - start + MAX_TX_LOCK_CYCLES < *wait)
     ;
