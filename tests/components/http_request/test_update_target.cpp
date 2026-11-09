@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "esphome/core/application.h"
+
 #include "esphome/components/http_request/ota/ota_http_request.h"
 #include "esphome/components/http_request/update/http_request_update.h"
 #include "esphome/components/json/json_util.h"
@@ -30,7 +32,14 @@ class RecordingListener : public UpdateTargetListener {
 class FakeTarget : public UpdateTarget {
  public:
   bool matches_build(JsonObjectConst build) const override { return build[ESPHOME_F("mcu")].is<const char *>(); }
-  void install(const std::string &url, const std::string &md5) override {}
+
+  void install(const std::string &url, const std::string &md5) override {
+    this->installed_url = url;
+    this->installed_md5 = md5;
+  }
+
+  std::string installed_url;
+  std::string installed_md5;
 
   using UpdateTarget::report_complete_;
   using UpdateTarget::report_failed_;
@@ -197,13 +206,11 @@ TEST_F(HttpRequestUpdateCheckTest, ResultOfAFinishedCheckBecomesTheEntityState) 
 // and the metadata of the image it is installing have to survive.
 TEST_F(HttpRequestUpdateCheckTest, ResultIsDiscardedWhileATargetIsInstalling) {
   HttpRequestUpdate update;
-  FakeTarget target;
-  update.set_target(&target);
   auto *installing = new TaskResult();
   installing->info.latest_version = "2.0.0";
   installing->info.current_version = "1.0.0";
   finish_check(update, installing);
-  update.perform(false);
+  update.on_target_state(UpdateTargetState::UPDATE_TARGET_STATE_PROGRESS, 10.0f, nullptr);
   ASSERT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
 
   auto *late = new TaskResult();
@@ -225,6 +232,27 @@ TEST_F(HttpRequestUpdateCheckTest, NoCheckIsStartedWhileATargetIsInstalling) {
   update.update();
 
   EXPECT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
+}
+
+TEST_F(HttpRequestUpdateCheckTest, PerformHandsTheResolvedImageToTheTarget) {
+  HttpRequestUpdate update;
+  FakeTarget target;
+  update.set_target(&target);
+  auto *result = new TaskResult();
+  result->info.latest_version = "2.0.0";
+  result->info.current_version = "1.0.0";
+  result->info.firmware_url = "http://example.invalid/firmware.bin";
+  result->info.md5 = "0123456789abcdef0123456789abcdef";
+  finish_check(update, result);
+
+  update.perform(false);
+  EXPECT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
+  // perform() defers the install; run it here, while the entity and the target are both alive.
+  App.scheduler.process_to_add();
+  App.scheduler.call(millis());
+
+  EXPECT_EQ(target.installed_url, "http://example.invalid/firmware.bin");
+  EXPECT_EQ(target.installed_md5, "0123456789abcdef0123456789abcdef");
 }
 
 }  // namespace esphome::http_request::testing
