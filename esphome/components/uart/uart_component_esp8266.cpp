@@ -180,6 +180,10 @@ void ESP8266UartComponent::dump_config() {
                     this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
                                                                      : LOG_STR_LITERAL("start bit sampler"));
     }
+    if (this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD && this->sw_serial_->locks_whole_frame()) {
+      ESP_LOGW(TAG, "  TX locks interrupts for whole bytes: another software UART receives above %u baud",
+               (unsigned) SW_SERIAL_EDGE_MODE_MAX_BAUD);
+    }
   }
   this->check_logger_conflict();
 }
@@ -260,6 +264,10 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   // load_settings() re-enters here
   if (this->gpio_rx_pin_ != nullptr)
     this->gpio_rx_pin_->detach_interrupt();
+  if (this->blocking_rx_) {
+    this->blocking_rx_ = false;
+    blocking_rx_count--;
+  }
   this->bit_time_ = F_CPU / baud_rate;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
@@ -293,7 +301,8 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
     } else {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-      blocking_rx_in_use = true;
+      this->blocking_rx_ = true;
+      blocking_rx_count++;
     }
   }
 }
@@ -376,7 +385,7 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
   const uint32_t bit_time = this->bit_time_;
   std::optional<InterruptLock> frame_lock;
-  if (this->lock_frame_ || blocking_rx_in_use)
+  if (this->locks_whole_frame())
     frame_lock.emplace();
   uint32_t start;
   {
