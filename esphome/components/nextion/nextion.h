@@ -1059,7 +1059,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   void update() override;
   void loop() override;
-  void set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
+  void set_writer(nextion_writer_t writer) { this->writer_ = std::move(writer); }
 
   // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
