@@ -119,6 +119,7 @@ class ZigbeeComponent final : public Component {
   std::atomic<bool> join_pending_ = false;
   std::atomic<bool> factory_new_ = false;
   // Current series of parent link failures, only used with the Zigbee stack lock held
+  uint32_t first_link_failure_ms_{0};
   uint32_t last_link_failure_ms_{0};
   uint32_t saved_keep_alive_{0};
   uint8_t link_failures_{0};

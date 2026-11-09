@@ -2,6 +2,8 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
+#include <algorithm>
+#include <cstdint>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_check.h"
@@ -25,12 +27,11 @@ static constexpr uint32_t PARENT_LINK_RETRY_TIMEOUT_ID = 2;
 
 // Since esp-zigbee-lib 2.0.5 every lost poll or transmission raises PARENT_LINK_FAILURE, even during a short radio
 // outage such as a BLE scan. After a failure the device polls at least every 3 s. It rejoins only after failures in
-// 4 polls; failures less than 2 s apart (poll retries, fast polls) count once. Two intervals without a counted
-// failure mean that a poll got through.
+// 4 polls that span at least 6 s; failures less than two thirds of a polling interval apart (poll retries, fast
+// polls) count once. Two intervals without a counted failure mean that a poll got through.
 static constexpr uint8_t PARENT_LINK_MISSED_POLLS = 4;
 static constexpr uint32_t PARENT_LINK_POLL_INTERVAL_MS = 3000;
-static constexpr uint32_t PARENT_LINK_SAME_POLL_MS = 2000;
-static constexpr uint32_t PARENT_LINK_SERIES_END_MS = 2 * PARENT_LINK_POLL_INTERVAL_MS;
+static constexpr uint32_t PARENT_LINK_MIN_SPAN_MS = 6000;
 
 static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -172,22 +173,31 @@ void ZigbeeComponent::on_parent_link_failure_() {
     if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS) {
       ezb_nwk_set_keepalive_interval(PARENT_LINK_POLL_INTERVAL_MS);
     }
-  } else if (now - this->last_link_failure_ms_ >= PARENT_LINK_SERIES_END_MS) {
-    // The series has ended, but its timeout has not run yet: start a new one, keep the saved interval
-    this->link_failures_ = 0;
-  } else if (now - this->last_link_failure_ms_ < PARENT_LINK_SAME_POLL_MS) {
-    ESP_LOGV(TAG, "Parent link failure (same poll)");
-    return;
+  }
+  // The polling interval during the series
+  const uint32_t interval = std::min(this->saved_keep_alive_, PARENT_LINK_POLL_INTERVAL_MS);
+  if (this->link_failures_ > 0) {
+    if (now - this->last_link_failure_ms_ >= 2 * interval) {
+      // The series has ended, but its timeout has not run yet: start a new one, keep the saved interval
+      this->link_failures_ = 0;
+    } else if (now - this->last_link_failure_ms_ < 2 * interval / 3) {
+      ESP_LOGV(TAG, "Parent link failure (same poll)");
+      return;
+    }
+  }
+  if (this->link_failures_ == 0) {
+    this->first_link_failure_ms_ = now;
   }
   this->last_link_failure_ms_ = now;
   this->link_failure_seq_++;
-  this->link_failures_++;
-  if (this->link_failures_ < PARENT_LINK_MISSED_POLLS) {
+  if (this->link_failures_ < UINT8_MAX) {
+    this->link_failures_++;
+  }
+  if (this->link_failures_ < PARENT_LINK_MISSED_POLLS || now - this->first_link_failure_ms_ < PARENT_LINK_MIN_SPAN_MS) {
     ESP_LOGD(TAG, "Parent link failure %u", this->link_failures_);
     // The stack does not report a poll that got through, so the series ends when no failure follows
     const uint8_t seq = this->link_failure_seq_;
-    this->set_timeout(PARENT_LINK_TIMEOUT_ID, PARENT_LINK_SERIES_END_MS,
-                      [this, seq]() { this->end_parent_link_failures_(seq); });
+    this->set_timeout(PARENT_LINK_TIMEOUT_ID, 2 * interval, [this, seq]() { this->end_parent_link_failures_(seq); });
     return;
   }
   ESP_LOGW(TAG, "Parent link failed in %u polls, attempting rejoin", this->link_failures_);
