@@ -160,6 +160,20 @@ def _take_over_has_a_receiver(config: ConfigType) -> ConfigType:
     return config
 
 
+def _learn_has_a_serial(config: ConfigType) -> ConfigType:
+    # keeloq.learn pairs the remote's own serial.
+    if CONF_SERIAL in config:
+        return config
+    for path, action in _find_actions(fv.full_config.get(), [], ("keeloq.learn",)):
+        if str(action[CONF_ID]) != str(config[CONF_ID]):
+            continue
+        with cv.prepend_path([cv.ROOT_CONFIG_PATH] + path):
+            raise cv.Invalid(
+                f"keeloq.learn needs serial on {config[CONF_ID]}; a remote without serial takes over a hand remote"
+            )
+    return config
+
+
 def _actions_have_channels(config: ConfigType) -> ConfigType:
     # A remote with serial has no hand remote to take channels from.
     if CONF_CHANNELS in config or CONF_SERIAL not in config:
@@ -176,7 +190,9 @@ def _actions_have_channels(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = cv.All(_take_over_has_a_receiver, _actions_have_channels)
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _take_over_has_a_receiver, _learn_has_a_serial, _actions_have_channels
+)
 
 
 async def to_code(config: ConfigType) -> None:

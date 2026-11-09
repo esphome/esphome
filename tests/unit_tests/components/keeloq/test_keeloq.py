@@ -6,6 +6,7 @@ import pytest
 
 from esphome.components.keeloq import (
     CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
     JAROLIFT_COMMANDS,
     SEND_SCHEMA,
     _actions_have_channels,
@@ -116,6 +117,29 @@ def test_take_over_needs_a_receiver() -> None:
     # Also with channels on the remote, which skips the channels check.
     with pytest.raises(cv.Invalid, match="keeloq.take_over needs receiver_id on own"):
         _check_take_over({"id": "own", "serial": 0x1234500, "channels": 0x0001})
+
+
+def _check_learn(remote: dict) -> None:
+    import esphome.final_validate as fv
+
+    full = {
+        "keeloq": [remote],
+        # With channel 1, so only the serial can be missing.
+        "button": [{"on_press": [{"keeloq.learn": {"id": "own", "channels": 0x0001}}]}],
+    }
+    token = fv.full_config.set(full)
+    try:
+        FINAL_VALIDATE_SCHEMA(remote)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_learn_needs_a_serial() -> None:
+    """keeloq.learn pairs the remote's own serial, so its remote needs serial."""
+    _check_learn({"id": "own", "serial": 0x1234500})
+    # Without serial the remote takes over a hand remote instead.
+    with pytest.raises(cv.Invalid, match="keeloq.learn needs serial on own"):
+        _check_learn({"id": "own", "receiver_id": "rx"})
 
 
 def test_channels_as_list_or_mask() -> None:
