@@ -293,6 +293,7 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
     } else {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+      blocking_rx_in_use = true;
     }
   }
 }
@@ -375,7 +376,7 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
   const uint32_t bit_time = this->bit_time_;
   std::optional<InterruptLock> frame_lock;
-  if (this->lock_frame_)
+  if (this->lock_frame_ || blocking_rx_in_use)
     frame_lock.emplace();
   uint32_t start;
   {

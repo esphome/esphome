@@ -52,6 +52,8 @@ class ESP8266SoftwareSerial {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   bool lock_frame_{false};
+  // Any instance reads whole bytes in its RX interrupt; it must not run between another instance's TX bits
+  static inline bool blocking_rx_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 class ESP8266UartComponent final : public UARTComponent, public Component {
