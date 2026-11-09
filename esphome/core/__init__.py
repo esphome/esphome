@@ -791,6 +791,11 @@ class EsphomeCore:
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
 
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
+
         return None
 
     @property
@@ -1032,6 +1037,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_zephyr(self) -> bool:
+        return self.toolchain == Toolchain.ZEPHYR
 
     @property
     def using_toolchain_arduino(self):

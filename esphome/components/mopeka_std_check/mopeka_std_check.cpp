@@ -96,10 +96,7 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Get battery level first
-  if (this->battery_level_sensor_ != nullptr) {
-    uint8_t level = this->parse_battery_level_(mopeka_data);
-    this->battery_level_sensor_->publish_state(level);
-  }
+  PUBLISH_STATE(this->battery_level_sensor_, this->parse_battery_level_(mopeka_data));
 
   // Get temperature of sensor
   int8_t temp_in_c = this->parse_temperature_(mopeka_data);

@@ -628,6 +628,19 @@ class TestEsphomeCore:
 
         assert target.address == "test-device.local"
 
+    def test_address__host(self, target):
+        target.config = {}
+        target.config[const.PLATFORM_HOST] = {const.CONF_USE_ADDRESS: "10.0.0.100"}
+
+        assert target.address == "10.0.0.100"
+
+    def test_address__host_default(self, target):
+        target.config = {}
+        target.config[const.PLATFORM_HOST] = {}
+        target.name = "test-device"
+
+        assert target.address == "test-device.local"
+
     def test_is_esp32(self, target):
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 
@@ -979,6 +992,13 @@ class TestEsphomeCore:
         assert target.using_toolchain_sdk_nrf is True
         target.toolchain = const.Toolchain.ESP_IDF
         assert target.using_toolchain_sdk_nrf is False
+
+    def test_using_toolchain_zephyr(self, target: core.EsphomeCore) -> None:
+        """using_toolchain_zephyr is True only for the ZEPHYR toolchain."""
+        target.toolchain = const.Toolchain.ZEPHYR
+        assert target.using_toolchain_zephyr is True
+        target.toolchain = const.Toolchain.SDK_NRF
+        assert target.using_toolchain_zephyr is False
 
     def test_using_toolchain_arduino(self, target):
         """A toolchain choice, distinct from the arduino target framework."""

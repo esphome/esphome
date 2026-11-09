@@ -70,24 +70,21 @@ void TLC59208FOutput::setup() {
   }
 
   // Auto increment registers, and respond to all-call address
-  if (!this->write_byte(TLC59208F_REG_MODE1, TLC59208F_MODE1_AI2 | TLC59208F_MODE1_ALLCALL)) {
-    this->mark_failed(LOG_STR("MODE1 failed"));
+  if (!this->setup_check(this->write_byte(TLC59208F_REG_MODE1, TLC59208F_MODE1_AI2 | TLC59208F_MODE1_ALLCALL),
+                         LOG_STR("MODE1 failed")))
     return;
-  }
-  if (!this->write_byte(TLC59208F_REG_MODE2, this->mode_)) {
-    this->mark_failed(LOG_STR("MODE2 failed"));
+  if (!this->setup_check(this->write_byte(TLC59208F_REG_MODE2, this->mode_), LOG_STR("MODE2 failed")))
     return;
-  }
   // Set all 3 outputs to be individually controlled
   // TODO: think of a way to support group dimming
-  if (!this->write_byte(TLC59208F_REG_LEDOUT0, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
-    this->mark_failed(LOG_STR("LEDOUT0 failed"));
+  if (!this->setup_check(
+          this->write_byte(TLC59208F_REG_LEDOUT0, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0)),
+          LOG_STR("LEDOUT0 failed")))
     return;
-  }
-  if (!this->write_byte(TLC59208F_REG_LEDOUT1, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
-    this->mark_failed(LOG_STR("LEDOUT1 failed"));
+  if (!this->setup_check(
+          this->write_byte(TLC59208F_REG_LEDOUT1, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0)),
+          LOG_STR("LEDOUT1 failed")))
     return;
-  }
   delayMicroseconds(500);
 
   this->loop();
@@ -109,10 +106,8 @@ void TLC59208FOutput::loop() {
     ESP_LOGVV(TAG, "Channel %02u: pwm=%04u ", channel, pwm);
 
     uint8_t reg = TLC59208F_REG_PWM0 + channel;
-    if (!this->write_byte(reg, pwm)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_byte(reg, pwm)))
       return;
-    }
   }
 
   this->status_clear_warning();
