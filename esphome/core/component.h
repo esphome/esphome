@@ -98,6 +98,9 @@ inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
 // decide whether to propagate clears to App.app_state_. Never set on a
 // Component's component_state_.
 inline constexpr uint8_t APP_STATE_SETUP_COMPLETE = 0x40;
+// Bit 7 on Application::app_state_ (ONLY) — set once shutdown starts, as the
+// scheduler then no longer runs.
+inline constexpr uint8_t APP_STATE_SHUTTING_DOWN = 0x80;
 
 inline constexpr uint8_t WARN_IF_BLOCKING_OVER_CS = 5U;  // 50ms in centiseconds (1cs = 10ms)
 

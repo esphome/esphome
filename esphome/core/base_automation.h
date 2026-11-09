@@ -155,9 +155,8 @@ class ActionTimer {
   template<typename... Ts> friend class DelayAction;
   template<typename... Ts> friend class WhileAction;
   friend class ApplyWhileActionBase;
-  friend class ShutdownTrigger;
 
-  /// `parallel` keeps the timeouts of the other runs of `self`.
+  /// See Scheduler::set_action_timeout_.
   static void set(const void *self, uint32_t delay, std::function<void()> &&func, bool parallel) {
     App.scheduler.set_action_timeout_(self, delay, std::move(func), parallel);
   }
@@ -165,12 +164,11 @@ class ActionTimer {
   /// the next main loop pass and returns true. Parallel, as a yielding run has no timeout of its own pending.
   static bool yield_if_due(Action<> *self, uint32_t start) {
     // No later pass runs the timeout once shutdown started, so a loop then runs to its end
-    if (shutting_down || millis() - start <= WHILE_YIELD_AFTER_MS)
+    if (App.is_shutting_down() || millis() - start <= WHILE_YIELD_AFTER_MS)
       return false;
     set(self, 0, [self]() { self->play(); }, /* parallel= */ true);
     return true;
   }
-  inline static bool shutting_down = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 class StartupTrigger : public Trigger<>, public Component {
@@ -186,10 +184,7 @@ class StartupTrigger : public Trigger<>, public Component {
 class ShutdownTrigger : public Trigger<>, public Component {
  public:
   explicit ShutdownTrigger(float setup_priority) : setup_priority_(setup_priority) {}
-  void on_shutdown() override {
-    ActionTimer::shutting_down = true;
-    this->trigger();
-  }
+  void on_shutdown() override { this->trigger(); }
   float get_setup_priority() const override { return this->setup_priority_; }
 
  protected:
@@ -236,7 +231,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
 
     // If num_running_ > 1, we have multiple instances running in parallel
     // In single/restart/queued modes, only one instance runs at a time
-    // Parallel mode uses skip_cancel=true to allow multiple delays to coexist
+    // Parallel mode passes parallel=true to allow multiple delays to coexist
     // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
     // Users should set max_runs on parallel scripts to limit concurrent executions.
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.

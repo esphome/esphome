@@ -325,8 +325,7 @@ class _CollectedAction(MockObj):
 
 _COLLECTED_ACTION = _CollectedAction("esphome__collected_action", "->")
 _RUNNING_PARAM = "esphome__running"
-# One statement of its own, so a function that nothing can stop can leave them all out
-# Kept as its own statement: _direct_function drops it and a while step rewrites it by matching it exactly
+# Its own statement, matched exactly: _direct_function drops it and a while step rewrites it to _STOP_STEP
 _STOP_CHECK = f"if (!{_RUNNING_PARAM})\n  return;"
 # The same for a while step, where a stop ends the loop like a false condition
 _STOP_STEP = f"if (!{_RUNNING_PARAM})\n  return false;"
@@ -1492,31 +1491,25 @@ def _referenced_ids(value: Any) -> set[str]:
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # Only the body can change the condition when the loop cannot yield: an action on an id the
-    # condition (or its lambda) reads, or a lambda action naming one, may change that.
-    # An empty body ends the loop at once.
+    # Warn when the body never waits and acts on nothing the condition (or its lambda) reads, the
+    # ids a lambda action names included. An empty body ends the loop at once.
     body = config[CONF_THEN]
     if not body:
         return config
     actions = list(_iter_actions(body))
-    if any(
-        key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous
-        for key, _ in actions
-    ):
+    if any(_is_deferring(key) for key, _ in actions):
         return config
     if not _referenced_ids(config[CONF_CONDITION]) & _action_ids(actions):
         # Lazy, see _referenced_ids
-        from esphome.config import path_context
+        from esphome.config import _format_location
 
-        where = ".".join(str(part) for part in path_context.get(()))
-        condition = next(
-            (key for key in config[CONF_CONDITION] if key != CONF_TYPE_ID), "?"
-        )
+        condition = _registry_key(config[CONF_CONDITION])
+        location = getattr(condition, "esp_range", None)
         _LOGGER.warning(
-            "The body of the 'while' loop on '%s' in %s never waits, so the loop holds up "
+            "%s: the body of this 'while' loop on '%s' never waits, so the loop holds up "
             "the device until the body changes the condition. Add a 'delay' inside the loop.",
+            _format_location(location.start_mark if location else None),
             condition,
-            where or "the configuration",
         )
     return config
 
@@ -1782,10 +1775,14 @@ def _check_collected(result: MockObj, collector: _InlineCollector) -> None:
         )
 
 
+def _registry_key(full_config: ConfigType) -> str:
+    """The action or condition name of a validated entry."""
+    return next(key for key in full_config if key != CONF_TYPE_ID)
+
+
 def _builder_name(full_config: ConfigType) -> str:
     """For an error: the id is usually generated, so the registry key tells the author where to look."""
-    name = next(key for key in full_config if key != CONF_TYPE_ID)
-    return f"'{name}' ({full_config[CONF_TYPE_ID]})"
+    return f"'{_registry_key(full_config)}' ({full_config[CONF_TYPE_ID]})"
 
 
 async def _build_condition_or_inline(
@@ -1933,10 +1930,11 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     option that shares a name with an action, such as the ``delay:`` option of
     ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
-    return any(
-        key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous
-        for key, _ in _iter_actions(actions)
-    )
+    return any(_is_deferring(key) for key, _ in _iter_actions(actions))
+
+
+def _is_deferring(key: str) -> bool:
+    return key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous
 
 
 def _iter_actions(actions: Any) -> Iterator[tuple[str, Any]]:

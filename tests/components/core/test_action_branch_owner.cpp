@@ -610,10 +610,10 @@ static bool slow_step(const int &running) {
   return true;
 }
 
-// Nothing runs a timeout once shutdown started, so a loop then must not yield. Last in the file: the flag stays set.
+// Nothing runs a timeout once shutdown started, so a loop then must not yield. Last in the file: the state stays set.
 TEST(ActionBranchOwner, WhileDoesNotYieldOnceShutdownStarted) {
-  ShutdownTrigger shutdown(0);
-  shutdown.on_shutdown();
+  App.run_safe_shutdown_hooks();
+  ASSERT_TRUE(App.is_shutting_down());
   Log log;
   ApplyWhileAction<slow_step> loop;
   RecordAction after(&log, 1);

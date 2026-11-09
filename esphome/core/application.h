@@ -318,7 +318,7 @@ class Application {
   /// Return the public app state status bits (STATUS_LED_* only).
   /// Internal bookkeeping bits like APP_STATE_SETUP_COMPLETE are masked
   /// out so external readers (status_led components, etc.) never see them.
-  uint8_t get_app_state() const { return this->app_state_ & ~APP_STATE_SETUP_COMPLETE; }
+  uint8_t get_app_state() const { return this->app_state_ & ~(APP_STATE_SETUP_COMPLETE | APP_STATE_SHUTTING_DOWN); }
 
   /// True once Application::setup() has finished walking all components
   /// and finalized the initial status flags. Before this point, the
@@ -327,6 +327,10 @@ class Application {
   /// forced bit doesn't get wiped. Stored as a free bit on app_state_
   /// (bit 6) to avoid costing additional RAM.
   bool is_setup_complete() const { return (this->app_state_ & APP_STATE_SETUP_COMPLETE) != 0; }
+
+  /// True once shutdown started (reboot or safe shutdown); timeouts set from then on never run.
+  /// Stored as a free bit on app_state_ (bit 7) to avoid costing additional RAM.
+  bool is_shutting_down() const { return (this->app_state_ & APP_STATE_SHUTTING_DOWN) != 0; }
 
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES

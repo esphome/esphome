@@ -291,6 +291,7 @@ bool Application::any_component_has_status_flag_(uint8_t flag) const {
 
 void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot");
+  this->app_state_ |= APP_STATE_SHUTTING_DOWN;
   for (auto &component : std::ranges::reverse_view(this->components_)) {
     component->on_shutdown();
   }
@@ -309,6 +310,7 @@ void Application::safe_shutdown(uint32_t timeout_ms) {
 }
 
 void Application::run_safe_shutdown_hooks() {
+  this->app_state_ |= APP_STATE_SHUTTING_DOWN;
   for (auto &component : std::ranges::reverse_view(this->components_)) {
     component->on_safe_shutdown();
   }
