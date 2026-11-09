@@ -561,6 +561,7 @@ void ESP32BLE::loop() {
                 this->advertising_ != nullptr) {
               this->advertising_->on_config_complete();
             }
+            [[fallthrough]];
 #endif
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
