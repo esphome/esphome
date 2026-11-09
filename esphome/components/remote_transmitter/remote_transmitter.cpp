@@ -75,11 +75,14 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
     while (true) {  // Modulate with carrier frequency
       // When an interrupt made the falling edge late by a whole period or more, skip the periods it used up
       // instead of catching up with runt pulses. Computed once from one timestamp; lateness under a period
-      // (call overhead at a fast carrier) and an on time that rounds to 0 are left alone.
-      const uint32_t period = on_time + off_time;
-      const uint32_t late = micros() - (this->target_time_ + on_time);
-      if (on_time > 0 && (int32_t) late >= (int32_t) period)
-        this->target_time_ += (late / period + 1) * period;
+      // (call overhead at a fast carrier) and an on time that rounds to 0 are left alone. With a frame lock no
+      // interrupt can delay an edge, so the check is compiled out there.
+      if (LOCK_PER_EDGE && on_time > 0) {
+        const uint32_t period = on_time + off_time;
+        const uint32_t late = micros() - (this->target_time_ + on_time);
+        if ((int32_t) late >= (int32_t) period)
+          this->target_time_ += (late / period + 1) * period;
+      }
       this->target_time_ += on_time;
       if ((int32_t) (this->target_time_ - target) >= 0)
         break;
