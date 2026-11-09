@@ -46,6 +46,7 @@ from esphome.cpp_generator import (  # noqa: F401
     shared_progmem_array,
     shared_progmem_string,
     statement,
+    static_buffer,
     static_const_array,
     static_function,
     templatable,

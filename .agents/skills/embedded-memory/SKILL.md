@@ -42,6 +42,8 @@ APIs.
    // Or if size is constant:
    std::array<uint8_t, 256> buffer;
    ```
+   When the size comes from the config, declare it with `cg.static_buffer()` in `to_code` and pass the pointer
+   to the constructor, so it lands in BSS (see the `component-codegen` skill).
 
 2. **Compile-time-known fixed sizes with vector-like API:** use `StaticVector` from
    `esphome/core/helpers.h` for compile-time fixed size with a `push_back()` interface (no dynamic
