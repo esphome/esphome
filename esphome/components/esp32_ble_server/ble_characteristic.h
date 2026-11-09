@@ -55,7 +55,7 @@ class BLECharacteristic final {
     descriptor->owned_ = true;
     this->add_descriptor(*descriptor);
   }
-  /// Adds a descriptor the caller keeps alive (a static or member object); it is never freed here.
+  /// Adds a descriptor the caller keeps alive (such as a component member); it is never freed here.
   void add_descriptor(BLEDescriptor &descriptor);
   void remove_descriptor(BLEDescriptor *descriptor);
 
