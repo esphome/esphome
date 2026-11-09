@@ -2,18 +2,17 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/output/float_output.h"
-#include <vector>
+#include <span>
 
 namespace esphome::sm16716 {
 
 class SM16716 final : public Component {
  public:
-  class Channel;
+  /// One value per channel, a static array from code generation.
+  explicit SM16716(std::span<uint8_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_num_channels(uint8_t num_channels) { num_channels_ = num_channels; }
   void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
 
   void setup() override;
@@ -25,29 +24,16 @@ class SM16716 final : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel final : public output::FloatOutput {
-   public:
-    void set_parent(SM16716 *parent) { parent_ = parent; }
-    void set_channel(uint8_t channel) { channel_ = channel; }
-
-   protected:
-    void write_state(float state) override {
-      auto amount = uint8_t(state * 0xFF);
-      this->parent_->set_channel_value_(this->channel_, amount);
-    }
-
-    SM16716 *parent_;
-    uint8_t channel_;
-  };
-
- protected:
-  void set_channel_value_(uint8_t channel, uint8_t value) {
-    uint8_t index = this->num_channels_ - channel - 1;
+  void write_channel(uint8_t channel, float state) {
+    auto value = uint8_t(state * 0xFF);
+    uint8_t index = this->pwm_amounts_.size() - channel - 1;
     if (this->pwm_amounts_[index] != value) {
       this->update_ = true;
     }
     this->pwm_amounts_[index] = value;
   }
+
+ protected:
   void write_bit_(bool value) {
     this->data_pin_->digital_write(value);
     this->clock_pin_->digital_write(true);
@@ -61,9 +47,8 @@ class SM16716 final : public Component {
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
-  uint8_t num_channels_;
   uint8_t num_chips_;
-  std::vector<uint8_t> pwm_amounts_;
+  std::span<uint8_t> pwm_amounts_;
   bool update_{true};
 };
 

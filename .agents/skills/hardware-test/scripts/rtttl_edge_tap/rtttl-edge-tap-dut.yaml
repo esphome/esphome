@@ -1,0 +1,75 @@
+# Needs aux-2-pre-prod.yaml (packages/ in NabuCasa/aux-2) copied next to this file (see reference/recipes/usb_audio.md).
+# rtttl click test on the AUX-2 with a USB speaker on the host port as the mixer output: EdgeTap (edgetap.hpp) sits
+# between rtttl and the announcement speaker and logs each note's onset and release level every 12 s.
+substitutions:
+  # run.sh sets it with -s; not "name", which the AUX-2 package may use itself
+  dut_name: rtttl-edge-tap
+
+packages:
+  core: !include aux-2-pre-prod.yaml
+
+esphome:
+  includes: [edgetap.hpp]
+  name: ${dut_name}
+  name_add_mac_suffix: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+sendspin:
+  unpaired_access: true
+
+usb_audio:
+  id: usb_audio_id
+
+speaker:
+  - platform: usb_audio
+    id: usb_speaker
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 24bit
+    num_channels: 2
+    buffer_size: 28800
+    write_timeout: 50ms
+  - id: !extend mixing_speaker
+    output_speaker: usb_speaker
+
+runtime_stats:
+  log_interval: 5s
+rtttl:
+  id: tone
+  speaker: announcement_resampling_speaker
+  on_finished_playback:
+    - logger.log: {format: "M finished", level: INFO}
+globals:
+  - {id: n, type: int, initial_value: "0"}
+interval:
+  - interval: 10ms
+    then:
+      - lambda: 'if (edge_tap() != nullptr) edge_tap()->sync();'
+  - interval: 12s
+    startup_delay: 20s
+    then:
+      - lambda: |-
+          static const char *const TUNES[] = {
+              "rests:d=8,o=5,b=100:c,p,d,p,e,p,f,p,g,p,a,p,b,p,c6,p,e6,p,g6,p,a6,p,c7,p",
+              "alarm:d=4,o=6,b=150:a,p,e,p,a,p,e,p,a,p,e,p",
+          };
+          if (edge_tap() == nullptr) {
+            edge_tap() = new EdgeTap(id(announcement_resampling_speaker));
+            id(tone).set_speaker(edge_tap());
+          }
+          edge_tap()->report();
+          if (id(n) >= 8) { if (id(n)++ == 8) ESP_LOGI("M", "M DONE"); return; }
+          ESP_LOGI("M", "M play %d %s", id(n) + 1, TUNES[id(n) % 2]);
+          id(tone).play(TUNES[id(n) % 2]);
+          id(n)++;

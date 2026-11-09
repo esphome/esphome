@@ -1,0 +1,36 @@
+# variant: ws (web_server), cp (captive_portal only, started from a button) or prom (captive_portal and prometheus).
+# A GET /probe handler is added after setup, the way an external component would.
+substitutions:
+  name: web-handlers
+  plat: esp32
+  variant: ws
+
+esphome:
+  name: ${name}
+  includes:
+    - probehandler.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          web_server_base::global_web_server_base->add_handler(&probe_handler);
+          ESP_LOGI("probe", "probe handler added after setup");
+
+packages:
+  plat: !include plat-${plat}.yaml
+  variant: !include ${variant}.yaml
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    password: webtest123
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+  - platform: web_server

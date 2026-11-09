@@ -29,18 +29,15 @@ void SCD4XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     this->status_clear_error();
-    if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
-      this->mark_failed(LOG_STR("Failed to stop measurements"));
+    if (!this->setup_check(this->write_command(SCD4X_CMD_STOP_MEASUREMENTS), LOG_STR("Failed to stop measurements")))
       return;
-    }
     // According to the SCD4x datasheet the sensor will only respond to other commands after waiting 500 ms after
     // issuing the stop_periodic_measurement command
     this->set_timeout(500, [this]() {
       uint16_t raw_serial_number[3];
-      if (!this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1)) {
-        this->mark_failed(LOG_STR("Unable to read serial number"));
+      if (!this->setup_check(this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1),
+                             LOG_STR("Unable to read serial number")))
         return;
-      }
       ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
@@ -52,21 +49,18 @@ void SCD4XComponent::setup() {
 
       // If pressure compensation available use it, else use altitude
       if (this->ambient_pressure_) {
-        if (!this->update_ambient_pressure_compensation_(this->ambient_pressure_)) {
-          this->mark_failed(LOG_STR("Error setting ambient pressure compensation"));
+        if (!this->setup_check(this->update_ambient_pressure_compensation_(this->ambient_pressure_),
+                               LOG_STR("Error setting ambient pressure compensation")))
           return;
-        }
       } else {
-        if (!this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_)) {
-          this->mark_failed(LOG_STR("Error setting altitude compensation"));
+        if (!this->setup_check(this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_),
+                               LOG_STR("Error setting altitude compensation")))
           return;
-        }
       }
 
-      if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0)) {
-        this->mark_failed(LOG_STR("Error setting automatic self calibration"));
+      if (!this->setup_check(this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0),
+                             LOG_STR("Error setting automatic self calibration")))
         return;
-      }
 
       this->initialized_ = true;
       // Finally start sensor measurements
@@ -104,9 +98,9 @@ void SCD4XComponent::dump_config() {
                 "  Measurement mode: %s\n"
                 "  Temperature offset: %.2f °C",
                 ONOFF(this->enable_asc_), measurement_mode_str, this->temperature_offset_);
-  if (this->ambient_pressure_source_ != nullptr) {
+  if (this->ambient_pressure_source_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
+                  LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
   } else {
     if (this->ambient_pressure_) {
       ESP_LOGCONFIG(TAG,
@@ -131,8 +125,8 @@ void SCD4XComponent::update() {
     return;
   }
 
-  if (this->ambient_pressure_source_ != nullptr) {
-    float pressure = this->ambient_pressure_source_->state;
+  if (this->ambient_pressure_source_sensor_ != nullptr) {
+    float pressure = this->ambient_pressure_source_sensor_->state;
     if (!std::isnan(pressure)) {
       this->set_ambient_pressure_compensation(pressure);
     }
@@ -170,8 +164,7 @@ void SCD4XComponent::update() {
       this->status_set_warning();
       return;
     }
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(raw_data[0]);
+    PUBLISH_STATE(this->co2_sensor_, raw_data[0]);
 
     if (this->temperature_sensor_ != nullptr) {
       const float temperature = -45.0f + (175.0f * (raw_data[1])) / (1 << 16);
