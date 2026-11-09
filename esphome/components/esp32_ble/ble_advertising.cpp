@@ -124,6 +124,7 @@ void BLEAdvertising::start() {
 }
 
 void BLEAdvertising::stop() {
+  this->restart_pending_ = false;
   esp_err_t err = esp_ble_gap_stop_advertising();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_advertising failed: %d", err);
@@ -135,6 +136,11 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
+  // The only sender of the services advertising, after the event drain
+  if (this->restart_pending_) {
+    this->restart_pending_ = false;
+    this->start();
+  }
   if (this->raw_advertisements_callbacks_.empty()) {
     return;
   }

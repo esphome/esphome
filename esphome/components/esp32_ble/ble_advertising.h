@@ -35,6 +35,9 @@ class BLEAdvertising {
 
   void start();
   void stop();
+  /// Send the services advertising from the next loop(); loop() is the only sender.
+  void request_start() { this->restart_pending_ = true; }
+  void cancel_deferred_restart() { this->restart_pending_ = false; }
 
  protected:
   // An element longer than this never fits in a 31 byte packet
@@ -57,6 +60,7 @@ class BLEAdvertising {
   uint8_t manufacturer_data_len_{0};
   uint8_t service_data_len_{0};
   bool include_name_in_adv_{false};
+  bool restart_pending_{false};
 };
 
 }  // namespace esphome::esp32_ble

@@ -188,6 +188,11 @@ void ESP32BLE::advertising_stop() {
   this->advertising_refresh();
 }
 
+void ESP32BLE::advertising_cancel_deferred() {
+  if (this->advertising_ != nullptr)
+    this->advertising_->cancel_deferred_restart();
+}
+
 void ESP32BLE::advertising_refresh() {
   if (this->advertising_ == nullptr || !this->is_active())
     return;
@@ -195,7 +200,8 @@ void ESP32BLE::advertising_refresh() {
   if (this->advertising_ref_count_ == 0) {
     this->advertising_->stop();
   } else {
-    this->advertising_->start();
+    this->advertising_->request_start();
+    App.wake_loop_threadsafe();
   }
 }
 
@@ -509,15 +515,11 @@ void ESP32BLE::loop() {
     return;
   }
 
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
-
   BLEEvent *ble_event = this->ble_events_.pop();
-  if (ble_event == nullptr)
+  if (ble_event == nullptr) {
+    this->advertising_loop_();
     return;
+  }
 
   do {
     switch (ble_event->type_) {
@@ -616,6 +618,8 @@ void ESP32BLE::loop() {
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
   }
+  // After the events, so config completions already queued are counted before the timeout check
+  this->advertising_loop_();
 }
 
 void ESP32BLE::loop_handle_state_transition_not_active_() {
@@ -633,6 +637,10 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       return;
     }
     this->drain_ble_events_();
+#ifdef USE_ESP32_BLE_ADVERTISING
+    if (this->advertising_ != nullptr)
+      this->advertising_->cancel_deferred_restart();
+#endif
     // A status callback may have asked for BLE back; the stack is down now, so
     // that request becomes a bring-up.
     this->state_ =
