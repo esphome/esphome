@@ -273,11 +273,27 @@ void ESP32BLE::advertising_init_() {
     return;
   this->advertising_ = new BLEAdvertising(this->advertising_cycle_time_);  // NOLINT(cppcoreguidelines-owning-memory)
 
-  this->advertising_->set_scan_response(true);
-  this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->set_appearance(this->appearance_);
 }
 #endif
+
+const char *ESP32BLE::device_name(char *buffer) const {
+  if (this->name_ != nullptr) {
+    if (!App.is_name_add_mac_suffix_enabled())
+      return this->name_;
+    // Last 6 characters of the 12 character MAC address string
+    constexpr size_t mac_address_suffix_len = 6;
+    char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
+    get_mac_address_into_buffer(mac_addr);
+    make_name_with_suffix_to(buffer, DEVICE_NAME_BUFFER_SIZE, this->name_, strlen(this->name_), '-',
+                             mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+    return buffer;
+  }
+  const auto &app_name = App.get_name();
+  truncate_name_to(buffer, DEVICE_NAME_BUFFER_SIZE, app_name.c_str(), app_name.length(),
+                   App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
+  return buffer;
+}
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
@@ -365,8 +381,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-#if defined(ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT) || defined(USE_ESP32_BLE_ADVERTISING)
-  // Advertising needs its config completion events even when no component handles GAP events
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
   err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
@@ -390,32 +405,8 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  // BLE device names are limited to 20 characters
-  // Buffer: 20 chars + null terminator
-  constexpr size_t ble_name_max_len = 21;
-  char name_buffer[ble_name_max_len];
-  const char *device_name;
-
-  if (this->name_ != nullptr) {
-    if (App.is_name_add_mac_suffix_enabled()) {
-      // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
-      get_mac_address_into_buffer(mac_addr);
-      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
-                               mac_address_suffix_len);
-      device_name = name_buffer;
-    } else {
-      device_name = this->name_;
-    }
-  } else {
-    const auto &app_name = App.get_name();
-    truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
-                     App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
-    device_name = name_buffer;
-  }
-
+  char name_buffer[DEVICE_NAME_BUFFER_SIZE];
+  const char *device_name = this->device_name(name_buffer);
   err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
@@ -565,14 +556,6 @@ void ESP32BLE::loop() {
           GAP_SCAN_COMPLETE_EVENTS:
           // Advertising complete events
           GAP_ADV_COMPLETE_EVENTS:
-#ifdef USE_ESP32_BLE_ADVERTISING
-            if ((gap_event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT ||
-                 gap_event == ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT) &&
-                this->advertising_ != nullptr) {
-              this->advertising_->on_config_complete();
-            }
-            [[fallthrough]];
-#endif
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
           // Security events
@@ -656,7 +639,7 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     this->drain_ble_events_();
 #ifdef USE_ESP32_BLE_ADVERTISING
     if (this->advertising_ != nullptr)
-      this->advertising_->reset_config_state();
+      this->advertising_->cancel_deferred_restart();
 #endif
     // A status callback may have asked for BLE back; the stack is down now, so
     // that request becomes a bring-up.
@@ -735,9 +718,6 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
       enqueue_ble_event(event, param);
-      // A deferred advertising send waits for these; this runs on the Bluetooth task
-      if (event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT || event == ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT)
-        App.wake_loop_threadsafe();
       return;
 
     // Security events - used by ble_client and bluetooth_proxy

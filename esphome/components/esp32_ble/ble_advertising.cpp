@@ -6,33 +6,38 @@
 #include <cstdio>
 #include <algorithm>
 #include <cstring>
+#include "adv_payload.h"
+#include "ble.h"
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
+#include <esp_bt.h>
+#endif
+
 namespace esphome::esp32_ble {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
-// Give up on a completion event after this long, so a lost event cannot stop advertising updates for good
-static constexpr uint32_t CONFIG_COMPLETE_TIMEOUT_MS = 1000;
 // A 31 byte packet holds at most 14 16-bit UUIDs
 static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
-BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
-  this->advertising_data_.set_scan_rsp = false;
-  this->advertising_data_.include_name = true;
-  this->advertising_data_.include_txpower = true;
-  this->advertising_data_.min_interval = 0;
-  this->advertising_data_.max_interval = 0;
-  this->advertising_data_.appearance = 0x00;
-  this->advertising_data_.manufacturer_len = 0;
-  this->advertising_data_.p_manufacturer_data = nullptr;
-  this->advertising_data_.service_data_len = 0;
-  this->advertising_data_.p_service_data = nullptr;
-  this->advertising_data_.service_uuid_len = 0;
-  this->advertising_data_.p_service_uuid = nullptr;
-  this->advertising_data_.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
+// The TX power element Bluedroid sent: its BTM_BLE_ADV_TX_POWER map of the advertising power level
+static int8_t adv_tx_power_dbm() {
+#ifdef CONFIG_IDF_TARGET_ESP32
+  static constexpr int8_t TX_POWER_DBM[] = {-12, -9, -6, -3, 0, 3, 6, 9};
+#else
+  static constexpr int8_t TX_POWER_DBM[] = {-24, -21, -18, -15, -12, -9, -6, -3, 0, 3, 6, 9, 12, 15, 18, 20};
+#endif
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
+  const size_t level = 0;  // a hosted controller; Bluedroid sends level 0 too
+#else
+  const size_t level = esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_ADV);
+#endif
+  return TX_POWER_DBM[std::min(level, std::size(TX_POWER_DBM) - 1)];
+}
 
+BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_params_.adv_int_min = 0x20;
   this->advertising_params_.adv_int_max = 0x40;
   this->advertising_params_.adv_type = ADV_TYPE_IND;
@@ -49,14 +54,9 @@ void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
 }
 
 void BLEAdvertising::set_service_data(std::span<const uint8_t> data) {
-  delete[] this->advertising_data_.p_service_data;
-  this->advertising_data_.p_service_data = nullptr;
-  this->advertising_data_.service_data_len = data.size();
-  if (!data.empty()) {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    this->advertising_data_.p_service_data = new uint8_t[data.size()];
-    memcpy(this->advertising_data_.p_service_data, data.data(), data.size());
-  }
+  // Too long to fit is the same as none
+  this->service_data_len_ = data.size() <= MAX_DATA_LEN ? data.size() : 0;
+  memcpy(this->service_data_.data(), data.data(), this->service_data_len_);
 }
 
 void BLEAdvertising::set_service_data(const std::vector<uint8_t> &data) {
@@ -64,110 +64,71 @@ void BLEAdvertising::set_service_data(const std::vector<uint8_t> &data) {
 }
 
 void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
-  delete[] this->advertising_data_.p_manufacturer_data;
-  this->advertising_data_.p_manufacturer_data = nullptr;
-  this->advertising_data_.manufacturer_len = data.size();
-  if (!data.empty()) {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    this->advertising_data_.p_manufacturer_data = new uint8_t[data.size()];
-    memcpy(this->advertising_data_.p_manufacturer_data, data.data(), data.size());
-  }
-}
-
-bool BLEAdvertising::config_pending_() const {
-  return this->configs_pending_ != 0 && static_cast<uint16_t>(App.get_loop_component_start_time() -
-                                                              this->config_sent_time_) < CONFIG_COMPLETE_TIMEOUT_MS;
-}
-
-void BLEAdvertising::reset_config_state() {
-  this->configs_pending_ = 0;
-  this->restart_pending_ = false;
-}
-
-void BLEAdvertising::on_config_complete() {
-  if (this->configs_pending_ != 0)
-    this->configs_pending_--;
+  // Only what fits goes on air
+  this->manufacturer_data_len_ = std::min(data.size(), MAX_DATA_LEN);
+  memcpy(this->manufacturer_data_.data(), data.data(), this->manufacturer_data_len_);
 }
 
 esp_err_t BLEAdvertising::services_advertisement_() {
-  if (this->config_pending_()) {
-    // Applied once the stack has taken the previous config
-    this->restart_pending_ = true;
-    return ESP_OK;
-  }
-  if (this->configs_pending_ != 0) {
-    // Completion events carry no id: one that is only late, not lost, can still count down the new configs
-    ESP_LOGW(TAG, "Advertising config not confirmed within %u ms", (unsigned) CONFIG_COMPLETE_TIMEOUT_MS);
-    this->configs_pending_ = 0;
-  }
-  this->config_sent_time_ = static_cast<uint16_t>(App.get_loop_component_start_time());
-
-  // Bluedroid copies these during each config call; a priority UUID goes first and alone in the advertising packet
+  // A priority UUID goes first and alone in the advertising packet
   const bool priority = this->priority_uuid_.is_set();
-  const size_t max_services = MAX_ADVERTISED_UUIDS + (priority ? 1 : 0);
-  uint8_t uuids[16 * (MAX_ADVERTISED_UUIDS + 1)];
+  AdvPayload::UUID128 uuids[MAX_ADVERTISED_UUIDS + 1];
   size_t num_services = 0;
   if (priority)
-    memcpy(uuids + 16 * num_services++, this->priority_uuid_.as_128bit().get_uuid().uuid.uuid128, 16);
+    memcpy(uuids[num_services++].data(), this->priority_uuid_.as_128bit().get_uuid().uuid.uuid128, 16);
   for (const auto &uuid : this->advertising_uuids_) {
-    if (num_services == max_services)
+    if (num_services == std::size(uuids))
       break;
     if (uuid != this->priority_uuid_)  // an unset priority UUID matches nothing
-      memcpy(uuids + 16 * num_services++, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
+      memcpy(uuids[num_services++].data(), uuid.as_128bit().get_uuid().uuid.uuid128, 16);
   }
-  this->advertising_data_.service_uuid_len = 16 * (priority ? 1 : num_services);
-  this->advertising_data_.p_service_uuid = num_services > 0 ? uuids : nullptr;
+  const std::span<const AdvPayload::UUID128> all_uuids(uuids, num_services);
+  const std::span<const uint8_t> manufacturer_data(this->manufacturer_data_.data(), this->manufacturer_data_len_);
+  const std::span<const uint8_t> service_data(this->service_data_.data(), this->service_data_len_);
+  char name_buffer[ESP32BLE::DEVICE_NAME_BUFFER_SIZE];
+  const char *name = global_ble->device_name(name_buffer);
+  const size_t name_len = strlen(name);
 
-  esp_err_t err;
+  // No room for appearance and manufacturer data next to a priority UUID; they go to the scan response
+  AdvPayload adv;
+  adv.add_flags(ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
+  if (!priority)
+    adv.add_appearance(this->appearance_);
+  if (this->include_name_in_adv_)
+    adv.add_name(name, name_len);
+  if (!priority)
+    adv.add_manufacturer_data(manufacturer_data);
+  adv.add_uuids(priority ? all_uuids.first(1) : all_uuids);
+  adv.add_service_data(service_data);
 
-  this->advertising_data_.set_scan_rsp = false;
-  this->advertising_data_.include_name = this->include_name_in_adv_ || !this->scan_response_;
-  this->advertising_data_.include_txpower = !this->scan_response_;
-  // No room for these next to a priority UUID; they go to the scan response
-  const uint16_t manufacturer_len = this->advertising_data_.manufacturer_len;
-  const uint16_t appearance = this->advertising_data_.appearance;
-  if (priority) {
-    this->advertising_data_.manufacturer_len = 0;
-    this->advertising_data_.appearance = 0;
-  }
-  err = esp_ble_gap_config_adv_data(&this->advertising_data_);
-  this->advertising_data_.manufacturer_len = manufacturer_len;
-  this->advertising_data_.appearance = appearance;
+  AdvPayload rsp;
+  if (priority)
+    rsp.add_appearance(this->appearance_);
+  rsp.add_name(name, name_len);
+  if (priority)
+    rsp.add_manufacturer_data(manufacturer_data);
+  rsp.add_tx_power(adv_tx_power_dbm());
+  // With a priority UUID the service data is already in the advertising packet
+  rsp.add_uuids(priority ? all_uuids.subspan(1) : all_uuids);
+  if (!priority)
+    rsp.add_service_data(service_data);
+
+  // Bluedroid copies the bytes during each call
+  esp_err_t err = esp_ble_gap_config_adv_data_raw(const_cast<uint8_t *>(adv.data()), adv.size());
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Advertising): %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data_raw failed: %s", esp_err_to_name(err));
     return err;
   }
-  this->configs_pending_++;
-
-  if (this->scan_response_) {
-    memcpy(&this->scan_response_data_, &this->advertising_data_, sizeof(esp_ble_adv_data_t));
-    this->scan_response_data_.set_scan_rsp = true;
-    this->scan_response_data_.include_name = true;
-    this->scan_response_data_.include_txpower = true;
-    this->scan_response_data_.flag = 0;
-    if (priority) {
-      // The other UUIDs; the service data is already in the advertising packet
-      this->scan_response_data_.service_uuid_len = 16 * (num_services - 1);
-      this->scan_response_data_.p_service_uuid = num_services > 1 ? uuids + 16 : nullptr;
-      this->scan_response_data_.service_data_len = 0;
-    } else {
-      this->scan_response_data_.manufacturer_len = 0;
-      this->scan_response_data_.appearance = 0;
-    }
-    err = esp_ble_gap_config_adv_data(&this->scan_response_data_);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %s", esp_err_to_name(err));
-      return err;
-    }
-    this->configs_pending_++;
+  err = esp_ble_gap_config_scan_rsp_data_raw(const_cast<uint8_t *>(rsp.data()), rsp.size());
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_config_scan_rsp_data_raw failed: %s", esp_err_to_name(err));
+    return err;
   }
-
   err = esp_ble_gap_start_advertising(&this->advertising_params_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %s", esp_err_to_name(err));
     return err;
   }
-
   return ESP_OK;
 }
 
@@ -192,8 +153,8 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
-  // The only sender of the services advertising: after the event drain, once no config is in flight
-  if (this->restart_pending_ && !this->config_pending_()) {
+  // The only sender of the services advertising, after the event drain
+  if (this->restart_pending_) {
     this->restart_pending_ = false;
     this->start();
   }

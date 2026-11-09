@@ -112,6 +112,10 @@ class ESP32BLE final : public Component {
   void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
   float get_setup_priority() const override;
   void set_name(const char *name) { this->name_ = name; }
+  // BLE device names are limited to 20 characters
+  static constexpr size_t DEVICE_NAME_BUFFER_SIZE = 21;
+  /// The device name; written to `buffer` unless the configured name is used as is.
+  const char *device_name(char *buffer) const;
 
 #ifdef USE_ESP32_BLE_ADVERTISING
   /** Request advertising on behalf of a component.
@@ -125,7 +129,7 @@ class ESP32BLE final : public Component {
   void advertising_stop();
   /// Apply the current payload and request count: advertise while requested, otherwise stop.
   void advertising_refresh();
-  /// Drop a restart deferred while advertising configs were in flight (the controller stopped advertising).
+  /// Drop a restart requested for the next loop (the controller stopped advertising).
   void advertising_cancel_deferred();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
