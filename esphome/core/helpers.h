@@ -2319,10 +2319,10 @@ class LockGuard {
  */
 class InterruptLock {
  public:
-#if defined(USE_ESP8266) && defined(__XTENSA__)
+#ifdef USE_ESP8266
   // Inline: saves two calls per lock, and the lock sits on bit-banged timing paths
-  InterruptLock() { __asm__ __volatile__("rsil %0, 15" : "=a"(this->state_)::"memory"); }
-  ~InterruptLock() { __asm__ __volatile__("wsr %0, ps; isync" ::"a"(this->state_) : "memory"); }
+  InterruptLock() : state_(xt_rsil(15)) {}
+  ~InterruptLock() { xt_wsr_ps(this->state_); }
 #else
   InterruptLock();
   ~InterruptLock();
