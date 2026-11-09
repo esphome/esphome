@@ -726,7 +726,7 @@ class Display : public PollingComponent {
                        int *height);
 
   /// Internal method to set the display writer lambda.
-  void set_writer(display_writer_t &&writer);
+  void set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 
   void show_page(DisplayPage *page);
   void show_next_page();
@@ -743,7 +743,7 @@ class Display : public PollingComponent {
 #endif
 
   /// Internal method to set the display rotation with.
-  virtual void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
