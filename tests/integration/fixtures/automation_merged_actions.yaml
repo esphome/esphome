@@ -1,0 +1,344 @@
+esphome:
+  name: test-merged-actions
+
+host:
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: running
+    type: int
+    initial_value: "7"
+  - id: loops
+    type: int
+    initial_value: "0"
+
+switch:
+  - platform: template
+    id: stopper
+    optimistic: true
+    on_turn_on:
+      - script.stop: stop_by_callback
+  # Automations with only inline actions, which run directly from the callback
+  - platform: template
+    id: direct
+    optimistic: true
+    on_state:
+      - logger.log:
+          format: "DIRECT state first %d"
+          args: [x]
+      - lambda: |-
+          ESP_LOGI("test", "DIRECT state second %d", x);
+    on_turn_on:
+      - logger.log: "DIRECT on first"
+      - logger.log: "DIRECT on second"
+    on_turn_off:
+      - logger.log: "DIRECT off first"
+      - logger.log: "DIRECT off second"
+
+api:
+  actions:
+    - action: run_control_flow
+      variables:
+        value: int
+      then:
+        - if:
+            condition:
+              and:
+                - lambda: return value > 0;
+                - not:
+                    lambda: return value > 100;
+            then:
+              - logger.log:
+                  format: "FLOW if then %d"
+                  args: [value]
+            else:
+              - logger.log:
+                  format: "FLOW if else %d"
+                  args: [value]
+        - choose:
+            - if:
+                lambda: return value < 10;
+              then:
+                - logger.log:
+                    format: "FLOW choose small %d"
+                    args: [value]
+            - if:
+                lambda: return value < 100;
+              then:
+                - logger.log:
+                    format: "FLOW choose medium %d"
+                    args: [value]
+            - else:
+                - logger.log:
+                    format: "FLOW choose large %d"
+                    args: [value]
+        - repeat:
+            count: !lambda "return value > 0 ? 2 : 0;"
+            then:
+              - repeat:
+                  count: 2
+                  then:
+                    - lambda: |-
+                        ESP_LOGI("test", "FLOW repeat %u %u %d", (unsigned) iteration_1, (unsigned) iteration, value);
+        - script.execute: while_counter
+        - logger.log:
+            format: "FLOW done %d"
+            args: [value]
+    - action: run_stop_in_loops
+      then:
+        - script.execute: stop_in_repeat
+        - script.execute: stop_in_while
+        - script.execute: stop_in_condition
+        - logger.log: "LOOP_STOP done"
+    - action: run_while_reentry
+      then:
+        - lambda: id(loops) = 0;
+        - script.execute: while_reenter
+        - lambda: |-
+            ESP_LOGI("test", "WHILE_REENTER running %d", id(while_reenter).is_running());
+    - action: run_direct
+      then:
+        - switch.turn_on: direct
+        - logger.log: "DIRECT done on"
+        - switch.turn_off: direct
+        - logger.log: "DIRECT done off"
+    - action: run_arg_order
+      then:
+        - script.execute:
+            id: arg_order
+            first: !lambda |-
+              ESP_LOGI("test", "ARG_ORDER eval first");
+              return 1;
+            second: !lambda |-
+              ESP_LOGI("test", "ARG_ORDER eval second");
+              return 2;
+        - logger.log: "ARG_ORDER done"
+    - action: run_stop_in_lambda
+      then:
+        - script.execute: stop_in_lambda
+        - logger.log: "STOP_LAMBDA done"
+    - action: run_stop_by_action
+      then:
+        - script.execute: stop_by_action
+        - logger.log: "STOP_ACTION done"
+    - action: run_stop_by_callback
+      then:
+        - switch.turn_off: stopper
+        - script.execute: stop_by_callback
+        - logger.log: "STOP_CALLBACK done"
+    - action: run_stop_in_branch
+      then:
+        - script.execute: stop_in_branch
+        - logger.log: "STOP_BRANCH done"
+    - action: run_restart_reentry
+      then:
+        - script.execute:
+            id: restart_reentry
+            depth: 0
+    - action: run_parallel_limit
+      then:
+        - script.execute: parallel_limit
+        - logger.log: "PARALLEL done"
+    - action: run_is_running
+      then:
+        - script.execute: reports_running
+        - lambda: |-
+            ESP_LOGI("test", "RUNNING after %d", id(reports_running).is_running());
+    - action: run_lambda_scope
+      then:
+        - script.execute:
+            id: lambda_scope
+            text: "abc"
+        - script.execute:
+            id: lambda_scope
+            text: "abc"
+        - logger.log: "SCOPE done"
+    - action: run_named_running
+      then:
+        - script.execute:
+            id: param_named_running
+            running: 5
+        - script.execute: uses_global_running
+        - logger.log: "NAMED done"
+    - action: run_repeat
+      then:
+        - repeat:
+            count: 2
+            then:
+              - logger.log:
+                  format: "REPEAT first %u"
+                  args: [iteration]
+              - lambda: |-
+                  ESP_LOGI("test", "REPEAT second %u", (unsigned) iteration);
+        - logger.log: "REPEAT done"
+    - action: run_args
+      variables:
+        value: int
+      then:
+        - logger.log:
+            format: "ARGS first %d"
+            args: [value]
+        - lambda: |-
+            ESP_LOGI("test", "ARGS second %d", value);
+        - delay: 1ms
+        - logger.log:
+            format: "ARGS third %d"
+            args: [value]
+        - lambda: |-
+            ESP_LOGI("test", "ARGS fourth %d", value);
+
+script:
+  - id: while_reenter
+    mode: parallel
+    then:
+      - while:
+          condition:
+            lambda: return id(loops) < 1;
+          then:
+            - lambda: id(loops) += 1;
+            - script.execute: while_reenter
+            - logger.log: "WHILE_REENTER after nested"
+      - logger.log: "WHILE_REENTER after while"
+  - id: while_counter
+    then:
+      - lambda: id(loops) = 0;
+      - while:
+          condition:
+            lambda: return id(loops) < 3;
+          then:
+            - lambda: id(loops) += 1;
+            - logger.log:
+                format: "FLOW while %d"
+                args: [id(loops)]
+  - id: stop_in_repeat
+    then:
+      - repeat:
+          count: 3
+          then:
+            - logger.log:
+                format: "LOOP_STOP repeat %u"
+                args: [iteration]
+            - lambda: |-
+                if (iteration == 1)
+                  id(stop_in_repeat).stop();
+      - logger.log: "LOOP_STOP repeat after"
+  - id: stop_in_while
+    then:
+      - lambda: id(loops) = 0;
+      - while:
+          condition:
+            lambda: return id(loops) < 3;
+          then:
+            - lambda: id(loops) += 1;
+            - logger.log:
+                format: "LOOP_STOP while %d"
+                args: [id(loops)]
+            - lambda: |-
+                if (id(loops) == 2)
+                  id(stop_in_while).stop();
+      - logger.log: "LOOP_STOP while after"
+  - id: stop_in_condition
+    then:
+      - if:
+          condition:
+            lambda: |-
+              id(stop_in_condition).stop();
+              return true;
+          then:
+            - logger.log: "LOOP_STOP condition then"
+      - logger.log: "LOOP_STOP condition after"
+  - id: arg_order
+    parameters:
+      first: int
+      second: int
+    then:
+      - logger.log:
+          format: "ARG_ORDER run %d %d"
+          args: [first, second]
+  - id: stop_in_lambda
+    then:
+      - logger.log: "STOP_LAMBDA before"
+      - lambda: id(stop_in_lambda).stop();
+      - logger.log: "STOP_LAMBDA after"
+  - id: stop_by_action
+    then:
+      - logger.log: "STOP_ACTION before"
+      - script.stop:
+      - logger.log: "STOP_ACTION after"
+  - id: stop_by_callback
+    then:
+      - logger.log: "STOP_CALLBACK before"
+      - switch.turn_on: stopper
+      - logger.log: "STOP_CALLBACK after"
+  - id: stop_in_branch
+    then:
+      - if:
+          condition:
+            lambda: return true;
+          then:
+            - logger.log: "STOP_BRANCH before"
+            - lambda: id(stop_in_branch).stop();
+            - logger.log: "STOP_BRANCH after inner"
+      - logger.log: "STOP_BRANCH after outer"
+  - id: restart_reentry
+    mode: restart
+    parameters:
+      depth: int
+    then:
+      - logger.log:
+          format: "RESTART start %d"
+          args: [depth]
+      - lambda: |-
+          if (depth == 0)
+            id(restart_reentry).execute(1);
+      - logger.log:
+          format: "RESTART middle %d"
+          args: [depth]
+      - delay: 1ms
+      - logger.log:
+          format: "RESTART end %d"
+          args: [depth]
+  - id: parallel_limit
+    mode: parallel
+    max_runs: 1
+    then:
+      - logger.log: "PARALLEL start"
+      - lambda: id(parallel_limit).execute();
+      - logger.log: "PARALLEL end"
+  - id: reports_running
+    then:
+      - logger.log: "RUNNING first"
+      - lambda: |-
+          ESP_LOGI("test", "RUNNING during %d", id(reports_running).is_running());
+  - id: lambda_scope
+    mode: queued
+    parameters:
+      text: string
+    then:
+      # A return ends only its own lambda, and each lambda gets its own copy of the argument
+      - lambda: |-
+          text += "!";
+          ESP_LOGI("test", "SCOPE first %s", text.c_str());
+          return;
+      - lambda: |-
+          static int count = 0;
+          count++;
+          ESP_LOGI("test", "SCOPE second %s %d", text.c_str(), count);
+  - id: param_named_running
+    parameters:
+      running: int
+    then:
+      - logger.log:
+          format: "NAMED param first %d"
+          args: [running]
+      - lambda: |-
+          ESP_LOGI("test", "NAMED param second %d", running);
+  - id: uses_global_running
+    then:
+      - logger.log:
+          format: "NAMED global first %d"
+          args: [id(running)]
+      - lambda: |-
+          ESP_LOGI("test", "NAMED global second %d", id(running));

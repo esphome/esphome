@@ -3,7 +3,6 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION_STATE_TOPIC,
@@ -49,15 +48,15 @@ from esphome.const import (
     CONF_TEMPERATURE_STEP,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
-    CONF_WEB_SERVER,
     UNIT_KELVIN,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     TemperatureUnitResolver,
     convert_visual_temperatures,
     declare_fixed_temperature_unit,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
     setup_entity_temperature_unit,
@@ -177,11 +176,13 @@ _visual_temperatures_in_entity_unit = partial(
 
 
 _CLIMATE_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTClimateComponent")
+            ),
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature_with_unit,
@@ -353,10 +354,8 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_visual_max_humidity_override(max_humidity))
     setup_entity_temperature_unit(var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None:
         if (action_state_topic := config.get(CONF_ACTION_STATE_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_action_state_topic(action_state_topic))
         if (away_command_topic := config.get(CONF_AWAY_COMMAND_TOPIC)) is not None:
@@ -485,9 +484,6 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
             )
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
 
 
 def set_custom_fan_modes(var: MockObj, modes: list[str]) -> None:

@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     # The contract every platform's process_stacktrace implements.
     StacktraceHandler = Callable[[ConfigType, str, bool], bool]
@@ -122,3 +123,74 @@ class LogLineProcessor:
                     self._platform,
                     detail,
                 )
+
+
+# Crash handler report (rp2 and libretiny crash_handler.cpp): one address per line.
+CRASH_HANDLER_RE = re.compile(r"CRASH DETECTED ON PREVIOUS BOOT")
+CRASH_HANDLER_ADDR_RE = re.compile(
+    r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
+)
+
+# AmebaZ links each OTA slot at its own flash address, next to the main ELF. A report's addresses come from one
+# slot, so the ELF that last resolved one is tried first.
+_resolving_elf: dict[Path, Path] = {}
+
+
+def _addr2line(tool: str, elf: Path, addr: str) -> str:
+    # Lazy: __main__ imports this module on every CLI start
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [tool, "-pfiaC", "-e", str(elf), addr],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as err:
+        detail = getattr(err, "stderr", None) or str(err)
+        return f"{addr} (decode failed: {detail.strip()})"
+
+
+def process_crash_handler_line(
+    config: ConfigType, line: str, backtrace_state: bool
+) -> bool:
+    """Decode a crash handler report with addr2line; the process_stacktrace hook of rp2, bk72xx, rtl87xx and ln882x."""
+    if CRASH_HANDLER_RE.search(line):
+        _LOGGER.error("Crash detected - decoding addresses")
+        return True
+
+    if backtrace_state:
+        if match := CRASH_HANDLER_ADDR_RE.search(line):
+            from esphome.platformio.toolchain import get_idedata
+
+            addr = match.group(1)
+            idedata = get_idedata(config)
+            elf = idedata.firmware_elf_path
+            # Warn once per report and leave the dump region
+            if not idedata.addr2line_path:
+                _LOGGER.warning(
+                    "Cannot decode the crash report: no addr2line in the toolchain"
+                )
+                return False
+            if not elf.exists():
+                _LOGGER.warning(
+                    "Cannot decode the crash report: %s missing, compile locally first",
+                    elf,
+                )
+                return False
+            first = _resolving_elf.get(elf, elf)
+            candidates = (elf, *sorted(elf.parent.glob(f"{elf.stem}.ota*.elf")))
+            for candidate in (first, *(c for c in candidates if c != first)):
+                decoded = _addr2line(idedata.addr2line_path, candidate, addr)
+                if "?? ??:0" not in decoded and "(decode failed" not in decoded:
+                    _resolving_elf[elf] = candidate
+                    break
+            _LOGGER.error("  %s => %s", addr, decoded)
+
+        # The addr2line hint is the last line of the report
+        if "addr2line" in line:
+            return False
+
+    return backtrace_state

@@ -1,0 +1,22 @@
+---
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: nodemcu-32s
+
+uart:
+  - id: only_uart
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 9600
+
+modbus:
+  - id: only_hub
+    uart_id: only_uart
+
+modbus_monitor:
+  - on_request:
+      - logger.log: "sent"
