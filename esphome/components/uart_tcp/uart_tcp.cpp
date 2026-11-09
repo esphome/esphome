@@ -138,7 +138,8 @@ void UartTcp::read_uart_() {
       if (want == 0 || !this->read_array(tmp, want)) {
         return;
       }
-      this->noise_->queue(this->link_, tmp, want);
+      // want fits tx_free(), so queue() takes all of it unless a failed seal closes the link
+      (void) this->noise_->queue(this->link_, tmp, want);
     }
   }
 #endif
