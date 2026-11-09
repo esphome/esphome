@@ -423,15 +423,6 @@ uint32_t BME680Component::calc_meas_duration_() {
 
   return tph_dur;
 }
-void BME680Component::set_temperature_oversampling(BME680Oversampling temperature_oversampling) {
-  this->temperature_oversampling_ = temperature_oversampling;
-}
-void BME680Component::set_pressure_oversampling(BME680Oversampling pressure_oversampling) {
-  this->pressure_oversampling_ = pressure_oversampling;
-}
-void BME680Component::set_humidity_oversampling(BME680Oversampling humidity_oversampling) {
-  this->humidity_oversampling_ = humidity_oversampling;
-}
 void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_duration) {
   this->heater_temperature_ = heater_temperature;
   this->heater_duration_ = heater_duration;
