@@ -454,7 +454,7 @@ async def add_modbus_base_properties(
             [
                 (sensor_type.operator("ptr"), "item"),
                 (lambda_param_type, "x"),
-                (cg.std_span.template(cg.uint8.operator("const")), "data"),
+                (cg.byte_span, "data"),
             ],
             return_type=cg.optional.template(lambda_return_type),
         )
