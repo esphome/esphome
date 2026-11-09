@@ -8,6 +8,11 @@
 namespace esphome::remote_transmitter {
 
 ESPHOME_LOG_TAG(TAG, "remote_transmitter");
+#ifdef USE_ESP8266
+// The ESP8266 Wi-Fi interrupt handler asserts (hardware WDT) when held off about 1 ms, so a frame is not locked
+// whole there: interrupts are on until this long before each edge.
+static constexpr int32_t EDGE_LOCK_US = 50;
+#endif
 
 void RemoteTransmitterComponent::setup() {
   this->pin_->setup();
@@ -47,9 +52,20 @@ void RemoteTransmitterComponent::await_target_time_() {
   }
 }
 
-void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
+void RemoteTransmitterComponent::write_at_target_(bool value) {
+#ifdef USE_ESP8266
+  if (this->target_time_ != 0) {
+    while ((int32_t) (this->target_time_ - micros()) > EDGE_LOCK_US)
+      ;
+  }
+  InterruptLock lock;
+#endif
   this->await_target_time_();
-  this->pin_->digital_write(true);
+  this->pin_->digital_write(value);
+}
+
+void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
+  this->write_at_target_(true);
 
   const uint32_t target = this->target_time_ + usec;
   if (this->carrier_duty_percent_ < 100 && (on_time > 0 || off_time > 0)) {
@@ -57,22 +73,19 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
       this->target_time_ += on_time;
       if ((int32_t) (this->target_time_ - target) >= 0)
         break;
-      this->await_target_time_();
-      this->pin_->digital_write(false);
+      this->write_at_target_(false);
 
       this->target_time_ += off_time;
       if ((int32_t) (this->target_time_ - target) >= 0)
         break;
-      this->await_target_time_();
-      this->pin_->digital_write(true);
+      this->write_at_target_(true);
     }
   }
   this->target_time_ = target;
 }
 
 void RemoteTransmitterComponent::space_(uint32_t usec) {
-  this->await_target_time_();
-  this->pin_->digital_write(false);
+  this->write_at_target_(false);
   this->target_time_ += usec;
 }
 
@@ -85,7 +98,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     {
+#ifndef USE_ESP8266
       InterruptLock lock;
+#endif
       // Re-anchor every iteration: timing must never span a lock boundary, as micros() can
       // jump when interrupts are re-enabled between repeats (e.g. LibreTiny's Beken micros()
       // discards its interrupt-lock correction, stretching the repeat gap by the lock duration)
@@ -100,8 +115,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
         }
         App.feed_wdt();
       }
-      this->await_target_time_();  // wait for duration of last pulse
-      this->pin_->digital_write(false);
+      this->write_at_target_(false);  // wait for duration of last pulse
     }
 
     if (i + 1 < send_times) {

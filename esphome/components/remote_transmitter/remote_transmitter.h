@@ -106,6 +106,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
 
   void space_(uint32_t usec);
+  void write_at_target_(bool value);
 #endif
 #ifdef USE_RTL87XX
   // Carrier frequency the PWM is currently configured for; 0 = not yet configured
