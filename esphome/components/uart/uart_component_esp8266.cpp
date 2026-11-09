@@ -180,7 +180,8 @@ void ESP8266UartComponent::dump_config() {
                     this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
                                                                      : LOG_STR_LITERAL("start bit sampler"));
     }
-    if (this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD && this->sw_serial_->locks_whole_frame()) {
+    if (this->tx_pin_ != nullptr && this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD &&
+        this->sw_serial_->locks_whole_frame()) {
       ESP_LOGW(TAG, "  TX locks interrupts for whole bytes: another software UART receives above %u baud",
                (unsigned) SW_SERIAL_EDGE_MODE_MAX_BAUD);
     }
