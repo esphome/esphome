@@ -35,6 +35,8 @@ class BLEAdvertising {
 
   void start();
   void stop();
+  /// Send the services advertising from the next loop() once no config is in flight; loop() is the only sender.
+  void request_start() { this->restart_pending_ = true; }
   void on_config_complete();
   /// The stack was torn down and its pending completion events dropped.
   void reset_config_state();
