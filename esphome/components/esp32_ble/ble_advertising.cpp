@@ -75,8 +75,9 @@ void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
 }
 
 bool BLEAdvertising::config_pending_() const {
-  return this->configs_pending_ != 0 && static_cast<uint16_t>(App.get_loop_component_start_time() -
-                                                              this->config_sent_time_) < CONFIG_COMPLETE_TIMEOUT_MS;
+  // millis(), not the loop start time: the send follows the BLE event drain, which can take longer than the timeout
+  return this->configs_pending_ != 0 &&
+         static_cast<uint16_t>(millis() - this->config_sent_time_) < CONFIG_COMPLETE_TIMEOUT_MS;
 }
 
 void BLEAdvertising::reset_config_state() {
@@ -100,7 +101,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     ESP_LOGW(TAG, "Advertising config not confirmed within %u ms", (unsigned) CONFIG_COMPLETE_TIMEOUT_MS);
     this->configs_pending_ = 0;
   }
-  this->config_sent_time_ = static_cast<uint16_t>(App.get_loop_component_start_time());
+  this->config_sent_time_ = static_cast<uint16_t>(millis());
 
   // Bluedroid copies these during each config call
   uint8_t uuids[16 * MAX_ADVERTISED_UUIDS];
