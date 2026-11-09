@@ -190,7 +190,12 @@ class ESP32BLE final : public Component {
     }
     this->ble_events_.get_and_reset_dropped_count();
   }
-  void advertising_loop_();
+  ESPHOME_ALWAYS_INLINE void advertising_loop_() {
+#ifdef USE_ESP32_BLE_ADVERTISING
+    if (this->advertising_ != nullptr)
+      this->advertising_->loop();
+#endif
+  }
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
