@@ -3,7 +3,7 @@
 
 script/ci-custom.py fails when a CONF_ or UNIT_ constant is defined in three
 or more Python files. This script finds those constants and performs the move so a
-bot can open one pull request per constant.
+bot can open one pull request that moves them.
 
 Subcommands:
 

@@ -601,3 +601,25 @@ def test_unrelated_attribute_access_does_not_keep_import(repo: Path) -> None:
         "X = const.OTHER, os.path.CONF_MANY, foo().CONF_MANY, other.CONF_MANY\n",
     )
     assert read(repo, "esphome/components/c0/const.py") == ""
+
+
+def test_two_moves_in_a_row_share_files(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for i in range(3):
+        write(
+            repo,
+            f"esphome/components/c{i}/__init__.py",
+            'CONF_MANY = "many"\nCONF_MORE = "more"\n\nX = CONF_MANY, CONF_MORE\n',
+        )
+    write(repo, "esphome/core_user.py", "X = CONF_MANY, CONF_MORE\n")
+    mod.cmd_move(repo, "CONF_MANY")
+    mod.cmd_move(repo, "CONF_MORE")
+    assert capsys.readouterr().out == "esphome/const.py\nesphome/const.py\n"
+    assert read(repo, "esphome/const.py") == (
+        'CONF_AAA = "aaa"\nCONF_MANY = "many"\nCONF_MORE = "more"\nCONF_ZZZ = "zzz"\n'
+    )
+    assert read(repo, "script/ci-custom.py") == "CONST_PY_MAX_CONF = 7\n"
+    assert read(repo, "esphome/components/c0/__init__.py") == (
+        "from esphome.const import CONF_MANY, CONF_MORE\n\nX = CONF_MANY, CONF_MORE\n"
+    )
