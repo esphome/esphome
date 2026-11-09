@@ -6,6 +6,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/base_automation.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::core::testing {
 
@@ -409,8 +410,8 @@ class StackDepthAction : public Action<int> {
  public:
   void play_complex(const int &x) override {
     this->num_running_++;
-    volatile char here = 0;
-    auto at = reinterpret_cast<uintptr_t>(&here);
+    // The frame address, as AddressSanitizer may move locals to a fake stack
+    auto at = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
     this->lowest = std::min(this->lowest, at);
     this->highest = std::max(this->highest, at);
     this->play_next_(x);
@@ -568,6 +569,55 @@ TEST(ActionBranchOwner, WhileWithoutArgumentsContinuesBothEndsOfOnePass) {
   list.play();  // run A waits
   wait.pass = true;
   list.play();  // run B's pass releases A and ends itself
+  EXPECT_EQ(log, (Log{1, 1}));
+  EXPECT_FALSE(list.is_running());
+}
+
+// True for `passes` checks, then false once, then again: an inner loop's condition for each outer pass
+class CycleCondition : public Condition<int> {
+ public:
+  explicit CycleCondition(int passes) : passes_(passes) {}
+  bool check(const int & /*x*/) override { return ++this->count_ % (this->passes_ + 1) != 0; }
+
+ protected:
+  int passes_;
+  int count_{0};
+};
+
+// A while inside a while: each restores the other's frame, and neither stack grows
+TEST(ActionBranchOwner, NestedWhileBodiesKeepTheStackFlat) {
+  CountdownCondition<int> outer_cond(3);
+  CycleCondition inner_cond(5);
+  WhileAction<int> outer(&outer_cond);
+  WhileAction<int> inner(&inner_cond);
+  StackDepthAction outer_body, inner_body;
+  inner.add_then({&inner_body});
+  outer.add_then({&outer_body, &inner});
+  ActionList<int> list;
+  list.add_actions({&outer});
+
+  list.play(1);
+  EXPECT_EQ(outer_body.passes, 3);
+  EXPECT_EQ(inner_body.passes, 15);
+  EXPECT_LT(outer_body.highest - outer_body.lowest, 256U);
+  EXPECT_LT(inner_body.highest - inner_body.lowest, 256U);
+  EXPECT_FALSE(list.is_running());
+}
+
+// The second end in one pass keeps looping while the condition holds
+TEST(ActionBranchOwner, WhileWithoutArgumentsLoopsOnFromTheSecondEndOfOnePass) {
+  CountdownCondition<> cond(4);
+  WhileAction<> loop(&cond);
+  ReleaseAndPassAction wait;
+  Log log;
+  RecordAction after(&log, 1);
+  loop.add_then({&wait});
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();  // run A waits
+  wait.pass = true;
+  list.play();  // run B's pass releases A and ends itself; one of them passes once more
   EXPECT_EQ(log, (Log{1, 1}));
   EXPECT_FALSE(list.is_running());
 }
