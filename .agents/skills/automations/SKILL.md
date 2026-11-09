@@ -212,9 +212,8 @@ first, but must return its result unchanged and not use it. A builder that must 
 is registered with `automation.ApplyAction`, can call `apply_statements_action` and still merge; `script.execute`
 is an example. `if`, `choose`, `repeat` and a `while` with trigger arguments whose bodies are all inline become
 C++ control flow in the same function, and `register_apply_condition` and `lambda:` conditions become plain
-expressions there. A `while` without trigger arguments becomes an `ApplyWhileAction` instead, which lets the main
-loop run when a body that never waits loops for long; with arguments a loop never yields, as they may only be valid
-while the trigger runs.
+expressions there. A `while` without trigger arguments becomes an `ApplyWhileAction` instead, which can yield to the
+main loop; with arguments a loop never yields.
 
 ## Conditions
 

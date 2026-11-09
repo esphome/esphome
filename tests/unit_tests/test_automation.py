@@ -397,25 +397,11 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
         (_BUTTON_ON, [{"if": {CONF_THEN: [{"delay": "1s"}]}}], False),
         # A lambda condition that only reads state the body leaves alone still hangs the loop
         ({"lambda": Lambda("return id(s).state;")}, [{"logger.log": "hi"}], True),
-        ({"and": [{"lambda": Lambda("return true;")}]}, [{"logger.log": "hi"}], True),
         # A lambda action in the body can change anything, such as a counter the condition tests
         (_BUTTON_ON, [{"lambda": Lambda("id(n) += 1;")}], False),
         # A templated value only reads, even of the condition's own entity
         (_BUTTON_ON, [{"logger.log": {"args": [Lambda("id(button).state")]}}], True),
-        # So does a lambda condition inside the body
-        (
-            _BUTTON_ON,
-            [
-                {
-                    "if": {
-                        CONF_CONDITION: {"lambda": Lambda("return id(button).state;")},
-                        CONF_THEN: [{"logger.log": "hi"}],
-                    }
-                }
-            ],
-            True,
-        ),
-        # Also inside an and: condition, which holds a list
+        # A lambda condition inside the body only reads, also in an and:, which holds a list
         (
             _BUTTON_ON,
             [

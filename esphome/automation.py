@@ -326,6 +326,7 @@ class _CollectedAction(MockObj):
 _COLLECTED_ACTION = _CollectedAction("esphome__collected_action", "->")
 _RUNNING_PARAM = "esphome__running"
 # One statement of its own, so a function that nothing can stop can leave them all out
+# Kept as its own statement: _direct_function drops it and a while step rewrites it by matching it exactly
 _STOP_CHECK = f"if (!{_RUNNING_PARAM})\n  return;"
 # The same for a while step, where a stop ends the loop like a false condition
 _STOP_STEP = f"if (!{_RUNNING_PARAM})\n  return false;"
@@ -1392,6 +1393,7 @@ def _validate_choose_else(choices: list[ConfigType]) -> list[ConfigType]:
     return choices
 
 
+# _iter_actions knows this shape: a list of choices whose if: holds a condition
 @register_action(
     CONF_CHOOSE,
     IfAction,
@@ -1464,49 +1466,47 @@ async def choose_action_to_code(
     return var
 
 
+def _is_id_reference(id_: Any) -> bool:
+    # An id generated later is still None during validation
+    return isinstance(id_, ID) and not id_.is_declaration and id_.id is not None
+
+
 def _action_ids(actions: list[tuple[str, Any]]) -> set[str]:
     """The ids the actions act on, from their ``id`` option or their shorthand id."""
-    ids: set[str] = set()
-    for _, options in actions:
-        target = options.get(CONF_ID) if isinstance(options, dict) else options
-        # An id generated later is still None here
-        if (
-            isinstance(target, ID)
-            and not target.is_declaration
-            and target.id is not None
-        ):
-            ids.add(target.id)
-    return ids
+    return {
+        target.id
+        for _, options in actions
+        if _is_id_reference(
+            target := options.get(CONF_ID) if isinstance(options, dict) else options
+        )
+    }
 
 
 def _referenced_ids(value: Any) -> set[str]:
     # Lazy: importing esphome.config here would load it for every entity component
     from esphome.config import iter_ids
 
-    return {
-        id_.id
-        for id_, _ in iter_ids(value)
-        if not id_.is_declaration and id_.id is not None
-    }
+    return {id_.id for id_, _ in iter_ids(value) if _is_id_reference(id_)}
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # Only the body can change the condition when the loop cannot yield: a lambda action in it may
-    # change anything, and an action on an id the condition (or its lambda) reads may change that.
-    # Templated values and conditions inside the body only read. An empty body ends the loop at once.
+    # Only the body can change the condition when the loop cannot yield: a lambda action may change
+    # anything, and an action on an id the condition (or its lambda) reads may change that.
+    # An empty body ends the loop at once.
     body = config[CONF_THEN]
+    if not body:
+        return config
     actions = list(_iter_actions(body))
-    if (
-        body
-        and not has_non_synchronous_actions(body)
-        and all(key != CONF_LAMBDA for key, _ in actions)
-        and not _referenced_ids(config[CONF_CONDITION]) & _action_ids(actions)
+    if any(
+        key == CONF_LAMBDA
+        or (key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous)
+        for key, _ in actions
     ):
+        return config
+    if not _referenced_ids(config[CONF_CONDITION]) & _action_ids(actions):
         _LOGGER.warning(
-            "The body of a 'while' loop never waits. Unless the body itself changes the "
-            "condition, the loop holds up the rest of the device: other components only run "
-            "between some passes, and not at all in an automation with arguments. Add a "
-            "'delay' inside the loop."
+            "The body of a 'while' loop never waits, so the loop holds up the device until "
+            "the body changes the condition. Add a 'delay' inside the loop."
         )
     return config
 
@@ -1949,7 +1949,7 @@ def _iter_actions(actions: Any) -> Iterator[tuple[str, Any]]:
                 yield from _iter_option_actions(options)
 
 
-# Options that hold conditions, which hold no actions though `and:` and `or:` hold lists
+# Options that hold conditions, not actions, though and:/or: are lists
 _CONDITION_OPTIONS = frozenset((CONF_CONDITION, CONF_ANY, CONF_ALL, CONF_IF))
 
 

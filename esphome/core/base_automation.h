@@ -161,7 +161,7 @@ class ActionTimer {
     App.scheduler.set_action_timeout_(self, delay, std::move(func), parallel);
   }
   /// For a while without arguments: once its loop started at `start` ran too long, resumes it through play() on
-  /// the next main loop pass and returns true. A yielding run has no timeout of its own pending, so none is cancelled.
+  /// the next main loop pass and returns true. Parallel, as a yielding run has no timeout of its own pending.
   static bool yield_if_due(Action<> *self, uint32_t start) {
     if (millis() - start <= WHILE_YIELD_AFTER_MS)
       return false;
@@ -423,9 +423,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   // Branch-end resume hook
   void play(const Ts &...x) override {
-    // A body that did not wait ended inside run_loop_(), which loops again itself. Another run's wait ending here
-    // (a wait_until timeout) passes other argument storage; runs with the same storage are alike, so whichever
-    // pass takes such an end loops once for it, and a second end loops on its own.
+    // A body that ended without waiting is looped by run_loop_(); mark it ended. Another run's end passes other
+    // argument storage, and a second end in one pass loops on its own.
     Body *body = this->body_;
     if (body != nullptr && !body->ended && body->args == Keys{std::addressof(x)...}) {
       body->ended = true;
@@ -443,8 +442,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   // The argument storage, which tells a run from another run of this action
   using Keys = std::array<const void *, sizeof...(Ts)>;
-  // The body running synchronously, on the stack of run_loop_(); play() marks it ended. Per action, as
-  // automations can run on other tasks (microphone on_data).
+  // The body running synchronously, on the stack of run_loop_(); play() marks it ended. Per action, not
+  // shared, so loops of different actions never see each other's.
   struct Body {
     Keys args;
     bool ended;

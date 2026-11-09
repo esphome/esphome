@@ -19,12 +19,12 @@ climate:
       - logger.log:
           format: "Climate mode %d"
           args: [x.mode]
-      # A while with an argument that cannot be copied (Climate &), inline and with an object body
+      # A while with an argument that cannot be copied (Climate &): the inline and the WhileAction form
       - while:
           condition:
             lambda: return false;
           then:
-            - logger.log: inline body
+            - lambda: ESP_LOGD("test", "inline body");
       - while:
           condition:
             lambda: return false;

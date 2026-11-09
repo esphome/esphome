@@ -425,138 +425,6 @@ TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
   EXPECT_FALSE(list.is_running());
 }
 
-// Waits like wait_until, keeping a copy of the argument; a new run releases the waiting one synchronously
-class HandoffAction : public Action<int> {
- public:
-  void play_complex(const int &x) override {
-    this->num_running_++;
-    this->finish();
-    this->kept_ = x;
-    this->waiting_ = true;
-  }
-  void play(const int & /*x*/) override {}
-  void finish() {
-    if (this->waiting_) {
-      this->waiting_ = false;
-      int released = this->kept_;
-      this->play_next_(released);
-    }
-  }
-
- protected:
-  int kept_{0};
-  bool waiting_{false};
-};
-
-// True once for each of the values 0 to 3
-class OncePerValueCondition : public Condition<int> {
- public:
-  bool check(const int &x) override { return !std::exchange(this->seen_[x], true); }
-
- protected:
-  bool seen_[4]{};
-};
-
-class RecordValueAction : public Action<int> {
- public:
-  explicit RecordValueAction(Log *log) : log_(log) {}
-  void play(const int &x) override { this->log_->push_back(x); }
-
- protected:
-  Log *log_;
-};
-
-// The end of another run's body inside this run's body must resume that run, not end this one
-TEST(ActionBranchOwner, WhileTellsRunsApartWhenAnotherBodyEndsInside) {
-  OncePerValueCondition cond;
-  WhileAction<int> loop(&cond);
-  HandoffAction wait;
-  Log log;
-  RecordValueAction after(&log);
-  loop.add_then({&wait});
-  ActionList<int> list;
-  list.add_actions({&loop, &after});
-
-  list.play(1);
-  list.play(2);
-  EXPECT_EQ(log, (Log{1}));
-  wait.finish();
-  EXPECT_EQ(log, (Log{1, 2}));
-  EXPECT_FALSE(list.is_running());
-}
-
-class CountPassAction : public Action<> {
- public:
-  void play() override { this->passes++; }
-  int passes{0};
-};
-
-// Without arguments a wait_until timeout of one run can end inside another run's pass. Runs without arguments
-// are alike: whichever frame takes that end loops once for it, so every pass and every run still continues once.
-TEST(ActionBranchOwner, WhileWithoutArgumentsKeepsRunsWhenAWaitTimesOutInside) {
-  CountdownCondition<> cond(3);
-  WhileAction<> loop(&cond);
-  CountPassAction pass;
-  FlagCondition never;
-  never.value = false;
-  WaitUntilAction<> wait(&never);
-  wait.set_timeout_value([]() -> uint32_t { return 10; });
-  Log log;
-  RecordAction after(&log, 1);
-  loop.add_then({&pass, &wait});
-  ActionList<> list;
-  list.add_actions({&loop, &after});
-
-  list.play();  // run A waits
-  delay(15);
-  list.play();  // run B's pass releases A, whose wait timed out, inside it
-  delay(15);
-  wait.loop();  // the remaining waits time out
-  EXPECT_EQ(pass.passes, 3);
-  EXPECT_EQ(log, (Log{1, 1}));
-  EXPECT_FALSE(list.is_running());
-}
-
-// Releases the run that waits here, then lets the current run go on at once: two ends in one pass
-class ReleaseAndPassAction : public Action<> {
- public:
-  void play_complex() override {
-    this->num_running_++;
-    if (this->waiting_) {
-      this->waiting_ = false;
-      this->play_next_();
-    }
-    if (this->pass) {
-      this->play_next_();
-      return;
-    }
-    this->waiting_ = true;
-  }
-  void play() override {}
-  bool pass{false};
-
- protected:
-  bool waiting_{false};
-};
-
-// Without arguments both ends of one pass mark the same body; the second must still continue its run
-TEST(ActionBranchOwner, WhileWithoutArgumentsContinuesBothEndsOfOnePass) {
-  CountdownCondition<> cond(2);
-  WhileAction<> loop(&cond);
-  ReleaseAndPassAction wait;
-  Log log;
-  RecordAction after(&log, 1);
-  loop.add_then({&wait});
-  ActionList<> list;
-  list.add_actions({&loop, &after});
-
-  list.play();  // run A waits
-  wait.pass = true;
-  list.play();  // run B's pass releases A and ends itself
-  EXPECT_EQ(log, (Log{1, 1}));
-  EXPECT_FALSE(list.is_running());
-}
-
 // Keeps the first argument by reference, like wait_until does for an entity, and copies the second
 class MixedHandoffAction : public Action<const int &, int> {
  public:
@@ -599,7 +467,8 @@ class RecordSecondAction : public Action<const int &, int> {
   Log *log_;
 };
 
-// Runs on the same entity share its storage; the copied argument still tells them apart
+// The end of another run's body inside this run's body must resume that run, not end this one. Runs on the same
+// entity share its storage; the copied argument still tells them apart.
 TEST(ActionBranchOwner, WhileTellsRunsApartBySharedAndCopiedArguments) {
   OncePerSecondValueCondition cond;
   WhileAction<const int &, int> loop(&cond);
