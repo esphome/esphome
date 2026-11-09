@@ -395,8 +395,17 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
         (_BUTTON_ON, [{"logger.log": "hi"}], True),
         (_BUTTON_ON, [{"delay": "1s"}], False),
         (_BUTTON_ON, [{"if": {CONF_THEN: [{"delay": "1s"}]}}], False),
-        ({"lambda": Lambda("return true;")}, [{"logger.log": "hi"}], False),
-        ({"and": [{"lambda": Lambda("return true;")}]}, [{"logger.log": "hi"}], False),
+        # A lambda condition that only reads state the body leaves alone still hangs the loop
+        ({"lambda": Lambda("return id(s).state;")}, [{"logger.log": "hi"}], True),
+        ({"and": [{"lambda": Lambda("return true;")}]}, [{"logger.log": "hi"}], True),
+        # A lambda in the body can change anything, such as a counter the condition tests
+        (_BUTTON_ON, [{"lambda": Lambda("id(n) += 1;")}], False),
+        # The body acts on an entity the condition's lambda reads
+        (
+            {"lambda": Lambda("return id(s).state;")},
+            [{"switch.turn_off": {"id": ID("s")}}],
+            False,
+        ),
         # The body can turn the condition's own entity off
         (_BUTTON_ON, [{"binary_sensor.template.publish": {"id": ID("button")}}], False),
         (_BUTTON_ON, [{"binary_sensor.template.publish": {"id": ID("other")}}], True),

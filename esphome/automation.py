@@ -1484,15 +1484,15 @@ def _referenced_ids(value: Any) -> set[str]:
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # The body can change what a lambda condition tests, or the entity the condition reads.
+    # Only the body can change the condition when the loop cannot yield: a lambda in it may change
+    # anything, and an action on an id the condition (or its lambda) reads may change that.
     # An empty body ends the loop at once.
     body = config[CONF_THEN]
-    condition = config[CONF_CONDITION]
     if (
         body
         and not has_non_synchronous_actions(body)
-        and not _config_any(condition, cg.is_template)
-        and not _referenced_ids(condition) & _referenced_ids(body)
+        and not _config_any(body, cg.is_template)
+        and not _referenced_ids(config[CONF_CONDITION]) & _referenced_ids(body)
     ):
         _LOGGER.warning(
             "The body of a 'while' loop never waits, so it holds up the rest of the device: "
