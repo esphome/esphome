@@ -195,6 +195,12 @@ float BMP280Component::read_pressure_(int32_t t_fine) {
   p = ((p + var1 + var2) >> 8) + (p7 << 4);
   return (p / 256.0f) / 100.0f;
 }
+void BMP280Component::set_temperature_oversampling(BMP280Oversampling temperature_over_sampling) {
+  this->temperature_oversampling_ = temperature_over_sampling;
+}
+void BMP280Component::set_pressure_oversampling(BMP280Oversampling pressure_over_sampling) {
+  this->pressure_oversampling_ = pressure_over_sampling;
+}
 uint8_t BMP280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->bmp_read_byte(a_register, &data);

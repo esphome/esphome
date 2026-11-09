@@ -280,6 +280,15 @@ float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
 
   return h / 1024.0f;
 }
+void BME280Component::set_temperature_oversampling(BME280Oversampling temperature_over_sampling) {
+  this->temperature_oversampling_ = temperature_over_sampling;
+}
+void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over_sampling) {
+  this->pressure_oversampling_ = pressure_over_sampling;
+}
+void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
+  this->humidity_oversampling_ = humidity_over_sampling;
+}
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);
