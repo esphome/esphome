@@ -610,6 +610,66 @@ def lint_unit_from_const_py(fname, match):
     return err
 
 
+# Names that start with CONF_ or UNIT_ but are not config key or unit constants.
+NON_LITERAL_CONSTANT_ALLOWLIST = {"UNIT_OF_MEASUREMENT_MAX_LENGTH"}
+
+
+def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
+    """Yield the CONF_/UNIT_ names bound by an assignment target."""
+    if isinstance(target, ast.Name):
+        if (
+            target.id.startswith(("CONF_", "UNIT_"))
+            and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
+        ):
+            yield target
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            yield from _constant_names(elt)
+
+
+@lint_content_check(include=["esphome/*.py"])
+def lint_constant_is_plain_string(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    """Require module-level CONF_ and UNIT_ constants to be plain string literals.
+
+    Other scripts and lints (for example the duplicate constant checks above) read these
+    definitions as text, so a computed value would be missed or moved incorrectly.
+    """
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return []
+    errs: list[tuple[int, int, str]] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+            value = node.value
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+            value = None
+        else:
+            continue
+        if isinstance(value, ast.Constant) and type(value.value) is str:
+            continue
+        for target in targets:
+            for name in _constant_names(target):
+                example = highlight(f'{name.id} = "value"')
+                msg = (
+                    f"Constant {highlight(name.id)} must be set to a plain string "
+                    f"literal, such as {example}. Do not build it from other "
+                    "constants, f-strings, operators or function calls. If the value "
+                    "is not a config key or a unit, give it a name without the CONF_ "
+                    "or UNIT_ prefix."
+                )
+                errs.append((name.lineno, name.col_offset + 1, msg))
+    return errs
+
+
 RAW_PIN_ACCESS_RE = (
     r"^\s(pinMode|digitalWrite|digitalRead)\((.*)->get_pin\(\),\s*([^)]+).*\)"
 )
