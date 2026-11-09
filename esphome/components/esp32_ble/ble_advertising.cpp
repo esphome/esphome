@@ -79,10 +79,6 @@ bool BLEAdvertising::config_pending_() const {
 void BLEAdvertising::on_config_complete() {
   if (this->configs_pending_ != 0)
     this->configs_pending_--;
-  if (this->configs_pending_ == 0 && this->restart_pending_) {
-    this->restart_pending_ = false;
-    this->start();
-  }
 }
 
 esp_err_t BLEAdvertising::services_advertisement_() {
@@ -172,7 +168,7 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
-  // A completion event that never came: apply the deferred restart once the wait times out
+  // A restart deferred while configs were in flight
   if (this->restart_pending_ && !this->config_pending_()) {
     this->restart_pending_ = false;
     this->start();

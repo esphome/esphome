@@ -35,7 +35,6 @@ class BLEAdvertising {
 
   void start();
   void stop();
-  /// Called for ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT and ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT.
   void on_config_complete();
 
  protected:
