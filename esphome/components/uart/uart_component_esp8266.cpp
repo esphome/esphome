@@ -268,9 +268,10 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
-  // Above the edge mode limit a frame is short (at most about 310 us) and is locked whole: an interrupt between bits
-  // would stretch one, and the RX interrupt there reads a whole byte
-  this->lock_frame_ = baud_rate > SW_SERIAL_EDGE_MODE_MAX_BAUD;
+  const bool edge_mode = baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD;
+  // Above the edge mode limit TX locks the whole frame, well under 1 ms: the RX interrupt there reads a whole byte
+  // and must not run between TX bits
+  this->lock_frame_ = !edge_mode;
   // to_isr() allocates, so call it only for a new or changed pin
   if (tx_pin != nullptr) {
     if (tx_pin != this->gpio_tx_pin_)
@@ -292,7 +293,7 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     this->rx_.setup((RX_TICKS_PER_SECOND + baud_rate / 2) / baud_rate, data_bits, parity != UART_CONFIG_PARITY_NONE,
                     stop_bits, buffer, rx_buffer_size);
     this->rx_.reset(rx_now(), this->rx_pin_.digital_read());
-    if (baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
+    if (edge_mode) {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
     } else {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
