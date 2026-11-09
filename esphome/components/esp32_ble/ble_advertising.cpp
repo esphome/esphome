@@ -5,6 +5,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -100,18 +101,17 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   this->config_sent_time_ = App.get_loop_component_start_time();
 
   int num_services = this->advertising_uuids_.size();
-  if (num_services == 0) {
-    this->advertising_data_.service_uuid_len = 0;
-  } else {
-    this->advertising_data_.service_uuid_len = 16 * num_services;
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    this->advertising_data_.p_service_uuid = new uint8_t[this->advertising_data_.service_uuid_len];
-    uint8_t *p = this->advertising_data_.p_service_uuid;
-    for (int i = 0; i < num_services; i++) {
-      ESPBTUUID uuid = this->advertising_uuids_[i];
-      memcpy(p, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
-      p += 16;
-    }
+  std::unique_ptr<uint8_t[]> uuids;
+  if (num_services > 0)
+    uuids = std::make_unique<uint8_t[]>(16 * num_services);
+  // The stack copies the UUIDs during each config call, so the buffer only lives for this call
+  this->advertising_data_.service_uuid_len = 16 * num_services;
+  this->advertising_data_.p_service_uuid = uuids.get();  // nullptr when there are none
+  uint8_t *p = uuids.get();
+  for (int i = 0; i < num_services; i++) {
+    ESPBTUUID uuid = this->advertising_uuids_[i];
+    memcpy(p, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
+    p += 16;
   }
 
   esp_err_t err;
@@ -140,11 +140,6 @@ esp_err_t BLEAdvertising::services_advertisement_() {
       return err;
     }
     this->configs_pending_++;
-  }
-
-  if (this->advertising_data_.service_uuid_len > 0) {
-    delete[] this->advertising_data_.p_service_uuid;
-    this->advertising_data_.p_service_uuid = nullptr;
   }
 
   err = esp_ble_gap_start_advertising(&this->advertising_params_);
