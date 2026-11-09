@@ -145,12 +145,7 @@ void RP2UartComponent::setup() {
     this->serial_ = serial;
   } else {
     ESP_LOGV(TAG, "Using Hardware Serial");
-    SerialUART *serial;
-    if (hw_uart == 0) {
-      serial = &Serial1;
-    } else {
-      serial = &Serial2;
-    }
+    SerialUART *serial = hw_uart == 0 ? &Serial1 : &Serial2;
     if (this->tx_pin_ != nullptr)
       serial->setTX(this->tx_pin_->get_pin());
     if (this->rx_pin_ != nullptr)
