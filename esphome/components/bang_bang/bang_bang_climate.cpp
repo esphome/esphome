@@ -194,10 +194,6 @@ void BangBangClimate::change_away_(bool away) {
   this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
 }
 
-void BangBangClimate::set_normal_config(const BangBangClimateTargetTempConfig &normal_config) {
-  this->normal_config_ = normal_config;
-}
-
 void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &away_config) {
   this->supports_away_ = true;
   this->away_config_ = away_config;

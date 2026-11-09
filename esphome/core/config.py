@@ -884,11 +884,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     CORE.add_job(add_component_counts)
 
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
+    # Pre-init the list with exact capacity so calculate_looping_components_()
+    # can skip the counting pass; the storage is emitted by add_component_counts()
     cg.add(
         cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+            "App.looping_components_.init(std::span<Component *>("
+            "looping_components_storage, ESPHOME_LOOPING_COMPONENT_COUNT))"
         )
     )
 

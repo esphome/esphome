@@ -103,6 +103,14 @@ async def add_component_counts() -> None:
             f"  {constexpr_expr};"
         )
     )
+    # In namespace esphome so analyze-memory counts it as core; at least 1 to avoid a zero-length array
+    add_global(
+        RawStatement(
+            "namespace esphome {\n"
+            "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];\n"
+            "}  // namespace esphome"
+        )
+    )
 
 
 def _ensure_source_table_registered() -> None:

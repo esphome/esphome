@@ -266,7 +266,7 @@ def _looping_count_statement() -> str:
     lines = [
         str(s)
         for s in ch.CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
     ]
     assert len(lines) == 1
     return lines[0]
@@ -310,6 +310,12 @@ def test_looping_component_count_without_components_is_zero() -> None:
     ch.CORE.flush_tasks()
     rhs = _looping_count_statement().split("=", 1)[1]
     assert rhs.replace("\\\n", "").strip() == "0;"
+    # The storage is sized at least 1 so a zero count is not a zero-length array
+    assert any(
+        "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];"
+        in str(s)
+        for s in ch.CORE.global_statements
+    )
 
 
 @pytest.mark.usefixtures("stub_component_codegen")
