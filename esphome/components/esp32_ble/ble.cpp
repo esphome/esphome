@@ -244,6 +244,16 @@ void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
   this->advertising_refresh();
 }
 
+void ESP32BLE::advertising_set_priority_uuid(ESPBTUUID uuid) {
+  this->advertising_init_();
+  this->advertising_->set_priority_uuid(uuid);
+}
+
+void ESP32BLE::advertising_clear_priority_uuid() {
+  if (this->advertising_ != nullptr)
+    this->advertising_->clear_priority_uuid();
+}
+
 void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->remove_service_uuid(uuid);

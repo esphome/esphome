@@ -31,6 +31,10 @@ class BLEAdvertising {
   void set_service_data(const std::vector<uint8_t> &data);
   void set_service_data(std::span<const uint8_t> data);
   void set_include_name(bool include_name) { this->include_name_in_adv_ = include_name; }
+  /// Gives `uuid` and the service data the advertising packet to themselves, so passive scanners see them; the other
+  /// service UUIDs, manufacturer data and appearance move to the scan response. Applies on the next refresh.
+  void set_priority_uuid(ESPBTUUID uuid) { this->priority_uuid_ = uuid; }
+  void clear_priority_uuid() { this->priority_uuid_ = {}; }
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 
   void start();
@@ -45,6 +49,7 @@ class BLEAdvertising {
 
   bool scan_response_;
   bool include_name_in_adv_{false};
+  ESPBTUUID priority_uuid_;  // unset when no service has priority
   esp_ble_adv_data_t advertising_data_;
   esp_ble_adv_data_t scan_response_data_;
   esp_ble_adv_params_t advertising_params_;
