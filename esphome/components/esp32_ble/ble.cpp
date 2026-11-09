@@ -638,13 +638,6 @@ void ESP32BLE::loop() {
   this->advertising_loop_();
 }
 
-void ESP32BLE::advertising_loop_() {
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr)
-    this->advertising_->loop();
-#endif
-}
-
 void ESP32BLE::loop_handle_state_transition_not_active_() {
   // Caller ensures state_ != ACTIVE
   if (this->state_ == BLE_COMPONENT_STATE_DISABLE) {
@@ -741,7 +734,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
       enqueue_ble_event(event, param);
-      // A deferred advertising send waits for these
+      // A deferred advertising send waits for these; this runs on the Bluetooth task
       if (event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT || event == ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT)
         App.wake_loop_threadsafe();
       return;
