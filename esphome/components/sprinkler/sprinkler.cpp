@@ -19,11 +19,7 @@ void SprinklerControllerNumber::setup() {
   } else {
     this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
-      if (!std::isnan(this->initial_value_)) {
-        value = this->initial_value_;
-      } else {
-        value = this->traits.get_min_value();
-      }
+      value = !std::isnan(this->initial_value_) ? this->initial_value_ : this->traits.get_min_value();
     }
   }
   this->publish_state(value);
@@ -287,8 +283,6 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
     : valve_number_(valve_number), run_duration_(run_duration), valve_op_(valve_op) {}
 
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
-
-void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
 
 void SprinklerValveRunRequest::set_valve(size_t valve_number) {
   this->valve_number_ = valve_number;
