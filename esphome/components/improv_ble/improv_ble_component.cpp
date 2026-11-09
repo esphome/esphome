@@ -537,6 +537,8 @@ void ImprovBLEComponent::release_advertising_() {
     return;
   this->advertising_requested_ = false;
   esp32_ble::global_ble->advertising_clear_priority_uuid();
+  // A server may keep advertising: clear Improv's service data and leave the name in the scan response only
+  esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>{}, false);
   esp32_ble::global_ble->advertising_stop();
 }
 
