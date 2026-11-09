@@ -49,7 +49,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   uint8_t get_max_clients() const { return this->max_clients_; }
 
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
-  /// Adds a service the caller keeps alive (a static or member object); remove_service() never frees it.
+  /// Adds a service the caller keeps alive (such as a component member); remove_service() never frees it.
   /// Returns false when the UUID already has 255 instances.
   bool add_service(BLEService &service);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
