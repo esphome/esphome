@@ -292,11 +292,7 @@ void MSA3xxComponent::set_transform(bool mirror_x, bool mirror_y, bool mirror_z,
 void MSA3xxComponent::setup_odr_(DataRate rate) {
   RegOutputDataRate reg_odr;
   auto reg = this->read_byte(static_cast<uint8_t>(RegisterMap::ODR));
-  if (reg.has_value()) {
-    reg_odr.raw = reg.value();
-  } else {
-    reg_odr.raw = 0x0F;  // defaut from datasheet
-  }
+  reg_odr.raw = reg.value_or(0x0F);  // default from datasheet
 
   reg_odr.x_axis_disable = false;
   reg_odr.y_axis_disable = false;
@@ -311,11 +307,7 @@ void MSA3xxComponent::setup_power_mode_bandwidth_(PowerMode power_mode, Bandwidt
   auto reg = this->read_byte(static_cast<uint8_t>(RegisterMap::POWER_MODE_BANDWIDTH));
 
   RegPowerModeBandwidth power_mode_bandwidth;
-  if (reg.has_value()) {
-    power_mode_bandwidth.raw = reg.value();
-  } else {
-    power_mode_bandwidth.raw = 0xde;  // defaut from datasheet
-  }
+  power_mode_bandwidth.raw = reg.value_or(0xde);  // default from datasheet
 
   power_mode_bandwidth.power_mode = power_mode;
   power_mode_bandwidth.low_power_bandwidth = bandwidth;
