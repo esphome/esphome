@@ -4,8 +4,8 @@
 #ifdef USE_ESP32_BLE_ADVERTISING
 
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
-#include <memory>
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -15,6 +15,8 @@ namespace esphome::esp32_ble {
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 // Give up on a completion event after this long, so a lost event cannot stop advertising updates for good
 static constexpr uint32_t CONFIG_COMPLETE_TIMEOUT_MS = 1000;
+// A 31 byte packet fits at most 14 16-bit UUIDs (2 byte header + 2 bytes each); more can never be sent
+static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
 BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_data_.set_scan_rsp = false;
@@ -100,19 +102,13 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
   this->config_sent_time_ = App.get_loop_component_start_time();
 
-  int num_services = this->advertising_uuids_.size();
-  std::unique_ptr<uint8_t[]> uuids;
-  if (num_services > 0)
-    uuids = std::make_unique<uint8_t[]>(16 * num_services);
-  // The stack copies the UUIDs during each config call, so the buffer only lives for this call
+  // The stack copies the UUIDs during each config call, so a buffer on the stack is enough
+  uint8_t uuids[16 * MAX_ADVERTISED_UUIDS];
+  const size_t num_services = std::min(this->advertising_uuids_.size(), MAX_ADVERTISED_UUIDS);
+  for (size_t i = 0; i < num_services; i++)
+    memcpy(uuids + 16 * i, this->advertising_uuids_[i].as_128bit().get_uuid().uuid.uuid128, 16);
   this->advertising_data_.service_uuid_len = 16 * num_services;
-  this->advertising_data_.p_service_uuid = uuids.get();  // nullptr when there are none
-  uint8_t *p = uuids.get();
-  for (int i = 0; i < num_services; i++) {
-    ESPBTUUID uuid = this->advertising_uuids_[i];
-    memcpy(p, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
-    p += 16;
-  }
+  this->advertising_data_.p_service_uuid = num_services > 0 ? uuids : nullptr;
 
   esp_err_t err;
 
