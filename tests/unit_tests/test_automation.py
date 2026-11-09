@@ -428,6 +428,39 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
             ],
             True,
         ),
+        # And inside an if's any: or a choice's if:
+        (
+            _BUTTON_ON,
+            [
+                {
+                    "if": {
+                        "any": [{"lambda": Lambda("return true;")}],
+                        CONF_THEN: [{"logger.log": "hi"}],
+                    }
+                }
+            ],
+            True,
+        ),
+        (
+            _BUTTON_ON,
+            [
+                {
+                    "choose": [
+                        {
+                            "if": {"and": [{"lambda": Lambda("return true;")}]},
+                            CONF_THEN: [{"logger.log": "hi"}],
+                        }
+                    ]
+                }
+            ],
+            True,
+        ),
+        # Ids generated later are still None and match nothing
+        (
+            {"binary_sensor.is_on": {"id": ID(None)}},
+            [{"switch.turn_off": {"id": ID(None)}}],
+            True,
+        ),
         # A lambda action nested in the body still counts
         (_BUTTON_ON, [{"if": {CONF_THEN: [{"lambda": Lambda("id(n) += 1;")}]}}], False),
         # The body acts on an entity the condition's lambda reads

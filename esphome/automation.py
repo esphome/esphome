@@ -1469,7 +1469,12 @@ def _action_ids(actions: list[tuple[str, Any]]) -> set[str]:
     ids: set[str] = set()
     for _, options in actions:
         target = options.get(CONF_ID) if isinstance(options, dict) else options
-        if isinstance(target, ID) and not target.is_declaration:
+        # An id generated later is still None here
+        if (
+            isinstance(target, ID)
+            and not target.is_declaration
+            and target.id is not None
+        ):
             ids.add(target.id)
     return ids
 
@@ -1478,7 +1483,11 @@ def _referenced_ids(value: Any) -> set[str]:
     # Lazy: importing esphome.config here would load it for every entity component
     from esphome.config import iter_ids
 
-    return {id_.id for id_, _ in iter_ids(value) if not id_.is_declaration}
+    return {
+        id_.id
+        for id_, _ in iter_ids(value)
+        if not id_.is_declaration and id_.id is not None
+    }
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
@@ -1932,7 +1941,16 @@ def _iter_actions(actions: Any) -> Iterator[tuple[str, Any]]:
     elif isinstance(actions, dict):
         for key, options in actions.items():
             yield key, options
-            yield from _iter_option_actions(options)
+            if key == CONF_CHOOSE:
+                # A list of choices, not of actions
+                for choice in options:
+                    yield from _iter_option_actions(choice)
+            else:
+                yield from _iter_option_actions(options)
+
+
+# Options that hold conditions, which hold no actions though `and:` and `or:` hold lists
+_CONDITION_OPTIONS = frozenset((CONF_CONDITION, CONF_ANY, CONF_ALL, CONF_IF))
 
 
 def _iter_option_actions(options: Any) -> Iterator[tuple[str, Any]]:
@@ -1940,8 +1958,7 @@ def _iter_option_actions(options: Any) -> Iterator[tuple[str, Any]]:
         yield from _iter_actions(options)
     elif isinstance(options, dict):
         for key, value in options.items():
-            # A condition holds no actions, though `and:` and `or:` hold lists
-            if key != CONF_CONDITION:
+            if key not in _CONDITION_OPTIONS:
                 yield from _iter_option_actions(value)
 
 
