@@ -22,8 +22,11 @@ const char *const FRAME_750_VA = "\x02\nPAPP 00750 -\r\x03";
 class MockUARTComponent : public uart::UARTComponent {
  public:
   std::vector<uint8_t> rx;
+  // Bytes the meter sends while the hub reads: each byte read lets one of them arrive in rx.
+  std::vector<uint8_t> incoming;
 
   void push_rx(const char *data) { this->rx.insert(this->rx.end(), data, data + strlen(data)); }
+  void push_incoming(const char *data) { this->incoming.insert(this->incoming.end(), data, data + strlen(data)); }
 
   // UARTComponent
   void write_array(const uint8_t *data, size_t len) override {}
@@ -35,6 +38,9 @@ class MockUARTComponent : public uart::UARTComponent {
 
     std::copy(this->rx.begin(), this->rx.begin() + len, data);
     this->rx.erase(this->rx.begin(), this->rx.begin() + len);
+    const size_t arrived = std::min(len, this->incoming.size());
+    this->rx.insert(this->rx.end(), this->incoming.begin(), this->incoming.begin() + arrived);
+    this->incoming.erase(this->incoming.begin(), this->incoming.begin() + arrived);
     return true;
   }
 
@@ -84,6 +90,33 @@ TEST_F(TeleInfoTest, DropsFrameSentBetweenUpdates) {
   this->teleinfo_.loop();  // Decodes the frame and publishes PAPP.
 
   EXPECT_THAT(this->listener_.values, ::testing::ElementsAre("00750"));
+}
+
+// update() can come in the middle of a frame. The idle hub has already dropped the start of that frame,
+// so the update drops the rest of it as well and publishes the frame that starts after it.
+TEST_F(TeleInfoTest, DropsRestOfFrameCutByUpdate) {
+  this->uart_.push_rx("\x02\nPAPP ");  // The first 7 of the 16 bytes of FRAME_500_VA, from the start byte 0x02.
+  this->teleinfo_.loop();              // Before the update: drops them.
+
+  this->teleinfo_.update();
+  this->uart_.push_rx("00500 &\r\x03");  // The other 9 bytes: the value, its checksum and the end byte 0x03.
+  this->uart_.push_rx(FRAME_750_VA);
+  this->teleinfo_.loop();  // Drops those 9 bytes and finds the start byte 0x02 of FRAME_750_VA.
+  this->teleinfo_.loop();  // Reads up to the end byte 0x03.
+  this->teleinfo_.loop();  // Decodes the frame and publishes PAPP.
+
+  EXPECT_THAT(this->listener_.values, ::testing::ElementsAre("00750"));
+}
+
+// Bytes can come in as fast as the idle hub drops them. The hub drops only the bytes that were there when
+// the loop started, so the loop returns, and the bytes that came in meanwhile wait for the next loop.
+TEST_F(TeleInfoTest, DropsOnlyBytesAlreadyThereWhileIdle) {
+  this->uart_.push_rx(FRAME_500_VA);
+  this->uart_.push_incoming(FRAME_750_VA);  // Comes in while the hub reads, one byte for each byte read.
+  this->teleinfo_.loop();                   // Drops the 16 bytes of FRAME_500_VA.
+
+  // FRAME_750_VA came in meanwhile and is still there.
+  EXPECT_EQ(std::string(this->uart_.rx.begin(), this->uart_.rx.end()), FRAME_750_VA);
 }
 
 }  // namespace esphome::teleinfo::testing

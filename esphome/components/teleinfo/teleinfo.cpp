@@ -76,8 +76,9 @@ void TeleInfo::update() {
 void TeleInfo::loop() {
   switch (state_) {
     case STATE_OFF:
-      /* The meter keeps sending: drop chars until the next update so the UART buffer does not overflow */
-      this->discard_available();
+      /* The meter keeps sending: drop chars until the next update so the UART buffer does not overflow.
+       * Read only the chars already there, so the loop returns even when more arrive while it reads. */
+      this->read_available([](uint8_t) {});
       break;
     case STATE_ON:
       /* Dequeue chars until start frame (0x2) */
