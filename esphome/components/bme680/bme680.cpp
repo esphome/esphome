@@ -175,10 +175,8 @@ void BME680Component::update() {
   meas_control |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_control |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_control |= 0b01;  // forced mode
-  if (!this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)))
     return;
-  }
 
   this->set_timeout(DATA_TIMEOUT_ID, this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
