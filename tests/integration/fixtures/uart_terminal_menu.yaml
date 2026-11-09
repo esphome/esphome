@@ -1,0 +1,46 @@
+esphome:
+  name: uart-terminal-menu
+  # Draws the first frame when the test runs without periodic updates
+  on_boot:
+    priority: -100
+    then:
+      - component.update: terminal
+
+host:
+api:
+logger:
+  level: DEBUG
+
+# The test opens a pseudo terminal and puts its path here
+uart:
+  id: terminal_uart
+  port: UART_PORT
+  baud_rate: 115200
+
+display:
+  - platform: uart_terminal
+    id: terminal
+    dimensions: 12x2
+    update_interval: 100ms
+    lambda: |-
+      id(terminal_menu).draw();
+
+lcd_menu:
+  id: terminal_menu
+  display_id: terminal
+  active: true
+  mode: joystick
+  items:
+    - type: label
+      text: First
+    - type: label
+      text: Second
+    - type: label
+      text: Third
+
+binary_sensor:
+  - platform: uart
+    id: key_down
+    data: [0x1B, 0x5B, 0x42]
+    on_press:
+      - display_menu.down
