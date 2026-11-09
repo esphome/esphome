@@ -12,6 +12,8 @@
 namespace esphome::esp32_ble {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
+// Give up on a completion event after this long, so a lost event cannot stop advertising updates for good
+static constexpr uint32_t CONFIG_COMPLETE_TIMEOUT_MS = 1000;
 
 BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_data_.set_scan_rsp = false;
@@ -69,7 +71,29 @@ void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
   }
 }
 
+bool BLEAdvertising::config_pending_() const {
+  return this->configs_pending_ != 0 &&
+         App.get_loop_component_start_time() - this->config_sent_time_ < CONFIG_COMPLETE_TIMEOUT_MS;
+}
+
+void BLEAdvertising::on_config_complete() {
+  if (this->configs_pending_ != 0)
+    this->configs_pending_--;
+  if (this->configs_pending_ == 0 && this->restart_pending_) {
+    this->restart_pending_ = false;
+    this->start();
+  }
+}
+
 esp_err_t BLEAdvertising::services_advertisement_() {
+  if (this->config_pending_()) {
+    // Applied once the stack has taken the previous config
+    this->restart_pending_ = true;
+    return ESP_OK;
+  }
+  this->configs_pending_ = 0;
+  this->config_sent_time_ = App.get_loop_component_start_time();
+
   int num_services = this->advertising_uuids_.size();
   if (num_services == 0) {
     this->advertising_data_.service_uuid_len = 0;
@@ -95,6 +119,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Advertising): %s", esp_err_to_name(err));
     return err;
   }
+  this->configs_pending_++;
 
   if (this->scan_response_) {
     memcpy(&this->scan_response_data_, &this->advertising_data_, sizeof(esp_ble_adv_data_t));
@@ -109,6 +134,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
       ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %s", esp_err_to_name(err));
       return err;
     }
+    this->configs_pending_++;
   }
 
   if (this->advertising_data_.service_uuid_len > 0) {
@@ -134,6 +160,7 @@ void BLEAdvertising::start() {
 }
 
 void BLEAdvertising::stop() {
+  this->restart_pending_ = false;
   esp_err_t err = esp_ble_gap_stop_advertising();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_advertising failed: %d", err);
@@ -145,6 +172,11 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
+  // A completion event that never came: apply the deferred restart once the wait times out
+  if (this->restart_pending_ && !this->config_pending_()) {
+    this->restart_pending_ = false;
+    this->start();
+  }
   if (this->raw_advertisements_callbacks_.empty()) {
     return;
   }

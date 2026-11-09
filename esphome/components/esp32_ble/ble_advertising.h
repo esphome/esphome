@@ -35,9 +35,12 @@ class BLEAdvertising {
 
   void start();
   void stop();
+  /// Called for ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT and ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT.
+  void on_config_complete();
 
  protected:
   esp_err_t services_advertisement_();
+  bool config_pending_() const;
 
   bool scan_response_;
   bool include_name_in_adv_{false};
@@ -50,7 +53,12 @@ class BLEAdvertising {
 
   const uint32_t advertising_cycle_time_;
   uint32_t last_advertisement_time_{0};
+  uint32_t config_sent_time_{0};
   int8_t current_adv_index_{-1};  // -1 means standard scan response
+  // Bluedroid keeps the last advertising and scan response config in one static buffer and builds the packet from it
+  // later on another task; a new config before that frees it under the builder. Count the configs in flight.
+  uint8_t configs_pending_{0};
+  bool restart_pending_{false};
 };
 
 }  // namespace esphome::esp32_ble

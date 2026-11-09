@@ -552,6 +552,13 @@ void ESP32BLE::loop() {
           GAP_SCAN_COMPLETE_EVENTS:
           // Advertising complete events
           GAP_ADV_COMPLETE_EVENTS:
+#ifdef USE_ESP32_BLE_ADVERTISING
+            if ((gap_event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT ||
+                 gap_event == ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT) &&
+                this->advertising_ != nullptr) {
+              this->advertising_->on_config_complete();
+            }
+#endif
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
           // Security events
