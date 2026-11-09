@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_PLATFORM,
     CONF_PRIORITY,
+    CONF_SETUP_PRIORITY,
     CONF_THEN,
     PlatformFramework,
 )
@@ -208,6 +209,20 @@ def test_an_on_boot_action_runs_after_the_key_is_loaded(
     ):
         _check(set_core_config, runtime, _set_key_action("link", 600.0))
     assert _check(set_core_config, runtime, _set_key_action("link", 100.0)) == runtime
+
+
+def test_an_on_boot_action_runs_after_a_setup_priority_from_yaml(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # setup_priority: 100 loads the key at 100 instead of 200
+    runtime = {CONF_ID: ID("link"), CONF_ENCRYPTION: {}, CONF_SETUP_PRIORITY: 100.0}
+    # 150 is below 200, but runs before the key is loaded at 100
+    with pytest.raises(
+        cv.Invalid, match=r"needs a 'priority' below 100, the setup priority of 'link'"
+    ):
+        _check(set_core_config, runtime, _set_key_action("link", 150.0))
+    # 50 runs after the key is loaded
+    assert _check(set_core_config, runtime, _set_key_action("link", 50.0)) == runtime
 
 
 def test_an_api_action_without_api_encryption_warns(

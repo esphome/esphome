@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_PLATFORM,
     CONF_PRIORITY,
+    CONF_SETUP_PRIORITY,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
@@ -32,7 +33,8 @@ DOMAIN = "noise"
 
 _LOGGER = logging.getLogger(__name__)
 
-# The setup priority at which TcpUart and UartTcp load a saved key, setup_priority::AFTER_WIFI.
+# The setup priority at which TcpUart and UartTcp load a saved key, setup_priority::AFTER_WIFI,
+# unless setup_priority is set in yaml.
 # Keep it in step with their get_setup_priority() and the "below 200" in NoiseStream::save_key_().
 _KEY_LOAD_PRIORITY = 200
 
@@ -135,7 +137,8 @@ def _names_entry(node: object, action: str, entry_id: ID) -> bool:
 def final_validate_stream_key(owner: str) -> Callable[[ConfigType], ConfigType]:
     """Reject a stream key that equals this device's api or ota key: the peer
     device holds it. `<owner>.set_encryption_key` needs `encryption:` without a
-    key, in on_boot a priority below 200, and warns in an api without encryption."""
+    key, in on_boot a priority below the owner's setup priority, 200 unless
+    setup_priority is set, and warns in an api without encryption."""
 
     action = f"{owner}.set_encryption_key"
 
@@ -149,13 +152,14 @@ def final_validate_stream_key(owner: str) -> Callable[[ConfigType], ConfigType]:
                 f"'{action}' needs '{CONF_ENCRYPTION}:' without a '{CONF_KEY}' "
                 f"on '{config[CONF_ID]}'"
             )
+        load_priority = config.get(CONF_SETUP_PRIORITY, _KEY_LOAD_PRIORITY)
         for boot in full_config.get(CONF_ESPHOME, {}).get(CONF_ON_BOOT, []):
-            if boot[CONF_PRIORITY] >= _KEY_LOAD_PRIORITY and _names_entry(
+            if boot[CONF_PRIORITY] >= load_priority and _names_entry(
                 boot, action, config[CONF_ID]
             ):
                 raise cv.Invalid(
-                    f"'{action}' in '{CONF_ON_BOOT}' needs a '{CONF_PRIORITY}' "
-                    f"below {_KEY_LOAD_PRIORITY}"
+                    f"'{action}' in '{CONF_ON_BOOT}' needs a '{CONF_PRIORITY}' below "
+                    f"{load_priority:g}, the setup priority of '{config[CONF_ID]}'"
                 )
         if key is None:
             api = full_config.get(CONF_API)
