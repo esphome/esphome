@@ -76,6 +76,10 @@ ignore_types = (
     ".bin",
     ".wav",
 )
+GENERATED_WEB_SERVER_HTML = [
+    "esphome/components/web_server/server_index_v2.html",
+    "esphome/components/web_server/server_index_v3.html",
+]
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
@@ -283,7 +287,7 @@ def lint_executable_bit(fname: Path) -> str | None:
     return None
 
 
-@lint_content_find_check("\t", only_first=True)
+@lint_content_find_check("\t", only_first=True, exclude=GENERATED_WEB_SERVER_HTML)
 def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
@@ -293,7 +297,7 @@ def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg"])
+@lint_content_check(exclude=["*.svg", *GENERATED_WEB_SERVER_HTML])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -1016,7 +1020,7 @@ lint_re_check(
 )(lint_inclusive_language)
 
 
-@lint_re_check(r"[\t\r\f\v ]+$")
+@lint_re_check(r"[\t\r\f\v ]+$", exclude=GENERATED_WEB_SERVER_HTML)
 def lint_trailing_whitespace(fname, match):
     return "Trailing whitespace detected"
 
