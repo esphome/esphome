@@ -107,26 +107,22 @@ LzssCompression::LzssCompression(PacketInterface *lower, size_t max_packet_size,
 
 void LzssCompression::setup() {
   size_t lower_size = this->lower_->get_max_packet_size();
-  if (this->max_packet_size_ == 0 || lower_size <= HEADER_SIZE) {
-    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+  if (!this->setup_check(this->max_packet_size_ != 0 && lower_size > HEADER_SIZE,
+                         LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  }
-  RAMAllocator<uint8_t> allocator;
-  this->tx_input_ = allocator.allocate(2 * this->max_packet_size_ + lower_size);
-  if (this->tx_input_ == nullptr) {
-    this->mark_failed(LOG_STR("Not enough memory for the packet buffers"));
-    return;
-  }
-  this->rx_output_ = this->tx_input_ + this->max_packet_size_;
-  this->tx_output_ = this->rx_output_ + this->max_packet_size_;
+  // The packet buffers last, as tx_input_ being set means the layer is ready
   RAMAllocator<uint16_t> chains;
   this->head_ = chains.allocate((size_t{1} << HASH_BITS) + WINDOW);
-  if (this->head_ == nullptr) {
-    this->tx_input_ = nullptr;
-    this->mark_failed(LOG_STR("Not enough memory for the packet buffers"));
+  if (!this->setup_check(this->head_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
     return;
-  }
   this->previous_ = this->head_ + (size_t{1} << HASH_BITS);
+  RAMAllocator<uint8_t> allocator;
+  uint8_t *buffers = allocator.allocate(2 * this->max_packet_size_ + lower_size);
+  if (!this->setup_check(buffers != nullptr, LOG_STR("Not enough memory for the packet buffers")))
+    return;
+  this->rx_output_ = buffers + this->max_packet_size_;
+  this->tx_output_ = this->rx_output_ + this->max_packet_size_;
+  this->tx_input_ = buffers;
   this->lower_->add_packet_interface_listener(
       [this](const PacketBuffer &data, const PacketMetaData &meta_data) { this->receive_(data, meta_data); });
 }
