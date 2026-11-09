@@ -20,7 +20,9 @@ from esphome.cpp_generator import (
 )
 from esphome.types import ConfigType
 
-from .const import (
+# ZigbeeBinarySensor, ZigbeeNumber, ZigbeeSensor, and ZigbeeSwitch
+# are re-exported for existing consumers of this package's namespace.
+from .const import (  # noqa: F401  # pylint: disable=unused-import
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
     CONF_POWER_SOURCE,
@@ -39,6 +41,10 @@ from .const import (
     AnalogAttrs,
     AnalogAttrsOutput,
     BinaryAttrs,
+    ZigbeeBinarySensor,
+    ZigbeeNumber,
+    ZigbeeSensor,
+    ZigbeeSwitch,
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
