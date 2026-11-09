@@ -61,12 +61,8 @@ void UartTcp::sync_link_(bool up) {
   if (up) {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
-#ifdef USE_NOISE_STREAM
-    // The handshake's last read can leave session bytes the socket's ready flag does not show
-    if (this->noise_ != nullptr) {
-      this->rx_pending_ = true;
-    }
-#endif
+    // Read in the first pass: a handshake's last read can leave session bytes the socket's ready flag does not show
+    this->rx_pending_ = true;
   }
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->connected_binary_sensor_, up);
@@ -92,11 +88,7 @@ void UartTcp::read_socket_() {
   }
   uint8_t tmp[READ_CHUNK];
   size_t want = std::min(room, sizeof(tmp));
-#ifdef USE_NOISE_STREAM
-  ssize_t count = this->noise_ != nullptr ? this->noise_->read(this->link_, tmp, want) : this->link_.read(tmp, want);
-#else
-  ssize_t count = this->link_.read(tmp, want);
-#endif
+  ssize_t count = this->read_link_(tmp, want);
   if (count <= 0) {
     // A dropped link (-1) is cleaned up by sync_link_() on the next loop.
     if (count == 0) {

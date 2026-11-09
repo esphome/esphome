@@ -62,6 +62,15 @@ class UartTcp final : public Component, public uart::UARTDevice {
 #endif
     return this->link_.connected();
   }
+  /// Bytes from the link, decrypted with encryption; same returns as TcpClientLink::read().
+  ssize_t read_link_(uint8_t *buf, size_t len) {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->read(this->link_, buf, len);
+    }
+#endif
+    return this->link_.read(buf, len);
+  }
   /// Send what is queued; true once the link's buffer is empty.
   ESPHOME_ALWAYS_INLINE bool flush_link_() {
 #ifdef USE_NOISE_STREAM

@@ -1,11 +1,11 @@
 """Integration test for an encrypted uart_tcp server and tcp_uart client on host: pty
-bytes echoed over each new session, a client with another key and a plaintext peer."""
+bytes echoed over each new session. The wrong key and the plaintext peer run through
+the same stream in the tcp_uart test."""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-import contextlib
 import os
 import pathlib
 
@@ -13,10 +13,6 @@ import pytest
 
 from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-
-def _count(lines: list[str], text: str) -> int:
-    return sum(text in line for line in lines)
 
 
 @pytest.mark.asyncio
@@ -27,13 +23,10 @@ async def test_uart_tcp_noise(
     unused_tcp_port_factory: Callable[[], int],
 ) -> None:
     bridge_port = unused_tcp_port_factory()
-    locked_port = unused_tcp_port_factory()
     controller_fd, device_fd = os.openpty()
-    locked_controller_fd, locked_device_fd = os.openpty()
     os.set_blocking(controller_fd, False)
     # uart's validate_port wants a two segment device path.
     pty_link = pathlib.Path(f"/tmp/uart-tcp-noise-pty-{os.getpid()}")
-    locked_pty_link = pathlib.Path(f"/tmp/uart-tcp-noise-locked-pty-{os.getpid()}")
     loop = asyncio.get_running_loop()
     uart_rx = bytearray()
     uart_rx_event = asyncio.Event()
@@ -58,10 +51,7 @@ async def test_uart_tcp_noise(
     lines = LineWaiter()
     try:
         pty_link.symlink_to(os.ttyname(device_fd))
-        locked_pty_link.symlink_to(os.ttyname(locked_device_fd))
         yaml_config = yaml_config.replace("port: 18133", f"port: {bridge_port}")
-        yaml_config = yaml_config.replace("port: 18134", f"port: {locked_port}")
-        yaml_config = yaml_config.replace("LOCKED_PTY_PATH", str(locked_pty_link))
         yaml_config = yaml_config.replace("PTY_PATH", str(pty_link))
         loop.add_reader(controller_fd, on_controller_readable)
         async with (
@@ -71,9 +61,7 @@ async def test_uart_tcp_noise(
             assert (await client.device_info()).name == "uart-tcp-noise-test"
 
             # Both ends of the bridge report the session.
-            async with asyncio.timeout(15):
-                while _count(lines.lines, "Session encrypted") < 2:
-                    await asyncio.sleep(0.05)
+            await lines.wait_count("Session encrypted", 2, timeout=15)
 
             # Pty to the uart_tcp server, over both encrypted legs to the echo and back.
             # One write stays below the pty's input queue, which takes about 1 KiB at once.
@@ -81,39 +69,21 @@ async def test_uart_tcp_noise(
             assert os.write(controller_fd, data) == len(data)
             assert await read_uart(len(data)) == data
 
-            # The other key: the server names the key, the client logs the
-            # server's reason.
-            await lines.wait_for("Handshake failed: wrong encryption key")
-            await lines.wait_for("Peer rejected the handshake: Handshake MAC failure")
-
-            # A plaintext peer is closed; it may wait for the other key's
-            # attempt to end first.
-            reader, writer = await asyncio.open_connection("127.0.0.1", locked_port)
-            writer.write(b"AT\r\n")
-            await writer.drain()
-            with contextlib.suppress(ConnectionResetError):
-                assert await asyncio.wait_for(reader.read(8), 10) == b""
-            writer.close()
-            await lines.wait_for("Bad frame")
-
             # The quiet session ends; the client connects again with a new
             # handshake, and the bytes cross again.
             await lines.wait_for("Idle for")
             first_close = next(
                 i for i, line in enumerate(lines.lines) if "Idle for" in line
             )
-            async with asyncio.timeout(15):
-                while _count(lines.lines[first_close:], "Session encrypted") < 2:
-                    await asyncio.sleep(0.05)
-            assert os.write(controller_fd, data) == len(data)
-            assert await read_uart(len(data)) == data
-
             # Until the first idle close only the bridge had a session: one
             # line per end.
-            assert _count(lines.lines[:first_close], "Session encrypted") == 2
+            before_close = lines.lines[:first_close]
+            assert sum("Session encrypted" in line for line in before_close) == 2
+            await lines.wait_count("Session encrypted", 4, timeout=15)
+            assert os.write(controller_fd, data) == len(data)
+            assert await read_uart(len(data)) == data
     finally:
         loop.remove_reader(controller_fd)
-        for fd in (controller_fd, device_fd, locked_controller_fd, locked_device_fd):
-            os.close(fd)
+        os.close(controller_fd)
+        os.close(device_fd)
         pty_link.unlink(missing_ok=True)
-        locked_pty_link.unlink(missing_ok=True)
