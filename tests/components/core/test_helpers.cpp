@@ -430,6 +430,36 @@ TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   EXPECT_EQ(v.size(), 1u);
 }
 
+// --- StaticFixedVector ---
+
+namespace {
+struct Counted {
+  static inline int live = 0;
+  int v;
+  explicit Counted(int v) : v(v) { live++; }
+  Counted(const Counted &other) : v(other.v) { live++; }
+  ~Counted() { live--; }
+};
+}  // namespace
+
+TEST(StaticFixedVector, UsesStorageAndDestroysWithoutFreeing) {
+  alignas(Counted) static unsigned char raw[sizeof(Counted) * 2];
+  {
+    StaticFixedVector<Counted> v;
+    v.init(std::span<Counted>(reinterpret_cast<Counted *>(raw), 2));
+    EXPECT_EQ(v.capacity(), 2u);
+    EXPECT_NE(v.emplace_back(1), nullptr);
+    v.push_back(Counted(2));
+    v.push_back(Counted(3));  // beyond capacity, ignored
+    EXPECT_EQ(v.emplace_back(4), nullptr);
+    EXPECT_EQ(v.size(), 2u);
+    EXPECT_EQ(static_cast<void *>(v.begin()), static_cast<void *>(raw));
+    EXPECT_EQ(v[1].v, 2);
+    EXPECT_EQ(Counted::live, 2);
+  }  // a free() of the static array would crash or trip ASan here
+  EXPECT_EQ(Counted::live, 0);
+}
+
 // --- RAMAllocator::make_unique() ---
 
 namespace {

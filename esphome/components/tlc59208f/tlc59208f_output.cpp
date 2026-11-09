@@ -106,10 +106,8 @@ void TLC59208FOutput::loop() {
     ESP_LOGVV(TAG, "Channel %02u: pwm=%04u ", channel, pwm);
 
     uint8_t reg = TLC59208F_REG_PWM0 + channel;
-    if (!this->write_byte(reg, pwm)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_byte(reg, pwm)))
       return;
-    }
   }
 
   this->status_clear_warning();

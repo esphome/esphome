@@ -37,8 +37,18 @@ Setup: a Thread border router (see openthread.md) whose OMR prefix the laptop ro
 logs its build label every 10 s. The first image goes in over UF2, every later one with
 `ota.sh MODE YAML VER ADDR` to the device's OMR address. A full image (about 380 KB) takes about 130 s.
 
+- An ESP Thread Border Router board running ESPHome `openthread: border_router: rcp:` works as the border router
+  (pins in `boards.md`). Give both it and the device a fixed dataset with `force_dataset: true`; each keeps an old
+  stored dataset otherwise. The host learns the route to the OMR /64 from the border router's RA; ping the
+  device's OMR address before the first upload.
 - Install the smpclient version pinned in requirements. An older one fails with `unexpected keyword argument
-  'timeout_s'`, which looks like a PR bug.
+  'timeout_s'` and a missing `get_max_cbor_and_data_size`, which looks like a PR bug. Check the version with the
+  Python of the venv that runs ESPHome, not a system pip.
+- The build holds two `zephyr.uf2` files. Copy `.pioenvs/<name>/zephyr/zephyr.uf2` (the app, from 0x26000 up,
+  about 827 KB). `mcuboot/zephyr/zephyr.uf2` (about 70 KB) lands on the app slot and the board stops enumerating;
+  double tap RESET and copy the right one.
+- To log the device's addresses, format `otIp6GetUnicastAddresses()` by hand: `network::IPAddress::str_to()`
+  does not link on nRF52 (no `inet_ntop`).
 - A new image refuses the next upload (`No free slot. Testing mode but not confirmed yet.`) until it confirms itself.
   Wait about 4 minutes between uploads.
 - An image that is already in the secondary slot is only marked and reset (a few seconds). Change `ver` for every
@@ -53,7 +63,8 @@ logs its build label every 10 s. The first image goes in over UF2, every later o
   keeps TCP.
 - **The real OTA size limit is lower than the link limit.** The nRF Connect SDK partition manager overrides the device
   tree, so read `partitions.yml` in the build directory, not `zephyr.dts`. On the ItsyBitsy layout `mcuboot_primary` is
-  0x61000 (97 sectors of 4 KB) and the app partition 0x60e00 (396,800 B). MCUboot swap using move keeps one sector for
+  0x61000 (97 sectors of 4 KB, 0x2f000 to 0x90000) and the app partition 0x60e00 (396,800 B); `mcuboot_secondary`
+  is 0x90000 to 0xf1000 and `settings_storage` 0xf2000 to 0xf4000. MCUboot swap using move keeps one sector for
   its trailer and one for the move, so it only swaps in an image up to (97 - 1 - 1) × 4 KB = 389,120 B
   (`app_max_sectors()` and `app_max_size()` in bootutil `swap_move.c`). An image between 389,120 and 396,800 B links,
   uploads and the CLI reports `Successfully uploaded program`, but MCUboot never swaps it in: it stays pending in the
@@ -74,8 +85,8 @@ logs its build label every 10 s. The first image goes in over UF2, every later o
   (`cp` may report an I/O error then, which is normal), MCUboot finds no image header and clears the slot, and the
   image states show slot 0 only.
 - Over USB, the Adafruit UF2 bootloader only accepts blocks inside its app area (its `CURRENT.UF2` maps 0x1000 to
-  0xE9000). A UF2 with a block outside that area is never completed, and the bootloader then waits until a physical
-  reset, ignoring later files. Keep hand-made UF2 writes inside the app area.
+  0xE9000). A UF2 with a block outside that area is never completed, and the bootloader then ignores every
+  later file, even a good app UF2, until a physical reset (double tap RESET or replug). Keep hand-made UF2 writes inside the app area.
 - Results: https://github.com/esphome/esphome/pull/17245#issuecomment-6516152182,
   https://github.com/esphome/esphome/pull/17245#issuecomment-6518292041 (swap limit),
   https://github.com/esphome/esphome/pull/17245#issuecomment-6519010038 (retest)

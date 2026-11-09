@@ -1,0 +1,5 @@
+# Add to v6common.yaml: delays esp-netif's STA_CONNECTED handler by 300 ms (wrapper in v6probe.hpp)
+esphome:
+  build_flags:
+    - -Wl,--wrap=esp_netif_action_connected
+    - -DV6_INJECT
