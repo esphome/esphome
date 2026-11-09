@@ -259,8 +259,6 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_binary_sensor
     else:
         from .zigbee_esp32 import add_component as add_binary_sensor
@@ -271,8 +269,6 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_sensor
     else:
         from .zigbee_esp32 import add_component as add_sensor
@@ -283,8 +279,6 @@ async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_switch
     else:
         from .zigbee_esp32 import add_component as add_switch
@@ -301,8 +295,6 @@ async def setup_number(
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import zephyr_setup_number
 
         await zephyr_setup_number(entity, config, min_value, max_value, step)
