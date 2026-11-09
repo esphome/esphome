@@ -19,6 +19,7 @@ LightStateRTCState = light_ns.struct("LightStateRTCState")
 # Addressable strips
 ChannelColors = light_ns.struct("ChannelColors")
 BufferColorAccessor = light_ns.class_("BufferColorAccessor")
+PowerEstimation = light_ns.struct("PowerEstimation")
 
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)

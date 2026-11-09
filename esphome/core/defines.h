@@ -598,6 +598,7 @@
 #define USE_SPEAKER
 #define USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 #define USE_SPI
+#define USE_SPI_SOFTWARE
 #define USE_SPI_PSRAM_DMA
 #define USE_VOICE_ASSISTANT
 #ifndef USE_HOST
@@ -722,6 +723,9 @@
 #define USE_UDP_OMR_SOURCE
 #define USE_ZIGBEE
 #endif
+#if defined(USE_ESP32_VARIANT_ESP32)
+#define USE_I2C_ISR_GUARD
+#endif
 #if defined(USE_ESP32_VARIANT_ESP32S3)
 // Border router with a UART RCP; a native-radio border router (C5/C6) adds only the coexistence call
 #define USE_OPENTHREAD
@@ -781,6 +785,7 @@
 #define USE_SOCKET_IMPL_LWIP_TCP
 
 #define USE_SPI
+#define USE_SPI_SOFTWARE
 
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
@@ -822,6 +827,7 @@
 #define USE_RP2040_VARIANT_RP2040
 #define USE_RP2_WATCHDOG_TIMEOUT 8000
 #define USE_SPI
+#define USE_SPI_SOFTWARE
 #ifndef USE_ETHERNET
 #define USE_ETHERNET
 #endif

@@ -73,18 +73,9 @@ void HTU21DComponent::update() {
 
       this->status_clear_warning();
 
-      // HTU21D does have a heater module but does not have heater level
-      // Setting heater level to 1 in case the heater is ON
-      uint8_t heater_level = 0;
-      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
-        if (this->is_heater_enabled()) {
-          heater_level = 1;
-        } else {
-          heater_level = 0;
-        }
-      } else {
-        heater_level = this->get_heater_level();
-      }
+      // HTU21D has a heater but no heater level, so report 1 while the heater is on
+      const uint8_t heater_level =
+          this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D ? this->is_heater_enabled() : this->get_heater_level();
 
       ESP_LOGD(TAG, "Heater Level=%d", heater_level);
 

@@ -174,18 +174,10 @@ void MitsubishiClimate::transmit_state() {
       remote_state[9] = 1;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      if (this->fan_mode_ == MITSUBISHI_FAN_3L) {
-        remote_state[9] = 2;
-      } else {
-        remote_state[9] = 3;
-      }
+      remote_state[9] = this->fan_mode_ == MITSUBISHI_FAN_3L ? 2 : 3;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      if (this->fan_mode_ == MITSUBISHI_FAN_3L) {
-        remote_state[9] = 3;
-      } else {
-        remote_state[9] = 4;
-      }
+      remote_state[9] = this->fan_mode_ == MITSUBISHI_FAN_3L ? 3 : 4;
       break;
     case climate::CLIMATE_FAN_MIDDLE:
       remote_state[9] = 2;
