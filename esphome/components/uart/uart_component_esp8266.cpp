@@ -268,6 +268,9 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   // This instance counted itself if its RX ran the whole-byte interrupt
   if (this->lock_frame_ && this->gpio_rx_pin_ != nullptr)
     blocking_rx_count--;
+  // RX disabled: forget the old pin, so a later reload does not remove this instance from the count again
+  if (rx_pin == nullptr)
+    this->gpio_rx_pin_ = nullptr;
   this->bit_time_ = F_CPU / baud_rate;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
