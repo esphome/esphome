@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
