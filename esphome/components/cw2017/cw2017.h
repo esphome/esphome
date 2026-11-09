@@ -12,8 +12,8 @@ class CW2017 : public PollingComponent, public i2c::I2CDevice {
  public:
   explicit CW2017(const uint8_t *profile) : profile_(profile) {}
 
-  void set_battery_level_sensor(sensor::Sensor *sensor) { this->battery_level_sensor_ = sensor; }
-  void set_battery_voltage_sensor(sensor::Sensor *sensor) { this->battery_voltage_sensor_ = sensor; }
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(battery_voltage)
 
   void setup() override;
   void update() override;
@@ -29,8 +29,6 @@ class CW2017 : public PollingComponent, public i2c::I2CDevice {
   void wait_ready_(uint8_t attempt);
 
   const uint8_t *profile_;
-  sensor::Sensor *battery_level_sensor_{nullptr};
-  sensor::Sensor *battery_voltage_sensor_{nullptr};
   bool ready_{false};
   bool restart_pending_{false};
   uint8_t init_attempts_{0};

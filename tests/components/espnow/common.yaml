@@ -35,6 +35,18 @@ espnow:
         data: [0x01, 0x02, 0x03, 0x04, 0x05]
     - espnow.broadcast:
         data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'
+    - espnow.broadcast:
+        address: FF:FF:FF:FF:FF:FF
+        data: "options"
+        wait_for_sent: true
+        continue_on_error: false
+        on_sent:
+          - logger.log: "broadcast sent"
+        on_error:
+          - logger.log: "broadcast failed"
+    - espnow.send:
+        address: !lambda 'return {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};'
+        data: "lambda address"
     - espnow.send:
         address: 11:22:33:44:55:66
         data: !lambda 'return std::vector<uint8_t>(data, data + size);'

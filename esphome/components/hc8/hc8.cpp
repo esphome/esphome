@@ -62,8 +62,7 @@ void HC8Component::update() {
 
     const uint16_t ppm = encode_uint16(response[5], response[4]);
     ESP_LOGD(TAG, "HC8 Received CO₂=%uppm", ppm);
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(ppm);
+    PUBLISH_STATE(this->co2_sensor_, ppm);
   });
 }
 
@@ -72,8 +71,7 @@ void HC8Component::calibrate(uint16_t baseline) {
 
   std::array<uint8_t, 6> command{};
   std::copy(begin(HC8_COMMAND_CALIBRATE_PREAMBLE), end(HC8_COMMAND_CALIBRATE_PREAMBLE), begin(command));
-  command[3] = baseline >> 8;
-  command[4] = baseline;
+  put_be16(command.data() + 3, baseline);
   command[5] = 0;
 
   // the last byte is a checksum over the data

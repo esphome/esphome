@@ -60,6 +60,11 @@ optional<bool> Switch::get_initial_state_with_restore_mode() {
   }
   return initial_state;
 }
+optional<bool> Switch::get_initial_write_state() {
+  if (auto initial = this->get_initial_state_with_restore_mode())
+    return *initial != this->inverted_;
+  return {};
+}
 void Switch::restore() {
   if (auto initial = this->get_initial_state_with_restore_mode())
     this->control(*initial);

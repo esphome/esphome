@@ -15,10 +15,6 @@ class PM2005Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_sensor_type(SensorType sensor_type) { this->sensor_type_ = sensor_type; }
 
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { this->pm_1_0_sensor_ = pm_1_0_sensor; }
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { this->pm_2_5_sensor_ = pm_2_5_sensor; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { this->pm_10_0_sensor_ = pm_10_0_sensor; }
-
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -28,10 +24,10 @@ class PM2005Component final : public PollingComponent, public i2c::I2CDevice {
   uint8_t data_buffer_[12];
   SensorType sensor_type_{PM2005};
 
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-
+  SUB_SENSOR(pm_1_0)
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_10_0)
+ protected:
   uint8_t situation_value_index_{3};
   uint8_t pm_1_0_value_index_{4};
   uint8_t pm_2_5_value_index_{6};

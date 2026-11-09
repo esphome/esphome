@@ -304,11 +304,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
       // side parts
       int lhline_width = -(dxmax - dxmin) + 1;
       if (progress >= 50) {
-        if (float(dymax) < float(-dxmax) * tan_a) {
-          upd_dxmax = std::ceil(float(dymax) / tan_a);
-        } else {
-          upd_dxmax = -dxmax;
-        }
+        upd_dxmax = float(dymax) < float(-dxmax) * tan_a ? std::ceil(float(dymax) / tan_a) : -dxmax;
         this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color);  // left
         if (!dymax)
           this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border
@@ -319,11 +315,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
                                 rhline_width > lhline_width ? lhline_width : rhline_width, color);
         }
       } else {
-        if (float(dymin) > float(-dxmin) * tan_a) {
-          upd_dxmin = std::ceil(float(dymin) / tan_a);
-        } else {
-          upd_dxmin = -dxmin;
-        }
+        upd_dxmin = float(dymin) > float(-dxmin) * tan_a ? std::ceil(float(dymin) / tan_a) : -dxmin;
         lhline_width = -(dxmax + upd_dxmin) + 1;
         if (!dymax)
           this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border

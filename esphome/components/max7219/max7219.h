@@ -16,7 +16,8 @@ class MAX7219Component final : public PollingComponent,
                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  explicit MAX7219Component(uint8_t num_chips);
+  /// `buffer` holds 8 bytes per chip, a static array from code generation
+  MAX7219Component(uint8_t num_chips, uint8_t *buffer) : num_chips_(num_chips), buffer_(buffer) {}
 
   void set_writer(max7219_writer_t &&writer);
 
