@@ -143,17 +143,17 @@ static void unlink_wakeup_arg(ISRFuncArg *func_arg) {
   unregister_sleep_callback();
 }
 
-void ESP32InternalGPIOPin::enable_wakeup(gpio_int_type_t type) const {
+void ESP32InternalGPIOPin::enable_wakeup_(gpio_int_type_t type) const {
   gpio_num_t pin = this->get_pin_num();
   ext1_armed_mask[pin >> 5] |= (1U << (pin & 0x1F));
-  this->wake_enabled = true;
+  this->wake_enabled_ = true;
   esp_sleep_enable_ext1_wakeup_io(1ULL << pin,
                                   type == GPIO_INTR_HIGH_LEVEL ? ESP_EXT1_WAKEUP_ANY_HIGH : ESP_EXT1_WAKEUP_ANY_LOW);
 }
 
 static bool can_wake(gpio_num_t pin) { return esp_sleep_is_valid_wakeup_gpio(pin); }
 #else
-void ESP32InternalGPIOPin::enable_wakeup(gpio_int_type_t type) const {
+void ESP32InternalGPIOPin::enable_wakeup_(gpio_int_type_t type) const {
   gpio_wakeup_enable(this->get_pin_num(), type);
   esp_sleep_enable_gpio_wakeup();
 }
@@ -307,13 +307,13 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     unlink_wakeup_arg(func_args);
     esp_sleep_disable_ext1_wakeup_io(1ULL << this->get_pin_num());
     ext1_armed_mask[this->get_pin_num() >> 5] &= ~(1U << (this->get_pin_num() & 0x1F));
-    this->wake_enabled = false;
+    this->wake_enabled_ = false;
   }
 #endif
 
   if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
     gpio_set_intr_type(this->get_pin_num(), idf_type);
-    this->enable_wakeup(idf_type);
+    this->enable_wakeup_(idf_type);
     gpio_isr_handler_add(this->get_pin_num(), func, arg);
   } else {
     bool level = gpio_get_level(this->get_pin_num());
@@ -339,7 +339,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     func_args->arg = arg;
     arm_opposite(func_args, level);
     gpio_int_type_t opposite = level ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL;
-    this->enable_wakeup(opposite);
+    this->enable_wakeup_(opposite);
     gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     link_wakeup_arg(func_args);
@@ -400,7 +400,7 @@ void ESP32InternalGPIOPin::setup() {
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
 #if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && (SOC_RTCIO_PIN_COUNT > 0)
   // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
-  if (this->wake_enabled) {
+  if (this->wake_enabled_) {
     rtc_gpio_hold_dis(this->get_pin_num());
 #ifdef SOC_RTCIO_WAKE_SUPPORTED
     rtc_gpio_deinit(this->get_pin_num());
@@ -440,7 +440,7 @@ void ESP32InternalGPIOPin::detach_interrupt() const {
   if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
     esp_sleep_disable_ext1_wakeup_io(1ULL << this->get_pin_num());
     ext1_armed_mask[this->get_pin_num() >> 5] &= ~(1U << (this->get_pin_num() & 0x1F));
-    this->wake_enabled = false;
+    this->wake_enabled_ = false;
   }
   if (this->isr_func_arg_ != nullptr) {
     unlink_wakeup_arg(this->isr_func_arg_);
@@ -481,7 +481,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   const gpio_num_t num = pin->get_pin_num();
 #if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && (SOC_RTCIO_PIN_COUNT > 0)
   // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
-  if (pin->wake_enabled) {
+  if (pin->wake_enabled_) {
     const uint8_t rtc_io = pin->pin_flags_.rtc_io;
     rtcio_hal_hold_disable(rtc_io - 1);
 #ifdef SOC_RTCIO_WAKE_SUPPORTED

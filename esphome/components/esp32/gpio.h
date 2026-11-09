@@ -70,7 +70,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
-  void enable_wakeup(gpio_int_type_t type) const;
+  void enable_wakeup_(gpio_int_type_t type) const;
 #endif
 
   // Memory layout: 8 bytes total on 32-bit systems (4 bytes vtable pointer + the 4 below)
@@ -85,7 +85,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
   gpio::Flags isr_flags_{};      // Mode last set by ISRInternalGPIOPin::pin_mode()
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  mutable bool wake_enabled{false};
+  mutable bool wake_enabled_{false};
 #endif
   mutable ISRFuncArg *isr_func_arg_{nullptr};  // Edge emulation state, reused on every attach
 #endif
