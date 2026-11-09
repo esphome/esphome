@@ -102,7 +102,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
   this->config_sent_time_ = App.get_loop_component_start_time();
 
-  // The stack copies the UUIDs during each config call, so a buffer on the stack is enough
+  // Bluedroid copies the UUIDs during each config call, so a local buffer is enough
   uint8_t uuids[16 * MAX_ADVERTISED_UUIDS];
   const size_t num_services = std::min(this->advertising_uuids_.size(), MAX_ADVERTISED_UUIDS);
   for (size_t i = 0; i < num_services; i++)
