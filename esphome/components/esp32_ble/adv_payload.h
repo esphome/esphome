@@ -7,6 +7,8 @@
 #include <cstring>
 #include <span>
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::esp32_ble {
 
 /// A 31 byte advertising or scan response payload, packed in the order and with the fit rules of Bluedroid's
@@ -24,7 +26,8 @@ class AdvPayload {
       this->add_(0x01, &flags, 1);
   }
   void add_appearance(uint16_t appearance) {
-    const uint8_t value[2] = {static_cast<uint8_t>(appearance), static_cast<uint8_t>(appearance >> 8)};
+    uint8_t value[2];
+    put_le16(value, appearance);
     if (appearance != 0 && this->left_() > 3)
       this->add_(0x19, value, sizeof(value));
   }
@@ -50,12 +53,9 @@ class AdvPayload {
     this->add_short_uuids_(uuids, 4, 0x04);
     if (this->left_() < 18)
       return;
-    for (const auto &uuid : uuids) {
-      if (uuid_size(uuid) == 16) {
-        this->add_(0x07, uuid.data(), 16);
-        return;
-      }
-    }
+    auto it = std::find_if(uuids.begin(), uuids.end(), [](const auto &u) { return uuid_size(u) == 16; });
+    if (it != uuids.end())
+      this->add_(0x07, it->data(), 16);
   }
   /// Raw service data element (its first bytes are the UUID); dropped whole when it does not fit.
   void add_service_data(std::span<const uint8_t> data) {

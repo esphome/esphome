@@ -129,7 +129,7 @@ class ESP32BLE final : public Component {
   void advertising_stop();
   /// Apply the current payload and request count: advertise while requested, otherwise stop.
   void advertising_refresh();
-  /// Drop a restart requested for the next loop (the controller stopped advertising).
+  /// Drop a send queued for the next loop, where refreshes are merged (the controller stopped advertising).
   void advertising_cancel_deferred();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);

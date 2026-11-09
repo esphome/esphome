@@ -3,7 +3,6 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_ADVERTISING
 
-#include <cstdio>
 #include <algorithm>
 #include <cstring>
 #include "adv_payload.h"
@@ -19,10 +18,10 @@
 namespace esphome::esp32_ble {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
-// A 31 byte packet holds at most 14 16-bit UUIDs
+// One 31 byte packet holds at most 14 16-bit UUIDs
 static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
-// The TX power element Bluedroid sent: its BTM_BLE_ADV_TX_POWER map of the advertising power level
+// The TX power Bluedroid advertised, from its BTM_BLE_ADV_TX_POWER table
 static int8_t adv_tx_power_dbm() {
 #ifdef CONFIG_IDF_TARGET_ESP32
   static constexpr int8_t TX_POWER_DBM[] = {-12, -9, -6, -3, 0, 3, 6, 9};
@@ -75,12 +74,12 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   AdvPayload::UUID128 uuids[MAX_ADVERTISED_UUIDS + 1];
   size_t num_services = 0;
   if (priority)
-    memcpy(uuids[num_services++].data(), this->priority_uuid_.as_128bit().get_uuid().uuid.uuid128, 16);
+    memcpy(uuids[num_services++].data(), this->priority_uuid_.as_128bit().uuid128(), 16);
   for (const auto &uuid : this->advertising_uuids_) {
     if (num_services == std::size(uuids))
       break;
     if (uuid != this->priority_uuid_)  // an unset priority UUID matches nothing
-      memcpy(uuids[num_services++].data(), uuid.as_128bit().get_uuid().uuid.uuid128, 16);
+      memcpy(uuids[num_services++].data(), uuid.as_128bit().uuid128(), 16);
   }
   const std::span<const AdvPayload::UUID128> all_uuids(uuids, num_services);
   const std::span<const uint8_t> manufacturer_data(this->manufacturer_data_.data(), this->manufacturer_data_len_);
@@ -89,27 +88,21 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   const char *name = global_ble->device_name(name_buffer);
   const size_t name_len = strlen(name);
 
-  // No room for appearance and manufacturer data next to a priority UUID; they go to the scan response
+  // Each packet keeps Bluedroid's element order. With a priority UUID, appearance, manufacturer data and the other
+  // UUIDs move to the scan response, and the service data stays only in the advertising packet.
   AdvPayload adv;
+  AdvPayload rsp;
+  AdvPayload &extras = priority ? rsp : adv;
   adv.add_flags(ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
-  if (!priority)
-    adv.add_appearance(this->appearance_);
+  extras.add_appearance(this->appearance_);
   if (this->include_name_in_adv_)
     adv.add_name(name, name_len);
-  if (!priority)
-    adv.add_manufacturer_data(manufacturer_data);
-  adv.add_uuids(priority ? all_uuids.first(1) : all_uuids);
-  adv.add_service_data(service_data);
-
-  AdvPayload rsp;
-  if (priority)
-    rsp.add_appearance(this->appearance_);
   rsp.add_name(name, name_len);
-  if (priority)
-    rsp.add_manufacturer_data(manufacturer_data);
+  extras.add_manufacturer_data(manufacturer_data);
   rsp.add_tx_power(adv_tx_power_dbm());
-  // With a priority UUID the service data is already in the advertising packet
+  adv.add_uuids(priority ? all_uuids.first(1) : all_uuids);
   rsp.add_uuids(priority ? all_uuids.subspan(1) : all_uuids);
+  adv.add_service_data(service_data);
   if (!priority)
     rsp.add_service_data(service_data);
 
