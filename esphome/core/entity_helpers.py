@@ -35,7 +35,6 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_LIGHT,
     CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
@@ -1159,7 +1158,6 @@ _ZIGBEE_ENTITY_CLASSES = {
     "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
     "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
     "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
-    "light": (CONF_ZIGBEE_LIGHT, "ZigbeeLight", None),
 }
 
 
@@ -1181,7 +1179,7 @@ ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
 ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
 ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
-ZIGBEE_LIGHT_SCHEMA = _zigbee_entity_schema("light")
+ZIGBEE_LIGHT_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
 
 
 def lazy_load_validator(
