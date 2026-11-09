@@ -75,8 +75,8 @@ void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
 }
 
 bool BLEAdvertising::config_pending_() const {
-  return this->configs_pending_ != 0 &&
-         App.get_loop_component_start_time() - this->config_sent_time_ < CONFIG_COMPLETE_TIMEOUT_MS;
+  return this->configs_pending_ != 0 && static_cast<uint16_t>(App.get_loop_component_start_time() -
+                                                              this->config_sent_time_) < CONFIG_COMPLETE_TIMEOUT_MS;
 }
 
 void BLEAdvertising::reset_config_state() {
@@ -100,7 +100,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     ESP_LOGW(TAG, "Advertising config not confirmed within %u ms", (unsigned) CONFIG_COMPLETE_TIMEOUT_MS);
     this->configs_pending_ = 0;
   }
-  this->config_sent_time_ = App.get_loop_component_start_time();
+  this->config_sent_time_ = static_cast<uint16_t>(App.get_loop_component_start_time());
 
   // Bluedroid copies the UUIDs during each config call, so a local buffer is enough. A priority UUID goes
   // first and alone in the advertising packet, which it fills exactly with the service data; the rest go to the
