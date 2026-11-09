@@ -488,7 +488,10 @@ def test_warn_while_without_wait(
 ) -> None:
     config = {CONF_CONDITION: condition, CONF_THEN: body}
     assert _warn_while_without_wait(config) is config
-    assert ("body of a 'while' loop never waits" in caplog.text) is warns
+    assert ("never waits, so the loop holds up the device" in caplog.text) is warns
+    if warns:
+        # Names the loop by its condition
+        assert f"on '{next(iter(condition))}'" in caplog.text
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(

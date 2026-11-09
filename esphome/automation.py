@@ -1505,9 +1505,18 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
     ):
         return config
     if not _referenced_ids(config[CONF_CONDITION]) & _action_ids(actions):
+        # Lazy, see _referenced_ids
+        from esphome.config import path_context
+
+        where = ".".join(str(part) for part in path_context.get(()))
+        condition = next(
+            (key for key in config[CONF_CONDITION] if key != CONF_TYPE_ID), "?"
+        )
         _LOGGER.warning(
-            "The body of a 'while' loop never waits, so the loop holds up the device until "
-            "the body changes the condition. Add a 'delay' inside the loop."
+            "The body of the 'while' loop on '%s' in %s never waits, so the loop holds up "
+            "the device until the body changes the condition. Add a 'delay' inside the loop.",
+            condition,
+            where or "the configuration",
         )
     return config
 

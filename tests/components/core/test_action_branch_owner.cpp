@@ -599,4 +599,30 @@ TEST(ActionBranchOwner, ApplyWhileStoppedInAStepEndsTheRun) {
   EXPECT_EQ(step_passes, 2);
 }
 
+static int slow_passes = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Two passes that together take longer than the yield time
+static bool slow_step(const int &running) {
+  if (!running || slow_passes >= 2)
+    return false;
+  delay(WHILE_YIELD_AFTER_MS);
+  slow_passes++;
+  return true;
+}
+
+// Nothing runs a timeout once shutdown started, so a loop then must not yield. Last in the file: the flag stays set.
+TEST(ActionBranchOwner, WhileDoesNotYieldOnceShutdownStarted) {
+  ShutdownTrigger shutdown(0);
+  shutdown.on_shutdown();
+  Log log;
+  ApplyWhileAction<slow_step> loop;
+  RecordAction after(&log, 1);
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();
+  EXPECT_EQ(slow_passes, 2);
+  EXPECT_EQ(log, (Log{1}));
+}
+
 }  // namespace esphome::core::testing
