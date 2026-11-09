@@ -59,6 +59,12 @@ TEST_F(CST816TouchscreenTest, SentinelPositionIsIgnored) {
   EXPECT_TRUE(this->touchscreen_.get_touches().empty());
 }
 
+// The sentinel is checked on both axes; a valid X with Y=0xFFF is still an idle reading.
+TEST_F(CST816TouchscreenTest, SentinelYPositionIsIgnored) {
+  this->feed_(make_frame(1, 100, 0x0FFF));
+  EXPECT_TRUE(this->touchscreen_.get_touches().empty());
+}
+
 // x_raw_max_/y_raw_max_ are calibration endpoints, not validity limits: the base class applies them
 // after swapping axes and clamps readings outside them. A touch beyond the calibrated maximum is
 // still a real touch and must reach the base class.
