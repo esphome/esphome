@@ -1503,13 +1503,18 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
         # Lazy, see _referenced_ids
         from esphome.config import _format_location
 
-        condition = _registry_key(config[CONF_CONDITION])
-        location = getattr(condition, "esp_range", None)
+        condition = config[CONF_CONDITION]
+        # A list condition is wrapped in an `and:` that has no place in the file
+        while not hasattr(key := _registry_key(condition), "esp_range") and (
+            isinstance(items := condition[key], list) and items
+        ):
+            condition = items[0]
+        location = getattr(key, "esp_range", None)
         _LOGGER.warning(
-            "%s: the body of this 'while' loop on '%s' never waits, so the loop holds up "
+            "%sthe body of this 'while' loop on '%s' never waits, so the loop holds up "
             "the device until the body changes the condition. Add a 'delay' inside the loop.",
-            _format_location(location.start_mark if location else None),
-            condition,
+            f"{_format_location(location.start_mark)}: " if location else "",
+            key,
         )
     return config
 

@@ -494,6 +494,17 @@ def test_warn_while_without_wait(
         assert f"on '{next(iter(condition))}'" in caplog.text
 
 
+def test_warn_while_names_the_condition_inside_a_list(
+    mock_registry: dict[str, RegistryEntry],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A list condition is wrapped in an `and:`; the warning names the condition in it."""
+    _warn_while_without_wait(
+        {CONF_CONDITION: {"and": [_BUTTON_ON]}, CONF_THEN: [{"logger.log": "hi"}]}
+    )
+    assert "on 'binary_sensor.is_on'" in caplog.text
+
+
 def test_validate_no_deferring_actions_accepts_synchronous(
     mock_registry: dict[str, RegistryEntry],
 ) -> None:

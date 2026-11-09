@@ -610,8 +610,24 @@ static bool slow_step(const int &running) {
   return true;
 }
 
-// Nothing runs a timeout once shutdown started, so a loop then must not yield. Last in the file: the state stays set.
+// Never constructed: names Application's protected state bits through a member pointer
+struct AppStateAccess : Application {
+  static uint8_t Application::*state() { return &AppStateAccess::app_state_; }
+};
+
+// Restores App's state bits, so a shutdown started by a test does not reach later tests
+class AppStateRestore {
+ public:
+  AppStateRestore() : saved_(App.*AppStateAccess::state()) {}
+  ~AppStateRestore() { App.*AppStateAccess::state() = this->saved_; }
+
+ protected:
+  uint8_t saved_;
+};
+
+// Nothing runs a timeout once shutdown started, so a loop then must not yield
 TEST(ActionBranchOwner, WhileDoesNotYieldOnceShutdownStarted) {
+  AppStateRestore restore;
   App.run_safe_shutdown_hooks();
   ASSERT_TRUE(App.is_shutting_down());
   Log log;
@@ -624,5 +640,7 @@ TEST(ActionBranchOwner, WhileDoesNotYieldOnceShutdownStarted) {
   EXPECT_EQ(slow_passes, 2);
   EXPECT_EQ(log, (Log{1}));
 }
+
+TEST(ActionBranchOwner, ShutdownStateIsRestoredAfterTheTest) { EXPECT_FALSE(App.is_shutting_down()); }
 
 }  // namespace esphome::core::testing
