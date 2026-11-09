@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_ELSE,
     CONF_ID,
     CONF_IF,
+    CONF_LAMBDA,
     CONF_THEN,
     CONF_TIME,
     CONF_TIMEOUT,
@@ -1484,14 +1485,14 @@ def _referenced_ids(value: Any) -> set[str]:
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # Only the body can change the condition when the loop cannot yield: a lambda in it may change
-    # anything, and an action on an id the condition (or its lambda) reads may change that.
-    # An empty body ends the loop at once.
+    # Only the body can change the condition when the loop cannot yield: a lambda action in it may
+    # change anything, and an action on an id the condition (or its lambda) reads may change that.
+    # Templated values, such as logger.log args, only read. An empty body ends the loop at once.
     body = config[CONF_THEN]
     if (
         body
         and not has_non_synchronous_actions(body)
-        and not _config_any(body, cg.is_template)
+        and not _config_any(body, lambda v: isinstance(v, dict) and CONF_LAMBDA in v)
         and not _referenced_ids(config[CONF_CONDITION]) & _referenced_ids(body)
     ):
         _LOGGER.warning(

@@ -557,6 +557,68 @@ TEST(ActionBranchOwner, WhileWithoutArgumentsContinuesBothEndsOfOnePass) {
   EXPECT_FALSE(list.is_running());
 }
 
+// Keeps the first argument by reference, like wait_until does for an entity, and copies the second
+class MixedHandoffAction : public Action<const int &, int> {
+ public:
+  void play_complex(const int &entity, const int &value) override {
+    this->num_running_++;
+    this->finish();
+    this->entity_ = &entity;
+    this->value_ = value;
+    this->waiting_ = true;
+  }
+  void play(const int & /*entity*/, const int & /*value*/) override {}
+  void finish() {
+    if (this->waiting_) {
+      this->waiting_ = false;
+      int released = this->value_;
+      this->play_next_(*this->entity_, released);
+    }
+  }
+
+ protected:
+  const int *entity_{nullptr};
+  int value_{0};
+  bool waiting_{false};
+};
+
+class OncePerSecondValueCondition : public Condition<const int &, int> {
+ public:
+  bool check(const int & /*entity*/, const int &x) override { return !std::exchange(this->seen_[x], true); }
+
+ protected:
+  bool seen_[4]{};
+};
+
+class RecordSecondAction : public Action<const int &, int> {
+ public:
+  explicit RecordSecondAction(Log *log) : log_(log) {}
+  void play(const int & /*entity*/, const int &x) override { this->log_->push_back(x); }
+
+ protected:
+  Log *log_;
+};
+
+// Runs on the same entity share its storage; the copied argument still tells them apart
+TEST(ActionBranchOwner, WhileTellsRunsApartBySharedAndCopiedArguments) {
+  OncePerSecondValueCondition cond;
+  WhileAction<const int &, int> loop(&cond);
+  MixedHandoffAction wait;
+  Log log;
+  RecordSecondAction after(&log);
+  loop.add_then({&wait});
+  ActionList<const int &, int> list;
+  list.add_actions({&loop, &after});
+
+  const int entity = 0;
+  list.play(entity, 1);
+  list.play(entity, 2);
+  EXPECT_EQ(log, (Log{1}));
+  wait.finish();
+  EXPECT_EQ(log, (Log{1, 2}));
+  EXPECT_FALSE(list.is_running());
+}
+
 static int step_passes = 0;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static ActionList<> *step_list = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static int step_stop_on = 0;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

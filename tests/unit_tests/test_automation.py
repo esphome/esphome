@@ -398,8 +398,10 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
         # A lambda condition that only reads state the body leaves alone still hangs the loop
         ({"lambda": Lambda("return id(s).state;")}, [{"logger.log": "hi"}], True),
         ({"and": [{"lambda": Lambda("return true;")}]}, [{"logger.log": "hi"}], True),
-        # A lambda in the body can change anything, such as a counter the condition tests
+        # A lambda action in the body can change anything, such as a counter the condition tests
         (_BUTTON_ON, [{"lambda": Lambda("id(n) += 1;")}], False),
+        # A templated value only reads
+        (_BUTTON_ON, [{"logger.log": {"args": [Lambda("id(s).state")]}}], True),
         # The body acts on an entity the condition's lambda reads
         (
             {"lambda": Lambda("return id(s).state;")},

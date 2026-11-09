@@ -397,15 +397,6 @@ template<auto Step> class ApplyWhileAction final : public ApplyWhileActionBase {
   void play() override { this->run_(Step); }
 };
 
-/// The while body running synchronously, on the stack of WhileAction::run_loop_(); play() marks it ended.
-/// One for all loops instead of a member, as the main loop runs one body at a time.
-struct WhileBody {
-  const void *owner;
-  const void *args;  // tells this run from another run of the same action
-  bool ended;
-};
-inline WhileBody *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
@@ -433,10 +424,10 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // Branch-end resume hook
   void play(const Ts &...x) override {
     // A body that did not wait ended inside run_loop_(), which loops again itself. Another run's wait ending here
-    // (a wait_until timeout) passes other argument storage; runs without arguments are alike, so whichever pass
-    // takes such an end loops once for it, and a second end loops on its own.
-    WhileBody *body = active_while_body;
-    if (body != nullptr && !body->ended && body->owner == this && body->args == args_key(x...)) {
+    // (a wait_until timeout) passes other argument storage; runs with the same storage are alike, so whichever
+    // pass takes such an end loops once for it, and a second end loops on its own.
+    Body *body = this->body_;
+    if (body != nullptr && !body->ended && body->args == Keys{std::addressof(x)...}) {
       body->ended = true;
       return;
     }
@@ -450,22 +441,21 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   }
 
  protected:
-  static const void *args_key(const Ts &...x) {
-    if constexpr (sizeof...(Ts) == 0) {
-      return nullptr;
-    } else {
-      return [](const auto &first, const auto &.../*rest*/) {
-        return static_cast<const void *>(std::addressof(first));
-      }(x...);
-    }
-  }
+  // The argument storage, which tells a run from another run of this action
+  using Keys = std::array<const void *, sizeof...(Ts)>;
+  // The body running synchronously, on the stack of run_loop_(); play() marks it ended. Per action, as
+  // automations can run on other tasks (microphone on_data).
+  struct Body {
+    Keys args;
+    bool ended;
+  };
 
   // Runs the body in a loop, not by recursion, while it ends without waiting
   void run_loop_(const Ts &...x) {
     [[maybe_unused]] uint32_t start{};
     if constexpr (sizeof...(Ts) == 0)
       start = millis();
-    const void *key = args_key(x...);
+    const Keys keys{std::addressof(x)...};
     while (true) {
       // The condition may stop this automation
       if (this->num_running_ == 0 || !this->condition_->check(x...) || this->num_running_ == 0) {
@@ -473,11 +463,11 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
         return;
       }
       // On the stack, as the body can start this action again
-      WhileBody body{this, key, false};
-      WhileBody *outer = active_while_body;
-      active_while_body = &body;
+      Body body{keys, false};
+      Body *outer = this->body_;
+      this->body_ = &body;
       this->then_.play(x...);
-      active_while_body = outer;
+      this->body_ = outer;
       // A body that waits resumes through play() later
       if (!body.ended)
         return;
@@ -490,6 +480,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  Body *body_{nullptr};
 };
 
 // Forward declaration for RepeatLoopContinuation
