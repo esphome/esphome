@@ -1039,8 +1039,8 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
-    def using_toolchain_sdk_zephyr(self):
-        return self.toolchain == Toolchain.SDK_ZEPHYR
+    def using_toolchain_zephyr(self):
+        return self.toolchain == Toolchain.ZEPHYR
 
     @property
     def using_toolchain_arduino(self):

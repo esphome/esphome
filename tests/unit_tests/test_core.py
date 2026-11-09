@@ -993,12 +993,12 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.ESP_IDF
         assert target.using_toolchain_sdk_nrf is False
 
-    def test_using_toolchain_sdk_zephyr(self, target):
-        """using_toolchain_sdk_zephyr is True only for the SDK_ZEPHYR toolchain."""
-        target.toolchain = const.Toolchain.SDK_ZEPHYR
-        assert target.using_toolchain_sdk_zephyr is True
+    def test_using_toolchain_zephyr(self, target):
+        """using_toolchain_zephyr is True only for the ZEPHYR toolchain."""
+        target.toolchain = const.Toolchain.ZEPHYR
+        assert target.using_toolchain_zephyr is True
         target.toolchain = const.Toolchain.SDK_NRF
-        assert target.using_toolchain_sdk_zephyr is False
+        assert target.using_toolchain_zephyr is False
 
     def test_using_toolchain_arduino(self, target):
         """A toolchain choice, distinct from the arduino target framework."""
