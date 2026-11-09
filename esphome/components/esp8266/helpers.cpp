@@ -15,8 +15,10 @@ bool random_bytes(uint8_t *data, size_t len) { return os_get_random(data, len) =
 // ESP8266 Mutex is defined inline as a no-op in helpers.h when USE_ESP8266 (or USE_RP2) is set,
 // independent of the ESPHOME_THREAD_SINGLE thread model define.
 
+#ifndef __XTENSA__
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
+#endif
 
 // ESP8266 LwIPLock is defined inline as a no-op in helpers.h
 
