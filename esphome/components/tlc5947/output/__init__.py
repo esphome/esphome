@@ -22,6 +22,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="tlc5947", hub_key=CONF_TLC5947_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)

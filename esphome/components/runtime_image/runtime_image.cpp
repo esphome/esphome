@@ -1,5 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdint>
@@ -91,11 +92,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       auto on = is_color_on(color);
       if (this->has_transparency() && color.w < 0x80)
         on = false;
-      if (on) {
-        this->buffer_[pos] |= bitno;
-      } else {
-        this->buffer_[pos] &= ~bitno;
-      }
+      assign_bits(this->buffer_[pos], bitno, on);
       break;
     }
     case image::IMAGE_TYPE_RGB111: {
@@ -116,7 +113,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
     }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+      // 0.2125, 0.7154 and 0.0721 in 1/256ths, summing to 256 so white stays 255. Integer maths: the S3 has no
+      // double FPU
+      auto gray = static_cast<uint8_t>((54 * color.r + 183 * color.g + 19 * color.b) >> 8);
       if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;

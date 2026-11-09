@@ -11,10 +11,11 @@ import asyncio
 import base64
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import functools
 import logging
 from pathlib import Path
+import re
 import shutil
 import socket
 import zlib
@@ -33,6 +34,7 @@ from .const import (
     ZERO_PSK,
 )
 from .host_prefs import force_safe_mode
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
 
@@ -192,6 +194,11 @@ async def _run_ota(
     return rc
 
 
+REBOOTED = "Rebooting safely"
+INFLATED = re.compile(r"Inflated .* bytes from ")
+CORRUPT_STREAM = re.compile(r"Inflate err|Inflate overrun|End update err")
+
+
 @dataclass
 class _Device:
     """A running host binary and the checks every successful OTA repeats:
@@ -201,24 +208,21 @@ class _Device:
     ota_port: int
     binary_path: Path
     proc: asyncio.subprocess.Process | None = None
-    reboots: int = 0
-    inflates: int = 0
-
-    def __post_init__(self) -> None:
-        self._rebooted = asyncio.Event()
+    waiter: LineWaiter = field(default_factory=LineWaiter)
 
     def on_log(self, line: str) -> None:
-        if "Rebooting safely" in line:
-            self.reboots += 1
-            self._rebooted.set()
-        if "Inflated " in line and " bytes from " in line:
-            self.inflates += 1
+        self.waiter.callback(line)
+
+    @property
+    def reboots(self) -> int:
+        return self.waiter.count(REBOOTED)
+
+    @property
+    def inflates(self) -> int:
+        return self.waiter.count(INFLATED)
 
     async def wait_reboot(self, count: int, timeout: float = 10.0) -> None:
-        async with asyncio.timeout(timeout):
-            while self.reboots < count:
-                self._rebooted.clear()
-                await self._rebooted.wait()
+        await self.waiter.wait_count(REBOOTED, count, timeout, "device did not reboot")
 
     async def ota(
         self,
@@ -298,21 +302,17 @@ async def test_host_ota_self_update(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    staged = asyncio.Event()
-
-    def on_log(line: str) -> None:
-        if "OTA staged at" in line:
-            staged.set()
-        dev.on_log(line)
-
-    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         async with wait_and_connect_api_client(port=dev.api_port) as client:
             info_before = await assert_device_name(client, DEVICE_NAME)
 
         await dev.ota(None, None, "espota2 reported failure")
-        assert staged.is_set()
+        assert dev.waiter.count("OTA staged at")
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
             await assert_device_name(client, info_before.name)
@@ -336,23 +336,15 @@ async def test_host_ota_deflate(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    errors: list[str] = []
-
-    def on_log(line: str) -> None:
-        # A corrupt stream is caught by the decoder, by the size check or by
-        # the MD5 at the end, depending on where the damage lands
-        if any(
-            text in line
-            for text in ("Inflate err", "Inflate overrun", "End update err")
-        ):
-            errors.append(line)
-        dev.on_log(line)
 
     def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
         """A stream that inflates past the size the client announced."""
         return _REAL_COMPRESS(data + bytes(8192), *args, **kwargs)
 
-    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
 
@@ -370,14 +362,18 @@ async def test_host_ota_deflate(
         with monkeypatch.context() as m:
             m.setattr(zlib, "compress", _corrupt_compress)
             await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
-        assert errors, "device did not report the corrupt stream"
+        # A corrupt stream is caught by the decoder, by the size check or by
+        # the MD5 at the end, depending on where the damage lands
+        assert dev.waiter.count(CORRUPT_STREAM), (
+            "device did not report the corrupt stream"
+        )
 
         # So does a stream that inflates past the announced image size
-        errors.clear()
+        overruns = dev.waiter.count("Inflate overrun")
         with monkeypatch.context() as m:
             m.setattr(zlib, "compress", overlong_compress)
             await dev.refused_ota(None, None, "overlong deflate stream was accepted")
-        assert any("Inflate overrun" in line for line in errors), (
+        assert dev.waiter.count("Inflate overrun") > overruns, (
             "device wrote past the announced size"
         )
 

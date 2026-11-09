@@ -593,6 +593,26 @@ class TestEsphomeCore:
 
         assert target.address == "1.2.3.4"
 
+    @pytest.mark.parametrize(
+        ("priority", "expected"),
+        [
+            (None, "10.0.0.1"),
+            ("ethernet", "10.0.0.1"),
+            ("wifi", "1.2.3.4"),
+        ],
+    )
+    def test_address__modem(
+        self, target: core.EsphomeCore, priority: str | None, expected: str
+    ) -> None:
+        target.config = {
+            const.CONF_WIFI: {const.CONF_USE_ADDRESS: "1.2.3.4"},
+            "modem": {const.CONF_USE_ADDRESS: "10.0.0.1"},
+        }
+        if priority is not None:
+            target.config["network"] = {const.CONF_PRIORITY: [{"interface": priority}]}
+
+        assert target.address == expected
+
     def test_address__ethernet(self, target):
         target.config = {}
         target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}

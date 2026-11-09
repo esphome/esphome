@@ -92,7 +92,7 @@ void BQ25186Component::setup() {
     // The poll below puts the pin in output mode; without a restore mode the switch takes its level from it
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
     if (initial.has_value())
-      this->pg_gpo_switch_->publish_state(*initial);  // the first poll writes it to the pin
+      this->pg_gpo_switch_->publish_state(*initial != this->pg_gpo_switch_->is_inverted());  // the first poll writes it
   }
 #endif
   // The poller first runs after a random share of the interval; the entities get a state now
@@ -112,7 +112,11 @@ void BQ25186Component::check_pg_gpo_(const BQ25186StatusRegisters &status, bool 
   const bool level = (status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0;
   if (!this->pg_gpo_switch_->has_state()) {
     this->pg_gpo_switch_->publish_state(level);
-  } else if (level != this->pg_gpo_switch_->state && !this->write_pg_gpo_level(this->pg_gpo_switch_->state)) {
+    return;
+  }
+  // state is what the switch shows; an inverted switch drives the opposite level
+  const bool wanted = this->pg_gpo_switch_->state != this->pg_gpo_switch_->is_inverted();
+  if (level != wanted && !this->write_pg_gpo_level(wanted)) {
     this->status_set_warning(LOG_STR("PG/GPO level write failed"));
     pending = true;
   }

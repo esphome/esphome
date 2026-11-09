@@ -2,6 +2,10 @@ text_sensor:
   - platform: template
     name: "Test Substitute Single"
     id: test_substitute_single
+    on_raw_value:
+      - logger.log:
+          format: "Raw text %s"
+          args: [x.c_str()]
     filters:
       - substitute:
           - ERROR -> Error

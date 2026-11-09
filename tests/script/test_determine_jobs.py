@@ -2788,8 +2788,8 @@ def test_should_run_benchmarks_core_benchmark_file_change() -> None:
 def test_python_import_benchmarked_components_imports_real_components() -> None:
     """The set is what importing the real benchmark's components loads."""
     loaded = determine_jobs.python_import_benchmarked_components()
-    # mqtt is not listed in COMPONENTS; sensor imports it at module scope
-    assert {"binary_sensor", "sensor", "logger", "mqtt"} <= loaded
+    # What else they pull in changes as imports are deferred, so only the listed ones are pinned
+    assert {"binary_sensor", "sensor", "logger"} <= loaded
 
 
 def test_should_run_benchmarks_python_import_benchmarked_component() -> None:

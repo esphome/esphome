@@ -289,7 +289,9 @@ async def to_code(config: ConfigType) -> None:
         )
     if config[CONF_USE_PSRAM]:
         esp32.add_idf_sdkconfig_option("CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", True)
+        # Task stacks in PSRAM corrupt the heap on esp_hosted 3.0.10
+        # (esp-hosted-mcu#254); revisit with the next esp_hosted release
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", False)
 
     # ESP-NOW-over-hosted shim: only the radio-less ESP32-P4 host needs it (see
     # the note by _MAX_CUSTOM_MSG_HANDLERS). Enabled for every P4 host, not

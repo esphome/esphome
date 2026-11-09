@@ -1,9 +1,11 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
 from collections.abc import Callable, Generator
+import logging
 from pathlib import Path
 import re
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -14,6 +16,7 @@ from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_CLUSTER,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -21,26 +24,36 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    UNRESOLVED_PROPERTY,
+    _check_report_deprecation,
     _register_string,
     _setup_entity_impl,
+    convert_visual_temperatures,
     entity_duplicate_validator,
     finalize_entity_strings,
     get_base_entity_object_id,
     inherit_property_from,
+    lazy_load_validator,
+    mqtt_component_class,
     register_device_class,
     register_icon,
     register_unit_of_measurement,
+    resolve_inherited_property,
     setup_device_class,
     setup_entity,
+    setup_entity_integrations,
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj, MockObjClass, RawExpression
 from esphome.helpers import fnv1_hash, sanitize, snake_case
+from esphome.types import ConfigType
 
 from .common import load_config_from_fixture
 
@@ -1243,6 +1256,111 @@ async def test_finalize_comment_sanitization(
     assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
 
 
+@pytest.mark.parametrize(
+    ("value", "warns"),
+    [
+        ("coordinator", True),
+        ("enable", False),
+        ("force", False),
+        ("default", False),
+    ],
+)
+def test_check_report_deprecation(
+    value: str, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Deprecated zigbee report options warn; the value always passes through."""
+    with caplog.at_level(logging.WARNING):
+        assert _check_report_deprecation(value) == value
+    assert ("deprecated" in caplog.text) is warns
+
+
+def test_lazy_load_validator_defers_import() -> None:
+    """The validator no-ops without importing unless the component is loaded."""
+    validator = lazy_load_validator("zigbee", "validate_binary_sensor")
+    config = {CONF_NAME: "test"}
+
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        assert validator(config) is config
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        delegate = import_mock.return_value.validate_binary_sensor
+        delegate.return_value = {CONF_NAME: "validated"}
+        assert validator(config) == {CONF_NAME: "validated"}
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        delegate.assert_called_once_with(config)
+
+
+def test_lazy_load_validator_rejects_unknown_component() -> None:
+    """A typo in the component name fails at schema construction."""
+    with pytest.raises(ValueError, match="no_such_component"):
+        lazy_load_validator("no_such_component", "validate_binary_sensor")
+
+
+def test_lazy_load_validator_names_missing_hook() -> None:
+    """A missing hook raises a clear error naming the component and hook."""
+    validator = lazy_load_validator("zigbee", "no_such_hook")
+
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        del import_mock.return_value.no_such_hook
+        validator({})
+
+
+def test_integration_class_handles_match_owning_definitions() -> None:
+    """The cheap class handles must stay string-equal to the integrations'
+    own declarations, or use_id/declare_id resolution silently drifts."""
+    from esphome.components import mqtt, web_server
+    from esphome.components.zigbee import zigbee_zephyr
+    from esphome.components.zigbee.const import ZigbeeComponent
+
+    mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
+    assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
+    assert mqtt_handle.inherits_from(mqtt.MQTTComponent)
+    assert mqtt.MQTTBinarySensorComponent.inherits_from(entity_helpers._MQTTComponent)
+
+    assert str(entity_helpers._WebServer) == str(web_server.WebServer)
+    assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
+    assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
+
+    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
+    for (
+        _conf_key,
+        class_name,
+        _cluster_options,
+    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
+        owning = getattr(zigbee_zephyr, class_name)
+        assert str(owning) == f"zigbee::{class_name}"
+
+
+def test_zigbee_entity_schema_cluster_options() -> None:
+    """The cluster key only exists for esp32 + zigbee and is limited to the
+    platform's options, with the first option as its default."""
+    schema = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
+
+    with patch.object(CORE, "loaded_integrations", set()):
+        assert schema({}) == {}
+        with pytest.raises(Invalid, match="requires component zigbee"):
+            schema({CONF_CLUSTER: "generic"})
+
+    with patch.object(CORE, "loaded_integrations", {"esp32", "zigbee"}):
+        assert schema({}) == {CONF_CLUSTER: "generic"}
+        assert schema({CONF_CLUSTER: "Device_Class"}) == {CONF_CLUSTER: "device_class"}
+        with pytest.raises(Invalid, match="Unknown value 'on_off'"):
+            schema({CONF_CLUSTER: "on_off"})
+
+    with patch.object(CORE, "loaded_integrations", {"nrf52", "zigbee"}):
+        assert CONF_CLUSTER not in schema({})
+        with pytest.raises(Invalid, match="requires component esp32"):
+            schema({CONF_CLUSTER: "generic"})
+
+
 @pytest.mark.asyncio
 async def test_sub_entities_creates_and_sets(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1300,6 +1418,84 @@ async def test_sub_entities_without_parent(
 
     assert await sub("child", hub.set_child) is not None
     assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.mark.parametrize(
+    ("delta_keys", "delta_section"),
+    [(("step",), None), (("target", "current"), "steps")],
+    ids=["flat step", "nested steps"],
+)
+@pytest.mark.parametrize(
+    ("unit", "expected_min", "expected_step"),
+    [(None, 10.0, 1.0), ("°F", 50.0, 1.8)],
+    ids=["celsius entity", "fahrenheit entity"],
+)
+def test_convert_visual_temperatures(
+    delta_keys: tuple[str, ...],
+    delta_section: str | None,
+    unit: str | None,
+    expected_min: float,
+    expected_step: float,
+) -> None:
+    """Absolute values and the step differences land in the entity's unit, whatever the key shape."""
+    steps = dict.fromkeys(delta_keys, (1.0, "°C"))
+    visual = {"min_temperature": (50.0, "°F"), "max_temperature": (30.0, None)}
+    if delta_section is None:
+        visual.update(steps)
+    else:
+        visual[delta_section] = steps
+    config = {"visual": visual}
+    if unit is not None:
+        config["unit_of_measurement"] = cv.temperature_unit(unit)
+
+    convert_visual_temperatures(config, delta_keys, delta_section)
+
+    assert visual["min_temperature"] == pytest.approx(expected_min)
+    assert visual["max_temperature"] == 30.0
+    section = visual if delta_section is None else visual[delta_section]
+    assert all(section[key] == pytest.approx(expected_step) for key in delta_keys)
+
+    # A domain whose steps are nested may leave them out
+    convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_registers_mqtt_and_web_server(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Both integrations are wired up and the mqtt companion is returned."""
+    from esphome.components import mqtt, web_server
+
+    calls: list[tuple[str, Any]] = []
+
+    async def register_mqtt_component(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("mqtt", var))
+
+    async def add_entity_config(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("web_server", config))
+
+    monkeypatch.setattr(mqtt, "register_mqtt_component", register_mqtt_component)
+    monkeypatch.setattr(web_server, "add_entity_config", add_entity_config)
+    config = {
+        CONF_MQTT_ID: ID(
+            "mqtt_switch", is_declaration=True, type=MockObj("MQTTSwitch")
+        ),
+        CONF_WEB_SERVER: {"sorting_weight": 1.0},
+    }
+
+    mqtt_ = await setup_entity_integrations(MockObj("switch_1"), config)
+
+    assert mqtt_ is not None
+    assert calls == [("mqtt", mqtt_), ("web_server", {"sorting_weight": 1.0})]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_without_integrations(
+    setup_test_environment: list[str],
+) -> None:
+    """Without mqtt_id or web_server config nothing is registered."""
+    assert await setup_entity_integrations(MockObj("switch_1"), {}) is None
+    assert setup_test_environment == []
 
 
 @pytest.fixture
@@ -1741,6 +1937,104 @@ def test_inherit_property_from_path_missing_is_ignored() -> None:
         fv.full_config.reset(token)
 
     assert "absent" not in config["sensor"][1]
+
+
+def _copy_chain_config(*sources: str | None) -> Config:
+    """sensor.0 is a template sensor in °C; sensor.N is a copy of the sensor its source names."""
+    config = Config()
+    config["sensor"] = [
+        {CONF_ID: ID("s0", is_declaration=True), CONF_UNIT_OF_MEASUREMENT: "°C"}
+    ]
+    config.declare_ids.append((config["sensor"][0][CONF_ID], ["sensor", 0, CONF_ID]))
+    for index, source in enumerate(sources, start=1):
+        sensor_id = ID(f"s{index}", is_declaration=True)
+        config["sensor"].append(
+            {CONF_ID: sensor_id, "platform": "copy", "source_id": ID(source)}
+        )
+        config.declare_ids.append((sensor_id, ["sensor", index, CONF_ID]))
+    return config
+
+
+@pytest.mark.parametrize(
+    ("sources", "entity", "expected"),
+    [
+        (("s0",), "s1", "°C"),
+        (("s0", "s1"), "s2", "°C"),
+        (("s2", "s1"), "s2", UNRESOLVED_PROPERTY),
+    ],
+    ids=["copy", "copy of copy", "cycle"],
+)
+def test_resolve_inherited_property_follows_the_inherit_chain(
+    sources: tuple[str, ...], entity: str, expected: str | object | None
+) -> None:
+    """The unit is found before the copy platform's own final validation has run."""
+    token = fv.full_config.set(_copy_chain_config(*sources))
+    try:
+        assert (
+            resolve_inherited_property(ID(entity), CONF_UNIT_OF_MEASUREMENT) == expected
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+def _declare(config: Config, path: list[str | int], entry: ConfigType) -> None:
+    """Place ``entry`` at ``path`` and declare its id there."""
+    parent = config
+    for key in path[:-1]:
+        parent = parent[key]
+    parent[path[-1]] = entry
+    config.declare_ids.append((entry[CONF_ID], [*path, CONF_ID]))
+
+
+def test_resolve_inherited_property_applies_the_transform() -> None:
+    """An integration of a sensor in W reports in Wh, as its final validation would set it."""
+    config = Config()
+    config["sensor"] = [None, None]
+    _declare(
+        config,
+        ["sensor", 0],
+        {CONF_ID: ID("power", is_declaration=True), CONF_UNIT_OF_MEASUREMENT: "W"},
+    )
+    _declare(
+        config,
+        ["sensor", 1],
+        {
+            CONF_ID: ID("energy", is_declaration=True),
+            "platform": "integration",
+            "sensor": ID("power"),
+            "time_unit": "h",
+        },
+    )
+    token = fv.full_config.set(config)
+    try:
+        assert (
+            resolve_inherited_property(ID("energy"), CONF_UNIT_OF_MEASUREMENT) == "Wh"
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [["no_such_component"], ["hub", 0, "temperature"]],
+    ids=["unknown component", "nested entity without platform"],
+)
+def test_resolve_inherited_property_cannot_follow_the_chain(
+    path: list[str | int],
+) -> None:
+    """Unresolved, not None, when no component tells where the property would come from."""
+    config = Config()
+    if len(path) > 1:
+        config[path[0]] = [{}]
+    _declare(config, path, {CONF_ID: ID("entity", is_declaration=True)})
+    token = fv.full_config.set(config)
+    try:
+        assert (
+            resolve_inherited_property(ID("entity"), CONF_UNIT_OF_MEASUREMENT)
+            is UNRESOLVED_PROPERTY
+        )
+    finally:
+        fv.full_config.reset(token)
 
 
 _RESTORE_FIELDS = cv.Schema({cv.Optional("state", default="KEEP"): cv.string})

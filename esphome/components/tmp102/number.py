@@ -25,7 +25,7 @@ from . import (
     max_temperature,
     number_parent_extended,
     tmp102_ns,
-    validate_unique_child,
+    unique_child,
 )
 
 TMP102LimitNumber = tmp102_ns.class_(
@@ -51,8 +51,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_validate_unique = unique_child("number")
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
-    validate_unique_child(config, "number")
+    _validate_unique(config)
     full = fv.full_config.get()
     parent = full.get_config_for_path(full.get_path_for_id(config[CONF_TMP102_ID])[:-1])
     add_number_parent(config[CONF_TMP102_ID], parent.get(CONF_EXTENDED_MODE, False))

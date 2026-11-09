@@ -18,7 +18,7 @@ void shutdown_device() {
   ESP_LOGI(TAG, "Shutting down");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
-  App.run_safe_shutdown_hooks();
+  App.safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
 #ifdef USE_ESP8266
   ESP.deepSleep(0);  // NOLINT(readability-static-accessed-through-instance)
 #endif

@@ -34,6 +34,7 @@ from esphome.core import (
     EsphomeError,
     Lambda,
     MACAddress,
+    TemperatureWithUnit,
     TimePeriod,
 )
 from esphome.expression import has_substitution_or_expression
@@ -1631,6 +1632,10 @@ ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_string
 ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
+# Dumped as written, unit included, so `esphome config` output validates again
+ESPHomeDumper.add_multi_representer(
+    TemperatureWithUnit, ESPHomeDumper.represent_stringify
+)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)
 ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)

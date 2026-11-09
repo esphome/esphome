@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_CURRENT, CONF_ID
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import LP5562Output, lp5562_ns
@@ -48,20 +47,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    # Two outputs on one channel would fight over its PWM, and the last current would win
-    used = fv.full_config.get().data.setdefault("lp5562_channels", set())
-    hub, channel = str(config[CONF_LP5562_ID]), str(config[CONF_CHANNEL])
-    if (hub, channel) in used:
-        raise cv.Invalid(
-            f"Channel '{channel}' of '{hub}' is already used by another output",
-            [CONF_CHANNEL],
-        )
-    used.add((hub, channel))
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+# A second output on a channel would also set its current, and the last one would win
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="lp5562", hub_key=CONF_LP5562_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:

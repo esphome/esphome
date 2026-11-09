@@ -302,6 +302,9 @@ class Application {
 
   void safe_reboot();
 
+  /// Run the safe shutdown hooks, give components up to timeout_ms to tear down, then run the powerdown hooks.
+  void safe_shutdown(uint32_t timeout_ms);
+
   void run_safe_shutdown_hooks();
 
   void run_powerdown_hooks();

@@ -28,6 +28,10 @@ button:
           id: select_test_select
           index: !lambda return 2;
       - select.next: select_test_select
+      - select.operation:
+          id: select_test_select
+          operation: next
+          cycle: !lambda return false;
       - select.previous:
           id: select_test_select
           cycle: false

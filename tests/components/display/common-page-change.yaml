@@ -24,3 +24,11 @@ display:
         to: display_page_change_page2
         then:
           lambda: 'ESP_LOGD("display", "1 -> 2, %p %p", from, to);'
+
+button:
+  - platform: template
+    name: Show Page
+    on_press:
+      - display.page.show: display_page_change_page1
+      - display.page.show:
+          id: !lambda return id(display_page_change_page2);

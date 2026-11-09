@@ -298,10 +298,14 @@ void Application::reboot() {
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely");
-  run_safe_shutdown_hooks();
-  teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
-  run_powerdown_hooks();
+  this->safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
   arch_restart();
+}
+
+void Application::safe_shutdown(uint32_t timeout_ms) {
+  this->run_safe_shutdown_hooks();
+  this->teardown_components(timeout_ms);
+  this->run_powerdown_hooks();
 }
 
 void Application::run_safe_shutdown_hooks() {

@@ -5,6 +5,10 @@ sensor:
     id: source_sensor
     lambda: return 42.0;
     update_interval: 1s
+    on_raw_value:
+      - logger.log:
+          format: "Raw value %.1f"
+          args: [x]
     on_value:
       - sensor.template.publish:
           id: sensor_publish_target

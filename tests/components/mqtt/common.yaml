@@ -12,7 +12,8 @@ mqtt:
   username: debug
   password: debug
   enable_on_boot: false
-  clean_session: True
+  clean_session: false
+  persist_subscriptions: true
   client_id: someclient
   use_abbreviations: false
   discovery: true

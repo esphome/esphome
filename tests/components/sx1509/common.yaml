@@ -38,3 +38,9 @@ switch:
       number: 1
       mode:
         output: true
+
+output:
+  - platform: sx1509
+    id: sx1509_output
+    sx1509_id: sx1509_hub
+    pin: 5

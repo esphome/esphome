@@ -3302,3 +3302,19 @@ def test_git_file_from_shorthand_bad_format() -> None:
 def test_git_file_from_shorthand_unknown_domain() -> None:
     with pytest.raises(ValueError, match="Unknown git domain bitbucket"):
         git.GitFile.from_shorthand("bitbucket://owner/repo/file.yaml")
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (
+            "https://user:token@github.com/o/r.git",
+            "https://github.com/o/r.git",
+        ),
+        ("https://token@gitlab.com:8443/o/r", "https://gitlab.com:8443/o/r"),
+        ("https://github.com/o/r", "https://github.com/o/r"),
+        ("git@github.com:o/r.git", "git@github.com:o/r.git"),
+    ],
+)
+def test_strip_url_credentials(url: str, expected: str) -> None:
+    assert git.strip_url_credentials(url) == expected
