@@ -11,15 +11,17 @@
 
 namespace esphome::zephyr {
 
-static CdcAcm cdc_acm_instance;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-CdcAcm *global_cdc_acm = &cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+CdcAcm *const global_cdc_acm = &cdc_acm_instance;
 
 namespace {
 constexpr std::array<const device *, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> CDC_DEVICES{
     DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
 
 // USB starts in the logger's pre_setup(), before App exists, so nothing is posted until start_(). Reading a rate
-// and posting it under one lock keeps the posts in the order the host set the rates.
+// and posting it under one lock keeps the posts in the order the rates were read. The legacy stack reports a rate
+// as the host sets it; the new stack queues a message without the rate, so when the host changes the rate again
+// before that message is delivered, only the latest rate is posted.
 Mutex rate_lock;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 bool started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace
