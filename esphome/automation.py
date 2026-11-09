@@ -1472,14 +1472,16 @@ def _is_id_reference(id_: Any) -> bool:
 
 
 def _action_ids(actions: list[tuple[str, Any]]) -> set[str]:
-    """The ids the actions act on, from their ``id`` option or their shorthand id."""
-    return {
-        target.id
-        for _, options in actions
-        if _is_id_reference(
+    """The ids the actions act on: their ``id`` option or shorthand id, and every id a lambda action names."""
+    ids: set[str] = set()
+    for key, options in actions:
+        if key == CONF_LAMBDA:
+            ids |= _referenced_ids(options)
+        elif _is_id_reference(
             target := options.get(CONF_ID) if isinstance(options, dict) else options
-        )
-    }
+        ):
+            ids.add(target.id)
+    return ids
 
 
 def _referenced_ids(value: Any) -> set[str]:
@@ -1490,16 +1492,15 @@ def _referenced_ids(value: Any) -> set[str]:
 
 
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
-    # Only the body can change the condition when the loop cannot yield: a lambda action may change
-    # anything, and an action on an id the condition (or its lambda) reads may change that.
+    # Only the body can change the condition when the loop cannot yield: an action on an id the
+    # condition (or its lambda) reads, or a lambda action naming one, may change that.
     # An empty body ends the loop at once.
     body = config[CONF_THEN]
     if not body:
         return config
     actions = list(_iter_actions(body))
     if any(
-        key == CONF_LAMBDA
-        or (key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous)
+        key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous
         for key, _ in actions
     ):
         return config

@@ -397,8 +397,14 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
         (_BUTTON_ON, [{"if": {CONF_THEN: [{"delay": "1s"}]}}], False),
         # A lambda condition that only reads state the body leaves alone still hangs the loop
         ({"lambda": Lambda("return id(s).state;")}, [{"logger.log": "hi"}], True),
-        # A lambda action in the body can change anything, such as a counter the condition tests
-        (_BUTTON_ON, [{"lambda": Lambda("id(n) += 1;")}], False),
+        # A lambda action naming what the condition reads can change it, such as a counter
+        (
+            {"lambda": Lambda("return id(n) < 5;")},
+            [{"lambda": Lambda("id(n) += 1;")}],
+            False,
+        ),
+        # A lambda action that names nothing the condition reads cannot
+        (_BUTTON_ON, [{"lambda": Lambda("id(n) += 1;")}], True),
         # A templated value only reads, even of the condition's own entity
         (_BUTTON_ON, [{"logger.log": {"args": [Lambda("id(button).state")]}}], True),
         # A lambda condition inside the body only reads, also in an and:, which holds a list
@@ -448,7 +454,19 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
             True,
         ),
         # A lambda action nested in the body still counts
-        (_BUTTON_ON, [{"if": {CONF_THEN: [{"lambda": Lambda("id(n) += 1;")}]}}], False),
+        (
+            _BUTTON_ON,
+            [
+                {
+                    "if": {
+                        CONF_THEN: [
+                            {"lambda": Lambda("id(button).publish_state(false);")}
+                        ]
+                    }
+                }
+            ],
+            False,
+        ),
         # The body acts on an entity the condition's lambda reads
         (
             {"lambda": Lambda("return id(s).state;")},
