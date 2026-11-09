@@ -14,7 +14,7 @@ One file per component, named after it:
 - [`ld2420.md`](ld2420.md): hub setup and sensor states with a simulated module on a UART0 loopback (energy and simple mode)
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar, presence hold and link loss on a frame stream, BT MAC readback
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
-- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader
+- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader, pulse counting, RTL8710B edge interrupts and millis timing
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
 - [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe
@@ -70,6 +70,9 @@ One file per component, named after it:
 - [`microphone_http_stream.md`](microphone_http_stream.md): raw PCM over HTTP with a counter fake mic or a USB mic, multi-reader client
 - [`i2s_audio.md`](i2s_audio.md): I2S microphone fed by an I2S TX channel on the same S3 through three jumpers
 - [`voice_assistant.md`](voice_assistant.md): late TTS start on the Voice PE with a slow announcement URL
+- [`mcp251xfd.md`](mcp251xfd.md): MCP2518FD CAN FD over SPI in loopback, forced modes, chip reset and bus-off recovery, TX objects read back from chip RAM, idle SPI cost from a PCNT on CS
+- [`crc32.md`](crc32.md): crc32 vectors on every platform path and the signed OTA signature block CRC on an ESP32-C3
+- [`i2c_isr_fault.md`](i2c_isr_fault.md): software INA219 on the master's own pads with seeded bus faults, interrupt storm and stuck bus
 - [`bmp390.md`](bmp390.md): BMP390/BMP388 register readback, INT data ready rate, start write faults by software NACK or held SDA, and the IDF I2C hang after a held SDA
 - [`ipv6.md`](ipv6.md): IPv6 link-local and SLAAC boot and reconnect timing on ESP32 Wi-Fi, with an injected esp-netif delay that forces the race
 - [`mcp23017.md`](mcp23017.md): MCP23017 IOCON aliasing and INT line behavior (open drain, push-pull, polling) on an ESP8266 with PA to PB jumpers

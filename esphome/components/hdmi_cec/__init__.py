@@ -31,12 +31,11 @@ CONF_OPCODE = "opcode"
 
 hdmi_cec_ns = cg.esphome_ns.namespace("hdmi_cec")
 HDMICEC = hdmi_cec_ns.class_("HDMICEC", cg.Component)
-_PAYLOAD_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 _PAYLOAD_VECTOR = cg.std_vector.template(cg.uint8)
 _MESSAGE_ARGS = [
     (cg.uint8, "source"),
     (cg.uint8, "destination"),
-    (_PAYLOAD_SPAN, "data"),
+    (cg.byte_span, "data"),
 ]
 
 _request_message_callback_slot = cg.slot_counter("HDMI_CEC_MESSAGE_CALLBACK_COUNT")
