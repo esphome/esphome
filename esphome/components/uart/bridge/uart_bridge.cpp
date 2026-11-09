@@ -126,7 +126,7 @@ bool UARTBridgePipe::paced_() {
 }
 
 // What the line sent since the last paced write returned, rounded up, so its FIFO stays full: at least one byte, at
-// most one loop interval of line time.
+// most one loop interval of line time. paced_write_room() counts whole ms and rounds down: too coarse for close passes.
 size_t UARTBridgePipe::paced_room_(uint32_t now_us) const {
   const uint64_t span_us = std::min<uint64_t>(now_us - this->last_write_end_us_, App.get_loop_interval() * 1000ULL);
   const uint64_t char_bits_us = static_cast<uint64_t>(this->to_bits_) * US_PER_SEC;

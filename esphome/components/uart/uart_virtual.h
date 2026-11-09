@@ -9,6 +9,8 @@
 namespace esphome::uart {
 
 /// Takes a block of bytes in one call, so the writer's frame boundaries survive.
+/// A bridge whose destination is not virtual, or copies another UART (uart.inherit_settings()), keeps up to 256 bytes:
+/// the block going out and one more. It drops any other block.
 class UARTSink {
  public:
   virtual void on_block(const uint8_t *data, size_t len) = 0;
