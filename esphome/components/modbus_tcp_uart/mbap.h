@@ -145,8 +145,8 @@ inline size_t rtu_frame_length(const uint8_t *buf, size_t len, bool replies) {
   }
 }
 
-/// Finds the RTU frame at the start of buf: by the length its function code gives, else at the first CRC match.
-/// A CRC that ends in 0x00 matches one byte early, so a 0x00 already in buf right after the match belongs to the frame.
+/// Finds the RTU frame at the start of buf: by the length its function code gives, else at the last length up to len
+/// (at most RTU_MAX_SIZE) whose CRC checks. A 0x00 right behind a frame keeps the CRC at 0, so it is taken into it.
 /// replies: buf holds what a server sends; else what a client sends. *frame_len is set for FRAME.
 inline RtuTake take_rtu(const uint8_t *buf, size_t len, bool replies, size_t *frame_len) {
   *frame_len = 0;
@@ -165,12 +165,16 @@ inline RtuTake take_rtu(const uint8_t *buf, size_t len, bool replies, size_t *fr
     return RtuTake::FRAME;
   }
   uint16_t crc = 0xFFFF;
+  size_t last_match = 0;
   for (size_t n = 1; n <= len && n <= RTU_MAX_SIZE; n++) {
     crc = crc16(buf + n - 1, 1, crc);
     if (n >= 4 && crc == 0) {
-      *frame_len = n < len && n < RTU_MAX_SIZE && buf[n] == 0 ? n + 1 : n;
-      return RtuTake::FRAME;
+      last_match = n;
     }
+  }
+  if (last_match != 0) {
+    *frame_len = last_match;
+    return RtuTake::FRAME;
   }
   return len >= RTU_MAX_SIZE ? RtuTake::BAD : RtuTake::NEED_MORE;
 }
