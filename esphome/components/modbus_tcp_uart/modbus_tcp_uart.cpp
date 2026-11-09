@@ -325,14 +325,9 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   }
   uint8_t frame[TCP_FRAME_SIZE];
   size_t n = write_mbap(frame, sizeof(frame), txn, this->tx_[0], this->tx_ + 1, this->tx_frame_len_ - 3);
-  if (n == 0) {
-    this->note_drop_(LOG_STR("Cannot encode the Modbus frame, dropped"));
-    this->consume_tx_(this->tx_frame_len_);
-    if (this->server_) {
-      this->txn_pending_ = false;
-    }
-    return;
-  }
+  // The frame comes from take_rtu(): 4 to RTU_MAX_SIZE bytes, so write_mbap() never returns 0 here.
+  static_assert(RTU_MAX_SIZE - 3 <= MBAP_MAX_LENGTH - 1 && MBAP_HEADER_SIZE + RTU_MAX_SIZE - 3 <= TCP_FRAME_SIZE,
+                "the PDU of any RTU frame fits one MBAP frame");
   // Never put a partial MBAP frame on the wire; hold and retry.
   size_t free = this->parent_->available_for_write();
   if (free < n) {
