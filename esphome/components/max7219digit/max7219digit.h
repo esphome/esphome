@@ -28,7 +28,7 @@ class MAX7219Component final : public display::DisplayBuffer,
                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  void set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; };
+  void set_writer(max7219_writer_t &&writer) { this->writer_local_ = std::move(writer); }
 
   void setup() override;
 

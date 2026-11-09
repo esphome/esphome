@@ -726,7 +726,7 @@ class Display : public PollingComponent {
                        int *height);
 
   /// Internal method to set the display writer lambda.
-  void set_writer(display_writer_t &&writer) { this->writer_ = writer; }
+  void set_writer(display_writer_t &&writer) { this->writer_ = std::move(writer); }
 
   void show_page(DisplayPage *page);
   void show_next_page();
