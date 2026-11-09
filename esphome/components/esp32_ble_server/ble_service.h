@@ -87,6 +87,8 @@ class BLEService final {
     DELETING,
     DELETED,
   } state_{INIT};
+  // Set by BLEServer::create_service(), which allocates it; remove_service() frees it
+  bool owned_{false};
 };
 
 }  // namespace esphome::esp32_ble_server
