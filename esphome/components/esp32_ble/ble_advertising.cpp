@@ -123,15 +123,19 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = this->include_name_in_adv_ || !this->scan_response_;
   this->advertising_data_.include_txpower = !this->scan_response_;
-  // No room for these next to a priority UUID; they go to the scan response
+  // No room for these next to a priority UUID; they go to the scan response. Bluedroid copies a non-null pointer
+  // even with a zero length, so clear both.
   const uint16_t manufacturer_len = this->advertising_data_.manufacturer_len;
+  uint8_t *manufacturer_data = this->advertising_data_.p_manufacturer_data;
   const uint16_t appearance = this->advertising_data_.appearance;
   if (priority) {
     this->advertising_data_.manufacturer_len = 0;
+    this->advertising_data_.p_manufacturer_data = nullptr;
     this->advertising_data_.appearance = 0;
   }
   err = esp_ble_gap_config_adv_data(&this->advertising_data_);
   this->advertising_data_.manufacturer_len = manufacturer_len;
+  this->advertising_data_.p_manufacturer_data = manufacturer_data;
   this->advertising_data_.appearance = appearance;
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Advertising): %s", esp_err_to_name(err));
@@ -150,8 +154,10 @@ esp_err_t BLEAdvertising::services_advertisement_() {
       this->scan_response_data_.service_uuid_len = 16 * (num_services - 1);
       this->scan_response_data_.p_service_uuid = num_services > 1 ? uuids + 16 : nullptr;
       this->scan_response_data_.service_data_len = 0;
+      this->scan_response_data_.p_service_data = nullptr;
     } else {
       this->scan_response_data_.manufacturer_len = 0;
+      this->scan_response_data_.p_manufacturer_data = nullptr;
       this->scan_response_data_.appearance = 0;
     }
     err = esp_ble_gap_config_adv_data(&this->scan_response_data_);
