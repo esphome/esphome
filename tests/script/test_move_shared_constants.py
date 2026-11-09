@@ -38,10 +38,14 @@ def repo_fixture(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def read(root: Path, rel: str) -> str:
+    return (root / rel).read_bytes().decode("utf-8")
+
+
 def write(root: Path, rel: str, content: str) -> None:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_bytes(content.encode("utf-8"))
     _git(root, "add", rel)
 
 
@@ -79,10 +83,10 @@ def test_move_to_component_const(
     add_definers(repo, "CONF_MANY", "many")
     assert mod.main(["move", "CONF_MANY", "--root", str(repo)]) == 0
     assert capsys.readouterr().out == "esphome/components/const/__init__.py\n"
-    home = (repo / "esphome/components/const/__init__.py").read_text()
+    home = read(repo, "esphome/components/const/__init__.py")
     assert home == 'CONF_BBB = "bbb"\nCONF_MANY = "many"\n'
-    assert (repo / "script/ci-custom.py").read_text() == CI_CUSTOM
-    text = (repo / "esphome/components/c0/__init__.py").read_text()
+    assert read(repo, "script/ci-custom.py") == CI_CUSTOM
+    text = read(repo, "esphome/components/c0/__init__.py")
     assert "CONF_MANY =" not in text
     assert "from esphome.components.const import CONF_MANY" in text
 
@@ -98,13 +102,12 @@ def test_move_to_core_const_bumps_max(
     )
     mod.main(["move", "CONF_MANY", "--root", str(repo)])
     assert capsys.readouterr().out == "esphome/const.py\n"
-    assert (repo / "esphome/const.py").read_text() == (
+    assert read(repo, "esphome/const.py") == (
         'CONF_AAA = "aaa"\nCONF_MANY = "many"\nCONF_ZZZ = "zzz"\n'
     )
-    assert (repo / "script/ci-custom.py").read_text() == "CONST_PY_MAX_CONF = 6\n"
-    assert (
-        "from esphome.const import CONF_MANY"
-        in (repo / "esphome/components/c1/__init__.py").read_text()
+    assert read(repo, "script/ci-custom.py") == "CONST_PY_MAX_CONF = 6\n"
+    assert "from esphome.const import CONF_MANY" in read(
+        repo, "esphome/components/c1/__init__.py"
     )
 
 
@@ -112,10 +115,8 @@ def test_move_to_core_const_inserts_last(repo: Path) -> None:
     add_definers(repo, "CONF_ZZZZ", "zzzz")
     write(repo, "esphome/core_user.py", "X = CONF_ZZZZ\n")
     mod.cmd_move(repo, "CONF_ZZZZ")
-    assert (
-        (repo / "esphome/const.py")
-        .read_text()
-        .endswith('CONF_ZZZ = "zzz"\nCONF_ZZZZ = "zzzz"\n')
+    assert read(repo, "esphome/const.py").endswith(
+        'CONF_ZZZ = "zzz"\nCONF_ZZZZ = "zzzz"\n'
     )
 
 
@@ -123,7 +124,7 @@ def test_move_into_empty_home(repo: Path) -> None:
     write(repo, "esphome/components/const/__init__.py", '"""Doc."""\n')
     add_definers(repo, "CONF_MANY", "many")
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/const/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/const/__init__.py") == (
         '"""Doc."""\n\nCONF_MANY = "many"\n'
     )
 
@@ -143,10 +144,10 @@ def test_import_merged_into_existing_block(repo: Path) -> None:
         'CONF_MANY = "many"\n\nX = CONF_BBB, CONF_MANY\n',
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c1/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/c1/__init__.py") == (
         "from esphome.components.const import CONF_BBB, CONF_MANY\n\nX = CONF_BBB, CONF_MANY\n"
     )
-    text = (repo / "esphome/components/c0/__init__.py").read_text()
+    text = read(repo, "esphome/components/c0/__init__.py")
     assert "from esphome.components.const import CONF_MANY\n" in text
     assert "CONF_ID,\n    CONF_NAME,\n" in text or "CONF_ID, CONF_NAME" in text
 
@@ -159,7 +160,7 @@ def test_no_imports_with_docstring(repo: Path) -> None:
         '"""Doc."""\n\nCONF_MANY = "many"\n\nX = CONF_MANY\n',
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/c0/__init__.py") == (
         '"""Doc."""\n\nfrom esphome.components.const import CONF_MANY\n\nX = CONF_MANY\n'
     )
 
@@ -170,7 +171,7 @@ def test_no_imports_without_docstring(repo: Path) -> None:
         repo, "esphome/components/c0/__init__.py", 'CONF_MANY = "many"\nX = CONF_MANY\n'
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/c0/__init__.py") == (
         "from esphome.components.const import CONF_MANY\n\nX = CONF_MANY\n"
     )
 
@@ -183,7 +184,7 @@ def test_non_string_first_statement_is_not_docstring(repo: Path) -> None:
         'X = 1\nCONF_MANY = "many"\nY = CONF_MANY\n',
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/c0/__init__.py") == (
         "from esphome.components.const import CONF_MANY\n\nX = 1\nY = CONF_MANY\n"
     )
 
@@ -196,10 +197,8 @@ def test_expression_first_statement_is_not_docstring(repo: Path) -> None:
         'print(CONF_MANY)\nCONF_MANY = "many"\n',
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (
-        (repo / "esphome/components/c0/__init__.py")
-        .read_text()
-        .startswith("from esphome.components.const import CONF_MANY\n")
+    assert read(repo, "esphome/components/c0/__init__.py").startswith(
+        "from esphome.components.const import CONF_MANY\n"
     )
 
 
@@ -212,7 +211,7 @@ def test_unused_import_gets_noqa(repo: Path) -> None:
         "from esphome.components.c0 import CONF_MANY\n",
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/c0/__init__.py") == (
         "from esphome.components.const import CONF_MANY  # noqa: F401  # pylint: disable=unused-import\n\nX = 1\n"
     )
 
@@ -231,7 +230,7 @@ def test_reexport_in_block_with_existing_noqa(repo: Path) -> None:
         "from esphome.components.c0.const import CONF_MANY\n",
     )
     mod.cmd_move(repo, "CONF_MANY")
-    text = (repo / "esphome/components/c0/const.py").read_text()
+    text = read(repo, "esphome/components/c0/const.py")
     assert "CONF_BBB,  # noqa: F401\n" in text
     assert "    CONF_MANY,  # noqa: F401  # pylint: disable=unused-import\n" in text
     assert (
@@ -267,7 +266,7 @@ def test_noqa_on_same_line_is_kept(repo: Path) -> None:
     )
     mod.cmd_move(repo, "CONF_MANY")
     mod.mark_reexport(repo, "esphome/components/c0/const.py", "CONF_MANY")
-    text = (repo / "esphome/components/c0/const.py").read_text()
+    text = read(repo, "esphome/components/c0/const.py")
     assert text.count("noqa") == 2
 
 
@@ -296,12 +295,12 @@ def test_invalid_name(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_already_in_home(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
     add_definers(repo, "CONF_AAA", "aaa")
-    before = (repo / "esphome/components/c0/__init__.py").read_text()
+    before = read(repo, "esphome/components/c0/__init__.py")
     assert mod.cmd_move(repo, "CONF_AAA") == 0
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "nothing to do" in captured.err
-    assert (repo / "esphome/components/c0/__init__.py").read_text() == before
+    assert read(repo, "esphome/components/c0/__init__.py") == before
 
 
 def test_script_runs_as_program(repo: Path) -> None:
@@ -356,13 +355,39 @@ def test_find_value_agreement_uses_parsed_string(
     assert json.loads(capsys.readouterr().out) == ["UNIT_SAME"]
 
 
-def test_unparseable_literal_is_kept_verbatim() -> None:
-    assert mod.literal_value('"a" "b" +') == '"a" "b" +'
+def test_literal_value_only_accepts_strings() -> None:
     assert mod.literal_value("'abc'") == "abc"
+    assert mod.literal_value('"a" "b"') == "ab"
+    assert mod.literal_value('"a" + SUFFIX + "b"') is None
+    assert mod.literal_value('"a" "b" +') is None
+    assert mod.literal_value("b'abc'") is None
 
 
-def test_non_string_literal_is_kept_verbatim() -> None:
-    assert mod.literal_value("b'abc'") == "b'abc'"
+def test_find_skips_expression_values(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for i in range(3):
+        write(
+            repo,
+            f"esphome/components/e{i}/__init__.py",
+            'SUFFIX = "x"\nUNIT_EXPR = "a" + SUFFIX + "b"\n',
+        )
+    mod.cmd_find(repo)
+    assert capsys.readouterr().out == "[]\n"
+
+
+def test_move_rejects_expression_values(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for i in range(3):
+        write(
+            repo,
+            f"esphome/components/e{i}/__init__.py",
+            'SUFFIX = "x"\nUNIT_EXPR = "a" + SUFFIX + "b"\n',
+        )
+    assert mod.cmd_move(repo, "UNIT_EXPR") == 1
+    assert "not a valid constant" in capsys.readouterr().err
+    assert "UNIT_EXPR" not in read(repo, "esphome/components/const/__init__.py")
 
 
 def test_move_unit_to_component_const_keeps_unicode(
@@ -380,19 +405,17 @@ def test_move_unit_to_component_const_keeps_unicode(
         'CONF_BBB = "bbb"\n\nUNIT_ALPHA = "a"\nUNIT_MICRO = "\u00b5g/m\u00b3"\n'
         'UNIT_OMEGA = "o"\n'
     ).encode()
-    assert "from esphome.components.const import UNIT_MICRO" in (
-        repo / "esphome/components/c0/__init__.py"
-    ).read_text(encoding="utf-8")
+    assert "from esphome.components.const import UNIT_MICRO" in read(
+        repo, "esphome/components/c0/__init__.py"
+    )
 
 
 def test_move_unit_to_core_const_does_not_bump_max(repo: Path) -> None:
     add_definers(repo, "UNIT_DEG", "\u00b0C")
     write(repo, "esphome/core_user.py", "X = UNIT_DEG\n")
     mod.cmd_move(repo, "UNIT_DEG")
-    assert (repo / "esphome/const.py").read_text(encoding="utf-8") == (
-        CORE_CONST + '\nUNIT_DEG = "\u00b0C"\n'
-    )
-    assert (repo / "script/ci-custom.py").read_text() == CI_CUSTOM
+    assert read(repo, "esphome/const.py") == (CORE_CONST + '\nUNIT_DEG = "\u00b0C"\n')
+    assert read(repo, "script/ci-custom.py") == CI_CUSTOM
 
 
 def test_prefix_block_missing_in_middle_of_home(repo: Path) -> None:
@@ -403,7 +426,7 @@ def test_prefix_block_missing_in_middle_of_home(repo: Path) -> None:
     )
     add_definers(repo, "UNIT_NEW", "new")
     mod.cmd_move(repo, "UNIT_NEW")
-    assert (repo / "esphome/components/const/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/const/__init__.py") == (
         'CONF_BBB = "bbb"\n\nICON_X = "mdi:x"\n\nUNIT_NEW = "new"\n'
     )
 
@@ -416,7 +439,7 @@ def test_prefix_block_missing_before_other_content(repo: Path) -> None:
     )
     add_definers(repo, "UNIT_NEW", "new")
     mod.cmd_move(repo, "UNIT_NEW")
-    assert (repo / "esphome/components/const/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/const/__init__.py") == (
         'CONF_BBB = "bbb"\n\nUNIT_NEW = "new"\n\nOTHER = 1\n'
     )
 
@@ -429,7 +452,7 @@ def test_prefix_block_missing_before_blank_line(repo: Path) -> None:
     )
     add_definers(repo, "UNIT_NEW", "new")
     mod.cmd_move(repo, "UNIT_NEW")
-    assert (repo / "esphome/components/const/__init__.py").read_text() == (
+    assert read(repo, "esphome/components/const/__init__.py") == (
         'CONF_BBB = "bbb"\n\nUNIT_NEW = "new"\n\nOTHER = 1\n'
     )
 
@@ -458,7 +481,7 @@ def test_unused_and_not_imported_is_only_deleted(repo: Path) -> None:
         "# CONF_MANY is mentioned only here\nfrom os import path as CONF_MANY2\n",
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/__init__.py").read_text() == "X = 1\n"
+    assert read(repo, "esphome/components/c0/__init__.py") == "X = 1\n"
 
 
 def test_unused_but_imported_absolute_keeps_import(repo: Path) -> None:
@@ -469,7 +492,7 @@ def test_unused_but_imported_absolute_keeps_import(repo: Path) -> None:
         "from esphome.components.c0.const import CONF_MANY, CONF_BBB\n",
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/const.py").read_text() == (
+    assert read(repo, "esphome/components/c0/const.py") == (
         "from esphome.components.const import CONF_MANY  # noqa: F401  # pylint: disable=unused-import\n"
     )
 
@@ -478,7 +501,7 @@ def test_unused_but_imported_relative_same_package(repo: Path) -> None:
     only_definer(repo, "esphome/components/c0/const.py", 'CONF_MANY = "many"\n')
     write(repo, "esphome/components/c0/user.py", "from .const import CONF_MANY\n")
     mod.cmd_move(repo, "CONF_MANY")
-    assert "noqa: F401" in (repo / "esphome/components/c0/const.py").read_text()
+    assert "noqa: F401" in read(repo, "esphome/components/c0/const.py")
 
 
 def test_unused_but_imported_relative_parent_package(repo: Path) -> None:
@@ -487,25 +510,94 @@ def test_unused_but_imported_relative_parent_package(repo: Path) -> None:
         repo, "esphome/components/other/user.py", "from ..c0.const import CONF_MANY\n"
     )
     mod.cmd_move(repo, "CONF_MANY")
-    assert "noqa: F401" in (repo / "esphome/components/c0/const.py").read_text()
+    assert "noqa: F401" in read(repo, "esphome/components/c0/const.py")
 
 
 def test_unused_package_init_imported_via_package(repo: Path) -> None:
     only_definer(repo, "esphome/components/c0/__init__.py", 'CONF_MANY = "many"\n')
     write(repo, "esphome/components/c0/sub.py", "from . import CONF_MANY\n")
     mod.cmd_move(repo, "CONF_MANY")
-    assert "noqa: F401" in (repo / "esphome/components/c0/__init__.py").read_text()
+    assert "noqa: F401" in read(repo, "esphome/components/c0/__init__.py")
 
 
 def test_relative_import_from_package_init(repo: Path) -> None:
     only_definer(repo, "esphome/components/c0/const.py", 'CONF_MANY = "many"\n')
     write(repo, "esphome/components/c0/__init__.py", "from .const import CONF_MANY\n")
     mod.cmd_move(repo, "CONF_MANY")
-    assert "noqa: F401" in (repo / "esphome/components/c0/const.py").read_text()
+    assert "noqa: F401" in read(repo, "esphome/components/c0/const.py")
 
 
 def test_unparseable_file_mentioning_name_is_skipped(repo: Path) -> None:
     only_definer(repo, "esphome/components/c0/const.py", 'CONF_MANY = "many"\n')
     write(repo, "esphome/components/c1/broken.py", "CONF_MANY = (\n")
     mod.cmd_move(repo, "CONF_MANY")
-    assert (repo / "esphome/components/c0/const.py").read_text() == ""
+    assert read(repo, "esphome/components/c0/const.py") == ""
+
+
+OPENTHERM_CONST = 'CONF_MANY = "many"\n'
+
+
+def module_user(
+    repo: Path, content: str, rel: str = "esphome/components/c1/user.py"
+) -> None:
+    only_definer(repo, "esphome/components/c0/const.py", OPENTHERM_CONST)
+    write(repo, rel, content)
+    mod.cmd_move(repo, "CONF_MANY")
+
+
+@pytest.mark.parametrize(
+    ("rel", "content"),
+    [
+        ("esphome/components/c0/user.py", "from . import const\nX = const.CONF_MANY\n"),
+        (
+            "esphome/components/c1/user.py",
+            "from .. import c0\nfrom ..c0 import const as c\nX = c.CONF_MANY\n",
+        ),
+        (
+            "esphome/components/c1/user.py",
+            "from esphome.components.c0 import const\nX = const.CONF_MANY\n",
+        ),
+        (
+            "esphome/components/c1/user.py",
+            "import esphome.components.c0.const\nX = esphome.components.c0.const.CONF_MANY\n",
+        ),
+        (
+            "esphome/components/c1/user.py",
+            "import esphome.components.c0.const as k\nX = k.CONF_MANY\n",
+        ),
+    ],
+)
+def test_module_qualified_consumer_keeps_reexport(
+    repo: Path, rel: str, content: str
+) -> None:
+    module_user(repo, content, rel)
+    assert read(repo, "esphome/components/c0/const.py") == (
+        "from esphome.components.const import CONF_MANY  # noqa: F401  # pylint: disable=unused-import\n"
+    )
+
+
+def test_opentherm_pattern(repo: Path) -> None:
+    write(
+        repo,
+        "esphome/components/ot/const.py",
+        'CONF_MANY = "many"\nCONF_OTHER = "other"\n',
+    )
+    write(
+        repo,
+        "esphome/components/ot/sensor.py",
+        "from . import const\n\nX = {const.CONF_MANY: const.CONF_OTHER}\n",
+    )
+    mod.cmd_move(repo, "CONF_MANY")
+    assert read(repo, "esphome/components/ot/const.py") == (
+        "from esphome.components.const import CONF_MANY  # noqa: F401  # pylint: disable=unused-import\n\n"
+        'CONF_OTHER = "other"\n'
+    )
+
+
+def test_unrelated_attribute_access_does_not_keep_import(repo: Path) -> None:
+    module_user(
+        repo,
+        "from . import const\nimport os\n"
+        "X = const.OTHER, os.path.CONF_MANY, foo().CONF_MANY, other.CONF_MANY\n",
+    )
+    assert read(repo, "esphome/components/c0/const.py") == ""

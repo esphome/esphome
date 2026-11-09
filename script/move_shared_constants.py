@@ -60,26 +60,34 @@ def tracked_py_files(root: Path) -> list[str]:
 
 
 def read_text(root: Path, rel: str) -> str:
-    """Read a tracked file as text."""
+    """Read a tracked file as UTF-8 text."""
     return (root / rel).read_text(encoding="utf-8")
 
 
-def literal_value(literal: str) -> str:
-    """Return the string a source literal evaluates to (the literal itself if it does not)."""
+def write_text(root: Path, rel: str, text: str) -> None:
+    """Write a file as UTF-8 with LF line endings, as .gitattributes requires."""
+    (root / rel).write_text(text, encoding="utf-8", newline="\n")
+
+
+def literal_value(literal: str) -> str | None:
+    """Return the string a source literal evaluates to, or None if it is not a plain string."""
     try:
         value = ast.literal_eval(literal)
     except (ValueError, SyntaxError):
-        return literal
-    return value if isinstance(value, str) else literal
+        return None
+    return value if isinstance(value, str) else None
 
 
-def is_valid_constant(name: str, values: set[str]) -> bool:
-    """Check the name, that all definitions agree, and that CONF_ values match the name."""
+def is_valid_constant(name: str, values: set[str | None]) -> bool:
+    """Check the name, that all definitions are one agreed string literal, and that
+    CONF_ values match the name."""
     if NAME_RE.match(name) is None or len(values) != 1:
+        return False
+    value = next(iter(values))
+    if value is None:
         return False
     if name.startswith("UNIT_"):
         return True
-    value = next(iter(values))
     return (
         VALUE_RE.match(value) is not None
         and value.replace(".", "_") == name[5:].lower()
@@ -104,8 +112,8 @@ def find_definitions(root: Path, files: list[str]) -> dict[str, dict[str, set[st
     return result
 
 
-def parsed_values(files: dict[str, set[str]]) -> set[str]:
-    """Return the distinct string values across all definitions."""
+def parsed_values(files: dict[str, set[str]]) -> set[str | None]:
+    """Return the distinct values across all definitions (None for a non-string literal)."""
     return {literal_value(lit) for literals in files.values() for lit in literals}
 
 
@@ -162,19 +170,19 @@ def add_to_home(root: Path, home: str, name: str, literal: str) -> None:
         lines[at:at] = block
     else:
         lines.append(new_line)
-    (root / home).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text(root, home, "\n".join(lines) + "\n")
 
 
 def bump_max_conf(root: Path) -> None:
     """Increase CONST_PY_MAX_CONF in script/ci-custom.py by one."""
-    path = root / CI_CUSTOM
-    path.write_text(
+    write_text(
+        root,
+        CI_CUSTOM,
         MAX_CONF_RE.sub(
             lambda m: f"{m.group(1)}{int(m.group(2)) + 1}",
-            path.read_text(encoding="utf-8"),
+            read_text(root, CI_CUSTOM),
             count=1,
         ),
-        encoding="utf-8",
     )
 
 
@@ -186,8 +194,27 @@ def module_name(rel: str) -> str:
     return ".".join(parts)
 
 
+def resolve_module(package: list[str], level: int, module: str | None) -> str:
+    """Resolve a possibly relative import target to a dotted module name."""
+    base = package[: len(package) - level + 1] if level else []
+    return ".".join([*base, *([module] if module else [])])
+
+
+def dotted_name(node: ast.expr) -> str | None:
+    """Return a.b.c for a Name or Attribute chain, else None."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute) and (head := dotted_name(node.value)):
+        return f"{head}.{node.attr}"
+    return None
+
+
 def imported_from(root: Path, files: list[str], name: str) -> set[str]:
-    """Return the modules that some tracked file imports name from."""
+    """Return the modules that some tracked file takes name from.
+
+    That is a module imported with `from module import name`, or a module bound
+    by an import and then used as `alias.name`.
+    """
     modules: set[str] = set()
     for rel in files:
         text = read_text(root, rel)
@@ -200,13 +227,25 @@ def imported_from(root: Path, files: list[str], name: str) -> set[str]:
         package = module_name(rel).split(".")
         if not rel.endswith("/__init__.py"):
             package.pop()
+        bindings: dict[str, str] = {}
+        accessed: list[ast.expr] = []
         for node in ast.walk(tree):
-            if not isinstance(node, ast.ImportFrom) or all(
-                alias.name != name for alias in node.names
-            ):
-                continue
-            base = package[: len(package) - node.level + 1] if node.level else []
-            modules.add(".".join([*base, *([node.module] if node.module else [])]))
+            if isinstance(node, ast.ImportFrom):
+                base = resolve_module(package, node.level, node.module)
+                for alias in node.names:
+                    if alias.name == name:
+                        modules.add(base)
+                    bindings[alias.asname or alias.name] = f"{base}.{alias.name}"
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    bindings[alias.asname or alias.name] = alias.name
+            elif isinstance(node, ast.Attribute) and node.attr == name:
+                accessed.append(node.value)
+        modules.update(
+            bindings[chain]
+            for value in accessed
+            if (chain := dotted_name(value)) in bindings
+        )
     return modules
 
 
@@ -223,7 +262,7 @@ def replace_definition(
     tree = ast.parse(text)
     used = any(isinstance(n, ast.Name) and n.id == name for n in ast.walk(tree))
     if not used and module_name(rel) not in importers:
-        (root / rel).write_text(text, encoding="utf-8")
+        write_text(root, rel, text)
         return False
     lines = text.splitlines()
     body = tree.body
@@ -240,7 +279,7 @@ def replace_definition(
     else:
         at = 0
     lines[at:at] = [import_line] if imports or at == 0 else ["", import_line]
-    (root / rel).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text(root, rel, "\n".join(lines) + "\n")
     return True
 
 
@@ -257,7 +296,7 @@ def mark_reexport(root: Path, rel: str, name: str) -> None:
         for alias in node.names:
             if alias.name == name and "noqa" not in lines[alias.lineno - 1]:
                 lines[alias.lineno - 1] += REEXPORT_NOQA
-    (root / rel).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text(root, rel, "\n".join(lines) + "\n")
 
 
 def run_ruff(root: Path, files: list[str]) -> None:
@@ -288,9 +327,7 @@ def cmd_move(root: Path, name: str) -> int:
         print(f"error: {name} has conflicting values {sorted(values)}", file=sys.stderr)
         return 1
     if not is_valid_constant(name, values):
-        print(
-            f"error: {name} = {values.pop()!r} is not a valid constant", file=sys.stderr
-        )
+        print(f"error: {name} is not a valid constant", file=sys.stderr)
         return 1
     literal = min(lit for literals in definers.values() for lit in literals)
 
