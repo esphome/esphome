@@ -244,9 +244,8 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
-// Returns the end of an unknown-length frame: the last length from min_length up to the bytes buffered now (at most
-// MAX_FRAME_SIZE) whose CRC checks, or 0 if there is none. A 0x00 right behind a frame keeps the CRC at 0, so it is
-// taken into the frame.
+// Matches the longest frame of at least min_length bytes with a valid CRC within the available buffer (at most
+// MAX_FRAME_SIZE bytes). Returns its length, or 0 if there is none.
 uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
