@@ -528,6 +528,14 @@ TEST_F(NoiseStreamTest, TheRetryWaitStopsAtTheCapWithJitter) {
   }
 }
 
+TEST_F(NoiseStreamTest, TheRetryWaitGrowsFromAZeroInterval) {
+  // With reconnect_interval: 0s the wait starts at 1 ms and doubles after each failed handshake; the 20% jitter of
+  // a wait under 5 ms rounds down to 0
+  EXPECT_EQ(this->client_.next_wait(0), 1u);
+  EXPECT_EQ(this->client_.next_wait(0), 2u);
+  EXPECT_EQ(this->client_.next_wait(0), 4u);
+}
+
 TEST_F(NoiseStreamTest, FailedHandshakesHoldTheClientLonger) {
   uint32_t now = 1000;
   // The link's own interval is the shortest wait, then each failure doubles it with +/-20%
