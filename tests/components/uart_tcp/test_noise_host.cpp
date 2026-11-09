@@ -1,16 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <arpa/inet.h>
 #include <csignal>
 #include <cstdint>
-#include <fcntl.h>
 #include <memory>
-#include <netinet/in.h>
 #include <string>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <vector>
 
+#include "common.h"
 #include "esphome/components/uart_tcp/uart_tcp.h"
 #include "esphome/core/application.h"
 #include "esphome/core/wake.h"
@@ -22,53 +19,17 @@ namespace esphome::uart_tcp::testing {
 static const uint8_t KEY[32] = {7, 6, 5,  4,  3,  2,  1,  0,  9,  8,  7,  6,  5,  4,  3,  2,
                                 1, 0, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
 
-// A UART the test fills and drains directly.
-class NoiseFakeUart : public uart::UARTComponent {
- public:
-  NoiseFakeUart() { this->set_baud_rate(115200); }
-  void write_array(const uint8_t *data, size_t len) override { this->tx.insert(this->tx.end(), data, data + len); }
-  bool peek_byte(uint8_t *data) override {
-    if (this->rx.empty())
-      return false;
-    *data = this->rx.front();
-    return true;
-  }
-  bool read_array(uint8_t *data, size_t len) override {
-    if (len > this->rx.size())
-      return false;
-    std::copy(this->rx.begin(), this->rx.begin() + len, data);
-    this->rx.erase(this->rx.begin(), this->rx.begin() + len);
-    return true;
-  }
-  size_t available() override { return this->rx.size(); }
-  size_t available_for_write() override { return SIZE_MAX; }
-  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
-  void check_logger_conflict() override {}
-
-  std::vector<uint8_t> rx;
-  std::vector<uint8_t> tx;
-};
-
 // The bridge dials a loopback listener the test owns; the test's stream answers.
 class UartTcpNoise : public ::testing::Test {
  protected:
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
     App.set_loop_interval(16);
-    this->listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    ASSERT_GE(this->listen_fd_, 0);
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    ASSERT_EQ(::bind(this->listen_fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
-    ASSERT_EQ(::listen(this->listen_fd_, 1), 0);
-    ASSERT_EQ(::fcntl(this->listen_fd_, F_SETFL, O_NONBLOCK), 0);
-    socklen_t len = sizeof(addr);
-    ASSERT_EQ(::getsockname(this->listen_fd_, reinterpret_cast<struct sockaddr *>(&addr), &len), 0);
-
+    // About 180 bytes per 16 ms pass, so a few hundred bytes reach the UART in a few passes
+    this->uart_.set_baud_rate(115200);
     this->bridge_.set_uart_parent(&this->uart_);
     this->bridge_.set_host("127.0.0.1");
-    this->bridge_.set_port(ntohs(addr.sin_port));
+    this->bridge_.set_port(listen_on_loopback(this->listen_fd_));
     this->bridge_.set_reconnect_interval(0);
     this->bridge_.set_noise_stream(&this->bridge_stream_);
     this->bridge_.set_connected_binary_sensor(&this->sensor_);
@@ -116,7 +77,7 @@ class UartTcpNoise : public ::testing::Test {
     return out;
   }
 
-  NoiseFakeUart uart_;
+  FakeUart uart_;
   noise::NoiseStream bridge_stream_{"uart_tcp", KEY, true};
   UartTcp bridge_;
   binary_sensor::BinarySensor sensor_;

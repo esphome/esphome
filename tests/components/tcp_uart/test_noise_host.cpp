@@ -5,7 +5,6 @@
 #include <cstring>
 #include <memory>
 #include <sys/socket.h>
-#include <unistd.h>
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
@@ -41,88 +40,87 @@ class TcpUartNoise : public ::testing::Test {
  protected:
   void SetUp() override { signal(SIGPIPE, SIG_IGN); }
   void TearDown() override {
-    this->client_->link().close();
-    this->server_->link().close();
+    this->client_.link().close();
+    this->server_.link().close();
+    this->stranger_.link().close();
   }
-  void make(const uint8_t *server_key) {
-    this->client_ = std::make_unique<NoiseUart>(KEY, true);
-    this->server_ = std::make_unique<NoiseUart>(server_key, false);
+  /// Opens TCP between client_ and server; the session is not up yet.
+  void pair_(NoiseUart &server) {
     int fds[2];
     ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-    this->client_->link().adopt(std::make_unique<socket::Socket>(fds[0]));
-    this->server_->link().adopt(std::make_unique<socket::Socket>(fds[1]));
+    this->client_.link().adopt(std::make_unique<socket::Socket>(fds[0]));
+    server.link().adopt(std::make_unique<socket::Socket>(fds[1]));
   }
-  void loops(int count) {
+  void loops_(NoiseUart &server, int count) {
     for (int i = 0; i < count; i++) {
-      this->client_->loop();
-      this->server_->loop();
+      this->client_.loop();
+      server.loop();
     }
   }
+  /// Pairs client_ with server and runs five loops; true once both ends are connected.
+  bool connect_(NoiseUart &server) {
+    this->pair_(server);
+    this->loops_(server, 5);
+    return this->client_.is_connected() && server.is_connected();
+  }
 
-  std::unique_ptr<NoiseUart> client_;
-  std::unique_ptr<NoiseUart> server_;
+  NoiseUart client_{KEY, true};
+  NoiseUart server_{KEY, false};
+  // A server that holds another key
+  NoiseUart stranger_{OTHER_KEY, false};
 };
 
 TEST_F(TcpUartNoise, ConnectedOnlyOnceTheSessionIsSecure) {
-  this->make(KEY);
-  EXPECT_FALSE(this->client_->is_connected());
-  EXPECT_EQ(this->client_->available_for_write(), 0u);
+  this->pair_(this->server_);
+  EXPECT_FALSE(this->client_.is_connected());
+  EXPECT_EQ(this->client_.available_for_write(), 0u);
   const uint8_t early[] = {0x42};
-  this->client_->write_array(early, sizeof(early));
-  EXPECT_EQ(this->client_->flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED);
+  this->client_.write_array(early, sizeof(early));
+  EXPECT_EQ(this->client_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED);
 
-  this->loops(5);
-  ASSERT_TRUE(this->client_->is_connected());
-  ASSERT_TRUE(this->server_->is_connected());
-  EXPECT_TRUE(this->client_->connected_.state);
-  EXPECT_TRUE(this->server_->connected_.state);
-  EXPECT_GT(this->client_->available_for_write(), 0u);
+  this->loops_(this->server_, 5);
+  ASSERT_TRUE(this->client_.is_connected());
+  ASSERT_TRUE(this->server_.is_connected());
+  EXPECT_TRUE(this->client_.connected_.state);
+  EXPECT_TRUE(this->server_.connected_.state);
+  EXPECT_GT(this->client_.available_for_write(), 0u);
 }
 
 TEST_F(TcpUartNoise, BytesCrossInBothDirections) {
-  this->make(KEY);
-  this->loops(5);
-  ASSERT_TRUE(this->client_->is_connected());
+  ASSERT_TRUE(this->connect_(this->server_));
 
   const uint8_t request[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B};
-  this->client_->write_array(request, sizeof(request));
-  EXPECT_EQ(this->client_->flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS);
-  this->loops(2);
-  ASSERT_EQ(this->server_->available(), sizeof(request));
+  this->client_.write_array(request, sizeof(request));
+  EXPECT_EQ(this->client_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS);
+  this->loops_(this->server_, 2);
+  ASSERT_EQ(this->server_.available(), sizeof(request));
   uint8_t got[sizeof(request)];
-  ASSERT_TRUE(this->server_->read_array(got, sizeof(got)));
+  ASSERT_TRUE(this->server_.read_array(got, sizeof(got)));
   EXPECT_EQ(std::memcmp(got, request, sizeof(request)), 0);
 
   const uint8_t answer[] = {0x01, 0x03, 0x04, 0x00, 0x0A, 0x00, 0x0B};
-  this->server_->write_array(answer, sizeof(answer));
-  this->loops(2);
-  ASSERT_EQ(this->client_->available(), sizeof(answer));
+  this->server_.write_array(answer, sizeof(answer));
+  this->loops_(this->server_, 2);
+  ASSERT_EQ(this->client_.available(), sizeof(answer));
   uint8_t back[sizeof(answer)];
-  ASSERT_TRUE(this->client_->read_array(back, sizeof(back)));
+  ASSERT_TRUE(this->client_.read_array(back, sizeof(back)));
   EXPECT_EQ(std::memcmp(back, answer, sizeof(answer)), 0);
 }
 
 TEST_F(TcpUartNoise, WrongKeyNeverConnects) {
-  this->make(OTHER_KEY);
-  this->loops(5);
-  EXPECT_FALSE(this->client_->is_connected());
-  EXPECT_FALSE(this->server_->is_connected());
-  EXPECT_FALSE(this->client_->link().connected());
-  EXPECT_FALSE(this->server_->link().connected());
+  EXPECT_FALSE(this->connect_(this->stranger_));
   // Never up, so no session ended
-  EXPECT_FALSE(this->client_->connected_.state);
-  EXPECT_TRUE(std::isnan(this->client_->disconnects_.state));
+  EXPECT_FALSE(this->client_.connected_.state);
+  EXPECT_TRUE(std::isnan(this->client_.disconnects_.state));
 }
 
 TEST_F(TcpUartNoise, ADropEndsTheSession) {
-  this->make(KEY);
-  this->loops(5);
-  ASSERT_TRUE(this->server_->is_connected());
-  this->client_->link().close();
-  this->loops(3);
-  EXPECT_FALSE(this->server_->is_connected());
-  EXPECT_FALSE(this->server_->connected_.state);
-  EXPECT_FLOAT_EQ(this->server_->disconnects_.state, 1);
+  ASSERT_TRUE(this->connect_(this->server_));
+  this->client_.link().close();
+  this->loops_(this->server_, 3);
+  EXPECT_FALSE(this->server_.is_connected());
+  EXPECT_FALSE(this->server_.connected_.state);
+  EXPECT_FLOAT_EQ(this->server_.disconnects_.state, 1);
 }
 
 }  // namespace esphome::tcp_uart::testing

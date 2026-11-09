@@ -73,12 +73,8 @@ void TcpUart::sync_link_(bool up) {
   if (up) {
     // Unread bytes of the last session stay readable while down, never into the next one.
     this->rx_start_ = this->rx_end_ = 0;
-#ifdef USE_NOISE_STREAM
-    // The handshake's last read can leave session bytes the socket's ready flag does not show
-    if (this->noise_ != nullptr) {
-      this->rx_pending_ = true;
-    }
-#endif
+    // Read in the first pass: a handshake's last read can leave session bytes the socket's ready flag does not show
+    this->rx_pending_ = true;
   }
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->connected_binary_sensor_, up);
@@ -104,12 +100,7 @@ void TcpUart::read_socket_() {
     this->link_.note_io();
     return;
   }
-#ifdef USE_NOISE_STREAM
-  ssize_t count = this->noise_ != nullptr ? this->noise_->read(this->link_, this->rx_ + this->rx_end_, room)
-                                          : this->link_.read(this->rx_ + this->rx_end_, room);
-#else
-  ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
-#endif
+  ssize_t count = this->read_link_(this->rx_ + this->rx_end_, room);
   if (count <= 0) {
     // A dropped link (-1) is seen by sync_link_() on the next loop.
     if (count == 0) {
@@ -148,11 +139,7 @@ void TcpUart::loop() {
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
-#ifdef USE_NOISE_STREAM
-  size_t queued = this->noise_ != nullptr ? this->noise_->queue(this->link_, data, len) : this->link_.queue(data, len);
-#else
-  size_t queued = this->link_.queue(data, len);
-#endif
+  size_t queued = this->queue_link_(data, len);
   if (queued < len) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
