@@ -152,7 +152,7 @@ bool BLEServer::add_service_(BLEService &service, bool owned) {
     return false;
   }
   service.inst_id_ = inst_id;
-  this->services_.push_back({uuid, inst_id, owned, &service});
+  this->services_.push_back({&service, owned});
   if (this->parent_->is_active() && this->registered_) {
     service.do_create(this);
   }
@@ -166,7 +166,7 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
   ESP_LOGV(TAG, "Removing BLE service - %s %d", uuid_buf, inst_id);
 #endif
   for (auto it = this->services_.begin(); it != this->services_.end(); ++it) {
-    if (it->uuid == uuid && it->inst_id == inst_id) {
+    if (it->service->get_inst_id() == inst_id && it->service->get_uuid() == uuid) {
       it->service->do_delete();
       if (it->owned)
         delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -181,7 +181,7 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
 
 BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
   for (auto &entry : this->services_) {
-    if (entry.uuid == uuid && entry.inst_id == inst_id) {
+    if (entry.service->get_inst_id() == inst_id && entry.service->get_uuid() == uuid) {
       return entry.service;
     }
   }

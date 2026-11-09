@@ -115,10 +115,8 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   };
 
   struct ServiceEntry {
-    ESPBTUUID uuid;
-    uint8_t inst_id;
-    bool owned;  // allocated by create_service(), freed by remove_service()
     BLEService *service;
+    bool owned;  // allocated by create_service(), freed by remove_service()
   };
 
   bool add_service_(BLEService &service, bool owned);
