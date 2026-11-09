@@ -30,8 +30,8 @@ inline MbapTake take_mbap(const uint8_t *buf, size_t len, Mbap *out, size_t *use
   if (len < MBAP_HEADER_SIZE) {
     return MbapTake::NEED_MORE;
   }
-  uint16_t proto = (static_cast<uint16_t>(buf[2]) << 8) | buf[3];
-  uint16_t length = (static_cast<uint16_t>(buf[4]) << 8) | buf[5];
+  uint16_t proto = encode_uint16(buf[2], buf[3]);
+  uint16_t length = encode_uint16(buf[4], buf[5]);
   if (proto != 0 || length < 2 || length > MBAP_MAX_LENGTH) {
     *used = 1;
     return MbapTake::BAD;
@@ -39,7 +39,7 @@ inline MbapTake take_mbap(const uint8_t *buf, size_t len, Mbap *out, size_t *use
   if (len < 6u + length) {
     return MbapTake::NEED_MORE;
   }
-  out->txn = (static_cast<uint16_t>(buf[0]) << 8) | buf[1];
+  out->txn = encode_uint16(buf[0], buf[1]);
   out->unit = buf[6];
   out->pdu = buf + MBAP_HEADER_SIZE;
   out->pdu_len = length - 1;
@@ -52,7 +52,7 @@ inline size_t mbap_announced_size(const uint8_t *buf, size_t len) {
   if (len < MBAP_HEADER_SIZE) {
     return 0;
   }
-  uint16_t length = (static_cast<uint16_t>(buf[4]) << 8) | buf[5];
+  uint16_t length = encode_uint16(buf[4], buf[5]);
   if (length < 2 || length > MBAP_MAX_LENGTH) {
     return 0;
   }
