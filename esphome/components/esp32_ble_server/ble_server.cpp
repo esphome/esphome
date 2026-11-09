@@ -195,8 +195,9 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       // Resume advertising so additional clients can discover and connect
       if (this->client_count_ < this->max_clients_) {
         this->parent_->advertising_refresh();
-      } else {
-        // Full: the controller stopped advertising; a restart deferred before this connect must not reopen it
+      } else if (param->connect.link_role == 1) {
+        // Full: the controller stopped advertising; a send queued before this connect must not reopen it.
+        // A link opened as a central (link_role 0) does not stop advertising, so a queued send still applies.
         this->parent_->advertising_cancel_deferred();
       }
       this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);

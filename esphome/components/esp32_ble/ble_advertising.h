@@ -35,7 +35,7 @@ class BLEAdvertising {
 
   void start();
   void stop();
-  /// Send the services advertising from the next loop(); loop() is the only sender.
+  /// Send from the next loop(): a burst of refreshes becomes one send instead of flooding the Bluetooth task queue.
   void request_start() { this->restart_pending_ = true; }
   void cancel_deferred_restart() { this->restart_pending_ = false; }
 

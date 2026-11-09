@@ -618,7 +618,7 @@ void ESP32BLE::loop() {
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
   }
-  // After the events, so config completions already queued are counted before the timeout check
+  // After the events, so refreshes they trigger go out in this pass
   this->advertising_loop_();
 }
 
