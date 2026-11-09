@@ -4,7 +4,7 @@ import argparse
 import ast
 import codecs
 import collections
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 import fnmatch
 import functools
 import os.path
@@ -622,9 +622,27 @@ def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
             and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
         ):
             yield target
+    elif isinstance(target, ast.Starred):
+        yield from _constant_names(target.value)
     elif isinstance(target, (ast.Tuple, ast.List)):
         for elt in target.elts:
             yield from _constant_names(elt)
+
+
+def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
+    """Yield statements at module level, including those inside if/try/with/for blocks.
+
+    Function and class bodies are a different scope and are not entered.
+    """
+    for node in nodes:
+        yield node
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _module_level_statements(
+            child
+            for child in ast.iter_child_nodes(node)
+            if isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case))
+        )
 
 
 @lint_content_check(include=["esphome/*.py"])
@@ -642,7 +660,7 @@ def lint_constant_is_plain_string(
         # Reported by the Python linters; nothing useful to add here.
         return []
     errs: list[tuple[int, int, str]] = []
-    for node in tree.body:
+    for node in _module_level_statements(tree.body):
         if isinstance(node, ast.Assign):
             targets = node.targets
             value = node.value
@@ -654,7 +672,12 @@ def lint_constant_is_plain_string(
             value = None
         else:
             continue
-        if isinstance(value, ast.Constant) and type(value.value) is str:
+        # Unpacking a string binds single characters or a list, so only a plain name counts.
+        if (
+            isinstance(value, ast.Constant)
+            and type(value.value) is str
+            and all(isinstance(target, ast.Name) for target in targets)
+        ):
             continue
         for target in targets:
             for name in _constant_names(target):

@@ -45,6 +45,9 @@ def _lint(content: str) -> list[tuple[int, int, str]]:
         'def f() -> None:\n    CONF_FOO = "a" + "b"\n',
         'class A:\n    CONF_FOO = f"{X}"\n',
         "a.CONF_FOO = 1\n",
+        'try:\n    CONF_FOO = "a"\nexcept ImportError:\n    CONF_FOO = "b"\n',
+        'if X:\n    def f() -> None:\n        CONF_FOO = "a" + "b"\n',
+        "if X:\n    async def f() -> None:\n        CONF_FOO = X\n",
     ],
 )
 def test_accepts(content: str) -> None:
@@ -70,6 +73,9 @@ def test_accepts(content: str) -> None:
         ('X = CONF_FOO = "a" + "b"\n', "CONF_FOO", 5),
         ('OTHER, CONF_FOO = "a", "b"\n', "CONF_FOO", 8),
         ('[OTHER, CONF_FOO] = "a", "b"\n', "CONF_FOO", 9),
+        ('OTHER, *CONF_FOO = ["a", "b", "c"]\n', "CONF_FOO", 9),
+        ('*CONF_FOO, = "xy"\n', "CONF_FOO", 2),
+        ('OTHER, CONF_FOO = "ab"\n', "CONF_FOO", 8),
     ],
 )
 def test_rejects(content: str, name: str, col: int) -> None:
@@ -87,6 +93,38 @@ def test_reports_each_constant_at_its_own_line() -> None:
         (2, 1),
         (4, 1),
         (4, 9),
+    ]
+
+
+def test_checks_assignments_inside_module_level_blocks() -> None:
+    content = (
+        "if X:\n"
+        "    CONF_A = A\n"
+        "else:\n"
+        "    CONF_B = B\n"
+        "try:\n"
+        "    CONF_C = C\n"
+        "except ImportError:\n"
+        "    CONF_D = D\n"
+        "finally:\n"
+        "    CONF_E = E\n"
+        "with X:\n"
+        "    CONF_F = F\n"
+        "for x in X:\n"
+        "    CONF_G = G\n"
+        "match X:\n"
+        "    case 1:\n"
+        "        CONF_H = H\n"
+    )
+    assert [(line, col) for line, col, _ in _lint(content)] == [
+        (2, 5),
+        (4, 5),
+        (6, 5),
+        (8, 5),
+        (10, 5),
+        (12, 5),
+        (14, 5),
+        (17, 9),
     ]
 
 
