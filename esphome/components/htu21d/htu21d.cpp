@@ -18,10 +18,8 @@ static const uint8_t HTU21D_READHEATER_REG_CMD = 0x11;  /**< Read Heater Control
 static const uint8_t HTU21D_REG_HTRE_BIT = 0x02;        /**< Control Register Heater Bit */
 
 void HTU21DComponent::setup() {
-  if (!this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)))
     return;
-  }
 
   // Wait for software reset to complete
   delay(15);
@@ -75,18 +73,9 @@ void HTU21DComponent::update() {
 
       this->status_clear_warning();
 
-      // HTU21D does have a heater module but does not have heater level
-      // Setting heater level to 1 in case the heater is ON
-      uint8_t heater_level = 0;
-      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
-        if (this->is_heater_enabled()) {
-          heater_level = 1;
-        } else {
-          heater_level = 0;
-        }
-      } else {
-        heater_level = this->get_heater_level();
-      }
+      // HTU21D has a heater but no heater level, so report 1 while the heater is on
+      const uint8_t heater_level =
+          this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D ? this->is_heater_enabled() : this->get_heater_level();
 
       ESP_LOGD(TAG, "Heater Level=%d", heater_level);
 

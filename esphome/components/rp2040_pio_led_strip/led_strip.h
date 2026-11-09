@@ -15,18 +15,8 @@
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
 #include <pico/sem.h>
-#include <map>
 
 namespace esphome::rp2040_pio_led_strip {
-
-enum Chipset : uint8_t {
-  CHIPSET_WS2812,
-  CHIPSET_WS2812B,
-  CHIPSET_SK6812,
-  CHIPSET_SM16703,
-  CHIPSET_APA102,
-  CHIPSET_CUSTOM = 0xFF,
-};
 
 using init_fn = void (*)(PIO pio, uint sm, uint offset, uint pin, float freq);
 
@@ -50,7 +40,6 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   void set_program(const pio_program_t *program) { this->program_ = program; }
   void set_init_function(init_fn init) { this->init_ = init; }
 
-  void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
   void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
 
   void dump_config() override;
@@ -70,19 +59,21 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   uint dma_chan_;
   dma_channel_config dma_config_;
 
-  Chipset chipset_{CHIPSET_CUSTOM};
-
   float max_refresh_rate_;
 
   const pio_program_t *program_;
   init_fn init_;
 
  private:
-  inline static int num_instance[2];
-  inline static std::map<Chipset, bool> conf_count;
-  inline static std::map<Chipset, int> chipset_offsets;
-  inline static bool dma_chan_active[12];
-  inline static struct semaphore dma_write_complete_sem[12];
+  // Programs loaded into each PIO; strips with the same timings share one program pointer
+  struct LoadedPrograms {
+    const pio_program_t *program[NUM_PIO_STATE_MACHINES];
+    uint8_t offset[NUM_PIO_STATE_MACHINES];
+    uint8_t strips;
+  };
+  inline static LoadedPrograms loaded_programs[2];
+  inline static bool dma_chan_active[NUM_DMA_CHANNELS];
+  inline static struct semaphore dma_write_complete_sem[NUM_DMA_CHANNELS];
 };
 
 }  // namespace esphome::rp2040_pio_led_strip

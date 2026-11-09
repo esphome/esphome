@@ -33,24 +33,17 @@ void SCD30Component::setup() {
 
   /// Firmware version identification
   uint16_t raw_firmware_version[3];
-  if (!this->get_register(SCD30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 3)) {
-    this->mark_failed(LOG_STR("Unable to read sensor firmware version"));
+  if (!this->setup_check(this->get_register(SCD30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 3),
+                         LOG_STR("Unable to read sensor firmware version")))
     return;
-  }
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  uint16_t temp_offset;
-  if (this->temperature_offset_ > 0) {
-    temp_offset = (this->temperature_offset_ * 100);
-  } else {
-    temp_offset = 0;
-  }
+  const uint16_t temp_offset = this->temperature_offset_ > 0 ? (this->temperature_offset_ * 100) : 0;
 
-  if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset)) {
-    this->mark_failed(LOG_STR("Error setting temperature offset"));
+  if (!this->setup_check(this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset),
+                         LOG_STR("Error setting temperature offset")))
     return;
-  }
 #ifdef USE_ESP32
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
   // internal calibration processes". The I2C peripheral only supports 13ms (at
@@ -64,38 +57,35 @@ void SCD30Component::setup() {
   delay(30);
 #endif
 
-  if (!this->write_command(SCD30_CMD_MEASUREMENT_INTERVAL, update_interval_)) {
-    this->mark_failed(LOG_STR("Error setting update interval"));
+  if (!this->setup_check(this->write_command(SCD30_CMD_MEASUREMENT_INTERVAL, update_interval_),
+                         LOG_STR("Error setting update interval")))
     return;
-  }
 #ifdef USE_ESP32
   delay(30);
 #endif
 
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
-    if (!this->write_command(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-      this->mark_failed(LOG_STR("Error setting altitude compensation"));
+    if (!this->setup_check(this->write_command(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_),
+                           LOG_STR("Error setting altitude compensation")))
       return;
-    }
   }
 #ifdef USE_ESP32
   delay(30);
 #endif
 
-  if (!this->write_command(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    this->mark_failed(LOG_STR("Error setting automatic self calibration"));
+  if (!this->setup_check(this->write_command(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0),
+                         LOG_STR("Error setting automatic self calibration")))
     return;
-  }
 #ifdef USE_ESP32
   delay(30);
 #endif
 
   /// Sensor initialization
-  if (!this->write_command(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    this->mark_failed(LOG_STR("Error starting continuous measurements"));
+  if (!this->setup_check(
+          this->write_command(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_),
+          LOG_STR("Error starting continuous measurements")))
     return;
-  }
 
   // check each 500ms if data is ready, and read it in that case
   this->set_interval(STATUS_CHECK_INTERVAL_ID, 500, [this]() {

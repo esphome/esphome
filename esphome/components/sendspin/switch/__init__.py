@@ -2,10 +2,11 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import switch
+from esphome.components.api import wizard
 from esphome.components.const import CONF_ENABLED
 from esphome.components.switch import DOMAIN as SWITCH_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_ID, CONF_TYPE, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -40,8 +41,12 @@ def _switch_schema(class_: cg.MockObjClass) -> cv.Schema:
 
 
 def _request_switch(config: ConfigType) -> ConfigType:
-    """Tell the hub to wait for this switch before the client's first start."""
+    """Tell the hub to wait for this switch before the client's first start.
+
+    Also give the switch the wizard role sendspin.<type>, which Home Assistant knows it by.
+    """
     request_switch(config[CONF_TYPE])
+    wizard.register_entity_role(config[CONF_ID], f"{DOMAIN}.{config[CONF_TYPE]}")
     return config
 
 

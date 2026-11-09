@@ -11,6 +11,8 @@ audio_dac:
   - platform: es8388
     i2c_id: i2c_bus
     id: es8388_parent
+    volume_min_db: -50dB
+    volume_max_db: -3dB
     mic_gain: 21DB
 
 select:

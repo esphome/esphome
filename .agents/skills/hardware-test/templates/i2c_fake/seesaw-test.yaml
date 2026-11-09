@@ -1,0 +1,360 @@
+esphome:
+  name: sspr
+  includes:
+    - ssfake.hpp
+  on_boot:
+    - priority: 950
+      then:
+        - lambda: |-
+            auto &a = ssfake::bus.chips[0];
+            auto &b = ssfake::bus.chips[1];
+            a.enc[0] = -3;
+            a.enc[1] = 100;
+            a.adc[7] = 777;
+            b.adc[1] = 333;
+            b.adc[5] = 555;
+            b.touch[0] = 1234;
+            b.temp_raw = 0xFFFFFFFF;
+            id(ssa)->set_i2c_bus(&ssfake::bus);
+            id(ssb)->set_i2c_bus(&ssfake::bus);
+            id(ssc)->set_i2c_bus(&ssfake::bus);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: UART0
+  level: DEBUG
+  logs:
+    sensor: INFO
+    binary_sensor: INFO
+    light: INFO
+    switch: INFO
+
+globals:
+  - id: step
+    type: int
+    initial_value: "0"
+  - id: mark
+    type: uint32_t
+    initial_value: "0"
+  - id: mark_t
+    type: uint32_t
+    initial_value: "0"
+  - id: c_nacked
+    type: uint32_t
+    initial_value: "0"
+
+i2c:
+  sda: GPIO17
+  scl: GPIO18
+  scan: false
+
+seesaw:
+  - id: ssa
+    address: 0x36
+  - id: ssb
+    address: 0x49
+  - id: ssc
+    address: 0x4A
+
+sensor:
+  - platform: seesaw
+    id: enc0
+    seesaw_id: ssa
+    type: encoder
+    name: Enc0
+    number: 0
+    min_value: -10
+    max_value: 10
+  - platform: seesaw
+    id: enc1
+    seesaw_id: ssa
+    type: encoder
+    name: Enc1
+    number: 1
+  - platform: seesaw
+    id: ta
+    seesaw_id: ssa
+    type: temperature
+    name: TempA
+    update_interval: never
+  - platform: seesaw
+    id: aa
+    seesaw_id: ssa
+    type: adc
+    pin: 7
+    name: AdcA7
+    update_interval: never
+  - platform: seesaw
+    id: ab3
+    seesaw_id: ssb
+    type: adc
+    pin: 3
+    name: AdcB3
+    update_interval: never
+  - platform: seesaw
+    id: ab5
+    seesaw_id: ssb
+    type: adc
+    pin: 5
+    name: AdcB5
+    update_interval: never
+  - platform: seesaw
+    id: ab7
+    seesaw_id: ssb
+    type: adc
+    pin: 7
+    name: AdcB7
+    update_interval: never
+  - platform: seesaw
+    id: tb
+    seesaw_id: ssb
+    type: touch
+    channel: 0
+    name: TouchB
+    update_interval: never
+  - platform: seesaw
+    id: tb2
+    seesaw_id: ssb
+    type: temperature
+    name: TempB
+    update_interval: never
+  - platform: seesaw
+    id: encc
+    seesaw_id: ssc
+    type: encoder
+    name: EncC
+  - platform: seesaw
+    id: ac
+    seesaw_id: ssc
+    type: adc
+    pin: 2
+    name: AdcC
+    update_interval: never
+
+binary_sensor:
+  - platform: gpio
+    id: btna
+    name: BtnA
+    pin:
+      seesaw: ssa
+      number: 24
+      mode: input_pullup
+      inverted: true
+  - platform: gpio
+    id: btna2
+    name: BtnA2
+    pin:
+      seesaw: ssa
+      number: 25
+      mode: input_pullup
+  - platform: gpio
+    id: btnb
+    name: BtnB
+    pin:
+      seesaw: ssb
+      number: 9
+      mode: input_pulldown
+  - platform: gpio
+    id: btnc
+    name: BtnC
+    pin:
+      seesaw: ssc
+      number: 1
+      mode: input_pullup
+
+switch:
+  - platform: gpio
+    id: swa
+    name: SwA
+    pin:
+      seesaw: ssa
+      number: 5
+      mode: output
+
+light:
+  - platform: seesaw
+    id: pxa
+    output_id: pxa_out
+    seesaw_id: ssa
+    name: PixA
+    pin: 14
+    num_leds: 12
+    default_transition_length: 0s
+  - platform: seesaw
+    id: pxc
+    output_id: pxc_out
+    seesaw_id: ssc
+    name: PixC
+    pin: 3
+
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          using namespace ssfake;
+          auto &a = bus.chips[0];
+          auto &b = bus.chips[1];
+          auto &c = bus.chips[2];
+          int s = ++id(step);
+          auto color = [](float r, float g, float bl) {
+            auto call = id(pxa).turn_on();
+            call.set_rgb(r, g, bl);
+            call.set_brightness(1.0f);
+            call.set_transition_length(0);
+            call.perform();
+          };
+          auto all = [](const char *px) {
+            std::string w;
+            for (int i = 0; i < 12; i++) { if (i) w += " "; w += px; }
+            return w;
+          };
+          switch (s) {
+            case 20: {
+              check("hub A setup reads", a.log.substr(0, 18), "00.01 00.02 00.03 ");
+              check("hub A ok", id(ssa)->is_failed(), 0);
+              check("hub B ok", id(ssb)->is_failed(), 0);
+              check("hub C failed", id(ssc)->is_failed(), 1);
+              check("hub C encoder failed", id(encc)->is_failed(), 1);
+              check("hub C adc failed", id(ac)->is_failed(), 1);
+              check("hub C light failed", id(pxc_out)->is_failed(), 1);
+              check_true("hub C setup tried", c.nacked > 0, std::to_string(c.nacked));
+              id(c_nacked) = c.nacked;
+              check("enc0 initial", (int) id(enc0).state, 3);
+              check("enc1 initial", (int) id(enc1).state, -100);
+              check("encoder intenset", a.enc_inten, 3);
+              check("A dir out pin5", a.dir, 1 << 5);
+              check("A pull 24 25", a.pull, (1UL << 24) | (1UL << 25));
+              check("A latch pullups, pin5 low", a.out, (1UL << 24) | (1UL << 25));
+              check("B pull 9 low", (b.pull << 1) | ((b.out >> 9) & 1), (1UL << 10));
+              check("btnA idle", id(btna).state, 0);
+              check("btnA2 idle high", id(btna2).state, 1);
+              check("btnB pulldown low", id(btnb).state, 0);
+              check("np pin", a.np_pin, 14);
+              check("np speed 800k", a.np_speed, 1);
+              check("np buf len", a.np_len, 36);
+              id(ta).update();
+              check("temp A", f2s(id(ta).state), "25.50");
+              check_true("temp wait >=1000us", a.gap[0][0] >= 1000, std::to_string(a.gap[0][0]));
+              id(aa).update();
+              check("adc A pin7 = channel 7", (int) id(aa).state, 777);
+              check_true("adc wait >=500us", a.gap[9][0] >= 500, std::to_string(a.gap[9][0]));
+              id(ab3).update();
+              check("adc SAMD09 pin3 = ch1", (int) id(ab3).state, 333);
+              id(ab5).update();
+              check("adc SAMD09 pin5 = ch3", (int) id(ab5).state, 0);
+              b.adc[3] = 555;
+              id(ab5).update();
+              check("adc SAMD09 pin5 = ch3 again", (int) id(ab5).state, 555);
+              uint32_t r0 = b.reads;
+              id(ab7).update();
+              check_true("adc SAMD09 pin7 rejected", std::isnan(id(ab7).state) && id(ab7)->status_has_warning() && b.reads == r0, "nan+warn+no read");
+              id(tb).update();
+              check("touch B ch0", (int) id(tb).state, 1234);
+              check_true("touch wait >=3000us", b.gap[0x0F][0] >= 3000, std::to_string(b.gap[0x0F][0]));
+              id(tb2).update();
+              check_true("temp B no sensor", std::isnan(id(tb2).state) && id(tb2)->status_has_warning(), "nan+warn");
+              b.temp_raw = 0xFFF60000;  // -10.0
+              id(tb2).update();
+              check("temp B negative", f2s(id(tb2).state), "-10.00");
+              check("temp B warn cleared", id(tb2)->status_has_warning(), 0);
+              b.nack = true;
+              id(tb).update();
+              check("touch nack warn", id(tb)->status_has_warning(), 1);
+              b.nack = false;
+              id(tb).update();
+              check("touch recovered", id(tb)->status_has_warning(), 0);
+              a.enc[0] = -5;
+              break;
+            }
+            case 22: check("enc0 +2", (int) id(enc0).state, 5); a.enc[0] = -15; break;
+            case 24: check("enc0 clamp max", (int) id(enc0).state, 10); a.enc[0] = -14; break;
+            case 26: check("enc0 back one from limit", (int) id(enc0).state, 9); a.enc[0] = 100; break;
+            case 28:
+              check("enc0 clamp min", (int) id(enc0).state, -10);
+              a.enc[1] = 97;
+              break;
+            case 30:
+              check("enc1 unlimited", (int) id(enc1).state, -97);
+              a.enc[1] = INT32_MIN + 2;
+              break;
+            case 32:
+              check("enc1 big jump clamps at min", (int64_t) id(enc1).state, INT32_MIN);
+              a.enc[1] = INT32_MAX - 1;  // wraps by 4 steps the other way on the chip
+              break;
+            case 34:
+              // INT32_MIN + 4 rounds to INT32_MIN as a float; the jump back to 0 below checks the 4 exactly
+              check("enc1 after wrap", (int64_t) id(enc1).state, INT32_MIN);
+              a.enc[1] = 0;  // INT32_MAX - 1 up from the wrapped position, read once the NACK clears
+              // fault: hub A NACKs while the button is pressed
+              a.nack = true;
+              a.ext_mask |= 1UL << 24;
+              a.ext_level &= ~(1UL << 24);
+              a.enc[0] = -12;
+              break;
+            case 37:
+              check("enc0 nack warn", id(enc0)->status_has_warning(), 1);
+              check("hub A gpio nack warn", id(ssa)->status_has_warning(), 1);
+              check("btnA held during nack", id(btna).state, 0);
+              check("enc0 held during nack", (int) id(enc0).state, -10);
+              a.nack = false;
+              break;
+            case 40:
+              check("enc0 recovered", id(enc0)->status_has_warning(), 0);
+              check("hub A recovered", id(ssa)->status_has_warning(), 0);
+              check("btnA pressed", id(btna).state, 1);
+              check("enc0 after nack", (int) id(enc0).state, 10);
+              check("enc1 back from wrap", (int) id(enc1).state, 2);
+              a.ext_mask &= ~(1UL << 24);
+              id(mark) = a.bulk_reads;
+              id(mark_t) = millis();
+              break;
+            case 50: {
+              check("btnA released", id(btna).state, 0);
+              uint32_t n = a.bulk_reads - id(mark), dt = millis() - id(mark_t);
+              ESP_LOGI(TAG, "hub A bulk reads %u in %u ms (2 pins)", (unsigned) n, (unsigned) dt);
+              check_true("one bulk read per loop for 2 pins", n * 16 < dt * 13 / 10, std::to_string(n));
+              a.log.clear();
+              id(swa).turn_on();
+              check("switch on", a.log, "01.05=20 ");
+              check("latch pin5 on", (a.out >> 5) & 1, 1);
+              a.log.clear();
+              id(swa).turn_off();
+              check("switch off", a.log, "01.06=20 ");
+              color(1, 0, 0);
+              id(mark) = a.np_shows;
+              break;
+            }
+            case 53:
+              check("red GRB", bus.pixels(a, 12), all("00FF00"));
+              check_true("shown", a.np_shows > id(mark), std::to_string(a.np_shows));
+              color(0, 0, 1);
+              break;
+            case 56: check("blue GRB", bus.pixels(a, 12), all("0000FF")); color(0, 1, 0); break;
+            case 59:
+              check("green GRB", bus.pixels(a, 12), all("FF0000"));
+              a.nack_np = 1;
+              color(1, 1, 1);
+              break;
+            case 62:
+              check("white after dropped chunk", bus.pixels(a, 12), all("FFFFFF"));
+              check("light warn cleared", id(pxa_out)->status_has_warning(), 0);
+              id(pxa).turn_off().perform();
+              break;
+            case 65:
+              check("off", bus.pixels(a, 12), all("000000"));
+              check("no write over 32 bytes", a.np_big, 0);
+              check("malformed A", a.bad, 0);
+              check("malformed B", b.bad, 0);
+              check("hub C no transfers after setup", c.nacked, id(c_nacked));
+              ESP_LOGI(TAG, "A writes=%u reads=%u chunks=%u shows=%u", (unsigned) a.writes, (unsigned) a.reads,
+                       (unsigned) a.np_chunks, (unsigned) a.np_shows);
+              ESP_LOGI(TAG, "ALL DONE pass=%u fail=%u %s", (unsigned) pass_n, (unsigned) fail_n,
+                       pass_n && !fail_n ? "PASS" : "FAIL");
+              break;
+          }

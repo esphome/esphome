@@ -28,16 +28,14 @@ void SPS30Component::setup() {
   /// Deferred Sensor initialization
   this->set_timeout(500, [this]() {
     /// Firmware version identification
-    if (!this->get_register(SPS30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version_, 1)) {
-      this->mark_failed(LOG_STR("Unable to read firmware version"));
+    if (!this->setup_check(this->get_register(SPS30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version_, 1),
+                           LOG_STR("Unable to read firmware version")))
       return;
-    }
     /// Serial number identification
     uint16_t raw_serial_number[8];
-    if (!this->get_register(SPS30_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 1)) {
-      this->mark_failed(LOG_STR("Unable to read serial number"));
+    if (!this->setup_check(this->get_register(SPS30_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 1),
+                           LOG_STR("Unable to read serial number")))
       return;
-    }
 
     for (size_t i = 0; i < 8; ++i) {
       this->serial_number_[i * 2] = static_cast<char>(raw_serial_number[i] >> 8);
