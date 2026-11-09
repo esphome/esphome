@@ -24,7 +24,7 @@ class BLEService final {
 
  public:
   BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
-  /// For a service the caller keeps alive and passes to BLEServer::add_service(), which picks the instance id.
+  /// The server picks the instance id when the service is added.
   BLEService(ESPBTUUID uuid, uint16_t num_handles, bool advertise) : BLEService(uuid, num_handles, 0, advertise) {}
   ~BLEService();
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
