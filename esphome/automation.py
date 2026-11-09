@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 import logging
@@ -1464,17 +1464,14 @@ async def choose_action_to_code(
     return var
 
 
-def _config_any(
-    value: Any, test: Callable[[Any], bool], into_lists: bool = True
-) -> bool:
-    """Whether ``test`` holds for ``value`` or any value nested in its dicts (and lists)."""
-    if test(value):
-        return True
-    if isinstance(value, dict):
-        return any(_config_any(v, test, into_lists) for v in value.values())
-    if into_lists and isinstance(value, list):
-        return any(_config_any(v, test, into_lists) for v in value)
-    return False
+def _action_ids(actions: list[tuple[str, Any]]) -> set[str]:
+    """The ids the actions act on, from their ``id`` option or their shorthand id."""
+    ids: set[str] = set()
+    for _, options in actions:
+        target = options.get(CONF_ID) if isinstance(options, dict) else options
+        if isinstance(target, ID) and not target.is_declaration:
+            ids.add(target.id)
+    return ids
 
 
 def _referenced_ids(value: Any) -> set[str]:
@@ -1487,13 +1484,14 @@ def _referenced_ids(value: Any) -> set[str]:
 def _warn_while_without_wait(config: ConfigType) -> ConfigType:
     # Only the body can change the condition when the loop cannot yield: a lambda action in it may
     # change anything, and an action on an id the condition (or its lambda) reads may change that.
-    # Templated values, such as logger.log args, only read. An empty body ends the loop at once.
+    # Templated values and conditions inside the body only read. An empty body ends the loop at once.
     body = config[CONF_THEN]
+    actions = list(_iter_actions(body))
     if (
         body
         and not has_non_synchronous_actions(body)
-        and not _config_any(body, lambda v: isinstance(v, dict) and CONF_LAMBDA in v)
-        and not _referenced_ids(config[CONF_CONDITION]) & _referenced_ids(body)
+        and all(key != CONF_LAMBDA for key, _ in actions)
+        and not _referenced_ids(config[CONF_CONDITION]) & _action_ids(actions)
     ):
         _LOGGER.warning(
             "The body of a 'while' loop never waits, so it holds up the rest of the device: "
@@ -1915,24 +1913,32 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     option that shares a name with an action, such as the ``delay:`` option of
     ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
-    if isinstance(actions, list):
-        return any(has_non_synchronous_actions(item) for item in actions)
-    if isinstance(actions, dict):
-        for key, options in actions.items():
-            if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
-                return True
-            if _options_have_non_synchronous_actions(options):
-                return True
-    return False
-
-
-def _options_have_non_synchronous_actions(options: Any) -> bool:
-    """Search an action's options for nested action lists, without treating option keys as actions."""
-    return _config_any(
-        options,
-        lambda v: isinstance(v, list) and has_non_synchronous_actions(v),
-        into_lists=False,
+    return any(
+        key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous
+        for key, _ in _iter_actions(actions)
     )
+
+
+def _iter_actions(actions: Any) -> Iterator[tuple[str, Any]]:
+    """Yield ``(key, options)`` of every action in an action list, a single action or an automation.
+
+    Nested action lists (``then:``, ``else:``, ...) are searched; other options are not taken for actions.
+    """
+    if isinstance(actions, list):
+        for item in actions:
+            yield from _iter_actions(item)
+    elif isinstance(actions, dict):
+        for key, options in actions.items():
+            yield key, options
+            yield from _iter_option_actions(options)
+
+
+def _iter_option_actions(options: Any) -> Iterator[tuple[str, Any]]:
+    if isinstance(options, list):
+        yield from _iter_actions(options)
+    elif isinstance(options, dict):
+        for value in options.values():
+            yield from _iter_option_actions(value)
 
 
 def owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
