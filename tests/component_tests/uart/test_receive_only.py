@@ -55,6 +55,18 @@ def test_unmarked_uart_lets_a_device_transmit(
     _device("tap", require_tx=True)
 
 
+def test_only_the_marked_uart_is_receive_only(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A device that requires TX can use bus while tap next to it is receive-only."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config=uart_full_config([{CONF_ID: ID("bus")}, {CONF_ID: ID("tap")}]),
+    )
+    uart.mark_receive_only(ID("tap"))
+    _device("bus", require_tx=True)
+
+
 def test_a_generated_id_is_found_once_named(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
