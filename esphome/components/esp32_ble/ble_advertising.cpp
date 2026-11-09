@@ -76,6 +76,11 @@ bool BLEAdvertising::config_pending_() const {
          App.get_loop_component_start_time() - this->config_sent_time_ < CONFIG_COMPLETE_TIMEOUT_MS;
 }
 
+void BLEAdvertising::reset_config_state() {
+  this->configs_pending_ = 0;
+  this->restart_pending_ = false;
+}
+
 void BLEAdvertising::on_config_complete() {
   if (this->configs_pending_ != 0)
     this->configs_pending_--;
@@ -87,7 +92,11 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     this->restart_pending_ = true;
     return ESP_OK;
   }
-  this->configs_pending_ = 0;
+  if (this->configs_pending_ != 0) {
+    // Completion events carry no id: one that is only late, not lost, can still count down the new configs
+    ESP_LOGW(TAG, "Advertising config not confirmed within %u ms", (unsigned) CONFIG_COMPLETE_TIMEOUT_MS);
+    this->configs_pending_ = 0;
+  }
   this->config_sent_time_ = App.get_loop_component_start_time();
 
   int num_services = this->advertising_uuids_.size();

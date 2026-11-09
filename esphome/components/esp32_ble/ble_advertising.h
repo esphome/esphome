@@ -36,6 +36,8 @@ class BLEAdvertising {
   void start();
   void stop();
   void on_config_complete();
+  /// The stack was torn down and its pending completion events dropped.
+  void reset_config_state();
 
  protected:
   esp_err_t services_advertisement_();

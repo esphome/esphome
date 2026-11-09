@@ -638,6 +638,10 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       return;
     }
     this->drain_ble_events_();
+#ifdef USE_ESP32_BLE_ADVERTISING
+    if (this->advertising_ != nullptr)
+      this->advertising_->reset_config_state();
+#endif
     // A status callback may have asked for BLE back; the stack is down now, so
     // that request becomes a bring-up.
     this->state_ =
