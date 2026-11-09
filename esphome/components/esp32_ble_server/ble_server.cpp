@@ -123,40 +123,45 @@ void BLEServer::release_advertising_() {
 }
 
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles) {
-  auto *service = new BLEService(uuid, num_handles, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
-  if (!this->add_service_(*service, true)) {
-    delete service;  // NOLINT(cppcoreguidelines-owning-memory)
+  // Checked before allocating, so a failure never deletes a service and pulls in its destructor
+  const uint8_t inst_id = this->free_inst_id_(uuid);
+  if (inst_id == INVALID_INST_ID)
     return nullptr;
-  }
+  auto *service = new BLEService(uuid, num_handles, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  this->register_service_(*service, inst_id, true);
   return service;
 }
 
-bool BLEServer::add_service_(BLEService &service, bool owned) {
-  const ESPBTUUID uuid = service.get_uuid();
+bool BLEServer::add_service(BLEService &service) {
+  const uint8_t inst_id = this->free_inst_id_(service.get_uuid());
+  if (inst_id == INVALID_INST_ID)
+    return false;
+  this->register_service_(service, inst_id, false);
+  return true;
+}
+
+uint8_t BLEServer::free_inst_id_(const ESPBTUUID &uuid) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char uuid_buf[esp32_ble::UUID_STR_LEN];
   uuid.to_str(uuid_buf);
   ESP_LOGV(TAG, "Creating BLE service - %s", uuid_buf);
 #endif
-  // Calculate the inst_id for the service
-  uint8_t inst_id = 0;
-  for (; inst_id < 0xFF; inst_id++) {
-    if (this->get_service(uuid, inst_id) == nullptr) {
-      break;
-    }
+  for (uint8_t inst_id = 0; inst_id < INVALID_INST_ID; inst_id++) {
+    if (this->get_service(uuid, inst_id) == nullptr)
+      return inst_id;
   }
-  if (inst_id == 0xFF) {
-    char warn_uuid_buf[esp32_ble::UUID_STR_LEN];
-    uuid.to_str(warn_uuid_buf);
-    ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", warn_uuid_buf);
-    return false;
-  }
+  char warn_uuid_buf[esp32_ble::UUID_STR_LEN];
+  uuid.to_str(warn_uuid_buf);
+  ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", warn_uuid_buf);
+  return INVALID_INST_ID;
+}
+
+void BLEServer::register_service_(BLEService &service, uint8_t inst_id, bool owned) {
   service.inst_id_ = inst_id;
-  this->services_.push_back({uuid, inst_id, owned, &service});
+  this->services_.push_back({service.get_uuid(), inst_id, owned, &service});
   if (this->parent_->is_active() && this->registered_) {
     service.do_create(this);
   }
-  return true;
 }
 
 void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
