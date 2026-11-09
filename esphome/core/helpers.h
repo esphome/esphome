@@ -2321,8 +2321,8 @@ class InterruptLock {
  public:
 #ifdef USE_ESP8266
   // Inline: saves two calls per lock, and the lock sits on bit-banged timing paths
-  InterruptLock() : state_(xt_rsil(15)) {}
-  ~InterruptLock() { xt_wsr_ps(this->state_); }
+  ESPHOME_ALWAYS_INLINE InterruptLock() : state_(xt_rsil(15)) {}
+  ESPHOME_ALWAYS_INLINE ~InterruptLock() { xt_wsr_ps(this->state_); }
 #else
   InterruptLock();
   ~InterruptLock();
