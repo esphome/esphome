@@ -10,7 +10,7 @@ extern "C" {
 }
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "zigbee.binary_sensor");
 
 ZigbeeBinarySensor::ZigbeeBinarySensor(binary_sensor::BinarySensor *binary_sensor) : binary_sensor_(binary_sensor) {}
 

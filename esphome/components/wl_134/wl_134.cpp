@@ -6,7 +6,7 @@
 
 namespace esphome::wl_134 {
 
-static const char *const TAG = "wl_134.sensor";
+ESPHOME_LOG_TAG(TAG, "wl_134.sensor");
 static const uint8_t ASCII_CR = 0x0D;
 static const uint8_t ASCII_NBSP = 0xFF;
 static const int MAX_DATA_LENGTH_BYTES = 6;
@@ -96,11 +96,7 @@ uint64_t Wl134Component::hex_lsb_ascii_to_uint64_(const uint8_t *text, uint8_t t
     i--;
 
     uint8_t digit = text[i];
-    if (digit >= 'A') {
-      digit = digit - 'A' + 10;
-    } else {
-      digit = digit - '0';
-    }
+    digit = digit >= 'A' ? digit - 'A' + 10 : digit - '0';
     value = (value << 4) + digit;
   } while (i != 0);
 

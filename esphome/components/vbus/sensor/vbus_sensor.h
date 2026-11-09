@@ -10,33 +10,22 @@ namespace esphome::vbus {
 // the rest stay null and are skipped when publishing and logging.
 class DeltaSolSensorBase : public VBusListener, public Component {
  public:
-  void set_temperature1_sensor(sensor::Sensor *sensor) { this->temperature1_sensor_ = sensor; }
-  void set_temperature2_sensor(sensor::Sensor *sensor) { this->temperature2_sensor_ = sensor; }
-  void set_temperature3_sensor(sensor::Sensor *sensor) { this->temperature3_sensor_ = sensor; }
-  void set_temperature4_sensor(sensor::Sensor *sensor) { this->temperature4_sensor_ = sensor; }
-  void set_pump_speed1_sensor(sensor::Sensor *sensor) { this->pump_speed1_sensor_ = sensor; }
-  void set_pump_speed2_sensor(sensor::Sensor *sensor) { this->pump_speed2_sensor_ = sensor; }
-  void set_operating_hours1_sensor(sensor::Sensor *sensor) { this->operating_hours1_sensor_ = sensor; }
-  void set_operating_hours2_sensor(sensor::Sensor *sensor) { this->operating_hours2_sensor_ = sensor; }
+  SUB_SENSOR(temperature1)
+  SUB_SENSOR(temperature2)
+  SUB_SENSOR(temperature3)
+  SUB_SENSOR(temperature4)
+  SUB_SENSOR(pump_speed1)
+  SUB_SENSOR(pump_speed2)
+  SUB_SENSOR(operating_hours1)
+  SUB_SENSOR(operating_hours2)
   // Single relay models (CS2) use the unnumbered names of the first pump / hour counter.
   void set_pump_speed_sensor(sensor::Sensor *sensor) { this->pump_speed1_sensor_ = sensor; }
   void set_operating_hours_sensor(sensor::Sensor *sensor) { this->operating_hours1_sensor_ = sensor; }
-  void set_heat_quantity_sensor(sensor::Sensor *sensor) { this->heat_quantity_sensor_ = sensor; }
-  void set_time_sensor(sensor::Sensor *sensor) { this->time_sensor_ = sensor; }
-  void set_version_sensor(sensor::Sensor *sensor) { this->version_sensor_ = sensor; }
+  SUB_SENSOR(heat_quantity)
+  SUB_SENSOR(time)
+  SUB_SENSOR(version)
 
  protected:
-  sensor::Sensor *temperature1_sensor_{nullptr};
-  sensor::Sensor *temperature2_sensor_{nullptr};
-  sensor::Sensor *temperature3_sensor_{nullptr};
-  sensor::Sensor *temperature4_sensor_{nullptr};
-  sensor::Sensor *pump_speed1_sensor_{nullptr};
-  sensor::Sensor *pump_speed2_sensor_{nullptr};
-  sensor::Sensor *operating_hours1_sensor_{nullptr};
-  sensor::Sensor *operating_hours2_sensor_{nullptr};
-  sensor::Sensor *heat_quantity_sensor_{nullptr};
-  sensor::Sensor *time_sensor_{nullptr};
-  sensor::Sensor *version_sensor_{nullptr};
   // Latches so a mismatched model/truncated telegram warns once instead of on every telegram (~1/s).
   bool warned_short_message_{false};
 
@@ -80,14 +69,11 @@ class DeltaSolCS2Sensor final : public DeltaSolSensorBase {
 class DeltaSolCS4Sensor : public DeltaSolSensorBase {
  public:
   void dump_config() override { this->dump_cs4_sensors_(LOG_STR("Deltasol CS4")); }
-  void set_temperature5_sensor(sensor::Sensor *sensor) { this->temperature5_sensor_ = sensor; }
-  void set_flow_rate_sensor(sensor::Sensor *sensor) { this->flow_rate_sensor_ = sensor; }
+  // Only the CS4 family has these fields.
+  SUB_SENSOR(temperature5)
+  SUB_SENSOR(flow_rate)
 
  protected:
-  // Only the CS4 family has these, so they are kept out of the base to save RAM on the other models.
-  sensor::Sensor *temperature5_sensor_{nullptr};
-  sensor::Sensor *flow_rate_sensor_{nullptr};
-
   void dump_cs4_sensors_(const LogString *model);
   void handle_message(std::vector<uint8_t> &message) override;
 };
@@ -118,7 +104,7 @@ class VBusCustomSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class VBusCustomSubSensor : public sensor::Sensor, public Component {
+class VBusCustomSubSensor : public sensor::Sensor {
  public:
   void set_message_parser(message_parser_t parser) { this->message_parser_ = std::move(parser); };
   void parse_message(std::vector<uint8_t> &message);

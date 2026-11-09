@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_client");
 
 // Connection parameters are shared with the other GATT client backends
 // (ble_device_base/ble_client_state.h) so the platforms cannot drift.
@@ -150,6 +150,8 @@ void BLEClientBase::connect() {
   // A registration whose event never arrived must not block this connection's release.
   this->services_released_ = false;
   this->pending_notify_regs_ = 0;
+  // A CONNECT_EVT seen while idle can leave the id of a link this attempt does not own.
+  this->conn_id_ = UNSET_CONN_ID;
   // Enable loop for state processing
   this->enable_loop();
   // Immediately transition to CONNECTING to prevent duplicate connection attempts
@@ -298,7 +300,7 @@ void BLEClientBase::log_warning_(const char *message) {
 
 esp_err_t BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                              uint16_t timeout, const char *param_type) {
-  esp_ble_conn_update_params_t conn_params = {{0}};
+  esp_ble_conn_update_params_t conn_params = {};
   memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
   conn_params.min_int = min_interval;
   conn_params.max_int = max_interval;
@@ -350,7 +352,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->open.remote_bda))
         return false;
       this->log_gattc_lifecycle_event_("OPEN");
-      // conn_id was already set in ESP_GATTC_CONNECT_EVT
       this->service_count_ = 0;
 
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
@@ -363,9 +364,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
 
       if (this->state() != espbt::ClientState::CONNECTING) {
-        // This should not happen but lets log it in case it does
-        // because it means we have a bad assumption about how the
-        // ESP BT stack works.
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
@@ -375,6 +373,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->set_idle_();
         break;
       }
+      // An open on a link that is already up sends no CONNECT_EVT, so take the id here.
+      this->conn_id_ = param->open.conn_id;
       if (this->want_disconnect_) {
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have
@@ -424,11 +424,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
-      // For active disconnects (esp_ble_gattc_close), CLOSE_EVT arrives before
-      // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
-      // backwards to DISCONNECTING — the connection is already fully cleaned up.
-      if (this->state() == espbt::ClientState::IDLE) {
-        this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
+      // IDLE: CLOSE_EVT (active close) already cleaned up. No conn_id: no CONNECT_EVT for this attempt yet,
+      // so the event is left over from the previous link or precedes a failed open that OPEN_EVT handles.
+      if (this->state() == espbt::ClientState::IDLE || this->conn_id_ == UNSET_CONN_ID) {
+        this->log_event_("DISCONNECT_EVT with no live link, ignoring");
         break;
       }
       // For passive disconnects (remote device disconnected or link lost),
@@ -674,18 +673,17 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
+        return (float) encode_value<int16_t>(&value[1]);
       }
       [[fallthrough]];
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
+        return (float) encode_uint24(value[1], value[2], value[3]);
       }
       [[fallthrough]];
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
-                        (int32_t) (value[4]));
+        return (float) encode_value<int32_t>(&value[1]);
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,

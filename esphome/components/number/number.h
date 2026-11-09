@@ -54,4 +54,14 @@ class Number : public EntityBase {
   LazyCallbackManager<void(float)> state_callback_;
 };
 
+/// Calls the codegen-generated Fn(this, value) on a new value; the hub and any publish are baked into Fn.
+template<auto Fn> class ApplyNumber final : public Number {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplyNumber() {}
+
+ protected:
+  void control(float value) override { Fn(this, value); }
+};
+
 }  // namespace esphome::number

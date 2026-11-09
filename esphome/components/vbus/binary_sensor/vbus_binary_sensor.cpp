@@ -4,12 +4,7 @@
 
 namespace esphome::vbus {
 
-static const char *const TAG = "vbus.binary_sensor";
-
-static void publish_if_set(binary_sensor::BinarySensor *bsensor, bool state) {
-  if (bsensor != nullptr)
-    bsensor->publish_state(state);
-}
+ESPHOME_LOG_TAG(TAG, "vbus.binary_sensor");
 
 void DeltaSolErrorsBSensorBase::warn_short_message_(size_t actual, size_t expected) {
   if (this->warned_short_message_)
@@ -20,10 +15,10 @@ void DeltaSolErrorsBSensorBase::warn_short_message_(size_t actual, size_t expect
 
 void DeltaSolErrorsBSensorBase::dump_sensor_errors_(const LogString *model) {
   ESP_LOGCONFIG(TAG, "%s:", LOG_STR_ARG(model));
-  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_binary_sensor_);
 }
 
 void DeltaSolErrorsBSensorBase::publish_sensor_errors_(const std::vector<uint8_t> &message, size_t offset) {
@@ -32,45 +27,45 @@ void DeltaSolErrorsBSensorBase::publish_sensor_errors_(const std::vector<uint8_t
     return;
   }
   uint8_t errors = message[offset];
-  publish_if_set(this->s1_error_bsensor_, errors & 1);
-  publish_if_set(this->s2_error_bsensor_, errors & 2);
-  publish_if_set(this->s3_error_bsensor_, errors & 4);
-  publish_if_set(this->s4_error_bsensor_, errors & 8);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, errors & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, errors & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, errors & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, errors & 8);
 }
 
 void DeltaSolBSPlusBSensor::dump_config() {
   this->dump_sensor_errors_(LOG_STR("Deltasol BS Plus"));
-  LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Relay 2 On", this->relay2_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Collector Max", this->collector_max_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Collector Min", this->collector_min_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Collector Frost", this->collector_frost_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Tube Collector", this->tube_collector_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Recooling", this->recooling_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Heat Quantity Measurement", this->hqm_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Relay 2 On", this->relay2_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Option Collector Max", this->collector_max_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Option Collector Min", this->collector_min_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Option Collector Frost", this->collector_frost_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Option Tube Collector", this->tube_collector_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Option Recooling", this->recooling_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Option Heat Quantity Measurement", this->hqm_binary_sensor_);
 }
 
 void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
   if (!fits(message, 0, 16))
     this->warn_short_message_(message.size(), 16);
   if (fits(message, 10, 1)) {
-    publish_if_set(this->relay1_bsensor_, message[10] & 1);
-    publish_if_set(this->relay2_bsensor_, message[10] & 2);
+    PUBLISH_STATE(this->relay1_binary_sensor_, message[10] & 1);
+    PUBLISH_STATE(this->relay2_binary_sensor_, message[10] & 2);
   }
   this->publish_sensor_errors_(message, 11);
   if (fits(message, 15, 1)) {
-    publish_if_set(this->collector_max_bsensor_, message[15] & 1);
-    publish_if_set(this->collector_min_bsensor_, message[15] & 2);
-    publish_if_set(this->collector_frost_bsensor_, message[15] & 4);
-    publish_if_set(this->tube_collector_bsensor_, message[15] & 8);
-    publish_if_set(this->recooling_bsensor_, message[15] & 0x10);
-    publish_if_set(this->hqm_bsensor_, message[15] & 0x20);
+    PUBLISH_STATE(this->collector_max_binary_sensor_, message[15] & 1);
+    PUBLISH_STATE(this->collector_min_binary_sensor_, message[15] & 2);
+    PUBLISH_STATE(this->collector_frost_binary_sensor_, message[15] & 4);
+    PUBLISH_STATE(this->tube_collector_binary_sensor_, message[15] & 8);
+    PUBLISH_STATE(this->recooling_binary_sensor_, message[15] & 0x10);
+    PUBLISH_STATE(this->hqm_binary_sensor_, message[15] & 0x20);
   }
 }
 
 void DeltaSolBS2009BSensor::dump_config() {
   this->dump_sensor_errors_(LOG_STR("Deltasol BS 2009"));
-  LOG_BINARY_SENSOR("  ", "Frost Protection Active", this->frost_protection_active_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Frost Protection Active", this->frost_protection_active_binary_sensor_);
 }
 
 void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
@@ -78,7 +73,7 @@ void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
     this->warn_short_message_(message.size(), 26);
   this->publish_sensor_errors_(message, 20);
   if (fits(message, 25, 1))
-    publish_if_set(this->frost_protection_active_bsensor_, message[25] & 1);
+    PUBLISH_STATE(this->frost_protection_active_binary_sensor_, message[25] & 1);
 }
 
 void VBusCustomBSensor::dump_config() {

@@ -106,6 +106,17 @@ def patch_file_downloader() -> None:
     FileDownloader.__init__ = patched_init
 
 
+def ensure_http_cache_dir() -> None:
+    """Create PlatformIO's HTTP cache dir before anything resolves a package.
+
+    PlatformIO creates it without exist_ok on the first registry lookup, so
+    concurrent lookups (the prefetch's resolve threads, or two builds) race.
+    """
+    from platformio.project.helpers import get_project_cache_dir
+
+    (Path(get_project_cache_dir()) / "http").mkdir(parents=True, exist_ok=True)
+
+
 def patch_registry_private_packages() -> None:
     """Skip PlatformIO's private-package probe; it sleeps ~500 ms per lookup.
 

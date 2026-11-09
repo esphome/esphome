@@ -82,6 +82,16 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
+  // the API reply is answered before the user's on_complete automation; sent is false on a
+  // bail-out that never put the frame on the wire, on_complete fires either way
+  void fire_complete_(bool sent = true) {
+    this->notify_complete_(sent);
+    this->complete_trigger_.trigger();
+  }
+#if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || \
+    defined(REMOTE_TRANSMITTER_BK_PWM)
+  void flush_pending_completion() override;
+#endif
 #if defined(USE_ESP8266) || \
     (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
     defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)

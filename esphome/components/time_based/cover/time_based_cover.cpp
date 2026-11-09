@@ -5,7 +5,7 @@
 
 namespace esphome::time_based {
 
-static const char *const TAG = "time_based.cover";
+ESPHOME_LOG_TAG(TAG, "time_based.cover");
 
 using namespace esphome::cover;
 

@@ -5,6 +5,7 @@
 
 #include "crash_handler.h"
 #include "esphome/core/build_info_data.h"
+#include "esphome/core/crash_report.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -31,11 +32,25 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 }
 
 #if CONFIG_IDF_TARGET_ARCH_RISCV
+// Bounds of this image's flash-mapped code, from the ESP-IDF linker script.
+extern "C" char _instruction_reserved_start;
+extern "C" char _instruction_reserved_end;
+
+// Check that [start, end) lies in this image's flash-mapped code or in IRAM.
+// The IROM range is larger than what the MMU maps, and reading an unmapped
+// address faults.
+static inline bool is_readable_code(uint32_t start, uint32_t end) {
+  auto irom_start = reinterpret_cast<uint32_t>(&_instruction_reserved_start);
+  auto irom_end = reinterpret_cast<uint32_t>(&_instruction_reserved_end);
+  return (start >= irom_start && end <= irom_end) || (start >= SOC_IRAM_LOW && end <= SOC_IRAM_HIGH);
+}
+
 // Check if a code address is a real return address by verifying the preceding
 // instruction is a JAL or JALR with rd=ra (x1). Called at log time (not during
-// panic) so flash cache is available and both IRAM and IROM are safely readable.
+// panic) so flash cache is available. The address may come from an earlier
+// build, so check that the bytes before it are mapped before reading them.
 static inline bool is_return_addr(uint32_t addr) {
-  if (!is_code_addr(addr) || addr < 4)
+  if (!is_code_addr(addr) || !is_readable_code(addr - 4, addr))
     return false;
   // A return address on the stack points to the instruction after a call.
   // Check for 4-byte JAL/JALR call instruction before this address.
@@ -153,15 +168,15 @@ struct RawCrashData {
   uint32_t other_backtrace[MAX_BACKTRACE];
 #endif
 };
-static RawCrashData __attribute__((section(".noinit")))
-s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static RawCrashData
+    __attribute__((section(".noinit"))) s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Whether crash data was found and validated this boot.
 static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace esphome::esp32 {
 
-static const char *const TAG = "esp32.crash";
+ESPHOME_LOG_TAG(TAG, CRASH_LOG_TAG);
 
 // RAM copy of the build timestamp. The generated constant lives in flash,
 // which the panic handler must not read (cache may be disabled during
@@ -175,7 +190,8 @@ static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME)
 
 // Validate the NOINIT record. Runs on every has_data() call; re-running is
 // harmless and the magic is left alone so the record survives an OTA
-// rollback reboot, crash_handler_clear() drops it once an API client has it.
+// rollback reboot, crash_handler_clear() drops it once a log client has it
+// (logger::log_crash_to_client(), for the API and MQTT).
 static void read_crash_data() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
@@ -485,6 +501,84 @@ void crash_handler_log() {
 
 }  // namespace esphome::esp32
 
+namespace esphome {
+
+static_assert(MAX_BACKTRACE <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
+
+// The record itself stays valid for log replay this boot
+static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Filtered as in log_backtrace()
+static uint8_t copy_backtrace(const uint32_t *addrs, uint8_t count, [[maybe_unused]] uint8_t reg_frame_count,
+                              [[maybe_unused]] bool filter, uint32_t *out) {
+  uint8_t out_count = 0;
+  for (uint8_t i = 0; i < count; i++) {
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    if (filter && i >= reg_frame_count && !is_return_addr(addrs[i]))
+      continue;
+#endif
+    out[out_count++] = addrs[i];
+  }
+  return out_count;
+}
+
+static CrashReason get_crash_reason() {
+  switch (s_raw_crash_data.exception) {
+    case PANIC_EXCEPTION_ABORT:
+      return CrashReason::CRASH_REASON_ABORT;
+    case PANIC_EXCEPTION_TWDT:
+      return CrashReason::CRASH_REASON_TASK_WATCHDOG;
+    case PANIC_EXCEPTION_IWDT:
+      return CrashReason::CRASH_REASON_INTERRUPT_WATCHDOG;
+    default:
+      return CrashReason::CRASH_REASON_EXCEPTION;
+  }
+}
+
+bool crash_report_get(CrashReport &out) {
+  if (s_report_read || !esp32::crash_handler_has_data())
+    return false;
+  out = {};
+  out.flags = CRASH_REPORT_FLAG_PRESENT;
+  const bool build_matches = s_raw_crash_data.build_time == esp32::s_current_build_time;
+  if (build_matches)
+    out.flags |= CRASH_REPORT_FLAG_BUILD_MATCHES;
+  out.reason = get_crash_reason();
+  out.crashed_core = s_raw_crash_data.crashed_core;
+  out.pc = s_raw_crash_data.pc;
+  out.build_time = s_raw_crash_data.build_time;
+  // A pseudo cause is an IDF panic reason
+  if (s_raw_crash_data.exception != PANIC_EXCEPTION_ABORT && s_raw_crash_data.exception != PANIC_EXCEPTION_TWDT &&
+      !s_raw_crash_data.pseudo_excause && esp32::cause_slot_was_written()) {
+    out.flags |= CRASH_REPORT_FLAG_CAUSE;
+    out.cause = s_raw_crash_data.cause;
+  }
+  if (esp32::has_fault_addr()) {
+    out.flags |= CRASH_REPORT_FLAG_FAULT_ADDRESS;
+    out.fault_address = s_raw_crash_data.fault_addr;
+  }
+  auto &crashed = out.cores[out.core_count++];
+  crashed.core = s_raw_crash_data.crashed_core;
+  crashed.count = copy_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
+                                 s_raw_crash_data.reg_frame_count, build_matches, crashed.addresses.data());
+#if SOC_CPU_CORES_NUM > 1
+  if (s_raw_crash_data.other_backtrace_count > 0) {
+    auto &other = out.cores[out.core_count++];
+    other.core = 1 - s_raw_crash_data.crashed_core;
+    other.count = copy_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
+                                 s_raw_crash_data.other_reg_frame_count, build_matches, other.addresses.data());
+  }
+#endif
+  return true;
+}
+
+void crash_report_clear() {
+  s_report_read = true;
+  esp32::crash_handler_clear();
+}
+
+}  // namespace esphome
+
 // --- Panic handler wrapper ---
 // Intercepts esp_panic_handler() via --wrap linker flag to capture crash data
 // into NOINIT memory before the normal panic handler runs.
@@ -531,6 +625,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
+    // IDF leaves addr unset for SoC-level panics (cache error, interrupt WDT)
+    if (info->pseudo_excause)
+      s_raw_crash_data.pc = xt_frame->pc;
     if (!g_panic_abort) {
       // Abort-class frames carry no useful cause/vaddr: TWDT task snapshots
       // never wrote them and abort() traps describe only the synthetic trap.

@@ -1,0 +1,31 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+uart:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
+  baud_rate: 256000
+
+ld2450:
+  id: radar
+
+text:
+  - platform: ld2450
+    ld2450_id: radar
+    polygon_zones:
+      - id: couch
+        name: Couch
+      - id: desk
+        name: Desk
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: radar
+    polygon_zones:
+      - polygon_zone_id: couch
+        name: Couch Occupied
+      - polygon_zone_id: desk
+        name: Desk Occupied

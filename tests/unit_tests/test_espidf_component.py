@@ -17,9 +17,11 @@ from esphome.const import (
 from esphome.core import CORE, Library
 from esphome.espidf.component import (
     _emit_idf_component,
+    _remove_stale_sbom_yml,
     generate_cmakelists_txt,
     generate_idf_component_yml,
     generate_idf_components,
+    generate_sbom_yml,
 )
 import esphome.platformio.library
 from esphome.platformio.library import (
@@ -254,6 +256,20 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE
     )
 
 
+def test_generate_cmakelists_txt_optimisation_flags_are_private(
+    tmp_component: IDFComponent,
+) -> None:
+    # A library built with -O2 must not change how the components that use it are compiled
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {"build": {"flags": ["-O2", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'target_compile_options(${COMPONENT_LIB} PUBLIC\n  "-DTEST"\n)' in content
+    assert 'target_compile_options(${COMPONENT_LIB} PRIVATE\n  "-O2"\n)' in content
+
+
 def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
     tmp_component, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -365,6 +381,56 @@ def test_generate_cmakelists_txt_references_project_managed_components_variable(
 
     content = generate_cmakelists_txt(tmp_component)
     assert "${ESPHOME_PROJECT_MANAGED_COMPONENTS}" in content
+
+
+def test_generate_cmakelists_txt_uses_declared_src_dir(
+    tmp_component: IDFComponent,
+) -> None:
+    """A library.json srcDir is used as is instead of probing src/Src/."""
+    lib_dir = tmp_component.path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {"build": {"srcDir": "lib"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "SRCS" in content
+    assert "main.c" in content
+    assert "INCLUDE_DIRS" in content
+
+
+def test_generate_cmakelists_txt_without_include_dirs(
+    tmp_component: IDFComponent,
+) -> None:
+    """No INCLUDE_DIRS line when none of the include directories exist."""
+    tmp_component.data = {"build": {"srcDir": "missing"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "INCLUDE_DIRS" not in content
+
+
+def test_generate_idf_component_yml_with_several_dependencies(
+    tmp_component: IDFComponent, tmp_path: Path
+) -> None:
+    """Every dependency lands under one shared dependencies section."""
+    deps = []
+    for name in ("dep_a", "dep_b"):
+        dep = IDFComponent(name, "1.0", source=URLSource("http://dummy.com"))
+        dep.path = tmp_path / name
+        deps.append(dep)
+    tmp_component.dependencies = deps
+    tmp_component.data = {}
+
+    result = generate_idf_component_yml(tmp_component)
+
+    assert result == (
+        "dependencies:\n"
+        "  dep_a:\n"
+        f"    override_path: {deps[0].path}\n"
+        "  dep_b:\n"
+        f"    override_path: {deps[1].path}\n"
+    )
 
 
 def test_generate_idf_component_yml_basic(tmp_component):
@@ -803,6 +869,112 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
     assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
 
 
+def test_generate_idf_components_managed_filters_top_level_and_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # managed (e.g. noise-c/libsodium already declared via add_idf_component)
+    # must drop B at the top level and C when discovered as a dependency of A,
+    # exactly like lib_ignore -- neither may be resolved, downloaded, or wired
+    # into a manifest.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "==1.10021.0"}
+            ],
+        },
+        "esphome/B": {"name": "B"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)],
+        managed={"esphome/B", "esphome/C"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # Managed libraries were never resolved (and therefore never downloaded).
+    assert resolve_calls == ["A"]
+    # The managed dependency is not wired into A's manifest.
+    assert top[0].dependencies == []
+    # managed changes the generated wiring just like lib_ignore, so the cache
+    # path is salted the same way.
+    assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
+
+
+def test_generate_idf_components_lib_ignore_and_managed_combine_into_salt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # lib_ignore and managed both contribute to the same exclusion set, so a
+    # config using both gets a salt reflecting the union of the two sources
+    # rather than either alone.
+    manifests = {
+        "esphome/A": {"name": "A"},
+        "esphome/D": {"name": "D"},
+        "esphome/E": {"name": "E"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+    monkeypatch.setattr(CORE, "platformio_options", {"lib_ignore": ["D"]})
+
+    top = generate_idf_components(
+        [
+            Library("esphome/A", "1.0.0", None),
+            Library("esphome/D", "1.0.0", None),
+            Library("esphome/E", "1.0.0", None),
+        ],
+        managed={"esphome/E"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    assert resolve_calls == ["A"]
+    # The salt reflects BOTH lib_ignore's "D" and managed's "E" together.
+    assert download_salts == [hashlib.sha256(b"d,e").hexdigest()[:8]]
+
+
 def test_generate_idf_components_handles_dependency_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1138,6 +1310,116 @@ def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
     c.data = {"build": {"extraScript": "extra.py"}}
     _emit_idf_component(c)
     assert c.data["build"]["flags"] == ["-lesp32"]
+
+
+def test_generate_sbom_yml(tmp_component):
+    """The manifest carries the library's own name and version."""
+    tmp_component.data = {"name": "Lib", "version": "2.1.0", "license": "MIT"}
+    assert generate_sbom_yml(tmp_component) == (
+        "# Generated by ESPHome\nname: Lib\nversion: 2.1.0\n"
+    )
+
+    tmp_component.data = {"version": "2.1.0"}
+    assert generate_sbom_yml(tmp_component) == (
+        "# Generated by ESPHome\nname: owner/name\nversion: 2.1.0\n"
+    )
+
+    tmp_component.data = {"name": "Lib"}
+    assert generate_sbom_yml(tmp_component) is None
+
+
+def test_emit_idf_component_writes_sbom_yml(tmp_path, monkeypatch):
+    """ESPHome's own sbom.yml follows the library version and is removed without one."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    sbom_yml = tmp_path / "sbom.yml"
+
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert sbom_yml.read_text().endswith("version: 2.1.0\n")
+
+    # A refreshed git library updates library.json in place
+    c.data = {"name": "Lib", "version": "2.2.0"}
+    _emit_idf_component(c)
+    assert sbom_yml.read_text().endswith("version: 2.2.0\n")
+
+    c.data = {"name": "Lib"}
+    _emit_idf_component(c)
+    assert not sbom_yml.exists()
+
+
+def test_emit_idf_component_keeps_shipped_sbom_yml(tmp_path, monkeypatch):
+    """A library's own sbom.yml wins; a local library's is copied to its build dir."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    (tmp_path / "sbom.yml").write_text("name: shipped\n")
+    _emit_idf_component(c)
+    assert (tmp_path / "sbom.yml").read_text() == "name: shipped\n"
+
+    local = tmp_path / "local"
+    (local / "src").mkdir(parents=True)
+    (local / "sbom.yml").write_text("name: local\n")
+    build = tmp_path / "build"
+    build.mkdir()
+    c.path = build
+    c.source_path = local
+    _emit_idf_component(c)
+    assert (build / "sbom.yml").read_text() == "name: local\n"
+
+
+def test_emit_idf_component_sbom_yml_error_does_not_fail(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    """A library manifest that cannot be read is logged, not fatal."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "sbom.yml").write_bytes(b"\xff\xfe not utf-8")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert "could not write sbom.yml for owner/name" in caplog.text
+
+
+def test_emit_idf_component_sbom_yml_error_removes_generated(tmp_path, monkeypatch):
+    """After a failure, ESPHome's own stale sbom.yml is removed."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    local = tmp_path / "local"
+    (local / "src").mkdir(parents=True)
+    (local / "sbom.yml").write_bytes(b"\xff\xfe not utf-8")
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "sbom.yml").write_text("# Generated by ESPHome\nname: Lib\nversion: 1.0\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = build
+    c.source_path = local
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert not (build / "sbom.yml").exists()
+
+    # A local library's build dir is ESPHome's, so an earlier copy goes too
+    (build / "sbom.yml").write_text("name: copied\n")
+    _emit_idf_component(c)
+    assert not (build / "sbom.yml").exists()
+
+
+@pytest.mark.parametrize(
+    ("content", "removed"),
+    [("name: shipped\n", False), ("# Generated by ESPHome\nname: Lib\n", True)],
+    ids=["shipped", "generated"],
+)
+def test_remove_stale_sbom_yml_in_library_dir(
+    tmp_component, content: str, removed: bool
+) -> None:
+    """Where the library's own files live, only ESPHome's generated file is removed."""
+    (tmp_component.path / "sbom.yml").write_text(content)
+    _remove_stale_sbom_yml(tmp_component)
+    assert (tmp_component.path / "sbom.yml").exists() is not removed
 
 
 def test_build_flags_dangling_flag_does_not_cross_entries(

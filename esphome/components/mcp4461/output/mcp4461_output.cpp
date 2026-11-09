@@ -6,7 +6,7 @@
 
 namespace esphome::mcp4461 {
 
-static const char *const TAG = "mcp4461.output";
+ESPHOME_LOG_TAG(TAG, "mcp4461.output");
 
 // public set_level function
 void Mcp4461Wiper::set_level(float state) {

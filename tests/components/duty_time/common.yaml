@@ -9,5 +9,6 @@ binary_sensor:
 
 sensor:
   - platform: duty_time
+    id: pump_duty_time
     name: Duty Time
     sensor: duty_time_bin1

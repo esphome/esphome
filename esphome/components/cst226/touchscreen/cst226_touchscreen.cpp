@@ -2,16 +2,11 @@
 
 namespace esphome::cst226 {
 
-static const char *const TAG = "cst226.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst226.touchscreen");
 
 void CST226Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     this->set_timeout(30, [this] { this->continue_setup_(); });
   } else {
     this->continue_setup_();
@@ -20,12 +15,10 @@ void CST226Touchscreen::setup() {
 
 void CST226Touchscreen::update_touches() {
   uint8_t data[28];
-  if (!this->read_bytes(CST226_REG_STATUS, data, sizeof data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(CST226_REG_STATUS, data, sizeof data))) {
     this->skip_update_ = true;
     return;
   }
-  this->status_clear_warning();
   if (data[0] == 0x83 && data[1] == 0x17 && data[5] == 0x80) {
     this->update_button_state_(true);
     return;
@@ -70,11 +63,9 @@ void CST226Touchscreen::continue_setup_() {
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
   buffer[0] = 0xD1;
-  if (this->write_register16(0xD1, buffer, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Write byte to 0xD1 failed");
-    this->mark_failed();
+  if (!this->setup_check(this->write_register16(0xD1, buffer, 1) == i2c::ERROR_OK,
+                         LOG_STR("Write byte to 0xD1 failed")))
     return;
-  }
   delay(10);
   if (this->read16_(0xD204, buffer, 4)) {
     uint16_t chip_id = buffer[2] + (buffer[3] << 8);

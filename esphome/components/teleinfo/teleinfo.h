@@ -18,7 +18,7 @@ static const uint16_t MAX_TIMESTAMP_SIZE = 14;
 class TeleInfoListener {
  public:
   std::string tag;
-  virtual void publish_val(const std::string &val){};
+  virtual void publish_val(const std::string &val) {};
 };
 class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  public:
@@ -33,7 +33,7 @@ class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  protected:
   int checksum_area_end_;
   int separator_;
-  char buf_[MAX_BUF_SIZE];
+  uint8_t buf_[MAX_BUF_SIZE];
   uint32_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];
   char val_[MAX_VAL_SIZE];
@@ -45,7 +45,7 @@ class TeleInfo final : public PollingComponent, public uart::UARTDevice {
     END_FRAME_RECEIVED,
   } state_{STATE_OFF};
   bool read_chars_until_(bool drop, uint8_t c);
-  bool check_crc_(const char *grp, const char *grp_end);
+  bool check_crc_(const uint8_t *grp, const uint8_t *grp_end);
   void publish_value_(const std::string &tag, const std::string &val);
 };
 }  // namespace esphome::teleinfo

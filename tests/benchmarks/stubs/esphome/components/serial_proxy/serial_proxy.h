@@ -49,6 +49,7 @@ class SerialProxy {
   uint32_t get_modem_pins() const { return 0; }
   uint32_t get_configured_modem_pins() const { return 0; }
   SerialProxyResult flush_port(api::APIConnection *api_connection) { return SerialProxyResult::SERIAL_PROXY_RESULT_OK; }
+  void send_identity(api::APIConnection *api_connection) {}
 
  protected:
   uint32_t instance_index_{0};

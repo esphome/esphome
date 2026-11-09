@@ -1,0 +1,9 @@
+button:
+  - platform: template
+    name: SX126x Mode Actions
+    on_press:
+      - sx126x.set_mode_tx
+      - sx126x.set_mode_sleep:
+          cold: true
+      - sx126x.set_mode_sleep:
+          cold: !lambda return id(sx126x_my_number).state > 1;

@@ -1,3 +1,4 @@
+from esphome.const import UNIT_CELSIUS, UNIT_FAHRENHEIT, UNIT_KELVIN
 from esphome.cpp_generator import MockObj
 
 global_ns = MockObj("", "")
@@ -37,12 +38,17 @@ optional = global_ns.namespace("std").class_("optional")
 arduino_json_ns = global_ns.namespace("ArduinoJson")
 JsonObject = arduino_json_ns.class_("JsonObject")
 JsonObjectConst = arduino_json_ns.class_("JsonObjectConst")
-Controller = esphome_ns.class_("Controller")
 GPIOPin = esphome_ns.class_("GPIOPin")
 InternalGPIOPin = esphome_ns.class_("InternalGPIOPin", GPIOPin)
 gpio_ns = esphome_ns.namespace("gpio")
 gpio_Flags = gpio_ns.enum("Flags", is_class=True)
 EntityCategory = esphome_ns.enum("EntityCategory")
+TemperatureUnit = esphome_ns.enum("TemperatureUnit", is_class=True)
+TEMPERATURE_UNITS = {
+    UNIT_CELSIUS: TemperatureUnit.CELSIUS,
+    UNIT_FAHRENHEIT: TemperatureUnit.FAHRENHEIT,
+    UNIT_KELVIN: TemperatureUnit.KELVIN,
+}
 Parented = esphome_ns.class_("Parented")
 ESPTime = esphome_ns.struct("ESPTime")
 StringRef = esphome_ns.class_("StringRef")

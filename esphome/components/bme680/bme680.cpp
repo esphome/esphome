@@ -1,10 +1,14 @@
 #include "bme680.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::bme680 {
 
-static const char *const TAG = "bme680.sensor";
+ESPHOME_LOG_TAG(TAG, "bme680.sensor");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BME680_REGISTER_COEFF1 = 0x89;
 static const uint8_t BME680_REGISTER_COEFF2 = 0xE1;
@@ -27,203 +31,137 @@ constexpr float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0
 constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
                                                          -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-[[maybe_unused]] static const char *oversampling_to_str(BME680Oversampling oversampling) {
-  switch (oversampling) {
-    case BME680_OVERSAMPLING_NONE:
-      return "None";
-    case BME680_OVERSAMPLING_1X:
-      return "1x";
-    case BME680_OVERSAMPLING_2X:
-      return "2x";
-    case BME680_OVERSAMPLING_4X:
-      return "4x";
-    case BME680_OVERSAMPLING_8X:
-      return "8x";
-    case BME680_OVERSAMPLING_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by BME680Oversampling
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *oversampling_to_str(BME680Oversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
-[[maybe_unused]] static const char *iir_filter_to_str(BME680IIRFilter filter) {
-  switch (filter) {
-    case BME680_IIR_FILTER_OFF:
-      return "OFF";
-    case BME680_IIR_FILTER_1X:
-      return "1x";
-    case BME680_IIR_FILTER_3X:
-      return "3x";
-    case BME680_IIR_FILTER_7X:
-      return "7x";
-    case BME680_IIR_FILTER_15X:
-      return "15x";
-    case BME680_IIR_FILTER_31X:
-      return "31x";
-    case BME680_IIR_FILTER_63X:
-      return "63x";
-    case BME680_IIR_FILTER_127X:
-      return "127x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by BME680IIRFilter
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "1x", "3x", "7x", "15x", "31x", "63x", "127x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *iir_filter_to_str(BME680IIRFilter value) {
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
 }
 
 void BME680Component::setup() {
+  if (!this->setup_registers_())
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+}
+
+bool BME680Component::setup_registers_() {
   uint8_t chip_id;
   if (!this->read_byte(BME680_REGISTER_CHIPID, &chip_id) || chip_id != 0x61) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
   // Read calibration
   uint8_t coeff1[25];
   if (!this->read_bytes(BME680_REGISTER_COEFF1, coeff1, 25)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   uint8_t coeff2[16];
   if (!this->read_bytes(BME680_REGISTER_COEFF2, coeff2, 16)) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
-  this->calibration_.t1 = coeff2[9] << 8 | coeff2[8];
-  this->calibration_.t2 = coeff1[2] << 8 | coeff1[1];
+  this->calibration_.t1 = encode_value_le<uint16_t>(&coeff2[8]);
+  this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = coeff2[0] << 4 | coeff2[1] >> 4;
+  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
   this->calibration_.h6 = coeff2[6];
   this->calibration_.h7 = coeff2[7];
 
-  this->calibration_.p1 = coeff1[6] << 8 | coeff1[5];
-  this->calibration_.p2 = coeff1[8] << 8 | coeff1[7];
+  this->calibration_.p1 = encode_value_le<uint16_t>(&coeff1[5]);
+  this->calibration_.p2 = encode_value_le<int16_t>(&coeff1[7]);
   this->calibration_.p3 = coeff1[9];
-  this->calibration_.p4 = coeff1[12] << 8 | coeff1[11];
-  this->calibration_.p5 = coeff1[14] << 8 | coeff1[13];
+  this->calibration_.p4 = encode_value_le<int16_t>(&coeff1[11]);
+  this->calibration_.p5 = encode_value_le<int16_t>(&coeff1[13]);
   this->calibration_.p6 = coeff1[16];
   this->calibration_.p7 = coeff1[15];
-  this->calibration_.p8 = coeff1[20] << 8 | coeff1[19];
-  this->calibration_.p9 = coeff1[22] << 8 | coeff1[21];
+  this->calibration_.p8 = encode_value_le<int16_t>(&coeff1[19]);
+  this->calibration_.p9 = encode_value_le<int16_t>(&coeff1[21]);
   this->calibration_.p10 = coeff1[23];
 
   this->calibration_.gh1 = coeff2[14];
-  this->calibration_.gh2 = coeff2[12] << 8 | coeff2[13];
+  this->calibration_.gh2 = encode_value<int16_t>(&coeff2[12]);
   this->calibration_.gh3 = coeff2[15];
 
   uint8_t temp_var = 0;
   if (!this->read_byte(0x02, &temp_var)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   this->calibration_.res_heat_range = ((temp_var & 0x30) / 16);
 
   if (!this->read_byte(0x00, &temp_var)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   this->calibration_.res_heat_val = (int8_t) temp_var;
 
   if (!this->read_byte(0x04, &temp_var)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   this->calibration_.range_sw_err = ((int8_t) temp_var & (int8_t) 0xf0) / 16;
 
   this->calibration_.ambient_temperature = 25;  // prime ambient temperature
 
   // Config register
-  uint8_t config_register;
-  if (!this->read_byte(BME680_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed();
-    return;
-  }
-  config_register &= ~0b00011100;
-  config_register |= (this->iir_filter_ & 0b111) << 2;
-  if (!this->write_byte(BME680_REGISTER_CONFIG, config_register)) {
-    this->mark_failed();
-    return;
+  if (!this->update_register(BME680_REGISTER_CONFIG, 0b00011100, (this->iir_filter_ & 0b111) << 2)) {
+    return false;
   }
 
   // Humidity control register
-  uint8_t hum_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_HUMIDITY, &hum_control)) {
-    this->mark_failed();
-    return;
-  }
-  hum_control &= ~0b00000111;
-  hum_control |= this->humidity_oversampling_ & 0b111;
-  if (!this->write_byte(BME680_REGISTER_CONTROL_HUMIDITY, hum_control)) {
-    this->mark_failed();
-    return;
+  if (!this->update_register(BME680_REGISTER_CONTROL_HUMIDITY, 0b00000111, this->humidity_oversampling_ & 0b111)) {
+    return false;
   }
 
-  // Gas 1 control register
-  uint8_t gas1_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_GAS1, &gas1_control)) {
-    this->mark_failed();
-    return;
-  }
-  gas1_control &= ~0b00011111;
-  gas1_control |= 1 << 4;
-  gas1_control |= 0;  // profile 0
-  if (!this->write_byte(BME680_REGISTER_CONTROL_GAS1, gas1_control)) {
-    this->mark_failed();
-    return;
+  // Gas 1 control register: run gas, heater profile 0
+  if (!this->update_register(BME680_REGISTER_CONTROL_GAS1, 0b00011111, 1 << 4)) {
+    return false;
   }
 
   const bool heat_off = this->heater_temperature_ == 0 || this->heater_duration_ == 0;
 
   // Gas 0 control register
-  uint8_t gas0_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_GAS0, &gas0_control)) {
-    this->mark_failed();
-    return;
-  }
-  gas0_control &= ~0b00001000;
-  gas0_control |= heat_off << 3;
-  if (!this->write_byte(BME680_REGISTER_CONTROL_GAS0, gas0_control)) {
-    this->mark_failed();
-    return;
+  if (!this->update_register(BME680_REGISTER_CONTROL_GAS0, 0b00001000, heat_off << 3)) {
+    return false;
   }
 
   if (!heat_off) {
     // Gas Heater Temperature
     uint8_t temperature = this->calc_heater_resistance_(this->heater_temperature_);
     if (!this->write_byte(BME680_REGISTER_HEATER_HEAT0, temperature)) {
-      this->mark_failed();
-      return;
+      return false;
     }
 
     // Gas Heater Duration
     uint8_t duration = this->calc_heater_duration_(this->heater_duration_);
 
     if (!this->write_byte(BME680_REGISTER_HEATER_WAIT0, duration)) {
-      this->mark_failed();
-      return;
+      return false;
     }
   }
+  return true;
 }
 
 void BME680Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME680:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->humidity_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->humidity_oversampling_)));
   LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
   if (this->heater_duration_ == 0 || this->heater_temperature_ == 0) {
     ESP_LOGCONFIG(TAG, "  Heater OFF");
@@ -242,7 +180,7 @@ void BME680Component::update() {
     return;
   }
 
-  this->set_timeout("data", this->calc_meas_duration_(), [this]() { this->read_data_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
 
 uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
@@ -294,25 +232,19 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 }
 void BME680Component::read_data_() {
   uint8_t data[15];
-  if (!this->read_bytes(BME680_REGISTER_FIELD0, data, 15)) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
-    if (this->gas_resistance_sensor_ != nullptr)
-      this->gas_resistance_sensor_->publish_state(NAN);
+  if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->pressure_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
+    PUBLISH_STATE(this->gas_resistance_sensor_, NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
 
-  uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
-  uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
-  uint32_t raw_humidity = (uint32_t(data[8]) << 8) | uint32_t(data[9]);
-  uint16_t raw_gas = (uint16_t) ((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
+  uint32_t raw_temperature = encode_uint24(data[5], data[6], data[7]) >> 4;
+  uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
+  uint32_t raw_humidity = encode_uint16(data[8], data[9]);
+  uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
   uint8_t gas_range = data[14] & 0x0F;
 
   float temperature = this->calc_temperature_(raw_temperature);
@@ -334,12 +266,9 @@ void BME680Component::read_data_() {
     ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
   }
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   if (this->gas_resistance_sensor_ != nullptr) {
     if (gas_valid && heat_stable) {
       this->gas_resistance_sensor_->publish_state(gas_resistance);

@@ -15,8 +15,8 @@ class VersionTextSensor final : public text_sensor::TextSensor, public Component
   void dump_config() override;
 
  protected:
-  bool hide_hash_{false};
-  bool hide_timestamp_{false};
+  bool hide_hash_{false};       // Must match the setter check in text_sensor.py
+  bool hide_timestamp_{false};  // Must match the setter check in text_sensor.py
 };
 
 }  // namespace esphome::version

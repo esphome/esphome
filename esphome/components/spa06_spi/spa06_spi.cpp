@@ -13,7 +13,7 @@ inline constexpr uint8_t SPA06_SPI_WRITE = 0x7F;
 
 namespace esphome::spa06_spi {
 
-static const char *const TAG = "spa06_spi";
+ESPHOME_LOG_TAG(TAG, "spa06_spi");
 
 void SPA06SPIComponent::dump_config() {
   SPA06Component::dump_config();

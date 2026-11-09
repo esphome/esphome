@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #endif
 #include <esp_bt_defs.h>
@@ -16,7 +16,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 #include <cinttypes>
 
 #ifdef USE_OTA
@@ -32,7 +31,7 @@
 
 namespace esphome::esp32_ble_tracker {
 
-static const char *const TAG = "esp32_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_tracker");
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -393,11 +392,7 @@ void ESP32BLETracker::gap_scan_event_handler(const BLEScanResult &scan_result) {
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
   // Called from main loop context via gap_event_handler after being queued from BT task
   ESP_LOGV(TAG, "gap_scan_set_param_complete - status %d", param.status);
-  if (param.status == ESP_BT_STATUS_DONE) {
-    this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
-  } else {
-    this->scan_set_param_failed_ = param.status;
-  }
+  this->scan_set_param_failed_ = param.status == ESP_BT_STATUS_DONE ? ESP_BT_STATUS_SUCCESS : param.status;
 }
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
@@ -635,7 +630,7 @@ void ESP32BLETracker::log_unexpected_state_(const char *operation, ScannerState 
 
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
 void ESP32BLETracker::update_coex_preference_(bool force_ble) {
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   if (force_ble && !this->coex_prefer_ble_) {
     ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
     this->coex_prefer_ble_ = true;
@@ -645,7 +640,7 @@ void ESP32BLETracker::update_coex_preference_(bool force_ble) {
     this->coex_prefer_ble_ = false;
     esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
   }
-#endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#endif  // CONFIG_BT_CONTROLLER_DISABLED
 }
 #endif
 

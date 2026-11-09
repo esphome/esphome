@@ -1,0 +1,22 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          output_latency:
+            delay_after_detect: 0.1s
+            delay_after_disappear: 5.0s
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+
+dfrobot_sen0395:
+  id: mmwave

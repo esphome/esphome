@@ -16,7 +16,7 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c";
+ESPHOME_LOG_TAG(TAG, "i2c");
 
 HostI2CBus::~HostI2CBus() {
   if (this->file_descriptor_ != -1) {
@@ -62,14 +62,7 @@ void HostI2CBus::dump_config() {
     ESP_LOGE(TAG, "  Setup Error: %s", this->first_error_.c_str());
   }
 
-  if (this->scan_) {
-    ESP_LOGI(TAG, "  Scan Results:");
-    for (const auto &s : this->scan_results_) {
-      if (s.second) {
-        ESP_LOGI(TAG, "    0x%02X: Found", s.first);
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
 ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,

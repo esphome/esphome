@@ -81,7 +81,7 @@ void ble_entry(void);
 
 namespace esphome::bk72xx_ble {
 
-static const char *const TAG = "bk72xx_ble";
+ESPHOME_LOG_TAG(TAG, "bk72xx_ble");
 
 static constexpr uint32_t RECONCILE_RETRY_MS = 10;              // pump floor for fast loops
 static constexpr uint32_t RECONCILE_REJECTED_RETRY_MS = 500;    // retry gate after a rejected release
@@ -222,10 +222,8 @@ void BK72xxBLE::loop() {
   if (report == nullptr)
     return;
   do {
-#ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
     for (auto *listener : this->scan_listeners_)
       listener->on_scan_report(*report);
-#endif
     this->report_pool_.release(report);
   } while ((report = this->report_queue_.pop()) != nullptr);
 

@@ -3,17 +3,14 @@
 
 namespace esphome::st7567_i2c {
 
-static const char *const TAG = "st7567_i2c";
+ESPHOME_LOG_TAG(TAG, "st7567_i2c");
 
 void I2CST7567::setup() {
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
   ST7567::setup();
 }
 
@@ -28,10 +25,6 @@ void I2CST7567::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_UPDATE_INTERVAL(this);
-
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void I2CST7567::command(uint8_t value) { this->write_byte(0x00, value); }

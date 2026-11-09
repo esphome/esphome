@@ -429,11 +429,9 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    from esphome.writer import ENTITY_TYPES_H_TARGET
+    from esphome.writer import ESPHOME_H_EXCLUDE
 
-    # X-macro files are included multiple times with different macro definitions
-    # and must not be included bare in the all-include header
-    exclude = {ENTITY_TYPES_H_TARGET}
+    exclude = {path.as_posix() for path in ESPHOME_H_EXCLUDE}
     headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
@@ -1618,7 +1616,7 @@ def lpt_partition(
 
     Heaviest item first into the lightest group. Ties keep input order, so
     pass pre-sorted items for deterministic output. script/clang-tidy's
-    split_list is the unweighted contiguous sibling.
+    split_list is the unweighted sibling that deals files out in turn.
     """
     groups: list[list[str]] = [[] for _ in range(count)]
     group_weights = [0.0] * count

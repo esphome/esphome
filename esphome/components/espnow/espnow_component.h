@@ -4,20 +4,16 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "espnow_packet.h"
+#include "espnow_types.h"
 
 #if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
 #include "esphome/components/wifi/wifi_component.h"
 #endif
-
-#include <esp_idf_version.h>
-
-#include <esp_mac.h>
-#include <esp_now.h>
 
 #include <array>
 #include <map>
@@ -26,10 +22,6 @@
 #include <vector>
 
 namespace esphome::espnow {
-
-// Maximum size of the ESPNow event queue - must be power of 2 for lock-free queue
-static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
-static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
@@ -116,9 +108,18 @@ class ESPNowComponent final : public Component {
   esp_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);
+  // Action entry points; distinct names because add_peer(peer_address_t) only fills the boot-time list
+  esp_err_t add_peer_from_action(const peer_address_t &address) { return this->add_peer(address.data()); }
+  esp_err_t del_peer_from_action(const peer_address_t &address) { return this->del_peer(address.data()); }
 
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void apply_wifi_channel();
+  void set_channel_from_action(uint8_t channel) {
+    if (this->is_wifi_enabled())
+      return;
+    this->set_wifi_channel(channel);
+    this->apply_wifi_channel();
+  }
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
@@ -143,12 +144,10 @@ class ESPNowComponent final : public Component {
   /// @param payload Data payload to send
   /// @param callback Callback to call when the send operation is complete
   /// @return ESP_OK on success, or an error code on failure
-  esp_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload,
-                 const send_callback_t &callback = nullptr) {
-    return this->send(peer_address, payload.data(), payload.size(), callback);
+  esp_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload, send_callback_t callback = nullptr) {
+    return this->send(peer_address, payload.data(), payload.size(), std::move(callback));
   }
-  esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
-                 const send_callback_t &callback = nullptr);
+  esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size, send_callback_t callback = nullptr);
 
   void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {
@@ -156,14 +155,13 @@ class ESPNowComponent final : public Component {
   }
   void register_broadcast_handler(ESPNowBroadcastHandler *handler) { this->broadcast_handlers_.push_back(handler); }
 
- protected:
-  friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
-  friend void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status);
-#else
-  friend void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status);
-#endif
+  // Entry points for the radio driver callbacks in espnow_platform_*.cpp; they run outside the main loop and
+  // only queue the event
+  void packet_received(const uint8_t *src_addr, const uint8_t *des_addr, const uint8_t *data, int size, int8_t rssi,
+                       uint32_t timestamp);
+  void send_reported(const uint8_t *mac_addr, esp_now_send_status_t status);
 
+ protected:
   void enable_();
   void send_();
 
@@ -196,4 +194,4 @@ extern ESPNowComponent *global_esp_now;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_ESP8266

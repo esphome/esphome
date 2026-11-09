@@ -3,7 +3,7 @@
 
 namespace esphome::a4988 {
 
-static const char *const TAG = "a4988.stepper";
+ESPHOME_LOG_TAG(TAG, "a4988.stepper");
 
 void A4988::setup() {
   if (this->sleep_pin_ != nullptr) {

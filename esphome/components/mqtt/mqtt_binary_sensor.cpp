@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "mqtt.binary_sensor");
 
 MQTT_COMPONENT_TYPE(MQTTBinarySensorComponent, "binary_sensor")
 const EntityBase *MQTTBinarySensorComponent::get_entity() const { return this->binary_sensor_; }
@@ -17,10 +17,7 @@ void MQTTBinarySensorComponent::setup() {
   this->binary_sensor_->add_on_state_callback([this](bool state) { this->publish_state(state); });
 }
 
-void MQTTBinarySensorComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Binary Sensor '%s':", this->binary_sensor_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTBinarySensorComponent::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
     : binary_sensor_(binary_sensor) {
   if (this->binary_sensor_->is_status_binary_sensor()) {

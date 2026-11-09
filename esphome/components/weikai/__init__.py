@@ -1,3 +1,4 @@
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
@@ -17,6 +18,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 AUTO_LOAD = ["uart"]
+DOMAIN = "weikai"
 
 MULTI_CONF = True
 CONF_CRYSTAL = "crystal"
@@ -89,10 +91,7 @@ async def register_weikai(var: MockObj, config: ConfigType) -> None:
 
 def validate_pin_mode(value: ConfigType) -> ConfigType:
     """Checks input/output mode inconsistency"""
-    if not (value[CONF_MODE][CONF_INPUT] or value[CONF_MODE][CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_MODE][CONF_INPUT] and value[CONF_MODE][CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
+    pins.gpio_validate_input_xor_output(value[CONF_MODE])
     return value
 
 

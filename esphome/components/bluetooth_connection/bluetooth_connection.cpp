@@ -12,7 +12,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection";
+ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
 BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
                                uint8_t connection_index, const char *address_str) {

@@ -1,8 +1,7 @@
 esphome:
   name: fnv1a-hash-test
-  platformio_options:
-    build_flags:
-      - "-DDEBUG"
+  build_flags:
+    - "-DDEBUG"
   on_boot:
     - lambda: |-
         using esphome::fnv1a_hash;

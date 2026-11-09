@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -49,27 +48,6 @@ class Servo final : public Component {
     STATE_DETACHED = 1,
     STATE_TARGET_REACHED = 2,
   };
-};
-
-template<typename... Ts> class ServoWriteAction final : public Action<Ts...> {
- public:
-  ServoWriteAction(Servo *servo) : servo_(servo) {}
-  TEMPLATABLE_VALUE(float, value)
-
-  void play(const Ts &...x) override { this->servo_->write(this->value_.value(x...)); }
-
- protected:
-  Servo *servo_;
-};
-
-template<typename... Ts> class ServoDetachAction final : public Action<Ts...> {
- public:
-  ServoDetachAction(Servo *servo) : servo_(servo) {}
-
-  void play(const Ts &...x) override { this->servo_->detach(); }
-
- protected:
-  Servo *servo_;
 };
 
 }  // namespace esphome::servo

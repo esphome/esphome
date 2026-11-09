@@ -37,7 +37,7 @@ DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
 DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4BSensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor", cg.Component)
 VBusCustom = vbus_ns.class_("VBusCustomBSensor", cg.Component)
-VBusCustomSub = vbus_ns.class_("VBusCustomSubBSensor", cg.Component)
+VBusCustomSub = vbus_ns.class_("VBusCustomSubBSensor", binary_sensor.BinarySensor)
 
 CONF_RELAY1 = "relay1"
 CONF_RELAY2 = "relay2"
@@ -64,21 +64,21 @@ OPTION_SCHEMA = binary_sensor.binary_sensor_schema(
 
 # Configuration key -> (schema of that value, C++ setter to pass it to)
 BSENSOR_FIELDS = {
-    CONF_RELAY1: (RELAY_SCHEMA, "set_relay1_bsensor"),
-    CONF_RELAY2: (RELAY_SCHEMA, "set_relay2_bsensor"),
-    CONF_SENSOR1_ERROR: (ERROR_SCHEMA, "set_s1_error_bsensor"),
-    CONF_SENSOR2_ERROR: (ERROR_SCHEMA, "set_s2_error_bsensor"),
-    CONF_SENSOR3_ERROR: (ERROR_SCHEMA, "set_s3_error_bsensor"),
-    CONF_SENSOR4_ERROR: (ERROR_SCHEMA, "set_s4_error_bsensor"),
-    CONF_COLLECTOR_MAX: (OPTION_SCHEMA, "set_collector_max_bsensor"),
-    CONF_COLLECTOR_MIN: (OPTION_SCHEMA, "set_collector_min_bsensor"),
-    CONF_COLLECTOR_FROST: (OPTION_SCHEMA, "set_collector_frost_bsensor"),
-    CONF_TUBE_COLLECTOR: (OPTION_SCHEMA, "set_tube_collector_bsensor"),
-    CONF_RECOOLING: (OPTION_SCHEMA, "set_recooling_bsensor"),
-    CONF_HQM: (OPTION_SCHEMA, "set_hqm_bsensor"),
+    CONF_RELAY1: (RELAY_SCHEMA, "set_relay1_binary_sensor"),
+    CONF_RELAY2: (RELAY_SCHEMA, "set_relay2_binary_sensor"),
+    CONF_SENSOR1_ERROR: (ERROR_SCHEMA, "set_s1_error_binary_sensor"),
+    CONF_SENSOR2_ERROR: (ERROR_SCHEMA, "set_s2_error_binary_sensor"),
+    CONF_SENSOR3_ERROR: (ERROR_SCHEMA, "set_s3_error_binary_sensor"),
+    CONF_SENSOR4_ERROR: (ERROR_SCHEMA, "set_s4_error_binary_sensor"),
+    CONF_COLLECTOR_MAX: (OPTION_SCHEMA, "set_collector_max_binary_sensor"),
+    CONF_COLLECTOR_MIN: (OPTION_SCHEMA, "set_collector_min_binary_sensor"),
+    CONF_COLLECTOR_FROST: (OPTION_SCHEMA, "set_collector_frost_binary_sensor"),
+    CONF_TUBE_COLLECTOR: (OPTION_SCHEMA, "set_tube_collector_binary_sensor"),
+    CONF_RECOOLING: (OPTION_SCHEMA, "set_recooling_binary_sensor"),
+    CONF_HQM: (OPTION_SCHEMA, "set_hqm_binary_sensor"),
     CONF_FROST_PROTECTION_ACTIVE: (
         OPTION_SCHEMA,
-        "set_frost_protection_active_bsensor",
+        "set_frost_protection_active_binary_sensor",
     ),
 }
 
@@ -183,10 +183,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(source))
         cg.add(var.set_dest(0x0010))
+        sub_sensors = binary_sensor.sub_binary_sensors(config)
         for field in fields:
-            if (conf := config.get(field)) is not None:
-                bsens = await binary_sensor.new_binary_sensor(conf)
-                cg.add(getattr(var, BSENSOR_FIELDS[field][1])(bsens))
+            await sub_sensors(field, getattr(var, BSENSOR_FIELDS[field][1]))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
     cg.add(vbus.register_listener(var))

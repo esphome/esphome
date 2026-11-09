@@ -6,7 +6,7 @@
 
 namespace esphome::mqtt_subscribe {
 
-static const char *const TAG = "mqtt_subscribe.sensor";
+ESPHOME_LOG_TAG(TAG, "mqtt_subscribe.sensor");
 
 void MQTTSubscribeSensor::setup() {
   mqtt::global_mqtt_client->subscribe(
@@ -27,7 +27,7 @@ void MQTTSubscribeSensor::setup() {
 float MQTTSubscribeSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTSubscribeSensor::dump_config() {
   LOG_SENSOR("", "MQTT Subscribe", this);
-  ESP_LOGCONFIG(TAG, "  Topic: %s", this->topic_.c_str());
+  ESP_LOGCONFIG(TAG, "  Topic: %s", this->topic_);
 }
 
 }  // namespace esphome::mqtt_subscribe

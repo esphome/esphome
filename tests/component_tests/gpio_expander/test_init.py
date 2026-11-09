@@ -49,6 +49,7 @@ def test_allow_other_uses_rejected(stage_esp32: None) -> None:
         "pi4ioe5v6408",
         "mcp23016",
         "mcp23017",
+        "pca9505",
     ],
 )
 def test_component_schemas_route_through_validator(

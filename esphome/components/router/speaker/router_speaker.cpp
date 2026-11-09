@@ -12,7 +12,7 @@
 
 namespace esphome::router {
 
-static const char *const TAG = "router.speaker";
+ESPHOME_LOG_TAG(TAG, "router.speaker");
 
 // Maximum time to wait for the active output to report running after start() before giving up
 static const uint32_t STATE_TRANSITION_TIMEOUT_MS = 5000;

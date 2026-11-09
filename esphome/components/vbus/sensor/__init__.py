@@ -53,7 +53,7 @@ DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
 DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor", cg.Component)
 VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
-VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", cg.Component)
+VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", sensor.Sensor)
 
 CONF_FLOW_RATE = "flow_rate"
 CONF_HEAT_QUANTITY = "heat_quantity"
@@ -285,10 +285,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(source))
         cg.add(var.set_dest(0x0010))
+        sub_sensors = sensor.sub_sensors(config)
         for field in fields:
-            if (conf := config.get(field)) is not None:
-                sens = await sensor.new_sensor(conf)
-                cg.add(getattr(var, SENSOR_FIELDS[field][1])(sens))
+            await sub_sensors(field, getattr(var, SENSOR_FIELDS[field][1]))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
     cg.add(vbus.register_listener(var))

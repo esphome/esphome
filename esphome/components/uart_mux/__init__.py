@@ -20,9 +20,6 @@ ROUTE_LOCAL = "local"
 
 uart_mux_ns = cg.esphome_ns.namespace("uart_mux")
 UARTMux = uart_mux_ns.class_("UARTMux", uart.UARTComponent, cg.Component)
-SelectLocalAction = uart_mux_ns.class_("SelectLocalAction", automation.Action)
-SelectBridgeAction = uart_mux_ns.class_("SelectBridgeAction", automation.Action)
-IsLocalCondition = uart_mux_ns.class_("IsLocalCondition", automation.Condition)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -70,15 +67,16 @@ UART_MUX_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "uart_mux.select_local", SelectLocalAction, UART_MUX_ACTION_SCHEMA, synchronous=True
-)
-automation.register_simple_action(
-    "uart_mux.select_bridge",
-    SelectBridgeAction,
+automation.register_apply_action(
+    "uart_mux.select_local",
     UART_MUX_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("select_local()"),
 )
-automation.register_simple_condition(
-    "uart_mux.is_local", IsLocalCondition, UART_MUX_ACTION_SCHEMA
+automation.register_apply_action(
+    "uart_mux.select_bridge",
+    UART_MUX_ACTION_SCHEMA,
+    automation.ApplyCall("select_bridge()"),
+)
+automation.register_apply_condition(
+    "uart_mux.is_local", UART_MUX_ACTION_SCHEMA, "is_local()"
 )

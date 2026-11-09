@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, ICON_CHIP
 from esphome.types import ConfigType
 
-from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
+from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns, register_listener
 
 LD2420TextSensor = ld2420_ns.class_(
     "LD2420TextSensor", text_sensor.TextSensor, cg.Component
@@ -28,8 +28,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if CONF_FW_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_FW_VERSION])
-        cg.add(var.set_fw_version_text_sensor(sens))
-    ld2420 = await cg.get_variable(config[CONF_LD2420_ID])
-    cg.add(ld2420.register_listener(var))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_FW_VERSION, var.set_fw_version_text_sensor)
+    hub = await cg.get_variable(config[CONF_LD2420_ID])
+    await register_listener(hub, var)

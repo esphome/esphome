@@ -20,13 +20,13 @@ from esphome.const import (
     CONF_VALUE,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "remote_transmitter"
 
 CONF_EOT_LEVEL = "eot_level"
 CONF_NON_BLOCKING = "non_blocking"
@@ -37,11 +37,6 @@ CONF_TRANSMITTER_ID = remote_base.CONF_TRANSMITTER_ID
 remote_transmitter_ns = cg.esphome_ns.namespace("remote_transmitter")
 RemoteTransmitterComponent = remote_transmitter_ns.class_(
     "RemoteTransmitterComponent", remote_base.RemoteTransmitterBase, cg.Component
-)
-DigitalWriteAction = remote_transmitter_ns.class_(
-    "DigitalWriteAction",
-    automation.Action,
-    cg.Parented.template(RemoteTransmitterComponent),
 )
 
 
@@ -89,9 +84,12 @@ CONFIG_SCHEMA = (
                 esp32_c6=48,
                 esp32_c61=cv.UNDEFINED,
                 esp32_h2=48,
+                esp32_h4=48,
+                esp32_h21=48,
                 esp32_p4=48,
                 esp32_s2=64,
                 esp32_s3=48,
+                esp32_s31=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_NON_BLOCKING): _validate_non_blocking_platform,
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
@@ -110,6 +108,8 @@ CONFIG_SCHEMA = (
             ]
         )
     )
+    # setup_priority::DATA - 1, from RemoteTransmitterComponent::get_setup_priority()
+    .add_extra(esp32_rmt.request_rmt_channel("TX", 599.0))
 )
 
 
@@ -127,7 +127,12 @@ def _validate_non_blocking(config: ConfigType) -> None:
         config[CONF_NON_BLOCKING] = True
 
 
-FINAL_VALIDATE_SCHEMA = _validate_non_blocking
+def _final_validate(config: ConfigType) -> None:
+    _validate_non_blocking(config)
+    esp32_rmt.final_validate_rmt_channels(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
     {
@@ -138,23 +143,12 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "remote_transmitter.digital_write",
-    DigitalWriteAction,
     DIGITAL_WRITE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "digital_write", cg.bool_),
+    id_key=CONF_TRANSMITTER_ID,
 )
-async def digital_write_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.bool_)
-    cg.add(var.set_value(template_))
-    return var
 
 
 async def to_code(config: ConfigType) -> None:
@@ -166,10 +160,8 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_non_blocking(config[CONF_NON_BLOCKING]))
-        if CONF_CLOCK_RESOLUTION in config:
-            cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
-        if CONF_USE_DMA in config:
-            cg.add(var.set_with_dma(config[CONF_USE_DMA]))
+        cg.add_optional(var.set_clock_resolution, config.get(CONF_CLOCK_RESOLUTION))
+        cg.add_optional(var.set_with_dma, config.get(CONF_USE_DMA))
         if CONF_EOT_LEVEL in config:
             cg.add(var.set_eot_level(config[CONF_EOT_LEVEL]))
         else:
@@ -181,9 +173,9 @@ async def to_code(config: ConfigType) -> None:
             )
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
-        if (non_blocking := config.get(CONF_NON_BLOCKING)) is not None:
-            cg.add(var.set_non_blocking(non_blocking))
+        cg.add_optional(var.set_non_blocking, config.get(CONF_NON_BLOCKING))
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
 

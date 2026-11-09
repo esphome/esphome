@@ -3,7 +3,7 @@
 
 namespace esphome::sts3x {
 
-static const char *const TAG = "sts3x";
+ESPHOME_LOG_TAG(TAG, "sts3x");
 
 static const uint16_t STS3X_COMMAND_READ_SERIAL_NUMBER = 0x3780;
 static const uint16_t STS3X_COMMAND_READ_STATUS = 0xF32D;
@@ -17,25 +17,18 @@ static const uint16_t STS3X_COMMAND_HEATER_DISABLE = 0x3066;
 static const uint16_t STS3X_COMMAND_FETCH_DATA = 0xE000;
 
 void STS3XComponent::setup() {
-  if (!this->write_command(STS3X_COMMAND_READ_SERIAL_NUMBER)) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_command(STS3X_COMMAND_READ_SERIAL_NUMBER)))
     return;
-  }
 
   uint16_t raw_serial_number[2];
-  if (!this->read_data(raw_serial_number, 1)) {
-    this->mark_failed();
+  if (!this->setup_check(this->read_data(raw_serial_number, 1)))
     return;
-  }
   uint32_t serial_number = (uint32_t(raw_serial_number[0]) << 16);
   ESP_LOGV(TAG, "    Serial Number: 0x%08" PRIX32, serial_number);
 }
 void STS3XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "STS3x:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "STS3x", this);
@@ -53,15 +46,12 @@ void STS3XComponent::update() {
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[1];
-    if (!this->read_data(raw_data, 1)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 1)))
       return;
-    }
 
     float temperature = 175.0f * float(raw_data[0]) / 65535.0f - 45.0f;
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
     this->publish_state(temperature);
-    this->status_clear_warning();
   });
 }
 

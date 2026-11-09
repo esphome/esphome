@@ -3,10 +3,11 @@ import esphome.codegen as cg
 from esphome.components import key_provider
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "matrix_keypad"
 
 AUTO_LOAD = ["key_provider"]
 
@@ -16,9 +17,6 @@ matrix_keypad_ns = cg.esphome_ns.namespace("matrix_keypad")
 MatrixKeypad = matrix_keypad_ns.class_(
     "MatrixKeypad", key_provider.KeyProvider, cg.Component
 )
-MatrixKeyTrigger = matrix_keypad_ns.class_(
-    "MatrixKeyTrigger", automation.Trigger.template(cg.uint8)
-)
 
 CONF_KEYPAD_ID = "keypad_id"
 CONF_DEBOUNCE_TIME = "debounce_time"
@@ -27,12 +25,22 @@ CONF_HAS_PULLDOWNS = "has_pulldowns"
 
 
 def check_keys(obj: ConfigType) -> ConfigType:
+    for ch in obj.get(CONF_KEYS, ""):
+        if not ch.isascii():
+            # Each key is reported as one byte, so only ASCII characters can be key codes
+            raise cv.Invalid(f"Key code {ch!r} is not an ASCII character")
     if CONF_KEYS in obj and len(obj[CONF_KEYS]) != len(obj[CONF_ROWS]) * len(
         obj[CONF_COLUMNS]
     ):
         raise cv.Invalid("The number of key codes must equal the number of buttons")
     return obj
 
+
+_AUTOMATION_LISTS = (
+    automation.AutomationList(
+        CONF_ON_KEY, "MATRIX_KEYPAD_ON_KEY_COUNT", [(cg.uint8, "x")]
+    ),
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
@@ -50,11 +58,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEBOUNCE_TIME, default=1): cv.int_range(min=1, max=100),
             cv.Optional(CONF_HAS_DIODES): cv.boolean,
             cv.Optional(CONF_HAS_PULLDOWNS): cv.boolean,
-            cv.Optional(CONF_ON_KEY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MatrixKeyTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_KEY): automation.validate_automation(),
         }
     ),
     check_keys,
@@ -74,14 +78,12 @@ async def to_code(config: ConfigType) -> None:
         pin = await cg.gpio_pin_expression(conf[CONF_PIN])
         col_pins.append(pin)
     cg.add(var.set_columns(col_pins))
-    if CONF_KEYS in config:
-        cg.add(var.set_keys(config[CONF_KEYS]))
+    if (keys := config.get(CONF_KEYS)) is not None:
+        table = cg.shared_progmem_array(
+            "matrix_keypad_keys", cg.uint8, list(keys.encode())
+        )
+        cg.add(var.set_keys(table))
     cg.add(var.set_debounce_time(config[CONF_DEBOUNCE_TIME]))
-    if CONF_HAS_DIODES in config:
-        cg.add(var.set_has_diodes(config[CONF_HAS_DIODES]))
-    if CONF_HAS_PULLDOWNS in config:
-        cg.add(var.set_has_pulldowns(config[CONF_HAS_PULLDOWNS]))
-    for conf in config.get(CONF_ON_KEY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_key_trigger(trigger))
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
+    cg.add_optional(var.set_has_diodes, config.get(CONF_HAS_DIODES))
+    cg.add_optional(var.set_has_pulldowns, config.get(CONF_HAS_PULLDOWNS))
+    await automation.build_automation_lists(var, config, _AUTOMATION_LISTS)

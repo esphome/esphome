@@ -30,7 +30,7 @@ display:
 
 image:
   - platform: file
-    file: mdi:battery
+    file: image.png
     id: my_image
     resize: 8x8
     type: binary

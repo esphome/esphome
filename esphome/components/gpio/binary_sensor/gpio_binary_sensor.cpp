@@ -4,7 +4,7 @@
 
 namespace esphome::gpio {
 
-static const char *const TAG = "gpio.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "gpio.binary_sensor");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 #ifdef USE_GPIO_BINARY_SENSOR_INTERRUPT

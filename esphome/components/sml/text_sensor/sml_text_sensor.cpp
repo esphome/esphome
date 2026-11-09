@@ -6,18 +6,13 @@
 
 namespace esphome::sml {
 
-static const char *const TAG = "sml_text_sensor";
+ESPHOME_LOG_TAG(TAG, "sml_text_sensor");
 
 SmlTextSensor::SmlTextSensor(std::string server_id, std::string obis_code, SmlType format)
     : SmlListener(std::move(server_id), std::move(obis_code)), format_(format) {}
 
 void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
-  uint8_t value_type;
-  if (this->format_ == SML_UNDEFINED) {
-    value_type = obis_info.value_type;
-  } else {
-    value_type = this->format_;
-  }
+  const uint8_t value_type = this->format_ == SML_UNDEFINED ? obis_info.value_type : this->format_;
 
   switch (value_type) {
     case SML_HEX: {
@@ -48,6 +43,8 @@ void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
       publish_state(reinterpret_cast<const char *>(obis_info.value.begin()), obis_info.value.size());
       break;
     }
+    default:
+      break;
   }
 }
 

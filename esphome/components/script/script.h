@@ -8,28 +8,19 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logw_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
-  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logd_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
-#else
-  void esp_logw_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
-  }
-  void esp_logd_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
-  }
-  void esp_log_(int level, int line, const char *format, const char *param);
-#endif
+  void esp_log_(int level, int line, ProgmemStr format, const char *param);
 };
 
 /// The abstract base class for all script types.
@@ -42,22 +33,23 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   virtual void execute(Ts...) = 0;
   /// Check if any instance of this script is currently running.
   virtual bool is_running() { return this->is_action_running(); }
+#ifdef USE_SCRIPT_ON_STOP
+  /// Stop all instances of this script. Fires the on_stop trigger once if any instance was running.
+  virtual void stop() {
+    if (this->is_action_running())
+      this->stop_running_();
+  }
+
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
+#else
   /// Stop all instances of this script.
   virtual void stop() { this->stop_action(); }
-
-  // execute this script using a tuple that contains the arguments
-  void execute_tuple(const std::tuple<Ts...> &tuple) {
-    this->execute_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
-  }
+#endif
 
   // Internal function to give scripts readable names.
   void set_name(const LogString *name) { name_ = name; }
 
  protected:
-  template<size_t... S> void execute_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->execute(std::get<S>(tuple)...);
-  }
-
   // Run the action chain with this script's name published as the current source (RAII save/restore,
   // so nesting composes), so deferred work inside the script is attributed to it in blocking
   // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
@@ -66,7 +58,18 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->trigger(x...);
   }
 
+  // Stop the running actions early and fire the on_stop trigger.
+  void stop_running_() {
+    this->stop_action();
+#ifdef USE_SCRIPT_ON_STOP
+    this->stop_trigger_.trigger();
+#endif
+  }
+
   const LogString *name_{nullptr};
+#ifdef USE_SCRIPT_ON_STOP
+  Trigger<> stop_trigger_;
+#endif
 };
 
 /** A script type for which only a single instance at a time is allowed.
@@ -97,7 +100,12 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
   void execute(Ts... x) override {
     if (this->is_action_running()) {
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), LOG_STR_ARG(this->name_));
-      this->stop_action();
+      this->stop_running_();
+#ifdef USE_SCRIPT_ON_STOP
+      // on_stop may have executed this script again; only the newest run may continue
+      if (this->is_action_running())
+        this->stop_action();
+#endif
     }
 
     this->run_actions_(x...);
@@ -154,12 +162,21 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   void stop() override {
+#ifdef USE_SCRIPT_ON_STOP
+    // Queued runs are unfinished work too, even between two runs when nothing is running
+    const bool stopping = this->is_action_running() || this->num_queued_ != 0;
+#endif
     // Clear all queued items to free memory immediately
     // Resetting the array automatically destroys all unique_ptrs and their contents
     this->var_queue_.reset();
     this->num_queued_ = 0;
     this->queue_front_ = 0;
+#ifdef USE_SCRIPT_ON_STOP
+    if (stopping)
+      this->stop_running_();
+#else
     Script<Ts...>::stop();
+#endif
   }
 
   void loop() override {
@@ -226,66 +243,6 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
   int max_runs_ = 0;
 };
 
-template<class S, typename... Ts> class ScriptExecuteAction;
-
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
- public:
-  ScriptExecuteAction(Script<As...> *script) : script_(script) {}
-
-  using Args = std::tuple<TemplatableFn<As, Ts...>...>;
-
-  template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
-
-  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
-
- protected:
-  // NOTE:
-  //  `eval_args_impl` functions evaluates `I`th the functions in `args` member.
-  //  and then recursively calls `eval_args_impl` for the `I+1`th arg.
-  //  if `I` = `N` all args have been stored, and nothing is done.
-
-  template<std::size_t N>
-  void eval_args_impl_(std::tuple<As...> & /*unused*/, std::integral_constant<std::size_t, N> /*unused*/,
-                       std::integral_constant<std::size_t, N> /*unused*/, Ts... /*unused*/) {}
-
-  template<std::size_t I, std::size_t N>
-  void eval_args_impl_(std::tuple<As...> &evaled_args, std::integral_constant<std::size_t, I> /*unused*/,
-                       std::integral_constant<std::size_t, N> n, Ts... x) {
-    std::get<I>(evaled_args) = std::get<I>(args_).value(x...);  // NOTE: evaluate `i`th arg, and store in tuple.
-    eval_args_impl_(evaled_args, std::integral_constant<std::size_t, I + 1>{}, n,
-                    x...);  // NOTE: recurse to next index.
-  }
-
-  std::tuple<As...> eval_args_(Ts... x) {
-    std::tuple<As...> evaled_args;
-    eval_args_impl_(evaled_args, std::integral_constant<std::size_t, 0>{}, std::tuple_size<Args>{}, x...);
-    return evaled_args;
-  }
-
-  Script<As...> *script_;
-  Args args_;
-};
-
-template<class C, typename... Ts> class ScriptStopAction final : public Action<Ts...> {
- public:
-  ScriptStopAction(C *script) : script_(script) {}
-
-  void play(const Ts &...x) override { this->script_->stop(); }
-
- protected:
-  C *script_;
-};
-
-template<class C, typename... Ts> class IsRunningCondition final : public Condition<Ts...> {
- public:
-  explicit IsRunningCondition(C *parent) : parent_(parent) {}
-
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-
- protected:
-  C *parent_;
-};
-
 /** Wait for a script to finish before continuing.
  *
  * Uses queue-based storage to safely handle concurrent executions.
@@ -323,8 +280,11 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
+    if (this->num_running_ == 0) {
+      // Nothing left to wait for, e.g. once the last queued item has run
+      this->disable_loop();
       return;
+    }
 
     if (this->script_->is_running())
       return;
@@ -333,17 +293,17 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // Processing all items in a while loop causes infinite loops because
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
-      auto &params = this->param_queue_.front();
-      this->play_next_tuple_(params, std::make_index_sequence<sizeof...(Ts)>{});
+      // Take the item out first: the chain may call stop(), which clears the queue
+      auto params = std::move(this->param_queue_.front());
       this->param_queue_.pop_front();
+      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
     } else {
       // Queue is now empty - disable loop until next play_complex
       this->disable_loop();
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override {
     this->param_queue_.clear();
@@ -351,12 +311,8 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
  protected:
-  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->play_next_(std::get<S>(tuple)...);
-  }
-
   C *script_;
-  std::list<std::tuple<Ts...>> param_queue_;
+  std::list<std::tuple<stored_trigger_arg_t<Ts>...>> param_queue_;
 };
 
 }  // namespace esphome::script

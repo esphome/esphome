@@ -1,0 +1,23 @@
+button:
+  - platform: template
+    name: Fingerprint LED Actions
+    on_press:
+      - fingerprint_grow.enroll: 3
+      - fingerprint_grow.enroll:
+          finger_id: !lambda return 4;
+          num_scans: !lambda return 3;
+      - fingerprint_grow.led_control: true
+      - fingerprint_grow.led_control:
+          state: !lambda return false;
+      - fingerprint_grow.aura_led_control:
+          state: BREATHING
+          speed: 200
+          color: BLUE
+          count: 2
+      - fingerprint_grow.aura_led_control:
+          state: !lambda return fingerprint_grow::FLASHING;
+          speed: !lambda return 100;
+          color: !lambda return fingerprint_grow::RED;
+          count: !lambda return 3;
+      - fingerprint_grow.delete:
+          finger_id: !lambda return 2;

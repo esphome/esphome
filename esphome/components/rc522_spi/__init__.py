@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["rc522"]
+DOMAIN = "rc522_spi"
 MULTI_CONF = True
 
 rc522_spi_ns = cg.esphome_ns.namespace("rc522_spi")

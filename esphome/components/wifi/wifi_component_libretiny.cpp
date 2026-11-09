@@ -25,18 +25,43 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
+#include <wifi_util.h>
 }
+#endif
+
+#ifdef USE_LN882X
+#include <WiFiPrivate.h>
+#undef DATA  // clashes with setup_priority::DATA
+// LibreTiny 1.13's LN882H reconnect() gives the SDK a NULL bssid; pass on the requested one. Remove once it passes
+// info.bssid. Safe without a BSSID: begin() frees sta.bssid (resetNetworkInfo), so it stays NULL.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+// Names are mandated by the --wrap linker mechanism.
+extern "C" int __real_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg);
+extern "C" int __wrap_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg) {
+  if (connect->bssid == nullptr)
+    connect->bssid = static_cast<WiFiData *>(WiFi.data)->sta.bssid;
+  return __real_wifi_sta_connect(connect, scan_cfg);
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_lt";
+ESPHOME_LOG_TAG(TAG, "wifi_lt");
+
+#ifdef USE_RTL87XX
+// rtw_connect_error_flag_t, in order, as wifi_get_last_error() returns it
+PROGMEM_STRING_TABLE(JoinErrorStrings, "none", "network not found", "connect failed",
+                     "handshake failed (wrong password?)", "4-way handshake timeout", "DHCP failed", "auth failed",
+                     "assoc failed", "deauthenticated", "unknown");
+#endif
 
 // Thread-safe event handling for LibreTiny WiFi
 //
@@ -236,11 +261,33 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
-  WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
-                                 ap.get_channel(),  // 0 = auto
-                                 ap.has_bssid() ? ap.get_bssid().data() : NULL);
+  uint8_t channel = ap.get_channel();  // 0 = auto
+#ifdef USE_RTL87XX
+  // Given a channel and a BSSID, LibreTiny narrows the driver's scan list to the channel for the join, then leaves it
+  // disabled, so the next scan finds nothing. Narrow it here and pass no channel (LibreTiny ignores a channel without
+  // a BSSID); the join's own scan restores the full list when it ends. The placeholder SSID starts that scan, as
+  // LibreTiny's does; narrowed before it, the scan can miss the beacon.
+  if (channel != 0 && ap.has_bssid()) {
+    wext_set_ssid(WLAN0_NAME, reinterpret_cast<const uint8_t *>("-"), 1);
+    uint8_t pscan_config = PSCAN_ENABLE | PSCAN_FAST_SURVEY;
+    wifi_set_pscan_chan(&channel, &pscan_config, 1);
+  }
+  channel = 0;
+#endif
+  WiFiStatus status;
+  {
+    // The driver blocks until the join has started, or finished on Realtek
+    UnavoidableBlockingScope scope;
+    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(), channel,
+                        ap.has_bssid() ? ap.get_bssid().data() : NULL);
+  }
   if (status != WL_CONNECTED) {
+#ifdef USE_RTL87XX
+    ESP_LOGW(TAG, "WiFi.begin failed: %d (%s)", status,
+             LOG_STR_ARG(JoinErrorStrings::get_log_str(wifi_get_last_error(), JoinErrorStrings::LAST_INDEX)));
+#else
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
+#endif
     // Without this reset the state machine stays at CONNECTING and each retry
     // stalls for the full connect timeout (46 s).
     this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_FAILED);
@@ -457,6 +504,12 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
     case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
       auto &it = event->data.scan_done;
       ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
+#ifdef USE_RTL87XX
+      // The driver also reports the scan inside each join; taking that one would clear the results the
+      // retry phases are working from, so only a scan this component started counts
+      if (this->state_ != WIFI_COMPONENT_STATE_STA_SCANNING && !this->is_roaming_scan_active())
+        break;
+#endif
       this->wifi_scan_done_callback_();
       break;
     }
@@ -489,7 +542,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
 #endif
       // For static IP configurations, GOT_IP event may not fire, so set connected state here
 #ifdef USE_WIFI_MANUAL_IP
-      if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
         this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTED);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
         this->notify_ip_state_listeners_();
@@ -608,6 +661,9 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
+#ifdef USE_WIFI_AP
+      this->ap_clients_++;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto &it = event->data.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -617,6 +673,10 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
+#ifdef USE_WIFI_AP
+      if (this->ap_clients_ > 0)
+        this->ap_clients_--;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto &it = event->data.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -719,10 +779,25 @@ void WiFiComponent::wifi_scan_done_callback_() {
     for (int i = 0; i < num; i++) {
       const char *ssid_cstr = scan->ap[i].ssid;
       auto &ap = scan->ap[i];
-      if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
+      const WiFiAP *config = this->find_configured_network_(ssid_cstr, ap.bssid.addr);
+      if (needs_full || config != nullptr) {
+#ifdef USE_RTL87XX
+        // LibreTiny maps the low byte of the driver's security type as an encryption type, so WEP comes out OPEN
+        // and open, WPA/WPA2 mixed and PMF networks all come out INVALID. For INVALID, follow the configured network.
+        bool with_auth = true;
+        if (ap.auth == WIFI_AUTH_INVALID && config != nullptr) {
+#ifdef USE_WIFI_WPA2_EAP
+          with_auth = !config->password_.empty() || config->get_eap().has_value();
+#else
+          with_auth = !config->password_.empty();
+#endif
+        }
+#else
+        const bool with_auth = ap.auth != WIFI_AUTH_OPEN;
+#endif
         this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                                 ap.bssid.addr[4], ap.bssid.addr[5]},
-                                        ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                        ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, with_auth,
                                         ssid_cstr[0] == '\0');
       } else {
         this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
@@ -770,12 +845,43 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   yield();
 
+#ifdef USE_LN882X
+  // LibreTiny's LN882H softAP() points ap.bssid at a static array and frees it
+  // on the next call, tripping FreeRTOS's configASSERT until the watchdog
+  // resets the chip. Clear it so that a second AP start frees nothing.
+  static_cast<WiFiData *>(WiFi.data)->ap.bssid = nullptr;
+#endif
+
   return WiFi.softAP(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                      ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
+
+#ifdef USE_LN882X
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it no longer holds the association when we come back.
+  if (WiFi.status() != WL_CONNECTED)  // associated, even before DHCP has finished
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
+}
+#endif
+
+#ifdef USE_BK72XX
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it no longer holds the association when we come back.
+  // Beken reports WL_CONNECTED only once it has an IP; joining or associated is WL_SCAN_COMPLETED
+  const WiFiStatus status = WiFi.status();
+  if (status != WL_CONNECTED && status != WL_SCAN_COMPLETED)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  wlan_sta_disconnect();  // not WiFi.disconnect(): it only reports a lost link and sends no deauth
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
+}
+#endif
 
 bool WiFiComponent::wifi_disconnect_() {
   // Reset state first so disconnect events aren't ignored
@@ -835,6 +941,7 @@ bool WiFiComponent::wifi_loop_() {
   // so if pop() returned nullptr above we can skip this check.
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
+    // A dropped station event cannot be made up for: the BK72xx core has no station query
     ESP_LOGW(TAG, "Dropped %" PRIu16 " WiFi events due to buffer overflow", dropped);
   }
   return true;

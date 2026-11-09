@@ -15,11 +15,10 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj, TemplateArguments
 
-from ..const import CONF_LOOP
+from ..const import CONF_LOOP, CONF_ON_STOP
 from .defines import (
     CONF_AUTO_START,
     CONF_LVGL_ID,
-    CONF_ON_STOP,
     CONF_WIDGETS,
     LValidator,
     add_define,
@@ -74,6 +73,14 @@ TIMING_SCHEMA = cv.maybe_simple_value(
                 ),
                 timing_class(
                     "ease_in_out",
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
+                ),
+                timing_class(
+                    "ease_in",
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
+                ),
+                timing_class(
+                    "ease_out",
                     {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
                 ),
                 timing_class(

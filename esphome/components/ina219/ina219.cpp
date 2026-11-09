@@ -4,7 +4,7 @@
 
 namespace esphome::ina219 {
 
-static const char *const TAG = "ina219";
+ESPHOME_LOG_TAG(TAG, "ina219");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -35,10 +35,8 @@ static const uint8_t INA219_REGISTER_CALIBRATION = 0x05;
 void INA219Component::setup() {
   // Config Register
   // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
-  if (!this->write_byte_16(INA219_REGISTER_CONFIG, 0x8000)) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_byte_16(INA219_REGISTER_CONFIG, 0x8000)))
     return;
-  }
 
   delay(1);
 
@@ -100,10 +98,8 @@ void INA219Component::setup() {
 
   config |= shunt_gain << 11;
   ESP_LOGCONFIG(TAG, "    Using %dV-Range Shunt Gain=%dmV", bus_32v_range ? 32 : 16, 40 << shunt_gain);
-  if (!this->write_byte_16(INA219_REGISTER_CONFIG, config)) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_byte_16(INA219_REGISTER_CONFIG, config)))
     return;
-  }
 
   auto min_lsb = uint32_t(ceilf(this->max_current_a_ * 1000000.0f / 0x8000));
   auto max_lsb = uint32_t(floorf(this->max_current_a_ * 1000000.0f / 0x1000));
@@ -121,10 +117,8 @@ void INA219Component::setup() {
   this->calibration_lsb_ = lsb;
   auto calibration = uint32_t(0.04096f / (0.000001f * lsb * this->shunt_resistance_ohm_));
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
-  if (!this->write_byte_16(INA219_REGISTER_CALIBRATION, calibration)) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_byte_16(INA219_REGISTER_CALIBRATION, calibration)))
     return;
-  }
 }
 
 void INA219Component::on_powerdown() {
@@ -138,10 +132,8 @@ void INA219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "INA219:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);

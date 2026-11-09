@@ -3,7 +3,7 @@
 
 namespace esphome::emmeti {
 
-static const char *const TAG = "emmeti.climate";
+ESPHOME_LOG_TAG(TAG, "emmeti.climate");
 
 // setters
 uint8_t EmmetiClimate::set_temp_() {

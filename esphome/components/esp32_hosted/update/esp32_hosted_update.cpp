@@ -9,6 +9,8 @@
 #include <esp_hosted.h>
 #include <esp_hosted_host_fw_ver.h>
 #include <esp_ota_ops.h>
+#include <esp_system.h>
+#include <esp_wifi.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 #include "esphome/components/http_request/http_request.h"
@@ -22,10 +24,17 @@ extern "C" {
 
 namespace esphome::esp32_hosted {
 
-static const char *const TAG = "esp32_hosted.update";
+ESPHOME_LOG_TAG(TAG, "esp32_hosted.update");
 
-// Older coprocessor firmware versions have a 1500-byte limit per RPC call
-constexpr size_t CHUNK_SIZE = 1500;
+// The host rejects writes above its per-RPC payload limit before they reach the coprocessor
+constexpr size_t CHUNK_SIZE = EH_HOST_CP_OTA_CHUNK_MAX;
+// OTA begin blocks while the coprocessor erases its partition, end while it validates the image
+constexpr uint32_t OTA_WDT_TIMEOUT_MS = 60000;
+
+static esp_err_t ota_end_guarded() {
+  watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+  return esp_hosted_slave_ota_end();  // NOLINT
+}
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 // Interval/timeout IDs (uint32_t to avoid string comparison)
@@ -336,7 +345,11 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   ESP_LOGI(TAG, "Firmware size: %zu bytes", total_size);
 
   // Begin OTA on coprocessor
-  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    err = esp_hosted_slave_ota_begin();  // NOLINT
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     container->end();
@@ -374,7 +387,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
       } else {
         ESP_LOGE(TAG, "Error reading firmware data: %d", read_or_error);
       }
-      esp_hosted_slave_ota_end();  // NOLINT
+      ota_end_guarded();
       container->end();
       this->status_set_error(LOG_STR("Download failed"));
       return false;
@@ -384,7 +397,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
     err = esp_hosted_slave_ota_write(buffer, read_or_error);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-      esp_hosted_slave_ota_end();  // NOLINT
+      ota_end_guarded();
       container->end();
       this->status_set_error(LOG_STR("Failed to write OTA data"));
       return false;
@@ -396,7 +409,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   hasher.calculate();
   if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
     ESP_LOGE(TAG, "SHA256 mismatch");
-    esp_hosted_slave_ota_end();  // NOLINT
+    ota_end_guarded();
     this->status_set_error(LOG_STR("SHA256 verification failed"));
     return false;
   }
@@ -425,7 +438,11 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
 
   ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
 
-  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    err = esp_hosted_slave_ota_begin();  // NOLINT
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("Failed to begin OTA"));
@@ -441,7 +458,7 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
     err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-      esp_hosted_slave_ota_end();  // NOLINT
+      ota_end_guarded();
       this->status_set_error(LOG_STR("Failed to write OTA data"));
       return false;
     }
@@ -472,8 +489,6 @@ void Esp32HostedUpdate::perform(bool force) {
   this->update_info_.has_progress = false;
   this->publish_state();
 
-  watchdog::WatchdogManager watchdog(60000);
-
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   if (!this->stream_firmware_to_coprocessor_())
 #else
@@ -485,21 +500,11 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  // End OTA and activate new firmware
-  esp_err_t end_err = esp_hosted_slave_ota_end();  // NOLINT
+  esp_err_t end_err = ota_end_guarded();
   if (end_err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(end_err));
     this->state_ = prev_state;
     this->status_set_error(LOG_STR("Failed to end OTA"));
-    this->publish_state();
-    return;
-  }
-
-  esp_err_t activate_err = esp_hosted_slave_ota_activate();  // NOLINT
-  if (activate_err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(activate_err));
-    this->state_ = prev_state;
-    this->status_set_error(LOG_STR("Failed to activate OTA"));
     this->publish_state();
     return;
   }
@@ -516,9 +521,21 @@ void Esp32HostedUpdate::perform(bool force) {
   esp_ota_mark_app_valid_cancel_rollback();
 #endif
 
-  // Schedule a restart to ensure everything is in sync
+  // Give the state publish time to reach the API clients, then restart both sides
   ESP_LOGI(TAG, "Restarting in 1 second");
-  this->set_timeout(1000, []() { App.safe_reboot(); });
+  this->set_timeout(1000, []() {
+    // Shut the host down while the coprocessor still answers; activate makes it
+    // reboot itself 500 ms later
+    App.safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
+    esp_err_t err = esp_hosted_slave_ota_activate();  // NOLINT
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(err));
+    }
+    // esp_wifi_remote registers esp_wifi_stop with esp_restart; that RPC to the
+    // rebooting coprocessor blocks until the task watchdog fires
+    esp_unregister_shutdown_handler(reinterpret_cast<shutdown_handler_t>(esp_wifi_stop));
+    arch_restart();
+  });
 }
 
 }  // namespace esphome::esp32_hosted

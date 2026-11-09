@@ -7,7 +7,7 @@
 
 namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix.climate";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix.climate");
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);

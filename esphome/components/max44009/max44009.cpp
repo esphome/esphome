@@ -4,7 +4,7 @@
 
 namespace esphome::max44009 {
 
-static const char *const TAG = "max44009.sensor";
+ESPHOME_LOG_TAG(TAG, "max44009.sensor");
 
 // REGISTERS
 static constexpr uint8_t MAX44009_REGISTER_CONFIGURATION = 0x02;
@@ -39,15 +39,12 @@ void MAX44009Sensor::setup() {
     }
   }
   if (!state_ok)
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 }
 
 void MAX44009Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX44009:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void MAX44009Sensor::update() {
@@ -118,20 +115,12 @@ bool MAX44009Sensor::set_low_power_mode() {
 
 uint8_t MAX44009Sensor::read_(uint8_t reg) {
   uint8_t data = 0;
-  if (!this->read_byte(reg, &data)) {
-    this->error_ = MAX44009_ERROR_WIRE_REQUEST;
-  } else {
-    this->error_ = MAX44009_OK;
-  }
+  this->error_ = this->read_byte(reg, &data) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
   return data;
 }
 
 void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
-  if (!this->write_byte(reg, value)) {
-    this->error_ = MAX44009_ERROR_WIRE_REQUEST;
-  } else {
-    this->error_ = MAX44009_OK;
-  }
+  this->error_ = this->write_byte(reg, value) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
 }
 
 }  // namespace esphome::max44009

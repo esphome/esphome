@@ -14,7 +14,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.spdif";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.spdif");
 
 // SPDIF mode adds overhead as each sample is encapsulated in a subframe;
 // each DMA buffer can hold only 192 samples (~4ms each vs. ~15ms for standard I2S).
@@ -334,7 +334,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       if (!this->pause_state_) {
         while (real_frames_in_block < SPDIF_BLOCK_SAMPLES) {
           if (audio_source->available() == 0) {
-            size_t bytes_read = audio_source->fill(read_timeout_ticks, false);
+            size_t bytes_read = audio_source->fill(read_timeout_ticks);
             if (bytes_read == 0) {
               break;  // No upstream data within the read budget; silence-pad the remainder.
             }
@@ -467,14 +467,6 @@ esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_s
     return ESP_ERR_INVALID_STATE;
   }
 
-  i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
-
-#if SOC_CLK_APLL_SUPPORTED
-  if (this->use_apll_) {
-    clk_src = i2s_clock_src_t::I2S_CLK_SRC_APLL;
-  }
-#endif  // SOC_CLK_APLL_SUPPORTED
-
   // SPDIF mode: fixed configuration for BMC encoding
   // For new driver, dma_frame_num is in I2S frames (8 bytes each for 32-bit stereo)
   uint32_t dma_buffer_length = SPDIF_BLOCK_I2S_FRAMES;  // One SPDIF block = 384 I2S frames = 3072 bytes
@@ -496,7 +488,7 @@ esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_s
   // SPDIF: double sample rate for BMC, 32-bit stereo, only data pin needed
   i2s_std_clk_config_t clk_cfg = {
       .sample_rate_hz = this->sample_rate_ * 2,
-      .clk_src = clk_src,
+      .clk_src = this->get_clock_source_(),
       .mclk_multiple = this->mclk_multiple_,
   };
 

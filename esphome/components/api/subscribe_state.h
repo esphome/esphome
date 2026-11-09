@@ -4,7 +4,6 @@
 #ifdef USE_API
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-#include "esphome/core/controller.h"
 namespace esphome::api {
 
 class APIConnection;

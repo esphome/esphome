@@ -33,6 +33,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
 CODEOWNERS = ["@bdraco"]
+DOMAIN = "rp2_ble_tracker"
 
 ble_device_base.register_hub_provider("rp2_ble_tracker")
 
@@ -42,7 +43,6 @@ RP2BLETracker = rp2_ble_tracker_ns.class_(
 )
 
 StartScanAction = rp2_ble_tracker_ns.class_("StartScanAction", automation.Action)
-StopScanAction = rp2_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
 ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
 BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
@@ -96,10 +96,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
-    cg.add(var.set_parent(parent))
-    # The tracker registers itself as a controller scan listener in setup();
-    # request the codegen-sized StaticVector slot for it.
-    rp2040_ble.request_scan_listener_slot()
+    await cg.register_parented(var, parent)
+    cg.add(rp2040_ble.register_scan_listener(parent, var))
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
@@ -156,9 +154,8 @@ async def start_scan_action_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rp2_ble_tracker.stop_scan",
-    StopScanAction,
     automation.maybe_simple_id(
         cv.Schema(
             {
@@ -166,14 +163,5 @@ async def start_scan_action_to_code(
             }
         )
     ),
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
-async def stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

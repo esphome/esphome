@@ -208,8 +208,8 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
-   * in YAML configurations or by external components.
+   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host and ESP8266);
+   * raise the platform watchdog timeout to sleep longer.
    *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
@@ -232,6 +232,7 @@ class Application {
   ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
   ///   - ESP8266 HW WDT (~6 s):               ~60x
   ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
+  /// Important: if these are modified align validate_loop_interval in config.py
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
@@ -300,6 +301,9 @@ class Application {
   void reboot();
 
   void safe_reboot();
+
+  /// Run the safe shutdown hooks, give components up to timeout_ms to tear down, then run the powerdown hooks.
+  void safe_shutdown(uint32_t timeout_ms);
 
   void run_safe_shutdown_hooks();
 
@@ -389,6 +393,7 @@ class Application {
   friend Component;
   friend class Scheduler;
   friend class LoopBlockingGuard;
+  friend class UnavoidableBlockingScope;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -428,16 +433,15 @@ class Application {
     // FixedVector capacity was pre-initialized by codegen with the exact count
     // of components that override loop(), computed at C++ compile time.
 
-    // Add all components with loop override that aren't already LOOP_DONE
-    // Some components (like logger) may call disable_loop() during initialization
-    // before setup runs, so we need to respect their LOOP_DONE state
+    // Add all components with loop override that aren't already LOOP_DONE or FAILED
+    // Some components (like logger) may call disable_loop() during initialization,
+    // and some call mark_failed() from their constructor, before setup runs
     this->add_looping_components_by_state_(false);
     this->looping_components_active_end_ = this->looping_components_.size();
-    // Then add any components that are already LOOP_DONE to the inactive section
-    // This handles components that called disable_loop() during initialization
+    // Then add any components that are already LOOP_DONE or FAILED to the inactive section
     this->add_looping_components_by_state_(true);
   }
-  void add_looping_components_by_state_(bool match_loop_done);
+  void add_looping_components_by_state_(bool inactive);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()
@@ -631,6 +635,38 @@ class LoopBlockingGuard {
   static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
 };
 
+/// Leaves a stretch of the current loop pass out of the blocking warning.
+///
+/// Only for work that cannot be made shorter or split across passes: radio
+/// bring-up, a first network connect, a key generation. Work that could be
+/// cached, deferred, polled or turned into a state machine stays outside, so
+/// the warning keeps finding it.
+///
+/// Affects only work timed by LoopBlockingGuard: loop() and scheduler
+/// callbacks, not setup(). Main loop task only. The watchdog is not fed, so
+/// pair long work with watchdog::WatchdogManager. Scopes may nest.
+/// Afterwards App.get_loop_component_start_time() can be earlier than a
+/// millis() read taken before the scope; time the work with millis() at both ends.
+///
+///   UnavoidableBlockingScope scope;
+///   this->generate_key_();
+class UnavoidableBlockingScope {
+ public:
+  UnavoidableBlockingScope() : started_(MillisInternal::get()), pass_start_(App.get_loop_component_start_time()) {}
+  ~UnavoidableBlockingScope() {
+    // Move the pass start seen at entry forward by the time spent here, clamped to now
+    const uint32_t now = MillisInternal::get();
+    const uint32_t moved = this->pass_start_ + (now - this->started_);
+    App.set_loop_component_start_time_(static_cast<int32_t>(now - moved) < 0 ? now : moved);
+  }
+  UnavoidableBlockingScope(const UnavoidableBlockingScope &) = delete;
+  UnavoidableBlockingScope &operator=(const UnavoidableBlockingScope &) = delete;
+
+ private:
+  uint32_t started_;
+  uint32_t pass_start_;
+};
+
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
@@ -672,8 +708,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
   // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
   // subsequent Socket::ready() checks in this iter observe the published state
-  // without a per-call memw. Wake is independent (xTaskNotifyGive/
-  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // without a per-call memw. Wake is independent (esphome_main_task_notify/
+  // esphome_main_task_wait), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
   // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
   // instead.
   std::atomic_thread_fence(std::memory_order_acquire);
@@ -750,6 +786,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
 #endif
+    // process scheduler items added in component phase
+    this->scheduler.process_to_add();
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
     // phase_guard destructor clears in_loop_ at scope exit
@@ -775,8 +813,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   }
 #endif
 
-  // Compute sleep: bounded by time-until-next-component-phase and the
-  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // Compute sleep: bounded by time-until-next-component-phase if there are
+  // components with loop enabled and the scheduler's next deadline. When a scheduler timer fires it re-enters
   // loop(), Phase A services it, and the component phase stays gated by
   // loop_interval_. When a background producer calls wake_loop_threadsafe()
   // it sets the wake_request flag and wakes select() / the task notification;
@@ -795,16 +833,47 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint32_t delay_time = 0;
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
-    const uint32_t until_phase =
+#ifdef ESPHOME_SUSPEND_LOOP
+    const bool has_loop_work =
+        this->looping_components_active_end_ > 0 || this->dump_config_at_ < this->components_.size();
+    uint32_t until_phase = std::numeric_limits<uint32_t>::max();
+    if (has_loop_work) {
+      until_phase = (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    }
+#else
+    uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+#endif
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  esphome::internal::wakeable_delay(delay_time);
+  // Cap the sleep so the WDT feed and status-LED dispatch rate limits still get
+  // exercised even when loop_interval is raised or the scheduler and component
+  // phases are gated out for a long sleep. Waking every 2*WDT_FEED_INTERVAL_MS
+  // clears the feed rate limit on every wake, so the WDT is fed at least that
+  // often -- well inside every platform's timeout.
+#if defined(USE_ESP8266)
+  // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
+  // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
+  static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
+#elif defined(USE_HOST)
+  // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
+  // the config validator, so delay_time is already bounded by loop_interval_.
+  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
+#else
+  static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;
+#endif
+  uint32_t max_sleep = MAX_SLEEP_BASE;
+#ifdef USE_STATUS_LED
+  if ((this->app_state_ & STATUS_LED_MASK) != 0) {
+    max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+  }
+#endif
 
+  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }

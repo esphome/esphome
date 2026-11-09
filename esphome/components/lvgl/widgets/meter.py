@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import get_image_metadata
+from esphome.components.image import DOMAIN as IMAGE_DOMAIN, get_image_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_X,
 )
+from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
@@ -38,7 +39,6 @@ from ..defines import (
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
-    LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
     add_lv_use,
@@ -65,7 +65,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
 from ..schemas import STATE_SCHEMA
-from ..styles import LVStyle
+from ..styles import LVStyle, create_style
 from ..types import (
     LV_EVENT,
     LvCompound,
@@ -100,6 +100,12 @@ CONF_RADIAL_OFFSET = "radial_offset"
 CONF_SCALES = "scales"
 CONF_STRIDE = "stride"
 CONF_TICK_STYLE = "tick_style"
+
+
+def _arc_style_name(indicator_id: str) -> str:
+    """Name of the style variable generated for an arc indicator."""
+    return f"meter_arc_{indicator_id}_style"
+
 
 # LVGL 9.4 Migration: Use scale widget instead of removed meter widget
 #
@@ -214,7 +220,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            cv.requires_component("image"),
+            cv.requires_component(IMAGE_DOMAIN),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
@@ -424,11 +430,9 @@ class MeterType(WidgetType):
                         get_warnings().add(
                             "The 'r_mod' indicator property is not supported in LVGL 9.x and will be ignored."
                         )
-                    arc_style = LVStyle(f"meter_arc_{iid.id}", props)
+                    style_var = await create_style(_arc_style_name(iid.id), props)
                     tvar = cg.Pvariable(iid, lv_expr.scale_add_section(scale_var))
-                    lv.scale_section_set_style(
-                        tvar, LV_PART.MAIN, await arc_style.get_var()
-                    )
+                    lv.scale_section_set_style(tvar, LV_PART.MAIN, style_var)
                     lw = Widget.create(iid, tvar, arc_indicator_type)
                     lw.parent = scale_var
                     await set_indicator_values(scale_var, lw, v)
@@ -457,7 +461,7 @@ class MeterType(WidgetType):
                             LV_EVENT.DRAW_TASK_ADDED,
                             nullptr,
                         )
-                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
+                        lv_obj.set_send_draw_task_events(scale_var, True)
 
                 if t == CONF_LINE:
                     # Needle represented by a line
@@ -611,10 +615,17 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
 
     async def set_value(w: Widget):
         await set_indicator_values(w.parent, w, config)
+        if (opa := config.get(CONF_OPA)) is None:
+            return
+        opa = await opacity.process(opa)
+        if w.type is arc_indicator_type:
+            style = await cg.get_variable(ID(_arc_style_name(str(w.var))))
+            lv.style_set_arc_opa(style, opa)
+            lv_obj.invalidate(w.parent)
+        else:
+            lv_obj.set_style_opa(w.obj, opa, LV_PART.MAIN)
 
-    return await action_to_code(
-        widget, set_value, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, set_value, action_id, template_arg, args)
 
 
 async def set_indicator_values(scale: MockObj, indicator: Widget, config):

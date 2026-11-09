@@ -1,0 +1,19 @@
+button:
+  - platform: template
+    name: AGS10 Zero Point
+    on_press:
+      - ags10.set_zero_point:
+          id: ags10_1
+          mode: FACTORY_DEFAULT
+      - ags10.set_zero_point:
+          id: ags10_1
+          mode: CUSTOM_VALUE
+          value: 0x1234
+      - ags10.set_zero_point:
+          id: ags10_1
+          mode: !lambda return ags10::CURRENT_VALUE;
+          value: !lambda return 0x2345;
+      - ags10.new_i2c_address: 0x1B
+      - ags10.new_i2c_address:
+          id: ags10_1
+          address: !lambda return 0x1C;

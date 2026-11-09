@@ -6,7 +6,7 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c";
+ESPHOME_LOG_TAG(TAG, "i2c");
 
 static const char *get_speed(uint32_t dev_config) {
   switch (I2C_SPEED_GET(dev_config)) {
@@ -60,20 +60,7 @@ void ZephyrI2CBus::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
   }
-  if (this->scan_) {
-    ESP_LOGI(TAG, "Results from I2C bus scan:");
-    if (scan_results_.empty()) {
-      ESP_LOGI(TAG, "Found no I2C devices!");
-    } else {
-      for (const auto &s : scan_results_) {
-        if (s.second) {
-          ESP_LOGI(TAG, "Found I2C device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
 ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
@@ -120,14 +107,33 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
   return ERROR_OK;
 }
 
-void ZephyrI2CBus::set_frequency(uint32_t frequency) {
-  this->dev_config_ &= ~I2C_SPEED_MASK;
-  if (frequency >= 400000) {
-    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_FAST);
-  } else {
-    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
-  }
+static uint32_t speed_config(uint32_t dev_config, uint32_t frequency) {
+  const uint32_t speed = frequency >= 400000 ? I2C_SPEED_FAST : I2C_SPEED_STANDARD;
+  return (dev_config & ~I2C_SPEED_MASK) | I2C_SPEED_SET(speed);
 }
+
+void ZephyrI2CBus::set_frequency(uint32_t frequency) {
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  this->frequency_ = frequency;
+#endif
+  this->dev_config_ = speed_config(this->dev_config_, frequency);
+}
+
+#ifdef I2C_PORT_FREQUENCY_COUNT
+ErrorCode ZephyrI2CBus::switch_frequency(uint32_t frequency) {
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  const uint32_t dev_config = speed_config(this->dev_config_, frequency);
+  // Until ready, setup() applies dev_config_
+  if (this->is_ready() && i2c_configure(this->i2c_dev_, dev_config) < 0) {
+    return ERROR_UNKNOWN;
+  }
+  this->dev_config_ = dev_config;
+  this->frequency_ = frequency;
+  return ERROR_OK;
+}
+#endif
 
 }  // namespace esphome::i2c
 
