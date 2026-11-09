@@ -1,3 +1,18 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        // Objects the caller keeps alive, registered without heap allocation
+        static esp32_ble_server::BLEService battery(esp32_ble::ESPBTUUID::from_uint16(0x180F), 6, false);
+        static esp32_ble_server::BLECharacteristic level(
+            esp32_ble::ESPBTUUID::from_uint16(0x2A19),
+            esp32_ble_server::BLECharacteristic::PROPERTY_READ | esp32_ble_server::BLECharacteristic::PROPERTY_NOTIFY,
+            ESP_GATT_PERM_READ);
+        static esp32_ble_server::BLE2902 level_cccd;
+        level.add_descriptor(level_cccd);
+        battery.add_characteristic(level);
+        if (id(ble_server).add_service(battery))
+          id(ble_server).enqueue_start_service(&battery);
+
 esp32_ble_server:
   id: ble_server
   manufacturer_data: [0x72, 0x4, 0x00, 0x23]
