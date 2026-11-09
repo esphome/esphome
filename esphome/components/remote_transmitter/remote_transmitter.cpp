@@ -40,24 +40,21 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
   *off_time_period = period - *on_time_period;
 }
 
-void RemoteTransmitterComponent::await_target_time_() {
+void RemoteTransmitterComponent::await_target_time_(int32_t lead_us) {
   const uint32_t current_time = micros();
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
-  } else if ((int32_t) (this->target_time_ - current_time) > 0) {
-    // busy loop is required as interrupts are disabled and delayMicroseconds()
+  } else if ((int32_t) (this->target_time_ - current_time) > lead_us) {
+    // busy loop, as interrupts can be disabled here and delayMicroseconds()
     // may not work correctly in interrupt-disabled contexts on all platforms
-    while ((int32_t) (this->target_time_ - micros()) > 0)
+    while ((int32_t) (this->target_time_ - micros()) > lead_us)
       ;
   }
 }
 
 void RemoteTransmitterComponent::write_at_target_(bool value) {
 #ifdef USE_ESP8266
-  if (this->target_time_ != 0) {
-    while ((int32_t) (this->target_time_ - micros()) > EDGE_LOCK_US)
-      ;
-  }
+  this->await_target_time_(EDGE_LOCK_US);
   InterruptLock lock;
 #endif
   this->await_target_time_();

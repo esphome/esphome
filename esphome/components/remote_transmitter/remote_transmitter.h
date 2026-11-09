@@ -95,7 +95,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #if defined(USE_ESP8266) || \
     (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
     defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
-  void await_target_time_();
+  void await_target_time_(int32_t lead_us = 0);
   uint32_t target_time_{0};
 #endif
 #if defined(USE_ESP8266) || \
