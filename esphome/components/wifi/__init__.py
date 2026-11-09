@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address
 import logging
 import math
 from typing import Any
@@ -19,7 +20,6 @@ from esphome.components.network import (
     add_use_address,
     get_network_priority,
     has_high_performance_wifi,
-    ip_address_literal,
     require_high_performance_wifi,
     require_ipv4,
 )
@@ -190,7 +190,6 @@ DEFAULT_DPP_TIMEOUT = "1min"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
-ManualIP = wifi_ns.struct("ManualIP")
 WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
 
@@ -243,6 +242,22 @@ def _validate_dns_servers(value: list) -> list:
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
+
+
+# The supplicant parses the bootstrapping key as a DER encoded P-256 private key in hex; these wrap the
+# 32 byte key the way the ESP-IDF enrollee example does
+DPP_KEY_DER_PREFIX = "30310201010420"
+DPP_KEY_DER_SUFFIX = "a00a06082a8648ce3d030107"
+
+
+def _validate_dpp_private_key(value: object) -> str:
+    """The key is 32 bytes written as 64 hexadecimal characters."""
+    value = cv.string_strict(value)
+    if len(value) != 64 or any(c not in "0123456789abcdefABCDEF" for c in value):
+        raise cv.Invalid(
+            "private_key must be 32 bytes written as 64 hexadecimal characters"
+        )
+    return value.lower()
 
 
 def _validate_dpp_device_info(value: object) -> str:
@@ -322,7 +337,7 @@ EAP_AUTH_SCHEMA = cv.All(
 # Wi-Fi Easy Connect (DPP) enrollee; the ESP-IDF supplicant supports the QR code method
 DPP_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
+        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(_validate_dpp_private_key),
         cv.Optional(CONF_DEVICE_INFO): _validate_dpp_device_info,
         cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
             cv.int_range(min=1, max=14)
@@ -788,24 +803,20 @@ def eap_auth(config):
     )
 
 
-def safe_ip(ip):
-    return ip_address_literal(ip)
-
-
-def manual_ip(config):
-    if config is None:
-        return None
-    return cg.StructInitializer(
-        ManualIP,
-        ("static_ip", safe_ip(config[CONF_STATIC_IP])),
-        ("gateway", safe_ip(config[CONF_GATEWAY])),
-        ("subnet", safe_ip(config[CONF_SUBNET])),
-        ("dns1", safe_ip(config.get(CONF_DNS1))),
-        ("dns2", safe_ip(config.get(CONF_DNS2))),
+def manual_ip_entry(config: ConfigType) -> bytes:
+    """Pack manual IP settings as one MANUAL_IP_TABLE row (MANUAL_IP_ENTRY_SIZE bytes)."""
+    no_dns = IPv4Address(0)
+    addresses = (
+        config[CONF_STATIC_IP],
+        config[CONF_GATEWAY],
+        config[CONF_SUBNET],
+        config.get(CONF_DNS1, no_dns),
+        config.get(CONF_DNS2, no_dns),
     )
+    return b"".join(address.packed for address in addresses)
 
 
-def wifi_network(config, ap, static_ip):
+def wifi_network(config, ap, manual_ip_index: int | None):
     cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
     cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
     if CONF_EAP in config:
@@ -815,8 +826,7 @@ def wifi_network(config, ap, static_ip):
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
     cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
     cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
-    if static_ip is not None:
-        cg.add(ap.set_manual_ip(manual_ip(static_ip)))
+    cg.add_optional(ap.set_manual_ip, manual_ip_index)
     # priority_ is 0 in C++; skip the setter when the config matches it.
     if config.get(CONF_PRIORITY, 0) != 0:
         cg.add(ap.set_priority(config[CONF_PRIORITY]))
@@ -835,37 +845,42 @@ async def to_code(config):
 
     # Track if any network uses Enterprise authentication
     has_eap = False
-    # Track if any network uses manual IP
-    has_manual_ip = False
+    # Rows of MANUAL_IP_TABLE; networks with the same settings share one. At most
+    # MAX_WIFI_NETWORKS + 1 (the AP) rows, so an index never reaches MANUAL_IP_NONE (0xFF).
+    manual_ip_entries: list[bytes] = []
 
-    # Initialize FixedVector with the count of networks
+    def manual_ip_index(ip_config: ConfigType | None) -> int | None:
+        if ip_config is None:
+            return None
+        entry = manual_ip_entry(ip_config)
+        if entry not in manual_ip_entries:
+            manual_ip_entries.append(entry)
+        return manual_ip_entries.index(entry)
+
     networks = config.get(CONF_NETWORKS, [])
+    # set_sta() stores one network at run time even when none is configured
+    cg.add_define("WIFI_NETWORK_COUNT", max(1, len(networks)))
     if networks:
-        cg.add(var.init_sta(len(networks)))
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
             cg.add_define("USE_WIFI_MULTI_SSID")
 
         def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-            cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+            cg.add(var.add_sta(wifi_network(network, ap, manual_ip_index(ip_config))))
 
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
-            if network.get(CONF_MANUAL_IP) or config.get(CONF_MANUAL_IP):
-                has_manual_ip = True
             cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        ip_config = conf.get(CONF_MANUAL_IP)
-        if ip_config:
-            has_manual_ip = True
+        ap_ip_index = manual_ip_index(conf.get(CONF_MANUAL_IP))
         cg.with_local_variable(
             conf[CONF_ID],
             WiFiAP(),
-            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
+            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ap_ip_index))),
         )
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
@@ -904,7 +919,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_DPP", True)
         if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
-            cg.add(var.set_dpp_key(key))
+            cg.add(var.set_dpp_key(f"{DPP_KEY_DER_PREFIX}{key}{DPP_KEY_DER_SUFFIX}"))
         if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
             cg.add(var.set_dpp_device_info(info))
         cg.add(var.set_dpp_channels(",".join(str(c) for c in dpp[CONF_CHANNELS])))
@@ -923,8 +938,13 @@ async def to_code(config):
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
-    if has_manual_ip:
+    if manual_ip_entries:
         cg.add_define("USE_WIFI_MANUAL_IP")
+        cg.extern_progmem_array(
+            "esphome::wifi::MANUAL_IP_TABLE",
+            cg.uint8,
+            list(b"".join(manual_ip_entries)),
+        )
 
     # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
     # auth WPA2; skip the setters when the config matches them.

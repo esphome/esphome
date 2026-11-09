@@ -26,8 +26,7 @@ Am43Packet Am43Encoder::get_position_request() {
 
 Am43Packet Am43Encoder::get_send_pin_request(uint16_t pin) {
   uint8_t data[2];
-  data[0] = (pin & 0xFF00) >> 8;
-  data[1] = pin & 0xFF;
+  put_be16(data, pin);
   return encode(CMD_SEND_PIN, data, 2);
 }
 

@@ -1,6 +1,7 @@
 #include "htu21d.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::htu21d {
 
@@ -17,10 +18,8 @@ static const uint8_t HTU21D_READHEATER_REG_CMD = 0x11;  /**< Read Heater Control
 static const uint8_t HTU21D_REG_HTRE_BIT = 0x02;        /**< Control Register Heater Bit */
 
 void HTU21DComponent::setup() {
-  if (!this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)))
     return;
-  }
 
   // Wait for software reset to complete
   delay(15);
@@ -29,8 +28,8 @@ void HTU21DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU21D:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 void HTU21DComponent::update() {
   if (this->write(&HTU21D_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
@@ -51,8 +50,7 @@ void HTU21DComponent::update() {
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
 
-    if (this->temperature_ != nullptr)
-      this->temperature_->publish_state(temperature);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
 
     if (this->write(&HTU21D_REGISTER_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -71,28 +69,17 @@ void HTU21DComponent::update() {
 
       ESP_LOGD(TAG, "Got Humidity=%.1f%%", humidity);
 
-      if (this->humidity_ != nullptr)
-        this->humidity_->publish_state(humidity);
+      PUBLISH_STATE(this->humidity_sensor_, humidity);
 
       this->status_clear_warning();
 
-      // HTU21D does have a heater module but does not have heater level
-      // Setting heater level to 1 in case the heater is ON
-      uint8_t heater_level = 0;
-      if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
-        if (this->is_heater_enabled()) {
-          heater_level = 1;
-        } else {
-          heater_level = 0;
-        }
-      } else {
-        heater_level = this->get_heater_level();
-      }
+      // HTU21D has a heater but no heater level, so report 1 while the heater is on
+      const uint8_t heater_level =
+          this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D ? this->is_heater_enabled() : this->get_heater_level();
 
       ESP_LOGD(TAG, "Heater Level=%d", heater_level);
 
-      if (this->heater_ != nullptr)
-        this->heater_->publish_state(heater_level);
+      PUBLISH_STATE(this->heater_sensor_, heater_level);
     });
   });
 }
@@ -112,11 +99,7 @@ void HTU21DComponent::set_heater(bool status) {
     this->status_set_warning();
     return;
   }
-  if (status) {
-    raw_heater |= (1 << HTU21D_REG_HTRE_BIT);
-  } else {
-    raw_heater &= ~(1 << HTU21D_REG_HTRE_BIT);
-  }
+  assign_bits(raw_heater, 1 << HTU21D_REG_HTRE_BIT, status);
   if (this->write_register(HTU21D_WRITERHT_REG_CMD, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;

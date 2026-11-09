@@ -47,7 +47,7 @@ def small_distance(value: Any) -> float:
 # empty and full distance values.
 # Format is - tank name: (empty distance in mm, full distance in mm)
 #
-CONF_SUPPORTED_TANKS_MAP = {
+SUPPORTED_TANKS_MAP = {
     TANK_TYPE_CUSTOM: (0, 100),
     "20LB_V": (38, 254),  # empty/full readings for 20lb US tank
     "30LB_V": (38, 381),
@@ -81,7 +81,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
-            cv.Required(CONF_TANK_TYPE): cv.enum(CONF_SUPPORTED_TANKS_MAP, upper=True),
+            cv.Required(CONF_TANK_TYPE): cv.enum(SUPPORTED_TANKS_MAP, upper=True),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
@@ -140,16 +140,16 @@ async def to_code(config: ConfigType) -> None:
         if CONF_CUSTOM_DISTANCE_EMPTY in config:
             cg.add(var.set_tank_empty(config[CONF_CUSTOM_DISTANCE_EMPTY]))
         else:
-            cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
+            cg.add(var.set_tank_empty(SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
         if CONF_CUSTOM_DISTANCE_FULL in config:
             cg.add(var.set_tank_full(config[CONF_CUSTOM_DISTANCE_FULL]))
         else:
-            cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
+            cg.add(var.set_tank_full(SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
     else:
         # Set the Tank empty and full based on map - User is requesting standard tank
         t = config[CONF_TANK_TYPE]
-        cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[t][0]))
-        cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[t][1]))
+        cg.add(var.set_tank_empty(SUPPORTED_TANKS_MAP[t][0]))
+        cg.add(var.set_tank_full(SUPPORTED_TANKS_MAP[t][1]))
 
     if (
         minimum_signal_quality := config.get(CONF_MINIMUM_SIGNAL_QUALITY, None)
@@ -157,9 +157,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_min_signal_quality(minimum_signal_quality))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_LEVEL, var.set_level)
-    await sensors(CONF_DISTANCE, var.set_distance)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
-    await sensors(CONF_SIGNAL_QUALITY, var.set_signal_quality)
-    await sensors(CONF_IGNORED_READS, var.set_ignored_reads)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_LEVEL, var.set_level_sensor)
+    await sensors(CONF_DISTANCE, var.set_distance_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_SIGNAL_QUALITY, var.set_signal_quality_sensor)
+    await sensors(CONF_IGNORED_READS, var.set_ignored_reads_sensor)

@@ -9,11 +9,15 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from typing import IO, TYPE_CHECKING
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
@@ -42,20 +46,26 @@ _MIRROR_ATTEMPTS = 3
 _MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
-def get_project_link_flags() -> list[str]:
-    """Return the sorted -Wl, linker flags from the current build."""
+def get_project_link_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -Wl, linker flags from ``flags`` in their given order
+    (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
-    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+    if flags is None:
+        flags = sorted(CORE.build_flags)
+    return [flag for flag in flags if flag.startswith("-Wl,")]
 
 
-def get_project_compile_flags() -> list[str]:
-    """Return the sorted -D and -W (non-linker) flags from the current build."""
+def get_project_compile_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -D and -W (non-linker) flags from ``flags`` in their given
+    order (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
+    if flags is None:
+        flags = sorted(CORE.build_flags)
     return [
         flag
-        for flag in sorted(CORE.build_flags)
+        for flag in flags
         if flag.startswith("-D")
         or (flag.startswith("-W") and not flag.startswith("-Wl,"))
     ]
@@ -66,6 +76,74 @@ def get_project_cxx_compile_flags() -> list[str]:
     from esphome.core import CORE  # local import to avoid circular dependency
 
     return sorted(CORE.cxx_build_flags)
+
+
+DOMAIN = "framework_helpers"
+_KEY_WARNED_BUILD_FLAGS = "warned_build_flags"
+
+
+def lex_cmake_build_flags(build_name: str) -> list[list[str]]:
+    """Shell-lex each build flag entry as the other generators do and return
+    the flags of each entry that a native CMake build passes on. Warns once
+    per entry about each flag that is dropped."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+    from esphome.platformio.library import lex_build_flags
+
+    warned: set[tuple[str, str]] = CORE.data.setdefault(DOMAIN, {}).setdefault(
+        _KEY_WARNED_BUILD_FLAGS, set()
+    )
+    entries: list[list[str]] = []
+    for entry in sorted(CORE.build_flags):
+        kept: list[str] = []
+        for flag in lex_build_flags(entry, "esphome build_flags"):
+            if ";" in flag:
+                reason = "CMake splits arguments at ';'"
+            elif get_project_compile_flags([flag]) or get_project_link_flags([flag]):
+                kept.append(flag)
+                continue
+            else:
+                reason = f"native {build_name} builds only pass -D, -W and -Wl, flags"
+            if (flag, entry) not in warned:
+                warned.add((flag, entry))
+                _LOGGER.warning(
+                    "Build flag '%s'%s is ignored: %s",
+                    flag,
+                    "" if flag == entry else f" in '{entry}'",
+                    reason,
+                )
+        entries.append(kept)
+    return entries
+
+
+def get_cmake_compile_flags(entries: list[list[str]]) -> list[str]:
+    """Return the -D and -W flags of ``entries`` in order. CMake keeps only
+    the first copy of a repeated option, so only the last copy is returned
+    and the last definition wins, as on the command line."""
+    flags = get_project_compile_flags(flag for entry in entries for flag in entry)
+    return list(reversed(dict.fromkeys(reversed(flags))))
+
+
+def get_cmake_link_flags(entries: list[list[str]]) -> list[str]:
+    """Return the -Wl, flags of ``entries``, joining those of one entry into a
+    single -Wl, flag. GCC splits -Wl, at commas, so the linker gets the same
+    arguments, and CMake does not drop a repeated -Wl,--start-group from a
+    later entry."""
+    return [
+        "-Wl," + ",".join(flag.removeprefix("-Wl,") for flag in link_flags)
+        for entry in entries
+        if (link_flags := get_project_link_flags(entry))
+    ]
+
+
+def cmake_escape(flag: str) -> str:
+    """Escape ``flag`` for a quoted CMake argument so quotes, backslashes and
+    $ survive."""
+    return flag.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+
+
+def quote_cmake_args(flags: Iterable[str]) -> list[str]:
+    """Quote each flag as a CMake argument."""
+    return [f'"{cmake_escape(flag)}"' for flag in flags]
 
 
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
@@ -205,28 +283,42 @@ def run_command(
         return False, None, None
 
 
-def tool_version_runs(binary: str, warning: str) -> bool:
-    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+def tool_version_probe(binary: str) -> str | Exception:
+    """Run ``binary --version``: its stdout, or the error when it fails to run.
 
     ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
     shims, stale package-manager shims).
     """
     try:
-        subprocess.run(
+        result = subprocess.run(
             [binary, "--version"],
             check=True,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            text=True,
+            errors="replace",
             timeout=15,
             # Repo-wide convention (posix_spawn fast path)
             close_fds=False,
         )
     except (OSError, subprocess.SubprocessError) as err:
-        # The cause (permission denied, missing DLL, timeout) is the one
-        # detail the user needs to fix it
-        _LOGGER.warning("%s (%s)", warning % binary, err)
-        return False
-    return True
+        return err
+    return result.stdout
+
+
+def tool_version_runs(
+    binary: str,
+    warning: str,
+    probe: Callable[[str], str | Exception] = tool_version_probe,
+) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+    ``probe`` lets a caller supply a cached probe."""
+    if not isinstance(result := probe(binary), Exception):
+        return True
+    # The cause (permission denied, missing DLL, timeout) is the one detail
+    # the user needs to fix it
+    _LOGGER.warning("%s (%s)", warning % binary, result)
+    return False
 
 
 def run_command_ok(*args, **kwargs) -> bool:
@@ -1235,6 +1327,68 @@ def failure_reason(e: BaseException) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
+def local_path_from_url(url: str) -> Path:
+    """The filesystem path a ``file://`` URL names.
+
+    Handles ``file:///home/me/x`` and ``file:///C:/x`` (no host), ``file://localhost/x``
+    and ``file://server/share/x`` (a UNC path).
+    """
+    from esphome.core import EsphomeError
+
+    try:
+        parsed = urlparse(url)
+    except ValueError as e:
+        raise EsphomeError(f"invalid file URL {url}: {e}") from e
+    path = url2pathname(parsed.path)
+    if parsed.netloc and parsed.netloc.lower() != "localhost":
+        path = f"//{parsed.netloc}{path}"
+    result = Path(path)
+    # A relative URL would resolve against the current directory
+    if not result.is_absolute():
+        raise EsphomeError(f"not an absolute path: {url}")
+    return result
+
+
+def _copy_local_mirror(
+    url: str, path_target: Path, progress: Callable[[int], None] | None
+) -> None:
+    """Satisfy a ``file://`` mirror by copying the archive to ``path_target``.
+
+    The copy keeps the contract that the target holds the archive after a
+    successful "download", so ``download_and_extract`` can delete it after
+    extracting without touching the user's own file.
+    """
+    from esphome.core import EsphomeError
+
+    source = local_path_from_url(url)
+    if not source.is_file() or not os.access(source, os.R_OK):
+        raise EsphomeError(f"not a readable file: {source}")
+    path_target.parent.mkdir(parents=True, exist_ok=True)
+    # An archive already at the target sits in the download cache, which is
+    # consumed by the install anyway, so it is used in place.
+    if not (path_target.is_file() and source.samefile(path_target)):
+        # An exclusively created staging file: an interrupted copy never
+        # leaves a truncated archive at the target, no mirror path can name
+        # it, and the .part file the HTTP download resumes from is untouched.
+        fd, name = tempfile.mkstemp(
+            dir=path_target.parent, prefix=path_target.name + ".", suffix=".copy"
+        )
+        os.close(fd)
+        staged = Path(name)
+        try:
+            shutil.copyfile(source, staged)
+            rename_with_retry(staged, path_target, overwrite=True)
+        except BaseException:
+            # Best-effort: a failed cleanup must not replace the copy error
+            try:
+                staged.unlink(missing_ok=True)
+            except OSError as err:
+                _LOGGER.debug("Could not remove %s: %s", staged, err)
+            raise
+    if progress is not None:
+        progress(path_target.stat().st_size)
+
+
 def _try_mirrors_once(
     urls: list[str],
     path_target: Path,
@@ -1255,6 +1409,23 @@ def _try_mirrors_once(
 
     for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
+
+        # A file:// mirror is an archive already on disk (an offline or
+        # firewalled install); a missing or unreadable file falls to the
+        # next mirror like any other failure.
+        if url.lower().startswith("file:"):
+            try:
+                _copy_local_mirror(url, path_target, progress)
+                return url
+            except (OSError, EsphomeError) as e:
+                # A warning, not debug: a local mirror is deliberate setup
+                # for an offline install, and a later network mirror
+                # succeeding would otherwise hide the broken path.
+                _LOGGER.warning(
+                    "Local mirror %s is unusable: %s", url, failure_reason(e)
+                )
+                failures.append((url, e))
+            continue
 
         # Delegate to download_with_resume so a partial download persists
         # (and resumes) across esphome runs.
