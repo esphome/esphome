@@ -6,13 +6,6 @@ namespace esphome::vbus {
 
 static const char *const TAG = "vbus.binary_sensor";
 
-// Payload offsets are fixed per model; a short message means the controller is not the configured
-// model or the telegram was truncated. Callers guard each field group individually with this so a
-// telegram missing only the tail fields still publishes the ones that fit.
-static inline bool fits(const std::vector<uint8_t> &message, size_t start, size_t width) {
-  return message.size() >= start + width;
-}
-
 static void publish_if_set(binary_sensor::BinarySensor *bsensor, bool state) {
   if (bsensor != nullptr)
     bsensor->publish_state(state);

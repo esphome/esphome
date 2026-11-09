@@ -24,13 +24,6 @@ static inline float get_heat_quantity32(const std::vector<uint8_t> &message, siz
   return (static_cast<uint32_t>(get_u16(message, start + 2)) << 16) | get_u16(message, start);
 }
 
-// Payload offsets are fixed per model; a short message means the controller is not the configured
-// model or the telegram was truncated. Callers guard each field individually with this so a
-// telegram missing only the tail fields still publishes the ones that fit.
-static inline bool fits(const std::vector<uint8_t> &message, size_t start, size_t width) {
-  return message.size() >= start + width;
-}
-
 static void publish_if_set(sensor::Sensor *sensor, float value) {
   if (sensor != nullptr)
     sensor->publish_state(value);
@@ -43,20 +36,29 @@ void DeltaSolSensorBase::warn_short_message_(size_t actual, size_t expected) {
   ESP_LOGW(TAG, "message too short: %zu < %zu", actual, expected);
 }
 
-void DeltaSolSensorBase::dump_sensors_(const LogString *model) {
+void DeltaSolSensorBase::dump_sensors_(const LogString *model, bool single_relay) {
   ESP_LOGCONFIG(TAG, "%s:", LOG_STR_ARG(model));
   LOG_SENSOR("  ", "Temperature 1", this->temperature1_sensor_);
   LOG_SENSOR("  ", "Temperature 2", this->temperature2_sensor_);
   LOG_SENSOR("  ", "Temperature 3", this->temperature3_sensor_);
   LOG_SENSOR("  ", "Temperature 4", this->temperature4_sensor_);
-  LOG_SENSOR("  ", "Temperature 5", this->temperature5_sensor_);
-  LOG_SENSOR("  ", "Pump Speed 1", this->pump_speed1_sensor_);
-  LOG_SENSOR("  ", "Pump Speed 2", this->pump_speed2_sensor_);
-  LOG_SENSOR("  ", "Operating Hours 1", this->operating_hours1_sensor_);
-  LOG_SENSOR("  ", "Operating Hours 2", this->operating_hours2_sensor_);
+  if (single_relay) {
+    LOG_SENSOR("  ", "Pump Speed", this->pump_speed1_sensor_);
+    LOG_SENSOR("  ", "Operating Hours", this->operating_hours1_sensor_);
+  } else {
+    LOG_SENSOR("  ", "Pump Speed 1", this->pump_speed1_sensor_);
+    LOG_SENSOR("  ", "Pump Speed 2", this->pump_speed2_sensor_);
+    LOG_SENSOR("  ", "Operating Hours 1", this->operating_hours1_sensor_);
+    LOG_SENSOR("  ", "Operating Hours 2", this->operating_hours2_sensor_);
+  }
   LOG_SENSOR("  ", "Heat Quantity", this->heat_quantity_sensor_);
   LOG_SENSOR("  ", "System Time", this->time_sensor_);
   LOG_SENSOR("  ", "FW Version", this->version_sensor_);
+}
+
+void DeltaSolCS4Sensor::dump_cs4_sensors_(const LogString *model) {
+  this->dump_sensors_(model);
+  LOG_SENSOR("  ", "Temperature 5", this->temperature5_sensor_);
   LOG_SENSOR("  ", "Flow Rate", this->flow_rate_sensor_);
 }
 
