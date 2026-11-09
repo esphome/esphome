@@ -657,7 +657,7 @@ TEST_F(NoiseStreamTest, EachSideIsUpOnlyAfterThePeersHello) {
   EXPECT_FALSE(this->server_.up(this->server_link_));
   EXPECT_FALSE(this->server_.ready());
   this->client_link_.chunk_ = SIZE_MAX;
-  this->client_link_.flush_tx();
+  // The test does not flush the link, so up() has to send the held Hello itself
   EXPECT_FALSE(this->client_.up(this->client_link_));
   size_t sent = this->server_link_.sent_.size();
   EXPECT_TRUE(this->server_.up(this->server_link_));
