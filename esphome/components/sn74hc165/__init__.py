@@ -42,14 +42,15 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        cg.static_buffer(config[CONF_ID], cg.uint8, config[CONF_SR_COUNT]),
+    )
     await cg.register_component(var, config)
     await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
     await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
     await cg.add_pin(var.set_load_pin, config[CONF_LOAD_PIN])
     await cg.add_pin(var.set_clock_inhibit_pin, config.get(CONF_CLOCK_INHIBIT_PIN))
-
-    cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 
 
 def _validate_input_mode(value: bool) -> bool:

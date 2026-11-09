@@ -29,6 +29,9 @@ void disable_gpio_wakeups();
 #endif
 
 class ESP32InternalGPIOPin final : public GPIOPin {
+  // Its arg_ points at this pin, so the ISR-safe calls read the fields below directly.
+  friend class esphome::ISRInternalGPIOPin;
+
  public:
   void set_pin(gpio_num_t pin) { this->pin_ = static_cast<uint8_t>(pin); }
   void set_inverted(bool inverted) { this->pin_flags_.inverted = inverted; }
@@ -66,17 +69,17 @@ class ESP32InternalGPIOPin final : public GPIOPin {
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
-  // Memory layout: 8 bytes total on 32-bit systems, 12 bytes if sleep is enabled
-  // - 3 (or 7) bytes for members below
-  // - 1 byte padding for alignment
-  // - 4 bytes for vtable pointer
+
+  // Memory layout: 8 bytes total on 32-bit systems (4 bytes vtable pointer + the 4 below)
+  // more if sleep is enabled
   uint8_t pin_;          // GPIO pin number (0-255, actual max ~54 on ESP32)
   gpio::Flags flags_{};  // GPIO flags (1 byte)
   struct PinFlags {
     uint8_t inverted : 1;        // Invert pin logic (1 bit)
     uint8_t drive_strength : 2;  // Drive strength 0-3 (2 bits)
-    uint8_t reserved : 5;        // Reserved for future use (5 bits)
+    uint8_t rtc_io : 5;          // RTC IO number + 1, 0 when not an RTC IO; set by to_isr()
   } pin_flags_{};                // Total: 1 byte
+  gpio::Flags isr_flags_{};      // Mode last set by ISRInternalGPIOPin::pin_mode()
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
   mutable ISRFuncArg *isr_func_arg_{nullptr};  // Edge emulation state, reused on every attach
 #endif

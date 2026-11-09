@@ -70,11 +70,7 @@ static int ftdi_to_clkbits_am(int baudrate, uint32_t *encoded_divisor) {
       }
     }
     baud_estimate = (24000000 + (try_divisor / 2)) / try_divisor;
-    if (baud_estimate < baudrate) {
-      baud_diff = baudrate - baud_estimate;
-    } else {
-      baud_diff = baud_estimate - baudrate;
-    }
+    baud_diff = baud_estimate < baudrate ? baudrate - baud_estimate : baud_estimate - baudrate;
     if (i == 0 || baud_diff < best_baud_diff) {
       best_divisor = try_divisor;
       best_baud = baud_estimate;
@@ -108,19 +104,11 @@ static int ftdi_to_clkbits(int baudrate, unsigned int clk, int clk_div, uint32_t
     best_baud = clk / (2 * clk_div);
   } else {
     divisor = clk * 16 / clk_div / baudrate;
-    if (divisor & 1) {
-      best_divisor = divisor / 2 + 1;
-    } else {
-      best_divisor = divisor / 2;
-    }
+    best_divisor = divisor & 1 ? divisor / 2 + 1 : divisor / 2;
     if (best_divisor > 0x20000)
       best_divisor = 0x1ffff;
     best_baud = clk * 16 / clk_div / best_divisor;
-    if (best_baud & 1) {
-      best_baud = best_baud / 2 + 1;
-    } else {
-      best_baud = best_baud / 2;
-    }
+    best_baud = best_baud & 1 ? best_baud / 2 + 1 : best_baud / 2;
     *encoded_divisor = (best_divisor >> 3) | (FRAC_CODE[best_divisor & 0x7] << 14);
   }
   return best_baud;
