@@ -48,6 +48,8 @@ class BLEAdvertising {
 
   bool scan_response_;
   bool include_name_in_adv_{false};
+  // Low 16 bits of the loop time, in the padding before the aligned structs
+  uint16_t config_sent_time_{0};
   esp_ble_adv_data_t advertising_data_;
   esp_ble_adv_data_t scan_response_data_;
   esp_ble_adv_params_t advertising_params_;
@@ -57,7 +59,6 @@ class BLEAdvertising {
 
   const uint32_t advertising_cycle_time_;
   uint32_t last_advertisement_time_{0};
-  uint32_t config_sent_time_{0};
   int8_t current_adv_index_{-1};  // -1 means standard scan response
   // Bluedroid keeps the last advertising and scan response config in one static buffer and builds the packet from it
   // later on another task; a new config before that frees it under the builder. Count the configs in flight.
