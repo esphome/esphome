@@ -3,6 +3,8 @@
 
 #ifdef USE_ESP32
 
+#include <esp_gatt_defs.h>
+
 namespace esphome::esp32_ble_server {
 
 // The client configuration value is always 2 bytes
