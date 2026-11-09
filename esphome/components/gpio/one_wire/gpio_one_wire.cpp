@@ -60,8 +60,7 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
     }
   }
 
-  // delay J: finish the 480us slot, but never spin if it already elapsed
-  // (unsigned wrap here would busy-wait for minutes with interrupts off)
+  // delay J: finish the 480us slot, but never spin if it already elapsed (unsigned wrap)
   uint32_t elapsed = micros() - start;
   if (elapsed < 480)
     delayMicroseconds(480 - elapsed);
