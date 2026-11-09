@@ -55,7 +55,7 @@ class BLEAdvertising {
   // completion) can alias and hold one send back by up to 1 s, which is harmless.
   uint16_t config_sent_time_{0};
   ESPBTUUID priority_uuid_;  // unset when no service has priority
-  esp_ble_adv_data_t advertising_data_;
+  esp_ble_adv_data_t advertising_data_;  // p_service_uuid is only valid inside services_advertisement_()
   esp_ble_adv_data_t scan_response_data_;
   esp_ble_adv_params_t advertising_params_;
   std::vector<ESPBTUUID> advertising_uuids_;
