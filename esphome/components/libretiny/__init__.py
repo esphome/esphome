@@ -61,6 +61,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
 BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+# Timing functions RTL8710B builds replace (rtl8710b_micros.c)
+RTL8710B_TIME_WRAPS = ("millis", "micros", "delay", "delayMicroseconds")
 # Families with a crash handler; the Cortex-M ones install it at run time (no wraps).
 CRASH_HANDLER_FAMILIES = (
     FAMILY_BK7231N,
@@ -156,6 +158,16 @@ def _update_core_data(config):
     CORE.data[KEY_LIBRETINY][KEY_COMPONENT] = config[CONF_COMPONENT_ID]
     CORE.data[KEY_LIBRETINY][KEY_FAMILY] = config[CONF_FAMILY]
     return config
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Leave the RTL8710B timing wrappers out of every other family's build."""
+    if (data := CORE.data.get(KEY_LIBRETINY)) is None or data.get(KEY_FAMILY) in (
+        None,
+        FAMILY_RTL8710B,
+    ):
+        return []
+    return ["rtl8710b_micros.c"]
 
 
 def get_libretiny_component(core_obj=None):
@@ -529,6 +541,9 @@ async def component_to_code(config):
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
+        # millis(), micros() and delays on the system timer and CPU cycles (see rtl8710b_micros.c)
+        for func in RTL8710B_TIME_WRAPS:
+            cg.add_build_flag(f"-Wl,--wrap={func}")
 
     # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
     # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog
