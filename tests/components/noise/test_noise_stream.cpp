@@ -843,20 +843,18 @@ class NoiseStreamKeyTest : public NoiseStreamTest {
 TEST_F(NoiseStreamKeyTest, WithoutAKeyNoHandshakeStarts) {
   StreamProbe client("client", KEY_HASH, true);
   EXPECT_FALSE(client.load_key());
-  NoiseStream server("server", this->key_.data(), false);
-  this->pump_(client, server);
+  this->pump_(client, this->server_);
   EXPECT_FALSE(client.ready());
-  EXPECT_FALSE(server.ready());
+  EXPECT_FALSE(this->server_.ready());
   // Closed before a byte went out: no handshake with the all-zeros key
   EXPECT_FALSE(this->client_link_.connected());
   EXPECT_TRUE(this->client_link_.sent_.empty());
 
   // A keyless responder closes too
   this->client_link_.reconnect();
-  NoiseStream keyed("keyed", this->key_.data(), true);
   StreamProbe responder("responder", KEY_HASH + 1, false);
   EXPECT_FALSE(responder.load_key());
-  this->pump_(keyed, responder);
+  this->pump_(this->client_, responder);
   EXPECT_FALSE(responder.ready());
   EXPECT_FALSE(this->server_link_.connected());
   EXPECT_TRUE(this->server_link_.sent_.empty());
@@ -870,11 +868,10 @@ TEST_F(NoiseStreamKeyTest, ASavedKeyIsLoadedAfterARestart) {
   }
   NoiseStream client("client", KEY_HASH, true);
   ASSERT_TRUE(client.load_key());
-  NoiseStream server("server", this->key_.data(), false);
   this->client_link_.reconnect();
-  this->pump_(client, server);
+  this->pump_(client, this->server_);
   EXPECT_TRUE(client.ready());
-  EXPECT_TRUE(server.ready());
+  EXPECT_TRUE(this->server_.ready());
   // Each stream has its own record
   NoiseStream other("other", KEY_HASH + 1, true);
   EXPECT_FALSE(other.load_key());
@@ -943,9 +940,8 @@ TEST_F(NoiseStreamKeyTest, ASavedApiOrOtaKeyIsNotUsed) {
   with_ota.set_ota_key(this->key_.data());
   EXPECT_FALSE(with_ota.load_key());
   // No session starts on it, and a new key is taken
-  NoiseStream server("server", this->key_.data(), false);
   this->client_link_.reconnect();
-  this->pump_(with_ota, server);
+  this->pump_(with_ota, this->server_);
   EXPECT_FALSE(with_ota.ready());
   this->client_link_.reconnect();
   EXPECT_TRUE(with_ota.set_key(this->client_link_, THIRD_KEY_B64));

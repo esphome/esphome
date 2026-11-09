@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from esphome import config_validation as cv
+from esphome.automation import ACTION_REGISTRY
+import esphome.codegen as cg
 from esphome.components import noise
 from esphome.const import (
     CONF_API,
@@ -53,6 +56,10 @@ def test_the_link_key_is_accepted() -> None:
 def test_the_link_key_may_be_left_out() -> None:
     # It is then set at runtime
     assert noise.STREAM_ENCRYPTION_SCHEMA(None) == {}
+    assert noise.STREAM_ENCRYPTION_SCHEMA({}) == {}
+    # The block itself stays a block
+    with pytest.raises(cv.Invalid, match="expected a dictionary"):
+        noise.STREAM_ENCRYPTION_SCHEMA(False)
 
 
 @pytest.mark.parametrize(
@@ -78,6 +85,9 @@ def test_only_an_encrypted_entry_loads_noise() -> None:
     assert auto_load() == ["socket"]
     # A single entry is not a list before validation
     CORE.raw_config = {"my_link": {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}}
+    assert auto_load() == ["socket", "noise"]
+    # A bare block, whose key is set at runtime
+    CORE.raw_config = {"my_link": [{CONF_ID: "runtime", CONF_ENCRYPTION: None}]}
     assert auto_load() == ["socket", "noise"]
     # Tooling asks without a config
     CORE.raw_config = None
@@ -174,6 +184,20 @@ def test_the_set_key_action_needs_a_runtime_key(
     _check(set_core_config, _link(LINK_KEY), _set_key_action("other"))
 
 
+def test_the_set_key_action_checks_its_key() -> None:
+    with patch.dict(ACTION_REGISTRY):
+        noise.register_set_key_action("my_link", cg.esphome_ns.class_("MyLink"))
+        schema = ACTION_REGISTRY["my_link.set_encryption_key"].schema
+    with pytest.raises(cv.Invalid, match="all-zeros key is reserved") as err:
+        schema({CONF_ID: "link", CONF_KEY: ZERO_KEY})
+    # The action needs its key, so the yaml advice to omit it does not apply
+    assert "omit" not in str(err.value)
+    assert "openssl rand -base64 32" in str(err.value)
+    # A lambda is checked on the device
+    conf = schema({CONF_ID: "link", CONF_KEY: cv.Lambda("return key;")})
+    assert isinstance(conf[CONF_KEY], cv.Lambda)
+
+
 def test_an_on_boot_action_runs_after_the_key_is_loaded(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -201,8 +225,38 @@ def test_an_api_action_without_api_encryption_warns(
     assert "plain text" not in caplog.text
 
 
+API_ID = ID("api_server", is_declaration=True)
+
+
+@pytest.mark.parametrize(
+    ("device", "api_context", "ota_key"),
+    [
+        ({}, False, False),
+        (
+            {
+                CONF_API: {CONF_ID: API_ID, CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}},
+                CONF_OTA: _ota(LINK_KEY),
+            },
+            True,
+            True,
+        ),
+        # A bare block takes the api key, which the api context already covers
+        (
+            {
+                CONF_API: {CONF_ID: API_ID, CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}},
+                CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_ENCRYPTION: {}}],
+            },
+            True,
+            False,
+        ),
+    ],
+    ids=["alone", "api-and-ota-keys", "ota-takes-the-api-key"],
+)
 def test_new_stream_without_a_key_takes_it_at_runtime(
     set_core_config: SetCoreConfigCallable,
+    device: ConfigType,
+    api_context: bool,
+    ota_key: bool,
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
     stream = noise.new_stream(ID("link", is_declaration=True), None, True, "my_link")
@@ -212,11 +266,12 @@ def test_new_stream_without_a_key_takes_it_at_runtime(
     # The preference hash is per entry
     key_hash = fnv1_hash("noise_stream_key:link")
     assert f'noise::NoiseStream("my_link", {key_hash}UL, true)' in CORE.cpp_main_section
-    # Without api and ota there is no key to keep apart
-    CORE.config = {}
+    # The keys of this device that the runtime key must differ from
+    CORE.config = device
+    CORE.register_variable(API_ID, cg.MockObj("api_server", "->"))
     CORE.flush_tasks()
-    assert "set_api_context" not in CORE.cpp_main_section
-    assert "set_ota_key" not in CORE.cpp_main_section
+    assert ("link_noise->set_api_context(" in CORE.cpp_main_section) is api_context
+    assert ("link_noise->set_ota_key(" in CORE.cpp_main_section) is ota_key
 
 
 def test_a_key_in_yaml_compiles_no_runtime_key(

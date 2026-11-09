@@ -31,6 +31,14 @@ void TcpUart::setup() {
 #endif
 }
 
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+void TcpUart::set_encryption_key(const std::string &key) {
+  if (this->noise_ != nullptr && this->noise_->set_key(this->link_, key)) {
+    this->enable_loop();
+  }
+}
+#endif
+
 void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TCP UART:\n"
@@ -42,12 +50,7 @@ void TcpUart::dump_config() {
                 this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_NOISE_STREAM
   if (this->noise_ != nullptr) {
-#ifdef USE_NOISE_STREAM_RUNTIME_KEY
-    ESP_LOGCONFIG(TAG, "  Encryption: Noise%s",
-                  this->noise_->has_key() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(", key: none"));
-#else
-    ESP_LOGCONFIG(TAG, "  Encryption: Noise");
-#endif
+    this->noise_->dump_config();
   }
 #endif
 #ifdef USE_SOCKET_TCP_LISTENER

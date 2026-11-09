@@ -42,18 +42,17 @@ class NoiseStream {
   NoiseStream(const NoiseStream &) = delete;
   NoiseStream &operator=(const NoiseStream &) = delete;
   bool ready() const { return this->state_ == State::STATE_READY; }
+  /// The encryption line of the owner's dump_config().
+  void dump_config() const;
 
 #ifdef USE_NOISE_STREAM_RUNTIME_KEY
-  /// Keys a runtime key must differ from, because the peer device holds it: the api's, also one it gets at
-  /// runtime, and the ota key from yaml in flash.
+  /// The api and ota keys a runtime key must differ from, as the peer holds it; the api's may come at runtime.
   void set_api_context(const NoiseContext &api) { this->api_ctx_ = &api; }
   void set_ota_key(const uint8_t *key) { this->ota_key_ = key; }
-  /// True when there is a key, from yaml or saved earlier; a saved api or ota key does not count. Call once from
-  /// setup(); set_key() refuses keys until then.
+  /// Load the saved key; call once from setup(), before set_key(). False without a usable key.
   bool load_key();
   bool has_key() const { return this->ctx_.has_psk(); }
-  /// Save a base64 key and close the link, so the next session uses it. False when the key is refused, unchanged or
-  /// not saved; the link then stays as it is.
+  /// Save a base64 key and close the link for the next session; false, with the link kept, when it is not saved.
   template<typename Link> bool set_key(Link &link, const std::string &key) {
     if (!this->save_key_(key)) {
       return false;

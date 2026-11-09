@@ -40,11 +40,7 @@ class UartTcp final : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_NOISE_STREAM_RUNTIME_KEY
   /// Save a base64 key for `encryption:` without a key in yaml; the link reconnects with it.
-  void set_encryption_key(const std::string &key) {
-    if (this->noise_ != nullptr && this->noise_->set_key(this->link_, key)) {
-      this->enable_loop();
-    }
-  }
+  void set_encryption_key(const std::string &key);
 #endif
   void set_idle_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SOCKET_TCP_LISTENER

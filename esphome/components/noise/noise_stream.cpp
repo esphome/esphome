@@ -247,6 +247,15 @@ bool NoiseStream::seal_frame_(uint8_t *frame, size_t len) {
   return true;
 }
 
+void NoiseStream::dump_config() const {
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  ESP_LOGCONFIG(this->tag_, "  Encryption: Noise%s",
+                this->has_key() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(", key: none"));
+#else
+  ESP_LOGCONFIG(this->tag_, "  Encryption: Noise");
+#endif
+}
+
 void NoiseStream::log_failure_(const LogString *error) {
   if (error == reinterpret_cast<const LogString *>(ALREADY_LOGGED)) {
     return;

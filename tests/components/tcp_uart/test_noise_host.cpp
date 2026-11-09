@@ -9,6 +9,16 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+#include <unistd.h>
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+#include "esphome/core/preferences.h"
+#ifdef USE_HOST
+#include "esphome/components/host/preferences.h"
+#endif
+#endif
 
 #if defined(USE_HOST) && defined(USE_NOISE_STREAM)
 
@@ -21,7 +31,8 @@ static const uint8_t OTHER_KEY[32] = {32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22
 
 class NoiseUart : public TcpUart {
  public:
-  NoiseUart(const uint8_t *key, bool initiator) : stream_("noise_test", key, initiator) {
+  // key: the key from yaml, or the preference hash of a key set at runtime
+  template<typename Key> NoiseUart(Key key, bool initiator) : stream_("noise_test", key, initiator) {
     this->set_host("peer");
     this->set_port(1);
     this->link_.begin("noise_test");
@@ -122,6 +133,60 @@ TEST_F(TcpUartNoise, ADropEndsTheSession) {
   EXPECT_FALSE(this->server_.connected_.state);
   EXPECT_FLOAT_EQ(this->server_.disconnects_.state, 1);
 }
+
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+// KEY in base64
+static const std::string KEY_B64 = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+
+// keyless_ takes its key at runtime and saves it in the host preferences of a fresh directory.
+class TcpUartKey : public TcpUartNoise {
+ protected:
+  void SetUp() override {
+    TcpUartNoise::SetUp();
+    static bool prefs_ready = false;
+    if (!prefs_ready) {
+      // The host backend reads its file once, so no key saved by an earlier run is found
+      std::string dir = (std::filesystem::temp_directory_path() / "tcp-uart-key-XXXXXX").string();
+      ASSERT_NE(mkdtemp(dir.data()), nullptr);
+      setenv("ESPHOME_PREFDIR", dir.c_str(), 1);
+      host::setup_preferences();
+      prefs_ready = true;
+    }
+    global_preferences->reset();
+    this->keyless_.setup();
+  }
+  void TearDown() override {
+    this->keyless_.link().close();
+    global_preferences->reset();
+    TcpUartNoise::TearDown();
+  }
+
+  // A server without a key in yaml
+  NoiseUart keyless_{uint32_t{2}, false};
+};
+
+TEST_F(TcpUartKey, ClosedUntilAKeyIsSet) {
+  // The loop stays off, so the link never opens
+  EXPECT_TRUE(this->keyless_.is_idle());
+  EXPECT_FALSE(this->keyless_.is_connected());
+  EXPECT_EQ(this->keyless_.available_for_write(), 0u);
+  // A refused key changes nothing
+  this->keyless_.set_encryption_key("AAECAw==");
+  EXPECT_TRUE(this->keyless_.is_idle());
+
+  this->keyless_.set_encryption_key(KEY_B64);
+  EXPECT_TRUE(this->keyless_.is_in_loop_state());
+  EXPECT_TRUE(this->connect_(this->keyless_));
+  EXPECT_TRUE(this->keyless_.connected_.state);
+}
+
+TEST_F(TcpUartKey, TheKeyOutlivesARestart) {
+  this->keyless_.set_encryption_key(KEY_B64);
+  NoiseUart restarted{uint32_t{2}, false};
+  restarted.setup();
+  EXPECT_FALSE(restarted.is_idle());
+}
+#endif
 
 }  // namespace esphome::tcp_uart::testing
 

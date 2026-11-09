@@ -1,8 +1,5 @@
 """Tests for the uart_tcp encryption key; the key check itself is tested in noise."""
 
-from collections.abc import Callable
-from pathlib import Path
-
 import pytest
 
 from esphome import config_validation as cv
@@ -37,15 +34,6 @@ def _validate(
     return uart_tcp.FINAL_VALIDATE_SCHEMA(config)
 
 
-@pytest.mark.parametrize("block", [None, {}], ids=["bare", "empty"])
-def test_encryption_without_a_key_is_accepted(
-    set_core_config: SetCoreConfigCallable, block: ConfigType | None
-) -> None:
-    # The key is then set at runtime
-    config = _validate(set_core_config, {CONF_ENCRYPTION: block}, LINK_KEY)
-    assert config[CONF_ENCRYPTION] == {}
-
-
 def test_only_an_encrypted_bridge_loads_noise() -> None:
     plain = {CONF_UART_ID: "uart_0", CONF_ROLE: "server", CONF_PORT: 6638}
     encrypted = {**plain, CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}
@@ -53,9 +41,6 @@ def test_only_an_encrypted_bridge_loads_noise() -> None:
     assert uart_tcp.AUTO_LOAD() == ["socket"]
     CORE.raw_config = {uart_tcp.DOMAIN: [plain, encrypted]}
     assert uart_tcp.AUTO_LOAD() == ["socket", "noise"]
-    # A bare block, whose key is set at runtime
-    CORE.raw_config = {uart_tcp.DOMAIN: [{**plain, CONF_ENCRYPTION: None}]}
-    assert "noise" in uart_tcp.AUTO_LOAD()
 
 
 def test_api_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
@@ -64,11 +49,3 @@ def test_api_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
         match=r"'uart_tcp' encryption key must differ from the 'api' encryption key",
     ):
         _validate(set_core_config, {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}, LINK_KEY)
-
-
-def test_the_runtime_key_action(generate_main: Callable[[Path], str]) -> None:
-    main_cpp = generate_main(Path(__file__).parent / "test_runtime_key.yaml")
-    assert "::bridge->set_encryption_key(" in main_cpp
-    # The key set at runtime must differ from the api key, which the ota takes too
-    assert "bridge_noise->set_api_context(" in main_cpp
-    assert "set_ota_key(" not in main_cpp

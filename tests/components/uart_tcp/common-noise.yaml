@@ -2,13 +2,28 @@ wifi:
   ssid: MySSID
   password: password1
 
+# No api, so the server prepares its own spare key. The key comes from on_boot; a lambda can set another one.
+esphome:
+  on_boot:
+    priority: 100
+    then:
+      - uart_tcp.set_encryption_key:
+          id: noise_bridge
+          key: "dWFydF90Y3Agbm9pc2UgY29tcGlsZSB0ZXN0IGtleSE="
+
+interval:
+  - interval: 1h
+    then:
+      - uart_tcp.set_encryption_key:
+          id: noise_bridge
+          key: !lambda return "dWFydF90Y3AgbGFtYmRhIGtleSBjb21waWxlIHRlc3Q=";
+
 uart_tcp:
   - id: noise_bridge
     uart_id: uart_bus
     role: server
     port: 6638
     encryption:
-      key: "dWFydF90Y3Agbm9pc2UgY29tcGlsZSB0ZXN0IGtleSE="
 
 binary_sensor:
   - platform: uart_tcp

@@ -250,14 +250,13 @@ async def _reserve_device_keys(stream: MockObj) -> None:
     """Give a runtime key stream the keys its key must differ from: the api's,
     also one the api gets at runtime, and the esphome ota key from yaml."""
     api_conf = CORE.config.get(CONF_API) or {}
-    api_key = static_encryption_key(api_conf)
     if CONF_ENCRYPTION in api_conf:
         api = await cg.get_variable(api_conf[CONF_ID])
         cg.add(stream.set_api_context(api.get_noise_ctx()))
     # Validation merges the esphome ota entries into one
     for conf in CORE.config.get(CONF_OTA) or []:
         key = static_encryption_key(conf)
-        if conf.get(CONF_PLATFORM) == CONF_ESPHOME and key not in (None, api_key):
+        if conf.get(CONF_PLATFORM) == CONF_ESPHOME and key is not None:
             cg.add(stream.set_ota_key(new_psk_progmem(key)))
 
 
