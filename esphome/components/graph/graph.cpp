@@ -294,11 +294,7 @@ void GraphLegend::init(Graph *g) {
     } else if (valpos == VALUE_POSITION_TYPE_BESIDE) {
       this->xs_ = txtw + valw;
     }
-    if (dir == DIRECTION_TYPE_VERTICAL) {
-      this->width_ = this->xs_;
-    } else {
-      this->width_ = this->xs_ * n;
-    }
+    this->width_ = dir == DIRECTION_TYPE_VERTICAL ? this->xs_ : this->xs_ * n;
   } else {
     this->xs_ = w / n;
     this->x0_ = this->xs_ / 2;
@@ -319,11 +315,7 @@ void GraphLegend::init(Graph *g) {
       }
       this->height_ = this->ys_ * n;
     }
-    if (dir == DIRECTION_TYPE_HORIZONTAL) {
-      this->height_ = this->ys_;
-    } else {
-      this->height_ = this->ys_ * n;
-    }
+    this->height_ = dir == DIRECTION_TYPE_HORIZONTAL ? this->ys_ : this->ys_ * n;
   } else {
     this->ys_ = h / n;
   }

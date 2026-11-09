@@ -39,12 +39,7 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  uint16_t temp_offset;
-  if (this->temperature_offset_ > 0) {
-    temp_offset = (this->temperature_offset_ * 100);
-  } else {
-    temp_offset = 0;
-  }
+  const uint16_t temp_offset = this->temperature_offset_ > 0 ? (this->temperature_offset_ * 100) : 0;
 
   if (!this->setup_check(this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset),
                          LOG_STR("Error setting temperature offset")))
