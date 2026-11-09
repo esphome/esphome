@@ -97,13 +97,12 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
 
   if (this->scan_response_) {
-    memcpy(&this->scan_response_data_, &this->advertising_data_, sizeof(esp_ble_adv_data_t));
+    // Name and tx power only: service UUIDs and data are already in the advertising data, and repeating them
+    // overflows the 31 byte scan response
+    this->scan_response_data_ = {};
     this->scan_response_data_.set_scan_rsp = true;
     this->scan_response_data_.include_name = true;
     this->scan_response_data_.include_txpower = true;
-    this->scan_response_data_.manufacturer_len = 0;
-    this->scan_response_data_.appearance = 0;
-    this->scan_response_data_.flag = 0;
     err = esp_ble_gap_config_adv_data(&this->scan_response_data_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %s", esp_err_to_name(err));
