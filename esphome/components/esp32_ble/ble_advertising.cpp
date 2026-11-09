@@ -102,7 +102,8 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
   this->config_sent_time_ = App.get_loop_component_start_time();
 
-  // The stack copies the UUIDs during each config call, so a buffer on the stack is enough. A priority UUID goes
+<<<<<<< HEAD
+  // Bluedroid copies the UUIDs during each config call, so a local buffer is enough. A priority UUID goes
   // first and alone in the advertising packet, which it fills exactly with the service data; the rest go to the
   // scan response.
   const bool priority = this->priority_uuid_.is_set();
@@ -118,6 +119,14 @@ esp_err_t BLEAdvertising::services_advertisement_() {
       memcpy(uuids + 16 * num_services++, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
   }
   this->advertising_data_.service_uuid_len = 16 * (priority ? 1 : num_services);
+=======
+  // Bluedroid copies the UUIDs during each config call, so a local buffer is enough
+  uint8_t uuids[16 * MAX_ADVERTISED_UUIDS];
+  const size_t num_services = std::min(this->advertising_uuids_.size(), MAX_ADVERTISED_UUIDS);
+  for (size_t i = 0; i < num_services; i++)
+    memcpy(uuids + 16 * i, this->advertising_uuids_[i].as_128bit().get_uuid().uuid.uuid128, 16);
+  this->advertising_data_.service_uuid_len = 16 * num_services;
+>>>>>>> ble-adv-uuid-leak
   this->advertising_data_.p_service_uuid = num_services > 0 ? uuids : nullptr;
 
   esp_err_t err;
