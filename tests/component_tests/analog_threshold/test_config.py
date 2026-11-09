@@ -8,6 +8,7 @@ import pytest
 from esphome.components.analog_threshold.binary_sensor import CONFIG_SCHEMA
 from esphome.config import read_config
 import esphome.config_validation as cv
+from esphome.const import ErrorFormat
 from esphome.core import CORE, Lambda
 
 
@@ -75,8 +76,13 @@ def test_shorthand_and_dynamic_thresholds_are_accepted(
 
 def test_reversed_thresholds_report_the_yaml_option(
     component_config_path: Callable[[str], Path],
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    CORE.config_path = component_config_path("reversed.yaml")
+    config_path = component_config_path("reversed.yaml")
+    CORE.config_path = config_path
+    monkeypatch.setattr(CORE, "error_format", ErrorFormat.LINE)
     assert read_config({}) is None
-    assert "Lower threshold must be less than or equal" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert output.startswith(f"{config_path}:15:")
+    assert "Lower threshold must be less than or equal" in output
