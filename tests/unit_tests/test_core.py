@@ -993,7 +993,7 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.ESP_IDF
         assert target.using_toolchain_sdk_nrf is False
 
-    def test_using_toolchain_zephyr(self, target):
+    def test_using_toolchain_zephyr(self, target: core.EsphomeCore) -> None:
         """using_toolchain_zephyr is True only for the ZEPHYR toolchain."""
         target.toolchain = const.Toolchain.ZEPHYR
         assert target.using_toolchain_zephyr is True

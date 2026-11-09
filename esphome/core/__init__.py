@@ -1039,7 +1039,7 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
-    def using_toolchain_zephyr(self):
+    def using_toolchain_zephyr(self) -> bool:
         return self.toolchain == Toolchain.ZEPHYR
 
     @property
