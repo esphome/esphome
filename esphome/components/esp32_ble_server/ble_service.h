@@ -20,8 +20,12 @@ class BLEServer;
 using namespace esp32_ble;
 
 class BLEService final {
+  friend class BLEServer;
+
  public:
   BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
+  /// For a service the caller keeps alive and passes to BLEServer::add_service(), which picks the instance id.
+  BLEService(ESPBTUUID uuid, uint16_t num_handles, bool advertise) : BLEService(uuid, num_handles, 0, advertise) {}
   ~BLEService();
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
@@ -32,6 +36,8 @@ class BLEService final {
                                            esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
   BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties,
                                            esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
+  /// Adds a characteristic the caller keeps alive (a static or member object); it is never freed here.
+  void add_characteristic(BLECharacteristic &characteristic) { this->characteristics_.push_back(&characteristic); }
 
   ESPBTUUID get_uuid() { return this->uuid_; }
   uint8_t get_inst_id() { return this->inst_id_; }

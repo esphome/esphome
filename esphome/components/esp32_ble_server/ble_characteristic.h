@@ -25,6 +25,8 @@ using namespace bytebuffer;
 class BLEService;
 
 class BLECharacteristic final {
+  friend class BLEService;
+
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties, esp_gatt_perm_t permissions);
   ~BLECharacteristic();
@@ -48,7 +50,13 @@ class BLECharacteristic final {
   void do_delete() { this->clients_to_notify_.clear(); }
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-  void add_descriptor(BLEDescriptor *descriptor);
+  /// Takes ownership of a heap-allocated descriptor and frees it with this characteristic.
+  void add_descriptor(BLEDescriptor *descriptor) {
+    descriptor->owned_ = true;
+    this->add_descriptor(*descriptor);
+  }
+  /// Adds a descriptor the caller keeps alive (a static or member object); it is never freed here.
+  void add_descriptor(BLEDescriptor &descriptor);
   void remove_descriptor(BLEDescriptor *descriptor);
 
   BLEService *get_service() { return this->service_; }
@@ -106,6 +114,8 @@ class BLECharacteristic final {
     CREATING_DEPENDENTS,
     CREATED,
   } state_{INIT};
+  // Set by BLEService::create_characteristic(), which allocates it; the service frees it
+  bool owned_{false};
 };
 
 }  // namespace esphome::esp32_ble_server

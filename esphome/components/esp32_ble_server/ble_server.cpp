@@ -123,6 +123,16 @@ void BLEServer::release_advertising_() {
 }
 
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles) {
+  auto *service = new BLEService(uuid, num_handles, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  if (!this->add_service_(*service, true)) {
+    delete service;  // NOLINT(cppcoreguidelines-owning-memory)
+    return nullptr;
+  }
+  return service;
+}
+
+bool BLEServer::add_service_(BLEService &service, bool owned) {
+  const ESPBTUUID uuid = service.get_uuid();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char uuid_buf[esp32_ble::UUID_STR_LEN];
   uuid.to_str(uuid_buf);
@@ -139,15 +149,14 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
     char warn_uuid_buf[esp32_ble::UUID_STR_LEN];
     uuid.to_str(warn_uuid_buf);
     ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", warn_uuid_buf);
-    return nullptr;
+    return false;
   }
-  BLEService *service =  // NOLINT(cppcoreguidelines-owning-memory)
-      new BLEService(uuid, num_handles, inst_id, advertise);
-  this->services_.push_back({uuid, inst_id, service});
+  service.inst_id_ = inst_id;
+  this->services_.push_back({uuid, inst_id, owned, &service});
   if (this->parent_->is_active() && this->registered_) {
-    service->do_create(this);
+    service.do_create(this);
   }
-  return service;
+  return true;
 }
 
 void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
@@ -159,7 +168,8 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
   for (auto it = this->services_.begin(); it != this->services_.end(); ++it) {
     if (it->uuid == uuid && it->inst_id == inst_id) {
       it->service->do_delete();
-      delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
+      if (it->owned)
+        delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.erase(it);
       return;
     }

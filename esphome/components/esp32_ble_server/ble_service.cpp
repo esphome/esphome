@@ -12,8 +12,10 @@ BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bo
     : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id), advertise_(advertise) {}
 
 BLEService::~BLEService() {
-  for (auto &chr : this->characteristics_)
-    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+  for (auto *chr : this->characteristics_) {
+    if (chr->owned_)
+      delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
 }
 
 BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
@@ -39,7 +41,8 @@ BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_ch
                                                      esp_gatt_perm_t permissions) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties, permissions);
-  this->characteristics_.push_back(characteristic);
+  characteristic->owned_ = true;
+  this->add_characteristic(*characteristic);
   return characteristic;
 }
 

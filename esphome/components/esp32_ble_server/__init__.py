@@ -690,7 +690,8 @@ async def to_code_descriptor(descriptor_conf, char_conf, char_var):
         descriptor_conf[CONF_MAX_LENGTH],
         descriptor_permissions(descriptor_conf, char_conf),
     )
-    cg.add(char_var.add_descriptor(desc_var))
+    # Static storage, so the characteristic must not free it
+    cg.add(char_var.add_descriptor(cg.MockObj(f"*{desc_var}")))
     cg.add(desc_var.set_value(value))
     if CONF_ON_WRITE in descriptor_conf:
         on_write_conf = descriptor_conf[CONF_ON_WRITE]
