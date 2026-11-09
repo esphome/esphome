@@ -369,27 +369,30 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     need_parity_bit = false;
   }
 
+  // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost.
+  // Lock per bit, not per byte: the Wi-Fi interrupt handler asserts (hardware WDT) when held off for a byte.
+  const uint32_t bit_time = this->bit_time_;
+  uint32_t wait = 0;
+  uint32_t start;
   {
-    // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
     InterruptLock lock;
-    const uint32_t bit_time = this->bit_time_;
-    uint32_t wait = bit_time;
-    const uint32_t start = arch_get_cpu_cycle_count();
+    start = arch_get_cpu_cycle_count();
     // Start bit
     this->write_bit_(false, &wait, start, bit_time);
-    for (int i = 0; i < this->data_bits_; i++) {
-      bool bit = data & (1 << i);
-      this->write_bit_(bit, &wait, start, bit_time);
-      if (need_parity_bit)
-        parity_bit ^= bit;
-    }
-    if (need_parity_bit)
-      this->write_bit_(parity_bit, &wait, start, bit_time);
-    // Stop bit
-    this->write_bit_(true, &wait, start, bit_time);
-    if (this->stop_bits_ == 2)
-      this->wait_(&wait, start, bit_time);
   }
+  for (int i = 0; i < this->data_bits_; i++) {
+    bool bit = data & (1 << i);
+    this->write_bit_(bit, &wait, start, bit_time);
+    if (need_parity_bit)
+      parity_bit ^= bit;
+  }
+  if (need_parity_bit)
+    this->write_bit_(parity_bit, &wait, start, bit_time);
+  // Stop bit, held for its full length (two with stop_bits 2)
+  this->write_bit_(true, &wait, start, bit_time);
+  this->wait_(&wait, start, bit_time);
+  if (this->stop_bits_ == 2)
+    this->wait_(&wait, start, bit_time);
 }
 void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   while (arch_get_cpu_cycle_count() - start < *wait)
@@ -400,9 +403,11 @@ bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &
   this->wait_(wait, start, bit_time);
   return this->rx_pin_.digital_read();
 }
+// Waits for the edge, then drives it, so pending interrupts run at the start of the bit
 void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
-  this->tx_pin_.digital_write(bit);
+  InterruptLock lock;
   this->wait_(wait, start, bit_time);
+  this->tx_pin_.digital_write(bit);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {
   this->rx_sync_();
