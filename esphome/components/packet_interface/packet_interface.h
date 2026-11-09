@@ -22,6 +22,7 @@ enum Capability : uint8_t {
   CAPABILITY_SESSION = 1 << 2,
   CAPABILITY_ADDRESSING = 1 << 3,
   CAPABILITY_FRAGMENTATION = 1 << 4,
+  CAPABILITY_COMPRESSION = 1 << 5,
 };
 
 /**

@@ -9,6 +9,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_PACKET_INTERFACE_BASIC_FRAGMENTATION")
         cg.add_define("USE_PACKET_INTERFACE_BASIC_SESSION")
         cg.add_define("USE_PACKET_INTERFACE_HDLC")
+        cg.add_define("USE_PACKET_INTERFACE_LZSS")
         cg.add_define("USE_PACKET_INTERFACE_XXTEA")
 
     manifest.to_code = to_code_testing

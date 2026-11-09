@@ -35,6 +35,8 @@ packet_interface:
             max_queue_length: 5
           fragmentation:
             max_packet_size: 1024
+          compression:
+            dictionary: '{"temperature":21.5,"humidity":48,"state":"ON"}'
           session:
         - id: packet_interface_bus
           destination: broadcast
@@ -47,6 +49,7 @@ packet_interface:
     encryption: Johnny Cash
     reliability:
     fragmentation:
+    compression:
     session:
   # Sends to one unicast address, so the link provides addressing
   - platform: udp
