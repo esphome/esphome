@@ -525,8 +525,8 @@ TEST(ActionBranchOwner, WhileWithoutArgumentsKeepsRunsWhenAWaitTimesOutInside) {
   list.play();  // run A waits
   delay(15);
   list.play();  // run B's pass releases A, whose wait timed out, inside it
-  delay(15);
-  wait.loop();  // the remaining waits time out
+  never.value = true;
+  wait.loop();  // the remaining waits end
   EXPECT_EQ(pass.passes, 3);
   EXPECT_EQ(log, (Log{1, 1}));
   EXPECT_FALSE(list.is_running());

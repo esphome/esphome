@@ -363,11 +363,13 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
 
 /// The while body running synchronously, on the stack of WhileAction::loop_(); its play() marks it ended.
 /// One for all loops: automations run on the main loop, one body at a time.
+namespace internal {
 struct WhileBody {
   const void *owner;
   bool ended;
 };
 inline WhileBody *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+}  // namespace internal
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
@@ -407,7 +409,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   void play(const Ts &...x) override {
     // A body that ended without waiting is looped by loop_(); mark it ended. A second end in one pass loops on
     // its own.
-    WhileBody *body = active_while_body;
+    internal::WhileBody *body = internal::active_while_body;
     if (body != nullptr && !body->ended && body->owner == this &&
         static_cast<Frame *>(body)->keys == Keys{std::addressof(x)...}) {
       body->ended = true;
@@ -425,7 +427,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   // The argument storage, which tells a run from another run of this action
   using Keys = std::array<const void *, sizeof...(Ts)>;
-  struct Frame : WhileBody {
+  struct Frame : internal::WhileBody {
     Keys keys;
   };
 
@@ -440,10 +442,10 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     do {
       // Saved and restored, as the body can start this action again
       frame.ended = false;
-      WhileBody *outer = active_while_body;
-      active_while_body = &frame;
+      internal::WhileBody *outer = internal::active_while_body;
+      internal::active_while_body = &frame;
       this->then_.play(x...);
-      active_while_body = outer;
+      internal::active_while_body = outer;
       // A body that waits resumes through play() later
       if (!frame.ended)
         return;
