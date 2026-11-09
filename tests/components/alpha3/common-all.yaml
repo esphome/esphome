@@ -1,0 +1,43 @@
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: alpha3_blec
+
+sensor:
+  - platform: alpha3
+    id: alpha3_hub
+    ble_client_id: alpha3_blec
+    flow: {name: Flow}
+    head: {name: Head}
+    speed: {name: Speed}
+    power: {name: Power}
+    voltage: {name: Voltage}
+    current: {name: Current}
+    operating_hours: {name: Operating Hours}
+    energy: {name: Energy}
+    starts: {name: Starts}
+    alarm_code: {name: Alarm Code}
+    warning_code: {name: Warning Code}
+
+binary_sensor:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    ready: {name: Ready}
+
+text_sensor:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    realized_operation: {name: Realized Operation}
+    active_control_source: {name: Active Control Source}
+
+select:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    operating_mode: {name: Operating Mode}
+    control_mode: {name: Control Mode}
+
+number:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    constant_speed_setpoint: {name: Constant Speed Setpoint}
+    constant_pressure_setpoint: {name: Constant Pressure Setpoint}
+    proportional_pressure_setpoint: {name: Proportional Pressure Setpoint}
