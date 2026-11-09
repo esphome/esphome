@@ -1494,9 +1494,10 @@ def _warn_while_without_wait(config: ConfigType) -> ConfigType:
         and not _referenced_ids(config[CONF_CONDITION]) & _action_ids(actions)
     ):
         _LOGGER.warning(
-            "The body of a 'while' loop never waits, so it holds up the rest of the device: "
-            "other components only run between some passes, and not at all in an automation "
-            "with arguments. Add a 'delay' inside the loop."
+            "The body of a 'while' loop never waits. Unless the body itself changes the "
+            "condition, the loop holds up the rest of the device: other components only run "
+            "between some passes, and not at all in an automation with arguments. Add a "
+            "'delay' inside the loop."
         )
     return config
 
