@@ -22,7 +22,7 @@ static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 19200;
 // Edge decoder time base: 1/16 us from the 1 MHz system timer, which keeps its rate during a
 // CpuFrequencyBoost; the cycle counter does not.
 static constexpr uint32_t RX_TICKS_PER_SECOND = 16000000;
-// Longest TX interrupt lock; the Wi-Fi interrupt handler asserts (hardware WDT) when held off about 1 ms
+// Longest per-bit TX interrupt lock; the Wi-Fi interrupt handler asserts (hardware WDT) when held off about 1 ms
 static constexpr uint32_t MAX_TX_LOCK_CYCLES = F_CPU / 1000000 * 200;
 __attribute__((always_inline)) static inline uint32_t rx_now() { return micros() << 4; }
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
