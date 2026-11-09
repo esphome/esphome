@@ -30,6 +30,7 @@ static constexpr uint32_t PARENT_LINK_RETRY_TIMEOUT_ID = 2;
 static constexpr uint8_t PARENT_LINK_MISSED_POLLS = 4;
 static constexpr uint32_t PARENT_LINK_POLL_INTERVAL_MS = 3000;
 static constexpr uint32_t PARENT_LINK_SAME_POLL_MS = 2000;
+static constexpr uint32_t PARENT_LINK_SERIES_END_MS = 2 * PARENT_LINK_POLL_INTERVAL_MS;
 
 static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -141,6 +142,8 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         esp_zigbee_factory_reset();  // triggers a reboot
       }
       global_zigbee->joined_ = false;
+      // For a leave asked for by the network: failures before it must not count after the rejoin
+      global_zigbee->reset_parent_link_failures_();
     } break;
     case EZB_NWK_SIGNAL_NETWORK_STATUS: {
       const ezb_nwk_signal_network_status_params_t *network_status_params =
@@ -169,6 +172,9 @@ void ZigbeeComponent::on_parent_link_failure_() {
     if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS) {
       ezb_nwk_set_keepalive_interval(PARENT_LINK_POLL_INTERVAL_MS);
     }
+  } else if (now - this->last_link_failure_ms_ >= PARENT_LINK_SERIES_END_MS) {
+    // The series has ended, but its timeout has not run yet: start a new one, keep the saved interval
+    this->link_failures_ = 0;
   } else if (now - this->last_link_failure_ms_ < PARENT_LINK_SAME_POLL_MS) {
     ESP_LOGV(TAG, "Parent link failure (same poll)");
     return;
@@ -180,7 +186,7 @@ void ZigbeeComponent::on_parent_link_failure_() {
     ESP_LOGD(TAG, "Parent link failure %u", this->link_failures_);
     // The stack does not report a poll that got through, so the series ends when no failure follows
     const uint8_t seq = this->link_failure_seq_;
-    this->set_timeout(PARENT_LINK_TIMEOUT_ID, 2 * PARENT_LINK_POLL_INTERVAL_MS,
+    this->set_timeout(PARENT_LINK_TIMEOUT_ID, PARENT_LINK_SERIES_END_MS,
                       [this, seq]() { this->end_parent_link_failures_(seq); });
     return;
   }
@@ -222,8 +228,11 @@ void ZigbeeComponent::end_parent_link_failures_(uint8_t seq) {
   }
 }
 
-// Needs the stack lock
+// Ends the current series, if any. Needs the stack lock
 void ZigbeeComponent::reset_parent_link_failures_() {
+  if (this->link_failures_ == 0) {
+    return;  // no series: the saved interval is stale
+  }
   this->link_failures_ = 0;
   // Put the polling interval back, unless something else changed it in the meantime
   if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS &&
