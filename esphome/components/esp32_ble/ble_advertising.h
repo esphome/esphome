@@ -31,7 +31,7 @@ class BLEAdvertising {
   void set_service_data(const std::vector<uint8_t> &data);
   void set_service_data(std::span<const uint8_t> data);
   void set_include_name(bool include_name) { this->include_name_in_adv_ = include_name; }
-  /// Give `uuid` and the service data the advertising packet; the rest moves to the scan response.
+  /// Give `uuid` and up to 8 bytes of service data the advertising packet; the rest moves to the scan response.
   void set_priority_uuid(ESPBTUUID uuid) { this->priority_uuid_ = uuid; }
   void clear_priority_uuid() { this->priority_uuid_ = {}; }
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
