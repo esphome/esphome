@@ -342,6 +342,7 @@ TEST(UARTBridge, HardwareDestinationKeepsAFrameGapBetweenBlocks) {
 TEST(UARTBridge, StreamCutIntoBlocksKeepsUpWithTheLine) {
   // 768 bytes at the line rate of 115200 baud: blocks cut at 256 bytes follow each other without a gap, so the
   // destination at the same rate never falls behind.
+  const uint8_t before = FastLoopRequests::count();
   WireUart a(115200);
   WireUart b(115200);
   b.room = UARTBridgePipe::BLOCK_SIZE;
@@ -360,6 +361,9 @@ TEST(UARTBridge, StreamCutIntoBlocksKeepsUpWithTheLine) {
     EXPECT_EQ(b.write_us[k], t);
     t += block_us;
   }
+  // No fourth block comes: after a frame gap of quiet the stream has ended, and the fast loop is released.
+  pipe.poll(t);
+  EXPECT_EQ(FastLoopRequests::count(), before);
 }
 
 TEST(UARTBridge, LongWaitForTheLineUsesNormalPasses) {
