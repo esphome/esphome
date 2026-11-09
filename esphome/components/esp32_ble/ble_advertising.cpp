@@ -4,8 +4,8 @@
 #ifdef USE_ESP32_BLE_ADVERTISING
 
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
-#include <memory>
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -15,6 +15,8 @@ namespace esphome::esp32_ble {
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 // Give up on a completion event after this long, so a lost event cannot stop advertising updates for good
 static constexpr uint32_t CONFIG_COMPLETE_TIMEOUT_MS = 1000;
+// A 31 byte packet fits at most 14 16-bit UUIDs (2 byte header + 2 bytes each); more can never be sent
+static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
 BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_data_.set_scan_rsp = false;
@@ -100,31 +102,23 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
   this->config_sent_time_ = App.get_loop_component_start_time();
 
-  // With a priority UUID it goes first and alone in the advertising packet, which it then fills exactly with the
-  // service data; the rest go to the scan response
+  // The stack copies the UUIDs during each config call, so a buffer on the stack is enough. A priority UUID goes
+  // first and alone in the advertising packet, which it fills exactly with the service data; the rest go to the
+  // scan response.
   const bool priority = this->priority_uuid_.is_set();
-  int num_services = priority ? 1 : 0;
+  const size_t max_services = MAX_ADVERTISED_UUIDS + (priority ? 1 : 0);
+  uint8_t uuids[16 * (MAX_ADVERTISED_UUIDS + 1)];
+  size_t num_services = 0;
+  if (priority)
+    memcpy(uuids + 16 * num_services++, this->priority_uuid_.as_128bit().get_uuid().uuid.uuid128, 16);
   for (const auto &uuid : this->advertising_uuids_) {
+    if (num_services == max_services)
+      break;
     if (uuid != this->priority_uuid_)  // an unset priority UUID matches nothing
-      num_services++;
+      memcpy(uuids + 16 * num_services++, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
   }
-  std::unique_ptr<uint8_t[]> uuids;
-  if (num_services > 0)
-    uuids = std::make_unique<uint8_t[]>(16 * num_services);
-  // The stack copies the UUIDs during each config call, so the buffer only lives for this call
   this->advertising_data_.service_uuid_len = 16 * (priority ? 1 : num_services);
-  this->advertising_data_.p_service_uuid = uuids.get();  // nullptr when there are none
-  uint8_t *p = uuids.get();
-  if (priority) {
-    memcpy(p, this->priority_uuid_.as_128bit().get_uuid().uuid.uuid128, 16);
-    p += 16;
-  }
-  for (const auto &uuid : this->advertising_uuids_) {
-    if (uuid == this->priority_uuid_)
-      continue;
-    memcpy(p, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
-    p += 16;
-  }
+  this->advertising_data_.p_service_uuid = num_services > 0 ? uuids : nullptr;
 
   esp_err_t err;
 
@@ -156,7 +150,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     if (priority) {
       // The other service UUIDs, after the priority one; the service data is already in the advertising packet
       this->scan_response_data_.service_uuid_len = 16 * (num_services - 1);
-      this->scan_response_data_.p_service_uuid = num_services > 1 ? uuids.get() + 16 : nullptr;
+      this->scan_response_data_.p_service_uuid = num_services > 1 ? uuids + 16 : nullptr;
       this->scan_response_data_.service_data_len = 0;
     } else {
       this->scan_response_data_.manufacturer_len = 0;
