@@ -97,8 +97,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
 
   if (this->scan_response_) {
-    // Name, tx power, and the service UUIDs and data again for active scanners when they did not fit in the
-    // advertising data. A local is enough, the call copies it.
+    // Name, tx power, service UUIDs and data; Bluedroid copies this local during the call
     esp_ble_adv_data_t scan_response{};
     scan_response.set_scan_rsp = true;
     scan_response.include_name = true;
