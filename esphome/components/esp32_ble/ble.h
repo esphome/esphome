@@ -125,6 +125,8 @@ class ESP32BLE final : public Component {
   void advertising_stop();
   /// Apply the current payload and request count: advertise while requested, otherwise stop.
   void advertising_refresh();
+  /// Drop a restart deferred while advertising configs were in flight (the controller stopped advertising).
+  void advertising_cancel_deferred();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
@@ -188,6 +190,7 @@ class ESP32BLE final : public Component {
     }
     this->ble_events_.get_and_reset_dropped_count();
   }
+  void advertising_loop_();
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
