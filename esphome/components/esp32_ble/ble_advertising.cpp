@@ -81,30 +81,20 @@ esp_err_t BLEAdvertising::services_advertisement_() {
     if (uuid != this->priority_uuid_)  // an unset priority UUID matches nothing
       memcpy(uuids[num_services++].data(), uuid.as_128bit().uuid128(), 16);
   }
-  const std::span<const AdvPayload::UUID128> all_uuids(uuids, num_services);
-  const std::span<const uint8_t> manufacturer_data(this->manufacturer_data_.data(), this->manufacturer_data_len_);
-  const std::span<const uint8_t> service_data(this->service_data_.data(), this->service_data_len_);
   char name_buffer[ESP32BLE::DEVICE_NAME_BUFFER_SIZE];
   const char *name = global_ble->device_name(name_buffer);
-  const size_t name_len = strlen(name);
-
-  // Each packet keeps Bluedroid's element order. With a priority UUID, appearance, manufacturer data and the other
-  // UUIDs move to the scan response, and the service data stays only in the advertising packet.
   AdvPayload adv;
   AdvPayload rsp;
-  AdvPayload &extras = priority ? rsp : adv;
-  adv.add_flags(ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
-  extras.add_appearance(this->appearance_);
-  if (this->include_name_in_adv_)
-    adv.add_name(name, name_len);
-  rsp.add_name(name, name_len);
-  extras.add_manufacturer_data(manufacturer_data);
-  rsp.add_tx_power(adv_tx_power_dbm());
-  adv.add_uuids(priority ? all_uuids.first(1) : all_uuids);
-  rsp.add_uuids(priority ? all_uuids.subspan(1) : all_uuids);
-  adv.add_service_data(service_data);
-  if (!priority)
-    rsp.add_service_data(service_data);
+  build_adv_packets({.uuids = {uuids, num_services},
+                     .manufacturer_data = {this->manufacturer_data_.data(), this->manufacturer_data_len_},
+                     .service_data = {this->service_data_.data(), this->service_data_len_},
+                     .name = name,
+                     .name_len = strlen(name),
+                     .appearance = this->appearance_,
+                     .tx_power_dbm = adv_tx_power_dbm(),
+                     .name_in_adv = this->include_name_in_adv_,
+                     .priority = priority},
+                    adv, rsp);
 
   // Bluedroid copies the bytes during each call
   esp_err_t err = esp_ble_gap_config_adv_data_raw(const_cast<uint8_t *>(adv.data()), adv.size());

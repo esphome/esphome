@@ -132,4 +132,72 @@ TEST(AdvPayload, Partial16BitList) {
   EXPECT_EQ(adv.data()[6], 0x18);
 }
 
+namespace {
+constexpr uint8_t MANUFACTURER[] = {0x4C, 0x00, 0x23, 0x77};
+constexpr uint8_t IMPROV_DATA[] = {0x77, 0x46, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+AdvContent improv_server_content(std::span<const UUID128> uuids, bool priority) {
+  return {.uuids = uuids,
+          .manufacturer_data = MANUFACTURER,
+          .service_data = IMPROV_DATA,
+          .name = "esp",
+          .name_len = 3,
+          .appearance = 0x0340,
+          .tx_power_dbm = -3,
+          .name_in_adv = false,
+          .priority = priority};
+}
+
+std::vector<uint8_t> concat(std::initializer_list<std::vector<uint8_t>> parts) {
+  std::vector<uint8_t> out;
+  for (const auto &part : parts)
+    out.insert(out.end(), part.begin(), part.end());
+  return out;
+}
+
+const std::vector<uint8_t> IMPROV_UUID_ELEMENT = concat({{0x11, 0x07}, {IMPROV_UUID.begin(), IMPROV_UUID.end()}});
+const std::vector<uint8_t> IMPROV_DATA_ELEMENT =
+    concat({{0x09, 0x16}, {std::begin(IMPROV_DATA), std::end(IMPROV_DATA)}});
+const std::vector<uint8_t> FLAGS_ELEMENT = {0x02, 0x01, FLAGS};
+const std::vector<uint8_t> APPEARANCE_ELEMENT = {0x03, 0x19, 0x40, 0x03};
+const std::vector<uint8_t> NAME_ELEMENT = {0x04, 0x09, 'e', 's', 'p'};
+const std::vector<uint8_t> MANUFACTURER_ELEMENT = {0x05, 0xFF, 0x4C, 0x00, 0x23, 0x77};
+const std::vector<uint8_t> TX_POWER_ELEMENT = {0x02, 0x0A, 0xFD};
+const std::vector<uint8_t> UUID16_ELEMENT = {0x03, 0x03, 0x0A, 0x18};
+}  // namespace
+
+TEST(BuildAdvPackets, PriorityUuidOwnsTheAdvertisingPacket) {
+  const UUID128 uuids[] = {IMPROV_UUID, base_uuid(0x180A)};
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets(improv_server_content(uuids, true), adv, rsp);
+  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, IMPROV_UUID_ELEMENT, IMPROV_DATA_ELEMENT}));
+  EXPECT_EQ(bytes(rsp),
+            concat({APPEARANCE_ELEMENT, NAME_ELEMENT, MANUFACTURER_ELEMENT, TX_POWER_ELEMENT, UUID16_ELEMENT}));
+}
+
+TEST(BuildAdvPackets, WithoutPriorityScanResponseRepeatsUuidsAndServiceData) {
+  const UUID128 uuids[] = {base_uuid(0x180A), IMPROV_UUID};
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets(improv_server_content(uuids, false), adv, rsp);
+  // No room for the 128-bit UUID in the advertising packet, nor for the service data in the scan response
+  EXPECT_EQ(bytes(adv),
+            concat({FLAGS_ELEMENT, APPEARANCE_ELEMENT, MANUFACTURER_ELEMENT, UUID16_ELEMENT, IMPROV_DATA_ELEMENT}));
+  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, UUID16_ELEMENT, IMPROV_UUID_ELEMENT}));
+}
+
+TEST(BuildAdvPackets, NameInAdvertisingPacket) {
+  AdvContent content = improv_server_content({}, false);
+  content.manufacturer_data = {};
+  content.service_data = {};
+  content.appearance = 0;
+  content.name_in_adv = true;
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets(content, adv, rsp);
+  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, NAME_ELEMENT}));
+  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT}));
+}
+
 }  // namespace esphome::esp32_ble::testing

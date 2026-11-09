@@ -102,4 +102,35 @@ class AdvPayload {
   uint8_t len_{0};
 };
 
+/// What the services advertising carries; with `priority`, uuids[0] is the priority UUID.
+struct AdvContent {
+  std::span<const AdvPayload::UUID128> uuids;
+  std::span<const uint8_t> manufacturer_data;
+  std::span<const uint8_t> service_data;
+  const char *name;
+  size_t name_len;
+  uint16_t appearance;
+  int8_t tx_power_dbm;
+  bool name_in_adv;
+  bool priority;
+};
+
+/// Split `content` between the advertising packet and the scan response. With a priority UUID, appearance,
+/// manufacturer data and the other UUIDs move to the scan response, and the service data stays only in `adv`.
+inline void build_adv_packets(const AdvContent &content, AdvPayload &adv, AdvPayload &rsp) {
+  AdvPayload &extras = content.priority ? rsp : adv;
+  adv.add_flags(0x06);  // LE general discoverable, BR/EDR not supported
+  extras.add_appearance(content.appearance);
+  if (content.name_in_adv)
+    adv.add_name(content.name, content.name_len);
+  rsp.add_name(content.name, content.name_len);
+  extras.add_manufacturer_data(content.manufacturer_data);
+  rsp.add_tx_power(content.tx_power_dbm);
+  adv.add_uuids(content.priority ? content.uuids.first(1) : content.uuids);
+  rsp.add_uuids(content.priority ? content.uuids.subspan(1) : content.uuids);
+  adv.add_service_data(content.service_data);
+  if (!content.priority)
+    rsp.add_service_data(content.service_data);
+}
+
 }  // namespace esphome::esp32_ble
