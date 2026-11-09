@@ -94,7 +94,8 @@ void NoiseStream::abort_([[maybe_unused]] uint32_t interval) {
 bool NoiseStream::holding_() const { return App.get_loop_component_start_time() - this->started_ms_ < this->hold_ms_; }
 
 uint32_t NoiseStream::next_retry_wait_(uint32_t interval) {
-  uint32_t backoff = std::max(this->backoff_ms_, interval);
+  // At least 1 ms, as 0 doubled stays 0
+  uint32_t backoff = std::max({this->backoff_ms_, interval, uint32_t{1}});
   uint32_t jitter_span = backoff / 5;
   this->backoff_ms_ = std::min(backoff * 2, BACKOFF_MAX_MS);
   return backoff - jitter_span + (random_uint32() % (2 * jitter_span + 1));
