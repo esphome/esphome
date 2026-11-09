@@ -148,6 +148,14 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
+# Set at run time from poll_period on an MTD, which would replace a core_options value.
+MTD_POLL_PERIOD_OPTIONS: frozenset[str] = frozenset(
+    {
+        "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT",
+        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT",
+        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL",
+    }
+)
 
 
 def _validate_txpower(value: Any) -> int | float:
@@ -331,6 +339,14 @@ def _validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
+    if device_type == "MTD":
+        for name in config.get(CONF_CORE_OPTIONS, {}):
+            if name in MTD_POLL_PERIOD_OPTIONS:
+                raise cv.Invalid(
+                    f"'{name}' cannot be set with {CONF_DEVICE_TYPE}: MTD; "
+                    f"it is derived from {CONF_POLL_PERIOD}",
+                    path=[CONF_CORE_OPTIONS, name],
+                )
     if CONF_BORDER_ROUTER in config and device_type != "FTD":
         raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
