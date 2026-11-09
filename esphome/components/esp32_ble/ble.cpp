@@ -200,7 +200,8 @@ void ESP32BLE::advertising_refresh() {
   if (this->advertising_ref_count_ == 0) {
     this->advertising_->stop();
   } else {
-    this->advertising_->start();
+    this->advertising_->request_start();
+    App.wake_loop_threadsafe();
   }
 }
 
@@ -740,6 +741,9 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
       enqueue_ble_event(event, param);
+      // A deferred advertising send waits for these
+      if (event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT || event == ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT)
+        App.wake_loop_threadsafe();
       return;
 
     // Security events - used by ble_client and bluetooth_proxy
