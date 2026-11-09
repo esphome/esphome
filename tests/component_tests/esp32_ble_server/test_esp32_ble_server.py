@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -145,6 +146,31 @@ def test_set_value_constants_share_a_flash_table(
     assert main_cpp.count("set_buffer_static(ble_server_value, 2);") == 2
     assert "set_buffer_template(" in main_cpp
     assert "ByteBuffer::wrap" not in main_cpp
+
+
+def test_yaml_services_and_characteristics_are_static(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("own_service.yaml"))
+
+    # Placement new into static storage, with handle count then advertise
+    service = re.search(
+        r"new\((\w+)\) esp32_ble_server::BLEService\("
+        r'esp32_ble::ESPBTUUID::from_raw\("2A24B789-7AAB-4535-AF3E-EE76A35CC12D"\), \d+, (?:true|false)\);',
+        main_cpp,
+    )
+    assert service is not None
+    assert f"ble_server->add_service(*{service[1]});" in main_cpp
+    characteristic = re.search(
+        r"new\((\w+)\) esp32_ble_server::BLECharacteristic\("
+        r'esp32_ble::ESPBTUUID::from_raw\("CAD48E28-7FBE-41CF-BAE9-D77A6C233423"\)',
+        main_cpp,
+    )
+    assert characteristic is not None
+    assert f"{service[1]}->add_characteristic(*{characteristic[1]});" in main_cpp
+    assert "create_service(" not in main_cpp
+    assert "create_characteristic(" not in main_cpp
 
 
 def test_float32_rejects_out_of_range() -> None:
