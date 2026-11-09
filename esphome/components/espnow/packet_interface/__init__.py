@@ -82,9 +82,7 @@ async def to_code(config: ConfigType) -> None:
     peer = [HexInt(x) for x in config[CONF_PEER_ADDRESS].parts]
     if not _is_broadcast(config):
         cg.add(parent.add_peer(peer))
-    # The copy buffer's size is known here, so it is a static array rather than allocated at run time
-    tx_buffer = f"{config[CONF_ID].id}__tx_buffer"
-    cg.add_global(
-        cg.RawStatement(f"static uint8_t {tx_buffer}[{config[CONF_MAX_PACKET_SIZE]}];")
+    tx_buffer = cg.static_buffer(
+        config[CONF_ID], cg.uint8, config[CONF_MAX_PACKET_SIZE]
     )
-    await new_packet_interface(config, parent, cg.RawExpression(tx_buffer), peer)
+    await new_packet_interface(config, parent, tx_buffer, peer)
