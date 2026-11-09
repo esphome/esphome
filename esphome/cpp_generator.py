@@ -567,6 +567,13 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
+def _owned_static_name(owner: ID, suffix: str, type_: "MockObjClass") -> tuple[ID, str]:
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    base = unique_global_id(f"{owner.id}_{suffix}", type_)
+    return base, _pstorage_name(owner.type, base)
+
+
 def static_buffer(
     owner: ID,
     type_: "MockObjClass",
@@ -583,22 +590,41 @@ def static_buffer(
     evaluated, so pass the result once; it is nullptr if the allocation fails.
     ``align`` prefixes the declaration with ``alignas(align)``.
     """
-    if not isinstance(owner, ID) or owner.type is None:
-        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
     if psram and align is not None and align > 4:
         raise EsphomeError(
             "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
         )
+    base, name = _owned_static_name(owner, "buffer", type_)
     # Same condition as the USE_PSRAM define: psram is configured and not disabled
     if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
         return MockObj(f"psram_buffer<{type_}>({size})", ".")
-    base = unique_global_id(f"{owner.id}_buffer", type_)
-    name = _pstorage_name(owner.type, base)
     prefix = "" if align is None else f"alignas({align}) "
     CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
     buffer = MockObj(name, ".")
     CORE.register_variable(base, buffer)
     return buffer
+
+
+def static_storage(
+    owner: ID, type_: "MockObjClass", count: "int | str | Expression"
+) -> "MockObj":
+    """Emit raw aligned file-scope storage for ``count`` ``type_`` objects and return a ``std::span<type_>``.
+
+    For ``StaticFixedVector::init()``, which constructs the elements in place and never frees it.
+    """
+    if isinstance(count, int) and count == 0:
+        return MockObj(f"std::span<{type_}>()", ".")
+    base, name = _owned_static_name(owner, "storage", type_)
+    CORE.add_global(
+        RawStatement(
+            f"alignas({type_}) static unsigned char {name}[sizeof({type_}) * ({count})];"
+        )
+    )
+    storage = MockObj(
+        f"std::span<{type_}>(reinterpret_cast<{type_} *>({name}), {count})", "."
+    )
+    CORE.register_variable(base, storage)
+    return storage
 
 
 def static_const_array(id_, rhs) -> "MockObj":

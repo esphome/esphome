@@ -14,7 +14,15 @@ import sys
 import time
 
 import colorama
-from helpers import filter_changed, git_ls_files, print_error_for_file, styled
+from helpers import (
+    ESPHOME_COMPONENTS_PATH,
+    filter_changed,
+    git_ls_files,
+    print_error_for_file,
+    root_path,
+    styled,
+)
+import yaml
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -1639,6 +1647,91 @@ def lint_test_package_key_matches_bus(fname, content):
                     ),
                 )
             )
+    return errs
+
+
+GROUPED_TEST_IDS = {
+    # tca9548a adds I2C buses next to the shared package bus
+    "i2c_id": ("i2c_device_schema", "i2c.I2CDevice"),
+    # several tests define their own IMU or one-wire bus
+    "motion_id": ("CONF_MOTION_ID",),
+    "one_wire_id": ("one_wire_device_schema",),
+}
+
+
+YAML_NULL_TAG = "tag:yaml.org,2002:null"
+YAML_MAP_TAG = "tag:yaml.org,2002:map"
+
+
+@functools.cache
+def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
+    """The GROUPED_TEST_IDS the entity's own schema file takes."""
+    base = Path(root_path) / ESPHOME_COMPONENTS_PATH
+    paths = (
+        [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
+        if platform
+        else [base / domain / "__init__.py"]
+    )
+    text = "".join(p.read_text() for p in paths if p.exists())
+    return tuple(
+        key
+        for key, markers in GROUPED_TEST_IDS.items()
+        if any(m in text for m in markers)
+    )
+
+
+def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNode]]:
+    """(domain, entry) for each top-level entry, list items included."""
+    for key_node, value_node in root.value:
+        items = (
+            value_node.value
+            if isinstance(value_node, yaml.SequenceNode)
+            else [value_node]
+        )
+        for item in items:
+            if isinstance(item, yaml.MappingNode):
+                yield key_node.value, item
+            elif item.tag == YAML_NULL_TAG:  # `as5600:` is an empty mapping
+                yield (
+                    key_node.value,
+                    yaml.MappingNode(YAML_MAP_TAG, [], item.start_mark),
+                )
+
+
+@lint_content_check(
+    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
+)
+def lint_grouped_test_ids(fname, content):
+    """CI merges grouped tests, so an id another test can duplicate must be set."""
+    from analyze_component_buses import is_groupable  # pylint: disable=import-outside-toplevel
+
+    if not is_groupable(Path(root_path) / Path(fname).parent):
+        return None
+    try:
+        root = yaml.compose(
+            content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+        )
+    except yaml.YAMLError:
+        return None  # yamllint and the build test report broken YAML
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    errs: list[tuple[int, int, str]] = []
+    for domain, entry in _yaml_entries(root):
+        # An empty `i2c_id:` is the same as leaving it out
+        keys = {
+            k.value: v.value
+            for k, v in entry.value
+            if isinstance(k, yaml.ScalarNode) and v.tag != YAML_NULL_TAG
+        }
+        errs.extend(
+            (
+                entry.start_mark.line + 1,
+                entry.start_mark.column + 1,
+                f"Set {highlight(id_key)}: a grouped CI build can add a second candidate",
+            )
+            for id_key in _grouped_test_ids(domain, keys.get("platform"))
+            if id_key not in keys
+        )
     return errs
 
 

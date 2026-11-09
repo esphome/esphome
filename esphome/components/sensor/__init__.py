@@ -823,12 +823,13 @@ def validate_calibrate_linear(config):
                 raise cv.Invalid(
                     "The 'from' values of the calibrate_linear filter must not contain duplicates."
                 )
-    elif config[CONF_METHOD] == "least_squares":
-        if all(conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints):
-            raise cv.Invalid(
-                "The 'from' values of the calibrate_linear filter cannot all point "
-                "to the same value! Please add more values to the filter."
-            )
+    elif config[CONF_METHOD] == "least_squares" and all(
+        conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints
+    ):
+        raise cv.Invalid(
+            "The 'from' values of the calibrate_linear filter cannot all point "
+            "to the same value! Please add more values to the filter."
+        )
     return config
 
 

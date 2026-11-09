@@ -923,6 +923,53 @@ template<typename T> class FixedVector {
   const T *end() const { return data_ + size_; }
 };
 
+/// FixedVector over caller-owned raw storage (cg.static_storage): elements are destroyed, the storage is never freed.
+template<typename T> class StaticFixedVector {
+ public:
+  StaticFixedVector() = default;
+  ~StaticFixedVector() { this->clear(); }
+  StaticFixedVector(const StaticFixedVector &) = delete;
+  StaticFixedVector &operator=(const StaticFixedVector &) = delete;
+
+  /// Called once by code generation, on an empty vector
+  void init(std::span<T> storage) {
+    this->data_ = storage.data();
+    this->capacity_ = static_cast<uint16_t>(storage.size());
+  }
+  void clear() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (T &item : *this)
+        item.~T();
+    }
+    this->size_ = 0;
+  }
+
+  /// Ignores pushes beyond the storage
+  void push_back(const T &value) { this->emplace_back(value); }
+  void push_back(T &&value) { this->emplace_back(std::move(value)); }
+  /// The new element, or nullptr when full
+  template<typename... Args> T *emplace_back(Args &&...args) {
+    if (this->size_ >= this->capacity_)
+      return nullptr;
+    return new (&this->data_[this->size_++]) T(std::forward<Args>(args)...);
+  }
+
+  size_t size() const { return this->size_; }
+  bool empty() const { return this->size_ == 0; }
+  size_t capacity() const { return this->capacity_; }
+  T &operator[](size_t i) { return this->data_[i]; }
+  const T &operator[](size_t i) const { return this->data_[i]; }
+  T *begin() { return this->data_; }
+  T *end() { return this->data_ + this->size_; }
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size_; }
+
+ private:
+  T *data_{nullptr};
+  uint16_t capacity_{0};
+  uint16_t size_{0};
+};
+
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.

@@ -164,7 +164,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_process_std_dev(proces_std_dev))
 
     if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
-        cg.add(var.set_source_count(len(config[CONF_SOURCES])))
+        storage = cg.static_storage(
+            config[CONF_ID],
+            config[CONF_ID].type.class_("SensorSource"),
+            len(config[CONF_SOURCES]),
+        )
+        cg.add(var.set_source_storage(storage))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])

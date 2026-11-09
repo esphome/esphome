@@ -246,7 +246,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
-        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; in `setup()`,
+        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
+        poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
@@ -264,7 +265,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         (`cg.add_define("USE_SELEC_METER_EM4M")`), so the other models' builds leave it out; the runtime model check
         stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
-        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+        sets `status_set_warning()` and the next success of the last step clears it; writes skip work when
+        `is_failed()`.
     *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
         `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
         passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
