@@ -1,4 +1,5 @@
 #include "remote_transmitter.h"
+#include <optional>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -8,11 +9,15 @@
 namespace esphome::remote_transmitter {
 
 ESPHOME_LOG_TAG(TAG, "remote_transmitter");
-#ifdef USE_ESP8266
 // Holding interrupts off about 1 ms makes the ESP8266 Wi-Fi SDK hang until a watchdog resets the chip, so a frame
-// is not locked whole there: interrupts are on until this long before each edge.
-static constexpr int32_t EDGE_LOCK_US = 50;
+// is not locked whole there: interrupts are on until EDGE_LOCK_US before each edge. Elsewhere micros() can jump
+// when interrupts come back on, so the whole frame stays locked.
+#ifdef USE_ESP8266
+static constexpr bool LOCK_PER_EDGE = true;
+#else
+static constexpr bool LOCK_PER_EDGE = false;
 #endif
+static constexpr int32_t EDGE_LOCK_US = 50;
 
 void RemoteTransmitterComponent::setup() {
   this->pin_->setup();
@@ -53,10 +58,11 @@ void RemoteTransmitterComponent::await_target_time_(int32_t lead_us) {
 }
 
 void RemoteTransmitterComponent::write_at_target_(bool value) {
-#ifdef USE_ESP8266
-  this->await_target_time_(EDGE_LOCK_US);
-  InterruptLock lock;
-#endif
+  std::optional<InterruptLock> edge_lock;
+  if (LOCK_PER_EDGE) {
+    this->await_target_time_(EDGE_LOCK_US);
+    edge_lock.emplace();
+  }
   this->await_target_time_();
   this->pin_->digital_write(value);
 }
@@ -67,9 +73,13 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   const uint32_t target = this->target_time_ + usec;
   if (this->carrier_duty_percent_ < 100 && (on_time > 0 || off_time > 0)) {
     while (true) {  // Modulate with carrier frequency
-      // Skip whole periods an interrupt already used up, so the falling edge is never already due (a runt pulse)
-      while ((int32_t) (micros() - (this->target_time_ + on_time)) >= 0)
-        this->target_time_ += on_time + off_time;
+      // When an interrupt made the falling edge late by a whole period or more, skip the periods it used up
+      // instead of catching up with runt pulses. Computed once from one timestamp; lateness under a period
+      // (call overhead at a fast carrier) and an on time that rounds to 0 are left alone.
+      const uint32_t period = on_time + off_time;
+      const uint32_t late = micros() - (this->target_time_ + on_time);
+      if (on_time > 0 && (int32_t) late >= (int32_t) period)
+        this->target_time_ += (late / period + 1) * period;
       this->target_time_ += on_time;
       if ((int32_t) (this->target_time_ - target) >= 0)
         break;
@@ -98,9 +108,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     {
-#ifndef USE_ESP8266
-      InterruptLock lock;
-#endif
+      std::optional<InterruptLock> frame_lock;
+      if (!LOCK_PER_EDGE)
+        frame_lock.emplace();
       // Re-anchor every iteration: outside ESP8266 timing must never span a lock boundary, as micros() can
       // jump when interrupts are re-enabled between repeats (e.g. LibreTiny's Beken micros()
       // discards its interrupt-lock correction, stretching the repeat gap by the lock duration).
