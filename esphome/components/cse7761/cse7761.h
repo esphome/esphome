@@ -30,16 +30,14 @@ enum class CSE7761CurrentInput : uint8_t {
 class CSE7761Component final : public PollingComponent, public uart::UARTDevice {
  public:
   explicit CSE7761Component(CSE7761CurrentInput current_input) : current_input_(current_input) {}
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
-  void set_power_factor_1_sensor(sensor::Sensor *power_factor_sensor_1) {
-    power_factor_sensor_1_ = power_factor_sensor_1;
-  }
-  void set_active_power_1_sensor(sensor::Sensor *power_sensor_1) { power_sensor_1_ = power_sensor_1; }
-  void set_current_1_sensor(sensor::Sensor *current_sensor_1) { current_sensor_1_ = current_sensor_1; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(frequency)
+  SUB_SENSOR(power_factor_1)
+  SUB_SENSOR(active_power_1)
+  SUB_SENSOR(current_1)
   void set_energy_1_sensor(sensor::Sensor *energy_sensor_1) { this->energy_sensors_[0] = energy_sensor_1; }
-  void set_active_power_2_sensor(sensor::Sensor *power_sensor_2) { power_sensor_2_ = power_sensor_2; }
-  void set_current_2_sensor(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
+  SUB_SENSOR(active_power_2)
+  SUB_SENSOR(current_2)
   void set_energy_2_sensor(sensor::Sensor *energy_sensor_2) { this->energy_sensors_[1] = energy_sensor_2; }
   void setup() override;
   void dump_config() override;
@@ -47,13 +45,6 @@ class CSE7761Component final : public PollingComponent, public uart::UARTDevice 
 
  protected:
   // Sensors
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *frequency_sensor_{nullptr};
-  sensor::Sensor *power_factor_sensor_1_{nullptr};
-  sensor::Sensor *power_sensor_1_{nullptr};
-  sensor::Sensor *current_sensor_1_{nullptr};
-  sensor::Sensor *power_sensor_2_{nullptr};
-  sensor::Sensor *current_sensor_2_{nullptr};
   sensor::Sensor *energy_sensors_[2]{nullptr, nullptr};
   CSE7761DataStruct data_;
   CSE7761EnergyChannel energy_[2];

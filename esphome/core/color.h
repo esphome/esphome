@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "defines.h"
 #include "component.h"
 #include "helpers.h"
@@ -22,6 +24,12 @@ inline static constexpr uint8_t esp_scale8(uint8_t i, uint8_t scale) {
 inline static constexpr uint8_t esp_scale8_twice(uint8_t i, uint8_t scale1, uint8_t scale2) {
   return (uint32_t(i) * (1 + uint32_t(scale1)) * (1 + uint32_t(scale2))) >> 16;
 }
+
+// Index of each channel into the raw color value array.
+static constexpr uint8_t COLOR_CHANNEL_R = 0;
+static constexpr uint8_t COLOR_CHANNEL_G = 1;
+static constexpr uint8_t COLOR_CHANNEL_B = 2;
+static constexpr uint8_t COLOR_CHANNEL_W = 3;
 
 struct Color {
   union {
@@ -67,21 +75,22 @@ struct Color {
                                                                               b((colorcode >> 0) & 0xFF),
                                                                               w((colorcode >> 24) & 0xFF) {}
 
-  inline bool is_on() ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
+  inline bool is_on() const ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
 
-  inline bool operator==(const Color &rhs) {  // NOLINT
+  inline bool operator==(const Color &rhs) const {  // NOLINT
     return this->raw_32 == rhs.raw_32;
   }
-  inline bool operator==(uint32_t colorcode) {  // NOLINT
+  inline bool operator==(uint32_t colorcode) const {  // NOLINT
     return this->raw_32 == colorcode;
   }
-  inline bool operator!=(const Color &rhs) {  // NOLINT
+  inline bool operator!=(const Color &rhs) const {  // NOLINT
     return this->raw_32 != rhs.raw_32;
   }
-  inline bool operator!=(uint32_t colorcode) {  // NOLINT
+  inline bool operator!=(uint32_t colorcode) const {  // NOLINT
     return this->raw_32 != colorcode;
   }
   inline uint8_t &operator[](uint8_t x) ESPHOME_ALWAYS_INLINE { return this->raw[x]; }
+  inline const uint8_t &operator[](uint8_t x) const ESPHOME_ALWAYS_INLINE { return this->raw[x]; }
   inline Color operator*(uint8_t scale) const ESPHOME_ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
                  esp_scale8(this->white, scale));
@@ -109,26 +118,10 @@ struct Color {
   }
   inline Color operator+(const Color &add) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    if (uint8_t(add.r + this->r) < this->r) {
-      ret.r = 255;
-    } else {
-      ret.r = this->r + add.r;
-    }
-    if (uint8_t(add.g + this->g) < this->g) {
-      ret.g = 255;
-    } else {
-      ret.g = this->g + add.g;
-    }
-    if (uint8_t(add.b + this->b) < this->b) {
-      ret.b = 255;
-    } else {
-      ret.b = this->b + add.b;
-    }
-    if (uint8_t(add.w + this->w) < this->w) {
-      ret.w = 255;
-    } else {
-      ret.w = this->w + add.w;
-    }
+    ret.r = std::min(this->r + add.r, 255);
+    ret.g = std::min(this->g + add.g, 255);
+    ret.b = std::min(this->b + add.b, 255);
+    ret.w = std::min(this->w + add.w, 255);
     return ret;
   }
   inline Color &operator+=(const Color &add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
@@ -136,26 +129,10 @@ struct Color {
   inline Color &operator+=(uint8_t add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
   inline Color operator-(const Color &subtract) const ESPHOME_ALWAYS_INLINE {
     Color ret;
-    if (subtract.r > this->r) {
-      ret.r = 0;
-    } else {
-      ret.r = this->r - subtract.r;
-    }
-    if (subtract.g > this->g) {
-      ret.g = 0;
-    } else {
-      ret.g = this->g - subtract.g;
-    }
-    if (subtract.b > this->b) {
-      ret.b = 0;
-    } else {
-      ret.b = this->b - subtract.b;
-    }
-    if (subtract.w > this->w) {
-      ret.w = 0;
-    } else {
-      ret.w = this->w - subtract.w;
-    }
+    ret.r = std::max(this->r - subtract.r, 0);
+    ret.g = std::max(this->g - subtract.g, 0);
+    ret.b = std::max(this->b - subtract.b, 0);
+    ret.w = std::max(this->w - subtract.w, 0);
     return ret;
   }
   inline Color &operator-=(const Color &subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }
@@ -169,7 +146,7 @@ struct Color {
     uint8_t r = rand >> 16;
     uint8_t g = rand >> 8;
     uint8_t b = rand >> 0;
-    const uint16_t max_rgb = std::max({r, g, b});
+    const uint16_t max_rgb = std::max({r, g, b, uint8_t(1)});
     return Color(uint8_t((uint16_t(r) * 255U / max_rgb)), uint8_t((uint16_t(g) * 255U / max_rgb)),
                  uint8_t((uint16_t(b) * 255U / max_rgb)), w);
   }
@@ -190,5 +167,11 @@ struct Color {
   static const Color BLACK;
   static const Color WHITE;
 };
+
+static_assert(offsetof(Color, raw) == COLOR_CHANNEL_R);
+static_assert(offsetof(Color, r) == COLOR_CHANNEL_R);
+static_assert(offsetof(Color, g) == COLOR_CHANNEL_G);
+static_assert(offsetof(Color, b) == COLOR_CHANNEL_B);
+static_assert(offsetof(Color, w) == COLOR_CHANNEL_W);
 
 }  // namespace esphome
