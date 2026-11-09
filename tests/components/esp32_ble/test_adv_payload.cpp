@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -116,9 +117,9 @@ TEST(AdvPayload, Only128BitUuidWhenItFits) {
 }
 
 TEST(AdvPayload, Partial16BitList) {
-  std::vector<UUID128> uuids;
-  for (uint16_t i = 0; i < 16; i++)
-    uuids.push_back(base_uuid(0x1800 + i));
+  std::array<UUID128, 16> uuids;
+  for (uint16_t i = 0; i < uuids.size(); i++)
+    uuids[i] = base_uuid(0x1800 + i);
   AdvPayload adv;
   adv.add_flags(FLAGS);
   adv.add_uuids(uuids);
