@@ -250,7 +250,8 @@ template<typename T> class DisplayWriter {
     return *this;
   }
 
-  ~DisplayWriter() {
+  // Inline: otherwise moving a writer emits an out of line destructor per display type
+  ESPHOME_ALWAYS_INLINE ~DisplayWriter() {
     if (type_ == LAMBDA) {
       delete this->f_;
     }
