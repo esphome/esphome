@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
@@ -1585,7 +1586,7 @@ def test_patch_file_downloader_ignores_cleanup_errors_between_retries() -> None:
     mock_response.close.side_effect = RuntimeError("close failed")
     call_count = 0
 
-    def failing_init(self, *args, **kwargs):
+    def failing_init(self: Any, *args: Any, **kwargs: Any) -> None:
         nonlocal call_count
         call_count += 1
         self._http_response = mock_response
