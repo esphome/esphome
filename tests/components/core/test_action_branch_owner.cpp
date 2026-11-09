@@ -403,30 +403,6 @@ TEST(ActionBranchOwner, NestedIfInsideWhileResumesEachOwner) {
   EXPECT_EQ(top.num_running(), 0);
 }
 
-// Counts the passes of a body that never waits
-class CountAction : public Action<int> {
- public:
-  void play(const int &x) override { this->total += x; }
-  int total{0};
-};
-
-// Enough passes to overflow the stack if each one nested another call chain
-TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
-  static constexpr int PASSES = 200000;
-  CountdownCondition<int> cond(PASSES);
-  WhileAction<int> loop(&cond);
-  CountAction body, after;
-  loop.add_then({&body});
-  ActionList<int> list;
-  list.add_actions({&loop, &after});
-
-  list.play(1);
-  // The loop runs in place, so it ends before play() returns
-  EXPECT_EQ(body.total, PASSES);
-  EXPECT_EQ(after.total, 1);
-  EXPECT_FALSE(list.is_running());
-}
-
 // Records how deep the stack is on each pass. It works after the chain continues, as real actions do (a
 // destructor, a log), so the compiler cannot turn the recursion into a jump.
 class StackDepthAction : public Action<int> {
@@ -458,6 +434,7 @@ TEST(ActionBranchOwner, WhileBodyThatNeverWaitsKeepsTheStackFlat) {
   list.play(1);
   EXPECT_EQ(body.passes, 1000);
   EXPECT_LT(body.highest - body.lowest, 256U);
+  EXPECT_FALSE(list.is_running());
 }
 
 // Keeps the first argument by reference, like wait_until does for an entity, and copies the second

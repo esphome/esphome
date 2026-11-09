@@ -362,10 +362,9 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
 };
 
 /// The while body running synchronously, on the stack of WhileAction::loop_(); its play() marks it ended.
-/// One for all loops instead of a member, as automations run on the main loop one body at a time.
+/// One for all loops: automations run on the main loop, one body at a time.
 struct WhileBody {
   const void *owner;
-  const void *args;  // the owner's keys of the run's argument storage, which tell it from another run
   bool ended;
 };
 inline WhileBody *active_while_body = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -406,10 +405,11 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   // Branch-end resume hook: loop again or continue
   void play(const Ts &...x) override {
-    // A body that ended without waiting is looped by loop_(); mark it ended. Another run's end passes other
-    // argument storage, and a second end in one pass loops on its own.
+    // A body that ended without waiting is looped by loop_(); mark it ended. A second end in one pass loops on
+    // its own.
     WhileBody *body = active_while_body;
-    if (body != nullptr && !body->ended && body->owner == this && this->same_run_(body->args, x...)) {
+    if (body != nullptr && !body->ended && body->owner == this &&
+        static_cast<Frame *>(body)->keys == Keys{std::addressof(x)...}) {
       body->ended = true;
       return;
     }
@@ -425,10 +425,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   // The argument storage, which tells a run from another run of this action
   using Keys = std::array<const void *, sizeof...(Ts)>;
-
-  static bool same_run_(const void *args, const Ts &...x) {
-    return *static_cast<const Keys *>(args) == Keys{std::addressof(x)...};
-  }
+  struct Frame : WhileBody {
+    Keys keys;
+  };
 
   bool continues_(const Ts &...x) {
     // The condition may stop this automation
@@ -437,16 +436,16 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   // Plays the body again in place, not by recursion, while it ends without waiting
   void loop_(const Ts &...x) {
-    const Keys keys{std::addressof(x)...};
+    Frame frame{{this, false}, {std::addressof(x)...}};
     do {
-      // On the stack, as the body can start this action again
-      WhileBody body{this, &keys, false};
+      // Saved and restored, as the body can start this action again
+      frame.ended = false;
       WhileBody *outer = active_while_body;
-      active_while_body = &body;
+      active_while_body = &frame;
       this->then_.play(x...);
       active_while_body = outer;
       // A body that waits resumes through play() later
-      if (!body.ended)
+      if (!frame.ended)
         return;
     } while (this->continues_(x...));
     this->play_next_(x...);
