@@ -704,14 +704,13 @@ async def to_code_descriptor(descriptor_conf, char_conf, char_var):
 
 
 async def to_code_characteristic(service_var, char_conf):
-    char_var = cg.Pvariable(
+    char_var = cg.new_Pvariable(
         char_conf[CONF_ID],
-        service_var.create_characteristic(
-            parse_uuid(char_conf[CONF_UUID]),
-            parse_properties(char_conf),
-            characteristic_permissions(char_conf),
-        ),
+        parse_uuid(char_conf[CONF_UUID]),
+        parse_properties(char_conf),
+        characteristic_permissions(char_conf),
     )
+    cg.add(service_var.add_characteristic(cg.MockObj(f"*{char_var}")))
     if CONF_ON_WRITE in char_conf:
         on_write_conf = char_conf[CONF_ON_WRITE]
         cg.add_define("USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE")
@@ -822,14 +821,13 @@ async def to_code(config):
     for service_config in config[CONF_SERVICES]:
         # Calculate the optimal number of handles based on the number of characteristics and descriptors
         num_handles = calculate_num_handles(service_config)
-        service_var = cg.Pvariable(
+        service_var = cg.new_Pvariable(
             service_config[CONF_ID],
-            var.create_service(
-                parse_uuid(service_config[CONF_UUID]),
-                service_config[CONF_ADVERTISE],
-                num_handles,
-            ),
+            parse_uuid(service_config[CONF_UUID]),
+            num_handles,
+            service_config[CONF_ADVERTISE],
         )
+        cg.add(var.add_service(cg.MockObj(f"*{service_var}")))
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             await to_code_characteristic(service_var, char_conf)
         if uuid_is(service_config[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID):
