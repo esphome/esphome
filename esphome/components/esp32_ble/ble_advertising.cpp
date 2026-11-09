@@ -15,7 +15,7 @@ namespace esphome::esp32_ble {
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 // Give up on a completion event after this long, so a lost event cannot stop advertising updates for good
 static constexpr uint32_t CONFIG_COMPLETE_TIMEOUT_MS = 1000;
-// A 31 byte packet fits at most 14 16-bit UUIDs (2 byte header + 2 bytes each); more can never be sent
+// A 31 byte packet holds at most 14 16-bit UUIDs
 static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
 BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
@@ -102,7 +102,7 @@ esp_err_t BLEAdvertising::services_advertisement_() {
   }
   this->config_sent_time_ = static_cast<uint16_t>(App.get_loop_component_start_time());
 
-  // Bluedroid copies the UUIDs during each config call, so a local buffer is enough
+  // Bluedroid copies these during each config call
   uint8_t uuids[16 * MAX_ADVERTISED_UUIDS];
   const size_t num_services = std::min(this->advertising_uuids_.size(), MAX_ADVERTISED_UUIDS);
   for (size_t i = 0; i < num_services; i++)
