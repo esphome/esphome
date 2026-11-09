@@ -51,6 +51,7 @@ class ESP8266SoftwareSerial {
   UARTParityOptions parity_;
   uint8_t stop_bits_;
   uint8_t data_bits_;
+  bool lock_frame_{false};  // TX holds interrupts off for the whole frame
 };
 
 class ESP8266UartComponent final : public UARTComponent, public Component {

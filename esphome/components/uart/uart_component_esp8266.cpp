@@ -268,6 +268,9 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
+  // Above the edge mode limit a frame is short (at most about 310 us) and is locked whole: an interrupt between bits
+  // would stretch one, and the RX interrupt there reads a whole byte
+  this->lock_frame_ = baud_rate > SW_SERIAL_EDGE_MODE_MAX_BAUD;
   // to_isr() allocates, so call it only for a new or changed pin
   if (tx_pin != nullptr) {
     if (tx_pin != this->gpio_tx_pin_)
@@ -374,10 +377,8 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
 
   // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
   const uint32_t bit_time = this->bit_time_;
-  const uint32_t frame_bits = 2 + this->data_bits_ + need_parity_bit + (this->stop_bits_ == 2);
-  // A short frame is locked whole as before, so an interrupt between bits cannot stretch one at high baud rates
   std::optional<InterruptLock> frame_lock;
-  if (bit_time * frame_bits <= MAX_TX_LOCK_CYCLES)
+  if (this->lock_frame_)
     frame_lock.emplace();
   uint32_t start;
   {
