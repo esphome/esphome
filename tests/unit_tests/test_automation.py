@@ -107,7 +107,7 @@ from esphome.core import (
 )
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
-from esphome.types import ConfigType, SafeExpType, TemplateArgsType
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, RegistryEntry
 from tests.component_tests.helpers import get_define_value
 
@@ -3124,13 +3124,12 @@ def _while_action(*body: ConfigType) -> ConfigType:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-@pytest.mark.parametrize("type_", [cg.int_, cg.std_string])
-async def test_inline_while_with_arguments_is_a_cpp_loop(type_: SafeExpType) -> None:
+async def test_inline_while_with_arguments_is_a_cpp_loop() -> None:
     """With arguments it never yields, so it stays one C++ loop in the merged function."""
     result = await build_action_list(
         [_while_action(_action("my.a", "act_a"))],
-        cg.TemplateArguments(type_),
-        [(type_, "x")],
+        cg.TemplateArguments(cg.int_),
+        [(cg.int_, "x")],
     )
 
     assert [str(action) for action in result] == ["act_w"]

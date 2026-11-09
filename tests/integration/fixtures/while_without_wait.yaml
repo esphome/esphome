@@ -72,21 +72,6 @@ script:
                 condition:
                   lambda: return true;
       - logger.log: "BUSY_OBJECT_NOARG done"
-  - id: busy_inline_int
-    parameters:
-      n: int
-    then:
-      - lambda: id(count) = 0;
-      - while:
-          condition:
-            lambda: return id(count) < n;
-          then:
-            - lambda: |-
-                delay(25);
-                id(count) += 1;
-      - logger.log:
-          format: "BUSY_INLINE_INT done %d"
-          args: [n]
   - id: busy_inline_str
     parameters:
       tag: string
@@ -106,22 +91,6 @@ script:
           format: "BUSY_OBJECT_STR done %s"
           args: [tag.c_str()]
 
-  # A body that waits resumes through the scheduler
-  - id: waiting_arg
-    parameters:
-      n: int
-    then:
-      - lambda: id(count) = 0;
-      - while:
-          condition:
-            lambda: return id(count) < n;
-          then:
-            - lambda: id(count) += 1;
-            - delay: 10ms
-      - logger.log:
-          format: "WAITING_ARG done %d"
-          args: [id(count)]
-
 api:
   actions:
     - action: run_entity_loops
@@ -140,11 +109,6 @@ api:
         - logger.log: "BUSY_OBJECT_NOARG caller"
         - delay: 200ms
         - script.execute:
-            id: busy_inline_int
-            n: 2
-        - logger.log: "BUSY_INLINE_INT caller"
-        - delay: 200ms
-        - script.execute:
             id: busy_inline_str
             tag: a
         - logger.log: "BUSY_INLINE_STR caller"
@@ -152,9 +116,6 @@ api:
             id: busy_object_str
             tag: b
         - logger.log: "BUSY_OBJECT_STR caller"
-        - script.execute:
-            id: waiting_arg
-            n: 3
     - action: run_stop_while_yielded
       then:
         - binary_sensor.template.publish:

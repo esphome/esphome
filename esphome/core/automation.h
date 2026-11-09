@@ -595,6 +595,7 @@ template<typename... Ts> class Trigger {
 };
 
 template<typename... Ts> class ActionList;
+class ActionTimer;
 
 template<typename... Ts> class Action {
  public:
@@ -624,6 +625,8 @@ template<typename... Ts> class Action {
 
  protected:
   friend ActionList<Ts...>;
+  // Resumes a while that gave the main loop a turn
+  friend ActionTimer;
 
   /// For a branch owner (if, while), play() runs when the branch finishes.
   virtual void play(const Ts &...x) = 0;

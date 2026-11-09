@@ -150,10 +150,6 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
 /// so entity states can change. With arguments it never yields: they may only be valid while the trigger runs.
 inline constexpr uint32_t WHILE_YIELD_AFTER_MS = 20;
 
-template<typename... Ts> class DelayAction;
-template<typename... Ts> class WhileAction;
-class ApplyWhileActionBase;
-
 /// Timeouts named by an action; the one scheduler friend, for delay and while.
 class ActionTimer {
   template<typename... Ts> friend class DelayAction;
@@ -164,11 +160,12 @@ class ActionTimer {
   static void set(const void *self, uint32_t delay, std::function<void()> &&func, bool parallel) {
     App.scheduler.set_action_timeout_(self, delay, std::move(func), parallel);
   }
-  /// Once the loop started at `start` ran too long, arms `resume` for the next main loop pass and returns true.
-  template<typename F> static bool yield_if_due(const void *self, uint32_t start, bool parallel, F &&resume) {
+  /// For a while without arguments: once its loop started at `start` ran too long, resumes it through play() on
+  /// the next main loop pass and returns true. A yielding run has no timeout of its own pending, so none is cancelled.
+  static bool yield_if_due(Action<> *self, uint32_t start) {
     if (millis() - start <= WHILE_YIELD_AFTER_MS)
       return false;
-    set(self, 0, std::forward<F>(resume), parallel);
+    set(self, 0, [self]() { self->play(); }, /* parallel= */ true);
     return true;
   }
 };
@@ -368,9 +365,14 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
 };
 
-/// Shared by every ApplyWhileAction, so each step function adds only its play_complex(), play() and vtable.
+/// Shared by every ApplyWhileAction, so each step function adds only its play() and vtable.
 class ApplyWhileActionBase : public Action<> {
  public:
+  void play_complex() override {
+    this->num_running_++;
+    this->play();
+  }
+
   void stop() override { App.scheduler.cancel_timeout(this); }
 
  protected:
@@ -381,7 +383,7 @@ class ApplyWhileActionBase : public Action<> {
     static_assert(std::is_same_v<decltype(this->num_running_), int>);
     const uint32_t start = millis();
     while (step(this->num_running_)) {
-      if (ActionTimer::yield_if_due(this, start, this->num_running_ > 1, [this]() { this->play(); }))
+      if (ActionTimer::yield_if_due(this, start))
         return;
     }
     this->play_next_();
@@ -392,12 +394,6 @@ class ApplyWhileActionBase : public Action<> {
 /// Step runs the body once and returns true, or returns false once the condition is false or the run stopped.
 template<auto Step> class ApplyWhileAction final : public ApplyWhileActionBase {
  public:
-  void play_complex() override {
-    this->num_running_++;
-    this->run_(Step);
-  }
-
-  // Resumes the loop after a yield
   void play() override { this->run_(Step); }
 };
 
@@ -436,10 +432,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   // Branch-end resume hook
   void play(const Ts &...x) override {
-    // A body that did not wait ended inside run_loop_(), which loops again itself. A wait of another run that
-    // ends here synchronously (a wait_until timeout) passes other argument storage. Runs without arguments carry
-    // nothing to tell them apart: whichever frame takes such an end loops once for it, and a second end in the
-    // same pass loops on its own, so each run continues once.
+    // A body that did not wait ended inside run_loop_(), which loops again itself. Another run's wait ending here
+    // (a wait_until timeout) passes other argument storage; runs without arguments are alike, so whichever pass
+    // takes such an end loops once for it, and a second end loops on its own.
     WhileBody *body = active_while_body;
     if (body != nullptr && !body->ended && body->owner == this && body->args == args_key(x...)) {
       body->ended = true;
@@ -470,6 +465,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     [[maybe_unused]] uint32_t start{};
     if constexpr (sizeof...(Ts) == 0)
       start = millis();
+    const void *key = args_key(x...);
     while (true) {
       // The condition may stop this automation
       if (this->num_running_ == 0 || !this->condition_->check(x...) || this->num_running_ == 0) {
@@ -477,7 +473,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
         return;
       }
       // On the stack, as the body can start this action again
-      WhileBody body{this, args_key(x...), false};
+      WhileBody body{this, key, false};
       WhileBody *outer = active_while_body;
       active_while_body = &body;
       this->then_.play(x...);
@@ -486,8 +482,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       if (!body.ended)
         return;
       if constexpr (sizeof...(Ts) == 0) {
-        if (this->num_running_ > 0 &&
-            ActionTimer::yield_if_due(this, start, this->num_running_ > 1, [this]() { this->run_loop_(); }))
+        if (this->num_running_ > 0 && ActionTimer::yield_if_due(this, start))
           return;
       }
     }
