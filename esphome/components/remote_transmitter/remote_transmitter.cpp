@@ -9,8 +9,8 @@ namespace esphome::remote_transmitter {
 
 ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 #ifdef USE_ESP8266
-// The ESP8266 Wi-Fi interrupt handler asserts (hardware WDT) when held off about 1 ms, so a frame is not locked
-// whole there: interrupts are on until this long before each edge.
+// Holding interrupts off about 1 ms makes the ESP8266 Wi-Fi SDK hang until a watchdog resets the chip, so a frame
+// is not locked whole there: interrupts are on until this long before each edge.
 static constexpr int32_t EDGE_LOCK_US = 50;
 #endif
 
@@ -67,6 +67,9 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   const uint32_t target = this->target_time_ + usec;
   if (this->carrier_duty_percent_ < 100 && (on_time > 0 || off_time > 0)) {
     while (true) {  // Modulate with carrier frequency
+      // Skip whole periods an interrupt already used up, instead of catching up with runt pulses
+      while ((int32_t) (micros() - (this->target_time_ + on_time + off_time)) > 0)
+        this->target_time_ += on_time + off_time;
       this->target_time_ += on_time;
       if ((int32_t) (this->target_time_ - target) >= 0)
         break;
@@ -98,9 +101,10 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 #ifndef USE_ESP8266
       InterruptLock lock;
 #endif
-      // Re-anchor every iteration: timing must never span a lock boundary, as micros() can
+      // Re-anchor every iteration: outside ESP8266 timing must never span a lock boundary, as micros() can
       // jump when interrupts are re-enabled between repeats (e.g. LibreTiny's Beken micros()
-      // discards its interrupt-lock correction, stretching the repeat gap by the lock duration)
+      // discards its interrupt-lock correction, stretching the repeat gap by the lock duration).
+      // ESP8266 micros() does not jump, so there the lock is taken per edge in write_at_target_().
       this->target_time_ = 0;
       for (int32_t item : this->temp_.get_data()) {
         if (item > 0) {
