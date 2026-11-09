@@ -36,35 +36,27 @@ void MS5611Component::dump_config() {
 }
 void MS5611Component::update() {
   // request temperature reading
-  if (!this->write_bytes(MS5611_CMD_CONV_D2 + 0x08, nullptr, 0)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_bytes(MS5611_CMD_CONV_D2 + 0x08, nullptr, 0)))
     return;
-  }
 
   this->set_timeout(TEMPERATURE_TIMEOUT_ID, 10, [this]() { this->read_temperature_(); });
 }
 void MS5611Component::read_temperature_() {
   uint8_t bytes[3];
-  if (!this->read_bytes(MS5611_CMD_ADC_READ, bytes, 3)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes(MS5611_CMD_ADC_READ, bytes, 3)))
     return;
-  }
   const uint32_t raw_temperature = encode_uint24(bytes[0], bytes[1], bytes[2]);
 
   // request pressure reading
-  if (!this->write_bytes(MS5611_CMD_CONV_D1 + 0x08, nullptr, 0)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_bytes(MS5611_CMD_CONV_D1 + 0x08, nullptr, 0)))
     return;
-  }
 
   this->set_timeout(PRESSURE_TIMEOUT_ID, 10, [this, raw_temperature]() { this->read_pressure_(raw_temperature); });
 }
 void MS5611Component::read_pressure_(uint32_t raw_temperature) {
   uint8_t bytes[3];
-  if (!this->read_bytes(MS5611_CMD_ADC_READ, bytes, 3)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes(MS5611_CMD_ADC_READ, bytes, 3)))
     return;
-  }
   const uint32_t raw_pressure = encode_uint24(bytes[0], bytes[1], bytes[2]);
   this->calculate_values_(raw_temperature, raw_pressure);
 }
