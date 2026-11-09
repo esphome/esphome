@@ -13,10 +13,6 @@ from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
-def _count(lines: list[str], text: str) -> int:
-    return sum(text in line for line in lines)
-
-
 @pytest.mark.asyncio
 async def test_tcp_uart_noise(
     yaml_config: str,
@@ -56,14 +52,13 @@ async def test_tcp_uart_noise(
 
         # The quiet session ends; the client connects again with a new handshake.
         await lines.wait_for("Idle for")
-        async with asyncio.timeout(15):
-            while _count(lines.lines, "Echo complete") < 2:
-                await asyncio.sleep(0.05)
+        await lines.wait_count("Echo complete", 2, timeout=15)
 
         # Until the first idle close only the pair had a session: one line per end.
         first_close = next(
             i for i, line in enumerate(lines.lines) if "Idle for" in line
         )
-        assert _count(lines.lines[:first_close], "Session encrypted") == 2
-        assert _count(lines.lines, "Session encrypted") >= 4
-        assert _count(lines.lines, "Echo mismatch") == 0
+        before_close = lines.lines[:first_close]
+        assert sum("Session encrypted" in line for line in before_close) == 2
+        assert lines.count("Session encrypted") >= 4
+        assert lines.count("Echo mismatch") == 0

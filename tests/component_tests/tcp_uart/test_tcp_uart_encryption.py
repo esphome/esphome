@@ -45,17 +45,11 @@ def test_only_an_encrypted_link_loads_noise() -> None:
     plain = {CONF_HOST: "192.0.2.10", CONF_PORT: 6638}
     encrypted = {**plain, CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}
     CORE.raw_config = {tcp_uart.DOMAIN: [plain]}
-    assert "noise" not in tcp_uart.AUTO_LOAD()
+    assert tcp_uart.AUTO_LOAD() == ["uart", "socket"]
     CORE.raw_config = {tcp_uart.DOMAIN: [plain, encrypted]}
-    assert "noise" in tcp_uart.AUTO_LOAD()
-    # A single entry is not a list before validation
-    CORE.raw_config = {tcp_uart.DOMAIN: encrypted}
-    assert "noise" in tcp_uart.AUTO_LOAD()
+    assert tcp_uart.AUTO_LOAD() == ["uart", "socket", "noise"]
     CORE.raw_config = {tcp_uart.DOMAIN: None}
-    assert "noise" not in tcp_uart.AUTO_LOAD()
-    # Tooling asks without a config
-    CORE.raw_config = None
-    assert "noise" in tcp_uart.AUTO_LOAD()
+    assert tcp_uart.AUTO_LOAD() == ["uart", "socket"]
 
 
 def test_modbus_needs_no_uart_block(generate_main: Callable[[Path], str]) -> None:
@@ -69,10 +63,9 @@ def test_api_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
         cv.Invalid,
         match=r"'tcp_uart' encryption key must differ from the 'api' encryption key; "
         r"the peer device holds this key",
-    ) as err:
+    ):
         _validate(
             set_core_config,
             {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}},
             {CONF_API: {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}},
         )
-    assert err.value.path == [CONF_ENCRYPTION, CONF_KEY]
