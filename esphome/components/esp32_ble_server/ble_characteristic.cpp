@@ -13,8 +13,11 @@ ESPHOME_LOG_TAG(TAG, "esp32_ble_server.characteristic");
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
-    if (descriptor->owned_)
+    if (descriptor->owned_) {
       delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
+    } else {
+      descriptor->characteristic_ = nullptr;  // a caller-owned descriptor outlives this characteristic
+    }
   }
 }
 
@@ -101,6 +104,7 @@ void BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
 }
 
 void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
+  descriptor->owned_ = false;  // the caller owns it again
   this->descriptors_.erase(std::remove(this->descriptors_.begin(), this->descriptors_.end(), descriptor),
                            this->descriptors_.end());
 }

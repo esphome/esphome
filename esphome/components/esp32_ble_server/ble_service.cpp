@@ -13,8 +13,11 @@ BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bo
 
 BLEService::~BLEService() {
   for (auto *chr : this->characteristics_) {
-    if (chr->owned_)
+    if (chr->owned_) {
       delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+    } else {
+      chr->service_ = nullptr;  // a caller-owned characteristic outlives this service
+    }
   }
 }
 
