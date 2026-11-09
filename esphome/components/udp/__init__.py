@@ -31,7 +31,7 @@ udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
 trigger_argname = "data"
 # Listener callback type (non-owning span from UDP component)
-listener_args = cg.std_span.template(cg.uint8.operator("const"))
+listener_args = cg.byte_span
 listener_argtype = [(listener_args, trigger_argname)]
 # Automation/trigger type (owned vector, safe for deferred actions like delay)
 trigger_args = cg.std_vector.template(cg.uint8)

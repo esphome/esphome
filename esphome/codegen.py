@@ -93,6 +93,7 @@ from esphome.cpp_types import (  # noqa: F401
     StringRef,
     arduino_json_ns,
     bool_,
+    byte_span,
     char,
     const_char_ptr,
     double,
