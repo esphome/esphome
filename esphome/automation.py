@@ -1922,7 +1922,8 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
 def _iter_actions(actions: Any) -> Iterator[tuple[str, Any]]:
     """Yield ``(key, options)`` of every action in an action list, a single action or an automation.
 
-    Nested action lists (``then:``, ``else:``, ...) are searched; other options are not taken for actions.
+    Nested action lists (``then:``, ``else:``, ...) are searched; other options, including conditions, are not
+    taken for actions.
     """
     if isinstance(actions, list):
         for item in actions:
@@ -1937,8 +1938,10 @@ def _iter_option_actions(options: Any) -> Iterator[tuple[str, Any]]:
     if isinstance(options, list):
         yield from _iter_actions(options)
     elif isinstance(options, dict):
-        for value in options.values():
-            yield from _iter_option_actions(value)
+        for key, value in options.items():
+            # A condition holds no actions, though `and:` and `or:` hold lists
+            if key != CONF_CONDITION:
+                yield from _iter_option_actions(value)
 
 
 def owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:

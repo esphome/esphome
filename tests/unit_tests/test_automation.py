@@ -415,6 +415,19 @@ _BUTTON_ON = {"binary_sensor.is_on": ID("button")}
             ],
             True,
         ),
+        # Also inside an and: condition, which holds a list
+        (
+            _BUTTON_ON,
+            [
+                {
+                    "if": {
+                        CONF_CONDITION: {"and": [{"lambda": Lambda("return true;")}]},
+                        CONF_THEN: [{"logger.log": "hi"}],
+                    }
+                }
+            ],
+            True,
+        ),
         # A lambda action nested in the body still counts
         (_BUTTON_ON, [{"if": {CONF_THEN: [{"lambda": Lambda("id(n) += 1;")}]}}], False),
         # The body acts on an entity the condition's lambda reads
