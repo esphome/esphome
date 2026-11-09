@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "esphome/core/automation.h"
@@ -79,10 +82,10 @@ class StopOnCheckCondition : public Condition<> {
 };
 
 // Turns its condition off after a number of checks
-class CountdownCondition : public Condition<> {
+template<typename... Ts> class CountdownCondition : public Condition<Ts...> {
  public:
   explicit CountdownCondition(int passes) : passes_(passes) {}
-  bool check() override { return this->passes_-- > 0; }
+  bool check(const Ts &.../*x*/) override { return this->passes_-- > 0; }
 
  protected:
   int passes_;
@@ -177,7 +180,7 @@ TEST(ActionBranchOwner, PerItemIfAndWhileResumeAfterTheirBranch) {
   EXPECT_EQ(log, (Log{1, 2, 4, 3, 4}));
 
   log.clear();
-  CountdownCondition loop_cond(2);
+  CountdownCondition<> loop_cond(2);
   WhileAction<> loop(&loop_cond);
   DeferredAction wait(&log, 5);
   RecordAction after2(&log, 6);
@@ -341,7 +344,7 @@ TEST(ActionBranchOwner, EmptyBranchesFinishImmediately) {
 
 TEST(ActionBranchOwner, WhileRechecksEachPassAndExits) {
   Log log;
-  CountdownCondition cond(3);
+  CountdownCondition<> cond(3);
   WhileAction<> loop(&cond);
   RecordAction body(&log, 1);
   RecordAction after(&log, 2);
@@ -379,7 +382,7 @@ TEST(ActionBranchOwner, StopMidBranchClearsRunning) {
 
 TEST(ActionBranchOwner, NestedIfInsideWhileResumesEachOwner) {
   Log log;
-  CountdownCondition loop_cond(2);
+  CountdownCondition<> loop_cond(2);
   FlagCondition if_cond;
   WhileAction<> loop(&loop_cond);
   IfAction<false> inner(&if_cond);
@@ -398,6 +401,198 @@ TEST(ActionBranchOwner, NestedIfInsideWhileResumesEachOwner) {
   EXPECT_EQ(log, (Log{1, 1, 9}));
   EXPECT_FALSE(top.is_running());
   EXPECT_EQ(top.num_running(), 0);
+}
+
+// Counts the passes of a body that never waits
+class CountAction : public Action<int> {
+ public:
+  void play(const int &x) override { this->total += x; }
+  int total{0};
+};
+
+// Enough passes to overflow the stack if each one nested another call chain
+TEST(ActionBranchOwner, WhileBodyThatNeverWaitsLoopsInPlace) {
+  static constexpr int PASSES = 200000;
+  CountdownCondition<int> cond(PASSES);
+  WhileAction<int> loop(&cond);
+  CountAction body, after;
+  loop.add_then({&body});
+  ActionList<int> list;
+  list.add_actions({&loop, &after});
+
+  list.play(1);
+  // The loop runs in place, so it ends before play() returns
+  EXPECT_EQ(body.total, PASSES);
+  EXPECT_EQ(after.total, 1);
+  EXPECT_FALSE(list.is_running());
+}
+
+// Records how deep the stack is on each pass. It works after the chain continues, as real actions do (a
+// destructor, a log), so the compiler cannot turn the recursion into a jump.
+class StackDepthAction : public Action<int> {
+ public:
+  void play_complex(const int &x) override {
+    this->num_running_++;
+    volatile char here = 0;
+    auto at = reinterpret_cast<uintptr_t>(&here);
+    this->lowest = std::min(this->lowest, at);
+    this->highest = std::max(this->highest, at);
+    this->play_next_(x);
+    this->passes = this->passes + 1;
+  }
+  void play(const int & /*x*/) override {}
+  uintptr_t lowest{UINTPTR_MAX};
+  uintptr_t highest{0};
+  volatile int passes{0};
+};
+
+// Each pass of a body that never waits starts at the same depth, not deeper than the last
+TEST(ActionBranchOwner, WhileBodyThatNeverWaitsKeepsTheStackFlat) {
+  CountdownCondition<int> cond(1000);
+  WhileAction<int> loop(&cond);
+  StackDepthAction body;
+  loop.add_then({&body});
+  ActionList<int> list;
+  list.add_actions({&loop});
+
+  list.play(1);
+  EXPECT_EQ(body.passes, 1000);
+  EXPECT_LT(body.highest - body.lowest, 256U);
+}
+
+// Keeps the first argument by reference, like wait_until does for an entity, and copies the second
+class MixedHandoffAction : public Action<const int &, int> {
+ public:
+  void play_complex(const int &entity, const int &value) override {
+    this->num_running_++;
+    this->finish();
+    this->entity_ = &entity;
+    this->value_ = value;
+    this->waiting_ = true;
+  }
+  void play(const int & /*entity*/, const int & /*value*/) override {}
+  void finish() {
+    if (this->waiting_) {
+      this->waiting_ = false;
+      int released = this->value_;
+      this->play_next_(*this->entity_, released);
+    }
+  }
+
+ protected:
+  const int *entity_{nullptr};
+  int value_{0};
+  bool waiting_{false};
+};
+
+class OncePerSecondValueCondition : public Condition<const int &, int> {
+ public:
+  bool check(const int & /*entity*/, const int &x) override { return !std::exchange(this->seen_[x], true); }
+
+ protected:
+  bool seen_[4]{};
+};
+
+class RecordSecondAction : public Action<const int &, int> {
+ public:
+  explicit RecordSecondAction(Log *log) : log_(log) {}
+  void play(const int & /*entity*/, const int &x) override { this->log_->push_back(x); }
+
+ protected:
+  Log *log_;
+};
+
+// The end of another run's body inside this run's body must resume that run, not end this one. Runs on the same
+// entity share its storage; the copied argument still tells them apart.
+TEST(ActionBranchOwner, WhileTellsRunsApartBySharedAndCopiedArguments) {
+  OncePerSecondValueCondition cond;
+  WhileAction<const int &, int> loop(&cond);
+  MixedHandoffAction wait;
+  Log log;
+  RecordSecondAction after(&log);
+  loop.add_then({&wait});
+  ActionList<const int &, int> list;
+  list.add_actions({&loop, &after});
+
+  const int entity = 0;
+  list.play(entity, 1);
+  list.play(entity, 2);
+  EXPECT_EQ(log, (Log{1}));
+  wait.finish();
+  EXPECT_EQ(log, (Log{1, 2}));
+  EXPECT_FALSE(list.is_running());
+}
+
+class CountPassAction : public Action<> {
+ public:
+  void play() override { this->passes++; }
+  int passes{0};
+};
+
+// Without arguments a wait_until timeout of one run can end inside another run's pass. Runs without arguments
+// are alike: whichever frame takes that end loops once for it, so every pass and every run still continues once.
+TEST(ActionBranchOwner, WhileWithoutArgumentsKeepsRunsWhenAWaitTimesOutInside) {
+  CountdownCondition<> cond(3);
+  WhileAction<> loop(&cond);
+  CountPassAction pass;
+  FlagCondition never;
+  never.value = false;
+  WaitUntilAction<> wait(&never);
+  wait.set_timeout_value([]() -> uint32_t { return 10; });
+  Log log;
+  RecordAction after(&log, 1);
+  loop.add_then({&pass, &wait});
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();  // run A waits
+  delay(15);
+  list.play();  // run B's pass releases A, whose wait timed out, inside it
+  delay(15);
+  wait.loop();  // the remaining waits time out
+  EXPECT_EQ(pass.passes, 3);
+  EXPECT_EQ(log, (Log{1, 1}));
+  EXPECT_FALSE(list.is_running());
+}
+
+// Releases the run that waits here, then lets the current run go on at once: two ends in one pass
+class ReleaseAndPassAction : public Action<> {
+ public:
+  void play_complex() override {
+    this->num_running_++;
+    if (this->waiting_) {
+      this->waiting_ = false;
+      this->play_next_();
+    }
+    if (this->pass) {
+      this->play_next_();
+      return;
+    }
+    this->waiting_ = true;
+  }
+  void play() override {}
+  bool pass{false};
+
+ protected:
+  bool waiting_{false};
+};
+
+// Without arguments both ends of one pass mark the same body; the second must still continue its run
+TEST(ActionBranchOwner, WhileWithoutArgumentsContinuesBothEndsOfOnePass) {
+  CountdownCondition<> cond(2);
+  WhileAction<> loop(&cond);
+  ReleaseAndPassAction wait;
+  Log log;
+  RecordAction after(&log, 1);
+  loop.add_then({&wait});
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+
+  list.play();  // run A waits
+  wait.pass = true;
+  list.play();  // run B's pass releases A and ends itself
+  EXPECT_EQ(log, (Log{1, 1}));
+  EXPECT_FALSE(list.is_running());
 }
 
 }  // namespace esphome::core::testing
