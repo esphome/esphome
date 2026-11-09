@@ -23,7 +23,7 @@ void GPIOOneWireBus::dump_config() {
 }
 
 // Lock only what must not stretch; the ESP8266 Wi-Fi interrupt handler asserts (hardware WDT) when held off ~1 ms.
-// A longer reset pulse or gap between slots is within spec.
+// A longer gap between slots is within spec.
 int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   // See reset here:
   // https://www.maximintegrated.com/en/design/technical-documents/app-notes/1/126.html
@@ -37,15 +37,16 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   } while (!this->pin_.digital_read());
 
   bool r = false;
-
-  // Send 480µs LOW TX reset pulse (drive bus low, delay H)
-  this->pin_.digital_write(false);
-  this->pin_.pin_mode(gpio::FLAG_OUTPUT);
-  delayMicroseconds(480);
-
   uint32_t start;
   {
+    // Locked from the reset pulse through presence detection (at most about 780 us): a reset pulse stretched past
+    // 960 us power-resets a parasite-powered sensor
     InterruptLock lock;
+    // Send 480µs LOW TX reset pulse (drive bus low, delay H)
+    this->pin_.digital_write(false);
+    this->pin_.pin_mode(gpio::FLAG_OUTPUT);
+    delayMicroseconds(480);
+
     // Release the bus, delay I
     this->pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     start = micros();
