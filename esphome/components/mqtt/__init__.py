@@ -874,7 +874,7 @@ async def mqtt_publish_json_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     parent = await automation.apply_parent(config)
-    # Lambdas are bound in order before the publish; a trigger arg they name is a copy
+    # Lambdas are bound in order before the publish
     statements: list[str] = []
     values: dict[str, str] = {}
     for key, type_, const_fn in (
@@ -882,15 +882,15 @@ async def mqtt_publish_json_action_to_code(
         (CONF_QOS, cg.uint8, None),
         (CONF_RETAIN, cg.bool_, None),
     ):
-        if not isinstance(value := config[key], Lambda):
+        if isinstance(value := config[key], Lambda):
+            statements.append(
+                await automation.bind_lambda(value, args, type_, f"esphome__{key}")
+            )
+            values[key] = f"esphome__{key}"
+        else:
             values[key] = (
                 const_fn(config, value) if const_fn else str(cg.safe_exp(value))
             )
-            continue
-        statements.append(
-            await automation.bind_lambda(value, args, type_, f"esphome__{key}")
-        )
-        values[key] = f"esphome__{key}"
     payload = await cg.process_lambda(
         config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
     )

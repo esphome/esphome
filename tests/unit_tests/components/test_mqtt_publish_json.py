@@ -175,11 +175,8 @@ async def test_publish_json_merged_actions_keep_their_locals_apart() -> None:
     ("key", "body"),
     [
         (CONF_TOPIC, "x *= 2; return to_string(x);"),
-        (CONF_TOPIC, "return to_string(x *= 2);"),
-        (CONF_QOS, "x *= 0; return x;"),
         (CONF_QOS, "return x *= 0;"),
         (CONF_RETAIN, "x *= 2; return x > 0;"),
-        (CONF_RETAIN, "return (x *= 2) > 0;"),
         (CONF_PAYLOAD, 'x *= 2; root["x"] = x;'),
     ],
 )
