@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+remote_transmitter:
+  id: transmitter
+  pin: GPIO2
+  carrier_duty_percent: 100%
+
+keeloq:
+  # Made-up key, not a real manufacturer key
+  - id: shutter_remote
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234500
+  - id: awning_remote
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234501

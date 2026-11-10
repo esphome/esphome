@@ -1,4 +1,4 @@
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import remote_base
 import esphome.config_validation as cv
@@ -124,6 +124,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     remote_base.request_protocol("keeloq")
+    # The counter is a uint16_t in flash; the ESP8266 checks that all saved values fit its store.
+    preferences.reserve_preferences(1, 2, in_flash=True)
     # Only the derived device key reaches the firmware, never the manufacturer key.
     device_key = normal_learning_key(config[CONF_SERIAL], config[CONF_MANUFACTURER_KEY])
     var = cg.new_Pvariable(
