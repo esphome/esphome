@@ -1,6 +1,7 @@
 #include "wled_light_effect.h"
 #ifdef USE_NETWORK
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -62,8 +63,8 @@ void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
 }
 
 void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
-  // Opened here, not in start(): a restored effect starts during setup, before the network stack is up
-  if (this->socket_ == nullptr && !this->socket_failed_)
+  // Not before setup completes: a restored effect starts, and setup can run loops, before the network stack is up
+  if (this->socket_ == nullptr && !this->socket_failed_ && App.is_setup_complete())
     this->open_socket_();
   if (this->socket_ != nullptr) {
     uint8_t payload[MAX_FRAME_SIZE];
