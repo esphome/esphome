@@ -1,21 +1,12 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 
-#include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
+#include "esphome/components/socket/socket.h"
 
-#include <vector>
 #include <memory>
-
-#if defined(USE_RP2) || defined(USE_LIBRETINY)
-namespace arduino {
-class UDP;
-}  // namespace arduino
-using arduino::UDP;  // NOLINT(google-global-names-in-headers)
-#else
-class UDP;
-#endif
 
 namespace esphome::wled {
 
@@ -40,9 +31,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   bool parse_dnrgb_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
 
   uint16_t port_{0};
-  std::unique_ptr<UDP> udp_;
-  // Grows to the largest frame and is reused for every frame; freed in stop()
-  std::vector<uint8_t> payload_;
+  std::unique_ptr<socket::UDPSocket> socket_;
   optional<uint32_t> blank_start_{};
   uint32_t blank_timeout_{0};
   uint32_t dropped_{0};
@@ -52,4 +41,4 @@ class WLEDLightEffect : public light::AddressableLightEffect {
 
 }  // namespace esphome::wled
 
-#endif  // USE_ARDUINO
+#endif  // USE_NETWORK
