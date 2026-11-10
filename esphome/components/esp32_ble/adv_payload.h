@@ -103,6 +103,29 @@ class AdvPayload {
   uint8_t len_{0};
 };
 
+/// The UUIDs that can reach a packet, in order: a priority UUID first, then up to 14 16-bit, 7 32-bit and the first
+/// 128-bit UUID, each capped by width so a long list of one width cannot push out another that still fits.
+class AdvUuidList {
+ public:
+  void add_priority(const AdvPayload::UUID128 &uuid) { this->uuids_[this->count_++] = uuid; }
+  void add(const AdvPayload::UUID128 &uuid) {
+    const size_t size = AdvPayload::uuid_size(uuid);
+    uint8_t &left = size == 2 ? this->left_16_ : size == 4 ? this->left_32_ : this->left_128_;
+    if (left == 0)
+      return;
+    left--;
+    this->uuids_[this->count_++] = uuid;
+  }
+  std::span<const AdvPayload::UUID128> uuids() const { return {this->uuids_.data(), this->count_}; }
+
+ protected:
+  std::array<AdvPayload::UUID128, 1 + 14 + 7 + 1> uuids_{};
+  uint8_t count_{0};
+  uint8_t left_16_{14};
+  uint8_t left_32_{7};
+  uint8_t left_128_{1};
+};
+
 /// What the services advertising carries; with `priority`, uuids[0] is the priority UUID.
 struct AdvContent {
   std::span<const AdvPayload::UUID128> uuids;

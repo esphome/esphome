@@ -3,9 +3,11 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <vector>
 
 #include "esphome/components/esp32_ble/adv_payload.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::esp32_ble::testing {
 
@@ -196,6 +198,45 @@ TEST(BuildAdvPackets, NameInAdvertisingPacket) {
   build_adv_packets(content, adv, rsp);
   EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, NAME_ELEMENT}));
   EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT}));
+}
+
+TEST(AdvPayload, NoEmpty16BitList) {
+  const UUID128 uuids[] = {base_uuid(0x180A)};
+  AdvPayload adv;
+  adv.add_name("abcdefghijklmnopqrstuvwxyz", 26);  // leaves 3 bytes
+  adv.add_uuids(uuids);
+  EXPECT_EQ(adv.size(), 28u);
+}
+
+TEST(AdvPayload, NoEmpty32BitList) {
+  const UUID128 uuids[] = {base_uuid(0x12345678)};
+  AdvPayload adv;
+  adv.add_name("abcdefghijklmnopqrstuvwx", 24);  // leaves 5 bytes
+  adv.add_uuids(uuids);
+  EXPECT_EQ(adv.size(), 26u);
+}
+
+TEST(AdvUuidList, CapsEachWidthSeparately) {
+  AdvUuidList list;
+  list.add_priority(IMPROV_UUID);
+  for (int i = 0; i < 15; i++)
+    list.add(IMPROV_UUID);  // only the first other 128-bit UUID is kept
+  for (uint32_t i = 0; i < 16; i++)
+    list.add(base_uuid(0x12340000 + i));  // 7 32-bit UUIDs kept
+  list.add(base_uuid(0x180A));            // still kept after the long lists
+  const auto uuids = list.uuids();
+  ASSERT_EQ(uuids.size(), 1u + 1u + 7u + 1u);
+  EXPECT_EQ(uuids.back(), base_uuid(0x180A));
+
+  AdvPayload adv;
+  adv.add_flags(FLAGS);
+  adv.add_uuids(uuids.subspan(1));
+  // 16-bit list first, then as many 32-bit as fit (4 bytes each), then no room for the 128-bit UUID
+  EXPECT_EQ(adv.data()[3], 0x03);
+  EXPECT_EQ(adv.data()[4], 0x03);
+  EXPECT_EQ(adv.data()[5], 0x0A);
+  EXPECT_EQ(adv.data()[6], 0x18);
+  EXPECT_EQ(adv.data()[8], 0x04);  // partial 32-bit list
 }
 
 }  // namespace esphome::esp32_ble::testing

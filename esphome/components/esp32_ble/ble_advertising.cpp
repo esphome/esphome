@@ -18,8 +18,6 @@
 namespace esphome::esp32_ble {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
-// One 31 byte packet holds at most 14 16-bit UUIDs
-static constexpr size_t MAX_ADVERTISED_UUIDS = 14;
 
 // The TX power Bluedroid advertised, from its BTM_BLE_ADV_TX_POWER table
 static int8_t adv_tx_power_dbm() {
@@ -71,21 +69,23 @@ void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
 esp_err_t BLEAdvertising::services_advertisement_() {
   // A priority UUID goes first and alone in the advertising packet
   const bool priority = this->priority_uuid_.is_set();
-  AdvPayload::UUID128 uuids[MAX_ADVERTISED_UUIDS + 1];
-  size_t num_services = 0;
-  if (priority)
-    memcpy(uuids[num_services++].data(), this->priority_uuid_.as_128bit().uuid128(), 16);
+  AdvUuidList uuids;
+  AdvPayload::UUID128 uuid128{};
+  if (priority) {
+    memcpy(uuid128.data(), this->priority_uuid_.as_128bit().uuid128(), 16);
+    uuids.add_priority(uuid128);
+  }
   for (const auto &uuid : this->advertising_uuids_) {
-    if (num_services == std::size(uuids))
-      break;
-    if (uuid != this->priority_uuid_)  // an unset priority UUID matches nothing
-      memcpy(uuids[num_services++].data(), uuid.as_128bit().uuid128(), 16);
+    if (uuid == this->priority_uuid_)  // an unset priority UUID matches nothing
+      continue;
+    memcpy(uuid128.data(), uuid.as_128bit().uuid128(), 16);
+    uuids.add(uuid128);
   }
   char name_buffer[ESP32BLE::DEVICE_NAME_BUFFER_SIZE];
   const char *name = global_ble->device_name(name_buffer);
   AdvPayload adv;
   AdvPayload rsp;
-  build_adv_packets({.uuids = {uuids, num_services},
+  build_adv_packets({.uuids = uuids.uuids(),
                      .manufacturer_data = {this->manufacturer_data_.data(), this->manufacturer_data_len_},
                      .service_data = {this->service_data_.data(), this->service_data_len_},
                      .name = name,
