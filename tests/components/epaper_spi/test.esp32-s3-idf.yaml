@@ -567,7 +567,6 @@ display:
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
-  # Waveshare 7.5" V2 four-level grayscale (800x480, UC8179 controller)
   # Good Display GDEW075T7 7.5" mono e-paper (800x480, UC8179)
   - platform: epaper_spi
     spi_id: spi_bus

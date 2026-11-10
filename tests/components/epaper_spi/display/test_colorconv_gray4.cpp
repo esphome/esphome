@@ -23,12 +23,10 @@ TEST(ColorToGray4, FullSwingExtremaMapToBlackAndWhite) {
   EXPECT_EQ(color_to_gray4(gray(255)), 3);
 }
 
-// The quantized levels are equally spaced, so the midpoints between them land mid-band.
+// The interior gray levels map to the center of their quantization bands.
 TEST(ColorToGray4, LevelCenterPointsMapToTheirBand) {
-  EXPECT_EQ(color_to_gray4(gray(0)), 0);
   EXPECT_EQ(color_to_gray4(gray(85)), 1);
   EXPECT_EQ(color_to_gray4(gray(170)), 2);
-  EXPECT_EQ(color_to_gray4(gray(255)), 3);
 }
 
 static_assert(color_to_gray4(Color(43, 43, 43)) == 1, "color_to_gray4 must stay usable in constexpr");

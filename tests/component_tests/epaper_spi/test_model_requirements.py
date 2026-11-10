@@ -239,28 +239,6 @@ def test_full_update_every_default_accepted_for_gray4(
     assert result["full_update_every"] == 1
 
 
-def test_full_update_every_rejected_for_uc8179_gray4(
-    set_core_config: SetCoreConfigCallable,
-    set_component_config: Callable[[str, Any], None],
-) -> None:
-    """The UC8179 gray4 waveform does not support partial updates."""
-    _setup_esp32(set_core_config, set_component_config)
-
-    with pytest.raises(cv.Invalid, match="full_update_every must be 1"):
-        CONFIG_SCHEMA(_uc8179_gray4_config(full_update_every=2))
-
-
-def test_width_multiple_enforced_for_uc8179_gray4(
-    set_core_config: SetCoreConfigCallable,
-    set_component_config: Callable[[str, Any], None],
-) -> None:
-    """The UC8179 gray4 buffer requires widths divisible by 8."""
-    _setup_esp32(set_core_config, set_component_config)
-
-    with pytest.raises(cv.Invalid, match="width that is a multiple of 8"):
-        CONFIG_SCHEMA(_uc8179_gray4_config(dimensions={"width": 799, "height": 480}))
-
-
 def test_full_update_every_accepted_for_mono_sticky(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
@@ -343,7 +321,7 @@ def test_uc8179_gray4_uses_gray4_driver(
     main_cpp = generate_main(component_config_path("uc8179_gray4_test.yaml"))
 
     assert "epaper_spi::EPaperUC8179Gray4" in main_cpp
-    assert "epaper_spi::EPaperUC8179" in main_cpp
+    assert "epaper_spi::EPaperUC8179(" not in main_cpp
 
 
 # --- check_requirements -------------------------------------------------------

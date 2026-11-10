@@ -1,4 +1,4 @@
-"""Monochrome e-paper displays using the UC8179 controller.
+"""E-paper displays using the UC8179 controller.
 
 Supported models:
 - waveshare-7.5in-v2: 7.5" mono display, 800x480 pixels (EPD_7in5_V2)
@@ -14,9 +14,11 @@ Panel configuration and power-on (0x04) are both sent during the INITIALISE
 state; the state machine's built-in busy wait then covers the power-on delay
 before the waveform/mode registers and image data are transferred.
 
-These displays support fast full and partial refresh: set ``full_update_every``
-greater than 1 to enable it. Every ``full_update_every``-th update is a fast
-full refresh, with partial refreshes in between.
+The monochrome models support fast full and partial refresh: set
+``full_update_every`` greater than 1 to enable it. Every
+``full_update_every``-th update is a fast full refresh, with partial refreshes
+in between. The gray4 model has no partial waveform and always does a full
+refresh.
 """
 
 from typing import Any
