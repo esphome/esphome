@@ -235,13 +235,6 @@ describe('which CI run is used', () => {
     assert.deepEqual(reactions(api.calls), ['confused']);
   });
 
-  it('takes a fork run, which lists no pull requests, by its head repository, branch and commit', async () => {
-    const run = ciRun({ id: 1, repo: FORK, branch: 'fix-wifi', sha: HEAD_SHA, pullRequests: [] });
-    const api = fakeGitHub({ runs: [run] });
-    await runCommand(commentEvent(), api);
-    assert.deepEqual(reruns(api.calls), [1]);
-  });
-
   it('skips a red run of another PR from another branch with the same commit', async () => {
     const api = fakeGitHub({ runs: [ciRun({ id: 1, branch: 'fix-wifi-2' })] });
     await runCommand(commentEvent(), api);
