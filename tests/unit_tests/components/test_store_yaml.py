@@ -1013,6 +1013,25 @@ def test_redacted_shared_text_keeps_substring_scan(
         _redact(project, files, config)
 
 
+@pytest.mark.parametrize("int_first", [True, False])
+def test_redacted_hex_secret_not_shared_with_a_string_credential(
+    project: Path, int_first: bool
+) -> None:
+    """A string credential with the decimal text of a quoted hex secret is not
+    restored as that hex secret, whichever is collected first."""
+    fp = ("fingerprint_grow", {"password": SensitiveHexInt(0x12345678)})
+    mqtt = ("mqtt", {"password": SensitiveStr("305419896")})
+    config = dict([fp, mqtt] if int_first else [mqtt, fp])
+    files = {
+        "fp.yaml": "fingerprint_grow:\n  password: !secret fp_password\n",
+        "mqtt.yaml": "mqtt:\n  password: '305419896'\n",
+        "secrets.yaml": "fp_password: '0x12345678'\n",
+    }
+    out = _redact(project, files, config)
+    assert b"305419896" not in out["mqtt.yaml"]
+    assert "fp_password" not in out["mqtt.yaml"].decode()
+
+
 def test_redacted_symlinked_package_loads_relative_to_its_name(
     project: Path, shared: Path
 ) -> None:

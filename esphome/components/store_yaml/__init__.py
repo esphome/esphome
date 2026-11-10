@@ -417,10 +417,8 @@ def _check_sensitive_usage(
             )
 
 
-def _int_text(text: object) -> str | None:
+def _int_text(text: str) -> str | None:
     """Decimal text of a string cv.int_ accepts, such as "0x12345678", else None."""
-    if not isinstance(text, str):
-        return None
     try:
         return str(cv.int_(text))
     except cv.Invalid:
@@ -452,10 +450,6 @@ def _collect_sensitive_values() -> tuple[
         value = str(int(node)) if isinstance(node, int) else str(node)
         if (entry := result.get(value)) is None:
             name = yaml_util.is_secret(value)
-            if name is None and isinstance(node, int):
-                # A quoted secret such as "0x12345678" is registered as written
-                secrets = yaml_util.registered_secret_values().items()
-                name = next((n for v, n in secrets if _int_text(v) == value), None)
             if name is None and _BIND_KEY_RE.fullmatch(value):
                 # cv.bind_key uppercases the key; its secret keeps the user's spelling
                 secrets = yaml_util.registered_secret_values().items()
@@ -469,6 +463,16 @@ def _collect_sensitive_values() -> tuple[
             )
         entry.is_int = entry.is_int and isinstance(node, int)
         entry.sensitive_keys.update(path[-1:])
+    # A quoted secret such as "0x12345678" is registered as written. Its name fits
+    # only if every use is an integer: a string credential with the same decimal
+    # text would otherwise be restored as the hex string.
+    for value, entry in result.items():
+        if entry.from_secret or not entry.is_int:
+            continue
+        secrets = yaml_util.registered_secret_values().items()
+        if name := next((n for v, n in secrets if _int_text(v) == value), None):
+            entry.secret_name = name
+            entry.from_secret = True
     return result, paths
 
 
