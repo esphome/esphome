@@ -18,6 +18,11 @@ class RadioLinkBase : public PacketInterface {
   bool check_size_(size_t size) const;
   /// False if sending must wait, as the radio is busy; starts loop() to watch the radio.
   bool may_send_(bool busy);
+  /**
+   * Returns \p sent, after warning if the packet was sent over a radio that seemed busy. Called only once the radio
+   * has the packet, as a log line can run an automation that sends again and overwrites the buffer it came from.
+   */
+  bool sent_(bool sent, bool busy) const;
   /// Returns true for an empty packet, which the radios cannot send, so there is nothing to retry.
   bool skip_empty_() const;
   /// Warns once when a send finds the radio failed; until its setup has run, sends are refused quietly.
@@ -65,15 +70,16 @@ class RadioLink : public RadioLinkBase, public Listener {
     size_t size = data.size();
     if (size == 0)
       return this->skip_empty_();
-    if (!this->check_size_(size) || !this->may_send_(this->radio_->is_receiving()))
+    bool busy = this->radio_->is_receiving();
+    if (!this->check_size_(size) || !this->may_send_(busy))
       return false;
     if (data.is_contiguous()) {
       auto span = data.as_span();
-      return this->radio_->transmit_packet(span.data(), span.size()) == Error::NONE;
+      return this->sent_(this->radio_->transmit_packet(span.data(), span.size()) == Error::NONE, busy);
     }
     uint8_t buf[MaxPacketSize];
     data.copy_to(buf, size);
-    return this->radio_->transmit_packet(buf, size) == Error::NONE;
+    return this->sent_(this->radio_->transmit_packet(buf, size) == Error::NONE, busy);
   }
 
   void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override {
