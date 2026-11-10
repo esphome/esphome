@@ -19,8 +19,21 @@ void BasicAddressing::dump_config() {
 }
 
 bool BasicAddressing::send(const PacketBuffer &data, const PacketMetaData &meta_data, uint16_t destination) {
-  if (meta_data.destination_address != 0)
-    destination = meta_data.destination_address;
+  uint16_t chosen = meta_data.destination_address;
+  if (chosen != 0 && chosen != destination) {
+    if (destination != BROADCAST_ADDRESS || chosen == this->address_) {
+      // The same call is made for every packet, so once is enough
+      if (!this->destination_warned_) {
+        this->destination_warned_ = true;
+        ESP_LOGW(TAG,
+                 "%s: Packet for 0x%04X refused; only the broadcast port sends to a chosen address, and not to "
+                 "this device's own",
+                 this->link_->get_name(), chosen);
+      }
+      return false;
+    }
+    destination = chosen;
+  }
   uint8_t header[HEADER_SIZE] = {static_cast<uint8_t>(destination), static_cast<uint8_t>(destination >> 8),
                                  static_cast<uint8_t>(this->address_), static_cast<uint8_t>(this->address_ >> 8)};
   PacketBuffer packet(header, HEADER_SIZE, &data, nullptr, 0);
