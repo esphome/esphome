@@ -887,7 +887,7 @@ def shared_static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
+    body: list[str | Statement],
     *,
     share: bool = True,
 ) -> RawExpression:
@@ -903,7 +903,7 @@ def shared_static_function(
     key = (
         str(safe_exp(return_type)),
         str(ParameterListExpression(*parameters)),
-        "\n".join(body),
+        "\n".join(map(str, body)),
     )
     if (fn := data.functions.get(key)) is None:
         fn = data.functions[key] = _new_static_function(
@@ -913,7 +913,10 @@ def shared_static_function(
 
 
 def _new_static_function(
-    name: str, return_type: SafeExpType, parameters: TemplateArgsType, body: list[str]
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
 ) -> RawExpression:
     id_ = unique_global_id(name, None)
     fn = static_function(id_.id, return_type, parameters, body)
