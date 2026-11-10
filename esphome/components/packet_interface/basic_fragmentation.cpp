@@ -64,6 +64,10 @@ void BasicFragmentation::dump_config() {
 }
 
 bool BasicFragmentation::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  return this->send_exclusive_([&] { return this->send_(data, meta_data); });
+}
+
+bool BasicFragmentation::send_(const PacketBuffer &data, const PacketMetaData &meta_data) {
   if (this->tx_buffer_ == nullptr)
     return false;
   size_t size = data.size();
