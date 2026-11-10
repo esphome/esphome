@@ -27,7 +27,7 @@ delta from an `interval`. Compare a PR build with its base on the same flow; the
   and every entry arrived (a late log subscription or dropped log lines). `decode.py LOG ELF [ADDR2LINE]` prints each entry with its callers as function and file:line, and exits 2
   when the recorder never armed, an entry was still being written, entries are missing, repeated or out of
   range, no Xtensa entry has a caller, the ELF is from another build (the buffer address in the header differs), or the buffer
-  filled. On RISC-V it prints sizes and times only. It reads only the newest dump in the file. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
+  filled. A PR build and its base can share that address, so copy each build's `firmware.elf` next to its dump. On RISC-V it prints sizes and times only. It reads only the newest dump in the file. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
 - `cycles_cover.py HOST N OUT` waits for the "Allocation recorder armed" binary sensor, then moves the first
   cover to the far end and back N times (`cover_command(position=...)`, waiting for idle each way) with a states-only API client, then saves the dump the same way. It exits 2 when a move
   never reached its position.

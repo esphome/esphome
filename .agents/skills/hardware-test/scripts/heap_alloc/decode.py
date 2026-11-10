@@ -138,11 +138,14 @@ def main() -> None:
     # addr2line names any address, so check the ELF is the build that made the dump
     if wanted and (header := HEADER.search(text)):
         nm = addr2line[: -len("addr2line")] + "nm"
-        symbols = subprocess.run(
-            [nm, elf], capture_output=True, text=True, check=True
-        ).stdout
-        if not re.search(
-            rf"^0*{int(header[5], 16):x} [bBdD] g_allocs$", symbols, re.MULTILINE
+        if not Path(nm).is_file():
+            problems.append(f"cannot check the ELF: no {nm} next to addr2line")
+        elif not re.search(
+            rf"^0*{int(header[5], 16):x} [bBdD] g_allocs$",
+            subprocess.run(
+                [nm, elf], capture_output=True, text=True, check=True
+            ).stdout,
+            re.MULTILINE,
         ):
             problems.append(
                 "the ELF is not the build that made this dump (g_allocs address differs)"
