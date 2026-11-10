@@ -407,6 +407,9 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     this->write_bit_(parity_bit, &wait, start, bit_time);
   // Stop bits: write_bit_ waits before its edge, so the stop bit is held with wait_
   this->write_bit_(true, &wait, start, bit_time);
+  // Hold the stop bit with interrupts on: one that runs past it only delays the next start bit, and back-to-back
+  // byte locks with no gap between them trip the Wi-Fi watchdog
+  frame_lock.reset();
   this->wait_(&wait, start, bit_time);
   if (this->stop_bits_ == 2)
     this->wait_(&wait, start, bit_time);
