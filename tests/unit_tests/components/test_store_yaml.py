@@ -871,6 +871,15 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "fp.yaml": "fingerprint_grow:\n  password: !secret fp_password\n",
+                "secrets.yaml": "fp_password: '0x12345678'\n",
+            },
+            {"fingerprint_grow": {"password": SensitiveHexInt(0x12345678)}},
+            {"fp.yaml": "password: !secret 'fp_password'"},
+            id="int_secret_written_as_quoted_hex",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "packages:\n  base:\n    api:\n      actions:\n"
                 "        - action: login\n          variables:\n"
                 "            password: string\n"
