@@ -1073,17 +1073,16 @@ class ApplyFilterDomain:
         config: Any,
         filter_id: ID,
         *statements: str | ApplyCall,
-        schema: Any = None,
+        schema: Any,
     ) -> MockObj:
         """Declare filter ``name`` as the function of ``statements`` over ``config``.
 
         Value lambdas become their own functions; a statement whose keys are all absent is skipped,
-        except the last; ``schema`` checks the statement keys.
+        except the last; ``schema`` checks the statement keys, so a typo is not a skipped statement.
         """
         calls = _apply_calls(name, statements)
-        if schema is not None:
-            for c in calls:
-                _check_call_keys(name, schema, c.members)
+        for c in calls:
+            _check_call_keys(name, schema, c.members)
         body: list[str] = []
         lambdas = 0
         for index, c in enumerate(calls):
@@ -1115,11 +1114,9 @@ class ApplyFilterDomain:
     def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
         """Register filter ``name`` as the function of ``statements``; see ``build``."""
         calls = _apply_calls(name, statements)
-        for c in calls:
-            _check_call_keys(name, schema, c.members)
 
         async def builder(config: Any, filter_id: ID) -> MockObj:
-            return await self.build(name, config, filter_id, *calls)
+            return await self.build(name, config, filter_id, *calls, schema=schema)
 
         self.registry.register(name, self.filter_class, schema)(builder)
 
