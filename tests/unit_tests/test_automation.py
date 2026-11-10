@@ -3453,6 +3453,17 @@ def _filter_domain(registry: Registry) -> ApplyFilterDomain:
     )
 
 
+def test_filter_without_statements_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one statement"):
+        _filter_domain(Registry()).register("my.filter", cv.float_)
+
+
+@pytest.mark.asyncio
+async def test_build_without_statements_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one statement"):
+        await _filter_domain(Registry()).build("my.filter", 1.5, ID("filt_1"))
+
+
 async def _run_apply_filter(
     schema: object,
     statements: tuple[str | ApplyCall, ...],

@@ -1026,7 +1026,10 @@ def register_apply_condition(
 WHOLE_CONFIG: tuple[str, ...] = ()
 
 
-def _apply_calls(statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+def _apply_calls(name: str, statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+    if not statements:
+        # A non-void function with no statement would never return
+        raise ValueError(f"{name}: a filter needs at least one statement")
     return [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
 
 
@@ -1077,7 +1080,7 @@ class ApplyFilterDomain:
         Value lambdas become their own functions; a statement whose keys are all absent is skipped,
         except the last; ``schema`` checks the statement keys.
         """
-        calls = _apply_calls(statements)
+        calls = _apply_calls(name, statements)
         if schema is not None:
             for c in calls:
                 _check_call_keys(name, schema, c.members)
@@ -1111,7 +1114,7 @@ class ApplyFilterDomain:
 
     def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
         """Register filter ``name`` as the function of ``statements``; see ``build``."""
-        calls = _apply_calls(statements)
+        calls = _apply_calls(name, statements)
         for c in calls:
             _check_call_keys(name, schema, c.members)
 
