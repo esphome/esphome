@@ -21,6 +21,7 @@ from .const import (
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
     KEY_ZEPHYR,
+    KEY_ZEPHYR_RTOS,
     zephyr_ns,
 )
 
@@ -110,6 +111,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
 
 
 def zephyr_data() -> ZephyrData:
+    # zephyr_rtos builds keep their own store, which extends ZephyrData
+    if (data := CORE.data.get(KEY_ZEPHYR_RTOS)) is not None:
+        return data
     return CORE.data[KEY_ZEPHYR]
 
 

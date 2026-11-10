@@ -12,6 +12,7 @@ KEY_PM_STATIC: Final = "pm_static"
 KEY_KCONFIG: Final = "kconfig"
 KEY_PRJ_CONF: Final = "prj_conf"
 KEY_ZEPHYR = "zephyr"
+KEY_ZEPHYR_RTOS: Final = "zephyr_rtos"
 KEY_BOARD: Final = "board"
 KEY_SYSBUILD: Final = "sysbuild"
 
