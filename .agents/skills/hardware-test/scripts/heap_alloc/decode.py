@@ -68,19 +68,30 @@ def decode(
     return names
 
 
-def check(text: str, entries: list) -> list[str]:
+def last_dump(text: str) -> str:
+    """The last dump that reached DUMP END (a retried press or an appended file holds several), else the last one."""
+    starts = [m.start() for m in HEADER.finditer(text)]
+    sections = [
+        text[a:b] for a, b in zip(starts, [*starts[1:], len(text)], strict=True)
+    ]
+    whole = [s for s in sections if "DUMP END" in s]
+    return (whole or sections or [""])[-1]
+
+
+def check(dump: str, entries: list) -> list[str]:
     """Reasons the dump is incomplete, empty when it is whole."""
-    if not (header := HEADER.search(text)):
+    if not (header := HEADER.search(dump)):
         return ["no DUMP header (log subscription started late?)"]
     n, claimed = int(header[1]), int(header[2])
     problems = []
-    if missing := sorted(set(range(n)) - {int(e[0]) for e in entries}):
+    indexes = [int(e[0]) for e in entries]
+    if missing := sorted(set(range(n)) - set(indexes)):
         problems.append(f"{len(missing)} of {n} entries missing, first {missing[:10]}")
+    if len(indexes) != len(set(indexes)):
+        problems.append("duplicate entries")
     if claimed > n:
-        problems.append(
-            f"buffer filled: {claimed - n} allocations after the first {n} not kept"
-        )
-    if "DUMP END" not in text:
+        problems.append(f"buffer filled: recording stopped after {n} entries")
+    if "DUMP END" not in dump:
         problems.append("no DUMP END")
     return problems
 
@@ -88,7 +99,7 @@ def check(text: str, entries: list) -> list[str]:
 def main() -> None:
     log, elf = sys.argv[1], sys.argv[2]
     addr2line = sys.argv[3] if len(sys.argv) > 3 else find_addr2line(elf)
-    text = Path(log).read_text(encoding="utf-8", errors="replace")
+    text = last_dump(Path(log).read_text(encoding="utf-8", errors="replace"))
     entries = [
         (idx, int(ms), int(size), pcs.split())
         for idx, ms, size, pcs in ENTRY.findall(text)

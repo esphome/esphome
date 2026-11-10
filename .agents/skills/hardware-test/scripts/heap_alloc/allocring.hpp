@@ -9,7 +9,8 @@
 #endif
 #include "esp_timer.h"
 // Counts every global operator new and, once armed, keeps the first ALLOC_CAP of them with five caller PCs
-// (callers on Xtensa only; RISC-V entries keep size and time). See reference/recipes/heap_alloc.md.
+// (callers on Xtensa only; RISC-V entries keep size and time). Aligned operator new is not counted.
+// See reference/recipes/heap_alloc.md.
 struct AllocEntry {
   uint32_t ms;
   uint32_t size;  // ALLOC_MARKER for a marker: pc[0] and pc[1] then hold its two values
@@ -19,7 +20,7 @@ static constexpr uint32_t ALLOC_CAP = 1024;
 static constexpr uint32_t ALLOC_MARKER = UINT32_MAX;
 AllocEntry g_allocs[ALLOC_CAP];
 std::atomic<uint32_t> g_alloc_n{0};
-volatile uint32_t g_new_count = 0;
+std::atomic<uint32_t> g_new_count{0};
 volatile bool g_alloc_armed = false;
 
 // Claims the next slot, or returns nullptr and disarms once the buffer is full.
@@ -36,7 +37,7 @@ static inline AllocEntry *alloc_claim(uint32_t size) {
 }
 
 void *operator new(size_t size) {
-  g_new_count++;
+  g_new_count.fetch_add(1, std::memory_order_relaxed);
   AllocEntry *e = g_alloc_armed ? alloc_claim(size) : nullptr;
   if (e != nullptr) {
     e->pc[0] = e->pc[1] = e->pc[2] = e->pc[3] = e->pc[4] = 0;
@@ -44,8 +45,9 @@ void *operator new(size_t size) {
     esp_backtrace_frame_t f;
     esp_backtrace_get_start(&f.pc, &f.sp, &f.next_pc);
     // The start frame is this function; record the five callers above it.
-    for (int k = 0; k < 5; k++)
-      e->pc[k] = f.next_pc != 0 && esp_backtrace_get_next_frame(&f) ? esp_cpu_process_stack_pc(f.pc) : 0;
+    // Stop at the first frame that does not unwind; the slots after it stay 0.
+    for (int k = 0; k < 5 && f.next_pc != 0 && esp_backtrace_get_next_frame(&f); k++)
+      e->pc[k] = esp_cpu_process_stack_pc(f.pc);
 #endif
   }
   void *p = malloc(size ? size : 1);
