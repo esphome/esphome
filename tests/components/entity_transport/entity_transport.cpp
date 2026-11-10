@@ -59,6 +59,8 @@ class TestTransport : public EntityTransport {
   uint32_t get_dictionary_id() const { return this->dictionary_id_; }
   uint32_t get_update_interval() const { return this->update_interval_ms_; }
   using EntityTransport::clear_remote_states_;
+  using EntityTransport::DropReason;
+  using EntityTransport::warning_due_;
 };
 
 static Packet header(uint8_t packet_type, uint32_t id) {
@@ -205,6 +207,27 @@ TEST_F(EntityTransportTest, LongRefusalWarns) {
   sender->loop();
   EXPECT_FALSE(sender->status_has_warning());
   EXPECT_EQ(this->link_a_.sent.size(), 2);
+}
+
+// A steady stream of one kind of dropped packet does not hold back the warning for another kind
+TEST_F(EntityTransportTest, EachDropReasonWarnedSeparately) {
+  using Reason = TestTransport::DropReason;
+  auto sender = this->make_sender_();
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 1000};
+  }
+  EXPECT_TRUE(sender->warning_due_(Reason::DROP_REASON_FORMAT_VERSION));
+  EXPECT_FALSE(sender->warning_due_(Reason::DROP_REASON_FORMAT_VERSION));
+  EXPECT_TRUE(sender->warning_due_(Reason::DROP_REASON_MALFORMED_DICTIONARY));
+  EXPECT_FALSE(sender->warning_due_(Reason::DROP_REASON_MALFORMED_DICTIONARY));
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 60999};
+  }
+  EXPECT_FALSE(sender->warning_due_(Reason::DROP_REASON_FORMAT_VERSION));
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 61000};
+  }
+  EXPECT_TRUE(sender->warning_due_(Reason::DROP_REASON_FORMAT_VERSION));
 }
 
 TEST_F(EntityTransportTest, UnknownDictionaryRequested) {
