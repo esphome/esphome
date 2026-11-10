@@ -35,6 +35,7 @@ class BasicFragmentation : public PacketInterface {
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
 
  protected:
+  bool send_(const PacketBuffer &data, const PacketMetaData &meta_data);
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);
   size_t fragment_size_() const {
     size_t lower_size = this->lower_->get_max_packet_size();
