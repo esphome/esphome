@@ -439,6 +439,8 @@ void EntityTransport::receive_(const PacketBuffer &data) {
     if (packet[0] == PACKET_REQUEST && packet.size() == HEADER_SIZE) {
       ESP_LOGD(TAG, "Dictionary requested");
       this->send_all_();
+    } else {
+      ESP_LOGV(TAG, "Packet with our own dictionary id dropped; another device may have the same name and entities");
     }
     return;
   }
