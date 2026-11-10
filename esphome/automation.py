@@ -686,15 +686,10 @@ def apply_static_function(
     return_type: SafeExpType,
     params: TemplateArgsType,
     statements: list[str],
-    share: bool = False,
 ) -> MockObj:
-    """Emit the static function generated for ``id_`` and return an expression naming it.
-
-    ``share`` reuses an identical function through ``cg.shared_static_function``; leave it
-    false for a body with user lambda code. The name never matches a config id.
-    """
-    return cg.shared_static_function(
-        _apply_function_name(id_), return_type, params, statements, share=share
+    """Emit the static function generated for ``id_`` and return an expression naming it."""
+    return cg.static_function(
+        _apply_function_name(id_), return_type, params, statements
     )
 
 

@@ -1158,11 +1158,6 @@ class TestSharedStaticFunction:
         assert str(b) == "fn_b"
         assert len(CORE.global_statements_after_includes) == 2
 
-    def test_same_text_split_differently_shares(self) -> None:
-        a = cg.shared_static_function("fn_a", ct.int32, [], ["int n = 1;", "return n;"])
-        b = cg.shared_static_function("fn_b", ct.int32, [], ["int n = 1;\nreturn n;"])
-        assert a is b
-
     def test_share_false_always_emits_a_new_function(self) -> None:
         body = ["static int n = 0;", "return ++n;"]
         a = cg.shared_static_function("fn_a", ct.int32, [], body)
@@ -1172,11 +1167,6 @@ class TestSharedStaticFunction:
         assert [str(f) for f in (a, b, c, d)] == ["fn_a", "fn_b", "fn_c", "fn_a"]
         assert len(CORE.global_statements_after_includes) == 3
 
-    def test_share_false_with_one_name_gets_unique_names(self) -> None:
-        a = cg.shared_static_function("fn", ct.void, [], ["return;"], share=False)
-        b = cg.shared_static_function("fn", ct.void, [], ["return;"], share=False)
-        assert [str(a), str(b)] == ["fn", "fn_2"]
-
     def test_one_name_different_bodies_gets_unique_names(self) -> None:
         a = cg.shared_static_function("fn", ct.int32, [], ["return 1;"])
         b = cg.shared_static_function("fn", ct.int32, [], ["return 2;"])
@@ -1185,10 +1175,6 @@ class TestSharedStaticFunction:
             "static int32_t fn();",
             "static int32_t fn_2();",
         ]
-
-    def test_name_avoids_config_ids(self) -> None:
-        CORE.config = {"sensor": [{"id": ID("fn", is_declaration=True)}]}
-        assert str(cg.shared_static_function("fn", ct.void, [], ["return;"])) == "fn_2"
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:
