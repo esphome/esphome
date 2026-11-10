@@ -95,8 +95,6 @@ void MAX6956::set_brightness_global(uint8_t current) {
 
 void MAX6956::write_brightness_global() { this->write_reg_(MAX6956_GLOBAL_CURRENT, global_brightness_); }
 
-void MAX6956::set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode) { brightness_mode_ = brightness_mode; };
-
 void MAX6956::write_brightness_mode() {
   uint8_t reg_addr = MAX6956_CONFIGURATION;
   uint8_t config = 0;

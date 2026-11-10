@@ -1,0 +1,114 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          sim::loopback(id(u_a));
+          sim::loopback(id(u_b));
+
+uart:
+  - id: u_a
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 9600
+  - id: u_b
+    tx_pin: GPIO32
+    rx_pin: GPIO33
+    baud_rate: 9600
+
+sensor:
+  - platform: a01nyub
+    name: A01 Distance
+    uart_id: u_a
+    accuracy_decimals: 3
+    filters: []
+  - platform: a02yyuw
+    name: A02 Distance
+    uart_id: u_b
+    filters: []
+
+button:
+  - platform: template
+    name: A01 Good
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Good", sim::ds1603l(1001));
+  - platform: template
+    name: A01 Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Bad Checksum", sim::ds1603l(1002, true));
+  - platform: template
+    name: A01 Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Garbage Then Frame", sim::cat({0x12, 0x34}, sim::ds1603l(1003)));
+  - platform: template
+    name: A01 Repeated Header
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Repeated Header", sim::cat({0xFF}, sim::ds1603l(1004)));
+  - platform: template
+    name: A01 Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Cut Then Frame", sim::cat({0xFF, 0x01}, sim::ds1603l(1005)));
+  - platform: template
+    name: A01 Too Close
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Too Close", sim::ds1603l(200));
+  - platform: template
+    name: A01 Split
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Split head", sim::part(sim::ds1603l(1006), 0, 2));
+      - delay: 300ms
+      - lambda: sim::send(id(u_a), "A01 Split rest", sim::part(sim::ds1603l(1006), 2, 4));
+  - platform: template
+    name: A01 Two Frames
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Two Frames", sim::cat(sim::ds1603l(1007), sim::ds1603l(1008)));
+  - platform: template
+    name: A01 Bad Then Good
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Bad Then Good", sim::cat(sim::ds1603l(1009, true), sim::ds1603l(1010)));
+  - platform: template
+    name: A01 Good After
+    on_press:
+      - lambda: sim::send(id(u_a), "A01 Good After", sim::ds1603l(1011));
+  - platform: template
+    name: A02 Good
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Good", sim::ds1603l(2001));
+  - platform: template
+    name: A02 Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Bad Checksum", sim::ds1603l(2002, true));
+  - platform: template
+    name: A02 Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Garbage Then Frame", sim::cat({0x12, 0x34}, sim::ds1603l(2003)));
+  - platform: template
+    name: A02 Repeated Header
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Repeated Header", sim::cat({0xFF}, sim::ds1603l(2004)));
+  - platform: template
+    name: A02 Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Cut Then Frame", sim::cat({0xFF, 0x01}, sim::ds1603l(2005)));
+  - platform: template
+    name: A02 Too Close
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Too Close", sim::ds1603l(20));
+  - platform: template
+    name: A02 Split
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Split head", sim::part(sim::ds1603l(2006), 0, 2));
+      - delay: 300ms
+      - lambda: sim::send(id(u_b), "A02 Split rest", sim::part(sim::ds1603l(2006), 2, 4));
+  - platform: template
+    name: A02 Two Frames
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Two Frames", sim::cat(sim::ds1603l(2007), sim::ds1603l(2008)));
+  - platform: template
+    name: A02 Bad Then Good
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Bad Then Good", sim::cat(sim::ds1603l(2009, true), sim::ds1603l(2010)));
+  - platform: template
+    name: A02 Good After
+    on_press:
+      - lambda: sim::send(id(u_b), "A02 Good After", sim::ds1603l(2011));
