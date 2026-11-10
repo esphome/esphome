@@ -608,6 +608,43 @@ display:
   # Good Display GDEY0583T81 5.83" mono e-paper (648x480, UC8179)
   - platform: epaper_spi
     spi_id: spi_bus
+    model: goodisplay-gdey0583t81-5.83
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  # Seeed 0583BN-T81-D2, the GDEY0583T81 panel under its label name
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 0583BN-T81-D2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  # Waveshare 7.5" V2 four-level grayscale (800x480, UC8179 controller)
+  - platform: epaper_spi
+    spi_id: spi_bus
     model: waveshare-7.5in-v2-gray4
     cs_pin:
       allow_other_uses: true
