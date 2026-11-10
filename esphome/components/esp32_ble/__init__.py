@@ -347,10 +347,14 @@ TX_POWER_LEVELS = {
     9: esp_power_level_t.ESP_PWR_LVL_P9,
 }
 
+# The C++ name buffer holds 20 bytes
+NAME_MAX_BYTES = 20
+MAC_SUFFIX_BYTES = len("-AABBCC")
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLE),
-        cv.Optional(CONF_NAME): cv.All(cv.string, cv.Length(max=20)),
+        cv.Optional(CONF_NAME): cv.All(cv.string, cv.ByteLength(max=NAME_MAX_BYTES)),
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
@@ -459,17 +463,24 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
+def validate_name_with_mac_suffix(config: ConfigType) -> None:
+    """With name_add_mac_suffix the ASCII "-AABBCC" is appended, leaving the name 7 fewer bytes."""
+    if (name := config.get(CONF_NAME)) is None:
+        return
+    if not fv.full_config.get()[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
+        return
+    try:
+        cv.ByteLength(max=NAME_MAX_BYTES - MAC_SUFFIX_BYTES)(name)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"{err.msg} name_add_mac_suffix appends {MAC_SUFFIX_BYTES} more.",
+            path=[CONF_NAME],
+        ) from err
+
+
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
-    if (name := config.get(CONF_NAME)) is not None:
-        full_config = fv.full_config.get()
-        max_length = 20
-        if full_config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
-            max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
-        if len(name) > max_length:
-            raise cv.Invalid(
-                f"Name '{name}' is too long, maximum length is {max_length} characters"
-            )
+    validate_name_with_mac_suffix(config)
 
     # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
     # esp_bt_controller_init fails with ESP_ERR_NO_MEM.
