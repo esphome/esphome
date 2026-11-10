@@ -70,7 +70,9 @@ def frame(msg_type: int, payload: bytes) -> bytes:
     return b"\x00" + varint(len(payload)) + varint(msg_type) + payload
 
 
-def f_bytes(num: int, data: bytes) -> bytes:
+def f_bytes(num: int, data: bytes | str) -> bytes:
+    if isinstance(data, str):
+        data = data.encode()
     return varint((num << 3) | 2) + varint(len(data)) + data
 
 

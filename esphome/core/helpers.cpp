@@ -803,11 +803,7 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
     hue = int(fmodf((60.0f * ((red - green) / delta)) + 240.0f, 360.0f));
   }
 
-  if (max_color_value == 0) {
-    saturation = 0;
-  } else {
-    saturation = delta / max_color_value;
-  }
+  saturation = max_color_value == 0 ? 0 : delta / max_color_value;
 
   value = max_color_value;
 }
