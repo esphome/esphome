@@ -25,10 +25,7 @@ identical payloads share one table, a lambda is sent from its vector. An empty c
 `TemplatableBytes::visit` had passed a zero length stack buffer instead. Compare sizes against the stacked PR's own
 head when the PR is stacked, not against dev. Results: https://github.com/esphome/esphome/pull/21263
 
-## WLED realtime sender on the bench (#22509)
+## Two sockets on one port (#22509)
 
-When the access point stops passing traffic between clients (lwIP `sendto` on the sender fails with errno 12
-because ARP never resolves), run the sender on a board instead of the host: an ESP32-S3 runs `wifi: ap:` and a
-25 ms interval lambda sends WARLS, DRGB or DNRGB frames with lwIP `sendto` to the devices under test, which join
-that AP with `manual_ip`. lwIP lets two sockets bind one port when `SO_REUSEADDR` is set, and unicast then goes to
-the socket opened last; without it the second bind fails with errno 112.
+lwIP lets two sockets bind one UDP port when `SO_REUSEADDR` is set, and unicast then goes to the socket opened
+last; without it the second bind fails with errno 112.

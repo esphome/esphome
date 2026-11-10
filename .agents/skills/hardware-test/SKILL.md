@@ -125,8 +125,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   (exit 2: a precondition was missed, the stimulus was insufficient, or a capture did not last the run)
   or exits 1 when a build, flash or port step failed.
 
-Per-topic scripts, each described in the matching `reference/recipes/<component>.md`: `heap_alloc/` (operator new
-caller ring, dump decoder, cover cycle driver), `online_image/`
+Per-topic scripts, each described in the matching `reference/recipes/<component>.md`: `heap_alloc/` (operator new caller
+recorder, dump saver and decoder, cover cycle driver), `online_image/`
 (server with prefixed misbehaviour cases, PNG, JPEG, BMP and QOI generators, API drivers, first pass timer), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the

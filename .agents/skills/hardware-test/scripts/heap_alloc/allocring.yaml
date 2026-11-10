@@ -1,23 +1,19 @@
-# Package: count and record every operator new on ESP32 (Arduino or ESP-IDF).
-# Recording starts at ${alloc_arm_s} s of uptime, past the scheduler freelist trim 10 s after setup.
-# Press "Dump allocations" afterwards and save the API or serial log; decode.py turns it into callers.
-# Lambdas can add markers with alloc_marker(a, b) (written as size 0 entries) to split the run into phases.
+# Package for allocring.hpp: arms it ${alloc_arm_s} s after boot and adds the dump button. See heap_alloc.md.
 esphome:
   includes:
     - allocring.hpp
+  on_boot:
+    then:
+      - delay: ${alloc_arm_s}s
+      - lambda: |-
+          g_alloc_armed = true;
+          ESP_LOGI("allocs", "ARMED total=%u", g_new_count);
 
 interval:
-  - interval: 1s
-    then:
-      - lambda: |-
-          if (!g_alloc_armed && millis() > ${alloc_arm_s} * 1000) {
-            g_alloc_armed = true;
-            ESP_LOGI("ring", "ARMED total=%u", g_new_count);
-          }
   - interval: 30s
     then:
       - lambda: |-
-          ESP_LOGI("ring", "total=%u ring=%u heap=%u", g_new_count, (unsigned) g_alloc_n.load(),
+          ESP_LOGI("allocs", "total=%u kept=%u heap=%u", g_new_count, (unsigned) g_alloc_n.load(),
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 
 button:
@@ -26,13 +22,13 @@ button:
     on_press:
       - lambda: |-
           g_alloc_armed = false;
-          uint32_t n = std::min<uint32_t>(g_alloc_n.load(), ALLOC_RING);
-          ESP_LOGI("ring", "DUMP n=%u total=%u", n, g_new_count);
+          uint32_t n = std::min<uint32_t>(g_alloc_n.load(), ALLOC_CAP);
+          ESP_LOGI("allocs", "DUMP n=%u total=%u", n, g_new_count);
           for (uint32_t i = 0; i < n; i++) {
-            const AllocEntry &e = g_alloc_ring[i];
-            ESP_LOGI("ring", "E %u %u %u %08x %08x %08x %08x %08x", i, e.ms, e.size, e.pc[0], e.pc[1], e.pc[2],
+            const AllocEntry &e = g_allocs[i];
+            ESP_LOGI("allocs", "E %u %u %u %08x %08x %08x %08x %08x", i, e.ms, e.size, e.pc[0], e.pc[1], e.pc[2],
                      e.pc[3], e.pc[4]);
             if ((i & 15) == 15)
-              delay(20);
+              delay(20);  // let the log drain
           }
-          ESP_LOGI("ring", "DUMP END");
+          ESP_LOGI("allocs", "DUMP END");

@@ -79,3 +79,5 @@ One file per component, named after it:
 - [`pwm_capture.md`](pwm_capture.md): every LEDC PWM period captured on the same ESP32-C6 through RMT receive and PCNT, with and without power save
 - [`spi.md`](spi.md): SPI bus capture on the same board with no chips (ESP32 SPI3 slave, edge interrupt snapshots on C3, ESP8266 and Pico 2 W), checked and diffed between builds
 - [`heap_alloc.md`](heap_alloc.md): operator new counting, and a ring of allocation callers decoded with addr2line to tell the first run after boot from repeats
+- [`wled.md`](wled.md): WLED realtime sender on a board's own access point
+- [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
