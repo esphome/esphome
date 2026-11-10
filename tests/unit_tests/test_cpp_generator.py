@@ -1158,6 +1158,13 @@ class TestSharedStaticFunction:
         assert str(b) == "fn_b"
         assert len(CORE.global_statements_after_includes) == 2
 
+    def test_statement_body_shares_with_its_text(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.int32, [], [cg.RawStatement("return 1;")]
+        )
+        b = cg.shared_static_function("fn_b", ct.int32, [], ["return 1;"])
+        assert a is b
+
     def test_share_false_always_emits_a_new_function(self) -> None:
         body = ["static int n = 0;", "return ++n;"]
         a = cg.shared_static_function("fn_a", ct.int32, [], body)
