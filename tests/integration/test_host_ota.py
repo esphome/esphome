@@ -557,6 +557,31 @@ async def test_host_ota_api_key_offer_with_password(
 
 
 @pytest.mark.asyncio
+async def test_host_ota_cleared_password(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+) -> None:
+    """A password cleared at boot with set_auth_password("") must not be
+    asked for: the auth path is compiled in but the device skips it."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await _wait_for_line(lines, "Over-The-Air updates")
+        assert not any("Password configured" in line for line in lines)
+
+        await dev.ota(None, None, "upload without a password must succeed")
+
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("isolated_preferences")
 async def test_host_ota_provisioned_api_key(
     yaml_config: str,

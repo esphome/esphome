@@ -8,6 +8,7 @@
 #include "esphome/components/switch/switch.h"
 
 #include <array>
+#include <span>
 #include <vector>
 
 namespace esphome::sprinkler {
@@ -155,7 +156,7 @@ class SprinklerValveRunRequest {
   bool has_request() { return this->has_valve_; }
   bool has_valve_operator();
   void set_request_from(SprinklerValveRunRequestOrigin origin) { this->origin_ = origin; }
-  void set_run_duration(uint32_t run_duration);
+  void set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
   void set_valve(size_t valve_number);
   void set_valve_operator(SprinklerValveOperator *valve_op);
   void reset();
@@ -175,8 +176,7 @@ class SprinklerValveRunRequest {
 
 class Sprinkler final : public Component {
  public:
-  Sprinkler();
-  Sprinkler(const char *name);
+  Sprinkler(const char *name, std::span<SprinklerValve> valves);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -563,10 +563,7 @@ class Sprinkler final : public Component {
   std::vector<switch_::Switch *> pump_;
 
   /// Sprinkler valve objects
-  std::vector<SprinklerValve> valve_;
-
-  /// Sprinkler valve operator objects
-  std::vector<SprinklerValveOperator> valve_op_{2};
+  StaticFixedVector<SprinklerValve> valve_;
 
   /// Valve control timers, indexed by SprinklerTimerIndex (also used as the scheduler id)
   std::array<SprinklerTimer, 2> timer_;
@@ -592,6 +589,9 @@ class Sprinkler final : public Component {
   std::unique_ptr<Automation<>> sprinkler_turn_off_automation_;
   std::unique_ptr<Automation<>> sprinkler_turn_on_automation_;
   std::unique_ptr<Automation<>> sprinkler_standby_turn_on_automation_;
+  /// Sprinkler valve operator objects, last so the inline storage does not push the other members past short
+  /// load offsets
+  std::array<SprinklerValveOperator, 2> valve_op_{};
 };
 
 }  // namespace esphome::sprinkler

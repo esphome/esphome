@@ -122,7 +122,16 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
 
  protected:
   void add_command_(EzoCommandId id, float value = 0.0f);
+  // Queues a command and links the sender; false when the queue is full
+  bool enqueue_(const EzoCommand &command) {
+    if (!this->queue_.push(command))
+      return false;
+    send_queued_fn = send_queued;
+    this->enable_loop();
+    return true;
+  }
   void send_next_();
+  static void send_queued(EZOSensor *self, uint32_t now);
   void finish_command_();
 
   CallbackManager<void(const std::string &)> device_infomation_callback_{};
@@ -132,14 +141,15 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   CallbackManager<void(const std::string &)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
+  /// Set to send_queued on first queue, so poll-only configs do not link it or the command text tables.
+  inline static void (*send_queued_fn)(EZOSensor *self, uint32_t now){nullptr};
   /// Queued commands; the front one stays in place while it is in flight. The periodic read is not queued.
   StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
-  uint32_t reply_due_{0};  // when the reply to the command in flight can be read
   EzoState state_{EzoState::EZO_STATE_IDLE};
+  uint16_t reply_due_{0};     // low 16 bits of when the reply can be read; every reply delay is under 1 s
   bool read_pending_{false};  // a periodic read was requested and is not yet sent
-  /// Ring of queued custom texts in queue order; the oldest starts at custom_text_start_.
+  /// Ring of queued custom texts in queue order; the oldest starts here, the queued slots hold the lengths.
   uint8_t custom_text_start_{0};
-  uint8_t custom_text_used_{0};
   char custom_text_[EZO_CUSTOM_TEXT_SIZE];
 };
 

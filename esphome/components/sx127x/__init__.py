@@ -21,6 +21,7 @@ DEPENDENCIES = ["spi"]
 
 CONF_SX127X_ID = "sx127x_id"
 
+CONF_AFC_BANDWIDTH = "afc_bandwidth"
 CONF_AUTO_CAL = "auto_cal"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITSYNC = "bitsync"
@@ -172,6 +173,10 @@ def validate_config(config: ConfigType) -> ConfigType:
     else:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
+        if config.get(CONF_AFC_BANDWIDTH) == "500_0kHz":
+            raise cv.Invalid(
+                "500_0kHz is only available with LORA", path=[CONF_AFC_BANDWIDTH]
+            )
         if CONF_BITSYNC not in config:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
@@ -205,6 +210,10 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "dio1_pin is only used in packet mode with payload_length > 64 or a lambda"
             )
+    if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
+        raise cv.Invalid(
+            "Config 'afc_bandwidth' only available with FSK", path=[CONF_AFC_BANDWIDTH]
+        )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
     if config[CONF_PA_PIN] == "BOOST" and config[CONF_PA_POWER] < 2:
@@ -216,6 +225,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SX127x),
+            cv.Optional(CONF_AFC_BANDWIDTH): cv.enum(BW),
             cv.Optional(CONF_AUTO_CAL, default=True): cv.boolean,
             cv.Optional(CONF_BANDWIDTH, default="125_0kHz"): cv.enum(BW),
             cv.Optional(CONF_BITRATE, default=4800): cv.int_range(min=500, max=300000),
@@ -276,6 +286,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
+    cg.add_optional(var.set_afc_bandwidth, config.get(CONF_AFC_BANDWIDTH))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
     cg.add(var.set_deviation(config[CONF_DEVIATION]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))

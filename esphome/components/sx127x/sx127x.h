@@ -53,6 +53,7 @@ class SX127x final : public Component,
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void set_afc_bandwidth(SX127xBw afc_bandwidth) { this->afc_bandwidth_ = afc_bandwidth; }
   void set_auto_cal(bool auto_cal) { this->auto_cal_ = auto_cal; }
   void set_bandwidth(SX127xBw bandwidth) { this->bandwidth_ = bandwidth; }
   void set_bitrate(uint32_t bitrate) { this->bitrate_ = bitrate; }
@@ -131,6 +132,7 @@ class SX127x final : public Component,
   float long_packet_rssi_{0.0f};
   float rx_floor_;
   uint16_t preamble_size_;
+  SX127xBw afc_bandwidth_{SX127X_BW_50_0};
   SX127xBw bandwidth_;
   uint8_t coding_rate_;
   uint8_t modulation_;
