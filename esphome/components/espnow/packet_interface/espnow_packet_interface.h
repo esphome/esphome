@@ -46,12 +46,15 @@ class ESPNowPacketInterface : public packet_interface::PacketInterface,
   }
   void receive_(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size);
   void send_failed_(esp_err_t err);
+  void delivery_failed_();
 
   ESPNowComponent *parent_;
   peer_address_t peer_address_;
   const std::span<uint8_t> tx_buffer_;
   uint32_t last_send_warning_ms_{0};
+  uint32_t last_delivery_warning_ms_{0};
   bool send_warned_{false};
+  bool delivery_warned_{false};
 };
 
 }  // namespace esphome::espnow
