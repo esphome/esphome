@@ -369,10 +369,9 @@ void VL53L1XSensor::loop() {
 
   if (this->first_result_) {
     // ULD SensorInit: after the first ranging, start VHV calibration from the previous temperature.
-    if (!this->write_byte16_(VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x09) || !this->write_byte16_(VHV_CONFIG_INIT, 0)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_byte16_(VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x09) &&
+                                 this->write_byte16_(VHV_CONFIG_INIT, 0)))
       return;
-    }
     this->first_result_ = false;
     return;
   }

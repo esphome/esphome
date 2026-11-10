@@ -104,6 +104,8 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | --- | --- |
 | `if (this->x_sensor_ != nullptr) this->x_sensor_->publish_state(v);` | `PUBLISH_STATE(this->x_sensor_, v);` (`esphome/core/entity_base.h`) |
 | set warning / `return` / clear warning around a bus result | `if (!this->status_comm_result(ok)) return;` |
+| set warning / `return` around an earlier step of a multi-step poll | `if (!this->status_comm_check(ok)) return;` |
+| warning set, but no `status_comm_result` or `status_clear_warning` on the success path | the last step uses `status_comm_result(ok)`, or the warning never clears |
 | hand-written `set_x_sensor()` plus `x_sensor_` member | `SUB_SENSOR(x)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`, `SUB_SWITCH`, ... |
 | `if CONF_X in config: s = await sensor.new_sensor(config[CONF_X])` plus setter | `sensors = sensor.sub_sensors(config)` then `await sensors(CONF_X, hub.set_x_sensor)` |
 | hand-written `{"a": MyEnum.MY_ENUM_A, ...}` dict | `MyEnum.options("a", "b", prefix="MY_ENUM_")` |
