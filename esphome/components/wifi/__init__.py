@@ -4,13 +4,7 @@ from typing import Any
 
 from esphome import automation, preferences
 import esphome.codegen as cg
-from esphome.components.const import (
-    CONF_ENABLED,
-    CONF_MODEM,
-    CONF_ON_AP_START,
-    CONF_ON_AP_STOP,
-    CONF_USE_PSRAM,
-)
+from esphome.components.const import CONF_ENABLED, CONF_MODEM, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
@@ -169,6 +163,8 @@ CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_AP_START = "on_ap_start"
+CONF_ON_AP_STOP = "on_ap_stop"
 CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
@@ -774,6 +770,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires((CONF_ON_AP_START, CONF_ON_AP_STOP), CONF_AP),
     cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
     cv.key_requires(CONF_PASSWORD, CONF_SSID),
     cv.key_requires(
@@ -1093,17 +1090,13 @@ async def to_code(config):
 
     await cg.past_safe_mode()
 
-    if on_ap_start_config := config.get(CONF_ON_AP_START):
-        cg.add_define("USE_WIFI_AP_START_TRIGGER")
-        await automation.build_automation(
-            var.get_ap_start_trigger(), [], on_ap_start_config
-        )
-
-    if on_ap_stop_config := config.get(CONF_ON_AP_STOP):
-        cg.add_define("USE_WIFI_AP_STOP_TRIGGER")
-        await automation.build_automation(
-            var.get_ap_stop_trigger(), [], on_ap_stop_config
-        )
+    for conf_key, define, setter in (
+        (CONF_ON_AP_START, "USE_WIFI_AP_START_TRIGGER", var.set_on_ap_start),
+        (CONF_ON_AP_STOP, "USE_WIFI_AP_STOP_TRIGGER", var.set_on_ap_stop),
+    ):
+        if (conf := config.get(conf_key)) is not None:
+            cg.add_define(define)
+            cg.add(setter(await automation.build_trigger_callback([], conf, params=[])))
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_WIFI_CONNECT_TRIGGER")

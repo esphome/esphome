@@ -5,6 +5,10 @@ wifi:
   ap:
     ssid: Fallback AP
     password: fallback_password
+  on_ap_start:
+    - logger.log: "WiFi AP started!"
+  on_ap_stop:
+    - logger.log: "WiFi AP stopped!"
 
 packages:
   - !include common.yaml

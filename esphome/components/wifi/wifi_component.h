@@ -632,10 +632,10 @@ class WiFiComponent final : public Component {
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
 #ifdef USE_WIFI_AP_START_TRIGGER
-  Trigger<> *get_ap_start_trigger() { return &this->ap_start_trigger_; }
+  void set_on_ap_start(void (*callback)()) { this->on_ap_start_ = callback; }
 #endif
 #ifdef USE_WIFI_AP_STOP_TRIGGER
-  Trigger<> *get_ap_stop_trigger() { return &this->ap_stop_trigger_; }
+  void set_on_ap_stop(void (*callback)()) { this->on_ap_stop_ = callback; }
 #endif
 
   int32_t get_wifi_channel();
@@ -1023,10 +1023,10 @@ class WiFiComponent final : public Component {
   Trigger<> disconnect_trigger_;
 #endif
 #ifdef USE_WIFI_AP_START_TRIGGER
-  Trigger<> ap_start_trigger_;
+  void (*on_ap_start_)(){nullptr};
 #endif
 #ifdef USE_WIFI_AP_STOP_TRIGGER
-  Trigger<> ap_stop_trigger_;
+  void (*on_ap_stop_)(){nullptr};
 #endif
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
