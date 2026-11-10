@@ -24,7 +24,7 @@ Example output:
 from __future__ import annotations
 
 import argparse
-from functools import lru_cache
+from functools import cache, lru_cache
 import json
 from pathlib import Path
 import re
@@ -83,6 +83,7 @@ ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
     "cdc_acm_uart": "Depends on tinyusb which conflicts with usb_host",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
+    "daikin_madoka": "Needs esp32_ble with io_capability: display_yes_no, which a merged esp32_ble: block overrides",
     "ecocomfort2": "Needs esp32_ble with io_capability: none and sc_bond, which a merged esp32_ble: block overrides",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
@@ -98,8 +99,10 @@ ISOLATED_COMPONENTS = {
     "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
     "mipi_rgb": "RGB display occupies many GPIOs (including ones used by the shared i2c bus) that conflict when merged with other bus components",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
+    "modem": "Cellular-only node with api - grouping with wifi-bearing components hides that case",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
+    "store_yaml": "Embeds the test's own YAML; grouping would change the blob and its redaction",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
@@ -328,6 +331,27 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
     return platform_buses, has_extend_remove, has_direct_bus_config
 
 
+def _is_non_groupable(
+    component_name: str, has_extend_remove: bool, has_direct_bus_config: bool
+) -> bool:
+    """Isolated, base bus, !extend/!remove, or a bus defined directly."""
+    return (
+        component_name in ISOLATED_COMPONENTS
+        or component_name in BASE_BUS_COMPONENTS
+        or has_extend_remove
+        or has_direct_bus_config
+    )
+
+
+@cache
+def is_groupable(component_dir: Path) -> bool:
+    """Whether CI merges this component's tests with other components'."""
+    _, has_extend_remove, has_direct_bus_config = analyze_component(component_dir)
+    return not _is_non_groupable(
+        component_dir.name, has_extend_remove, has_direct_bus_config
+    )
+
+
 def analyze_all_components(
     tests_dir: Path = None,
 ) -> tuple[dict[str, dict[str, list[str]]], set[str], set[str]]:
@@ -368,29 +392,11 @@ def analyze_all_components(
         # Note: Components using $component_dir are now groupable because the merge
         # script rewrites these to absolute paths with component-specific substitutions
 
-        # Check if component is explicitly isolated
-        # These have known issues that prevent grouping with other components
-        if component_name in ISOLATED_COMPONENTS:
+        if _is_non_groupable(component_name, has_extend_remove, has_direct_bus_config):
             non_groupable.add(component_name)
 
-        # Check if component is a base bus component
-        # These ARE the bus platform implementations and define buses directly for testing
-        # They cannot be grouped with components that use bus packages (causes ID conflicts)
-        if component_name in BASE_BUS_COMPONENTS:
-            non_groupable.add(component_name)
-
-        # Check if component uses !extend or !remove directives
-        # These rely on specific config structure and cannot be merged with other components
-        # The directives work within a component's own package hierarchy but break when
-        # merging independent components together
-        if has_extend_remove:
-            non_groupable.add(component_name)
-
-        # Check if component defines buses directly in test files
-        # These create unique bus IDs and cause conflicts when merged
         # Exclude base bus components (i2c, spi, uart, etc.) since they ARE the platform
         if has_direct_bus_config and component_name not in BASE_BUS_COMPONENTS:
-            non_groupable.add(component_name)
             direct_bus_components.add(component_name)
 
     return components, non_groupable, direct_bus_components
@@ -637,12 +643,9 @@ def main() -> None:
             if platform_buses:
                 components[comp] = platform_buses
             # Note: Components using $component_dir are now groupable
-            if comp in ISOLATED_COMPONENTS:
-                non_groupable.add(comp)
-            if comp in BASE_BUS_COMPONENTS:
+            if _is_non_groupable(comp, has_extend_remove, has_direct_bus_config):
                 non_groupable.add(comp)
             if has_direct_bus_config and comp not in BASE_BUS_COMPONENTS:
-                non_groupable.add(comp)
                 direct_bus_components.add(comp)
     else:
         # Analyze all components

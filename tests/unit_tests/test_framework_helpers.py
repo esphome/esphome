@@ -1767,6 +1767,219 @@ class TestDownloadFromMirrors:
         mock_sleep.assert_not_called()
         assert (tmp_path / "out.bin.part").exists()
 
+    def test_file_mirror_copies_local_archive(self, tmp_path: Path) -> None:
+        """A file:// mirror is served from disk with no network access, the
+        template substitution still applies, and the user's file is left
+        in place for the caller to delete the copy."""
+        source = tmp_path / "mirror" / "esp-idf-1.2.3.tar.xz"
+        source.parent.mkdir()
+        source.write_bytes(b"archive")
+        target = tmp_path / "dist" / "out.tar.xz"
+        seen: list[int] = []
+        with patch("requests.get") as mock_get:
+            url = download_from_mirrors(
+                [f"{source.parent.as_uri()}/esp-idf-{{VERSION}}.tar.xz"],
+                {"VERSION": "1.2.3"},
+                target,
+                progress=seen.append,
+            )
+        assert url == f"{source.as_uri()}"
+        assert target.read_bytes() == b"archive"
+        assert source.read_bytes() == b"archive"
+        assert seen == [len(b"archive")]
+        mock_get.assert_not_called()
+
+    def test_missing_file_mirror_falls_back_to_next_mirror(
+        self, tmp_path: Path
+    ) -> None:
+        missing = (tmp_path / "missing.bin").as_uri()
+        second = tmp_path / "second.bin"
+        second.write_bytes(b"second")
+        target = tmp_path / "f.bin"
+        with patch("requests.get") as mock_get:
+            url = download_from_mirrors([missing, second.as_uri()], {}, target)
+        assert url == second.as_uri()
+        assert target.read_bytes() == b"second"
+        mock_get.assert_not_called()
+
+    def test_missing_file_mirror_fails_fast(self, tmp_path: Path) -> None:
+        """A local file that is not there is a permanent failure: no backoff
+        sweep, and the path is named in the error."""
+        missing = tmp_path / "missing.bin"
+        with (
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors([missing.as_uri()], {}, tmp_path / "f.bin")
+        assert f"not a readable file: {missing}" in str(ei.value)
+        mock_sleep.assert_not_called()
+
+    def test_directory_file_mirror_is_not_a_file(self, tmp_path: Path) -> None:
+        """Pointing at the mirror folder instead of the archive names the
+        real problem, not a missing path."""
+        with pytest.raises(EsphomeError, match="all mirrors") as ei:
+            download_from_mirrors([tmp_path.as_uri()], {}, tmp_path / "f.bin")
+        assert f"not a readable file: {tmp_path}" in str(ei.value)
+
+    def test_file_mirror_at_target_is_used_in_place(self, tmp_path: Path) -> None:
+        """An archive pre-seeded at the download target itself is not copied
+        onto itself; it is accepted where it sits."""
+        target = tmp_path / "dist" / "esp-idf-1.2.3.tar.xz"
+        target.parent.mkdir()
+        target.write_bytes(b"archive")
+        url = download_from_mirrors([target.as_uri()], {}, target)
+        assert url == target.as_uri()
+        assert target.read_bytes() == b"archive"
+        assert [p.name for p in (tmp_path / "dist").iterdir()] == [
+            "esp-idf-1.2.3.tar.xz"
+        ]
+
+    def test_archive_beside_target_survives_fallback(self, tmp_path: Path) -> None:
+        """A user's archive stored next to the target under a staging-like
+        name is never the staging file: a failed first mirror and a
+        succeeding second one leave it untouched."""
+        first = tmp_path / "f.bin.copy"
+        first.write_bytes(b"first")
+        second = tmp_path / "second.bin"
+        second.write_bytes(b"second")
+        target = tmp_path / "f.bin"
+        with patch(
+            "esphome.framework_helpers.os.access",
+            side_effect=lambda path, mode: Path(path) != first,
+        ):
+            url = download_from_mirrors([first.as_uri(), second.as_uri()], {}, target)
+        assert url == second.as_uri()
+        assert target.read_bytes() == b"second"
+        assert first.read_bytes() == b"first"
+        assert sorted(p.name for p in tmp_path.iterdir()) == [
+            "f.bin",
+            "f.bin.copy",
+            "second.bin",
+        ]
+
+    def test_malformed_file_url_falls_back_to_next_mirror(self, tmp_path: Path) -> None:
+        """Urlparse rejects the authority; that is a mirror failure, not an
+        abort of the whole download."""
+        second = tmp_path / "second.bin"
+        second.write_bytes(b"second")
+        target = tmp_path / "f.bin"
+        url = download_from_mirrors(
+            ["file://[bad/archive.bin", second.as_uri()], {}, target
+        )
+        assert url == second.as_uri()
+        assert target.read_bytes() == b"second"
+
+    def test_unreadable_in_place_archive_is_a_mirror_failure(
+        self, tmp_path: Path
+    ) -> None:
+        """A pre-seeded archive the process cannot read is refused before it
+        is accepted in place, so the next mirror gets its turn."""
+        target = tmp_path / "f.bin"
+        target.write_bytes(b"archive")
+        with (
+            patch("esphome.framework_helpers.os.access", return_value=False),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors([target.as_uri()], {}, target)
+        assert f"not a readable file: {target}" in str(ei.value)
+
+    def test_local_copy_rename_retries_sharing_violation(self, tmp_path: Path) -> None:
+        """The staged copy is renamed into place with the same retry the
+        HTTP download uses, so a transient Windows handle does not fail the
+        mirror."""
+        source = tmp_path / "local.bin"
+        source.write_bytes(b"local")
+        target = tmp_path / "f.bin"
+        real_replace = Path.replace
+        calls: list[int] = []
+
+        def flaky_replace(self: Path, dst: Path) -> Path:
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError("sharing violation")
+            return real_replace(self, dst)
+
+        with (
+            patch.object(Path, "replace", flaky_replace),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors([source.as_uri()], {}, target)
+        assert url == source.as_uri()
+        assert target.read_bytes() == b"local"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["f.bin", "local.bin"]
+        assert len(calls) == 2
+        mock_sleep.assert_called_once()
+
+    def test_failed_cleanup_keeps_the_copy_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When removing the staging file fails too, the copy error is the one
+        reported and the cleanup failure is only logged."""
+        source = tmp_path / "local.bin"
+        source.write_bytes(b"local")
+        target = tmp_path / "f.bin"
+        with (
+            patch(
+                "esphome.framework_helpers.shutil.copyfile",
+                side_effect=OSError("disk full"),
+            ),
+            patch.object(Path, "unlink", side_effect=OSError("busy")),
+            caplog.at_level(logging.DEBUG),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors([source.as_uri()], {}, target)
+        assert "disk full" in str(ei.value)
+        assert "busy" not in str(ei.value)
+        assert f"Could not remove {tmp_path / 'f.bin.'}" in caplog.text
+        assert ".copy: busy" in caplog.text
+
+    def test_failed_copy_leaves_no_partial_target_and_warns(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A copy that fails midway (disk full, permissions) leaves neither a
+        truncated target nor a .part file, warns, and falls to the next
+        mirror without a backoff sleep."""
+        source = tmp_path / "local.bin"
+        source.write_bytes(b"local")
+        target = tmp_path / "f.bin"
+
+        def fail_copy(src: object, dst: object) -> None:
+            Path(dst).write_bytes(b"lo")
+            raise PermissionError("denied")
+
+        with (
+            patch("esphome.framework_helpers.shutil.copyfile", side_effect=fail_copy),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            patch("requests.get", return_value=_mock_response(b"second")),
+            caplog.at_level(logging.WARNING),
+        ):
+            url = download_from_mirrors(
+                [source.as_uri(), "https://mirror2.com/f"], {}, target
+            )
+        assert url == "https://mirror2.com/f"
+        assert target.read_bytes() == b"second"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["f.bin", "local.bin"]
+        assert f"Local mirror {source.as_uri()} is unusable: denied" in caplog.text
+        mock_sleep.assert_not_called()
+
+    def test_local_path_from_url(self, tmp_path: Path) -> None:
+        """Percent-decoding, an explicit localhost host, and a UNC host; built
+        from tmp_path so the paths are absolute on Windows too."""
+        target = tmp_path / "a b" / "x.tar.xz"
+        assert framework_helpers.local_path_from_url(target.as_uri()) == target
+        with_host = target.as_uri().replace("file:///", "file://localhost/", 1)
+        assert framework_helpers.local_path_from_url(with_host) == target
+        assert framework_helpers.local_path_from_url(
+            "file://server/share/x.tar.xz"
+        ) == Path("//server/share/x.tar.xz")
+
+    def test_relative_file_url_is_a_mirror_failure(self, tmp_path: Path) -> None:
+        """A relative file URL would be read from the current directory;
+        it is refused with the reason instead."""
+        with pytest.raises(EsphomeError, match="all mirrors") as ei:
+            download_from_mirrors(["file:archive.tar.xz"], {}, tmp_path / "f.bin")
+        assert "not an absolute path: file:archive.tar.xz" in str(ei.value)
+
 
 class TestDownloadAndExtract:
     def test_downloads_extracts_and_deletes_archive(self, tmp_path: Path) -> None:
@@ -2237,6 +2450,17 @@ def _make_core(flags: set[str]):
     core = MagicMock()
     core.build_flags = flags
     return core
+
+
+def test_project_flags_keep_given_order() -> None:
+    """A flag list passed in keeps its order; only CORE.build_flags is sorted."""
+    flags = ["-Wl,--start-group", "-DB=1", "-Wl,-lfoo", "-DA=1", "-Wl,--end-group"]
+    assert get_project_link_flags(flags) == [
+        "-Wl,--start-group",
+        "-Wl,-lfoo",
+        "-Wl,--end-group",
+    ]
+    assert get_project_compile_flags(flags) == ["-DB=1", "-DA=1"]
 
 
 class TestGetProjectCompileFlags:

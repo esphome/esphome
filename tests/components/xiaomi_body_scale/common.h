@@ -32,6 +32,12 @@ static constexpr Frame SOCKS = {0x48, 0x59, 0xd5, 0x3b, 0x71, 0x53, 0x04, 0x38, 
 static constexpr Frame STEP_OFF = {0x48, 0x59, 0xd5, 0x3b, 0x72, 0x03, 0x6c, 0x67, 0x94, 0x35, 0x5a, 0x19,
                                    0xdb, 0xc8, 0x64, 0xbf, 0xb3, 0x00, 0x00, 0x00, 0xe4, 0x15, 0x1d, 0xc8};
 
+// S400 Pro (MJTZC03YM): only the 250 kHz impedance, with all weight bits set (0x7FF) instead of 0
+static constexpr uint64_t SCALE_PRO = 0xD07B6FF6BEEFULL;
+static constexpr const char *KEY_PRO = "5b3c8a1e9d2f47c6b0a4e8d1c7f29a63";
+static constexpr Frame PRO_PACKET_2 = {0x48, 0x59, 0x05, 0x4b, 0x12, 0xa3, 0xbc, 0x6d, 0xb8, 0x29, 0x94, 0xe1,
+                                       0x0d, 0xd1, 0x62, 0xd0, 0x34, 0x00, 0x00, 0x00, 0x5e, 0x55, 0xf7, 0xe5};
+
 // S200: weight only, 62.25 kg for profile 1
 static constexpr uint64_t SCALE_S200 = 0xD07B6F27D729ULL;
 static constexpr const char *KEY_S200 = "653b1b10e1cb35e4ac5e60fa45f3bf29";
@@ -53,12 +59,12 @@ inline ble_device_base::ESPBTDevice advert(uint64_t address, const Frame &frame)
 struct Harness {
   Harness(uint64_t address, const char *key) : scale(address, key) {
     App.pre_setup("test_scale", 10, "", 0);
-    this->scale.set_weight(&this->weight);
-    this->scale.set_impedance_low(&this->impedance_low);
-    this->scale.set_impedance_high(&this->impedance_high);
-    this->scale.set_heart_rate(&this->heart_rate);
-    this->scale.set_profile_id(&this->profile_id);
-    this->scale.set_stabilized(&this->stabilized);
+    this->scale.set_weight_sensor(&this->weight);
+    this->scale.set_impedance_low_sensor(&this->impedance_low);
+    this->scale.set_impedance_high_sensor(&this->impedance_high);
+    this->scale.set_heart_rate_sensor(&this->heart_rate);
+    this->scale.set_profile_id_sensor(&this->profile_id);
+    this->scale.set_stabilized_binary_sensor(&this->stabilized);
   }
 
   ~Harness() {

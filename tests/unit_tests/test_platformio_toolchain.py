@@ -112,6 +112,22 @@ def test_idedata_cc_path(setup_core: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("raw_data", "expected"),
+    [
+        pytest.param(
+            {"defines": ["USE_ESP32", "FOO=1"]}, ["USE_ESP32", "FOO=1"], id="set"
+        ),
+        pytest.param({}, [], id="missing"),
+    ],
+)
+def test_idedata_defines(raw_data: dict[str, list[str]], expected: list[str]) -> None:
+    """IDEData.defines returns the defines, or an empty list when absent."""
+    idedata = toolchain.IDEData({"prog_path": "/path/to/firmware.elf", **raw_data})
+
+    assert idedata.defines == expected
+
+
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
     image = FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
@@ -758,6 +774,17 @@ def test_copy_ccache_script(setup_core: Path) -> None:
     assert dest.read_text() == source.read_text()
 
 
+def test_copy_pch_script(setup_core: Path) -> None:
+    """The shared PCH pre-script is copied into the build dir."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    toolchain.copy_pch_script()
+
+    dest = setup_core / "build" / "test" / "pch.py"
+    source = Path(toolchain.__file__).parent / "pch.py.script"
+    assert dest.read_text() == source.read_text()
+
+
 class _FakeSConsEnv(dict):
     """Just enough of a SCons construction environment for ccache.py."""
 
@@ -816,6 +843,66 @@ def test_ccache_script_wraps_compiles_with_exported_path() -> None:
     original_spawn.assert_called_once_with(
         "cmd.exe", _scons_win32_escape, "xtensa-lx106-elf-g++", link_args, {}
     )
+
+
+def test_ccache_script_wraps_compiles_moved_to_a_response_file(
+    tmp_path: Path,
+) -> None:
+    """PlatformIO moves a command line over the Windows length limit into
+    an @file; the -c that marks a compile is then inside that file."""
+    ccache_path = "C:\\ccache\\ccache.exe"
+    scons_env, original_spawn = _load_ccache_script(
+        {"ESPHOME_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_PATH": ccache_path}
+    )
+    spawn = scons_env["SPAWN"]
+
+    compile_rsp = tmp_path / "tmp1.tmp"
+    compile_rsp.write_text('-o main.o -c -I"C:/sdk/include" main.cpp')
+    compile_args = ["arm-none-eabi-g++", f"@{compile_rsp}"]
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", compile_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *compile_args],
+        {},
+    )
+
+    # SCons quotes the whole argument when the file's path has a space
+    original_spawn.reset_mock()
+    spaced_rsp = tmp_path / "Jane Doe" / "tmp3.tmp"
+    spaced_rsp.parent.mkdir()
+    spaced_rsp.write_text("-o main.o -c main.cpp")
+    spaced_args = ["arm-none-eabi-g++", f'"@{spaced_rsp}"']
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", spaced_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *spaced_args],
+        {},
+    )
+
+    # A link moved to a response file still passes through untouched
+    original_spawn.reset_mock()
+    link_rsp = tmp_path / "tmp2.tmp"
+    link_rsp.write_text("-o firmware.elf main.o -lc")
+    link_args = ["arm-none-eabi-g++", f"@{link_rsp}"]
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {}
+    )
+
+    # An unreadable or undecodable response file is not a compile
+    for bad in (tmp_path / "absent.tmp", tmp_path / "binary.tmp"):
+        original_spawn.reset_mock()
+        if bad.name == "binary.tmp":
+            bad.write_bytes(b"-c \xff\xfe")
+        bad_args = ["arm-none-eabi-g++", f"@{bad}"]
+        spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {})
+        original_spawn.assert_called_once_with(
+            "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {}
+        )
 
 
 @pytest.mark.parametrize(
@@ -1012,6 +1099,20 @@ def test_run_platformio_cli_run_builds_command(
 
     mock_run_platformio_cli.assert_called_once_with(
         "run", "-d", CORE.build_path, "-v", "extra", "args"
+    )
+
+
+def test_run_platformio_cli_run_without_verbose(
+    setup_core: Path, mock_run_platformio_cli: Mock
+) -> None:
+    """Without verbose, no -v flag is passed to PlatformIO."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    mock_run_platformio_cli.return_value = 0
+
+    toolchain.run_platformio_cli_run({"name": "test"}, False, "extra")
+
+    mock_run_platformio_cli.assert_called_once_with(
+        "run", "-d", CORE.build_path, "extra"
     )
 
 

@@ -42,4 +42,23 @@ TEST(EntityBaseName, PrecomputedHashIsKept) {
   EXPECT_EQ(entity.get_object_id_hash(), 0x1234u);
 }
 
+// The getters return {} when the feature define is absent; get_*_to() must still hand back "", not null
+TEST(EntityBaseStrings, DefaultProgmemStringRefIsEmptyNotNull) {
+  constexpr ProgmemStringRef ref{};
+  ASSERT_NE(ref.progmem_ptr(), nullptr);
+  EXPECT_STREQ(ref.progmem_ptr(), "");
+  EXPECT_TRUE(ref.empty());
+}
+
+TEST(EntityBaseStrings, UnsetIconAndDeviceClassAreEmpty) {
+  TestEntity entity;
+  entity.configure("Living Room Temp", 0x1234);
+  EXPECT_TRUE(entity.get_icon_progmem().empty());
+  EXPECT_TRUE(entity.get_device_class_progmem().empty());
+  char icon_buf[MAX_ICON_LENGTH];
+  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+  EXPECT_STREQ(entity.get_icon_to(icon_buf), "");
+  EXPECT_STREQ(entity.get_device_class_to(dc_buf), "");
+}
+
 }  // namespace esphome::core::testing

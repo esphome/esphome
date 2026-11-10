@@ -23,7 +23,7 @@ from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zigbee import DOMAIN as ZIGBEE_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPENTHREAD, CONF_PLATFORM
+from esphome.const import CONF_ID, CONF_OPENTHREAD
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -204,11 +204,16 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
 
 
+_validate_single_instance = fv.unique_platform_key(
+    domain=power_management.DOMAIN,
+    platform=DOMAIN,
+    message=f"Only one {DOMAIN} instance is allowed",
+)
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
+    _validate_single_instance(config)
     full_config = fv.full_config.get()
-    entries = full_config.get(power_management.DOMAIN, [])
-    if sum(entry.get(CONF_PLATFORM) == DOMAIN for entry in entries) > 1:
-        raise cv.Invalid(f"Only one {DOMAIN} instance is allowed")
     boot_freq = full_config[esp32.DOMAIN][esp32.CONF_CPU_FREQUENCY]
     boot_mhz = int(boot_freq[:-3])
     max_mhz = config.get(CONF_MAX_FREQUENCY)

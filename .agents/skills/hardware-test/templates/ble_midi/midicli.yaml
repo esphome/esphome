@@ -1,0 +1,150 @@
+substitutions:
+  # the fake instrument's BLE address; pass it with `-s peri_mac AA:BB:CC:DD:EE:FF`
+  peri_mac: "00:00:00:00:00:00"
+
+esphome:
+  name: midicli
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  logs:
+    esp32_ble_tracker: DEBUG
+    ble_client: DEBUG
+    esp32_ble: DEBUG
+    api: DEBUG
+    scheduler: DEBUG
+    sensor: DEBUG
+    wifi: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: ${peri_mac}
+    id: midi_client
+
+ble_midi:
+  id: test_midi
+  ble_client_id: midi_client
+  max_sysex_size: 64
+  pair: false
+  on_connect:
+    - logger.log: "MIDI device connected"
+    - ble_midi.send_program_change:
+        id: test_midi
+        program: 0
+  on_disconnect:
+    - logger.log: "MIDI device disconnected"
+  on_note_on:
+    - logger.log:
+        format: "Note on %u velocity %u channel %u"
+        args: [note, velocity, channel]
+  on_note_off:
+    - logger.log:
+        format: "Note off %u channel %u"
+        args: [note, channel]
+  on_control_change:
+    - logger.log:
+        format: "CC %u = %u on channel %u"
+        args: [control_number, value, channel]
+  on_program_change:
+    - logger.log:
+        format: "Program %u on channel %u"
+        args: [program, channel]
+  on_pitch_bend:
+    - logger.log:
+        format: "Pitch bend %d on channel %u"
+        args: [value, channel]
+  on_sysex:
+    - lambda: |-
+        ESP_LOGI("midi", "SysEx of %u bytes: %s", (unsigned) data.size(), format_hex_pretty(data.data(), data.size()).c_str());
+  on_message:
+    - lambda: |-
+        ESP_LOGI("midi", "Raw message of %u bytes: %s", (unsigned) data.size(), format_hex_pretty(data.data(), data.size()).c_str());
+
+sensor:
+  - platform: debug
+    free:
+      name: Heap Free
+    loop_time:
+      name: Loop Time
+
+debug:
+  update_interval: 30s
+
+button:
+  - platform: template
+    name: "MIDI send tests"
+    on_press:
+      - ble_midi.send_note_on:
+          id: test_midi
+          note: 60
+      - ble_midi.send_note_on:
+          id: test_midi
+          note: !lambda "return 60;"
+          velocity: !lambda "return 100;"
+          channel: !lambda "return 1;"
+      - ble_midi.send_note_off:
+          id: test_midi
+          note: 60
+          velocity: 0
+          channel: 1
+      - ble_midi.send_control_change:
+          id: test_midi
+          control_number: 7
+          value: 64
+      - ble_midi.send_pitch_bend:
+          id: test_midi
+          value: -8192
+      - ble_midi.send_sysex:
+          id: test_midi
+          payload: [0x7E, 0x7F, 0x06, 0x01]
+      - ble_midi.send_raw:
+          id: test_midi
+          data: !lambda "return std::vector<uint8_t>{0x90, 0x3C, 0x40};"
+      - if:
+          condition:
+            ble_midi.connected:
+              id: test_midi
+          then:
+            - logger.log: "Still connected"
+          else:
+            - logger.log: "Not connected"
+  - platform: template
+    name: "MIDI send out of range"
+    on_press:
+      - ble_midi.send_note_on:
+          id: test_midi
+          note: !lambda "return 200;"
+      - ble_midi.send_control_change:
+          id: test_midi
+          control_number: 1
+          value: 1
+          channel: !lambda "return 16;"
+      - ble_midi.send_pitch_bend:
+          id: test_midi
+          value: 8191
+      - ble_midi.send_sysex:
+          id: test_midi
+          payload: [0xF0, 0x7E, 0x7F, 0x09, 0x01, 0xF7]
+      - ble_midi.send_raw:
+          id: test_midi
+          data: !lambda "return std::vector<uint8_t>(140, 0x00);"
+  - platform: template
+    name: "MIDI send long sysex"
+    on_press:
+      - ble_midi.send_sysex:
+          id: test_midi
+          payload: !lambda "return std::vector<uint8_t>(100, 0x11);"

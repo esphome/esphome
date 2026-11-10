@@ -94,8 +94,50 @@ class GPIOPin {
 #endif
 };
 
-/// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
+// The one platform pin class, which alone builds an ISRInternalGPIOPin from itself in to_isr()
+#if defined(USE_ESP32)
+namespace esp32 {
+class ESP32InternalGPIOPin;
+}
+#elif defined(USE_ESP8266)
+namespace esp8266 {
+class ESP8266GPIOPin;
+}
+#elif defined(USE_LIBRETINY)
+namespace libretiny {
+class ArduinoInternalGPIOPin;
+}
+#elif defined(USE_RP2)
+namespace rp2 {
+class RP2GPIOPin;
+}
+#elif defined(USE_HOST)
+namespace host {
+class HostGPIOPin;
+}
+#elif defined(USE_ZEPHYR)
+namespace zephyr {
+class ZephyrGPIOPin;
+}
+#endif
+
+/// ISR-safe handle to an internal pin (no virtual calls); every handle points at the pin itself and shares its state.
+/// Get one from pin->to_isr().
 class ISRInternalGPIOPin {
+#if defined(USE_ESP32)
+  friend class esp32::ESP32InternalGPIOPin;
+#elif defined(USE_ESP8266)
+  friend class esp8266::ESP8266GPIOPin;
+#elif defined(USE_LIBRETINY)
+  friend class libretiny::ArduinoInternalGPIOPin;
+#elif defined(USE_RP2)
+  friend class rp2::RP2GPIOPin;
+#elif defined(USE_HOST)
+  friend class host::HostGPIOPin;
+#elif defined(USE_ZEPHYR)
+  friend class zephyr::ZephyrGPIOPin;
+#endif
+
  public:
   ISRInternalGPIOPin() = default;
   ISRInternalGPIOPin(void *arg) : arg_(arg) {}
@@ -105,6 +147,11 @@ class ISRInternalGPIOPin {
   void pin_mode(gpio::Flags flags);
 
  protected:
+  // Only to_isr() builds a handle from a pin, since it also prepares the pin (the RTC IO number on ESP32).
+  template<std::derived_from<GPIOPin> T>
+  explicit ISRInternalGPIOPin(const T *pin)
+      : arg_(const_cast<T *>(pin)) {}  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+
   void *arg_{nullptr};
 };
 
@@ -143,5 +190,25 @@ void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
 #else
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
 #endif
+
+/// Waveform for pulse_reset(): high, low, then high again. Name the fields at the call site, e.g.
+/// pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}).
+struct ResetPulse {
+  uint32_t high_before_ms{0};  ///< Drive high this long first; skipped when 0
+  uint32_t low_ms{0};          ///< Hold the pin low (in reset) this long
+  uint32_t high_after_ms{0};   ///< Wait this long after releasing the pin
+};
+
+namespace internal {
+/// Out-of-line body of pulse_reset(); call that instead.
+void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint32_t high_after_ms);
+}  // namespace internal
+
+/// Set up an active-low reset pin and drive it through \p pulse. Blocks for the whole sequence;
+/// does nothing when pin is null. Inline so the fields reach pulse_reset_ms() in registers
+/// (RISC-V would otherwise pass the struct by reference).
+ESPHOME_ALWAYS_INLINE inline void pulse_reset(GPIOPin *pin, ResetPulse pulse) {
+  internal::pulse_reset_ms(pin, pulse.high_before_ms, pulse.low_ms, pulse.high_after_ms);
+}
 
 }  // namespace esphome

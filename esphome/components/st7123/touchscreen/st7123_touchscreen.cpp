@@ -9,12 +9,8 @@ ESPHOME_LOG_TAG(TAG, "st7123.touchscreen");
 
 void ST7123Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);  // TP_RESX is active low, assert for at least tRSTW (2ms)
-    delay(5);
-    this->reset_pin_->digital_write(true);
+    // TP_RESX is active low, assert for at least tRSTW (2ms)
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     // The controller needs up to 20ms to initialize after reset before it can be accessed.
     this->setup_time_ = millis() + 30;
   }

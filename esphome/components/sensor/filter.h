@@ -288,7 +288,7 @@ class LambdaFilter : public Filter {
   optional<float> new_value(float value) override;
 
   const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter);
+  void set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
 
  protected:
   lambda_filter_t lambda_filter_;
@@ -645,6 +645,26 @@ class ToNTCTemperatureFilter : public Filter {
   double a_;
   double b_;
   double c_;
+};
+
+/** RH Temperature correction filter
+ *
+ * Allows for Relative Humidity Correction when a temperature offset is applied to the temperature sensor.
+ * Uses the Magnus formula, rh = rh_nc * exp(b*(t_nc/(c+t_nc) - t/(c+t))) with b = 17.67, c = 243.5 °C;
+ * see https://en.wikipedia.org/wiki/Dew_point
+ */
+class RHCorrectionFilter : public Filter {
+ public:
+  RHCorrectionFilter(TemplatableFn<float> offset, const Sensor *temperature_sensor, bool use_fahrenheit)
+      : temperature_offset_(offset), temperature_sensor_(temperature_sensor), use_fahrenheit_(use_fahrenheit) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  TemplatableFn<float> temperature_offset_;
+  const Sensor *temperature_sensor_;
+  bool use_fahrenheit_;
+  bool warned_{false};
 };
 
 /** Base class for streaming filters (batch windows where window_size == send_every).
