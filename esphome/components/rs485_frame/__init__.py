@@ -83,7 +83,6 @@ QUEUE_POLICIES = QueuePolicy.options("replace_latest", "fifo", prefix="QUEUE_")
 TX_GATE_MODES = TxGateMode.options(
     "frame_trigger", "idle_gap", "fixed_delay", prefix="TX_GATE_"
 )
-_BYTE_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 MAX_COMMAND_VALUES = 8
 # Must agree with MAX_FRAME_TYPE_LEN in rs485_frame.h, which sizes a stack buffer.
@@ -350,9 +349,9 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_callback_automation(
             var,
             "add_on_frame_callback",
-            [(_BYTE_SPAN, "payload")],
+            [(cg.byte_span, "payload")],
             conf,
-            params=[(_BYTE_SPAN, "payload")],
+            params=[(cg.byte_span, "payload")],
             when=" || ".join(checks) or None,
         )
 
@@ -361,7 +360,7 @@ def _progmem_span(config: ConfigType, value: list[int]) -> str:
     if not value:
         return "{}"
     table = automation.progmem_bytes(f"{config[CONF_ID]}_send", value)
-    return str(_BYTE_SPAN(table, len(value)))
+    return str(cg.byte_span(table, len(value)))
 
 
 def _validate_send_frame(config: ConfigType) -> ConfigType:
