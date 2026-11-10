@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import ID, HexInt
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@Bascht74"]
@@ -104,6 +105,23 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_SERIAL): cv.hex_int_range(min=0, max=0xFFFFFFF),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # The counter is stored per type and serial, so two remotes with both equal would reuse codes.
+    key = (config[CONF_TYPE], config[CONF_SERIAL])
+    if (
+        sum((r[CONF_TYPE], r[CONF_SERIAL]) == key for r in fv.full_config.get()[DOMAIN])
+        > 1
+    ):
+        raise cv.Invalid(
+            f"serial 0x{config[CONF_SERIAL]:07X} is used by more than one remote",
+            [CONF_SERIAL],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

@@ -11,10 +11,12 @@ from esphome.components.keeloq import (
     SEND_SCHEMA,
     _channels,
     _command,
+    _final_validate,
     keeloq_decrypt,
     normal_learning_key,
 )
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 
 # Made-up key, not a real manufacturer key
 BASE = {
@@ -93,3 +95,20 @@ def test_send_action_rejects_an_empty_channel_list() -> None:
     action = {"id": "shutter_remote", "command": "up", "channels": []}
     with pytest.raises(cv.Invalid, match="set at least one channel"):
         SEND_SCHEMA(action)
+
+
+@pytest.mark.parametrize(
+    ("second_serial", "valid"), [(0x1234501, True), (0x1234500, False)]
+)
+def test_remotes_need_distinct_serials(second_serial: int, valid: bool) -> None:
+    # They would share one stored counter and send the same codes.
+    remotes = [CONFIG_SCHEMA(BASE), CONFIG_SCHEMA({**BASE, "serial": second_serial})]
+    token = fv.full_config.set({"keeloq": remotes})
+    try:
+        if valid:
+            assert _final_validate(remotes[0]) is remotes[0]
+        else:
+            with pytest.raises(cv.Invalid, match="0x1234500 is used by more than one"):
+                _final_validate(remotes[0])
+    finally:
+        fv.full_config.reset(token)

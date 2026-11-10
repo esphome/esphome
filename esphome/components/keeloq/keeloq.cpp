@@ -79,11 +79,18 @@ void KeeloqRemote::send_(remote_base::RemoteTransmitterBase *transmitter, uint8_
 }
 
 void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16_t channels) {
+  // A second learn would replace the pending stop frame, so the first pairing would fail.
+  if (this->learn_channels_ != 0) {
+    ESP_LOGW(TAG, "Learn skipped, the previous one is still running; pass all channels to one learn");
+    return;
+  }
   // Up+down, a pause, then stop.
   this->send_(transmitter, JAROLIFT_UP_DOWN, channels);
   this->learn_channels_ = channels;
-  this->set_timeout(LEARN_TIMEOUT_ID, JAROLIFT_LEARN_PAUSE_MS,
-                    [this, transmitter]() { this->send_(transmitter, JAROLIFT_STOP, this->learn_channels_); });
+  this->set_timeout(LEARN_TIMEOUT_ID, JAROLIFT_LEARN_PAUSE_MS, [this, transmitter]() {
+    this->send_(transmitter, JAROLIFT_STOP, this->learn_channels_);
+    this->learn_channels_ = 0;
+  });
 }
 
 void KeeloqRemote::set_counter(uint16_t counter) {

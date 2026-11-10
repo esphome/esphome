@@ -42,6 +42,9 @@ button:
       - keeloq.learn:
           id: shutter_remote
           channels: 0x0001
+  - platform: template
+    name: Pair shutter from lambda
+    on_press:
       - keeloq.learn:
           id: shutter_remote
           channels: !lambda return 0x0001;

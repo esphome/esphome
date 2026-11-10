@@ -177,4 +177,19 @@ TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   EXPECT_EQ(remote.get_counter(), 12);
 }
 
+TEST(KeeloqRemoteTest, LearnWhileOneIsPendingIsSkipped) {
+  forget_stored_counters();
+  CapturingTransmitter transmitter;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  remote.learn(&transmitter, 0x0001);
+  remote.learn(&transmitter, 0x0002);
+  delay(1010);  // NOLINT
+  App.scheduler.call(millis());
+  ASSERT_EQ(transmitter.frames.size(), 2u);
+  EXPECT_EQ(transmitter.frames[1].first.command, 0x4);
+  // The first pairing finished, so the next learn runs.
+  remote.learn(&transmitter, 0x0002);
+  EXPECT_EQ(transmitter.frames.size(), 3u);
+}
+
 }  // namespace esphome::keeloq::testing

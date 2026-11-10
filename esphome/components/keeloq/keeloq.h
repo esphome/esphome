@@ -40,7 +40,7 @@ class KeeloqRemote : public Component {
   uint16_t counter_{0};
   // Counters below this one may have been sent; it is in flash before any of them is.
   uint16_t reserved_{0};
-  // Kept here so the learn timeout captures only 8 bytes and does not allocate.
+  // The channels of the pending learn, 0 when none; kept here so the timeout captures only 8 bytes.
   uint16_t learn_channels_{0};
   uint32_t serial_;
   uint32_t device_key_[2];
