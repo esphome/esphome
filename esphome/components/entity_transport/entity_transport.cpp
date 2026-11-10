@@ -421,13 +421,13 @@ void EntityTransport::receive_(const PacketBuffer &data) {
   }
   auto packet = data.as_span();
   if (packet.size() < HEADER_SIZE) {
-    if (this->warning_due_()) {
+    if (this->warning_due_(DropReason::DROP_REASON_TOO_SHORT)) {
       ESP_LOGW(TAG, "Packet of %zu bytes is too short", packet.size());
     }
     return;
   }
   if (packet[0] >> 4 != FORMAT_VERSION) {
-    if (this->warning_due_()) {
+    if (this->warning_due_(DropReason::DROP_REASON_FORMAT_VERSION)) {
       ESP_LOGW(TAG, "Packet format version %u not supported; the sender may run another ESPHome version",
                packet[0] >> 4);
     }
@@ -455,7 +455,7 @@ void EntityTransport::receive_(const PacketBuffer &data) {
 
 void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint32_t dictionary_id) {
   if (!dictionary_well_formed(packet)) {
-    if (this->warning_due_()) {
+    if (this->warning_due_(DropReason::DROP_REASON_MALFORMED_DICTIONARY)) {
       ESP_LOGW(TAG, "Dictionary packet of %zu bytes is malformed", packet.size());
     }
     return;
@@ -487,6 +487,11 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
                    id_length, dictionary_id);
       pos += id_length;
     }
+  }
+  // Names each device heard, so a provider that matches none of them is easy to spot
+  if (first_time) {
+    ESP_LOGD(TAG, "Dictionary %08" PRIX32 " received from '%.*s'", dictionary_id, static_cast<int>(provider_length),
+             provider);
   }
   // A provider may go back to a dictionary already seen, so every complete one is checked
   if (completed)
@@ -577,7 +582,7 @@ void EntityTransport::receive_data_(std::span<const uint8_t> packet, uint32_t di
     return;
   // Checked first, so a damaged packet does not make the provider resend everything
   if (!data_well_formed(packet)) {
-    if (this->warning_due_()) {
+    if (this->warning_due_(DropReason::DROP_REASON_MALFORMED_DATA)) {
       ESP_LOGW(TAG, "Data packet of %zu bytes is malformed", packet.size());
     }
     return;
@@ -642,12 +647,14 @@ void EntityTransport::request_dictionary_(uint32_t dictionary_id) {
 }
 
 // Dropped packets point to a device with other firmware or a fault, and may arrive steadily, so warn only now and then
-bool EntityTransport::warning_due_() {
+bool EntityTransport::warning_due_(DropReason reason) {
   uint32_t now = App.get_loop_component_start_time();
-  if (this->warned_ && now - this->last_warning_ms_ < WARNING_INTERVAL_MS)
+  auto index = static_cast<uint8_t>(reason);
+  uint8_t bit = 1 << index;
+  if ((this->warned_ & bit) != 0 && now - this->last_warning_ms_[index] < WARNING_INTERVAL_MS)
     return false;
-  this->warned_ = true;
-  this->last_warning_ms_ = now;
+  this->warned_ |= bit;
+  this->last_warning_ms_[index] = now;
   return true;
 }
 
