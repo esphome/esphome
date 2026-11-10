@@ -36,6 +36,14 @@ static uint32_t preference_key(KeeloqType type, uint32_t serial) {
   return fnv1a_hash_extend(fnv1a_hash_extend(PREF_HASH, static_cast<uint8_t>(type)), serial);
 }
 
+// The schema rejects a mask of 0, but a channels lambda can still return it.
+static bool no_channels(uint16_t channels) {
+  if (channels != 0)
+    return false;
+  ESP_LOGW(TAG, "No channel set, nothing sent");
+  return true;
+}
+
 void KeeloqRemote::setup() {
   this->pref_ = global_preferences->make_preference<uint16_t>(preference_key(this->type_, this->serial_), true);
   this->pref_.load(&this->reserved_);
@@ -77,10 +85,15 @@ remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t chann
 
 void KeeloqRemote::send(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels,
                         uint32_t send_times, uint32_t send_wait) {
+  if (no_channels(channels))
+    return;
   transmitter->transmit<remote_base::KeeloqProtocol>(this->next_frame(command, channels), send_times, send_wait);
 }
 
 void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16_t channels) {
+  // Also keeps 0, the value for no pending learn, out of learn_channels_.
+  if (no_channels(channels))
+    return;
   // A second learn would replace the pending stop frame, so the first pairing would fail.
   if (this->learn_channels_ != 0) {
     ESP_LOGW(TAG, "Learn skipped, the previous one is still running; pass all channels to one learn");

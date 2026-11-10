@@ -182,6 +182,16 @@ TEST(KeeloqRemoteTest, SendTransmitsTheNextFrame) {
   EXPECT_EQ(remote.get_counter(), 6);  // the frame took counter 5
 }
 
+TEST(KeeloqRemoteTest, ChannelMaskZeroSendsNothing) {
+  // The schema rejects a mask of 0, but a channels lambda can return it.
+  CapturingTransmitter transmitter;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  remote.send(&transmitter, 0x8, 0x0000, 2, 0);
+  remote.learn(&transmitter, 0x0000);
+  EXPECT_TRUE(transmitter.frames.empty());
+  EXPECT_EQ(remote.get_counter(), 0);  // no counter used up
+}
+
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   // As other Jarolift implementations pair: 0xA twice, a pause, then 0x4 twice, each with a new counter.
   forget_stored_counters();
