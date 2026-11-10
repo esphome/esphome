@@ -127,6 +127,27 @@ def test_timeout_not_with_link_session(setup_core) -> None:
         fv.full_config.reset(token)
 
 
+def test_layer_id_rejected(setup_core) -> None:
+    """The id of a layer would leave out the layers above it, and skip the checks on them."""
+    config = CONFIG_SCHEMA({"packet_interface": "link_session", CONF_TIMEOUT: "1min"})
+    token = fv.full_config.set(
+        {
+            "packet_interface": [
+                {
+                    CONF_ID: ID("link", is_manual=True),
+                    "session": {CONF_ID: ID("link_session", is_manual=True)},
+                }
+            ]
+        }
+    )
+    try:
+        with pytest.raises(cv.Invalid, match="layer") as error:
+            FINAL_VALIDATE_SCHEMA(config)
+        assert error.value.path == ["packet_interface"]
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_advertised_ids_unique(setup_core) -> None:
     """Two entities of one type cannot be sent with the same id."""
     base = {"packet_interface": "link"}

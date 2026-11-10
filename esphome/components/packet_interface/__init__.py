@@ -106,10 +106,11 @@ def _validate_layers(config: ConfigType) -> ConfigType:
     return config
 
 
-def interface_layers(interface_id: ID) -> ConfigType | None:
+def interface_layers(interface_id: ID) -> ConfigType:
     """During final validation, the configuration holding the layers of the packet interface with this id.
 
-    The id is a link's, or an addressing peer's.
+    The id is a link's, or an addressing peer's. Raises cv.Invalid for the id of a layer, which would leave out the
+    layers above it.
     """
     for interface in fv.full_config.get().get(DOMAIN, []):
         if interface[CONF_ID].id == interface_id.id:
@@ -117,14 +118,14 @@ def interface_layers(interface_id: ID) -> ConfigType | None:
         for peer in interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS, []):
             if peer[CONF_ID].id == interface_id.id:
                 return peer
-    return None
+    raise cv.Invalid(
+        f"'{interface_id.id}' is a layer of a packet interface; use the id of the link, or of an addressing peer"
+    )
 
 
 def interface_has_layer(interface_id: ID, key: str) -> bool:
     """During final validation, whether the packet interface with this id has the layer, configured or done by its link."""
     interface = interface_layers(interface_id)
-    if interface is None:
-        return False
     return key in interface or key in _PROVIDED_LAYERS.get(
         str(interface[CONF_ID].type), ()
     )
@@ -135,10 +136,12 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
 
     def validator(config: ConfigType) -> ConfigType:
         interface_id: ID = config[key]
-        interface = interface_layers(interface_id)
-        if interface is not None and (
-            peers := interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS)
-        ):
+        try:
+            interface = interface_layers(interface_id)
+        except cv.Invalid as err:
+            err.prepend([key])
+            raise
+        if peers := interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS):
             raise cv.Invalid(
                 f"'{interface_id.id}' has peers, so use the id of one of them, such as '{peers[0][CONF_ID].id}'",
                 path=[key],
