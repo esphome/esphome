@@ -1,0 +1,81 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: i2c_bus
+    scl: GPIO16
+    sda: GPIO17
+
+bq25820:
+  - id: charger_a
+    i2c_id: i2c_bus
+  - id: charger_b
+    i2c_id: i2c_bus
+    address: 0x75
+  - id: charger_c
+    i2c_id: i2c_bus
+    address: 0x76
+
+# charger_a has every status entity, charger_b one, charger_c none.
+# Items publish in config order, so these text sensors come first
+text_sensor:
+  - platform: bq25820
+    bq25820_id: charger_a
+    charge_status:
+      id: tx_charge_status
+      name: A charge_status
+    temp_status:
+      id: tx_temp_status
+      name: A temp_status
+  - platform: bq25820
+    bq25820_id: charger_b
+    temp_status:
+      id: b_temp_status
+      name: B temp_status
+
+# Two blocks on one hub publish in block order
+binary_sensor:
+  - platform: bq25820
+    bq25820_id: charger_a
+    charging:
+      id: bs_charging
+      name: A charging
+    charged:
+      id: bs_charged
+      name: A charged
+    low_battery:
+      id: bs_low_battery
+      name: A low_battery
+    pg:
+      id: bs_pg
+      name: A pg
+    reverse:
+      id: bs_reverse
+      name: A reverse
+  - platform: bq25820
+    bq25820_id: charger_a
+    vac_undervoltage:
+      id: bs_vac_undervoltage
+      name: A vac_undervoltage
+    vac_overvoltage:
+      id: bs_vac_overvoltage
+      name: A vac_overvoltage
+    ibat_overcurrent:
+      id: bs_ibat_overcurrent
+      name: A ibat_overcurrent
+    vbat_overvoltage:
+      id: bs_vbat_overvoltage
+      name: A vbat_overvoltage
+    thermal_shutdown:
+      id: bs_thermal_shutdown
+      name: A thermal_shutdown
+    charge_safety_timer:
+      id: bs_charge_safety_timer
+      name: A charge_safety_timer
+    drv_supply_invalid:
+      id: bs_drv_supply_invalid
+      name: A drv_supply_invalid

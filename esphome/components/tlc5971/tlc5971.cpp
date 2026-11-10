@@ -10,14 +10,12 @@ void TLC5971::setup() {
   this->data_pin_->digital_write(true);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(true);
-
-  this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
 }
 void TLC5971::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TLC5971:\n"
-                "  Number of chips: %u",
-                this->num_chips_);
+                "  Number of chips: %zu",
+                this->pwm_amounts_.size() / N_CHANNELS_PER_CHIP);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
 }
@@ -46,7 +44,7 @@ void TLC5971::loop() {
   command <<= 7;
   command |= 0x7F;  // default 100% brigthness
 
-  for (uint8_t n = 0; n < num_chips_; n++) {
+  for (size_t n = 0; n < this->pwm_amounts_.size() / N_CHANNELS_PER_CHIP; n++) {
     this->transfer_(command >> 24);
     this->transfer_(command >> 16);
     this->transfer_(command >> 8);
@@ -55,8 +53,8 @@ void TLC5971::loop() {
     // 12 channels per TLC59711
     for (int8_t c = 11; c >= 0; c--) {
       // 16 bits per channel, send MSB first
-      this->transfer_(pwm_amounts_.at(n * 12 + c) >> 8);
-      this->transfer_(pwm_amounts_.at(n * 12 + c));
+      this->transfer_(this->pwm_amounts_[n * 12 + c] >> 8);
+      this->transfer_(this->pwm_amounts_[n * 12 + c]);
     }
   }
 
@@ -80,7 +78,7 @@ void TLC5971::transfer_(uint8_t send) {
   }
 }
 void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
-  if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
+  if (channel >= this->pwm_amounts_.size())
     return;
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
