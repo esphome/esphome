@@ -3,12 +3,10 @@
 #include <fcntl.h>
 #include <memory>
 #include <netinet/in.h>
-#include <string>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "esphome/components/logger/logger.h"
 #include "esphome/components/socket/tcp_listener.h"
 
 #ifdef USE_HOST
@@ -22,7 +20,6 @@ class ListenerUnderTest : public TcpListener {
  public:
   void set_listen(std::unique_ptr<ListenSocket> sock) { this->listen_ = std::move(sock); }
   bool listening() const { return this->listen_ != nullptr; }
-  void accept_into(TcpClientLink &link) { this->accept_into_(link); }
 };
 
 class TcpListenerAccept : public ::testing::Test {
@@ -69,26 +66,18 @@ class TcpListenerAccept : public ::testing::Test {
     ASSERT_EQ(::poll(&pfd, 1, 1000), 1);
   }
 
-  // One accept() while no descriptor is free, which fails with EMFILE. Returns what it logged.
-  // The test logger only prints while it has a baud rate.
-  std::string accept_without_free_descriptor() {
-    const uint32_t baud_rate = logger::global_logger->get_baud_rate();
-    logger::global_logger->set_baud_rate(115200);
-    // Capturing needs descriptors, so it starts before the limit and ends after it.
-    ::testing::internal::CaptureStdout();
+  // One accept() while no descriptor is free, which fails with EMFILE.
+  void accept_without_free_descriptor() {
     // A limit at the lowest free number leaves none for accept().
     struct rlimit saved{};
-    EXPECT_EQ(::getrlimit(RLIMIT_NOFILE, &saved), 0);
+    ASSERT_EQ(::getrlimit(RLIMIT_NOFILE, &saved), 0);
     const int lowest_free = ::dup(this->client_fd_);
     ::close(lowest_free);
     struct rlimit full = saved;
     full.rlim_cur = lowest_free;
-    EXPECT_EQ(::setrlimit(RLIMIT_NOFILE, &full), 0);
+    ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &full), 0);
     EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
-    EXPECT_EQ(::setrlimit(RLIMIT_NOFILE, &saved), 0);
-    std::string log = ::testing::internal::GetCapturedStdout();
-    logger::global_logger->set_baud_rate(baud_rate);
-    return log;
+    ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &saved), 0);
   }
 
   TcpClientLink link_;
@@ -142,7 +131,7 @@ TEST_F(TcpListenerAccept, PollLeavesASecondClientWaitingWhileTheLinkIsUp) {
 TEST_F(TcpListenerAccept, AcceptErrorRebuildsAfterTheBackoff) {
   // accept() on a bad descriptor fails with EBADF, which no retry fixes.
   this->listener_.set_listen(std::make_unique<ListenSocket>(-1));
-  this->listener_.accept_into(this->link_);
+  EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
   EXPECT_FALSE(this->listener_.listening());
   EXPECT_TRUE(this->link_.in_backoff());
   // No new listen socket until the backoff has passed.
@@ -162,19 +151,9 @@ TEST_F(TcpListenerAccept, AcceptWithoutAFreeDescriptorKeepsListening) {
   EXPECT_NE(this->listener_.accept(this->link_), nullptr);
 }
 
-TEST_F(TcpListenerAccept, RepeatedAcceptFailuresAreLoggedOnceUntilAnAcceptSucceeds) {
-  const uint16_t port = this->listen_on_loopback();
-  this->connect_client(port);
-  // The client stays queued, so every loop pass fails the same way. Only the first failure is logged.
-  EXPECT_NE(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
-  EXPECT_EQ(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
-  EXPECT_EQ(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
-  // Once a descriptor is free again the client is accepted, which ends the run.
-  EXPECT_NE(this->listener_.accept(this->link_), nullptr);
-  // The next shortage is logged again.
-  ::close(this->client_fd_);
-  this->connect_client(port);
-  EXPECT_NE(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
+TEST_F(TcpListenerAccept, AcceptWithoutAListenSocketReturnsNothing) {
+  EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
+  EXPECT_FALSE(this->link_.in_backoff());
 }
 
 TEST_F(TcpListenerAccept, NothingPendingKeepsTheListener) {
@@ -187,7 +166,7 @@ TEST_F(TcpListenerAccept, NothingPendingKeepsTheListener) {
 
 TEST_F(TcpListenerAccept, AcceptedClientIsAdopted) {
   this->connect_client(this->listen_on_loopback());
-  this->listener_.accept_into(this->link_);
+  this->listener_.poll(this->link_, true);
   EXPECT_TRUE(this->link_.connected());
   EXPECT_TRUE(this->listener_.listening());
 }
@@ -212,7 +191,7 @@ TEST_F(TcpListenerAccept, PeerInsideTheAllowListIsAdopted) {
   static const Ipv4AllowEntry LOOPBACK_ONLY[] = {{htonl(INADDR_LOOPBACK), htonl(0xFFFFFFFF)}};
   this->listener_.set_allow(LOOPBACK_ONLY, 1);
   this->connect_client(this->listen_on_loopback());
-  this->listener_.accept_into(this->link_);
+  this->listener_.poll(this->link_, true);
   EXPECT_TRUE(this->link_.connected());
 }
 #endif

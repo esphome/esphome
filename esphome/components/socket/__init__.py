@@ -215,7 +215,7 @@ def consume_role_sockets(
 ) -> Callable[[ConfigType], ConfigType]:
     """Socket accounting for a role keyed client or server schema.
 
-    A server holds as many connections as its connections_key says, default 1.
+    A server holds as many connections as its connections_key says, otherwise 1.
     Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
     """
 
@@ -223,11 +223,10 @@ def consume_role_sockets(
         from esphome.components import network
 
         network.require_ipv4(component)(config)
-        count = 1
-        if config[CONF_ROLE] == "server":
+        server = config[CONF_ROLE] == "server"
+        if server:
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
-            if connections_key is not None:
-                count = config.get(connections_key, 1)
+        count = config[connections_key] if server and connections_key else 1
         return consume_sockets(count, component)(config)
 
     return validator

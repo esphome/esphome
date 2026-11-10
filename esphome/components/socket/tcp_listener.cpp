@@ -10,7 +10,7 @@
 
 namespace esphome::socket {
 
-void TcpListener::try_listen_(TcpClientLink &link) {
+void TcpListener::try_listen_(TcpClientLink &link, uint8_t backlog) {
   this->listen_ = socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
   int err = errno;
   if (this->listen_ != nullptr) {
@@ -22,7 +22,7 @@ void TcpListener::try_listen_(TcpClientLink &link) {
     // setblocking result is part of the success condition.
     if (this->listen_->setblocking(false) == 0 && local_len != 0 &&
         this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
-        this->listen_->listen(this->backlog_) == 0) {
+        this->listen_->listen(backlog) == 0) {
       ESP_LOGI(this->tag_, "Listening on %u", link.port());
       return;
     }
@@ -34,31 +34,26 @@ void TcpListener::try_listen_(TcpClientLink &link) {
   link.note_attempt();
 }
 
-std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &clock) {
+std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &link) {
+  if (this->listen_ == nullptr) {
+    return nullptr;
+  }
   struct sockaddr_storage peer{};
   socklen_t peer_len = sizeof(peer);
   auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
   if (client == nullptr) {
-    // A reset during the handshake or a signal only affects that connection.
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) {
+    // Out of sockets or memory, or a reset/signal on that connection: try again next loop.
+    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR || errno == ENFILE ||
+        errno == EMFILE || errno == ENOBUFS || errno == ENOMEM) {
       return nullptr;
     }
+    // Rebuild the listener after the backoff instead of spinning on it.
     int err = errno;
-    // Out of sockets or memory: closing would turn away every client until the backoff, so the next loop tries again.
-    // Any other error rebuilds the listener after the backoff instead of spinning on it.
-    const bool retry = err == ENFILE || err == EMFILE || err == ENOBUFS || err == ENOMEM;
-    // A retry hits the same error every loop, so only the first failure of a run is logged.
-    if (!retry || !this->accept_failed_logged_) {
-      ESP_LOGW(this->tag_, "Accept failed: %d", err);
-    }
-    this->accept_failed_logged_ = retry;
-    if (!retry) {
-      this->listen_.reset();
-      clock.note_attempt();
-    }
+    this->listen_.reset();
+    ESP_LOGW(this->tag_, "Accept failed: %d", err);
+    link.note_attempt();
     return nullptr;
   }
-  this->accept_failed_logged_ = false;
   const auto *sa = reinterpret_cast<const struct sockaddr *>(&peer);
 #ifdef USE_SOCKET_IPV4_ALLOW
   if (!this->allow_.admit(sa, peer_len, this->tag_, App.get_loop_component_start_time())) {
@@ -69,13 +64,6 @@ std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &clock) {
   format_sockaddr_to(sa, peer_len, std::span<char, SOCKADDR_STR_LEN>(text));
   ESP_LOGI(this->tag_, "Client connected from %s", text);
   return client;
-}
-
-void TcpListener::accept_into_(TcpClientLink &link) {
-  auto client = this->accept(link);
-  if (client != nullptr) {
-    link.adopt(std::move(client));
-  }
 }
 
 void TcpListener::dump_config() const {
