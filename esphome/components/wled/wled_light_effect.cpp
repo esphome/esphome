@@ -47,10 +47,7 @@ void WLEDLightEffect::start() {
 void WLEDLightEffect::stop() {
   AddressableLightEffect::stop();
 
-  if (this->socket_ != nullptr) {
-    this->socket_->close();
-    this->socket_.reset();
-  }
+  this->socket_.reset();
 }
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
