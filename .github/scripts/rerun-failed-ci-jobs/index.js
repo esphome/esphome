@@ -40,18 +40,13 @@ module.exports = async ({ github, context, core }) => {
   // The newest CI run for the PR's head commit. The head comes from the
   // API, never from the comment, and the API lists the newest run first.
   const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: issue.number });
-  let run;
-  for await (const { data: runs } of github.paginate.iterator(github.rest.actions.listWorkflowRuns, {
+  const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
     owner, repo, workflow_id: 'ci.yml', event: 'pull_request', head_sha: pr.head.sha, per_page: 100,
-  })) {
-    // Another PR can have the same head commit, and fork runs list no pull_requests.
-    run = runs.find((candidate) =>
-      candidate.head_repository?.id === pr.head.repo?.id && candidate.head_branch === pr.head.ref
-    );
-    if (run) {
-      break;
-    }
-  }
+  });
+  // Another PR can have the same head commit, and fork runs list no pull_requests.
+  const run = runs.find((candidate) =>
+    candidate.head_repository?.id === pr.head.repo?.id && candidate.head_branch === pr.head.ref
+  );
   if (run && run.status !== 'completed') {
     core.info(`CI run ${run.id} for ${pr.head.sha} is still ${run.status}`);
     await react('eyes');
