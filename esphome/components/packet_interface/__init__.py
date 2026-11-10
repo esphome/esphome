@@ -100,21 +100,29 @@ def _validate_layers(config: ConfigType) -> ConfigType:
     return config
 
 
+def _holds_id(config: ConfigType, interface_id: ID) -> bool:
+    """Whether the id is that of this link or peer, or of one of its layers."""
+    return config[CONF_ID].id == interface_id.id or any(
+        isinstance(layer := config.get(key), dict)
+        and (layer_id := layer.get(CONF_ID)) is not None
+        and layer_id.id == interface_id.id
+        for key in (CONF_ADDRESSING, *(kind.key for kind in STACK_ORDER))
+    )
+
+
 def interface_layers(interface_id: ID) -> ConfigType:
     """During final validation, the configuration holding the layers of the packet interface with this id.
 
-    The id is a link's, or an addressing peer's. Raises cv.Invalid for the id of a layer, which would leave out the
-    layers above it.
+    The id is a link's, an addressing peer's, or a layer's: applications send through top(), so they use every
+    layer of that link or peer.
     """
     for interface in fv.full_config.get().get(DOMAIN, []):
-        if interface[CONF_ID].id == interface_id.id:
+        if _holds_id(interface, interface_id):
             return interface
         for peer in interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS, []):
-            if peer[CONF_ID].id == interface_id.id:
+            if _holds_id(peer, interface_id):
                 return peer
-    raise cv.Invalid(
-        f"'{interface_id.id}' is a layer of a packet interface; use the id of the link, or of an addressing peer"
-    )
+    raise cv.Invalid(f"'{interface_id.id}' is not a packet interface")
 
 
 def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
@@ -122,11 +130,7 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
 
     def validator(config: ConfigType) -> ConfigType:
         interface_id: ID = config[key]
-        try:
-            interface = interface_layers(interface_id)
-        except cv.Invalid as err:
-            err.prepend([key])
-            raise
+        interface = interface_layers(interface_id)
         if peers := interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS):
             raise cv.Invalid(
                 f"'{interface_id.id}' has peers, so use the id of one of them, such as '{peers[0][CONF_ID].id}'",

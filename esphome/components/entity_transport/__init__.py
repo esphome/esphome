@@ -102,7 +102,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """With a session layer, which clears the states when the peer is lost, nothing would refresh an unchanged state."""
-    # final_validate_interface has already rejected the id of a layer
     layers = interface_layers(config[CONF_PACKET_INTERFACE])
     if CONF_TIMEOUT in config and CONF_SESSION in layers:
         raise cv.Invalid(
