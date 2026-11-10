@@ -8,26 +8,25 @@
 namespace esphome::distance_uart {
 
 // Enum to represent the operating mode
-enum DistanceUARTMode {
-  MODE_CONTROLLED,
-  MODE_AUTO,
+enum class DistanceUARTMode : uint8_t {
+  DISTANCE_UART_MODE_CONTROLLED,
+  DISTANCE_UART_MODE_AUTO,
 };
 
 // Enum to represent the output mode for AUTO sensors
-enum DistanceUARTOutputMode {
-  OUTPUT_MODE_PROCESSED,
-  OUTPUT_MODE_REALTIME,
+enum class DistanceUARTOutputMode : uint8_t {
+  DISTANCE_UART_OUTPUT_MODE_PROCESSED,
+  DISTANCE_UART_OUTPUT_MODE_REALTIME,
 };
 
 // Enum to represent the publishing mode
-enum DistanceUARTPublishMode {
-  PUBLISH_MODE_INTERVAL,
-  PUBLISH_MODE_IMMEDIATE,
+enum class DistanceUARTPublishMode : uint8_t {
+  DISTANCE_UART_PUBLISH_MODE_INTERVAL,
+  DISTANCE_UART_PUBLISH_MODE_IMMEDIATE,
 };
 
 class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
-  // Public methods
   void set_mode(DistanceUARTMode mode);
   void set_trigger_pin(GPIOPin *trigger_pin);
   void set_blind_zone(float blind_zone_m);
@@ -35,7 +34,6 @@ class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, publi
   void set_output_mode(DistanceUARTOutputMode output_mode);
   void set_output_mode_pin(GPIOPin *output_mode_pin);
   void set_publish_mode(DistanceUARTPublishMode publish_mode);
-  void set_baud_rate(uint32_t baud_rate);
 
   void setup() override;
   void dump_config() override;
@@ -43,18 +41,16 @@ class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, publi
   void update() override;
 
  protected:
-  // Protected methods
   void process_frame_();
-  DistanceUARTMode mode_{MODE_AUTO};
+  DistanceUARTMode mode_{DistanceUARTMode::DISTANCE_UART_MODE_AUTO};
   GPIOPin *trigger_pin_{nullptr};
   uint16_t blind_zone_mm_{0};
   uint16_t max_range_mm_{0};
-  DistanceUARTOutputMode output_mode_{OUTPUT_MODE_PROCESSED};
+  DistanceUARTOutputMode output_mode_{DistanceUARTOutputMode::DISTANCE_UART_OUTPUT_MODE_PROCESSED};
   GPIOPin *output_mode_pin_{nullptr};
-  DistanceUARTPublishMode publish_mode_{PUBLISH_MODE_INTERVAL};
-  uint32_t baud_rate_{9600};
+  DistanceUARTPublishMode publish_mode_{DistanceUARTPublishMode::DISTANCE_UART_PUBLISH_MODE_INTERVAL};
   uint8_t buffer_[4];
-  int read_pos_{0};
+  uint8_t read_pos_{0};
   float last_distance_m_{NAN};
 };
 

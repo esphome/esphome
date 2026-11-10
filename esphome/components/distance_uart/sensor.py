@@ -3,44 +3,40 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BAUD_RATE,
-    CONF_ID,
     CONF_MAX_RANGE,
     CONF_MODE,
     CONF_MODEL,
     CONF_TRIGGER_PIN,
-    CONF_UART_ID,
     DEVICE_CLASS_DISTANCE,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.types import ConfigType
 
-# This component depends on the UART component.
 DEPENDENCIES = ["uart"]
 
-# Create a namespace for our C++ code
 distance_uart_ns = cg.esphome_ns.namespace("distance_uart")
 DistanceUARTSensor = distance_uart_ns.class_(
     "DistanceUARTSensor", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
 )
-DistanceUARTMode = distance_uart_ns.enum("DistanceUARTMode")
-DistanceUARTOutputMode = distance_uart_ns.enum("DistanceUARTOutputMode")
-DistanceUARTPublishMode = distance_uart_ns.enum("DistanceUARTPublishMode")
+DistanceUARTMode = distance_uart_ns.enum("DistanceUARTMode", is_class=True)
+DistanceUARTOutputMode = distance_uart_ns.enum("DistanceUARTOutputMode", is_class=True)
+DistanceUARTPublishMode = distance_uart_ns.enum(
+    "DistanceUARTPublishMode", is_class=True
+)
 
-# Define new configuration keys and modes
 CONF_BLIND_ZONE = "blind_zone"
 CONF_OUTPUT_MODE = "output_mode"
 CONF_OUTPUT_MODE_PIN = "output_mode_pin"
 CONF_PUBLISH_MODE = "publish_mode"
 
-MODES = DistanceUARTMode.options("CONTROLLED", "AUTO", prefix="MODE_")
+MODES = DistanceUARTMode.options("CONTROLLED", "AUTO", prefix="DISTANCE_UART_MODE_")
 OUTPUT_MODES = DistanceUARTOutputMode.options(
-    "PROCESSED", "REALTIME", prefix="OUTPUT_MODE_"
+    "PROCESSED", "REALTIME", prefix="DISTANCE_UART_OUTPUT_MODE_"
 )
 PUBLISH_MODES = DistanceUARTPublishMode.options(
-    "INTERVAL", "IMMEDIATE", prefix="PUBLISH_MODE_"
+    "INTERVAL", "IMMEDIATE", prefix="DISTANCE_UART_PUBLISH_MODE_"
 )
 
 # Define a dictionary of known models and their properties.
@@ -185,34 +181,41 @@ KNOWN_MODELS = {
 # fmt: on
 
 
-def _validate_user_config(config):
-    if CONF_MODEL in config:
-        model_conf = KNOWN_MODELS[config[CONF_MODEL]]
+def _get_effective_mode(config: ConfigType) -> str:
+    if (model := config.get(CONF_MODEL)) is not None and (
+        mode := KNOWN_MODELS[model].get("mode")
+    ) is not None:
+        return mode
+    return str(config.get(CONF_MODE, "AUTO"))
+
+
+def _validate_user_config(config: ConfigType) -> ConfigType:
+    if (model := config.get(CONF_MODEL)) is not None:
+        model_conf = KNOWN_MODELS[model]
         if "mode" in model_conf and CONF_MODE in config:
             raise cv.Invalid(
-                f"You cannot manually specify 'mode' when using model '{config[CONF_MODEL]}', as it already defines the mode."
+                f"You cannot manually specify 'mode' when using model '{model}', as it already defines the mode."
             )
         if CONF_BLIND_ZONE in config or CONF_MAX_RANGE in config:
             raise cv.Invalid(
-                f"You cannot manually specify 'blind_zone' or 'max_range' when using model '{config[CONF_MODEL]}'."
+                f"You cannot manually specify 'blind_zone' or 'max_range' when using model '{model}'."
             )
         if not model_conf.get("supports_rx_mode_select", False) and (
             CONF_OUTPUT_MODE in config or CONF_OUTPUT_MODE_PIN in config
         ):
             raise cv.Invalid(
-                f"Model '{config[CONF_MODEL]}' does not support 'output_mode' or 'output_mode_pin'."
+                f"Model '{model}' does not support 'output_mode' or 'output_mode_pin'."
             )
 
-    effective_mode_str = config.get(CONF_MODE, "AUTO")
-    if CONF_MODEL in config:
-        model_conf = KNOWN_MODELS[config[CONF_MODEL]]
-        if "mode" in model_conf:
-            effective_mode_str = model_conf["mode"]
-
-    if effective_mode_str.upper() == "AUTO":
+    effective_mode = _get_effective_mode(config)
+    if effective_mode == "AUTO":
         if CONF_TRIGGER_PIN in config:
             raise cv.Invalid("`trigger_pin` is not allowed when `mode` is 'AUTO'.")
-    elif effective_mode_str.upper() == "CONTROLLED" and (
+        if CONF_OUTPUT_MODE in config and CONF_OUTPUT_MODE_PIN not in config:
+            raise cv.Invalid(
+                "'output_mode' requires 'output_mode_pin' to be configured."
+            )
+    elif effective_mode == "CONTROLLED" and (
         CONF_OUTPUT_MODE in config or CONF_OUTPUT_MODE_PIN in config
     ):
         raise cv.Invalid(
@@ -223,7 +226,6 @@ def _validate_user_config(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    _validate_user_config,
     sensor.sensor_schema(
         DistanceUARTSensor,
         unit_of_measurement=UNIT_METER,
@@ -234,51 +236,38 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(MODES, upper=True),
+            cv.Optional(CONF_MODE): cv.enum(MODES, upper=True),
             cv.Optional(CONF_MODEL): cv.one_of(*KNOWN_MODELS, upper=True),
             cv.Optional(CONF_BLIND_ZONE): cv.distance,
             cv.Optional(CONF_MAX_RANGE): cv.distance,
             cv.Optional(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_OUTPUT_MODE, default="PROCESSED"): cv.enum(
-                OUTPUT_MODES, upper=True
-            ),
+            cv.Optional(CONF_OUTPUT_MODE): cv.enum(OUTPUT_MODES, upper=True),
             cv.Optional(CONF_OUTPUT_MODE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_PUBLISH_MODE, default="INTERVAL"): cv.enum(
                 PUBLISH_MODES, upper=True
             ),
         }
     )
+    .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("1s")),
+    _validate_user_config,
 )
 
 
-def final_validate_config(config):
-    # Determine the effective mode
-    effective_mode_str = config.get(CONF_MODE, "AUTO")
-    if CONF_MODEL in config:
-        model_conf = KNOWN_MODELS[config[CONF_MODEL]]
-        if "mode" in model_conf:
-            effective_mode_str = model_conf["mode"]
+def final_validate_config(config: ConfigType) -> ConfigType:
+    effective_mode = _get_effective_mode(config)
+    require_tx = effective_mode == "CONTROLLED" and CONF_TRIGGER_PIN not in config
+    baud_rate = (
+        KNOWN_MODELS[model]["baud_rate"]
+        if (model := config.get(CONF_MODEL)) is not None
+        else None
+    )
 
-    require_tx = False
-
-    # If in CONTROLLED mode and no trigger_pin is provided, it relies on UART TX
-    if (
-        effective_mode_str.upper() == "CONTROLLED"
-        and CONF_TRIGGER_PIN not in config
-        or effective_mode_str.upper() == "AUTO"
-        and CONF_OUTPUT_MODE in config
-        and CONF_OUTPUT_MODE_PIN not in config
-    ):
-        require_tx = True
-
-    # Build and execute the dynamic schema validation
     return uart.final_validate_device_schema(
         "distance_uart",
         require_tx=require_tx,
         require_rx=True,
-        baud_rate=None,
+        baud_rate=baud_rate,
         data_bits=8,
         parity=None,
         stop_bits=1,
@@ -288,90 +277,26 @@ def final_validate_config(config):
 FINAL_VALIDATE_SCHEMA = final_validate_config
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
     await sensor.register_sensor(var, config)
 
-    uart_conf = None
-    if CONF_UART_ID in config:
-        uart_id_to_find = str(config[CONF_UART_ID])
-        if "uart" in CORE.config:
-            for conf in CORE.config["uart"]:
-                if str(conf[CONF_ID]) == uart_id_to_find:
-                    uart_conf = conf
-                    break
-    # Fallback to the first available UART if CONF_UART_ID is missing
-    elif "uart" in CORE.config and len(CORE.config["uart"]) > 0:
-        uart_conf = CORE.config["uart"][0]
-
-    if uart_conf is None:
-        raise EsphomeError(
-            "Could not find any UART component. Please ensure it is defined in your YAML."
-        )
-
-    final_baud_rate = uart_conf.get(CONF_BAUD_RATE, 9600)
-    uart_id_to_find = str(uart_conf[CONF_ID])
-
-    # Check baud rate if model is specified
-    if CONF_MODEL in config:
-        model_conf = KNOWN_MODELS[config[CONF_MODEL]]
-        required_baud = model_conf.get("baud_rate", 9600)
-
-        if final_baud_rate != required_baud:
-            raise EsphomeError(
-                f"Model '{config[CONF_MODEL]}' requires a baud_rate of {required_baud}, "
-                f"but the connected UART component '{uart_id_to_find}' is configured for {final_baud_rate}. "
-                f"Please adjust your UART configuration."
-            )
-
-    final_blind_zone = config.get(CONF_BLIND_ZONE)
-    final_max_range = config.get(CONF_MAX_RANGE)
-    final_mode_enum = config[CONF_MODE]
-    final_publish_mode_enum = config[CONF_PUBLISH_MODE]
-
-    if CONF_MODEL in config:
-        model_conf = KNOWN_MODELS[config[CONF_MODEL]]
-        final_blind_zone = cv.distance(model_conf["blind_zone"])
-        final_max_range = cv.distance(model_conf["max_range"])
-        # Use the validated baud rate from above or default
-        if "mode" in model_conf:
-            mode_validator = cv.enum(MODES, upper=True)
-            final_mode_enum = mode_validator(model_conf["mode"])
-
-    if final_blind_zone is not None:
-        cg.add(var.set_blind_zone(final_blind_zone))
+    effective_mode = _get_effective_mode(config)
+    if (model := config.get(CONF_MODEL)) is not None:
+        model_conf = KNOWN_MODELS[model]
+        blind_zone = cv.distance(model_conf["blind_zone"])
+        max_range = cv.distance(model_conf["max_range"])
     else:
-        cg.add(var.set_blind_zone(0.0))
+        blind_zone = config.get(CONF_BLIND_ZONE)
+        max_range = config.get(CONF_MAX_RANGE)
 
-    if final_max_range is not None:
-        cg.add(var.set_max_range(final_max_range))
+    cg.add_optional(var.set_blind_zone, blind_zone)
+    cg.add_optional(var.set_max_range, max_range)
+    cg.add(var.set_mode(MODES[effective_mode]))
+    cg.add(var.set_publish_mode(config[CONF_PUBLISH_MODE]))
 
-    cg.add(var.set_mode(final_mode_enum))
-    cg.add(var.set_publish_mode(final_publish_mode_enum))
-    cg.add(var.set_baud_rate(final_baud_rate))
-
-    if final_mode_enum == MODES["CONTROLLED"]:
-        if CONF_TRIGGER_PIN in config:
-            await cg.add_pin(var.set_trigger_pin, config[CONF_TRIGGER_PIN])
-        elif uart_conf is None or "tx_pin" not in uart_conf:
-            raise EsphomeError(
-                f"distance_uart sensor in CONTROLLED mode has no 'trigger_pin' and the parent uart "
-                f"component '{uart_id_to_find}' does not have a 'tx_pin' defined."
-            )
-
-    elif final_mode_enum == MODES["AUTO"]:
-        if CONF_OUTPUT_MODE_PIN in config:
-            output_mode_pin_obj = await cg.gpio_pin_expression(
-                config[CONF_OUTPUT_MODE_PIN]
-            )
-            cg.add(var.set_output_mode_pin(output_mode_pin_obj))
-            cg.add(var.set_output_mode(config[CONF_OUTPUT_MODE]))
-        elif CONF_OUTPUT_MODE in config and config[CONF_OUTPUT_MODE].is_set:
-            if uart_conf is None or "tx_pin" not in uart_conf:
-                raise EsphomeError(
-                    f"distance_uart sensor in AUTO mode has 'output_mode' set but no 'output_mode_pin', and the parent uart "
-                    f"component '{uart_id_to_find}' does not have a 'tx_pin' for fallback."
-                )
-            output_mode_pin_obj = await cg.gpio_pin_expression(uart_conf["tx_pin"])
-            cg.add(var.set_output_mode_pin(output_mode_pin_obj))
-            cg.add(var.set_output_mode(config[CONF_OUTPUT_MODE]))
+    if effective_mode == "CONTROLLED":
+        await cg.add_pin(var.set_trigger_pin, config.get(CONF_TRIGGER_PIN))
+    elif effective_mode == "AUTO":
+        await cg.add_pin(var.set_output_mode_pin, config.get(CONF_OUTPUT_MODE_PIN))
+        cg.add_optional(var.set_output_mode, config.get(CONF_OUTPUT_MODE))
