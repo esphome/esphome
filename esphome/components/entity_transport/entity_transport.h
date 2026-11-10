@@ -129,7 +129,16 @@ class EntityTransport : public Component {
   /// Clears each remote entity of \p provider that its complete dictionary does not name, warning if the entity was
   /// known or the dictionary is \p first_time seen, so a resent dictionary does not repeat the warning.
   void forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id, bool first_time);
-  bool warning_due_();
+  /// The kinds of dropped packet, each warned about at most once a minute, so a steady stream of one kind does not
+  /// hide another.
+  enum class DropReason : uint8_t {
+    DROP_REASON_TOO_SHORT,
+    DROP_REASON_FORMAT_VERSION,
+    DROP_REASON_MALFORMED_DICTIONARY,
+    DROP_REASON_MALFORMED_DATA,
+  };
+  static constexpr size_t DROP_REASON_COUNT = 4;
+  bool warning_due_(DropReason reason);
   void sending_refused_();
   void on_session_(bool connected);
   void clear_remote_states_(bool timed_out_only);
@@ -150,12 +159,12 @@ class EntityTransport : public Component {
   uint32_t remote_timeout_ms_{0};
   uint32_t dictionary_id_{0};
   uint32_t last_request_ms_{0};
-  uint32_t last_warning_ms_{0};
   uint32_t refused_since_ms_{0};  // when the interface began refusing every packet
   uint32_t rx_dictionary_id_{0};  // the dictionary whose parts are arriving
   // The last dictionary ids received in full, so a provider whose dictionary names none of our entities is not asked
   // again
   std::array<uint32_t, 8> seen_dictionaries_{};
+  std::array<uint32_t, DROP_REASON_COUNT> last_warning_ms_{};
   uint8_t seen_next_{0};
   uint8_t rx_next_part_{0};     // the index of its next part, or PART_NONE if one was missed
   uint8_t dictionary_part_{0};  // the index of the next dictionary packet to send
@@ -164,7 +173,7 @@ class EntityTransport : public Component {
   size_t dictionary_next_{0};  // the first entity of the next dictionary packet to send
   bool dictionary_pending_{true};
   bool request_sent_{false};
-  bool warned_{false};
+  uint8_t warned_{0};  // a bit for each DropReason already warned about
   bool refusing_{false};
 };
 
