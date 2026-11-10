@@ -53,26 +53,38 @@ class FakeUART : public uart::UARTComponent {
 #endif
 };
 
-}  // namespace
-
-// The platform's AES-GCM backend checks the tag and decrypts the frame, and the sensor gets the energy.
-TEST(DlmsMeterDecryptionTest, PublishesTheDecryptedEnergy) {
+/// Feeds one frame to a meter with the test keys; false if the energy sensor got no state.
+bool publishes_energy(const std::vector<uint8_t> &frame, sensor::Sensor &energy) {
   FakeUART uart;
-  sensor::Sensor energy;
-
   // CRC check on, both keys, no custom patterns
   DlmsMeterComponent meter(RECEIVE_TIMEOUT_MS, false, DECRYPTION_KEY, AUTHENTICATION_KEY, {});
   meter.set_uart_parent(&uart);
   meter.register_sensor(dlms_parser::ObisId(1, 0, 1, 8, 0, 255), &energy);
   meter.setup();
 
-  uart.rx.assign(ENCRYPTED_FRAME.begin(), ENCRYPTED_FRAME.end());
+  uart.rx = frame;
   meter.loop();  // reads the frame at loop time 0
   // The loop time moves past the receive timeout
   LoopBlockingGuard clock{nullptr, nullptr, RECEIVE_TIMEOUT_MS + 1};
   meter.loop();  // the pause ends the frame: decrypt and publish
+  return energy.has_state();
+}
 
+}  // namespace
+
+// The platform's AES-GCM backend checks the tag and decrypts the frame, and the sensor gets the energy.
+TEST(DlmsMeterDecryptionTest, PublishesTheDecryptedEnergy) {
+  sensor::Sensor energy;
+  ASSERT_TRUE(publishes_energy({ENCRYPTED_FRAME.begin(), ENCRYPTED_FRAME.end()}, energy));
   EXPECT_FLOAT_EQ(energy.state, 12345.0f);
+}
+
+// A frame whose GCM tag does not match is dropped, so the backend really authenticates.
+TEST(DlmsMeterDecryptionTest, DropsAFrameWithATamperedTag) {
+  std::vector<uint8_t> frame(ENCRYPTED_FRAME.begin(), ENCRYPTED_FRAME.end());
+  frame.back() ^= 0x01;
+  sensor::Sensor energy;
+  EXPECT_FALSE(publishes_energy(frame, energy));
 }
 
 }  // namespace esphome::dlms_meter::testing
