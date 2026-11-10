@@ -61,6 +61,7 @@ from esphome.automation import (
     maybe_simple_id,
     new_automation,
     new_lambda_pvariable,
+    new_value_range_trigger,
     owning_args,
     parent_ref,
     progmem_bytes,
@@ -3452,6 +3453,19 @@ def _filter_domain(registry: Registry) -> ApplyFilterDomain:
     )
 
 
+def test_filter_without_statements_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one statement"):
+        _filter_domain(Registry()).register("my.filter", cv.float_)
+
+
+@pytest.mark.asyncio
+async def test_build_without_statements_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one statement"):
+        await _filter_domain(Registry()).build(
+            "my.filter", 1.5, ID("filt_1"), schema=cv.float_
+        )
+
+
 async def _run_apply_filter(
     schema: object,
     statements: tuple[str | ApplyCall, ...],
@@ -3562,10 +3576,13 @@ async def test_apply_filter_keys_and_skipped_statements(mock_cg: MockCodegen) ->
 async def test_apply_filter_build_picks_statements(mock_cg: MockCodegen) -> None:
     """A builder can pick the statements by the shape of its config."""
     domain = _filter_domain(Registry())
-    await domain.build("my.filter", 1.5, ID("filt_1"), OFFSET)
+    await domain.build(
+        "my.filter", 1.5, ID("filt_1"), OFFSET, schema=cv.templatable(cv.float_)
+    )
     assert "return x + 1.5f;" in _apply_definition(mock_cg)
     low = ApplyCall("return x + {};", (("low", cg.float_),))
-    await domain.build("my.filter", {"low": 2.5}, ID("filt_2"), low)
+    schema = cv.Schema({cv.Optional("low"): cv.float_})
+    await domain.build("my.filter", {"low": 2.5}, ID("filt_2"), low, schema=schema)
     assert "return x + 2.5f;" in _apply_definition(mock_cg)
 
 
@@ -3576,13 +3593,19 @@ async def test_apply_filter_build_rejects_skipped_last_statement(
     """A skipped last statement would leave the non-void function without a return."""
     low = ApplyCall("return x + {};", (("low", cg.float_),))
     with pytest.raises(ValueError, match="last statement is skipped"):
-        await _filter_domain(Registry()).build("my.filter", {}, ID("filt_1"), low)
+        await _filter_domain(Registry()).build(
+            "my.filter",
+            {},
+            ID("filt_1"),
+            low,
+            schema=cv.Schema({cv.Optional("low"): cv.float_}),
+        )
     mock_cg.new_pvariable.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_apply_filter_build_checks_schema_keys(mock_cg: MockCodegen) -> None:
-    """``build`` given a schema rejects a misspelled key instead of skipping its statement, and builds valid keys."""
+    """``build`` rejects a misspelled key instead of skipping its statement, and builds valid keys."""
     schema = cv.Schema({cv.Optional("low"): cv.float_})
     lwo = ApplyCall("if (x < {}) return {{}};", (("lwo", cg.float_),))
     with pytest.raises(ValueError, match="'lwo' is not in the schema"):
@@ -3597,12 +3620,12 @@ async def test_apply_filter_build_checks_schema_keys(mock_cg: MockCodegen) -> No
     mock_cg.new_pvariable.assert_called_once()
 
 
-def test_apply_filter_rejects_unknown_key() -> None:
+@pytest.mark.asyncio
+async def test_apply_filter_rejects_unknown_key(mock_cg: MockCodegen) -> None:
     schema = cv.Schema({cv.Optional("low"): cv.float_})
+    lwo = ApplyCall("return {};", (("lwo", cg.float_),))
     with pytest.raises(ValueError, match="'lwo' is not in the schema"):
-        _filter_domain(Registry()).register(
-            "my.filter", schema, ApplyCall("return {};", (("lwo", cg.float_),))
-        )
+        await _run_apply_filter(schema, (lwo,), {"low": 1.0})
 
 
 def test_apply_static_function_share() -> None:
@@ -3621,14 +3644,42 @@ def test_apply_static_function_share() -> None:
     assert len(CORE.global_statements_after_includes) == 2
 
 
-@pytest.mark.parametrize("share", [True, False])
-def test_apply_static_function_name_skips_config_ids(share: bool) -> None:
-    """A user id equal to the generated name gets the function a suffixed name instead."""
-    CORE.config = {"sensor": [{"id": ID("esphome__a__fn", is_declaration=True)}]}
-    fn = apply_static_function(
-        ID("a"), cg.bool_, [(cg.float_, "x")], ["return x > 1;"], share=share
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"above": 10.0}, "return ValueRange{10.0f, NAN};"),
+        ({"below": 90.0}, "return ValueRange{NAN, 90.0f};"),
+        ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
+        (
+            {"below": Lambda("return x * 2.0f;")},
+            "return ValueRange{NAN, [](float x) -> float {\n    return x * 2.0f;\n  }(x)};",
+        ),
+    ],
+)
+async def test_new_value_range_trigger(
+    mock_cg: MockCodegen, config: dict, expected: str
+) -> None:
+    """Unset bounds are NaN, a lambda bound naming x gets its own copy, and the trigger comes first."""
+    trigger_id = ID("range_trigger", is_declaration=True)
+    assert await new_value_range_trigger(trigger_id, PARENT_OBJ, config) is NEW_OBJ
+    new_id, parent, function = mock_cg.new_pvariable.call_args.args
+    assert (new_id, parent, str(function)) == (
+        trigger_id,
+        PARENT_OBJ,
+        "esphome__range_trigger__fn",
     )
-    assert str(fn) == "esphome__a__fn_2"
+    # Declared before the bounds are rendered, so a bound lambda can use the trigger's own id
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "new_pvariable",
+        "add_global",
+        "add_global_after_includes",
+    ]
+    # A const x is a backstop: each bound naming x already gets its own copy
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static ValueRange esphome__range_trigger__fn(const float x);"
+    )
+    assert expected in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio
