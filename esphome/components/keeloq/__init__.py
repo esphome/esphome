@@ -32,9 +32,7 @@ SendAction = keeloq_ns.class_("SendAction", remote_base.RemoteTransmitterActionB
 LearnAction = keeloq_ns.class_("LearnAction", automation.Action)
 
 KeeloqType = keeloq_ns.enum("KeeloqType")
-KEELOQ_TYPES = {
-    "jarolift": KeeloqType.KEELOQ_TYPE_JAROLIFT,
-}
+KEELOQ_TYPES = KeeloqType.options("jarolift", prefix="KEELOQ_TYPE_")
 
 # Jarolift sends every press twice with the same counter.
 JAROLIFT_SEND_TIMES = 2
