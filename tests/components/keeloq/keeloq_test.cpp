@@ -208,6 +208,11 @@ TEST(KeeloqRemoteTest, LearnWhileOneIsPendingIsSkipped) {
   // The first pairing finished, so the next learn runs.
   remote.learn(&transmitter, 0x0002);
   EXPECT_EQ(transmitter.frames.size(), 3u);
+  // It finishes too, so no timeout outlives the remote.
+  delay(1010);  // NOLINT
+  App.scheduler.call(millis());
+  ASSERT_EQ(transmitter.frames.size(), 4u);
+  EXPECT_EQ(transmitter.frames[3].frame.command, 0x4);
 }
 
 }  // namespace esphome::keeloq::testing
