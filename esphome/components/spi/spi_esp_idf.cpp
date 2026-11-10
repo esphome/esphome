@@ -1,6 +1,9 @@
 #include "spi.h"
-#include <vector>
 
+#ifdef USE_ESP32
+#include <esp_err.h>
+#include <esp_private/spi_common_internal.h>  // spi_bus_get_attr()
+#endif
 #ifdef USE_SPI_PSRAM_DMA
 #include <esp_memory_utils.h>
 #endif
@@ -253,59 +256,51 @@ class SPIDelegateHw : public SPIDelegate {
   bool write_only_{false};
 };
 
-class SPIBusHw : public SPIBus {
- public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel, std::vector<uint8_t> data_pins)
-      : SPIBus(clk, sdo, sdi), channel_(channel) {
-    spi_bus_config_t buscfg = {};
-    buscfg.sclk_io_num = Utility::get_pin_no(clk);
-    buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
-    if (data_pins.empty()) {
-      buscfg.mosi_io_num = Utility::get_pin_no(sdo);
-      buscfg.miso_io_num = Utility::get_pin_no(sdi);
-      buscfg.quadwp_io_num = -1;
-      buscfg.quadhd_io_num = -1;
+bool SPIComponent::setup_hw_bus_() {
+  spi_bus_config_t buscfg = {};
+  buscfg.sclk_io_num = Utility::get_pin_no(this->clk_pin_);
+  buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
+  const auto &data_pins = this->data_pins_;
+  if (data_pins.empty()) {
+    buscfg.mosi_io_num = Utility::get_pin_no(this->sdo_pin_);
+    buscfg.miso_io_num = Utility::get_pin_no(this->sdi_pin_);
+    buscfg.quadwp_io_num = -1;
+    buscfg.quadhd_io_num = -1;
+  } else {
+    buscfg.data0_io_num = data_pins[0];
+    buscfg.data1_io_num = data_pins[1];
+    buscfg.data2_io_num = data_pins[2];
+    buscfg.data3_io_num = data_pins[3];
+    if (data_pins.size() == 8) {
+      buscfg.data4_io_num = data_pins[4];
+      buscfg.data5_io_num = data_pins[5];
+      buscfg.data6_io_num = data_pins[6];
+      buscfg.data7_io_num = data_pins[7];
+      buscfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
     } else {
-      buscfg.data0_io_num = data_pins[0];
-      buscfg.data1_io_num = data_pins[1];
-      buscfg.data2_io_num = data_pins[2];
-      buscfg.data3_io_num = data_pins[3];
-      if (data_pins.size() == 8) {
-        buscfg.data4_io_num = data_pins[4];
-        buscfg.data5_io_num = data_pins[5];
-        buscfg.data6_io_num = data_pins[6];
-        buscfg.data7_io_num = data_pins[7];
-        buscfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
-      } else {
-        buscfg.data4_io_num = -1;
-        buscfg.data5_io_num = -1;
-        buscfg.data6_io_num = -1;
-        buscfg.data7_io_num = -1;
-        buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
-      }
-    }
-    buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
-    auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Bus init failed - err %X", err);
+      buscfg.data4_io_num = -1;
+      buscfg.data5_io_num = -1;
+      buscfg.data6_io_num = -1;
+      buscfg.data7_io_num = -1;
+      buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
     }
   }
-
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                            bool release_device, bool write_only) override {
-    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin, release_device,
-                             write_only || Utility::get_pin_no(this->sdi_pin_) == -1);
+  buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
+  auto err = spi_bus_initialize(this->interface_, &buscfg, SPI_DMA_CH_AUTO);
+  // INVALID_STATE also means another driver claimed the peripheral; only an existing master bus can take devices
+  if (err == ESP_ERR_INVALID_STATE && spi_bus_get_attr(this->interface_) != nullptr) {
+    ESP_LOGW(TAG, "Bus already initialized by another driver, configured pins ignored");
+  } else if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Bus init failed: %s", esp_err_to_name(err));
+    return false;
   }
+  return true;
+}
 
- protected:
-  SPIInterface channel_{};
-
-  bool is_hw() override { return true; }
-};
-
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                              const std::vector<uint8_t> &data_pins) {
-  return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
+SPIDelegate *SPIComponent::new_hw_delegate_(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                            bool release_device, bool write_only) {
+  return new SPIDelegateHw(this->interface_, data_rate, bit_order, mode, cs_pin, release_device,  // NOLINT
+                           write_only || Utility::get_pin_no(this->sdi_pin_) == -1);
 }
 
 #endif  // USE_ESP32

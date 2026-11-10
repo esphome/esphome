@@ -543,6 +543,12 @@ IN_RANGE_CHECK = ApplyCall(
 )
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
+ValueRange = cg.esphome_ns.struct("ValueRange")
+# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+_VALUE_RANGE_BOUNDS = ApplyCall(
+    "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
+)
+
 
 @dataclass(frozen=True)
 class ApplyBytes:
@@ -690,15 +696,14 @@ def apply_static_function(
     share: bool = False,
     suffix: str = "fn",
 ) -> MockObj:
-    """Emit the static function generated for ``id_`` and return an expression naming it.
-
-    ``share`` reuses an identical function through ``cg.shared_static_function``; leave it
-    false for a body with user lambda code. The name never matches a config id; ``suffix``
-    names a second function for ``id_``.
-    """
+    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one."""
     return cg.shared_static_function(
-        f"esphome__{id_.id}__{suffix}", return_type, params, statements, share=share
+        _apply_function_name(id_, suffix), return_type, params, statements, share=share
     )
+
+
+def _apply_function_name(id_: ID, suffix: str = "fn") -> str:
+    return f"esphome__{id_.id}__{suffix}"
 
 
 # Comments, raw strings, strings and char literals; a ' after a digit is a digit separator.
@@ -938,6 +943,39 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
     return not members or any(value is not None for value in values)
 
 
+async def new_value_range_trigger(
+    trigger_id: ID, parent: MockObj, config: ConfigType
+) -> MockObj:
+    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+
+    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
+    the const ``x`` is a backstop if bounds are ever inlined again.
+    """
+    trigger = cg.new_Pvariable(
+        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
+    )
+    config = {**IN_RANGE_DEFAULTS, **config}
+    members = _VALUE_RANGE_BOUNDS.members
+    bounds = await _render_call(
+        "on_value_range",
+        _VALUE_RANGE_BOUNDS.target,
+        members,
+        _apply_values(config, members),
+        config,
+        None,
+        [(cg.float_, "x")],
+    )
+    # The trigger above already names this function, so it must keep this exact name
+    cg.static_function(
+        _apply_function_name(trigger_id),
+        ValueRange,
+        [(cg.RawExpression("const float"), "x")],
+        [f"return {bounds};"],
+    )
+    return trigger
+
+
 def register_apply_condition(
     name: str,
     schema: cv.Schema,
@@ -988,7 +1026,10 @@ def register_apply_condition(
 WHOLE_CONFIG: tuple[str, ...] = ()
 
 
-def _apply_calls(statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+def _apply_calls(name: str, statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+    if not statements:
+        # A non-void function with no statement would never return
+        raise ValueError(f"{name}: a filter needs at least one statement")
     return [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
 
 
@@ -1018,12 +1059,7 @@ class ApplyFilterDomain:
     params: tuple[tuple[Any, str], ...]
 
     def new(self, filter_id: ID, statements: list[str], share: bool = False) -> MockObj:
-        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements``.
-
-        The function takes ``params`` exactly as the filter class passes them. With ``share`` an
-        identical function emitted before is reused, so equal filters share one class. Never
-        share a body that may hold ``static`` state, that is one with code from a user lambda.
-        """
+        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements`` taking ``params``."""
         id_ = filter_id.copy()
         id_.type = self.filter_class
         fn = apply_static_function(
@@ -1037,20 +1073,16 @@ class ApplyFilterDomain:
         config: Any,
         filter_id: ID,
         *statements: str | ApplyCall,
-        schema: Any = None,
+        schema: Any,
     ) -> MockObj:
         """Declare filter ``name`` as the function of ``statements`` over ``config``.
 
-        Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
-        value lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the
-        key of a single value schema. A statement whose keys are all absent is skipped, except
-        the last, which must always apply so the function returns. A function with a value
-        lambda is not shared. With ``schema`` the statement keys are checked against it.
+        Value lambdas become their own functions; a statement whose keys are all absent is skipped,
+        except the last; ``schema`` checks the statement keys, so a typo is not a skipped statement.
         """
-        calls = _apply_calls(statements)
-        if schema is not None:
-            for c in calls:
-                _check_call_keys(name, schema, c.members)
+        calls = _apply_calls(name, statements)
+        for c in calls:
+            _check_call_keys(name, schema, c.members)
         body: list[str] = []
         lambdas = 0
         for index, c in enumerate(calls):
@@ -1081,12 +1113,10 @@ class ApplyFilterDomain:
 
     def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
         """Register filter ``name`` as the function of ``statements``; see ``build``."""
-        calls = _apply_calls(statements)
-        for c in calls:
-            _check_call_keys(name, schema, c.members)
+        calls = _apply_calls(name, statements)
 
         async def builder(config: Any, filter_id: ID) -> MockObj:
-            return await self.build(name, config, filter_id, *calls)
+            return await self.build(name, config, filter_id, *calls, schema=schema)
 
         self.registry.register(name, self.filter_class, schema)(builder)
 

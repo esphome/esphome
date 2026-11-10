@@ -35,7 +35,6 @@ void Filter::initialize(TextSensor *parent, Filter *next) {
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
 const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }
-void LambdaFilter::set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
 
 bool LambdaFilter::new_value(std::string &value) {
   auto result = this->lambda_filter_(value);

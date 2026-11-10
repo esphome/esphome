@@ -524,11 +524,7 @@ void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool anno
 
   media_command.file = media_file;
   media_command.is_announcement = announcement;
-  if (this->single_pipeline_() || announcement) {
-    media_command.announce = true;
-  } else {
-    media_command.announce = false;
-  }
+  media_command.announce = this->single_pipeline_() || announcement;
   media_command.enqueue = enqueue;
   xQueueSend(this->media_control_command_queue_, &media_command, portMAX_DELAY);
 }
@@ -543,11 +539,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   auto ann = call.get_announcement();
   media_command.is_announcement = ann.has_value() && *ann;
-  if (this->single_pipeline_() || media_command.is_announcement) {
-    media_command.announce = true;
-  } else {
-    media_command.announce = false;
-  }
+  media_command.announce = this->single_pipeline_() || media_command.is_announcement;
 
   const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {

@@ -1153,6 +1153,13 @@ const char *SendspinCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_CRASH_REPORT
+const char *CrashReportCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportCapabilities"));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  return out.c_str();
+}
+#endif
 const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
 #ifdef USE_BLUETOOTH_PROXY
@@ -1192,6 +1199,11 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   this->store_yaml.dump_to(out);
   out.append("\n");
 #endif
+#ifdef USE_CRASH_REPORT
+  out.append(2, ' ').append_p(ESPHOME_PSTR("crash_report")).append(": ");
+  this->crash_report.dump_to(out);
+  out.append("\n");
+#endif
   return out.c_str();
 }
 #ifdef USE_API_WIZARD
@@ -1213,6 +1225,32 @@ const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   out.append_p(ESPHOME_PSTR("ListEntitiesDoneResponse {}"));
   return out.c_str();
 }
+#ifdef USE_CRASH_REPORT
+const char *CrashReportCore::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportCore"));
+  dump_field(out, ESPHOME_PSTR("core"), this->core);
+  for (uint16_t i = 0; i < this->backtrace_len; i++) {
+    dump_field(out, ESPHOME_PSTR("backtrace"), this->backtrace[i], 4);
+  }
+  return out.c_str();
+}
+const char *CrashReportResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportResponse"));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  dump_field(out, ESPHOME_PSTR("reason"), this->reason);
+  dump_field(out, ESPHOME_PSTR("pc"), this->pc);
+  dump_field(out, ESPHOME_PSTR("cause"), this->cause);
+  dump_field(out, ESPHOME_PSTR("fault_address"), this->fault_address);
+  dump_field(out, ESPHOME_PSTR("build_time"), this->build_time);
+  dump_field(out, ESPHOME_PSTR("crashed_core"), this->crashed_core);
+  for (uint16_t i = 0; i < this->cores_len; i++) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("cores")).append(": ");
+    this->cores[i].dump_to(out);
+    out.append("\n");
+  }
+  return out.c_str();
+}
+#endif
 #ifdef USE_BINARY_SENSOR
 const char *ListEntitiesBinarySensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesBinarySensorResponse"));
