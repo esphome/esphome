@@ -22,6 +22,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   void set_blank_on_start(bool blank) { this->blank_on_start_ = blank; }
 
  protected:
+  void open_socket_();
   void blank_all_leds_(light::AddressableLight &it);
   bool parse_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
   bool parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
@@ -37,6 +38,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   uint32_t dropped_{0};
   uint8_t sync_group_mask_{0};
   bool blank_on_start_{true};
+  bool socket_failed_{false};  // until the next start(), so a bind error is not retried every loop
 };
 
 }  // namespace esphome::wled

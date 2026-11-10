@@ -27,10 +27,14 @@ void WLEDLightEffect::start() {
   } else {
     this->blank_start_.reset();
   }
+  this->socket_failed_ = false;
+}
 
+void WLEDLightEffect::open_socket_() {
   this->socket_ = socket::socket_ip_udp(IPPROTO_IP);
   if (this->socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket: errno %d", errno);
+    this->socket_failed_ = true;
     return;
   }
   int enable = 1;
@@ -41,6 +45,7 @@ void WLEDLightEffect::start() {
       this->socket_->bind((struct sockaddr *) &server, server_len) != 0) {
     ESP_LOGW(TAG, "Cannot bind to port %u: errno %d", static_cast<unsigned>(this->port_), errno);
     this->socket_.reset();
+    this->socket_failed_ = true;
   }
 }
 
@@ -58,6 +63,9 @@ void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
 }
 
 void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
+  // Opened here, not in start(): a restored effect starts during setup, before the network stack is up
+  if (this->socket_ == nullptr && !this->socket_failed_)
+    this->open_socket_();
   if (this->socket_ != nullptr) {
     uint8_t payload[MAX_FRAME_SIZE];
     ssize_t len;
