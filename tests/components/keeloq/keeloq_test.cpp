@@ -190,6 +190,8 @@ TEST(KeeloqRemoteTest, ChannelMaskZeroSendsNothing) {
   remote.learn(&transmitter, 0x0000);
   EXPECT_TRUE(transmitter.frames.empty());
   EXPECT_EQ(remote.get_counter(), 0);  // no counter used up
+  // No stop frame is pending: learn(0) started nothing (the learn timeout's id is 0)
+  EXPECT_FALSE(App.scheduler.cancel_timeout(&remote, uint32_t{0}));
 }
 
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
