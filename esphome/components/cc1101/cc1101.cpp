@@ -167,17 +167,21 @@ void CC1101Component::configure() {
   this->initialized_ = true;
   this->sleeping_ = false;
 
-  for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
-    if (i == static_cast<uint8_t>(Register::FSTEST) || i == static_cast<uint8_t>(Register::AGCTEST)) {
-      continue;
-    }
-    this->write_(static_cast<Register>(i));
-  }
+  this->write_registers_();
   this->set_output_power(this->output_power_requested_);
 
   if (!this->enter_rx_()) {
     this->mark_failed();
     return;
+  }
+}
+
+void CC1101Component::write_registers_() {
+  for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
+    if (i == static_cast<uint8_t>(Register::FSTEST) || i == static_cast<uint8_t>(Register::AGCTEST)) {
+      continue;
+    }
+    this->write_(static_cast<Register>(i));
   }
 }
 
@@ -269,6 +273,7 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
+  this->wake_up();
   // Read the mode before the PKTCTRL0 write below overwrites it in state_
   const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
   // Ensure Packet Format is 3 (Async Serial)
@@ -329,8 +334,8 @@ void CC1101Component::wake_up() {
   delayMicroseconds(WAKEUP_DELAY_US);
   this->disable();
   this->enter_idle_();
-  // TEST0 and PATABLE entries 1-7 are not retained in SLEEP.
-  this->write_(Register::TEST0);
+  // TEST0 and PATABLE entries 1-7 are lost in SLEEP, and register writes were skipped while asleep
+  this->write_registers_();
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
 }
 
@@ -391,6 +396,9 @@ uint8_t CC1101Component::strobe_(Command cmd) {
 }
 
 void CC1101Component::write_(Register reg) {
+  if (this->sleeping_) {
+    return;  // wake_up() writes state_ to the chip
+  }
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index);
@@ -405,6 +413,9 @@ void CC1101Component::write_(Register reg, uint8_t value) {
 }
 
 void CC1101Component::write_(Register reg, const uint8_t *buffer, size_t length) {
+  if (this->sleeping_) {
+    return;
+  }
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index | BUS_WRITE | BUS_BURST);

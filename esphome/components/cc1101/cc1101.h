@@ -121,6 +121,7 @@ class CC1101Component final : public Component,
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);
+  void write_registers_();
   void write_(Register reg);
   void write_(Register reg, uint8_t value);
   void write_(Register reg, const uint8_t *buffer, size_t length);
