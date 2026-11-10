@@ -23,6 +23,9 @@ button:
       # Recording stops for good; reboot before the next run, or a second press returns the same entries.
       - lambda: |-
           g_alloc_armed = false;
+          // let recorders on other tasks finish the entry they claimed
+          for (int w = 0; w < 100 && g_alloc_busy.load() != 0; w++)
+            delay(1);
           uint32_t claimed = g_alloc_n.load();
           uint32_t n = std::min<uint32_t>(claimed, ALLOC_CAP);
           // claimed > n means the buffer filled and recording stopped early

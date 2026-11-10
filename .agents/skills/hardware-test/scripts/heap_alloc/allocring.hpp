@@ -22,6 +22,8 @@ AllocEntry g_allocs[ALLOC_CAP];
 std::atomic<uint32_t> g_alloc_n{0};
 std::atomic<uint32_t> g_new_count{0};
 volatile bool g_alloc_armed = false;
+// Recorders between claiming a slot and filling it; the dump waits for 0 after disarming.
+std::atomic<uint32_t> g_alloc_busy{0};
 
 // Claims the next slot, or returns nullptr and disarms once the buffer is full.
 static inline AllocEntry *alloc_claim(uint32_t size) {
@@ -38,6 +40,7 @@ static inline AllocEntry *alloc_claim(uint32_t size) {
 
 void *operator new(size_t size) {
   g_new_count.fetch_add(1, std::memory_order_relaxed);
+  g_alloc_busy.fetch_add(1);  // before the armed check, so a dump that disarmed first sees it
   AllocEntry *e = g_alloc_armed ? alloc_claim(size) : nullptr;
   if (e != nullptr) {
     e->pc[0] = e->pc[1] = e->pc[2] = e->pc[3] = e->pc[4] = 0;
@@ -50,6 +53,7 @@ void *operator new(size_t size) {
       e->pc[k] = esp_cpu_process_stack_pc(f.pc);
 #endif
   }
+  g_alloc_busy.fetch_sub(1);
   void *p = malloc(size ? size : 1);
   if (p == nullptr)
     abort();
@@ -63,9 +67,11 @@ void operator delete[](void *p, size_t) noexcept { free(p); }
 
 // Splits the dump into phases, for example on each change of an entity's state.
 static inline void alloc_marker(uint32_t a, uint32_t b) {
+  g_alloc_busy.fetch_add(1);
   if (AllocEntry *e = g_alloc_armed ? alloc_claim(ALLOC_MARKER) : nullptr) {
     e->pc[0] = a;
     e->pc[1] = b;
     e->pc[2] = e->pc[3] = e->pc[4] = 0;
   }
+  g_alloc_busy.fetch_sub(1);
 }

@@ -1,6 +1,7 @@
 """Decode an allocring dump into callers: decode.py LOG ELF [ADDR2LINE]
 
-Prints each entry with its caller frames as function and file:line, and markers (size 0) as phase separators.
+Prints each entry with its caller frames as function and file:line, and markers (size 0xFFFFFFFF, ALLOC_MARKER) as phase
+separators.
 ADDR2LINE defaults to one for the ELF's CPU found in ESPHome's ESP-IDF tools cache, ~/.platformio or ~/.espressif.
 Exits 2 when the dump is incomplete (missing header or entries, or the buffer filled during the run).
 """
@@ -85,6 +86,11 @@ def check(dump: str, entries: list) -> list[str]:
         problems.append(f"{len(missing)} of {n} entries missing, first {missing[:10]}")
     if len(indexes) != len(set(indexes)):
         problems.append("duplicate entries")
+    if stray := sorted(i for i in set(indexes) if i >= n):
+        problems.append(f"entries past n={n}: {stray[:10]}")
+    allocs = [pcs for _, _, size, pcs in entries if size != MARKER]
+    if allocs and all(pcs[0] == "00000000" for pcs in allocs):
+        problems.append("no entry has a caller (frame walk failed?)")
     if claimed > n:
         problems.append(f"buffer filled: recording stopped after {n} entries")
     if "DUMP END" not in dump:

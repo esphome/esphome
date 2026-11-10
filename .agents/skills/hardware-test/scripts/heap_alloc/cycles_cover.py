@@ -9,7 +9,7 @@ import pathlib
 import sys
 import time
 
-from aioesphomeapi import CoverInfo, CoverOperation
+from aioesphomeapi import CoverInfo, CoverOperation, CoverState
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from apiconn import connect  # noqa: E402
@@ -21,7 +21,7 @@ SETTLE_S = 8
 
 async def main() -> None:
     host, cycles, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
-    with pathlib.Path(out).open("a", encoding="utf-8") as f:
+    with pathlib.Path(out).open("w", encoding="utf-8") as f:
 
         def w(s: str) -> None:
             f.write(time.strftime("%H:%M:%S ") + s + "\n")
@@ -31,7 +31,13 @@ async def main() -> None:
         ents, _ = await c.list_entities_services()
         cover = next(e for e in ents if isinstance(e, CoverInfo))
         states: asyncio.Queue = asyncio.Queue()
-        c.subscribe_states(lambda s: s.key == cover.key and states.put_nowait(s))
+        c.subscribe_states(
+            lambda s: (
+                isinstance(s, CoverState)
+                and s.key == cover.key
+                and states.put_nowait(s)
+            )
+        )
         await asyncio.wait_for(states.get(), 10)
 
         async def move(pos: float) -> bool:

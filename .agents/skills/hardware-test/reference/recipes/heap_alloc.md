@@ -23,9 +23,9 @@ delta from an `interval`. Compare a PR build with its base on the same flow; the
   reboot (or reflash) before each run; a second press returns the same entries.
 - `alloc_marker(a, b)` from a lambda writes a marker entry, for example on each cover operation change, so the
   dump splits into phases.
-- `dump.py HOST OUT` presses the button and saves the dump, pressing again when the log subscription started
-  late. `decode.py LOG ELF [ADDR2LINE]` prints each entry with its callers as function and file:line, and exits 2
-  when entries are missing or repeated or the buffer filled. It reads only the newest dump in the file. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
+- `dump.py HOST OUT` presses the button and writes the dump to a fresh OUT, pressing again until the header
+  and every entry arrived (a late log subscription or dropped log lines). `decode.py LOG ELF [ADDR2LINE]` prints each entry with its callers as function and file:line, and exits 2
+  when entries are missing, repeated or out of range, no entry has a caller, or the buffer filled. It reads only the newest dump in the file. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
 - `cycles_cover.py HOST N OUT` opens and closes the first cover N times (`cover_command(position=...)`, waiting
   for idle each way) with a states-only API client, then saves the dump the same way. It exits 2 when a move
   never reached its position.
