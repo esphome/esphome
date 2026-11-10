@@ -1,0 +1,83 @@
+substitutions:
+  name: xbrecv
+
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 100ms
+    window: 100ms
+    active: false
+  on_ble_service_data_advertise:
+    - mac_address: C4:C1:38:00:00:0A
+      service_uuid: FE95
+      then:
+        - lambda: |-
+            char buf[80];
+            size_t n = 0;
+            for (size_t i = 0; i < x.size() && n + 3 < sizeof(buf); i++)
+              n += snprintf(buf + n, sizeof(buf) - n, "%02X", x[i]);
+            ESP_LOGI("svcA", "len %u data %s", (unsigned) x.size(), buf);
+
+sensor:
+  - platform: xiaomi_lywsd03mmc
+    mac_address: C4:C1:38:00:00:0A
+    bindkey: 6c0d1a3e5b7f29c4a18e90d2f3b46a57
+    temperature:
+      name: "xA lywsd03mmc temp"
+  - platform: xiaomi_lywsdcgq
+    mac_address: C4:C1:38:00:00:0B
+    temperature:
+      name: "xB lywsdcgq temp"
+    humidity:
+      name: "xB lywsdcgq hum"
+  - platform: xiaomi_hhccjcy01
+    mac_address: C4:C1:38:00:00:0C
+    temperature:
+      name: "xC hhccjcy01 temp"
+  - platform: xiaomi_cgg1
+    mac_address: C4:C1:38:00:00:0D
+    temperature:
+      name: "xD cgg1 temp"
+  - platform: xiaomi_xmwsdj04mmc
+    mac_address: C4:C1:38:00:00:0E
+    bindkey: 0f1e2d3c4b5a69788796a5b4c3d2e1f0
+    temperature:
+      name: "xE xmwsdj04mmc temp"
+    humidity:
+      name: "xE xmwsdj04mmc hum"
+  - platform: atc_mithermometer
+    mac_address: C4:C1:38:00:00:0F
+    temperature:
+      name: "xF atc temp"
+    humidity:
+      name: "xF atc hum"
+    battery_voltage:
+      name: "xF atc volt"
+  - platform: pvvx_mithermometer
+    mac_address: C4:C1:38:00:00:10
+    temperature:
+      name: "xG pvvx temp"
+    humidity:
+      name: "xG pvvx hum"
+    battery_voltage:
+      name: "xG pvvx volt"

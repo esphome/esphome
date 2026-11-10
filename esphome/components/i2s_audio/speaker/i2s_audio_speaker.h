@@ -208,8 +208,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   audio::AudioStreamInfo current_stream_info_;  // Format of the audio in the ring buffer (the I2S input)
   // Format actually clocked out of the I2S peripheral. Same channel count and sample rate as
-  // current_stream_info_, but the bits per sample may be narrower when the incoming stream is wider than
-  // the speaker's configured slot bit width. Set by start_i2s_driver before the speaker task starts.
+  // current_stream_info_, but the bits per sample may be converted to the speaker's configured slot bit width.
+  // Set by start_i2s_driver before the speaker task starts.
   audio::AudioStreamInfo output_stream_info_;
 
   gpio_num_t dout_pin_;

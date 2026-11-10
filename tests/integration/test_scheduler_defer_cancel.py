@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_entity, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -70,11 +71,12 @@ async def test_scheduler_defer_cancel(
         await client.execute_service(test_defer_cancel_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-            executed_defer = await asyncio.wait_for(test_result_future, timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Test did not complete within timeout")
+        await wait_or_fail(
+            test_complete_future, 10.0, "Test did not complete within timeout"
+        )
+        executed_defer = await wait_or_fail(
+            test_result_future, 1.0, "Test did not complete within timeout"
+        )
 
         # Verify that only defer 10 was executed
         assert executed_defer == 10, (

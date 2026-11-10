@@ -425,7 +425,7 @@ esp_err_t esp_now_send(const uint8_t *peer_addr, const uint8_t *data, size_t len
   // task, and a shared build buffer here would let two callers corrupt each
   // other's frame. Passing the body through also drops a full-frame copy per
   // transmit, on the path this shim exists to keep quick.
-  uint8_t hdr[sizeof(esp_now_hosted_send_req_t)];
+  uint8_t hdr[sizeof(esp_now_hosted_send_req_t)] = {};
   auto *s = reinterpret_cast<esp_now_hosted_send_req_t *>(hdr);
   s->has_addr = peer_addr != nullptr ? 1 : 0;
   if (peer_addr != nullptr) {

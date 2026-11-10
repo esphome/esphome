@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "esphome/components/keeloq/keeloq.h"
+#include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 
@@ -85,6 +87,17 @@ bool receive(KeeloqRemote &remote, const remote_base::RawTimings &timings) {
 void construct_app() {
   static const bool CONSTRUCTED = (new (&App) Application(), true);
   (void) CONSTRUCTED;
+}
+
+// Returns what one frame logged. The test logger only prints while it has a baud rate.
+std::string log_of_next_frame(KeeloqRemote &remote) {
+  const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+  logger::global_logger->set_baud_rate(115200);
+  ::testing::internal::CaptureStdout();
+  remote.next_frame(0x8, 0x0001);
+  std::string log = ::testing::internal::GetCapturedStdout();
+  logger::global_logger->set_baud_rate(baud_rate);
+  return log;
 }
 
 }  // namespace
@@ -180,6 +193,20 @@ TEST(KeeloqRemoteTest, ReservedBlockWrapsToo) {
   }
   Remote after;
   EXPECT_EQ(after.remote.get_counter(), 4);
+}
+
+TEST(KeeloqRemoteTest, FailedSaveWarnsAndStillSends) {
+  // Without setup() the remote has no storage, so saving the counter fails.
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, SERIAL};
+  std::string log = log_of_next_frame(remote);
+  EXPECT_NE(log.find("Could not save the counter"), std::string::npos) << log;
+  EXPECT_EQ(remote.get_counter(), 1);  // the frame still took counter 0
+}
+
+TEST(KeeloqRemoteTest, SavedCounterLogsNoWarning) {
+  Remote r;
+  std::string log = log_of_next_frame(r.remote);
+  EXPECT_EQ(log.find("Could not save the counter"), std::string::npos) << log;
 }
 
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {

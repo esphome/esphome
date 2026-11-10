@@ -126,7 +126,7 @@ void EmonTx::loop() {
 
   // Read all available data to prevent UART buffer overflow
   this->read_available([this](uint8_t received) {
-    size_t len;
+    size_t len = 0;
     char *line = this->line_reader_.feed(received, len);
     this->line_reader_.log_if_overflowed(TAG);
     if (line == nullptr || len == 0) {
@@ -224,8 +224,7 @@ void EmonTx::parse_version_line_(const char *line, size_t len) {
   ESP_LOGI(TAG, "emonTx firmware version: %.*s", static_cast<int>(end - version), version);
   this->version_frames_left_ = 0;
 #ifdef USE_EMONTX_VERSION_TEXT_SENSOR
-  if (this->version_text_sensor_ != nullptr)
-    this->version_text_sensor_->publish_state(version, end - version);
+  PUBLISH_STATE(this->version_text_sensor_, version, end - version);
 #endif
 
   bool supported = supports_lock(version, end);

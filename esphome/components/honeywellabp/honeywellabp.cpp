@@ -70,10 +70,8 @@ float HONEYWELLABPSensor::read_temperature_() { return countstotemperatures_(tem
 void HONEYWELLABPSensor::update() {
   ESP_LOGV(TAG, "Update Honeywell ABP Sensor");
   if (readsensor_() == 0) {
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(read_pressure_() * 1.0f);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(read_temperature_() * 1.0f);
+    PUBLISH_STATE(this->pressure_sensor_, read_pressure_() * 1.0f);
+    PUBLISH_STATE(this->temperature_sensor_, read_temperature_() * 1.0f);
   }
 }
 
@@ -87,14 +85,6 @@ void HONEYWELLABPSensor::dump_config() {
                 "  Max Pressure Range: %0.1f",
                 honeywellabp_min_pressure_, honeywellabp_max_pressure_);
   LOG_UPDATE_INTERVAL(this);
-}
-
-void HONEYWELLABPSensor::set_honeywellabp_min_pressure(float min_pressure) {
-  this->honeywellabp_min_pressure_ = min_pressure;
-}
-
-void HONEYWELLABPSensor::set_honeywellabp_max_pressure(float max_pressure) {
-  this->honeywellabp_max_pressure_ = max_pressure;
 }
 
 }  // namespace esphome::honeywellabp

@@ -25,8 +25,8 @@ void MAX31855Sensor::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Thermocouple", this);
-  if (this->temperature_reference_) {
-    LOG_SENSOR("  ", "Reference", this->temperature_reference_);
+  if (this->reference_sensor_) {
+    LOG_SENSOR("  ", "Reference", this->reference_sensor_);
   } else {
     ESP_LOGCONFIG(TAG, "  Reference temperature disabled.");
   }
@@ -46,22 +46,20 @@ void MAX31855Sensor::read_data_() {
   } else {
     ESP_LOGE(TAG, "No data received from MAX31855 (0x%08" PRIX32 "). Check wiring!", mem);
     this->publish_state(NAN);
-    if (this->temperature_reference_) {
-      this->temperature_reference_->publish_state(NAN);
-    }
+    PUBLISH_STATE(this->reference_sensor_, NAN);
     this->status_set_error();
     return;
   }
 
   // Internal reference temperature always works
-  if (this->temperature_reference_) {
+  if (this->reference_sensor_) {
     int16_t val = (mem & 0x0000FFF0) >> 4;
     if (val & 0x0800) {
       val |= 0xF000;  // Pad out 2's complement
     }
     const float t_ref = float(val) * 0.0625f;
     ESP_LOGD(TAG, "Got reference temperature: %.4f°C", t_ref);
-    this->temperature_reference_->publish_state(t_ref);
+    this->reference_sensor_->publish_state(t_ref);
   }
 
   // Check thermocouple faults

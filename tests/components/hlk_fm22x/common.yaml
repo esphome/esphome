@@ -5,6 +5,8 @@ esphome:
           name: "Test"
           direction: 1
       - hlk_fm22x.delete: 5
+      - hlk_fm22x.delete:
+          face_id: 7
       - hlk_fm22x.delete_all:
       - hlk_fm22x.reset:
       - hlk_fm22x.scan:

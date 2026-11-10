@@ -10,6 +10,7 @@ from esphome.components.mqtt import (
     MQTT_TRANSPORT_TCP,
     MQTT_TRANSPORT_WS,
     MQTT_TRANSPORT_WSS,
+    _validate_tls,
     _validate_transport,
     validate_config,
 )
@@ -86,22 +87,11 @@ def test_plaintext_ws_with_certificate_rejected(
 ) -> None:
     """Test that pairing a CA or client certificate with unencrypted ws is rejected."""
     with pytest.raises(cv.Invalid, match="unencrypted"):
-        validate_config(
-            {
-                CONF_TRANSPORT: MQTT_TRANSPORT_WS,
-                CONF_TOPIC_PREFIX: "test",
-                **certificate_options,
-            }
-        )
+        _validate_tls({CONF_TRANSPORT: MQTT_TRANSPORT_WS, **certificate_options})
 
 
-def test_client_certificate_requires_tls() -> None:
-    """Test that a client certificate without a CA is only accepted over wss."""
-    certificate = {
-        CONF_CLIENT_CERTIFICATE: "-----BEGIN CERTIFICATE-----",
-        CONF_CLIENT_CERTIFICATE_KEY: "-----BEGIN PRIVATE KEY-----",
-        CONF_TOPIC_PREFIX: "test",
-    }
-    with pytest.raises(cv.Invalid, match="requires 'certificate_authority'"):
-        validate_config({CONF_TRANSPORT: MQTT_TRANSPORT_TCP, **certificate})
-    validate_config({CONF_TRANSPORT: MQTT_TRANSPORT_WSS, **certificate})
+def test_wss_switches_tls_on() -> None:
+    """Test that wss implies tls and cannot be combined with tls false."""
+    assert _validate_tls({CONF_TRANSPORT: MQTT_TRANSPORT_WSS})["tls"] is True
+    with pytest.raises(cv.Invalid, match="'tls' cannot be false"):
+        _validate_tls({CONF_TRANSPORT: MQTT_TRANSPORT_WSS, "tls": False})

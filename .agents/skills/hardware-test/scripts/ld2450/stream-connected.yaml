@@ -1,0 +1,5 @@
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: radar
+    connected:
+      name: Connected

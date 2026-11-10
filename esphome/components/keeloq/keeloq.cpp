@@ -289,13 +289,16 @@ void KeeloqRemote::store_reserved_() {
   if (this->take_over_ && !this->known_) {
     return;  // nothing taken over yet
   }
+  bool saved;
   if (this->take_over_) {
     TakenOver stored{this->serial_, this->reserved_, this->channels_};
-    this->pref_.save(&stored);
+    saved = this->pref_.save(&stored);
   } else {
-    this->pref_.save(&this->reserved_);
+    saved = this->pref_.save(&this->reserved_);
   }
-  global_preferences->sync();
+  if (!saved || !global_preferences->sync()) {
+    ESP_LOGW(TAG, "Could not save the counter, so presses after a restart may be ignored until the counter catches up");
+  }
 }
 
 remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t channels) {
