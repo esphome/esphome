@@ -67,33 +67,19 @@ void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
 }
 
 esp_err_t BLEAdvertising::services_advertisement_() {
-  // A priority UUID goes first and alone in the advertising packet
-  const bool priority = this->priority_uuid_.is_set();
-  AdvUuidList uuids;
-  AdvPayload::UUID128 uuid128{};
-  if (priority) {
-    memcpy(uuid128.data(), this->priority_uuid_.as_128bit().uuid128(), 16);
-    uuids.add_priority(uuid128);
-  }
-  for (const auto &uuid : this->advertising_uuids_) {
-    if (uuid == this->priority_uuid_)  // an unset priority UUID matches nothing
-      continue;
-    memcpy(uuid128.data(), uuid.as_128bit().uuid128(), 16);
-    uuids.add(uuid128);
-  }
   char name_buffer[ESP32BLE::DEVICE_NAME_BUFFER_SIZE];
   const char *name = global_ble->device_name(name_buffer);
   AdvPayload adv;
   AdvPayload rsp;
-  build_adv_packets({.uuids = uuids.uuids(),
+  build_adv_packets({.uuids = this->advertising_uuids_,
+                     .priority_uuid = this->priority_uuid_,
                      .manufacturer_data = {this->manufacturer_data_.data(), this->manufacturer_data_len_},
                      .service_data = {this->service_data_.data(), this->service_data_len_},
                      .name = name,
                      .name_len = strlen(name),
                      .appearance = this->appearance_,
                      .tx_power_dbm = adv_tx_power_dbm(),
-                     .name_in_adv = this->include_name_in_adv_,
-                     .priority = priority},
+                     .name_in_adv = this->include_name_in_adv_},
                     adv, rsp);
 
   // Bluedroid copies the bytes during each call
