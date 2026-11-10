@@ -373,8 +373,7 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  // BLE device names are limited to 20 characters
-  // Buffer: 20 chars + null terminator
+  // BLE device names are limited to 20 bytes (UTF-8), plus the null terminator
   constexpr size_t ble_name_max_len = 21;
   char name_buffer[ble_name_max_len];
   const char *device_name;
