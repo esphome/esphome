@@ -28,10 +28,11 @@ void UartTcp::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "UART TCP:\n"
                 "  %s: %s:%u\n"
-                "  Reconnect Interval: %" PRIu32 "ms",
+                "  Reconnect Interval: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval());
+                this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -74,7 +75,9 @@ void UartTcp::read_socket_() {
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->paced_write_room(this->last_write_ms_);
   if (room == 0) {
+    // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
+    this->link_.note_io();
     return;
   }
   uint8_t tmp[READ_CHUNK];
@@ -136,6 +139,7 @@ void UartTcp::loop() {
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
   this->link_.flush_tx();
+  this->link_.check_idle();
 }
 
 }  // namespace esphome::uart_tcp

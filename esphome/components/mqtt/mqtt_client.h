@@ -160,7 +160,7 @@ class MQTTClientComponent final : public Component {
   /// Remove the birth message.
   void disable_birth_message();
 
-  void set_shutdown_message(MQTTMessage &&message);
+  void set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
   void disable_shutdown_message();
 
   /// Set the keep alive time in seconds, every 0.7*keep_alive a ping will be sent.
@@ -204,12 +204,12 @@ class MQTTClientComponent final : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(std::string topic_prefix);
+  void set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
   /// Manually set the topic used for logging.
-  void set_log_message_template(MQTTMessage &&message);
+  void set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
   void set_log_level(int level) { this->log_level_ = level; }
   /// Get the topic used for logging. Defaults to "<topic_prefix>/debug" and the value is cached for speed.
   void disable_log_message();

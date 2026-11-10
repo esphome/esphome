@@ -46,8 +46,10 @@ from esphome.cpp_generator import (  # noqa: F401
     shared_progmem_array,
     shared_progmem_string,
     statement,
+    static_buffer,
     static_const_array,
     static_function,
+    static_storage,
     templatable,
     unique_global_id,
     variable,
@@ -70,6 +72,7 @@ from esphome.cpp_helpers import (  # noqa: F401
     register_parented,
     set_setup_priority,
     slot_counter,
+    slot_list,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,
@@ -90,6 +93,7 @@ from esphome.cpp_types import (  # noqa: F401
     StringRef,
     arduino_json_ns,
     bool_,
+    byte_span,
     char,
     const_char_ptr,
     double,

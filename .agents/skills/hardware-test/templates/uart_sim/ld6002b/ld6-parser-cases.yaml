@@ -1,0 +1,50 @@
+# The TinyFrame parser cases shared by ld6-common.yaml and ld6x-common.yaml; each case's report carries its own X.
+script:
+  - id: parser_cases
+    then:
+      - lambda: ESP_LOGI("ld6sim", "CASE good");
+      - lambda: ld6sim::mod.send("x=1", ld6sim::target(1));
+      - delay: 300ms
+      - lambda: ld6sim::mod.send("x=-1 (count 0)", ld6sim::target(-1));
+      - delay: 300ms
+      - lambda: ld6sim::mod.send("x=2", ld6sim::target(2));
+      - delay: 300ms
+      - lambda: ESP_LOGI("ld6sim", "CASE split");
+      - lambda: ld6sim::mod.send_slow("x=3 slow", ld6sim::target(3));
+      - delay: 1s
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE garbage");
+          ld6sim::mod.send("garbage+x=4", ld6sim::cat({0x00, 0xFF, 0x55, 0x01, 0x02}, ld6sim::target(4)));
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE bad_hck");
+          auto a = ld6sim::target(50); a[7] ^= 0x10;
+          ld6sim::mod.send("bad hck x=50 + x=5", ld6sim::cat(a, ld6sim::target(5)));
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE bad_dck");
+          auto a = ld6sim::target(60); a.back() ^= 0x10;
+          ld6sim::mod.send("bad dck x=60 + x=6", ld6sim::cat(a, ld6sim::target(6)));
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE lost_hck");
+          auto a = ld6sim::target(70);
+          a.resize(7);  // header only, its checksum lost; the next frame follows at once
+          ld6sim::mod.send("lost hck + x=7", ld6sim::cat(a, ld6sim::target(7)));
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE lost_dck");
+          auto a = ld6sim::target(80); a.pop_back();
+          ld6sim::mod.send("lost dck x=80 + x=8", ld6sim::cat(a, ld6sim::target(8)));
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE oversized");
+          auto a = ld6sim::frame(0x1234, 0x0A08, std::vector<uint8_t>(1100, 0x01));
+          ld6sim::mod.send("1100 byte frame + x=9", ld6sim::cat(a, ld6sim::target(9)));
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE burst");
+          std::vector<uint8_t> a;
+          for (int i = 0; i < 20; i++) a = ld6sim::cat(a, ld6sim::target(100 + i));
+          ld6sim::mod.send("20 frames x=100..119", a);
+      - delay: 500ms
