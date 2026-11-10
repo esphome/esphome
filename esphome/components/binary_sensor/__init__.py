@@ -193,7 +193,6 @@ _DELAY = ((automation.WHOLE_CONFIG, cg.uint32),)
 _DELAY_EITHER = automation.ApplyCall(
     "return binary_sensor::delay_output(filter, {}, x);", _DELAY
 )
-# The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_SCHEMA = cv.templatable(cv.positive_time_period_milliseconds)
 _DELAY_ON_OFF_SCHEMA = cv.Schema(
     {
@@ -201,6 +200,7 @@ _DELAY_ON_OFF_SCHEMA = cv.Schema(
         cv.Required(CONF_TIME_OFF): _DELAY_SCHEMA,
     }
 )
+# The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_ON_OFF = automation.ApplyCall(
     "return binary_sensor::delay_output(filter, x ? {} : {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
@@ -242,12 +242,8 @@ async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     )
 
 
-APPLY_FILTER.register(
-    "delayed_on", cv.templatable(cv.positive_time_period_milliseconds), _DELAYED_ON
-)
-APPLY_FILTER.register(
-    "delayed_off", cv.templatable(cv.positive_time_period_milliseconds), _DELAYED_OFF
-)
+APPLY_FILTER.register("delayed_on", _DELAY_SCHEMA, _DELAYED_ON)
+APPLY_FILTER.register("delayed_off", _DELAY_SCHEMA, _DELAYED_OFF)
 
 
 @register_filter(
