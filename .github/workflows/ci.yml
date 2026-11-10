@@ -773,7 +773,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Install apt packages (cached)
-        # libmbedtls-dev is needed by the dlms_meter tests.
+        # libmbedtls-dev is needed by the dsmr and dlms_meter tests.
         timeout-minutes: 10
         uses: $/.github/actions/apt-packages
 
