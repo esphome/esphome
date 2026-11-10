@@ -37,8 +37,7 @@ void WLEDLightEffect::open_socket_() {
     this->socket_failed_ = true;
     return;
   }
-  int enable = 1;
-  this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+  // No SO_REUSEADDR: a second effect on the same port would take its frames, so let its bind fail instead
   struct sockaddr_storage server{};
   socklen_t server_len = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (this->socket_->setblocking(false) != 0 || server_len == 0 ||
