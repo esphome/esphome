@@ -74,8 +74,9 @@ remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t chann
   return data;
 }
 
-void KeeloqRemote::send_(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels) {
-  transmitter->transmit<remote_base::KeeloqProtocol>(this->next_frame(command, channels), JAROLIFT_SEND_TIMES);
+void KeeloqRemote::send(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels,
+                        uint32_t send_times, uint32_t send_wait) {
+  transmitter->transmit<remote_base::KeeloqProtocol>(this->next_frame(command, channels), send_times, send_wait);
 }
 
 void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16_t channels) {
@@ -85,10 +86,10 @@ void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16
     return;
   }
   // Up+down, a pause, then stop.
-  this->send_(transmitter, JAROLIFT_UP_DOWN, channels);
+  this->send(transmitter, JAROLIFT_UP_DOWN, channels, JAROLIFT_SEND_TIMES, 0);
   this->learn_channels_ = channels;
   this->set_timeout(LEARN_TIMEOUT_ID, JAROLIFT_LEARN_PAUSE_MS, [this, transmitter]() {
-    this->send_(transmitter, JAROLIFT_STOP, this->learn_channels_);
+    this->send(transmitter, JAROLIFT_STOP, this->learn_channels_, JAROLIFT_SEND_TIMES, 0);
     this->learn_channels_ = 0;
   });
 }

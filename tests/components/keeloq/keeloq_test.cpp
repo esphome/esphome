@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <utility>
 #include <vector>
 
 #include "esphome/components/keeloq/keeloq.h"
@@ -25,11 +24,17 @@ struct Remote {
   Remote() { static_cast<Component &>(this->remote).setup(); }
 };
 
-// Keeps what would go on air: the frame and how often it is sent.
+// What would go on air: the frame, how often it is sent and the wait between the copies.
+struct Sent {
+  remote_base::KeeloqData frame;
+  uint32_t send_times;
+  uint32_t send_wait;
+};
+
 class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
  public:
   CapturingTransmitter() : RemoteTransmitterBase(nullptr) {}
-  std::vector<std::pair<remote_base::KeeloqData, uint32_t>> frames;
+  std::vector<Sent> frames;
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override {
@@ -41,7 +46,7 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
       ADD_FAILURE() << "not a KeeLoq frame";
       return;
     }
-    this->frames.emplace_back(*data, send_times);
+    this->frames.push_back({*data, send_times, send_wait});
   }
 };
 
@@ -157,6 +162,19 @@ TEST(KeeloqRemoteTest, FailedSaveStillSends) {
   EXPECT_EQ(remote.get_counter(), 1);
 }
 
+TEST(KeeloqRemoteTest, SendTransmitsTheNextFrame) {
+  // Up for channel 1, sent 3 times with 10 ms between the copies, as repeat sets them.
+  CapturingTransmitter transmitter;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  remote.set_counter(5);
+  remote.send(&transmitter, 0x8, 0x0001, 3, 10000);
+  ASSERT_EQ(transmitter.frames.size(), 1u);
+  EXPECT_EQ(transmitter.frames[0].frame.command, 0x8);
+  EXPECT_EQ(transmitter.frames[0].send_times, 3u);
+  EXPECT_EQ(transmitter.frames[0].send_wait, 10000u);
+  EXPECT_EQ(remote.get_counter(), 6);  // the frame took counter 5
+}
+
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   // As other Jarolift implementations pair: 0xA twice, a pause, then 0x4 twice, each with a new counter.
   forget_stored_counters();
@@ -168,11 +186,11 @@ TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   delay(1010);  // NOLINT
   App.scheduler.call(millis());
   ASSERT_EQ(transmitter.frames.size(), 2u);
-  EXPECT_EQ(transmitter.frames[0].first.command, 0xA);
-  EXPECT_EQ(transmitter.frames[1].first.command, 0x4);
-  for (const auto &[data, send_times] : transmitter.frames) {
-    EXPECT_EQ(data.address, SERIAL);
-    EXPECT_EQ(send_times, 2u);
+  EXPECT_EQ(transmitter.frames[0].frame.command, 0xA);
+  EXPECT_EQ(transmitter.frames[1].frame.command, 0x4);
+  for (const Sent &sent : transmitter.frames) {
+    EXPECT_EQ(sent.frame.address, SERIAL);
+    EXPECT_EQ(sent.send_times, 2u);
   }
   EXPECT_EQ(remote.get_counter(), 12);
 }
@@ -186,7 +204,7 @@ TEST(KeeloqRemoteTest, LearnWhileOneIsPendingIsSkipped) {
   delay(1010);  // NOLINT
   App.scheduler.call(millis());
   ASSERT_EQ(transmitter.frames.size(), 2u);
-  EXPECT_EQ(transmitter.frames[1].first.command, 0x4);
+  EXPECT_EQ(transmitter.frames[1].frame.command, 0x4);
   // The first pairing finished, so the next learn runs.
   remote.learn(&transmitter, 0x0002);
   EXPECT_EQ(transmitter.frames.size(), 3u);

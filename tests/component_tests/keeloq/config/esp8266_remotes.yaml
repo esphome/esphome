@@ -19,3 +19,26 @@ keeloq:
     type: jarolift
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     serial: 0x1234501
+
+button:
+  - platform: template
+    name: Shutters
+    on_press:
+      - keeloq.send:
+          id: shutter_remote
+          command: shade
+          channels: [1, 2]
+      - keeloq.send:
+          id: shutter_remote
+          command: 0x4
+          channels: [1]
+      - keeloq.send:
+          id: shutter_remote
+          command: up
+          channels: [1]
+          repeat:
+            times: 3
+            wait_time: 10ms
+      - keeloq.learn:
+          id: shutter_remote
+          channels: [1]

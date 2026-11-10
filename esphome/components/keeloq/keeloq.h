@@ -2,7 +2,6 @@
 
 #include "esphome/components/remote_base/keeloq_protocol.h"
 #include "esphome/components/remote_base/remote_base.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
@@ -26,6 +25,9 @@ class KeeloqRemote : public Component {
 
   // The next frame to send; advances the counter.
   remote_base::KeeloqData next_frame(uint8_t command, uint16_t channels);
+  // Sends the next frame to the channels in the mask (bit 0 is channel 1); a mask of 0 sends nothing.
+  void send(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels, uint32_t send_times,
+            uint32_t send_wait);
   // The counter of the next frame.
   void set_counter(uint16_t counter);
   uint16_t get_counter() const { return this->counter_; }
@@ -34,7 +36,6 @@ class KeeloqRemote : public Component {
 
  protected:
   void store_reserved_();
-  void send_(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels);
 
   KeeloqType type_;
   uint16_t counter_{0};
@@ -45,32 +46,6 @@ class KeeloqRemote : public Component {
   uint32_t serial_;
   uint32_t device_key_[2];
   ESPPreferenceObject pref_{};
-};
-
-template<typename... Ts> class SendAction : public remote_base::RemoteTransmitterActionBase<Ts...> {
- public:
-  explicit SendAction(KeeloqRemote *remote) : remote_(remote) {}
-  TEMPLATABLE_VALUE(uint8_t, command)
-  TEMPLATABLE_VALUE(uint16_t, channels)
-
- protected:
-  void encode(remote_base::RemoteTransmitData *dst, Ts... x) override {
-    remote_base::KeeloqProtocol().encode(
-        dst, this->remote_->next_frame(this->command_.value(x...), this->channels_.value(x...)));
-  }
-
-  KeeloqRemote *remote_;
-};
-
-template<typename... Ts> class LearnAction : public remote_base::RemoteTransmittable, public Action<Ts...> {
- public:
-  explicit LearnAction(KeeloqRemote *remote) : remote_(remote) {}
-  TEMPLATABLE_VALUE(uint16_t, channels)
-
-  void play(const Ts &...x) override { this->remote_->learn(this->transmitter_, this->channels_.value(x...)); }
-
- protected:
-  KeeloqRemote *remote_;
 };
 
 }  // namespace esphome::keeloq

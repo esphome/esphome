@@ -27,9 +27,6 @@ CONF_SERIAL = "serial"
 
 keeloq_ns = cg.esphome_ns.namespace("keeloq")
 KeeloqRemote = keeloq_ns.class_("KeeloqRemote", cg.Component)
-SendAction = keeloq_ns.class_("SendAction", remote_base.RemoteTransmitterActionBase)
-
-LearnAction = keeloq_ns.class_("LearnAction", automation.Action)
 
 KeeloqType = keeloq_ns.enum("KeeloqType")
 KEELOQ_TYPES = KeeloqType.options("jarolift", prefix="KEELOQ_TYPE_")
@@ -146,30 +143,42 @@ SEND_SCHEMA = cv.Schema(
     }
 ).extend(remote_base.BASE_REMOTE_TRANSMITTER_SCHEMA)
 
+# The action's transmitter, passed to the remote as a pointer
+_TRANSMITTER = (
+    remote_base.CONF_TRANSMITTER_ID,
+    remote_base.RemoteTransmitterBase.operator("ptr"),
+)
+_send_builder = automation.apply_action_builder(
+    "keeloq.send",
+    SEND_SCHEMA,
+    automation.ApplyCall(
+        "send({}, {}, {}, {}, {})",
+        (
+            _TRANSMITTER,
+            (CONF_COMMAND, cg.uint8),
+            (CONF_CHANNELS, cg.uint16),
+            ((CONF_REPEAT, CONF_TIMES), cg.uint32),
+            ((CONF_REPEAT, CONF_WAIT_TIME), cg.uint32),
+        ),
+    ),
+)
 
-@automation.register_action("keeloq.send", SendAction, SEND_SCHEMA, synchronous=True)
+
+@automation.register_action(
+    "keeloq.send", automation.ApplyAction, SEND_SCHEMA, synchronous=True
+)
 async def send_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    remote = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, remote)
-    await remote_base.register_transmittable(var, config)
+    # A name brings its code and how often it is sent; repeat overrides that count.
     command = config[CONF_COMMAND]
     code, send_times = JAROLIFT_COMMANDS.get(command, (command, JAROLIFT_SEND_TIMES))
-    template_ = await cg.templatable(code, args, cg.uint8)
-    cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_CHANNELS], args, cg.uint16)
-    cg.add(var.set_channels(template_))
-    if (repeat := config.get(CONF_REPEAT)) is not None:
-        send_times = repeat[CONF_TIMES]
-        template_ = await cg.templatable(repeat[CONF_WAIT_TIME], args, cg.uint32)
-        cg.add(var.set_send_wait(template_))
-    template_ = await cg.templatable(send_times, args, cg.uint32)
-    cg.add(var.set_send_times(template_))
-    return var
+    repeat = config.get(CONF_REPEAT, {CONF_TIMES: send_times, CONF_WAIT_TIME: 0})
+    config = {**config, CONF_COMMAND: code, CONF_REPEAT: repeat}
+    return await _send_builder(config, action_id, template_arg, args)
 
 
 automation.register_apply_action(
@@ -184,26 +193,13 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "keeloq.learn",
-    LearnAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(KeeloqRemote),
             cv.Required(CONF_CHANNELS): cv.templatable(_channels),
         }
     ).extend(remote_base.REMOTE_TRANSMITTABLE_SCHEMA),
-    synchronous=True,
+    automation.ApplyCall("learn({}, {})", (_TRANSMITTER, (CONF_CHANNELS, cg.uint16))),
 )
-async def learn_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    remote = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, remote)
-    await remote_base.register_transmittable(var, config)
-    template_ = await cg.templatable(config[CONF_CHANNELS], args, cg.uint16)
-    cg.add(var.set_channels(template_))
-    return var
