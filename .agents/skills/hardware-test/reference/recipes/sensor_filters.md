@@ -18,3 +18,9 @@ filter output as float bits (`-` means dropped), then `DONE`.
 - The ESP8266 esptool stub can hit serial noise on a CH340 and the BK7238 link sometimes times out once; the runner
   retries.
 - Results: https://github.com/esphome/esphome/pull/21831#issuecomment-6490999545
+
+## combination sensors (#22510)
+
+A combination sensor defers each update and uses the value of the source that published last. A NaN from that
+source drops the whole update, so when testing NaN handling keep the last-publishing source finite, and compare
+rows one update late.
