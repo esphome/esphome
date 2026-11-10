@@ -907,7 +907,7 @@ def static_function(
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str | Statement],
-    add_global_: "Callable[[Statement], object] | None" = None,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.

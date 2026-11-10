@@ -2048,7 +2048,14 @@ async def build_automation_or_run_function(
     action is inline, return the stoppable function ``esphome__<trigger id>__fn`` instead."""
     plan = await _build_automation_plan(args, config)
     if (
-        fn := _direct_function(plan, args, config, trigger.base, True, add_global_)
+        fn := _direct_function(
+            plan,
+            args,
+            config,
+            id_=trigger.base,
+            stoppable=True,
+            add_global_=add_global_,
+        )
     ) is None:
         _automation_from_plan(plan, args, config, trigger)
     return fn

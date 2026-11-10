@@ -128,9 +128,9 @@ def parameters_to_template(args):
 
 def validate_parameter_name(value):
     value = cv.string(value)
-    if value == CONF_ID:
-        raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
-    return value
+    if value != CONF_ID:
+        return value
+    raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
 
 
 def validate_parameter_names(value: Any) -> Any:

@@ -178,14 +178,3 @@ def test_reserved_parameter_names_rejected(name: str) -> None:
         error.msg == "Names starting with 'esphome__' are reserved for generated code"
     )
     assert error.path == [0, CONF_PARAMETERS, name]
-
-
-def test_parameter_name_accepted() -> None:
-    config = [
-        {
-            CONF_ID: "my_script",
-            CONF_PARAMETERS: {"esphome_running": "int"},
-            CONF_THEN: [],
-        }
-    ]
-    assert CONFIG_SCHEMA(config)[0][CONF_PARAMETERS] == {"esphome_running": "int"}

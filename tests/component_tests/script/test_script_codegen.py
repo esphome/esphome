@@ -69,8 +69,8 @@ def _script_body(main_cpp: str, script: str) -> str:
 def test_inline_actions_run_as_one_function(generate_main) -> None:
     """A script of inline actions calls one function, declared before the script."""
     main_cpp = generate_main(CONFIG)
-    _assert_function_script(main_cpp, "SingleMode", "inline_single")
     class_ = _function_script("SingleMode", "inline_single")
+    assert _constructed(main_cpp, "inline_single") == f"{class_}()"
     declaration = main_cpp.index(
         "static void esphome__inline_single__fn(const int & esphome__running);"
     )
