@@ -35,6 +35,8 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
  public:
   CapturingTransmitter() : RemoteTransmitterBase(nullptr) {}
   std::vector<Sent> frames;
+  // When set, the next send starts a learn of channel 2 on this remote, as an on_transmit automation can.
+  KeeloqRemote *learn_while_sending{nullptr};
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override {
@@ -47,6 +49,11 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
       return;
     }
     this->frames.push_back({*data, send_times, send_wait});
+    if (this->learn_while_sending != nullptr) {
+      KeeloqRemote *remote = this->learn_while_sending;
+      this->learn_while_sending = nullptr;  // once
+      remote->learn(this, 0x0002);
+    }
   }
 };
 
@@ -213,6 +220,20 @@ TEST(KeeloqRemoteTest, LearnWhileOneIsPendingIsSkipped) {
   App.scheduler.call(millis());
   ASSERT_EQ(transmitter.frames.size(), 4u);
   EXPECT_EQ(transmitter.frames[3].frame.command, 0x4);
+}
+
+TEST(KeeloqRemoteTest, LearnStartedWhileSendingIsSkipped) {
+  // An on_transmit automation that starts another learn runs inside the first frame's send.
+  CapturingTransmitter transmitter;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  transmitter.learn_while_sending = &remote;
+  remote.learn(&transmitter, 0x0001);
+  delay(1010);  // NOLINT
+  App.scheduler.call(millis());
+  // Only the first learn went out: up+down, then stop.
+  ASSERT_EQ(transmitter.frames.size(), 2u);
+  EXPECT_EQ(transmitter.frames[0].frame.command, 0xA);
+  EXPECT_EQ(transmitter.frames[1].frame.command, 0x4);
 }
 
 }  // namespace esphome::keeloq::testing

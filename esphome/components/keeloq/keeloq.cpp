@@ -86,9 +86,10 @@ void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16
     ESP_LOGW(TAG, "Learn skipped, the previous one is still running; pass all channels to one learn");
     return;
   }
+  // Pending before the first frame, so a learn that the transmitter's triggers start is skipped too.
+  this->learn_channels_ = channels;
   // Up+down, a pause, then stop.
   this->send(transmitter, JAROLIFT_UP_DOWN, channels, JAROLIFT_SEND_TIMES, 0);
-  this->learn_channels_ = channels;
   this->set_timeout(LEARN_TIMEOUT_ID, JAROLIFT_LEARN_PAUSE_MS, [this, transmitter]() {
     this->send(transmitter, JAROLIFT_STOP, this->learn_channels_, JAROLIFT_SEND_TIMES, 0);
     this->learn_channels_ = 0;
