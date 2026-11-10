@@ -75,6 +75,7 @@ workflows:
         - 'docker/setup-buildx-action@v4.4.1'
         - 'pypa/gh-action-pypi-publish@v1.14.3'
     '.github/workflows/rerun-failed-ci-jobs.yml':
+        - 'actions/checkout@v7.0.1'
         - 'actions/github-script@v9.0.0'
     '.github/workflows/stale.yml': []
     '.github/workflows/status-check-labels.yml':
