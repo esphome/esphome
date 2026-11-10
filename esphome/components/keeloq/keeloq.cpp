@@ -80,8 +80,9 @@ void KeeloqRemote::dump_config() {
 }
 
 void KeeloqRemote::store_reserved_() {
-  this->pref_.save(&this->reserved_);
-  global_preferences->sync();
+  if (!this->pref_.save(&this->reserved_) || !global_preferences->sync()) {
+    ESP_LOGW(TAG, "Could not save the counter, so presses after a restart may be ignored until the counter catches up");
+  }
 }
 
 remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t channels) {
