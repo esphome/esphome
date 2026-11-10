@@ -857,10 +857,10 @@ async def to_code(config):
             manual_ip_entries.append(entry)
         return manual_ip_entries.index(entry)
 
-    # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
+    # set_sta() stores one network at run time even when none is configured
+    cg.add_define("WIFI_NETWORK_COUNT", max(1, len(networks)))
     if networks:
-        cg.add(var.init_sta(len(networks)))
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
             cg.add_define("USE_WIFI_MULTI_SSID")

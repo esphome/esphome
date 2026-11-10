@@ -11,6 +11,7 @@
 
 #include "core.h"
 #include <FreeRTOS.h>
+#include "esphome/core/crash_report.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -451,6 +452,51 @@ extern "C" [[noreturn]] void __wrap_abort() {
 }
 
 }  // namespace esphome::libretiny
+
+namespace esphome {
+
+static_assert(libretiny::MAX_BACKTRACE + 1 <= CRASH_REPORT_MAX_BACKTRACE,
+              "Crash report backtrace too small for the record");
+
+static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool crash_report_get(CrashReport &out) {
+  if (s_report_read || !libretiny::crash_handler_has_data())
+    return false;
+  const auto &record = libretiny::s_record;
+  out = {};
+  // The record has no build stamp; like ESP8266 and RP2, assume the running firmware wrote it
+  out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
+  if (record.reason == libretiny::CRASH_REASON_ABORT) {
+    out.reason = CrashReason::CRASH_REASON_ABORT;
+  } else {
+    out.reason = record.reason != 0 ? CrashReason::CRASH_REASON_EXCEPTION : CrashReason::CRASH_REASON_UNKNOWN;
+  }
+  out.pc = record.pc;
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  // Cortex-M CFSR, and the BFAR or MMFAR its valid bits mark (0 is a real address for a null dereference);
+  // BK72xx records neither
+  if (record.fault_status != 0) {
+    out.flags |= CRASH_REPORT_FLAG_CAUSE;
+    out.cause = record.fault_status;
+  }
+  if (record.fault_status & (libretiny::CFSR_BFARVALID | libretiny::CFSR_MMARVALID)) {
+    out.flags |= CRASH_REPORT_FLAG_FAULT_ADDRESS;
+    out.fault_address = record.fault_address;
+  }
+#endif
+  auto &core = out.cores[out.core_count++];
+  // 0 for abort(), and for a Cortex-M frame outside SRAM
+  if (record.lr != 0)
+    core.addresses[core.count++] = record.lr;
+  for (size_t i = 0; i < libretiny::MAX_BACKTRACE && record.backtrace[i] != 0; i++)
+    core.addresses[core.count++] = record.backtrace[i];
+  return true;
+}
+
+void crash_report_clear() { s_report_read = true; }
+
+}  // namespace esphome
 
 #endif  // USE_LIBRETINY_CRASH_HANDLER
 #endif  // USE_LIBRETINY

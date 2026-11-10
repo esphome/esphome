@@ -8,9 +8,10 @@
 
 namespace esphome::waveshare_io_ch32v003 {
 
-class WaveshareIOCH32V003Component : public Component,
-                                     public i2c::I2CDevice,
-                                     public gpio_expander::CachedGpioExpander<uint8_t, 8> {
+class WaveshareIOCH32V003Component
+    : public Component,
+      public gpio_expander::GpioExpanderInputs<gpio_expander::CachedGpioExpander<uint8_t, 8>>,
+      public i2c::I2CDevice {
  public:
   WaveshareIOCH32V003Component() = default;
 
@@ -31,12 +32,10 @@ class WaveshareIOCH32V003Component : public Component,
 
  protected:
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   uint8_t mode_mask_{0x00};    // Mask for the pin mode - 1 means output, 0 means input
   uint8_t output_mask_{0x00};  // The mask to write as output state - 1 means HIGH, 0 means LOW
-  uint8_t input_mask_{0x00};   // The state read in digital_read_hw - 1 means HIGH, 0 means LOW
 
   bool write_gpio_modes_();
   bool write_gpio_outputs_();
