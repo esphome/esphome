@@ -158,16 +158,18 @@ TEST(AdvPayload, NoEmpty16BitList) {
   const ESPBTUUID uuids[] = {ESPBTUUID::from_uint16(0x180A)};
   AdvPayload adv;
   adv.add_name("abcdefghijklmnopqrstuvwxyz", 26);  // leaves 3 bytes
+  const auto before = bytes(adv);
   adv.add_uuids(uuids);
-  EXPECT_EQ(adv.size(), 28u);
+  EXPECT_EQ(bytes(adv), before);
 }
 
 TEST(AdvPayload, NoEmpty32BitList) {
   const ESPBTUUID uuids[] = {ESPBTUUID::from_uint32(0x12345678)};
   AdvPayload adv;
   adv.add_name("abcdefghijklmnopqrstuvwx", 24);  // leaves 5 bytes
+  const auto before = bytes(adv);
   adv.add_uuids(uuids);
-  EXPECT_EQ(adv.size(), 26u);
+  EXPECT_EQ(bytes(adv), before);
 }
 
 TEST(AdvPayload, ShortUuidAfterLongListsStillFits) {
