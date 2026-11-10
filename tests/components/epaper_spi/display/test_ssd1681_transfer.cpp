@@ -94,6 +94,8 @@ TEST(EPaperSSD1681, PartialRefreshWritesTheWholeNewFrameToTheNewImageBankOnly) {
 
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00})) << "the whole frame was not sent to 0x24";
   EXPECT_EQ(bus.data.count(0x26), 0u) << "0x26 was written";
+  EXPECT_EQ(bus.data[0x44], (Bytes{0, 1})) << "the x window was not the whole width";
+  EXPECT_EQ(bus.data[0x45], (Bytes{0, 0, 1, 0})) << "the y window was not the whole height";
   EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00})) << "0x26 is not compared as it is";
   EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
 }
@@ -123,6 +125,32 @@ TEST(EPaperSSD1681, SuccessivePartialRefreshesEachSendTheWholeNewFrame) {
     EXPECT_EQ(bus.data.count(0x26), 0u) << "0x26 was written";
     EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
   }
+}
+
+/// The whole new frame goes to 0x24 in chunks on a partial, so the main loop keeps running, and it
+/// arrives whole against the panel's retained 0x26.
+TEST(EPaperSSD1681, PartialSendsTheWholeFrameToTheNewImageBankInChunks) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 1);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.run_update();
+  bus.clear();
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  int transfer_steps = 0;
+  while (display.state() != EPaperState::IDLE) {
+    if (display.state() == EPaperState::TRANSFER_DATA)
+      transfer_steps++;
+    display.step();
+  }
+
+  EXPECT_GT(transfer_steps, 1) << "the frame was not sent in chunks";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00})) << "the whole frame did not arrive at 0x24";
+  EXPECT_EQ(bus.data.count(0x26), 0u) << "0x26 was written";
 }
 
 /// The software reset 0x12 puts the display option register back to its default, which drops the
