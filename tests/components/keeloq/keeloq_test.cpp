@@ -56,6 +56,18 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
   }
 };
 
+// A remote and its transmitter for the learn tests. The destructor drops a stop frame that is still pending when an
+// assertion ends a test early, so the scheduler never runs it on a remote that is gone.
+struct Pairing {
+  CapturingTransmitter transmitter;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+
+  ~Pairing() {
+    App.scheduler.cancel_timeout(&this->remote, uint32_t{0});  // 0 is the learn timeout's id
+    App.scheduler.call(millis());
+  }
+};
+
 // Test-only decryption, the inverse of encrypt(); production only encrypts.
 uint32_t decrypt(uint32_t data, uint64_t key) {
   uint32_t x = data;
@@ -182,54 +194,51 @@ TEST(KeeloqRemoteTest, ChannelMaskZeroSendsNothing) {
 
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   // As other Jarolift implementations pair: 0xA twice, a pause, then 0x4 twice, each with a new counter.
-  CapturingTransmitter transmitter;
-  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
-  remote.set_counter(10);
-  remote.learn(&transmitter, 0x0001);
-  ASSERT_EQ(transmitter.frames.size(), 1u);
+  Pairing p;
+  p.remote.set_counter(10);
+  p.remote.learn(&p.transmitter, 0x0001);
+  ASSERT_EQ(p.transmitter.frames.size(), 1u);
   delay(1010);  // NOLINT
   App.scheduler.call(millis());
-  ASSERT_EQ(transmitter.frames.size(), 2u);
-  EXPECT_EQ(transmitter.frames[0].frame.command, 0xA);
-  EXPECT_EQ(transmitter.frames[1].frame.command, 0x4);
-  for (const Sent &sent : transmitter.frames) {
+  ASSERT_EQ(p.transmitter.frames.size(), 2u);
+  EXPECT_EQ(p.transmitter.frames[0].frame.command, 0xA);
+  EXPECT_EQ(p.transmitter.frames[1].frame.command, 0x4);
+  for (const Sent &sent : p.transmitter.frames) {
     EXPECT_EQ(sent.frame.address, SERIAL);
     EXPECT_EQ(sent.send_times, 2u);
   }
-  EXPECT_EQ(remote.get_counter(), 12);
+  EXPECT_EQ(p.remote.get_counter(), 12);
 }
 
 TEST(KeeloqRemoteTest, LearnWhileOneIsPendingIsSkipped) {
-  CapturingTransmitter transmitter;
-  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
-  remote.learn(&transmitter, 0x0001);
-  remote.learn(&transmitter, 0x0002);
+  Pairing p;
+  p.remote.learn(&p.transmitter, 0x0001);
+  p.remote.learn(&p.transmitter, 0x0002);
   delay(1010);  // NOLINT
   App.scheduler.call(millis());
-  ASSERT_EQ(transmitter.frames.size(), 2u);
-  EXPECT_EQ(transmitter.frames[1].frame.command, 0x4);
+  ASSERT_EQ(p.transmitter.frames.size(), 2u);
+  EXPECT_EQ(p.transmitter.frames[1].frame.command, 0x4);
   // The first pairing finished, so the next learn runs.
-  remote.learn(&transmitter, 0x0002);
-  EXPECT_EQ(transmitter.frames.size(), 3u);
-  // It finishes too, so no timeout outlives the remote.
+  p.remote.learn(&p.transmitter, 0x0002);
+  EXPECT_EQ(p.transmitter.frames.size(), 3u);
+  // It finishes too.
   delay(1010);  // NOLINT
   App.scheduler.call(millis());
-  ASSERT_EQ(transmitter.frames.size(), 4u);
-  EXPECT_EQ(transmitter.frames[3].frame.command, 0x4);
+  ASSERT_EQ(p.transmitter.frames.size(), 4u);
+  EXPECT_EQ(p.transmitter.frames[3].frame.command, 0x4);
 }
 
 TEST(KeeloqRemoteTest, LearnStartedWhileSendingIsSkipped) {
   // An on_transmit automation that starts another learn runs inside the first frame's send.
-  CapturingTransmitter transmitter;
-  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
-  transmitter.learn_while_sending = &remote;
-  remote.learn(&transmitter, 0x0001);
+  Pairing p;
+  p.transmitter.learn_while_sending = &p.remote;
+  p.remote.learn(&p.transmitter, 0x0001);
   delay(1010);  // NOLINT
   App.scheduler.call(millis());
   // Only the first learn went out: up+down, then stop.
-  ASSERT_EQ(transmitter.frames.size(), 2u);
-  EXPECT_EQ(transmitter.frames[0].frame.command, 0xA);
-  EXPECT_EQ(transmitter.frames[1].frame.command, 0x4);
+  ASSERT_EQ(p.transmitter.frames.size(), 2u);
+  EXPECT_EQ(p.transmitter.frames[0].frame.command, 0xA);
+  EXPECT_EQ(p.transmitter.frames[1].frame.command, 0x4);
 }
 
 }  // namespace esphome::keeloq::testing
