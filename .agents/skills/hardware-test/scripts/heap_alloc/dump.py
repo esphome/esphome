@@ -16,7 +16,7 @@ from aioesphomeapi.model import LogLevel
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from apiconn import connect, log_text  # noqa: E402
 
-HEADER = re.compile(r"\bDUMP n=(\d+) ")
+HEADER = re.compile(r"\bDUMP n=(\d+) claimed=\d+ total=\d+ armed_ms=(\d+) busy=(\d+)")
 ENTRY = re.compile(r"\bE (\d+) \d+ \d+ ")
 
 
@@ -40,6 +40,7 @@ async def dump(c: APIClient, write: Callable[[str], None], tries: int = 3) -> No
         write(text)
         if m := HEADER.search(text):
             seen["n"], seen["idx"] = int(m[1]), set()
+            seen["armed"], seen["busy"] = int(m[2]) != 0, int(m[3])
         elif m := ENTRY.search(text):
             seen["idx"].add(int(m[1]))
         elif "DUMP END" in text:
@@ -54,9 +55,16 @@ async def dump(c: APIClient, write: Callable[[str], None], tries: int = 3) -> No
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(done.wait(), 120)
         # the device drops log lines when its send buffer is full, so require every entry
+        if done.is_set() and seen["n"] is not None and not seen["armed"]:
+            print(
+                "the recorder was never armed (pressed before alloc_arm_s?)",
+                file=sys.stderr,
+            )
+            sys.exit(2)
         if (
             done.is_set()
             and seen["n"] is not None
+            and not seen["busy"]
             and seen["idx"] == set(range(seen["n"]))
         ):
             return

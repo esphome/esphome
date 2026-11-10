@@ -22,6 +22,7 @@ AllocEntry g_allocs[ALLOC_CAP];
 std::atomic<uint32_t> g_alloc_n{0};
 std::atomic<uint32_t> g_new_count{0};
 volatile bool g_alloc_armed = false;
+uint32_t g_alloc_armed_ms = 0;  // when recording started, 0 if it never did
 // Recorders between claiming a slot and filling it; the dump waits for 0 after disarming.
 std::atomic<uint32_t> g_alloc_busy{0};
 

@@ -2,7 +2,7 @@
 
 Prints each entry with its caller frames as function and file:line, and markers (size 0xFFFFFFFF, ALLOC_MARKER) as phase
 separators.
-ADDR2LINE defaults to one for the ELF's CPU found in ESPHome's ESP-IDF tools cache, ~/.platformio or ~/.espressif.
+ADDR2LINE defaults to an Xtensa one found in ESPHome's ESP-IDF tools cache, ~/.platformio or ~/.espressif.
 Exits 2 when the dump is incomplete (missing header or entries, or the buffer filled during the run).
 """
 
@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 ENTRY = re.compile(r"\bE (\d+) (\d+) (\d+) ((?:[0-9a-f]{8} ?){5})")
-HEADER = re.compile(r"\bDUMP n=(\d+) claimed=(\d+)")
+HEADER = re.compile(r"\bDUMP n=(\d+) claimed=(\d+) total=\d+ armed_ms=(\d+) busy=(\d+)")
 MARKER = 0xFFFFFFFF
 XTENSA = 94  # ELF e_machine; the recorder walks frames only on Xtensa
 
@@ -26,12 +26,11 @@ def tool_roots() -> list[Path]:
     return [get_idf_tools_path(), *roots]
 
 
-def find_addr2line(elf: str) -> str:
-    machine = int.from_bytes(Path(elf).read_bytes()[18:20], "little")
-    if machine != XTENSA:
-        sys.exit(
-            f"ELF machine {machine} is not Xtensa; the dump has no callers to decode"
-        )
+def is_xtensa(elf: str) -> bool:
+    return int.from_bytes(Path(elf).read_bytes()[18:20], "little") == XTENSA
+
+
+def find_addr2line() -> str:
     for root in tool_roots():
         for path in root.glob("**/bin/xtensa-esp*-elf-addr2line"):
             if path.is_file():
@@ -75,12 +74,16 @@ def last_dump(text: str) -> str:
     return text[start:]
 
 
-def check(dump: str, entries: list) -> list[str]:
+def check(dump: str, entries: list, xtensa: bool) -> list[str]:
     """Reasons the dump is incomplete, empty when it is whole."""
     if not (header := HEADER.search(dump)):
         return ["no DUMP header (log subscription started late?)"]
-    n, claimed = int(header[1]), int(header[2])
+    n, claimed, armed_ms, busy = (int(header[i]) for i in range(1, 5))
     problems = []
+    if not armed_ms:
+        problems.append("the recorder was never armed (pressed before alloc_arm_s?)")
+    if busy:
+        problems.append(f"{busy} recorders were still writing an entry")
     indexes = [int(e[0]) for e in entries]
     if missing := sorted(set(range(n)) - set(indexes)):
         problems.append(f"{len(missing)} of {n} entries missing, first {missing[:10]}")
@@ -89,7 +92,7 @@ def check(dump: str, entries: list) -> list[str]:
     if stray := sorted(i for i in set(indexes) if i >= n):
         problems.append(f"entries past n={n}: {stray[:10]}")
     allocs = [pcs for _, _, size, pcs in entries if size != MARKER]
-    if allocs and all(pcs[0] == "00000000" for pcs in allocs):
+    if xtensa and allocs and all(pcs[0] == "00000000" for pcs in allocs):
         problems.append("no entry has a caller (frame walk failed?)")
     if claimed > n:
         problems.append(f"buffer filled: recording stopped after {n} entries")
@@ -100,7 +103,6 @@ def check(dump: str, entries: list) -> list[str]:
 
 def main() -> None:
     log, elf = sys.argv[1], sys.argv[2]
-    addr2line = sys.argv[3] if len(sys.argv) > 3 else find_addr2line(elf)
     text = last_dump(Path(log).read_text(encoding="utf-8", errors="replace"))
     entries = [
         (idx, int(ms), int(size), pcs.split())
@@ -113,7 +115,11 @@ def main() -> None:
         for pc in pcs
         if pc != "00000000"
     }
-    names = decode(addr2line, elf, sorted(wanted)) if wanted else {}
+    # Only Xtensa dumps carry callers; RISC-V ones still print sizes and times
+    names = {}
+    if wanted:
+        addr2line = sys.argv[3] if len(sys.argv) > 3 else find_addr2line()
+        names = decode(addr2line, elf, sorted(wanted))
     for idx, ms, size, pcs in entries:
         if size == MARKER:
             print(
@@ -126,7 +132,7 @@ def main() -> None:
                 break
             for func, loc in names[pc]:
                 print(f"    {func[:110]}  {loc}")
-    if problems := check(text, entries):
+    if problems := check(text, entries, is_xtensa(elf)):
         print("INCOMPLETE DUMP: " + "; ".join(problems), file=sys.stderr)
         sys.exit(2)
 

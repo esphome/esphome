@@ -25,7 +25,8 @@ delta from an `interval`. Compare a PR build with its base on the same flow; the
   dump splits into phases.
 - `dump.py HOST OUT` presses the button and writes the dump to a fresh OUT, pressing again until the header
   and every entry arrived (a late log subscription or dropped log lines). `decode.py LOG ELF [ADDR2LINE]` prints each entry with its callers as function and file:line, and exits 2
-  when entries are missing, repeated or out of range, no entry has a caller, or the buffer filled. It reads only the newest dump in the file. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
+  when the recorder never armed, an entry was still being written, entries are missing, repeated or out of
+  range, no Xtensa entry has a caller, or the buffer filled. On RISC-V it prints sizes and times only. It reads only the newest dump in the file. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
 - `cycles_cover.py HOST N OUT` opens and closes the first cover N times (`cover_command(position=...)`, waiting
   for idle each way) with a states-only API client, then saves the dump the same way. It exits 2 when a move
   never reached its position.
