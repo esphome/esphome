@@ -1,6 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.components.const import ICON_CURRENT_DC, ICON_SOLAR_PANEL, ICON_SOLAR_POWER
+from esphome.components.const import (
+    CONF_OUTPUT_MODE,
+    ICON_CURRENT_DC,
+    ICON_SOLAR_PANEL,
+    ICON_SOLAR_POWER,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_VOLTAGE,
@@ -57,7 +62,6 @@ CONF_CHARGER_SOURCE_PRIORITY = "charger_source_priority"
 CONF_PARALLEL_MAX_NUM = "parallel_max_num"
 CONF_MACHINE_TYPE = "machine_type"
 CONF_TOPOLOGY = "topology"
-CONF_OUTPUT_MODE = "output_mode"
 CONF_BATTERY_REDISCHARGE_VOLTAGE = "battery_redischarge_voltage"
 CONF_PV_OK_CONDITION_FOR_PARALLEL = "pv_ok_condition_for_parallel"
 CONF_PV_POWER_BALANCE = "pv_power_balance"
