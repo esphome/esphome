@@ -396,19 +396,24 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     this->tx_pin_.digital_write(false);
     start = arch_get_cpu_cycle_count();
   }
-  uint32_t wait = bit_time;
-  for (int i = 0; i < this->data_bits_; i++) {
-    bool bit = data & (1 << i);
-    this->write_bit_(bit, &wait, start, bit_time);
-    if (need_parity_bit)
-      parity_bit ^= bit;
+  // Data bits LSB first, then the parity bit
+  uint32_t frame = data & ((1u << this->data_bits_) - 1);
+  uint32_t num_bits = this->data_bits_;
+  if (need_parity_bit) {
+    parity_bit ^= __builtin_parity(frame);
+    frame |= uint32_t(parity_bit) << num_bits++;
   }
-  if (need_parity_bit)
-    this->write_bit_(parity_bit, &wait, start, bit_time);
-  // Stop bits: write_bit_ waits before its edge, so the stop bit is held with wait_
+  // From the edge after the last 0 the line stays high through the stop bits
+  const uint32_t zeros = ~frame & ((1u << num_bits) - 1);
+  const uint32_t high_from = zeros == 0 ? 0 : 32 - __builtin_clz(zeros);
+  uint32_t wait = bit_time;
+  for (uint32_t i = 0; i < high_from; i++)
+    this->write_bit_((frame >> i) & 1, &wait, start, bit_time);
   this->write_bit_(true, &wait, start, bit_time);
-  this->wait_(&wait, start, bit_time);
-  if (this->stop_bits_ == 2)
+  // Hold that high run with interrupts on: one that runs past it only delays the next start bit, and back-to-back
+  // byte locks with no gap between them trip the Wi-Fi watchdog
+  frame_lock.reset();
+  for (uint32_t i = high_from; i < num_bits + this->stop_bits_; i++)
     this->wait_(&wait, start, bit_time);
 }
 void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
