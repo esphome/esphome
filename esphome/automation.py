@@ -2057,14 +2057,9 @@ async def build_automation(
 def declare_automation_function(
     args: TemplateArgsType, config: ConfigType, after: list[str] | None = None
 ) -> tuple[MockObj, Callable[[], Awaitable[None]]]:
-    """Declare a ``static void`` function that runs ``config``; return its name and the
-    coroutine that builds the actions and defines its body.
+    """Declare a ``static void`` function that runs ``config``; return its name and the coroutine that defines its body.
 
-    Await it only once the object that names the function exists, as the actions can wait
-    for its id. The function takes ``args`` by const reference, like ``_apply_params``.
-    All-inline actions run in it directly; otherwise, or with a manual ``automation_id``, it
-    triggers their Automation, built without a Trigger. ``after`` are statements run after
-    the last action, including one that waits; they are skipped if the automation is stopped.
+    Await it once the object naming the function exists; ``after`` runs after the last action unless stopped.
     """
     automation_id = config[CONF_AUTOMATION_ID]
     name = _apply_function_name(automation_id)
