@@ -16,6 +16,8 @@ def _format_context(context: dict[str, object]) -> str:
     """Render context values for a failure message, keeping only the tail of collections."""
     parts: list[str] = []
     for name, value in context.items():
+        if callable(value):
+            value = value()
         if isinstance(value, Mapping):
             items = [f"{key}: {item!r}" for key, item in value.items()]
         elif isinstance(value, (list, tuple, deque)):
@@ -39,8 +41,8 @@ async def wait_or_fail[T](
 
     Behaves like ``asyncio.wait_for``, so a timed out future is cancelled; a TimeoutError raised
     by ``aw`` itself propagates unchanged, and ``timeout`` must be positive. ``context`` values
-    are formatted only on failure, so pass live collections; lists, tuples, deques and mappings
-    show their last 20 items.
+    are formatted only on failure, so pass live collections, or a zero-argument callable to
+    compute a value then; lists, tuples, deques and mappings show their last 20 items.
     """
     if timeout <= 0:
         # asyncio.wait_for treats this as already timed out; a test should never ask for it

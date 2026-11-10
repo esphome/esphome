@@ -1,0 +1,25 @@
+# Ethernet can be the upstream of an AP that stays up: no station credentials are
+# needed, and with nothing to roam to the default post_connect_roaming is fine.
+esphome:
+  name: validate-always-on-ethernet
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+ethernet:
+  type: LAN8720
+  mdc_pin: 23
+  mdio_pin: 32
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+  power_pin: 33
+
+wifi:
+  ap:
+    ssid: Always on AP
+    password: always_on_password
+    ap_mode: ALWAYS_ON

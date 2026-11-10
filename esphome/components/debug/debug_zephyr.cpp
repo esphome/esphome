@@ -6,6 +6,7 @@
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
+#include <zephyr/kernel.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
 #include <zephyr/storage/flash_map.h>
@@ -156,6 +157,8 @@ static const char *regout0_to_str(uint32_t value) {
       return "3.0V";
     case (UICR_REGOUT0_VOUT_3V3):
       return "3.3V";
+    default:
+      break;
   }
   return "???V";
 }
@@ -200,11 +203,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   // USB power state
   const char *usb_state;
   if (nrf_power_usbregstatus_vbusdet_get(NRF_POWER)) {
-    if (nrf_power_usbregstatus_outrdy_get(NRF_POWER)) {
-      usb_state = "ready";
-    } else {
-      usb_state = "connected (regulator is not ready)";
-    }
+    usb_state = nrf_power_usbregstatus_outrdy_get(NRF_POWER) ? "ready" : "connected (regulator is not ready)";
   } else {
     usb_state = "disconnected";
   }
@@ -337,6 +336,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
         return "QFxx - 6x6 48-pin QFN";
       case 0x2005:
         return "CKxx - 3.544 x 3.607 WLCSP";
+      default:
+        break;
     }
     return "Unspecified";
   };
@@ -418,7 +419,34 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   return pos;
 }
 
-void DebugComponent::update_platform_() {}
+// The Python side enables the statistics only for a verbose logger
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+static void log_thread_usage(const struct k_thread *thread, void *user_data) {
+  const auto cpu_cycles = *static_cast<const uint64_t *>(user_data);
+  auto *tid = const_cast<k_tid_t>(thread);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+  k_thread_runtime_stats_t stats;
+  if (k_thread_runtime_stats_get(tid, &stats) != 0)
+    return;
+  char state[32];
+  const char *name = k_thread_name_get(tid);
+  ESP_LOGV(TAG, "  %-16s prio %3d %-10s %3u%% peak %" PRIu32 " avg %" PRIu32, name != nullptr ? name : "?",
+           thread->base.prio, k_thread_state_str(tid, state, sizeof(state)),
+           static_cast<unsigned>(stats.execution_cycles * 100 / cpu_cycles),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.peak_cycles)),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.average_cycles)));
+}
+#endif
+
+void DebugComponent::update_platform_() {
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+  k_thread_runtime_stats_t cpu;
+  if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)
+    return;
+  ESP_LOGV(TAG, "Thread CPU usage since boot (peak and average us per time slice):");
+  // The unlocked walk lets the log output inside the callback block
+  k_thread_foreach_unlocked(log_thread_usage, &cpu.execution_cycles);
+#endif
+}
 
 }  // namespace esphome::debug
 #endif

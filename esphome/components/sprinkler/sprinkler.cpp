@@ -19,11 +19,7 @@ void SprinklerControllerNumber::setup() {
   } else {
     this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
-      if (!std::isnan(this->initial_value_)) {
-        value = this->initial_value_;
-      } else {
-        value = this->traits.get_min_value();
-      }
+      value = !std::isnan(this->initial_value_) ? this->initial_value_ : this->traits.get_min_value();
     }
   }
   this->publish_state(value);
@@ -287,8 +283,6 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
     : valve_number_(valve_number), run_duration_(run_duration), valve_op_(valve_op) {}
 
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
-
-void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
 
 void SprinklerValveRunRequest::set_valve(size_t valve_number) {
   this->valve_number_ = valve_number;
@@ -868,9 +862,19 @@ void Sprinkler::reset_resume() {
   this->resume_duration_.reset();
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 const char *Sprinkler::valve_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return this->valve_[valve_number].controller_switch->get_name().c_str();
+  }
+  return nullptr;
+}
+#pragma GCC diagnostic pop
+
+const LogString *Sprinkler::valve_log_name(const size_t valve_number) {
+  if (this->is_a_valid_valve(valve_number)) {
+    return this->valve_[valve_number].controller_switch->get_log_name();
   }
   return nullptr;
 }
@@ -1586,7 +1590,8 @@ void Sprinkler::dump_config() {
                   "  Valve %zu:\n"
                   "    Name: %s\n"
                   "    Run Duration: %" PRIu32 " seconds",
-                  valve_number, this->valve_name(valve_number), this->valve_run_duration(valve_number));
+                  valve_number, LOG_STR_ARG(this->valve_log_name(valve_number)),
+                  this->valve_run_duration(valve_number));
   }
   if (!this->pump_.empty()) {
     ESP_LOGCONFIG(TAG, "  Total number of pumps: %zu", this->pump_.size());

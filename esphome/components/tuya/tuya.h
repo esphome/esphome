@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <memory>
 #include <vector>
 
 #include "esphome/core/component.h"
@@ -102,12 +103,14 @@ class Tuya final : public Component, public uart::UARTDevice {
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
   void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
+  void set_string_datapoint_value(uint8_t datapoint_id, const char *value);
   void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
   void set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
   void force_set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void force_set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void force_set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
   void force_set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
+  void force_set_string_datapoint_value(uint8_t datapoint_id, const char *value);
   void force_set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
   void force_set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
   TuyaInitState get_init_state();
@@ -136,7 +139,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   void send_empty_command_(TuyaCommandType command);
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
                                     uint8_t length, bool forced);
-  void set_string_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool forced);
+  void set_string_datapoint_value_(uint8_t datapoint_id, const char *value, size_t len, bool forced);
   void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void set_status_pin_();
@@ -164,7 +167,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
-  std::string product_;
+  std::unique_ptr<char[]> product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
@@ -172,6 +175,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   std::vector<TuyaCommand> command_queue_;
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
+  bool product_invalid_{false};
   CallbackManager<void()> initialized_callback_{};
 };
 

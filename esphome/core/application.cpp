@@ -298,10 +298,14 @@ void Application::reboot() {
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely");
-  run_safe_shutdown_hooks();
-  teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
-  run_powerdown_hooks();
+  this->safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
   arch_restart();
+}
+
+void Application::safe_shutdown(uint32_t timeout_ms) {
+  this->run_safe_shutdown_hooks();
+  this->teardown_components(timeout_ms);
+  this->run_powerdown_hooks();
 }
 
 void Application::run_safe_shutdown_hooks() {
@@ -412,10 +416,13 @@ void Application::teardown_components(uint32_t timeout_ms) {
   }
 }
 
-void Application::add_looping_components_by_state_(bool match_loop_done) {
+void Application::add_looping_components_by_state_(bool inactive) {
   for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
+    if (!obj->has_overridden_loop()) {
+      continue;
+    }
+    const uint8_t state = obj->get_component_state() & COMPONENT_STATE_MASK;
+    if ((state == COMPONENT_STATE_LOOP_DONE || state == COMPONENT_STATE_FAILED) == inactive) {
       this->looping_components_.push_back(obj);
     }
   }

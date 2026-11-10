@@ -846,15 +846,14 @@ def test_library_info_dot_a_linkage_malformed_raises(tmp_path: Path) -> None:
 def test_bundled_library_properties_depends_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The library.properties depends= spelling reaches the visibility
-    warning too; the shared parser returns it raw."""
+    """The library.properties depends= spelling is a dependency list too, so a
+    bundled manifest using it gets the same visibility warning."""
     framework = _make_framework(tmp_path)
     wire = framework / "libraries" / "Wire"
     (wire / "library.properties").write_text("name=Wire\nversion=1.0\ndepends=SPI\n")
     _add_library("Wire", None)
-    caplog.set_level("INFO")
     _resolve(framework)
-    assert "Library Wire declares dependencies via library.properties" in caplog.text
+    assert "Bundled library Wire declares dependencies" in caplog.text
 
 
 def test_bundled_library_extra_script_raises(tmp_path: Path) -> None:

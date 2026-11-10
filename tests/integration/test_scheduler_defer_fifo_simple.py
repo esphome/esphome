@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_entity, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -70,11 +71,16 @@ async def test_scheduler_defer_fifo_simple(
         await client.execute_service(test_set_timeout_service, {})
 
         # Wait for first test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-            test1_passed = await asyncio.wait_for(test_result_future, timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Test set_timeout(0) did not complete within 5 seconds")
+        await wait_or_fail(
+            test_complete_future,
+            5.0,
+            "Test set_timeout(0) did not complete within 5 seconds",
+        )
+        test1_passed = await wait_or_fail(
+            test_result_future,
+            1.0,
+            "Test set_timeout(0) did not complete within 5 seconds",
+        )
 
         assert test1_passed is True, (
             "set_timeout(0) FIFO test failed - items executed out of order"
@@ -88,11 +94,12 @@ async def test_scheduler_defer_fifo_simple(
         await client.execute_service(test_defer_service, {})
 
         # Wait for second test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-            test2_passed = await asyncio.wait_for(test_result_future, timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Test defer() did not complete within 5 seconds")
+        await wait_or_fail(
+            test_complete_future, 5.0, "Test defer() did not complete within 5 seconds"
+        )
+        test2_passed = await wait_or_fail(
+            test_result_future, 1.0, "Test defer() did not complete within 5 seconds"
+        )
 
         # Verify the test passed
         assert test2_passed is True, (

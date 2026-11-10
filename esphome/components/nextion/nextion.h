@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/display/display.h"
@@ -1059,7 +1060,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   void update() override;
   void loop() override;
-  void set_writer(const nextion_writer_t &writer);
+  void set_writer(nextion_writer_t writer) { this->writer_ = std::move(writer); }
 
   // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
@@ -1089,6 +1090,19 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void set_tft_upload_http_timeout(uint16_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
 
 #ifdef USE_ESP32
+  /**
+   * @brief Set the HTTP client TX buffer size for TFT upload requests.
+   *
+   * The TX buffer must hold the request line, which carries the full URL. After a redirect
+   * to a long signed URL (e.g. a GitHub release asset, ~600+ characters) the ESP-IDF default
+   * is too small and the request fails with "HTTP_CLIENT: Out of buffer".
+   *
+   * A value of 0 keeps the ESP-IDF default (default).
+   *
+   * @param size Buffer size in bytes.
+   */
+  void set_tft_upload_http_buffer_size_tx(uint16_t size) { this->tft_upload_http_buffer_size_tx_ = size; }
+
   /**
    * @brief Set the watchdog timeout during TFT upload.
    *
@@ -1457,6 +1471,16 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * Called from loop() to retry sending commands that were delayed by spacing.
    */
   void process_pending_in_queue_();
+
+  /**
+   * @brief Whether the queue still holds a command that has not reached the wire.
+   *
+   * The queue is kept in transmit order, so anything still waiting sits at the back.
+   */
+  bool has_unsent_commands_() const {
+    return !this->nextion_queue_.empty() && this->nextion_queue_.back() != nullptr &&
+           !this->nextion_queue_.back()->pending_command.empty();
+  }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   std::list<NextionQueue *> nextion_queue_;
@@ -1573,7 +1597,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   uint8_t tft_upload_http_retries_{5};      ///< HTTP retry count (default: 5)
 
 #ifdef USE_ESP32
-  uint32_t tft_upload_watchdog_timeout_{0};  ///< WDT timeout in ms (0 = no adjustment)
+  uint32_t tft_upload_watchdog_timeout_{0};     ///< WDT timeout in ms (0 = no adjustment)
+  uint16_t tft_upload_http_buffer_size_tx_{0};  ///< HTTP TX buffer in bytes (0 = ESP-IDF default)
 
   /**
    * will request 4096 bytes chunks from the web server

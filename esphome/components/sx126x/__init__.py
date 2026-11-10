@@ -4,16 +4,16 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import (
+    CONF_BITRATE,
     CONF_CRC_ENABLE,
     CONF_MODULATION,
     CONF_ON_PACKET,
     CONF_RST_PIN,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import ID, TimePeriod
-from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY
+from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 DOMAIN = "sx126x"
 MULTI_CONF = True
@@ -23,7 +23,6 @@ DEPENDENCIES = ["spi"]
 CONF_SX126X_ID = "sx126x_id"
 
 CONF_BANDWIDTH = "bandwidth"
-CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
 CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
@@ -132,10 +131,6 @@ SHAPING = {
     "GAUSSIAN_BT_1_0": SX126xPulseShape.GAUSSIAN_BT_1_0,
     "NONE": SX126xPulseShape.NO_FILTER,
 }
-
-SendPacketAction = sx126x_ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
-)
 
 
 def validate_raw_data(value: Any) -> bytes | list[int]:
@@ -324,25 +319,8 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sx126x.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
 )
-async def send_packet_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "sx126x_data",
-    )
-    return var

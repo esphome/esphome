@@ -52,6 +52,7 @@ class SX127x final : public Component,
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void set_afc_bandwidth(SX127xBw afc_bandwidth) { this->afc_bandwidth_ = afc_bandwidth; }
   void set_auto_cal(bool auto_cal) { this->auto_cal_ = auto_cal; }
   void set_bandwidth(SX127xBw bandwidth) { this->bandwidth_ = bandwidth; }
   void set_bitrate(uint32_t bitrate) { this->bitrate_ = bitrate; }
@@ -91,7 +92,7 @@ class SX127x final : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(SX127x *arg);
+  static void gpio_intr(SX127x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);
@@ -106,6 +107,7 @@ class SX127x final : public Component,
   std::vector<uint8_t> sync_value_;
   InternalGPIOPin *dio0_pin_{nullptr};
   InternalGPIOPin *rst_pin_{nullptr};
+  SX127xBw afc_bandwidth_{SX127X_BW_50_0};
   SX127xBw bandwidth_;
   uint32_t bitrate_;
   uint32_t deviation_;

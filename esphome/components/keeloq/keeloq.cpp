@@ -91,6 +91,11 @@ void KeeloqRemote::use_serial_(uint32_t serial) {
 bool KeeloqRemote::resolve_channels(bool has_action_channels, uint16_t action_channels, uint16_t &channels) const {
   if (has_action_channels) {
     channels = action_channels;
+    // The configuration rejects a fixed 0; a lambda can still return it.
+    if (channels == 0) {
+      ESP_LOGW(TAG, "Channel mask 0 selects no motor, so nothing is sent");
+      return false;
+    }
     return true;
   }
   channels = this->channels_;
@@ -216,10 +221,15 @@ struct Accepted {
 
 void KeeloqRemote::store_accepted_(bool sync) {
   Accepted stored{this->accepted_, this->accepted_known_};
-  this->accepted_pref_.save(&stored);
+  bool saved = this->accepted_pref_.save(&stored);
   if (sync) {
     this->accepted_stored_ = this->accepted_;
-    global_preferences->sync();
+    bool synced = global_preferences->sync();
+    if (!saved || !synced) {
+      ESP_LOGW(
+          TAG,
+          "Could not save the last press, so after a restart presses may be ignored or a replay may fire on_command");
+    }
   }
 }
 
@@ -287,15 +297,19 @@ void KeeloqRemote::dump_config() {
 
 void KeeloqRemote::store_reserved_() {
   if (this->take_over_ && !this->known_) {
-    return;  // nothing taken over yet
+    ESP_LOGW(TAG, "No serial taken over yet, so the counter stays in RAM until the next take-over replaces it");
+    return;
   }
+  bool saved;
   if (this->take_over_) {
     TakenOver stored{this->serial_, this->reserved_, this->channels_};
-    this->pref_.save(&stored);
+    saved = this->pref_.save(&stored);
   } else {
-    this->pref_.save(&this->reserved_);
+    saved = this->pref_.save(&this->reserved_);
   }
-  global_preferences->sync();
+  if (!saved || !global_preferences->sync()) {
+    ESP_LOGW(TAG, "Could not save the counter, so presses after a restart may be ignored until the counter catches up");
+  }
 }
 
 remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t channels) {

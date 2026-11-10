@@ -1,3 +1,4 @@
+from esphome.const import UNIT_CELSIUS, UNIT_FAHRENHEIT, UNIT_KELVIN
 from esphome.cpp_generator import MockObj
 
 global_ns = MockObj("", "")
@@ -23,6 +24,7 @@ int16 = global_ns.namespace("int16_t")
 int32 = global_ns.namespace("int32_t")
 int64 = global_ns.namespace("int64_t")
 size_t = global_ns.namespace("size_t")
+byte_span = std_span.template(uint8.operator("const"))
 const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
@@ -42,6 +44,12 @@ InternalGPIOPin = esphome_ns.class_("InternalGPIOPin", GPIOPin)
 gpio_ns = esphome_ns.namespace("gpio")
 gpio_Flags = gpio_ns.enum("Flags", is_class=True)
 EntityCategory = esphome_ns.enum("EntityCategory")
+TemperatureUnit = esphome_ns.enum("TemperatureUnit", is_class=True)
+TEMPERATURE_UNITS = {
+    UNIT_CELSIUS: TemperatureUnit.CELSIUS,
+    UNIT_FAHRENHEIT: TemperatureUnit.FAHRENHEIT,
+    UNIT_KELVIN: TemperatureUnit.KELVIN,
+}
 Parented = esphome_ns.class_("Parented")
 ESPTime = esphome_ns.struct("ESPTime")
 StringRef = esphome_ns.class_("StringRef")

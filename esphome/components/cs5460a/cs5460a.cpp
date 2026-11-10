@@ -95,8 +95,8 @@ void CS5460AComponent::hw_init_() {
    * sometimes softreset_() is not enough */
   this->write_register_(REG_CONTROL, 0x000004);
 
-  this->restart_();
   this->disable();
+  this->restart_();
   ESP_LOGCONFIG(TAG, "  Init ok");
 }
 
@@ -301,8 +301,7 @@ bool CS5460AComponent::check_status_() {
       prev_raw_current_ = raw_current;
     }
 
-    if (voltage_sensor_ != nullptr)
-      voltage_sensor_->publish_state(raw_voltage * voltage_multiplier_);
+    PUBLISH_STATE(this->voltage_sensor_, raw_voltage * voltage_multiplier_);
 
     if (power_sensor_ != nullptr && raw_energy != prev_raw_energy_) {
       int32_t raw = sign_extend<24>(raw_energy);

@@ -7,7 +7,7 @@ keeloq:
     receiver_id: rcvr
     on_frame:
       - logger.log:
-          format: "serial %07X counter %u group %04X command %X"
+          format: "serial %07X counter %u channels %04X command %X"
           args: ["x.serial", "x.counter", "x.channels", "x.command"]
     on_command:
       - channel: 1

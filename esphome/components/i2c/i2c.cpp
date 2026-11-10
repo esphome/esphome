@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::i2c {
@@ -18,6 +19,23 @@ void I2CBus::i2c_scan_() {
     }
     // it takes 16sec to scan on nrf52. It prevents board reset.
     arch_feed_wdt();
+  }
+}
+
+void I2CBus::dump_scan_results_() {
+  if (!this->scan_)
+    return;
+  ESP_LOGCONFIG(TAG, "Results from bus scan:");
+  if (this->scan_results_.empty()) {
+    ESP_LOGCONFIG(TAG, "Found no devices");
+    return;
+  }
+  for (const auto &s : this->scan_results_) {
+    if (s.second) {
+      ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
+    } else {
+      ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+    }
   }
 }
 
@@ -47,8 +65,7 @@ ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, 
   SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
   uint8_t *buffer = buffer_alloc.get();
 
-  buffer[0] = a_register >> 8;
-  buffer[1] = a_register;
+  put_be16(buffer, a_register);
   std::copy(data, data + len, buffer + 2);
   return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
 }
@@ -91,9 +108,7 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
 
   buffer[0] = a_register;
   for (size_t i = 0; i < len; i++) {
-    const uint16_t word = data[i];
-    buffer[1 + i * 2] = word >> 8;
-    buffer[2 + i * 2] = word;
+    put_be16(buffer + 1 + i * 2, data[i]);
   }
   return this->bus_->write_readv(this->address_, buffer, size, nullptr, 0) == ERROR_OK;
 }
