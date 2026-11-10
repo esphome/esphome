@@ -98,11 +98,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """With a session layer, which clears the states when the peer is lost, nothing would refresh an unchanged state."""
-    try:
-        layers = interface_layers(config[CONF_PACKET_INTERFACE])
-    except cv.Invalid as err:
-        err.prepend([CONF_PACKET_INTERFACE])
-        raise
+    layers = interface_layers(config[CONF_PACKET_INTERFACE])
     if CONF_TIMEOUT in config and CONF_SESSION in layers:
         raise cv.Invalid(
             f"Not allowed with a '{CONF_SESSION}' layer, which already clears the states when the other device "

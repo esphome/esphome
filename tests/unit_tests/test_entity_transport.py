@@ -79,23 +79,25 @@ def test_timeout_not_with_session(setup_core, layers: dict, allowed: bool) -> No
         fv.full_config.reset(token)
 
 
-def test_layer_id_rejected(setup_core) -> None:
-    """The id of a layer would leave out the layers above it, and skip the checks on them."""
-    config = CONFIG_SCHEMA({"packet_interface": "link_session", CONF_TIMEOUT: "1min"})
+@pytest.mark.parametrize(
+    ("layers", "allowed"),
+    [
+        ({"reliability": {CONF_ID: ID("link_layer", is_manual=True)}}, True),
+        ({"session": {CONF_ID: ID("link_layer", is_manual=True)}}, False),
+    ],
+)
+def test_layer_id_is_its_link(setup_core, layers: dict, allowed: bool) -> None:
+    """The id of a layer stands for its link, as applications send through the top of the stack."""
+    config = CONFIG_SCHEMA({"packet_interface": "link_layer", CONF_TIMEOUT: "1min"})
     token = fv.full_config.set(
-        {
-            "packet_interface": [
-                {
-                    CONF_ID: ID("link", is_manual=True),
-                    "session": {CONF_ID: ID("link_session", is_manual=True)},
-                }
-            ]
-        }
+        {"packet_interface": [{CONF_ID: ID("link", is_manual=True), **layers}]}
     )
     try:
-        with pytest.raises(cv.Invalid, match="layer") as error:
+        if allowed:
             FINAL_VALIDATE_SCHEMA(config)
-        assert error.value.path == ["packet_interface"]
+        else:
+            with pytest.raises(cv.Invalid, match="session"):
+                FINAL_VALIDATE_SCHEMA(config)
     finally:
         fv.full_config.reset(token)
 

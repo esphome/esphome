@@ -13,6 +13,7 @@ from esphome.types import ConfigType
 
 from . import layers
 from .layers import (
+    STACK_ORDER,
     PacketInterface,
     build_stack,
     check_session,
@@ -62,17 +63,25 @@ def _validate_layers(config: ConfigType) -> ConfigType:
     return config
 
 
+def _holds_id(config: ConfigType, interface_id: ID) -> bool:
+    """Whether the id is that of this link, or of one of its layers."""
+    return config[CONF_ID].id == interface_id.id or any(
+        isinstance(layer := config.get(kind.key), dict)
+        and (layer_id := layer.get(CONF_ID)) is not None
+        and layer_id.id == interface_id.id
+        for kind in STACK_ORDER
+    )
+
+
 def interface_layers(interface_id: ID) -> ConfigType:
     """During final validation, the configuration holding the layers of the packet interface with this id.
 
-    Raises cv.Invalid for the id of a layer, which would leave out the layers above it.
+    The id may be a layer's: applications send through top(), so they use every layer of that link.
     """
     for interface in fv.full_config.get().get(DOMAIN, []):
-        if interface[CONF_ID].id == interface_id.id:
+        if _holds_id(interface, interface_id):
             return interface
-    raise cv.Invalid(
-        f"'{interface_id.id}' is a layer of a packet interface; use the id of the link"
-    )
+    raise cv.Invalid(f"'{interface_id.id}' is not a packet interface")
 
 
 def packet_interface_schema(
