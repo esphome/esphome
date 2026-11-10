@@ -10,6 +10,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 HomeassistantBinarySensor = homeassistant_ns.class_(
     "HomeassistantBinarySensor", binary_sensor.BinarySensor, cg.Component

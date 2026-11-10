@@ -10,6 +10,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 HomeassistantSensor = homeassistant_ns.class_(
     "HomeassistantSensor", sensor.Sensor, cg.Component

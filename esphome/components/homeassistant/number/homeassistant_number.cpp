@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "../homeassistant.h"
+
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
@@ -15,7 +17,12 @@ ESPHOME_LOG_TAG(TAG, "homeassistant.number");
 void HomeassistantNumber::state_changed_(StringRef state) {
   auto number_value = parse_number<float>(state.c_str());
   if (!number_value.has_value()) {
-    ESP_LOGW(TAG, "'%s': Can't convert '%s' to number!", this->entity_id_, state.c_str());
+    // Unavailable or unknown is normal while Home Assistant or the entity is starting up or offline
+    if (is_unset(state)) {
+      ESP_LOGD(TAG, "'%s': No state (%s)", this->entity_id_, state.c_str());
+    } else {
+      ESP_LOGW(TAG, "'%s': Can't convert '%s' to number!", this->entity_id_, state.c_str());
+    }
     this->publish_state(NAN);
     return;
   }

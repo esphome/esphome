@@ -1,4 +1,5 @@
 #include "homeassistant_binary_sensor.h"
+#include "../homeassistant.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -13,7 +14,12 @@ void HomeassistantBinarySensor::setup() {
     switch (val) {
       case PARSE_NONE:
       case PARSE_TOGGLE:
-        ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+        // Normal while Home Assistant or the entity is starting up or offline
+        if (is_unset(state)) {
+          ESP_LOGD(TAG, "'%s': No state (%s)", this->entity_id_, state.c_str());
+        } else {
+          ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+        }
         break;
       case PARSE_ON:
       case PARSE_OFF:

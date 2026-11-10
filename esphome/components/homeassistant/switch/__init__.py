@@ -14,6 +14,7 @@ from .. import (
 
 CODEOWNERS = ["@Links2004"]
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 SUPPORTED_DOMAINS = [
     "automation",
