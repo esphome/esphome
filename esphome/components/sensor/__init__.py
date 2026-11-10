@@ -839,11 +839,12 @@ LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
 _LINEAR = automation.ApplyCall(
     "return x * {} + {};", (("k", cg.float_), ("b", cg.float_))
 )
+_LINEAR_SCHEMA = cv.Schema({cv.Required("k"): cv.float_, cv.Required("b"): cv.float_})
 
 
 async def _linear_filter(filter_id: ID, k: float, b: float) -> MockObj:
     return await APPLY_FILTER.build(
-        "calibrate_linear", {"k": k, "b": b}, filter_id, _LINEAR
+        "calibrate_linear", {"k": k, "b": b}, filter_id, _LINEAR, schema=_LINEAR_SCHEMA
     )
 
 
