@@ -36,6 +36,9 @@ class CombinationNoParameterComponent : public CombinationComponent {
   void log_source_sensors() override;
 
  protected:
+  /// Smallest and largest finite source state; infinity and -infinity when there is none
+  void finite_min_max_(float &min_value, float &max_value) const;
+
   StaticFixedVector<Sensor *> sensors_;
 };
 

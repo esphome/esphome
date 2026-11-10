@@ -29,6 +29,17 @@ void CombinationOneParameterComponent::add_source(Sensor *sensor, float value) {
   this->add_source(sensor, std::function<float(float)>{[value](float x) -> float { return value; }});
 }
 
+void CombinationNoParameterComponent::finite_min_max_(float &min_value, float &max_value) const {
+  min_value = std::numeric_limits<float>::infinity();
+  max_value = -std::numeric_limits<float>::infinity();
+  for (const auto &sensor : this->sensors_) {
+    if (std::isfinite(sensor->state)) {
+      min_value = std::min(min_value, sensor->state);
+      max_value = std::max(max_value, sensor->state);
+    }
+  }
+}
+
 void CombinationNoParameterComponent::log_source_sensors() {
   ESP_LOGCONFIG(TAG, "  Source Sensors:");
   for (const auto &sensor : this->sensors_) {
@@ -148,14 +159,9 @@ void MaximumCombinationComponent::handle_new_value(float value) {
   if (!std::isfinite(value))
     return;
 
-  float max_value = (-1) * std::numeric_limits<float>::infinity();  // note x = max(x, -infinity)
-
-  for (const auto &sensor : this->sensors_) {
-    if (std::isfinite(sensor->state)) {
-      max_value = std::max(max_value, sensor->state);
-    }
-  }
-
+  float min_value = NAN;
+  float max_value = NAN;
+  this->finite_min_max_(min_value, max_value);
   this->publish_state(max_value);
 }
 
@@ -218,14 +224,9 @@ void MinimumCombinationComponent::handle_new_value(float value) {
   if (!std::isfinite(value))
     return;
 
-  float min_value = std::numeric_limits<float>::infinity();  // note x = min(x, infinity)
-
-  for (const auto &sensor : this->sensors_) {
-    if (std::isfinite(sensor->state)) {
-      min_value = std::min(min_value, sensor->state);
-    }
-  }
-
+  float min_value = NAN;
+  float max_value = NAN;
+  this->finite_min_max_(min_value, max_value);
   this->publish_state(min_value);
 }
 
@@ -233,19 +234,12 @@ void MostRecentCombinationComponent::handle_new_value(float value) { this->publi
 
 void RangeCombinationComponent::handle_new_value(float value) {
   // Difference between the largest and smallest states
-
   if (!std::isfinite(value))
     return;
 
-  float min_value = std::numeric_limits<float>::infinity();
-  float max_value = -std::numeric_limits<float>::infinity();
-  for (const auto &sensor : this->sensors_) {
-    if (std::isfinite(sensor->state)) {
-      min_value = std::min(min_value, sensor->state);
-      max_value = std::max(max_value, sensor->state);
-    }
-  }
-
+  float min_value = NAN;
+  float max_value = NAN;
+  this->finite_min_max_(min_value, max_value);
   this->publish_state(min_value <= max_value ? max_value - min_value : NAN);
 }
 

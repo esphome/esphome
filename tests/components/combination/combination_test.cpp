@@ -54,6 +54,20 @@ TEST(MedianCombination, NoFiniteStateIsNan) {
   EXPECT_TRUE(std::isnan(f.run()));
 }
 
+TEST(MinMaxCombination, SkipNonFiniteStates) {
+  Fixture<MinimumCombinationComponent, 3> min({3.0f, NAN, -2.0f});
+  EXPECT_FLOAT_EQ(min.run(), -2.0f);
+  Fixture<MaximumCombinationComponent, 3> max({3.0f, NAN, -2.0f});
+  EXPECT_FLOAT_EQ(max.run(), 3.0f);
+}
+
+TEST(MinMaxCombination, NoFiniteStateIsInfinite) {
+  Fixture<MinimumCombinationComponent, 1> min({NAN});
+  EXPECT_EQ(min.run(), INFINITY);
+  Fixture<MaximumCombinationComponent, 1> max({NAN});
+  EXPECT_EQ(max.run(), -INFINITY);
+}
+
 TEST(RangeCombination, LargestMinusSmallest) {
   Fixture<RangeCombinationComponent, 4> f({3.0f, -2.0f, NAN, 5.0f});
   EXPECT_FLOAT_EQ(f.run(), 7.0f);
