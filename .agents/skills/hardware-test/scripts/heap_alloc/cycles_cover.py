@@ -58,10 +58,12 @@ async def main() -> None:
             for pos in (1.0, 0.0):
                 timeouts += not await move(pos)
                 await asyncio.sleep(SETTLE_S)
+        if timeouts:
+            # before the dump, which exits on its own failure
+            print(f"{timeouts} moves timed out", file=sys.stderr)
         await dump(c, w)
         await c.disconnect()
     if timeouts:
-        print(f"{timeouts} moves timed out", file=sys.stderr)
         sys.exit(2)
 
 

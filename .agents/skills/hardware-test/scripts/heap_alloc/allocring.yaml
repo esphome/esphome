@@ -20,6 +20,7 @@ button:
   - platform: template
     name: Dump allocations
     on_press:
+      # Recording stops for good; reboot before the next run, or a second press returns the same entries.
       - lambda: |-
           g_alloc_armed = false;
           uint32_t claimed = g_alloc_n.load();

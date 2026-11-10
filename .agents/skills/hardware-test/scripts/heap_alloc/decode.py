@@ -69,13 +69,9 @@ def decode(
 
 
 def last_dump(text: str) -> str:
-    """The last dump that reached DUMP END (a retried press or an appended file holds several), else the last one."""
-    starts = [m.start() for m in HEADER.finditer(text)]
-    sections = [
-        text[a:b] for a, b in zip(starts, [*starts[1:], len(text)], strict=True)
-    ]
-    whole = [s for s in sections if "DUMP END" in s]
-    return (whole or sections or [""])[-1]
+    """The newest dump in the file (a retried press or an appended file holds several); check() rejects it if cut off."""
+    start = max((m.start() for m in HEADER.finditer(text)), default=len(text))
+    return text[start:]
 
 
 def check(dump: str, entries: list) -> list[str]:
