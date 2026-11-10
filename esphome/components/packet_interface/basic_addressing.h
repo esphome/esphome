@@ -35,7 +35,11 @@ class BasicAddressing : public Component {
 
   PacketInterface *get_link() const { return this->link_; }
   void add_port(AddressingPort *port) { this->ports_.push_back(port); }
-  /// Sends \p data to \p destination, or to the destination in \p meta_data if set.
+  /**
+   * Sends \p data to \p destination. Through the broadcast port, a destination set in \p meta_data is used instead;
+   * any other port refuses one that differs from its own, as its layers may keep state for that one peer, and a
+   * packet to this device's own address is refused, as every receiver drops it.
+   */
   bool send(const PacketBuffer &data, const PacketMetaData &meta_data, uint16_t destination);
 
  protected:
@@ -43,6 +47,7 @@ class BasicAddressing : public Component {
 
   PacketInterface *link_;
   const uint16_t address_;
+  bool destination_warned_{false};
   StaticVector<AddressingPort *, PACKET_INTERFACE_ADDRESSING_PORT_COUNT> ports_;
 };
 

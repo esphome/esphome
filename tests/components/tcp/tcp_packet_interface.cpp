@@ -189,6 +189,12 @@ TEST_F(TcpPacketInterfaceTest, NotSentWhileDown) {
   EXPECT_FALSE(this->a.send({1}));
 }
 
+// A write that fails drops the link and the packet with it, so the packet is reported as not sent
+TEST_F(TcpPacketInterfaceTest, FailedWriteReportsNotSent) {
+  this->b.link.link().close();
+  EXPECT_FALSE(this->a.send({1}));
+}
+
 TEST_F(TcpPacketInterfaceTest, FrameAssembledAcrossReads) {
   End c;
   int fds[2];

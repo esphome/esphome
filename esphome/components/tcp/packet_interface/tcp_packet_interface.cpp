@@ -162,8 +162,9 @@ bool TcpPacketInterface::send_to_interface(const PacketBuffer &data, const Packe
   }
   if (!this->connected_ || !this->queue_frame_(&data, size))
     return false;
+  // A write that fails closes the link and discards what was queued, this packet included
   this->link_.flush_tx();
-  return true;
+  return this->link_.connected();
 }
 
 }  // namespace esphome::tcp
