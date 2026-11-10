@@ -45,4 +45,3 @@ button:
       - keeloq.learn:
           id: shutter_remote
           channels: !lambda return 0x0001;
-          legacy: true

@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_WAIT_TIME,
 )
-from esphome.core import ID
+from esphome.core import ID, HexInt
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -21,7 +21,6 @@ DOMAIN = "keeloq"
 MULTI_CONF = True
 
 CONF_COUNTER = "counter"
-CONF_LEGACY = "legacy"
 CONF_MANUFACTURER_KEY = "manufacturer_key"
 CONF_SERIAL = "serial"
 
@@ -32,52 +31,66 @@ SendAction = keeloq_ns.class_("SendAction", remote_base.RemoteTransmitterActionB
 LearnAction = keeloq_ns.class_("LearnAction", automation.Action)
 
 KeeloqType = keeloq_ns.enum("KeeloqType")
-# A new learning variant adds its key derivation and frame layout in C++ and one entry here.
 KEELOQ_TYPES = {
     "jarolift": KeeloqType.KEELOQ_TYPE_JAROLIFT,
 }
 
-# Per type: the button names as (code, send times), and None for the type's default send times
-# (Jarolift: twice per press). Shade is stop held, sent 20 times. `repeat` on the action overrides.
-TYPE_COMMANDS = {
-    "jarolift": {
-        "up": (0x8, None),
-        "down": (0x2, None),
-        "stop": (0x4, None),
-        "learn": (0xA, None),
-        "shade": (0x4, 20),
-    },
+# Jarolift sends every press twice with the same counter.
+JAROLIFT_SEND_TIMES = 2
+# Button name: (code, send times). Shade is stop held, sent 20 times.
+JAROLIFT_COMMANDS = {
+    "up": (0x8, JAROLIFT_SEND_TIMES),
+    "down": (0x2, JAROLIFT_SEND_TIMES),
+    "stop": (0x4, JAROLIFT_SEND_TIMES),
+    "learn": (0xA, JAROLIFT_SEND_TIMES),
+    "shade": (0x4, 20),
 }
-JAROLIFT_COMMANDS = TYPE_COMMANDS["jarolift"]
+
+_NLF = 0x3A5C742E
 
 
-def _manufacturer_key(value: object) -> int:
-    value = cv.hex_int(value)
-    if not 0 <= value <= 0xFFFFFFFFFFFFFFFF:
-        raise cv.Invalid("manufacturer_key must be a 64-bit value")
-    return value
+def _bit(value: int, n: int) -> int:
+    return (value >> n) & 1
 
 
-def _command(value: object) -> int | str:
-    if isinstance(value, str) and value.lower() in JAROLIFT_COMMANDS:
-        return value.lower()
-    try:
-        return cv.int_range(min=0, max=0xF)(value)
-    except cv.Invalid as err:
-        raise cv.Invalid(
-            f"command must be 0 to 0xF or one of {', '.join(JAROLIFT_COMMANDS)}"
-        ) from err
+def keeloq_decrypt(data: int, key: int) -> int:
+    """The KeeLoq block cipher decryption: 32-bit block, 64-bit key, 528 rounds."""
+    x = data
+    for r in range(528):
+        nlf = _bit(
+            _NLF,
+            _bit(x, 0)
+            | _bit(x, 8) << 1
+            | _bit(x, 19) << 2
+            | _bit(x, 25) << 3
+            | _bit(x, 30) << 4,
+        )
+        x = ((x << 1) & 0xFFFFFFFF) | (
+            _bit(x, 31) ^ _bit(x, 15) ^ nlf ^ _bit(key, (15 - r) & 63)
+        )
+    return x
+
+
+def normal_learning_key(serial: int, manufacturer_key: int) -> int:
+    """Microchip normal learning: the serial decrypted twice with the manufacturer key."""
+    high = keeloq_decrypt(serial | 0x60000000, manufacturer_key)
+    return high << 32 | keeloq_decrypt(serial | 0x20000000, manufacturer_key)
+
+
+_COMMAND_ERROR = f"command must be 0 to 0xF or one of {', '.join(JAROLIFT_COMMANDS)}"
+_command = cv.Any(
+    cv.one_of(*JAROLIFT_COMMANDS, lower=True),
+    cv.int_range(min=0, max=0xF),
+    msg=_COMMAND_ERROR,
+)
 
 
 def _channels(value: object) -> int:
     """Channels 1 to 16 as a list, or the 16-bit mask they make (bit 0 is channel 1)."""
     if isinstance(value, list):
-        channels = [cv.int_range(min=1, max=16)(channel) for channel in value]
-        if len(set(channels)) != len(channels):
-            raise cv.Invalid("each channel only once")
+        channels = {cv.int_range(min=1, max=16)(channel) for channel in value}
         value = sum(1 << (channel - 1) for channel in channels)
     mask = cv.hex_uint16_t(value)
-    # No motor acts on a frame without a channel.
     if mask == 0:
         raise cv.Invalid("set at least one channel")
     return mask
@@ -87,19 +100,22 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(KeeloqRemote),
         cv.Required(CONF_TYPE): cv.enum(KEELOQ_TYPES, lower=True),
-        cv.Required(CONF_MANUFACTURER_KEY): cv.sensitive(_manufacturer_key),
-        cv.Required(CONF_SERIAL): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFF)),
+        cv.Required(CONF_MANUFACTURER_KEY): cv.sensitive(cv.hex_uint64_t),
+        cv.Required(CONF_SERIAL): cv.hex_int_range(min=0, max=0xFFFFFFF),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config: ConfigType) -> None:
     remote_base.request_protocol("keeloq")
+    # Only the derived device key reaches the firmware, never the manufacturer key.
+    device_key = normal_learning_key(config[CONF_SERIAL], config[CONF_MANUFACTURER_KEY])
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_TYPE],
-        cg.RawExpression(f"0x{config[CONF_MANUFACTURER_KEY]:016X}ULL"),
         config[CONF_SERIAL],
+        HexInt(device_key >> 32),
+        HexInt(device_key & 0xFFFFFFFF),
     )
     await cg.register_component(var, config)
 
@@ -124,7 +140,7 @@ async def send_to_code(
     var = cg.new_Pvariable(action_id, template_arg, remote)
     await remote_base.register_transmittable(var, config)
     command = config[CONF_COMMAND]
-    code, send_times = JAROLIFT_COMMANDS.get(command, (command, None))
+    code, send_times = JAROLIFT_COMMANDS.get(command, (command, JAROLIFT_SEND_TIMES))
     template_ = await cg.templatable(code, args, cg.uint8)
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_CHANNELS], args, cg.uint16)
@@ -133,9 +149,8 @@ async def send_to_code(
         send_times = repeat[CONF_TIMES]
         template_ = await cg.templatable(repeat[CONF_WAIT_TIME], args, cg.uint32)
         cg.add(var.set_send_wait(template_))
-    if send_times is not None:
-        template_ = await cg.templatable(send_times, args, cg.uint32)
-        cg.add(var.set_send_times(template_))
+    template_ = await cg.templatable(send_times, args, cg.uint32)
+    cg.add(var.set_send_times(template_))
     return var
 
 
@@ -158,7 +173,6 @@ automation.register_apply_action(
         {
             cv.GenerateID(): cv.use_id(KeeloqRemote),
             cv.Required(CONF_CHANNELS): cv.templatable(_channels),
-            cv.Optional(CONF_LEGACY): cv.templatable(cv.boolean),
         }
     ).extend(remote_base.REMOTE_TRANSMITTABLE_SCHEMA),
     synchronous=True,
@@ -174,7 +188,4 @@ async def learn_to_code(
     await remote_base.register_transmittable(var, config)
     template_ = await cg.templatable(config[CONF_CHANNELS], args, cg.uint16)
     cg.add(var.set_channels(template_))
-    if (legacy := config.get(CONF_LEGACY)) is not None:
-        template_ = await cg.templatable(legacy, args, cg.bool_)
-        cg.add(var.set_legacy(template_))
     return var

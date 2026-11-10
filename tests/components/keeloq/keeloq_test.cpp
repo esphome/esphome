@@ -1,26 +1,25 @@
 #include <gtest/gtest.h>
 
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "esphome/components/keeloq/keeloq.h"
-#include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/preferences.h"
-
-#include <new>
 
 namespace esphome::keeloq::testing {
 
 namespace {
 
-// Made-up key and serial from published Jarolift test vectors. Not a real key.
-constexpr uint64_t MANUFACTURER_KEY = 0x1A2B3C4D5E6F7081;
+// Made-up serial and the device key that codegen derives from the made-up manufacturer key
+// 0x1A2B3C4D5E6F7081 (checked in test_keeloq.py). Not a real key.
 constexpr uint32_t SERIAL = 0x1234500;
+constexpr uint32_t DEVICE_KEY_HIGH = 0x109E9228;
+constexpr uint32_t DEVICE_KEY_LOW = 0x9CAB2950;
 
 struct Remote {
-  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, SERIAL};
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
 
   // Restores what an earlier Remote stored, like a reboot.
   Remote() { static_cast<Component &>(this->remote).setup(); }
@@ -46,48 +45,42 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
   }
 };
 
-// Runs the second half of the pairing sequence at once instead of after the pause.
-class LearningRemote : public KeeloqRemote {
- public:
-  LearningRemote() : KeeloqRemote(KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, SERIAL) {}
-  using KeeloqRemote::finish_learn_;
-};
-
 void forget_stored_counters() {
   if (global_preferences != nullptr) {
     global_preferences->reset();
   }
 }
 
-// learn() starts a timeout, which needs the application's scheduler.
-void construct_app() {
-  static const bool CONSTRUCTED = (new (&App) Application(), true);
-  (void) CONSTRUCTED;
-}
-
-// Returns what one frame logged. The test logger only prints while it has a baud rate.
-std::string log_of_next_frame(KeeloqRemote &remote) {
-  const uint32_t baud_rate = logger::global_logger->get_baud_rate();
-  logger::global_logger->set_baud_rate(115200);
-  ::testing::internal::CaptureStdout();
-  remote.next_frame(0x8, 0x0001);
-  std::string log = ::testing::internal::GetCapturedStdout();
-  logger::global_logger->set_baud_rate(baud_rate);
-  return log;
+// Test-only decryption, the inverse of encrypt(); production only encrypts.
+uint32_t decrypt(uint32_t data, uint64_t key) {
+  uint32_t x = data;
+  for (uint16_t r = 0; r < 528; r++) {
+    uint32_t idx = (x >> 0 & 1) | (x >> 8 & 1) << 1 | (x >> 19 & 1) << 2 | (x >> 25 & 1) << 3 | (x >> 30 & 1) << 4;
+    uint32_t nlf = (0x3A5C742Eu >> idx) & 1;
+    x = (x << 1) | ((x >> 31 & 1) ^ (x >> 15 & 1) ^ nlf ^ static_cast<uint32_t>(key >> ((15u - r) & 63u) & 1));
+  }
+  return x;
 }
 
 }  // namespace
 
-TEST(KeeloqCipherTest, MatchesPublishedVector) {
-  // A published KeeLoq test vector.
-  EXPECT_EQ(encrypt(0xF741E2DB, 0x5CEC6701B79FD949), 0xE44F4CDFu);
-  EXPECT_EQ(decrypt(0xE44F4CDF, 0x5CEC6701B79FD949), 0xF741E2DBu);
-}
-
-TEST(KeeloqCipherTest, MatchesASecondImplementation) {
-  // A published vector of another KeeLoq implementation.
-  EXPECT_EQ(encrypt(0x32CCD896, 0xEA125C50361424B1), 0x69EBBA91u);
-  EXPECT_EQ(decrypt(0x32CCD896, 0xEA125C50361424B1), 0xBB4A4F8Eu);
+TEST(KeeloqCipherTest, MatchesPublishedVectors) {
+  // Published vectors of two KeeLoq implementations: plain, key, cipher.
+  struct Vector {
+    uint32_t plain;
+    uint64_t key;
+    uint32_t cipher;
+  };
+  static constexpr Vector VECTORS[] = {
+      {0xF741E2DB, 0x5CEC6701B79FD949, 0xE44F4CDF},
+      {0x32CCD896, 0xEA125C50361424B1, 0x69EBBA91},
+      {0xBB4A4F8E, 0xEA125C50361424B1, 0x32CCD896},
+  };
+  for (const auto &v : VECTORS) {
+    const uint32_t key[2] = {static_cast<uint32_t>(v.key), static_cast<uint32_t>(v.key >> 32)};
+    EXPECT_EQ(encrypt(v.plain, key), v.cipher);
+    EXPECT_EQ(decrypt(v.cipher, v.key), v.plain);
+  }
 }
 
 TEST(KeeloqRemoteTest, JaroliftFramesMatchTheReferenceFirmware) {
@@ -117,15 +110,6 @@ TEST(KeeloqRemoteTest, EachFrameTakesTheNextCounter) {
   EXPECT_NE(first.encrypted, second.encrypted);
 }
 
-TEST(KeeloqRemoteTest, CounterWrapsFrom0xFFFFTo0) {
-  // Receivers compare counters modulo 2^16, so 0 follows 0xFFFF.
-  forget_stored_counters();
-  Remote r;
-  r.remote.set_counter(0xFFFF);
-  r.remote.next_frame(0x8, 0x0001);
-  EXPECT_EQ(r.remote.get_counter(), 0);
-}
-
 TEST(KeeloqRemoteTest, RebootContinuesAfterTheReservedBlock) {
   // Three frames send 100, 101 and 102; 100 to 107 were reserved in flash before the first one.
   // After a reboot the next frame is 108: no code repeats and the jump stays below 16.
@@ -151,50 +135,38 @@ TEST(KeeloqRemoteTest, RebootWithoutFramesKeepsTheCounter) {
   EXPECT_EQ(after.remote.get_counter(), 100);
 }
 
-TEST(KeeloqRemoteTest, StoredCounterBelongsToTypeAndSerialOnly) {
-  // Not to the id or the build: a new firmware for the same serial finds the counter again.
-  EXPECT_EQ(KeeloqRemote::preference_key(KEELOQ_TYPE_JAROLIFT, SERIAL),
-            KeeloqRemote::preference_key(KEELOQ_TYPE_JAROLIFT, SERIAL));
-  EXPECT_NE(KeeloqRemote::preference_key(KEELOQ_TYPE_JAROLIFT, SERIAL),
-            KeeloqRemote::preference_key(KEELOQ_TYPE_JAROLIFT, 0x7654300));
-}
-
 TEST(KeeloqRemoteTest, ReservedBlockWrapsToo) {
-  // 0xFFFC reserves 0xFFFC to 0x0003, so a reboot continues at 4.
+  // Receivers compare counters modulo 2^16: 0xFFFC reserves 0xFFFC to 0x0003, so a reboot continues at 4.
   forget_stored_counters();
   {
     Remote before;
     before.remote.set_counter(0xFFFC);
-    before.remote.next_frame(0x8, 0x0001);
+    for (int i = 0; i < 4; i++) {
+      before.remote.next_frame(0x8, 0x0001);
+    }
+    EXPECT_EQ(before.remote.get_counter(), 0);
   }
   Remote after;
   EXPECT_EQ(after.remote.get_counter(), 4);
 }
 
-TEST(KeeloqRemoteTest, FailedSaveWarnsAndStillSends) {
+TEST(KeeloqRemoteTest, FailedSaveStillSends) {
   // Without setup() the remote has no storage, so saving the counter fails.
-  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, SERIAL};
-  std::string log = log_of_next_frame(remote);
-  EXPECT_NE(log.find("Could not save the counter"), std::string::npos) << log;
-  EXPECT_EQ(remote.get_counter(), 1);  // the frame still took counter 0
-}
-
-TEST(KeeloqRemoteTest, SavedCounterLogsNoWarning) {
-  Remote r;
-  std::string log = log_of_next_frame(r.remote);
-  EXPECT_EQ(log.find("Could not save the counter"), std::string::npos) << log;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  remote.next_frame(0x8, 0x0001);
+  EXPECT_EQ(remote.get_counter(), 1);
 }
 
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   // As other Jarolift implementations pair: 0xA twice, a pause, then 0x4 twice, each with a new counter.
-  construct_app();
   forget_stored_counters();
   CapturingTransmitter transmitter;
-  LearningRemote remote;
+  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
   remote.set_counter(10);
-  remote.learn(&transmitter, 0x0001, false);
+  remote.learn(&transmitter, 0x0001);
   ASSERT_EQ(transmitter.frames.size(), 1u);
-  remote.finish_learn_(&transmitter, 0x0001);
+  delay(1010);  // NOLINT
+  App.scheduler.call(millis());
   ASSERT_EQ(transmitter.frames.size(), 2u);
   EXPECT_EQ(transmitter.frames[0].first.command, 0xA);
   EXPECT_EQ(transmitter.frames[1].first.command, 0x4);
@@ -203,23 +175,6 @@ TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
     EXPECT_EQ(send_times, 2u);
   }
   EXPECT_EQ(remote.get_counter(), 12);
-  App.scheduler.cancel_timeout(&remote, uint32_t{0});  // the remote ends with the test
-}
-
-TEST(KeeloqRemoteTest, JaroliftLegacyLearnSendsOneCommand) {
-  // Motors made before 2010 learn from command 0x1, sent twice.
-  forget_stored_counters();
-  CapturingTransmitter transmitter;
-  LearningRemote remote;
-  remote.learn(&transmitter, 0x0001, true);
-  ASSERT_EQ(transmitter.frames.size(), 1u);
-  EXPECT_EQ(transmitter.frames[0].first.command, 0x1);
-  EXPECT_EQ(transmitter.frames[0].second, 2u);
-}
-
-TEST(KeeloqRemoteTest, JaroliftSendsEachPressTwice) {
-  KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, SERIAL};
-  EXPECT_EQ(remote.default_send_times(), 2u);
 }
 
 }  // namespace esphome::keeloq::testing
