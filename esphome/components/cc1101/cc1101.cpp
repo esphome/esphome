@@ -14,7 +14,7 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
-//  Minimum CSn-low time before the first SCLK edge when waking from power-down is 150 us.
+// The crystal takes about 150 us to start after CSn goes low
 static constexpr uint32_t WAKEUP_DELAY_US = 200;
 
 // MDMCFG2 MOD_FORMAT values
@@ -189,8 +189,8 @@ void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float 
 
 void CC1101Component::loop() {
   this->disable_loop();
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
-      !this->gdo0_pin_->digital_read()) {
+  if (this->sleeping_ || this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) ||
+      this->gdo0_pin_ == nullptr || !this->gdo0_pin_->digital_read()) {
     return;
   }
 
@@ -235,6 +235,10 @@ void CC1101Component::loop() {
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
     this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
+  }
+  // A listener may have powered the radio down
+  if (this->sleeping_) {
+    return;
   }
 
   // Return to rx
@@ -310,17 +314,15 @@ void CC1101Component::set_idle() {
 void CC1101Component::power_down() {
   this->enter_idle_();
   ESP_LOGV(TAG, "Entering SLEEP state");
-  // ADC_RETENTION must be set for RX filter bandwidths below 325 kHz.
-  const float bw = XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
-  const bool adc_retention = bw < 325000.0f;
-  if (this->state_.ADC_RETENTION != adc_retention) {
-    this->state_.ADC_RETENTION = adc_retention;
-    this->write_(Register::FIFOTHR);
-  }
   this->strobe_(Command::PWD);
+  this->sleeping_ = true;
 }
 
 void CC1101Component::wake_up() {
+  if (!this->sleeping_) {
+    return;
+  }
+  this->sleeping_ = false;
   ESP_LOGV(TAG, "Waking up from SLEEP");
   this->enable();
   delayMicroseconds(WAKEUP_DELAY_US);
@@ -328,7 +330,7 @@ void CC1101Component::wake_up() {
   this->enter_idle_();
   // TEST0 and PATABLE entries 1-7 are not retained in SLEEP.
   this->write_(Register::TEST0);
-  this->set_output_power(this->output_power_requested_);
+  this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
 }
 
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
@@ -363,6 +365,11 @@ bool CC1101Component::enter_calibrated_(State target_state, Command cmd) {
 }
 
 void CC1101Component::enter_idle_() {
+  if (this->sleeping_) {
+    // wake_up() ends in IDLE
+    this->wake_up();
+    return;
+  }
   this->strobe_(Command::IDLE);
   this->wait_for_state_(State::IDLE);
 }
@@ -539,8 +546,11 @@ void CC1101Component::set_filter_bandwidth(float value) {
   split_float(XTAL_FREQUENCY / (value * 8), 2, e, m);
   this->state_.CHANBW_E = e;
   this->state_.CHANBW_M = static_cast<uint8_t>(m);
+  // ADC_RETENTION must be set for RX filter bandwidths below 325 kHz
+  this->state_.ADC_RETENTION = ((4 + m) << e) > 10;
   if (this->initialized_) {
     this->write_(Register::MDMCFG4);
+    this->write_(Register::FIFOTHR);
   }
 }
 

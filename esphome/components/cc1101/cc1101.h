@@ -101,6 +101,7 @@ class CC1101Component final : public Component,
  protected:
   uint16_t chip_id_{0};
   bool initialized_{false};
+  bool sleeping_{false};
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
