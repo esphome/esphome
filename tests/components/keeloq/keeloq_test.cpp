@@ -5,7 +5,6 @@
 #include "esphome/components/keeloq/keeloq.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome::keeloq::testing {
 
@@ -57,12 +56,6 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
   }
 };
 
-void forget_stored_counters() {
-  if (global_preferences != nullptr) {
-    global_preferences->reset();
-  }
-}
-
 // Test-only decryption, the inverse of encrypt(); production only encrypts.
 uint32_t decrypt(uint32_t data, uint64_t key) {
   uint32_t x = data;
@@ -96,7 +89,6 @@ TEST(KeeloqCipherTest, MatchesPublishedVectors) {
 }
 
 TEST(KeeloqRemoteTest, JaroliftFramesMatchTheReferenceFirmware) {
-  forget_stored_counters();
   Remote r;
   // A group UP (0x8) for channels 1-4 and 9-12 (mask 0x0F0F) at counter 0x2048.
   r.remote.set_counter(0x2048);
@@ -113,7 +105,6 @@ TEST(KeeloqRemoteTest, JaroliftFramesMatchTheReferenceFirmware) {
 }
 
 TEST(KeeloqRemoteTest, EachFrameTakesTheNextCounter) {
-  forget_stored_counters();
   Remote r;
   r.remote.set_counter(5);
   remote_base::KeeloqData first = r.remote.next_frame(0x8, 0x0001);
@@ -125,7 +116,6 @@ TEST(KeeloqRemoteTest, EachFrameTakesTheNextCounter) {
 TEST(KeeloqRemoteTest, RebootContinuesAfterTheReservedBlock) {
   // Three frames send 100, 101 and 102; 100 to 107 were reserved in flash before the first one.
   // After a reboot the next frame is 108: no code repeats and the jump stays below 16.
-  forget_stored_counters();
   {
     Remote before;
     before.remote.set_counter(100);
@@ -138,7 +128,6 @@ TEST(KeeloqRemoteTest, RebootContinuesAfterTheReservedBlock) {
 }
 
 TEST(KeeloqRemoteTest, RebootWithoutFramesKeepsTheCounter) {
-  forget_stored_counters();
   {
     Remote before;
     before.remote.set_counter(100);
@@ -149,7 +138,6 @@ TEST(KeeloqRemoteTest, RebootWithoutFramesKeepsTheCounter) {
 
 TEST(KeeloqRemoteTest, ReservedBlockWrapsToo) {
   // Receivers compare counters modulo 2^16: 0xFFFC reserves 0xFFFC to 0x0003, so a reboot continues at 4.
-  forget_stored_counters();
   {
     Remote before;
     before.remote.set_counter(0xFFFC);
@@ -194,7 +182,6 @@ TEST(KeeloqRemoteTest, ChannelMaskZeroSendsNothing) {
 
 TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
   // As other Jarolift implementations pair: 0xA twice, a pause, then 0x4 twice, each with a new counter.
-  forget_stored_counters();
   CapturingTransmitter transmitter;
   KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
   remote.set_counter(10);
@@ -213,7 +200,6 @@ TEST(KeeloqRemoteTest, JaroliftLearnSendsUpDownThenStop) {
 }
 
 TEST(KeeloqRemoteTest, LearnWhileOneIsPendingIsSkipped) {
-  forget_stored_counters();
   CapturingTransmitter transmitter;
   KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
   remote.learn(&transmitter, 0x0001);
