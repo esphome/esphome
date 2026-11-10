@@ -897,14 +897,12 @@ def shared_static_function(
     *,
     share: bool = True,
 ) -> RawExpression:
-    """Emit ``static_function`` once per distinct return type, parameters and body; later
-    calls reuse the first one. ``name`` is made unique like ``shared_progmem_array`` names.
+    """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
 
-    GCC already folds identical plain static functions; the saving is the template
-    instantiations on them (e.g. ``ApplyFilter<fn>``, ``ApplyAction<fn>``) collapsing into one.
-    ``share=False`` always emits a new function, for a body with user lambda code that may
-    keep ``static`` state.
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
     """
+    if not share:
+        return _new_static_function(name, return_type, parameters, body)
     data: SharedStaticFunctions = CORE.data.setdefault(
         "shared_static_function", SharedStaticFunctions()
     )
@@ -913,13 +911,19 @@ def shared_static_function(
         str(ParameterListExpression(*parameters)),
         "\n".join(body),
     )
-    if share and (fn := data.functions.get(key)) is not None:
-        return fn
+    if (fn := data.functions.get(key)) is None:
+        fn = data.functions[key] = _new_static_function(
+            name, return_type, parameters, body
+        )
+    return fn
+
+
+def _new_static_function(
+    name: str, return_type: SafeExpType, parameters: TemplateArgsType, body: list[str]
+) -> RawExpression:
     id_ = unique_global_id(name, None)
     fn = static_function(id_.id, return_type, parameters, body)
     CORE.register_variable(id_, fn)
-    if share:
-        data.functions[key] = fn
     return fn
 
 

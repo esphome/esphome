@@ -696,12 +696,7 @@ def apply_static_function(
     share: bool = False,
     suffix: str = "fn",
 ) -> MockObj:
-    """Emit the static function generated for ``id_`` and return an expression naming it.
-
-    ``share`` reuses an identical function through ``cg.shared_static_function``; leave it
-    false for a body with user lambda code. The name never matches a config id; ``suffix``
-    names a second function for ``id_``.
-    """
+    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one."""
     return cg.shared_static_function(
         _apply_function_name(id_, suffix), return_type, params, statements, share=share
     )
@@ -971,8 +966,9 @@ async def new_value_range_trigger(
         None,
         [(cg.float_, "x")],
     )
-    apply_static_function(
-        trigger_id,
+    # The trigger above already names this function, so it must keep this exact name
+    cg.static_function(
+        _apply_function_name(trigger_id),
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
         [f"return {bounds};"],
@@ -1060,12 +1056,7 @@ class ApplyFilterDomain:
     params: tuple[tuple[Any, str], ...]
 
     def new(self, filter_id: ID, statements: list[str], share: bool = False) -> MockObj:
-        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements``.
-
-        The function takes ``params`` exactly as the filter class passes them. With ``share`` an
-        identical function emitted before is reused, so equal filters share one class. Never
-        share a body that may hold ``static`` state, that is one with code from a user lambda.
-        """
+        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements`` taking ``params``."""
         id_ = filter_id.copy()
         id_.type = self.filter_class
         fn = apply_static_function(
@@ -1083,11 +1074,8 @@ class ApplyFilterDomain:
     ) -> MockObj:
         """Declare filter ``name`` as the function of ``statements`` over ``config``.
 
-        Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
-        value lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the
-        key of a single value schema. A statement whose keys are all absent is skipped, except
-        the last, which must always apply so the function returns. A function with a value
-        lambda is not shared. With ``schema`` the statement keys are checked against it.
+        Value lambdas become their own functions; a statement whose keys are all absent is skipped,
+        except the last; ``schema`` checks the statement keys.
         """
         calls = _apply_calls(statements)
         if schema is not None:
