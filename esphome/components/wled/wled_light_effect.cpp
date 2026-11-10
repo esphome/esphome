@@ -47,7 +47,8 @@ void WLEDLightEffect::stop() {
     udp_->stop();
     udp_.reset();
   }
-  this->payload_ = {};
+  // Assigning {} would keep the capacity; swapping with an empty vector frees it
+  std::vector<uint8_t>().swap(this->payload_);
 }
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
