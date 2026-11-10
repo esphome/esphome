@@ -47,6 +47,20 @@ module.exports = async ({ github, context, core }) => {
   const run = runs.find((candidate) =>
     candidate.head_repository?.id === pr.head.repo?.id && candidate.head_branch === pr.head.ref
   );
+  // No run says which PR it is for. While another PR from the same branch is open,
+  // or was closed after this run was made, the run can be that PR's.
+  if (run) {
+    const { data: branchPrs } = await github.rest.pulls.list({
+      owner, repo, state: 'all', head: pr.head.label, per_page: 100,
+    });
+    const shared = branchPrs.some((other) => other.number !== pr.number &&
+      (other.state === 'open' || Date.parse(other.closed_at) > Date.parse(run.created_at)));
+    if (shared) {
+      core.info(`CI run ${run.id} can belong to another PR from ${pr.head.label}`);
+      await react('confused');
+      return;
+    }
+  }
   if (run && run.status !== 'completed') {
     core.info(`CI run ${run.id} for ${pr.head.sha} is still ${run.status}`);
     await react('eyes');

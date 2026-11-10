@@ -30,7 +30,7 @@ jobs:
     permissions:
       actions: write        # actions.listWorkflowRuns and reRunWorkflowFailedJobs for the CI run
       contents: read        # actions/checkout to load the script
-      pull-requests: write  # pulls.get for the head commit, reactions.createForIssueComment to answer
+      pull-requests: write  # pulls.get and pulls.list for the head, reactions.createForIssueComment to answer
     timeout-minutes: 5
     # One command per PR at a time, so a second one sees the re-run in progress.
     concurrency:

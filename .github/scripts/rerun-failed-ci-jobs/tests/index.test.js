@@ -11,11 +11,18 @@ const OLD_SHA = '1'.repeat(40);
 const ESPHOME = { id: 1, full_name: 'esphome/esphome' };
 const FORK = { id: 2, full_name: 'author/esphome' };
 const OTHER_FORK = { id: 3, full_name: 'someone/esphome' };
-const FORK_PR = { number: PR_NUMBER, head: { repo: FORK, ref: 'fix-wifi', sha: HEAD_SHA } };
+const FORK_PR = {
+  number: PR_NUMBER,
+  state: 'open',
+  closed_at: null,
+  head: { label: 'author:fix-wifi', repo: FORK, ref: 'fix-wifi', sha: HEAD_SHA },
+};
+// A time on the day of the tests: at(10) is 10:00.
+const at = (hour) => `2026-11-10T${String(hour).padStart(2, '0')}:00:00Z`;
 
 // One run of ci.yml. By default the finished, failed first attempt of the PR
-// under test: made from its head repository, branch and commit. As on GitHub,
-// a run from a fork lists no pull requests.
+// under test, made at 10:00 from its head repository, branch and commit. As on
+// GitHub, a run from a fork lists no pull requests.
 function ciRun({
   id,
   repo = FORK,
@@ -25,6 +32,7 @@ function ciRun({
   status = 'completed',
   conclusion = 'failure',
   attempt = 1,
+  createdAt = at(10),
 }) {
   return {
     id,
@@ -37,7 +45,13 @@ function ciRun({
     status,
     conclusion: status === 'completed' ? conclusion : null,
     run_attempt: attempt,
+    created_at: createdAt,
   };
+}
+
+// PR 4243, a second PR from the same branch author/esphome:fix-wifi, to another base.
+function secondPrOfBranch({ state = 'open', closedAt = null } = {}) {
+  return { ...FORK_PR, number: 4243, state, closed_at: closedAt };
 }
 
 function httpError(status, message) {
@@ -45,10 +59,11 @@ function httpError(status, message) {
 }
 
 // A fake of the GitHub API calls the script makes; it records every call.
-// `runs` are listed newest first, as the API does. `permissions` maps a login
-// to the answer of the permission API; any other login gets a 404, like a user
-// the API does not know. `rerunError` and `reactionError` make that call fail.
-function fakeGitHub({ pr = FORK_PR, runs = [], permissions = {}, rerunError = null, reactionError = null } = {}) {
+// `runs` are listed newest first, as the API does. `otherPrs` are PRs besides
+// `pr`. `permissions` maps a login to the answer of the permission API; any
+// other login gets a 404, like a user the API does not know. `rerunError` and
+// `reactionError` make that call fail.
+function fakeGitHub({ pr = FORK_PR, otherPrs = [], runs = [], permissions = {}, rerunError = null, reactionError = null } = {}) {
   const calls = [];
   const github = {
     // Like Octokit: all runs of all pages in one list.
@@ -77,6 +92,15 @@ function fakeGitHub({ pr = FORK_PR, runs = [], permissions = {}, rerunError = nu
         get: async (params) => {
           calls.push(['pulls.get', params.pull_number]);
           return { data: pr };
+        },
+        // Like the API: the PRs from the given head ("owner:branch") in the given state, open by default.
+        list: async (params) => {
+          calls.push(['pulls.list', params]);
+          const { state = 'open' } = params;
+          const found = [pr, ...otherPrs].filter((p) =>
+            p.head.label === params.head && (state === 'all' || p.state === state)
+          );
+          return { data: found };
         },
       },
       reactions: {
@@ -256,7 +280,7 @@ describe('which CI run is used', () => {
   });
 
   it('re-runs a run of a PR from a branch of esphome/esphome', async () => {
-    const pr = { number: PR_NUMBER, head: { repo: ESPHOME, ref: 'bump-a', sha: HEAD_SHA } };
+    const pr = { ...FORK_PR, head: { label: 'esphome:bump-a', repo: ESPHOME, ref: 'bump-a', sha: HEAD_SHA } };
     const run = ciRun({ id: 1, repo: ESPHOME, branch: 'bump-a', pullRequests: [{ number: PR_NUMBER }] });
     const api = fakeGitHub({ pr, runs: [run] });
     await runCommand(commentEvent(), api);
@@ -266,13 +290,46 @@ describe('which CI run is used', () => {
   it('skips a run of another branch of esphome/esphome even though it lists the PR', async () => {
     // Two PRs from branches of esphome/esphome share the head commit. GitHub lists
     // every open PR with that commit in `pull_requests`, so both runs name both PRs.
-    const pr = { number: PR_NUMBER, head: { repo: ESPHOME, ref: 'bump-a', sha: HEAD_SHA } };
+    const pr = { ...FORK_PR, head: { label: 'esphome:bump-a', repo: ESPHOME, ref: 'bump-a', sha: HEAD_SHA } };
     const pullRequests = [{ number: 4243 }, { number: PR_NUMBER }];
     const run = ciRun({ id: 1, repo: ESPHOME, branch: 'bump-b', pullRequests });
     const api = fakeGitHub({ pr, runs: [run] });
     await runCommand(commentEvent(), api);
     assert.deepEqual(reruns(api.calls), []);
     assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  // A run names neither its PR nor its base, so the runs of two PRs from one branch look alike.
+  it('refuses while another open PR comes from the same branch', async () => {
+    // PR 4243 goes from the same branch to another base; its red run 2 is the newest.
+    const api = fakeGitHub({
+      otherPrs: [secondPrOfBranch()],
+      runs: [ciRun({ id: 2, createdAt: at(11) }), ciRun({ id: 1, conclusion: 'success' })],
+    });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), []);
+    assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  it('refuses when another PR from the same branch was closed after the newest run', async () => {
+    // PR 4243 got its red run 2 at 11:00 and was closed at 12:00; no push since.
+    const api = fakeGitHub({
+      otherPrs: [secondPrOfBranch({ state: 'closed', closedAt: at(12) })],
+      runs: [ciRun({ id: 2, createdAt: at(11) }), ciRun({ id: 1, conclusion: 'success' })],
+    });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), []);
+    assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  it('re-runs when an earlier PR from the same branch was closed before the run', async () => {
+    // The author closed PR 4243 at 08:00 and opened this PR from the same branch.
+    const api = fakeGitHub({
+      otherPrs: [secondPrOfBranch({ state: 'closed', closedAt: at(8) })],
+      runs: [ciRun({ id: 1 })],
+    });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), [1]);
   });
 });
 
