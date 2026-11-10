@@ -1,6 +1,6 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN
 
 CODEOWNERS = ["@KoenBreeman"]
@@ -38,4 +38,4 @@ async def to_code(config):
         cg.add(var.set_rts_pin(rts))
 
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
-    cg.add_library("someweisguy/esp_dmx",None)
+    cg.add_library("someweisguy/esp_dmx", None)
