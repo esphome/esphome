@@ -18,13 +18,16 @@ bool RadioLinkBase::may_send_(bool busy) {
   uint32_t now = App.get_loop_component_start_time();
   if (busy)
     this->enable_loop();
-  if (!this->listen_before_talk_.may_send(busy, now))
-    return false;
+  return this->listen_before_talk_.may_send(busy, now);
+}
+
+bool RadioLinkBase::sent_(bool sent, bool busy) const {
   if (busy) {
     // The limit is longer than any packet takes, so the radio's busy indication is stuck or the channel is jammed
-    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, sending anyway", this->listen_before_talk_.busy_for(now));
+    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, sent anyway",
+             this->listen_before_talk_.busy_for(App.get_loop_component_start_time()));
   }
-  return true;
+  return sent;
 }
 
 bool RadioLinkBase::skip_empty_() const {
