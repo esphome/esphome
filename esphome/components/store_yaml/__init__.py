@@ -368,7 +368,14 @@ def _check_sensitive_usage(
                 if is_key
                 else shown(path)
             )
-            if verified(text):
+            # prepare() swaps an integer credential only at its own keys
+            unswapped = (
+                isinstance(node, int)
+                and not isinstance(node, bool)
+                and (info := sensitive.get(str(int(node)))) is not None
+                and info.is_int
+            )
+            if verified(text) and not unswapped:
                 # A whole scalar is swapped for its `!secret`; a key never is.
                 if is_key and (info := sensitive.get(text)) is not None:
                     embedded.append(f"{info.config_path} (as {where} in {rel})")
@@ -421,7 +428,8 @@ def _int_text(text: str) -> str | None:
     """Decimal text of a string cv.int_ accepts, such as "0x12345678", else None."""
     try:
         return str(cv.int_(text))
-    except cv.Invalid:
+    except (cv.Invalid, ValueError):
+        # ValueError: too many digits for str()
         return None
 
 

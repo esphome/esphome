@@ -21,6 +21,7 @@ from esphome.components.store_yaml import (
     _final_validate,
     _gather_files,
     _generate_redacted_files,
+    _int_text,
     _iter_nodes,
     _pack_envelope,
     _read_files_verbatim,
@@ -1030,6 +1031,25 @@ def test_redacted_hex_secret_not_shared_with_a_string_credential(
     out = _redact(project, files, config)
     assert b"305419896" not in out["mqtt.yaml"]
     assert "fp_password" not in out["mqtt.yaml"].decode()
+
+
+def test_redacted_hex_secret_also_loaded_by_scalar_include_fails(project: Path) -> None:
+    """A quoted hex secret used again as an included integer cannot be swapped there,
+    so redaction stops rather than store the number."""
+    hex_pw = {"password": SensitiveHexInt(0x12345678)}
+    files = {
+        "entry.yaml": "fingerprint_grow:\n  - password: !secret fp_password\n"
+        "  - password: !include pw.yaml\n",
+        "pw.yaml": "0x12345678\n",
+        "secrets.yaml": "fp_password: '0x12345678'\n",
+    }
+    with pytest.raises(EsphomeError, match="cannot be confirmed redacted"):
+        _redact(project, files, {"fingerprint_grow": [hex_pw, hex_pw]})
+
+
+def test_int_text_rejects_a_hex_string_too_long_for_decimal() -> None:
+    """A long hex string cv.int_ accepts but str() cannot convert is not an integer."""
+    assert _int_text("0x" + "f" * 3600) is None
 
 
 def test_redacted_symlinked_package_loads_relative_to_its_name(
