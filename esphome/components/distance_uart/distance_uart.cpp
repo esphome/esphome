@@ -124,9 +124,8 @@ void DistanceUARTSensor::process_frame_() {
     ESP_LOGV(TAG, "Received valid frame. Distance: %u mm (%.3f m)", distance_mm, distance_m);
   }
 
-  if (this->mode_ == DistanceUARTMode::DISTANCE_UART_MODE_CONTROLLED) {
-    this->publish_state(distance_m);
-  } else if (this->publish_mode_ == DistanceUARTPublishMode::DISTANCE_UART_PUBLISH_MODE_IMMEDIATE) {
+  if (this->mode_ == DistanceUARTMode::DISTANCE_UART_MODE_CONTROLLED ||
+      this->publish_mode_ == DistanceUARTPublishMode::DISTANCE_UART_PUBLISH_MODE_IMMEDIATE) {
     this->publish_state(distance_m);
   } else {
     this->last_distance_m_ = distance_m;

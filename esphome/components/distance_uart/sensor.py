@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor, uart
+from esphome.components.const import CONF_OUTPUT_MODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_RANGE,
@@ -27,7 +28,6 @@ DistanceUARTPublishMode = distance_uart_ns.enum(
 )
 
 CONF_BLIND_ZONE = "blind_zone"
-CONF_OUTPUT_MODE = "output_mode"
 CONF_OUTPUT_MODE_PIN = "output_mode_pin"
 CONF_PUBLISH_MODE = "publish_mode"
 
