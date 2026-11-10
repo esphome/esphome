@@ -318,6 +318,9 @@ void CC1101Component::set_idle() {
 }
 
 void CC1101Component::power_down() {
+  if (this->sleeping_) {
+    return;
+  }
   this->enter_idle_();
   ESP_LOGV(TAG, "Entering SLEEP state");
   this->strobe_(Command::PWD);
@@ -558,11 +561,8 @@ void CC1101Component::set_filter_bandwidth(float value) {
   split_float(XTAL_FREQUENCY / (value * 8), 2, e, m);
   this->state_.CHANBW_E = e;
   this->state_.CHANBW_M = static_cast<uint8_t>(m);
-  // ADC_RETENTION must be set for RX filter bandwidths below 325 kHz
-  this->state_.ADC_RETENTION = ((4 + m) << e) > 10;
   if (this->initialized_) {
     this->write_(Register::MDMCFG4);
-    this->write_(Register::FIFOTHR);
   }
 }
 
