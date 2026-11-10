@@ -6,7 +6,7 @@ wled:
 
 light:
   - platform: esp32_rmt_led_strip
-    id: led_matrix_32x8
+    id: wled_led_matrix
     default_transition_length: 500ms
     chipset: ws2812
     channel_colors: GRB
