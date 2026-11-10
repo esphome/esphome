@@ -553,7 +553,7 @@ def lint_conf_matches(fname, match):
     )
 
 
-CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 with codecs.open("esphome/const.py", "r", encoding="utf-8") as const_f_handle:
     constants_content = const_f_handle.read()
 with codecs.open(
@@ -599,7 +599,7 @@ def lint_conf_from_const_py(fname, match):
     return err
 
 
-UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 UNIT_CONSTANTS = [
     m.group(1) for m in re.finditer(UNIT_RE, constants_content, re.MULTILINE)
 ]
@@ -923,13 +923,14 @@ def _constants_defined_at(commit: str) -> set[str]:
         "-h",
         "-o",
         "-E",
-        r"^(CONF|UNIT)_[A-Za-z0-9_]+[[:space:]]*=",
+        r"^(CONF|UNIT)_[A-Za-z0-9_]+[[:space:]]*(:[^=]*)?=",
         commit,
         "--",
         "*.py",
     )
     # git grep exits 1 when nothing matches, which is an empty set and not an error.
-    return {line.rstrip("= \t") for line in (out or "").splitlines()}
+    # Each line is the name followed by an optional annotation and "=".
+    return {re.match(r"\w+", line)[0] for line in (out or "").splitlines()}
 
 
 @lint_post_check

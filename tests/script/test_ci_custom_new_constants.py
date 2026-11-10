@@ -55,7 +55,8 @@ def _write(files: dict[str, str]) -> None:
     for name, content in files.items():
         path = Path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        # newline="\n" keeps Windows from writing CRLF, which other lints reject.
+        path.write_text(content, encoding="utf-8", newline="\n")
     _git("add", "-A")
 
 
@@ -87,6 +88,7 @@ A = "esphome/components/a/sensor.py"
 B = "esphome/components/b/sensor.py"
 
 
+@pytest.mark.parametrize("annotation", ["", ": str"])
 @pytest.mark.parametrize("name", ["CONF_FOO_BAR", "UNIT_FOO_BAR"])
 def test_new_constant_in_two_files_fails(
     ci_custom: ModuleType,
@@ -94,17 +96,19 @@ def test_new_constant_in_two_files_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
     name: str,
+    annotation: str,
 ) -> None:
     _on_branch_from_dev(
         {"esphome/components/other/sensor.py": 'CONF_ZZ_OTHER = "zz_other"\n'}
     )
-    _write({A: f'{name} = "foo_bar"\n', B: f'{name} = "foo_bar"\n'})
+    definition = f'{name}{annotation} = "foo_bar"\n'
+    _write({A: definition, B: definition})
 
     result, out = _run(ci_custom, monkeypatch, capsys)
 
     assert result == 1
     assert f"New constant {name} is defined in 2 files" in out
-    assert f"({A}, {B})" in out
+    assert f"({Path(A)}, {Path(B)})" in out
     assert "esphome/const.py if core code uses it" in out
     assert "esphome/components/const/__init__.py" in out
 
@@ -121,13 +125,15 @@ def test_new_constant_in_one_file_passes(
     assert _run(ci_custom, monkeypatch, capsys) == (0, "")
 
 
+@pytest.mark.parametrize("annotation", ["", ": str"])
 def test_constant_already_on_dev_added_in_second_file_passes(
     ci_custom: ModuleType,
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
+    annotation: str,
 ) -> None:
-    _on_branch_from_dev({A: 'UNIT_FOO_BAR = "fb"\n'})
+    _on_branch_from_dev({A: f'UNIT_FOO_BAR{annotation} = "fb"\n'})
     _write({B: 'UNIT_FOO_BAR = "fb"\n'})
 
     assert _run(ci_custom, monkeypatch, capsys) == (0, "")
