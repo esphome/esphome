@@ -1,0 +1,68 @@
+# ESP32-P4 sigma_delta speaker sequence template: gen.py or gen2.py fill in the seq steps, run.sh passes -s name.
+# For the gen2.py run, change the speaker pin to {number: GPIO21, inverted: true}.
+esphome:
+  name: ${name}
+  includes: [sdprobe.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'sdp::begin(id(spk), 21);'
+      - delay: 4s
+      - script.execute: seq
+
+esp32:
+  board: esp32-p4-evboard
+  variant: esp32p4
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  hardware_uart: UART0
+  logs:
+    scheduler: DEBUG
+    component: DEBUG
+    runtime_stats: INFO
+    rtttl: DEBUG
+    script: DEBUG
+    interval: DEBUG
+
+runtime_stats:
+  log_interval: 10s
+
+speaker:
+  - platform: sigma_delta
+    id: spk
+    pin: GPIO21
+
+rtttl:
+  id: tone
+  speaker: spk
+
+globals:
+  - {id: f0, type: uint32_t, initial_value: "0"}
+  - {id: t0, type: int64_t, initial_value: "0"}
+  - {id: tstop, type: int64_t, initial_value: "0"}
+  - {id: last_state, type: int, initial_value: "-1"}
+
+interval:
+  - interval: 1ms
+    then:
+      - lambda: |-
+          int s = sdp::st();
+          if (s != id(last_state)) {
+            ESP_LOGI("sdp", "STATE %d t=%lld", s, (long long) esp_timer_get_time());
+            id(last_state) = s;
+          }
+
+script:
+  - id: meas
+    parameters: {label: string, n: int}
+    then:
+      - lambda: 'sdp::start_capture(n);'
+      - wait_until: {condition: {lambda: 'return sdp::capture_done();'}, timeout: 20s}
+      - lambda: 'sdp::summary(label.c_str());'
+  - id: seq
+    then:
+      # @STEPS@

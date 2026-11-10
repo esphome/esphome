@@ -20,6 +20,26 @@ flagging in a review; read the matching skill for the detail behind any item.
 Only raise findings that the diff actually introduces or changes. Do not ask for
 drive-by cleanup of pre-existing code the PR did not touch.
 
+## Scope: shared code does not ride a component PR
+
+Check the file list first. A PR titled for one component (`[ld2450] ...`) must
+not also change code other components build on: `esphome/core/`, the entity
+platform components (`esphome/components/sensor/`, `esphome/components/text_sensor/`
+including its `filter.*`, `binary_sensor/`, `number/`, ...), the buses
+(`esphome/components/{i2c,spi,uart}/`), `network/`, `socket/`, the shared
+constants (`esphome/components/const/`, `esphome/const.py`),
+`esphome/automation.py`, `esphome/cpp_generator.py` or `esphome/config_validation.py`.
+Flag it and ask for the shared change to move into its own PR, which lands first
+and is reviewed by that code's owners; the component PR then builds on it. This
+holds even when the shared change is small or only the component uses it today.
+The exception is a shared change that must update several components in the same
+PR so none of them breaks in between (a `[core]` or `[components]` PR that adds a
+helper and moves its callers at once).
+
+Not shared code: the component's own platform files (`esphome/components/<c>/sensor.py`,
+`text_sensor/__init__.py`, ...), its new `USE_*` lines in `esphome/core/defines.h`,
+and its `CODEOWNERS` entry.
+
 ## Memory and embedded constraints (highest value)
 
 Heap allocation after `setup()` is treated as a reliability bug, not a
@@ -30,8 +50,8 @@ performance nit, because it fragments a small shared heap. Flag:
   `StaticVector<T, N>` when a `push_back` API is needed) or fixed at runtime
   init (use `FixedVector<T>`).
 - Listener / child-entity registration lists stored as `std::vector`; these have
-  a compile-time-known count and should use `cg.slot_counter()` plus
-  `StaticVector`.
+  a compile-time-known count and should use `cg.slot_list()` plus
+  `SLOT_LIST` (or `cg.slot_counter()` plus `StaticVector`).
 - `std::vector<uint8_t>` for a byte buffer that never grows: prefer
   `std::unique_ptr<uint8_t[]>` or `std::array`.
 - `std::map` / `std::set` / `std::unordered_map` for small datasets (1-16
@@ -84,6 +104,8 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | --- | --- |
 | `if (this->x_sensor_ != nullptr) this->x_sensor_->publish_state(v);` | `PUBLISH_STATE(this->x_sensor_, v);` (`esphome/core/entity_base.h`) |
 | set warning / `return` / clear warning around a bus result | `if (!this->status_comm_result(ok)) return;` |
+| set warning / `return` around an earlier step of a multi-step poll | `if (!this->status_comm_check(ok)) return;` |
+| warning set, but no `status_comm_result` or `status_clear_warning` on the success path | the last step uses `status_comm_result(ok)`, or the warning never clears |
 | hand-written `set_x_sensor()` plus `x_sensor_` member | `SUB_SENSOR(x)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`, `SUB_SWITCH`, ... |
 | `if CONF_X in config: s = await sensor.new_sensor(config[CONF_X])` plus setter | `sensors = sensor.sub_sensors(config)` then `await sensors(CONF_X, hub.set_x_sensor)` |
 | hand-written `{"a": MyEnum.MY_ENUM_A, ...}` dict | `MyEnum.options("a", "b", prefix="MY_ENUM_")` |
@@ -128,6 +150,18 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
   group builds. List-style packages or top-level merge keys block grouping.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
+
+## Naming user-facing functions
+
+Documented lambda methods, actions and config keys are public API, so a bad name
+is hard to fix once released. Flag:
+
+- A boolean where `true` means off (`display_off(true)`): name the positive
+  state, e.g. `set_power(bool on)`.
+- A name that differs from a sibling component's name for the same operation.
+
+Before a release, rename outright; after, follow the breaking-change policy
+below.
 
 ## Breaking changes and public API
 
