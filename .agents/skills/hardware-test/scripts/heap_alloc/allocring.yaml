@@ -1,4 +1,5 @@
-# Package for allocring.hpp: arms it ${alloc_arm_s} s after boot and adds the dump button. See heap_alloc.md.
+# Package for allocring.hpp: arms it ${alloc_arm_s} s after boot, reports that on a binary sensor and adds the
+# dump button. See heap_alloc.md.
 esphome:
   includes:
     - allocring.hpp
@@ -9,6 +10,12 @@ esphome:
           g_alloc_armed_ms = millis();
           g_alloc_armed = true;
           ESP_LOGI("allocs", "ARMED total=%u", g_new_count.load());
+
+binary_sensor:
+  # Drivers wait for this before the first action, so no step runs before recording starts
+  - platform: template
+    name: Allocation recorder armed
+    lambda: return g_alloc_armed;
 
 interval:
   - interval: 30s
@@ -37,7 +44,9 @@ button:
             const AllocEntry &e = g_allocs[i];
             ESP_LOGI("allocs", "E %u %u %u %08x %08x %08x %08x %08x", i, e.ms, e.size, e.pc[0], e.pc[1], e.pc[2],
                      e.pc[3], e.pc[4]);
-            if ((i & 15) == 15)
+            if ((i & 15) == 15) {
               delay(20);  // let the log drain
+              App.feed_wdt();  // a full dump over a 115200 baud UART log outlasts the task watchdog
+            }
           }
           ESP_LOGI("allocs", "DUMP END");

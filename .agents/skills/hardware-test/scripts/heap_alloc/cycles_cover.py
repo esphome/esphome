@@ -1,7 +1,8 @@
-"""Open and close the device's first cover N times with a states-only client, then save the allocation dump.
+"""Move the device's first cover to the far end and back N times with a states-only client, then save the dump.
 
 usage: cycles_cover.py HOST CYCLES OUT   env: API_KEY (unset for a plaintext API)
-Exits 2 when a move did not reach its position (the cover never moved, so the dump proves nothing).
+Waits for the recorder's armed binary sensor first. Exits 2 when a move did not reach its position (the
+cover never moved, so the dump proves nothing).
 """
 
 import asyncio
@@ -9,7 +10,13 @@ import pathlib
 import sys
 import time
 
-from aioesphomeapi import CoverInfo, CoverOperation, CoverState
+from aioesphomeapi import (
+    BinarySensorInfo,
+    BinarySensorState,
+    CoverInfo,
+    CoverOperation,
+    CoverState,
+)
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from apiconn import connect  # noqa: E402
@@ -17,6 +24,7 @@ from heap_alloc.dump import dump  # noqa: E402
 
 # After each move, so allocations that come once the cover has stopped land in the same cycle
 SETTLE_S = 8
+ARM_WAIT_S = 600
 
 
 async def main() -> None:
@@ -30,15 +38,28 @@ async def main() -> None:
         c = await connect(host)
         ents, _ = await c.list_entities_services()
         cover = next(e for e in ents if isinstance(e, CoverInfo))
-        states: asyncio.Queue = asyncio.Queue()
-        c.subscribe_states(
-            lambda s: (
-                isinstance(s, CoverState)
-                and s.key == cover.key
-                and states.put_nowait(s)
-            )
+        armed_info = next(
+            e
+            for e in ents
+            if isinstance(e, BinarySensorInfo)
+            and e.object_id == "allocation_recorder_armed"
         )
-        await asyncio.wait_for(states.get(), 10)
+        states: asyncio.Queue = asyncio.Queue()
+        armed = asyncio.Event()
+
+        def on_state(s) -> None:
+            if isinstance(s, CoverState) and s.key == cover.key:
+                states.put_nowait(s)
+            elif (
+                isinstance(s, BinarySensorState) and s.key == armed_info.key and s.state
+            ):
+                armed.set()
+
+        c.subscribe_states(on_state)
+        first = await asyncio.wait_for(states.get(), 10)
+        # moves made before recording starts would be missing from the dump
+        await asyncio.wait_for(armed.wait(), ARM_WAIT_S)
+        w("ARMED")
 
         async def move(pos: float) -> bool:
             w(f"CMD {pos}")
@@ -59,9 +80,11 @@ async def main() -> None:
             return False
 
         timeouts = 0
+        # start toward the far end, so the first command always moves the cover
+        order = (0.0, 1.0) if first.position > 0.5 else (1.0, 0.0)
         for i in range(cycles):
             w(f"CYCLE {i + 1}")
-            for pos in (1.0, 0.0):
+            for pos in order:
                 timeouts += not await move(pos)
                 await asyncio.sleep(SETTLE_S)
         if timeouts:
