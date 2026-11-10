@@ -4,3 +4,5 @@ CODEOWNERS = ["@OttoWinter"]
 DOMAIN = "copy"
 
 copy_ns = cg.esphome_ns.namespace("copy")
+
+CONF_STACKED_PROBE = "stacked_probe"
