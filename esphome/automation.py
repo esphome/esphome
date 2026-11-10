@@ -963,8 +963,9 @@ async def new_value_range_trigger(
         None,
         [(cg.float_, "x")],
     )
-    apply_static_function(
-        trigger_id,
+    # The trigger above already names this function, so it must keep this exact name
+    cg.static_function(
+        _apply_function_name(trigger_id),
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
         [f"return {bounds};"],
