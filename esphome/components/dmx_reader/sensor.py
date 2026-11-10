@@ -1,14 +1,14 @@
 import esphome.codegen as cg
+from esphome.components import number, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, number
 from esphome.const import (
-    CONF_ID,
-    STATE_CLASS_MEASUREMENT,
-    ICON_BRIGHTNESS_5,
-    UNIT_EMPTY,
     CONF_CHANNEL,
+    ICON_BRIGHTNESS_5,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_EMPTY,
 )
-from . import DMXReader, dmx_reader_ns
+
+from . import DMXReader
 
 DEPENDENCIES = ["dmx_reader"]
 
