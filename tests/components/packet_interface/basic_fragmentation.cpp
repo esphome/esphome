@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 #include "esphome/components/packet_interface/basic_fragmentation.h"
@@ -22,6 +23,9 @@ class MockLink : public PacketInterface {
  public:
   explicit MockLink(size_t max_packet_size = 12) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
+    // Before the packet is read, as a log line in a real link would run it
+    if (this->on_send)
+      this->on_send();
     this->sent.push_back(to_vector(data));
     return true;
   }
@@ -33,6 +37,7 @@ class MockLink : public PacketInterface {
   }
 
   std::vector<Packet> sent;
+  std::function<void()> on_send;
   size_t capacity{SIZE_MAX};
 };
 
@@ -224,6 +229,23 @@ TEST_F(BasicFragmentationTest, LinkTooSmallFailsSetup) {
   EXPECT_TRUE(fragmentation.is_failed());
   Packet packet{1};
   EXPECT_FALSE(fragmentation.send_to_interface(PacketBuffer(packet), {}));
+}
+
+// A send made while a fragment is still going through the layer below would overwrite it, and mix the packets
+TEST_F(BasicFragmentationTest, NestedSendRefused) {
+  Peer a(&this->link_a_), b(&this->link_b_);
+  Packet packet = make_packet(50);
+  bool nested = true;
+  int calls = 0;
+  this->link_a_.on_send = [&]() {
+    if (calls++ == 0)
+      nested = a.send(make_packet(30));
+  };
+  ASSERT_TRUE(a.send(packet));
+  EXPECT_FALSE(nested);
+  this->link_a_.on_send = nullptr;
+  deliver(this->link_a_, this->link_b_);
+  EXPECT_EQ(b.received, (std::vector<Packet>{packet}));
 }
 
 }  // namespace esphome::packet_interface::fragmentation_testing

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 #include "esphome/components/packet_interface/xxtea_encryption.h"
@@ -21,12 +22,16 @@ class MockLink : public PacketInterface {
  public:
   explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
+    // Before the packet is read, as a log line in a real link would run it
+    if (this->on_send)
+      this->on_send();
     this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
 
   std::vector<Packet> sent;
+  std::function<void()> on_send;
 };
 
 static constexpr size_t ROLLING_TRAILER_SIZE = 16;
@@ -262,6 +267,23 @@ TEST_F(XxteaEncryptionTest, CounterWrapStartsNewBoot) {
   a.deliver_to(b);
   // Both were accepted: the last packet of the old boot, then the first of the new one
   EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {2}}));
+}
+
+// A send made while one is still going through the layer below would overwrite the buffer it is reading
+TEST_F(XxteaEncryptionTest, NestedSendRefused) {
+  Peer a, b;
+  a.introduce(b);
+  bool nested = true;
+  int calls = 0;
+  a.link.on_send = [&]() {
+    if (calls++ == 0)
+      nested = a.send({9, 9, 9});
+  };
+  ASSERT_TRUE(a.send({1, 2, 3, 4, 5}));
+  EXPECT_FALSE(nested);
+  a.link.on_send = nullptr;
+  a.deliver_to(b);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1, 2, 3, 4, 5}}));
 }
 
 }  // namespace esphome::packet_interface::encryption_testing
