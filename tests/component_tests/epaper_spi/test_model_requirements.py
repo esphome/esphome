@@ -258,9 +258,7 @@ def test_width_multiple_enforced_for_uc8179_gray4(
     _setup_esp32(set_core_config, set_component_config)
 
     with pytest.raises(cv.Invalid, match="width that is a multiple of 8"):
-        CONFIG_SCHEMA(
-            _uc8179_gray4_config(dimensions={"width": 799, "height": 480})
-        )
+        CONFIG_SCHEMA(_uc8179_gray4_config(dimensions={"width": 799, "height": 480}))
 
 
 def test_full_update_every_accepted_for_mono_sticky(
