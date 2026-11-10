@@ -165,6 +165,7 @@ void CC1101Component::configure() {
   }
 
   this->initialized_ = true;
+  this->sleeping_ = false;
 
   for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
     if (i == static_cast<uint8_t>(Register::FSTEST) || i == static_cast<uint8_t>(Register::AGCTEST)) {
