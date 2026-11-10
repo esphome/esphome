@@ -37,6 +37,17 @@ def _ssd1677_config(**overrides: Any) -> ConfigType:
     return config
 
 
+def _uc8179_gray4_config(**overrides: Any) -> ConfigType:
+    config: ConfigType = {
+        "id": "test_display",
+        "model": "waveshare-7.5in-v2-gray4",
+        "cs_pin": 5,
+        "dc_pin": 21,
+    }
+    config.update(overrides)
+    return config
+
+
 def _setup_esp32(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
@@ -247,6 +258,70 @@ def test_full_update_every_accepted_for_mono_sticky(
     )
 
     assert result["full_update_every"] == 5
+
+
+# --- UC8179 gray4 (waveshare-7.5in-v2-gray4) ---------------------------------
+
+
+def test_uc8179_gray4_full_update_every_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The UC8179 grayscale waveform has no partial form, so full_update_every > 1 is refused."""
+    _setup_esp32(set_core_config, set_component_config)
+
+    with pytest.raises(cv.Invalid, match="does not support partial update"):
+        CONFIG_SCHEMA(_uc8179_gray4_config(full_update_every=5))
+
+
+def test_uc8179_gray4_full_update_every_default(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Leaving full_update_every at its default of 1 is fine for the UC8179 gray4 model."""
+    _setup_esp32(set_core_config, set_component_config)
+
+    result = CONFIG_SCHEMA(_uc8179_gray4_config())
+
+    assert result["full_update_every"] == 1
+
+
+@pytest.mark.parametrize("width", [804, 801])
+def test_uc8179_gray4_width_not_multiple_of_8_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    width: int,
+) -> None:
+    """Each plane byte is built from two whole buffer bytes, so the width must be a multiple of 8."""
+    _setup_esp32(set_core_config, set_component_config)
+
+    with pytest.raises(cv.Invalid, match="multiple of 8"):
+        CONFIG_SCHEMA(_uc8179_gray4_config(dimensions={"width": width, "height": 480}))
+
+
+def test_uc8179_gray4_width_multiple_of_8_accepted(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """A width that is a multiple of 8 validates for the UC8179 gray4 model."""
+    _setup_esp32(set_core_config, set_component_config)
+
+    result = CONFIG_SCHEMA(
+        _uc8179_gray4_config(dimensions={"width": 808, "height": 480})
+    )
+
+    assert result["dimensions"]["width"] == 808
+
+
+def test_uc8179_gray4_uses_gray4_driver(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """waveshare-7.5in-v2-gray4 generates the EPaperUC8179Gray4 driver."""
+    main_cpp = generate_main(component_config_path("uc8179_gray4_test.yaml"))
+
+    assert "epaper_spi::EPaperUC8179Gray4" in main_cpp
+    assert "epaper_spi::EPaperUC8179" in main_cpp
 
 
 # --- check_requirements -------------------------------------------------------
