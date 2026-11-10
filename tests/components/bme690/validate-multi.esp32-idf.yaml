@@ -1,0 +1,35 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+bme690:
+  - id: bme690_sensor_a
+    i2c_id: i2c_bus
+    address: 0x76
+    bsec_library: ${component_dir}/test_files/libalgobsec.a
+    bsec_config: ${component_dir}/test_files/bsec_iaq.config
+    sample_rate: LP
+    update_interval: 3s
+  - id: bme690_sensor_b
+    i2c_id: i2c_bus
+    address: 0x77
+    bsec_library: ${component_dir}/test_files/libalgobsec.a
+    sample_rate: ULP
+    update_interval: 5s
+
+sensor:
+  - platform: bme690
+    bme690_id: bme690_sensor_a
+    temperature:
+      name: BME690 A Temperature
+    co2_equivalent:
+      name: BME690 A CO2 Equivalent
+    tvoc_equivalent:
+      name: BME690 A TVOC Equivalent
+  - platform: bme690
+    bme690_id: bme690_sensor_b
+    temperature:
+      name: BME690 B Temperature
+    co2_equivalent:
+      name: BME690 B CO2 Equivalent
+    breath_voc_equivalent:
+      name: BME690 B Breath VOC Equivalent
