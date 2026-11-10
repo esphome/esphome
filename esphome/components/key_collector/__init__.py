@@ -93,24 +93,15 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for source_conf in config.get(CONF_SOURCE_ID, ()):
-        source = await cg.get_variable(source_conf)
-        cg.add(var.add_provider(source))
-    if CONF_MIN_LENGTH in config:
-        cg.add(var.set_min_length(config[CONF_MIN_LENGTH]))
-    if CONF_MAX_LENGTH in config:
-        cg.add(var.set_max_length(config[CONF_MAX_LENGTH]))
-    if CONF_START_KEYS in config:
-        cg.add(var.set_start_keys(config[CONF_START_KEYS]))
-    if CONF_END_KEYS in config:
-        cg.add(var.set_end_keys(config[CONF_END_KEYS]))
-    if CONF_END_KEY_REQUIRED in config:
-        cg.add(var.set_end_key_required(config[CONF_END_KEY_REQUIRED]))
-    if CONF_BACK_KEYS in config:
-        cg.add(var.set_back_keys(config[CONF_BACK_KEYS]))
-    if CONF_CLEAR_KEYS in config:
-        cg.add(var.set_clear_keys(config[CONF_CLEAR_KEYS]))
-    if CONF_ALLOWED_KEYS in config:
-        cg.add(var.set_allowed_keys(config[CONF_ALLOWED_KEYS]))
+        await cg.add_variable(var.add_provider, source_conf)
+    cg.add_optional(var.set_min_length, config.get(CONF_MIN_LENGTH))
+    cg.add_optional(var.set_max_length, config.get(CONF_MAX_LENGTH))
+    cg.add_optional(var.set_start_keys, config.get(CONF_START_KEYS))
+    cg.add_optional(var.set_end_keys, config.get(CONF_END_KEYS))
+    cg.add_optional(var.set_end_key_required, config.get(CONF_END_KEY_REQUIRED))
+    cg.add_optional(var.set_back_keys, config.get(CONF_BACK_KEYS))
+    cg.add_optional(var.set_clear_keys, config.get(CONF_CLEAR_KEYS))
+    cg.add_optional(var.set_allowed_keys, config.get(CONF_ALLOWED_KEYS))
 
     for trigger_name, args in TRIGGER_TYPES.items():
         arglist: TemplateArgsType = [(arg.type, arg.name) for arg in args]

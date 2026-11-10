@@ -8,3 +8,4 @@ packages:
 micro_wake_word:
   task_core: 1
   prefer_internal_ram: true
+  ring_buffer_duration: 400ms

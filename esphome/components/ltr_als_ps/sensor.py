@@ -133,12 +133,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_PS_COOLDOWN, default="5s"
             ): cv.positive_time_period_seconds,
             cv.Optional(CONF_PS_GAIN, default="16X"): cv.enum(PS_GAINS, upper=True),
-            cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.int_range(
-                min=0, max=65535
-            ),
+            cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.uint16_t,
+            cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.uint16_t,
             cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(

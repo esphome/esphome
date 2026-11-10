@@ -14,7 +14,6 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
-from esphome.cpp_helpers import gpio_pin_expression
 from esphome.types import ConfigType
 
 dht_ns = cg.esphome_ns.namespace("dht")
@@ -59,8 +58,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    pin = await gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

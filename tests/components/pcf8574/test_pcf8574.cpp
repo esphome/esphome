@@ -50,10 +50,8 @@ class PCF8574ResetTest : public ::testing::TestWithParam<bool> {
   }
 
   void configure_input_(uint8_t number) {
-    PCF8574GPIOPin pin;
-    pin.set_parent(&this->component_);
-    pin.set_pin(number);
-    pin.set_flags(gpio::FLAG_INPUT);
+    // Codegen registers input pins with the parent before setup()
+    this->component_.register_input_pin(number);
     EXPECT_EQ(this->bus_.writes, 0);
     EXPECT_EQ(this->bus_.reads, 0);
   }

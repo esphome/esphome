@@ -44,17 +44,13 @@ void DHT::update() {
   }
 
   if (success) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   } else {
     ESP_LOGW(TAG, "Invalid readings");
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
     this->status_set_warning();
   }
 }
@@ -166,7 +162,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
             BYTE_TO_BINARY(data[0]), BYTE_TO_BINARY(data[1]), BYTE_TO_BINARY(data[2]), BYTE_TO_BINARY(data[3]),
             BYTE_TO_BINARY(data[4]));
 
-  uint8_t checksum_a = data[0] + data[1] + data[2] + data[3];
+  uint8_t checksum_a = sum_bytes(data, 4);
   // On the DHT11, two algorithms for the checksum seem to be used, either the one from the DHT22,
   // or just using bytes 0 and 2
   uint8_t checksum_b = this->model_ == DHT_MODEL_DHT11 ? (data[0] + data[2]) : checksum_a;

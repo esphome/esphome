@@ -46,8 +46,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await output.register_output(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_FREQUENCY).
     if (frequency := config[CONF_FREQUENCY]) != DEFAULT_FREQUENCY:

@@ -6,7 +6,7 @@ from esphome.components.esp32_ble import (
     CONF_MAX_KEY_SIZE,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TIME_ID
+from esphome.const import CONF_TIME_ID
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -40,21 +40,18 @@ ECOCOMFORT2_CLIENT_SCHEMA = cv.Schema(
     }
 )
 
-_request_child_slot = cg.slot_counter("ECOCOMFORT2_CHILD_COUNT")
+_register_child = cg.slot_list("ECOCOMFORT2_CHILD_COUNT", "register_child", DOMAIN)
 
 
 async def register_ecocomfort2_child(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
-    _request_child_slot(str(parent))
-    cg.add(parent.register_child(var))
+    await cg.register_parented(var, parent)
+    cg.add(_register_child(parent, var))
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
-    if (time_id := config.get(CONF_TIME_ID)) is not None:
-        cg.add(var.set_time(await cg.get_variable(time_id)))
+    var = await ble_client.new_ble_node_component(config)
+    await cg.add_variable(var.set_time, config.get(CONF_TIME_ID))
 
 
 def _final_validate(config: ConfigType) -> ConfigType:

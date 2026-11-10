@@ -39,7 +39,7 @@ CoverCall &CoverCall::set_command(const char *command) {
   } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", LOG_STR_ARG(this->parent_->get_log_name()), command);
   }
   return *this;
 }
@@ -55,6 +55,10 @@ CoverCall &CoverCall::set_command_stop() {
   this->stop_ = true;
   return *this;
 }
+CoverCall &CoverCall::set_command_stop_tilt() {
+  this->stop_tilt_ = true;
+  return *this;
+}
 CoverCall &CoverCall::set_command_toggle() {
   this->toggle_ = true;
   return *this;
@@ -68,11 +72,14 @@ CoverCall &CoverCall::set_tilt(float tilt) {
   return *this;
 }
 void CoverCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   auto traits = this->parent_->get_traits();
   this->validate_();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
+  }
+  if (this->stop_tilt_) {
+    ESP_LOGV(TAG, "  Command: STOP_TILT");
   }
   if (this->position_.has_value()) {
     if (traits.get_supports_position()) {
@@ -94,7 +101,7 @@ const optional<float> &CoverCall::get_tilt() const { return this->tilt_; }
 const optional<bool> &CoverCall::get_toggle() const { return this->toggle_; }
 void CoverCall::validate_() {
   auto traits = this->parent_->get_traits();
-  const char *name = this->parent_->get_name().c_str();
+  const char *name = LOG_STR_ARG(this->parent_->get_log_name());
 
   if (this->position_.has_value()) {
     auto pos = *this->position_;
@@ -122,6 +129,15 @@ void CoverCall::validate_() {
       this->toggle_.reset();
     }
   }
+  if (this->stop_tilt_) {
+    if (!traits.get_supports_stop_tilt()) {
+      ESP_LOGW(TAG, "'%s': stop tilt unsupported", name);
+      this->stop_tilt_ = false;
+    } else if (this->tilt_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot tilt when stopping tilt", name);
+      this->tilt_.reset();
+    }
+  }
   if (this->stop_) {
     if (this->position_.has_value() || this->tilt_.has_value() || this->toggle_.has_value()) {
       ESP_LOGW(TAG, "'%s': cannot position/tilt/toggle when stopping", name);
@@ -135,11 +151,15 @@ CoverCall &CoverCall::set_stop(bool stop) {
   this->stop_ = stop;
   return *this;
 }
+CoverCall &CoverCall::set_stop_tilt(bool stop_tilt) {
+  this->stop_tilt_ = stop_tilt;
+  return *this;
+}
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);
 
-  ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
+  ESP_LOGV(TAG, "'%s' >>", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
     ESP_LOGV(TAG, "  Position: %.0f%%", this->position * 100.0f);

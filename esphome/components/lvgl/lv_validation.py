@@ -236,7 +236,7 @@ def id_name(value):
 
 
 def stop_value(value):
-    return cv.int_range(0, 255)(value)
+    return cv.uint8_t(value)
 
 
 def _image_validator(value):
@@ -398,7 +398,7 @@ lv_brightness = LValidator(
 
 
 def _percentage_validator(value):
-    value = cv.Any(cv.percentage, cv.float_range(0.0, 1.0), cv.int_range(0, 255))(value)
+    value = cv.Any(cv.percentage, cv.float_range(0.0, 1.0), cv.uint8_t)(value)
     if isinstance(value, int):
         return value / 255.0
     return value

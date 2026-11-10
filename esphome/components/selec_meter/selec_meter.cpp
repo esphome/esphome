@@ -46,7 +46,7 @@ static void publish_float(sensor::Sensor *sens, std::span<const uint16_t> regist
                           bool word_swapped) {
   float value = read_float(registers, 0, reg, word_swapped);
   if (!std::isfinite(value)) {
-    ESP_LOGD(TAG, "Skipping non-finite value for '%s'", sens->get_name().c_str());
+    ESP_LOGD(TAG, "Skipping non-finite value for '%s'", LOG_STR_ARG(sens->get_log_name()));
     return;
   }
   sens->publish_state(kilo ? value * 1000.0f : value);
@@ -85,11 +85,11 @@ bool SelecMeter::wanted_(ReadState state) const {
       return true;
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
     case ReadState::READ_STATE_SERIAL_NUMBER:
-      return this->serial_number_sensor_ != nullptr && this->serial_number_failures_ < MAX_OPTIONAL_READ_FAILURES;
+      return this->serial_number_text_sensor_ != nullptr && this->serial_number_failures_ < MAX_OPTIONAL_READ_FAILURES;
 #endif
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_BINARY_SENSOR)
     case ReadState::READ_STATE_DG_SENSING:
-      return this->dg_sensing_sensor_ != nullptr && this->dg_sensing_failures_ < MAX_OPTIONAL_READ_FAILURES;
+      return this->dg_sensing_binary_sensor_ != nullptr && this->dg_sensing_failures_ < MAX_OPTIONAL_READ_FAILURES;
 #endif
     default:
       return false;
@@ -133,11 +133,7 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
 #else
       bool ok = this->decode_em2m_(registers);
 #endif
-      if (ok) {
-        this->status_clear_warning();
-      } else {
-        this->status_set_warning();
-      }
+      this->status_comm_result(ok);
       break;
     }
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
@@ -202,7 +198,7 @@ void SelecMeter::decode_serial_number_(std::span<const uint16_t> registers) {
   }
   char buf[9];
   snprintf(buf, sizeof(buf), "%08" PRIX32, *serial);
-  this->serial_number_sensor_->publish_state(buf);
+  this->serial_number_text_sensor_->publish_state(buf);
   // The serial number never changes, so stop reading it
   this->serial_number_failures_ = MAX_OPTIONAL_READ_FAILURES;
 }
@@ -216,7 +212,7 @@ void SelecMeter::decode_dg_sensing_(std::span<const uint16_t> registers) {
     note_optional_read_failure(this->dg_sensing_failures_, read_state_name(ReadState::READ_STATE_DG_SENSING));
     return;
   }
-  this->dg_sensing_sensor_->publish_state(value != 0);
+  this->dg_sensing_binary_sensor_->publish_state(value != 0);
   this->dg_sensing_failures_ = 0;
 }
 #endif
@@ -400,10 +396,10 @@ void SelecMeter::dump_config() {
     LOG_SENSOR("  ", "Net Apparent Energy (DG)", this->net_apparent_energy_dg_sensor_);
   }
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_sensor_);
+  LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
 #endif
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "DG Sensing", this->dg_sensing_sensor_);
+  LOG_BINARY_SENSOR("  ", "DG Sensing", this->dg_sensing_binary_sensor_);
 #endif
 #endif
 }

@@ -11,6 +11,7 @@ from PIL import Image, UnidentifiedImageError
 import pytest
 
 from .bmp_utils import Bmp, capture_when_drawn, wait_for_bmp
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
@@ -81,12 +82,12 @@ async def test_snapshot_display(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
-        service = next(s for s in services if s.name == "take_snapshot")
+        service = require_service(services, "take_snapshot")
 
         async def take(name: str) -> None:
             await client.execute_service(service, {"name": name})
 
-        animation_service = next(s for s in services if s.name == "take_animation")
+        animation_service = require_service(services, "take_animation")
 
         # The test card is drawn in several colours, so once it is on the screen the picture is
         # not one flat shade. Capturing until that is true waits out the first update rather than
@@ -110,8 +111,8 @@ async def test_snapshot_display(
         # it passes the point where the code width grows and where the dictionary is started over.
         # The picture uses no more than 256 colours, so it is stored exactly and every frame must
         # come back identical to the one captured as a BMP.
-        noise_service = next(s for s in services if s.name == "take_noise_snapshot")
-        noise_animation = next(s for s in services if s.name == "take_noise_animation")
+        noise_service = require_service(services, "take_noise_snapshot")
+        noise_animation = require_service(services, "take_noise_animation")
 
         async def take_noise(name: str) -> None:
             await client.execute_service(noise_service, {"name": name})
@@ -155,7 +156,7 @@ async def test_snapshot_display(
 
         # A display records one animation at a time. A second request made while the first is still
         # running is refused and leaves no file, and the first one carries on to the end.
-        slow_animation = next(s for s in services if s.name == "take_slow_animation")
+        slow_animation = require_service(services, "take_slow_animation")
         await client.execute_service(slow_animation, {"name": "slow"})
         await client.execute_service(slow_animation, {"name": "second"})
         await asyncio.wait_for(busy.wait(), timeout=10.0)

@@ -13,9 +13,7 @@ void SystaBus::dump_config() { ESP_LOGCONFIG(TAG, "SystaBus:"); }
 static bool checksum(std::span<const uint8_t> data) { return sum_bytes(data.data(), data.size()) == 0; }
 
 void SystaBus::loop() {
-  uint8_t c;
-  while (this->available() && this->read_byte(&c))
-    this->handle_byte_(c);
+  this->read_available([this](uint8_t c) { this->handle_byte_(c); });
 }
 
 void SystaBus::handle_byte_(uint8_t c) {

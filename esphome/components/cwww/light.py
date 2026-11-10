@@ -36,14 +36,14 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 
-    cwhite = await cg.get_variable(config[CONF_COLD_WHITE])
-    cg.add(var.set_cold_white(cwhite))
-    if cold_white_color_temperature := config.get(CONF_COLD_WHITE_COLOR_TEMPERATURE):
-        cg.add(var.set_cold_white_temperature(cold_white_color_temperature))
+    await cg.add_variable(var.set_cold_white, config[CONF_COLD_WHITE])
+    cg.add_optional(
+        var.set_cold_white_temperature, config.get(CONF_COLD_WHITE_COLOR_TEMPERATURE)
+    )
 
-    wwhite = await cg.get_variable(config[CONF_WARM_WHITE])
-    cg.add(var.set_warm_white(wwhite))
-    if warm_white_color_temperature := config.get(CONF_WARM_WHITE_COLOR_TEMPERATURE):
-        cg.add(var.set_warm_white_temperature(warm_white_color_temperature))
+    await cg.add_variable(var.set_warm_white, config[CONF_WARM_WHITE])
+    cg.add_optional(
+        var.set_warm_white_temperature, config.get(CONF_WARM_WHITE_COLOR_TEMPERATURE)
+    )
 
     cg.add(var.set_constant_brightness(config[CONF_CONSTANT_BRIGHTNESS]))

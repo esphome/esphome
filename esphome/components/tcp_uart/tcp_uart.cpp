@@ -17,13 +17,11 @@ void TcpUart::setup() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
-  }
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
+#endif
 #ifdef USE_SENSOR
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->disconnects_sensor_, 0);
 #endif
 }
 
@@ -31,14 +29,17 @@ void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TCP UART:\n"
                 "  %s: %s:%u\n"
-                "  Reconnect Interval: %" PRIu32 "ms",
+                "  Reconnect Interval: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval());
+                this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
+#endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
 #endif
@@ -58,9 +59,9 @@ void TcpUart::sync_link_() {
     // Unread bytes of the last session stay readable while down, never into the next one.
     this->rx_start_ = this->rx_end_ = 0;
   }
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
-  }
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->connected_binary_sensor_, up);
+#endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.
   if (!up && this->disconnects_sensor_ != nullptr) {
@@ -78,7 +79,8 @@ void TcpUart::read_socket_() {
   }
   size_t room = RX_BUFFER_SIZE - this->rx_end_;
   if (room == 0) {
-    // Only a read that filled all free space gets here, so rx_pending_ is already set.
+    // Unread bytes are waiting on the consumer. The peer is not idle.
+    this->link_.note_io();
     return;
   }
   ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
@@ -115,6 +117,7 @@ void TcpUart::loop() {
     this->read_socket_();
   }
   this->link_.flush_tx();
+  this->link_.check_idle();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {

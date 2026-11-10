@@ -31,9 +31,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     await cg.register_parented(var, hub)
 
-    if CONF_TOUCH_THRESHOLD in config:
-        cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
-    if CONF_RELEASE_THRESHOLD in config:
-        cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
+    cg.add_optional(var.set_touch_threshold, config.get(CONF_TOUCH_THRESHOLD))
+    cg.add_optional(var.set_release_threshold, config.get(CONF_RELEASE_THRESHOLD))
 
     cg.add(hub.register_channel(var))

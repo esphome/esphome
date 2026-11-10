@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import display, spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_MODEL
+from esphome.const import CONF_ID, CONF_MODEL
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
@@ -32,12 +32,12 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_MODEL])
+    model = MODELS[config[CONF_MODEL]]
+    frame_buffer = cg.static_buffer(
+        config[CONF_ID], cg.uint8, Pixoo.static_("frame_size")(model), align=4
+    )
+    var = cg.new_Pvariable(config[CONF_ID], model, frame_buffer)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

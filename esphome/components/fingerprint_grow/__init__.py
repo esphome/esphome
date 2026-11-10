@@ -146,13 +146,8 @@ async def to_code(config):
         new_password = config[CONF_NEW_PASSWORD]
         cg.add(var.set_new_password(new_password))
 
-    if CONF_SENSING_PIN in config:
-        sensing_pin = await cg.gpio_pin_expression(config[CONF_SENSING_PIN])
-        cg.add(var.set_sensing_pin(sensing_pin))
-
-    if CONF_SENSOR_POWER_PIN in config:
-        sensor_power_pin = await cg.gpio_pin_expression(config[CONF_SENSOR_POWER_PIN])
-        cg.add(var.set_sensor_power_pin(sensor_power_pin))
+    await cg.add_pin(var.set_sensing_pin, config.get(CONF_SENSING_PIN))
+    await cg.add_pin(var.set_sensor_power_pin, config.get(CONF_SENSOR_POWER_PIN))
 
     if CONF_IDLE_PERIOD_TO_SLEEP in config:
         idle_period_to_sleep_ms = config[CONF_IDLE_PERIOD_TO_SLEEP]

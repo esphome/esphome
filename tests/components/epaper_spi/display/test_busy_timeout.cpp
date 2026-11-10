@@ -7,14 +7,8 @@
 #include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
 
 namespace esphome::epaper_spi::testing {
-
-/// A busy pin the test can hold at "busy" and release.
-class SwitchableBusyPin : public RecordingPin {
- public:
-  bool digital_read() override { return this->busy; }
-
-  bool busy{false};
-};
+// Other test files define fixtures with the same names; keep these to this file
+namespace {
 
 template<typename T> void loop_until_idle(T &display) {
   const uint32_t deadline = millis() + 1000;
@@ -142,4 +136,5 @@ TEST(EPaperBusyTimeout, AbandonedUpdatePowersThePanelOff) {
       << "the panel was not powered off (POF) when the update was abandoned";
 }
 
+}  // namespace
 }  // namespace esphome::epaper_spi::testing

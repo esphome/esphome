@@ -6,8 +6,6 @@ namespace esphome::waveshare_io_ch32v003 {
 
 ESPHOME_LOG_TAG(TAG, "waveshare_io_ch32v003.sensor");
 
-float WaveshareIOCH32V003Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void WaveshareIOCH32V003Sensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "WaveshareIOCH32V003Sensor:\n"

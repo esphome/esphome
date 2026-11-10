@@ -88,7 +88,6 @@ class QMI8658Component : public motion::MotionComponent, public i2c::I2CDevice {
   // Lifecycle
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Configuration setters
   void set_accel_range(QMI8658AccelRange r) { this->accel_range_ = r; }

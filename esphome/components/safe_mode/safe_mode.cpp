@@ -64,17 +64,13 @@ void SafeModeComponent::dump_config() {
                 this->safe_mode_num_attempts_,
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
-  const char *state_str;
-  if (this->ota_state_ == ESP_OTA_IMG_NEW) {
-#ifdef USE_OTA_PARTITIONS
-    state_str = "support unknown";
-#else
+  const char *state_str = "support unknown";
+  if (this->ota_state_ == ESP_OTA_IMG_PENDING_VERIFY) {
+    state_str = "supported";
+#ifndef USE_OTA_PARTITIONS
+  } else if (this->ota_state_ == ESP_OTA_IMG_NEW) {
     state_str = "not supported";
 #endif
-  } else if (this->ota_state_ == ESP_OTA_IMG_PENDING_VERIFY) {
-    state_str = "supported";
-  } else {
-    state_str = "support unknown";
   }
   ESP_LOGCONFIG(TAG, "  Bootloader rollback: %s", state_str);
 #endif
@@ -172,6 +168,14 @@ void SafeModeComponent::set_safe_mode_pending(const bool &pending) {
 
 bool SafeModeComponent::get_safe_mode_pending() {
   return this->read_rtc_() == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
+}
+
+void SafeModeComponent::restart_in_safe_mode() {
+  ESP_LOGI(TAG, "Restarting in safe mode");
+  this->set_safe_mode_pending(true);
+  // Let MQTT settle a bit
+  delay(100);  // NOLINT
+  App.safe_reboot();
 }
 
 bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after,
