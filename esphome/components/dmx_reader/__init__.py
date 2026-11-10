@@ -1,13 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN
+from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_RTS_PIN
 
 CODEOWNERS = ["@KoenBreeman"]
-DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["sensor", "number"]
 
-CONF_RTS_PIN = "rts_pin"
+DOMAIN = "dmx_reader"
 CONF_UART_NUM = "uart_num"
 
 dmx_reader_ns = cg.esphome_ns.namespace("dmx_reader")

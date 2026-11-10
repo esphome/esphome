@@ -7,8 +7,7 @@
 #include <esp_dmx.h>
 #include <vector>
 
-namespace esphome {
-namespace dmx_reader {
+namespace esphome::dmx_reader {
 
 class DMXReader : public Component {
  public:
@@ -24,10 +23,10 @@ class DMXReader : public Component {
 
   uint8_t get_channel(uint16_t channel) const;
 
-  // Vast kanaal
+  // fixed channel
   void register_channel_sensor(uint16_t channel, sensor::Sensor *sens);
 
-  // Dynamisch kanaal via Number-entity
+  // Dynamic channel via Number-entity
   void register_dynamic_channel_sensor(number::Number *channel_number, sensor::Sensor *sens);
 
  protected:
@@ -52,5 +51,4 @@ class DMXReader : public Component {
   std::vector<DynamicChannelSensor> dynamic_sensors_;
 };
 
-}  // namespace dmx_reader
-}  // namespace esphome
+}  // namespace esphome::dmx_reader
