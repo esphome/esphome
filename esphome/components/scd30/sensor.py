@@ -1,4 +1,4 @@
-from esphome import automation, core, final_validate as fv
+from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
@@ -8,10 +8,8 @@ from esphome.const import (
     CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_HUMIDITY,
-    CONF_I2C_ID,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
-    CONF_TIMEOUT,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -23,13 +21,10 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
-
-CLOCK_STRETCH_LIMIT_US = 150_000
 
 scd30_ns = cg.esphome_ns.namespace("scd30")
 SCD30Component = scd30_ns.class_(
@@ -84,13 +79,6 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
-
-    if CORE.is_esp8266:
-        # The SCD30 stretches the clock for up to 150 ms; give its bus that much unless a timeout is set
-        bus_config = fv.get_declaring_config(config[CONF_I2C_ID], CORE.config)
-        if CONF_TIMEOUT not in bus_config:
-            bus = await cg.get_variable(config[CONF_I2C_ID])
-            cg.add(bus.set_timeout(CLOCK_STRETCH_LIMIT_US))
 
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
     if CONF_ALTITUDE_COMPENSATION in config:
