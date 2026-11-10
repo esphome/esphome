@@ -25,6 +25,7 @@ class CombinationNoParameterComponent : public CombinationComponent {
   /// @brief Adds a callback to each source sensor
   void setup() override;
 
+  void set_sensor_storage(std::span<Sensor *> storage) { this->sensors_.init(storage); }
   void add_source(Sensor *sensor);
 
   /// @brief Computes the combination
@@ -35,7 +36,7 @@ class CombinationNoParameterComponent : public CombinationComponent {
   void log_source_sensors() override;
 
  protected:
-  std::vector<Sensor *> sensors_;
+  StaticFixedVector<Sensor *> sensors_;
 };
 
 // Base class for opertions that require one parameter to compute the combination
