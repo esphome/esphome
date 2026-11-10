@@ -244,15 +244,12 @@ size_t LzssCompression::expand(const PacketBuffer &data, size_t offset, size_t s
 }
 
 bool LzssCompression::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
-  if (this->tx_input_ == nullptr || this->sending_)
-    return false;
-  this->sending_ = true;
-  bool sent = this->send_(data, meta_data);
-  this->sending_ = false;
-  return sent;
+  return this->send_exclusive_([&] { return this->send_(data, meta_data); });
 }
 
 bool LzssCompression::send_(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  if (this->tx_input_ == nullptr)
+    return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {
     ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than %zu", this->name_, size, this->max_packet_size_);

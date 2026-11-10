@@ -81,8 +81,6 @@ class LzssCompression : public PacketInterface {
   uint16_t *head_{nullptr};
   uint16_t *previous_{nullptr};
   const uint8_t check_;
-  // A log line can run an automation that sends again before the lower layer is done with tx_output_
-  bool sending_{false};
 };
 
 }  // namespace esphome::packet_interface

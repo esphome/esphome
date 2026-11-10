@@ -198,7 +198,11 @@ TEST_F(LzssCompressionTest, NestedSendRefused) {
   Peer a(JSON_DICTIONARY);
   Peer b(JSON_DICTIONARY);
   bool nested = true;
-  a.link.on_send = [&]() { nested = a.send(text(R"({"state":"OFF"})")); };
+  int calls = 0;
+  a.link.on_send = [&]() {
+    if (calls++ == 0)
+      nested = a.send(text(R"({"state":"OFF"})"));
+  };
   ASSERT_TRUE(a.send(text(WEATHER)));
   EXPECT_FALSE(nested);
   a.link.on_send = nullptr;
