@@ -47,6 +47,7 @@ void WLEDLightEffect::stop() {
     udp_->stop();
     udp_.reset();
   }
+  this->payload_ = {};
 }
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
@@ -67,16 +68,17 @@ void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_co
     }
   }
 
-  std::vector<uint8_t> payload;
   while (uint16_t packet_size = udp_->parsePacket()) {
-    payload.resize(packet_size);
+    if (this->payload_.size() < packet_size)
+      this->payload_.resize(packet_size);
+    uint8_t *payload = this->payload_.data();
 
-    if (!udp_->read(&payload[0], payload.size())) {
+    if (!udp_->read(payload, packet_size)) {
       continue;
     }
 
-    if (!this->parse_frame_(it, &payload[0], payload.size())) {
-      ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=0x%02X).", payload.size(), payload[0]);
+    if (!this->parse_frame_(it, payload, packet_size)) {
+      ESP_LOGD(TAG, "Frame: Invalid (size=%u, first=0x%02X).", static_cast<unsigned>(packet_size), payload[0]);
       continue;
     }
   }

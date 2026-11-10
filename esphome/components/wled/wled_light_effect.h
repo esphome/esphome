@@ -41,6 +41,8 @@ class WLEDLightEffect : public light::AddressableLightEffect {
 
   uint16_t port_{0};
   std::unique_ptr<UDP> udp_;
+  // Grows to the largest frame and is reused for every frame; freed in stop()
+  std::vector<uint8_t> payload_;
   optional<uint32_t> blank_start_{};
   uint32_t blank_timeout_{0};
   uint32_t dropped_{0};
