@@ -62,12 +62,17 @@ def _validate_layers(config: ConfigType) -> ConfigType:
     return config
 
 
-def interface_layers(interface_id: ID) -> ConfigType | None:
-    """During final validation, the configuration holding the layers of the packet interface with this id."""
+def interface_layers(interface_id: ID) -> ConfigType:
+    """During final validation, the configuration holding the layers of the packet interface with this id.
+
+    Raises cv.Invalid for the id of a layer, which would leave out the layers above it.
+    """
     for interface in fv.full_config.get().get(DOMAIN, []):
         if interface[CONF_ID].id == interface_id.id:
             return interface
-    return None
+    raise cv.Invalid(
+        f"'{interface_id.id}' is a layer of a packet interface; use the id of the link"
+    )
 
 
 def packet_interface_schema(
