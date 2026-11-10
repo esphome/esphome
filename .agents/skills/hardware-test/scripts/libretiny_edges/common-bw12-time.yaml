@@ -1,0 +1,104 @@
+substitutions:
+  name: bw12-time
+
+esphome:
+  name: ${name}
+  friendly_name: BW12 Time Test
+  platformio_options:
+    upload_speed: 115200
+
+rtl87xx:
+  board: bw12
+  framework:
+    version: recommended
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+
+captive_portal:
+
+button:
+  - platform: restart
+    name: Restart
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          static bool done = false;
+          if (done) return;
+          done = true;
+          // mask ROM: SYSTIMER_TickGet at 0x33a0 (32 bytes), RTIM_GetCount at 0xb42c (72 bytes)
+          const uint32_t ranges[2][2] = {{0x33a0, 32}, {0xb42c, 72}};
+          for (auto &r : ranges) {
+            char hex[3 * 72 + 1];
+            const volatile uint8_t *p = (const volatile uint8_t *) r[0];
+            for (uint32_t i = 0; i < r[1]; i++) sprintf(hex + 3 * i, "%02x ", p[i]);
+            ESP_LOGI("tm", "ROM %05x: %s", (unsigned) r[0], hex);
+          }
+  - interval: 5s
+    then:
+      - lambda: 'ESP_LOGI("tm", "CLOCK ms %u us %u", millis(), micros());'
+  - interval: 30s
+    then:
+      - lambda: |-
+          volatile uint32_t *demcr = (volatile uint32_t *) 0xE000EDFC, *dwt = (volatile uint32_t *) 0xE0001000;
+          *demcr |= 1u << 24;
+          dwt[0] |= 1;
+          const float mhz = SystemCoreClock / 1e6f;
+          // cycles per call, 1000 calls, loop overhead subtracted
+          volatile uint32_t sink = 0;
+          uint32_t c0 = dwt[1];
+          for (int i = 0; i < 1000; i++) sink = sink + i;
+          uint32_t base = dwt[1] - c0;
+          c0 = dwt[1];
+          for (int i = 0; i < 1000; i++) sink = sink + millis();
+          uint32_t ms_c = dwt[1] - c0 - base;
+          c0 = dwt[1];
+          for (int i = 0; i < 1000; i++) sink = sink + micros();
+          uint32_t us_c = dwt[1] - c0 - base;
+          uint32_t isr_c;
+          {
+            InterruptLock lock;
+            c0 = dwt[1];
+            for (int i = 0; i < 1000; i++) sink = sink + micros();
+            isr_c = dwt[1] - c0 - base;
+          }
+          ESP_LOGI("tm", "BENCH cycles per call millis %.1f micros %.1f micros_locked %.1f (core %.1f MHz)",
+                   ms_c / 1000.0f, us_c / 1000.0f, isr_c / 1000.0f, mhz);
+          uint32_t got[6];
+          const uint32_t req_us[3] = {50, 500, 5000};
+          for (int i = 0; i < 3; i++) {
+            uint32_t a = dwt[1];
+            delayMicroseconds(req_us[i]);
+            got[i] = uint32_t((dwt[1] - a) / mhz);
+          }
+          const uint32_t req_ms[3] = {1, 10, 100};
+          for (int i = 0; i < 3; i++) {
+            uint32_t a = dwt[1];
+            delay(req_ms[i]);
+            got[3 + i] = uint32_t((dwt[1] - a) / mhz);
+          }
+          ESP_LOGI("tm", "DELAY real us: delayMicroseconds 50->%u 500->%u 5000->%u, delay 1->%u 10->%u 100->%u",
+                   got[0], got[1], got[2], got[3], got[4], got[5]);
+          uint32_t first = micros(), prev = first, maxstep = 0, back = 0, distinct = 0, mism = 0;
+          for (int i = 0; i < 20000; i++) {
+            uint32_t ms = millis(), m = micros(), ms2 = millis();
+            if (ms == ms2 && m / 1000 != ms) mism++;
+            if (m != prev) { distinct++; if (m < prev) back++; else if (m - prev > maxstep) maxstep = m - prev; }
+            prev = m;
+          }
+          ESP_LOGI("tm", "MICROS span %u distinct %u maxstep %u backwards %u, micros/1000 != millis %u of 20000",
+                   prev - first, distinct, maxstep, back, mism);

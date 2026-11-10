@@ -104,11 +104,11 @@ class MQTTComponent : public Component {
   bool is_internal() const { return this->is_internal_; }
 
   /// Set QOS for state messages.
-  void set_qos(uint8_t qos);
+  void set_qos(uint8_t qos) { this->qos_ = qos; }
   uint8_t get_qos() const { return this->qos_; }
 
   /// Set whether state message should be retained.
-  void set_retain(bool retain);
+  void set_retain(bool retain) { this->retain_ = retain; }
   bool get_retain() const { return this->retain_; }
 
   /// Disable discovery. Sets friendly name to "".
@@ -116,7 +116,7 @@ class MQTTComponent : public Component {
   bool is_discovery_enabled() const;
 
   /// Set the QOS for subscribe messages (used in discovery).
-  void set_subscribe_qos(uint8_t qos);
+  void set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
 
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual const char *component_type() const = 0;
@@ -130,7 +130,7 @@ class MQTTComponent : public Component {
     this->custom_command_topic_ = std::forward<T>(custom_command_topic);
   }
   /// Set whether command message should be retained.
-  void set_command_retain(bool command_retain);
+  void set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
   /// MQTT_COMPONENT setup priority.
   float get_setup_priority() const override;

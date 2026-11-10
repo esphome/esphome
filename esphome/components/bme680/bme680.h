@@ -73,11 +73,17 @@ class BME680Component final : public PollingComponent, public i2c::I2CDevice {
 
  public:
   /// Set the temperature oversampling value. Defaults to 16X.
-  void set_temperature_oversampling(BME680Oversampling temperature_oversampling);
+  void set_temperature_oversampling(BME680Oversampling temperature_oversampling) {
+    this->temperature_oversampling_ = temperature_oversampling;
+  }
   /// Set the pressure oversampling value. Defaults to 16X.
-  void set_pressure_oversampling(BME680Oversampling pressure_oversampling);
+  void set_pressure_oversampling(BME680Oversampling pressure_oversampling) {
+    this->pressure_oversampling_ = pressure_oversampling;
+  }
   /// Set the humidity oversampling value. Defaults to 16X.
-  void set_humidity_oversampling(BME680Oversampling humidity_oversampling);
+  void set_humidity_oversampling(BME680Oversampling humidity_oversampling) {
+    this->humidity_oversampling_ = humidity_oversampling;
+  }
   /// Set the IIR Filter value. Defaults to no IIR Filter.
   void set_iir_filter(BME680IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 

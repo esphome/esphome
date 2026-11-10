@@ -10,10 +10,8 @@ ESPHOME_LOG_TAG(TAG, "ax15231.touchscreen");
 constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x8};
 
 #define ERROR_CHECK(err) \
-  if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning(LOG_STR("Failed to communicate")); \
-    return; \
-  }
+  if (!this->status_comm_check((err) == i2c::ERROR_OK)) \
+    return;
 
 void AXS15231Touchscreen::setup() {
   pulse_reset(this->reset_pin_, {.low_ms = 5, .high_after_ms = 10});
