@@ -748,11 +748,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     auto command = call.get_command();
     bool enqueue = command.has_value() && command.value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
 
-    if (enqueue) {
-      control_command.type = MediaPlayerControlCommand::ENQUEUE_URI;
-    } else {
-      control_command.type = MediaPlayerControlCommand::PLAY_URI;
-    }
+    control_command.type = enqueue ? MediaPlayerControlCommand::ENQUEUE_URI : MediaPlayerControlCommand::PLAY_URI;
     // Heap allocation is unavoidable: URIs from Home Assistant are arbitrary-length (media URLs with tokens
     // can easily exceed 500 bytes). Deleted in process_control_queue_() after the command is consumed. FreeRTOS queues
     // require items to be copyable, so we store a pointer to the string in the queue rather than the string itself.
