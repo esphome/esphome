@@ -14,15 +14,19 @@ delta from an `interval`. Compare a PR build with its base on the same flow; the
 
 `scripts/heap_alloc/`:
 - `allocring.hpp` counts every `operator new` and, once armed, keeps the first 1024 with their size, time and
-  five caller PCs (`esp_backtrace_get_next_frame`), about 28 KB of RAM. It disarms itself when full.
+  five caller PCs, about 28 KB of RAM. It disarms itself when full. The frame walker
+  (`esp_backtrace_get_next_frame`) exists only on Xtensa (ESP32, S2, S3); on RISC-V chips entries keep size and
+  time without callers.
 - `allocring.yaml` (package, substitution `alloc_arm_s`) arms it that many seconds after boot and adds a
   "Dump allocations" button that logs what was kept.
-- `alloc_marker(a, b)` from a lambda writes a size 0 entry, for example on each cover operation change, so the
+- `alloc_marker(a, b)` from a lambda writes a marker entry, for example on each cover operation change, so the
   dump splits into phases.
-- `dump.py HOST OUT` presses the button and saves the dump; `decode.py LOG ELF [ADDR2LINE]` prints each entry
-  with its callers as function and file:line. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
+- `dump.py HOST OUT` presses the button and saves the dump, pressing again when the log subscription started
+  late. `decode.py LOG ELF [ADDR2LINE]` prints each entry with its callers as function and file:line, and exits 2
+  when entries are missing or the buffer filled. The ESP-IDF ELF is `.esphome/build/<name>/build/firmware.elf`.
 - `cycles_cover.py HOST N OUT` opens and closes the first cover N times (`cover_command(position=...)`, waiting
-  for idle each way) with a states-only API client, then saves the dump the same way.
+  for idle each way) with a states-only API client, then saves the dump the same way. It exits 2 when a move
+  never reached its position.
 
 Findings:
 - Arm well after boot: the scheduler regrows its storage once after the freelist trim (see `scheduler.md`).

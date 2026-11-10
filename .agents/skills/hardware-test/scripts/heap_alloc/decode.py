@@ -1,7 +1,8 @@
 """Decode an allocring dump into callers: decode.py LOG ELF [ADDR2LINE]
 
 Prints each entry with its caller frames as function and file:line, and markers (size 0) as phase separators.
-ADDR2LINE defaults to one for the ELF's CPU found under ~/.platformio or ~/.espressif.
+ADDR2LINE defaults to one for the ELF's CPU found in ESPHome's ESP-IDF tools cache, ~/.platformio or ~/.espressif.
+Exits 2 when the dump is incomplete (missing header or entries, or the buffer filled during the run).
 """
 
 from pathlib import Path
@@ -10,17 +11,28 @@ import subprocess
 import sys
 
 ENTRY = re.compile(r"\bE (\d+) (\d+) (\d+) ((?:[0-9a-f]{8} ?){5})")
-# ELF e_machine values
-TOOL_FOR_MACHINE = {94: "xtensa-esp*-elf-addr2line", 243: "riscv32-esp-elf-addr2line"}
+HEADER = re.compile(r"\bDUMP n=(\d+) claimed=(\d+)")
+MARKER = 0xFFFFFFFF
+XTENSA = 94  # ELF e_machine; the recorder walks frames only on Xtensa
+
+
+def tool_roots() -> list[Path]:
+    roots = [Path.home() / ".platformio", Path.home() / ".espressif"]
+    try:
+        from esphome.espidf.framework import get_idf_tools_path
+    except ImportError:
+        return roots
+    return [get_idf_tools_path(), *roots]
 
 
 def find_addr2line(elf: str) -> str:
     machine = int.from_bytes(Path(elf).read_bytes()[18:20], "little")
-    pattern = TOOL_FOR_MACHINE.get(machine)
-    if pattern is None:
-        sys.exit(f"unknown ELF machine {machine}; pass ADDR2LINE")
-    for root in (Path.home() / ".platformio", Path.home() / ".espressif"):
-        for path in root.glob(f"**/bin/{pattern}"):
+    if machine != XTENSA:
+        sys.exit(
+            f"ELF machine {machine} is not Xtensa; the dump has no callers to decode"
+        )
+    for root in tool_roots():
+        for path in root.glob("**/bin/xtensa-esp*-elf-addr2line"):
             if path.is_file():
                 return str(path)
     sys.exit("no addr2line found; pass it as the third argument")
@@ -56,6 +68,23 @@ def decode(
     return names
 
 
+def check(text: str, entries: list) -> list[str]:
+    """Reasons the dump is incomplete, empty when it is whole."""
+    if not (header := HEADER.search(text)):
+        return ["no DUMP header (log subscription started late?)"]
+    n, claimed = int(header[1]), int(header[2])
+    problems = []
+    if missing := sorted(set(range(n)) - {int(e[0]) for e in entries}):
+        problems.append(f"{len(missing)} of {n} entries missing, first {missing[:10]}")
+    if claimed > n:
+        problems.append(
+            f"buffer filled: {claimed - n} allocations after the first {n} not kept"
+        )
+    if "DUMP END" not in text:
+        problems.append("no DUMP END")
+    return problems
+
+
 def main() -> None:
     log, elf = sys.argv[1], sys.argv[2]
     addr2line = sys.argv[3] if len(sys.argv) > 3 else find_addr2line(elf)
@@ -65,11 +94,15 @@ def main() -> None:
         for idx, ms, size, pcs in ENTRY.findall(text)
     ]
     wanted = {
-        pc for _, _, size, pcs in entries if size for pc in pcs if pc != "00000000"
+        pc
+        for _, _, size, pcs in entries
+        if size != MARKER
+        for pc in pcs
+        if pc != "00000000"
     }
     names = decode(addr2line, elf, sorted(wanted)) if wanted else {}
     for idx, ms, size, pcs in entries:
-        if not size:
+        if size == MARKER:
             print(
                 f"--- marker at {ms / 1000:.3f} s: {int(pcs[0], 16)} {int(pcs[1], 16)}"
             )
@@ -80,6 +113,9 @@ def main() -> None:
                 break
             for func, loc in names[pc]:
                 print(f"    {func[:110]}  {loc}")
+    if problems := check(text, entries):
+        print("INCOMPLETE DUMP: " + "; ".join(problems), file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":

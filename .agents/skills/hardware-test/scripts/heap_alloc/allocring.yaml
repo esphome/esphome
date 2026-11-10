@@ -22,8 +22,10 @@ button:
     on_press:
       - lambda: |-
           g_alloc_armed = false;
-          uint32_t n = std::min<uint32_t>(g_alloc_n.load(), ALLOC_CAP);
-          ESP_LOGI("allocs", "DUMP n=%u total=%u", n, g_new_count);
+          uint32_t claimed = g_alloc_n.load();
+          uint32_t n = std::min<uint32_t>(claimed, ALLOC_CAP);
+          // claimed > n means the buffer filled and recording stopped early
+          ESP_LOGI("allocs", "DUMP n=%u claimed=%u total=%u", n, claimed, g_new_count);
           for (uint32_t i = 0; i < n; i++) {
             const AllocEntry &e = g_allocs[i];
             ESP_LOGI("allocs", "E %u %u %u %08x %08x %08x %08x %08x", i, e.ms, e.size, e.pc[0], e.pc[1], e.pc[2],
