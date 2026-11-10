@@ -59,6 +59,7 @@ class LzssCompression : public PacketInterface {
 
  protected:
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);
+  bool send_(const PacketBuffer &data, const PacketMetaData &meta_data);
   /// The byte at \p pos counting from the start of the dictionary, with \p data following it.
   uint8_t byte_at_(const uint8_t *data, size_t pos) const;
   /// Adds \p pos, which has \p total bytes from the start of the dictionary up to the end of the packet, to the chains.
@@ -80,6 +81,8 @@ class LzssCompression : public PacketInterface {
   uint16_t *head_{nullptr};
   uint16_t *previous_{nullptr};
   const uint8_t check_;
+  // A log line can run an automation that sends again before the lower layer is done with tx_output_
+  bool sending_{false};
 };
 
 }  // namespace esphome::packet_interface

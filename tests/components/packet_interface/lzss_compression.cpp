@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <random>
 #include <string>
@@ -27,12 +28,16 @@ class MockLink : public PacketInterface {
  public:
   explicit MockLink(size_t max_packet_size) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
+    // Before the packet is read, as a log line in a real layer would run it
+    if (this->on_send)
+      this->on_send();
     this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
 
   std::vector<Packet> sent;
+  std::function<void()> on_send;
 };
 
 static const std::string JSON_DICTIONARY =
@@ -186,6 +191,24 @@ TEST_F(LzssCompressionTest, LongMatchesAndOverlap) {
   a.deliver_to(b);
   ASSERT_EQ(b.received.size(), 1u);
   EXPECT_EQ(b.received[0], run);
+}
+
+// A send made while one is still going through the layer below would overwrite the buffer it is reading
+TEST_F(LzssCompressionTest, NestedSendRefused) {
+  Peer a(JSON_DICTIONARY);
+  Peer b(JSON_DICTIONARY);
+  bool nested = true;
+  a.link.on_send = [&]() { nested = a.send(text(R"({"state":"OFF"})")); };
+  ASSERT_TRUE(a.send(text(WEATHER)));
+  EXPECT_FALSE(nested);
+  a.link.on_send = nullptr;
+  a.deliver_to(b);
+  ASSERT_EQ(b.received.size(), 1u);
+  EXPECT_EQ(b.received[0], text(WEATHER));
+  // Sending works again afterwards
+  ASSERT_TRUE(a.send(text(R"({"state":"ON"})")));
+  a.deliver_to(b);
+  EXPECT_EQ(b.received.back(), text(R"({"state":"ON"})"));
 }
 
 // Any input either expands into the buffer or is dropped; nothing is written past it

@@ -31,7 +31,7 @@ LZSS_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(LzssCompression),
         # Text that both ends hold, which packets copy from; both ends must have the same
         cv.Optional(CONF_DICTIONARY, default=DEFAULT_DICTIONARY): cv.All(
-            cv.string_strict, cv.Length(max=MAX_DICTIONARY_SIZE)
+            cv.string_strict, cv.ByteLength(max=MAX_DICTIONARY_SIZE)
         ),
         # A packet larger than the layer below takes is sent only if it compresses enough
         cv.Optional(CONF_MAX_PACKET_SIZE): cv.int_range(16, 16384),
