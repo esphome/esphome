@@ -203,7 +203,10 @@ class ESP32BLE final : public Component {
   }
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
-  void advertising_cancel_deferred_();
+  void advertising_cancel_start_() {
+    if (this->advertising_ != nullptr)
+      this->advertising_->cancel_start();
+  }
 #endif
 
   // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop

@@ -36,8 +36,8 @@ class BLEAdvertising {
   void start();
   void stop();
   /// Send from the next loop(): a burst of refreshes becomes one send instead of flooding the Bluetooth task queue.
-  void request_start() { this->restart_pending_ = true; }
-  void cancel_deferred_restart() { this->restart_pending_ = false; }
+  void request_start() { this->start_pending_ = true; }
+  void cancel_start() { this->start_pending_ = false; }
 
  protected:
   // An element longer than this never fits in a 31 byte packet
@@ -60,7 +60,7 @@ class BLEAdvertising {
   uint8_t manufacturer_data_len_{0};
   uint8_t service_data_len_{0};
   bool include_name_in_adv_{false};
-  bool restart_pending_{false};
+  bool start_pending_{false};
 };
 
 }  // namespace esphome::esp32_ble

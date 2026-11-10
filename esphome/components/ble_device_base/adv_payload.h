@@ -10,14 +10,13 @@
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome::esp32_ble {
+namespace esphome::ble_device_base {
 
 /// A 31 byte advertising or scan response payload, packed in the order and with the fit rules of Bluedroid's
 /// btm_ble_build_adv_data, so the raw bytes match what the esp_ble_adv_data_t API put on air.
 class AdvPayload {
  public:
   static constexpr size_t MAX_LEN = 31;
-  using ESPBTUUID = ble_device_base::ESPBTUUID;
 
   const uint8_t *data() const { return this->buf_.data(); }
   size_t size() const { return this->len_; }
@@ -80,7 +79,7 @@ class AdvPayload {
       const uint8_t *raw = uuid.uuid128();
       if (memcmp(raw, BASE, sizeof(BASE)) != 0)
         return 16;
-      short_value = encode_uint32(raw[15], raw[14], raw[13], raw[12]);
+      short_value = encode_value_le<uint32_t>(raw + 12);
     }
     if (value != nullptr)
       *value = short_value;
@@ -104,9 +103,9 @@ class AdvPayload {
     this->buf_[this->len_++] = 1 + fit * size;
     this->buf_[this->len_++] = fit < count ? partial_type : partial_type + 1;
     for (const auto &uuid : uuids) {
-      uint32_t value;
       if (fit == 0)
         break;
+      uint32_t value;
       if (uuid == skip || uuid_size(uuid, &value) != size)
         continue;
       if (size == 2) {
@@ -125,8 +124,8 @@ class AdvPayload {
 
 /// What the services advertising carries. A set `priority_uuid` (also in `uuids`) gets the advertising packet.
 struct AdvContent {
-  std::span<const AdvPayload::ESPBTUUID> uuids;
-  AdvPayload::ESPBTUUID priority_uuid;
+  std::span<const ESPBTUUID> uuids;
+  ESPBTUUID priority_uuid;
   std::span<const uint8_t> manufacturer_data;
   std::span<const uint8_t> service_data;
   const char *name;
@@ -159,4 +158,4 @@ inline void build_adv_packets(const AdvContent &content, AdvPayload &adv, AdvPay
     rsp.add_service_data(content.service_data);
 }
 
-}  // namespace esphome::esp32_ble
+}  // namespace esphome::ble_device_base

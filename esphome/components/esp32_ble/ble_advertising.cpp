@@ -5,7 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
-#include "adv_payload.h"
+#include "esphome/components/ble_device_base/adv_payload.h"
 #include "ble.h"
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
@@ -16,6 +16,9 @@
 #endif
 
 namespace esphome::esp32_ble {
+
+using ble_device_base::AdvPayload;
+using ble_device_base::build_adv_packets;
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 
@@ -110,7 +113,7 @@ void BLEAdvertising::start() {
 }
 
 void BLEAdvertising::stop() {
-  this->restart_pending_ = false;
+  this->start_pending_ = false;
   esp_err_t err = esp_ble_gap_stop_advertising();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_advertising failed: %d", err);
@@ -123,8 +126,8 @@ void BLEAdvertising::stop() {
 
 void BLEAdvertising::loop() {
   // Send a queued start after the event drain
-  if (this->restart_pending_) {
-    this->restart_pending_ = false;
+  if (this->start_pending_) {
+    this->start_pending_ = false;
     this->start();
   }
   if (this->raw_advertisements_callbacks_.empty()) {
