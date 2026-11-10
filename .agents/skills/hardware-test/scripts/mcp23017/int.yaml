@@ -1,0 +1,16 @@
+# INTA drives the hub's interrupt_pin; run.sh sets open_drain to true (int-od) or false (int-pp)
+substitutions:
+  isr_inta: "false"
+  open_drain: "true"
+
+packages:
+  common: !include common.yaml
+
+mcp23017:
+  - id: mcp
+    address: 0x27
+    interrupt_pin:
+      number: GPIO14
+      mode:
+        input: true
+    open_drain_interrupt: ${open_drain}

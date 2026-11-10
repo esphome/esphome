@@ -1,0 +1,38 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  max_frame_length: 4
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+
+button:
+  # Both fields are constants totalling 5 bytes, over the hub's max_frame_length. Must be
+  # rejected.
+  - platform: template
+    name: "Too Long"
+    on_press:
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x01, 0x02]
+          payload: [0x03, 0x04, 0x05]
