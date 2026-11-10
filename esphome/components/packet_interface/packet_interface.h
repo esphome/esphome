@@ -30,7 +30,7 @@ enum Capability : uint8_t {
  * @param info Additional information about the packet
  * @param source_address With an addressing layer, the sender of a received packet; 0 if not known
  * @param destination_address With an addressing layer, the destination of a packet; when sending, 0 uses the
- * configured destination
+ * configured destination, and only an addressing layer's broadcast port takes another
  * @param rssi The RSSI of the packet
  * @param snr The SNR of the packet
  * @param mac_address The MAC address of the sender/receiver

@@ -33,6 +33,12 @@ class MockLink : public PacketInterface {
   std::vector<Packet> sent;
 };
 
+static PacketMetaData destination(uint16_t address) {
+  PacketMetaData meta_data;
+  meta_data.destination_address = address;
+  return meta_data;
+}
+
 // What one port receives
 struct Port {
   Port(BasicAddressing *addressing, uint16_t destination, bool only_port) {
@@ -83,8 +89,19 @@ TEST(BasicAddressingTest, HeaderAndCapability) {
   EXPECT_TRUE(a.port().port->has_capability(CAPABILITY_ADDRESSING));
   EXPECT_EQ(a.link.top(), a.port().port.get());
   a.port().send({0xAA});
-  a.port().send({0xBB}, 0x0042);
-  EXPECT_EQ(a.link.sent, (std::vector<Packet>{{0x78, 0x56, 0x34, 0x12, 0xAA}, {0x42, 0x00, 0x34, 0x12, 0xBB}}));
+  EXPECT_EQ(a.link.sent, (std::vector<Packet>{{0x78, 0x56, 0x34, 0x12, 0xAA}}));
+}
+
+TEST(BasicAddressingTest, ChosenDestinationOnlyThroughBroadcastPort) {
+  Device hub(0x0001, {0x0002, BROADCAST});
+  Packet packet{0xBB};
+  // The broadcast port sends to any address but this device's own
+  EXPECT_TRUE(hub.port(1).port->send_to_interface(PacketBuffer(packet), destination(0x0042)));
+  EXPECT_FALSE(hub.port(1).port->send_to_interface(PacketBuffer(packet), destination(0x0001)));
+  // A port to one peer keeps to that peer, as its layers may hold state for it
+  EXPECT_FALSE(hub.port(0).port->send_to_interface(PacketBuffer(packet), destination(0x0042)));
+  EXPECT_TRUE(hub.port(0).port->send_to_interface(PacketBuffer(packet), destination(0x0002)));
+  EXPECT_EQ(hub.link.sent, (std::vector<Packet>{{0x42, 0x00, 0x01, 0x00, 0xBB}, {0x02, 0x00, 0x01, 0x00, 0xBB}}));
 }
 
 TEST(BasicAddressingTest, LinkTooSmallLeavesNoRoom) {

@@ -15,6 +15,8 @@ using packet_interface::PacketMetaData;
 
 ESPHOME_LOG_TAG(TAG, "espnow.packet_interface");
 
+static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
+
 ESPNowPacketInterface::ESPNowPacketInterface(ESPNowComponent *parent, std::span<uint8_t> tx_buffer,
                                              peer_address_t peer_address)
     : packet_interface::PacketInterface(tx_buffer.size()),
@@ -61,7 +63,13 @@ bool ESPNowPacketInterface::send_to_interface(const PacketBuffer &data, const Pa
     data.copy_to(this->tx_buffer_.data(), size);
     payload = this->tx_buffer_.data();
   }
-  esp_err_t err = this->parent_->send(this->peer_address_.data(), payload, size);
+  // Only a unicast send learns whether the peer received it
+  esp_err_t err = this->is_broadcast_()
+                      ? this->parent_->send(this->peer_address_.data(), payload, size)
+                      : this->parent_->send(this->peer_address_.data(), payload, size, [this](esp_err_t status) {
+                          if (status != ESP_OK)
+                            this->delivery_failed_();
+                        });
   if (err != ESP_OK) {
     this->send_failed_(err);
     return false;
@@ -72,7 +80,6 @@ bool ESPNowPacketInterface::send_to_interface(const PacketBuffer &data, const Pa
 // A full send queue is logged by the espnow component, and ESP-NOW is not running before setup or while disabled.
 // Other errors, such as a peer that could not be added, repeat on every send, so warn now and then
 void ESPNowPacketInterface::send_failed_(esp_err_t err) {
-  static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
   uint32_t now = App.get_loop_component_start_time();
   if (err == ESP_ERR_ESPNOW_NO_MEM || err == ESP_ERR_ESPNOW_NOT_INIT ||
       (this->send_warned_ && now - this->last_send_warning_ms_ < WARNING_INTERVAL_MS)) {
@@ -82,6 +89,20 @@ void ESPNowPacketInterface::send_failed_(esp_err_t err) {
   this->send_warned_ = true;
   this->last_send_warning_ms_ = now;
   ESP_LOGW(TAG, "%s: Send failed: %s", this->name_, LOG_STR_ARG(espnow_error_to_str(err)));
+}
+
+// A peer that is off, out of range or has another address never acknowledges; without a reliability layer above,
+// nothing else would report that, so warn now and then
+void ESPNowPacketInterface::delivery_failed_() {
+  uint32_t now = App.get_loop_component_start_time();
+  if (this->delivery_warned_ && now - this->last_delivery_warning_ms_ < WARNING_INTERVAL_MS) {
+    ESP_LOGV(TAG, "%s: Packet not acknowledged by the peer", this->name_);
+    return;
+  }
+  this->delivery_warned_ = true;
+  this->last_delivery_warning_ms_ = now;
+  ESP_LOGW(TAG, "%s: Packet not acknowledged by the peer; it may be off, out of range, or have another address",
+           this->name_);
 }
 
 bool ESPNowPacketInterface::on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {
