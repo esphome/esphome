@@ -43,7 +43,8 @@ async def dump(c: APIClient, write: Callable[[str], None], tries: int = 3) -> No
             seen["armed"], seen["busy"] = int(m[2]) != 0, int(m[3])
         elif m := ENTRY.search(text):
             seen["idx"].add(int(m[1]))
-        elif "DUMP END" in text:
+        elif "DUMP END" in text and seen["n"] is not None:
+            # without this press's header it is a late end from an earlier press
             done.set()
 
     c.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_INFO)

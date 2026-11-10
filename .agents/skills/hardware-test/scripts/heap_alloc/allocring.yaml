@@ -15,7 +15,7 @@ binary_sensor:
   # Drivers wait for this before the first action, so no step runs before recording starts
   - platform: template
     name: Allocation recorder armed
-    lambda: return g_alloc_armed;
+    lambda: return g_alloc_armed.load();
 
 interval:
   - interval: 30s

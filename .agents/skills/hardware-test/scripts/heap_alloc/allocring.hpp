@@ -21,7 +21,8 @@ static constexpr uint32_t ALLOC_MARKER = UINT32_MAX;
 AllocEntry g_allocs[ALLOC_CAP];
 std::atomic<uint32_t> g_alloc_n{0};
 std::atomic<uint32_t> g_new_count{0};
-volatile bool g_alloc_armed = false;
+// seq_cst with g_alloc_busy: the dump stores false then loads busy, a recorder adds busy then loads this
+std::atomic<bool> g_alloc_armed{false};
 uint32_t g_alloc_armed_ms = 0;  // when recording started, 0 if it never did
 // Recorders between claiming a slot and filling it; the dump waits for 0 after disarming.
 std::atomic<uint32_t> g_alloc_busy{0};

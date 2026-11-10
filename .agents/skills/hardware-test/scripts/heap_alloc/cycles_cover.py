@@ -56,12 +56,20 @@ async def main() -> None:
                 armed.set()
 
         c.subscribe_states(on_state)
-        first = await asyncio.wait_for(states.get(), 10)
+        latest = await asyncio.wait_for(states.get(), 10)
         # moves made before recording starts would be missing from the dump
         await asyncio.wait_for(armed.wait(), ARM_WAIT_S)
         w("ARMED")
 
+        def drain() -> CoverState:
+            """The newest queued state, so no stale one is read as this command's result."""
+            nonlocal latest
+            while not states.empty():
+                latest = states.get_nowait()
+            return latest
+
         async def move(pos: float) -> bool:
+            drain()
             w(f"CMD {pos}")
             c.cover_command(cover.key, position=pos)
             moved = False
@@ -81,7 +89,7 @@ async def main() -> None:
 
         timeouts = 0
         # start toward the far end, so the first command always moves the cover
-        order = (0.0, 1.0) if first.position > 0.5 else (1.0, 0.0)
+        order = (0.0, 1.0) if drain().position > 0.5 else (1.0, 0.0)
         for i in range(cycles):
             w(f"CYCLE {i + 1}")
             for pos in order:
