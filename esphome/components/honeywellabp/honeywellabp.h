@@ -19,8 +19,8 @@ class HONEYWELLABPSensor final : public PollingComponent,
   void update() override;
   float get_setup_priority() const override;
   void dump_config() override;
-  void set_honeywellabp_min_pressure(float min_pressure);
-  void set_honeywellabp_max_pressure(float max_pressure);
+  void set_honeywellabp_min_pressure(float min_pressure) { this->honeywellabp_min_pressure_ = min_pressure; }
+  void set_honeywellabp_max_pressure(float max_pressure) { this->honeywellabp_max_pressure_ = max_pressure; }
 
  protected:
   float honeywellabp_min_pressure_ = 0.0;

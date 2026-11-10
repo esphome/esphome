@@ -481,8 +481,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
-  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
-  void init_sta(size_t count);
+  // add_sta kept out of line: inlining it into the generated setup() grows flash
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
@@ -798,9 +797,12 @@ class WiFiComponent final : public Component {
   bool ssid_was_seen_in_scan_(const CompactString &ssid) const;
   /// Check if full scan results are needed (captive portal active, improv, listeners)
   bool needs_full_scan_results_() const;
-  /// Check if network matches any configured network (for scan result filtering)
+  /// The configured network a scan result belongs to, or nullptr (for scan result filtering)
   /// Matches by SSID when configured, or by BSSID for BSSID-only configs
-  bool matches_configured_network_(const char *ssid, const uint8_t *bssid) const;
+  const WiFiAP *find_configured_network_(const char *ssid, const uint8_t *bssid) const;
+  bool matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+    return this->find_configured_network_(ssid, bssid) != nullptr;
+  }
   /// Log a discarded scan result at VERBOSE level (skipped during roaming scans to avoid log overflow)
   void log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel);
   /// Find next SSID that wasn't in scan results (might be hidden)
@@ -990,7 +992,6 @@ class WiFiComponent final : public Component {
 #endif
 
   // Large/pointer-aligned members first
-  FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
@@ -1220,6 +1221,8 @@ class WiFiComponent final : public Component {
   FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
 #endif
+  // Last, so the inline network slots do not push the other members past short load offsets
+  StaticVector<WiFiAP, WIFI_NETWORK_COUNT> sta_;
 
  private:
   // Stores a pointer to a string literal (static storage duration).

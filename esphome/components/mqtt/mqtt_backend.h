@@ -27,6 +27,19 @@ enum class MQTTTransport : uint8_t {
   MQTT_TRANSPORT_WSS = 2,
 };
 
+/// Sets a flag for the guard's scope and restores its previous value on exit.
+class DispatchGuard {
+ public:
+  explicit DispatchGuard(bool &flag) : flag_(flag), previous_(flag) { flag = true; }
+  ~DispatchGuard() { this->flag_ = this->previous_; }
+  DispatchGuard(const DispatchGuard &) = delete;
+  DispatchGuard &operator=(const DispatchGuard &) = delete;
+
+ protected:
+  bool &flag_;
+  bool previous_;
+};
+
 /// internal struct for MQTT messages.
 struct MQTTMessage {
   std::string topic;
@@ -61,6 +74,8 @@ class MQTTBackend {
   virtual void connect() = 0;
   virtual void disconnect() = 0;
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
+  /// Whether another SUBSCRIBE fits the inbound queue.
+  virtual bool can_subscribe() const { return true; }
   virtual bool unsubscribe(const char *topic) = 0;
   virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
   /// Publish at QoS 1 or higher and keep the packet id, so publish_acknowledged() tells when the broker has
