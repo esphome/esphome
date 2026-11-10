@@ -37,9 +37,10 @@ button:
           uint32_t claimed = g_alloc_n.load();
           uint32_t n = std::min<uint32_t>(claimed, ALLOC_CAP);
           // claimed > n means the buffer filled and recording stopped early
-          // armed_ms=0: the recorder never ran; busy>0: an entry may still be half written
-          ESP_LOGI("allocs", "DUMP n=%u claimed=%u total=%u armed_ms=%u busy=%u", n, claimed, g_new_count.load(),
-                   g_alloc_armed_ms, g_alloc_busy.load());
+          // armed_ms=0: the recorder never ran; busy>0: an entry may still be half written;
+          // buf is the buffer's address, which decode.py matches against the ELF
+          ESP_LOGI("allocs", "DUMP n=%u claimed=%u total=%u armed_ms=%u busy=%u buf=%08x", n, claimed,
+                   g_new_count.load(), g_alloc_armed_ms, g_alloc_busy.load(), (unsigned) (uintptr_t) g_allocs);
           for (uint32_t i = 0; i < n; i++) {
             const AllocEntry &e = g_allocs[i];
             ESP_LOGI("allocs", "E %u %u %u %08x %08x %08x %08x %08x", i, e.ms, e.size, e.pc[0], e.pc[1], e.pc[2],

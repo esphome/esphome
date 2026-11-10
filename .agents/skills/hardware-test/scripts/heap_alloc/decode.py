@@ -12,7 +12,9 @@ import subprocess
 import sys
 
 ENTRY = re.compile(r"\bE (\d+) (\d+) (\d+) ((?:[0-9a-f]{8} ?){5})")
-HEADER = re.compile(r"\bDUMP n=(\d+) claimed=(\d+) total=\d+ armed_ms=(\d+) busy=(\d+)")
+HEADER = re.compile(
+    r"\bDUMP n=(\d+) claimed=(\d+) total=\d+ armed_ms=(\d+) busy=(\d+) buf=([0-9a-f]{8})"
+)
 MARKER = 0xFFFFFFFF
 XTENSA = 94  # ELF e_machine; the recorder walks frames only on Xtensa
 
@@ -132,7 +134,20 @@ def main() -> None:
                 break
             for func, loc in names[pc]:
                 print(f"    {func[:110]}  {loc}")
-    if problems := check(text, entries, is_xtensa(elf)):
+    problems = check(text, entries, is_xtensa(elf))
+    # addr2line names any address, so check the ELF is the build that made the dump
+    if wanted and (header := HEADER.search(text)):
+        nm = addr2line[: -len("addr2line")] + "nm"
+        symbols = subprocess.run(
+            [nm, elf], capture_output=True, text=True, check=True
+        ).stdout
+        if not re.search(
+            rf"^0*{int(header[5], 16):x} [bBdD] g_allocs$", symbols, re.MULTILINE
+        ):
+            problems.append(
+                "the ELF is not the build that made this dump (g_allocs address differs)"
+            )
+    if problems:
         print("INCOMPLETE DUMP: " + "; ".join(problems), file=sys.stderr)
         sys.exit(2)
 
