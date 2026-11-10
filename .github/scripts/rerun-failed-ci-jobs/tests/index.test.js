@@ -2,24 +2,48 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const rerunFailed = require('../index');
 
-// The PR under test: number 4242, opened by "author". Its head commit is HEAD_SHA.
+// The PR under test: number 4242, opened by "author" from the branch "fix-wifi"
+// of the fork author/esphome. Its head commit is HEAD_SHA.
 const PR_NUMBER = 4242;
 const AUTHOR = 'author';
 const HEAD_SHA = '2'.repeat(40);
 const OLD_SHA = '1'.repeat(40);
+const ESPHOME = { id: 1, full_name: 'esphome/esphome' };
+const FORK = { id: 2, full_name: 'author/esphome' };
+const OTHER_FORK = { id: 3, full_name: 'someone/esphome' };
+const FORK_PR = { number: PR_NUMBER, head: { repo: FORK, ref: 'fix-wifi', sha: HEAD_SHA } };
 
-// One run of ci.yml. By default the finished, failed first attempt of the
-// PR's head commit.
-function ciRun({ id, sha = HEAD_SHA, status = 'completed', conclusion = 'failure', attempt = 1 }) {
+// One run of ci.yml. By default the finished, failed first attempt of the PR
+// under test: made from its head repository, branch and commit. As on GitHub,
+// a run from a fork lists no pull requests.
+function ciRun({
+  id,
+  repo = FORK,
+  branch = 'fix-wifi',
+  sha = HEAD_SHA,
+  pullRequests = [],
+  status = 'completed',
+  conclusion = 'failure',
+  attempt = 1,
+}) {
   return {
     id,
     path: '.github/workflows/ci.yml',
     event: 'pull_request',
+    head_repository: repo,
+    head_branch: branch,
     head_sha: sha,
+    pull_requests: pullRequests,
     status,
     conclusion: status === 'completed' ? conclusion : null,
     run_attempt: attempt,
   };
+}
+
+// `count` red runs of a second PR of the author, from the branch "fix-wifi-2"
+// at the same commit.
+function otherPrRuns(count) {
+  return Array.from({ length: count }, (_, i) => ciRun({ id: 1000 + i, branch: 'fix-wifi-2' }));
 }
 
 function httpError(status, message) {
@@ -30,20 +54,38 @@ function httpError(status, message) {
 // `runs` are listed newest first, as the API does. `permissions` maps a login
 // to the answer of the permission API; any other login gets a 404, like a user
 // the API does not know. `rerunError` and `reactionError` make that call fail.
-function fakeGitHub({ runs = [], permissions = {}, rerunError = null, reactionError = null } = {}) {
+function fakeGitHub({ pr = FORK_PR, runs = [], permissions = {}, rerunError = null, reactionError = null } = {}) {
   const calls = [];
   const github = {
+    paginate: {
+      // Like Octokit: asks for one page after the other, up to the last, and gives each as its list of runs.
+      async *iterator(method, params) {
+        let listed = 0;
+        for (let page = 1; ; page++) {
+          const { data } = await method({ ...params, page });
+          yield { data: data.workflow_runs };
+          listed += data.workflow_runs.length;
+          if (listed >= data.total_count) {
+            return;
+          }
+        }
+      },
+    },
     rest: {
       actions: {
-        // Like the API: only runs of the given workflow file, event and head commit.
+        // Like the API: only runs of the given workflow file and event, and of the
+        // given head commit if there is one.
         listWorkflowRuns: async (params) => {
           calls.push(['listWorkflowRuns', params]);
           const found = runs.filter((run) =>
             run.path === `.github/workflows/${params.workflow_id}` &&
             run.event === params.event &&
-            run.head_sha === params.head_sha
+            (params.head_sha === undefined || run.head_sha === params.head_sha)
           );
-          return { data: { total_count: found.length, workflow_runs: found.slice(0, params.per_page) } };
+          // Like the API: page 1 and 30 runs per page unless asked otherwise.
+          const { page = 1, per_page: perPage = 30 } = params;
+          const workflowRuns = found.slice((page - 1) * perPage, page * perPage);
+          return { data: { total_count: found.length, workflow_runs: workflowRuns } };
         },
         reRunWorkflowFailedJobs: async (params) => {
           calls.push(['rerun', params.run_id]);
@@ -55,7 +97,7 @@ function fakeGitHub({ runs = [], permissions = {}, rerunError = null, reactionEr
       pulls: {
         get: async (params) => {
           calls.push(['pulls.get', params.pull_number]);
-          return { data: { number: PR_NUMBER, head: { sha: HEAD_SHA } } };
+          return { data: pr };
         },
       },
       reactions: {
@@ -187,7 +229,8 @@ describe('which CI run is used', () => {
       workflow_id: 'ci.yml',
       event: 'pull_request',
       head_sha: HEAD_SHA,
-      per_page: 1,
+      per_page: 100,
+      page: 1,
     });
   });
 
@@ -212,6 +255,67 @@ describe('which CI run is used', () => {
     await runCommand(commentEvent(), api);
     assert.deepEqual(reruns(api.calls), []);
     assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  it('takes a fork run, which lists no pull requests, by its head repository, branch and commit', async () => {
+    const run = ciRun({ id: 1, repo: FORK, branch: 'fix-wifi', sha: HEAD_SHA, pullRequests: [] });
+    const api = fakeGitHub({ runs: [run] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), [1]);
+  });
+
+  it('skips a red run of another PR from another branch with the same commit', async () => {
+    const api = fakeGitHub({ runs: otherPrRuns(1) });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), []);
+    assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  it('skips a red run of another PR from another fork with the same commit and branch name', async () => {
+    const api = fakeGitHub({ runs: [ciRun({ id: 1, repo: OTHER_FORK })] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), []);
+    assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  it('re-runs the red run of the PR behind a newer green run of another PR', async () => {
+    const api = fakeGitHub({ runs: [ciRun({ id: 2, branch: 'fix-wifi-2', conclusion: 'success' }), ciRun({ id: 1 })] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), [1]);
+  });
+
+  it('re-runs a run of a PR from a branch of esphome/esphome', async () => {
+    const pr = { number: PR_NUMBER, head: { repo: ESPHOME, ref: 'bump-a', sha: HEAD_SHA } };
+    const run = ciRun({ id: 1, repo: ESPHOME, branch: 'bump-a', pullRequests: [{ number: PR_NUMBER }] });
+    const api = fakeGitHub({ pr, runs: [run] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), [1]);
+  });
+
+  it('skips a run of another branch of esphome/esphome even though it lists the PR', async () => {
+    // Two PRs from branches of esphome/esphome share the head commit. GitHub lists
+    // every open PR with that commit in `pull_requests`, so both runs name both PRs.
+    const pr = { number: PR_NUMBER, head: { repo: ESPHOME, ref: 'bump-a', sha: HEAD_SHA } };
+    const pullRequests = [{ number: 4243 }, { number: PR_NUMBER }];
+    const run = ciRun({ id: 1, repo: ESPHOME, branch: 'bump-b', pullRequests });
+    const api = fakeGitHub({ pr, runs: [run] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), []);
+    assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  it('finds the run of the PR on the second page, behind 100 runs of another PR', async () => {
+    const api = fakeGitHub({ runs: [...otherPrRuns(100), ciRun({ id: 1 })] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), [1]);
+  });
+
+  it('stops at the first page when it holds the newest run of the PR', async () => {
+    // 101 runs make two pages; the run of the PR is the first one.
+    const api = fakeGitHub({ runs: [ciRun({ id: 1 }), ...otherPrRuns(100)] });
+    await runCommand(commentEvent(), api);
+    assert.deepEqual(reruns(api.calls), [1]);
+    assert.equal(api.calls.filter(([name]) => name === 'listWorkflowRuns').length, 1);
   });
 });
 
