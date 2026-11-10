@@ -8,9 +8,6 @@ from esphome.const import (
     CONF_MOVE_THRESHOLD,
     CONF_STILL_THRESHOLD,
     CONF_TIMEOUT,
-    DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_CONFIG,
     ICON_LIGHTBULB,
     ICON_MOTION_SENSOR,
@@ -40,19 +37,16 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Inclusive(CONF_MAX_MOVE_DISTANCE_GATE, TIMEOUT_GROUP): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Inclusive(CONF_MAX_STILL_DISTANCE_GATE, TIMEOUT_GROUP): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_LIGHTBULB,
         ),
@@ -65,14 +59,12 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
             {
                 cv.Required(CONF_MOVE_THRESHOLD): number.number_schema(
                     number.ApplyNumber,
-                    device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_MOTION_SENSOR,
                 ),
                 cv.Required(CONF_STILL_THRESHOLD): number.number_schema(
                     number.ApplyNumber,
-                    device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_MOTION_SENSOR,
