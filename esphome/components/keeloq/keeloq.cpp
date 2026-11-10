@@ -61,16 +61,17 @@ remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t chann
     this->reserved_ = this->counter_ + RESERVE_BLOCK;
     this->store_reserved_();
   }
+  // Taken before the log line, so a frame sent from a log trigger gets the next counter.
+  const uint16_t counter = this->counter_++;
   remote_base::KeeloqData data{};
   data.address = this->serial_;
   data.command = command & 0x0F;
   // The channel mask's low byte and the serial's low byte are the discrimination bits; its high byte is the group
   // sent after the word.
-  uint32_t plain = this->counter_ | (channels & 0xFF) << 24 | (this->serial_ & 0xFF) << 16;
+  uint32_t plain = counter | (channels & 0xFF) << 24 | (this->serial_ & 0xFF) << 16;
   data.set_group(channels >> 8);
   data.encrypted = encrypt(plain, this->device_key_);
-  ESP_LOGV(TAG, "Serial 0x%07" PRIX32 " counter %u", this->serial_, this->counter_);
-  this->counter_++;
+  ESP_LOGV(TAG, "Serial 0x%07" PRIX32 " counter %u", this->serial_, counter);
   return data;
 }
 
