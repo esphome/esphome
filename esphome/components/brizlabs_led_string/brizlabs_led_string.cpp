@@ -1,4 +1,7 @@
 #include "brizlabs_led_string.h"
+
+#ifdef USE_ESP32
+
 #include "esphome/core/log.h"
 #include <cstring>
 
@@ -77,3 +80,5 @@ void BrizLabsLEDString::write_state(light::LightState *state) {
 }
 
 }  // namespace esphome::brizlabs_led_string
+
+#endif  // USE_ESP32

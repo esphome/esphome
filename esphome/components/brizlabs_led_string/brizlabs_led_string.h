@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light.h"
 #include "driver/spi_master.h"
@@ -35,3 +38,5 @@ class BrizLabsLEDString : public light::AddressableLight {
 };
 
 }  // namespace esphome::brizlabs_led_string
+
+#endif  // USE_ESP32
