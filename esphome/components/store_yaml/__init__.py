@@ -466,11 +466,14 @@ def _collect_sensitive_values() -> tuple[
     # A quoted secret such as "0x12345678" is registered as written. Its name fits
     # only if every use is an integer: a string credential with the same decimal
     # text would otherwise be restored as the hex string.
+    int_secrets: dict[str, str] = {}
+    for secret, name in yaml_util.registered_secret_values().items():
+        if (text := _int_text(secret)) is not None:
+            int_secrets.setdefault(text, name)
     for value, entry in result.items():
         if entry.from_secret or not entry.is_int:
             continue
-        secrets = yaml_util.registered_secret_values().items()
-        if name := next((n for v, n in secrets if _int_text(v) == value), None):
+        if name := int_secrets.get(value):
             entry.secret_name = name
             entry.from_secret = True
     return result, paths
