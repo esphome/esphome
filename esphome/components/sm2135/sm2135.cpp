@@ -28,8 +28,6 @@ void SM2135::setup() {
 
   this->data_pin_->pin_mode(gpio::FLAG_PULLUP);
   this->clock_pin_->pin_mode(gpio::FLAG_PULLUP);
-
-  this->pwm_amounts_.resize(5, 0);
 }
 
 void SM2135::dump_config() {

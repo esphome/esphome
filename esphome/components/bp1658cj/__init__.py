@@ -31,10 +31,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+        config[CONF_MAX_POWER_COLOR_CHANNELS],
+        config[CONF_MAX_POWER_WHITE_CHANNELS],
+    )
     await cg.register_component(var, config)
-
-    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
-    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
-    cg.add(var.set_max_power_color_channels(config[CONF_MAX_POWER_COLOR_CHANNELS]))
-    cg.add(var.set_max_power_white_channels(config[CONF_MAX_POWER_WHITE_CHANNELS]))
