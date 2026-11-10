@@ -40,9 +40,9 @@ async def to_code(config):
     parent = await cg.get_variable(config["dmx_reader_id"])
 
     if CONF_CHANNEL in config:
-        # Vast kanaal
+        # fixed channel
         cg.add(parent.register_channel_sensor(config[CONF_CHANNEL], var))
     else:
-        # Dynamisch kanaal via Number-entity
+        # Dynamic channel via Number-entity
         channel_number = await cg.get_variable(config[CONF_CHANNEL_ID])
         cg.add(parent.register_dynamic_channel_sensor(channel_number, var))

@@ -1,9 +1,9 @@
 #include "dmx_reader.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dmx_reader {
+namespace esphome::dmx_reader {
 
+ESPHOME_LOG_TAG(TAG, "dmx_reader");
 static const char *const TAG = "dmx_reader";
 
 void DMXReader::setup() {
@@ -19,7 +19,7 @@ void DMXReader::setup() {
 
   dmx_set_pin(this->dmx_port_, tx, rx, rts);
 
-  ESP_LOGI(TAG, "DMX Reader gestart op UART%d (TX=%d RX=%d RTS=%d)", this->uart_num_, tx, rx, rts);
+  ESP_LOGI(TAG, "DMX Reader started at UART%d (TX=%d RX=%d RTS=%d)", this->uart_num_, tx, rx, rts);
 }
 
 void DMXReader::loop() {
@@ -39,7 +39,7 @@ void DMXReader::loop() {
 
   dmx_read(this->dmx_port_, this->data_, size);
 
-  // Vaste kanalen
+  // fixed channels
   for (auto &cs : this->static_sensors_) {
     if (cs.channel >= 1 && cs.channel <= 512) {
       float value = static_cast<float>(this->data_[cs.channel]);
@@ -49,7 +49,7 @@ void DMXReader::loop() {
     }
   }
 
-  // Dynamische kanalen (via Number)
+  // Dynamic channels (via Number)
   for (auto &ds : this->dynamic_sensors_) {
     if (ds.channel_number == nullptr || !ds.channel_number->has_state())
       continue;
@@ -89,5 +89,4 @@ void DMXReader::dump_config() {
   }
 }
 
-}  // namespace dmx_reader
-}  // namespace esphome
+}  // namespace esphome::dmx_reader

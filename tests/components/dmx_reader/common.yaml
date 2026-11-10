@@ -1,0 +1,34 @@
+# ========== Hub ==========
+dmx_reader:
+  id: dmx
+  uart_num: 1
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  rts_pin: -1
+
+# ========== Channel-choice (input-field in Home Assistant) ==========
+number:
+  - platform: template
+    name: "DMX Channel"
+    id: selected_channel
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box          # of slider
+    optimistic: true
+    initial_value: 1
+    restore_value: true   # remember last choosen channel
+
+# ========== Sensor following the choosen channel ==========
+sensor:
+  - platform: dmx_reader
+    dmx_reader_id: dmx
+    channel_id: selected_channel   # ← dynamic!
+    name: "DMX Value"
+    id: dmx_value
+
+  # Optioneel: also fixed channels are possible
+  - platform: dmx_reader
+    dmx_reader_id: dmx
+    channel: 1
+    name: "DMX Channel 1 (fixed)"
