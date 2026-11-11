@@ -67,7 +67,6 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   socket::TcpClientLink link_;
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
-  bool server_{false};
 #endif
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
@@ -82,6 +81,9 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   uint16_t rx_have_{0};
   uint8_t rx_header_[2]{};
   bool connected_{false};
+#ifdef USE_SOCKET_TCP_LISTENER
+  bool server_{false};
+#endif
 };
 
 }  // namespace esphome::tcp
