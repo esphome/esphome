@@ -1,0 +1,25 @@
+# microphone_http_stream (#21593) fed by a USB microphone (48 kHz, 16-bit stereo) on usb_audio, channel 0 streamed.
+esphome:
+  name: mhu
+
+packages:
+  base: !include mh-base.yaml
+
+usb_audio:
+  id: usb_audio_id
+
+microphone:
+  - platform: usb_audio
+    id: mic
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    num_channels: 2
+    buffer_size: 9600
+
+microphone_http_stream:
+  stream_id: usbmic
+  max_clients: 3
+  source:
+    microphone: mic
+    channels: [0]

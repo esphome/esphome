@@ -159,6 +159,7 @@ class LD6004Test : public ::testing::Test {
     test_hub() = &this->sut_;
 
     this->sut_.set_uart_parent(&this->uart_);
+    this->sut_.set_frame_buffer(this->frame_buffer_, sizeof(this->frame_buffer_));
     this->configure_();
 
     this->sut_.setup();
@@ -216,6 +217,7 @@ class LD6004Test : public ::testing::Test {
   host::HostPreferences prefs_;
   std::filesystem::path temp_dir_;
   MockUARTComponent uart_;
+  uint8_t frame_buffer_[ld600x::DEFAULT_MAX_DATA_LEN]{};
   LD6004Component sut_;
   uint16_t next_command_id_{FIRST_COMMAND_ID};
 

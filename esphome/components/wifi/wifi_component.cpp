@@ -1198,17 +1198,18 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
-void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::clear_sta() {
   // Clear roaming state - no more configured networks
   this->clear_roaming_state_();
+  // StaticVector::clear() keeps the entries, so free their credentials here
+  for (auto &ap : this->sta_)
+    ap = WiFiAP{};
   this->sta_.clear();
   this->selected_sta_index_ = -1;
 }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();  // Also clears roaming state
-  this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
   // New credentials end the next cooldown early; start_connecting() clears this once they are tried
