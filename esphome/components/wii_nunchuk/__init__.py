@@ -35,5 +35,4 @@ WII_NUNCHUK_CHILD_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await i2c.new_i2c_component(config)
-    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL].total_milliseconds))
+    await i2c.new_i2c_component(config)
