@@ -23,6 +23,7 @@ SUPPORTED_DOMAINS = [
     "input_boolean",
     "light",
     "remote",
+    "script",
     "siren",
     "switch",
 ]

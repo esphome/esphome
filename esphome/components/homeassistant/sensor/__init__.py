@@ -10,6 +10,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["api"]
+# For is_unset() in homeassistant.h
 AUTO_LOAD = ["homeassistant"]
 
 HomeassistantSensor = homeassistant_ns.class_(
