@@ -1,0 +1,25 @@
+---
+esphome:
+  name: tmp102-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sensor:
+  - platform: tmp102
+    id: chip
+    name: Temperature
+    extended_mode: true
+    temperature_high: 140
+    temperature_low: 120
+
+number:
+  - platform: tmp102
+    temperature_high:
+      name: High
+    temperature_low:
+      name: Low

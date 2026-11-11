@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_CONDUCTIVITY,
-    CONF_ID,
     CONF_ILLUMINANCE,
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
@@ -75,24 +74,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature(sens))
-    if moisture_config := config.get(CONF_MOISTURE):
-        sens = await sensor.new_sensor(moisture_config)
-        cg.add(var.set_moisture(sens))
-    if illuminance_config := config.get(CONF_ILLUMINANCE):
-        sens = await sensor.new_sensor(illuminance_config)
-        cg.add(var.set_illuminance(sens))
-    if conductivity_config := config.get(CONF_CONDUCTIVITY):
-        sens = await sensor.new_sensor(conductivity_config)
-        cg.add(var.set_conductivity(sens))
-    if battery_level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(battery_level_config)
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

@@ -13,7 +13,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 uint16_t RP2UartComponent::get_config() {
   uint16_t config = 0;
@@ -145,12 +145,7 @@ void RP2UartComponent::setup() {
     this->serial_ = serial;
   } else {
     ESP_LOGV(TAG, "Using Hardware Serial");
-    SerialUART *serial;
-    if (hw_uart == 0) {
-      serial = &Serial1;
-    } else {
-      serial = &Serial2;
-    }
+    SerialUART *serial = hw_uart == 0 ? &Serial1 : &Serial2;
     if (this->tx_pin_ != nullptr)
       serial->setTX(this->tx_pin_->get_pin());
     if (this->rx_pin_ != nullptr)

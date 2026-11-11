@@ -3,16 +3,15 @@
 
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 #include "esphome/components/watchdog/watchdog.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 #include <array>
 #include <cstring>
 #include <memory>
-#include <new>
 #include <esp_image_format.h>
 #include <esp_partition.h>
-#include <esp_rom_crc.h>
 
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -31,7 +30,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota";
+ESPHOME_LOG_TAG(TAG, "ota");
 
 // Route the "Signature check: " prefix (and its per-block form) through one
 // shared format string each, so the prefix is pooled once by the linker instead
@@ -77,7 +76,7 @@ bool block_is_valid(const uint8_t *block) {
   }
   uint32_t stored_crc;
   memcpy(&stored_crc, block + OFFSET_CRC, sizeof(stored_crc));
-  return esp_rom_crc32_le(0, block, OFFSET_CRC) == stored_crc;
+  return crc32(0, block, OFFSET_CRC) == stored_crc;
 }
 
 bool key_digest_of(const uint8_t *block, KeyDigest &out) {
@@ -235,9 +234,11 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // runs mid-OTA on the loop task, on top of the caller's live 1 KB OTA buffer
   // and mbedtls's own ~1 KB verify scratch, so keeping it off the stack widens
   // a thin margin. One short-lived allocation right before reboot is not the
-  // fragmentation pattern the project guards against. nothrow so an OOM here
-  // fails closed like every other error path, rather than aborting.
-  std::unique_ptr<uint8_t[]> block(new (std::nothrow) uint8_t[SIG_BLOCK_SIZE]);
+  // fragmentation pattern the project guards against. An OOM returns nullptr
+  // and fails closed like every other error path. Internal RAM first: the
+  // block is an esp_partition_read target.
+  auto block =
+      RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(SIG_BLOCK_SIZE);
   if (!block) {
     OTA_IDF_SIG_LOG(ESP_LOGE, "out of memory");
     return false;

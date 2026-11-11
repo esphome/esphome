@@ -9,7 +9,7 @@
 
 namespace esphome::inkplate {
 
-static const char *const TAG = "inkplate";
+ESPHOME_LOG_TAG(TAG, "inkplate");
 
 void Inkplate::setup() {
   for (uint32_t i = 0; i < 256; i++) {

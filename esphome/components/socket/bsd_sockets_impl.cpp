@@ -59,13 +59,11 @@ int BSDSocketImpl::close() {
 
 int BSDSocketImpl::setblocking(bool blocking) {
   int fl = ::fcntl(this->fd_, F_GETFL, 0);
-  if (blocking) {
-    fl &= ~O_NONBLOCK;
-  } else {
-    fl |= O_NONBLOCK;
+  if (fl < 0) {
+    return fl;
   }
-  ::fcntl(this->fd_, F_SETFL, fl);
-  return 0;
+  assign_bits(fl, O_NONBLOCK, !blocking);
+  return ::fcntl(this->fd_, F_SETFL, fl);
 }
 
 size_t BSDSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {

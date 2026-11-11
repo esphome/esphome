@@ -10,7 +10,7 @@
 
 namespace esphome::micro_wake_word {
 
-static const char *const TAG = "micro_wake_word";
+ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 ModelData::~ModelData() { this->deallocate_(); }
 
@@ -87,7 +87,8 @@ bool ModelData::validate_and_mark_ready() {
 
   const tflite::Model *model = tflite::GetModel(this->data_);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
-    ESP_LOGE(TAG, "TFLite model version mismatch (expected %d, got %d)", TFLITE_SCHEMA_VERSION, model->version());
+    ESP_LOGE(TAG, "TFLite model version mismatch (expected %d, got %" PRIu32 ")", TFLITE_SCHEMA_VERSION,
+             model->version());
     return false;
   }
 

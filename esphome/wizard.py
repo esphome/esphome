@@ -1,4 +1,3 @@
-import base64
 from pathlib import Path
 import secrets
 import string
@@ -7,6 +6,7 @@ import unicodedata
 
 import voluptuous as vol
 
+from esphome.components.noise import generate_encryption_key
 import esphome.config_validation as cv
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 from esphome.core import CORE
@@ -79,6 +79,15 @@ RP2_CONFIG = """
 rp2:
   board: {board}
 """
+
+BOARD_LINKS: dict[str, str] = {
+    "ESP32": "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards",
+    "ESP8266": "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards",
+    "RP2": "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040",
+    "BK72XX": "https://docs.libretiny.eu/docs/status/supported/",
+    "LN882X": "https://docs.libretiny.eu/docs/status/supported/",
+    "RTL87XX": "https://docs.libretiny.eu/docs/status/supported/",
+}
 
 BK72XX_CONFIG = """
 bk72xx:
@@ -399,20 +408,7 @@ def wizard(path: Path) -> int:
     safe_print()
     sleep(1)
 
-    if platform == "ESP32":
-        board_link = (
-            "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
-        )
-    elif platform == "ESP8266":
-        board_link = (
-            "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
-        )
-    elif platform == "RP2":
-        board_link = "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
-    elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
-        board_link = "https://docs.libretiny.eu/docs/status/supported/"
-    else:
-        raise NotImplementedError("Unknown platform!")
+    board_link = BOARD_LINKS[platform]
 
     safe_print(
         f"Next, I need to know what {color(AnsiFore.GREEN, 'board')} you're using."
@@ -516,9 +512,7 @@ def wizard(path: Path) -> int:
         safe_print()
         sleep(0.5)
 
-        # Generate encryption key (32 bytes, base64 encoded) for secure API communication
-        noise_psk = secrets.token_bytes(32)
-        api_encryption_key = base64.b64encode(noise_psk).decode()
+        api_encryption_key = generate_encryption_key()
 
         safe_print(
             "For secure API communication, I've generated a random encryption key."

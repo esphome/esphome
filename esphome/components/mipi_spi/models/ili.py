@@ -649,7 +649,7 @@ DriverChip(
         (0xF3, 0x52, 0xA4, 0x7F, 0x33, 0x34, 0xDF),
     ),
 )
-DriverChip(
+ST7735 = DriverChip(
     "ST7735",
     color_order=MODE_RGB,
     width=128,

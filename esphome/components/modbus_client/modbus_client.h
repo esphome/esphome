@@ -13,45 +13,51 @@ namespace esphome::modbus_client {
 /// the hub routes every reply (or its lack) straight back to the action that sent it, so there is no
 /// central client object and no request matching. The device address is templatable; it is stamped on the
 /// device at play() time; the hub routes each reply by device pointer, so a changed address never
-/// mis-routes an earlier reply. (The address is not passed to the reply triggers - under overlapping
-/// sends it could misreport, and the handler can recompute the expression it configured.)
+/// mis-routes an earlier reply. The handlers wired here and send's on_response get `address` first: the
+/// address of their own request, which the hub takes from its frame, so overlapping sends each report their own.
 template<typename... Ts> class ClientActionBase : public Action<Ts...>, public modbus::ModbusClientDevice {
  public:
   TEMPLATABLE_VALUE(uint8_t, target_address)  // the modbus device address
 
-  Trigger<std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
-  Trigger<std::span<const uint8_t>, modbus::ExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
-  Trigger<std::span<const uint8_t>> *get_no_response_trigger() { return &this->no_response_trigger_; }
-  Trigger<std::span<const uint8_t>> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
+  Trigger<uint8_t, std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
+  Trigger<uint8_t, std::span<const uint8_t>, modbus::ExceptionCode> *get_error_trigger() {
+    return &this->error_trigger_;
+  }
+  Trigger<uint8_t, std::span<const uint8_t>> *get_no_response_trigger() { return &this->no_response_trigger_; }
+  Trigger<uint8_t, std::span<const uint8_t>> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
 
-  /// The retry decision for on_no_response: given the request PDU, return true to have the hub re-queue
+  /// The retry decision for on_no_response: given the request (address, PDU), return true to have the hub re-queue
   /// the frame. Set from the lambda form or a then: automation's nested retry lambda; may coexist with
   /// the no_response trigger (actions run, then this decides the retry).
-  using retry_func_t = bool (*)(std::span<const uint8_t>);
+  using retry_func_t = bool (*)(uint8_t, std::span<const uint8_t>);
   void set_retry(retry_func_t f) { this->retry_func_ = f; }
 
   /// The frame was written to the wire: fires once per transmission, before any reply, and never for a
   /// send that ended in on_not_sent. request_pdu is the PDU sent (function code + data).
-  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_trigger_.trigger(request_pdu); }
+  void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) override {
+    this->sent_trigger_.trigger(address, request_pdu);
+  }
   /// Never reached the wire, from either of two sources. The hub calls this for a request it accepted
   /// and then dropped, which happens only when clear_tx_queue_for_address() retires it - a modbus
   /// device going offline, say. Everything the hub refuses at the door instead returns false from
   /// queue_pdu() with no callback at all, so send_or_resolve_() below turns those into this same
   /// callback: a full queue, a duplicate write, or an empty PDU from a rejecting builder.
-  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(request_pdu); }
+  void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) override {
+    this->not_sent_trigger_.trigger(address, request_pdu);
+  }
   /// A Modbus exception reply. Lives here beside its trigger so every action subclass gets the pairing:
   /// register_client_action() wires on_error for all of them, so a derived class must not have to
   /// remember the override.
-  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
-    this->error_trigger_.trigger(request_pdu, exception_code);
+  void on_error(uint8_t address, std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
+    this->error_trigger_.trigger(address, request_pdu, exception_code);
   }
   /// No reply within send_wait_time. Run the on_no_response actions (empty in the pure-lambda form),
   /// then let the retry lambda, if set, decide whether the hub re-queues the frame (true = retry). The
   /// two coexist: a then: automation can also carry a retry lambda. No lambda = no retry.
-  bool on_no_response(std::span<const uint8_t> request_pdu) override {
-    this->no_response_trigger_.trigger(request_pdu);
+  bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) override {
+    this->no_response_trigger_.trigger(address, request_pdu);
     if (this->retry_func_ != nullptr)
-      return this->retry_func_(request_pdu);
+      return this->retry_func_(address, request_pdu);
     return false;
   }
   /// Stamp the templated device address before every play(): subclasses cannot forget it, and the hub
@@ -70,13 +76,13 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   /// a PduBuffer parameter would widen each one to the 253-byte maximum just to cross the call.
   void send_or_resolve_(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
     if (!this->queue_pdu(pdu, options))
-      this->on_not_sent(pdu);
+      this->on_not_sent(this->address_, pdu);
   }
 
-  Trigger<std::span<const uint8_t>> sent_trigger_;
-  Trigger<std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
-  Trigger<std::span<const uint8_t>> no_response_trigger_;
-  Trigger<std::span<const uint8_t>> not_sent_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>> sent_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>> no_response_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>> not_sent_trigger_;
   retry_func_t retry_func_{nullptr};
 };
 
@@ -85,46 +91,79 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 /// builds its static struct; declaring the values here instead of per action means a new read option
 /// costs one TEMPLATABLE_VALUE plus one field below, and every read action picks it up.
 /// The read/write split mirrors _COMMAND_OPTIONS in the modbus component's Python
-/// (command_options_schema(direction="read") adds exactly these keys). When a write-side option
-/// arrives it gets a WriteCommandOptions twin, so write actions never carry read-only members.
+/// (command_options_schema(direction="read") adds exactly these keys); WriteCommandOptions is the twin.
 template<typename... Ts> class ReadCommandOptions {
  public:
   // Poll: re-queue after each success until downgraded (replay with false) or failed. The hub strips
   // it for mutating function codes at the door (see modbus::CommandOptions).
   TEMPLATABLE_VALUE(bool, continuous)
+  TEMPLATABLE_VALUE(bool, allow_broadcast_read)
 
  protected:
   /// The options for this send, with every templatable value resolved against the action's arguments.
   modbus::CommandOptions command_options_(const Ts &...x) const {
-    return {.continuous = this->continuous_.value(x...)};
+    return {.continuous = this->continuous_.value(x...),
+            .allow_broadcast_read = this->allow_broadcast_read_.value(x...)};
+  }
+};
+
+/// The write-side per-command options (command_options_schema(direction="write") adds exactly these keys).
+template<typename... Ts> class WriteCommandOptions {
+ public:
+  TEMPLATABLE_VALUE(bool, expect_broadcast_write_response)
+
+ protected:
+  /// Resolves every write option into `options`, so send's merge of both sets stays exhaustive.
+  void apply_write_command_options_(modbus::CommandOptions &options, const Ts &...x) const {
+    options.expect_broadcast_write_response = this->expect_broadcast_write_response_.value(x...);
+  }
+  modbus::CommandOptions write_command_options_(const Ts &...x) const {
+    modbus::CommandOptions options{};
+    this->apply_write_command_options_(options, x...);
+    return options;
   }
 };
 
 /// modbus_client.send: fire a raw PDU (function code + data; the hub adds address and CRC). The reply is
-/// delivered raw - on_response(request, response) - deliberately bypassing the typed dispatch, so
+/// delivered raw - on_response(address, request, response) - deliberately bypassing the typed dispatch, so
 /// non-standard/custom transactions pass through untouched.
 /// The PDU is a stack-allocated modbus::helpers::PduBuffer, so a pdu lambda can build one with the
 /// modbus::helpers::create_*_pdu() builders and return it directly (smaller builder results convert).
 /// A PduBuffer drops bytes past modbus::MAX_PDU_SIZE without reporting it (the hub's oversize check
 /// cannot fire - that limit is the capacity), so an over-long lambda-built PDU is silently truncated.
+/// A raw PDU may be a read or a write, so this action carries both option sets.
 template<typename... Ts>
-class ModbusClientSendAction : public ClientActionBase<Ts...>, public ReadCommandOptions<Ts...> {
+class ModbusClientSendAction : public ClientActionBase<Ts...>,
+                               public ReadCommandOptions<Ts...>,
+                               public WriteCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(modbus::helpers::PduBuffer, pdu)
 
-  Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
+  Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
     return &this->response_trigger_;
   }
 
-  void play(const Ts &...x) override { this->send_or_resolve_(this->pdu_.value(x...), this->command_options_(x...)); }
+  void play(const Ts &...x) override {
+    modbus::CommandOptions options = this->command_options_(x...);
+    this->apply_write_command_options_(options, x...);
+    this->send_or_resolve_(this->pdu_.value(x...), options);
+  }
 
-  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
-    this->response_trigger_.trigger(request_pdu, response_pdu);
+  void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                   std::span<const uint8_t> response_pdu) override {
+    this->response_trigger_.trigger(address, request_pdu, response_pdu);
   }
 
  protected:
-  Trigger<std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
 };
+
+// PDU builders for the static values tables, shared by every action instantiation. On ESP8266 the tables
+// are in PROGMEM, which the builders cannot read directly, so these copy them to the stack first.
+modbus::helpers::PduBuffer static_write_registers_pdu(uint16_t start, const uint16_t *values, size_t len);
+modbus::helpers::PduBuffer static_write_coils_pdu(uint16_t start, const uint8_t *packed, uint16_t count);
+modbus::helpers::PduBuffer static_read_write_registers_pdu(uint16_t read_start, uint16_t read_count,
+                                                           uint16_t write_start, const uint16_t *values, size_t len);
 
 /// Typed actions: these do NOT override the raw on_response, so the base ModbusClientDevice default runs
 /// the shared dispatch (validation gate + decode) and the typed callbacks below fire directly on the
@@ -218,7 +257,8 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
 
 /// modbus_client.write_single_register: on_response is the acknowledgement (the ack only echoes the
 /// request, so it carries no arguments).
-template<typename... Ts> class WriteSingleRegisterAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class WriteSingleRegisterAction : public TypedClientActionBase<Ts...>, public WriteCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
   TEMPLATABLE_VALUE(uint16_t, value)
@@ -227,7 +267,8 @@ template<typename... Ts> class WriteSingleRegisterAction : public TypedClientAct
 
   void play(const Ts &...x) override {
     this->send_or_resolve_(
-        modbus::helpers::create_write_single_register_pdu(this->start_address_.value(x...), this->value_.value(x...)));
+        modbus::helpers::create_write_single_register_pdu(this->start_address_.value(x...), this->value_.value(x...)),
+        this->write_command_options_(x...));
   }
   void on_write_single_register(uint16_t address, uint16_t value, modbus::ResponseStatus status) override {
     if (modbus::succeeded(status))
@@ -240,7 +281,8 @@ template<typename... Ts> class WriteSingleRegisterAction : public TypedClientAct
 
 /// modbus_client.write_single_coil: on_response is the acknowledgement (no arguments). A coil holds one
 /// bit, so the value is a bool - the wire only ever carries 0x0000 or 0xFF00.
-template<typename... Ts> class WriteSingleCoilAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class WriteSingleCoilAction : public TypedClientActionBase<Ts...>, public WriteCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
   TEMPLATABLE_VALUE(bool, value)
@@ -249,7 +291,8 @@ template<typename... Ts> class WriteSingleCoilAction : public TypedClientActionB
 
   void play(const Ts &...x) override {
     this->send_or_resolve_(
-        modbus::helpers::create_write_single_coil_pdu(this->start_address_.value(x...), this->value_.value(x...)));
+        modbus::helpers::create_write_single_coil_pdu(this->start_address_.value(x...), this->value_.value(x...)),
+        this->write_command_options_(x...));
   }
   void on_write_single_coil(uint16_t address, bool value, modbus::ResponseStatus status) override {
     if (modbus::succeeded(status))
@@ -261,14 +304,15 @@ template<typename... Ts> class WriteSingleCoilAction : public TypedClientActionB
 };
 
 /// modbus_client.write_multiple_registers: on_response is the acknowledgement (no arguments).
-/// A `values:` list is emitted as a flash array and sent straight from there; only a lambda builds a
+/// A `values:` list is a shared flash table (staged on the stack on ESP8266); only a lambda builds a
 /// vector, and only when it runs. Same split as canbus's send action, and for the same reason: a static
 /// list must not allocate on every play().
-template<typename... Ts> class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public WriteCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
 
-  /// Static config: the registers live in flash, so play() neither allocates nor copies.
+  /// Static config: the registers are a shared flash table.
   void set_values_static(const uint16_t *values, size_t len) {
     this->values_.data = values;
     this->len_ = static_cast<ssize_t>(len);
@@ -286,13 +330,10 @@ template<typename... Ts> class WriteMultipleRegistersAction : public TypedClient
     const uint16_t start = this->start_address_.value(x...);
     // An empty or over-long set rejects into an empty PDU inside the builder, which logs the reason;
     // the empty PDU then resolves via on_not_sent like any refused send.
-    if (this->len_ >= 0) {
-      this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(
-          start, std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))));
-      return;
-    }
-    const std::vector<uint16_t> values = this->values_.func(x...);
-    this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(start, std::span<const uint16_t>(values)));
+    this->send_or_resolve_(this->len_ >= 0
+                               ? static_write_registers_pdu(start, this->values_.data, static_cast<size_t>(this->len_))
+                               : modbus::helpers::create_write_registers_pdu(start, this->values_.func(x...)),
+                           this->write_command_options_(x...));
   }
   void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                    modbus::ResponseStatus status) override {
@@ -313,7 +354,8 @@ template<typename... Ts> class WriteMultipleRegistersAction : public TypedClient
 /// A `values:` list is packed into wire layout at code-generation time and stored in flash, so play()
 /// neither allocates nor packs. A lambda returns std::vector<bool> - already a bit per coil rather than
 /// a byte - and is packed into a stack buffer on the way to the builder.
-template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...>, public WriteCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
 
@@ -332,15 +374,11 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
 
   void play(const Ts &...x) override {
     const uint16_t start = this->start_address_.value(x...);
-    if (this->count_ >= 0) {
-      const auto count = static_cast<uint16_t>(this->count_);
-      this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(
-          start,
-          modbus::PackedBits(std::span<const uint8_t>(this->values_.packed, modbus::packed_bit_bytes(count)), count)));
-      return;
-    }
-    // The builder packs and bound-checks; an over-long set is rejected and logged there.
-    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(start, this->values_.func(x...)));
+    // For a lambda the builder packs and bound-checks; an over-long set is rejected and logged there.
+    this->send_or_resolve_(
+        this->count_ >= 0 ? static_write_coils_pdu(start, this->values_.packed, static_cast<uint16_t>(this->count_))
+                          : modbus::helpers::create_write_coils_pdu(start, this->values_.func(x...)),
+        this->write_command_options_(x...));
   }
   void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
                                modbus::ResponseStatus status) override {
@@ -359,13 +397,14 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
 
 /// modbus_client.read_write_multiple_registers (FC 0x17): writes one register block and reads another back in
 /// one transaction (write first, per Modbus 6.17). on_response delivers the read-back words as `values`.
-template<typename... Ts> class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public ReadCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, read_address)
   TEMPLATABLE_VALUE(uint16_t, read_count)
   TEMPLATABLE_VALUE(uint16_t, write_address)
 
-  /// Static config: the write registers live in flash, so play() neither allocates nor copies.
+  /// Static config: the write registers are a shared flash table.
   void set_values_static(const uint16_t *values, size_t len) {
     this->values_.data = values;
     this->len_ = static_cast<ssize_t>(len);
@@ -383,15 +422,12 @@ template<typename... Ts> class ReadWriteMultipleRegistersAction : public TypedCl
     const uint16_t read_count = this->read_count_.value(x...);
     const uint16_t write_start = this->write_address_.value(x...);
     // An out-of-range read/write count builds an empty PDU (the builder logs why), resolving via on_not_sent.
-    if (this->len_ >= 0) {
-      this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
-          read_start, read_count, write_start,
-          std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))));
-      return;
-    }
-    const std::vector<uint16_t> values = this->values_.func(x...);
-    this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
-        read_start, read_count, write_start, std::span<const uint16_t>(values)));
+    this->send_or_resolve_(this->len_ >= 0
+                               ? static_read_write_registers_pdu(read_start, read_count, write_start,
+                                                                 this->values_.data, static_cast<size_t>(this->len_))
+                               : modbus::helpers::create_read_write_multiple_registers_pdu(
+                                     read_start, read_count, write_start, this->values_.func(x...)),
+                           this->command_options_(x...));
   }
   // The 0x17 response carries only the read block, so the hub dispatch delivers it as a holding-register read.
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,

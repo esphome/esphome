@@ -1,5 +1,9 @@
 import esphome.codegen as cg
-from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
+from esphome.components.touchscreen import (
+    CONF_TOUCHSCREEN_ID,
+    DOMAIN as TOUCHSCREEN_DOMAIN,
+    Touchscreen,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE
@@ -17,7 +21,7 @@ CONF_TOUCHSCREEN = "touchscreen"
 TOUCHSCREENS_CONFIG = cv.maybe_simple_value(
     {
         cv.Required(CONF_TOUCHSCREEN_ID): cv.All(
-            cv.use_id(Touchscreen), cv.requires_component(CONF_TOUCHSCREEN)
+            cv.use_id(Touchscreen), cv.requires_component(TOUCHSCREEN_DOMAIN)
         ),
         cv.Optional(CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
@@ -29,7 +33,7 @@ TOUCHSCREENS_CONFIG = cv.maybe_simple_value(
 
 def touchscreen_schema(config):
     value = cv.ensure_list(TOUCHSCREENS_CONFIG)(config)
-    if value or CONF_TOUCHSCREEN not in CORE.loaded_integrations:
+    if value or TOUCHSCREEN_DOMAIN not in CORE.loaded_integrations:
         return value
     return [TOUCHSCREENS_CONFIG(config)]
 

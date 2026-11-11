@@ -5,10 +5,12 @@
 #   - DS2484:     adjustable 1-Wire timing + RWPU pullup resistor selection
 ds248x:
   - id: ds2482_100
+    i2c_id: i2c_bus
     address: 0x18
     type: ds2482-100
     active_pullup: true
   - id: ds2482_101
+    i2c_id: i2c_bus
     address: 0x19
     type: ds2482-101
     active_pullup: true
@@ -18,10 +20,12 @@ ds248x:
     bus_sleep: true
     hub_sleep: true
   - id: ds2482_800
+    i2c_id: i2c_bus
     address: 0x1a
     type: ds2482-800
     active_pullup: true
   - id: ds2484_hub
+    i2c_id: i2c_bus
     address: 0x1b
     type: ds2484
     active_pullup: true

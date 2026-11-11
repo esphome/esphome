@@ -1,0 +1,17 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - counter.set_value: 5
+      - counter.set_value:
+          value: 7
+      - counter.increment:
+          value: -3
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: counter
+    id: only_counter
+    name: Only Counter

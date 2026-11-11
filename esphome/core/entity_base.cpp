@@ -1,19 +1,53 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
+#include <new>
+
 namespace esphome {
 
-static const char *const TAG = "entity_base";
+ESPHOME_LOG_TAG(TAG, "entity_base");
+
+#ifdef USE_ESP8266
+namespace {
+// RAM copies made by the deprecated get_name(), only for entities whose name is asked for. Remove before 2027.5.0
+struct NameCopy {
+  NameCopy *next;
+  const char *key;
+  StringRef ref;
+};
+NameCopy *name_copies = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+const StringRef EMPTY_NAME;
+}  // namespace
+
+const StringRef &EntityBase::get_name() const {
+  const char *key = this->name_.progmem_ptr();
+  for (NameCopy *copy = name_copies; copy != nullptr; copy = copy->next) {
+    if (copy->key == key)
+      return copy->ref;
+  }
+  size_t len = this->name_.size();
+  void *mem = malloc(sizeof(NameCopy) + len + 1);  // NOLINT(cppcoreguidelines-no-malloc)
+  if (mem == nullptr)
+    return EMPTY_NAME;
+  char *buf = static_cast<char *>(mem) + sizeof(NameCopy);
+  this->name_.write_to(buf, len + 1);
+  name_copies = new (mem) NameCopy{name_copies, key, StringRef(buf, len)};
+  return name_copies->ref;
+}
+#endif
 
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
-  this->name_ = StringRef(name);
+  this->name_ = ProgmemStringRef(name, ESPHOME_strlen_P(name));
   if (this->name_.empty()) {
+    StringRef fallback;
 #ifdef USE_DEVICES
     if (this->device_ != nullptr) {
-      this->name_ = StringRef(this->device_->get_name());
+      fallback = StringRef(this->device_->get_name());
     } else
 #endif
     {
@@ -23,23 +57,27 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
       const auto &friendly = App.get_friendly_name();
       if (App.is_name_add_mac_suffix_enabled()) {
         // MAC suffix enabled - use friendly_name directly (even if empty) for compatibility
-        this->name_ = friendly;
+        fallback = friendly;
       } else {
         // No MAC suffix - fallback to device name if friendly_name is empty
-        this->name_ = !friendly.empty() ? friendly : App.get_name();
+        fallback = !friendly.empty() ? friendly : App.get_name();
       }
     }
+    this->name_ = ProgmemStringRef(fallback);
     this->flags_.has_own_name = false;
-    // Dynamic name - must calculate hash at runtime
-    this->calc_object_id_();
+    // Dynamic name in RAM - hash it at runtime
+    this->object_id_hash_ = fnv1_hash_object_id(fallback.c_str(), fallback.size());
   } else {
     this->flags_.has_own_name = true;
-    // Static name - use pre-computed hash if provided
-    if (object_id_hash != 0) {
-      this->object_id_hash_ = object_id_hash;
-    } else {
-      this->calc_object_id_();
+    // Static name - codegen precomputes the hash; external register_* callers may pass 0
+    if (object_id_hash == 0) {
+      // The name is in flash on ESP8266, so read it byte by byte through progmem_read_byte()
+      const char *name_p = this->name_.progmem_ptr();
+      object_id_hash = fnv1_hash_object_id(this->name_.size(), [name_p](size_t i) {
+        return static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(name_p + i)));
+      });
     }
+    this->object_id_hash_ = object_id_hash;
   }
   // Unpack entity string table indices and flags from entity_fields.
 #ifdef USE_ENTITY_DEVICE_CLASS
@@ -60,7 +98,7 @@ void EntityBase::set_internal(bool internal) {
   // Remove the after-setup path in 2027.3.0 and ignore the call instead.
   if (App.is_setup_complete()) {
     ESP_LOGE(TAG, "'%s': set_internal() after setup is undefined behavior, stops working in 2027.3.0",
-             this->get_name().c_str());
+             LOG_STR_ARG(this->get_log_name()));
   }
   this->flags_.internal = internal;
 }
@@ -70,22 +108,22 @@ __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return "
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
 
-// Entity device class — buffer-based API for PROGMEM safety on ESP8266
-const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const {
+static ProgmemStringRef table_ref(const char *s) { return {s, ESPHOME_strlen_P(s)}; }
+
+ProgmemStringRef EntityBase::get_device_class_progmem() const {
 #ifdef USE_ENTITY_DEVICE_CLASS
-  const uint8_t idx = this->device_class_idx_;
+  return table_ref(entity_device_class_lookup(this->device_class_idx_));
 #else
-  const uint8_t idx = 0;
+  return {};
 #endif
+}
+
+const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const {
 #ifdef USE_ESP8266
-  if (idx == 0)
-    return "";
-  const char *dc = entity_device_class_lookup(idx);
-  ESPHOME_strncpy_P(buffer.data(), dc, buffer.size() - 1);
-  buffer[buffer.size() - 1] = '\0';
+  this->get_device_class_progmem().write_to(buffer.data(), buffer.size());
   return buffer.data();
 #else
-  return entity_device_class_lookup(idx);
+  return this->get_device_class_progmem().progmem_ptr();
 #endif
 }
 
@@ -97,36 +135,28 @@ StringRef EntityBase::get_unit_of_measurement_ref() const {
   return StringRef(entity_uom_lookup(0));
 #endif
 }
-// Entity icon — buffer-based API for PROGMEM safety on ESP8266
-const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
+ProgmemStringRef EntityBase::get_icon_progmem() const {
 #ifdef USE_ENTITY_ICON
-  const uint8_t idx = this->icon_idx_;
+  return table_ref(entity_icon_lookup(this->icon_idx_));
 #else
-  const uint8_t idx = 0;
-#endif
-#ifdef USE_ESP8266
-  if (idx == 0)
-    return "";
-  const char *icon = entity_icon_lookup(idx);
-  ESPHOME_strncpy_P(buffer.data(), icon, buffer.size() - 1);
-  buffer[buffer.size() - 1] = '\0';
-  return buffer.data();
-#else
-  return entity_icon_lookup(idx);
+  return {};
 #endif
 }
 
-// Calculate Object ID Hash directly from name using snake_case + sanitize
-void EntityBase::calc_object_id_() {
-  this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
+const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
+#ifdef USE_ESP8266
+  this->get_icon_progmem().write_to(buffer.data(), buffer.size());
+  return buffer.data();
+#else
+  return this->get_icon_progmem().progmem_ptr();
+#endif
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
-  size_t len = std::min(this->name_.size(), buf_size - 1);
+  size_t len = this->write_name_to(buf, buf_size);
   for (size_t i = 0; i < len; i++) {
-    buf[i] = to_sanitized_char(to_snake_case_char(this->name_[i]));
+    buf[i] = to_sanitized_char(to_snake_case_char(buf[i]));
   }
-  buf[len] = '\0';
   return len;
 }
 
@@ -135,7 +165,7 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+uint32_t EntityBase::entity_preference_key_(uint32_t version) {
   // The key hashes the sanitized object_id, so multiple entity names can collide on one
   // key and overwrite each other's stored preferences ("Living Room" and "living_room",
   // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
@@ -143,26 +173,38 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  uint32_t key = this->get_preference_hash() ^ version;
+  return this->get_preference_hash() ^ version;
 #pragma GCC diagnostic pop
-  return global_preferences->make_preference(size, key);
+}
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+  return global_preferences->make_preference(size, this->entity_preference_key_(version));
+}
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version, bool in_flash) {
+  return global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+}
+
+bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {
+  if (obj == nullptr)
+    return false;
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
+  return true;
 }
 
 #ifdef USE_ENTITY_ICON
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj) {
-  char icon_buf[MAX_ICON_LENGTH];
-  const char *icon = obj.get_icon_to(icon_buf);
-  if (icon[0] != '\0') {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon);
+  ProgmemStringRef icon = obj.get_icon_progmem();
+  if (!icon.empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon.progmem_ptr());
   }
 }
 #endif
 
 void log_entity_device_class(const char *tag, const char *prefix, const EntityBase &obj) {
-  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-  const char *dc = obj.get_device_class_to(dc_buf);
-  if (dc[0] != '\0') {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, dc);
+  ProgmemStringRef dc = obj.get_device_class_progmem();
+  if (!dc.empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, dc.progmem_ptr());
   }
 }
 

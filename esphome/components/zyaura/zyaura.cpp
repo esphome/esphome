@@ -1,9 +1,10 @@
 #include "zyaura.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::zyaura {
 
-static const char *const TAG = "zyaura";
+ESPHOME_LOG_TAG(TAG, "zyaura");
 
 bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
   // check if a new message has started, based on time since previous bit
@@ -28,7 +29,7 @@ bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
       }
 
       this->message->type = (ZaDataType) this->buffer_[ZA_BYTE_TYPE];
-      this->message->value = this->buffer_[ZA_BYTE_HIGH] << 8 | this->buffer_[ZA_BYTE_LOW];
+      this->message->value = encode_uint16(this->buffer_[ZA_BYTE_HIGH], this->buffer_[ZA_BYTE_LOW]);
       return true;
     }
   }

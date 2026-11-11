@@ -3,5 +3,7 @@ esphome:
 
 esp8266:
   board: d1_mini
+  # The PlatformIO path stays covered whatever the default is
+  toolchain: platformio
 
 logger:

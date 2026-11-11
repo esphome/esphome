@@ -3,14 +3,12 @@
 
 namespace esphome::ina2xx_i2c {
 
-static const char *const TAG = "ina2xx_i2c";
+ESPHOME_LOG_TAG(TAG, "ina2xx_i2c");
 
 void INA2XXI2C::setup() {
   auto err = this->write(nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
   INA2XX::setup();
 }
 

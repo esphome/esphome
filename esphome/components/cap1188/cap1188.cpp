@@ -4,7 +4,7 @@
 
 namespace esphome::cap1188 {
 
-static const char *const TAG = "cap1188";
+ESPHOME_LOG_TAG(TAG, "cap1188");
 
 void CAP1188Component::setup() {
   this->disable_loop();
@@ -37,16 +37,13 @@ void CAP1188Component::finish_setup_() {
   this->read_byte(CAP1188_REVISION, &this->cap1188_revision_);
 
   if ((this->cap1188_product_id_ != 0x50) || (this->cap1188_manufacture_id_ != 0x5D)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Product ID or Manufacture ID of the connected device does not match a known CAP1188"));
     return;
   }
 
   // Set sensitivity
-  uint8_t sensitivity = 0;
-  this->read_byte(CAP1188_SENSITVITY, &sensitivity);
-  sensitivity = sensitivity & 0x0f;
-  this->write_byte(CAP1188_SENSITVITY, sensitivity | this->touch_threshold_);
+  // The threshold replaces the upper nibble and is ORed into the lower one, as before
+  this->update_register(CAP1188_SENSITVITY, 0xF0 | this->touch_threshold_, this->touch_threshold_);
 
   // Allow multiple touches
   this->write_byte(CAP1188_MULTI_TOUCH, this->allow_multiple_touches_);
@@ -70,29 +67,17 @@ void CAP1188Component::dump_config() {
                 this->cap1188_product_id_, this->cap1188_manufacture_id_, this->cap1188_revision_);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Product ID or Manufacture ID of the connected device does not match a known CAP1188.");
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 
 void CAP1188Component::loop() {
   uint8_t touched = 0;
 
-  this->read_register(CAP1188_SENSOR_INPUT_STATUS, &touched, 1);
+  // On a failed read the channels keep their state instead of reporting a release
+  if (!this->status_comm_result(this->read_byte(CAP1188_SENSOR_INPUT_STATUS, &touched)))
+    return;
 
-  if (touched) {
-    uint8_t data = 0;
-    this->read_register(CAP1188_MAIN, &data, 1);
-    data = data & ~CAP1188_MAIN_INT;
-
-    this->write_register(CAP1188_MAIN, &data, 1);
-  }
+  if (touched)
+    this->update_register(CAP1188_MAIN, CAP1188_MAIN_INT, 0);
 
   for (auto *channel : this->channels_) {
     channel->process(touched);

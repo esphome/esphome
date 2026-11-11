@@ -8,6 +8,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@bdraco"]
+DOMAIN = "runtime_stats"
 
 CONF_LOG_INTERVAL = "log_interval"
 

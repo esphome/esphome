@@ -8,7 +8,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 void Logger::pre_setup() {
 #if defined(USE_ESP8266_LOGGER_SERIAL)
@@ -47,6 +47,11 @@ const LogString *Logger::get_uart_selection_() {
   return LOG_STR("NONE");
 #endif
 }
+
+#ifdef USE_CRASH_HANDLER
+bool crash_log_pending() { return esp8266::crash_handler_has_data(); }
+void log_crash_to_client() { esp8266::crash_handler_log(); }
+#endif
 
 }  // namespace esphome::logger
 

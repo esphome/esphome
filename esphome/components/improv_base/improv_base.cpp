@@ -8,8 +8,8 @@
 
 namespace esphome::improv_base {
 
-#if defined(USE_ESP32_IMPROV_NEXT_URL) || defined(USE_IMPROV_SERIAL_NEXT_URL)
-static const char *const TAG = "improv_base";
+#ifdef USE_IMPROV_NEXT_URL
+ESPHOME_LOG_TAG(TAG, "improv_base");
 
 static constexpr const char DEVICE_NAME_PLACEHOLDER[] = "{{device_name}}";
 static constexpr size_t DEVICE_NAME_PLACEHOLDER_LEN = sizeof(DEVICE_NAME_PLACEHOLDER) - 1;
@@ -69,7 +69,7 @@ size_t ImprovBase::get_formatted_next_url_(char *buffer, size_t buffer_size) {
 void ImprovBase::add_next_url_(improv::RpcResponseBuilder &builder, size_t max_len) {
   // The builder rejects strings above 254 bytes, so anything longer than this
   // buffer could never be sent anyway
-  char url_buffer[256];
+  char url_buffer[256] = {};
   size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
   if (len == 0) {
     return;

@@ -3,7 +3,6 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/speaker/speaker.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -15,8 +14,6 @@ namespace esphome::router {
 
 class Router final : public Component, public speaker::Speaker {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -39,8 +36,8 @@ class Router final : public Component, public speaker::Speaker {
   void set_mute_state(bool mute_state) override;
   bool get_mute_state() override { return this->mute_state_; }
 
-  // Allocate the output list to its final size. Must be called before add_output().
-  void set_output_count(size_t count) { this->outputs_.init(count); }
+  // Must be called before add_output().
+  void set_output_storage(std::span<speaker::Speaker *> storage) { this->outputs_.init(storage); }
   void add_output(speaker::Speaker *spk) { this->outputs_.push_back(spk); }
 
   /// Switch the active output to the given speaker. Must be one of the configured outputs.
@@ -59,6 +56,9 @@ class Router final : public Component, public speaker::Speaker {
   // frames_in_pipeline_.
   std::atomic<uint32_t> frames_in_pipeline_{0};
 
+  // Set when entering STATE_STARTING; used to time out a start the output never acts on
+  uint32_t state_start_ms_{0};
+
   bool cached_pause_{false};
 
   void apply_cached_state_to_active_();
@@ -71,20 +71,10 @@ class Router final : public Component, public speaker::Speaker {
   std::atomic<int8_t> pending_start_prev_idx_{-1};
 
  private:
-  FixedVector<speaker::Speaker *> outputs_;
+  StaticFixedVector<speaker::Speaker *> outputs_;
   // Index into outputs_, always within [0, outputs_.size()). Defaults to the first
   // configured output; updated by switch_to_output().
   std::atomic<int8_t> active_output_idx_{0};
-};
-
-template<typename... Ts> class SwitchOutputAction final : public Action<Ts...> {
- public:
-  explicit SwitchOutputAction(Router *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(speaker::Speaker *, target)
-  void play(const Ts &...x) override { this->parent_->switch_to_output(this->target_.value(x...)); }
-
- protected:
-  Router *parent_;
 };
 
 }  // namespace esphome::router

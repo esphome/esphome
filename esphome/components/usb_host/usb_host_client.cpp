@@ -11,6 +11,8 @@
 #include <cstring>
 #include <atomic>
 #include <span>
+#include <string>
+
 namespace esphome::usb_host {
 
 #pragma GCC diagnostic ignored "-Wparentheses"
@@ -143,23 +145,91 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-// USB string descriptors: bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType).
-// Character count = (bLength - 2) / 2, max 126 chars + null terminator.
-static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+// bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType),
+// so character count = (bLength - 2) / 2.
+bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char> buffer) {
+  buffer[0] = '\0';
+  if (desc == nullptr || desc->bLength < 2)
+    return true;
+  const size_t char_count = (desc->bLength - 2) / 2;
+  if (char_count >= buffer.size())
+    return false;
+  char *p = buffer.data();
+  for (size_t i = 0; i != char_count; i++) {
+    auto c = desc->wData[i];
+    // TODO: encode non-ASCII code units as UTF-8 if a device with such descriptors turns up
+    if (c >= 0x80) {
+      buffer[0] = '\0';
+      return false;
+    }
+    *p++ = static_cast<char>(c);
+  }
+  *p = '\0';
+  return true;
+}
+
+// Folds UTF-16 to Latin-1 for logging, dropping anything that does not fit
+template<typename T>
+static const char *utf16_to_latin1(const T *data, size_t count, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  char *p = buffer.data();
+  char *end = p + buffer.size() - 1;
+  for (size_t i = 0; i != count && p < end; i++) {
+    if (data[i] < 0x100)
+      *p++ = static_cast<char>(data[i]);
+  }
+  *p = '\0';
+  return buffer.data();
+}
 
 static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
-  int char_count = (desc->bLength - 2) / 2;
-  char *p = buffer.data();
-  char *end = p + buffer.size() - 1;
-  for (int i = 0; i != char_count && p < end; i++) {
-    auto c = desc->wData[i];
-    if (c < 0x100)
-      *p++ = static_cast<char>(c);
+  return utf16_to_latin1(desc->wData, (desc->bLength - 2) / 2, buffer);
+}
+
+static const char *filter_string(const char16_t *filter, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  return utf16_to_latin1(filter, std::char_traits<char16_t>::length(filter), buffer);
+}
+
+// Both sides are UTF-16: the descriptor by specification, the filter because code
+// generation emits it as a u"" literal
+static bool descriptor_string_equals(const usb_str_desc_t *desc, const char16_t *expected) {
+  const int char_count = (desc == nullptr || desc->bLength < 2) ? 0 : (desc->bLength - 2) / 2;
+  for (int i = 0; i != char_count; i++) {
+    if (expected[i] == u'\0' || desc->wData[i] != expected[i])
+      return false;
   }
-  *p = '\0';
-  return buffer.data();
+  return expected[char_count] == u'\0';
+}
+
+bool USBClient::get_device_info(UsbDeviceInfo &info) const {
+  if (!this->is_connected())
+    return false;
+  const usb_device_desc_t *desc;
+  esp_err_t err = usb_host_get_device_descriptor(this->device_handle_, &desc);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device descriptor query failed: %s", esp_err_to_name(err));
+    return false;
+  }
+  info.vendor_id = desc->idVendor;
+  info.product_id = desc->idProduct;
+  info.bcd_device = desc->bcdDevice;
+  usb_device_info_t dev_info;
+  err = usb_host_device_info(this->device_handle_, &dev_info);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device info query failed: %s", esp_err_to_name(err));
+    return false;
+  }
+  if (!copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer)) {
+    ESP_LOGW(TAG, "Manufacturer string descriptor is not ASCII");
+  }
+  if (!copy_descriptor_string(dev_info.str_desc_product, info.product)) {
+    ESP_LOGW(TAG, "Product string descriptor is not ASCII");
+  }
+  if (!copy_descriptor_string(dev_info.str_desc_serial_num, info.serial_number)) {
+    ESP_LOGW(TAG, "Serial number string descriptor is not ASCII");
+  }
+  return true;
 }
 
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
@@ -218,9 +288,17 @@ void USBClient::setup() {
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
   for (auto &request : this->requests_) {
-    usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer);
+    if (usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer) != ESP_OK) {
+      this->mark_failed(LOG_STR("Transfer alloc failed"));
+      return;
+    }
     request.client = this;  // Set once, never changes
   }
+  if (usb_host_transfer_alloc(STRING_TRANSFER_SIZE, 0, &this->string_transfer_) != ESP_OK) {
+    this->mark_failed(LOG_STR("Transfer alloc failed"));
+    return;
+  }
+  this->string_transfer_->context = this;
 
   // Create and start USB task
   xTaskCreate(usb_task_fn, "usb_task",
@@ -273,6 +351,19 @@ bool USBClient::process_usb_events_() {
   if (this->state_ == USB_CLIENT_OPEN) {
     had_work = true;
     this->handle_open_state_();
+  } else if (this->string_done_.load(std::memory_order_acquire)) {
+    // Acquire: pairs with the release in string_transfer_callback()
+    had_work = true;
+    this->string_done_.store(0);
+    // The device may have gone away while the read was in flight; then nobody is waiting
+    if (this->state_ == USB_CLIENT_GET_DESC) {
+      const usb_str_desc_t *desc = this->string_result_();
+      if (desc != nullptr && descriptor_string_equals(desc, this->interface_filter_))
+        this->interface_matched_ = true;
+      this->handle_get_desc_state_();
+    } else if (this->state_ == USB_CLIENT_CONNECTED) {
+      this->on_interface_string(this->string_interface_, this->string_result_());
+    }
   }
 
   return had_work;
@@ -302,15 +393,70 @@ void USBClient::handle_open_state_() {
     return;
   }
   ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
-  if (desc->idVendor != this->vid_ || desc->idProduct != this->pid_) {
-    if (this->vid_ != 0 || this->pid_ != 0) {
-      ESP_LOGD(TAG, "Not our device, closing");
-      this->disconnect();
-      return;
-    }
+  if ((this->vid_ != 0 && desc->idVendor != this->vid_) || (this->pid_ != 0 && desc->idProduct != this->pid_)) {
+    ESP_LOGD(TAG, "Not our device, closing");
+    this->disconnect();
+    return;
   }
   usb_device_info_t dev_info;
   err = usb_host_device_info(this->device_handle_, &dev_info);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  char buf_manuf[DESC_STRING_BUF_SIZE];
+  char buf_product[DESC_STRING_BUF_SIZE];
+  const bool manufacturer_matches =
+      this->manufacturer_filter_ == nullptr ||
+      descriptor_string_equals(dev_info.str_desc_manufacturer, this->manufacturer_filter_);
+  const bool product_matches =
+      this->product_filter_ == nullptr || descriptor_string_equals(dev_info.str_desc_product, this->product_filter_);
+  if (!manufacturer_matches || !product_matches) {
+    ESP_LOGD(TAG, "Device does not match filter, closing. Manuf: %s; Prod: %s",
+             get_descriptor_string(dev_info.str_desc_manufacturer, buf_manuf),
+             get_descriptor_string(dev_info.str_desc_product, buf_product));
+    this->disconnect();
+    return;
+  }
+  if (this->interface_filter_ == nullptr) {
+    this->finish_open_();
+    return;
+  }
+  // The interface strings are not cached by the host stack, so the filter reads them itself
+  this->state_ = USB_CLIENT_GET_DESC;
+  this->interface_matched_ = false;
+  this->filter_interface_ = 0;
+  this->handle_get_desc_state_();
+}
+
+// The filter pass: reads the iInterface string of each interface in turn until one matches the
+// filter, then finishes opening the device or closes it. Runs on the main
+// loop, from handle_open_state_() first and then after each string.
+void USBClient::handle_get_desc_state_() {
+  const usb_config_desc_t *config_desc;
+  esp_err_t err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Config descriptor query failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  while (!this->interface_matched_ && this->filter_interface_ < config_desc->bNumInterfaces) {
+    if (this->read_interface_string_(this->filter_interface_++))
+      return;
+  }
+  if (!this->interface_matched_) {
+    ESP_LOGD(TAG, "Device does not match interface filter, closing");
+    this->disconnect();
+    return;
+  }
+  this->finish_open_();
+}
+
+// The device passed every filter: hand it to the subclass
+void USBClient::finish_open_() {
+  usb_device_info_t dev_info;
+  esp_err_t err = usb_host_device_info(this->device_handle_, &dev_info);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
     this->disconnect();
@@ -336,6 +482,73 @@ void USBClient::handle_open_state_() {
     usb_client_print_config_descriptor(config_desc, nullptr);
 #endif
   this->on_connected();
+  // on_connected() may have rejected the device (no usable interface, say) and closed it
+  if (this->state_ == USB_CLIENT_CONNECTED && !this->reports_connection_itself()) {
+    this->report_connected_();
+  }
+}
+
+bool USBClient::read_interface_string_(uint8_t interface_number) {
+  const usb_config_desc_t *config_desc;
+  const usb_device_desc_t *device_desc;
+  if (usb_host_get_active_config_descriptor(this->device_handle_, &config_desc) != ESP_OK ||
+      usb_host_get_device_descriptor(this->device_handle_, &device_desc) != ESP_OK) {
+    ESP_LOGW(TAG, "Descriptor query failed");
+    return false;
+  }
+  int offset = 0;
+  const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config_desc, interface_number, 0, &offset);
+  if (intf == nullptr || intf->iInterface == 0)
+    return false;
+  usb_transfer_t *xfer = this->string_transfer_;
+  USB_SETUP_PACKET_INIT_GET_STR_DESC(reinterpret_cast<usb_setup_packet_t *>(xfer->data_buffer), intf->iInterface,
+                                     STRING_DESC_LANGID, STRING_DESC_MAX_SIZE);
+  xfer->device_handle = this->device_handle_;
+  xfer->bEndpointAddress = USB_DIR_IN;
+  // The data stage is read in whole packets, as the host stack's own descriptor reads are
+  xfer->num_bytes = SETUP_PACKET_SIZE + usb_round_up_to_mps(STRING_DESC_MAX_SIZE, device_desc->bMaxPacketSize0);
+  xfer->callback = string_transfer_callback;
+  esp_err_t err = usb_host_transfer_submit_control(this->handle_, xfer);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Interface %u string read failed: %s", interface_number, esp_err_to_name(err));
+    return false;
+  }
+  this->string_interface_ = interface_number;
+  return true;
+}
+
+// The reply to the last read_interface_string_(), when it is a well-formed string descriptor
+const usb_str_desc_t *USBClient::string_result_() const {
+  const usb_transfer_t *xfer = this->string_transfer_;
+  // actual_num_bytes counts the setup packet too
+  const size_t received = xfer->actual_num_bytes > SETUP_PACKET_SIZE ? xfer->actual_num_bytes - SETUP_PACKET_SIZE : 0;
+  const auto *desc = reinterpret_cast<const usb_str_desc_t *>(xfer->data_buffer + SETUP_PACKET_SIZE);
+  if (xfer->status != USB_TRANSFER_STATUS_COMPLETED || received < USB_STR_DESC_SIZE ||
+      desc->bDescriptorType != USB_B_DESCRIPTOR_TYPE_STRING || desc->bLength > received) {
+    ESP_LOGW(TAG, "Interface %u string read failed: status %d, %zu bytes", this->string_interface_, xfer->status,
+             received);
+    return nullptr;
+  }
+  char buf[DESC_STRING_BUF_SIZE];
+  ESP_LOGD(TAG, "Interface %u: %s", this->string_interface_, get_descriptor_string(desc, buf));
+  return desc;
+}
+
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
+void USBClient::string_transfer_callback(usb_transfer_t *xfer) {
+  auto *client = static_cast<USBClient *>(xfer->context);
+  // Release: publishes the transfer result before the loop observes string_done_
+  client->string_done_.store(1, std::memory_order_release);
+  client->enable_loop_soon_any_context();
+  App.wake_loop_threadsafe();
+}
+
+void USBClient::report_connected_() {
+  if (this->state_ != USB_CLIENT_CONNECTED || this->connection_reported_) {
+    return;
+  }
+  this->connection_reported_ = true;
+  this->connection_callback_.call(true);
 }
 
 void USBClient::on_opened(uint8_t addr) {
@@ -406,6 +619,10 @@ TransferRequest *USBClient::get_trq_() {
 }
 
 void USBClient::disconnect() {
+  // Also reached for a device this client opened and then declined, or lost before it was
+  // ready; neither was reported as connected, so neither is reported as removed
+  const bool was_reported = this->connection_reported_;
+  this->connection_reported_ = false;
   this->on_disconnected();
   auto err = usb_host_device_close(this->handle_, this->device_handle_);
   if (err != ESP_OK) {
@@ -414,6 +631,10 @@ void USBClient::disconnect() {
   this->state_ = USB_CLIENT_INIT;
   this->device_handle_ = nullptr;
   this->device_addr_ = -1;
+  this->string_done_.store(0);
+  if (was_reported) {
+    this->connection_callback_.call(false);
+  }
 }
 
 // THREAD CONTEXT: Called from main loop thread only
@@ -557,6 +778,16 @@ void USBClient::dump_config() {
                 "  Vendor id %04X\n"
                 "  Product id %04X",
                 this->vid_, this->pid_);
+  char buf[DESC_STRING_BUF_SIZE];
+  if (this->manufacturer_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Manufacturer %s", filter_string(this->manufacturer_filter_, buf));
+  }
+  if (this->product_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Product %s", filter_string(this->product_filter_, buf));
+  }
+  if (this->interface_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Interface %s", filter_string(this->interface_filter_, buf));
+  }
 }
 // THREAD CONTEXT: Called from both USB task and main loop threads
 // - USB task: Immediately after transfer callback completes

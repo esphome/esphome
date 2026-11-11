@@ -1,0 +1,9 @@
+packages:
+  common: !include common.yaml
+
+network:
+
+# No host set: the device dials the last remembered Home Assistant address
+api:
+  outgoing_connection:
+    delay: 30s

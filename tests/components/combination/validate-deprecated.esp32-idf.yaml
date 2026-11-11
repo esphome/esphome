@@ -1,0 +1,15 @@
+sensor:
+  - platform: template
+    id: template_temperature1
+    lambda: return 0.6;
+  - platform: template
+    id: template_temperature2
+    lambda: return 0.8;
+  - platform: combination
+    type: linear
+    name: Linearly combined temperatures
+    sources:
+      - source: template_temperature1
+        coeffecient: 0.5
+      - source: template_temperature2
+        coefficient: 1.5

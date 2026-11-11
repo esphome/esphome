@@ -23,6 +23,33 @@ static constexpr uint8_t X_AXIS = 0;
 static constexpr uint8_t Y_AXIS = 1;
 static constexpr uint8_t Z_AXIS = 2;
 
+/// Compute the device's in-plane orientation from the gravity vector.
+///
+/// Returns NAN when the device is flat (lying face up or face down), i.e. when the
+/// horizontal component of gravity, normalised by the total acceleration, is below
+/// `flat_threshold` (the sine of the minimum tilt angle). Otherwise returns the
+/// rotation snapped to the nearest of 0, 90, 180 or 270 degrees, derived from the
+/// direction of the horizontal gravity component.
+inline float orientation_degrees(const MotionData &data, float flat_threshold) {
+  float ax = data.acceleration[X_AXIS];
+  float ay = data.acceleration[Y_AXIS];
+  float az = data.acceleration[Z_AXIS];
+  if (std::isnan(ax) || std::isnan(ay) || std::isnan(az))
+    return NAN;
+  float mag = std::sqrt(ax * ax + ay * ay + az * az);
+  if (mag < 0.1f)
+    return NAN;
+  // Horizontal component of gravity; near zero when the device lies flat.
+  float h = std::sqrt(ax * ax + ay * ay);
+  if (h / mag < flat_threshold)
+    return NAN;
+  // Direction of the horizontal component, snapped to the nearest 90°.
+  float angle = std::atan2(ay, ax) * (180.0f / std::numbers::pi_v<float>);
+  int quadrant = static_cast<int>(std::lround(angle / 90.0f));
+  quadrant = ((quadrant % 4) + 4) % 4;  // normalise to 0..3
+  return quadrant * 90.0f;
+}
+
 // Persisted calibration. `base_hash` ties the stored matrix to the build-time
 // (axis_map / transform_matrix) base; if the base changes the saved calibration
 // is ignored. Stored under a stable, ID-derived key so it overwrites in place.
@@ -38,7 +65,6 @@ class MotionComponent : public PollingComponent {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_matrix(const std::array<float, 9> &m) {
     memcpy(this->base_matrix_, m.data(), sizeof(this->base_matrix_));
@@ -52,14 +78,36 @@ class MotionComponent : public PollingComponent {
   bool calibrate_heading();
   /// Save the current matrix to NVS.
   bool save_calibration();
-  /// Restore the build-time (axis_map / transform_matrix) base, discarding calibration.
-  void clear_calibration();
+  /// Restore the build-time (axis_map / transform_matrix) base, discarding calibration,
+  /// and persist that base when `save` is set.
+  void clear_calibration(bool save = false);
 
-  template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
+#ifdef USE_MOTION_DATA_PUBLISHER
+  HUB_PUBLISHER(data, const MotionData &)
+#endif
+
+#ifdef USE_MOTION_TAP
+  /// Platforms with a tap block convert this to chip steps and clamp it.
+  virtual void set_tap_threshold(float threshold_g);
+  // Callback args: (axis after axis_map, negative side)
+  template<typename F> void add_on_tap_callback(F &&cb) { this->tap_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_double_tap_callback(F &&cb) { this->double_tap_callback_.add(std::forward<F>(cb)); }
+#endif
 
  protected:
   // platforms must implement this method to update raw data.
   virtual bool update_data(MotionData &data) = 0;
+
+#ifdef USE_MOTION_TAP
+  // chip_axis is the sensor's own axis; it is reported in the axis_map frame
+  void report_tap_(uint8_t chip_axis, bool chip_negative);
+  // Also drops a single tap held by hold_tap_()
+  void report_double_tap_(uint8_t chip_axis, bool chip_negative);
+  // For chips that report the first tap of a double as a single: hold it for tap_hold_ms_
+  void hold_tap_(uint8_t chip_axis, bool chip_negative, uint32_t now);
+  // Reports a held single tap once tap_hold_ms_ has passed with no double tap
+  void release_held_tap_(uint32_t now);
+#endif
 
   // for mapping axes
   float matrix_[9]{
@@ -77,10 +125,21 @@ class MotionComponent : public PollingComponent {
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
   }
 
-  LazyCallbackManager<void(MotionData &)> motion_data_callback_{};
   uint32_t pref_key_{0};
   uint32_t base_hash_{0};  // hash of base_matrix_, captured in setup()
   ESPPreferenceObject pref_{};
+
+#ifdef USE_MOTION_TAP
+  void resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, uint8_t &axis, bool &negative) const;
+
+  LazyCallbackManager<void(uint8_t, bool)> tap_callback_{};
+  LazyCallbackManager<void(uint8_t, bool)> double_tap_callback_{};
+  uint32_t tap_hold_ms_{0};
+  uint32_t tap_held_since_{0};
+  uint8_t tap_held_axis_{0};
+  bool tap_held_negative_{false};
+  bool tap_held_{false};
+#endif
 };
 
 // --- Actions ---
@@ -132,22 +191,6 @@ template<typename... Ts> class CalibrateHeadingAction final : public Action<Ts..
   MotionComponent *parent_;
   Trigger<> success_trigger_;
   Trigger<> error_trigger_;
-  bool save_{false};
-};
-
-template<typename... Ts> class ClearCalibrationAction final : public Action<Ts...> {
- public:
-  explicit ClearCalibrationAction(MotionComponent *parent) : parent_(parent) {}
-  void set_save(bool save) { this->save_ = save; }
-
- protected:
-  void play(const Ts &...) override {
-    this->parent_->clear_calibration();
-    if (this->save_)
-      this->parent_->save_calibration();
-  }
-
-  MotionComponent *parent_;
   bool save_{false};
 };
 

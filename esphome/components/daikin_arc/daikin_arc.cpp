@@ -4,10 +4,11 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_arc {
 
-static const char *const TAG = "daikin.climate";
+ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -39,13 +40,7 @@ void DaikinArcClimate::transmit_query_() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (uint8_t i : remote_header) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = i & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_header, sizeof(remote_header));
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -95,9 +90,7 @@ void DaikinArcClimate::transmit_state() {
     remote_header[9] |= 0x10;
     this->last_humidity_ = remote_state[7];
   }
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[8] = fan_speed >> 8;
-  remote_state[9] = fan_speed & 0xff;
+  put_be16(remote_state + 8, this->fan_speed_());
 
   // Calculate checksum
   for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {
@@ -119,26 +112,14 @@ void DaikinArcClimate::transmit_state() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (uint8_t i : remote_header) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = i & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_header, sizeof(remote_header));
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (uint8_t i : remote_state) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = i & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state, sizeof(remote_state));
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -246,10 +227,7 @@ climate::ClimateTraits DaikinArcClimate::traits() {
 }
 
 bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGI(TAG, "checksum error");
     return false;
@@ -342,7 +320,7 @@ bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
 }
 
 bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE] = {};
+  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE];
 
   bool valid_daikin_frame = false;
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
@@ -421,16 +399,11 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ZERO_SPACE)) {
-        ESP_LOGI(TAG, "non daikin_arc expect item pos: %d", pos);
-        return false;
-      }
+    if (!data.expect_bytes<DAIKIN_BIT_TIMINGS>(&state_frame[pos], 1)) {
+      ESP_LOGI(TAG, "non daikin_arc expect item pos: %d", pos);
+      return false;
     }
-    state_frame[pos] = byte;
+    const uint8_t byte = state_frame[pos];
     if (pos == 0) {
       // frame header
       if (byte != 0x11) {

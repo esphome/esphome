@@ -15,9 +15,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     PLATFORM_ESP32,
 )
-from esphome.core import ID
 from esphome.core.entity_helpers import inherit_property_from
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -31,10 +29,6 @@ SourceSpeaker = mixer_speaker_ns.class_("SourceSpeaker", cg.Component, speaker.S
 CONF_DECIBEL_REDUCTION = "decibel_reduction"
 CONF_QUEUE_MODE = "queue_mode"
 CONF_SOURCE_SPEAKERS = "source_speakers"
-
-DuckingApplyAction = mixer_speaker_ns.class_(
-    "DuckingApplyAction", automation.Action, cg.Parented.template(SourceSpeaker)
-)
 
 
 SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
@@ -130,8 +124,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
 
-    # Initialize FixedVector with exact count of source speakers
-    cg.add(var.init_source_speakers(len(config[CONF_SOURCE_SPEAKERS])))
+    storage = cg.static_storage(
+        config[CONF_ID],
+        SourceSpeaker.operator("ptr"),
+        len(config[CONF_SOURCE_SPEAKERS]),
+    )
+    cg.add(var.set_source_speaker_storage(storage))
 
     for speaker_config in config[CONF_SOURCE_SPEAKERS]:
         source_speaker = cg.new_Pvariable(speaker_config[CONF_ID])
@@ -148,34 +146,19 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.add_source_speaker(source_speaker))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "mixer_speaker.apply_ducking",
-    DuckingApplyAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SourceSpeaker),
-            cv.Required(CONF_DECIBEL_REDUCTION): cv.templatable(
-                cv.int_range(min=0, max=51)
-            ),
+            cv.Required(CONF_DECIBEL_REDUCTION): cv.templatable(cv.uint8_t),
             cv.Optional(CONF_DURATION, default="0.0s"): cv.templatable(
                 cv.positive_time_period_milliseconds
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "apply_ducking({}, {})",
+        ((CONF_DECIBEL_REDUCTION, cg.uint8), (CONF_DURATION, cg.uint32)),
+    ),
 )
-async def ducking_set_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    decibel_reduction = await cg.templatable(
-        config[CONF_DECIBEL_REDUCTION], args, cg.uint8
-    )
-    cg.add(var.set_decibel_reduction(decibel_reduction))
-    duration = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
-    cg.add(var.set_duration(duration))
-    return var

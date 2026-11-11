@@ -13,7 +13,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee_on_off.switch";
+ESPHOME_LOG_TAG(TAG, "zigbee_on_off.switch");
 
 void ZigbeeSwitch::dump_config() {
   ESP_LOGCONFIG(TAG,

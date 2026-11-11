@@ -52,7 +52,7 @@ TEST(RpcResponseBuilder, GoldenBytes) {
             (std::vector<uint8_t>{0x04, 0x03, 0x02, 'a', 'b', 0xCC}));
 }
 
-// esp32_improv calls finish() and build_rpc_response() with no checksum flag,
+// improv_ble calls finish() and build_rpc_response() with no checksum flag,
 // so the two defaults must agree
 TEST(RpcResponseBuilder, DefaultChecksumFlagMatches) {
   const std::vector<std::string> urls = {"https://example.com"};

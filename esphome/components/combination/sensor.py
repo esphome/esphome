@@ -1,7 +1,6 @@
-import logging
-
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_SOURCES
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -18,9 +17,7 @@ from esphome.const import (
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
-_LOGGER = logging.getLogger(__name__)
-
-CODEOWNERS = ["@Cat-Ion", "@kahrendt"]
+CODEOWNERS = ["@kahrendt"]
 
 combination_ns = cg.esphome_ns.namespace("combination")
 
@@ -63,7 +60,6 @@ CONF_MEDIAN = "median"
 CONF_MIN = "min"
 CONF_MOST_RECENTLY_UPDATED = "most_recently_updated"
 CONF_PROCESS_STD_DEV = "process_std_dev"
-CONF_SOURCES = "sources"
 CONF_STD_DEV = "std_dev"
 
 
@@ -75,33 +71,19 @@ KALMAN_SOURCE_SCHEMA = cv.Schema(
 )
 
 
-def _migrate_coeffecient(config: ConfigType) -> ConfigType:
-    """Migrate deprecated 'coeffecient' spelling to 'coefficient'."""
-    if CONF_COEFFECIENT in config:
-        if CONF_COEFFICIENT in config:
-            raise cv.Invalid(
-                f"Cannot specify both '{CONF_COEFFICIENT}' and '{CONF_COEFFECIENT}'"
-            )
-        _LOGGER.warning(
-            "'%s' is deprecated, use '%s' instead. Will be removed in 2026.12.0",
-            CONF_COEFFECIENT,
-            CONF_COEFFICIENT,
-        )
-        config[CONF_COEFFICIENT] = config.pop(CONF_COEFFECIENT)
-    elif CONF_COEFFICIENT not in config:
-        raise cv.Invalid(f"'{CONF_COEFFICIENT}' is a required option")
-    return config
-
-
 LINEAR_SOURCE_SCHEMA = cv.All(
+    cv.rename_key(
+        CONF_COEFFECIENT,
+        CONF_COEFFICIENT,
+        removed_in="2026.12.0",
+        component="combination",
+    ),
     cv.Schema(
         {
             cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_COEFFICIENT): cv.templatable(cv.float_),
-            cv.Optional(CONF_COEFFECIENT): cv.templatable(cv.float_),
+            cv.Required(CONF_COEFFICIENT): cv.templatable(cv.float_),
         }
     ),
-    _migrate_coeffecient,
 )
 
 SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
@@ -182,7 +164,17 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_process_std_dev(proces_std_dev))
 
     if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
-        cg.add(var.set_source_count(len(config[CONF_SOURCES])))
+        storage = cg.static_storage(
+            config[CONF_ID],
+            config[CONF_ID].type.class_("SensorSource"),
+            len(config[CONF_SOURCES]),
+        )
+        cg.add(var.set_source_storage(storage))
+    else:
+        storage = cg.static_storage(
+            config[CONF_ID], sensor.Sensor.operator("ptr"), len(config[CONF_SOURCES])
+        )
+        cg.add(var.set_sensor_storage(storage))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
@@ -203,6 +195,5 @@ async def to_code(config: ConfigType) -> None:
         else:
             cg.add(var.add_source(source))
 
-    if CONF_STD_DEV in config:
-        sens = await sensor.new_sensor(config[CONF_STD_DEV])
-        cg.add(var.set_std_dev_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_STD_DEV, var.set_std_dev_sensor)

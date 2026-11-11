@@ -8,7 +8,7 @@
 
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_sensor";
+ESPHOME_LOG_TAG(TAG, "ble_sensor");
 
 void BLESensor::loop() {
   // Parent BLEClientNode has a loop() method, but this component uses
@@ -37,13 +37,13 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "[%s] Connected successfully!", this->get_name().c_str());
+        ESP_LOGI(TAG, "[%s] Connected successfully!", LOG_STR_ARG(this->get_log_name()));
         break;
       }
       break;
     }
     case ESP_GATTC_CLOSE_EVT: {
-      ESP_LOGW(TAG, "[%s] Disconnected!", this->get_name().c_str());
+      ESP_LOGW(TAG, "[%s] Disconnected!", LOG_STR_ARG(this->get_log_name()));
       this->status_set_warning();
       this->publish_state(NAN);
       break;
@@ -101,15 +101,20 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
+      const bool ours = param->notify.handle == this->handle;
       if (param->notify.value_len == 0) {
-        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", this->get_name().c_str());
-        break;
+        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", LOG_STR_ARG(this->get_log_name()));
+      } else {
+        ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
+                 param->notify.handle, param->notify.value[0]);
+        if (ours)
+          this->publish_state(this->parse_data_(param->notify.value, param->notify.value_len));
       }
-      ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
-               param->notify.handle, param->notify.value[0]);
-      if (param->notify.handle != this->handle)
-        break;
-      this->publish_state(this->parse_data_(param->notify.value, param->notify.value_len));
+#ifdef USE_BLE_SENSOR_ON_NOTIFY
+      // on_notify sees empty notifications too, parsed by the client rather than the sensor lambda.
+      if (ours && !this->notify_callback_.empty())
+        this->notify_callback_.call(this->parent()->parse_char_value(param->notify.value, param->notify.value_len));
+#endif
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -143,11 +148,11 @@ float BLESensor::parse_data_(uint8_t *value, uint16_t value_len) {
 
 void BLESensor::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", LOG_STR_ARG(this->get_log_name()));
     return;
   }
   if (this->handle == 0) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", this->get_name().c_str());
+    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 
@@ -156,7 +161,7 @@ void BLESensor::update() {
   if (status) {
     this->status_set_warning();
     this->publish_state(NAN);
-    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", this->get_name().c_str(), status);
+    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", LOG_STR_ARG(this->get_log_name()), status);
   }
 }
 

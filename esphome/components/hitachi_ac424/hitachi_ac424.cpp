@@ -1,8 +1,9 @@
 #include "hitachi_ac424.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::hitachi_ac424 {
 
-static const char *const TAG = "climate.hitachi_ac424";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac424");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -14,15 +15,6 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   *dst &= ~(uint8_t) (mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
-}
-
-void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
-  uint8_t mask = 1 << position;
-  if (on) {
-    *data |= mask;
-  } else {
-    *data &= ~mask;
-  }
 }
 
 uint8_t *invert_byte_pairs(uint8_t *ptr, const uint16_t length) {
@@ -124,7 +116,7 @@ bool HitachiClimate::get_swing_v_toggle_() { return get_button_() == HITACHI_AC4
 
 void HitachiClimate::set_swing_v_(bool on) {
   set_swing_v_toggle_(on);  // Set the button value.
-  set_bit(&remote_state_[HITACHI_AC424_SWINGV_BYTE], HITACHI_AC424_SWINGV_OFFSET, on);
+  assign_bits(this->remote_state_[HITACHI_AC424_SWINGV_BYTE], 1 << HITACHI_AC424_SWINGV_OFFSET, on);
 }
 
 bool HitachiClimate::get_swing_v_() {
@@ -224,13 +216,7 @@ void HitachiClimate::transmit_state() {
     // Header
     data->item(HITACHI_AC424_HDR_MARK, HITACHI_AC424_HDR_SPACE);
     // Data
-    for (uint8_t i : remote_state_) {
-      for (uint8_t j = 0; j < 8; j++) {
-        data->mark(HITACHI_AC424_BIT_MARK);
-        bool bit = i & (1 << j);
-        data->space(bit ? HITACHI_AC424_ONE_SPACE : HITACHI_AC424_ZERO_SPACE);
-      }
-    }
+    data->item_bytes<HITACHI_AC424_BIT_TIMINGS>(remote_state_, HITACHI_AC424_STATE_LENGTH);
     // Footer
     data->item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_MIN_GAP);
   }
@@ -260,6 +246,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
         break;
       case HITACHI_AC424_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+      default:
         break;
     }
   } else {
@@ -295,6 +283,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
     case HITACHI_AC424_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
   return true;
 }
@@ -304,11 +294,7 @@ bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
                                                HITACHI_AC424_SWINGH_SIZE);
   ESP_LOGV(TAG, "SwingH: %02X %02X", remote_state[HITACHI_AC424_SWINGH_BYTE], swing_modeh);
 
-  if ((swing_modeh & 0x3) == 0x3) {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  } else {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-  }
+  this->swing_mode = (swing_modeh & 0x3) == 0x3 ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_HORIZONTAL;
 
   return true;
 }
@@ -320,18 +306,10 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t recv_state[HITACHI_AC424_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (uint8_t pos = 0; pos < HITACHI_AC424_STATE_LENGTH; pos++) {
-    // Read bit
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_ONE_SPACE)) {
-        recv_state[pos] |= 1 << bit;
-      } else if (!data.expect_item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Byte %d bit %d fail", pos, bit);
-        return false;
-      }
-    }
+  uint8_t recv_state[HITACHI_AC424_STATE_LENGTH];
+  if (!data.expect_bytes<HITACHI_AC424_BIT_TIMINGS>(recv_state, HITACHI_AC424_STATE_LENGTH)) {
+    ESP_LOGVV(TAG, "Data fail");
+    return false;
   }
 
   // Validate footer
@@ -358,12 +336,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
-  for (uint16_t i = 0; i < HITACHI_AC424_STATE_LENGTH - 10; i += 10) {
-    ESP_LOGV(TAG, "%s: %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X", action, state[i + 0], state[i + 1],
-             state[i + 2], state[i + 3], state[i + 4], state[i + 5], state[i + 6], state[i + 7], state[i + 8],
-             state[i + 9]);
-  }
-  ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
+  ESP_LOGV_HEX(TAG, state, HITACHI_AC424_STATE_LENGTH, HITACHI_AC424_STATE_LENGTH, "%s: %s", action);
 }
 
 }  // namespace esphome::hitachi_ac424

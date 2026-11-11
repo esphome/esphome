@@ -1,0 +1,34 @@
+# Kept separate from the main lvgl-package.yaml so that enabling debug_outline
+# here doesn't add its extra style calls to the memory-impact baseline that
+# every other lvgl test change is measured against.
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: debug_outline_display
+    dimensions:
+      width: 240
+      height: 320
+    data_rate: 80MHz
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    update_interval: never
+
+lvgl:
+  debug_outline: true
+  displays:
+    - debug_outline_display
+  widgets:
+    - obj:
+        id: debug_outline_root
+        widgets:
+          - label:
+              text: Title
+          - button:
+              widgets:
+                - label:
+                    text: OK

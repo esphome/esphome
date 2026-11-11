@@ -1,0 +1,29 @@
+zephyr_ble_server:
+
+ota:
+  - platform: zephyr_mcumgr
+    transport:
+      ble: true
+      hardware_uart: CDC
+
+safe_mode:
+  id: safe_mode_1
+  boot_is_good_after: 2min
+  num_attempts: 3
+  reboot_timeout: 2min
+  on_safe_mode:
+    - logger.log: Time for safe mode
+
+button:
+  - platform: safe_mode
+    name: Safe Mode Button
+
+switch:
+  - platform: safe_mode
+    name: Safe Mode Switch
+
+esphome:
+  on_boot:
+    - safe_mode.mark_successful
+    - safe_mode.mark_successful:
+        id: safe_mode_1

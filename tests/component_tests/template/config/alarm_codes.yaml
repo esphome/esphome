@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+alarm_control_panel:
+  - platform: template
+    id: panel_a
+    name: Panel A
+    codes:
+      - "1234"
+      - "5678"
+  - platform: template
+    id: panel_b
+    name: Panel B
+    codes:
+      - "1234"
+      - "5678"
+  - platform: template
+    id: panel_none
+    name: Panel None
+    codes: []

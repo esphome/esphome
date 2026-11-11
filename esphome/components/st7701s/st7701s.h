@@ -8,13 +8,14 @@
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
+#include "esphome/core/log.h"
 #include "esp_lcd_panel_ops.h"
 
 #include "esp_lcd_panel_rgb.h"
 
 namespace esphome::st7701s {
 
-constexpr static const char *const TAG = "display.st7701s";
+ESPHOME_LOG_TAG(TAG, "display.st7701s");
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
@@ -33,8 +34,6 @@ class ST7701S final : public display::Display,
   void update() override { this->do_update_(); }
   void setup() override;
   void loop() override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
@@ -75,8 +74,13 @@ class ST7701S final : public display::Display,
   void dump_config() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
-  // this will be horribly slow.
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
+  // this will be horribly slow.
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   void write_command_(uint8_t value);
   void write_data_(uint8_t value);
   void write_sequence_(uint8_t cmd, size_t len, const uint8_t *bytes);

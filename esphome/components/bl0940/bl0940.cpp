@@ -4,7 +4,7 @@
 
 namespace esphome::bl0940 {
 
-static const char *const TAG = "bl0940";
+ESPHOME_LOG_TAG(TAG, "bl0940");
 
 static const uint8_t BL0940_FULL_PACKET = 0xAA;
 static const uint8_t BL0940_PACKET_HEADER = 0x55;  // 0x58 according to en doc but 0x55 in cn doc
@@ -44,13 +44,9 @@ void BL0940::loop() {
 }
 
 bool BL0940::validate_checksum_(DataPacket *data) {
-  uint8_t checksum = this->read_command_;
   // Whole package but checksum
-  uint8_t *raw = (uint8_t *) data;
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum =
+      sum_bytes(reinterpret_cast<const uint8_t *>(data), sizeof(*data) - 1, this->read_command_) ^ 0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "Invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }
@@ -126,6 +122,7 @@ float BL0940::calculate_energy_reference_() {
 float BL0940::calculate_calibration_value_(float state) { return (100 + state) / 100; }
 
 void BL0940::reset_calibration() {
+  ESP_LOGI(TAG, "Resetting calibration defaults...");
 #ifdef USE_NUMBER
   if (this->current_calibration_number_ != nullptr && this->current_cal_ != 1) {
     this->current_calibration_number_->make_call().set_value(0).perform();
@@ -195,7 +192,7 @@ float BL0940::update_temp_(sensor::Sensor *sensor, uint16_le_t temperature) cons
   if (sensor != nullptr) {
     if (sensor->has_state() && std::abs(converted_temp - sensor->get_state()) > max_temperature_diff_) {
       ESP_LOGD(TAG, "Invalid temperature change. Sensor: '%s', Old temperature: %f, New temperature: %f",
-               sensor->get_name().c_str(), sensor->get_state(), converted_temp);
+               LOG_STR_ARG(sensor->get_log_name()), sensor->get_state(), converted_temp);
       return 0.0f;
     }
     sensor->publish_state(converted_temp);
@@ -226,18 +223,10 @@ void BL0940::received_package_(DataPacket *data) {
   float tps1 = update_temp_(this->internal_temperature_sensor_, data->tps1);
   float tps2 = update_temp_(this->external_temperature_sensor_, data->tps2);
 
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(v_rms);
-  }
-  if (this->current_sensor_ != nullptr) {
-    this->current_sensor_->publish_state(i_rms);
-  }
-  if (this->power_sensor_ != nullptr) {
-    this->power_sensor_->publish_state(watt);
-  }
-  if (this->energy_sensor_ != nullptr) {
-    this->energy_sensor_->publish_state(total_energy_consumption);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, v_rms);
+  PUBLISH_STATE(this->current_sensor_, i_rms);
+  PUBLISH_STATE(this->power_sensor_, watt);
+  PUBLISH_STATE(this->energy_sensor_, total_energy_consumption);
 
   ESP_LOGV(TAG, "BL0940: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt, cf_cnt,
            total_energy_consumption, tps1, tps2);

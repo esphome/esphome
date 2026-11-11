@@ -1,8 +1,0 @@
-<<: !include common.yaml
-
-sensor:
-  - platform: debug
-    fragmentation:
-      name: "Heap Fragmentation"
-    min_free:
-      name: "Heap Min Free"

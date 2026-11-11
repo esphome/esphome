@@ -4,10 +4,10 @@
 
 namespace esphome::sn74hc595 {
 
-static const char *const TAG = "sn74hc595";
+ESPHOME_LOG_TAG(TAG, "sn74hc595");
 
 void SN74HC595Component::pre_setup_() {
-  if (this->have_oe_pin_) {  // disable output
+  if (this->oe_pin_ != nullptr) {  // disable output
     this->oe_pin_->setup();
     this->oe_pin_->digital_write(true);
   }
@@ -40,9 +40,9 @@ void SN74HC595SPIComponent::setup() {
 void SN74HC595Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC595:"); }
 
 void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
-  if (pin >= this->sr_count_ * 8) {
-    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %u chips in series is %u", pin, this->sr_count_,
-             (this->sr_count_ * 8) - 1);
+  if (pin >= this->output_bytes_.size() * 8) {
+    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %zu chips in series is %zu", pin,
+             this->output_bytes_.size(), (this->output_bytes_.size() * 8) - 1);
     return;
   }
   if (value) {
@@ -82,7 +82,7 @@ void SN74HC595Component::write_gpio() {
   this->latch_pin_->digital_write(false);
 
   // enable output if configured
-  if (this->have_oe_pin_) {
+  if (this->oe_pin_ != nullptr) {
     this->oe_pin_->digital_write(false);
   }
 }

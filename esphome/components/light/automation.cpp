@@ -3,7 +3,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light.automation";
+ESPHOME_LOG_TAG(TAG, "light.automation");
 
 void addressableset_warn_about_scale(const char *field) {
   ESP_LOGW(TAG, "Lambda for parameter %s of light.addressable_set should return values in range 0-1 instead of 0-255.",

@@ -7,7 +7,6 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
-#include <new>
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -15,7 +14,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "esphome.ota";
+ESPHOME_LOG_TAG(TAG, "esphome.ota");
 
 #ifdef USE_ESP8266
 static constexpr char OTA_NOISE_PROLOGUE_INIT[] PROGMEM = "NoiseOTAInit";
@@ -33,7 +32,12 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
   }
 }
 
-/** Allocate the session and start the responder handshake.
+void ESPHomeOTAComponent::noise_reserve_session_() {
+  // Default placement, PSRAM first where present: the session lives for one upload
+  this->noise_ = RAMAllocator<NoiseSession>().make_unique();
+}
+
+/** Start the responder handshake, on the session reserved at offer time.
  *
  * The prologue binds the whole plaintext preamble, so any tampering with the
  * negotiation (a stripped feature flag, a changed version) breaks the first
@@ -42,10 +46,7 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
  */
 bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
   // A provisioned key cleared between the offer and here is not guarded: the
-  // session runs on the zero key load_psk fills in and fails the client's MAC.
-  // Default-init: the frame buffer is written before it is read
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-  this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
+  // session runs on the zero key load_psk fills in and fails the client's MAC
   static constexpr size_t PROLOGUE_ACK_LEN = 2;  // OTA_RESPONSE_OK + version
   static constexpr size_t PROLOGUE_CLIENT_FEATURES_LEN = 1;
   static constexpr size_t PROLOGUE_FEATURE_ACK_LEN = 2;  // OTA_RESPONSE_FEATURE_FLAGS + server flags
@@ -265,13 +266,15 @@ ssize_t ESPHomeOTAComponent::noise_read_data_(uint8_t *buf, size_t capacity) {
   return this->noise_read_frame_blocking_(buf, noise::MAC_SIZE + 1, max_ciphertext);
 }
 
-/// Blocking write of one response byte as an encrypted frame.
-bool ESPHomeOTAComponent::noise_write_byte_(uint8_t byte) {
-  uint8_t frame[noise::FRAME_HEADER_SIZE + 1 + noise::MAC_SIZE];
-  frame[noise::FRAME_HEADER_SIZE] = byte;
+/// Blocking write of a short response (at most NOISE_MAX_RESPONSE bytes) as one encrypted frame.
+bool ESPHomeOTAComponent::noise_write_(const uint8_t *data, size_t len) {
+  uint8_t frame[noise::FRAME_HEADER_SIZE + NOISE_MAX_RESPONSE + noise::MAC_SIZE];
+  if (len > NOISE_MAX_RESPONSE)
+    return false;
+  memcpy(frame + noise::FRAME_HEADER_SIZE, data, len);
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, frame + noise::FRAME_HEADER_SIZE, 1, 1 + noise::MAC_SIZE);
+  noise_buffer_set_inout(mbuf, frame + noise::FRAME_HEADER_SIZE, len, len + noise::MAC_SIZE);
   int err = noise_cipherstate_encrypt(this->noise_->send_cipher, &mbuf);
   if (err != 0) {
     ESP_LOGW(TAG, "Encrypt: %d", err);

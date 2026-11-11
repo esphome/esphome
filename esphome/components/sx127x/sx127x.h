@@ -9,6 +9,8 @@
 
 namespace esphome::sx127x {
 
+static constexpr size_t SX127X_MAX_PACKET_SIZE = 255;  // the payload length register is 8 bits
+
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
   SX127X_BW_3_1,
@@ -34,7 +36,7 @@ enum SX127xBw : uint8_t {
   SX127X_BW_500_0,
 };
 
-enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX127X_ERROR_NOT_READY };
 
 class SX127xListener {
  public:
@@ -50,6 +52,7 @@ class SX127x final : public Component,
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void set_afc_bandwidth(SX127xBw afc_bandwidth) { this->afc_bandwidth_ = afc_bandwidth; }
   void set_auto_cal(bool auto_cal) { this->auto_cal_ = auto_cal; }
   void set_bandwidth(SX127xBw bandwidth) { this->bandwidth_ = bandwidth; }
   void set_bitrate(uint32_t bitrate) { this->bitrate_ = bitrate; }
@@ -81,16 +84,19 @@ class SX127x final : public Component,
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void run_image_cal();
   void configure();
-  SX127xError transmit_packet(const std::vector<uint8_t> &packet);
+  SX127xError transmit_packet(const uint8_t *data, size_t len);
+  SX127xError transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
   void register_listener(SX127xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(SX127x *arg);
+  static void gpio_intr(SX127x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);
-  void write_fifo_(const std::vector<uint8_t> &packet);
+  void write_fifo_(const uint8_t *data, size_t len);
   void read_fifo_(std::vector<uint8_t> &packet);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
@@ -101,6 +107,7 @@ class SX127x final : public Component,
   std::vector<uint8_t> sync_value_;
   InternalGPIOPin *dio0_pin_{nullptr};
   InternalGPIOPin *rst_pin_{nullptr};
+  SX127xBw afc_bandwidth_{SX127X_BW_50_0};
   SX127xBw bandwidth_;
   uint32_t bitrate_;
   uint32_t deviation_;

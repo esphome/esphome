@@ -3,7 +3,7 @@
 
 namespace esphome::tt21100 {
 
-static const char *const TAG = "tt21100.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "tt21100.binary_sensor");
 
 void TT21100Button::setup() {
   this->parent_->register_button_listener(this);

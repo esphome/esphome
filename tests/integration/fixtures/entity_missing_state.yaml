@@ -1,0 +1,78 @@
+esphome:
+  name: test-missing-state
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+
+# None of these publish a state at startup, so each one starts out unknown
+switch:
+  - platform: template
+    name: "Test Switch"
+    id: test_switch
+    optimistic: true
+    restore_mode: DISABLED
+
+climate:
+  - platform: template
+    name: "Test Climate"
+    id: test_climate
+    optimistic: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+
+  # A configured initial state is a state, so this one starts out known
+  - platform: template
+    name: "Initial Climate"
+    id: initial_climate
+    optimistic: true
+    restore_mode: NO_RESTORE
+    supported_modes:
+      - "OFF"
+      - HEAT
+    initial_state:
+      mode: HEAT
+
+globals:
+  - id: lambda_mode_known
+    type: bool
+    initial_value: "false"
+
+water_heater:
+  - platform: template
+    name: "Test Water Heater"
+    id: test_water_heater
+    supported_modes:
+      - "OFF"
+      - ECO
+
+  # Reports OFF, which is also the default, once the MCU-equivalent global says so
+  - platform: template
+    name: "Lambda Water Heater"
+    id: lambda_water_heater
+    supported_modes:
+      - "OFF"
+      - ECO
+    mode: |-
+      if (!id(lambda_mode_known)) {
+        return {};
+      }
+      return water_heater::WATER_HEATER_MODE_OFF;
+
+button:
+  - platform: template
+    name: "Publish States"
+    id: publish_states_button
+    on_press:
+      - switch.turn_on: test_switch
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT
+      - water_heater.template.publish:
+          id: test_water_heater
+          mode: ECO
+      - globals.set:
+          id: lambda_mode_known
+          value: "true"

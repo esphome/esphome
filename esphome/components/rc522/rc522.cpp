@@ -9,7 +9,7 @@ namespace esphome::rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
-static const char *const TAG = "rc522";
+ESPHOME_LOG_TAG(TAG, "rc522");
 
 // Max UID size for RFID tags (4, 7, or 10 bytes)
 static constexpr size_t RC522_MAX_UID_SIZE = 10;
@@ -76,13 +76,6 @@ void RC522::initialize_() {
 
 void RC522::dump_config() {
   ESP_LOGCONFIG(TAG, "RC522:");
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case RESET_FAILED:
-      ESP_LOGE(TAG, "Reset command failed");
-      break;
-  }
 
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
 
@@ -178,7 +171,7 @@ void RC522::loop() {
     case STATE_SELECT_SERIAL: {
       buffer_[1] = 0x70;  // select
       // todo: set CRC
-      buffer_[6] = buffer_[2] ^ buffer_[3] ^ buffer_[4] ^ buffer_[5];
+      buffer_[6] = xor_bytes(buffer_ + 2, 4);
       pcd_calculate_crc_(buffer_, 7);
       state_ = STATE_SELECT_SERIAL_DONE;
       break;
@@ -237,24 +230,28 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
-      for (auto *trigger : this->triggers_ontag_)
-        trigger->process(rfid_uid);
-
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG || defined(RC522_ON_TAG_COUNT)
+      char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+      format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-');
+#endif
+#ifdef RC522_ON_TAG_COUNT
+      this->tag_automations_.trigger(uid_buf);
+#endif
       if (report) {
-        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-'));
+        ESP_LOGD(TAG, "Found new tag '%s'", uid_buf);
       }
       break;
     }
     case STATE_DONE: {
       if (!this->current_uid_.empty()) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE || defined(RC522_ON_TAG_REMOVED_COUNT)
         char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGV(TAG, "Tag '%s' removed",
-                 format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
+        format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-');
+        ESP_LOGV(TAG, "Tag '%s' removed", uid_buf);
 #endif
-        for (auto *trigger : this->triggers_ontagremoved_)
-          trigger->process(this->current_uid_);
+#ifdef RC522_ON_TAG_REMOVED_COUNT
+        this->tag_removed_automations_.trigger(uid_buf);
+#endif
       }
       this->current_uid_ = {};
       state_ = STATE_INIT;
@@ -293,9 +290,7 @@ void RC522::pcd_reset_() {
   }
 
   if (--reset_count_ == 0) {
-    ESP_LOGE(TAG, "Unable to reset");
-    this->error_code_ = RESET_FAILED;
-    mark_failed();
+    this->mark_failed(LOG_STR("Reset command failed"));
   }
 }
 
@@ -492,9 +487,4 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = result;
   return result;
 }
-void RC522Trigger::process(std::vector<uint8_t> &data) {
-  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
-}
-
 }  // namespace esphome::rc522

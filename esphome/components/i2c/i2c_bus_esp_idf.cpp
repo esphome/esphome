@@ -10,9 +10,73 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_I2C_ISR_GUARD
+#include <esp_intr_alloc.h>
+#include <hal/i2c_ll.h>  // declares i2c_periph_signal (IDF 5: soc/, IDF 6: hal/)
+#if SOC_I2C_SUPPORT_HW_FSM_RST || I2C_LL_SUPPORT_HW_FSM_RST
+#error "This chip has an I2C FSM reset; the ISR guard is no longer needed"
+#endif
+
+namespace esphome::i2c {
+// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). Mask the master
+// events until the next transaction when an error is raised both before and after the handler clears it.
+static constexpr uint32_t I2C_ERROR_INTR = I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION;
+static_assert((I2C_LL_MASTER_EVENT_INTR & I2C_ERROR_INTR) == I2C_ERROR_INTR,
+              "The master event mask must cover the error interrupts");
+
+struct I2CIsrGuard {
+  intr_handler_t handler;
+  void *arg;
+  i2c_dev_t *dev;
+};
+static I2CIsrGuard i2c_isr_guards[SOC_HP_I2C_NUM];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static void IRAM_ATTR i2c_isr_guard(void *arg) {
+  auto *guard = static_cast<I2CIsrGuard *>(arg);
+  uint32_t before;
+  i2c_ll_get_intr_mask(guard->dev, &before);
+  guard->handler(guard->arg);
+  uint32_t after;
+  i2c_ll_get_intr_mask(guard->dev, &after);
+  if (before & after & I2C_ERROR_INTR)
+    i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
+}
+
+static int i2c_port_for_source(int source) {
+  for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
+    if (source == i2c_periph_signal[port].irq)
+      return port;
+  }
+  return -1;
+}
+}  // namespace esphome::i2c
+
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
+esp_err_t __real_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, uint32_t mask, intr_handler_t handler,
+                                           void *arg, intr_handle_t *ret_handle);
+
+esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, uint32_t mask, intr_handler_t handler,
+                                           void *arg, intr_handle_t *ret_handle) {
+  int port = esphome::i2c::i2c_port_for_source(source);
+  if (port < 0)
+    return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, handler, arg, ret_handle);
+  auto &guard = esphome::i2c::i2c_isr_guards[port];
+  auto previous = guard;
+  guard = {handler, arg, I2C_LL_GET_HW(port)};
+  esp_err_t err =
+      __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, esphome::i2c::i2c_isr_guard, &guard, ret_handle);
+  if (err != ESP_OK)
+    guard = previous;  // a failed allocation leaves the live guard alone
+  return err;
+}
+}  // extern "C"
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif  // USE_I2C_ISR_GUARD
+
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c";
+ESPHOME_LOG_TAG(TAG, "i2c");
 
 // Maximum bytes to log in hex format (truncates larger transfers)
 static constexpr size_t I2C_MAX_LOG_BYTES = 32;
@@ -32,8 +96,8 @@ void IDFI2CBus::setup() {
 
   i2c_master_bus_config_t bus_conf{};
   memset(&bus_conf, 0, sizeof(bus_conf));
-  bus_conf.sda_io_num = gpio_num_t(sda_pin_);
-  bus_conf.scl_io_num = gpio_num_t(scl_pin_);
+  bus_conf.sda_io_num = gpio_num_t(this->sda_pin_);
+  bus_conf.scl_io_num = gpio_num_t(this->scl_pin_);
   bus_conf.glitch_ignore_cnt = 7;
 #if SOC_LP_I2C_SUPPORTED
   if (this->lp_mode_) {
@@ -59,7 +123,7 @@ void IDFI2CBus::setup() {
   }
 #endif
   bus_conf.i2c_port = this->port_;
-  bus_conf.flags.enable_internal_pullup = sda_pullup_enabled_ || scl_pullup_enabled_;
+  bus_conf.flags.enable_internal_pullup = this->sda_pullup_enabled_ || this->scl_pullup_enabled_;
   esp_err_t err = i2c_new_master_bus(&bus_conf, &this->bus_);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
@@ -67,18 +131,21 @@ void IDFI2CBus::setup() {
     return;
   }
 
-  i2c_device_config_t dev_conf{};
-  memset(&dev_conf, 0, sizeof(dev_conf));
-  dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-  dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
-  dev_conf.scl_speed_hz = this->frequency_;
-  dev_conf.scl_wait_us = this->timeout_;
-  err = i2c_master_bus_add_device(this->bus_, &dev_conf, &this->dev_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
+  this->dev_ = this->add_device_(this->frequency_);
+  if (this->dev_ == nullptr) {
     this->mark_failed();
     return;
   }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  this->add_frequency(this->frequency_);
+  for (auto &device : this->devices_) {
+    device.dev = device.frequency == this->frequency_ ? this->dev_ : this->add_device_(device.frequency);
+    if (device.dev == nullptr) {
+      this->mark_failed();
+      return;
+    }
+  }
+#endif
 
   this->initialized_ = true;
 
@@ -88,6 +155,21 @@ void IDFI2CBus::setup() {
   }
 }
 
+i2c_master_dev_handle_t IDFI2CBus::add_device_(uint32_t frequency) {
+  i2c_device_config_t dev_conf{};
+  dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+  dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
+  dev_conf.scl_speed_hz = frequency;
+  dev_conf.scl_wait_us = this->timeout_;
+  i2c_master_dev_handle_t dev{};
+  const esp_err_t err = i2c_master_bus_add_device(this->bus_, &dev_conf, &dev);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
+    return nullptr;
+  }
+  return dev;
+}
+
 void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG,
@@ -95,9 +177,15 @@ void IDFI2CBus::dump_config() {
                 "  SCL Pin: GPIO%u\n"
                 "  Frequency: %" PRIu32 " Hz",
                 this->sda_pin_, this->scl_pin_, this->frequency_);
-  if (timeout_ > 0) {
+  if (this->timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
   }
+#ifdef USE_I2C_ISR_GUARD
+  // Null when the IDF driver no longer allocates its interrupt through the wrapped call
+  if (i2c_isr_guards[this->port_].handler == nullptr) {
+    ESP_LOGW(TAG, "  Interrupt guard inactive");
+  }
+#endif
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -109,27 +197,14 @@ void IDFI2CBus::dump_config() {
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
       break;
   }
-  if (this->scan_) {
-    ESP_LOGCONFIG(TAG, "Results from bus scan:");
-    if (scan_results_.empty()) {
-      ESP_LOGCONFIG(TAG, "Found no devices");
-    } else {
-      for (const auto &s : scan_results_) {
-        if (s.second) {
-          ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
 ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                                  size_t read_count) {
   // logging is only enabled with v level, if warnings are shown the caller
   // should log them
-  if (!initialized_) {
+  if (!this->initialized_) {
     ESP_LOGW(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
@@ -149,10 +224,7 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     jobs[num_jobs++].write.total_bytes = 1;
   } else {
     if (write_count != 0) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
-      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
-#endif
+      ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
       jobs[num_jobs++].command = I2C_MASTER_CMD_START;
       jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
       jobs[num_jobs].write.ack_check = true;
@@ -198,14 +270,44 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   return ERROR_OK;
 }
 
+#ifdef I2C_PORT_FREQUENCY_COUNT
+void IDFI2CBus::add_frequency(uint32_t frequency) {
+  for (const auto &device : this->devices_) {
+    if (device.frequency == frequency) {
+      return;
+    }
+  }
+  this->devices_.push_back({frequency, nullptr});
+}
+
+ErrorCode IDFI2CBus::switch_frequency(uint32_t frequency) {
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  if (!this->initialized_) {
+    this->frequency_ = frequency;
+    return ERROR_OK;
+  }
+  // Every handle exists since setup(); a frequency nobody registered has none
+  for (const auto &device : this->devices_) {
+    if (device.frequency == frequency) {
+      this->dev_ = device.dev;
+      this->frequency_ = frequency;
+      return ERROR_OK;
+    }
+  }
+  return ERROR_UNKNOWN;
+}
+#endif
+
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
 void IDFI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing bus recovery");
 
-  const auto scl_pin = static_cast<gpio_num_t>(scl_pin_);
-  const auto sda_pin = static_cast<gpio_num_t>(sda_pin_);
+  const auto scl_pin = static_cast<gpio_num_t>(this->scl_pin_);
+  const auto sda_pin = static_cast<gpio_num_t>(this->sda_pin_);
 
   // For the upcoming operations, target for a 60kHz toggle frequency.
   // 1000kHz is the maximum frequency for I2C running in standard-mode,
@@ -218,7 +320,7 @@ void IDFI2CBus::recover_() {
   // Configure SCL pin for open drain input/output, with a pull up resistor.
   gpio_set_level(scl_pin, 1);
   gpio_config_t scl_config{};
-  scl_config.pin_bit_mask = 1ULL << scl_pin_;
+  scl_config.pin_bit_mask = 1ULL << this->scl_pin_;
   scl_config.mode = GPIO_MODE_INPUT_OUTPUT_OD;
   scl_config.pull_up_en = GPIO_PULLUP_ENABLE;
   scl_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -228,7 +330,7 @@ void IDFI2CBus::recover_() {
   // Configure SDA pin for open drain input/output, with a pull up resistor.
   gpio_set_level(sda_pin, 1);
   gpio_config_t sda_conf{};
-  sda_conf.pin_bit_mask = 1ULL << sda_pin_;
+  sda_conf.pin_bit_mask = 1ULL << this->sda_pin_;
   sda_conf.mode = GPIO_MODE_INPUT_OUTPUT_OD;
   sda_conf.pull_up_en = GPIO_PULLUP_ENABLE;
   sda_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -240,7 +342,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   if (gpio_get_level(scl_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the bus");
-    recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }
 
@@ -271,7 +373,7 @@ void IDFI2CBus::recover_() {
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
-      recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+      this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
       return;
     }
   }
@@ -281,7 +383,7 @@ void IDFI2CBus::recover_() {
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
-    recovery_result_ = RECOVERY_FAILED_SDA_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
     return;
   }
 
@@ -308,7 +410,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   gpio_set_level(sda_pin, 1);
 
-  recovery_result_ = RECOVERY_COMPLETED;
+  this->recovery_result_ = RECOVERY_COMPLETED;
 }
 
 }  // namespace esphome::i2c

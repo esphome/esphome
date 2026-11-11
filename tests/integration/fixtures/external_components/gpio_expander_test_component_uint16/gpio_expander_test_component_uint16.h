@@ -14,7 +14,7 @@ class GPIOExpanderTestUint16Component : public Component,
  protected:
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
-  void digital_write_hw(uint8_t pin, bool value) override{};
+  void digital_write_hw(uint8_t pin, bool value) override {};
 
  private:
   uint16_t test_state_{0xAAAA};  // Test pattern: alternating bits

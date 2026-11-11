@@ -1,6 +1,6 @@
 #include "sendspin_media_source.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_CONTROLLER) && defined(USE_SENDSPIN_PLAYER)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_CONTROLLER) && defined(USE_SENDSPIN_PLAYER)
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/core/log.h"
@@ -9,7 +9,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.media_source";
+ESPHOME_LOG_TAG(TAG, "sendspin.media_source");
 
 static constexpr char URI_PREFIX[] = "sendspin://";
 
@@ -24,7 +24,7 @@ void SendspinMediaSource::setup() {
   // Push cached states to player role. They may have been set before setup() ran.
   this->player_role_->update_volume(std::roundf(this->cached_volume_ * 100.0f));
   this->player_role_->update_muted(this->cached_muted_);
-  this->player_role_->set_static_delay_adjustable(this->static_delay_adjustable_);
+  this->player_role_->set_output_delay_adjustable(this->static_delay_adjustable_);
 }
 
 void SendspinMediaSource::dump_config() {
@@ -35,7 +35,7 @@ void SendspinMediaSource::dump_config() {
 void SendspinMediaSource::set_static_delay_adjustable(bool adjustable) {
   this->static_delay_adjustable_ = adjustable;
   if (this->player_role_) {
-    this->player_role_->set_static_delay_adjustable(adjustable);
+    this->player_role_->set_output_delay_adjustable(adjustable);
   }
 }
 
@@ -45,12 +45,19 @@ bool SendspinMediaSource::can_handle(const std::string &uri) const { return uri.
 
 // THREAD CONTEXT: Main loop (media_source.h documents play_uri as main-loop only)
 bool SendspinMediaSource::play_uri(const std::string &uri) {
+  // The queued request has been delivered, whatever the outcome, so the next stream start may request again
+  this->pending_start_ = false;
   if (!this->is_ready() || this->is_failed() || !this->has_listener()) {
     return false;
   }
 
   if (this->get_state() != media_source::MediaSourceState::IDLE) {
     ESP_LOGE(TAG, "Cannot play '%s': source is busy", uri.c_str());
+    return false;
+  }
+
+  if (!this->parent_->is_client_running()) {
+    ESP_LOGE(TAG, "Cannot play '%s': Sendspin is disabled", uri.c_str());
     return false;
   }
 
@@ -74,7 +81,6 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
   }
 
   // Tell the orchestrator we're now playing so it routes audio output from us
-  this->pending_start_ = false;
   this->set_state_(media_source::MediaSourceState::PLAYING);
 
   return true;
@@ -82,13 +88,22 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
 
 // THREAD CONTEXT: Main loop (media_source.h documents handle_command as main-loop only)
 void SendspinMediaSource::handle_command(media_source::MediaSourceCommand command) {
+  if (!this->parent_->is_client_running()) {
+    if (command == media_source::MediaSourceCommand::STOP) {
+      // Nothing is playing, so the orchestrator gets its pipeline back straight away
+      this->on_stream_end();
+    } else {
+      ESP_LOGW(TAG, "Cannot handle command: Sendspin is disabled");
+    }
+    return;
+  }
   switch (command) {
     case media_source::MediaSourceCommand::STOP: {
       if (!this->pending_start_) {
         // Ignore stop commands if we have a pending start, since the orchestrator may send a stop command before
         // play_uri
-        ESP_LOGD(TAG, "Received STOP command, updating Sendspin state to EXTERNAL_SOURCE");
-        this->parent_->update_state(sendspin::SendspinClientState::EXTERNAL_SOURCE);
+        ESP_LOGD(TAG, "Received STOP command, leaving the Sendspin group");
+        this->parent_->leave_group();
       }
       break;
     }
@@ -170,8 +185,6 @@ size_t SendspinMediaSource::on_audio_write(uint8_t *data, size_t length, uint32_
 
 // THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
 void SendspinMediaSource::on_stream_start() {
-  this->parent_->update_state(sendspin::SendspinClientState::SYNCHRONIZED);
-
   if (!this->pending_start_) {
     // Dedup rapid on_stream_start() calls
     this->pending_start_ = true;
@@ -196,4 +209,4 @@ void SendspinMediaSource::on_mute_changed(bool muted) { this->request_mute_(mute
 
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32 && USE_SENDSPIN_PLAYER && USE_SENDSPIN_CONTROLLER
+#endif  // USE_ESP_IDF && USE_SENDSPIN_PLAYER && USE_SENDSPIN_CONTROLLER

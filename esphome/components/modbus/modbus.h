@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -13,6 +14,7 @@
 #include <vector>
 #include <deque>
 #include <optional>
+#include <utility>
 
 namespace esphome::modbus {
 
@@ -35,9 +37,7 @@ struct ModbusFrame {
     uint8_t *buf = this->data.init(pdu_len + 3);
     buf[0] = address;
     memcpy(buf + 1, pdu, pdu_len);
-    auto crc = crc16(buf, pdu_len + 1);
-    buf[pdu_len + 1] = crc >> 0;
-    buf[pdu_len + 2] = crc >> 8;
+    put_le16(buf + pdu_len + 1, crc16(buf, pdu_len + 1));
   }
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
@@ -58,6 +58,19 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual bool tx_blocked();
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+#ifdef MODBUS_ON_REQUEST_COUNT
+  /// Every request read (server, before a device answers) or sent (client, retries included); PDU valid in the call.
+  template<typename F> void add_on_request_callback(F &&callback) {
+    this->request_callback_.add(std::forward<F>(callback));
+  }
+#endif
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  /// Every response received (client) or sent or seen (server); PDUs valid during the call. A server pairs a peer's
+  /// reply with the last request by address and function code only.
+  template<typename F> void add_on_response_callback(F &&callback) {
+    this->response_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
  protected:
   void receive_bytes_();
@@ -86,6 +99,13 @@ class Modbus : public uart::UARTDevice, public Component {
   GPIOPin *flow_control_pin_{nullptr};
 
   std::vector<uint8_t> rx_buffer_;
+#ifdef MODBUS_ON_REQUEST_COUNT
+  StaticCallbackManager<MODBUS_ON_REQUEST_COUNT, void(uint8_t, std::span<const uint8_t>)> request_callback_;
+#endif
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  StaticCallbackManager<MODBUS_ON_RESPONSE_COUNT, void(uint8_t, std::span<const uint8_t>, std::span<const uint8_t>)>
+      response_callback_;
+#endif
 };
 
 class ModbusClientDevice;
@@ -111,11 +131,15 @@ enum class FrameState : uint8_t {
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
 // A new field reaches the queue with no plumbing but arrives inert until it defines three rules:
 // normalization in queue_pdu(), a merge rule for duplicate absorption, and teardown in
-// retire()/silent_retire().
+// retire()/silent_retire(). Bit-packed: stored per entry, controller and writer entity, passed by value.
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
-  bool continuous{false};
+  bool continuous : 1 {false};
+  // Wait for the reply to a read sent to address 0, for a device that answers the broadcast address.
+  bool allow_broadcast_read : 1 {false};
+  bool expect_broadcast_write_response : 1 {false};
 };
+static_assert(sizeof(CommandOptions) == 1, "CommandOptions must stay one byte");
 
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
@@ -158,6 +182,10 @@ struct ModbusDeviceCommand {
     this->pending = 0;
     this->device = nullptr;
   }
+  bool fire_and_forget() const {
+    return this->frame.address() == BROADCAST_ADDRESS && !this->options.allow_broadcast_read &&
+           !this->options.expect_broadcast_write_response;
+  }
   // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
   // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
   void complete_broadcast() {
@@ -191,7 +219,8 @@ struct ModbusDeviceCommand {
     } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
     }
-    this->options = {};  // reset every option
+    // Only continuous ends with the clear; the delivery flags must survive for a granted retry.
+    this->options.continuous = false;
   }
 
   // True while the entry is still waiting for a response
@@ -243,14 +272,6 @@ class ModbusClientHub : public Modbus {
   void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_us_ = time_in_ms * 1000UL; }
   bool tx_buffer_empty();
   bool tx_blocked() override;
-  ESPDEPRECATED("Use queue_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
-  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
-    this->queue_pdu(address,
-                    helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
-                                               payload_len),
-                    device);
-  };
   /// Queue a request. True = accepted: it resolves in exactly one terminal callback (a broadcast,
   /// address 0, gets only on_sent()). False = refused, and no callback of any kind follows.
   /// Neither means anything reached the wire - on_sent() reports that.
@@ -359,11 +380,18 @@ class ModbusServerHub : public Modbus {
                                       uint16_t number_of_registers, const RegisterValues &registers,
                                       std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
+  // Every reply of this hub goes on the wire here, so on_response sees each one once, exceptions included.
+  bool send_reply_(const ModbusFrame &frame);
   // Sends and logs the exception reply when status holds one; returns true if the request was rejected.
   bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // The last request, for on_response with its reply from a device here or another one.
+  uint8_t request_len_{0};
+  uint8_t request_[MAX_PDU_SIZE];
+#endif
   std::vector<ModbusServerDevice *> devices_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
@@ -435,6 +463,21 @@ class ModbusClientDevice {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     return this->on_modbus_no_response();
 #pragma GCC diagnostic pop
+  }
+  /// Overloads of the hooks above with the device address of the request first, taken from the request frame, so it
+  /// stays correct after set_address(). The hub calls these; the defaults forward to the hooks above.
+  /// Override one form per hook: overriding an address form drops its forward, so the other form is no longer called.
+  virtual void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                           std::span<const uint8_t> response_pdu) {
+    this->on_response(request_pdu, response_pdu);
+  }
+  virtual void on_error(uint8_t address, std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
+    this->on_error(request_pdu, exception_code);
+  }
+  virtual void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_not_sent(request_pdu); }
+  virtual void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_sent(request_pdu); }
+  virtual bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) {
+    return this->on_no_response(request_pdu);
   }
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")
@@ -534,27 +577,27 @@ class ModbusClientDevice {
     return this->queue_pdu(
         helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs), options);
   }
-  bool write_single_register(uint16_t start_address, uint16_t value) {
-    return this->queue_pdu(helpers::create_write_single_register_pdu(start_address, value));
+  bool write_single_register(uint16_t start_address, uint16_t value, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_single_register_pdu(start_address, value), options);
   }
-  bool write_single_coil(uint16_t address, bool value) {
-    return this->queue_pdu(helpers::create_write_single_coil_pdu(address, value));
+  bool write_single_coil(uint16_t address, bool value, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_single_coil_pdu(address, value), options);
   }
-  bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+  bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values, CommandOptions options = {}) {
     // Empty goes to the full-size builder so the rejection log names this method's limit, not the small one's.
     if (!values.empty() && values.size() <= helpers::MAX_FEW_REGISTERS)
-      return this->queue_pdu(helpers::create_write_few_registers_pdu(start_address, values));
-    return this->queue_pdu(helpers::create_write_registers_pdu(start_address, values));
+      return this->queue_pdu(helpers::create_write_few_registers_pdu(start_address, values), options);
+    return this->queue_pdu(helpers::create_write_registers_pdu(start_address, values), options);
   }
   /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
   /// overload.
-  bool write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
-    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, values));
+  bool write_multiple_coils(uint16_t start_address, std::span<const bool> values, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, values), options);
   }
   /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
   /// read-modify-write needs no unpack/repack.
-  bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
-    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
+  bool write_multiple_coils(uint16_t start_address, PackedBits bits, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits), options);
   }
   /// FC 0x17: the read-back is delivered through on_read_holding_registers(), and a device exception
   /// (typically a rejected write half) arrives there too via its status - one callback handles both

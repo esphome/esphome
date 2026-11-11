@@ -1,0 +1,8 @@
+sensor:
+  - platform: filter_lifetime
+    name: "Filter Lifetime Lambda Only"
+    max_lifetime: 180d
+    is_on: !lambda 'return true;'
+    current_speed: !lambda 'return 75.0f;'
+    remaining_days:
+      name: "Filter Remaining Days Lambda Only"
