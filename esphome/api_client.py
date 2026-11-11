@@ -222,8 +222,3 @@ async def async_recover_yaml(
         ) from err
     finally:
         await cli.disconnect()
-
-
-def recover_yaml(addresses: list[str], port: int, noise_psk: str | None) -> bytes:
-    """Fetch the compressed YAML that store_yaml put on the device."""
-    return asyncio.run(async_recover_yaml(addresses, port, noise_psk))

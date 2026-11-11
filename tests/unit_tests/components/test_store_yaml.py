@@ -1365,25 +1365,19 @@ def test_write_recovered_files_keeps_files_from_above(tmp_path: Path) -> None:
     """A `..` file keeps its place relative to the main YAML, inside the folder."""
     out = tmp_path / "out"
     written = write_recovered_files(
-        {"dev.yaml": b"a", "secrets.yaml": b"b", "../../common/wifi.yaml": b"c"}, out
+        {
+            "dev.yaml": b"a",
+            "secrets.yaml": b"b",
+            "../../common/wifi.yaml": b"c",
+            "a/../../x.yaml": b"d",
+        },
+        out,
     )
     root = out.resolve()
     assert written == [
         root / "_" / "_" / "dev.yaml",
         root / "_" / "_" / "secrets.yaml",
         root / "common" / "wifi.yaml",
+        root / "_" / "x.yaml",
     ]
-    assert [p.read_bytes() for p in written] == [b"a", b"b", b"c"]
-
-
-def test_write_recovered_files_refuses_a_folder_in_use(tmp_path: Path) -> None:
-    (tmp_path / "old.yaml").write_text("x")
-    with pytest.raises(EsphomeError, match="is not empty"):
-        write_recovered_files({"dev.yaml": b"a"}, tmp_path)
-
-
-def test_write_recovered_files_stays_inside_for_any_dotdot(tmp_path: Path) -> None:
-    """A `..` behind a folder name still counts, so nothing lands outside."""
-    out = tmp_path / "out"
-    (written,) = write_recovered_files({"a/../../x.yaml": b"a"}, out)
-    assert written.is_relative_to(out.resolve())
+    assert [p.read_bytes() for p in written] == [b"a", b"b", b"c", b"d"]

@@ -13,8 +13,7 @@ from aioesphomeapi import api_pb2
 import pytest
 
 from esphome.api_client import async_recover_yaml
-from esphome.components.store_yaml import unpack_envelope, write_recovered_files
-from esphome.helpers import zstd_module
+from esphome.components.store_yaml import decode_stored_yaml, write_recovered_files
 from esphome.yaml_util import find_secret_references
 
 from .log_utils import LineWaiter
@@ -44,15 +43,14 @@ async def test_store_yaml_recovery(
     async with run_compiled(yaml_config):
         compressed = await async_recover_yaml(["127.0.0.1"], unused_tcp_port, None)
 
-    envelope = zstd_module().decompress(compressed)
-    files = unpack_envelope(envelope)
+    files = decode_stored_yaml(compressed)
     main, *_ = written = write_recovered_files(files, tmp_path / "recovered")
     assert b"store-yaml-test" in main.read_bytes()
     assert {path.name for path in written} == set(files)
     combined = b"\n".join(files.values())
     assert b"store_yaml:" in combined
     # The inline OTA password comes back as a !secret listed in the skeleton.
-    assert b"recoverme123" not in envelope
+    assert b"recoverme123" not in combined
     assert "ota_password" in find_secret_references(combined.decode())
     assert b"ota_password: ''" in files["secrets.yaml"]
 
@@ -95,7 +93,5 @@ async def test_store_yaml_recovery_backpressure(
     assert len(responses) > 1 and all(len(c) <= CHUNK_LIMIT for c in chunks)
     assert not any(r.done for r in responses[:-1])
     assert responses[0].total_size == len(compressed)
-    combined = b"\n".join(
-        unpack_envelope(zstd_module().decompress(compressed)).values()
-    )
+    combined = b"\n".join(decode_stored_yaml(compressed).values())
     assert all(value.encode() in combined for value in values.values())

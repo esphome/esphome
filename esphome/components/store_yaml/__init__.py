@@ -716,23 +716,28 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
     return files
 
 
-def write_recovered_files(files: dict[str, bytes], out_dir: Path) -> list[Path]:
-    """Write unpacked files into the new folder `out_dir` and return their paths.
+def decode_stored_yaml(blob: bytes) -> dict[str, bytes]:
+    """Unpack the compressed blob a device returns for get_yaml."""
+    return unpack_envelope(zstd_module().decompress(blob))
 
-    Files from above the main YAML's folder keep their place: the main YAML goes
-    one `_` folder deeper per `..` level, so every file stays inside `out_dir`.
+
+def write_recovered_files(files: dict[str, bytes], out_dir: Path) -> list[Path]:
+    """Write unpacked files into `out_dir` and return their paths.
+
+    `out_dir` must be new or empty. Files from above the main YAML's folder keep
+    their place: the main YAML goes one `_` folder deeper per `..` level, so every
+    file stays inside `out_dir`.
     """
-    if out_dir.exists() and any(out_dir.iterdir()):
-        raise EsphomeError(f"'{out_dir}' is not empty; choose a new folder")
-    root = out_dir.resolve()
     # Counted per path part, so a `..` behind a folder name cannot climb out either.
     depth = max((Path(rel).parts.count("..") for rel in files), default=0)
-    base = root.joinpath(*["_"] * depth)
-    targets = [(base / rel).resolve() for rel in files]
-    for target, content in zip(targets, files.values(), strict=True):
+    base = out_dir.resolve().joinpath(*["_"] * depth)
+    written: list[Path] = []
+    for rel, content in files.items():
+        target = (base / rel).resolve()
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
-    return targets
+        written.append(target)
+    return written
 
 
 async def to_code(config: ConfigType) -> None:

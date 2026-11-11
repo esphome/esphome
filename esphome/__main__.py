@@ -1807,6 +1807,7 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
 ENV_OTA_PASSWORD = "ESPHOME_OTA_PASSWORD"
+ENV_API_KEY = "ESPHOME_API_KEY"
 OTA_KEY_PLATFORM_ERROR = (
     f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
     "platform; to flash by serial instead, name the port with --device"
@@ -1881,6 +1882,10 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
     return exit_code
 
 
+def _is_network_device(device: str) -> bool:
+    return device not in ("OTA", "SERIAL") and get_port_type(device) == PortType.NETWORK
+
+
 def command_upload_without_config(args: ArgsProtocol) -> int:
     """Send a prebuilt image to a device over the esphome OTA platform."""
     from esphome import espota2
@@ -1892,9 +1897,7 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
             "prebuilt image without one"
         )
     if unsupported := [
-        device
-        for device in args.device
-        if device in ("OTA", "SERIAL") or get_port_type(device) != PortType.NETWORK
+        device for device in args.device if not _is_network_device(device)
     ]:
         raise EsphomeError(
             f"Without a configuration, --device must be an IP address or a "
@@ -2074,42 +2077,32 @@ def command_version(args: ArgsProtocol) -> int | None:
     return 0
 
 
-ENV_API_KEY = "ESPHOME_API_KEY"
-
-
 def command_recover_yaml(args: ArgsProtocol) -> int:
     """Download the YAML that store_yaml put on a device into a new folder."""
-    from esphome.api_client import recover_yaml
-    from esphome.components.api import DEFAULT_PORT
-    from esphome.components.noise import validate_encryption_key
+    import asyncio
+
+    from esphome.api_client import async_recover_yaml
     from esphome.components.store_yaml import (
         UNCAPTURED_NOTE_PATH,
-        unpack_envelope,
+        decode_stored_yaml,
         write_recovered_files,
     )
-    from esphome.config_validation import Invalid
-    from esphome.helpers import zstd_module
 
     device = args.device
-    if device in ("OTA", "SERIAL") or get_port_type(device) != PortType.NETWORK:
+    if not _is_network_device(device):
         raise EsphomeError("--device must be an IP address or a hostname")
     out_dir = Path(args.output or f"{device}-recovered")
     if out_dir.exists() and any(out_dir.iterdir()):
         raise EsphomeError(
             f"'{out_dir}' is not empty; choose a new folder with --output"
         )
-    key = os.environ.get(ENV_API_KEY)
+    key = args.env_api_key
     if key is None:
         key = read_secret_line("API encryption key (empty if the device has none): ")
-    if key:
-        try:
-            validate_encryption_key(key)
-        except Invalid as err:
-            raise EsphomeError(f"Invalid API encryption key: {err}") from err
     addresses: list[str] = []
     _add_network_device(device, addresses)
-    blob = recover_yaml(addresses, args.api_port or DEFAULT_PORT, key or None)
-    files = unpack_envelope(zstd_module().decompress(blob))
+    blob = asyncio.run(async_recover_yaml(addresses, args.api_port, key or None))
+    files = decode_stored_yaml(blob)
     written = write_recovered_files(files, out_dir)
     safe_print(f"Recovered {len(written)} files into {out_dir}:")
     for path in written:
@@ -2802,7 +2795,10 @@ def parse_args(argv):
         help="New folder for the files. Defaults to <device>-recovered.",
     )
     parser_recover_yaml.add_argument(
-        "--api-port", type=int, help="The device's API port. Defaults to 6053."
+        "--api-port",
+        type=int,
+        default=6053,
+        help="The device's API port. Default: %(default)s.",
     )
 
     parser_clean = subparsers.add_parser(
@@ -3016,6 +3012,11 @@ def run_esphome(argv):
     # tool inherits a key a calling program handed over
     args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
     args.env_ota_password = os.environ.pop(ENV_OTA_PASSWORD, None)
+    args.env_api_key = os.environ.pop(ENV_API_KEY, None)
+    if args.env_api_key is not None and args.command != "recover-yaml":
+        _LOGGER.warning(
+            "%s is set but the %s command does not use it", ENV_API_KEY, args.command
+        )
     if args.env_ota_password is not None:
         if args.command != "upload":
             _LOGGER.warning(
