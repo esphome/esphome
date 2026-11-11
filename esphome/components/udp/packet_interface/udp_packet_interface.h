@@ -37,11 +37,12 @@ class UdpPacketInterface : public packet_interface::PacketInterface {
   bool accepts_from_(const sockaddr *source) const;
   void warn_dropped_(const sockaddr *source);
 
+  // First, so it fills the spare byte at the end of PacketInterface
+  bool drop_warned_{false};
   UDPComponent *parent_;
   const std::span<uint8_t> tx_buffer_;
   std::array<uint8_t, 4> peer_;
   uint32_t last_drop_warning_ms_{0};
-  bool drop_warned_{false};
 };
 }  // namespace esphome::udp
 #endif

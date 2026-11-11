@@ -21,8 +21,8 @@ ESPNowPacketInterface::ESPNowPacketInterface(ESPNowComponent *parent, std::span<
                                              peer_address_t peer_address)
     : packet_interface::PacketInterface(tx_buffer.size()),
       parent_(parent),
-      peer_address_(peer_address),
-      tx_buffer_(tx_buffer) {
+      tx_buffer_(tx_buffer),
+      peer_address_(peer_address) {
   if (!this->is_broadcast_())
     this->capabilities_ = packet_interface::CAPABILITY_ADDRESSING;
 }
