@@ -58,6 +58,7 @@ from esphome.automation import (
     maybe_simple_id,
     new_automation,
     new_lambda_pvariable,
+    new_value_range_trigger,
     owning_args,
     parent_ref,
     progmem_bytes,
@@ -3438,6 +3439,44 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
     assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
     text = CORE.cpp_global_section
     assert text.index("use(esphome__v);") < text.index("::comp->do_a();")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"above": 10.0}, "return ValueRange{10.0f, NAN};"),
+        ({"below": 90.0}, "return ValueRange{NAN, 90.0f};"),
+        ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
+        (
+            {"below": Lambda("return x * 2.0f;")},
+            "return ValueRange{NAN, [](float x) -> float {\n    return x * 2.0f;\n  }(x)};",
+        ),
+    ],
+)
+async def test_new_value_range_trigger(
+    mock_cg: MockCodegen, config: dict, expected: str
+) -> None:
+    """Unset bounds are NaN, a lambda bound naming x gets its own copy, and the trigger comes first."""
+    trigger_id = ID("range_trigger", is_declaration=True)
+    assert await new_value_range_trigger(trigger_id, PARENT_OBJ, config) is NEW_OBJ
+    new_id, parent, function = mock_cg.new_pvariable.call_args.args
+    assert (new_id, parent, str(function)) == (
+        trigger_id,
+        PARENT_OBJ,
+        "esphome__range_trigger__fn",
+    )
+    # Declared before the bounds are rendered, so a bound lambda can use the trigger's own id
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "new_pvariable",
+        "add_global",
+        "add_global_after_includes",
+    ]
+    # A const x is a backstop: each bound naming x already gets its own copy
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static ValueRange esphome__range_trigger__fn(const float x);"
+    )
+    assert expected in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio

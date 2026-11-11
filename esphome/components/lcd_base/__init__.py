@@ -3,7 +3,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_POSITION
+from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_ID, CONF_POSITION
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -59,7 +59,9 @@ LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 
 async def setup_lcd_display(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
-    cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
+    columns, rows = config[CONF_DIMENSIONS]
+    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, columns * rows)
+    cg.add(var.set_dimensions(columns, rows, buffer))
     if CONF_USER_CHARACTERS in config:
         for usr in config[CONF_USER_CHARACTERS]:
             cg.add(var.set_user_defined_char(usr[CONF_POSITION], usr[CONF_DATA]))
