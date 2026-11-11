@@ -19,7 +19,7 @@ void HomeassistantNumber::state_changed_(StringRef state) {
   if (!number_value.has_value()) {
     // Unavailable or unknown is normal while Home Assistant or the entity is starting up or offline
     if (is_unset(state)) {
-      ESP_LOGD(TAG, "'%s': No state (%s)", this->entity_id_, state.c_str());
+      ESP_LOGV(TAG, "'%s': No value (%s)", this->entity_id_, state.c_str());
     } else {
       ESP_LOGW(TAG, "'%s': Can't convert '%s' to number!", this->entity_id_, state.c_str());
     }

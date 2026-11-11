@@ -6,7 +6,7 @@ host:
 api:
 
 logger:
-  level: DEBUG
+  level: VERBOSE
 
 binary_sensor:
   # trigger_on_initial_state: true must fire on_press for the first state from HA
