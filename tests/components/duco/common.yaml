@@ -15,6 +15,22 @@ duco:
 text_sensor:
   - platform: duco
     name: Serial Number
+  - platform: duco
+    serial:
+      - name: Serial Number Node 2
+        address: 2
+    version:
+      - name: Version Node 2
+        address: 2
+    error:
+      - name: Error Node 2
+        address: 2
+    uptime:
+      - name: Uptime Node 2
+        address: 2
+    node_type:
+      - name: Node 2 Type
+        address: 2
 
 select:
   - platform: duco
