@@ -25,7 +25,12 @@ static const bt_data SD[] = {
 #endif
 };
 
+// Zephyr 4.x removed BT_LE_ADV_CONN; advertising is restarted on disconnect, so one-time advertising is fine
+#ifdef BT_LE_ADV_CONN_FAST_2
+const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN_FAST_2;
+#else
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
+#endif
 
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();

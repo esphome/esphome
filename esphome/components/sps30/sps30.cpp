@@ -131,10 +131,8 @@ void SPS30Component::update() {
   }
 
   /// Check if measurement is ready before reading the value
-  if (!this->write_command(SPS30_CMD_GET_DATA_READY_STATUS)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_command(SPS30_CMD_GET_DATA_READY_STATUS)))
     return;
-  }
 
   uint16_t raw_read_status;
   if (!this->read_data(&raw_read_status, 1) || raw_read_status == 0x00) {

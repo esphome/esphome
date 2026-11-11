@@ -50,11 +50,7 @@ void Animation::set_frame(int frame) {
   unsigned abs_frame = abs(frame);
 
   if (abs_frame < this->animation_frame_count_) {
-    if (frame >= 0) {
-      this->current_frame_ = frame;
-    } else {
-      this->current_frame_ = this->animation_frame_count_ - abs_frame;
-    }
+    this->current_frame_ = frame >= 0 ? frame : this->animation_frame_count_ - abs_frame;
   }
 
   this->update_data_start_();

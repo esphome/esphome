@@ -838,6 +838,22 @@ void WiFiComponent::loop() {
     this->update_connected_state_();
   }
 
+#if defined(USE_WIFI_AP_START_TRIGGER) || defined(USE_WIFI_AP_STOP_TRIGGER)
+  // ap_setup_ is set only once the AP is fully up; firing from loop() keeps actions from
+  // re-entering setup_ap_config_()
+  if (const bool ap_up = this->ap_setup_; ap_up != this->handled_ap_state_) {
+    this->handled_ap_state_ = ap_up;
+#ifdef USE_WIFI_AP_START_TRIGGER
+    if (ap_up)
+      this->on_ap_start_();
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+    if (!ap_up)
+      this->on_ap_stop_();
+#endif
+  }
+#endif  // USE_WIFI_AP_START_TRIGGER || USE_WIFI_AP_STOP_TRIGGER
+
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
     if (this->is_connected() != this->handled_connected_state_) {
