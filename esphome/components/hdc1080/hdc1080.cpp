@@ -35,32 +35,24 @@ void HDC1080Component::update() {
 
   this->status_clear_warning();
 
-  if (this->write(&HDC1080_CMD_TEMPERATURE, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write(&HDC1080_CMD_TEMPERATURE, 1) == i2c::ERROR_OK))
     return;
-  }
 
   this->set_timeout(20, [this]() {
     uint16_t raw_temperature;
-    if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) == i2c::ERROR_OK))
       return;
-    }
 
     // raw * 2^-16 * 165 - 40
     PUBLISH_STATE(this->temperature_sensor_, i2c::i2ctohs(raw_temperature) * 0.0025177f - 40.0f);
 
-    if (this->write(&HDC1080_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write(&HDC1080_CMD_HUMIDITY, 1) == i2c::ERROR_OK))
       return;
-    }
 
     this->set_timeout(20, [this]() {
       uint16_t raw_humidity;
-      if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
-        this->status_set_warning();
+      if (!this->status_comm_check(this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) == i2c::ERROR_OK))
         return;
-      }
 
       // raw * 2^-16 * 100
       PUBLISH_STATE(this->humidity_sensor_, i2c::i2ctohs(raw_humidity) * 0.001525879f);
