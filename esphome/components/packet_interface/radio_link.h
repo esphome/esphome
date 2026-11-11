@@ -31,8 +31,9 @@ class RadioLinkBase : public PacketInterface {
   void radio_free_();
   void receive_(const std::vector<uint8_t> &packet, float rssi, float snr);
 
-  ListenBeforeTalk listen_before_talk_;
+  // First, so it fills the spare byte at the end of PacketInterface
   bool failed_warned_{false};
+  ListenBeforeTalk listen_before_talk_;
 };
 
 /**
