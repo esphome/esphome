@@ -2,6 +2,7 @@
 #ifdef USE_API
 #include <cerrno>
 #include <cinttypes>
+#include <cstring>
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -517,13 +518,13 @@ void APIServer::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
 
 #ifdef USE_IR_RF
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
-                                               const std::vector<int32_t> *timings) {
+                                               std::span<const int32_t> timings) {
   InfraredRFReceiveEvent resp{};
 #ifdef USE_DEVICES
   resp.device_id = device_id;
 #endif
   resp.key = key;
-  resp.timings = timings;
+  resp.timings = &timings;
 
   for (auto &c : this->active_clients())
     c->send_infrared_rf_receive_event(resp);
@@ -588,14 +589,16 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         Callback<void(StringRef)> callback, bool once) {
+  const HomeAssistantStateSubscription sub{entity_id, attribute, callback, once,
+                                           static_cast<uint16_t>(strlen(entity_id))};
 #ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
   static constexpr size_t COUNTED_SLOTS = HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT;
   if (this->state_subs_.size() < COUNTED_SLOTS) {
-    this->state_subs_.push_back({entity_id, attribute, callback, once});
+    this->state_subs_.push_back(sub);
     return;
   }
 #endif
-  this->add_extra_state_subscription_({entity_id, attribute, callback, once});
+  this->add_extra_state_subscription_(sub);
 }
 
 void APIServer::add_extra_state_subscription_(const HomeAssistantStateSubscription &sub) {
@@ -621,7 +624,8 @@ static APIServer::HomeAssistantStateSubscription make_owned_state_subscription(s
       std::move(entity_id), attribute.has_value() ? std::move(*attribute) : std::string(), std::forward<F>(f)};
   return {owned->entity_id.c_str(), attribute.has_value() ? owned->attribute.c_str() : nullptr,
           // A legacy std::string callback gets a copy through StringRef's conversion
-          Callback<void(StringRef)>::create([owned](StringRef state) { owned->callback(state); }), once};
+          Callback<void(StringRef)>::create([owned](StringRef state) { owned->callback(state); }), once,
+          static_cast<uint16_t>(owned->entity_id.size())};
 }
 
 // Not in state_subs_: its slots are counted for the homeassistant entities
@@ -658,6 +662,22 @@ const APIServer::HomeAssistantStateSubscription *APIServer::get_state_sub(size_t
   std::span<const HomeAssistantStateSubscription> extra = this->state_sub_list_(true);
   return index < extra.size() ? &extra[index] : nullptr;
 }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+void APIServer::update_state_subscription_entity_id(const char *entity_id) {
+  const auto len = static_cast<uint16_t>(strlen(entity_id));
+  auto update = [entity_id, len](HomeAssistantStateSubscription *it, HomeAssistantStateSubscription *end) {
+    for (; it != end; ++it) {
+      if (it->entity_id == entity_id)
+        it->entity_id_len = len;
+    }
+  };
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  update(this->state_subs_.begin(), this->state_subs_.end());
+#endif
+  update(this->extra_state_subs_, this->extra_state_subs_ + this->extra_state_sub_count_);
+}
+#endif
 #endif
 
 #ifdef USE_API_NOISE

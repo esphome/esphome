@@ -188,7 +188,10 @@ class ThermostatClimate final : public climate::Climate, public Component {
     this->preset_config_ = presets;
     this->preset_count_ = count;
   }
-  void set_custom_preset_config(const CustomPresetEntry *presets, uint8_t count);
+  void set_custom_preset_config(const CustomPresetEntry *presets, uint8_t count) {
+    this->custom_preset_config_ = presets;
+    this->custom_preset_count_ = count;
+  }
 
   Trigger<> *get_cool_action_trigger();
   Trigger<> *get_supplemental_cool_action_trigger();

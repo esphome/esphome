@@ -22,18 +22,15 @@ static const uint8_t HDC302X_CMD_HEATER_CONFIGURE[2] = {0x30, 0x6e};
 
 void HDC302XComponent::setup() {
   // Soft reset the device
-  if (this->write(HDC302X_CMD_SOFT_RESET, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Soft reset failed"));
+  if (!this->setup_check(this->write(HDC302X_CMD_SOFT_RESET, 2) == i2c::ERROR_OK, LOG_STR("Soft reset failed")))
     return;
-  }
   // Delay SensorRR (reset ready), per datasheet, 6.5.
   delay(3);
 
   // Clear status register
-  if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Clear status failed"));
+  if (!this->setup_check(this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) == i2c::ERROR_OK,
+                         LOG_STR("Clear status failed")))
     return;
-  }
 }
 
 void HDC302XComponent::dump_config() {
@@ -52,10 +49,8 @@ void HDC302XComponent::update() {
       HDC302X_CMD_TRIGGER_MSB,
       this->power_mode_,
   };
-  if (this->write(cmd, 2) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write(cmd, 2) == i2c::ERROR_OK))
     return;
-  }
 
   // Read data after ADC conversion has completed
   this->set_timeout(this->conversion_delay_ms_(), [this]() { this->read_data_(); });
@@ -127,10 +122,8 @@ bool HDC302XComponent::disable_heater_() {
 
 void HDC302XComponent::read_data_() {
   uint8_t buf[6];
-  if (this->read(buf, 6) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->read(buf, 6) == i2c::ERROR_OK))
     return;
-  }
 
   // Check checksums
   const bool crc_ok = crc8(buf, 2, 0xff, 0x31, true) == buf[2] && crc8(buf + 3, 2, 0xff, 0x31, true) == buf[5];

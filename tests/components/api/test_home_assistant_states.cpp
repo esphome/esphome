@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -169,9 +170,28 @@ class HomeAssistantStatesTest : public ::testing::Test {
   }
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
+  // Set a wizard input as the client does, through the connection
+  void set_wizard_input_(uint32_t key, const char *entity_id) {
+    WizardInputSetRequest request;
+    request.key = key;
+    request.entity_id = StringRef(entity_id);
+    this->connection_->on_wizard_input_set_request(request);
+  }
+
   void check_wizard_resend_(std::vector<SentSubscription> expected) {
-    // A wizard input's entity id lives in a RAM buffer that is empty until the wizard sets it
-    static char buffer[WIZARD_ENTITY_ID_BUFFER_SIZE] = "";
+    // A wizard input's entity id lives in a RAM buffer that is empty until the wizard sets it: the single input with
+    // an empty buffer that test_wizard.cpp defines.
+    const WizardInputEntry *end = API_WIZARD_INPUTS + API_WIZARD_INPUT_COUNT;
+    const WizardInputEntry *found = std::find_if(
+        API_WIZARD_INPUTS, end, [](const WizardInputEntry &e) { return e.size == 0 && e.entity_id[0] == '\0'; });
+    ASSERT_NE(found, end);
+    const WizardInputEntry &input = *found;
+    char *buffer = input.entity_id;
+    // Leave the shared buffer empty for later tests, also when an assertion returns early
+    struct ClearBuffer {
+      char *buffer;
+      ~ClearBuffer() { this->buffer[0] = '\0'; }
+    } clear{buffer};
     std::string seen;
     this->server_->subscribe_home_assistant_state(buffer, nullptr, [&](StringRef state) { seen = state.str(); });
     this->server_->subscribe_home_assistant_state("sensor.fixed", nullptr, [](StringRef) {});
@@ -179,13 +199,20 @@ class HomeAssistantStatesTest : public ::testing::Test {
     expected.push_back({"sensor.fixed", "", false});
     EXPECT_EQ(this->request_subscriptions_(), expected);
 
-    strcpy(buffer, "sensor.chosen");
+    this->set_wizard_input_(input.key, "sensor.chosen");
+    ASSERT_STREQ(buffer, "sensor.chosen");
     this->connection_->resend_state_subscriptions(buffer);
     EXPECT_EQ(this->read_sent_(), (std::vector<SentSubscription>{{"sensor.chosen", "", false}}));
 
     this->deliver_("sensor.chosen", "", "on");
     EXPECT_EQ(seen, "on");
-    buffer[0] = '\0';
+
+    // A new id of another length replaces the old one
+    this->set_wizard_input_(input.key, "light.x");
+    this->deliver_("sensor.chosen", "", "stale");
+    EXPECT_EQ(seen, "on");
+    this->deliver_("light.x", "", "off");
+    EXPECT_EQ(seen, "off");
   }
 #endif
 
@@ -433,6 +460,16 @@ TEST_F(HomeAssistantStatesTest, MemberCallbacksSeeTheirObject) {
   holder.subscribe();
   this->deliver_("sensor.a", "", "on");
   EXPECT_EQ(holder.last, "on");
+}
+
+TEST_F(HomeAssistantStatesTest, AnEntityOfTheSameLengthIsIgnored) {
+  int calls = 0;
+  this->server_->subscribe_home_assistant_state("sensor.a", nullptr, [&](StringRef) { calls++; });
+  this->deliver_("sensor.b", "", "1");
+  this->deliver_("number.a", "", "1");
+  EXPECT_EQ(calls, 0);
+  this->deliver_("sensor.a", "", "1");
+  EXPECT_EQ(calls, 1);
 }
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS

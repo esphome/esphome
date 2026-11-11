@@ -1,5 +1,5 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_BASE_VERSION=2026.06.1
+ARG BUILD_BASE_VERSION=2026.11.0
 ARG BUILD_TYPE=docker
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
@@ -22,7 +22,7 @@ RUN \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir esphome-device-builder==1.26.0
+RUN uv pip install --no-cache-dir esphome-device-builder==1.28.0
 
 RUN \
     platformio settings set enable_telemetry No \

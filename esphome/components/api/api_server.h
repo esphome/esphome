@@ -29,7 +29,9 @@
 #endif
 
 #include <array>
+#include <cstring>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace esphome::api {
@@ -208,7 +210,7 @@ class APIServer final : public Component
   void send_serial_proxy_identity(const SerialProxyIdentity &msg);
 #endif
 #ifdef USE_IR_RF
-  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, std::span<const int32_t> timings);
 #endif
 
   bool is_connected() const { return this->api_connection_count_ != 0; }
@@ -240,6 +242,8 @@ class APIServer final : public Component
     const char *attribute;  // nullptr means no attribute
     Callback<void(StringRef)> callback;
     bool once;
+    // strlen(entity_id), so a state is matched without measuring every entry; Home Assistant ids are at most 255 bytes
+    uint16_t entity_id_len;
   };
   // The extra list is grown with a byte copy
   static_assert(std::is_trivially_copyable_v<HomeAssistantStateSubscription>);
@@ -273,7 +277,9 @@ class APIServer final : public Component
       std::span<const HomeAssistantStateSubscription> subs = this->state_sub_list_(extra);
       for (const auto *it = subs.data(), *end = it + subs.size(); it != end; ++it) {
         // A subscription without an attribute only takes states without one
-        if (msg.entity_id != it->entity_id ||
+        // The stored length rejects most entries without reading the entity id
+        if (msg.entity_id.size() != it->entity_id_len ||
+            memcmp(msg.entity_id.c_str(), it->entity_id, it->entity_id_len) != 0 ||
             (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()))
           continue;
         const size_t pos = it - subs.data();
@@ -290,6 +296,10 @@ class APIServer final : public Component
   /// The subscription at index in the order they are sent, or nullptr past the last one.
   /// Adding a subscription can move the list, so do not keep the pointer across one.
   const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Measure again the subscriptions whose entity id is this buffer, after the wizard wrote a new id into it.
+  void update_state_subscription_entity_id(const char *entity_id);
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }

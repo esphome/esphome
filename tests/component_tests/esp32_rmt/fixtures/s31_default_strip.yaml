@@ -1,0 +1,15 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32s31
+  framework:
+    type: esp-idf
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: strip
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO4
+    num_leds: 5

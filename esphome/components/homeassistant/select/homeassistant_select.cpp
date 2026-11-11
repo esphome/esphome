@@ -16,9 +16,6 @@ namespace esphome::homeassistant {
 ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
 void HomeassistantSelect::setup() {
-  this->options_buffer_ = std::make_unique<char[]>(this->options_buffer_size_);
-  this->option_list_ = std::make_unique<const char *[]>(this->max_options_);
-
   // Subscribe to the options first: Home Assistant answers subscriptions in order, so the options are
   // known by the time the first state arrives.
   api::global_api_server->subscribe_home_assistant_state(
@@ -69,7 +66,7 @@ void HomeassistantSelect::options_changed_(StringRef options) {
   }
 
   // Second pass: the input is known to be valid and to fit, so write it out
-  char *buffer = this->options_buffer_.get();
+  char *buffer = this->options_buffer_;
   size_t offset = 0;
   size_t option_start = 0;
   size_t index = 0;
@@ -80,8 +77,8 @@ void HomeassistantSelect::options_changed_(StringRef options) {
         this->option_list_[index++] = buffer + option_start;
         option_start = offset;
       });
-  // The traits only point at the list, which this select owns; set_options() would copy it to the heap
-  this->traits.set_options_static(this->option_list_.get(), count);
+  // The traits only point at the static list; set_options() would copy it to the heap
+  this->traits.set_options_static(this->option_list_, count);
 
   // The active option may have moved to another index, or may be gone
   if (new_active.has_value()) {
