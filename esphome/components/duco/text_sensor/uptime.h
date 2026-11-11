@@ -8,12 +8,13 @@ namespace esphome::duco {
 
 class DucoUptime : public DucoDevice, public text_sensor::TextSensor {
  public:
-  void set_address(uint8_t address) { this->address_ = address; }
+  explicit DucoUptime(uint8_t address) : address_(address) {}
+
   void update() override;
   void receive_response(const DucoMessage &message) override;
 
  protected:
-  uint8_t address_{1};
+  uint8_t address_;
 };
 
 }  // namespace esphome::duco

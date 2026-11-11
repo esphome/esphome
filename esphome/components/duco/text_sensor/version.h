@@ -8,7 +8,8 @@ namespace esphome::duco {
 
 class DucoVersion : public DucoDevice, public text_sensor::TextSensor {
  public:
-  void set_address(uint8_t address) { this->address_ = address; }
+  explicit DucoVersion(uint8_t address) : address_(address) {}
+
   void update() override;
   void receive_response(const DucoMessage &message) override;
 

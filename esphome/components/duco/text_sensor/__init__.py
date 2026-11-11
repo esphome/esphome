@@ -102,13 +102,11 @@ async def to_code(config: ConfigType) -> None:
         key not in config
         for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE)
     ):
-        var = await text_sensor.new_text_sensor(config)
+        var = await text_sensor.new_text_sensor(config, config[CONF_ADDRESS])
         await register_duco_device(var, config, config[CONF_DUCO_ID])
-        cg.add(var.set_address(config[CONF_ADDRESS]))
         return
 
     for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE):
         for entity_config in config.get(key, []):
-            var = await text_sensor.new_text_sensor(entity_config)
+            var = await text_sensor.new_text_sensor(entity_config, entity_config[CONF_ADDRESS])
             await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
-            cg.add(var.set_address(entity_config[CONF_ADDRESS]))

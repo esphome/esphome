@@ -11,7 +11,8 @@ namespace esphome::duco {
 
 class DucoError : public DucoDevice, public text_sensor::TextSensor {
  public:
-  void set_address(uint8_t address) { this->address_ = address; }
+  explicit DucoError(uint8_t address) : address_(address) {}
+
   void setup() override;
   void update() override;
   void receive_response(const DucoMessage &message) override;
@@ -19,7 +20,7 @@ class DucoError : public DucoDevice, public text_sensor::TextSensor {
  protected:
   static constexpr size_t MAX_ERROR_TEXT_LENGTH = 255;
 
-  uint8_t address_{1};
+  uint8_t address_;
 };
 
 }  // namespace esphome::duco
