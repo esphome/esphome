@@ -24,3 +24,8 @@ identical payloads share one table, a lambda is sent from its vector. An empty c
 (`sendto() error 22` in the log, no datagram) until it accepted `nullptr` with a zero length; the old
 `TemplatableBytes::visit` had passed a zero length stack buffer instead. Compare sizes against the stacked PR's own
 head when the PR is stacked, not against dev. Results: https://github.com/esphome/esphome/pull/21263
+
+## Two sockets on one port (#22509)
+
+lwIP lets two sockets bind one UDP port when `SO_REUSEADDR` is set, and unicast then goes to the socket opened
+last; without it the second bind fails with errno 112.

@@ -6,6 +6,7 @@ Windows entry points cannot drift apart. Uses only the standard library: it runs
 before any dependency has been installed.
 """
 
+import argparse
 import os
 from pathlib import Path
 import shutil
@@ -18,6 +19,8 @@ MIN_PYTHON = (3, 12)
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_VENV = ROOT / "venv"
 POST_CHECKOUT_HOOK = ROOT / "script" / "git-hooks" / "post-checkout"
+VSCODE_SETTINGS = ROOT / ".vscode" / "settings.json"
+VSCODE_DEFAULT_SETTINGS = ROOT / ".vscode" / "settings.default.json"
 
 # State of the environment the dependencies end up in, used for the closing
 # message.
@@ -68,6 +71,22 @@ def git_output(*args: str) -> str:
     if result.returncode != 0:
         return ""
     return result.stdout.strip()
+
+
+def environment_ready() -> bool:
+    """Return whether ESPHome is already installed in the environment setup uses."""
+    active = os.environ.get("VIRTUAL_ENV")
+    python = venv_python(Path(active) if active else DEFAULT_VENV)
+    if not python.is_file():
+        return False
+    # -I keeps the checkout itself off sys.path, so only an installed copy counts.
+    result = subprocess.run(
+        [str(python), "-I", "-c", "import esphome"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def create_venv(venv: Path) -> None:
@@ -159,6 +178,18 @@ def install_git_hooks(env: dict[str, str]) -> None:
         installed.chmod(0o755)
 
 
+def install_vscode_settings() -> None:
+    """Copy the default VS Code workspace settings, unless settings already exist.
+
+    settings.json is not tracked, so contributors can change it freely; it is
+    only seeded on the first run.
+    """
+    if VSCODE_SETTINGS.exists():
+        return
+    shutil.copyfile(VSCODE_DEFAULT_SETTINGS, VSCODE_SETTINGS)
+    print(f"Created {VSCODE_SETTINGS.relative_to(ROOT).as_posix()} from the defaults.")
+
+
 def activate_hint() -> str:
     """Return the command that activates the environment this script creates."""
     activate = bin_dir(DEFAULT_VENV).relative_to(ROOT) / "activate"
@@ -190,13 +221,31 @@ def report(state: str, venv: Path) -> None:
         )
 
 
-def main() -> None:
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse the command line."""
+    parser = argparse.ArgumentParser(description="Set up the ESPHome dev environment.")
+    parser.add_argument(
+        "--if-needed",
+        action="store_true",
+        help="do nothing if ESPHome is already installed (used when VS Code opens "
+        "the folder)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
     """Set up the development environment."""
+    args = parse_args([] if argv is None else argv)
     if sys.version_info < MIN_PYTHON:
         raise SystemExit(
             f"ESPHome needs Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} or newer, "
             f"but this is Python {sys.version.split()[0]}."
         )
+
+    if args.if_needed and environment_ready():
+        install_vscode_settings()
+        print("Development environment already set up. Run script/setup to update it.")
+        return
 
     # A virtual environment that is already active (for example the
     # devcontainer's pre-provisioned esphome-venv) is installed into rather than
@@ -214,9 +263,10 @@ def main() -> None:
     env = venv_environment(venv)
     install_dependencies(venv, env)
     install_git_hooks(env)
+    install_vscode_settings()
     (ROOT / ".temp").mkdir(exist_ok=True)
     report(state, venv)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
