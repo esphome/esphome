@@ -30,7 +30,7 @@ SERIAL_ENTITY_SCHEMA = (
     text_sensor.text_sensor_schema(DucoSerial)
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=0): cv.int_range(min=0, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=0): cv.int_range(min=0, max=0x44),
         }
     )
     .extend(cv.polling_component_schema("300s"))
@@ -42,7 +42,7 @@ VERSION_SCHEMA = (
     text_sensor.text_sensor_schema(DucoVersion)
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x44),
         }
     )
     .extend(cv.polling_component_schema("300s"))
@@ -52,7 +52,7 @@ ERROR_SCHEMA = (
     text_sensor.text_sensor_schema(DucoError)
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x44),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -62,7 +62,7 @@ UPTIME_SCHEMA = (
     text_sensor.text_sensor_schema(DucoUptime)
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x44),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -72,7 +72,7 @@ NODE_TYPE_SCHEMA = (
     text_sensor.text_sensor_schema(DucoNodeType)
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x44),
         }
     )
     .extend(cv.polling_component_schema("300s"))
