@@ -731,10 +731,14 @@ def write_recovered_files(files: dict[str, bytes], out_dir: Path) -> list[Path]:
     # Counted per path part, so a `..` behind a folder name cannot climb out either.
     depth = max((Path(rel).parts.count("..") for rel in files), default=0)
     name = Path(next(iter(files), "")).stem
-    base = out_dir.resolve().joinpath(*[name] * depth)
+    root = out_dir.resolve()
+    base = root.joinpath(*[name] * depth)
     written: list[Path] = []
     for rel, content in files.items():
         target = (base / rel).resolve()
+        # The paths come from the device; an odd main path such as "" or ".." would let one climb out.
+        if target == root or not target.is_relative_to(root):
+            raise EsphomeError(f"Stored file {rel!r} would be written outside {root}")
         target.parent.mkdir(parents=True, exist_ok=True)
         # Exclusive create: two stored paths that resolve to one file must not overwrite each other.
         try:

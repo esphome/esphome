@@ -1390,3 +1390,14 @@ def test_write_recovered_files_refuses_two_files_on_one_path(tmp_path: Path) -> 
             {"kitchen.yaml": b"main", "../kitchen/kitchen.yaml": b"package"}, tmp_path
         )
     assert (tmp_path / "kitchen" / "kitchen.yaml").read_bytes() == b"main"
+
+
+@pytest.mark.parametrize("main", ["", ".."])
+def test_write_recovered_files_refuses_paths_outside_the_folder(
+    tmp_path: Path, main: str
+) -> None:
+    """A main path that leaves no folder name cannot let a `..` file climb out."""
+    out = tmp_path / "out"
+    with pytest.raises(EsphomeError, match="outside"):
+        write_recovered_files({main: b"main", "../escaped.yaml": b"x"}, out)
+    assert not (tmp_path / "escaped.yaml").exists()
