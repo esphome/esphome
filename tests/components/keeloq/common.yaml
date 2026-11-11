@@ -8,7 +8,7 @@ keeloq:
     on_frame:
       - logger.log:
           format: "serial %07X counter %u channels %04X command %X"
-          args: ["x.serial", "x.counter", "x.channels", "x.command"]
+          args: ["(unsigned) x.serial", "x.counter", "x.channels", "x.command"]
     on_command:
       - channel: 1
         command: up
