@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/application.h"
 #include "host_hooks.h"
@@ -57,6 +59,31 @@ TEST_F(WiFiAPPowerSaveTest, FallbackAPLeavesItToTheStationPath) {
 
   EXPECT_EQ(host_hooks.ap_starts, 1);
   EXPECT_EQ(host_hooks.power_save_applies, 1);
+}
+
+TEST_F(WiFiAPPowerSaveTest, APWithoutNetworksAppliesOutputPower) {
+  this->wifi_.set_output_power(17.5f);
+
+  this->wifi_.start();
+
+  EXPECT_EQ(host_hooks.output_powers, std::vector<float>{17.5f});
+}
+
+TEST_F(WiFiAPPowerSaveTest, NetworksApplyOutputPower) {
+  this->add_network_();
+  this->wifi_.set_output_power(17.5f);
+
+  this->wifi_.start();
+
+  EXPECT_EQ(host_hooks.output_powers, std::vector<float>{17.5f});
+}
+
+TEST_F(WiFiAPPowerSaveTest, UnsetOutputPowerIsNotApplied) {
+  this->wifi_.start();
+  this->add_network_();
+  this->wifi_.start();
+
+  EXPECT_TRUE(host_hooks.output_powers.empty());
 }
 
 }  // namespace

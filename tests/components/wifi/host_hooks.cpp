@@ -17,7 +17,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   return true;
 }
 bool WiFiComponent::wifi_sta_pre_setup_() { return true; }
-bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  host_hooks.output_powers.push_back(output_power);
+  return true;
+}
 bool WiFiComponent::wifi_apply_power_save_() {
   host_hooks.power_save_applies++;
   return true;
