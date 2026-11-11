@@ -152,7 +152,7 @@ void BasicFragmentation::receive_(const PacketBuffer &data, const PacketMetaData
     return;
   }
   memcpy(this->rx_buffer_ + this->rx_length_, payload, length);
-  this->rx_length_ += length;
+  this->rx_length_ = static_cast<uint16_t>(this->rx_length_ + length);
   this->rx_next_index_++;
   if (last) {
     this->rx_joining_ = false;
