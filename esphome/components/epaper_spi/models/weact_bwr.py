@@ -84,14 +84,12 @@ weact_4p2in3c = WeActBWR(
 class GoodDisplayBWR(WeActBWR):
     """Good Display Black/White/Red displays using SSD1680 controller."""
 
+    class_name = "EPaperGoodDisplay3C"
     source_files = (
         "epaper_spi_bwr.cpp",
         "epaper_weact_3c.cpp",
         "epaper_goodisplay_3c.cpp",
     )
-
-    def __init__(self, name: str, **defaults: object) -> None:
-        super().__init__(name, "EPaperGoodDisplay3C", **defaults)
 
     def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
         # Only a hardware reset wakes the panel from deep sleep, and refreshes are timed by busy
