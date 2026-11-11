@@ -276,7 +276,7 @@ std::vector<CdcEps> USBUartTypeFT23XX::parse_descriptors(usb_device_handle_t dev
   }
 
   ESP_LOGD(TAG, "Found FTDI %s based device", type_string.c_str());
-  for (size_t intf_idx = 0; intf_idx < this->channels_.size(); intf_idx++) {
+  for (size_t intf_idx = 0; intf_idx < config_desc->bNumInterfaces; intf_idx++) {
     if (auto eps = get_uart(config_desc, static_cast<uint8_t>(intf_idx))) {
       cdc_devs.push_back(*eps);
       ESP_LOGD(TAG, "Found CDC interface at USB interface index %zu", intf_idx);
