@@ -101,6 +101,7 @@ IS_PLATFORM_COMPONENT = True
 DOMAIN = "light"
 CONF_GAMMA_TABLE_ID = "gamma_table_id"
 CONF_RESUME_EFFECT = "resume_effect"
+CONF_WRITE_ON_SETUP = "write_on_setup"
 
 CONF_POWER_ESTIMATION = "power_estimation"
 CONF_MA_PER_LED_RED = "ma_per_led_red"
@@ -440,6 +441,7 @@ INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
@@ -468,6 +470,7 @@ LIGHT_SCHEMA = (
             ),
             cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
             cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
+            cv.Optional(CONF_WRITE_ON_SETUP, default=False): cv.boolean,
         }
     )
 )
@@ -644,6 +647,9 @@ async def setup_light_core_(light_var, config, output_var):
     if config[CONF_RESUME_EFFECT]:
         cg.add_define("USE_LIGHT_RESUME_EFFECT")
         cg.add(light_var.set_resume_effect(True))
+    if config[CONF_WRITE_ON_SETUP]:
+        cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
+        cg.add(light_var.set_write_on_setup(True))
 
     restore_mode = config.get(CONF_RESTORE_MODE)
     restore_state_config = config.get(CONF_RESTORE_STATE)

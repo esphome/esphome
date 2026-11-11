@@ -329,6 +329,8 @@ light:
     output: light_test_binary
     restore_mode: RESTORE_AND_ON
     resume_effect: true
+    write_on_setup: true
+    setup_priority: 790
     effects:
       - strobe:
     on_state:

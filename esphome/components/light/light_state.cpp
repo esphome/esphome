@@ -93,6 +93,11 @@ void LightState::setup() {
     call.set_transition_length_if_supported(0);
   }
   call.perform();
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  // Otherwise the output is first written from loop(), which only runs once every component is set up
+  if (this->write_on_setup_)
+    this->write_if_pending_();
+#endif  // USE_LIGHT_WRITE_ON_SETUP
 }
 void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));
