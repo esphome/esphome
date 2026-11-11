@@ -1,18 +1,19 @@
 """End-to-end test of `store_yaml` recovery over the native API.
 
-Uses the raw client so a test controls when it reads; aioesphomeapi has no get_yaml helper.
+The backpressure test uses the raw client so it controls when it reads.
 """
 
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 import random
 
 from aioesphomeapi import api_pb2
 import pytest
 
-from esphome.components.store_yaml import unpack_envelope
-from esphome.helpers import zstd_module
+from esphome.api_client import async_recover_yaml
+from esphome.components.store_yaml import decode_stored_yaml, write_recovered_files
 from esphome.yaml_util import find_secret_references
 
 from .log_utils import LineWaiter
@@ -36,31 +37,20 @@ async def test_store_yaml_recovery(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     unused_tcp_port: int,
+    tmp_path: Path,
 ) -> None:
-    """Stream the embedded YAML back from a host build and check the recovered files."""
-    async with run_compiled(yaml_config), RawApiClient(unused_tcp_port) as client:
-        await client.connect("store_yaml integration test")
+    """Recover the embedded YAML from a host build the way `esphome recover-yaml` does."""
+    async with run_compiled(yaml_config):
+        compressed = await async_recover_yaml(["127.0.0.1"], unused_tcp_port, None)
 
-        # Clients learn the device can answer get_yaml from its capabilities.
-        await client.send_message(api_pb2.DeviceCapabilitiesRequest())
-        capabilities = api_pb2.DeviceCapabilitiesResponse.FromString(
-            await client.read_frame(MESSAGE_TYPE_OF[api_pb2.DeviceCapabilitiesResponse])
-        )
-        assert capabilities.store_yaml.supported
-
-        await client.send_message(api_pb2.GetYamlRequest())
-        responses = await _read_yaml_stream(client)
-
-    compressed = b"".join(r.data for r in responses)
-    assert responses[0].total_size == len(compressed)
-
-    envelope = zstd_module().decompress(compressed)
-    files = unpack_envelope(envelope)
+    files = decode_stored_yaml(compressed)
+    main, *_ = written = write_recovered_files(files, tmp_path / "recovered")
+    assert b"store-yaml-test" in main.read_bytes()
+    assert {path.name for path in written} == set(files)
     combined = b"\n".join(files.values())
-    assert b"store-yaml-test" in combined
     assert b"store_yaml:" in combined
     # The inline OTA password comes back as a !secret listed in the skeleton.
-    assert b"recoverme123" not in envelope
+    assert b"recoverme123" not in combined
     assert "ota_password" in find_secret_references(combined.decode())
     assert b"ota_password: ''" in files["secrets.yaml"]
 
@@ -103,7 +93,5 @@ async def test_store_yaml_recovery_backpressure(
     assert len(responses) > 1 and all(len(c) <= CHUNK_LIMIT for c in chunks)
     assert not any(r.done for r in responses[:-1])
     assert responses[0].total_size == len(compressed)
-    combined = b"\n".join(
-        unpack_envelope(zstd_module().decompress(compressed)).values()
-    )
+    combined = b"\n".join(decode_stored_yaml(compressed).values())
     assert all(value.encode() in combined for value in values.values())
