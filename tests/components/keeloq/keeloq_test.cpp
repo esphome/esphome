@@ -352,7 +352,7 @@ TEST(KeeloqReceiveTest, TakeOverStoresSerialAndCounterAndSurvivesARestart) {
   hand.remote.set_counter(0x2049);
   EXPECT_EQ(clone.next_frame(0x8, 0x0001).encrypted, hand.remote.next_frame(0x8, 0x0001).encrypted);
 
-  // After a restart (or an update with the same id) both are back.
+  // After a restart both are back.
   KeeloqRemote restarted{KEELOQ_TYPE_JAROLIFT, 0, 0, 0};
   without_serial(restarted);
   static_cast<Component &>(restarted).setup();
