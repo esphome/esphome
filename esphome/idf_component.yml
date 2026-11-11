@@ -22,7 +22,7 @@ dependencies:
   espressif/esp-tflite-micro:
     version: 1.4.1
   espressif/esp-nn:
-    version: 1.4.2
+    version: 1.5.0
   espressif/esp32-camera:
     version: 2.1.7
   espressif/esp_modem:
