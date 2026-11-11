@@ -30,7 +30,6 @@ from esphome.const import CONF_INTERVAL, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-from ..helpers import get_define_value
 from ..types import SetCoreConfigCallable
 
 
@@ -226,7 +225,7 @@ def test_connection_scan_window_codegen(
 ) -> None:
     main_cpp = generate_main(component_config_path(config_file))
     assert window_call in main_cpp
-    armed = get_define_value(SHORT_SCAN_WINDOW_DEFINE) is not None
+    armed = any(define.name == SHORT_SCAN_WINDOW_DEFINE for define in CORE.defines)
     assert armed == (connection_call is not None)
     if connection_call is None:
         assert "set_connection_scan_window(" not in main_cpp
