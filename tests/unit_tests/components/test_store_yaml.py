@@ -29,6 +29,7 @@ from esphome.components.store_yaml import (
     _symlink_descriptions,
     _uncaptured_note,
     unpack_envelope,
+    write_recovered_files,
 )
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, Lambda
@@ -1358,3 +1359,31 @@ def test_credential_words_cover_every_sensitive_key() -> None:
         if not any(w in k for w in store_yaml._CREDENTIAL_WORDS)
     }
     assert not unnamed, f"add a word for {sorted(unnamed)} to _CREDENTIAL_WORDS"
+
+
+def test_write_recovered_files_keeps_files_from_above(tmp_path: Path) -> None:
+    """A `..` file keeps its place relative to the main YAML, inside the folder."""
+    out = tmp_path / "out"
+    written = write_recovered_files(
+        {"dev.yaml": b"a", "secrets.yaml": b"b", "../../common/wifi.yaml": b"c"}, out
+    )
+    root = out.resolve()
+    assert written == [
+        root / "_" / "_" / "dev.yaml",
+        root / "_" / "_" / "secrets.yaml",
+        root / "common" / "wifi.yaml",
+    ]
+    assert [p.read_bytes() for p in written] == [b"a", b"b", b"c"]
+
+
+def test_write_recovered_files_refuses_a_folder_in_use(tmp_path: Path) -> None:
+    (tmp_path / "old.yaml").write_text("x")
+    with pytest.raises(EsphomeError, match="is not empty"):
+        write_recovered_files({"dev.yaml": b"a"}, tmp_path)
+
+
+def test_write_recovered_files_stays_inside_for_any_dotdot(tmp_path: Path) -> None:
+    """A `..` behind a folder name still counts, so nothing lands outside."""
+    out = tmp_path / "out"
+    (written,) = write_recovered_files({"a/../../x.yaml": b"a"}, out)
+    assert written.is_relative_to(out.resolve())

@@ -2074,6 +2074,53 @@ def command_version(args: ArgsProtocol) -> int | None:
     return 0
 
 
+ENV_API_KEY = "ESPHOME_API_KEY"
+
+
+def command_recover_yaml(args: ArgsProtocol) -> int:
+    """Download the YAML that store_yaml put on a device into a new folder."""
+    from esphome.api_client import recover_yaml
+    from esphome.components.api import DEFAULT_PORT
+    from esphome.components.noise import validate_encryption_key
+    from esphome.components.store_yaml import (
+        UNCAPTURED_NOTE_PATH,
+        unpack_envelope,
+        write_recovered_files,
+    )
+    from esphome.config_validation import Invalid
+    from esphome.helpers import zstd_module
+
+    device = args.device
+    if device in ("OTA", "SERIAL") or get_port_type(device) != PortType.NETWORK:
+        raise EsphomeError("--device must be an IP address or a hostname")
+    out_dir = Path(args.output or f"{device}-recovered")
+    if out_dir.exists() and any(out_dir.iterdir()):
+        raise EsphomeError(
+            f"'{out_dir}' is not empty; choose a new folder with --output"
+        )
+    key = os.environ.get(ENV_API_KEY)
+    if key is None:
+        key = read_secret_line("API encryption key (empty if the device has none): ")
+    if key:
+        try:
+            validate_encryption_key(key)
+        except Invalid as err:
+            raise EsphomeError(f"Invalid API encryption key: {err}") from err
+    addresses: list[str] = []
+    _add_network_device(device, addresses)
+    blob = recover_yaml(addresses, args.api_port or DEFAULT_PORT, key or None)
+    files = unpack_envelope(zstd_module().decompress(blob))
+    written = write_recovered_files(files, out_dir)
+    safe_print(f"Recovered {len(written)} files into {out_dir}:")
+    for path in written:
+        safe_print(f"  {path}")
+    safe_print(f"The main configuration is {written[0]}.")
+    safe_print("Fill in the values in secrets.yaml before you install it.")
+    if UNCAPTURED_NOTE_PATH in files:
+        safe_print(f"{UNCAPTURED_NOTE_PATH} lists files that were not stored.")
+    return 0
+
+
 def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import writer
 
@@ -2363,6 +2410,7 @@ PRE_CONFIG_ACTIONS = {
     "vscode": command_vscode,
     "update-all": command_update_all,
     "clean-all": command_clean_all,
+    "recover-yaml": command_recover_yaml,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -2740,6 +2788,22 @@ def parse_args(argv):
     parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
     subparsers.add_parser("version", help="Print the ESPHome version and exit.")
+
+    parser_recover_yaml = subparsers.add_parser(
+        "recover-yaml",
+        help="Download the YAML configuration stored on a device by store_yaml. "
+        f"The API encryption key is read from {ENV_API_KEY} or asked for.",
+    )
+    parser_recover_yaml.add_argument(
+        "--device", required=True, help="The device's IP address or hostname."
+    )
+    parser_recover_yaml.add_argument(
+        "--output",
+        help="New folder for the files. Defaults to <device>-recovered.",
+    )
+    parser_recover_yaml.add_argument(
+        "--api-port", type=int, help="The device's API port. Defaults to 6053."
+    )
 
     parser_clean = subparsers.add_parser(
         "clean", help="Delete all temporary build files."

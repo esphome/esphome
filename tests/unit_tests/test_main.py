@@ -8672,3 +8672,101 @@ def test_run_esphome_warns_for_a_password_another_command_ignores(
         run_esphome(["esphome", "version"])
     assert "ESPHOME_OTA_PASSWORD" not in os.environ
     assert "ESPHOME_OTA_PASSWORD is set but the version command" in caplog.text
+
+
+def _stored_yaml_blob(files: dict[str, bytes]) -> bytes:
+    from esphome.components.store_yaml import _pack_envelope
+    from esphome.helpers import zstd_module
+
+    return zstd_module().compress(_pack_envelope(list(files.items())))
+
+
+def test_recover_yaml_writes_the_stored_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The key comes from the environment and nothing reads a YAML file."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_API_KEY", VALID_OTA_KEY)
+    out = tmp_path / "out"
+    blob = _stored_yaml_blob(
+        {"dev.yaml": b"esphome:\n", "store_yaml_uncaptured.yaml": b"x"}
+    )
+    with (
+        patch("esphome.config.read_config") as read_config,
+        patch("esphome.api_client.recover_yaml", return_value=blob) as recover,
+    ):
+        assert (
+            run_esphome(
+                ["esphome", "recover-yaml", "--device", "1.2.3.4", "--output", str(out)]
+            )
+            == 0
+        )
+    read_config.assert_not_called()
+    recover.assert_called_once_with(["1.2.3.4"], 6053, VALID_OTA_KEY)
+    assert (out / "dev.yaml").read_bytes() == b"esphome:\n"
+    printed = capsys.readouterr().out
+    assert "Recovered 2 files" in printed
+    assert "store_yaml_uncaptured.yaml lists files that were not stored" in printed
+
+
+def test_recover_yaml_empty_key_connects_without_encryption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.delenv("ESPHOME_API_KEY", raising=False)
+    blob = _stored_yaml_blob({"dev.yaml": b""})
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=""),
+        patch("esphome.api_client.recover_yaml", return_value=blob) as recover,
+    ):
+        argv = [
+            "esphome",
+            "recover-yaml",
+            "--device",
+            "dev.local",
+            "--api-port",
+            "6054",
+        ]
+        assert run_esphome([*argv, "--output", str(tmp_path / "out")]) == 0
+    recover.assert_called_once_with(["dev.local"], 6054, None)
+
+
+@pytest.mark.parametrize(
+    ("device", "key", "message"),
+    [
+        ("/dev/ttyUSB0", "", "must be an IP address or a hostname"),
+        ("1.2.3.4", "not-a-key", "Invalid API encryption key"),
+    ],
+)
+def test_recover_yaml_rejects_bad_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    device: str,
+    key: str,
+    message: str,
+) -> None:
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_API_KEY", key)
+    with patch("esphome.api_client.recover_yaml") as recover:
+        argv = ["esphome", "recover-yaml", "--device", device]
+        assert run_esphome([*argv, "--output", str(tmp_path / "out")]) == 1
+    recover.assert_not_called()
+    assert message in caplog.text
+
+
+def test_recover_yaml_refuses_a_folder_in_use(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The check runs before connecting, so no transfer is wasted."""
+    from esphome.__main__ import run_esphome
+
+    (tmp_path / "dev.yaml").write_text("x")
+    with patch("esphome.api_client.recover_yaml") as recover:
+        argv = ["esphome", "recover-yaml", "--device", "1.2.3.4"]
+        assert run_esphome([*argv, "--output", str(tmp_path)]) == 1
+    recover.assert_not_called()
+    assert "is not empty" in caplog.text
