@@ -108,5 +108,7 @@ async def to_code(config: ConfigType) -> None:
 
     for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE):
         for entity_config in config.get(key, []):
-            var = await text_sensor.new_text_sensor(entity_config, entity_config[CONF_ADDRESS])
+            var = await text_sensor.new_text_sensor(
+                entity_config, entity_config[CONF_ADDRESS]
+            )
             await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
