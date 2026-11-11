@@ -532,7 +532,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
           this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
-          // Message already sent, reseting request and return to idle
+          // Message already sent, resetting request and return to idle
           this->action_request_.reset();
           this->set_phase(ProtocolPhases::IDLE);
         }
@@ -952,7 +952,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
   if (size < expected_size) {
-    ESP_LOGW(TAG, "Unexpected message size %u (expexted >= %zu)", size, expected_size);
+    ESP_LOGW(TAG, "Unexpected message size %u (expected >= %zu)", size, expected_size);
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   }
   uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
