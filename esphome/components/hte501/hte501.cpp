@@ -32,16 +32,12 @@ void HTE501Component::dump_config() {
 
 void HTE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
-  if (this->write(address_1, 2) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write(address_1, 2) == i2c::ERROR_OK))
     return;
-  }
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
-    if (this->read(i2c_response, 6) != i2c::ERROR_OK) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->status_comm_check(this->read(i2c_response, 6) == i2c::ERROR_OK))
       return;
-    }
     if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) ||
         i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
       this->status_set_warning(LOG_STR("CRC check failed"));
