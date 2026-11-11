@@ -21,6 +21,7 @@ from esphome.components.store_yaml import (
     _final_validate,
     _gather_files,
     _generate_redacted_files,
+    _int_text,
     _iter_nodes,
     _pack_envelope,
     _read_files_verbatim,
@@ -28,6 +29,7 @@ from esphome.components.store_yaml import (
     _symlink_descriptions,
     _uncaptured_note,
     unpack_envelope,
+    write_recovered_files,
 )
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, Lambda
@@ -871,6 +873,15 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "fp.yaml": "fingerprint_grow:\n  password: !secret fp_password\n",
+                "secrets.yaml": "fp_password: '0x12345678'\n",
+            },
+            {"fingerprint_grow": {"password": SensitiveHexInt(0x12345678)}},
+            {"fp.yaml": "password: !secret 'fp_password'"},
+            id="int_secret_written_as_quoted_hex",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "packages:\n  base:\n    api:\n      actions:\n"
                 "        - action: login\n          variables:\n"
                 "            password: string\n"
@@ -1002,6 +1013,44 @@ def test_redacted_shared_text_keeps_substring_scan(
     }
     with pytest.raises(EsphomeError, match="embedded"):
         _redact(project, files, config)
+
+
+@pytest.mark.parametrize("int_first", [True, False])
+def test_redacted_hex_secret_not_shared_with_a_string_credential(
+    project: Path, int_first: bool
+) -> None:
+    """A string credential with the decimal text of a quoted hex secret is not
+    restored as that hex secret, whichever is collected first."""
+    fp = ("fingerprint_grow", {"password": SensitiveHexInt(0x12345678)})
+    mqtt = ("mqtt", {"password": SensitiveStr("305419896")})
+    config = dict([fp, mqtt] if int_first else [mqtt, fp])
+    files = {
+        "fp.yaml": "fingerprint_grow:\n  password: !secret fp_password\n",
+        "mqtt.yaml": "mqtt:\n  password: '305419896'\n",
+        "secrets.yaml": "fp_password: '0x12345678'\n",
+    }
+    out = _redact(project, files, config)
+    assert b"305419896" not in out["mqtt.yaml"]
+    assert "fp_password" not in out["mqtt.yaml"].decode()
+
+
+def test_redacted_hex_secret_also_loaded_by_scalar_include_fails(project: Path) -> None:
+    """A quoted hex secret used again as an included integer cannot be swapped there,
+    so redaction stops rather than store the number."""
+    hex_pw = {"password": SensitiveHexInt(0x12345678)}
+    files = {
+        "entry.yaml": "fingerprint_grow:\n  - password: !secret fp_password\n"
+        "  - password: !include pw.yaml\n",
+        "pw.yaml": "0x12345678\n",
+        "secrets.yaml": "fp_password: '0x12345678'\n",
+    }
+    with pytest.raises(EsphomeError, match="cannot be confirmed redacted"):
+        _redact(project, files, {"fingerprint_grow": [hex_pw, hex_pw]})
+
+
+def test_int_text_rejects_a_hex_string_too_long_for_decimal() -> None:
+    """A long hex string cv.int_ accepts but str() cannot convert is not an integer."""
+    assert _int_text("0x" + "f" * 3600) is None
 
 
 def test_redacted_symlinked_package_loads_relative_to_its_name(
@@ -1310,3 +1359,45 @@ def test_credential_words_cover_every_sensitive_key() -> None:
         if not any(w in k for w in store_yaml._CREDENTIAL_WORDS)
     }
     assert not unnamed, f"add a word for {sorted(unnamed)} to _CREDENTIAL_WORDS"
+
+
+def test_write_recovered_files_keeps_files_from_above(tmp_path: Path) -> None:
+    """A `..` file keeps its place relative to the main YAML, inside the folder."""
+    out = tmp_path / "out"
+    written = write_recovered_files(
+        {
+            "dev.yaml": b"a",
+            "secrets.yaml": b"b",
+            "../../common/wifi.yaml": b"c",
+            "a/../../x.yaml": b"d",
+        },
+        out,
+    )
+    root = out.resolve()
+    assert written == [
+        root / "dev" / "dev" / "dev.yaml",
+        root / "dev" / "dev" / "secrets.yaml",
+        root / "common" / "wifi.yaml",
+        root / "dev" / "x.yaml",
+    ]
+    assert [p.read_bytes() for p in written] == [b"a", b"b", b"c", b"d"]
+
+
+def test_write_recovered_files_refuses_two_files_on_one_path(tmp_path: Path) -> None:
+    """A stored file that lands on the main YAML's path fails instead of replacing it."""
+    with pytest.raises(EsphomeError, match="would both be written"):
+        write_recovered_files(
+            {"kitchen.yaml": b"main", "../kitchen/kitchen.yaml": b"package"}, tmp_path
+        )
+    assert (tmp_path / "kitchen" / "kitchen.yaml").read_bytes() == b"main"
+
+
+@pytest.mark.parametrize("main", ["", ".."])
+def test_write_recovered_files_refuses_paths_outside_the_folder(
+    tmp_path: Path, main: str
+) -> None:
+    """A main path that leaves no folder name cannot let a `..` file climb out."""
+    out = tmp_path / "out"
+    with pytest.raises(EsphomeError, match="outside"):
+        write_recovered_files({main: b"main", "../escaped.yaml": b"x"}, out)
+    assert not (tmp_path / "escaped.yaml").exists()

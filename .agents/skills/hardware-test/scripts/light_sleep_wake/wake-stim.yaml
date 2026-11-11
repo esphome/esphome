@@ -1,0 +1,40 @@
+# 2 Hz 50 % square wave on GPIO25 of a classic ESP32 (LEDC on REF_TICK), the external signal for the wake detail test.
+esphome:
+  name: wake-stim
+  includes:
+    - stim.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ledc_timer_config_t t{};
+          t.speed_mode = LEDC_LOW_SPEED_MODE;
+          t.duty_resolution = LEDC_TIMER_14_BIT;
+          t.timer_num = LEDC_TIMER_1;
+          t.freq_hz = 2;
+          t.clk_cfg = LEDC_USE_REF_TICK;
+          esp_err_t e1 = ledc_timer_config(&t);
+          ledc_channel_config_t c{};
+          c.gpio_num = 25;
+          c.speed_mode = LEDC_LOW_SPEED_MODE;
+          c.channel = LEDC_CHANNEL_1;
+          c.timer_sel = LEDC_TIMER_1;
+          c.duty = 1 << 13;
+          esp_err_t e2 = ledc_channel_config(&c);
+          ESP_LOGI("stim", "LEDC %s %s, %u Hz on GPIO25", esp_err_to_name(e1), esp_err_to_name(e2),
+                   (unsigned) ledc_get_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1));
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - esp_driver_ledc
+
+logger:
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: ESP_LOGI("stim", "alive");
