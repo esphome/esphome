@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -398,11 +399,19 @@ static void set_wizard_input(APIConnection &connection, uint32_t key, const char
 }
 
 TEST_F(HomeAssistantStatesTest, WizardEntityIdIsSentOnceItIsSet) {
-  // A wizard input's entity id lives in a RAM buffer that is empty until the wizard sets it. This is the single
-  // input with an empty buffer that test_wizard.cpp defines.
-  const WizardInputEntry &input = API_WIZARD_INPUTS[1];
+  // A wizard input's entity id lives in a RAM buffer that is empty until the wizard sets it: the single input with
+  // an empty buffer that test_wizard.cpp defines.
+  const WizardInputEntry *end = API_WIZARD_INPUTS + API_WIZARD_INPUT_COUNT;
+  const WizardInputEntry *found = std::find_if(
+      API_WIZARD_INPUTS, end, [](const WizardInputEntry &e) { return e.size == 0 && e.entity_id[0] == '\0'; });
+  ASSERT_NE(found, end);
+  const WizardInputEntry &input = *found;
   char *buffer = input.entity_id;
-  buffer[0] = '\0';
+  // Leave the shared buffer empty for later tests, also when an assertion returns early
+  struct ClearBuffer {
+    char *buffer;
+    ~ClearBuffer() { this->buffer[0] = '\0'; }
+  } clear{buffer};
   std::string seen;
   this->server_->subscribe_home_assistant_state(buffer, nullptr, [&](StringRef state) { seen = state.str(); });
   this->server_->subscribe_home_assistant_state("sensor.fixed", nullptr, [](StringRef) {});
@@ -423,7 +432,6 @@ TEST_F(HomeAssistantStatesTest, WizardEntityIdIsSentOnceItIsSet) {
   EXPECT_EQ(seen, "on");
   this->deliver_("light.x", "", "off");
   EXPECT_EQ(seen, "off");
-  buffer[0] = '\0';
 }
 #endif
 
