@@ -17,7 +17,7 @@ def test_each_remote_reserves_what_it_saves_in_flash(
     # Each value takes its data words plus the checksum word in the flash store.
     # The uint16_t counter: one data word
     counter = (2, True)
-    # The last press, counter and a flag in 3 bytes: one data word
+    # The last press, a uint16_t counter: one data word
     last_press = (2, True)
     # What a remote without serial took over, serial, reserved block and channels in 8 bytes: two data words
     taken_over = (3, True)

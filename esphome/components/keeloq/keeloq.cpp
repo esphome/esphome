@@ -24,7 +24,6 @@ static constexpr uint32_t TAKE_OVER_TIMEOUT_ID = 1;
 // HCS301 data sheet DS21143C, section 7.3: a receiver accepts 16 codes ahead with one press, 32K with two.
 static constexpr uint16_t SINGLE_WINDOW = 16;
 static constexpr uint16_t RESYNC_WINDOW = 0x8000;
-static constexpr uint32_t ACCEPTED_PREF_HASH = 0x41434350;
 
 static inline uint32_t get_bit(uint32_t value, uint32_t n) { return (value >> n) & 1; }
 
@@ -172,15 +171,8 @@ bool KeeloqRemote::accept_(uint16_t counter) {
   return true;
 }
 
-// What the receiving side keeps in flash.
-struct Accepted {
-  uint16_t counter;
-  uint8_t known;
-} __attribute__((packed));
-
 void KeeloqRemote::store_accepted_(bool sync) {
-  Accepted stored{this->accepted_, this->accepted_known_};
-  bool saved = this->accepted_pref_.save(&stored);
+  bool saved = this->accepted_pref_.save(&this->accepted_);
   if (sync) {
     this->accepted_stored_ = this->accepted_;
     bool synced = global_preferences->sync();
@@ -225,12 +217,12 @@ void KeeloqRemote::setup() {
   }
   this->counter_ = this->reserved_;
   uint32_t key = this->take_over_ ? this->take_over_key_ : preference_key(this->type_, this->serial_);
-  this->accepted_pref_ = global_preferences->make_preference<Accepted>(key ^ ACCEPTED_PREF_HASH, true);
-  Accepted accepted{};
+  this->accepted_pref_ = global_preferences->make_preference<uint16_t>(fnv1a_hash_extend(key, "accepted"), true);
+  uint16_t accepted;
   if (this->accepted_pref_.load(&accepted)) {
-    this->accepted_ = accepted.counter;
-    this->accepted_stored_ = accepted.counter;
-    this->accepted_known_ = accepted.known != 0;
+    this->accepted_ = accepted;
+    this->accepted_stored_ = accepted;
+    this->accepted_known_ = true;
   }
   // A hand remote with this serial may have been followed further than the reserved block. Its last stored
   // press lags by less than a block, so continuing a block after it stays ahead and inside the window.
