@@ -3012,6 +3012,14 @@ def test_direct_calls_match_voluptuous(combinator: str) -> None:
             assert ours(value) == expected
 
 
+def test_direct_any_compiles_only_the_branches_it_tries() -> None:
+    validator = cv.Any(cv.int_, cv.possibly_negative_percentage)
+    assert validator("5") == 5
+    assert len(validator._direct_schemas) == 1
+    assert validator("50%") == 0.5
+    assert len(validator._direct_schemas) == 2
+
+
 # ---------------------------------------------------------------------------
 # SplitDefault / OnlyWithout
 # ---------------------------------------------------------------------------

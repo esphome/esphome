@@ -145,13 +145,18 @@ class _CachedDirectCall:
     validators: tuple
     _direct_schemas: list[vol.Schema] | None = None
 
-    def __call__(self, v):
-        if (schemas := self._direct_schemas) is None:
-            schemas = self._direct_schemas = [
-                vol.Schema(val) for val in self.validators
-            ]
+    def __call__(self, v: typing.Any) -> typing.Any:
         # _exec comes from vol.All / vol.Any, which follow this mixin in the MRO
-        return self._exec(schemas, v)  # pylint: disable=no-member
+        return self._exec(self._direct_calls(), v)  # pylint: disable=no-member
+
+    def _direct_calls(self) -> typing.Iterator[vol.Schema]:
+        # Compiled on first use, so a short-circuiting Any never compiles the later branches
+        if (schemas := self._direct_schemas) is None:
+            schemas = self._direct_schemas = []
+        for i, val in enumerate(self.validators):
+            if i == len(schemas):
+                schemas.append(vol.Schema(val))
+            yield schemas[i]
 
 
 # pylint: disable=invalid-name

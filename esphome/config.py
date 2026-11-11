@@ -393,7 +393,7 @@ def iter_ids(config, path=None):
     yield from _iter_ids(config, list(path or []))
 
 
-def _iter_ids(config, path: list) -> Iterator[tuple[core.ID, ConfigPath]]:
+def _iter_ids(config: Any, path: list) -> Iterator[tuple[core.ID, ConfigPath]]:
     if isinstance(config, core.ID):
         yield config, path.copy()
     elif isinstance(config, core.Lambda):
