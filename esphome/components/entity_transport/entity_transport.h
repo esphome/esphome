@@ -155,6 +155,7 @@ class EntityTransport : public Component {
   // Packets are built here, allocated in setup()
   uint8_t *buffer_{nullptr};
   size_t max_packet_size_{0};
+  size_t dictionary_next_{0};  // the first entity of the next dictionary packet to send
   uint32_t update_interval_ms_{0};
   uint32_t remote_timeout_ms_{0};
   uint32_t dictionary_id_{0};
@@ -170,11 +171,10 @@ class EntityTransport : public Component {
   uint8_t dictionary_part_{0};  // the index of the next dictionary packet to send
   uint8_t sensor_count_{0};
   uint8_t binary_sensor_count_{0};
-  size_t dictionary_next_{0};  // the first entity of the next dictionary packet to send
-  bool dictionary_pending_{true};
-  bool request_sent_{false};
   uint8_t warned_{0};  // a bit for each DropReason already warned about
-  bool refusing_{false};
+  bool dictionary_pending_ : 1 {true};
+  bool request_sent_ : 1 {false};
+  bool refusing_ : 1 {false};
 };
 
 }  // namespace esphome::entity_transport
