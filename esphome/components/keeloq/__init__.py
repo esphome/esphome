@@ -207,8 +207,10 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     remote_base.request_protocol("keeloq")
-    # The counter is a uint16_t in flash; the ESP8266 checks that all saved values fit its store.
-    preferences.reserve_preferences(1, 2, in_flash=True)
+    # In flash: the uint16_t counter, or what a remote without serial took over (8 bytes), and the last accepted
+    # press (3 bytes); the ESP8266 checks that all saved values fit its store.
+    preferences.reserve_preferences(1, 2 if CONF_SERIAL in config else 8, in_flash=True)
+    preferences.reserve_preferences(1, 3, in_flash=True)
     # Only the derived device key reaches the firmware; the manufacturer key only with a receiver (below). A remote
     # without serial derives its device key when it takes a serial over.
     serial = config.get(CONF_SERIAL)

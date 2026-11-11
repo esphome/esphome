@@ -9,6 +9,10 @@ remote_transmitter:
   pin: GPIO2
   carrier_duty_percent: 100%
 
+remote_receiver:
+  id: receiver
+  pin: GPIO4
+
 keeloq:
   # Made-up key, not a real manufacturer key
   - id: shutter_remote
@@ -20,6 +24,10 @@ keeloq:
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     serial: 0x1234501
     channels: [3]
+  - id: hand_remote
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    receiver_id: receiver
 
 button:
   - platform: template
