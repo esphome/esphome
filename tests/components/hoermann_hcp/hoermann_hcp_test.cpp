@@ -7,16 +7,17 @@
 
 namespace esphome::hoermann_hcp::testing {
 
-// An empty poll (write 2 / read 2) answers with the fixed status word 0x0004.
-TEST(HoermannHcpReadWrite, EmptyPollReturnsStatusWord) {
+// A command with nothing attached (write 2 / read 2) echoes the counter and NAKs the command with 0xFE, which is
+// how the controller's teach frames are answered.
+TEST(HoermannHcpReadWrite, EmptyPollNaksTheCommand) {
   HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 2, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 2u);
-  EXPECT_EQ(response[0], 0x0004);
-  EXPECT_EQ(response[1], 0x0000);
+  EXPECT_EQ(response[0], 0x0000);  // counter, no marker in the low byte
+  EXPECT_EQ(response[1], 0x00FE);  // no command, NAKed
 }
 
 // A bus scan (write 3 / read 5) answers with the connect-accept code and the fixed
@@ -515,8 +516,8 @@ TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
   RegisterValues empty_poll;
   door.on_read_holding_registers(STATE_REG, 2, empty_poll);
   ASSERT_EQ(empty_poll.size(), 2u);
-  EXPECT_EQ(empty_poll[0], 0x3404);  // status 0x04 shares the register with the counter here
-  EXPECT_EQ(empty_poll[1], 0x0700);  // command alone
+  EXPECT_EQ(empty_poll[0], 0x3400);  // counter alone
+  EXPECT_EQ(empty_poll[1], 0x07FE);  // command alone, NAKed
 
   RegisterValues scan;
   door.on_read_holding_registers(STATE_REG, 5, scan);

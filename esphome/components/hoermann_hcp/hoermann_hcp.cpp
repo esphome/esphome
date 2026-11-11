@@ -237,14 +237,15 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 #endif
       break;
     case 2:
-      // Empty command request.
-      registers.push_back(static_cast<uint16_t>(0x0004 | counter));
-      registers.push_back(command);
+      // A command with nothing attached: the counter is echoed with a zero low byte and the command is NAKed with
+      // 0xFE. The controller's teach frames at boot have exactly this shape.
+      registers.push_back(counter);
+      registers.push_back(static_cast<uint16_t>(0x00FE | command));
       break;
     case 5:
       // Bus scan (the bus controller discovering us, typically at startup).
-      // Respond like an official HCP2 IoT gateway (i.e. KNX & Loxone).
-      // Answer with the same connect-accept code (0x2E) and feature bits.
+      // Answer with the connect-accept code 0x2E and the descriptor words 0520 0800 0000, as an official HCP2
+      // accessory does. Code 0x05 with the words 0430 10FF A845 is another HCP2 module's answer; do not mix them.
       ESP_LOGD(TAG, "Bus scan received from bus controller");
       registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x002E | command));
