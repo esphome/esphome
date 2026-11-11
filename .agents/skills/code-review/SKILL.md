@@ -43,8 +43,9 @@ and its `CODEOWNERS` entry.
 ## YAML language freeze
 
 Until configurations move to yaml.rocks (esphome/backlog#201), flag any PR that adds to the YAML language: a new
-tag in `esphome/yaml_util.py`, new behaviour in the `packages` or `substitutions` components, or new merge, override
-or remove semantics (`esphome/config_helpers.py`, `!extend`, `!remove`). Bug fixes to the existing features are fine.
+tag in `esphome/yaml_util.py`, new behaviour in the `packages` or `substitutions` components (a new entry in the
+Jinja `SAFE_GLOBALS` or filters in `substitutions/jinja.py` counts), or new merge, override or remove semantics
+(`esphome/config_helpers.py`, `!extend`, `!remove`). Bug fixes to the existing features are fine.
 This covers how YAML files are read, included and combined, not a component's own configuration options.
 
 ## Memory and embedded constraints (highest value)
