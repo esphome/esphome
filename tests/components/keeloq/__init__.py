@@ -5,6 +5,9 @@ from tests.testing_helpers import ComponentManifestOverride
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     from esphome.components.remote_base import request_protocol
 
+    # One empty config entry so to_code runs
+    manifest.multi_conf = False
+
     async def to_code_testing(config: ConfigType) -> None:
         request_protocol("keeloq")
 
