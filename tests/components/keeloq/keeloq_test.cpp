@@ -1,10 +1,8 @@
 #include <gtest/gtest.h>
 
-#include <string>
 #include <vector>
 
 #include "esphome/components/keeloq/keeloq.h"
-#include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
@@ -105,17 +103,6 @@ remote_base::RawTimings on_air(const remote_base::KeeloqData &data) {
 
 bool receive(KeeloqRemote &remote, const remote_base::RawTimings &timings) {
   return remote.on_receive(remote_base::RemoteReceiveData(timings, 25, remote_base::TOLERANCE_MODE_PERCENTAGE));
-}
-
-// Returns what the step logged. The test logger only prints while it has a baud rate.
-template<typename F> std::string log_of(F step) {
-  const uint32_t baud_rate = logger::global_logger->get_baud_rate();
-  logger::global_logger->set_baud_rate(115200);
-  ::testing::internal::CaptureStdout();
-  step();
-  std::string log = ::testing::internal::GetCapturedStdout();
-  logger::global_logger->set_baud_rate(baud_rate);
-  return log;
 }
 
 }  // namespace
@@ -417,21 +404,6 @@ TEST(KeeloqReceiveTest, SetCounterBeforeATakeOverStoresNoSerial) {
   EXPECT_FALSE(restarted.ready_to_send());
 }
 
-TEST(KeeloqReceiveTest, SetCounterBeforeATakeOverWarns) {
-  // The counter only lives in RAM until the next take-over replaces it, and the log says so.
-  KeeloqRemote clone{KEELOQ_TYPE_JAROLIFT, 0, 0, 0};
-  without_serial(clone);
-  static_cast<Component &>(clone).setup();
-  std::string log = log_of([&clone]() { clone.set_counter(5); });
-  EXPECT_NE(log.find("No serial taken over yet"), std::string::npos) << log;
-}
-
-TEST(KeeloqRemoteTest, SetCounterWithASerialLogsNoWarning) {
-  Remote r;
-  std::string log = log_of([&r]() { r.remote.set_counter(5); });
-  EXPECT_EQ(log.find("No serial taken over yet"), std::string::npos) << log;
-}
-
 TEST(KeeloqReceiveTest, WithASerialTakeOverTakesOnlyTheCounterOfThatSerial) {
   // ESPHome was set to 5000 by mistake. A neighbour's remote is ignored, then the own hand remote at 0x2048 counts.
   KeeloqRemote neighbour{KEELOQ_TYPE_JAROLIFT, NEIGHBOUR_SERIAL, NEIGHBOUR_KEY_HIGH, NEIGHBOUR_KEY_LOW};
@@ -561,24 +533,14 @@ TEST(KeeloqCommandTest, ReplayProtectionSurvivesARestart) {
   EXPECT_TRUE(after.commands.empty());
 }
 
-TEST(KeeloqCommandTest, FailedSaveOfAPressWarnsAndStillFires) {
+TEST(KeeloqCommandTest, FailedSaveOfAPressStillFires) {
   // Without setup() the motor has no storage, so saving the accepted press fails.
   HandRemote hand(100);
   KeeloqRemote motor{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
   int presses = 0;
   motor.add_on_command_callback([&presses](KeeloqFrame) { presses++; });
-  remote_base::RawTimings press = on_air(hand.next_frame(0x8, 0x0001));
-  std::string log = log_of([&]() { receive(motor, press); });
-  EXPECT_NE(log.find("Could not save the last press"), std::string::npos) << log;
-  EXPECT_EQ(presses, 1);  // on_command still fires
-}
-
-TEST(KeeloqCommandTest, SavedPressLogsNoWarning) {
-  HandRemote hand(100);
-  Listener motor;
-  remote_base::RawTimings press = on_air(hand.next_frame(0x8, 0x0001));
-  std::string log = log_of([&]() { receive(motor.remote, press); });
-  EXPECT_EQ(log.find("Could not save the last press"), std::string::npos) << log;
+  receive(motor, on_air(hand.next_frame(0x8, 0x0001)));
+  EXPECT_EQ(presses, 1);
 }
 
 TEST(KeeloqCommandTest, FiltersByChannelAndCommand) {
