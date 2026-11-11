@@ -1375,9 +1375,9 @@ def test_write_recovered_files_keeps_files_from_above(tmp_path: Path) -> None:
     )
     root = out.resolve()
     assert written == [
-        root / "_" / "_" / "dev.yaml",
-        root / "_" / "_" / "secrets.yaml",
+        root / "dev" / "dev" / "dev.yaml",
+        root / "dev" / "dev" / "secrets.yaml",
         root / "common" / "wifi.yaml",
-        root / "_" / "x.yaml",
+        root / "dev" / "x.yaml",
     ]
     assert [p.read_bytes() for p in written] == [b"a", b"b", b"c", b"d"]

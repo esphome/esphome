@@ -724,13 +724,14 @@ def decode_stored_yaml(blob: bytes) -> dict[str, bytes]:
 def write_recovered_files(files: dict[str, bytes], out_dir: Path) -> list[Path]:
     """Write unpacked files into `out_dir` and return their paths.
 
-    `out_dir` must be new or empty. Files from above the main YAML's folder keep
-    their place: the main YAML goes one `_` folder deeper per `..` level, so every
-    file stays inside `out_dir`.
+    `out_dir` must be new or empty, and the main YAML comes first. Files from above
+    the main YAML's folder keep their place: the main YAML goes one folder, named
+    after it, deeper per `..` level, so every file stays inside `out_dir`.
     """
     # Counted per path part, so a `..` behind a folder name cannot climb out either.
     depth = max((Path(rel).parts.count("..") for rel in files), default=0)
-    base = out_dir.resolve().joinpath(*["_"] * depth)
+    name = Path(next(iter(files), "")).stem
+    base = out_dir.resolve().joinpath(*[name] * depth)
     written: list[Path] = []
     for rel, content in files.items():
         target = (base / rel).resolve()

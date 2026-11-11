@@ -8715,11 +8715,11 @@ def test_recover_yaml_writes_the_stored_files(
     read_config.assert_not_called()
     recover.assert_awaited_once_with(["1.2.3.4"], 6053, VALID_OTA_KEY)
     assert "ESPHOME_API_KEY" not in os.environ
-    assert (out / "_" / "dev.yaml").read_bytes() == b"esphome:\n"
+    assert (out / "dev" / "dev.yaml").read_bytes() == b"esphome:\n"
     printed = capsys.readouterr().out
     assert "Recovered 4 files" in printed
     root = out.resolve()
-    for secrets in (root / "_" / "secrets.yaml", root / "common" / "secrets.yaml"):
+    for secrets in (root / "dev" / "secrets.yaml", root / "common" / "secrets.yaml"):
         assert f"Fill in the values in {secrets} before you install it." in printed
     assert "store_yaml_uncaptured.yaml lists files that were not stored" in printed
 
