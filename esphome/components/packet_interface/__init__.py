@@ -174,11 +174,14 @@ async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_name(config[CONF_ID].id))
     await cg.register_component(var, config)
+    size = config[CONF_MAX_PACKET_SIZE]
     if (addressing := config.get(CONF_ADDRESSING)) is None:
-        await build_stack(config, var)
+        await build_stack(config, var, size)
         return var
-    for port, layers_config in await ADDRESSING.get_type(addressing).build(
-        addressing, var
+    for port, layers_config, port_size in await ADDRESSING.get_type(addressing).build(
+        addressing, var, size
     ):
-        await build_stack(config if layers_config is None else layers_config, port)
+        await build_stack(
+            config if layers_config is None else layers_config, port, port_size
+        )
     return var

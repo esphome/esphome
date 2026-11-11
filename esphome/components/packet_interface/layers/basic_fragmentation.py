@@ -9,7 +9,7 @@ from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import FRAGMENTATION, PacketInterface, packet_interface_ns
+from . import FRAGMENTATION, Layer, PacketInterface, PacketSize, packet_interface_ns
 
 # The packet number, and the fragment's index with the flag on the last fragment
 HEADER_SIZE = 2
@@ -49,8 +49,10 @@ def _check_lower(config: ConfigType, size: int, capacity: int | None) -> None:
     packet_size=lambda config, size: config[CONF_MAX_PACKET_SIZE],
     check_lower=_check_lower,
 )
-async def build_basic_fragmentation(config: ConfigType, lower: MockObj) -> MockObj:
+async def build_basic_fragmentation(
+    config: ConfigType, lower: MockObj, lower_size: PacketSize
+) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_BASIC_FRAGMENTATION")
     var = cg.new_Pvariable(config[CONF_ID], lower, config[CONF_MAX_PACKET_SIZE])
     await cg.register_component(var, config)
-    return var
+    return var, config[CONF_MAX_PACKET_SIZE]

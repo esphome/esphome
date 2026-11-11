@@ -30,6 +30,7 @@ CONF_ACTIVE_POWER_2 = "active_power_2"
 CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
 CONF_ENERGY_TOTAL = "energy_total"
+CONF_ANTI_CREEP_THRESHOLD = "anti_creep_threshold"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
@@ -103,6 +104,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_ANTI_CREEP_THRESHOLD): cv.uint8_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -115,6 +117,8 @@ async def to_code(config: ConfigType) -> None:
 
     if (mode := config[CONF_MODE]) != DEFAULT_MODE:
         cg.add(var.set_mode(mode))
+
+    cg.add_optional(var.set_anti_creep_threshold, config.get(CONF_ANTI_CREEP_THRESHOLD))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
