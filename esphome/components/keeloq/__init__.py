@@ -1,6 +1,7 @@
 from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import remote_base
+from esphome.components.const import CONF_ON_FRAME
 from esphome.components.remote_base import CONF_RECEIVER_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -27,7 +28,6 @@ MULTI_CONF = True
 CONF_COUNTER = "counter"
 CONF_MANUFACTURER_KEY = "manufacturer_key"
 CONF_ON_COMMAND = "on_command"
-CONF_ON_FRAME = "on_frame"
 CONF_SERIAL = "serial"
 
 keeloq_ns = cg.esphome_ns.namespace("keeloq")
