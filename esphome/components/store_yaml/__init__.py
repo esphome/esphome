@@ -736,7 +736,14 @@ def write_recovered_files(files: dict[str, bytes], out_dir: Path) -> list[Path]:
     for rel, content in files.items():
         target = (base / rel).resolve()
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
+        # Exclusive create: two stored paths that resolve to one file must not overwrite each other.
+        try:
+            with target.open("xb") as file:
+                file.write(content)
+        except FileExistsError as err:
+            raise EsphomeError(
+                f"Two stored files would both be written to {target}"
+            ) from err
         written.append(target)
     return written
 

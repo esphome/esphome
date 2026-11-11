@@ -1381,3 +1381,12 @@ def test_write_recovered_files_keeps_files_from_above(tmp_path: Path) -> None:
         root / "dev" / "x.yaml",
     ]
     assert [p.read_bytes() for p in written] == [b"a", b"b", b"c", b"d"]
+
+
+def test_write_recovered_files_refuses_two_files_on_one_path(tmp_path: Path) -> None:
+    """A stored file that lands on the main YAML's path fails instead of replacing it."""
+    with pytest.raises(EsphomeError, match="would both be written"):
+        write_recovered_files(
+            {"kitchen.yaml": b"main", "../kitchen/kitchen.yaml": b"package"}, tmp_path
+        )
+    assert (tmp_path / "kitchen" / "kitchen.yaml").read_bytes() == b"main"
