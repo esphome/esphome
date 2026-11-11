@@ -28,6 +28,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+CONF_AUTOMATIC_SELF_CALIBRATION_TARGET = "automatic_self_calibration_target"
+
 CODEOWNERS = ["@sjtrny", "@martgras"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -77,6 +79,9 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
+            cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION_TARGET): cv.int_range(
+                min=400, max=1000
+            ),
             cv.Optional(CONF_ALTITUDE_COMPENSATION, default="0m"): cv.All(
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
@@ -105,6 +110,7 @@ SENSOR_MAP = {
 
 SETTING_MAP = {
     CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibration",
+    CONF_AUTOMATIC_SELF_CALIBRATION_TARGET: "set_automatic_self_calibration_target",
     CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
     CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
     CONF_TEMPERATURE_OFFSET: "set_temperature_offset",

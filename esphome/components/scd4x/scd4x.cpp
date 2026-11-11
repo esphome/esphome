@@ -13,6 +13,7 @@ static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
 static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
 static const uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
 static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
+static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET = 0x243a;
 static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
 static const uint16_t SCD4X_CMD_START_LOW_POWER_CONTINUOUS_MEASUREMENTS = 0x21ac;
 static const uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT = 0x219d;  // SCD41 only
@@ -62,6 +63,12 @@ void SCD4XComponent::setup() {
                              LOG_STR("Error setting automatic self calibration")))
         return;
 
+      // Not every sensor firmware knows this command, so a failure only warns and keeps the default of 400 ppm.
+      if (this->asc_target_ != 0 &&
+          !this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET, this->asc_target_)) {
+        ESP_LOGW(TAG, "Error setting automatic self calibration target");
+      }
+
       this->initialized_ = true;
       // Finally start sensor measurements
       this->start_measurement_();
@@ -98,6 +105,9 @@ void SCD4XComponent::dump_config() {
                 "  Measurement mode: %s\n"
                 "  Temperature offset: %.2f °C",
                 ONOFF(this->enable_asc_), measurement_mode_str, this->temperature_offset_);
+  if (this->asc_target_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Automatic self calibration target: %u ppm", this->asc_target_);
+  }
   if (this->ambient_pressure_source_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
                   LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
