@@ -16,7 +16,7 @@ static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 static constexpr uint32_t DSI_DMA_READ_PRIORITY = 15;
 
 // With CONFIG_LCD_DSI_ISR_CACHE_SAFE the DPI driver only accepts callbacks in IRAM
-#ifdef CONFIG_LCD_DSI_ISR_CACHE_SAFE
+#if CONFIG_LCD_DSI_ISR_CACHE_SAFE
 #define MIPI_DSI_ISR_ATTR IRAM_ATTR
 #else
 #define MIPI_DSI_ISR_ATTR
