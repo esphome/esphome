@@ -46,9 +46,9 @@ class TestEncryption : public XxteaEncryption {
 
 struct Peer {
   explicit Peer(uint32_t key_word = 0x12345678, size_t max_packet_size = 64, bool rolling_code = true)
-      : link(max_packet_size) {
+      : link(max_packet_size), buffers(XxteaEncryption::buffer_words(max_packet_size)) {
     this->link.set_name("test_link");
-    this->encryption = std::make_unique<TestEncryption>(&this->link, rolling_code);
+    this->encryption = std::make_unique<TestEncryption>(&this->link, rolling_code, this->buffers.data());
     this->encryption->set_key({key_word, 2, 3, 4, 5, 6, 7, 8});
     this->encryption->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
@@ -74,6 +74,7 @@ struct Peer {
   }
 
   MockLink link;
+  std::vector<uint32_t> buffers;
   std::unique_ptr<TestEncryption> encryption;
   std::vector<Packet> received;
 };
@@ -240,7 +241,8 @@ TEST_F(XxteaEncryptionTest, PacketsFromBeforeRestartDropped) {
 
 TEST_F(XxteaEncryptionTest, LinkTooSmallFailsSetup) {
   MockLink link(ROLLING_TRAILER_SIZE + 3);
-  TestEncryption encryption(&link, true);
+  uint32_t buffers[XxteaEncryption::buffer_words(ROLLING_TRAILER_SIZE + 3)];
+  TestEncryption encryption(&link, true, buffers);
   EXPECT_EQ(encryption.get_max_packet_size(), 0);
   encryption.setup();
   EXPECT_TRUE(encryption.is_failed());
@@ -248,9 +250,10 @@ TEST_F(XxteaEncryptionTest, LinkTooSmallFailsSetup) {
   EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
 }
 
-TEST_F(XxteaEncryptionTest, SendWithoutBuffersRefused) {
+TEST_F(XxteaEncryptionTest, SendBeforeSetupRefused) {
   MockLink link(64);
-  TestEncryption encryption(&link, false);
+  uint32_t buffers[XxteaEncryption::buffer_words(64)];
+  TestEncryption encryption(&link, false, buffers);
   Packet packet{1};
   EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
   EXPECT_TRUE(link.sent.empty());

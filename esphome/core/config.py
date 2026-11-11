@@ -845,7 +845,7 @@ async def _add_controller_registry_dispatch() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT and its storage. Sizing of looping_components_
     # happens in core to_code() so it lands before safe_mode's early return.
     entries = CORE.data.get("looping_component_entries", [])
 
@@ -861,6 +861,14 @@ async def _add_looping_components() -> None:
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
+        )
+    )
+    # In namespace esphome so analyze-memory counts it as core; sized at least 1 to avoid a zero-length array
+    cg.add_global(
+        cg.RawStatement(
+            "namespace esphome {\n"
+            "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];\n"
+            "}  // namespace esphome"
         )
     )
 
@@ -907,11 +915,12 @@ async def to_code(config: ConfigType) -> None:
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
+    # Pre-init the list with exact capacity so calculate_looping_components_()
+    # can skip the counting pass; the storage is emitted by _add_looping_components()
     cg.add(
         cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+            "App.looping_components_.init(std::span<Component *>("
+            "looping_components_storage, ESPHOME_LOOPING_COMPONENT_COUNT))"
         )
     )
 

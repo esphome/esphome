@@ -3,7 +3,7 @@
 Each module in this package implements one layer type and registers it with its kind, for example:
 
     @RELIABILITY.register("hdlc", schema=HDLC_SCHEMA, single_peer=lambda config: True)
-    async def build_hdlc(config: ConfigType, lower: MockObj) -> MockObj:
+    async def build_hdlc(config: ConfigType, lower: MockObj, lower_size: PacketSize) -> Layer:
         ...
 
 The packet_interface component imports every module here before it builds its schemas, so a new layer type needs
@@ -17,7 +17,7 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENCRYPTION, CONF_FRAGMENTATION, CONF_KEY, CONF_TYPE
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import Expression, MockObj
 from esphome.types import ConfigType
 
 packet_interface_ns = cg.esphome_ns.namespace("packet_interface")
@@ -31,9 +31,13 @@ CONF_SESSION = "session"
 
 BROADCAST_ADDRESS = 0xFFFF
 
-# Builds a layer above lower and returns it. An addressing layer instead returns a list of (port, config) pairs, one
-# for each stack it carries, where config holds the layers for that stack, or is None for the layers on the link.
-LayerBuilder = Callable[[ConfigType, MockObj], Awaitable[Any]]
+# A layer's maximum packet size, as a number or a C++ constant expression
+PacketSize = int | Expression
+# Builds a layer above lower, given the largest packet lower accepts, and returns it with its own largest packet. An
+# addressing layer instead returns a list of (port, config, size) tuples, one for each stack it carries, where config
+# holds the layers for that stack, or is None for the layers on the link, and size is the port's largest packet.
+Layer = tuple[MockObj, PacketSize]
+LayerBuilder = Callable[[ConfigType, MockObj, PacketSize], Awaitable[Any]]
 
 
 def _never(config: ConfigType) -> bool:
@@ -251,8 +255,8 @@ def stack_auto_load(config: ConfigType) -> set[str]:
     return loads
 
 
-async def build_stack(config: ConfigType, lower: MockObj) -> None:
-    """Create the layers configured in config, from the bottom up, above lower."""
+async def build_stack(config: ConfigType, lower: MockObj, size: PacketSize) -> None:
+    """Create the layers configured in config, from the bottom up, above lower, whose largest packet is size."""
     for kind in STACK_ORDER:
         if (layer := config.get(kind.key)) is not None:
-            lower = await kind.get_type(layer).build(layer, lower)
+            lower, size = await kind.get_type(layer).build(layer, lower, size)
