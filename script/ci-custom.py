@@ -4,7 +4,7 @@ import argparse
 import ast
 import codecs
 import collections
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 import fnmatch
 import functools
 import os.path
@@ -14,7 +14,15 @@ import sys
 import time
 
 import colorama
-from helpers import filter_changed, git_ls_files, print_error_for_file, styled
+from helpers import (
+    ESPHOME_COMPONENTS_PATH,
+    filter_changed,
+    git_ls_files,
+    print_error_for_file,
+    root_path,
+    styled,
+)
+import yaml
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -608,6 +616,89 @@ def lint_unit_from_const_py(fname, match):
     if err is None:
         UNIT_CONSTANTS_USES[name].append(fname)
     return err
+
+
+# Names that start with CONF_ or UNIT_ but are not config key or unit constants.
+NON_LITERAL_CONSTANT_ALLOWLIST = {"UNIT_OF_MEASUREMENT_MAX_LENGTH"}
+
+
+def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
+    """Yield the CONF_/UNIT_ names bound by an assignment target."""
+    if isinstance(target, ast.Name):
+        if (
+            target.id.startswith(("CONF_", "UNIT_"))
+            and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
+        ):
+            yield target
+    elif isinstance(target, ast.Starred):
+        yield from _constant_names(target.value)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            yield from _constant_names(elt)
+
+
+def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
+    """Yield statements at module level, including those inside if/try/with/for blocks.
+
+    Function and class bodies are a different scope and are not entered.
+    """
+    for node in nodes:
+        yield node
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _module_level_statements(
+            child
+            for child in ast.iter_child_nodes(node)
+            if isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case))
+        )
+
+
+@lint_content_check(include=["esphome/*.py"])
+def lint_constant_is_plain_string(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    """Require module-level CONF_ and UNIT_ constants to be plain string literals.
+
+    Other scripts and lints (for example the duplicate constant checks above) read these
+    definitions as text, so a computed value would be missed or moved incorrectly.
+    """
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return []
+    errs: list[tuple[int, int, str]] = []
+    for node in _module_level_statements(tree.body):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+            value = node.value
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+            value = None
+        else:
+            continue
+        # Unpacking a string binds single characters or a list, so only a plain name counts.
+        if (
+            isinstance(value, ast.Constant)
+            and type(value.value) is str
+            and all(isinstance(target, ast.Name) for target in targets)
+        ):
+            continue
+        for target in targets:
+            for name in _constant_names(target):
+                example = highlight(f'{name.id} = "value"')
+                msg = (
+                    f"Constant {highlight(name.id)} must be set to a plain string "
+                    f"literal, such as {example}. Do not build it from other "
+                    "constants, f-strings, operators or function calls. If the value "
+                    "is not a config key or a unit, give it a name without the CONF_ "
+                    "or UNIT_ prefix."
+                )
+                errs.append((name.lineno, name.col_offset + 1, msg))
+    return errs
 
 
 RAW_PIN_ACCESS_RE = (
@@ -1556,6 +1647,91 @@ def lint_test_package_key_matches_bus(fname, content):
                     ),
                 )
             )
+    return errs
+
+
+GROUPED_TEST_IDS = {
+    # tca9548a adds I2C buses next to the shared package bus
+    "i2c_id": ("i2c_device_schema", "i2c.I2CDevice"),
+    # several tests define their own IMU or one-wire bus
+    "motion_id": ("CONF_MOTION_ID",),
+    "one_wire_id": ("one_wire_device_schema",),
+}
+
+
+YAML_NULL_TAG = "tag:yaml.org,2002:null"
+YAML_MAP_TAG = "tag:yaml.org,2002:map"
+
+
+@functools.cache
+def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
+    """The GROUPED_TEST_IDS the entity's own schema file takes."""
+    base = Path(root_path) / ESPHOME_COMPONENTS_PATH
+    paths = (
+        [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
+        if platform
+        else [base / domain / "__init__.py"]
+    )
+    text = "".join(p.read_text() for p in paths if p.exists())
+    return tuple(
+        key
+        for key, markers in GROUPED_TEST_IDS.items()
+        if any(m in text for m in markers)
+    )
+
+
+def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNode]]:
+    """(domain, entry) for each top-level entry, list items included."""
+    for key_node, value_node in root.value:
+        items = (
+            value_node.value
+            if isinstance(value_node, yaml.SequenceNode)
+            else [value_node]
+        )
+        for item in items:
+            if isinstance(item, yaml.MappingNode):
+                yield key_node.value, item
+            elif item.tag == YAML_NULL_TAG:  # `as5600:` is an empty mapping
+                yield (
+                    key_node.value,
+                    yaml.MappingNode(YAML_MAP_TAG, [], item.start_mark),
+                )
+
+
+@lint_content_check(
+    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
+)
+def lint_grouped_test_ids(fname, content):
+    """CI merges grouped tests, so an id another test can duplicate must be set."""
+    from analyze_component_buses import is_groupable  # pylint: disable=import-outside-toplevel
+
+    if not is_groupable(Path(root_path) / Path(fname).parent):
+        return None
+    try:
+        root = yaml.compose(
+            content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+        )
+    except yaml.YAMLError:
+        return None  # yamllint and the build test report broken YAML
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    errs: list[tuple[int, int, str]] = []
+    for domain, entry in _yaml_entries(root):
+        # An empty `i2c_id:` is the same as leaving it out
+        keys = {
+            k.value: v.value
+            for k, v in entry.value
+            if isinstance(k, yaml.ScalarNode) and v.tag != YAML_NULL_TAG
+        }
+        errs.extend(
+            (
+                entry.start_mark.line + 1,
+                entry.start_mark.column + 1,
+                f"Set {highlight(id_key)}: a grouped CI build can add a second candidate",
+            )
+            for id_key in _grouped_test_ids(domain, keys.get("platform"))
+            if id_key not in keys
+        )
     return errs
 
 

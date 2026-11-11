@@ -1,4 +1,7 @@
 #include "lcd_display.h"
+
+#include <cstring>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -29,9 +32,7 @@ static const uint8_t LCD_DISPLAY_FUNCTION_2_LINE = 0x08;
 static const uint8_t LCD_DISPLAY_FUNCTION_5X10_DOTS = 0x04;
 
 void LCDDisplay::setup() {
-  this->buffer_ = new uint8_t[this->rows_ * this->columns_];  // NOLINT
-  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
+  this->clear();
 
   uint8_t display_function = 0;
 
@@ -153,10 +154,7 @@ void LCDDisplay::printf(const char *format, ...) {
   if (ret > 0)
     this->print(0, 0, buffer);
 }
-void LCDDisplay::clear() {
-  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
-}
+void LCDDisplay::clear() { memset(this->buffer_, ' ', this->rows_ * this->columns_); }
 void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);

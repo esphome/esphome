@@ -26,6 +26,8 @@ from esphome.framework_helpers import (
     str_to_lst_of_str,
 )
 
+from .const import VARIANT_NRF52840
+
 _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
@@ -403,12 +405,22 @@ _WEST_PROJECTS_FILE = ".west_projects"
 @dataclass
 class _Nrf52Data:
     west_projects: set[str] = field(default_factory=lambda: set(DEFAULT_WEST_PROJECTS))
+    variant: str = VARIANT_NRF52840
 
 
 def _get_data() -> _Nrf52Data:
     if _KEY_NRF52 not in CORE.data:
         CORE.data[_KEY_NRF52] = _Nrf52Data()
     return CORE.data[_KEY_NRF52]
+
+
+def set_nrf52_variant(variant: str) -> None:
+    _get_data().variant = variant
+
+
+def get_nrf52_variant() -> str:
+    """The SoC variant, taken from the board name; NRF52840 until nrf52 is validated."""
+    return _get_data().variant
 
 
 def include_west_project(name: str) -> None:
@@ -702,9 +714,13 @@ def _check_and_install(version: str) -> None:
 
 
 # Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's
-# package index by the launcher itself. The path carries no version, so the file is pinned by the
-# size and digest Nordic's file store reported for launcher 8.2.1 (2026-09-09)
-NORDIC_NRFUTIL_URL = "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/{triple}/{name}"
+# package index by the launcher itself. The plain "nrfutil" file next to it is replaced with each
+# release, so the versioned copy is downloaded and checked against the size and digest pinned here
+NRFUTIL_LAUNCHER_VERSION = "1.4.1-f15ff58"
+NORDIC_NRFUTIL_URL = (
+    "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/"
+    "{triple}/nrfutil-{triple}-{version}{suffix}"
+)
 _NRFUTIL_LAUNCHERS: dict[str, tuple[int, str]] = {
     "x86_64-unknown-linux-gnu": (
         6725408,
@@ -774,7 +790,9 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
             triple = _nrfutil_target_triple()
             size, sha256 = _NRFUTIL_LAUNCHERS[triple]
             download_with_resume(
-                NORDIC_NRFUTIL_URL.format(triple=triple, name=exe.name),
+                NORDIC_NRFUTIL_URL.format(
+                    triple=triple, version=NRFUTIL_LAUNCHER_VERSION, suffix=suffix
+                ),
                 exe,
                 sha256=sha256,
                 size=size,

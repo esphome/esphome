@@ -19,6 +19,7 @@ from . import EpaperModel, ultrachip_resolution
 
 
 class UC8279(EpaperModel):
+    class_name = "EPaperUC8279"
     source_files = (
         "epaper_spi_ultrachip.cpp",
         "epaper_spi_uc8279.cpp",
@@ -27,7 +28,7 @@ class UC8279(EpaperModel):
     def __init__(
         self,
         name: str,
-        class_name: str = "EPaperUC8279",
+        class_name: str | None = None,
         data_rate: str = "10MHz",
         **defaults: Any,
     ) -> None:

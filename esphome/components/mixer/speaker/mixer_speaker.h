@@ -124,7 +124,7 @@ class MixerSpeaker final : public Component {
   void setup() override;
   void loop() override;
 
-  void init_source_speakers(size_t count) { this->source_speakers_.init(count); }
+  void set_source_speaker_storage(std::span<SourceSpeaker *> storage) { this->source_speakers_.init(storage); }
   void add_source_speaker(SourceSpeaker *source_speaker) { this->source_speakers_.push_back(source_speaker); }
 
   /// @brief Starts the mixer task. Called by a source speaker giving the current audio stream information
@@ -151,7 +151,7 @@ class MixerSpeaker final : public Component {
 
   EventGroupHandle_t event_group_{nullptr};
 
-  FixedVector<SourceSpeaker *> source_speakers_;
+  StaticFixedVector<SourceSpeaker *> source_speakers_;
   speaker::Speaker *output_speaker_{nullptr};
 
   uint8_t output_bits_per_sample_;

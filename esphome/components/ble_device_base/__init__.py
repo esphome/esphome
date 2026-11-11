@@ -338,13 +338,17 @@ def as_hex(value: str) -> cg.RawExpression:
     return cg.RawExpression(f"0x{value}ULL")
 
 
-def _hex_array_expression(value: str, reverse: bool) -> cg.RawExpression:
+def _hex_bytes(value: str, reverse: bool) -> list[str]:
+    """Bytes of a hex UUID string as C++ literals; `reverse` gives BLE wire order."""
     value = value.replace("-", "")
-    cpp_array = [
-        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
-    ]
+    cpp_array = [f"0x{value[i : i + 2]}" for i in range(0, len(value), 2)]
     if reverse:
         cpp_array.reverse()
+    return cpp_array
+
+
+def _hex_array_expression(value: str, reverse: bool) -> cg.RawExpression:
+    cpp_array = _hex_bytes(value, reverse)
     return cg.RawExpression(f"(uint8_t*)(const uint8_t[16]){{{','.join(cpp_array)}}}")
 
 
@@ -354,6 +358,19 @@ def as_hex_array(value: str) -> cg.RawExpression:
 
 def as_reversed_hex_array(value: str) -> cg.RawExpression:
     return _hex_array_expression(value, reverse=True)
+
+
+def uuid_constant(value: str) -> cg.RawExpression:
+    """Constant ESPBTUUID expression for a validated bt_uuid string."""
+    if len(value) == len(BT_UUID128_FORMAT):
+        wire = ", ".join(_hex_bytes(value, reverse=True))
+        return cg.RawExpression(
+            f"ble_device_base::ESPBTUUID::from_raw(std::array<uint8_t, 16>{{{wire}}}.data())"
+        )
+    width = 16 if len(value) == len(BT_UUID16_FORMAT) else 32
+    return cg.RawExpression(
+        f"ble_device_base::ESPBTUUID::from_uint{width}({as_hex(value)})"
+    )
 
 
 def add_service_uuid(var: cg.MockObj, service_uuid: str) -> None:

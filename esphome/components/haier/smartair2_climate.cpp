@@ -550,8 +550,4 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
   return haier_protocol::HandlerError::HANDLER_OK;
 }
 
-void Smartair2Climate::set_alternative_swing_control(bool swing_control) {
-  this->use_alternative_swing_control_ = swing_control;
-}
-
 }  // namespace esphome::haier

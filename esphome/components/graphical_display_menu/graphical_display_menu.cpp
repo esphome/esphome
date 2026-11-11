@@ -57,9 +57,6 @@ void GraphicalDisplayMenu::dump_config() {
   }
 }
 
-void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
-void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }
-
 void GraphicalDisplayMenu::on_before_show() {
   if (this->display_ != nullptr) {
     this->previous_display_page_ = this->display_->get_active_page();

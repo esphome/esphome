@@ -210,11 +210,7 @@ void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
 bool ESP8266UartComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
-  if (this->hw_serial_ != nullptr) {
-    *data = this->hw_serial_->peek();
-  } else {
-    *data = this->sw_serial_->peek_byte();
-  }
+  *data = this->hw_serial_ != nullptr ? this->hw_serial_->peek() : this->sw_serial_->peek_byte();
   return true;
 }
 bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {

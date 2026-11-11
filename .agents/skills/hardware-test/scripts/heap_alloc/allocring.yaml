@@ -1,0 +1,53 @@
+# Package for allocring.hpp: arms it ${alloc_arm_s} s after boot, reports that on a binary sensor and adds the
+# dump button. See heap_alloc.md.
+esphome:
+  includes:
+    - allocring.hpp
+  on_boot:
+    then:
+      - delay: ${alloc_arm_s}s
+      - lambda: |-
+          g_alloc_armed_ms = millis();
+          g_alloc_armed = true;
+          ESP_LOGI("allocs", "ARMED total=%u", g_new_count.load());
+
+binary_sensor:
+  # Drivers wait for this before the first action, so no step runs before recording starts
+  - platform: template
+    name: Allocation recorder armed
+    lambda: return g_alloc_armed.load();
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          ESP_LOGI("allocs", "total=%u kept=%u heap=%u", g_new_count.load(), (unsigned) g_alloc_n.load(),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+
+button:
+  - platform: template
+    name: Dump allocations
+    on_press:
+      # Recording stops for good; reboot before the next run, or a second press returns the same entries.
+      - lambda: |-
+          g_alloc_armed = false;
+          // let recorders on other tasks finish the entry they claimed
+          for (int w = 0; w < 100 && g_alloc_busy.load() != 0; w++)
+            delay(1);
+          uint32_t claimed = g_alloc_n.load();
+          uint32_t n = std::min<uint32_t>(claimed, ALLOC_CAP);
+          // claimed > n means the buffer filled and recording stopped early
+          // armed_ms=0: the recorder never ran; busy>0: an entry may still be half written;
+          // buf is the buffer's address, which decode.py matches against the ELF
+          ESP_LOGI("allocs", "DUMP n=%u claimed=%u total=%u armed_ms=%u busy=%u buf=%08x", n, claimed,
+                   g_new_count.load(), g_alloc_armed_ms, g_alloc_busy.load(), (unsigned) (uintptr_t) g_allocs);
+          for (uint32_t i = 0; i < n; i++) {
+            const AllocEntry &e = g_allocs[i];
+            ESP_LOGI("allocs", "E %u %u %u %08x %08x %08x %08x %08x", i, e.ms, e.size, e.pc[0], e.pc[1], e.pc[2],
+                     e.pc[3], e.pc[4]);
+            if ((i & 15) == 15) {
+              delay(20);  // let the log drain
+              App.feed_wdt();  // a full dump over a 115200 baud UART log outlasts the task watchdog
+            }
+          }
+          ESP_LOGI("allocs", "DUMP END");

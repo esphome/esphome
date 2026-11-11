@@ -812,6 +812,7 @@ def write_cpp(config: ConfigType) -> int:
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
     from esphome.config import iter_component_configs
+    from esphome.cpp_helpers import emit_empty_slot_lists
 
     _LOGGER.info("Generating C++ source...")
 
@@ -819,6 +820,8 @@ def generate_cpp_contents(config: ConfigType) -> None:
         if component.to_code is not None:
             coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
+    # after every to_code, so it sees each slot request
+    CORE.add_job(emit_empty_slot_lists)
 
     CORE.flush_tasks()
 

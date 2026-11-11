@@ -15,59 +15,7 @@ namespace esphome::it8951 {
 
 using namespace display;
 
-// --- Bounded op queue --------------------------------------------------------
-// Fixed-capacity ring buffer used by the loop scheduler. Replaces std::deque
-// to comply with ESPHome's STL container guidelines (std::deque allocates in
-// 512-byte blocks regardless of element size). Size analysis: the deepest
-// observed scenario is UPDATE_REFRESH (10 enqueued ops) + CHECK_LUT_IDLE's
-// 5 push_front rescheduling = 14 simultaneous entries. We use 32 for a
-// comfortable margin while keeping RAM cost low (~192 bytes per instance vs
-// 512+ bytes for std::deque).
-template<typename T, size_t N> class StaticOpQueue {
- public:
-  bool empty() const { return this->count_ == 0; }
-  size_t size() const { return this->count_; }
-  static constexpr size_t capacity() { return N; }
-
-  bool push_back(const T &value) {
-    if (this->count_ >= N)
-      return false;
-    this->data_[(this->head_ + this->count_) % N] = value;
-    ++this->count_;
-    return true;
-  }
-
-  bool push_front(const T &value) {
-    if (this->count_ >= N)
-      return false;
-    this->head_ = (this->head_ + N - 1) % N;
-    this->data_[this->head_] = value;
-    ++this->count_;
-    return true;
-  }
-
-  void pop_front() {
-    if (this->count_ == 0)
-      return;
-    this->head_ = (this->head_ + 1) % N;
-    --this->count_;
-  }
-
-  const T &front() const { return this->data_[this->head_]; }
-  T &front() { return this->data_[this->head_]; }
-
-  void clear() {
-    this->head_ = 0;
-    this->count_ = 0;
-  }
-
- private:
-  T data_[N]{};
-  size_t head_{0};
-  size_t count_{0};
-};
-
-// Op queue capacity. See StaticOpQueue comment for sizing analysis.
+// Deepest observed: UPDATE_REFRESH (10 ops) + 5 CHECK_LUT_IDLE reschedules = 14; 32 for margin
 static constexpr size_t OP_QUEUE_SIZE = 32;
 
 // --- Op queue ---------------------------------------------------------------
@@ -278,7 +226,7 @@ class IT8951Display : public Display,
   // --- State ---
   static constexpr uint32_t BUSY_TIMEOUT_MS = 5000;
 
-  StaticOpQueue<Op, OP_QUEUE_SIZE> queue_;
+  StaticRingBuffer<Op, OP_QUEUE_SIZE> queue_;
   Phase phase_{Phase::IDLE};
   uint32_t delay_until_{0};
   uint32_t phase_started_at_{0};

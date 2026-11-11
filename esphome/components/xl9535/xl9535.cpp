@@ -8,10 +8,8 @@ ESPHOME_LOG_TAG(TAG, "xl9535");
 void XL9535Component::setup() {
   // Check to see if the device can read from the register
   uint8_t port = 0;
-  if (this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void XL9535Component::dump_config() {
@@ -19,88 +17,30 @@ void XL9535Component::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
+// Pins 0-7 are port 0 and pins 10-17 are port 1; each register pair holds port 0 then port 1
+static uint8_t port_register(uint8_t port_0_register, uint8_t pin) { return port_0_register + pin / 10; }
+static uint8_t pin_mask(uint8_t pin) { return 1 << (pin % 10); }
+
 bool XL9535Component::digital_read(uint8_t pin) {
-  bool state = false;
   uint8_t port = 0;
-
-  if (pin > 7) {
-    if (this->read_register(XL9535_INPUT_PORT_1_REGISTER, &port, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return state;
-    }
-
-    state = (port & (1 << (pin - 10))) != 0;
-  } else {
-    if (this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return state;
-    }
-
-    state = (port & (1 << pin)) != 0;
-  }
-
-  this->status_clear_warning();
-  return state;
+  if (!this->status_comm_result(this->read_byte(port_register(XL9535_INPUT_PORT_0_REGISTER, pin), &port)))
+    return false;
+  return (port & pin_mask(pin)) != 0;
 }
 
 void XL9535Component::digital_write(uint8_t pin, bool value) {
-  uint8_t port = 0;
-  uint8_t register_data = 0;
-
-  if (pin > 7) {
-    if (this->read_register(XL9535_OUTPUT_PORT_1_REGISTER, &register_data, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return;
-    }
-
-    register_data = register_data & (~(1 << (pin - 10)));
-    port = register_data | value << (pin - 10);
-
-    if (this->write_register(XL9535_OUTPUT_PORT_1_REGISTER, &port, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return;
-    }
-  } else {
-    if (this->read_register(XL9535_OUTPUT_PORT_0_REGISTER, &register_data, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return;
-    }
-    register_data = register_data & (~(1 << pin));
-    port = register_data | value << pin;
-
-    if (this->write_register(XL9535_OUTPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return;
-    }
-  }
-
-  this->status_clear_warning();
+  const uint8_t mask = pin_mask(pin);
+  this->status_comm_result(
+      this->update_register(port_register(XL9535_OUTPUT_PORT_0_REGISTER, pin), mask, value ? mask : 0));
 }
 
 void XL9535Component::pin_mode(uint8_t pin, gpio::Flags mode) {
-  uint8_t port = 0;
-
-  if (pin > 7) {
-    this->read_register(XL9535_CONFIG_PORT_1_REGISTER, &port, 1);
-
-    if (mode == gpio::FLAG_INPUT) {
-      port = port | (1 << (pin - 10));
-    } else if (mode == gpio::FLAG_OUTPUT) {
-      port = port & (~(1 << (pin - 10)));
-    }
-
-    this->write_register(XL9535_CONFIG_PORT_1_REGISTER, &port, 1);
-  } else {
-    this->read_register(XL9535_CONFIG_PORT_0_REGISTER, &port, 1);
-
-    if (mode == gpio::FLAG_INPUT) {
-      port = port | (1 << pin);
-    } else if (mode == gpio::FLAG_OUTPUT) {
-      port = port & (~(1 << pin));
-    }
-
-    this->write_register(XL9535_CONFIG_PORT_0_REGISTER, &port, 1);
-  }
+  if (mode != gpio::FLAG_INPUT && mode != gpio::FLAG_OUTPUT)
+    return;
+  // A set config bit makes the pin an input
+  const uint8_t mask = pin_mask(pin);
+  this->status_comm_result(this->update_register(port_register(XL9535_CONFIG_PORT_0_REGISTER, pin), mask,
+                                                 mode == gpio::FLAG_INPUT ? mask : 0));
 }
 
 }  // namespace esphome::xl9535

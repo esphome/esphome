@@ -96,7 +96,7 @@ bool PI4IOE5V6408Component::digital_read_hw(uint8_t pin) {
   if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &data),
                                 LOG_STR("Failed to read GPIO state")))
     return false;
-  this->input_mask_ = data;
+  this->input_[0] = data;
   return true;
 }
 
@@ -148,8 +148,6 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
   this->status_clear_warning();
   return true;
 }
-
-bool PI4IOE5V6408Component::digital_read_cache(uint8_t pin) { return (this->input_mask_ & (1 << pin)); }
 
 }  // namespace esphome::pi4ioe5v6408
 

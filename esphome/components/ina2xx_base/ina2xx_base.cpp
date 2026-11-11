@@ -49,16 +49,13 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  if (!this->reset_config_()) {
-    this->mark_failed(LOG_STR("Reset failed, check connection"));
+  if (!this->setup_check(this->reset_config_(), LOG_STR("Reset failed, check connection")))
     return;
-  }
   delay(2);
 
-  if (!this->check_device_model_()) {
-    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
+  if (!this->setup_check(this->check_device_model_(),
+                         LOG_STR("Device not supported or model selected improperly in yaml file")))
     return;
-  }
   delay(1);
 
   this->configure_adc_range_();

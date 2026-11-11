@@ -64,7 +64,7 @@ class PacketTransport : public PollingComponent {
   void dump_config() override;
 
 #ifdef USE_SENSOR
-  void set_sensor_count(size_t count) { this->sensors_.init(count); }
+  void set_sensor_storage(std::span<Sensor> storage) { this->sensors_.init(storage); }
   void add_sensor(const char *id, sensor::Sensor *sensor) {
     Sensor st{sensor, id, true, this};
     this->sensors_.push_back(st);
@@ -75,7 +75,7 @@ class PacketTransport : public PollingComponent {
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  void set_binary_sensor_count(size_t count) { this->binary_sensors_.init(count); }
+  void set_binary_sensor_storage(std::span<BinarySensor> storage) { this->binary_sensors_.init(storage); }
   void add_binary_sensor(const char *id, binary_sensor::BinarySensor *sensor) {
     BinarySensor st{sensor, id, true, this};
     this->binary_sensors_.push_back(st);
@@ -147,11 +147,11 @@ class PacketTransport : public PollingComponent {
   std::vector<uint8_t> encryption_key_{};
 
 #ifdef USE_SENSOR
-  FixedVector<Sensor> sensors_{};
+  StaticFixedVector<Sensor> sensors_;
   string_map_t<string_map_t<sensor::Sensor *>> remote_sensors_{};
 #endif
 #ifdef USE_BINARY_SENSOR
-  FixedVector<BinarySensor> binary_sensors_{};
+  StaticFixedVector<BinarySensor> binary_sensors_;
   string_map_t<string_map_t<binary_sensor::BinarySensor *>> remote_binary_sensors_{};
 #endif
 

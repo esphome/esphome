@@ -91,5 +91,5 @@ async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_name(config[CONF_ID].id))
     await cg.register_component(var, config)
-    await build_stack(config, var)
+    await build_stack(config, var, config[CONF_MAX_PACKET_SIZE])
     return var

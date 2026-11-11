@@ -521,10 +521,10 @@ bool WiFiComponent::needs_full_scan_results_() const {
   return false;
 }
 
-bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+const WiFiAP *WiFiComponent::find_configured_network_(const char *ssid, const uint8_t *bssid) const {
   // Hidden networks in scan results have empty SSIDs - skip them
   if (ssid[0] == '\0') {
-    return false;
+    return nullptr;
   }
   for (const auto &sta : this->sta_) {
     // Skip hidden network configs (they don't appear in normal scans)
@@ -534,16 +534,16 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
     // For BSSID-only configs (empty SSID), match by BSSID
     if (sta.ssid_.empty()) {
       if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
-        return true;
+        return &sta;
       }
       continue;
     }
     // Match by SSID
     if (sta.ssid_ == ssid) {
-      return true;
+      return &sta;
     }
   }
-  return false;
+  return nullptr;
 }
 
 void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {
@@ -1198,17 +1198,18 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
-void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::clear_sta() {
   // Clear roaming state - no more configured networks
   this->clear_roaming_state_();
+  // StaticVector::clear() keeps the entries, so free their credentials here
+  for (auto &ap : this->sta_)
+    ap = WiFiAP{};
   this->sta_.clear();
   this->selected_sta_index_ = -1;
 }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();  // Also clears roaming state
-  this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
   // New credentials end the next cooldown early; start_connecting() clears this once they are tried
@@ -1358,17 +1359,15 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
     ESP_LOGV(TAG, "  Channel not set");
   }
 #ifdef USE_WIFI_MANUAL_IP
-  auto manual_ip = ap.get_manual_ip();
-  if (manual_ip.has_value()) {
-    ManualIP m = *manual_ip;
+  if (const auto m = ap.get_manual_ip(); m.has_value()) {
     char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
-             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
-             m.dns2.str_to(dns2_buf));
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m->static_ip.str_to(static_ip_buf),
+             m->gateway.str_to(gateway_buf), m->subnet.str_to(subnet_buf), m->dns1.str_to(dns1_buf),
+             m->dns2.str_to(dns2_buf));
   } else
 #endif
   {
@@ -1746,10 +1745,11 @@ void WiFiComponent::check_scanning_finished() {
   if (!found_match) {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
-    // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
-    // If no hidden networks to try, skip connection attempt (will be handled on next loop)
+    // No hidden network left: retry now instead of waiting out the scan timeout. With
+    // selected_sta_index_ at -1, retry_connect() penalizes no BSSID.
     if (this->selected_sta_index_ == -1) {
+      this->retry_connect();
       return;
     }
     // Now start connection attempt in hidden mode
@@ -1906,7 +1906,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     // On ESP8266, GOT_IP event may not fire for static IP configurations,
     // so notify IP state listeners here as a fallback.
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
       this->notify_ip_state_listeners_();
     }
 #endif
@@ -2878,6 +2878,17 @@ void WiFiComponent::process_roaming_scan_() {
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->start_connecting(roam_params);
 }
+
+#ifdef USE_WIFI_MANUAL_IP
+optional<ManualIP> WiFiAP::get_manual_ip() const {
+  if (!this->has_manual_ip())
+    return {};
+  uint8_t b[MANUAL_IP_ENTRY_SIZE];
+  progmem_memcpy(b, MANUAL_IP_TABLE + this->manual_ip_index_ * MANUAL_IP_ENTRY_SIZE, sizeof(b));
+  auto ip = [&b](size_t i) { return network::IPAddress(b[i], b[i + 1], b[i + 2], b[i + 3]); };
+  return ManualIP{ip(0), ip(4), ip(8), ip(12), ip(16)};
+}
+#endif
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

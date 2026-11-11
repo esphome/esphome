@@ -79,21 +79,9 @@ void TemplateDate::control(const datetime::DateCall &call) {
 
   if (this->restore_value_) {
     datetime::DateEntityRestoreState temp = {};
-    if (has_year) {
-      temp.year = *opt_year;
-    } else {
-      temp.year = this->year_;
-    }
-    if (has_month) {
-      temp.month = *opt_month;
-    } else {
-      temp.month = this->month_;
-    }
-    if (has_day) {
-      temp.day = *opt_day;
-    } else {
-      temp.day = this->day_;
-    }
+    temp.year = opt_year.value_or(this->year_);
+    temp.month = opt_month.value_or(this->month_);
+    temp.day = opt_day.value_or(this->day_);
 
     this->pref_.save(&temp);
   }

@@ -6,7 +6,11 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
-from esphome.components.const import CONF_MODULATION
+from esphome.components.const import (
+    CONF_MODULATION,
+    CONF_VOLUME_MAX_DB,
+    CONF_VOLUME_MIN_DB,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_PIN, CONF_ID, CONF_MODEL
 from esphome.cpp_generator import MockObj
@@ -21,8 +25,6 @@ CONF_DAC_MODE = "dac_mode"
 CONF_FAULT_OUTPUT = "fault_output"
 CONF_IGNORE_ENABLE_PIN_WARNING = "ignore_enable_pin_warning"
 CONF_MIXER_MODE = "mixer_mode"
-CONF_VOLUME_MIN_DB = "volume_min_db"
-CONF_VOLUME_MAX_DB = "volume_max_db"
 CONF_TAS58XX_ID = "tas58xx_id"
 
 DAC_TAS5805M = "tas5805m"

@@ -2,7 +2,9 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
-#include <vector>
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sy6970 {
 
@@ -76,11 +78,15 @@ struct SY6970Data {
   uint8_t registers[21];  // Registers 0x00-0x14 (includes unused 0x0F, 0x10)
 };
 
-// Listener interface for components that want to receive SY6970 data updates
-class SY6970Listener {
- public:
-  virtual void on_data(const SY6970Data &data) = 0;
-};
+inline bool is_charging(uint8_t charge_status) {
+  return charge_status == CHARGE_STATUS_PRE_CHARGE || charge_status == CHARGE_STATUS_FAST_CHARGE;
+}
+
+// Indexed by status value; every value of the masked field has a string
+PROGMEM_STRING_TABLE(BusStatusStrings, "No Input", "USB SDP", "USB CDP", "USB DCP", "HVDCP", "Adapter",
+                     "Non-Standard Adapter", "OTG");
+PROGMEM_STRING_TABLE(ChargeStatusStrings, "Not Charging", "Pre-charge", "Fast Charge", "Charge Done");
+PROGMEM_STRING_TABLE(NtcStatusStrings, "Normal", "Unknown", "Warm", "Cool", "Unknown", "Cold", "Hot", "Unknown");
 
 class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -99,8 +105,9 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  // Listener registration
-  void add_listener(SY6970Listener *listener) { this->listeners_.push_back(listener); }
+#ifdef USE_SY6970_DATA_PUBLISHER
+  HUB_PUBLISHER(data, const SY6970Data &)
+#endif
 
   // Configuration methods to be called from lambdas
   void set_input_current_limit(uint16_t milliamps);
@@ -121,7 +128,6 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
   SY6970Data data_{};
-  std::vector<SY6970Listener *> listeners_;
 
   // Configuration values to set during setup()
   bool led_enabled_;

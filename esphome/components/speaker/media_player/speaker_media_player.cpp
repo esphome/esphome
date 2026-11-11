@@ -167,9 +167,9 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           this->announcement_playlist_.clear();
           this->announcement_item_failed_ = false;
           if (media_command.file.has_value()) {
-            this->announcement_pipeline_->start_file(playlist_item.file.value());
+            this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
           } else if (media_command.url.has_value()) {
-            this->announcement_pipeline_->start_url(playlist_item.url.value());
+            this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
           }
           this->announcement_pipeline_->set_pause_state(false);
         }
@@ -412,9 +412,9 @@ void SpeakerMediaPlayer::loop() {
                                                 this->media_pipeline_state_ == AudioPipelineState::PLAYING,
                                                 this->volume, this->speaker_volume_applier_());
         if (playlist_item.url.has_value()) {
-          this->announcement_pipeline_->start_url(playlist_item.url.value());
+          this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
         } else if (playlist_item.file.has_value()) {
-          this->announcement_pipeline_->start_file(playlist_item.file.value());
+          this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
         }
 
         if (timeout_ms > 0) {
@@ -524,11 +524,7 @@ void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool anno
 
   media_command.file = media_file;
   media_command.is_announcement = announcement;
-  if (this->single_pipeline_() || announcement) {
-    media_command.announce = true;
-  } else {
-    media_command.announce = false;
-  }
+  media_command.announce = this->single_pipeline_() || announcement;
   media_command.enqueue = enqueue;
   xQueueSend(this->media_control_command_queue_, &media_command, portMAX_DELAY);
 }
@@ -543,11 +539,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   auto ann = call.get_announcement();
   media_command.is_announcement = ann.has_value() && *ann;
-  if (this->single_pipeline_() || media_command.is_announcement) {
-    media_command.announce = true;
-  } else {
-    media_command.announce = false;
-  }
+  media_command.announce = this->single_pipeline_() || media_command.is_announcement;
 
   const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {

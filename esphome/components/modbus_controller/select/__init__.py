@@ -118,7 +118,7 @@ async def to_code(config: ConfigType) -> None:
             [
                 (ModbusSelect.operator("const_ptr"), "item"),
                 (cg.int64, "x"),
-                (cg.std_span.template(cg.uint8.operator("const")), "data"),
+                (cg.byte_span, "data"),
             ],
             return_type=cg.optional.template(cg.std_string),
         )

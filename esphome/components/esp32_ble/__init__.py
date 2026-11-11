@@ -16,9 +16,12 @@ from esphome.components.ble_device_base import (  # noqa: F401  # pylint: disabl
 )
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import (
+    ROM_SSCANF_VARIANTS,
     add_idf_sdkconfig_option,
+    add_src_cmake,
     const,
     get_esp32_variant,
+    idf_version,
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
@@ -293,6 +296,19 @@ __all__ = [
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
+# Give bluedroid_hex_wraps.cpp Bluedroid's private headers so its ESP-IDF drift
+# checks compile; the bt target's include dirs are read at generate time. Only
+# the native ESP-IDF toolchain generates src/CMakeLists.txt.
+BLUEDROID_HEADERS_CMAKE = """\
+idf_component_get_property(esphome_bt_lib bt COMPONENT_LIB)
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/esphome/components/esp32_ble/bluedroid_hex_wraps.cpp"
+    PROPERTIES
+        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${esphome_bt_lib},INCLUDE_DIRECTORIES>"
+        COMPILE_DEFINITIONS USE_ESP32_BLE_BLUEDROID_HEADERS
+)
+"""
+
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 
@@ -543,6 +559,20 @@ async def to_code(config: ConfigType) -> None:
 
     request_bluetooth()
 
+    # Replace Bluedroid's only two sscanf callers so newlib's scanf engine is not
+    # linked; see bluedroid_hex_wraps.cpp. IDF 6.0+ uses picolibc, not newlib.
+    if (
+        not CORE.using_arduino
+        and idf_version() < cv.Version(6, 0, 0)
+        and get_esp32_variant() not in ROM_SSCANF_VARIANTS
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS")
+        for symbol in ("btc_config_get_bin", "string_to_bdaddr"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
+            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+        add_src_cmake(BLUEDROID_HEADERS_CMAKE)
+
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
     # instead of large static DRAM arrays. This frees ~40 kB of internal RAM.
@@ -612,5 +642,8 @@ for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
 # when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING"}
+    {
+        "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
+        "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
+    }
 )

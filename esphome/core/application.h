@@ -430,7 +430,7 @@ class Application {
   void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_() {
-    // FixedVector capacity was pre-initialized by codegen with the exact count
+    // Capacity was pre-initialized by codegen with the exact count
     // of components that override loop(), computed at C++ compile time.
 
     // Add all components with loop override that aren't already LOOP_DONE or FAILED
@@ -509,7 +509,7 @@ class Application {
   // - When a component is enabled, it's swapped with the first inactive component
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
-  FixedVector<Component *> looping_components_{};
+  StaticFixedVector<Component *> looping_components_{};
 
   // StringRef members (8 bytes each: pointer + size)
   StringRef name_;

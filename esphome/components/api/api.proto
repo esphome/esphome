@@ -22,6 +22,7 @@ service APIConnection {
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
   rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
   rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
+  rpc crash_report (CrashReportRequest) returns (CrashReportResponse) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -83,6 +84,7 @@ service APIConnection {
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 
   rpc sendspin_pairing_token(SendspinPairingTokenRequest) returns (SendspinPairingTokenResponse) {}
+  rpc get_yaml(GetYamlRequest) returns (void) {}
 }
 
 
@@ -401,6 +403,11 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message StoreYamlCapabilities {
+  // Firmware embeds its YAML, so clients can request it with get_yaml
+  bool supported = 1;
+}
+
 message WizardCapabilities {
   // True when the device has a wizard configured, so DeviceWizardRequest will be answered
   bool configured = 1;
@@ -414,6 +421,12 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
+message CrashReportCapabilities {
+  // Bitmask of CrashReportFlag. ESP32 checks BUILD_MATCHES against the build time stored with the record;
+  // ESP8266, RP2 and LibreTiny store none and assume it.
+  uint32 flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -425,6 +438,8 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+  StoreYamlCapabilities store_yaml = 7 [(field_ifdef) = "USE_STORE_YAML"];
+  CrashReportCapabilities crash_report = 8 [(field_ifdef) = "USE_CRASH_REPORT"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -452,7 +467,7 @@ message DeviceWizardRequest {
 //
 //   {"version": 1,
 //    "pages": [{"title": "...", "description": "...",
-//      "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+//      "entities": [{"key": 123, "device_id": 456, "description": "...", "role": "..."}],
 //      "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
 //        "entity_filters": [{"integration": "...", "domain": ["..."],
 //                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -465,6 +480,9 @@ message DeviceWizardRequest {
 // An entity is an entity of this device that the page shows to the user (for example to
 // turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
 // device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+// Its role, when set, is a stable name that the device's firmware gives the entity
+// (always <component>.<name>), so a client can recognise it. The user cannot change it,
+// and no two entities of a wizard share one.
 //
 // An input is filled in by the user with the id of a Home Assistant entity. It either
 // stands for one entity of the device's homeassistant platform (sensor, binary_sensor,
@@ -536,6 +554,36 @@ message SubscribeStatesRequest {
   option (id) = 20;
   option (source) = SOURCE_CLIENT;
   // Empty
+}
+
+// ==================== CRASH REPORT ====================
+
+// Send only when crash_report.flags has PRESENT. The report is dropped once sent.
+message CrashReportRequest {
+  option (id) = 163;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_CRASH_REPORT";
+  // Empty
+}
+
+message CrashReportCore {
+  uint32 core = 1;
+  repeated uint32 backtrace = 2 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
+}
+
+message CrashReportResponse {
+  option (id) = 164;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_CRASH_REPORT";
+
+  uint32 flags = 1;  // Bitmask of CrashReportFlag
+  uint32 reason = 2;  // CrashReason
+  uint32 pc = 3;
+  uint32 cause = 4;
+  uint32 fault_address = 5;
+  uint32 build_time = 6;
+  uint32 crashed_core = 7;
+  repeated CrashReportCore cores = 8 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_CORES"];
 }
 
 // ==================== COMMON =====================
@@ -2192,6 +2240,8 @@ message BluetoothScannerSetModeRequest {
 enum VoiceAssistantSubscribeFlag {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;
+  // Not 2 or 4: aioesphomeapi sends API audio as 1 << 2
+  VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO = 8;
 }
 
 message SubscribeVoiceAssistantRequest {
@@ -2225,6 +2275,11 @@ message VoiceAssistantRequest {
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
   string wake_word_phrase = 5;
+  string wake_word_id = 6;
+  uint32 wake_word_audio_bytes = 7;
+  float wake_word_probability = 8;
+  float wake_word_probability_cutoff = 9;
+  uint32 wake_word_audio_bytes2 = 10;
 }
 
 message VoiceAssistantResponse {
@@ -2250,6 +2305,7 @@ enum VoiceAssistantEvent {
   VOICE_ASSISTANT_WAKE_WORD_END = 10;
   VOICE_ASSISTANT_STT_VAD_START = 11;
   VOICE_ASSISTANT_STT_VAD_END = 12;
+  VOICE_ASSISTANT_WAKE_WORD_REJECTED = 13;
   VOICE_ASSISTANT_TTS_STREAM_START = 98;
   VOICE_ASSISTANT_TTS_STREAM_END = 99;
   VOICE_ASSISTANT_INTENT_PROGRESS = 100;
@@ -2843,7 +2899,7 @@ message InfraredRFReceiveEvent {
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];     // Key identifying the receiver instance
-  repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+  repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::span<const int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }
 
 // Sent only to the client that issued an InfraredRFTransmitRawTimingsRequest, once the
@@ -3071,6 +3127,7 @@ message UsbDeviceDescriptor {
   uint32 interface_number = 4;  // bInterfaceNumber the port is bound through
   uint32 interface_class = 5;   // bInterfaceClass of that interface
   uint32 port_number = 6;
+  string interface_description = 7;  // iInterface string of that interface, empty when it has none
 }
 
 // The identity of the device behind a port. Identifies one physical device among others of
@@ -3142,4 +3199,26 @@ message SendspinPairingTokenResponse {
   SendspinPairingTokenStatus status = 1;
   // The pairing token (Sendspin pairing.md "Pairing Token"). Set only when status is OK.
   string token = 2 [(max_data_length) = 127];
+}
+
+// ==================== STORE YAML ====================
+// Streams the compressed user YAML embedded in firmware; the client decompresses.
+// A GetYamlRequest during an active transfer is ignored; reconnect to restart.
+message GetYamlRequest {
+  option (id) = 161;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_STORE_YAML";
+  option (no_delay) = true;
+}
+
+message GetYamlResponse {
+  option (id) = 162;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_STORE_YAML";
+
+  // A zstd frame of the EHY1 file envelope, sent from flash
+  bytes data = 1 [(force) = true, (pointer_to_buffer) = true, (progmem) = true];
+  bool done = 2 [(force) = true];
+  // Set on the first chunk only
+  uint32 total_size = 3;
 }

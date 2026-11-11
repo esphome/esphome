@@ -174,18 +174,10 @@ void MitsubishiClimate::transmit_state() {
       remote_state[9] = 1;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      if (this->fan_mode_ == MITSUBISHI_FAN_3L) {
-        remote_state[9] = 2;
-      } else {
-        remote_state[9] = 3;
-      }
+      remote_state[9] = this->fan_mode_ == MITSUBISHI_FAN_3L ? 2 : 3;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      if (this->fan_mode_ == MITSUBISHI_FAN_3L) {
-        remote_state[9] = 3;
-      } else {
-        remote_state[9] = 4;
-      }
+      remote_state[9] = this->fan_mode_ == MITSUBISHI_FAN_3L ? 3 : 4;
       break;
     case climate::CLIMATE_FAN_MIDDLE:
       remote_state[9] = 2;
@@ -244,10 +236,7 @@ void MitsubishiClimate::transmit_state() {
   // Checksum
   remote_state[17] = sum_bytes(remote_state, 17);
 
-  ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
-           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-           remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17]);
+  ESP_LOGD_HEX(TAG, remote_state, MITSUBISHI_FRAME_SIZE, MITSUBISHI_FRAME_SIZE, "sending: %s");
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();

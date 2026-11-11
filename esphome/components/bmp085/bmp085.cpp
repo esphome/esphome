@@ -24,10 +24,8 @@ void BMP085Component::update() {
 }
 void BMP085Component::setup() {
   uint8_t data[22];
-  if (!this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)))
     return;
-  }
 
   // Load calibration
   this->calibration_.ac1 = encode_uint16(data[0], data[1]);
@@ -54,10 +52,8 @@ void BMP085Component::dump_config() {
 void BMP085Component::read_temperature_() {
   uint8_t buffer[2];
   // 0xF6
-  if (!this->read_bytes(BMP085_REGISTER_DATA_MSB, buffer, 2)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes(BMP085_REGISTER_DATA_MSB, buffer, 2)))
     return;
-  }
 
   int32_t ut = encode_uint16(buffer[0], buffer[1]);
   if (ut == 0) {
@@ -79,19 +75,15 @@ void BMP085Component::read_temperature_() {
   PUBLISH_STATE(this->temperature_sensor_, temp);
   this->status_clear_warning();
 
-  if (!this->set_mode_(BMP085_CONTROL_MODE_PRESSURE_3)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->set_mode_(BMP085_CONTROL_MODE_PRESSURE_3)))
     return;
-  }
 
   this->set_timeout(PRESSURE_TIMEOUT_ID, 26, [this]() { this->read_pressure_(); });
 }
 void BMP085Component::read_pressure_() {
   uint8_t buffer[3];
-  if (!this->read_bytes(BMP085_REGISTER_DATA_MSB, buffer, 3)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes(BMP085_REGISTER_DATA_MSB, buffer, 3)))
     return;
-  }
 
   uint32_t value = encode_uint24(buffer[0], buffer[1], buffer[2]);
   if ((value >> 5) == 0) {

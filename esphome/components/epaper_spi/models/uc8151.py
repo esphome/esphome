@@ -26,12 +26,8 @@ MAX_GATES = 296
 class UC8151(EpaperModel):
     """EpaperModel class for black/white/red displays using the UC8151D controller."""
 
+    class_name = "EPaperWaveshareBWR"
     source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
-
-    def __init__(
-        self, name: str, class_name: str = "EPaperWaveshareBWR", **defaults: Any
-    ) -> None:
-        super().__init__(name, class_name, **defaults)
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)
@@ -71,10 +67,11 @@ uc8151.extend(
 class UC8151Mono(UC8151):
     """EpaperModel class for black/white displays using the UC8151D controller."""
 
+    class_name = "EPaperUC8151"
     source_files = ("epaper_spi_ultrachip.cpp", "epaper_spi_uc8151.cpp")
 
     def __init__(
-        self, name: str, class_name: str = "EPaperUC8151", **defaults: Any
+        self, name: str, class_name: str | None = None, **defaults: Any
     ) -> None:
         defaults.setdefault("partial_update", True)
         super().__init__(name, class_name, **defaults)

@@ -8,7 +8,14 @@ from esphome.components.const import (
     CONF_ACCELEROMETER_RANGE,
     CONF_ACTIVE_HIGH,
 )
-from esphome.components.motion import AXES, motion_schema, new_motion_component
+from esphome.components.motion import (
+    ACCELERATION_G,
+    AXES,
+    CONF_AXES,
+    motion_schema,
+    new_motion_component,
+    validate_axes,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOLD
 from esphome.types import ConfigType
@@ -18,7 +25,6 @@ from . import LIS3DHComponent, lis3dh_ns
 _LOGGER = logging.getLogger(__name__)
 
 CONF_OPERATING_MODE = "operating_mode"
-CONF_AXES = "axes"
 CONF_LATCHED = "latched"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
@@ -84,26 +90,15 @@ def _duration_register(duration_ms: int, odr_key: str) -> int:
     return math.floor(duration_ms * ODR_HZ[odr_key] / 1000 + 0.5)
 
 
-def _axes(value: object) -> list[str]:
-    value = cv.All(cv.ensure_list(cv.one_of(*AXES, lower=True)), cv.Length(min=1))(
-        value
-    )
-    if len(set(value)) != len(value):
-        raise cv.Invalid("Each axis may be listed only once")
-    return value
-
-
 # Without high_pass_filter the threshold includes gravity, so it should exceed 1g.
 INTERRUPT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(
             INTERRUPT_PIN_OPTIONS, upper=True
         ),
-        cv.Optional(CONF_THRESHOLD, default="1.1g"): cv.All(
-            cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float
-        ),
+        cv.Optional(CONF_THRESHOLD, default="1.1g"): ACCELERATION_G,
         cv.Optional(CONF_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_AXES, default=AXES): _axes,
+        cv.Optional(CONF_AXES, default=AXES): validate_axes,
         cv.Optional(CONF_LATCHED, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVE_HIGH, default=True): cv.boolean,
         cv.Optional(CONF_HIGH_PASS_FILTER, default=False): cv.boolean,

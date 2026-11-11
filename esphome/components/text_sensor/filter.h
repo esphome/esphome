@@ -56,7 +56,7 @@ class LambdaFilter : public Filter {
   bool new_value(std::string &value) override;
 
   const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter);
+  void set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
 
  protected:
   lambda_filter_t lambda_filter_;

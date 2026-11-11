@@ -17,14 +17,7 @@ static constexpr uint8_t TF_PAYLOAD_OFFSET = TF_HEADER_LEN + 2;
 
 inline float read_f32_le(const uint8_t *data) { return bit_cast<float>(encode_value_le<uint32_t>(data)); }
 
-inline void write_u32_le(uint8_t *data, uint32_t value) {
-  data[0] = value & 0xFF;
-  data[1] = (value >> 8) & 0xFF;
-  data[2] = (value >> 16) & 0xFF;
-  data[3] = (value >> 24) & 0xFF;
-}
-
-inline void write_f32_le(uint8_t *data, float value) { write_u32_le(data, bit_cast<uint32_t>(value)); }
+inline void write_f32_le(uint8_t *data, float value) { put_le32(data, bit_cast<uint32_t>(value)); }
 
 class FrameParser final {
  public:
@@ -36,6 +29,7 @@ class FrameParser final {
   uint16_t length() const { return this->data_len_; }
   const uint8_t *data() const { return this->data_len_ == 0 ? nullptr : this->data_buf_; }
   uint16_t capacity() const { return this->max_data_len_; }
+  bool has_buffer() const { return this->data_buf_ != nullptr; }
   void reset() { this->parse_state_ = ParseState::PARSE_STATE_SOF; }
 
  protected:

@@ -12,6 +12,7 @@ from esphome.components.nrf52 import framework
 from esphome.components.nrf52.framework import (
     _NRFUTIL_LAUNCHERS,
     NRF5SDK_TOOLS_VERSION,
+    NRFUTIL_LAUNCHER_VERSION,
     _nrfutil_target_triple,
     ensure_nordic_nrfutil,
 )
@@ -79,10 +80,11 @@ def test_first_use_downloads_and_installs_into_the_cache(tmp_path: Path) -> None
     # The launcher sits outside the home it installs into, and the command version is pinned
     assert exe == str(tmp_path / "nrfutil" / "launcher" / f"nrfutil{SUFFIX}")
     assert env["NRFUTIL_HOME"] == str(tmp_path / "nrfutil" / "home")
-    # The launcher comes from the host's URL and is checked against the pinned digest
+    # The pinned launcher version comes from the host's URL and is checked against its digest
     size, sha256 = _NRFUTIL_LAUNCHERS["x86_64-unknown-linux-gnu"]
     assert download.call_args[0][0].endswith(
-        f"/x86_64-unknown-linux-gnu/nrfutil{SUFFIX}"
+        "/x86_64-unknown-linux-gnu/nrfutil-x86_64-unknown-linux-gnu-"
+        f"{NRFUTIL_LAUNCHER_VERSION}{SUFFIX}"
     )
     assert download.call_args[1] == {"sha256": sha256, "size": size}
     assert install.call_args[0][0] == [

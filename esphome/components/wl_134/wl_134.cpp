@@ -96,11 +96,7 @@ uint64_t Wl134Component::hex_lsb_ascii_to_uint64_(const uint8_t *text, uint8_t t
     i--;
 
     uint8_t digit = text[i];
-    if (digit >= 'A') {
-      digit = digit - 'A' + 10;
-    } else {
-      digit = digit - '0';
-    }
+    digit = digit >= 'A' ? digit - 'A' + 10 : digit - '0';
     value = (value << 4) + digit;
   } while (i != 0);
 

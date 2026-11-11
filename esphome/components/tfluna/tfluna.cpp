@@ -58,10 +58,7 @@ bool TFLuna::configure_() {
   }
 
   uint8_t raw_version[3];
-  if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return true;
-  } else {
+  if (this->status_comm_check(this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version)))) {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
     PUBLISH_STATE(this->version_text_sensor_, this->version_);
@@ -85,10 +82,8 @@ void TFLuna::reconfigure_() {
 
 bool TFLuna::read_data_() {
   uint8_t buf[8];
-  if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))))
     return false;
-  }
   // Layout:
   // buf[0..1] = distance (LE), buf[2..3] = signal (LE),
   // buf[4..5] = temperature (LE), buf[6..7] = timestamp (LE)
@@ -141,10 +136,8 @@ void TFLuna::update() {
       return;
     }
   }
-  if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)))
     return;
-  }
   this->read_data_timeout_();
 }
 
@@ -152,10 +145,8 @@ void TFLuna::factory_reset() {
   if (this->is_failed()) {
     return;
   }
-  if (!this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)))
     return;
-  }
   this->reconfigure_pending_ = false;
   this->status_set_warning(LOG_STR("Factory reset issued; waiting for device to become ready"));
   this->set_timeout(SETUP_TIMEOUT_ID, 100, [this]() { this->reconfigure_(); });
@@ -165,10 +156,7 @@ void TFLuna::restart() {
   if (this->is_failed()) {
     return;
   }
-  if (!this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
+  this->status_comm_check(this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02));
 }
 
 }  // namespace esphome::tfluna

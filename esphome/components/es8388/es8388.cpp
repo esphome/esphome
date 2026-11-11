@@ -1,6 +1,7 @@
 #include "es8388.h"
 
 #include <cinttypes>
+#include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -60,15 +61,15 @@ static constexpr i2c::I2CRegValue ES8388_INIT[] PROGMEM = {
     {ES8388_ADCCONTROL9, 0x00},
     //@nightDav
     // ALC Config (as recommended by ES8388 user guide for voice recording)
-    // Reg 0x12 = 0xe2 (ALC enable, PGA Max. Gain=23.5dB, Min. Gain=0dB)
+    // Reg 0x12 = 0xe2 (ALC stereo, max gain +17.5dB, min gain 0dB)
     {ES8388_ADCCONTROL10, 0xe2},
-    // Reg 0x13 = 0xa0 (ALC Target=-1.5dB, ALC Hold time =0 mS)
+    // Reg 0x13 = 0xa0 (ALC target = -1.5dB, hold time = 0ms)
     {ES8388_ADCCONTROL11, 0xa0},
-    // Reg 0x14 = 0x12(Decay time =820uS , Attack time = 416 uS)
+    // Reg 0x14 = 0x12 (decay time = 820us, attack time = 416us)
     {ES8388_ADCCONTROL12, 0x12},
-    // Reg 0x15 = 0x06(ALC mode)
+    // Reg 0x15 = 0x06 (ALC mode, window size = 96 samples)
     {ES8388_ADCCONTROL13, 0x06},
-    // Reg 0x16 = 0xc3(nose gate = -40.5dB, NGG = 0x01(mute ADC))
+    // Reg 0x16 = 0xc3 (noise gate = -40.5dBFS, NGG = 0x01 (mute ADC output), enabled)
     {ES8388_ADCCONTROL14, 0xc3},
     // Power on ADC
     {ES8388_DACCONTROL21, 0x80},
@@ -140,7 +141,10 @@ void ES8388::setup() {
 }
 
 void ES8388::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES8388 Audio Codec:");
+  ESP_LOGCONFIG(TAG,
+                "ES8388 Audio Codec:\n"
+                "  Volume range: %.1f dB to %.1f dB",
+                this->volume_min_db_, this->volume_max_db_);
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Mic gain: %u dB", (this->mic_gain_ & 0x0F) * 3);
 #ifdef USE_ES8388_SELECT
@@ -149,9 +153,16 @@ void ES8388::dump_config() {
 #endif
 }
 
+// DACCONTROL4/5 attenuate the DAC in 0.5 dB steps, from 0 dB at 0x00 to -96 dB at 0xC0
+static constexpr float DAC_ATTENUATION_STEPS_PER_DB = 2.0f;
+static constexpr uint8_t DAC_ATTENUATION_MAX = 0xC0;
+
 bool ES8388::set_volume(float volume) {
   volume = clamp(volume, 0.0f, 1.0f);
-  uint8_t value = remap<uint8_t, float>(volume, 0.0f, 1.0f, 192, 0);
+  // Linear in dB between the two ends, so equal volume steps sound like equal changes in loudness
+  const float db = this->volume_min_db_ + volume * (this->volume_max_db_ - this->volume_min_db_);
+  const auto steps = static_cast<int32_t>(lroundf(-db * DAC_ATTENUATION_STEPS_PER_DB));
+  const auto value = static_cast<uint8_t>(clamp<int32_t>(steps, 0, DAC_ATTENUATION_MAX));
   ESP_LOGD(TAG, "Setting ES8388_DACCONTROL4 / ES8388_DACCONTROL5 to 0x%02X (volume: %f)", value, volume);
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL4, value));
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL5, value));
@@ -162,7 +173,8 @@ bool ES8388::set_volume(float volume) {
 float ES8388::volume() {
   uint8_t value;
   ES8388_ERROR_CHECK(this->read_byte(ES8388_DACCONTROL4, &value));
-  return remap<float, uint8_t>(value, 192, 0, 0.0f, 1.0f);
+  const float db = -value / DAC_ATTENUATION_STEPS_PER_DB;
+  return clamp((db - this->volume_min_db_) / (this->volume_max_db_ - this->volume_min_db_), 0.0f, 1.0f);
 }
 
 bool ES8388::set_mute_state_(bool mute_state) {

@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
@@ -60,6 +61,19 @@ class TestablePacketTransport : public PacketTransport {
   void send_packet(const std::vector<uint8_t> &buf) const override { this->sent_packets.push_back(buf); }
   size_t get_max_packet_size() override { return this->max_packet_size; }
   bool should_send() override { return this->send_enabled; }
+
+  // Stand-in for the storage the generated code declares; count must not exceed STORAGE_COUNT
+  static constexpr size_t STORAGE_COUNT = 4;
+#ifdef USE_SENSOR
+  std::array<Sensor, STORAGE_COUNT> sensor_storage{};
+  void set_sensor_count(size_t count) { this->sensors_.init({this->sensor_storage.data(), count}); }
+#endif
+#ifdef USE_BINARY_SENSOR
+  std::array<BinarySensor, STORAGE_COUNT> binary_sensor_storage{};
+  void set_binary_sensor_count(size_t count) {
+    this->binary_sensors_.init({this->binary_sensor_storage.data(), count});
+  }
+#endif
 
   /// Build the packet header for testing without requiring App or global_preferences.
   void init_for_test(const char *name) {
