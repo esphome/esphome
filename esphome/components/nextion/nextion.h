@@ -1146,7 +1146,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
    * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
    * the display properly processes the uploaded file command.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
@@ -1622,8 +1622,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @param bool url successful True: Transfer completed successfully, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_end_(bool successful);
 
