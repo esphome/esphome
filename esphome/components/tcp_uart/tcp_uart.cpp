@@ -25,7 +25,6 @@ void TcpUart::set_max_connections(uint8_t count) {
   }
   // The first search for a holder starts at slot 0.
   this->last_holder_ = count - 1;
-  this->listener_.set_backlog(count);
 }
 #endif
 
@@ -161,7 +160,7 @@ void TcpUart::loop() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   if (!this->extra_.empty()) {
     // Inline until a client connects.
-    bool waiting = this->listener_.poll_listen(this->link_);
+    bool waiting = this->listener_.poll_listen(this->link_, this->slot_count_());
     if (waiting || this->up_mask_ != 0) {
       this->loop_pool_(waiting);
     }
