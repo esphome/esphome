@@ -39,6 +39,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
+from esphome.helpers import IS_WINDOWS
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
@@ -296,18 +297,19 @@ __all__ = [
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
-# Give bluedroid_hex_wraps.cpp Bluedroid's private headers so its ESP-IDF drift
-# checks compile; the bt target's include dirs are read at generate time. Only
-# the native ESP-IDF toolchain generates src/CMakeLists.txt.
-BLUEDROID_HEADERS_CMAKE = """\
+
+def bluedroid_headers_cmake(source: str) -> str:
+    """Give one esp32_ble source Bluedroid's private include dirs (native ESP-IDF toolchain only)."""
+    return f"""\
 idf_component_get_property(esphome_bt_lib bt COMPONENT_LIB)
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/esphome/components/esp32_ble/bluedroid_hex_wraps.cpp"
+    "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/components/esp32_ble/{source}"
     PROPERTIES
-        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${esphome_bt_lib},INCLUDE_DIRECTORIES>"
+        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${{esphome_bt_lib}},INCLUDE_DIRECTORIES>"
         COMPILE_DEFINITIONS USE_ESP32_BLE_BLUEDROID_HEADERS
 )
 """
+
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
@@ -571,7 +573,22 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
             # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
             cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
-        add_src_cmake(BLUEDROID_HEADERS_CMAKE)
+        # The headers only feed bluedroid_hex_wraps.cpp's ESP-IDF drift checks
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_hex_wraps.cpp"))
+
+    # ESP-IDF 5.5.6 drops bond keys on re-encryption (see bluedroid_bond_keys.c). Needs the
+    # native toolchain for Bluedroid's private headers; Windows response files lose them.
+    if (
+        CORE.using_toolchain_esp_idf
+        and not IS_WINDOWS
+        and cv.Version(5, 5, 6) <= idf_version() < cv.Version(6, 0, 0)
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_BOND_KEYS")
+        for symbol in ("smp_check_auth_req", "btm_sec_clear_ble_keys"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
+            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
@@ -645,5 +662,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
         "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
+        "bluedroid_bond_keys.c": "USE_ESP32_BLE_BLUEDROID_BOND_KEYS",
     }
 )
