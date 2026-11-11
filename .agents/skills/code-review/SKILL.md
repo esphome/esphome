@@ -44,7 +44,7 @@ and its `CODEOWNERS` entry.
 
 Until configurations move to yaml.rocks (esphome/backlog#201), flag any PR that adds to the YAML language: a new
 tag in `esphome/yaml_util.py`, new behaviour in the `packages` or `substitutions` components (a new entry in the
-Jinja `SAFE_GLOBALS` or filters in `substitutions/jinja.py` counts), or new merge, override or remove semantics
+Jinja `SAFE_GLOBALS` in `substitutions/jinja.py`, or a custom Jinja filter, counts), or new merge, override or remove semantics
 (`esphome/config_helpers.py`, `!extend`, `!remove`). Bug fixes to the existing features are fine.
 This covers how YAML files are read, included and combined, not a component's own configuration options.
 
