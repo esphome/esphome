@@ -41,7 +41,7 @@ void ATM90E26Component::setup() {
     return;
   }
   // TODO: 100 * <nominal voltage, e.g. 230> * sqrt(2) * <fraction of nominal, e.g. 0.9> / (4 * gain_voltage/32768)
-  this->write16_(ATM90E26_REGISTER_SAGTH, 0x17DD);  // Voltage sag threshhold 0x1F2F
+  this->write16_(ATM90E26_REGISTER_SAGTH, 0x17DD);  // Voltage sag threshold 0x1F2F
 
   // Set metering calibration values
   this->write16_(ATM90E26_REGISTER_CALSTART, 0x5678);  // CAL Metering calibration startup command
