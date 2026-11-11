@@ -1,0 +1,77 @@
+# Pico 2 W: five PIO LED strips (no LEDs needed) probed three times by pioscope.hpp from PIO2.
+substitutions:
+  name: pa
+
+packages:
+  common: !include pio-common.yaml
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 6s
+        - repeat:
+            count: 3
+            then:
+              - script.execute: probe_all
+              - delay: 2s
+        - lambda: 'ESP_LOGI("hwt", "DONE");'
+
+script:
+  - id: probe_all
+    then:
+      - light.turn_on: {id: s_ws_p0, brightness: 100%, red: 100%, green: 100%, blue: 100%}
+      - light.turn_on: {id: s_ws_p1, brightness: 100%, red: 100%, green: 100%, blue: 100%}
+      - light.turn_on: {id: s_cust1_p1, brightness: 100%, red: 100%, green: 100%, blue: 100%}
+      - light.turn_on: {id: s_cust2_p0, brightness: 100%, red: 100%, green: 100%, blue: 100%}
+      - light.turn_on: {id: s_ws2_p0, brightness: 100%, red: 100%, green: 100%, blue: 100%}
+      - delay: 500ms
+      - lambda: |-
+          const struct { const char *name; esphome::light::LightState *state; uint pin; } STRIPS[] = {
+              {"s_ws_p0", id(s_ws_p0), 2}, {"s_ws_p1", id(s_ws_p1), 3}, {"s_cust1_p1", id(s_cust1_p1), 6},
+              {"s_cust2_p0", id(s_cust2_p0), 7}, {"s_ws2_p0", id(s_ws2_p0), 8}};
+          for (const auto &s : STRIPS)
+            pioscope::probe(s.name, s.state, s.pin, esphome::Color(0xA5, 0x3C, 0x0F));
+light:
+  - platform: rp2040_pio_led_strip
+    id: s_ws_p1
+    pin: 3
+    num_leds: 2
+    pio: 1
+    channel_colors: GRB
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    chipset: WS2812
+  - platform: rp2040_pio_led_strip
+    id: s_cust1_p1
+    pin: 6
+    num_leds: 2
+    pio: 1
+    channel_colors: GRB
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    bit0_high: 0.3us
+    bit0_low: 0.9us
+    bit1_high: 0.9us
+    bit1_low: 0.3us
+  - platform: rp2040_pio_led_strip
+    id: s_cust2_p0
+    pin: 7
+    num_leds: 2
+    pio: 0
+    channel_colors: GRB
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    bit0_high: 0.5us
+    bit0_low: 1.0us
+    bit1_high: 1.2us
+    bit1_low: 0.5us
+  - platform: rp2040_pio_led_strip
+    id: s_ws2_p0
+    pin: 8
+    num_leds: 2
+    pio: 0
+    channel_colors: GRB
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    chipset: WS2812

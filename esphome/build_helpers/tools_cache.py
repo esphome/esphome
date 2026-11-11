@@ -33,6 +33,7 @@ def tools_cache_path(env_var: str, subdir: str) -> Path:
 IDF_TOOLS_CACHE = ("ESPHOME_ESP_IDF_PREFIX", "idf")
 SDK_NRF_TOOLS_CACHE = ("ESPHOME_SDK_NRF_PREFIX", "sdk-nrf")
 ARDUINO8266_TOOLS_CACHE = ("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
+ZEPHYR_TOOLS_CACHE = ("ESPHOME_ZEPHYR_PREFIX", "zephyr")
 # The host backend installs nothing; the entry only holds its ccache dir
 HOST_TOOLS_CACHE = ("ESPHOME_HOST_PREFIX", "host")
 # PlatformIO installs into its own dirs; the entry is its ccache dir itself
@@ -41,6 +42,7 @@ TOOLS_CACHE_SPECS = (
     IDF_TOOLS_CACHE,
     SDK_NRF_TOOLS_CACHE,
     ARDUINO8266_TOOLS_CACHE,
+    ZEPHYR_TOOLS_CACHE,
     HOST_TOOLS_CACHE,
     PLATFORMIO_CCACHE,
 )

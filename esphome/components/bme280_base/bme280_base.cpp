@@ -157,18 +157,14 @@ inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (
 void BME280Component::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request");
-  if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, this->humidity_oversampling_ & 0b111)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte(BME280_REGISTER_CONTROLHUMID, this->humidity_oversampling_ & 0b111)))
     return;
-  }
   uint8_t meas_value = 0;
   meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_value |= BME280_MODE_FORCED;
-  if (!this->write_byte(BME280_REGISTER_CONTROL, meas_value)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte(BME280_REGISTER_CONTROL, meas_value)))
     return;
-  }
 
   float meas_time = 1.5f;
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
@@ -279,15 +275,6 @@ float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
   float const h = v_x1_u32r >> 12;
 
   return h / 1024.0f;
-}
-void BME280Component::set_temperature_oversampling(BME280Oversampling temperature_over_sampling) {
-  this->temperature_oversampling_ = temperature_over_sampling;
-}
-void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over_sampling) {
-  this->pressure_oversampling_ = pressure_over_sampling;
-}
-void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
-  this->humidity_oversampling_ = humidity_over_sampling;
 }
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
