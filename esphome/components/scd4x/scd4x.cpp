@@ -6,25 +6,25 @@ namespace esphome::scd4x {
 
 ESPHOME_LOG_TAG(TAG, "scd4x");
 
-static const uint16_t SCD41_ID = 0x1408;
-static const uint16_t SCD40_ID = 0x440;
-static const uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
-static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
-static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
-static const uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
-static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
+static constexpr uint16_t SCD41_ID = 0x1408;
+static constexpr uint16_t SCD40_ID = 0x440;
+static constexpr uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
+static constexpr uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
+static constexpr uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
+static constexpr uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
+static constexpr uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
 static constexpr uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET = 0x243a;
-static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
-static const uint16_t SCD4X_CMD_START_LOW_POWER_CONTINUOUS_MEASUREMENTS = 0x21ac;
-static const uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT = 0x219d;  // SCD41 only
-static const uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT_RHT_ONLY = 0x2196;
-static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0xe4b8;
-static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0xec05;
-static const uint16_t SCD4X_CMD_PERFORM_FORCED_CALIBRATION = 0x362f;
-static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x3f86;
-static const uint16_t SCD4X_CMD_FACTORY_RESET = 0x3632;
-static const uint16_t SCD4X_CMD_GET_FEATURESET = 0x202f;
-static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
+static constexpr uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
+static constexpr uint16_t SCD4X_CMD_START_LOW_POWER_CONTINUOUS_MEASUREMENTS = 0x21ac;
+static constexpr uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT = 0x219d;  // SCD41 only
+static constexpr uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT_RHT_ONLY = 0x2196;
+static constexpr uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0xe4b8;
+static constexpr uint16_t SCD4X_CMD_READ_MEASUREMENT = 0xec05;
+static constexpr uint16_t SCD4X_CMD_PERFORM_FORCED_CALIBRATION = 0x362f;
+static constexpr uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x3f86;
+static constexpr uint16_t SCD4X_CMD_FACTORY_RESET = 0x3632;
+static constexpr uint16_t SCD4X_CMD_GET_FEATURESET = 0x202f;
+static constexpr float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
 
 void SCD4XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
