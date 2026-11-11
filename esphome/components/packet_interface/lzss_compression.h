@@ -70,6 +70,8 @@ class LzssCompression : public PacketInterface {
     return ((this->byte_at_(in, pos) << 8 | this->byte_at_(in, pos + 1)) * 0x9E3779B1u) >> (32 - HASH_BITS);
   }
 
+  // First, so it fills the spare byte at the end of PacketInterface
+  const uint8_t check_;
   PacketInterface *lower_;
   const uint8_t *dictionary_;
   const size_t dictionary_size_;
@@ -82,7 +84,6 @@ class LzssCompression : public PacketInterface {
   // hash
   uint16_t *head_{nullptr};
   uint16_t *previous_{nullptr};
-  const uint8_t check_;
 };
 
 }  // namespace esphome::packet_interface

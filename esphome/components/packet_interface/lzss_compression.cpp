@@ -98,10 +98,10 @@ LzssCompression::LzssCompression(PacketInterface *lower, size_t max_packet_size,
                                  size_t dictionary_size, uint8_t check)
     : PacketInterface(max_packet_size != 0 ? max_packet_size
                                            : remaining_packet_size(lower->get_max_packet_size(), HEADER_SIZE)),
+      check_(check & HEADER_CHECK_MASK),
       lower_(lower),
       dictionary_(dictionary),
-      dictionary_size_(dictionary_size),
-      check_(check & HEADER_CHECK_MASK) {
+      dictionary_size_(dictionary_size) {
   this->stack_on_(lower, CAPABILITY_COMPRESSION);
 }
 
