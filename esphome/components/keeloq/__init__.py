@@ -207,10 +207,9 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     remote_base.request_protocol("keeloq")
-    # In flash: the uint16_t counter, or what a remote without serial took over (8 bytes), and the last accepted
-    # press (a uint16_t); the ESP8266 checks that all saved values fit its store.
+    # In flash: the uint16_t counter, or what a remote without serial took over (8 bytes); the ESP8266 checks that all
+    # saved values fit its store.
     preferences.reserve_preferences(1, 2 if CONF_SERIAL in config else 8, in_flash=True)
-    preferences.reserve_preferences(1, 2, in_flash=True)
     # Only the derived device key reaches the firmware; the manufacturer key only with a receiver (below). A remote
     # without serial derives its device key when it takes a serial over.
     serial = config.get(CONF_SERIAL)
@@ -230,6 +229,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_take_over_key(key))
     cg.add_optional(var.set_channels, config.get(CONF_CHANNELS))
     if CONF_RECEIVER_ID in config:
+        # The last accepted press, a uint16_t in flash.
+        preferences.reserve_preferences(1, 2, in_flash=True)
+        cg.add(var.set_receiving())
         # Frames of other serials and a hand remote's serial need their device key at run time.
         cg.add(
             var.set_manufacturer_key(

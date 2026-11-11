@@ -75,7 +75,10 @@ struct Pairing {
 };
 
 // As codegen sets up a remote with receiver_id: frames of every serial decrypt with the made-up manufacturer key.
-void listen(KeeloqRemote &remote) { remote.set_manufacturer_key(0x1A2B3C4D, 0x5E6F7081); }
+void listen(KeeloqRemote &remote) {
+  remote.set_receiving();
+  remote.set_manufacturer_key(0x1A2B3C4D, 0x5E6F7081);
+}
 
 // As codegen sets up a remote without serial: it takes serial, counter and channels over from a hand remote.
 void without_serial(KeeloqRemote &remote) {
@@ -408,18 +411,19 @@ TEST(KeeloqReceiveTest, WithASerialTakeOverTakesOnlyTheCounterOfThatSerial) {
   // ESPHome was set to 5000 by mistake. A neighbour's remote is ignored, then the own hand remote at 0x2048 counts.
   KeeloqRemote neighbour{KEELOQ_TYPE_JAROLIFT, NEIGHBOUR_SERIAL, NEIGHBOUR_KEY_HIGH, NEIGHBOUR_KEY_LOW};
   Remote hand;
-  Remote r;
-  listen(r.remote);
-  r.remote.set_counter(5000);
-  r.remote.take_over_next_frame();
+  KeeloqRemote r{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  listen(r);
+  static_cast<Component &>(r).setup();
+  r.set_counter(5000);
+  r.take_over_next_frame();
   neighbour.set_counter(0x0100);
-  ASSERT_TRUE(receive(r.remote, on_air(neighbour.next_frame(0x8, 0x0001))));  // it decrypts, but is not its serial
-  EXPECT_EQ(r.remote.get_counter(), 5000);
+  ASSERT_TRUE(receive(r, on_air(neighbour.next_frame(0x8, 0x0001))));  // it decrypts, but is not its serial
+  EXPECT_EQ(r.get_counter(), 5000);
   hand.remote.set_counter(0x2048);
-  receive(r.remote, on_air(hand.remote.next_frame(0x8, 0x0001)));
-  EXPECT_EQ(r.remote.get_serial(), SERIAL);
-  EXPECT_EQ(r.remote.get_counter(), 0x2049);
-  EXPECT_EQ(r.remote.get_channels(), 0);  // only the counter, no channels
+  receive(r, on_air(hand.remote.next_frame(0x8, 0x0001)));
+  EXPECT_EQ(r.get_serial(), SERIAL);
+  EXPECT_EQ(r.get_counter(), 0x2049);
+  EXPECT_EQ(r.get_channels(), 0);  // only the counter, no channels
   // Stored at once: a restart continues ahead of the hand remote's 0x2048, inside the 16-code window.
   Remote restarted;
   uint16_t ahead = restarted.remote.get_counter() - 0x2048;

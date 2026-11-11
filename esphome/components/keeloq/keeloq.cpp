@@ -216,6 +216,10 @@ void KeeloqRemote::setup() {
     this->pref_.load(&this->reserved_);
   }
   this->counter_ = this->reserved_;
+  // Only a remote with a receiver accepts presses, so only it saves the last one.
+  if (!this->receiving_) {
+    return;
+  }
   uint32_t key = this->take_over_ ? this->take_over_key_ : preference_key(this->type_, this->serial_);
   this->accepted_pref_ = global_preferences->make_preference<uint16_t>(fnv1a_hash_extend(key, "accepted"), true);
   uint16_t accepted;

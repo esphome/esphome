@@ -22,10 +22,24 @@ def test_each_remote_reserves_what_it_saves_in_flash(
     # What a remote without serial took over, serial, reserved block and channels in 8 bytes: two data words
     taken_over = (3, True)
     assert CORE.data[KEY_ESP8266][KEY_PREFERENCES] == [
-        *(counter, last_press),  # shutter_remote
+        counter,  # shutter_remote, without receiver_id
         *(counter, last_press),  # awning_remote
         *(taken_over, last_press),  # hand_remote, without serial
     ]
+
+
+@pytest.mark.parametrize(
+    ("remote", "receiving"),
+    [("shutter_remote", False), ("awning_remote", True), ("hand_remote", True)],
+)
+def test_only_a_remote_with_a_receiver_keeps_its_last_press(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    remote: str,
+    receiving: bool,
+) -> None:
+    main = generate_main(component_config_path("esp8266_remotes.yaml"))
+    assert (f"{remote}->set_receiving();" in main) is receiving
 
 
 @pytest.mark.parametrize(
