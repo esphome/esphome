@@ -298,6 +298,14 @@ __all__ = [
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 
+def _wrap_bluedroid_symbols(*symbols: str) -> None:
+    """Link calls to each Bluedroid symbol to its ``__wrap_`` replacement."""
+    for symbol in symbols:
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+        # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
+        cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+
+
 def bluedroid_headers_cmake(source: str) -> str:
     """Give one esp32_ble source Bluedroid's private include dirs (native ESP-IDF toolchain only)."""
     return f"""\
@@ -569,10 +577,7 @@ async def to_code(config: ConfigType) -> None:
         and get_esp32_variant() not in ROM_SSCANF_VARIANTS
     ):
         cg.add_define("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS")
-        for symbol in ("btc_config_get_bin", "string_to_bdaddr"):
-            cg.add_build_flag(f"-Wl,--wrap={symbol}")
-            # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
-            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+        _wrap_bluedroid_symbols("btc_config_get_bin", "string_to_bdaddr")
         # The headers only feed bluedroid_hex_wraps.cpp's ESP-IDF drift checks
         add_src_cmake(bluedroid_headers_cmake("bluedroid_hex_wraps.cpp"))
 
@@ -584,10 +589,7 @@ async def to_code(config: ConfigType) -> None:
         and cv.Version(5, 5, 6) <= idf_version() < cv.Version(6, 0, 0)
     ):
         cg.add_define("USE_ESP32_BLE_BLUEDROID_BOND_KEYS")
-        for symbol in ("smp_check_auth_req", "btm_sec_clear_ble_keys"):
-            cg.add_build_flag(f"-Wl,--wrap={symbol}")
-            # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
-            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+        _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
         add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
