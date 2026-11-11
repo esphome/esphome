@@ -74,7 +74,12 @@ struct Pairing {
   }
 };
 
-// As codegen sets up a remote with receiver_id: frames of every serial decrypt with the made-up manufacturer key.
+// As codegen sets up a remote with serial and receiver_id but without on_frame: without the manufacturer key only
+// frames of its own serial decrypt, with the device key from the build.
+void listen_to_own_serial(KeeloqRemote &remote) { remote.set_receiving(); }
+
+// As codegen sets up a remote with receiver_id and on_frame, or without serial: frames of every serial decrypt with
+// the made-up manufacturer key.
 void listen(KeeloqRemote &remote) {
   remote.set_receiving();
   remote.set_manufacturer_key(0x1A2B3C4D, 0x5E6F7081);
@@ -435,8 +440,8 @@ TEST(KeeloqReceiveTest, WithASerialTakeOverTakesOnlyTheCounterOfThatSerial) {
 struct Listener {
   KeeloqRemote remote{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
   std::vector<KeeloqFrame> commands;
-  Listener() {
-    listen(this->remote);
+  explicit Listener(void (*set_up_receiving)(KeeloqRemote &) = listen) {
+    set_up_receiving(this->remote);
     static_cast<Component &>(this->remote).setup();
     this->remote.add_on_command_callback([this](KeeloqFrame x) { this->commands.push_back(x); });
   }
@@ -466,6 +471,29 @@ TEST(KeeloqReceiveTest, FollowedCounterSurvivesARestart) {
   uint16_t ahead = after.remote.get_counter() - 119;
   EXPECT_GE(ahead, 1);
   EXPECT_LE(ahead, 16);
+}
+
+TEST(KeeloqReceiveTest, WithASerialTakeOverKeepsTheDeviceKeyFromTheBuild) {
+  // Without on_frame a remote with serial has no manufacturer key; the take-over only takes the counter.
+  HandRemote hand(0x2048);
+  KeeloqRemote r{KEELOQ_TYPE_JAROLIFT, SERIAL, DEVICE_KEY_HIGH, DEVICE_KEY_LOW};
+  listen_to_own_serial(r);
+  static_cast<Component &>(r).setup();
+  r.take_over_next_frame();
+  ASSERT_TRUE(receive(r, on_air(hand.next_frame(0x8, 0x0001))));
+  EXPECT_EQ(r.get_counter(), 0x2049);
+  // It sends what the hand remote would send next.
+  EXPECT_EQ(r.next_frame(0x8, 0x0001).encrypted, hand.next_frame(0x8, 0x0001).encrypted);
+}
+
+TEST(KeeloqCommandTest, WithoutTheManufacturerKeyOnlyItsOwnPressesCount) {
+  // serial, receiver_id and on_command without on_frame: the firmware has only the device key of SERIAL.
+  KeeloqRemote neighbour{KEELOQ_TYPE_JAROLIFT, NEIGHBOUR_SERIAL, NEIGHBOUR_KEY_HIGH, NEIGHBOUR_KEY_LOW};
+  HandRemote hand(100);
+  Listener motor(listen_to_own_serial);
+  EXPECT_FALSE(receive(motor.remote, on_air(neighbour.next_frame(0x8, 0x0001))));  // it does not decrypt
+  receive(motor.remote, on_air(hand.next_frame(0x8, 0x0001)));
+  EXPECT_EQ(motor.commands.size(), 1u);
 }
 
 TEST(KeeloqCommandTest, ANewPressFiresOnceEvenWhenSentTwice) {

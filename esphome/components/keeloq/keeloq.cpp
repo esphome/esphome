@@ -84,6 +84,10 @@ bool KeeloqRemote::ready_to_send() const {
 bool KeeloqRemote::decrypt_frame_(const remote_base::KeeloqData &data, KeeloqFrame &frame) const {
   uint32_t key[2] = {this->device_key_[0], this->device_key_[1]};
   if (!this->known_ || data.address != this->serial_) {
+    // A remote with serial and without on_frame has no manufacturer key, so it hears only its own serial.
+    if (!this->has_manufacturer_key_) {
+      return false;
+    }
     normal_learning_key(data.address, this->manufacturer_key_, key);
   }
   uint32_t plain = decrypt(data.encrypted, key);
@@ -113,10 +117,13 @@ bool KeeloqRemote::on_receive(remote_base::RemoteReceiveData src) {
   if (took_over) {
     this->waiting_ = false;
     this->cancel_timeout(TAKE_OVER_TIMEOUT_ID);
-    this->use_serial_(frame.serial);
-    // Without serial the hand remote's channels become the default unless configured; with serial only the counter.
-    if (this->take_over_ && !this->channels_configured_) {
-      this->channels_ = frame.channels;
+    // Without serial the hand remote gives the serial and, unless configured, the channels; with serial only the
+    // counter, and the device key from the build stays.
+    if (this->take_over_) {
+      this->use_serial_(frame.serial);
+      if (!this->channels_configured_) {
+        this->channels_ = frame.channels;
+      }
     }
     this->set_counter(frame.counter + 1);
     // The take-over press itself does not count as a command.

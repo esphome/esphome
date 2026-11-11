@@ -210,8 +210,8 @@ async def to_code(config: ConfigType) -> None:
     # In flash: the uint16_t counter, or what a remote without serial took over (8 bytes); the ESP8266 checks that all
     # saved values fit its store.
     preferences.reserve_preferences(1, 2 if CONF_SERIAL in config else 8, in_flash=True)
-    # Only the derived device key reaches the firmware; the manufacturer key only with a receiver (below). A remote
-    # without serial derives its device key when it takes a serial over.
+    # Only the derived device key reaches the firmware; the manufacturer key only for a remote without serial or with
+    # on_frame (below). A remote without serial derives its device key when it takes a serial over.
     serial = config.get(CONF_SERIAL)
     manufacturer_key = config[CONF_MANUFACTURER_KEY]
     device_key = 0 if serial is None else normal_learning_key(serial, manufacturer_key)
@@ -232,12 +232,15 @@ async def to_code(config: ConfigType) -> None:
         # The last accepted press, a uint16_t in flash.
         preferences.reserve_preferences(1, 2, in_flash=True)
         cg.add(var.set_receiving())
-        # Frames of other serials and a hand remote's serial need their device key at run time.
-        cg.add(
-            var.set_manufacturer_key(
-                HexInt(manufacturer_key >> 32), HexInt(manufacturer_key & 0xFFFFFFFF)
+        # Frames of other serials and a hand remote's serial need their device key at run time; the remote's own
+        # frames decrypt with the device key above.
+        if serial is None or CONF_ON_FRAME in config:
+            cg.add(
+                var.set_manufacturer_key(
+                    HexInt(manufacturer_key >> 32),
+                    HexInt(manufacturer_key & 0xFFFFFFFF),
+                )
             )
-        )
         await remote_base.register_listener(var, config)
     for conf in config.get(CONF_ON_FRAME, []):
         await automation.build_callback_automation(

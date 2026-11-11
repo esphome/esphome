@@ -34,6 +34,13 @@ keeloq:
     type: jarolift
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     receiver_id: receiver
+  - id: frame_logger
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234502
+    receiver_id: receiver
+    on_frame:
+      - logger.log: "Frame received"
 
 button:
   - platform: template
