@@ -2083,6 +2083,7 @@ def command_recover_yaml(args: ArgsProtocol) -> int:
 
     from esphome.api_client import async_recover_yaml
     from esphome.components.store_yaml import (
+        SECRETS_SKELETON_HEADER,
         UNCAPTURED_NOTE_PATH,
         decode_stored_yaml,
         write_recovered_files,
@@ -2108,7 +2109,9 @@ def command_recover_yaml(args: ArgsProtocol) -> int:
     for path in written:
         safe_print(f"  {path}")
     safe_print(f"The main configuration is {written[0]}.")
-    safe_print("Fill in the values in secrets.yaml before you install it.")
+    for path, content in zip(written, files.values(), strict=True):
+        if content.startswith(SECRETS_SKELETON_HEADER.encode()):
+            safe_print(f"Fill in the values in {path} before you install it.")
     if UNCAPTURED_NOTE_PATH in files:
         safe_print(f"{UNCAPTURED_NOTE_PATH} lists files that were not stored.")
     return 0

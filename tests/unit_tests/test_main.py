@@ -8684,13 +8684,21 @@ def _stored_yaml_blob(files: dict[str, bytes]) -> bytes:
 def test_recover_yaml_writes_the_stored_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
-    """The key comes from the environment and nothing reads a YAML file."""
+    """The key comes from the environment and nothing reads a YAML file;
+    every redacted secrets file is named."""
     from esphome.__main__ import run_esphome
+    from esphome.components.store_yaml import SECRETS_SKELETON_HEADER
 
     monkeypatch.setenv("ESPHOME_API_KEY", VALID_OTA_KEY)
     out = tmp_path / "out"
+    skeleton = SECRETS_SKELETON_HEADER.encode() + b"wifi_password: ''\n"
     blob = _stored_yaml_blob(
-        {"dev.yaml": b"esphome:\n", "store_yaml_uncaptured.yaml": b"x"}
+        {
+            "dev.yaml": b"esphome:\n",
+            "secrets.yaml": skeleton,
+            "../common/secrets.yaml": skeleton,
+            "store_yaml_uncaptured.yaml": b"x",
+        }
     )
     with (
         patch("esphome.config.read_config") as read_config,
@@ -8707,19 +8715,23 @@ def test_recover_yaml_writes_the_stored_files(
     read_config.assert_not_called()
     recover.assert_awaited_once_with(["1.2.3.4"], 6053, VALID_OTA_KEY)
     assert "ESPHOME_API_KEY" not in os.environ
-    assert (out / "dev.yaml").read_bytes() == b"esphome:\n"
+    assert (out / "_" / "dev.yaml").read_bytes() == b"esphome:\n"
     printed = capsys.readouterr().out
-    assert "Recovered 2 files" in printed
+    assert "Recovered 4 files" in printed
+    root = out.resolve()
+    for secrets in (root / "_" / "secrets.yaml", root / "common" / "secrets.yaml"):
+        assert f"Fill in the values in {secrets} before you install it." in printed
     assert "store_yaml_uncaptured.yaml lists files that were not stored" in printed
 
 
 def test_recover_yaml_empty_key_connects_without_encryption(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
+    """A verbatim secrets.yaml (include_secrets: true) needs no filling in."""
     from esphome.__main__ import run_esphome
 
     monkeypatch.delenv("ESPHOME_API_KEY", raising=False)
-    blob = _stored_yaml_blob({"dev.yaml": b""})
+    blob = _stored_yaml_blob({"dev.yaml": b"", "secrets.yaml": b"wifi_password: x\n"})
     with (
         patch("esphome.__main__.read_secret_line", return_value=""),
         patch(
@@ -8736,6 +8748,7 @@ def test_recover_yaml_empty_key_connects_without_encryption(
         ]
         assert run_esphome([*argv, "--output", str(tmp_path / "out")]) == 0
     recover.assert_awaited_once_with(["dev.local"], 6054, None)
+    assert "Fill in" not in capsys.readouterr().out
 
 
 def test_recover_yaml_rejects_a_serial_device(
