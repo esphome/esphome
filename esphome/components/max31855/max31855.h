@@ -15,6 +15,8 @@ class MAX31855Sensor final : public sensor::Sensor,
   SUB_SENSOR(reference)
 
  public:
+  void set_linearize(bool linearize) { this->linearize_ = linearize; }
+
   void setup() override;
   void dump_config() override;
 
@@ -22,6 +24,8 @@ class MAX31855Sensor final : public sensor::Sensor,
 
  protected:
   void read_data_();
+
+  bool linearize_{false};
 };
 
 }  // namespace esphome::max31855
