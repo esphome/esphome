@@ -27,7 +27,7 @@ void MAX6956::setup() {
   write_brightness_mode();
 
   /** TO DO : read transition detection in yaml
-      TO DO : read indivdual current in yaml **/
+      TO DO : read individual current in yaml **/
   this->read_reg_(MAX6956_CONFIGURATION, &configuration);
   ESP_LOGD(TAG, "Initial reg[0x%.2X]=0x%.2X", MAX6956_CONFIGURATION, configuration);
   configuration = configuration | MASK_NORMAL_OPERATION;
