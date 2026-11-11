@@ -5,7 +5,11 @@
 #include "esphome/core/defines.h"
 #include <zephyr/device.h>
 #include <zephyr/usb/usbd.h>
+#include <cerrno>
 #include <initializer_list>
+#ifdef CONFIG_UDC_NRF
+#include <nrfx_power.h>
+#endif
 #ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
 #include "cdc_acm.h"
 #endif
@@ -64,6 +68,16 @@ static int usbd_add_speed(usbd_speed speed, usbd_config_node *config) {
   return err;
 }
 
+// The nRF52 controller reports a cable connected at reset only if no USB bootloader (such as UF2)
+// handled the event first, so the cable is checked here as well
+static bool usbd_vbus_present() {
+#ifdef CONFIG_UDC_NRF
+  return nrfx_power_usbstatus_get() != NRFX_POWER_USB_STATE_DISCONNECTED;
+#else
+  return false;
+#endif
+}
+
 static int usbd_setup() {
   for (usbd_desc_node *desc : {&esphome_usbd_lang, &esphome_usbd_mfr, &esphome_usbd_product, &esphome_usbd_sn}) {
     if (int err = usbd_add_descriptor(&esphome_usbd, desc); err != 0)
@@ -84,15 +98,18 @@ static int usbd_setup() {
   if (int err = usbd_init(&esphome_usbd); err != 0)
     return err;
   // Otherwise the message callback enables the device once VBUS is present
-  if (!usbd_can_detect_vbus(&esphome_usbd))
-    return usbd_enable(&esphome_usbd);
+  if (!usbd_can_detect_vbus(&esphome_usbd) || usbd_vbus_present()) {
+    int err = usbd_enable(&esphome_usbd);
+    // The message callback may have enabled it already
+    return err == -EALREADY ? 0 : err;
+  }
   return 0;
 }
 
 int usb_device_enable() {
   // Setup cannot be repeated after a failure: the parts added before it stay registered
-  static const int result = usbd_setup();
-  return result;
+  static const int SETUP_RESULT = usbd_setup();
+  return SETUP_RESULT;
 }
 
 #else  // legacy USB device stack
