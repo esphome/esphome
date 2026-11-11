@@ -8764,18 +8764,19 @@ def test_recover_yaml_rejects_a_serial_device(
     assert "must be an IP address or a hostname" in caplog.text
 
 
+@pytest.mark.parametrize("output", ["", "dev.yaml"])
 def test_recover_yaml_refuses_a_folder_in_use(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, output: str
 ) -> None:
-    """The check runs before connecting, so no transfer is wasted."""
+    """A folder with files, or a file, is refused before connecting."""
     from esphome.__main__ import run_esphome
 
     (tmp_path / "dev.yaml").write_text("x")
     with patch("esphome.api_client.async_recover_yaml") as recover:
         argv = ["esphome", "recover-yaml", "--device", "1.2.3.4"]
-        assert run_esphome([*argv, "--output", str(tmp_path)]) == 1
+        assert run_esphome([*argv, "--output", str(tmp_path / output)]) == 1
     recover.assert_not_called()
-    assert "is not empty" in caplog.text
+    assert "is not an empty folder" in caplog.text
 
 
 def test_run_esphome_warns_for_an_api_key_another_command_ignores(

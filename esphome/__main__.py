@@ -2093,9 +2093,9 @@ def command_recover_yaml(args: ArgsProtocol) -> int:
     if not _is_network_device(device):
         raise EsphomeError("--device must be an IP address or a hostname")
     out_dir = Path(args.output or f"{device}-recovered")
-    if out_dir.exists() and any(out_dir.iterdir()):
+    if out_dir.exists() and (not out_dir.is_dir() or any(out_dir.iterdir())):
         raise EsphomeError(
-            f"'{out_dir}' is not empty; choose a new folder with --output"
+            f"'{out_dir}' is not an empty folder; choose a new folder with --output"
         )
     key = args.env_api_key
     if key is None:
