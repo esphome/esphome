@@ -52,7 +52,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import Expression, MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -78,6 +78,7 @@ from .restore_state import (
 from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
+    BufferColorAccessor,
     ChannelColors,
     ColorMode,
     GammaTable,
@@ -255,6 +256,24 @@ def channel_colors_struct(value: str) -> cg.MockObj:
     return ChannelColors(
         *(value.index(channel) for channel in "RGBW" if channel in value)
     )
+
+
+def static_led_buffer(
+    output_id: ID,
+    num_leds: int,
+    bytes_per_led: int,
+    extra_bytes: int | Expression = 0,
+    *,
+    psram: bool = False,
+) -> MockObj:
+    """Static block for `BufferColorAccessor::set_buffer`: `buffer_bytes()`, then `extra_bytes`.
+
+    With `psram=True` a build with PSRAM allocates it instead, see `cg.static_buffer`.
+    """
+    size = BufferColorAccessor.static_("buffer_bytes")(num_leds, bytes_per_led)
+    if extra_bytes:
+        size = size + extra_bytes
+    return cg.static_buffer(output_id, cg.uint8, size, psram=psram)
 
 
 def _quote_and_join(keys: list[str]) -> str:

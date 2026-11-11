@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdarg>
+#include <utility>
 #include <vector>
 
 #include "rect.h"
@@ -250,7 +251,8 @@ template<typename T> class DisplayWriter {
     return *this;
   }
 
-  ~DisplayWriter() {
+  // Inline: otherwise moving a writer emits an out of line destructor per display type
+  ESPHOME_ALWAYS_INLINE ~DisplayWriter() {
     if (type_ == LAMBDA) {
       delete this->f_;
     }
@@ -726,7 +728,7 @@ class Display : public PollingComponent {
                        int *height);
 
   /// Internal method to set the display writer lambda.
-  void set_writer(display_writer_t &&writer);
+  void set_writer(display_writer_t &&writer) { this->writer_ = std::move(writer); }
 
   void show_page(DisplayPage *page);
   void show_next_page();
@@ -743,7 +745,7 @@ class Display : public PollingComponent {
 #endif
 
   /// Internal method to set the display rotation with.
-  virtual void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
