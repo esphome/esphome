@@ -1,0 +1,53 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+remote_transmitter:
+  id: transmitter
+  pin: GPIO2
+  carrier_duty_percent: 100%
+
+keeloq:
+  # Made-up key, not a real manufacturer key
+  - id: shutter_remote
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234500
+  - id: awning_remote
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234501
+    channels: [3]
+
+button:
+  - platform: template
+    name: Shutters
+    on_press:
+      - keeloq.send:
+          id: shutter_remote
+          command: shade
+          channels: [1, 2]
+      - keeloq.send:
+          id: shutter_remote
+          command: 0x4
+          channels: [1]
+      - keeloq.send:
+          id: shutter_remote
+          command: up
+          channels: [1]
+          repeat:
+            times: 3
+            wait_time: 10ms
+      - keeloq.learn:
+          id: shutter_remote
+          channels: [1]
+  - platform: template
+    name: Awning
+    on_press:
+      - keeloq.send:
+          id: awning_remote
+          command: up
+      - keeloq.learn:
+          id: awning_remote

@@ -1,4 +1,4 @@
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import remote_base
 from esphome.components.remote_base import CONF_RECEIVER_ID
@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_WAIT_TIME,
 )
-from esphome.core import ID
+from esphome.core import ID, HexInt
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.helpers import fnv1a_32bit_hash
@@ -25,7 +25,6 @@ DOMAIN = "keeloq"
 MULTI_CONF = True
 
 CONF_COUNTER = "counter"
-CONF_LEGACY = "legacy"
 CONF_MANUFACTURER_KEY = "manufacturer_key"
 CONF_ON_COMMAND = "on_command"
 CONF_ON_FRAME = "on_frame"
@@ -33,49 +32,62 @@ CONF_SERIAL = "serial"
 
 keeloq_ns = cg.esphome_ns.namespace("keeloq")
 KeeloqRemote = keeloq_ns.class_("KeeloqRemote", cg.Component)
-SendAction = keeloq_ns.class_("SendAction", remote_base.RemoteTransmitterActionBase)
-LearnAction = keeloq_ns.class_("LearnAction", automation.Action)
 KeeloqFrame = keeloq_ns.struct("KeeloqFrame")
 _FRAME_ARGS = [(KeeloqFrame, "x")]
 ANY_CHANNEL = 0
 ANY_COMMAND = 0xFF
 
 KeeloqType = keeloq_ns.enum("KeeloqType")
-# A new learning variant adds its key derivation and frame layout in C++ and one entry here.
-KEELOQ_TYPES = {
-    "jarolift": KeeloqType.KEELOQ_TYPE_JAROLIFT,
+KEELOQ_TYPES = KeeloqType.options("jarolift", prefix="KEELOQ_TYPE_")
+
+# Jarolift sends every press twice with the same counter.
+JAROLIFT_SEND_TIMES = 2
+# Button name: (code, send times). Shade is stop held, sent 20 times.
+JAROLIFT_COMMANDS = {
+    "up": (0x8, JAROLIFT_SEND_TIMES),
+    "down": (0x2, JAROLIFT_SEND_TIMES),
+    "stop": (0x4, JAROLIFT_SEND_TIMES),
+    "learn": (0xA, JAROLIFT_SEND_TIMES),
+    "shade": (0x4, 20),
 }
 
-# Per type: the button names as (code, send times), and None for the type's default send times
-# (Jarolift: twice per press). Shade is stop held, sent 20 times. `repeat` on the action overrides.
-TYPE_COMMANDS = {
-    "jarolift": {
-        "up": (0x8, None),
-        "down": (0x2, None),
-        "stop": (0x4, None),
-        "learn": (0xA, None),
-        "shade": (0x4, 20),
-    },
-}
-JAROLIFT_COMMANDS = TYPE_COMMANDS["jarolift"]
+_NLF = 0x3A5C742E
 
 
-def _manufacturer_key(value: object) -> int:
-    value = cv.hex_int(value)
-    if not 0 <= value <= 0xFFFFFFFFFFFFFFFF:
-        raise cv.Invalid("manufacturer_key must be a 64-bit value")
-    return value
+def _bit(value: int, n: int) -> int:
+    return (value >> n) & 1
 
 
-def _command(value: object) -> int | str:
-    if isinstance(value, str) and value.lower() in JAROLIFT_COMMANDS:
-        return value.lower()
-    try:
-        return cv.int_range(min=0, max=0xF)(value)
-    except cv.Invalid as err:
-        raise cv.Invalid(
-            f"command must be 0 to 0xF or one of {', '.join(JAROLIFT_COMMANDS)}"
-        ) from err
+def keeloq_decrypt(data: int, key: int) -> int:
+    """The KeeLoq block cipher decryption: 32-bit block, 64-bit key, 528 rounds."""
+    x = data
+    for r in range(528):
+        nlf = _bit(
+            _NLF,
+            _bit(x, 0)
+            | _bit(x, 8) << 1
+            | _bit(x, 19) << 2
+            | _bit(x, 25) << 3
+            | _bit(x, 30) << 4,
+        )
+        x = ((x << 1) & 0xFFFFFFFF) | (
+            _bit(x, 31) ^ _bit(x, 15) ^ nlf ^ _bit(key, (15 - r) & 63)
+        )
+    return x
+
+
+def normal_learning_key(serial: int, manufacturer_key: int) -> int:
+    """Microchip normal learning: the serial decrypted twice with the manufacturer key."""
+    high = keeloq_decrypt(serial | 0x60000000, manufacturer_key)
+    return high << 32 | keeloq_decrypt(serial | 0x20000000, manufacturer_key)
+
+
+_COMMAND_ERROR = f"command must be 0 to 0xF or one of {', '.join(JAROLIFT_COMMANDS)}"
+_command = cv.Any(
+    cv.one_of(*JAROLIFT_COMMANDS, lower=True),
+    cv.int_range(min=0, max=0xF),
+    msg=_COMMAND_ERROR,
+)
 
 
 def _command_code(command: int | str) -> int:
@@ -85,12 +97,9 @@ def _command_code(command: int | str) -> int:
 def _channels(value: object) -> int:
     """Channels 1 to 16 as a list, or the 16-bit mask they make (bit 0 is channel 1)."""
     if isinstance(value, list):
-        channels = [cv.int_range(min=1, max=16)(channel) for channel in value]
-        if len(set(channels)) != len(channels):
-            raise cv.Invalid("each channel only once")
+        channels = {cv.int_range(min=1, max=16)(channel) for channel in value}
         value = sum(1 << (channel - 1) for channel in channels)
     mask = cv.hex_uint16_t(value)
-    # No motor acts on a frame without a channel.
     if mask == 0:
         raise cv.Invalid("set at least one channel")
     return mask
@@ -100,9 +109,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(KeeloqRemote),
         cv.Required(CONF_TYPE): cv.enum(KEELOQ_TYPES, lower=True),
-        cv.Required(CONF_MANUFACTURER_KEY): cv.sensitive(_manufacturer_key),
+        cv.Required(CONF_MANUFACTURER_KEY): cv.sensitive(cv.hex_uint64_t),
         # Without a serial the remote takes serial and counter over from a hand remote.
-        cv.Optional(CONF_SERIAL): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFF)),
+        cv.Optional(CONF_SERIAL): cv.hex_int_range(min=0, max=0xFFFFFFF),
         cv.Optional(CONF_CHANNELS): _channels,
         cv.Optional(CONF_RECEIVER_ID): cv.use_id(remote_base.RemoteReceiverBase),
         cv.Optional(CONF_ON_FRAME): automation.validate_automation({}),
@@ -130,6 +139,21 @@ def _frames_need_a_receiver(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _frames_need_a_receiver)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # The counter is stored per type and serial, so two remotes with both equal would reuse codes. A remote without
+    # serial stores what it takes over under its id.
+    if CONF_SERIAL not in config:
+        return config
+    key = (config[CONF_TYPE], config[CONF_SERIAL])
+    remotes = fv.full_config.get()[DOMAIN]
+    if sum((r[CONF_TYPE], r.get(CONF_SERIAL)) == key for r in remotes) > 1:
+        raise cv.Invalid(
+            f"serial 0x{config[CONF_SERIAL]:07X} is used by more than one remote",
+            [CONF_SERIAL],
+        )
+    return config
 
 
 def _find_actions(
@@ -176,24 +200,40 @@ def _actions_have_channels(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = cv.All(_take_over_has_a_receiver, _actions_have_channels)
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _final_validate, _take_over_has_a_receiver, _actions_have_channels
+)
 
 
 async def to_code(config: ConfigType) -> None:
     remote_base.request_protocol("keeloq")
+    # The counter is a uint16_t in flash; the ESP8266 checks that all saved values fit its store.
+    preferences.reserve_preferences(1, 2, in_flash=True)
+    # Only the derived device key reaches the firmware; the manufacturer key only with a receiver (below). A remote
+    # without serial derives its device key when it takes a serial over.
+    serial = config.get(CONF_SERIAL)
+    manufacturer_key = config[CONF_MANUFACTURER_KEY]
+    device_key = 0 if serial is None else normal_learning_key(serial, manufacturer_key)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_TYPE],
-        cg.RawExpression(f"0x{config[CONF_MANUFACTURER_KEY]:016X}ULL"),
-        config.get(CONF_SERIAL, 0),
+        serial or 0,
+        HexInt(device_key >> 32),
+        HexInt(device_key & 0xFFFFFFFF),
     )
     await cg.register_component(var, config)
-    if CONF_SERIAL not in config:
+    if serial is None:
         # The taken-over serial is stored under the type and id, which a new firmware keeps.
         key = fnv1a_32bit_hash(f"keeloq.{config[CONF_TYPE]}.{config[CONF_ID]}")
         cg.add(var.set_take_over_key(key))
     cg.add_optional(var.set_channels, config.get(CONF_CHANNELS))
     if CONF_RECEIVER_ID in config:
+        # Frames of other serials and a hand remote's serial need their device key at run time.
+        cg.add(
+            var.set_manufacturer_key(
+                HexInt(manufacturer_key >> 32), HexInt(manufacturer_key & 0xFFFFFFFF)
+            )
+        )
         await remote_base.register_listener(var, config)
     for conf in config.get(CONF_ON_FRAME, []):
         await automation.build_callback_automation(
@@ -225,32 +265,58 @@ SEND_SCHEMA = cv.Schema(
     }
 ).extend(remote_base.BASE_REMOTE_TRANSMITTER_SCHEMA)
 
+# The action's transmitter, passed to the remote as a pointer
+_TRANSMITTER = (
+    remote_base.CONF_TRANSMITTER_ID,
+    remote_base.RemoteTransmitterBase.operator("ptr"),
+)
+_send_builder = automation.apply_action_builder(
+    "keeloq.send",
+    SEND_SCHEMA,
+    automation.ApplyCall(
+        "send({}, {}, {}, {}, {})",
+        (
+            _TRANSMITTER,
+            (CONF_COMMAND, cg.uint8),
+            (CONF_CHANNELS, cg.uint16),
+            ((CONF_REPEAT, CONF_TIMES), cg.uint32),
+            ((CONF_REPEAT, CONF_WAIT_TIME), cg.uint32),
+        ),
+    ),
+)
+# Without channels on the action: the remote's own when the action runs, configured or taken over
+_send_own_channels_builder = automation.apply_action_builder(
+    "keeloq.send",
+    SEND_SCHEMA,
+    automation.ApplyCall(
+        "send({}, {}, {parent}->get_channels(), {}, {})",
+        (
+            _TRANSMITTER,
+            (CONF_COMMAND, cg.uint8),
+            ((CONF_REPEAT, CONF_TIMES), cg.uint32),
+            ((CONF_REPEAT, CONF_WAIT_TIME), cg.uint32),
+        ),
+    ),
+)
 
-@automation.register_action("keeloq.send", SendAction, SEND_SCHEMA, synchronous=True)
+
+@automation.register_action(
+    "keeloq.send", automation.ApplyAction, SEND_SCHEMA, synchronous=True
+)
 async def send_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    remote = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, remote)
-    await remote_base.register_transmittable(var, config)
+    # A name brings its code and how often it is sent; repeat overrides that count.
     command = config[CONF_COMMAND]
-    code, send_times = JAROLIFT_COMMANDS.get(command, (command, None))
-    template_ = await cg.templatable(code, args, cg.uint8)
-    cg.add(var.set_command(template_))
-    if (channels := config.get(CONF_CHANNELS)) is not None:
-        template_ = await cg.templatable(channels, args, cg.uint16)
-        cg.add(var.set_channels(template_))
-    if (repeat := config.get(CONF_REPEAT)) is not None:
-        send_times = repeat[CONF_TIMES]
-        template_ = await cg.templatable(repeat[CONF_WAIT_TIME], args, cg.uint32)
-        cg.add(var.set_send_wait(template_))
-    if send_times is not None:
-        template_ = await cg.templatable(send_times, args, cg.uint32)
-        cg.add(var.set_send_times(template_))
-    return var
+    code, send_times = JAROLIFT_COMMANDS.get(command, (command, JAROLIFT_SEND_TIMES))
+    repeat = config.get(CONF_REPEAT, {CONF_TIMES: send_times, CONF_WAIT_TIME: 0})
+    config = {**config, CONF_COMMAND: code, CONF_REPEAT: repeat}
+    if CONF_CHANNELS in config:
+        return await _send_builder(config, action_id, template_arg, args)
+    return await _send_own_channels_builder(config, action_id, template_arg, args)
 
 
 automation.register_apply_action(
@@ -265,17 +331,27 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+LEARN_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(KeeloqRemote),
+        # Without it, the remote's channels, as for keeloq.send.
+        cv.Optional(CONF_CHANNELS): cv.templatable(_channels),
+    }
+).extend(remote_base.REMOTE_TRANSMITTABLE_SCHEMA)
+_learn_builder = automation.apply_action_builder(
     "keeloq.learn",
-    LearnAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(KeeloqRemote),
-            cv.Optional(CONF_CHANNELS): cv.templatable(_channels),
-            cv.Optional(CONF_LEGACY): cv.templatable(cv.boolean),
-        }
-    ).extend(remote_base.REMOTE_TRANSMITTABLE_SCHEMA),
-    synchronous=True,
+    LEARN_SCHEMA,
+    automation.ApplyCall("learn({}, {})", (_TRANSMITTER, (CONF_CHANNELS, cg.uint16))),
+)
+_learn_own_channels_builder = automation.apply_action_builder(
+    "keeloq.learn",
+    LEARN_SCHEMA,
+    automation.ApplyCall("learn({}, {parent}->get_channels())", (_TRANSMITTER,)),
+)
+
+
+@automation.register_action(
+    "keeloq.learn", automation.ApplyAction, LEARN_SCHEMA, synchronous=True
 )
 async def learn_to_code(
     config: ConfigType,
@@ -283,16 +359,9 @@ async def learn_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    remote = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, remote)
-    await remote_base.register_transmittable(var, config)
-    if (channels := config.get(CONF_CHANNELS)) is not None:
-        template_ = await cg.templatable(channels, args, cg.uint16)
-        cg.add(var.set_channels(template_))
-    if (legacy := config.get(CONF_LEGACY)) is not None:
-        template_ = await cg.templatable(legacy, args, cg.bool_)
-        cg.add(var.set_legacy(template_))
-    return var
+    if CONF_CHANNELS in config:
+        return await _learn_builder(config, action_id, template_arg, args)
+    return await _learn_own_channels_builder(config, action_id, template_arg, args)
 
 
 automation.register_apply_action(
