@@ -1135,10 +1135,15 @@ void WiFiComponent::setup_ap_config_() {
   // Reset before the AP exists: afterwards only the platform's event path writes the counter
   this->ap_clients_ = 0;
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
-  // The station path applied it in start(); without a station the radio only exists from here
-  if (this->ap_setup_ && !this->has_sta() && !std::isnan(this->output_power_) &&
-      !this->wifi_apply_output_power_(this->output_power_)) {
-    ESP_LOGV(TAG, "Setting Output Power Option failed");
+  // The station path applied these in start(); without a station the radio only exists from here,
+  // and credentials saved through the portal connect without another start()
+  if (this->ap_setup_ && !this->has_sta()) {
+    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
+      ESP_LOGV(TAG, "Setting Output Power Option failed");
+    }
+    if (!this->wifi_apply_power_save_()) {
+      ESP_LOGV(TAG, "Setting Power Save Option failed");
+    }
   }
 #if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_PERSISTENT)
   // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse

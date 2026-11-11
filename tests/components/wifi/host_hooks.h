@@ -14,6 +14,8 @@ struct HostHooks {
   WiFiAP last_connect{};
   /// Times the station was switched off, as restart_adapter() does.
   int station_offs{0};
+  /// Times wifi_apply_power_save_() ran.
+  int power_save_applies{0};
 };
 
 extern HostHooks host_hooks;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
