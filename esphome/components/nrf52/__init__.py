@@ -110,7 +110,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
-from .jlink import upload_using_jlink
+from .jlink import jlink_serial_number, upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -918,6 +918,17 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
         bootloader = zephyr_data()[KEY_BOOTLOADER]
+        if (
+            bootloader == BOOTLOADER_MCUBOOT
+            and (jlink_serial := jlink_serial_number(host)) is not None
+        ):
+            # The serial port of a J-Link probe, such as the one built into Nordic DKs:
+            # flash through the probe, which works whatever firmware the device runs
+            _LOGGER.info(
+                "%s belongs to J-Link %s, flashing over J-Link", host, jlink_serial
+            )
+            upload_using_jlink(jlink_serial)
+            return True
         if bootloader == BOOTLOADER_MCUBOOT:
             if not has_serial_ota(config):
                 raise EsphomeError(

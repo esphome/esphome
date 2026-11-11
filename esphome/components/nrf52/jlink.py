@@ -12,7 +12,7 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import run_command_ok
 
-from .const import VARIANT_NRF54L15
+from .const import VARIANT_NRF54L15, VARIANT_NRF54LM20
 from .framework import (
     check_and_install,
     get_build_env,
@@ -23,7 +23,12 @@ from .framework import (
 _LOGGER = logging.getLogger(__name__)
 
 # J-Link device names for boards whose Zephyr runner args pass a generic core, which cannot program RRAM
-_JLINK_DEVICES = {VARIANT_NRF54L15: "nRF54L15_M33"}
+_JLINK_DEVICES = {
+    VARIANT_NRF54L15: "nRF54L15_M33",
+    VARIANT_NRF54LM20: "nRF54LM20A_M33",
+}
+
+SEGGER_USB_VID = 0x1366
 
 # Where SEGGER's installers put the J-Link tools when they are not on PATH
 _JLINK_INSTALL_DIRS = {
@@ -100,8 +105,23 @@ def find_jlink_commander() -> Path | None:
     return None
 
 
-def upload_using_jlink() -> None:
-    """Flash over SWD with a SEGGER J-Link probe, such as the one built into Nordic DKs."""
+def jlink_serial_number(port: str) -> str | None:
+    """The serial number of the J-Link probe that provides ``port``, or None for other ports."""
+    import serial.tools.list_ports as _list_ports
+
+    for info in _list_ports.comports(include_links=True):
+        if info.device == port and info.vid == SEGGER_USB_VID:
+            # The USB serial number has leading zeros that J-Link does not use
+            serial = info.serial_number or ""
+            return serial.lstrip("0") if serial.isdigit() else serial
+    return None
+
+
+def upload_using_jlink(serial_number: str | None = None) -> None:
+    """Flash over SWD with a SEGGER J-Link probe, such as the one built into Nordic DKs.
+
+    serial_number picks the probe when more than one is connected.
+    """
     if CORE.using_toolchain_platformio:
         raise EsphomeError("J-Link upload needs the 'sdk-nrf' toolchain")
     if (commander := find_jlink_commander()) is None:
@@ -128,6 +148,8 @@ def upload_using_jlink() -> None:
     ]
     if (device := _JLINK_DEVICES.get(get_nrf52_variant())) is not None:
         west_cmd += ["--device", device]
+    if serial_number:
+        west_cmd += ["--dev-id", serial_number]
     if not run_command_ok(
         west_cmd, env=env, stream_output=True, cwd=str(paths["framework_path"])
     ):

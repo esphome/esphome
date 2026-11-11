@@ -1061,6 +1061,7 @@ def test_mcuboot_serial_upload_needs_serial_transport(
     with (
         patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
         patch("esphome.__main__.check_permissions"),
+        patch("esphome.components.nrf52.jlink_serial_number", return_value=None),
         patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()) as mock_smp,
     ):
         if uploads:
@@ -1070,3 +1071,81 @@ def test_mcuboot_serial_upload_needs_serial_transport(
             with pytest.raises(EsphomeError, match="no mcumgr serial transport"):
                 upload_program(config=config, args=None, host="/dev/ttyACM0")
             mock_smp.assert_not_awaited()
+
+
+@pytest.mark.parametrize("ota_config", [[], [{"platform": "zephyr_mcumgr"}]])
+def test_mcuboot_serial_upload_on_jlink_port_flashes_over_jlink(
+    setup_core: Path, tmp_path: Path, ota_config: list
+) -> None:
+    """A DK's serial port belongs to its J-Link, which flashes even factory firmware."""
+    from esphome.components.nrf52 import upload_program
+    from esphome.upload_targets import PortType
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    with (
+        patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
+        patch("esphome.__main__.check_permissions"),
+        patch(
+            "esphome.components.nrf52.jlink_serial_number", return_value="1051234567"
+        ),
+        patch("esphome.components.nrf52.upload_using_jlink") as mock_jlink,
+        patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()) as mock_smp,
+    ):
+        config = {"ota": ota_config}
+        assert upload_program(config=config, args=None, host="/dev/ttyACM0")
+    mock_jlink.assert_called_once_with("1051234567")
+    mock_smp.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("vid", "serial_number", "expected"),
+    [
+        (0x1366, "001051234567", "1051234567"),
+        (0x1366, None, ""),
+        (0x2FE3, "001051234567", None),
+    ],
+)
+def test_jlink_serial_number(
+    vid: int, serial_number: str | None, expected: str | None
+) -> None:
+    import serial.tools.list_ports
+
+    from esphome.components.nrf52.jlink import jlink_serial_number
+
+    port = MagicMock(device="/dev/ttyACM0", vid=vid, serial_number=serial_number)
+    with patch.object(serial.tools.list_ports, "comports", return_value=[port]):
+        assert jlink_serial_number("/dev/ttyACM0") == expected
+        assert jlink_serial_number("/dev/ttyACM1") is None
+
+
+def test_jlink_passes_the_probe_serial_number(setup_core: Path, tmp_path: Path) -> None:
+    """With several probes connected, the one behind the chosen port is flashed."""
+    from esphome.components.nrf52.const import VARIANT_NRF54LM20
+    from esphome.components.nrf52.framework import set_nrf52_variant
+    from esphome.components.nrf52.jlink import upload_using_jlink
+
+    _setup_nrf52_core(build_path=tmp_path / "build")
+    set_nrf52_variant(VARIANT_NRF54LM20)
+    CORE.config_path = tmp_path / "test.yaml"
+    with (
+        patch(
+            "esphome.components.nrf52.jlink.find_jlink_commander",
+            return_value=tmp_path / "JLinkExe",
+        ),
+        patch("esphome.components.nrf52.jlink.check_and_install"),
+        patch(
+            "esphome.components.nrf52.jlink.get_build_paths",
+            return_value=_make_paths(tmp_path),
+        ),
+        patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
+        patch(
+            "esphome.components.nrf52.jlink.run_command_ok", return_value=True
+        ) as mock_run,
+    ):
+        upload_using_jlink("1051234567")
+    assert mock_run.call_args[0][0][-4:] == [
+        "--device",
+        "nRF54LM20A_M33",
+        "--dev-id",
+        "1051234567",
+    ]
