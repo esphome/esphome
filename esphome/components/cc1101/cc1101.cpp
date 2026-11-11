@@ -388,7 +388,9 @@ void CC1101Component::enter_idle_() {
     return;
   }
   this->strobe_(Command::IDLE);
-  this->wait_for_state_(State::IDLE);
+  if (!this->wait_for_state_(State::IDLE)) {
+    ESP_LOGW(TAG, "Failed to enter IDLE state");
+  }
 }
 
 bool CC1101Component::enter_rx_() { return this->enter_calibrated_(State::RX, Command::RX); }
@@ -550,11 +552,15 @@ void CC1101Component::set_frequency(float value) {
   this->state_.FREQ1 = static_cast<uint8_t>(freq >> 8);
   this->state_.FREQ0 = static_cast<uint8_t>(freq);
   if (this->initialized_) {
-    this->enter_idle_();
+    // While asleep the writes wait for wake_up() and the radio stays asleep
+    const bool awake = !this->sleeping_;
+    if (awake)
+      this->enter_idle_();
     this->write_(Register::FREQ2);
     this->write_(Register::FREQ1);
     this->write_(Register::FREQ0);
-    this->enter_rx_();
+    if (awake)
+      this->enter_rx_();
   }
 }
 
@@ -579,9 +585,12 @@ void CC1101Component::set_filter_bandwidth(float value) {
 void CC1101Component::set_channel(uint8_t value) {
   this->state_.CHANNR = value;
   if (this->initialized_) {
-    this->enter_idle_();
+    const bool awake = !this->sleeping_;
+    if (awake)
+      this->enter_idle_();
     this->write_(Register::CHANNR);
-    this->enter_rx_();
+    if (awake)
+      this->enter_rx_();
   }
 }
 
@@ -646,11 +655,14 @@ void CC1101Component::set_modulation_type(Modulation value) {
   this->state_.MOD_FORMAT = static_cast<uint8_t>(value);
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;
   if (this->initialized_) {
-    this->enter_idle_();
+    const bool awake = !this->sleeping_;
+    if (awake)
+      this->enter_idle_();
     this->set_output_power(this->output_power_requested_);
     this->write_(Register::MDMCFG2);
     this->write_(Register::FREND0);
-    this->enter_rx_();
+    if (awake)
+      this->enter_rx_();
   }
 }
 
