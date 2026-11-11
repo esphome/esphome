@@ -1004,6 +1004,49 @@ class TestStaticBuffer:
             cg.static_buffer(ID("hub"), ct.uint8, 8)
 
 
+class TestStaticStorage:
+    def test_is_aligned_raw_storage_passed_as_a_span(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {}
+        item = ct.esphome_ns.namespace("uart").class_("Item")
+        cg.static_storage(hub, item, 3)
+        span = cg.static_storage(hub, item, "N + 1")
+        decl = "alignas(uart::Item) static unsigned char uart__hub_storage"
+        assert [str(st) for st in CORE.global_statements] == [
+            f"{decl}__pstorage[sizeof(uart::Item) * (3)];",
+            f"{decl}_2__pstorage[sizeof(uart::Item) * (N + 1)];",
+        ]
+        assert str(span) == (
+            "std::span<uart::Item>(reinterpret_cast<uart::Item *>"
+            "(uart__hub_storage_2__pstorage), N + 1)"
+        )
+
+    def test_zero_count_is_an_empty_span_without_storage(self) -> None:
+        hub = ID("hub", is_declaration=True, type=ct.esphome_ns.class_("Hub"))
+        CORE.config = {}
+        assert str(cg.static_storage(hub, ct.uint8, 0)) == "std::span<uint8_t>()"
+        assert not CORE.global_statements
+
+    def test_expression_count_gets_storage(self) -> None:
+        hub = ID("hub", is_declaration=True, type=ct.esphome_ns.class_("Hub"))
+        CORE.config = {}
+        count = ct.esphome_ns.class_("Hub").static_("COUNT")
+        span = cg.static_storage(hub, ct.uint8, count)
+        assert str(span) == (
+            "std::span<uint8_t>(reinterpret_cast<uint8_t *>"
+            "(esphome__hub_storage__pstorage), Hub::COUNT)"
+        )
+        assert len(CORE.global_statements) == 1
+
+    def test_owner_must_be_an_id(self) -> None:
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_storage(ID("hub"), ct.uint8, 8)
+
+
 def test_static_member() -> None:
     cls = ct.esphome_ns.namespace("hdlc").class_("HdlcReliability")
     assert str(cls.static_("packet_size")) == "hdlc::HdlcReliability::packet_size"
@@ -1069,6 +1112,76 @@ def test_static_function_accepts_statements() -> None:
 def test_const_ref_renders_const_reference() -> None:
     regs = cg.MockObj("hub", "::").class_("Regs")
     assert str(regs.const_ref()) == "const hub::Regs &"
+
+
+class TestSharedStaticFunction:
+    @pytest.fixture(autouse=True)
+    def _config(self) -> None:
+        CORE.config = {}
+
+    def test_identical_functions_share_one(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        b = cg.shared_static_function(
+            "fn_b", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        c = cg.shared_static_function(
+            "fn_c", ct.bool_, [(ct.float_, "x")], ["return x > 2;"]
+        )
+        assert a is b
+        assert str(a) == "fn_a"
+        assert str(c) == "fn_c"
+        assert [str(st) for st in CORE.global_statements] == [
+            "static bool fn_a(float x);",
+            "static bool fn_c(float x);",
+        ]
+        assert len(CORE.global_statements_after_includes) == 2
+
+    @pytest.mark.parametrize(
+        ("return_type", "params"),
+        (
+            (ct.bool_, [(ct.float_, "y")]),
+            (ct.bool_, [(ct.int32, "x")]),
+            (ct.bool_, [(ct.float_, "x"), (ct.float_, "y")]),
+            (ct.int32, [(ct.float_, "x")]),
+        ),
+    )
+    def test_different_signatures_are_separate(
+        self, return_type: cg.MockObjClass, params: list[tuple[cg.MockObjClass, str]]
+    ) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return 1;"]
+        )
+        b = cg.shared_static_function("fn_b", return_type, params, ["return 1;"])
+        assert str(a) == "fn_a"
+        assert str(b) == "fn_b"
+        assert len(CORE.global_statements_after_includes) == 2
+
+    def test_statement_body_shares_with_its_text(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.int32, [], [cg.RawStatement("return 1;")]
+        )
+        b = cg.shared_static_function("fn_b", ct.int32, [], ["return 1;"])
+        assert a is b
+
+    def test_share_false_always_emits_a_new_function(self) -> None:
+        body = ["static int n = 0;", "return ++n;"]
+        a = cg.shared_static_function("fn_a", ct.int32, [], body)
+        b = cg.shared_static_function("fn_b", ct.int32, [], body, share=False)
+        c = cg.shared_static_function("fn_c", ct.int32, [], body, share=False)
+        d = cg.shared_static_function("fn_d", ct.int32, [], body)
+        assert [str(f) for f in (a, b, c, d)] == ["fn_a", "fn_b", "fn_c", "fn_a"]
+        assert len(CORE.global_statements_after_includes) == 3
+
+    def test_one_name_different_bodies_gets_unique_names(self) -> None:
+        a = cg.shared_static_function("fn", ct.int32, [], ["return 1;"])
+        b = cg.shared_static_function("fn", ct.int32, [], ["return 2;"])
+        assert [str(a), str(b)] == ["fn", "fn_2"]
+        assert [str(st) for st in CORE.global_statements] == [
+            "static int32_t fn();",
+            "static int32_t fn_2();",
+        ]
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:

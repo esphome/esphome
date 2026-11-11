@@ -122,10 +122,8 @@ void BH1745Component::update() {
 
   // Reading MODE_CONTROL2 clears VALID, so read it only once per poll.
   uint8_t mode_control2;
-  if (!this->read_byte(REG_MODE_CONTROL2, &mode_control2)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->read_byte(REG_MODE_CONTROL2, &mode_control2)))
     return;
-  }
   if ((mode_control2 & MODE_CONTROL2_VALID) == 0)
     return;
 
@@ -153,9 +151,7 @@ void BH1745Component::update() {
 void BH1745Component::set_interrupt_state(bool on) {
   if (this->is_failed())
     return;
-  if (!this->write_byte(REG_INTERRUPT, on ? INTERRUPT_ENABLE : 0x00)) {
-    this->status_set_warning();
-  }
+  this->status_comm_check(this->write_byte(REG_INTERRUPT, on ? INTERRUPT_ENABLE : 0x00));
 }
 
 }  // namespace esphome::bh1745

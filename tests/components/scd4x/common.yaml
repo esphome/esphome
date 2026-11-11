@@ -10,6 +10,7 @@ sensor:
     humidity:
       name: SCD4X Humidity
     automatic_self_calibration: true
+    automatic_self_calibration_target: 425
     altitude_compensation: 10m
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
