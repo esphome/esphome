@@ -1,5 +1,6 @@
 import abc
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import inspect
 import math
 import re
@@ -873,6 +874,54 @@ def static_function(
         RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
+
+
+@dataclass
+class SharedStaticFunctions:
+    """Functions emitted by ``shared_static_function``, by signature and body."""
+
+    functions: dict[tuple[str, str, str], RawExpression] = field(default_factory=dict)
+
+
+def shared_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+    *,
+    share: bool = True,
+) -> RawExpression:
+    """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
+
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
+    """
+    if not share:
+        return _new_static_function(name, return_type, parameters, body)
+    data: SharedStaticFunctions = CORE.data.setdefault(
+        "shared_static_function", SharedStaticFunctions()
+    )
+    key = (
+        str(safe_exp(return_type)),
+        str(ParameterListExpression(*parameters)),
+        "\n".join(map(str, body)),
+    )
+    if (fn := data.functions.get(key)) is None:
+        fn = data.functions[key] = _new_static_function(
+            name, return_type, parameters, body
+        )
+    return fn
+
+
+def _new_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+) -> RawExpression:
+    id_ = unique_global_id(name, None)
+    fn = static_function(id_.id, return_type, parameters, body)
+    CORE.register_variable(id_, fn)
+    return fn
 
 
 def add(expression: Expression | Statement, prepend: bool = False):
