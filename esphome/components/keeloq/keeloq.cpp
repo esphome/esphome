@@ -1,4 +1,5 @@
 #include "keeloq.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -9,15 +10,12 @@ ESPHOME_LOG_TAG(TAG, "keeloq");
 
 static constexpr uint32_t NLF = 0x3A5C742E;
 static constexpr uint16_t ROUNDS = 528;
-// Counters reserved in flash at a time. Fewer than the 16 codes a KeeLoq receiver accepts ahead
-// of the last one, so the gap after a reboot stays inside that window.
+// Fewer than the 16 codes a receiver accepts ahead, so the gap after a reboot stays inside that window.
 static constexpr uint16_t RESERVE_BLOCK = 8;
-static constexpr uint32_t PREF_HASH = 0x4B4C4F51;
-// Jarolift sends every press twice with the same counter.
+static constexpr uint32_t PREF_HASH = fnv1a_hash("keeloq");
 static constexpr uint32_t JAROLIFT_SEND_TIMES = 2;
 static constexpr uint8_t JAROLIFT_STOP = 0x4;
 static constexpr uint8_t JAROLIFT_UP_DOWN = 0xA;
-static constexpr uint8_t JAROLIFT_LEARN_LEGACY = 0x1;
 static constexpr uint32_t JAROLIFT_LEARN_PAUSE_MS = 1000;
 static constexpr uint32_t TAKE_OVER_TIMEOUT_MS = 60000;
 // Scheduler ids.
@@ -39,75 +37,53 @@ static Windows receive_windows(KeeloqType type) {
 }
 static constexpr uint32_t ACCEPTED_PREF_HASH = 0x41434350;
 
-static inline uint32_t get_bit(uint64_t value, uint32_t n) { return (value >> n) & 1; }
+static inline uint32_t get_bit(uint32_t value, uint32_t n) { return (value >> n) & 1; }
 
-uint32_t encrypt(uint32_t data, uint64_t key) {
+uint32_t encrypt(uint32_t data, const uint32_t key[2]) {
   uint32_t x = data;
   for (uint16_t r = 0; r < ROUNDS; r++) {
     uint32_t nlf = get_bit(
         NLF, get_bit(x, 1) | get_bit(x, 9) << 1 | get_bit(x, 20) << 2 | get_bit(x, 26) << 3 | get_bit(x, 31) << 4);
-    x = (x >> 1) | ((get_bit(x, 0) ^ get_bit(x, 16) ^ nlf ^ get_bit(key, r & 63u)) << 31);
+    x = (x >> 1) | ((get_bit(x, 0) ^ get_bit(x, 16) ^ nlf ^ get_bit(key[(r >> 5) & 1], r & 31)) << 31);
   }
   return x;
 }
 
-uint32_t decrypt(uint32_t data, uint64_t key) {
+uint32_t decrypt(uint32_t data, const uint32_t key[2]) {
   uint32_t x = data;
   for (uint16_t r = 0; r < ROUNDS; r++) {
     uint32_t nlf = get_bit(
         NLF, get_bit(x, 0) | get_bit(x, 8) << 1 | get_bit(x, 19) << 2 | get_bit(x, 25) << 3 | get_bit(x, 30) << 4);
-    x = (x << 1) | (get_bit(x, 31) ^ get_bit(x, 15) ^ nlf ^ get_bit(key, (15u - r) & 63u));
+    const uint32_t k = 15u - r;
+    x = (x << 1) | (get_bit(x, 31) ^ get_bit(x, 15) ^ nlf ^ get_bit(key[(k >> 5) & 1], k & 31));
   }
   return x;
 }
 
-// Microchip normal learning: the serial decrypted twice with the manufacturer key.
-static uint64_t normal_learning_key(uint32_t serial, uint64_t manufacturer_key) {
+// Microchip normal learning: the serial decrypted twice with the manufacturer key, as codegen does for a set serial.
+static void normal_learning_key(uint32_t serial, const uint32_t manufacturer_key[2], uint32_t key[2]) {
   serial &= 0x0FFFFFFF;
-  uint64_t high = decrypt(serial | 0x60000000, manufacturer_key);
-  return high << 32 | decrypt(serial | 0x20000000, manufacturer_key);
+  key[1] = decrypt(serial | 0x60000000, manufacturer_key);
+  key[0] = decrypt(serial | 0x20000000, manufacturer_key);
 }
 
-static uint64_t device_key(KeeloqType type, uint32_t serial, uint64_t manufacturer_key) {
-  switch (type) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      return normal_learning_key(serial, manufacturer_key);
-  }
+// Depends on the type and serial only, so the counter survives a new firmware.
+static uint32_t preference_key(KeeloqType type, uint32_t serial) {
+  return fnv1a_hash_extend(fnv1a_hash_extend(PREF_HASH, static_cast<uint8_t>(type)), serial);
 }
 
-KeeloqRemote::KeeloqRemote(KeeloqType type, uint64_t manufacturer_key, uint32_t serial)
-    : manufacturer_key_(manufacturer_key),
-      device_key_(device_key(type, serial, manufacturer_key)),
-      serial_(serial),
-      type_(type) {}
+// The schema rejects a mask of 0, but a channels lambda can still return it.
+static bool no_channels(uint16_t channels) {
+  if (channels != 0)
+    return false;
+  ESP_LOGW(TAG, "No channel set, nothing sent");
+  return true;
+}
 
 void KeeloqRemote::use_serial_(uint32_t serial) {
   this->serial_ = serial;
-  this->device_key_ = device_key(this->type_, serial, this->manufacturer_key_);
+  normal_learning_key(serial, this->manufacturer_key_, this->device_key_);
   this->known_ = true;
-}
-
-bool KeeloqRemote::resolve_channels(bool has_action_channels, uint16_t action_channels, uint16_t &channels) const {
-  if (has_action_channels) {
-    channels = action_channels;
-    // The configuration rejects a fixed 0; a lambda can still return it.
-    if (channels == 0) {
-      ESP_LOGW(TAG, "Channel mask 0 selects no motor, so nothing is sent");
-      return false;
-    }
-    return true;
-  }
-  channels = this->channels_;
-  switch (this->type_) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      if (!this->channels_known_) {
-        ESP_LOGW(TAG, "No channels: set it on the action or the remote, or take over a hand remote");
-        return false;
-      }
-      return true;
-  }
 }
 
 bool KeeloqRemote::ready_to_send() const {
@@ -118,9 +94,10 @@ bool KeeloqRemote::ready_to_send() const {
 }
 
 bool KeeloqRemote::decrypt_frame_(const remote_base::KeeloqData &data, KeeloqFrame &frame) const {
-  uint64_t key = this->known_ && data.address == this->serial_
-                     ? this->device_key_
-                     : device_key(this->type_, data.address, this->manufacturer_key_);
+  uint32_t key[2] = {this->device_key_[0], this->device_key_[1]};
+  if (!this->known_ || data.address != this->serial_) {
+    normal_learning_key(data.address, this->manufacturer_key_, key);
+  }
   uint32_t plain = decrypt(data.encrypted, key);
   switch (this->type_) {
     case KEELOQ_TYPE_JAROLIFT:
@@ -157,7 +134,6 @@ bool KeeloqRemote::on_receive(remote_base::RemoteReceiveData src) {
     // Without serial the hand remote's channels become the default unless configured; with serial only the counter.
     if (this->take_over_ && !this->channels_configured_) {
       this->channels_ = frame.channels;
-      this->channels_known_ = true;
     }
     this->set_counter(frame.counter + 1);
     // The take-over press itself does not count as a command.
@@ -242,10 +218,6 @@ void KeeloqRemote::take_over_next_frame() {
   });
 }
 
-uint32_t KeeloqRemote::preference_key(KeeloqType type, uint32_t serial) {
-  return PREF_HASH ^ (static_cast<uint32_t>(type) << 28 | serial);
-}
-
 // What a remote without serial keeps in flash.
 struct TakenOver {
   uint32_t serial;
@@ -262,7 +234,6 @@ void KeeloqRemote::setup() {
       this->reserved_ = stored.reserved;
       if (!this->channels_configured_) {
         this->channels_ = stored.channels;
-        this->channels_known_ = true;
       }
     }
   } else {
@@ -319,65 +290,53 @@ remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t chann
     this->reserved_ = this->counter_ + RESERVE_BLOCK;
     this->store_reserved_();
   }
+  // Taken before the log line, so a frame sent from a log trigger gets the next counter.
+  const uint16_t counter = this->counter_++;
+  // A receiver that hears this frame takes it as the last one, so its echo is no new press; never backwards.
+  if (!this->accepted_known_ || static_cast<uint16_t>(counter - this->accepted_) < 0x8000) {
+    this->accepted_ = counter;
+    this->accepted_known_ = true;
+  }
   remote_base::KeeloqData data{};
   data.address = this->serial_;
   data.command = command & 0x0F;
-  uint32_t plain = this->counter_;
-  switch (this->type_) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      // The channel mask's low byte and the serial's low byte are the discrimination bits; its high byte is the group
-      // sent after the word.
-      plain |= (channels & 0xFF) << 24 | (this->serial_ & 0xFF) << 16;
-      data.set_group(channels >> 8);
-      break;
-  }
+  // The channel mask's low byte and the serial's low byte are the discrimination bits; its high byte is the group
+  // sent after the word.
+  uint32_t plain = counter | (channels & 0xFF) << 24 | (this->serial_ & 0xFF) << 16;
+  data.set_group(channels >> 8);
   data.encrypted = encrypt(plain, this->device_key_);
-  ESP_LOGV(TAG, "Serial 0x%07" PRIX32 " counter %u", this->serial_, this->counter_);
-  // A receiver that hears this frame takes it as the last one, so its echo is no new press; never backwards.
-  if (!this->accepted_known_ || static_cast<uint16_t>(this->counter_ - this->accepted_) < 0x8000) {
-    this->accepted_ = this->counter_;
-    this->accepted_known_ = true;
-  }
-  this->counter_++;
+  ESP_LOGV(TAG, "Serial 0x%07" PRIX32 " counter %u", this->serial_, counter);
   return data;
 }
 
-uint32_t KeeloqRemote::default_send_times() const {
-  switch (this->type_) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      return JAROLIFT_SEND_TIMES;
-  }
+void KeeloqRemote::send(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels,
+                        uint32_t send_times, uint32_t send_wait) {
+  if (!this->ready_to_send() || no_channels(channels))
+    return;
+  transmitter->transmit<remote_base::KeeloqProtocol>(this->next_frame(command, channels), send_times, send_wait);
 }
 
-void KeeloqRemote::send_(remote_base::RemoteTransmitterBase *transmitter, uint8_t command, uint16_t channels) {
-  transmitter->transmit<remote_base::KeeloqProtocol>(this->next_frame(command, channels), this->default_send_times());
-}
-
-void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16_t channels, bool legacy) {
+void KeeloqRemote::learn(remote_base::RemoteTransmitterBase *transmitter, uint16_t channels) {
   if (this->take_over_) {
     ESP_LOGW(TAG, "A remote without serial does not learn; it takes over a hand remote");
     return;
   }
-  // A new type adds its sequence here; many receivers learn from one plain frame while in learn mode.
-  switch (this->type_) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      // Motors made before 2010 learn from one command 0x1, later ones from up+down, then stop.
-      if (legacy) {
-        this->send_(transmitter, JAROLIFT_LEARN_LEGACY, channels);
-        return;
-      }
-      this->send_(transmitter, JAROLIFT_UP_DOWN, channels);
-      this->set_timeout(LEARN_TIMEOUT_ID, JAROLIFT_LEARN_PAUSE_MS,
-                        [this, transmitter, channels]() { this->finish_learn_(transmitter, channels); });
-      break;
+  // Also keeps 0, the value for no pending learn, out of learn_channels_.
+  if (no_channels(channels))
+    return;
+  // A second learn would replace the pending stop frame, so the first pairing would fail.
+  if (this->learn_channels_ != 0) {
+    ESP_LOGW(TAG, "Learn skipped, the previous one is still running; pass all channels to one learn");
+    return;
   }
-}
-
-void KeeloqRemote::finish_learn_(remote_base::RemoteTransmitterBase *transmitter, uint16_t channels) {
-  this->send_(transmitter, JAROLIFT_STOP, channels);
+  // Pending before the first frame, so a learn that the transmitter's triggers start is skipped too.
+  this->learn_channels_ = channels;
+  // Up+down, a pause, then stop.
+  this->send(transmitter, JAROLIFT_UP_DOWN, channels, JAROLIFT_SEND_TIMES, 0);
+  this->set_timeout(LEARN_TIMEOUT_ID, JAROLIFT_LEARN_PAUSE_MS, [this, transmitter]() {
+    this->send(transmitter, JAROLIFT_STOP, this->learn_channels_, JAROLIFT_SEND_TIMES, 0);
+    this->learn_channels_ = 0;
+  });
 }
 
 void KeeloqRemote::set_counter(uint16_t counter) {

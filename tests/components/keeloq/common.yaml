@@ -28,6 +28,12 @@ keeloq:
     on_command:
       - logger.log: "Hand remote pressed"
 
+  - id: awning_remote
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234501
+    channels: [3]
+
 button:
   - platform: template
     name: Shutters 1 to 4 and 9 to 12 up
@@ -87,7 +93,14 @@ button:
       - keeloq.learn:
           id: shutter_remote
           channels: 0x0002
+  - platform: template
+    name: Pair shutter from lambda
+    on_press:
       - keeloq.learn:
           id: shutter_remote
-          channels: !lambda return 0x0002;
-          legacy: true
+          channels: !lambda return 0x0001;
+  - platform: template
+    name: Pair awning
+    on_press:
+      - keeloq.learn:
+          id: awning_remote
