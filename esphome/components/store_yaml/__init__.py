@@ -368,7 +368,14 @@ def _check_sensitive_usage(
                 if is_key
                 else shown(path)
             )
-            if verified(text):
+            # prepare() swaps an integer credential only at its own keys
+            unswapped = (
+                isinstance(node, int)
+                and not isinstance(node, bool)
+                and (info := sensitive.get(str(int(node)))) is not None
+                and info.is_int
+            )
+            if verified(text) and not unswapped:
                 # A whole scalar is swapped for its `!secret`; a key never is.
                 if is_key and (info := sensitive.get(text)) is not None:
                     embedded.append(f"{info.config_path} (as {where} in {rel})")
@@ -417,6 +424,15 @@ def _check_sensitive_usage(
             )
 
 
+def _int_text(text: str) -> str | None:
+    """Decimal text of a string cv.int_ accepts, such as "0x12345678", else None."""
+    try:
+        return str(cv.int_(text))
+    except (cv.Invalid, ValueError):
+        # ValueError: too many digits for str()
+        return None
+
+
 def _collect_sensitive_values() -> tuple[
     dict[str, _SensitiveValue], set[tuple[str, ...]]
 ]:
@@ -455,6 +471,19 @@ def _collect_sensitive_values() -> tuple[
             )
         entry.is_int = entry.is_int and isinstance(node, int)
         entry.sensitive_keys.update(path[-1:])
+    # A quoted secret such as "0x12345678" is registered as written. Its name fits
+    # only if every use is an integer: a string credential with the same decimal
+    # text would otherwise be restored as the hex string.
+    int_secrets: dict[str, str] = {}
+    for secret, name in yaml_util.registered_secret_values().items():
+        if (text := _int_text(secret)) is not None:
+            int_secrets.setdefault(text, name)
+    for value, entry in result.items():
+        if entry.from_secret or not entry.is_int:
+            continue
+        if name := int_secrets.get(value):
+            entry.secret_name = name
+            entry.from_secret = True
     return result, paths
 
 
