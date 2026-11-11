@@ -46,8 +46,7 @@ void SPIComponent::setup() {
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
-    ESP_LOGE(TAG, "No clock pin");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("No clock pin"));
     return;
   }
 
@@ -82,7 +81,7 @@ void SPIComponent::dump_config() {
   }
 }
 
-void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
+void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPI device not set up, or its bus failed"); }
 
 #ifdef USE_SPI_SOFTWARE
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) { return this->transfer_(data, 8); }

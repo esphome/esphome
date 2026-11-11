@@ -113,20 +113,22 @@ async def _new_port(
     packet_size=lambda config, size: remaining_packet_size(size, HEADER_SIZE),
 )
 async def build_basic_addressing(
-    config: ConfigType, link: MockObj
-) -> list[tuple[MockObj, ConfigType | None]]:
+    config: ConfigType, link: MockObj, link_size: int
+) -> list[tuple[MockObj, ConfigType | None, int]]:
     cg.add_define("USE_PACKET_INTERFACE_BASIC_ADDRESSING")
+    # Addressing sits on the link itself, whose size is a number
+    port_size = remaining_packet_size(link_size, HEADER_SIZE)
     hub = cg.new_Pvariable(config[CONF_ID], link, config[CONF_ADDRESS])
     await cg.register_component(hub, config)
     if (peers := config.get(CONF_PEERS)) is None:
         port = await _new_port(
             config[CONF_PORT_ID], hub, config[CONF_DESTINATION], True
         )
-        return [(port, None)]
+        return [(port, None, port_size)]
     stacks = []
     # Each peer has its own stack, named after the peer for logs and saved preferences
     for peer in peers:
         port = await _new_port(peer[CONF_ID], hub, peer[CONF_DESTINATION], False)
         cg.add(port.set_name(peer[CONF_ID].id))
-        stacks.append((port, peer))
+        stacks.append((port, peer, port_size))
     return stacks

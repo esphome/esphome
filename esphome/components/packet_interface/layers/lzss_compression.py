@@ -9,7 +9,14 @@ from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import COMPRESSION, PacketInterface, packet_interface_ns, remaining_packet_size
+from . import (
+    COMPRESSION,
+    Layer,
+    PacketInterface,
+    PacketSize,
+    packet_interface_ns,
+    remaining_packet_size,
+)
 
 CONF_DICTIONARY = "dictionary"
 
@@ -59,7 +66,9 @@ def dictionary_check(dictionary: bytes) -> int:
     packet_size=_packet_size,
     check_lower=_check_lower,
 )
-async def build_lzss(config: ConfigType, lower: MockObj) -> MockObj:
+async def build_lzss(
+    config: ConfigType, lower: MockObj, lower_size: PacketSize
+) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_LZSS")
     dictionary = config[CONF_DICTIONARY].encode()
     table = (
@@ -78,4 +87,6 @@ async def build_lzss(config: ConfigType, lower: MockObj) -> MockObj:
         dictionary_check(dictionary),
     )
     await cg.register_component(var, config)
-    return var
+    if (size := config.get(CONF_MAX_PACKET_SIZE)) is not None:
+        return var, size
+    return var, LzssCompression.static_("packet_size")(lower_size)

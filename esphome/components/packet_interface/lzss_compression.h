@@ -31,6 +31,8 @@ class LzssCompression : public PacketInterface {
   static constexpr uint8_t HEADER_COMPRESSED = 0x80;
   static constexpr uint8_t HEADER_CHECK_MASK = 0x7F;
   static constexpr size_t HEADER_SIZE = 1;
+  /// The largest packet the layer takes by default, over a layer below whose largest packet is \p lower_size.
+  static constexpr size_t packet_size(size_t lower_size) { return remaining_packet_size(lower_size, HEADER_SIZE); }
   /// The compressor finds earlier positions starting with the same two bytes through a hash table of this many bits.
   static constexpr uint8_t HASH_BITS = 8;
   /// How many earlier positions the compressor tries for each match; more finds longer matches, but takes longer.
