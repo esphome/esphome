@@ -38,7 +38,7 @@ void DalyBmsComponent::loop() {
     this->receiving_ = false;
   }
   if ((now - this->last_transmission_ >= 250) && !this->trigger_next_) {
-    // last transmittion longer than 0.25s ago -> trigger next request
+    // last transmission longer than 0.25s ago -> trigger next request
     this->last_transmission_ = now;
     this->trigger_next_ = true;
   }
