@@ -21,20 +21,9 @@ static constexpr uint32_t TAKE_OVER_TIMEOUT_MS = 60000;
 // Scheduler ids.
 static constexpr uint32_t LEARN_TIMEOUT_ID = 0;
 static constexpr uint32_t TAKE_OVER_TIMEOUT_ID = 1;
-// How far ahead a receiver accepts a counter: with one frame, and with a second one in sequence (resync).
-struct Windows {
-  uint16_t single;
-  uint16_t resync;
-};
-
-// HCS301 data sheet DS21143C, section 7.3: 16 codes with one press, 32K with two. A new type adds its values here.
-static Windows receive_windows(KeeloqType type) {
-  switch (type) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      return {16, 0x8000};
-  }
-}
+// HCS301 data sheet DS21143C, section 7.3: a receiver accepts 16 codes ahead with one press, 32K with two.
+static constexpr uint16_t SINGLE_WINDOW = 16;
+static constexpr uint16_t RESYNC_WINDOW = 0x8000;
 static constexpr uint32_t ACCEPTED_PREF_HASH = 0x41434350;
 
 static inline uint32_t get_bit(uint32_t value, uint32_t n) { return (value >> n) & 1; }
@@ -99,16 +88,11 @@ bool KeeloqRemote::decrypt_frame_(const remote_base::KeeloqData &data, KeeloqFra
     normal_learning_key(data.address, this->manufacturer_key_, key);
   }
   uint32_t plain = decrypt(data.encrypted, key);
-  switch (this->type_) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      // A wrong key gives random bits; the serial's low byte inside the code proves the right one.
-      if (data.suffix_bits != 6 || ((plain >> 16) & 0xFF) != (data.address & 0xFF)) {
-        return false;
-      }
-      frame.channels = data.group() << 8 | plain >> 24;
-      break;
+  // A wrong key gives random bits; the serial's low byte inside the code proves the right one.
+  if (data.suffix_bits != 6 || ((plain >> 16) & 0xFF) != (data.address & 0xFF)) {
+    return false;
   }
+  frame.channels = data.group() << 8 | plain >> 24;
   frame.serial = data.address;
   frame.counter = plain & 0xFFFF;
   frame.command = data.command;
@@ -160,17 +144,16 @@ bool KeeloqRemote::accept_(uint16_t counter) {
   // Compared with the last accepted counter: equal is a copy, ahead within the window is new, else old.
   uint16_t ahead = counter - this->accepted_;
   if (this->accepted_known_) {
-    Windows windows = receive_windows(this->type_);
     if (ahead == 0) {
       ESP_LOGVV(TAG, "Copy of counter %u", counter);
       return false;
     }
-    if (ahead >= windows.resync) {
+    if (ahead >= RESYNC_WINDOW) {
       ESP_LOGD(TAG, "Old counter %u, last %u: possible replay", counter, this->accepted_);
       this->resync_pending_ = false;
       return false;
     }
-    if (ahead > windows.single) {
+    if (ahead > SINGLE_WINDOW) {
       // Far ahead: only the next counter after this one resynchronizes.
       bool in_sequence = this->resync_pending_ && counter == static_cast<uint16_t>(this->resync_ + 1);
       this->resync_pending_ = !in_sequence;
