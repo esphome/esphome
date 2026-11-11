@@ -234,7 +234,7 @@ async def to_code(config: ConfigType) -> None:
     )
     await cg.register_component(var, config)
     if serial is None:
-        # The taken-over serial is stored under the type and id, which a new firmware keeps.
+        # The take-over's preference key comes from the type and id only, so it stays the same across firmware updates.
         key = fnv1a_32bit_hash(f"keeloq.{config[CONF_TYPE]}.{config[CONF_ID]}")
         cg.add(var.set_take_over_key(key))
     cg.add_optional(var.set_channels, config.get(CONF_CHANNELS))
