@@ -2004,3 +2004,24 @@ jobs:
           # "failure" result fails this check so CI is not reported green when the
           # workflow was cancelled.
           echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result == "success" or .result == "skipped")'
+      - name: Point to the /rerun-failed command
+        # Only while /rerun-failed can still re-run this run: attempt 3 is the
+        # last it starts (MAX_RERUNS = 2 in .github/scripts/rerun-failed-ci-jobs/index.js)
+        # and it skips cancelled runs. This job starts after a cancel with
+        # cancelled() false, so the needs show whether the run was cancelled.
+        if: >-
+          failure() &&
+          github.event_name == 'pull_request' &&
+          github.run_attempt < 3 &&
+          !contains(needs.*.result, 'cancelled')
+        run: |
+          tee -a "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Re-run failed jobs
+
+          The PR author or anyone with write access can comment just
+          `/rerun-failed` on the pull request to re-run only the failed jobs of
+          this run. That helps when a job failed for a reason outside the pull
+          request, such as a lost runner or a download timeout. Look at the
+          failed job's log first, because a failure the pull request causes
+          fails again.
+          EOF
