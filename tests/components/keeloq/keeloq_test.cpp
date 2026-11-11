@@ -565,6 +565,28 @@ TEST(KeeloqCommandTest, ReplayProtectionSurvivesARestart) {
   EXPECT_TRUE(after.commands.empty());
 }
 
+TEST(KeeloqCommandTest, HearingItsOwnFrameBackDoesNotFire) {
+  // A remote that sends with the serial it listens to hears its own frames; they are no press of the hand remote.
+  Listener sender;
+  receive(sender.remote, on_air(sender.remote.next_frame(0x8, 0x0001)));
+  EXPECT_TRUE(sender.commands.empty());
+}
+
+TEST(KeeloqCommandTest, ARecordingOfASentFrameDoesNotFireAfterARestart) {
+  // The hand remote pressed 100, then ESPHome sent 101 with the same serial. A recording of 101 played back after a
+  // restart is no new press either.
+  HandRemote hand(100);
+  remote_base::RawTimings sent;
+  {
+    Listener before;
+    receive(before.remote, on_air(hand.next_frame(0x8, 0x0001)));
+    sent = on_air(before.remote.next_frame(0x8, 0x0001));
+  }
+  Listener after;
+  receive(after.remote, sent);
+  EXPECT_TRUE(after.commands.empty());
+}
+
 TEST(KeeloqCommandTest, FailedSaveOfAPressStillFires) {
   // Without setup() the motor has no storage, so saving the accepted press fails.
   HandRemote hand(100);

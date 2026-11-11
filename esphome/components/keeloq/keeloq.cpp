@@ -279,9 +279,11 @@ remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t chann
   // Taken before the log line, so a frame sent from a log trigger gets the next counter.
   const uint16_t counter = this->counter_++;
   // A receiver that hears this frame takes it as the last one, so its echo is no new press; never backwards.
-  if (!this->accepted_known_ || static_cast<uint16_t>(counter - this->accepted_) < 0x8000) {
+  if (this->receiving_ && (!this->accepted_known_ || static_cast<uint16_t>(counter - this->accepted_) < 0x8000)) {
     this->accepted_ = counter;
     this->accepted_known_ = true;
+    // Saved with the next flash write, so a recording of this frame does not fire after a restart either.
+    this->store_accepted_(false);
   }
   remote_base::KeeloqData data{};
   data.address = this->serial_;
