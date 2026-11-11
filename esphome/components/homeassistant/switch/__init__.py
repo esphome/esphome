@@ -24,6 +24,7 @@ SUPPORTED_DOMAINS = [
     "remote",
     "siren",
     "switch",
+    "script",
 ]
 
 HomeassistantSwitch = homeassistant_ns.class_(
