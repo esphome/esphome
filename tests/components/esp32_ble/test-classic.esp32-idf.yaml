@@ -1,0 +1,3 @@
+esp32_ble:
+  classic_bt: true
+  classic_max_acl_connections: 2
