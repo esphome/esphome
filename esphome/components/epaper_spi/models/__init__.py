@@ -6,6 +6,9 @@ from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_OFFSET_HEIGHT, CONF
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+# Model default: the driver can make the first update after a deep sleep wake a partial one
+RESUMES_AFTER_DEEP_SLEEP = "resumes_after_deep_sleep"
+
 
 def ultrachip_resolution(width: int, gates: int) -> tuple:
     """The UC81xx resolution command (0x61): source (width) and gate counts, each big-endian."""

@@ -15,10 +15,9 @@ class EPaperSSD1681 : public EPaperSSD1683 {
   }
 
  protected:
-  // Writes the previous frame to 0x26 before a partial refresh
-  bool needs_previous_frame() const override { return true; }
-  // Sends the frame last sent to 0x26, in chunks; false until it is all sent
-  bool transfer_previous_frame_();
+  // Deep sleep mode 1 keeps the RAM, and the hardware reset that leaves it keeps the RAM ping-pong, so the
+  // previous frame a partial refresh compares against in 0x26 survives the controller's deep sleep
+  bool image_survives_sleep() const override { return true; }
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
 };
