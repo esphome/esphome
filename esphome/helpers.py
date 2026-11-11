@@ -728,23 +728,20 @@ def add_class_to_obj(value, cls):
         # If already is instance, do not add
         return value
 
-    try:
-        orig_cls = value.__class__
-        key = (orig_cls, cls)
-        new_cls = _CLASS_LOOKUP.get(key)
-        if new_cls is None:
-            new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
-            _CLASS_LOOKUP[key] = new_cls
-        value.__class__ = new_cls
-        return value
-    except TypeError:
-        # Non heap type, look in overloads dict
-        for type_, func in _TYPE_OVERLOADS.items():
-            # Use type() here, we only need to trigger if it's the exact type,
-            # as otherwise we don't need to overload the class
-            if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
-                return add_class_to_obj(func(value), cls)
-        raise
+    # The built-in types refuse a __class__ change, so copy them into a heap
+    # subtype first. Matching the exact type, as a subclass is already a heap type.
+    if (overload := _TYPE_OVERLOADS.get(type(value))) is not None:
+        value = overload(value)
+
+    # Any other non heap type raises TypeError here
+    orig_cls = value.__class__
+    key = (orig_cls, cls)
+    new_cls = _CLASS_LOOKUP.get(key)
+    if new_cls is None:
+        new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
+        _CLASS_LOOKUP[key] = new_cls
+    value.__class__ = new_cls
+    return value
 
 
 def snake_case(value: str) -> str:
