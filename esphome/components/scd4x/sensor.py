@@ -28,6 +28,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+CONF_AUTOMATIC_SELF_CALIBRATION_TARGET = "automatic_self_calibration_target"
+
 CODEOWNERS = ["@sjtrny", "@martgras"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -51,7 +53,21 @@ def pressure_hpa(value: str | float) -> float:
     return cv.pressure(value) * 1000  # bar, mbar, mBar
 
 
-CONFIG_SCHEMA = (
+def validate_asc_target(config: ConfigType) -> ConfigType:
+    """The target only applies while automatic self calibration runs."""
+    if (
+        CONF_AUTOMATIC_SELF_CALIBRATION_TARGET in config
+        and not config[CONF_AUTOMATIC_SELF_CALIBRATION]
+    ):
+        raise cv.Invalid(
+            f"{CONF_AUTOMATIC_SELF_CALIBRATION_TARGET} requires "
+            f"{CONF_AUTOMATIC_SELF_CALIBRATION}: true",
+            path=[CONF_AUTOMATIC_SELF_CALIBRATION_TARGET],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SCD4XComponent),
@@ -77,6 +93,9 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
+            cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION_TARGET): cv.int_range(
+                min=400, max=1000
+            ),
             cv.Optional(CONF_ALTITUDE_COMPENSATION, default="0m"): cv.All(
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
@@ -94,7 +113,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x62))
+    .extend(i2c.i2c_device_schema(0x62)),
+    validate_asc_target,
 )
 
 SENSOR_MAP = {
@@ -105,6 +125,7 @@ SENSOR_MAP = {
 
 SETTING_MAP = {
     CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibration",
+    CONF_AUTOMATIC_SELF_CALIBRATION_TARGET: "set_automatic_self_calibration_target",
     CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
     CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
     CONF_TEMPERATURE_OFFSET: "set_temperature_offset",

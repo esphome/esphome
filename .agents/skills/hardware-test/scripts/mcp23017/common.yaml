@@ -1,0 +1,64 @@
+# MCP23017 at 0x27 on an ESP8266 (Feather HUZZAH): SDA GPIO4, SCL GPIO5, INTA to GPIO14, INTB to GPIO13,
+# PA0 jumpered to PB0 and PA1 to PB1. The variant file adds the mcp23017 hub and mcptest. Substitution: name.
+esphome:
+  name: ${name}
+
+esp8266:
+  board: huzzah
+
+logger:
+  baud_rate: 115200
+
+external_components:
+  - source:
+      type: local
+      path: ext
+    components: [mcptest]
+
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+  frequency: 100kHz
+
+binary_sensor:
+  - platform: gpio
+    id: pb0
+    name: PB0
+    pin:
+      mcp23xxx: mcp
+      number: 8
+      mode:
+        input: true
+      interrupt: CHANGE
+    on_state:
+      - lambda: id(tst).count_change();
+  - platform: gpio
+    id: pb1
+    name: PB1
+    pin:
+      mcp23xxx: mcp
+      number: 9
+      mode:
+        input: true
+      interrupt: CHANGE
+    on_state:
+      - lambda: id(tst).count_change();
+
+mcptest:
+  id: tst
+  address: 0x27
+  label: ${name}
+  isr_inta: ${isr_inta}
+  pa0:
+    mcp23xxx: mcp
+    number: 0
+    mode:
+      output: true
+  pa1:
+    mcp23xxx: mcp
+    number: 1
+    mode:
+      output: true
+  pb0: pb0
+  pb1: pb1

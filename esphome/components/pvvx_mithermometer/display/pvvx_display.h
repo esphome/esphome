@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
@@ -36,7 +38,7 @@ using pvvx_writer_t = display::DisplayWriter<PVVXDisplay>;
 
 class PVVXDisplay final : public ble_client::BLEClientNode, public PollingComponent {
  public:
-  void set_writer(pvvx_writer_t &&writer) { this->writer_ = writer; }
+  void set_writer(pvvx_writer_t &&writer) { this->writer_ = std::move(writer); }
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
   void set_disconnect_delay(uint32_t ms) { this->disconnect_delay_ms_ = ms; }
 
