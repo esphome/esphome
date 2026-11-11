@@ -31,6 +31,10 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(BrizLabsLEDString),
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_NUM_ZONES, default=6): cv.int_range(min=1, max=15),
+        cv.Optional(light.CONF_POWER_ESTIMATION): cv.invalid(
+            "power_estimation is not supported on brizlabs_led_string "
+            "because each pixel represents a zone, not one LED"
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
