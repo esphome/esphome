@@ -1,5 +1,6 @@
 #include "error.h"
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -68,6 +69,7 @@ void DucoError::receive_response(const DucoMessage &message) {
   if (message.size < expected_size)
     return;
 
+  std::array<char, MAX_ERROR_TEXT_LENGTH + 1> error_text{};
   size_t length = 0;
   for (size_t index = 0; index < error_count; index++) {
     const size_t offset = 1 + index * 5;
@@ -82,12 +84,12 @@ void DucoError::receive_response(const DucoMessage &message) {
                       sizeof(description));
     description[sizeof(description) - 1] = '\0';
     const int written =
-        snprintf(this->error_text_.data() + length, this->error_text_.size() - length, "%s  %s\n", code, description);
-    if (written < 0 || static_cast<size_t>(written) >= this->error_text_.size() - length)
+        snprintf(error_text.data() + length, error_text.size() - length, "%s  %s\n", code, description);
+    if (written < 0 || static_cast<size_t>(written) >= error_text.size() - length)
       break;
     length += written;
   }
-  this->publish_state(this->error_text_.data(), length);
+  this->publish_state(error_text.data(), length);
 }
 
 }  // namespace esphome::duco

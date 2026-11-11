@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -21,7 +20,6 @@ class DucoError : public DucoDevice, public text_sensor::TextSensor {
   static constexpr size_t MAX_ERROR_TEXT_LENGTH = 255;
 
   uint8_t address_{1};
-  std::array<char, MAX_ERROR_TEXT_LENGTH + 1> error_text_{};
 };
 
 }  // namespace esphome::duco
