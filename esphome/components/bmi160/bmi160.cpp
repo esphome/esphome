@@ -5,188 +5,51 @@
 namespace esphome::bmi160 {
 
 ESPHOME_LOG_TAG(TAG, "bmi160");
+
+static constexpr uint8_t BMI160_REGISTER_CHIPID = 0x00;
+static constexpr uint8_t BMI160_CHIP_ID = 0xD1;
+static constexpr uint8_t BMI160_REGISTER_CMD = 0x7E;
+static constexpr uint8_t BMI160_REGISTER_DATA_GYRO_X_LSB = 0x0C;
+static constexpr uint8_t BMI160_REGISTER_DATA_TEMP_LSB = 0x20;
+
+// PMU mode commands: set PMU mode (0b000100xx accel, 0b000101xx gyro) with mode NORMAL (0b01)
+static constexpr uint8_t CMD_ACCEL_PMU_NORMAL = 0x11;
+static constexpr uint8_t CMD_GYRO_PMU_NORMAL = 0x15;
+
+// Accel needs 5 to 10 ms to wake up and no command may be sent meanwhile
+static constexpr uint32_t ACCEL_WAKEUP_TIMEOUT_MS = 10;
+// Gyro needs 51 to 81 ms to wake up
 static constexpr uint32_t GYRO_WAKEUP_TIMEOUT_MS = 100;
 
-const uint8_t BMI160_REGISTER_CHIPID = 0x00;
-
-const uint8_t BMI160_REGISTER_CMD = 0x7E;
-enum class Cmd : uint8_t {
-  START_FOC = 0x03,
-  ACCL_SET_PMU_MODE = 0b00010000,  // last 2 bits are mode
-  GYRO_SET_PMU_MODE = 0b00010100,  // last 2 bits are mode
-  MAG_SET_PMU_MODE = 0b00011000,   // last 2 bits are mode
-  PROG_NVM = 0xA0,
-  FIFO_FLUSH = 0xB0,
-  INT_RESET = 0xB1,
-  SOFT_RESET = 0xB6,
-  STEP_CNT_CLR = 0xB2,
-};
-enum class GyroPmuMode : uint8_t {
-  SUSPEND = 0b00,
-  NORMAL = 0b01,
-  LOW_POWER = 0b10,
-};
-enum class AcclPmuMode : uint8_t {
-  SUSPEND = 0b00,
-  NORMAL = 0b01,
-  FAST_STARTUP = 0b11,
-};
-enum class MagPmuMode : uint8_t {
-  SUSPEND = 0b00,
-  NORMAL = 0b01,
-  LOW_POWER = 0b10,
+static constexpr i2c::I2CRegValue BMI160_CONFIG[] PROGMEM = {
+    {0x42, 0x06},  // gyro config: OSR4, 25 Hz
+    {0x43, 0x00},  // gyro range: 2000 deg/s
+    {0x40, 0xC6},  // accel config: performance filter, AVG16, 25 Hz
+    {0x41, 0x0C},  // accel range: 16 g
 };
 
-const uint8_t BMI160_REGISTER_ACCEL_CONFIG = 0x40;
-enum class AcclFilterMode : uint8_t {
-  POWER_SAVING = 0b00000000,
-  PERF = 0b10000000,
-};
-enum class AcclBandwidth : uint8_t {
-  OSR4_AVG1 = 0b00000000,
-  OSR2_AVG2 = 0b00010000,
-  NORMAL_AVG4 = 0b00100000,
-  RES_AVG8 = 0b00110000,
-  RES_AVG16 = 0b01000000,
-  RES_AVG32 = 0b01010000,
-  RES_AVG64 = 0b01100000,
-  RES_AVG128 = 0b01110000,
-};
-enum class AccelOutputDataRate : uint8_t {
-  HZ_25_32 = 0b0001,  // 25/32 Hz
-  HZ_25_16 = 0b0010,  // 25/16 Hz
-  HZ_25_8 = 0b0011,   // 25/8 Hz
-  HZ_25_4 = 0b0100,   // 25/4 Hz
-  HZ_25_2 = 0b0101,   // 25/2 Hz
-  HZ_25 = 0b0110,     // 25 Hz
-  HZ_50 = 0b0111,     // 50 Hz
-  HZ_100 = 0b1000,    // 100 Hz
-  HZ_200 = 0b1001,    // 200 Hz
-  HZ_400 = 0b1010,    // 400 Hz
-  HZ_800 = 0b1011,    // 800 Hz
-  HZ_1600 = 0b1100,   // 1600 Hz
-};
-const uint8_t BMI160_REGISTER_ACCEL_RANGE = 0x41;
-enum class AccelRange : uint8_t {
-  RANGE_2G = 0b0011,
-  RANGE_4G = 0b0101,
-  RANGE_8G = 0b1000,
-  RANGE_16G = 0b1100,
-};
+// Full scale over INT16_MAX for the 2000 deg/s and 16 g ranges set above
+static constexpr float GYRO_SCALE = 2000.f / INT16_MAX;
+static constexpr float ACCEL_SCALE = 16 * 9.80665f / INT16_MAX;
+static constexpr float TEMPERATURE_SCALE = 64.5f / INT16_MAX;
+static constexpr float TEMPERATURE_OFFSET_C = 23.f;
 
-const uint8_t BMI160_REGISTER_GYRO_CONFIG = 0x42;
-enum class GyroBandwidth : uint8_t {
-  OSR4 = 0x00,
-  OSR2 = 0x10,
-  NORMAL = 0x20,
-};
-enum class GyroOuputDataRate : uint8_t {
-  HZ_25 = 0x06,
-  HZ_50 = 0x07,
-  HZ_100 = 0x08,
-  HZ_200 = 0x09,
-  HZ_400 = 0x0A,
-  HZ_800 = 0x0B,
-  HZ_1600 = 0x0C,
-  HZ_3200 = 0x0D,
-};
-const uint8_t BMI160_REGISTER_GYRO_RANGE = 0x43;
-enum class GyroRange : uint8_t {
-  RANGE_2000_DPS = 0x0,  // ±2000 °/s
-  RANGE_1000_DPS = 0x1,
-  RANGE_500_DPS = 0x2,
-  RANGE_250_DPS = 0x3,
-  RANGE_125_DPS = 0x4,
-};
-
-const uint8_t BMI160_REGISTER_DATA_GYRO_X_LSB = 0x0C;
-const uint8_t BMI160_REGISTER_DATA_GYRO_X_MSB = 0x0D;
-const uint8_t BMI160_REGISTER_DATA_GYRO_Y_LSB = 0x0E;
-const uint8_t BMI160_REGISTER_DATA_GYRO_Y_MSB = 0x0F;
-const uint8_t BMI160_REGISTER_DATA_GYRO_Z_LSB = 0x10;
-const uint8_t BMI160_REGISTER_DATA_GYRO_Z_MSB = 0x11;
-const uint8_t BMI160_REGISTER_DATA_ACCEL_X_LSB = 0x12;
-const uint8_t BMI160_REGISTER_DATA_ACCEL_X_MSB = 0x13;
-const uint8_t BMI160_REGISTER_DATA_ACCEL_Y_LSB = 0x14;
-const uint8_t BMI160_REGISTER_DATA_ACCEL_Y_MSB = 0x15;
-const uint8_t BMI160_REGISTER_DATA_ACCEL_Z_LSB = 0x16;
-const uint8_t BMI160_REGISTER_DATA_ACCEL_Z_MSB = 0x17;
-const uint8_t BMI160_REGISTER_DATA_TEMP_LSB = 0x20;
-const uint8_t BMI160_REGISTER_DATA_TEMP_MSB = 0x21;
-
-const float GRAVITY_EARTH = 9.80665f;
-
-void BMI160Component::internal_setup_(int stage) {
-  if (!this->setup_stage_(stage))
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-}
-
-bool BMI160Component::setup_stage_(int stage) {
-  switch (stage) {
-    case 0: {
-      uint8_t chipid;
-      if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
-        return false;
-      }
-
-      ESP_LOGV(TAG, "  Bringing accelerometer out of sleep");
-      if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::ACCL_SET_PMU_MODE | (uint8_t) AcclPmuMode::NORMAL)) {
-        return false;
-      }
-      ESP_LOGV(TAG, "  Waiting for accelerometer to wake up");
-      // need to wait (max delay in datasheet) because we can't send commands while another is in progress
-      // min 5ms, 10ms
-      this->set_timeout(10, [this]() { this->internal_setup_(1); });
-      break;
-    }
-    case 1:
-      ESP_LOGV(TAG, "  Bringing gyroscope out of sleep");
-      if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::GYRO_SET_PMU_MODE | (uint8_t) GyroPmuMode::NORMAL)) {
-        return false;
-      }
-      ESP_LOGV(TAG, "  Waiting for gyroscope to wake up");
-      // wait between 51 & 81ms, doing 100 to be safe
-      this->set_timeout(GYRO_WAKEUP_TIMEOUT_MS, [this]() { this->internal_setup_(2); });
-      break;
-
-    case 2: {
-      ESP_LOGV(TAG, "  Setting up Gyro Config");
-      uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
-      ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
-      if (!this->write_byte(BMI160_REGISTER_GYRO_CONFIG, gyro_config)) {
-        return false;
-      }
-      ESP_LOGV(TAG, "  Setting up Gyro Range");
-      uint8_t gyro_range = (uint8_t) GyroRange::RANGE_2000_DPS;
-      ESP_LOGV(TAG, "  Output gyro_range: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_range));
-      if (!this->write_byte(BMI160_REGISTER_GYRO_RANGE, gyro_range)) {
-        return false;
-      }
-
-      ESP_LOGV(TAG, "  Setting up Accel Config");
-      uint8_t accel_config =
-          (uint8_t) AcclFilterMode::PERF | (uint8_t) AcclBandwidth::RES_AVG16 | (uint8_t) AccelOutputDataRate::HZ_25;
-      ESP_LOGV(TAG, "  Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-      if (!this->write_byte(BMI160_REGISTER_ACCEL_CONFIG, accel_config)) {
-        return false;
-      }
-      ESP_LOGV(TAG, "  Setting up Accel Range");
-      uint8_t accel_range = (uint8_t) AccelRange::RANGE_16G;
-      ESP_LOGV(TAG, "  Output accel_range: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_range));
-      if (!this->write_byte(BMI160_REGISTER_ACCEL_RANGE, accel_range)) {
-        return false;
-      }
-
+void BMI160Component::setup() {
+  if (!this->check_chip_id(this, BMI160_REGISTER_CHIPID, BMI160_CHIP_ID))
+    return;
+  if (!this->setup_check(this->write_byte(BMI160_REGISTER_CMD, CMD_ACCEL_PMU_NORMAL)))
+    return;
+  this->set_timeout(ACCEL_WAKEUP_TIMEOUT_MS, [this]() {
+    if (!this->setup_check(this->write_byte(BMI160_REGISTER_CMD, CMD_GYRO_PMU_NORMAL)))
+      return;
+    this->set_timeout(GYRO_WAKEUP_TIMEOUT_MS, [this]() {
+      if (!this->setup_check(this->write_registers(BMI160_CONFIG)))
+        return;
       this->setup_complete_ = true;
-      break;
-    }
-    default:
-      break;
-  }
-  return true;
+    });
+  });
 }
 
-void BMI160Component::setup() { this->internal_setup_(0); }
 void BMI160Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI160:");
   LOG_I2C_DEVICE(this);
@@ -205,22 +68,24 @@ void BMI160Component::update() {
     return;
   }
 
-  ESP_LOGV(TAG, "    Updating BMI160");
   int16_t data[6];
   if (!this->status_comm_check(this->read_bytes_16_le(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6)))
     return;
+  float temperature = NAN;
+  if (this->temperature_sensor_ != nullptr) {
+    int16_t raw_temperature;
+    if (!this->status_comm_check(this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)))
+      return;
+    temperature = raw_temperature * TEMPERATURE_SCALE + TEMPERATURE_OFFSET_C;
+  }
+  this->status_clear_warning();
 
-  float gyro_x = (float) data[0] / (float) INT16_MAX * 2000.f;
-  float gyro_y = (float) data[1] / (float) INT16_MAX * 2000.f;
-  float gyro_z = (float) data[2] / (float) INT16_MAX * 2000.f;
-  float accel_x = (float) data[3] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
-  float accel_y = (float) data[4] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
-  float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
-
-  int16_t raw_temperature;
-  if (!this->status_comm_result(this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)))
-    return;
-  float temperature = (float) raw_temperature / (float) INT16_MAX * 64.5f + 23.f;
+  const float gyro_x = data[0] * GYRO_SCALE;
+  const float gyro_y = data[1] * GYRO_SCALE;
+  const float gyro_z = data[2] * GYRO_SCALE;
+  const float accel_x = data[3] * ACCEL_SCALE;
+  const float accel_y = data[4] * ACCEL_SCALE;
+  const float accel_z = data[5] * ACCEL_SCALE;
 
   ESP_LOGD(TAG,
            "Got accel={x=%.3f m/s², y=%.3f m/s², z=%.3f m/s²}, "
