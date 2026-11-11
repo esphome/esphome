@@ -419,11 +419,13 @@ void MicroWakeWord::loop() {
   if (event_group_bits & EventGroupBits::ERROR_MEMORY) {
     xEventGroupClearBits(this->event_group_, EventGroupBits::ERROR_MEMORY);
     ESP_LOGE(TAG, "Encountered an error allocating buffers");
+    this->want_running_ = false;  // an error stops detection until the next start()
   }
 
   if (event_group_bits & EventGroupBits::ERROR_INFERENCE) {
     xEventGroupClearBits(this->event_group_, EventGroupBits::ERROR_INFERENCE);
     ESP_LOGE(TAG, "Encountered an error while performing an inference");
+    this->want_running_ = false;
   }
 
   if (event_group_bits & EventGroupBits::WARNING_FULL_RING_BUFFER) {
@@ -463,14 +465,10 @@ void MicroWakeWord::loop() {
     this->set_state_(State::STOPPED);
   }
 
-  if ((this->pending_start_) && (this->state_ == State::STOPPED)) {
+  if (this->want_running_ && this->state_ == State::STOPPED) {
     this->set_state_(State::STARTING);
-    this->pending_start_ = false;
-  }
-
-  if ((this->pending_stop_) && (this->state_ == State::DETECTING_WAKE_WORD)) {
+  } else if (!this->want_running_ && this->state_ == State::DETECTING_WAKE_WORD) {
     this->set_state_(State::STOPPING);
-    this->pending_stop_ = false;
   }
 
   switch (this->state_) {
@@ -531,25 +529,21 @@ void MicroWakeWord::start() {
     return;
   }
 
-  if (this->is_running()) {
+  if (this->want_running_) {
     ESP_LOGW(TAG, "Wake word detection is already running");
     return;
   }
 
   ESP_LOGD(TAG, "Starting wake word detection");
-
-  this->pending_start_ = true;
-  this->pending_stop_ = false;
+  this->want_running_ = true;
 }
 
 void MicroWakeWord::stop() {
-  if (this->state_ == STOPPED)
+  if (!this->want_running_)
     return;
 
   ESP_LOGD(TAG, "Stopping wake word detection");
-
-  this->pending_start_ = false;
-  this->pending_stop_ = true;
+  this->want_running_ = false;
 }
 
 void MicroWakeWord::set_state_(State state) {

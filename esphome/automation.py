@@ -8,6 +8,8 @@ import string
 import struct
 from typing import Any
 
+import voluptuous as vol
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -544,6 +546,12 @@ IN_RANGE_CHECK = ApplyCall(
 )
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
+ValueRange = cg.esphome_ns.struct("ValueRange")
+# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+_VALUE_RANGE_BOUNDS = ApplyCall(
+    "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
+)
+
 
 @dataclass(frozen=True)
 class ApplyBytes:
@@ -587,7 +595,7 @@ def _dict_schema(schema: Any) -> Any:
         return cv.Schema(schema)
     if isinstance(getattr(schema, "schema", None), dict):
         return schema
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         inner = schema.validators
     else:
         inner = (
@@ -683,7 +691,13 @@ def apply_static_function(
     statements: list[str],
 ) -> MockObj:
     """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
+    return cg.static_function(
+        _apply_function_name(id_), return_type, params, statements
+    )
+
+
+def _apply_function_name(id_: ID) -> str:
+    return f"esphome__{id_.id}__fn"
 
 
 # Comments, raw strings, strings and char literals; a ' after a digit is a digit separator.
@@ -922,6 +936,38 @@ async def _render_bytes(
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
     """An ``ApplyCall`` is emitted unless it has keys and none of them is set."""
     return not members or any(value is not None for value in values)
+
+
+async def new_value_range_trigger(
+    trigger_id: ID, parent: MockObj, config: ConfigType
+) -> MockObj:
+    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+
+    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
+    the const ``x`` is a backstop if bounds are ever inlined again.
+    """
+    trigger = cg.new_Pvariable(
+        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
+    )
+    config = {**IN_RANGE_DEFAULTS, **config}
+    members = _VALUE_RANGE_BOUNDS.members
+    bounds = await _render_call(
+        "on_value_range",
+        _VALUE_RANGE_BOUNDS.target,
+        members,
+        _apply_values(config, members),
+        config,
+        None,
+        [(cg.float_, "x")],
+    )
+    apply_static_function(
+        trigger_id,
+        ValueRange,
+        [(cg.RawExpression("const float"), "x")],
+        [f"return {bounds};"],
+    )
+    return trigger
 
 
 def register_apply_condition(
