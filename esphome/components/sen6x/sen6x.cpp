@@ -830,7 +830,7 @@ void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
     return;
   }
   // The schema only range-checks constants; a templated value is checked here, as the device keeps the result
-  if (!(target_co2_ppm >= 0.0f && target_co2_ppm <= CO2_FORCED_RECALIBRATION_MAX_PPM)) {
+  if (std::isnan(target_co2_ppm) || target_co2_ppm < 0.0f || target_co2_ppm > CO2_FORCED_RECALIBRATION_MAX_PPM) {
     ESP_LOGW(TAG, "Forced CO2 recalibration value out of range: %.0f ppm", target_co2_ppm);
     return;
   }
