@@ -21,11 +21,24 @@ static constexpr uint32_t ACCEL_WAKEUP_TIMEOUT_MS = 10;
 // Gyro needs 51 to 81 ms to wake up
 static constexpr uint32_t GYRO_WAKEUP_TIMEOUT_MS = 100;
 
+static constexpr uint8_t BMI160_REGISTER_ACCEL_CONFIG = 0x40;
+static constexpr uint8_t BMI160_REGISTER_ACCEL_RANGE = 0x41;
+static constexpr uint8_t BMI160_REGISTER_GYRO_CONFIG = 0x42;
+static constexpr uint8_t BMI160_REGISTER_GYRO_RANGE = 0x43;
+
+static constexpr uint8_t ACCEL_FILTER_PERF = 0b10000000;
+static constexpr uint8_t ACCEL_BANDWIDTH_RES_AVG16 = 0b01000000;
+static constexpr uint8_t ACCEL_ODR_25_HZ = 0b0110;
+static constexpr uint8_t ACCEL_RANGE_16G = 0b1100;
+static constexpr uint8_t GYRO_BANDWIDTH_OSR4 = 0x00;
+static constexpr uint8_t GYRO_ODR_25_HZ = 0x06;
+static constexpr uint8_t GYRO_RANGE_2000_DPS = 0x00;
+
 static constexpr i2c::I2CRegValue BMI160_CONFIG[] PROGMEM = {
-    {0x42, 0x06},  // gyro config: OSR4, 25 Hz
-    {0x43, 0x00},  // gyro range: 2000 deg/s
-    {0x40, 0xC6},  // accel config: performance filter, AVG16, 25 Hz
-    {0x41, 0x0C},  // accel range: 16 g
+    {BMI160_REGISTER_GYRO_CONFIG, GYRO_BANDWIDTH_OSR4 | GYRO_ODR_25_HZ},
+    {BMI160_REGISTER_GYRO_RANGE, GYRO_RANGE_2000_DPS},
+    {BMI160_REGISTER_ACCEL_CONFIG, ACCEL_FILTER_PERF | ACCEL_BANDWIDTH_RES_AVG16 | ACCEL_ODR_25_HZ},
+    {BMI160_REGISTER_ACCEL_RANGE, ACCEL_RANGE_16G},
 };
 
 // Full scale over INT16_MAX for the 2000 deg/s and 16 g ranges set above
