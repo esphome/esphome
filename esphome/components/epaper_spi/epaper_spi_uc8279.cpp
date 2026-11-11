@@ -117,7 +117,7 @@ void EPaperUC8279::power_on() {
 void EPaperUC8279::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen (%s)", partial ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
   if (partial)
-    this->set_partial_window_(0, this->width_ - 1, this->offset_height_, this->gate_count_() - 1);
+    this->set_partial_window(0, this->width_ - 1, this->offset_height_, this->gate_count_() - 1);
   // Power-on reloads the panel's stored settings, so the panel setting only takes when written after it
   this->cmd_data(CMD_PSR, {PSR0_OTP_LUT, PSR1});
   this->command(CMD_REFRESH);

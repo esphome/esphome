@@ -1,8 +1,12 @@
-"""Black/white/red e-paper displays using the UltraChip UC8151D controller.
+"""E-paper displays using the UltraChip UC8151D controller.
 
-Supported models:
+Supported black/white/red models:
 - uc8151: the controller on its own; dimensions and pins must be configured
 - waveshare-2.13in-bv3: 104x212 pixels (2.13" B V3, EPD_2in13b_V3)
+
+Supported black/white models, with partial updates when ``full_update_every`` is greater than 1:
+- goodisplay-gdew029t5-2.9: Good Display GDEW029T5, 2.9" 128x296 flexible panel; replaces the
+  waveshare_epaper model gdew029t5. Also sold by Seeed as SKU 104990852 (seeed-104990852).
 
 The busy pin of these displays is low while busy, so configure it with ``inverted: true``.
 """
@@ -24,8 +28,10 @@ class UC8151(EpaperModel):
 
     source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
 
-    def __init__(self, name: str, **defaults: Any) -> None:
-        super().__init__(name, "EPaperWaveshareBWR", **defaults)
+    def __init__(
+        self, name: str, class_name: str = "EPaperWaveshareBWR", **defaults: Any
+    ) -> None:
+        super().__init__(name, class_name, **defaults)
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)
@@ -60,3 +66,39 @@ uc8151.extend(
     width=104,
     height=212,
 )
+
+
+class UC8151Mono(UC8151):
+    """EpaperModel class for black/white displays using the UC8151D controller."""
+
+    source_files = ("epaper_spi_ultrachip.cpp", "epaper_spi_uc8151.cpp")
+
+    def __init__(
+        self, name: str, class_name: str = "EPaperUC8151", **defaults: Any
+    ) -> None:
+        defaults.setdefault("partial_update", True)
+        super().__init__(name, class_name, **defaults)
+
+    def get_init_sequence(self, config: dict) -> tuple:
+        width, height = self.get_dimensions(config)
+        return (
+            # PANEL SETTING (black/white mode, LUT from OTP); the driver loads a register LUT for partial updates
+            (0x00, 0x1F),
+            # RESOLUTION SETTING: sources, then gates
+            (0x61, width, height >> 8, height & 0xFF),
+            # VCOM AND DATA INTERVAL SETTING: 1 in DTM2 is white
+            (0x50, 0x97),
+        )
+
+
+# Good Display GDEW029T5, 2.9" mono 128x296 flexible panel. Replaces the waveshare_epaper model gdew029t5.
+goodisplay_gdew029t5 = UC8151Mono(
+    "goodisplay-gdew029t5-2.9",
+    data_rate="10MHz",
+    width_multiple=8,
+    width=128,
+    height=296,
+)
+
+# Seeed 2.9" flexible mono e-paper, SKU 104990852 (ribbon cable WFT0290CZ10)
+goodisplay_gdew029t5.extend("seeed-104990852")

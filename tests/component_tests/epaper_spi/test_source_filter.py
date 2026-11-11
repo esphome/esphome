@@ -197,3 +197,16 @@ def test_sources_filtered_for_two_models(
         "epaper_spi_ultrachip.cpp",
         "epaper_spi_uc8179.cpp",
     }
+
+
+def test_sources_filtered_for_uc8151_mono(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("uc8151_gdew029t5_test.yaml"))
+
+    assert _cpp_names(_resource_names()) == {
+        BASE_SOURCE_FILE,
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8151.cpp",
+    }
