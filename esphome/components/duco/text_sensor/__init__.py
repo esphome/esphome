@@ -94,7 +94,10 @@ CONFIG_SCHEMA = cv.Any(
 
 
 async def to_code(config: ConfigType) -> None:
-    if all(key not in config for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE)):
+    if all(
+        key not in config
+        for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE)
+    ):
         var = await text_sensor.new_text_sensor(config)
         await register_duco_device(var, config, config[CONF_DUCO_ID])
         cg.add(var.set_address(config[CONF_ADDRESS]))

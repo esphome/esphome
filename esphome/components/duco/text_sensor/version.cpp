@@ -4,9 +4,7 @@
 
 namespace esphome::duco {
 
-void DucoVersion::update() {
-  this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x00, 0x04});
-}
+void DucoVersion::update() { this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x00, 0x04}); }
 
 void DucoVersion::receive_response(const DucoMessage &message) {
   if (message.size < 7)

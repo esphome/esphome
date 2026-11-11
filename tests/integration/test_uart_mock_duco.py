@@ -69,7 +69,9 @@ async def test_uart_mock_duco(
         comfort = require_entity(entities, "comfort_temperature", NumberInfo)
         serial = require_entity(entities, "serial_number", TextSensorInfo)
         node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
-        invalid_serial = require_entity(entities, "invalid_serial_number", TextSensorInfo)
+        invalid_serial = require_entity(
+            entities, "invalid_serial_number", TextSensorInfo
+        )
         version = require_entity(entities, "version", TextSensorInfo)
         node_error = require_entity(entities, "node_error", TextSensorInfo)
         node_no_error = require_entity(entities, "node_without_errors", TextSensorInfo)
@@ -93,8 +95,7 @@ async def test_uart_mock_duco(
         await wait_for(lambda: state_of(node_serial) == "SN2234", "node serial number")
         await wait_for(lambda: state_of(version) == "1.2.3.4", "version")
         await wait_for(
-            lambda: state_of(node_error)
-            == "E31.19.01  Filters need replacement.\n",
+            lambda: state_of(node_error) == "E31.19.01  Filters need replacement.\n",
             "node error",
         )
         await wait_for(lambda: state_of(node_no_error) == "No errors", "no errors")

@@ -4,9 +4,7 @@
 
 namespace esphome::duco {
 
-void DucoUptime::update() {
-  this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x49, 0x04});
-}
+void DucoUptime::update() { this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x49, 0x04}); }
 
 void DucoUptime::receive_response(const DucoMessage &message) {
   if (message.size < 10)
@@ -17,8 +15,8 @@ void DucoUptime::receive_response(const DucoMessage &message) {
   const uint8_t hours = (uptime_minutes % 1440) / 60;
   const uint8_t minutes = uptime_minutes % 60;
   char formatted[24];
-  snprintf(formatted, sizeof(formatted), "%ud %uh %um", static_cast<unsigned>(days),
-           static_cast<unsigned>(hours), static_cast<unsigned>(minutes));
+  snprintf(formatted, sizeof(formatted), "%ud %uh %um", static_cast<unsigned>(days), static_cast<unsigned>(hours),
+           static_cast<unsigned>(minutes));
   this->publish_state(formatted);
 }
 

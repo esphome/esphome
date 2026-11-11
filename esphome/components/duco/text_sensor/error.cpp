@@ -8,16 +8,15 @@
 
 namespace esphome::duco {
 
-PROGMEM_STRING_TABLE(ErrorCodes, "E01.04.01", "E03.01.01", "E03.01.02", "E03.01.03", "E03.01.04",
-                     "E03.01.05", "E03.01.06", "E04.01.01", "E04.01.02", "E04.01.03", "E04.01.04",
-                     "E04.01.05", "E04.01.06", "E06.01.01", "E06.01.02", "E06.01.03", "E06.01.04",
-                     "E06.01.05", "E06.01.06", "E16.01.01", "E16.01.02", "E16.01.03", "E16.01.04",
-                     "E16.01.05", "E16.01.06", "E28.04.01", "E29.01.01", "E29.01.02", "E29.01.03",
-                     "E29.01.04", "E29.01.05", "E29.01.06", "E30.01.01", "E30.01.02", "E30.01.03",
-                     "E30.01.04", "E30.01.05", "E30.01.06", "E31.19.01", "E32.10.01", "E33.10.01",
-                     "E35.17.01", "E35.17.02", "E35.17.03", "E36.24.01", "E36.24.02", "E37.17.01",
-                     "E37.17.02", "E37.17.03", "E40.17.01", "E40.17.02", "E40.17.03", "E42.22.01",
-                     "E42.22.02", "E43.23.01", "E43.23.02", "E44.06.01", "E44.06.02");
+PROGMEM_STRING_TABLE(ErrorCodes, "E01.04.01", "E03.01.01", "E03.01.02", "E03.01.03", "E03.01.04", "E03.01.05",
+                     "E03.01.06", "E04.01.01", "E04.01.02", "E04.01.03", "E04.01.04", "E04.01.05", "E04.01.06",
+                     "E06.01.01", "E06.01.02", "E06.01.03", "E06.01.04", "E06.01.05", "E06.01.06", "E16.01.01",
+                     "E16.01.02", "E16.01.03", "E16.01.04", "E16.01.05", "E16.01.06", "E28.04.01", "E29.01.01",
+                     "E29.01.02", "E29.01.03", "E29.01.04", "E29.01.05", "E29.01.06", "E30.01.01", "E30.01.02",
+                     "E30.01.03", "E30.01.04", "E30.01.05", "E30.01.06", "E31.19.01", "E32.10.01", "E33.10.01",
+                     "E35.17.01", "E35.17.02", "E35.17.03", "E36.24.01", "E36.24.02", "E37.17.01", "E37.17.02",
+                     "E37.17.03", "E40.17.01", "E40.17.02", "E40.17.03", "E42.22.01", "E42.22.02", "E43.23.01",
+                     "E43.23.02", "E44.06.01", "E44.06.02");
 PROGMEM_STRING_TABLE(
     ErrorDescriptions, "No response from the extractor fan.", "ODA temperature sensor value is too low.",
     "ODA temperature sensor value is too high.", "ODA temperature sensor cannot be read.",
@@ -38,8 +37,7 @@ PROGMEM_STRING_TABLE(
     "SUP temperature sensor value is too low.", "SUP temperature sensor value is too high.",
     "SUP temperature sensor cannot be read.", "SUP temperature sensor value is unchanged for too long.",
     "SUP temperature sensor is short-circuited.", "SUP temperature sensor has a bad connection.",
-    "Filters need replacement.",
-    "Outdoor temperature is too low; ventilation is off for 8 hours.",
+    "Filters need replacement.", "Outdoor temperature is too low; ventilation is off for 8 hours.",
     "Outdoor temperature is too low; ventilation is permanently off.", "Temperature sensor value is too low.",
     "Temperature sensor value is too high.", "Temperature sensor cannot be read.",
     "Connection to the weather station has been lost.", "Connection to the outdoor temperature sensor has been lost.",
@@ -81,8 +79,8 @@ void DucoError::receive_response(const DucoMessage &message) {
                           ErrorDescriptions::get_progmem_str(description_index, ErrorDescriptions::LAST_INDEX)),
                       sizeof(description));
     description[sizeof(description) - 1] = '\0';
-    const int written = snprintf(this->error_text_.data() + length, this->error_text_.size() - length, "%s  %s\n", code,
-                                 description);
+    const int written =
+        snprintf(this->error_text_.data() + length, this->error_text_.size() - length, "%s  %s\n", code, description);
     if (written < 0 || static_cast<size_t>(written) >= this->error_text_.size() - length)
       break;
     length += written;

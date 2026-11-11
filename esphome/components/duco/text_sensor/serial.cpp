@@ -21,9 +21,9 @@ void DucoSerial::receive_response(const DucoMessage &message) {
     const char *serial = reinterpret_cast<const char *>(message.data + 2);
     const auto serial_length = strnlen(serial, message.size - 2);
     // Lets make sure we submit a valid string
-    if (serial_length == 0 ||
-        !std::all_of(serial, serial + serial_length,
-                     [](char character) { return std::isprint(static_cast<unsigned char>(character)); })) {
+    if (serial_length == 0 || !std::all_of(serial, serial + serial_length, [](char character) {
+          return std::isprint(static_cast<unsigned char>(character));
+        })) {
       return;
     }
     this->publish_state(serial, serial_length);
