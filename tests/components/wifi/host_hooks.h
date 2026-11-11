@@ -14,6 +14,9 @@ struct HostHooks {
   WiFiAP last_connect{};
   /// Times the station was switched off, as restart_adapter() does.
   int station_offs{0};
+  /// What the next AP start returns, and how many were tried.
+  bool ap_start_ok{true};
+  int ap_starts{0};
   /// Times wifi_apply_power_save_() ran.
   int power_save_applies{0};
 };

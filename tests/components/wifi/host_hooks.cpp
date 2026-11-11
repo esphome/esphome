@@ -42,7 +42,10 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   return true;
 }
 bool WiFiComponent::wifi_disconnect_() { return true; }
-bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) { return true; }
+bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
+  host_hooks.ap_starts++;
+  return host_hooks.ap_start_ok;
+}
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {}; }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() { return {}; }
