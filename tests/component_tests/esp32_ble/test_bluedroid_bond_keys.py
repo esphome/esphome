@@ -33,6 +33,19 @@ _WRAP_FLAGS = {
         pytest.param(
             "{type: arduino, version: 3.3.11}", False, False, id="arduino_3_3_11"
         ),
+        # PlatformIO builds cannot reach the private headers
+        pytest.param(
+            "{type: esp-idf, version: 5.5.6}\n  toolchain: platformio",
+            False,
+            False,
+            id="platformio_idf_5_5_6",
+        ),
+        pytest.param(
+            "{type: arduino, version: 3.3.12}\n  toolchain: platformio",
+            False,
+            False,
+            id="platformio_arduino_3_3_12",
+        ),
     ],
 )
 def test_wraps_only_on_idf_5_5_6_native_builds(

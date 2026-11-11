@@ -5,6 +5,9 @@
 // Compiled only with Bluedroid's private headers (bluedroid_headers_cmake); static analysis skips it
 #ifdef USE_ESP32_BLE_BLUEDROID_HEADERS
 
+#include <stdbool.h>
+#include <stddef.h>
+
 #include "btm_int.h"
 #include "smp_int.h"
 
