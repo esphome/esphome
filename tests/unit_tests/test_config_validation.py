@@ -4,6 +4,7 @@ import io
 import json
 import logging
 from pathlib import Path
+import re
 import string
 from unittest.mock import patch
 
@@ -2985,6 +2986,30 @@ def test_typed_schema_with_enum() -> None:
     result = schema({"type": "foo"})
     assert result["type"] == "foo"
     assert result["type"].enum_value == 42
+
+
+def test_typed_schema_reused_validator_follows_a_replaced_entry() -> None:
+    schemas = {"foo": cv.Schema({cv.Optional("x"): cv.int_})}
+    schema = cv.typed_schema(schemas)
+    assert schema({"type": "foo", "x": 5}) == {"type": "foo", "x": 5}
+    assert schema({"type": "foo", "x": 6}) == {"type": "foo", "x": 6}
+    schemas["foo"] = cv.Schema({cv.Optional("x"): cv.string})
+    assert schema({"type": "foo", "x": 5}) == {"type": "foo", "x": "5"}
+
+
+@pytest.mark.parametrize("combinator", ["All", "Any"])
+def test_direct_calls_match_voluptuous(combinator: str) -> None:
+    validators = (cv.int_, cv.Range(min=0, max=10))
+    ours = getattr(cv, combinator)(*validators)
+    theirs = getattr(vol, combinator)(*validators)
+    for value in ("5", 3, "x", 11, "7"):
+        try:
+            expected = theirs(value)
+        except vol.Invalid as err:
+            with pytest.raises(type(err), match=re.escape(str(err))):
+                ours(value)
+        else:
+            assert ours(value) == expected
 
 
 # ---------------------------------------------------------------------------
