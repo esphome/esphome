@@ -221,9 +221,12 @@ def require_tcp_listener() -> None:
     cg.add_define("USE_SOCKET_TCP_LISTENER")
 
 
-def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
+def consume_role_sockets(
+    component: str, connections_key: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
     """Socket accounting for a role keyed client or server schema.
 
+    A server holds as many connections as its connections_key says, otherwise 1.
     Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
     """
 
@@ -231,9 +234,11 @@ def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
         from esphome.components import network
 
         network.require_ipv4(component)(config)
-        if config[CONF_ROLE] == "server":
+        server = config[CONF_ROLE] == "server"
+        if server:
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
-        return consume_sockets(1, component)(config)
+        count = config[connections_key] if server and connections_key else 1
+        return consume_sockets(count, component)(config)
 
     return validator
 

@@ -918,7 +918,7 @@ def build_schema():
 def is_convertible_schema(schema):
     if schema is None:
         return False
-    if isinstance(schema, (cv.Schema, cv.All, cv.Any)):
+    if isinstance(schema, (cv.Schema, vol.All, vol.Any)):
         return True
     if repr(schema) in ejs.hidden_schemas:
         return True
@@ -1003,7 +1003,7 @@ def convert(schema, config_var, path):
         convert(schema.inner, config_var, f"{path}/sensitive")
         return
 
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         i = 0
         for inner in schema.validators:
             i = i + 1

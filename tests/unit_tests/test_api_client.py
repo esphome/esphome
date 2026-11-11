@@ -15,7 +15,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 
 def test_component_shim_reexports_runtime_client() -> None:
@@ -484,3 +484,50 @@ async def test_async_run_logs_stubborn_worker_cancelled_at_teardown() -> None:
         release.set()
 
     stop.assert_awaited_once()
+
+
+def _store_yaml_client(supported: bool) -> Mock:
+    cli = Mock()
+    cli.log_name = "dev @ 1.2.3.4"
+    cli.connect = AsyncMock()
+    cli.disconnect = AsyncMock()
+    cli.device_capabilities = AsyncMock(
+        return_value=Mock(store_yaml=Mock(supported=supported))
+    )
+    cli.get_yaml = AsyncMock(return_value=b"blob")
+    return cli
+
+
+@pytest.mark.asyncio
+async def test_async_recover_yaml_fetches_and_disconnects() -> None:
+    cli = _store_yaml_client(True)
+    with patch.object(api_client, "APIClient", return_value=cli) as client_cls:
+        assert await api_client.async_recover_yaml(["1.2.3.4"], 6053, "key") == b"blob"
+    assert client_cls.call_args.kwargs["noise_psk"] == "key"
+    cli.connect.assert_awaited_once_with(login=True)
+    cli.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_recover_yaml_without_store_yaml() -> None:
+    cli = _store_yaml_client(False)
+    with (
+        patch.object(api_client, "APIClient", return_value=cli),
+        pytest.raises(EsphomeError, match="store_yaml is not enabled on dev"),
+    ):
+        await api_client.async_recover_yaml(["1.2.3.4"], 6053, None)
+    cli.get_yaml.assert_not_awaited()
+    cli.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_recover_yaml_turns_api_errors_into_esphome_errors() -> None:
+    from aioesphomeapi import InvalidEncryptionKeyAPIError
+
+    cli = _store_yaml_client(True)
+    cli.connect.side_effect = InvalidEncryptionKeyAPIError("bad key", "dev")
+    with (
+        patch.object(api_client, "APIClient", return_value=cli),
+        pytest.raises(EsphomeError, match="Could not fetch the YAML from 1.2.3.4"),
+    ):
+        await api_client.async_recover_yaml(["1.2.3.4"], 6053, "key")
