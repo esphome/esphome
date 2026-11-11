@@ -845,17 +845,20 @@ void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
     return;
   }
   const auto target = static_cast<uint16_t>(lroundf(target_co2_ppm));
+  // Keep other commands out from the write until the result has been read, however late the timeout runs;
+  // a log callback can run an action in the middle of either transfer
+  this->set_command_wait_(UINT32_MAX);
   if (!this->write_command(SEN6X_CMD_CO2_FORCED_RECALIBRATION, target)) {
+    this->set_command_wait_(0);
     this->status_set_warning();
     ESP_LOGW(TAG, "Forced CO2 recalibration failed (%d)", this->last_error_);
     return;
   }
-  // Keep other commands out until the result has been read, however late the timeout runs
-  this->set_command_wait_(UINT32_MAX);
   this->set_timeout(TIMEOUT_CO2_RECALIBRATION, CO2_FORCED_RECALIBRATION_DELAY, [this, target]() {
-    this->set_command_wait_(0);
     uint16_t correction;
-    if (!this->status_comm_result(this->read_data(correction))) {
+    const bool read_ok = this->read_data(correction);
+    this->set_command_wait_(0);
+    if (!this->status_comm_result(read_ok)) {
       ESP_LOGW(TAG, "Reading the forced CO2 recalibration result failed (%d)", this->last_error_);
       return;
     }
