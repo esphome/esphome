@@ -1,0 +1,8 @@
+substitutions:
+  cs_pin: GPIO17
+  cs_pin_default: GPIO20
+  interrupt_pin: GPIO21
+
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+  mcp251xfd: !include common.yaml

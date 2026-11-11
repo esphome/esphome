@@ -1,6 +1,7 @@
 #include "tsl2591.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::tsl2591 {
 
@@ -174,10 +175,6 @@ void TSL2591Component::update() {
   }
 }
 
-void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
-  this->integration_time_ = integration_time;
-}
-
 void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
   this->device_factor_ = device_factor;
   this->glass_attenuation_factor_ = glass_attenuation_factor;
@@ -250,7 +247,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
-  ch0_16 = (ch0high << 8) | ch0low;
+  ch0_16 = encode_uint16(ch0high, ch0low);
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low)) {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
@@ -259,7 +256,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
-  ch1_16 = (ch1high << 8) | ch1low;
+  ch1_16 = encode_uint16(ch1high, ch1low);
   x32 = (ch1_16 << 16) | ch0_16;
 
   this->disable_if_power_saving_();

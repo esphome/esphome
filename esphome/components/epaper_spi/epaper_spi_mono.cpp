@@ -24,6 +24,7 @@ void EPaperMono::deep_sleep() {
 bool EPaperMono::reset() {
   if (!EPaperBase::reset())
     return false;
+  this->init_previous_frame_();
   if (this->software_reset_)
     this->command(0x12);
   return true;

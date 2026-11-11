@@ -64,6 +64,7 @@ bool EPaperSSD2677::reset() {
   this->init_sequence_sent_ = false;
   if (!this->hardware_reset_())
     return false;
+  this->init_previous_frame_();
   this->next_delay_ = RESET_SETTLE_MS;
   return true;
 }

@@ -520,13 +520,13 @@ void APIServer::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
 
 #ifdef USE_IR_RF
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
-                                               const std::vector<int32_t> *timings) {
+                                               std::span<const int32_t> timings) {
   InfraredRFReceiveEvent resp{};
 #ifdef USE_DEVICES
   resp.device_id = device_id;
 #endif
   resp.key = key;
-  resp.timings = timings;
+  resp.timings = &timings;
 
   for (auto &c : this->active_clients())
     c->send_infrared_rf_receive_event(resp);

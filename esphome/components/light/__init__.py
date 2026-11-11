@@ -52,7 +52,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import Expression, MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -78,6 +78,7 @@ from .restore_state import (
 from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
+    BufferColorAccessor,
     ChannelColors,
     ColorMode,
     GammaTable,
@@ -88,6 +89,7 @@ from .types import (  # noqa: F401
     LightStateTrigger,
     LightTurnOffTrigger,
     LightTurnOnTrigger,
+    PowerEstimation,
     light_ns,
 )
 
@@ -249,20 +251,29 @@ def validate_channel_colors(value: str) -> str:
     return value
 
 
-def channel_colors_struct(value: str) -> cg.StructInitializer:
+def channel_colors_struct(value: str) -> cg.MockObj:
     """Build the C++ `light::ChannelColors` for a validated channel order string."""
-    return cg.StructInitializer(
-        ChannelColors,
-        ("r", value.index("R")),
-        ("g", value.index("G")),
-        ("b", value.index("B")),
-        (
-            "w",
-            value.index("W")
-            if "W" in value
-            else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
-        ),
+    return ChannelColors(
+        *(value.index(channel) for channel in "RGBW" if channel in value)
     )
+
+
+def static_led_buffer(
+    output_id: ID,
+    num_leds: int,
+    bytes_per_led: int,
+    extra_bytes: int | Expression = 0,
+    *,
+    psram: bool = False,
+) -> MockObj:
+    """Static block for `BufferColorAccessor::set_buffer`: `buffer_bytes()`, then `extra_bytes`.
+
+    With `psram=True` a build with PSRAM allocates it instead, see `cg.static_buffer`.
+    """
+    size = BufferColorAccessor.static_("buffer_bytes")(num_leds, bytes_per_led)
+    if extra_bytes:
+        size = size + extra_bytes
+    return cg.static_buffer(output_id, cg.uint8, size, psram=psram)
 
 
 def _quote_and_join(keys: list[str]) -> str:
@@ -711,6 +722,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add_define("USE_LIGHT_POWER_ESTIMATION")
         cg.add(
             output_var.set_power_estimation(
+                cg.static_buffer(config[CONF_OUTPUT_ID], PowerEstimation, 1),
                 power_estimation[CONF_MA_PER_LED_RED],
                 power_estimation[CONF_MA_PER_LED_GREEN],
                 power_estimation[CONF_MA_PER_LED_BLUE],

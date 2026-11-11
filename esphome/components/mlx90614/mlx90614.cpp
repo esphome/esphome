@@ -93,8 +93,7 @@ bool MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
 
   // 3. Write the new value
   if (data != 0) {
-    buf[2] = data & 0xFF;
-    buf[3] = data >> 8;
+    put_le16(buf + 2, data);
     buf[4] = crc8_pec(buf, 4);
     ec = this->write_register(reg, buf + 2, 3);
     if (ec != i2c::ERROR_OK) {

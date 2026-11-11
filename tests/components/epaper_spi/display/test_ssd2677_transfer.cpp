@@ -25,7 +25,7 @@ template<typename Driver> class Testable : public Driver {
     this->set_reset_pin(&this->reset_pin);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
-    this->init_comparison_frame_();
+    this->init_previous_frame_();
   }
 
   void set_byte(size_t index, uint8_t value) { this->buffer_[index] = value; }
