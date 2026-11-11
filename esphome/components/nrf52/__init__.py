@@ -73,6 +73,7 @@ from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .cmsis_dap import cmsis_dap_unique_id, upload_using_cmsis_dap
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -928,6 +929,17 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 "%s belongs to J-Link %s, flashing over J-Link", host, jlink_serial
             )
             upload_using_jlink(jlink_serial)
+            return True
+        if (
+            bootloader == BOOTLOADER_MCUBOOT
+            and (dap_id := cmsis_dap_unique_id(host)) is not None
+        ):
+            # The serial port of a CMSIS-DAP probe, such as the one built into Seeed XIAO
+            # nRF54 boards: flash through the probe, which works whatever firmware runs
+            _LOGGER.info(
+                "%s belongs to CMSIS-DAP probe %s, flashing with pyOCD", host, dap_id
+            )
+            upload_using_cmsis_dap(dap_id)
             return True
         if bootloader == BOOTLOADER_MCUBOOT:
             if not has_serial_ota(config):
