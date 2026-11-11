@@ -28,6 +28,7 @@ AIRCR = 0xE000ED0C
 AIRCR_SYSRESETREQ = 0x05FA0004  # with the write key
 
 CHUNK = 0x1000
+LINE = 16  # an RRAM write buffer line
 TIMEOUT_S = 5.0
 
 
@@ -76,6 +77,29 @@ def _words(data: bytes) -> list[int]:
     return [int.from_bytes(data[i : i + 4], "little") for i in range(0, len(data), 4)]
 
 
+def _write_chunk(target, rramc: int, address: int, chunk: bytes) -> None:
+    """Write a chunk in one transfer; after a fault, again line by line, waiting in between."""
+    try:
+        _wait_ready(target, rramc)
+        target.write_memory_block32(address, _words(chunk))
+        target.flush()  # report a fault of this chunk here, not at a later read
+        return
+    except TransferError as exc:
+        print(f"\nFault writing 0x{address:08x} ({exc}), writing it line by line")
+        target.dp.clear_sticky_err()
+    for offset in range(0, len(chunk), LINE):
+        try:
+            _wait_ready(target, rramc)
+            target.write_memory_block32(
+                address + offset, _words(chunk[offset : offset + LINE])
+            )
+            target.flush()
+        except TransferError as exc:
+            raise RuntimeError(
+                f"Fault writing RRAM at 0x{address + offset:08x}"
+            ) from exc
+
+
 def _flash(target, rramc: int, segments: list[tuple[int, bytes]]) -> bool:
     """Write the runs into RRAM; True when they read back the same."""
     total = sum(len(data) for _, data in segments)
@@ -87,8 +111,7 @@ def _flash(target, rramc: int, segments: list[tuple[int, bytes]]) -> bool:
             address, data = _align(target, address, data)
             for offset in range(0, len(data), CHUNK):
                 chunk = data[offset : offset + CHUNK]
-                _wait_ready(target, rramc)
-                target.write_memory_block32(address + offset, _words(chunk))
+                _write_chunk(target, rramc, address + offset, chunk)
                 written += len(chunk)
                 print(f"\rWriting {written * 100 // total}%", end="", flush=True)
         target.write32(rramc + RRAMC_TASKS_COMMITWRITEBUF, 1)
@@ -97,9 +120,13 @@ def _flash(target, rramc: int, segments: list[tuple[int, bytes]]) -> bool:
         target.write32(rramc + RRAMC_CONFIG, 0)
     print()
     for address, data in segments:
-        if bytes(target.read_memory_block8(address, len(data))) != data:
+        read = bytes(target.read_memory_block8(address, len(data)))
+        if read != data:
+            first = next(
+                i for i, (a, b) in enumerate(zip(read, data, strict=True)) if a != b
+            )
             print(
-                f"Verify failed in the run at 0x{address:08x}: the RRAM is "
+                f"Verify failed at 0x{address + first:08x}: the RRAM is "
                 "write-protected or the chip is locked",
                 file=sys.stderr,
             )
@@ -108,17 +135,40 @@ def _flash(target, rramc: int, segments: list[tuple[int, bytes]]) -> bool:
     return True
 
 
+def _open_session(target_type: str, unique_id: str):
+    """An open pyOCD session, or None when the probe is not found.
+
+    Opening a locked chip erases it to unlock it, then resets it through the CTRL-AP, which
+    faults the rest of that connection; a second connection reaches the erased chip.
+    """
+    for attempt in range(2):
+        session = ConnectHelper.session_with_chosen_probe(
+            unique_id=unique_id or None,
+            target_override=target_type,
+            blocking=False,
+            # The reset that starts the firmware already lets the core run
+            options={"resume_on_disconnect": False},
+        )
+        if session is None:
+            return None
+        try:
+            session.open()
+        except TransferError:
+            with contextlib.suppress(Exception):
+                session.close()
+            if attempt:
+                raise
+            print("Connecting again after the chip was unlocked")
+            time.sleep(0.5)
+            continue
+        return session
+    return None
+
+
 def main() -> int:
     target_type, rramc, unique_id, *files = sys.argv[1:]
     segments = _segments(files)
-    session = ConnectHelper.session_with_chosen_probe(
-        unique_id=unique_id or None,
-        target_override=target_type,
-        blocking=False,
-        # The reset that starts the firmware already lets the core run
-        options={"resume_on_disconnect": False},
-    )
-    if session is None:
+    if (session := _open_session(target_type, unique_id)) is None:
         return 1  # pyOCD has printed why
     verified = False
     try:

@@ -21,6 +21,12 @@ class FakeTarget:
         self.protected = protected
         self.committed = False
         self.fault_after_reset = False
+        self.chunk_faults = 0
+        self.pending_fault = False
+        self.dp = types.SimpleNamespace(clear_sticky_err=self.clear_sticky_err)
+
+    def clear_sticky_err(self) -> None:
+        self.pending_fault = False
         self.transfer_error = Exception
 
     def read32(self, address: int) -> int:
@@ -36,6 +42,11 @@ class FakeTarget:
 
     def write_memory_block32(self, address: int, words: list[int]) -> None:
         assert address % 4 == 0
+        if self.chunk_faults and len(words) > 4:
+            # A fault of a queued block write: nothing written, reported at the next flush
+            self.chunk_faults -= 1
+            self.pending_fault = True
+            return
         if self.protected or self.regs[RRAMC + 0x500] != 0x101:
             return
         for i, word in enumerate(words):
@@ -47,6 +58,8 @@ class FakeTarget:
         """Halted already."""
 
     def flush(self) -> None:
+        if self.pending_fault:
+            raise self.transfer_error()
         if self.regs.get(AIRCR) and self.fault_after_reset:
             raise self.transfer_error()
 
@@ -54,10 +67,20 @@ class FakeTarget:
 @pytest.fixture
 def loader(monkeypatch: pytest.MonkeyPatch):
     """The script, with pyOCD replaced by a session holding a fake target."""
-    state = types.SimpleNamespace(target=FakeTarget(), unique_id=None)
+    state = types.SimpleNamespace(
+        target=FakeTarget(), unique_id=None, open_failures=0, sessions=0, closed=0
+    )
 
     class Session:
         target = None
+
+        def open(self) -> None:
+            if state.open_failures:
+                state.open_failures -= 1
+                raise state.target.transfer_error()
+
+        def close(self) -> None:
+            state.closed += 1
 
         def __enter__(self):
             self.target = state.target
@@ -69,6 +92,7 @@ def loader(monkeypatch: pytest.MonkeyPatch):
 
     def session_with_chosen_probe(**kwargs) -> Session:
         state.unique_id = kwargs["unique_id"]
+        state.sessions += 1
         return Session()
 
     helpers = types.ModuleType("pyocd.core.helpers")
@@ -138,3 +162,34 @@ def test_fault_after_the_starting_reset_is_success(
     image = _hex(tmp_path / "app.hex", 0x0, b"\x01\x02\x03\x04")
     assert _run(loader, monkeypatch, image) == 0
     assert loader.target.memory[:4] == b"\x01\x02\x03\x04"
+
+
+@pytest.mark.parametrize(("open_failures", "result"), [(1, 0), (2, None)])
+def test_connects_again_after_unlocking(
+    loader,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    open_failures: int,
+    result: int | None,
+) -> None:
+    """Unlocking a locked chip faults the first connection; the second one flashes it."""
+    loader.open_failures = open_failures
+    image = _hex(tmp_path / "app.hex", 0x0, b"\x01\x02\x03\x04")
+    if result is None:
+        with pytest.raises(loader.target.transfer_error):
+            _run(loader, monkeypatch, image)
+    else:
+        assert _run(loader, monkeypatch, image) == result
+        assert loader.target.memory[:4] == b"\x01\x02\x03\x04"
+    assert loader.sessions == 2
+    assert loader.closed == open_failures
+
+
+def test_faulted_chunk_is_written_again_line_by_line(
+    loader, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    loader.target.chunk_faults = 1
+    data = bytes(range(256)) * 20
+    image = _hex(tmp_path / "app.hex", 0x0, data)
+    assert _run(loader, monkeypatch, image) == 0
+    assert loader.target.memory[: len(data)] == data
