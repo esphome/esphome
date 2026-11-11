@@ -337,8 +337,16 @@ void CC1101Component::wake_up() {
   delayMicroseconds(WAKEUP_DELAY_US);
   this->disable();
   this->enter_idle_();
-  // TEST0 and PATABLE entries 1-7 are lost in SLEEP, and register writes were skipped while asleep
-  this->write_registers_();
+  // sync register writes that were skipped while asleep
+  // TEST2 to TEST0 and PATABLE entries 1-7 are always lost
+  if (this->registers_dirty_) {
+    this->write_registers_();
+    this->registers_dirty_ = false;
+  } else {
+    this->write_(Register::TEST2);
+    this->write_(Register::TEST1);
+    this->write_(Register::TEST0);
+  }
   this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
 }
 
@@ -400,6 +408,7 @@ uint8_t CC1101Component::strobe_(Command cmd) {
 
 void CC1101Component::write_(Register reg) {
   if (this->sleeping_) {
+    this->registers_dirty_ = true;
     return;  // wake_up() writes state_ to the chip
   }
   uint8_t index = static_cast<uint8_t>(reg);
@@ -417,6 +426,7 @@ void CC1101Component::write_(Register reg, uint8_t value) {
 
 void CC1101Component::write_(Register reg, const uint8_t *buffer, size_t length) {
   if (this->sleeping_) {
+    this->registers_dirty_ = true;
     return;
   }
   uint8_t index = static_cast<uint8_t>(reg);
