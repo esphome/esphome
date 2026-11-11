@@ -48,13 +48,13 @@ class BasicFragmentation : public PacketInterface {
   // if that fails
   uint8_t *tx_buffer_{nullptr};
   uint8_t *rx_buffer_{nullptr};
-  size_t rx_length_{0};
+  uint16_t rx_length_{0};  // at most max_packet_size_, which configuration limits to 16384
   uint16_t rx_source_{0};
   uint8_t tx_number_{0};
   uint8_t rx_number_{0};
   uint8_t rx_next_index_{0};
-  bool rx_joining_{false};
-  bool queue_too_short_{false};
+  bool rx_joining_ : 1 {false};
+  bool queue_too_short_ : 1 {false};
 };
 
 }  // namespace esphome::packet_interface
