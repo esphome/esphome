@@ -43,7 +43,7 @@ from esphome.coroutine import (  # noqa: F401
     coroutine,
     coroutine_with_priority,
 )
-from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
+from esphome.helpers import get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -413,15 +413,31 @@ class ID:
         self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
-        from esphome.config_validation import RESERVED_IDS
+        """Give an unnamed ID a unique generated name.
 
+        ``registered_ids`` is any collection of names in use; pass a set when
+        resolving many IDs so each name check is a hash lookup.
+        """
         if self.id is None:
+            from esphome.config_validation import RESERVED_IDS_SET
+
             base = str(self.type).replace("::", "_").lower()
             if base == self.type:
                 base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
-            self.id = ensure_unique_string(name, used)
+            # Same naming as ensure_unique_string(), without copying every
+            # registered ID into a new set for each ID resolved.
+            loaded = CORE.loaded_integrations
+            candidate = name
+            tries = 1
+            while (
+                candidate in registered_ids
+                or candidate in RESERVED_IDS_SET
+                or candidate in loaded
+            ):
+                tries += 1
+                candidate = f"{name}_{tries}"
+            self.id = candidate
         return self.id
 
     def __str__(self):
@@ -791,6 +807,11 @@ class EsphomeCore:
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
 
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
+
         return None
 
     @property
@@ -1034,6 +1055,10 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
+    def using_toolchain_zephyr(self) -> bool:
+        return self.toolchain == Toolchain.ZEPHYR
+
+    @property
     def using_toolchain_arduino(self):
         """The native ESP8266 Arduino build toolchain (unlike
         ``using_arduino``, which is the target framework)."""
@@ -1171,12 +1196,14 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)

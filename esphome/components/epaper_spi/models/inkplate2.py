@@ -4,10 +4,8 @@ from . import EpaperModel
 
 
 class Inkplate2Model(EpaperModel):
-    source_files = ("epaper_spi_inkplate2.cpp",)
-
-    def __init__(self, name, class_name="EPaperInkplate2", **kwargs):
-        super().__init__(name, class_name, **kwargs)
+    class_name = "EPaperInkplate2"
+    source_files = ("epaper_spi_bwr.cpp", "epaper_spi_inkplate2.cpp")
 
     def get_init_sequence(self, config: dict):
         width, height = self.get_dimensions(config)

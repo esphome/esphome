@@ -8,14 +8,14 @@ ESPHOME_LOG_TAG(TAG, "bang_bang.climate");
 BangBangClimate::BangBangClimate() = default;
 
 void BangBangClimate::setup() {
-  this->sensor_->add_on_state_callback([this](float state) {
+  this->temperature_sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
     // control may have changed, recompute
     this->compute_state_();
     // current temperature changed, publish state
     this->publish_state();
   });
-  this->current_temperature = this->sensor_->state;
+  this->current_temperature = this->temperature_sensor_->state;
 
   // register for humidity values and get initial state
   if (this->humidity_sensor_ != nullptr) {
@@ -192,10 +192,6 @@ void BangBangClimate::change_away_(bool away) {
     this->target_temperature_high = this->away_config_.default_temperature_high;
   }
   this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
-}
-
-void BangBangClimate::set_normal_config(const BangBangClimateTargetTempConfig &normal_config) {
-  this->normal_config_ = normal_config;
 }
 
 void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &away_config) {

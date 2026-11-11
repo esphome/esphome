@@ -1036,8 +1036,15 @@ class ESPHomeLoaderMixin:
     ) -> OrderedDict[str, dict[str, Any]]:
         files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
+        paths: dict[str, Path] = {}
         for fname in files:
             filename = fname.stem
+            if (first := paths.setdefault(filename, fname)) != fname:
+                raise yaml.MarkedYAMLError(
+                    f"!include_dir_named: {first} and {fname} both use the key "
+                    f"'{filename}'; rename one of them",
+                    node.start_mark,
+                )
             mapping[filename] = self.yaml_loader(fname)
         return mapping
 
@@ -1349,8 +1356,8 @@ def _is_file_valid(name: str) -> bool:
 def find_files(directory: Path, pattern: str) -> Iterator[Path]:
     """Recursively find files in a directory matching *pattern*, skipping hidden entries."""
     for root, dirs, files in os.walk(directory):
-        dirs[:] = [d for d in dirs if _is_file_valid(d)]
-        for f in files:
+        dirs[:] = sorted(d for d in dirs if _is_file_valid(d))
+        for f in sorted(files):
             filename = Path(f)
             if _is_file_valid(f) and filename.match(pattern):
                 filename = Path(root) / filename

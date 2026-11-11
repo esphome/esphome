@@ -1,0 +1,117 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+remote_transmitter:
+  id: tx
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+script:
+  - id: send_scaled
+    parameters:
+      x: int
+    then:
+      - remote_transmitter.transmit_raw:
+          code: !lambda |-
+            x *= 2;
+            return {x, -1000};
+          carrier_frequency: !lambda return x *= 1000;
+          repeat:
+            times: !lambda return x *= 1;
+            wait_time: !lambda x *= 3; return x;
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: !lambda x *= 2; return x;
+          channel: !lambda return x *= 1;
+          state: !lambda return x > 0;
+          protocol: !lambda x *= 1; return remote_base::rc_switch_protocol(x);
+
+button:
+  - platform: template
+    name: Raw static
+    on_press:
+      - remote_transmitter.transmit_raw:
+          code: [1000, -1000, 500, -500]
+  - platform: template
+    name: Raw static repeat
+    on_press:
+      - remote_transmitter.transmit_raw:
+          code: [1000, -1000, 500, -500]
+          carrier_frequency: 38kHz
+          repeat:
+            times: 2
+            wait_time: 10ms
+  - platform: template
+    name: Raw lambda
+    on_press:
+      - remote_transmitter.transmit_raw:
+          code: !lambda return {2000, -1000};
+  - platform: template
+    name: RC switch raw
+    on_press:
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: "00101001100111110101xxxx"
+          protocol: 2
+  - platform: template
+    name: RC switch raw lambda
+    on_press:
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda return std::string("0010100110");
+          repeat:
+            times: 2
+            wait_time: 10ms
+  - platform: template
+    name: RC switch type A
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_a:
+          group: "11001"
+          device: "01000"
+          state: true
+          protocol:
+            pulse_length: 175
+  - platform: template
+    name: RC switch type A lambda
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_a:
+          group: !lambda return std::string("11001");
+          device: !lambda return std::string("01000");
+          state: !lambda return false;
+  - platform: template
+    name: RC switch type B
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: 4
+          channel: 2
+          state: true
+  - platform: template
+    name: RC switch type C
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_c:
+          family: "c"
+          group: 1
+          device: 2
+          state: true
+  - platform: template
+    name: RC switch type C lambda
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_c:
+          family: !lambda return std::string("C");
+          group: !lambda return 1;
+          device: !lambda return 2;
+          state: !lambda return true;
+  - platform: template
+    name: RC switch type D
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_d:
+          group: "b"
+          device: 3
+          state: false
+  - platform: template
+    name: RC switch type D lambda
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_d:
+          group: !lambda return std::string("b");
+          device: !lambda return 3;
+          state: !lambda return false;

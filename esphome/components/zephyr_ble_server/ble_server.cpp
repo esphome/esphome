@@ -25,7 +25,12 @@ static const bt_data SD[] = {
 #endif
 };
 
+// Zephyr 4.x removed BT_LE_ADV_CONN; advertising is restarted on disconnect, so one-time advertising is fine
+#ifdef BT_LE_ADV_CONN_FAST_2
+const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN_FAST_2;
+#else
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
+#endif
 
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();
@@ -68,7 +73,7 @@ void BLEServer::connected(bt_conn *conn, uint8_t err) {
   }
 #endif
   conn = bt_conn_ref(conn);
-  global_ble_server->defer([conn]() { global_ble_server->conn_ = conn; });
+  global_ble_server->defer([conn]() { global_ble_server->set_conn_(conn); });
 }
 
 void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
@@ -77,13 +82,28 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGI(TAG, "Disconnected from %s (reason 0x%02x)", addr, reason);
-  global_ble_server->defer([]() {
-    if (global_ble_server->conn_) {
-      bt_conn_unref(global_ble_server->conn_);
+  conn = bt_conn_ref(conn);
+  global_ble_server->defer([conn]() {
+    if (global_ble_server->conn_ == conn) {
+      bt_conn_unref(conn);
       global_ble_server->conn_ = nullptr;
     }
+    bt_conn_unref(conn);
   });
   k_work_submit(&advertise_work);
+}
+
+void BLEServer::set_conn_(bt_conn *conn) {
+  // The disconnect may have run first; deferred callbacks are not ordered on this platform.
+  bt_conn_info info;
+  if (bt_conn_get_info(conn, &info) != 0 || info.state != BT_CONN_STATE_CONNECTED) {
+    bt_conn_unref(conn);
+    return;
+  }
+  if (this->conn_ != nullptr) {
+    bt_conn_unref(this->conn_);
+  }
+  this->conn_ = conn;
 }
 
 #ifdef CONFIG_BT_SMP

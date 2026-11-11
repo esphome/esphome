@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_ON_RESPONSE,
     CONF_VALUE,
 )
-from esphome.core import ID, Lambda
+from esphome.core import Lambda
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
@@ -72,7 +72,7 @@ ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 # Lambda arguments: the shared handlers and send's on_response get the address of their own request first,
 # then the request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
 _ADDRESS_ARG = (cg.uint8, "address")
-_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+_PDU_SPAN = modbus.PDU_SPAN
 
 # The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
@@ -488,9 +488,9 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
         cg.add(var.set_values_template(templ))
     else:
-        # A static list goes to flash, so play() sends straight from there without allocating.
-        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
+        arr = cg.shared_progmem_array(
+            "modbus_client_registers", cg.uint16, cg.ArrayInitializer(*values)
+        )
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(
         var, config, args, [], command_direction="write"
@@ -515,8 +515,9 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
         for i, coil in enumerate(values):
             if coil:
                 packed[i // 8] |= 1 << (i % 8)
-        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*packed))
+        arr = cg.shared_progmem_array(
+            "modbus_client_coils", cg.uint8, cg.ArrayInitializer(*packed)
+        )
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(
         var, config, args, [], command_direction="write"
@@ -582,8 +583,8 @@ async def read_write_multiple_registers_to_code(config, action_id, template_arg,
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
         cg.add(var.set_values_template(templ))
     else:
-        # A static list goes to flash, so play() sends straight from there without allocating.
-        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
+        arr = cg.shared_progmem_array(
+            "modbus_client_registers", cg.uint16, cg.ArrayInitializer(*values)
+        )
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])

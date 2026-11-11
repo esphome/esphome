@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
-    CONF_TYPE_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_USE_FAHRENHEIT,
     CONF_VALUE,
@@ -689,10 +688,9 @@ async def delta_filter_to_code(config, filter_id):
     else:
         min = _get_delta(config)
     var = cg.new_Pvariable(filter_id, *min, *max)
-    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
-        baseline = await cg.process_lambda(
-            baseline_lambda, [(float, "x")], return_type=float
-        )
+    if isinstance(config, dict) and (baseline := config.get(CONF_BASELINE)) is not None:
+        # A plain number is wrapped in a lambda that returns it
+        baseline = await cg.templatable(baseline, [(float, "x")], float)
         cg.add(var.set_baseline(baseline))
     return var
 
@@ -825,12 +823,13 @@ def validate_calibrate_linear(config):
                 raise cv.Invalid(
                     "The 'from' values of the calibrate_linear filter must not contain duplicates."
                 )
-    elif config[CONF_METHOD] == "least_squares":
-        if all(conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints):
-            raise cv.Invalid(
-                "The 'from' values of the calibrate_linear filter cannot all point "
-                "to the same value! Please add more values to the filter."
-            )
+    elif config[CONF_METHOD] == "least_squares" and all(
+        conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints
+    ):
+        raise cv.Invalid(
+            "The 'from' values of the calibrate_linear filter cannot all point "
+            "to the same value! Please add more values to the filter."
+        )
     return config
 
 
@@ -1009,26 +1008,17 @@ def _timeout_throttle_period(
     return timeout[CONF_TIMEOUT]
 
 
+def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
+    if (period := _timeout_throttle_period(first, second)) is None:
+        return None
+    return TimeoutThrottleFilter, [period]
+
+
 async def _build_chain_filters(config: list[ConfigType]) -> list:
     """Like build_filters, but merges the radar `timeout` + `throttle_with_priority` pair into one filter."""
-    filters = []
-    i = 0
-    while i < len(config):
-        if (
-            i + 1 < len(config)
-            and (period := _timeout_throttle_period(config[i], config[i + 1]))
-            is not None
-        ):
-            filter_id = config[i][CONF_TYPE_ID].copy()
-            filter_id.type = TimeoutThrottleFilter
-            var = cg.new_Pvariable(filter_id, period)
-            await cg.register_component(var, {})
-            filters.append(var)
-            i += 2
-            continue
-        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
-        i += 1
-    return filters
+    return await cg.build_registry_list_merged(
+        FILTER_REGISTRY, config, _timeout_throttle_merge
+    )
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -1045,14 +1035,10 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        trigger = await automation.new_value_range_trigger(
+            conf[CONF_TRIGGER_ID], var, conf
+        )
         await cg.register_component(trigger, conf)
-        if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
-            cg.add(trigger.set_min(template_))
-        if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
-            cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 

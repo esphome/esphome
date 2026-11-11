@@ -47,6 +47,17 @@ static constexpr uint8_t MAX_LINE_LENGTH = 45;
 static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
 static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
+// Silence after our own commands (restart, Bluetooth toggle, ...) is not a link loss; a restart takes about 2.3 s
+static constexpr uint32_t LINK_GRACE_MS = 5000;
+// Caps the windows, so retried commands cannot hide a real loss
+static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
+
+enum class LinkState : uint8_t {
+  LINK_STATE_WAITING,  // no valid frame since boot
+  LINK_STATE_UP,       // valid frames arrive
+  LINK_STATE_LOST,     // no valid frame for the link timeout
+};
+
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
   DIRECTION_MOVING_AWAY = 1,
@@ -98,6 +109,7 @@ struct ZoneOfNumbers {
 
 class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(connected)
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)
   SUB_BINARY_SENSOR(target)
@@ -132,6 +144,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void set_presence_timeout();
+  void set_link_timeout(uint32_t timeout_ms) { this->link_timeout_ms_ = timeout_ms; }
   void read_all_info();
   void query_zone_info();
   void restart_and_read_all_info();
@@ -145,6 +158,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  void set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
 #ifdef USE_NUMBER
   void set_zone_coordinate(number::Number *n);
@@ -189,18 +205,35 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
+  void open_link_grace_();
+  void check_link_();
+  void on_valid_frame_();
+  void on_link_lost_(uint32_t silent_ms, bool was_up);
+  void on_link_up_(bool restored);
+#ifdef USE_SENSOR
+  void publish_target_unknown_(uint8_t target);
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  void update_target_xy_(uint8_t target, bool changed);
+#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
   uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
+  uint32_t link_timeout_ms_{0};
+  uint32_t last_frame_ms_{0};     // last valid periodic frame; until the first one, when setup() ran
+  uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
+  LinkState link_state_{LinkState::LINK_STATE_WAITING};
+  bool bytes_since_frame_{false};  // any bytes since the last valid frame
+  uint16_t invalid_frames_{0};     // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR
@@ -225,6 +258,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

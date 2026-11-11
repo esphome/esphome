@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/display/display.h"
@@ -1059,7 +1060,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   void update() override;
   void loop() override;
-  void set_writer(const nextion_writer_t &writer);
+  void set_writer(nextion_writer_t writer) { this->writer_ = std::move(writer); }
 
   // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
@@ -1470,6 +1471,16 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * Called from loop() to retry sending commands that were delayed by spacing.
    */
   void process_pending_in_queue_();
+
+  /**
+   * @brief Whether the queue still holds a command that has not reached the wire.
+   *
+   * The queue is kept in transmit order, so anything still waiting sits at the back.
+   */
+  bool has_unsent_commands_() const {
+    return !this->nextion_queue_.empty() && this->nextion_queue_.back() != nullptr &&
+           !this->nextion_queue_.back()->pending_command.empty();
+  }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   std::list<NextionQueue *> nextion_queue_;
