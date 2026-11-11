@@ -2,6 +2,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <cmath>
+
 namespace esphome::bmi160 {
 
 ESPHOME_LOG_TAG(TAG, "bmi160");
