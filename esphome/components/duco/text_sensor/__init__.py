@@ -80,19 +80,19 @@ NODE_TYPE_SCHEMA = (
 
 CONFIG_SCHEMA = cv.Any(
     SERIAL_SCHEMA,
-     cv.All(
-         DUCO_COMPONENT_SCHEMA.extend(
-             {
-                 cv.Optional(CONF_SERIAL): cv.ensure_list(SERIAL_ENTITY_SCHEMA),
-                 cv.Optional(CONF_VERSION): cv.ensure_list(VERSION_SCHEMA),
-                 cv.Optional(CONF_ERROR): cv.ensure_list(ERROR_SCHEMA),
-                 cv.Optional(CONF_UPTIME): cv.ensure_list(UPTIME_SCHEMA),
-                 cv.Optional(CONF_NODE_TYPE): cv.ensure_list(NODE_TYPE_SCHEMA),
-             }
-         ),
-         cv.has_at_least_one_key(
-             CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE
-         ),
+    cv.All(
+        DUCO_COMPONENT_SCHEMA.extend(
+            {
+                cv.Optional(CONF_SERIAL): cv.ensure_list(SERIAL_ENTITY_SCHEMA),
+                cv.Optional(CONF_VERSION): cv.ensure_list(VERSION_SCHEMA),
+                cv.Optional(CONF_ERROR): cv.ensure_list(ERROR_SCHEMA),
+                cv.Optional(CONF_UPTIME): cv.ensure_list(UPTIME_SCHEMA),
+                cv.Optional(CONF_NODE_TYPE): cv.ensure_list(NODE_TYPE_SCHEMA),
+            }
+        ),
+        cv.has_at_least_one_key(
+            CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME, CONF_NODE_TYPE
+        ),
     ),
 )
 

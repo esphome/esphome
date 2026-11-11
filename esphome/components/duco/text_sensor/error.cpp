@@ -83,8 +83,7 @@ void DucoError::receive_response(const DucoMessage &message) {
                           ErrorDescriptions::get_progmem_str(description_index, ErrorDescriptions::LAST_INDEX)),
                       sizeof(description));
     description[sizeof(description) - 1] = '\0';
-    const int written =
-        snprintf(error_text.data() + length, error_text.size() - length, "%s  %s\n", code, description);
+    const int written = snprintf(error_text.data() + length, error_text.size() - length, "%s  %s\n", code, description);
     if (written < 0 || static_cast<size_t>(written) >= error_text.size() - length)
       break;
     length += written;
