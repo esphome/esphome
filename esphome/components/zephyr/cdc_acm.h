@@ -14,22 +14,20 @@ class CdcAcm final {
   /// Rates reach the callbacks on a scheduler tick, which normally comes after every subscriber's setup(); a
   /// component that holds setup back with can_proceed() runs the scheduler earlier, and a subscriber registered
   /// after that tick misses the boot-time rate.
-  template<typename F> void add_on_rate_callback(F &&callback) {
-    if (this->rate_callbacks_.size() == 0)
-      this->start_();
-    this->rate_callbacks_.add(std::forward<F>(callback));
+  template<typename F> static void add_on_rate_callback(F &&callback) {
+    if (rate_callbacks.size() == 0)
+      start();
+    rate_callbacks.add(std::forward<F>(callback));
   }
 
   /// Called by the USB driver, from its own thread, after the host set the bit rate of `dev`.
   static void rate_changed(const device *dev);
 
  protected:
-  void start_();
+  static void start();
   static void post_rate(const device *dev);
-  CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
+  static inline CallbackManager<void(const device *, uint32_t)> rate_callbacks;
 };
-
-extern CdcAcm *const global_cdc_acm;
 
 }  // namespace esphome::zephyr
 

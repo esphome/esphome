@@ -11,9 +11,6 @@
 
 namespace esphome::zephyr {
 
-static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-CdcAcm *const global_cdc_acm = &cdc_acm_instance;
-
 namespace {
 constexpr std::array<const device *, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> CDC_DEVICES{
     DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
@@ -26,7 +23,7 @@ Mutex rate_lock;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variab
 bool started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace
 
-void CdcAcm::start_() {
+void CdcAcm::start() {
   LockGuard guard(rate_lock);
   started = true;
   for (const device *dev : CDC_DEVICES) {
@@ -50,7 +47,7 @@ void CdcAcm::post_rate(const device *dev) {
     return;
   // 0 ms timeouts run on the main loop in the order they are posted
   App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0,
-                            [dev, rate]() { global_cdc_acm->rate_callbacks_.call(dev, rate); });
+                            [dev, rate]() { rate_callbacks.call(dev, rate); });
 }
 
 }  // namespace esphome::zephyr

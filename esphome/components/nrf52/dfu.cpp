@@ -30,7 +30,7 @@ void DeviceFirmwareUpdate::setup() {
     ESP_LOGE(TAG, "USB device setup failed: %d", err);
 #endif
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
-  zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
+  zephyr::CdcAcm::add_on_rate_callback([this](const device *, uint32_t rate) {
     if (rate == RESET_TOUCH_BAUD_RATE) {
       // A plain reboot for host tools (a logs view's Reset device): the USB CDC has no
       // reset line, and the bootloader, once entered, has no host command back to the app.

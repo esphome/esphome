@@ -108,7 +108,7 @@ void USBCDCACMInstance::setup() {
   this->data_bits_ = 8;
   this->stop_bits_ = 1;
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
-  zephyr::global_cdc_acm->add_on_rate_callback([this](const device *dev, uint32_t bit_rate) {
+  zephyr::CdcAcm::add_on_rate_callback([this](const device *dev, uint32_t bit_rate) {
     if (dev == this->uart_dev_) {
       // Queue event for processing in main loop
       this->queue_line_coding_event(bit_rate, this->stop_bits_, this->parity_, this->data_bits_);
