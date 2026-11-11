@@ -47,7 +47,8 @@ void ModelHandler::debug_input_quantization_analysis(const uint8_t *input_data, 
     return;
 
   ESP_LOGI(TAG, "=== INPUT QUANTIZATION ANALYSIS: %s ===", stage.c_str());
-  ESP_LOGI(TAG, "Input quantization: scale=%.6f, zp=%d", input->params.scale, input->params.zero_point);
+  ESP_LOGI(TAG, "Input quantization: scale=%.6f, zp=%d", input->params.scale,
+           static_cast<int>(input->params.zero_point));
   ESP_LOGI(TAG, "Input size: %zu bytes", input_size);
 
   // Analyze input data statistics
@@ -91,7 +92,8 @@ void ModelHandler::debug_input_tensor_details() {
     ESP_LOGI(TAG, "  dim[%d]: %d", i, input->dims->data[i]);
   }
   ESP_LOGI(TAG, "Bytes: %zu", input->bytes);
-  ESP_LOGI(TAG, "Quantization: scale=%.6f, zero_point=%d", input->params.scale, input->params.zero_point);
+  ESP_LOGI(TAG, "Quantization: scale=%.6f, zero_point=%d", input->params.scale,
+           static_cast<int>(input->params.zero_point));
   ESP_LOGI(TAG, "=== END TENSOR DETAILS ===");
 }
 
@@ -102,11 +104,11 @@ void ModelHandler::debug_tensor_types() {
   ESP_LOGI(TAG, "=== TENSOR TYPE VERIFICATION ===");
   if (input) {
     ESP_LOGI(TAG, "INPUT: type=%s, scale=%.6f, zp=%d", tflite_type_to_string(input->type), input->params.scale,
-             input->params.zero_point);
+             static_cast<int>(input->params.zero_point));
   }
   if (output) {
     ESP_LOGI(TAG, "OUTPUT: type=%s, scale=%.6f, zp=%d", tflite_type_to_string(output->type), output->params.scale,
-             output->params.zero_point);
+             static_cast<int>(output->params.zero_point));
   }
 }
 
@@ -171,7 +173,7 @@ void ModelHandler::debug_output_tensor_details(TfLiteTensor *output) const {
     return;
   ESP_LOGI(TAG, "=== OUTPUT TENSOR DETAILS ===");
   ESP_LOGI(TAG, "Type: %s, Scale: %.6f, ZP: %d, Size: %d", tflite_type_to_string(output->type), output->params.scale,
-           output->params.zero_point, this->output_size());
+           static_cast<int>(output->params.zero_point), this->output_size());
 }
 
 void ModelHandler::debug_raw_outputs(TfLiteTensor *output) const {
