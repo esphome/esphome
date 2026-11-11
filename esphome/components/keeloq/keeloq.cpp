@@ -206,6 +206,7 @@ struct TakenOver {
   uint16_t reserved;
   uint16_t channels;
 } __attribute__((packed));
+static_assert(sizeof(TakenOver) == 8, "TakenOver preference layout must remain compatible");
 
 void KeeloqRemote::setup() {
   if (this->take_over_) {

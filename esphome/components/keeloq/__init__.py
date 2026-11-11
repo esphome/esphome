@@ -138,7 +138,17 @@ def _frames_need_a_receiver(config: ConfigType) -> ConfigType:
     return config
 
 
-CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _frames_need_a_receiver)
+def _take_over_needs_an_id(config: ConfigType) -> ConfigType:
+    # A generated id passes to a remote added before it, and a second remote makes every keeloq action name an id.
+    if CONF_SERIAL not in config and not config[CONF_ID].is_manual:
+        raise cv.Invalid(
+            "Set id on a remote without serial; what it takes over is stored under its id",
+            [CONF_ID],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _frames_need_a_receiver, _take_over_needs_an_id)
 
 
 def _final_validate(config: ConfigType) -> ConfigType:

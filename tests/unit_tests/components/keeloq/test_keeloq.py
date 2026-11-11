@@ -91,6 +91,15 @@ def test_a_remote_needs_serial_or_receiver() -> None:
         CONFIG_SCHEMA(config)
 
 
+def test_a_remote_without_serial_needs_an_id() -> None:
+    # What it takes over is stored under its id, so an id ESPHome generates is not enough.
+    without_serial = {k: v for k, v in BASE.items() if k != "serial"}
+    hand_remote = {**without_serial, "receiver_id": "rx"}
+    with pytest.raises(cv.Invalid, match="Set id on a remote without serial"):
+        CONFIG_SCHEMA(hand_remote)
+    CONFIG_SCHEMA({**hand_remote, "id": "hand_remote"})
+
+
 def test_on_command_needs_a_receiver_and_valid_filters() -> None:
     with pytest.raises(cv.Invalid, match="on_command needs receiver_id"):
         CONFIG_SCHEMA({**BASE, "on_command": []})
@@ -185,7 +194,7 @@ def test_a_remote_without_serial_is_left_out_of_the_serial_check() -> None:
     without_serial = {k: v for k, v in BASE.items() if k != "serial"}
     remotes = [
         CONFIG_SCHEMA(BASE),
-        CONFIG_SCHEMA({**without_serial, "receiver_id": "rx"}),
+        CONFIG_SCHEMA({**without_serial, "id": "hand_remote", "receiver_id": "rx"}),
     ]
     token = fv.full_config.set({"keeloq": remotes})
     try:
