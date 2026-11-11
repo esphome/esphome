@@ -335,13 +335,8 @@ class ESP32BLETracker final : public Component,
   /// The window to scan at for the given number of active GATT connections
   /// and the last seen AP state.
   uint32_t desired_scan_window_(uint8_t active) const {
-#ifdef USE_WIFI_AP
-    // A full-duty scan keeps stations from joining the AP (esphome/esphome#22534).
-    const bool use_short = active > 0 || this->ap_active_;
-#else
-    const bool use_short = active > 0;
-#endif
-    return (this->connection_scan_window_ != 0 && use_short) ? this->connection_scan_window_ : this->scan_window_;
+    return (this->connection_scan_window_ != 0 && (active > 0 || this->ap_active_)) ? this->connection_scan_window_
+                                                                                    : this->scan_window_;
   }
 #endif
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
@@ -372,10 +367,8 @@ class ESP32BLETracker final : public Component,
 #ifdef USE_ESP32_BLE_TRACKER_SHORT_SCAN_WINDOW
   /// Suppress the window-change restart's on_scan_end sweeps (stop and start).
   bool skip_next_scan_end_ : 1 {false};
-#ifdef USE_WIFI_AP
-  /// Last seen wifi AP state; loop() bumps state_version_ when it changes.
+  /// Last seen wifi AP state, polled by loop(); stays false without an AP.
   bool ap_active_ : 1 {false};
-#endif
 #endif
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_ : 1 {false};

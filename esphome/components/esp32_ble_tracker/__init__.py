@@ -112,9 +112,9 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 # listens 9.4 % of the time and misses most advertisements when wifi shares
 # the radio. Espressif recommends setting the window equal to the interval in
 # that case: the coexistence arbiter still shares the radio with wifi, and
-# BLE uses the airtime wifi does not claim. Full duty does not leave enough
-# airtime for stations to join the wifi access point though, so while the AP
-# runs the tracker drops back to the short window (esphome/esphome#22534).
+# BLE uses the airtime wifi does not claim. Full duty leaves the AP no airtime
+# for joins though, so while the AP runs the tracker drops back to the short
+# window (esphome/esphome#22534).
 IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
 
 # Above this the scanner holds the shared radio long enough that wifi drops
@@ -158,9 +158,8 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     present iff wifi is configured and not disabled by the user) and the IDF
     honors the window strictly (>= 5.5.5); without the arbiter a full-duty
     scan would starve wifi outright, and a user-set window is never touched.
-    The raise also arms the short window, used while a GATT connection or the
-    wifi access point is active: at full duty stations cannot join the AP, so
-    captive portal provisioning would fail (esphome/esphome#22534).
+    The raise also arms the short window used while a GATT connection or the
+    wifi AP is active.
     Raising to the interval cannot invalidate the already-validated
     parameters, so no re-validation is needed. The connection window is
     checked against the window here, after the raise.
