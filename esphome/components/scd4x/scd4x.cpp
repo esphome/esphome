@@ -13,7 +13,7 @@ static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
 static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
 static const uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
 static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
-static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET = 0x243a;
+static constexpr uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET = 0x243a;
 static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
 static const uint16_t SCD4X_CMD_START_LOW_POWER_CONTINUOUS_MEASUREMENTS = 0x21ac;
 static const uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT = 0x219d;  // SCD41 only
@@ -67,6 +67,7 @@ void SCD4XComponent::setup() {
       if (this->asc_target_ != 0 &&
           !this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET, this->asc_target_)) {
         ESP_LOGW(TAG, "Error setting automatic self calibration target");
+        this->asc_target_ = 0;  // dump_config shows only a target the sensor took
       }
 
       this->initialized_ = true;

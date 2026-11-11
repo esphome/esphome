@@ -53,7 +53,21 @@ def pressure_hpa(value: str | float) -> float:
     return cv.pressure(value) * 1000  # bar, mbar, mBar
 
 
-CONFIG_SCHEMA = (
+def validate_asc_target(config: ConfigType) -> ConfigType:
+    """The target only applies while automatic self calibration runs."""
+    if (
+        CONF_AUTOMATIC_SELF_CALIBRATION_TARGET in config
+        and not config[CONF_AUTOMATIC_SELF_CALIBRATION]
+    ):
+        raise cv.Invalid(
+            f"{CONF_AUTOMATIC_SELF_CALIBRATION_TARGET} requires "
+            f"{CONF_AUTOMATIC_SELF_CALIBRATION}: true",
+            path=[CONF_AUTOMATIC_SELF_CALIBRATION_TARGET],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SCD4XComponent),
@@ -99,7 +113,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x62))
+    .extend(i2c.i2c_device_schema(0x62)),
+    validate_asc_target,
 )
 
 SENSOR_MAP = {

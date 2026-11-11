@@ -27,7 +27,7 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   void update() override;
 
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
-  void set_automatic_self_calibration_target(uint16_t target) { asc_target_ = target; }
+  void set_automatic_self_calibration_target(uint16_t target) { this->asc_target_ = target; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(float pressure_in_hpa);
   void set_temperature_offset(float offset) { temperature_offset_ = offset; };
