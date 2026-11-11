@@ -1,0 +1,12 @@
+# One file per build; run.sh passes the name. Add v6hf.yaml or v6inject.yaml to packages.
+substitutions:
+  min_count: "0"
+  cap_ms: "30000"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include v6common.yaml
