@@ -18,6 +18,14 @@ from .framework import (
     get_nrf52_variant,
 )
 
+# RRAM controller base of the nRF54L chips, whose RRAM is written directly instead of with
+# pyOCD's flash algorithm, which faults on the nRF54LM20A
+_RRAMC_BASES = {
+    VARIANT_NRF54L15: 0x5004B000,
+    VARIANT_NRF54LM20: 0x5004E000,
+}
+_RRAM_LOADER = Path(__file__).with_name("pyocd_rram_load.py")
+
 # pyOCD's built-in target names
 _PYOCD_TARGETS = {
     VARIANT_NRF52832: "nrf52832",
@@ -65,22 +73,17 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     images = _images(CORE.relative_pioenvs_path(CORE.name))
     check_and_install()  # the Zephyr requirements install pyOCD
     paths = get_build_paths()
-    cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "pyocd",
-        "flash",
-        "-t",
-        target,
-        "-e",
-        "sector",
-    ]
-    if unique_id:
-        cmd += ["-u", unique_id]
+    python = str(paths["python_executable"])
+    if (rramc := _RRAMC_BASES.get(variant)) is not None:
+        cmd = [python, "-I", str(_RRAM_LOADER), target, hex(rramc), unique_id or ""]
+    else:
+        cmd = [python, "-m", "pyocd", "flash", "-t", target, "-e", "sector"]
+        if unique_id:
+            cmd += ["-u", unique_id]
     cmd += [str(image) for image in images]
     if not run_command_ok(cmd, env=get_build_env(None), stream_output=True):
         raise EsphomeError(
             "pyOCD could not flash the device; its output above says why. If it says "
-            "the chip is locked (protected), erase it once with "
+            "the chip is locked or write-protected, erase it once with "
             f"'pyocd erase -t {target} --chip' and upload again."
         )

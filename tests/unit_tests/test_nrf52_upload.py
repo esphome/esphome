@@ -1171,6 +1171,7 @@ def test_cmsis_dap_unique_id(
 def test_cmsis_dap_flashes_mcuboot_and_signed_app(
     setup_core: Path, tmp_path: Path
 ) -> None:
+    from esphome.components.nrf52 import cmsis_dap
     from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
     from esphome.components.nrf52.const import VARIANT_NRF54LM20
     from esphome.components.nrf52.framework import set_nrf52_variant
@@ -1194,18 +1195,54 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
         ) as mock_run,
     ):
         upload_using_cmsis_dap("CB1D0165")
+    loader = Path(cmsis_dap.__file__).with_name("pyocd_rram_load.py")
+    assert mock_run.call_args[0][0] == [
+        str(paths["python_executable"]),
+        "-I",
+        str(loader),
+        "nrf54lm20a",
+        "0x5004e000",
+        "CB1D0165",
+        str(mcuboot),
+        str(app),
+    ]
+
+
+def test_cmsis_dap_flashes_nrf52_with_pyocd_flash(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """nRF52 flash works with pyOCD's own flash algorithm."""
+    from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
+    from esphome.components.nrf52.const import VARIANT_NRF52840
+    from esphome.components.nrf52.framework import set_nrf52_variant
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    set_nrf52_variant(VARIANT_NRF52840)
+    CORE.config_path = tmp_path / "test.yaml"
+    app = CORE.relative_pioenvs_path(CORE.name) / "zephyr" / "zephyr" / "zephyr.hex"
+    app.parent.mkdir(parents=True)
+    app.write_text("")
+    paths = _make_paths(tmp_path)
+    with (
+        patch("esphome.components.nrf52.cmsis_dap.check_and_install"),
+        patch("esphome.components.nrf52.cmsis_dap.get_build_paths", return_value=paths),
+        patch("esphome.components.nrf52.cmsis_dap.get_build_env", return_value={}),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.run_command_ok", return_value=True
+        ) as mock_run,
+    ):
+        upload_using_cmsis_dap("CB1D0165")
     assert mock_run.call_args[0][0] == [
         str(paths["python_executable"]),
         "-m",
         "pyocd",
         "flash",
         "-t",
-        "nrf54lm20a",
+        "nrf52840",
         "-e",
         "sector",
         "-u",
         "CB1D0165",
-        str(mcuboot),
         str(app),
     ]
 
