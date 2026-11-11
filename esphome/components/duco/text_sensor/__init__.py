@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS
+from esphome.const import CONF_ADDRESS, CONF_VERSION
 from esphome.types import ConfigType
 
 from .. import (
@@ -22,7 +22,6 @@ DucoUptime = duco_ns.class_("DucoUptime", DucoDevice, text_sensor.TextSensor)
 DucoNodeType = duco_ns.class_("DucoNodeType", DucoDevice, text_sensor.TextSensor)
 
 CONF_SERIAL = "serial"
-CONF_VERSION = "version"
 CONF_ERROR = "error"
 CONF_UPTIME = "uptime"
 CONF_NODE_TYPE = "node_type"
