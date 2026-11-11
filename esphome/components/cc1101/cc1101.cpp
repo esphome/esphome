@@ -183,6 +183,7 @@ void CC1101Component::write_registers_() {
     }
     this->write_(static_cast<Register>(i));
   }
+  this->registers_dirty_ = false;
 }
 
 void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
@@ -341,7 +342,6 @@ void CC1101Component::wake_up() {
   // TEST2 to TEST0 and PATABLE entries 1-7 are always lost
   if (this->registers_dirty_) {
     this->write_registers_();
-    this->registers_dirty_ = false;
   } else {
     this->write_(Register::TEST2);
     this->write_(Register::TEST1);
