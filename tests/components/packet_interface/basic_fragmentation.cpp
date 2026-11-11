@@ -186,7 +186,10 @@ TEST_F(BasicFragmentationTest, OneFragmentPacketFromAnotherSourceKeepsJoin) {
 TEST_F(BasicFragmentationTest, OverReliabilityWithLosses) {
   // Fragmentation above HDLC on each side, with every fourth frame from a dropped on the way; not every third, as
   // each resend is a burst of three, so the same fragment would be lost every time
-  TestHdlc hdlc_a(&this->link_a_), hdlc_b(&this->link_b_);
+  static constexpr uint8_t queue_length = 4;
+  std::vector<uint8_t> slots_a(HdlcReliability::send_queue_size(this->link_a_.get_max_packet_size(), queue_length));
+  std::vector<uint8_t> slots_b(HdlcReliability::send_queue_size(this->link_b_.get_max_packet_size(), queue_length));
+  TestHdlc hdlc_a(&this->link_a_, slots_a.data(), queue_length), hdlc_b(&this->link_b_, slots_b.data(), queue_length);
   hdlc_a.setup();
   hdlc_b.setup();
   // HDLC adds 3 bytes to the 12 byte link, leaving 7 bytes of payload in each fragment
