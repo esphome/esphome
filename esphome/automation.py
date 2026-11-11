@@ -7,6 +7,8 @@ import re
 import string
 from typing import Any
 
+import voluptuous as vol
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -592,7 +594,7 @@ def _dict_schema(schema: Any) -> Any:
         return cv.Schema(schema)
     if isinstance(getattr(schema, "schema", None), dict):
         return schema
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         inner = schema.validators
     else:
         inner = (

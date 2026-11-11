@@ -1402,9 +1402,10 @@ class MockObjClass(MockObj):
         return self._parents
 
     def inherits_from(self, other: "MockObjClass") -> bool:
-        if str(self) == str(other):
+        other_name = str(other)
+        if str(self) == other_name:
             return True
-        return any(str(parent) == str(other) for parent in self._parents)
+        return any(str(parent) == other_name for parent in self._parents)
 
     def const_ref(self) -> MockObj:
         """``const T &``, for a parameter that takes this type by reference."""
