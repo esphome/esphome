@@ -210,12 +210,17 @@ class AddressingReliabilityTest : public ::testing::Test {
 
 // A reliability layer on each port, recording what it delivers
 struct ReliablePort {
-  explicit ReliablePort(AddressingPort *port) : hdlc(port) {
+  static constexpr uint8_t QUEUE_LENGTH = 4;
+  explicit ReliablePort(AddressingPort *port)
+      : tx_slots(HdlcReliability::send_queue_size(port->get_max_packet_size(), QUEUE_LENGTH)),
+        hdlc(port, this->tx_slots.data(), QUEUE_LENGTH) {
     this->hdlc.add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->hdlc.setup();
   }
   void send(const Packet &data) { this->hdlc.send_to_interface(PacketBuffer(data), {}); }
+  // Before hdlc, which is constructed with it
+  std::vector<uint8_t> tx_slots;
   HdlcReliability hdlc;
   std::vector<Packet> received;
 };
