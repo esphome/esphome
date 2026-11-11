@@ -61,10 +61,12 @@ void DucoError::receive_response(const DucoMessage &message) {
 
   const uint8_t error_count = message.data[0];
   const size_t expected_size = 1 + static_cast<size_t>(error_count) * 5;
-  if (error_count == 0 || message.size < expected_size) {
+  if (error_count == 0) {
     this->publish_state("No errors");
     return;
   }
+  if (message.size < expected_size)
+    return;
 
   size_t length = 0;
   for (size_t index = 0; index < error_count; index++) {
