@@ -1042,38 +1042,6 @@ def test_mcuboot_swap_limit_warns_when_it_cannot_check(
     assert "Skipping the MCUboot slot size check" in caplog.text
 
 
-@pytest.mark.parametrize(
-    ("ota_config", "uploads"),
-    [
-        ({"platform": "zephyr_mcumgr", "transport": {"hardware_uart": "CDC"}}, True),
-        ({"platform": "zephyr_mcumgr", "transport": {"ble": True}}, False),
-    ],
-)
-def test_mcuboot_serial_upload_needs_serial_transport(
-    setup_core: Path, tmp_path: Path, ota_config: dict, uploads: bool
-) -> None:
-    """Serial upload to MCUboot speaks SMP, which only a UART or CDC transport answers."""
-    from esphome.components.nrf52 import upload_program
-    from esphome.upload_targets import PortType
-
-    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
-    config = {"ota": [ota_config]}
-    with (
-        patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
-        patch("esphome.__main__.check_permissions"),
-        patch("esphome.components.nrf52.jlink_serial_number", return_value=None),
-        patch("esphome.components.nrf52.cmsis_dap_unique_id", return_value=None),
-        patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()) as mock_smp,
-    ):
-        if uploads:
-            assert upload_program(config=config, args=None, host="/dev/ttyACM0")
-            mock_smp.assert_awaited_once()
-        else:
-            with pytest.raises(EsphomeError, match="no mcumgr serial transport"):
-                upload_program(config=config, args=None, host="/dev/ttyACM0")
-            mock_smp.assert_not_awaited()
-
-
 @pytest.mark.parametrize("ota_config", [[], [{"platform": "zephyr_mcumgr"}]])
 def test_mcuboot_serial_upload_on_jlink_port_flashes_over_jlink(
     setup_core: Path, tmp_path: Path, ota_config: list

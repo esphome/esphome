@@ -38,7 +38,6 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
-    CONF_HARDWARE_UART,
     CONF_ID,
     CONF_INVERTED,
     CONF_NUMBER,
@@ -891,15 +890,6 @@ def has_network_ota(config: ConfigType) -> bool:
     )
 
 
-def has_serial_ota(config: ConfigType) -> bool:
-    """True when zephyr_mcumgr OTA listens on a UART or USB CDC port."""
-    return any(
-        ota.get(CONF_PLATFORM) == "zephyr_mcumgr"
-        and CONF_HARDWARE_UART in ota.get(CONF_TRANSPORT, {})
-        for ota in config.get(CONF_OTA, [])
-    )
-
-
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions
     from esphome.upload_targets import PortType, get_port_type
@@ -942,13 +932,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             upload_using_cmsis_dap(dap_id)
             return True
         if bootloader == BOOTLOADER_MCUBOOT:
-            if not has_serial_ota(config):
-                raise EsphomeError(
-                    f"Cannot upload over {host}: the firmware has no mcumgr serial "
-                    "transport. Upload over BLE or JLINK instead, or set "
-                    f"'{CONF_TRANSPORT}: {CONF_HARDWARE_UART}:' in the zephyr_mcumgr OTA "
-                    "and flash the device once by other means"
-                )
             mcumgr_device = host
         elif CORE.using_toolchain_platformio:
             result = _upload_using_platformio(config, host, ["-t", "upload"])
