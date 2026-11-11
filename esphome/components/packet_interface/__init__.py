@@ -6,11 +6,14 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import ID
 from esphome.cpp_generator import MockObj, MockObjClass
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import layers
 from .layers import (
+    STACK_ORDER,
     PacketInterface,
     build_stack,
     check_session,
@@ -34,6 +37,7 @@ LINK_LAYER_SCHEMAS = stack_schema()
 __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
+    "interface_layers",
     "PacketInterface",
     "new_packet_interface",
     "packet_interface_ns",
@@ -57,6 +61,27 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
 def _validate_layers(config: ConfigType) -> ConfigType:
     check_session(config)
     return config
+
+
+def _holds_id(config: ConfigType, interface_id: ID) -> bool:
+    """Whether the id is that of this link, or of one of its layers."""
+    return config[CONF_ID].id == interface_id.id or any(
+        isinstance(layer := config.get(kind.key), dict)
+        and (layer_id := layer.get(CONF_ID)) is not None
+        and layer_id.id == interface_id.id
+        for kind in STACK_ORDER
+    )
+
+
+def interface_layers(interface_id: ID) -> ConfigType:
+    """During final validation, the configuration holding the layers of the packet interface with this id.
+
+    The id may be a layer's: applications send through top(), so they use every layer of that link.
+    """
+    for interface in fv.full_config.get().get(DOMAIN, []):
+        if _holds_id(interface, interface_id):
+            return interface
+    raise cv.Invalid(f"'{interface_id.id}' is not a packet interface")
 
 
 def packet_interface_schema(
