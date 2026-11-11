@@ -112,14 +112,9 @@ button:
   - platform: template
     name: CO2 Forced Recalibration
     on_press:
-      - sen6x.stop_measurement: sen6x_sensor
-      - delay: 2s
       - sen6x.perform_forced_co2_recalibration:
           id: sen6x_sensor
           value: 420
-      - delay: 2s
       - sen6x.perform_forced_co2_recalibration:
           id: sen6x_sensor
           value: !lambda "return id(sen6x_co2).state;"
-      - delay: 2s
-      - sen6x.start_measurement: sen6x_sensor

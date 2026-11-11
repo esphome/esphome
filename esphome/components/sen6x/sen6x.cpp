@@ -728,9 +728,7 @@ uint32_t SEN6XComponent::command_wait_remaining_() const {
   return elapsed < this->command_wait_ ? this->command_wait_ - elapsed : 0;
 }
 
-bool SEN6XComponent::command_blocked_() const {
-  return this->co2_recalibration_pending_ || this->command_wait_remaining_() != 0;
-}
+bool SEN6XComponent::command_blocked_() const { return this->command_wait_remaining_() != 0; }
 
 void SEN6XComponent::set_command_wait_(uint32_t wait_ms) {
   this->command_started_at_ = millis();
@@ -832,7 +830,7 @@ void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
     return;
   }
   // The schema only range-checks constants; a templated value is checked here, as the device keeps the result
-  if (std::isnan(target_co2_ppm) || target_co2_ppm < 0.0f || target_co2_ppm > CO2_FORCED_RECALIBRATION_MAX_PPM) {
+  if (!(target_co2_ppm >= 0.0f && target_co2_ppm <= CO2_FORCED_RECALIBRATION_MAX_PPM)) {
     ESP_LOGW(TAG, "Forced CO2 recalibration value out of range: %.0f ppm", target_co2_ppm);
     return;
   }
@@ -852,15 +850,12 @@ void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
     ESP_LOGW(TAG, "Forced CO2 recalibration failed (%d)", this->last_error_);
     return;
   }
-  this->set_command_wait_(CO2_FORCED_RECALIBRATION_DELAY);
   // Keep other commands out until the result has been read, however late the timeout runs
-  this->co2_recalibration_pending_ = true;
+  this->set_command_wait_(UINT32_MAX);
   this->set_timeout(TIMEOUT_CO2_RECALIBRATION, CO2_FORCED_RECALIBRATION_DELAY, [this, target]() {
+    this->set_command_wait_(0);
     uint16_t correction;
-    const bool read_ok = this->read_data(correction);
-    this->co2_recalibration_pending_ = false;
-    if (!read_ok) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(correction))) {
       ESP_LOGW(TAG, "Reading the forced CO2 recalibration result failed (%d)", this->last_error_);
       return;
     }

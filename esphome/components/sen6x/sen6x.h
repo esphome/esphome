@@ -198,7 +198,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   bool pressure_range_warned_{false};
   bool measuring_{false};
   bool startup_complete_{false};
-  bool co2_recalibration_pending_{false};
 };
 
 }  // namespace esphome::sen6x
