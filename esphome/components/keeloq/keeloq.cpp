@@ -31,7 +31,7 @@ uint32_t encrypt(uint32_t data, const uint32_t key[2]) {
   return x;
 }
 
-// Depends on the type and serial only, so the counter survives a new firmware.
+// Depends on the type and serial only, so the preference key stays the same across firmware updates.
 static uint32_t preference_key(KeeloqType type, uint32_t serial) {
   return fnv1a_hash_extend(fnv1a_hash_extend(PREF_HASH, static_cast<uint8_t>(type)), serial);
 }
