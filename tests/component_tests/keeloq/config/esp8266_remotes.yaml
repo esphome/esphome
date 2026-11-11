@@ -4,6 +4,8 @@ esphome:
 esp8266:
   board: d1_mini
 
+logger:
+
 remote_transmitter:
   id: transmitter
   pin: GPIO2
@@ -24,10 +26,21 @@ keeloq:
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     serial: 0x1234501
     channels: [3]
+    # Also hears the presses of its hand remote
+    receiver_id: receiver
+    on_command:
+      - logger.log: "Awning hand remote pressed"
   - id: hand_remote
     type: jarolift
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     receiver_id: receiver
+  - id: frame_logger
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234502
+    receiver_id: receiver
+    on_frame:
+      - logger.log: "Frame received"
 
 button:
   - platform: template

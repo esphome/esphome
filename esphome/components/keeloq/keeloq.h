@@ -28,10 +28,14 @@ class KeeloqRemote : public Component, public remote_base::RemoteReceiverListene
   // The device key is derived from the manufacturer key at build time.
   KeeloqRemote(KeeloqType type, uint32_t serial, uint32_t device_key_high, uint32_t device_key_low)
       : type_(type), serial_(serial), device_key_{device_key_low, device_key_high} {}
-  // Only with a receiver: frames of other serials and a hand remote's serial need their device key at run time.
+  // With a receiver: the last accepted press is kept in flash too.
+  void set_receiving() { this->receiving_ = true; }
+  // Only without a serial or with on_frame: frames of other serials and a hand remote's serial need their device key at
+  // run time.
   void set_manufacturer_key(uint32_t high, uint32_t low) {
     this->manufacturer_key_[0] = low;
     this->manufacturer_key_[1] = high;
+    this->has_manufacturer_key_ = true;
   }
   // Without a serial: serial and counter come from a hand remote and are stored under this key.
   void set_take_over_key(uint32_t key) {
@@ -103,6 +107,8 @@ class KeeloqRemote : public Component, public remote_base::RemoteReceiverListene
   bool channels_configured_{false};
   bool accepted_known_{false};
   bool resync_pending_{false};
+  bool receiving_{false};
+  bool has_manufacturer_key_{false};
   uint32_t serial_;
   uint32_t device_key_[2];
   uint32_t manufacturer_key_[2]{};

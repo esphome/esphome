@@ -21,21 +21,9 @@ static constexpr uint32_t TAKE_OVER_TIMEOUT_MS = 60000;
 // Scheduler ids.
 static constexpr uint32_t LEARN_TIMEOUT_ID = 0;
 static constexpr uint32_t TAKE_OVER_TIMEOUT_ID = 1;
-// How far ahead a receiver accepts a counter: with one frame, and with a second one in sequence (resync).
-struct Windows {
-  uint16_t single;
-  uint16_t resync;
-};
-
-// HCS301 data sheet DS21143C, section 7.3: 16 codes with one press, 32K with two. A new type adds its values here.
-static Windows receive_windows(KeeloqType type) {
-  switch (type) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      return {16, 0x8000};
-  }
-}
-static constexpr uint32_t ACCEPTED_PREF_HASH = 0x41434350;
+// HCS301 data sheet DS21143C, section 7.3: a receiver accepts 16 codes ahead with one press, 32K with two.
+static constexpr uint16_t SINGLE_WINDOW = 16;
+static constexpr uint16_t RESYNC_WINDOW = 0x8000;
 
 static inline uint32_t get_bit(uint32_t value, uint32_t n) { return (value >> n) & 1; }
 
@@ -96,19 +84,18 @@ bool KeeloqRemote::ready_to_send() const {
 bool KeeloqRemote::decrypt_frame_(const remote_base::KeeloqData &data, KeeloqFrame &frame) const {
   uint32_t key[2] = {this->device_key_[0], this->device_key_[1]};
   if (!this->known_ || data.address != this->serial_) {
+    // A remote with serial and without on_frame has no manufacturer key, so it hears only its own serial.
+    if (!this->has_manufacturer_key_) {
+      return false;
+    }
     normal_learning_key(data.address, this->manufacturer_key_, key);
   }
   uint32_t plain = decrypt(data.encrypted, key);
-  switch (this->type_) {
-    case KEELOQ_TYPE_JAROLIFT:
-    default:
-      // A wrong key gives random bits; the serial's low byte inside the code proves the right one.
-      if (data.suffix_bits != 6 || ((plain >> 16) & 0xFF) != (data.address & 0xFF)) {
-        return false;
-      }
-      frame.channels = data.group() << 8 | plain >> 24;
-      break;
+  // A wrong key gives random bits; the serial's low byte inside the code proves the right one.
+  if (data.suffix_bits != 6 || ((plain >> 16) & 0xFF) != (data.address & 0xFF)) {
+    return false;
   }
+  frame.channels = data.group() << 8 | plain >> 24;
   frame.serial = data.address;
   frame.counter = plain & 0xFFFF;
   frame.command = data.command;
@@ -130,10 +117,13 @@ bool KeeloqRemote::on_receive(remote_base::RemoteReceiveData src) {
   if (took_over) {
     this->waiting_ = false;
     this->cancel_timeout(TAKE_OVER_TIMEOUT_ID);
-    this->use_serial_(frame.serial);
-    // Without serial the hand remote's channels become the default unless configured; with serial only the counter.
-    if (this->take_over_ && !this->channels_configured_) {
-      this->channels_ = frame.channels;
+    // Without serial the hand remote gives the serial and, unless configured, the channels; with serial only the
+    // counter, and the device key from the build stays.
+    if (this->take_over_) {
+      this->use_serial_(frame.serial);
+      if (!this->channels_configured_) {
+        this->channels_ = frame.channels;
+      }
     }
     this->set_counter(frame.counter + 1);
     // The take-over press itself does not count as a command.
@@ -160,17 +150,16 @@ bool KeeloqRemote::accept_(uint16_t counter) {
   // Compared with the last accepted counter: equal is a copy, ahead within the window is new, else old.
   uint16_t ahead = counter - this->accepted_;
   if (this->accepted_known_) {
-    Windows windows = receive_windows(this->type_);
     if (ahead == 0) {
       ESP_LOGVV(TAG, "Copy of counter %u", counter);
       return false;
     }
-    if (ahead >= windows.resync) {
+    if (ahead >= RESYNC_WINDOW) {
       ESP_LOGD(TAG, "Old counter %u, last %u: possible replay", counter, this->accepted_);
       this->resync_pending_ = false;
       return false;
     }
-    if (ahead > windows.single) {
+    if (ahead > SINGLE_WINDOW) {
       // Far ahead: only the next counter after this one resynchronizes.
       bool in_sequence = this->resync_pending_ && counter == static_cast<uint16_t>(this->resync_ + 1);
       this->resync_pending_ = !in_sequence;
@@ -189,15 +178,8 @@ bool KeeloqRemote::accept_(uint16_t counter) {
   return true;
 }
 
-// What the receiving side keeps in flash.
-struct Accepted {
-  uint16_t counter;
-  uint8_t known;
-} __attribute__((packed));
-
 void KeeloqRemote::store_accepted_(bool sync) {
-  Accepted stored{this->accepted_, this->accepted_known_};
-  bool saved = this->accepted_pref_.save(&stored);
+  bool saved = this->accepted_pref_.save(&this->accepted_);
   if (sync) {
     this->accepted_stored_ = this->accepted_;
     bool synced = global_preferences->sync();
@@ -241,13 +223,17 @@ void KeeloqRemote::setup() {
     this->pref_.load(&this->reserved_);
   }
   this->counter_ = this->reserved_;
+  // Only a remote with a receiver accepts presses, so only it saves the last one.
+  if (!this->receiving_) {
+    return;
+  }
   uint32_t key = this->take_over_ ? this->take_over_key_ : preference_key(this->type_, this->serial_);
-  this->accepted_pref_ = global_preferences->make_preference<Accepted>(key ^ ACCEPTED_PREF_HASH, true);
-  Accepted accepted{};
+  this->accepted_pref_ = global_preferences->make_preference<uint16_t>(fnv1a_hash_extend(key, "accepted"), true);
+  uint16_t accepted;
   if (this->accepted_pref_.load(&accepted)) {
-    this->accepted_ = accepted.counter;
-    this->accepted_stored_ = accepted.counter;
-    this->accepted_known_ = accepted.known != 0;
+    this->accepted_ = accepted;
+    this->accepted_stored_ = accepted;
+    this->accepted_known_ = true;
   }
   // A hand remote with this serial may have been followed further than the reserved block. Its last stored
   // press lags by less than a block, so continuing a block after it stays ahead and inside the window.
@@ -293,9 +279,11 @@ remote_base::KeeloqData KeeloqRemote::next_frame(uint8_t command, uint16_t chann
   // Taken before the log line, so a frame sent from a log trigger gets the next counter.
   const uint16_t counter = this->counter_++;
   // A receiver that hears this frame takes it as the last one, so its echo is no new press; never backwards.
-  if (!this->accepted_known_ || static_cast<uint16_t>(counter - this->accepted_) < 0x8000) {
+  if (this->receiving_ && (!this->accepted_known_ || static_cast<uint16_t>(counter - this->accepted_) < 0x8000)) {
     this->accepted_ = counter;
     this->accepted_known_ = true;
+    // Saved with the next flash write, so a recording of this frame does not fire after a restart either.
+    this->store_accepted_(false);
   }
   remote_base::KeeloqData data{};
   data.address = this->serial_;

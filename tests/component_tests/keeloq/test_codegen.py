@@ -17,15 +17,53 @@ def test_each_remote_reserves_what_it_saves_in_flash(
     # Each value takes its data words plus the checksum word in the flash store.
     # The uint16_t counter: one data word
     counter = (2, True)
-    # The last press, counter and a flag in 3 bytes: one data word
+    # The last press, a uint16_t counter: one data word
     last_press = (2, True)
     # What a remote without serial took over, serial, reserved block and channels in 8 bytes: two data words
     taken_over = (3, True)
     assert CORE.data[KEY_ESP8266][KEY_PREFERENCES] == [
-        *(counter, last_press),  # shutter_remote
+        counter,  # shutter_remote, without receiver_id
         *(counter, last_press),  # awning_remote
         *(taken_over, last_press),  # hand_remote, without serial
+        *(counter, last_press),  # frame_logger
     ]
+
+
+@pytest.mark.parametrize(
+    ("remote", "receiving"),
+    [("shutter_remote", False), ("awning_remote", True), ("hand_remote", True)],
+)
+def test_only_a_remote_with_a_receiver_keeps_its_last_press(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    remote: str,
+    receiving: bool,
+) -> None:
+    main = generate_main(component_config_path("esp8266_remotes.yaml"))
+    assert (f"{remote}->set_receiving();" in main) is receiving
+
+
+@pytest.mark.parametrize(
+    ("remote", "manufacturer_key"),
+    [
+        # without receiver_id
+        ("shutter_remote", False),
+        # serial and on_command: its own frames decrypt with the device key from the build
+        ("awning_remote", False),
+        # without serial: a take-over derives the device key of the hand remote's serial
+        ("hand_remote", True),
+        # on_frame: frames of other serials
+        ("frame_logger", True),
+    ],
+)
+def test_only_remotes_that_need_it_get_the_manufacturer_key(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    remote: str,
+    manufacturer_key: bool,
+) -> None:
+    main = generate_main(component_config_path("esp8266_remotes.yaml"))
+    assert (f"{remote}->set_manufacturer_key(" in main) is manufacturer_key
 
 
 @pytest.mark.parametrize(
