@@ -49,10 +49,10 @@ class ESPNowPacketInterface : public packet_interface::PacketInterface,
   void delivery_failed_();
 
   ESPNowComponent *parent_;
-  peer_address_t peer_address_;
   const std::span<uint8_t> tx_buffer_;
   uint32_t last_send_warning_ms_{0};
   uint32_t last_delivery_warning_ms_{0};
+  peer_address_t peer_address_;
   bool send_warned_{false};
   bool delivery_warned_{false};
 };
