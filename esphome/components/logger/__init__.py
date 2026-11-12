@@ -459,6 +459,25 @@ def _final_validate(config: ConfigType) -> None:
         from esphome.components.zephyr import zephyr_claim_cdc_acm
 
         zephyr_claim_cdc_acm(0, "logger", write_only=True)
+    if CORE.is_libretiny and config[CONF_BAUD_RATE] != 0:
+        _validate_libretiny_uart_pins(config[CONF_HARDWARE_UART])
+
+
+def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
+    """Reject a port without default pins; opening one hangs at boot (BW15 UART1)."""
+    from esphome.components.libretiny.const import KEY_BOARD, KEY_LIBRETINY
+    from esphome.components.libretiny.gpio import _lookup_board_pins
+
+    if not hardware_uart.startswith("UART"):
+        return
+    board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
+    board_pins = _lookup_board_pins(board)
+    # Unknown boards have no pin map to check against
+    if board_pins and f"SERIAL{hardware_uart[-1]}_TX" not in board_pins:
+        raise cv.Invalid(
+            f"Board {board} has no default pins for {hardware_uart}; "
+            "choose another hardware_uart"
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
