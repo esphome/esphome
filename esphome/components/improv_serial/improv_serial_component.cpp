@@ -20,26 +20,36 @@ ESPHOME_LOG_TAG(TAG, "improv_serial");
 
 static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 0;
 
+static constexpr uint8_t FRAME_PREFIX[] PROGMEM = {'I', 'M', 'P', 'R', 'O', 'V', IMPROV_SERIAL_VERSION};
+static_assert(sizeof(FRAME_PREFIX) + 2 == FRAME_HEADER_SIZE, "type and length follow the prefix");
+
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+static constexpr bool WIFI_URL_FIRST = true;
+#else
+static constexpr bool WIFI_URL_FIRST = false;
+#endif
+
+/// Fill the frame header and return its checksum.
+static uint8_t write_header(uint8_t *frame, ImprovSerialType type, uint8_t length) {
+  progmem_memcpy(frame, FRAME_PREFIX, sizeof(FRAME_PREFIX));
+  frame[FRAME_HEADER_SIZE - 2] = type;
+  frame[FRAME_HEADER_SIZE - 1] = length;
+  return sum_bytes(frame, FRAME_HEADER_SIZE);
+}
+
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
-#ifdef USE_IMPROV_SERIAL_UART
-  // Transport is a dedicated UART bus set via set_uart() in generated code
-#elif defined(USE_ESP32)
-  this->uart_num_ = logger::global_logger->get_uart_num();
-  this->uart_selection_ = logger::global_logger->get_uart();
-#elif defined(USE_ARDUINO)
-  this->hw_serial_ = logger::global_logger->get_hw_serial();
-#endif
 
   // The Improv state machine tracks Wi-Fi provisioning only. General device
   // connectivity (e.g. Ethernet) is reported separately via GET_NETWORK_STATE.
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->has_sta()) {
+  auto *wifi = wifi::global_wifi_component;
+  if (wifi != nullptr && wifi->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
-  } else if (wifi::global_wifi_component != nullptr && !wifi::global_wifi_component->is_disabled()) {
+  } else if (wifi != nullptr && !wifi->is_disabled()) {
     // Respect Wi-Fi's disabled state; forcing a scan while disabled throws
     // the wifi component into an invalid state from which it cannot recover.
-    wifi::global_wifi_component->start_scanning();
+    wifi->start_scanning();
   }
 #endif
 }
@@ -48,33 +58,30 @@ void ImprovSerialComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->last_read_byte_ && (now - this->last_read_byte_ > IMPROV_SERIAL_TIMEOUT)) {
     this->last_read_byte_ = 0;
-    this->rx_buffer_.clear();
+    this->reset_rx_buffer_();
     ESP_LOGV(TAG, "Timeout");
   }
 
-  while (true) {
-    auto byte = this->read_byte_();
-    if (!byte.has_value())
-      break;
-    if (this->parse_improv_serial_byte_(byte.value())) {
+  uint8_t byte;
+  while (this->read_byte_(byte)) {
+    if (this->parse_improv_serial_byte_(byte)) {
       this->last_read_byte_ = now;
     } else {
       this->last_read_byte_ = 0;
-      this->rx_buffer_.clear();
+      this->reset_rx_buffer_();
     }
   }
 
 #ifdef USE_WIFI
-  if (this->state_ == improv::STATE_PROVISIONING && wifi::global_wifi_component != nullptr &&
-      wifi::global_wifi_component->is_connected()) {
+  auto *wifi = wifi::global_wifi_component;
+  if (this->state_ == improv::STATE_PROVISIONING && wifi != nullptr && wifi->is_connected()) {
     // Being connected is not enough: re-provisioning a device that is already online leaves the
     // prior network up until it drops, so check that the joined network is the requested one
     // before reporting success. Same test as the wifi.connect action.
     char ssid_buf[wifi::SSID_BUFFER_SIZE];
-    if (strcmp(wifi::global_wifi_component->wifi_ssid_to(ssid_buf), this->connecting_sta_.get_ssid().c_str()) == 0) {
-      wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
-                                                 this->connecting_sta_.get_password());
-      this->connecting_sta_ = {};
+    if (strcmp(wifi->wifi_ssid_to(ssid_buf), this->connecting_sta_->get_ssid().c_str()) == 0) {
+      wifi->save_wifi_sta(this->connecting_sta_->get_ssid(), this->connecting_sta_->get_password());
+      this->connecting_sta_.reset();
       this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
       this->set_state_(improv::STATE_PROVISIONED);
 
@@ -86,72 +93,6 @@ void ImprovSerialComponent::loop() {
 
 void ImprovSerialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Improv Serial:"); }
 
-void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) {
-  // First, set length field
-  this->tx_header_[TX_LENGTH_IDX] = this->tx_header_[TX_TYPE_IDX] == TYPE_RPC_RESPONSE ? size : 1;
-
-  const bool there_is_data = data != nullptr && size > 0;
-  // If there_is_data, checksum must not include our optional data byte
-  const uint8_t header_checksum_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE - 2;
-  // Only transmit the full buffer length if there is no data (only state/error byte is provided in this case)
-  const uint8_t header_tx_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE;
-  uint8_t checksum = sum_bytes(this->tx_header_, header_checksum_len);
-  if (there_is_data) {
-    checksum = sum_bytes(data, size, checksum);
-  }
-  this->tx_header_[TX_CHECKSUM_IDX] = checksum;
-
-#ifdef USE_IMPROV_SERIAL_UART
-  this->uart_->write_array(this->tx_header_, header_tx_len);
-  if (there_is_data) {
-    this->uart_->write_array(data, size);
-    this->uart_->write_array(&this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
-  }
-#elif defined(USE_ESP32)
-  switch (this->uart_selection_) {
-    case logger::UART_SELECTION_UART0:
-    case logger::UART_SELECTION_UART1:
-#if defined(USE_ESP32_VARIANT_ESP32)
-    case logger::UART_SELECTION_UART2:
-#endif
-      uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
-      if (there_is_data) {
-        uart_write_bytes(this->uart_num_, data, size);
-        uart_write_bytes(this->uart_num_, &this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
-      }
-      break;
-#if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
-    case logger::UART_SELECTION_USB_CDC:
-      esp_usb_console_write_buf((const char *) this->tx_header_, header_tx_len);
-      if (there_is_data) {
-        esp_usb_console_write_buf((const char *) data, size);
-        esp_usb_console_write_buf((const char *) &this->tx_header_[TX_CHECKSUM_IDX],
-                                  2);  // Footer: checksum and newline
-      }
-      break;
-#endif
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
-    case logger::UART_SELECTION_USB_SERIAL_JTAG:
-      usb_serial_jtag_write_bytes((const char *) this->tx_header_, header_tx_len, 20 / portTICK_PERIOD_MS);
-      if (there_is_data) {
-        usb_serial_jtag_write_bytes((const char *) data, size, 20 / portTICK_PERIOD_MS);
-        usb_serial_jtag_write_bytes((const char *) &this->tx_header_[TX_CHECKSUM_IDX], 2,
-                                    20 / portTICK_PERIOD_MS);  // Footer: checksum and newline
-      }
-      break;
-#endif
-    default:
-      break;
-  }
-#elif defined(USE_ARDUINO)
-  this->hw_serial_->write(this->tx_header_, header_tx_len);
-  if (there_is_data) {
-    this->hw_serial_->write(data, size);
-    this->hw_serial_->write(&this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
-  }
-#endif
-}
-
 #ifdef USE_WEBSERVER
 void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &builder, [[maybe_unused]] bool wifi_first) {
   // The webserver listens on every interface, so advertise each one that has a usable IPv4.
@@ -159,20 +100,10 @@ void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &buil
   // interface's addresses, which are all-unset (0.0.0.0) when e.g. Ethernet has no link while
   // the device is online via Wi-Fi, and 0.0.0.0 must not become the advertised URL. OpenThread
   // is omitted: it only ever has IPv6 addresses, which cannot form an IPv4 http:// URL.
-  const auto append_urls = [&builder](const network::IPAddresses &addresses) {
+  const auto append_urls = [this, &builder](const network::IPAddresses &addresses) {
     for (const auto &ip : addresses) {
-      if (!ip.is_ip4() || !ip.is_set())
-        continue;
-      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      ip.str_to(ip_buf);
-      // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
-      char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
-      // buf_append_printf keeps the format string in flash on ESP8266
-      size_t len =
-          buf_append_printf(webserver_url, sizeof(webserver_url), 0, "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
-      if (!builder.add_string(webserver_url, len)) {
-        ESP_LOGW(TAG, "Response full; URL dropped");
-      }
+      if (ip.is_ip4() && ip.is_set())
+        this->add_webserver_url_(builder, ip);
     }
   };
 #ifdef USE_WIFI
@@ -261,38 +192,50 @@ void ImprovSerialComponent::send_version_info_() {
 
 bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
-  this->rx_buffer_.push_back(byte);
   ESP_LOGV(TAG, "Byte: 0x%02X", byte);
-  const uint8_t *raw = &this->rx_buffer_[0];
+  // The parser's own first test; a stray byte then costs no heap block
+  if (at == 0 && byte != 'I')
+    return false;
+  // Two exact allocations per frame: the header, then the whole frame once its length is known
+  if (at == 0) {
+    this->rx_buffer_.reserve(FRAME_HEADER_SIZE);
+  } else if (at == FRAME_HEADER_SIZE - 1) {
+    this->rx_buffer_.reserve(FRAME_HEADER_SIZE + byte + 1);
+  }
+  this->rx_buffer_.push_back(byte);
+  const uint8_t *raw = this->rx_buffer_.data();
 
   return improv::parse_improv_serial_byte(
       at, byte, raw, [this](improv::ImprovCommand command) -> bool { return this->parse_improv_payload_(command); },
       [this](improv::Error error) -> void {
         ESP_LOGW(TAG, "Error decoding payload");
-        this->set_error_(error);
+        this->send_state_byte_(TYPE_ERROR_STATE, error);
       });
 }
 
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
+#ifdef USE_WIFI
+  auto *wifi = wifi::global_wifi_component;
+#endif
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
 #ifdef USE_WIFI
-      if (wifi::global_wifi_component == nullptr || wifi::global_wifi_component->is_disabled()) {
+      if (wifi == nullptr || wifi->is_disabled()) {
         // Wi-Fi is disabled, so we can't provision. Respond immediately
         // instead of letting the client wait out its provisioning timeout.
         ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
-        this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+        this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
         return true;
       }
-      wifi::WiFiAP sta{};
+      this->connecting_sta_ = std::make_unique<wifi::WiFiAP>();
+      auto &sta = *this->connecting_sta_;
       sta.set_ssid(command.ssid.c_str());
       sta.set_password(command.password.c_str());
-      this->connecting_sta_ = sta;
 
       // Sampled before start_connecting(): the old connection drops asynchronously after it.
-      const bool switching = wifi::global_wifi_component->is_connected();
-      wifi::global_wifi_component->set_sta(sta);
-      wifi::global_wifi_component->start_connecting(sta);
+      const bool switching = wifi->is_connected();
+      wifi->set_sta(sta);
+      wifi->start_connecting(sta);
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
@@ -302,7 +245,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 #else
       // No Wi-Fi support compiled in; there is nothing to provision.
       ESP_LOGW(TAG, "Wi-Fi not supported; cannot provision");
-      this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+      this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
 #endif
       return true;
     }
@@ -312,10 +255,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       // offer a Wi-Fi form. General connectivity (e.g. Ethernet) is reported separately
       // via GET_NETWORK_STATE.
 #ifdef USE_WIFI
-      if (wifi::global_wifi_component == nullptr || wifi::global_wifi_component->is_disabled()) {
+      if (wifi == nullptr || wifi->is_disabled()) {
         // Reported transiently without disturbing our internal provisioning state machine,
         // so a later `wifi.enable` still reports the correct state.
-        this->send_current_state_(improv::STATE_STOPPED);
+        this->send_state_byte_(TYPE_CURRENT_STATE, improv::STATE_STOPPED);
         return true;
       }
       this->set_state_(this->state_);
@@ -323,7 +266,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         this->send_settings_response_(improv::GET_CURRENT_STATE);
       }
 #else
-      this->send_current_state_(improv::STATE_STOPPED);
+      this->send_state_byte_(TYPE_CURRENT_STATE, improv::STATE_STOPPED);
 #endif
       return true;
     }
@@ -335,7 +278,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       // Declared out here because the terminating empty response is sent with or without Wi-Fi
       std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
 #ifdef USE_WIFI
-      const auto &results = wifi::global_wifi_component->get_scan_result();
+      const auto &results = wifi->get_scan_result();
       for (const auto &scan : results) {
         bool with_auth = false;
         if (!wifi::should_show_scan_entry(results, scan, with_auth))
@@ -387,20 +330,15 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 #ifdef USE_WEBSERVER
       // Not tied to one interface, so follow the configured priority the way
       // network::get_ip_addresses() does: a wifi-first network priority list leads with Wi-Fi.
-      if (flags & improv::NETWORK_IS_ONLINE) {
-#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
-        this->add_webserver_urls_(builder, /*wifi_first=*/true);
-#else
-        this->add_webserver_urls_(builder, /*wifi_first=*/false);
-#endif
-      }
+      if (flags & improv::NETWORK_IS_ONLINE)
+        this->add_webserver_urls_(builder, WIFI_URL_FIRST);
 #endif
       this->send_response_(builder.finish(false));
       return true;
     }
     default: {
       ESP_LOGW(TAG, "Unknown payload");
-      this->set_error_(improv::ERROR_UNKNOWN_RPC);
+      this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNKNOWN_RPC);
       return false;
     }
   }
@@ -408,19 +346,16 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
 void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
-  this->send_current_state_(state);
+  this->send_state_byte_(TYPE_CURRENT_STATE, state);
 }
 
-void ImprovSerialComponent::send_current_state_(improv::State state) {
-  this->tx_header_[TX_TYPE_IDX] = TYPE_CURRENT_STATE;
-  this->tx_header_[TX_DATA_IDX] = state;
-  this->write_data_();
-}
-
-void ImprovSerialComponent::set_error_(improv::Error error) {
-  this->tx_header_[TX_TYPE_IDX] = TYPE_ERROR_STATE;
-  this->tx_header_[TX_DATA_IDX] = error;
-  this->write_data_();
+void ImprovSerialComponent::send_state_byte_(ImprovSerialType type, uint8_t value) {
+  uint8_t frame[FRAME_HEADER_SIZE + 3];
+  const uint8_t checksum = write_header(frame, type, 1) + value;
+  frame[FRAME_HEADER_SIZE] = value;
+  frame[FRAME_HEADER_SIZE + 1] = checksum;
+  frame[FRAME_HEADER_SIZE + 2] = '\n';
+  this->write_(frame, sizeof(frame));
 }
 
 void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
@@ -428,16 +363,21 @@ void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
   if (response.size() > MAX_SERIAL_RESPONSE) {
     ESP_LOGE(TAG, "Response too long");
     // Fail fast instead of leaving the client to wait out its timeout
-    this->set_error_(improv::ERROR_UNKNOWN);
+    this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNKNOWN);
     return;
   }
-  this->tx_header_[TX_TYPE_IDX] = TYPE_RPC_RESPONSE;
-  this->write_data_(response.data(), response.size());
+  uint8_t header[FRAME_HEADER_SIZE];
+  const uint8_t footer[2] = {
+      sum_bytes(response.data(), response.size(), write_header(header, TYPE_RPC_RESPONSE, response.size())), '\n'};
+  this->write_(header, sizeof(header));
+  this->write_(response.data(), response.size());
+  this->write_(footer, sizeof(footer));
 }
 
 #ifdef USE_WIFI
 void ImprovSerialComponent::on_wifi_connect_timeout_() {
-  this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+  this->connecting_sta_.reset();
+  this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();

@@ -4,12 +4,30 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::improv_base {
 
-#ifdef USE_IMPROV_NEXT_URL
+#if defined(USE_IMPROV_NEXT_URL) || defined(USE_WEBSERVER)
 ESPHOME_LOG_TAG(TAG, "improv_base");
+#endif
+
+#ifdef USE_WEBSERVER
+void ImprovBase::add_webserver_url_(improv::RpcResponseBuilder &builder, const network::IPAddress &ip) {
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ip.str_to(ip_buf);
+  // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
+  char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
+  // buf_append_printf keeps the format string in flash on ESP8266
+  size_t len = buf_append_printf(webserver_url, sizeof(webserver_url), 0, "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+  if (!builder.add_string(webserver_url, len)) {
+    ESP_LOGW(TAG, "Response full; URL dropped");
+  }
+}
+#endif
+
+#ifdef USE_IMPROV_NEXT_URL
 
 static constexpr const char DEVICE_NAME_PLACEHOLDER[] = "{{device_name}}";
 static constexpr size_t DEVICE_NAME_PLACEHOLDER_LEN = sizeof(DEVICE_NAME_PLACEHOLDER) - 1;
