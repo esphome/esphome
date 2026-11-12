@@ -239,5 +239,8 @@ class _Schema(vol.Schema):
             extra_schemas.extend(schema._extra_schemas)
         if isinstance(schema, vol.Schema):
             schema = schema.schema
-        ret = super().extend(schema, extra=extra)
-        return _Schema(ret.schema, extra=ret.extra, extra_schemas=extra_schemas)
+        # vol.Schema.extend already builds and compiles a new _Schema, so only the
+        # extra schemas are copied over; compiling it again doubled the import cost.
+        ret = super().extend(schema, required=False, extra=extra)
+        ret._extra_schemas = extra_schemas
+        return ret

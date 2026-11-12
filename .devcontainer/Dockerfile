@@ -7,6 +7,7 @@ RUN git config --system --add safe.directory "*"
 
 RUN apt update \
     && apt install -y \
+      libmbedtls-dev \
       protobuf-compiler
 
 RUN pip install uv

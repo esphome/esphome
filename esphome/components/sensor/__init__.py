@@ -297,8 +297,10 @@ ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
-LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
-StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
+ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY, ApplyFilter, cg.optional.template(cg.float_), ((cg.float_, "x"),)
+)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
@@ -636,12 +638,12 @@ async def throttle_average_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+@FILTER_REGISTRY.register("lambda", ApplyFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
-        config, [(float, "x")], return_type=cg.optional.template(float)
+        config, [(float, "x")], return_type=APPLY_FILTER.return_type
     )
-    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
+    return APPLY_FILTER.new(filter_id, lambda_.body_lines)
 
 
 def validate_delta_value(value):
@@ -823,12 +825,13 @@ def validate_calibrate_linear(config):
                 raise cv.Invalid(
                     "The 'from' values of the calibrate_linear filter must not contain duplicates."
                 )
-    elif config[CONF_METHOD] == "least_squares":
-        if all(conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints):
-            raise cv.Invalid(
-                "The 'from' values of the calibrate_linear filter cannot all point "
-                "to the same value! Please add more values to the filter."
-            )
+    elif config[CONF_METHOD] == "least_squares" and all(
+        conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints
+    ):
+        raise cv.Invalid(
+            "The 'from' values of the calibrate_linear filter cannot all point "
+            "to the same value! Please add more values to the filter."
+        )
     return config
 
 
@@ -1034,14 +1037,10 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        trigger = await automation.new_value_range_trigger(
+            conf[CONF_TRIGGER_ID], var, conf
+        )
         await cg.register_component(trigger, conf)
-        if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
-            cg.add(trigger.set_min(template_))
-        if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
-            cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 
