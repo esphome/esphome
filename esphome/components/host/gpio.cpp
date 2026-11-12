@@ -36,6 +36,9 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   ESP_LOGD(TAG, "Clearing interrupt for pin %d", static_cast<HostGPIOPin *>(this->arg_)->get_pin());
 }
+void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  // pass
+}
 
 }  // namespace esphome
 
