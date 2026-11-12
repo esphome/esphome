@@ -305,6 +305,25 @@ static const LogString *get_log_level_str(uint8_t level) {
   return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
 }
 
+#ifndef USE_HOST
+const LogString *Logger::get_uart_selection_() {
+#ifdef USE_LOGGER_UART_SELECTION_DEFAULT
+  // LibreTiny resolves DEFAULT to the board's port only when serial logging is on
+  if (this->baud_rate_ > 0) {
+    switch (this->get_uart()) {
+      case UART_SELECTION_UART0:
+        return LOG_STR("UART0");
+      case UART_SELECTION_UART1:
+        return LOG_STR("UART1");
+      default:
+        return LOG_STR("UART2");
+    }
+  }
+#endif
+  return LOG_STR(ESPHOME_LOGGER_UART_NAME);
+}
+#endif
+
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"

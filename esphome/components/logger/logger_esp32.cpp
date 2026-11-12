@@ -126,20 +126,6 @@ void Logger::pre_setup() {
 #endif
 }
 
-const LogString *Logger::get_uart_selection_() {
-#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-  return LOG_STR("USB_CDC");
-#elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
-  return LOG_STR("USB_SERIAL_JTAG");
-#elif defined(USE_LOGGER_UART_SELECTION_UART2)
-  return LOG_STR("UART2");
-#elif defined(USE_LOGGER_UART_SELECTION_UART1)
-  return LOG_STR("UART1");
-#else
-  return LOG_STR("UART0");
-#endif
-}
-
 #ifdef USE_LOGGER_CONSOLE
 size_t Logger::console_write(const uint8_t *data, size_t len) {
   int written = 0;
@@ -167,12 +153,7 @@ bool Logger::console_read(uint8_t &byte) {
 #elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
   return usb_serial_jtag_read_bytes(&byte, 1, 0) > 0;
 #else
-  size_t available;
-  uart_get_buffered_data_len(this->get_uart_num(), &available);
-  if (available == 0)
-    return false;
-  uart_read_bytes(this->get_uart_num(), &byte, 1, 0);
-  return true;
+  return uart_read_bytes(this->get_uart_num(), &byte, 1, 0) > 0;
 #endif
 }
 #endif
