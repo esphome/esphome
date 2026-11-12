@@ -145,12 +145,14 @@ class PacketInterface : public Component {
    */
   template<typename F> bool send_exclusive_(F &&send) {
     if (this->sending_) {
-      this->nested_send_refused_();
+      this->nested_refused_ = true;
       return false;
     }
     this->sending_ = true;
     bool sent = send();
     this->sending_ = false;
+    if (this->nested_refused_)
+      this->warn_nested_send_();
     return sent;
   }
 
@@ -163,9 +165,10 @@ class PacketInterface : public Component {
   uint8_t not_understood_count_{0};
 
  private:
-  void nested_send_refused_();
+  void warn_nested_send_();
 
   bool sending_ : 1 {false};
+  bool nested_refused_ : 1 {false};  // during the send in progress
   bool nested_warned_ : 1 {false};
 };
 }  // namespace esphome::packet_interface
