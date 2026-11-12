@@ -171,7 +171,7 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
   if (is_triggered) {
     this->current_trigger_operation_ = operation;
 #ifdef USE_BINARY_SENSOR
-  } else if (operation != COVER_OPERATION_IDLE) {
+  } else if (operation == this->current_trigger_operation_) {
     this->awaiting_movement_ = false;
 #endif
   }
@@ -185,9 +185,9 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
 
 #ifdef USE_BINARY_SENSOR
   if (is_triggered && this->open_feedback_ != nullptr && this->close_feedback_ != nullptr) {
-    // max_duration counts from the command until a movement sensor reports
-    this->awaiting_movement_ = operation != COVER_OPERATION_IDLE && this->current_operation == COVER_OPERATION_IDLE;
-    if (this->awaiting_movement_)
+    // max_duration counts from the command, or from the end of a movement being reversed
+    this->awaiting_movement_ = operation != COVER_OPERATION_IDLE && operation != this->current_operation;
+    if (this->awaiting_movement_ && this->current_operation == COVER_OPERATION_IDLE)
       this->start_dir_time_ = App.get_loop_component_start_time();
   } else
 #endif

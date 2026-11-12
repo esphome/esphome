@@ -17,7 +17,7 @@ async def test_feedback_cover_movement_sensors(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test max_duration, a self-stopping motor, a flickering sensor and a reverse with no wait time."""
+    """Test max_duration, a self-stopping motor, a flickering sensor and reverses with no wait time."""
     lines: list[str] = []
 
     def count(marker: str) -> int:
@@ -38,6 +38,8 @@ async def test_feedback_cover_movement_sensors(
         limit_opening = require_entity(entities, "limit_opening", SwitchInfo)
         flicker = require_entity(entities, "flicker_cover", CoverInfo)
         flicker_opening = require_entity(entities, "flicker_opening", SwitchInfo)
+        dead = require_entity(entities, "dead_reverse_cover", CoverInfo)
+        dead_opening = require_entity(entities, "dead_reverse_opening", SwitchInfo)
 
         # The motor never reports movement, so max_duration has to stop it
         client.cover_command(key=stuck.key, position=1.0)
@@ -72,6 +74,18 @@ async def test_feedback_cover_movement_sensors(
         assert isinstance(flicker_state, CoverState)
         assert flicker_state.current_operation == CoverOperation.IDLE
         assert flicker_state.position == pytest.approx(0.75, abs=0.05)
+
+        # The reversed motor never starts, so max_duration stops it once the old movement ends
+        client.cover_command(key=dead.key, position=1.0)
+        await asyncio.sleep(0.1)
+        client.switch_command(key=dead_opening.key, state=True)
+        await asyncio.sleep(0.1)
+        client.cover_command(key=dead.key, position=0.0)
+        await asyncio.sleep(0.1)
+        client.switch_command(key=dead_opening.key, state=False)
+        await asyncio.sleep(1.0)
+        assert count("DEAD_CLOSE_ACTION") == 1
+        assert count("DEAD_STOP_ACTION") == 2
 
         # Reverse while the open sensor still reports movement for a while
         client.cover_command(key=reverse.key, position=1.0)

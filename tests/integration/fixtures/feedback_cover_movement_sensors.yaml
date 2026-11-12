@@ -22,6 +22,10 @@ switch:
     name: "Flicker Opening"
     id: flicker_opening
     optimistic: true
+  - platform: template
+    name: "Dead Reverse Opening"
+    id: dead_reverse_opening
+    optimistic: true
 
 binary_sensor:
   - platform: template
@@ -41,6 +45,12 @@ binary_sensor:
     lambda: return id(flicker_opening).state;
   - platform: template
     id: flicker_close_sensor
+    lambda: return false;
+  - platform: template
+    id: dead_reverse_open_sensor
+    lambda: return id(dead_reverse_opening).state;
+  - platform: template
+    id: dead_reverse_close_sensor
     lambda: return false;
   - platform: template
     id: stuck_open_sensor
@@ -105,3 +115,17 @@ cover:
     stop_action:
       - logger.log: "FLICKER_STOP_ACTION"
       - switch.turn_off: flicker_opening
+  - platform: feedback
+    name: "Dead Reverse Cover"
+    open_duration: 6s
+    open_sensor: dead_reverse_open_sensor
+    close_duration: 6s
+    close_sensor: dead_reverse_close_sensor
+    direction_change_wait_time: 0s
+    max_duration: 500ms
+    open_action:
+      - logger.log: "DEAD_OPEN_ACTION"
+    close_action:
+      - logger.log: "DEAD_CLOSE_ACTION"
+    stop_action:
+      - logger.log: "DEAD_STOP_ACTION"
