@@ -34,7 +34,8 @@ rejects that (`gatt_process_read_by_type_rsp invalid handle ...`) and ends the w
 BlueZ accept it. `scripts/att_reorder/` reproduces it with no such device:
 
 - `server.yaml` (ESP32-S3) serves `FFF0` with six characteristics, then `1826`.
-- `proxy.yaml` (classic ESP32, `idf` substitution) links `components/attswap`, which wraps Bluedroid's
+- `proxy.yaml` (classic ESP32, `idf` substitution; keep per-build files such as `example-proxy.yaml` in the same
+  directory) links `components/attswap`, which wraps Bluedroid's
   `l2c_rcv_acl_data` (`-Wl,--wrap`); `attswap.hpp` swaps the first two records of the response whose first record
   declares `FFF1`, and logs a swap count.
 - `gattget.py PROXY PEER_MAC ROUNDS` reads the services through the proxy like Home Assistant (no cache);
