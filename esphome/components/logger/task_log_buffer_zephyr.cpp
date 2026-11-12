@@ -4,7 +4,7 @@
 
 namespace esphome::logger {
 
-__thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+__thread bool non_main_task_recursion_guard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
@@ -29,29 +29,17 @@ TaskLogBuffer::TaskLogBuffer() {
 
 bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {
-  // First, calculate the exact length needed using a null buffer (no actual writing)
-  va_list args_copy;
-  va_copy(args_copy, args);
-  int ret = vsnprintf(nullptr, 0, format, args_copy);
-  va_end(args_copy);
-
+  int ret = task_log_text_length(format, args);
   if (ret <= 0) {
     return false;  // Formatting error or empty message
   }
-
-  // Calculate actual text length (capped to maximum size)
-  static constexpr size_t MAX_TEXT_SIZE = 255;
-  size_t text_length = (static_cast<size_t>(ret) > MAX_TEXT_SIZE) ? MAX_TEXT_SIZE : ret;
+  uint16_t text_length = ret;
   size_t total_size = total_size_in_32bit_words(text_length);
   auto *msg = reinterpret_cast<LogMessage *>(mpsc_pbuf_alloc(&this->log_buffer_, total_size, K_NO_WAIT));
   if (msg == nullptr) {
     return false;
   }
-  msg->level = level;
-  msg->tag = tag;
-  msg->line = line;
-  strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
-  msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';  // Ensure null termination
+  fill_task_log_header(msg, level, tag, line, thread_name);
 
   // Format the message text directly into the acquired memory
   // We add 1 to text_length to ensure space for null terminator during formatting
@@ -90,11 +78,7 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &tex
   // we claimed buffer already, const_cast is safe here
   message = const_cast<LogMessage *>(reinterpret_cast<const LogMessage *>(this->current_token_));
 
-  text_length = message->text_length;
-  // Remove trailing newlines
-  while (text_length > 0 && message->text_data()[text_length - 1] == '\n') {
-    text_length--;
-  }
+  text_length = trim_trailing_newlines(message->text_data(), message->text_length);
 
   return true;
 }

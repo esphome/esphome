@@ -44,19 +44,11 @@ void TaskLogBuffer::release_message_main_loop() {
 
 bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {
-  // First, calculate the exact length needed using a null buffer (no actual writing)
-  va_list args_copy;
-  va_copy(args_copy, args);
-  int ret = vsnprintf(nullptr, 0, format, args_copy);
-  va_end(args_copy);
-
+  int ret = task_log_text_length(format, args);
   if (ret <= 0) {
     return false;  // Formatting error or empty message
   }
-
-  // Calculate actual text length (capped to maximum size)
-  static constexpr size_t MAX_TEXT_SIZE = 255;
-  size_t text_length = (static_cast<size_t>(ret) > MAX_TEXT_SIZE) ? MAX_TEXT_SIZE : ret;
+  uint16_t text_length = ret;
 
   // Calculate total size needed (header + text length + null terminator)
   size_t total_size = sizeof(LogMessage) + text_length + 1;
@@ -69,24 +61,10 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     return false;  // Failed to acquire memory
   }
 
-  // Set up the message header in the acquired memory
   LogMessage *msg = static_cast<LogMessage *>(acquired_memory);
-  msg->level = level;
-  msg->tag = tag;
-  msg->line = line;
-
-  // Store the thread name now instead of waiting until main loop processing
-  // This avoids crashes if the task completes or is deleted between when this message
-  // is enqueued and when it's processed by the main loop
-  if (thread_name != nullptr) {
-    strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
-    msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';  // Ensure null termination
-  } else {
-    msg->thread_name[0] = '\0';  // Empty string if no thread name
-  }
+  fill_task_log_header(msg, level, tag, line, thread_name);
 
   // Format the message text directly into the acquired memory
-  // We add 1 to text_length to ensure space for null terminator during formatting
   char *text_area = msg->text_data();
   ret = vsnprintf(text_area, text_length + 1, format, args);
 
@@ -96,12 +74,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     return false;
   }
 
-  // Remove trailing newlines
-  while (text_length > 0 && text_area[text_length - 1] == '\n') {
-    text_length--;
-  }
-
-  msg->text_length = text_length;
+  msg->text_length = trim_trailing_newlines(text_area, text_length);
   // Complete the send operation with the acquired memory
   result = xRingbufferSendComplete(this->handle_(), acquired_memory);
 

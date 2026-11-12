@@ -44,7 +44,7 @@ ESPHOME_LOG_TAG(TAG, "logger");
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_CDC
 void Logger::cdc_loop_() {
-  if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
+  if (this->uart_dev_ == nullptr) {
     return;
   }
   static bool opened = false;
@@ -74,7 +74,7 @@ void Logger::cdc_loop_() {
 void Logger::pre_setup() {
 #ifdef CONFIG_SERIAL
   if (this->baud_rate_ > 0) {
-    static const struct device *uart_dev = nullptr;
+    const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(ESPHOME_LOGGER_UART0_NODE));
@@ -114,14 +114,10 @@ void Logger::pre_setup() {
   char reason_buffer[zephyr::RESET_REASON_BUFFER_SIZE];
   const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
   ESP_LOGI(TAG, "Reset reason: %s", reset_reason);
-  dump_crash_();
+  this->dump_crash_();
 #endif
-#ifdef USE_CRASH_HANDLER
-#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
   // Nobody reads a USB port this early; cdc_loop_() reports the dump once the port is opened
-  if (this->uart_ == UART_SELECTION_USB_CDC)
-    return;
-#endif
+#if defined(USE_CRASH_HANDLER) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   // Without a UART (baud_rate: 0, or one that did not come up) nothing reaches the console
   if (this->uart_dev_ != nullptr)
     log_crash_to_client();
@@ -158,7 +154,7 @@ const LogString *Logger::get_uart_selection_() {
   }
 }
 
-static const uint8_t REASON_BUF_SIZE = 32;
+static constexpr uint8_t REASON_BUF_SIZE = 32;
 
 static const char *reason_to_str(unsigned int reason, char *buf) {
   switch (reason) {
