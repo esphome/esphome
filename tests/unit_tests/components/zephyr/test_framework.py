@@ -141,18 +141,23 @@ def test_install_toolchain_raises_on_an_empty_sdk_version(
 def test_install_toolchain_removes_only_stale_partial_downloads(
     tmp_path: Path, mock_download: MagicMock
 ) -> None:
-    """A fresh leftover may belong to a running build."""
+    """A fresh leftover may belong to a running build; a resumed part keeps its old meta."""
     framework_path = _make_framework(tmp_path)
     toolchains = framework._get_toolchain_path("1.0.1", TOOLCHAIN).parent
     toolchains.mkdir(parents=True)
     stale = toolchains / "zephyr-sdk-0.17.4-arm-zephyr-eabi.toolchain.archive.part"
+    stale_meta = stale.with_name(f"{stale.name}.meta")
     fresh = toolchains / "zephyr-sdk-1.0.2-arm-zephyr-eabi.toolchain.archive.part"
-    for leftover in (stale, fresh):
+    fresh_meta = fresh.with_name(f"{fresh.name}.meta")
+    for leftover in (stale, stale_meta, fresh, fresh_meta):
         leftover.write_text("")
     two_days_ago = time.time() - 2 * 24 * 60 * 60
-    os.utime(stale, (two_days_ago, two_days_ago))
+    for old in (stale, stale_meta, fresh_meta):
+        os.utime(old, (two_days_ago, two_days_ago))
 
     framework.install_toolchain(framework_path, TOOLCHAIN)
 
     assert not stale.exists()
+    assert not stale_meta.exists()
     assert fresh.exists()
+    assert fresh_meta.exists()
