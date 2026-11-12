@@ -94,7 +94,7 @@ static const uint8_t ILI9XXX_GMCTRN1 = 0xE1;
 static const uint8_t ILI9XXX_CSCON = 0xF0;
 static const uint8_t ILI9XXX_ADJCTL3 = 0xF7;
 static const uint8_t ILI9XXX_DELAY_FLAG = 0xFF;
-// special marker for delay - command byte reprents ms, length byte is an impossible value
+// special marker for delay - command byte represents ms, length byte is an impossible value
 #define ILI9XXX_DELAY(ms) ((uint8_t) ((ms) | 0x80)), ILI9XXX_DELAY_FLAG
 
 }  // namespace esphome::ili9xxx

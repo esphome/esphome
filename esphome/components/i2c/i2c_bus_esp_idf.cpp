@@ -313,7 +313,7 @@ void IDFI2CBus::recover_() {
   // 1000kHz is the maximum frequency for I2C running in standard-mode,
   // but lower frequencies are not a problem.
   // Note: the timing that is used here is chosen manually, to get
-  // results that are close to the timing that can be archieved by the
+  // results that are close to the timing that can be achieved by the
   // implementation for the Arduino framework.
   const auto half_period_usec = 7;
 
