@@ -336,14 +336,9 @@ automation.register_apply_action(
     synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    off_speed_cycle = cg.safe_exp(config[CONF_OFF_SPEED_CYCLE])
-    return automation.apply_statements_action(
-        action_id,
-        template_arg,
-        args,
-        [f"fan::cycle_speed({automation.parent_ref(paren)}, {off_speed_cycle});"],
-    )
+    paren = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    text = str(cg.statement(fan_ns.cycle_speed(paren, config[CONF_OFF_SPEED_CYCLE])))
+    return automation.apply_statements_action(action_id, template_arg, args, [text])
 
 
 FAN_CONDITION_SCHEMA = automation.maybe_simple_id(
