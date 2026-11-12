@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
-// Brizlabs uses "Data over Power" LED modules that are signalled by "dipping" their 24VDC
+// Brizlabs uses "Data over Power" LED modules that are signaled by "dipping" their 24VDC
 // supply lines per this protocol.
 // We run SPI at 100 kHz, giving 10 us time slots to pull either high (1) or low (0)
 // A 0 bit is encoded as 10, and a 1 bit is encoded as 110
@@ -31,8 +31,8 @@
 // individually addressable. However, 6 bits means there's guaranteed conflicts, and short of manually mapping every
 // module's (zone, ID) there's no real use for them. As such, we always send an LED id of 0, which effectively means
 // "broadcast". LED control is then done by...
-// - zone - Each LED module also has a zone number, which starts at 1 and increments up to MAX_ZONES as you proceed down
-// the string of lights. Once the max is reached, it loops back to 1. 0 again is "broadcast", so the whole string.
+// - zone - Each LED module also has a zone number, which starts at 1 and increments up to 2^4 - 1 (15) as you proceed
+// down the string of lights. Once the max is reached, it loops back to 1. 0 again is "broadcast", so the whole string.
 // - header - fixed, always 0xFF
 // - R, G, B brightness where 0 = off
 // - trailer is always 11110000

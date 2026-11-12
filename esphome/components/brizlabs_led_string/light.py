@@ -70,8 +70,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(
-        config[CONF_OUTPUT_ID], config[CONF_PIN], config[CONF_NUM_ZONES]
-    )
+    # Sizes the per-zone arrays. FINAL_VALIDATE_SCHEMA allows only one instance, so one define is enough.
+    cg.add_define("BRIZLABS_LED_STRING_ZONE_COUNT", config[CONF_NUM_ZONES])
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], config[CONF_PIN])
     await cg.register_component(var, config)
     await light.register_light(var, config)

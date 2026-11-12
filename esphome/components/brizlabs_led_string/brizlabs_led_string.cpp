@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 #include <cstring>
+#include <esp_err.h>
 
 namespace esphome::brizlabs_led_string {
 
@@ -22,7 +23,7 @@ void BrizLabsLEDString::setup() {
   spi_device_interface_config_t dev = {};
   dev.clock_speed_hz = 100000;  // 1 timeslot on the wire = 10 us, which is what their LED modules need
   dev.spics_io_num = -1;
-  dev.queue_size = this->num_zones_;  // a whole write is queued at once
+  dev.queue_size = NUM_ZONES;  // a whole write is queued at once
   if (!this->setup_check(spi_bus_add_device(SPI2_HOST, &dev, &this->dev_) == ESP_OK, LOG_STR("SPI device init failed")))
     return;
   this->accessor_ = &this->internal_accessor_;
@@ -33,7 +34,7 @@ void BrizLabsLEDString::dump_config() {
                 "BrizLabs two-wire LED string:\n"
                 "  Data (SPI MOSI): GPIO%d\n"
                 "  Zones: %d",
-                this->pin_, this->num_zones_);
+                this->pin_, NUM_ZONES);
 }
 
 // Queues the frame and returns; the SPI driver sends the queued frames in order from its interrupt.
@@ -60,13 +61,13 @@ bool BrizLabsLEDString::queue_frame_(uint8_t zone, uint8_t r, uint8_t g, uint8_t
 // One broadcast frame if all zones match, else one frame per zone.
 bool BrizLabsLEDString::transmit_all_() {
   bool uniform = true;
-  for (int z = 0; z < this->num_zones_; z++) {
+  for (int z = 0; z < NUM_ZONES; z++) {
     const uint8_t *p = this->buf_ + z * 3;
     uniform &= memcmp(p, this->buf_, 3) == 0;
   }
   if (uniform)
     return this->queue_frame_(0, this->buf_[0], this->buf_[1], this->buf_[2]);
-  for (int z = 0; z < this->num_zones_; z++) {
+  for (int z = 0; z < NUM_ZONES; z++) {
     const uint8_t *p = this->buf_ + z * 3;
     // Stop at the first failure; write_state() queues every zone again once the queued frames have gone out
     if (!this->queue_frame_(z + 1, p[0], p[1], p[2]))
