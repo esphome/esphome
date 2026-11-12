@@ -36,13 +36,13 @@ void TLC5971::loop() {
   command |= 0x16;
 
   command <<= 7;
-  command |= 0x7F;  // default 100% brigthness
+  command |= 0x7F;  // default 100% brightness
 
   command <<= 7;
-  command |= 0x7F;  // default 100% brigthness
+  command |= 0x7F;  // default 100% brightness
 
   command <<= 7;
-  command |= 0x7F;  // default 100% brigthness
+  command |= 0x7F;  // default 100% brightness
 
   for (size_t n = 0; n < this->pwm_amounts_.size() / N_CHANNELS_PER_CHIP; n++) {
     this->transfer_(command >> 24);

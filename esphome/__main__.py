@@ -333,7 +333,7 @@ def choose_upload_log_host(
                 # Logs can stream over a network transport via the native API
                 # or the web_server HTTP SSE feed.
                 network_logging = has_api() or has_web_server_logging()
-                # ensure IP adresses are used first
+                # ensure IP addresses are used first
                 if is_ip_address(CORE.address) and (
                     (purpose == Purpose.LOGGING and network_logging)
                     or (purpose == Purpose.UPLOADING and has_ota())

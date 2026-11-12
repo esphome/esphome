@@ -2,7 +2,7 @@
  * Adds support for Qwiic PIR motion sensors that communicate over an I2C bus.
  * These sensors use Sharp PIR motion sensors to detect motion. A firmware running on an ATTiny84 translates the digital
  * output to I2C communications.
- * ATTiny84 firmware: https://github.com/sparkfun/Qwiic_PIR (acccessed July 2023)
+ * ATTiny84 firmware: https://github.com/sparkfun/Qwiic_PIR (accessed July 2023)
  * SparkFun's Arduino library: https://github.com/sparkfun/SparkFun_Qwiic_PIR_Arduino_Library (accessed July 2023)
  */
 
