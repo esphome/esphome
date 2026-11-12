@@ -62,12 +62,11 @@ CONFIG_SCHEMA = (
 
 def _pin_shared_only_with_deep_sleep(pin_num: int) -> bool:
     """Check if pin is shared exclusively with deep_sleep (wakeup pin)."""
-    paths = pins.PIN_SCHEMA_REGISTRY.get_user_paths(
-        CORE.target_platform, CORE.target_platform, pin_num
-    )
-    if len(paths) != 2:
+    pin_key = (CORE.target_platform, CORE.target_platform, pin_num)
+    pin_users = pins.PIN_SCHEMA_REGISTRY.pins_used.get(pin_key, [])
+    if len(pin_users) != 2:
         return False
-    return any(path and path[0] == "deep_sleep" for path in paths)
+    return any(path and path[0] == "deep_sleep" for path, _, _ in pin_users)
 
 
 def _final_validate(config: ConfigType) -> None:
