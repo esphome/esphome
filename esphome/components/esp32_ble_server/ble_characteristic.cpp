@@ -86,6 +86,17 @@ void BLECharacteristic::notify() {
   }
 }
 
+void BLECharacteristic::do_delete() {
+  this->clients_to_notify_.clear();
+  // The stack may reuse the handles, so a deleted characteristic must not match events until it is created again
+  this->handle_ = 0xFFFF;
+  this->state_ = INIT;
+  for (auto *descriptor : this->descriptors_) {
+    descriptor->handle_ = 0xFFFF;
+    descriptor->state_ = BLEDescriptor::INIT;
+  }
+}
+
 bool BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
   // Bound until removed or the parent is destroyed
   if (descriptor.characteristic_ != nullptr) {
