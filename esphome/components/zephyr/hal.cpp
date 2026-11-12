@@ -43,7 +43,8 @@ static struct {
 } micros_state;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static constexpr uint32_t CYCLES_PER_US = 64;  // nRF52 cores always run at 64 MHz.
-// Drift between unlocked calls stays far below this; a larger lead is a lag of over 2^31 us that wrapped.
+// Drift between unlocked calls stays far below this; a larger lead is a lag of over 2^31 us that wrapped. A lag
+// within this of 2^32 us still looks like a lead and holds micros() for at most a second; that is accepted.
 static constexpr int32_t MAX_LEAD_US = 1000000;
 
 uint32_t micros() {
