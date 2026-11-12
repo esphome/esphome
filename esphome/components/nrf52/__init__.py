@@ -20,6 +20,8 @@ from esphome.components.zephyr import (
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_enable_cdc_acm_rate_callback,
+    zephyr_require_cdc_acm,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -585,7 +587,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_to_code(config)
 
-    if CORE.testing_mode:
+    # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
+    if CORE.testing_mode and variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
         zephyr_add_overlay(
             f"""
                 &flash0 {{
@@ -662,6 +665,7 @@ async def to_code(config: ConfigType) -> None:
     # some boards enable USB and UART by default.
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False, False)
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default
@@ -680,10 +684,8 @@ async def _dfu_to_code(dfu_config):
     await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    zephyr_add_prj_conf("SERIAL", True)
+    zephyr_require_cdc_acm()
+    zephyr_enable_cdc_acm_rate_callback()
     await cg.register_component(var, dfu_config)
 
 

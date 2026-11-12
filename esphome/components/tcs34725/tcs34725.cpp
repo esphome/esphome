@@ -239,7 +239,7 @@ void TCS34725Component::update() {
     uint8_t gain_reg_val_new = this->gain_reg_;
     // increase gain if less than 20% of white channel used and high integration time
     // increase only if not already maximum
-    // do not use max gain, as ist will not get better
+    // do not use max gain, as it will not get better
     if (this->gain_reg_ < 3) {
       if (((float) raw_c / 655.35f < 20.f) && (this->integration_time_ > 600.f)) {
         gain_reg_val_new = this->gain_reg_ + 1;

@@ -370,13 +370,13 @@ template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits)
 }
 
 /** Extract bits from value and shift right according to the bitmask
- * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
+ * if the bitmask is 0x00F0  we want the values from bit 5 - 8.
  * the result is then shifted right by the position if the first right set bit in the mask
  * Useful for modbus data where more than one value is packed in a 16 bit register
  * Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
  * D15 - D8 =  hour, D7 - D0 = minute
  * To get the hours use mask 0xFF00 and  0x00FF for the minute
- * @param data an integral value between 16 aand 32 bits,
+ * @param data an integral value between 16 and 32 bits,
  * @param bitmask the bitmask to apply
  */
 template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
