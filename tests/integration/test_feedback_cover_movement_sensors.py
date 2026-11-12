@@ -31,19 +31,29 @@ async def test_feedback_cover_movement_sensors(
         entities, _ = await client.list_entities_services()
         states: dict[int, EntityState] = {}
         client.subscribe_states(lambda state: states.__setitem__(state.key, state))
-        reverse = require_entity(entities, "reverse_cover", CoverInfo)
-        stuck = require_entity(entities, "stuck_cover", CoverInfo)
-        opening = require_entity(entities, "reverse_opening", SwitchInfo)
-        closing = require_entity(entities, "reverse_closing", SwitchInfo)
-        limit = require_entity(entities, "limit_cover", CoverInfo)
-        limit_opening = require_entity(entities, "limit_opening", SwitchInfo)
-        flicker = require_entity(entities, "flicker_cover", CoverInfo)
-        flicker_opening = require_entity(entities, "flicker_opening", SwitchInfo)
-        dead = require_entity(entities, "dead_reverse_cover", CoverInfo)
-        dead_opening = require_entity(entities, "dead_reverse_opening", SwitchInfo)
-        overlap = require_entity(entities, "overlap_cover", CoverInfo)
-        overlap_opening = require_entity(entities, "overlap_opening", SwitchInfo)
-        overlap_closing = require_entity(entities, "overlap_closing", SwitchInfo)
+        reverse = require_entity(entities, "reverse_cover", CoverInfo, exact=True)
+        stuck = require_entity(entities, "stuck_cover", CoverInfo, exact=True)
+        opening = require_entity(entities, "reverse_opening", SwitchInfo, exact=True)
+        closing = require_entity(entities, "reverse_closing", SwitchInfo, exact=True)
+        limit = require_entity(entities, "limit_cover", CoverInfo, exact=True)
+        limit_opening = require_entity(
+            entities, "limit_opening", SwitchInfo, exact=True
+        )
+        flicker = require_entity(entities, "flicker_cover", CoverInfo, exact=True)
+        flicker_opening = require_entity(
+            entities, "flicker_opening", SwitchInfo, exact=True
+        )
+        dead = require_entity(entities, "dead_reverse_cover", CoverInfo, exact=True)
+        dead_opening = require_entity(
+            entities, "dead_reverse_opening", SwitchInfo, exact=True
+        )
+        overlap = require_entity(entities, "overlap_cover", CoverInfo, exact=True)
+        overlap_opening = require_entity(
+            entities, "overlap_opening", SwitchInfo, exact=True
+        )
+        overlap_closing = require_entity(
+            entities, "overlap_closing", SwitchInfo, exact=True
+        )
 
         # The motor never reports movement, so max_duration has to stop it
         client.cover_command(key=stuck.key, position=1.0)
