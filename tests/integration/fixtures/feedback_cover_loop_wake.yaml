@@ -1,0 +1,85 @@
+esphome:
+  name: feedback-loop-wake
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+  level: DEBUG
+
+binary_sensor:
+  - platform: template
+    id: never_open
+    internal: true
+  - platform: template
+    id: open_moving
+    internal: true
+  - platform: template
+    id: close_moving
+    internal: true
+
+switch:
+  # Stands in for a motor started outside ESPHome
+  - platform: template
+    name: "External Open"
+    id: external_open
+    optimistic: true
+    turn_on_action:
+      - binary_sensor.template.publish:
+          id: open_moving
+          state: true
+    turn_off_action:
+      - binary_sensor.template.publish:
+          id: open_moving
+          state: false
+  - platform: template
+    name: "External Close"
+    id: external_close
+    optimistic: true
+    turn_on_action:
+      - binary_sensor.template.publish:
+          id: close_moving
+          state: true
+    turn_off_action:
+      - binary_sensor.template.publish:
+          id: close_moving
+          state: false
+
+cover:
+  - platform: feedback
+    name: "Time Cover"
+    open_action:
+      - logger.log: "time_cover open"
+    close_action:
+      - logger.log: "time_cover close"
+    stop_action:
+      - logger.log: "time_cover stop"
+    open_duration: 2s
+    close_duration: 2s
+
+  - platform: feedback
+    name: "Max Duration Cover"
+    open_action:
+      - logger.log: "max_cover open"
+    close_action:
+      - logger.log: "max_cover close"
+    stop_action:
+      - logger.log: "max_cover stop"
+    open_duration: 3s
+    close_duration: 3s
+    max_duration: 1s
+    open_endstop: never_open
+
+  - platform: feedback
+    name: "Sensor Cover"
+    open_action:
+      - logger.log: "sensor_cover open"
+    close_action:
+      - logger.log: "sensor_cover close"
+    stop_action:
+      - logger.log: "sensor_cover stop"
+    open_duration: 4s
+    close_duration: 4s
+    open_sensor: open_moving
+    close_sensor: close_moving
+    update_interval: 200ms
