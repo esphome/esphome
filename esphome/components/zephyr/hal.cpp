@@ -32,8 +32,9 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 // micros() adds the cycles counted since the last call. While the CPU stays busy the result and the kernel clock
 // each trail the true time by less than a tick, so they differ by less than a tick either way. A sleep shorter
 // than a tick can go unnoticed, so the result may trail the true time by up to two ticks until the next resync.
-// The CPU cannot sleep while interrupts are locked, so there only a lag from an earlier sleep is corrected: a
-// pulse timed under InterruptLock never sees a resync in the middle.
+// The CPU cannot sleep while interrupts are locked, so a lag there comes from before the lock; it is left for the
+// first unlocked call, which keeps differences inside an InterruptLock exact. A counter that has not moved since the
+// last call is not running, and then the kernel clock is used even under a lock.
 // One struct so the code loads a single base address.
 static struct {
   uint32_t value;
@@ -53,8 +54,7 @@ uint32_t micros() {
   // A tick, plus 1 us because kernel_us is rounded down.
   const int32_t tick_us = k_ticks_to_us_ceil32(1) + 1;
   const int32_t ahead = static_cast<int32_t>(value - kernel_us);
-  const int32_t max_lag_us = arch_irq_unlocked(key) ? tick_us : 4 * tick_us;
-  if (ahead < -max_lag_us) {
+  if (ahead < -tick_us && (arch_irq_unlocked(key) || elapsed_us == 0)) {
     // The CPU slept, so the cycle counter fell behind.
     value = kernel_us;
     micros_state.last_cycles = cycles;
