@@ -42,6 +42,8 @@ APIs.
    // Or if size is constant:
    std::array<uint8_t, 256> buffer;
    ```
+   When the size comes from the config, declare it with `cg.static_buffer()` in `to_code` and pass the pointer
+   to the constructor, so it lands in BSS (see the `component-codegen` skill).
 
 2. **Compile-time-known fixed sizes with vector-like API:** use `StaticVector` from
    `esphome/core/helpers.h` for compile-time fixed size with a `push_back()` interface (no dynamic
@@ -105,6 +107,8 @@ APIs.
    This eliminates `_M_realloc_insert` and `_M_default_append` template instantiations (200-500 bytes per
    instance), needs no upper bound, and is compatible with protobuf code generation when using
    `[(fixed_vector) = true]`.
+   When codegen knows the count, use `StaticFixedVector<T>` and pass `cg.static_storage(config[CONF_ID], T, count)`
+   to its `init()`, so the elements live in BSS instead of the heap.
 
 4. **Small datasets (1-16 elements):** use `std::vector` or `std::array` with simple structs instead of
    `std::map`/`std::set`/`std::unordered_map`.

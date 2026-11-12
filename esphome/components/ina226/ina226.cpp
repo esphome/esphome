@@ -113,10 +113,8 @@ void INA226Component::dump_config() {
 void INA226Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
-    if (!this->read_byte_16(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)))
       return;
-    }
     // Convert for 2's compliment and signed value (though always positive)
     float bus_voltage_v = sign_extend<16>(raw_bus_voltage);
     bus_voltage_v *= 0.00125f;
@@ -125,10 +123,8 @@ void INA226Component::update() {
 
   if (this->shunt_voltage_sensor_ != nullptr) {
     uint16_t raw_shunt_voltage;
-    if (!this->read_byte_16(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)))
       return;
-    }
     // Convert for 2's compliment and signed value
     float shunt_voltage_v = sign_extend<16>(raw_shunt_voltage);
     shunt_voltage_v *= 0.0000025f;
@@ -137,10 +133,8 @@ void INA226Component::update() {
 
   if (this->current_sensor_ != nullptr) {
     uint16_t raw_current;
-    if (!this->read_byte_16(INA226_REGISTER_CURRENT, &raw_current)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_CURRENT, &raw_current)))
       return;
-    }
     // Convert for 2's compliment and signed value
     float current_ma = sign_extend<16>(raw_current);
     current_ma *= (this->calibration_lsb_ / 1000.0f);
@@ -149,10 +143,8 @@ void INA226Component::update() {
 
   if (this->power_sensor_ != nullptr) {
     uint16_t raw_power;
-    if (!this->read_byte_16(INA226_REGISTER_POWER, &raw_power)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_POWER, &raw_power)))
       return;
-    }
     float power_mw = int16_t(raw_power) * (this->calibration_lsb_ * 25.0f / 1000.0f);
     this->power_sensor_->publish_state(power_mw / 1000.0f);
   }
