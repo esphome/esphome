@@ -49,17 +49,17 @@ FNV1_OFFSET_BASIS = 2166136261
 FNV1_PRIME = 16777619
 
 
-def ensure_unique_string(preferred_string, current_strings):
-    test_string = preferred_string
-    current_strings_set = set(current_strings)
-
-    tries = 1
-
-    while test_string in current_strings_set:
+def unique_name(name: str, taken: Callable[[str], bool]) -> str:
+    """``name``, or ``name_2``, ``name_3``, ... for the first that is not ``taken``."""
+    candidate, tries = name, 1
+    while taken(candidate):
         tries += 1
-        test_string = f"{preferred_string}_{tries}"
+        candidate = f"{name}_{tries}"
+    return candidate
 
-    return test_string
+
+def ensure_unique_string(preferred_string, current_strings):
+    return unique_name(preferred_string, set(current_strings).__contains__)
 
 
 def _fnv1_hash(values: Iterable[int]) -> int:
