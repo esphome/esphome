@@ -103,7 +103,7 @@ def range_segment_list(input: Any) -> list:
             raise cv.Invalid("Minimum distance is 0m")
         if m <= largest_distance:
             raise cv.Invalid(
-                "Distances must be delared from small to large "
+                "Distances must be declared from small to large "
                 "and they cannot contain each other"
             )
         largest_distance = m

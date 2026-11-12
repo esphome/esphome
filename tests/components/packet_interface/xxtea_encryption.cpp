@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 #include "esphome/components/packet_interface/xxtea_encryption.h"
@@ -21,12 +22,16 @@ class MockLink : public PacketInterface {
  public:
   explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
+    // Before the packet is read, as a log line in a real link would run it
+    if (this->on_send)
+      this->on_send();
     this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
 
   std::vector<Packet> sent;
+  std::function<void()> on_send;
 };
 
 static constexpr size_t ROLLING_TRAILER_SIZE = 16;
@@ -41,9 +46,9 @@ class TestEncryption : public XxteaEncryption {
 
 struct Peer {
   explicit Peer(uint32_t key_word = 0x12345678, size_t max_packet_size = 64, bool rolling_code = true)
-      : link(max_packet_size) {
+      : link(max_packet_size), buffers(XxteaEncryption::buffer_words(max_packet_size)) {
     this->link.set_name("test_link");
-    this->encryption = std::make_unique<TestEncryption>(&this->link, rolling_code);
+    this->encryption = std::make_unique<TestEncryption>(&this->link, rolling_code, this->buffers.data());
     this->encryption->set_key({key_word, 2, 3, 4, 5, 6, 7, 8});
     this->encryption->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
@@ -69,6 +74,7 @@ struct Peer {
   }
 
   MockLink link;
+  std::vector<uint32_t> buffers;
   std::unique_ptr<TestEncryption> encryption;
   std::vector<Packet> received;
 };
@@ -235,7 +241,8 @@ TEST_F(XxteaEncryptionTest, PacketsFromBeforeRestartDropped) {
 
 TEST_F(XxteaEncryptionTest, LinkTooSmallFailsSetup) {
   MockLink link(ROLLING_TRAILER_SIZE + 3);
-  TestEncryption encryption(&link, true);
+  uint32_t buffers[XxteaEncryption::buffer_words(ROLLING_TRAILER_SIZE + 3)];
+  TestEncryption encryption(&link, true, buffers);
   EXPECT_EQ(encryption.get_max_packet_size(), 0);
   encryption.setup();
   EXPECT_TRUE(encryption.is_failed());
@@ -243,9 +250,10 @@ TEST_F(XxteaEncryptionTest, LinkTooSmallFailsSetup) {
   EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
 }
 
-TEST_F(XxteaEncryptionTest, SendWithoutBuffersRefused) {
+TEST_F(XxteaEncryptionTest, SendBeforeSetupRefused) {
   MockLink link(64);
-  TestEncryption encryption(&link, false);
+  uint32_t buffers[XxteaEncryption::buffer_words(64)];
+  TestEncryption encryption(&link, false, buffers);
   Packet packet{1};
   EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
   EXPECT_TRUE(link.sent.empty());
@@ -262,6 +270,23 @@ TEST_F(XxteaEncryptionTest, CounterWrapStartsNewBoot) {
   a.deliver_to(b);
   // Both were accepted: the last packet of the old boot, then the first of the new one
   EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {2}}));
+}
+
+// A send made while one is still going through the layer below would overwrite the buffer it is reading
+TEST_F(XxteaEncryptionTest, NestedSendRefused) {
+  Peer a, b;
+  a.introduce(b);
+  bool nested = true;
+  int calls = 0;
+  a.link.on_send = [&]() {
+    if (calls++ == 0)
+      nested = a.send({9, 9, 9});
+  };
+  ASSERT_TRUE(a.send({1, 2, 3, 4, 5}));
+  EXPECT_FALSE(nested);
+  a.link.on_send = nullptr;
+  a.deliver_to(b);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1, 2, 3, 4, 5}}));
 }
 
 }  // namespace esphome::packet_interface::encryption_testing
