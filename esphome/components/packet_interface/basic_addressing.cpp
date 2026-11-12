@@ -34,8 +34,8 @@ bool BasicAddressing::send(const PacketBuffer &data, const PacketMetaData &meta_
     }
     destination = chosen;
   }
-  uint8_t header[HEADER_SIZE] = {static_cast<uint8_t>(destination), static_cast<uint8_t>(destination >> 8),
-                                 static_cast<uint8_t>(this->address_), static_cast<uint8_t>(this->address_ >> 8)};
+  uint8_t header[HEADER_SIZE];
+  put_le16(put_le16(header, destination), this->address_);
   PacketBuffer packet(header, HEADER_SIZE, &data, nullptr, 0);
   return this->link_->send_to_interface(packet, meta_data);
 }

@@ -28,7 +28,13 @@ class BasicFragmentation : public PacketInterface {
   /// The index has 7 bits.
   static constexpr size_t MAX_FRAGMENTS = 128;
 
-  BasicFragmentation(PacketInterface *lower, size_t max_packet_size);
+  /// One fragment being sent, then the packet being joined.
+  static constexpr size_t buffer_size(size_t lower_size, size_t max_packet_size) {
+    return remaining_packet_size(lower_size, HEADER_SIZE) + max_packet_size;
+  }
+
+  /// @param buffer buffer_size() bytes; setup() fails if it is nullptr
+  BasicFragmentation(PacketInterface *lower, size_t max_packet_size, uint8_t *buffer);
 
   void setup() override;
   void dump_config() override;
@@ -44,9 +50,7 @@ class BasicFragmentation : public PacketInterface {
   size_t fragments_for_(size_t size) const;
 
   PacketInterface *lower_;
-  // One fragment being sent, and the packet being joined; one block allocated in setup(), and tx_buffer_ stays null
-  // if that fails
-  uint8_t *tx_buffer_{nullptr};
+  uint8_t *tx_buffer_;
   uint8_t *rx_buffer_{nullptr};
   uint16_t rx_length_{0};  // at most max_packet_size_, which configuration limits to 16384
   uint16_t rx_source_{0};

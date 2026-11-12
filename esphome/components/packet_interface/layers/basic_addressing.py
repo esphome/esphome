@@ -1,10 +1,8 @@
 """Addressing layer with 16-bit addresses, carrying one stack of layers or one for each of several peers."""
 
-from typing import Any
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID
+from esphome.const import CONF_ADDRESS, CONF_ENCRYPTION, CONF_ID, CONF_KEY
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -14,6 +12,7 @@ from . import (
     BROADCAST_ADDRESS,
     CONF_DESTINATION,
     CONF_PEERS,
+    ENCRYPTION,
     PacketInterface,
     check_session,
     check_single_peer,
@@ -33,11 +32,15 @@ AddressingPort = packet_interface_ns.class_("AddressingPort", PacketInterface)
 _request_port_slot = cg.slot_counter("PACKET_INTERFACE_ADDRESSING_PORT_COUNT")
 
 
-def _destination(value: Any) -> int:
-    """A device address, or broadcast."""
-    if isinstance(value, str) and value.lower() == "broadcast":
-        return BROADCAST_ADDRESS
-    return cv.hex_int_range(1, BROADCAST_ADDRESS)(value)
+def _broadcast_address(value: str | int) -> int:
+    return BROADCAST_ADDRESS if value == "broadcast" else value
+
+
+# A device address, or broadcast; built from cv validators so that schema tooling can describe it
+DESTINATION = cv.All(
+    cv.Any(cv.one_of("broadcast", lower=True), cv.hex_int_range(1, BROADCAST_ADDRESS)),
+    _broadcast_address,
+)
 
 
 def _validate_peer(config: ConfigType) -> ConfigType:
@@ -50,6 +53,26 @@ def _unique_destinations(peers: list[ConfigType]) -> list[ConfigType]:
     destinations = [peer[CONF_DESTINATION] for peer in peers]
     if len(set(destinations)) != len(destinations):
         raise cv.Invalid("Each peer must have a different destination")
+    return peers
+
+
+def _distinct_keys(peers: list[ConfigType]) -> list[ConfigType]:
+    """A packet from one peer, relabelled with the source address of another that uses the same key, would pass that
+    peer's checks, so encryption that keeps state for one peer, such as the rolling code, needs a key of its own."""
+    first_peer: dict[str, str] = {}
+    for index, peer in enumerate(peers):
+        encryption = peer.get(CONF_ENCRYPTION)
+        if encryption is None or not ENCRYPTION.get_type(encryption).single_peer(
+            encryption
+        ):
+            continue
+        key = encryption[CONF_KEY]
+        if (other := first_peer.setdefault(key, peer[CONF_ID].id)) != peer[CONF_ID].id:
+            raise cv.Invalid(
+                f"The same key as peer '{other}', so packets from one could be passed off as the other's; "
+                "give each peer its own key",
+                path=[index, CONF_ENCRYPTION, CONF_KEY],
+            )
     return peers
 
 
@@ -75,7 +98,7 @@ def _basic_addressing_schema() -> cv.Schema:
         cv.Schema(
             {
                 cv.Required(CONF_ID): cv.declare_id(AddressingPort),
-                cv.Required(CONF_DESTINATION): _destination,
+                cv.Required(CONF_DESTINATION): DESTINATION,
                 **stack_schema(),
             }
         ),
@@ -87,9 +110,12 @@ def _basic_addressing_schema() -> cv.Schema:
                 cv.GenerateID(): cv.declare_id(BasicAddressing),
                 cv.GenerateID(CONF_PORT_ID): cv.declare_id(AddressingPort),
                 cv.Required(CONF_ADDRESS): cv.hex_int_range(1, BROADCAST_ADDRESS - 1),
-                cv.Optional(CONF_DESTINATION): _destination,
+                cv.Optional(CONF_DESTINATION): DESTINATION,
                 cv.Optional(CONF_PEERS): cv.All(
-                    cv.ensure_list(peer_schema), cv.Length(min=1), _unique_destinations
+                    cv.ensure_list(peer_schema),
+                    cv.Length(min=1),
+                    _unique_destinations,
+                    _distinct_keys,
                 ),
             }
         ).extend(cv.COMPONENT_SCHEMA),
