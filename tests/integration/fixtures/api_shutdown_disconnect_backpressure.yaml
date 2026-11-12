@@ -9,7 +9,7 @@ api:
   actions:
     - action: fill_then_restart
       then:
-        - lambda: |-
+        - lambda: &fill_pipe |-
             // The client is not reading: log lines fill the TCP pipe, then the overflow buffer. Keep going
             // until the overflow buffer holds data with the client's window closed, so nothing drains it
             auto *client = sndbuf_pin::api_log_client();
@@ -33,11 +33,23 @@ api:
         - logger.log: fill done
         # DisconnectRequest cannot be sent now, so it waits in an otherwise empty batch
         - button.press: restart_button
+    - action: fill_publish_then_restart
+      then:
+        - lambda: *fill_pipe
+        # Queued behind the blocked socket when the shutdown starts
+        - lambda: id(queued_sensor).publish_state(42);
+        - logger.log: fill done
+        - button.press: restart_button
 
 button:
   - platform: restart
     id: restart_button
     name: "Restart"
+
+sensor:
+  - platform: template
+    id: queued_sensor
+    name: "Queued sensor"
 
 external_components:
   - source:
