@@ -12,6 +12,8 @@ ESPHOME_LOG_TAG(TAG, "tcp.packet_interface");
 
 // The packet length before each packet
 static constexpr size_t LENGTH_SIZE = 2;
+// A peer that sends without a pause must not hold the main loop here; a frame being read carries over to the next pass
+static constexpr uint8_t MAX_FRAMES_PER_LOOP = 8;
 
 TcpPacketInterface::TcpPacketInterface(std::span<uint8_t> rx_buffer)
     : packet_interface::PacketInterface(rx_buffer.size()), rx_buffer_(rx_buffer) {
@@ -89,12 +91,21 @@ void TcpPacketInterface::loop() {
   }
   if (now - this->last_tx_ms_ >= this->keep_alive_ms_)
     this->queue_frame_(nullptr, 0);
-  this->link_.flush_tx();
+  this->flush_();
+}
+
+void TcpPacketInterface::flush_() { this->tx_waiting_ = !this->link_.flush_tx(); }
+
+size_t TcpPacketInterface::get_send_capacity() const {
+  if (!this->tx_waiting_)
+    return SIZE_MAX;
+  return this->link_.tx_free() / (this->max_packet_size_ + LENGTH_SIZE);
 }
 
 void TcpPacketInterface::on_connection_(bool connected) {
   ESP_LOGD(TAG, "%s: Connection %s", this->name_, connected ? LOG_STR_LITERAL("up") : LOG_STR_LITERAL("down"));
   this->connected_ = connected;
+  this->tx_waiting_ = false;
   this->rx_have_ = 0;
   this->last_rx_ms_ = this->last_tx_ms_ = App.get_loop_component_start_time();
 #ifdef USE_BINARY_SENSOR
@@ -105,7 +116,7 @@ void TcpPacketInterface::on_connection_(bool connected) {
 }
 
 void TcpPacketInterface::read_() {
-  for (;;) {
+  for (uint8_t frames = 0; frames != MAX_FRAMES_PER_LOOP;) {
     ssize_t count;
     if (this->rx_have_ < LENGTH_SIZE) {
       count = this->link_.read(this->rx_header_ + this->rx_have_, LENGTH_SIZE - this->rx_have_);
@@ -134,6 +145,7 @@ void TcpPacketInterface::read_() {
     }
     if (this->rx_have_ == this->rx_length_ + LENGTH_SIZE) {
       this->rx_have_ = 0;
+      frames++;
       // A zero length packet is a keep-alive
       if (this->rx_length_ != 0)
         this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.data(), this->rx_length_), {});
@@ -163,7 +175,7 @@ bool TcpPacketInterface::send_to_interface(const PacketBuffer &data, const Packe
   if (!this->connected_ || !this->queue_frame_(&data, size))
     return false;
   // A write that fails closes the link and discards what was queued, this packet included
-  this->link_.flush_tx();
+  this->flush_();
   return this->link_.connected();
 }
 
