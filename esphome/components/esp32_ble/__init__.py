@@ -590,14 +590,14 @@ async def to_code(config: ConfigType) -> None:
         _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
         add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
 
-    # ESP-IDF 5.5.6 and 6.0.3 end GATT discovery on a response listing handles out of order
-    # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
-    if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
-        cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
-        _wrap_bluedroid_symbols("gatt_client_handle_server_rsp")
-
-    # Every ESP-IDF drops the status of a failed GATT discovery (see bluedroid_gattc_discovery.cpp)
-    if "esp32_ble_client" in CORE.config:
+    # Bluedroid GATT client wraps; they need no Bluedroid headers, so any toolchain works
+    if _has_gatt_client(CORE.config):
+        # ESP-IDF 5.5.6 and 6.0.3 end GATT discovery on a response listing handles out of
+        # order (see bluedroid_gattc_order.cpp)
+        if _has_strict_handle_order(idf_version()):
+            cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
+            _wrap_bluedroid_symbols("gatt_client_handle_server_rsp")
+        # Every ESP-IDF drops the status of a failed discovery (see bluedroid_gattc_discovery.cpp)
         cg.add_define("USE_ESP32_BLE_GATTC_DISCOVERY_STATUS")
         _wrap_bluedroid_symbols("bta_gattc_disc_cmpl_cback")
 
