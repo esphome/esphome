@@ -11,3 +11,5 @@ def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    # Off by default, which leaves floating point in software
+    zephyr_add_prj_conf("FPU", True)

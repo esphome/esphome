@@ -59,10 +59,11 @@ def test_to_code() -> None:
     assert _prj_conf()["SETTINGS"] is True
 
 
-def test_family_to_code_selects_the_full_cpp_library() -> None:
+def test_family_to_code() -> None:
     stm32c5.config_schema({CONF_FRAMEWORK: {}})
 
     stm32_family.to_code({})
 
     assert _prj_conf()["CPP"] is True
     assert _prj_conf()["REQUIRES_FULL_LIBCPP"] is True
+    assert _prj_conf()["FPU"] is True
