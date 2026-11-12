@@ -105,7 +105,7 @@ class PacketTransport : public PollingComponent {
   void set_encryption_key(std::vector<uint8_t> key) { this->encryption_key_ = std::move(key); }
   void set_rolling_code_enable(bool enable) { this->rolling_code_enable_ = enable; }
   void set_ping_pong_enable(bool enable) { this->ping_pong_enable_ = enable; }
-  void set_ping_pong_recycle_time(uint32_t recycle_time) { this->ping_pong_recyle_time_ = recycle_time; }
+  void set_ping_pong_recycle_time(uint32_t recycle_time) { this->ping_pong_recycle_time_ = recycle_time; }
   void set_provider_encryption(const char *name, std::vector<uint8_t> key) {
     this->providers_[name].encryption_key = std::move(key);
   }
@@ -137,7 +137,7 @@ class PacketTransport : public PollingComponent {
   uint32_t rolling_code_[2]{};
   bool rolling_code_enable_{};
   bool ping_pong_enable_{};
-  uint32_t ping_pong_recyle_time_{};
+  uint32_t ping_pong_recycle_time_{};
   uint32_t last_key_time_{};
   bool resend_ping_key_{};
   bool is_provider_{};
