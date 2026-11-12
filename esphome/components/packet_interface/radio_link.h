@@ -16,7 +16,7 @@ class RadioLinkBase : public PacketInterface {
  protected:
   explicit RadioLinkBase(size_t max_packet_size) : PacketInterface(max_packet_size) {}
   /// The time now, not the loop's start: earlier sends in the same loop pass may have waited seconds for the radio.
-  virtual uint32_t now_() const { return millis(); }
+  virtual uint32_t current_time_ms() const { return millis(); }
   /// False if a packet of this size is too large.
   bool check_size_(size_t size) const;
   /// False if sending must wait, as the radio is busy; starts loop() to watch the radio.
