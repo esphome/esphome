@@ -2,8 +2,8 @@
 
 Loaded as a dependency of tflite_micro_runtime; provides the diagnostics that
 tflite_model_loader declares on ModelHandler (tensor inspection, quantization
-analysis, parameter sweeping) plus the DEBUG_TFLITE_MICRO_HELPER verbose paths
-used by the rest of the series.
+analysis, parameter sweeping). The definitions are guarded by
+USE_TFLITE_MODEL_DEBUG, which this component's to_code() emits.
 """
 
 import esphome.codegen as cg
