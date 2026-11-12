@@ -263,7 +263,7 @@ class EthernetComponent final : public Component {
   void yt8531_phy_init_();
 #endif
 #ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
-  /// @brief Set arbitratry PHY registers from config.
+  /// @brief Set arbitrary PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 #endif
 

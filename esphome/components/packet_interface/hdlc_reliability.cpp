@@ -101,6 +101,15 @@ void HdlcReliability::request_loop_() { this->enable_loop(); }
 bool HdlcReliability::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
   if (!this->has_queue_())
     return false;
+  // A frame is sent again later without the caller's metadata, so a chosen destination would be lost
+  if (meta_data.destination_address != 0) {
+    if (!this->destination_warned_) {
+      this->destination_warned_ = true;
+      ESP_LOGW(TAG, "%s: Packet for 0x%04X refused; this layer only sends to its one peer", this->name_,
+               meta_data.destination_address);
+    }
+    return false;
+  }
   size_t size = data.size();
   if (size > this->max_packet_size_) {
     ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than %zu", this->name_, size, this->max_packet_size_);
