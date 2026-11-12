@@ -19,7 +19,6 @@ void ImprovBase::add_webserver_url_(improv::RpcResponseBuilder &builder, const n
   ip.str_to(ip_buf);
   // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
   char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
-  // buf_append_printf keeps the format string in flash on ESP8266
   size_t len = buf_append_printf(webserver_url, sizeof(webserver_url), 0, "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
   if (!builder.add_string(webserver_url, len)) {
     ESP_LOGW(TAG, "Response full; URL dropped");
