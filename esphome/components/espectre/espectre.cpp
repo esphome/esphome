@@ -4,6 +4,7 @@
 
 #include <cinttypes>
 #include <cmath>
+#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
@@ -36,6 +37,40 @@ void ESPectreComponent::request_detection_algorithm(const char *name) {
 
 void ESPectreComponent::request_csi_sample_spacing(const char *name) {
   this->pending_csi_sample_spacing_ = ::espectre::parse_csi_sample_spacing(name);
+}
+#endif
+
+#ifdef USE_TEXT
+void ESPectreComponent::request_traffic_generator_target_mac(const std::string &target) {
+  auto &pending = this->pending_target_mac_.target;
+  pending.fill('\0');
+  if (target.size() < pending.size() && target.find('\0') == std::string::npos) {
+    std::memcpy(pending.data(), target.data(), target.size());
+  }
+  this->target_mac_pending_ = true;
+}
+
+void ESPectreComponent::restore_target_mac_() {
+  if (this->target_mac_text_ == nullptr)
+    return;
+  const auto &yaml_target = this->runtime_.config().traffic_generator_target_mac;
+  const uint32_t yaml_hash = fnv1a_hash(yaml_target);
+  this->pending_target_mac_.yaml_hash = yaml_hash;
+  this->target_mac_pref_ = this->target_mac_text_->make_entity_preference<TargetMacPreference>();
+  TargetMacPreference saved;
+  if (!this->target_mac_pref_.load(&saved))
+    return;
+  if (saved.yaml_hash == yaml_hash) {
+    if (saved.target.back() == '\0' && this->runtime_.set_traffic_generator_target_mac(saved.target.data()))
+      return;
+    ESP_LOGW(TAG, "Invalid saved target MAC; using the YAML target");
+  }
+  // Replace the override now, even if no new command arrives before the next YAML change.
+  saved = {yaml_hash, {}};
+  yaml_target.copy(saved.target.data(), saved.target.size() - 1);
+  if (!this->target_mac_pref_.save(&saved)) {
+    ESP_LOGW(TAG, "Could not save the YAML target MAC");
+  }
 }
 #endif
 
@@ -84,6 +119,10 @@ void ESPectreComponent::start_runtime_() {
   }
   this->running_ = true;
   this->status_clear_error();
+#ifdef USE_TEXT
+  // setup() exposes the effective config until an entity callback stages the next one.
+  PUBLISH_STATE(this->target_mac_text_, this->runtime_.config().traffic_generator_target_mac);
+#endif
 #ifdef USE_SELECT
   this->publish_traffic_mode_();
 #endif
@@ -189,6 +228,9 @@ void ESPectreComponent::restore_controls_() {
   restore_select_choice(this->csi_sample_spacing_select_, this->csi_sample_spacing_pref_, config.csi_sample_spacing,
                         ::espectre::runtime_csi_sample_spacing_valid);
 #endif
+#ifdef USE_TEXT
+  this->restore_target_mac_();
+#endif
 #ifdef USE_SWITCH
   // Applied before the first runtime starts, so a disabled sensor never starts sensing.
   if (this->sensing_switch_ != nullptr)
@@ -238,6 +280,31 @@ void ESPectreComponent::apply_pending_controls_() {
                           ::espectre::csi_sample_spacing_name)) {
     PUBLISH_STATE(this->csi_sample_spacing_select_,
                   ::espectre::csi_sample_spacing_name(this->runtime_.config().csi_sample_spacing));
+  }
+#endif
+#ifdef USE_TEXT
+  if (this->target_mac_pending_) {
+    this->target_mac_pending_ = false;
+    // An SDK log callback can queue the next request while this one is being applied.
+    auto request = this->pending_target_mac_;
+    auto &target = request.target;
+    if (this->runtime_.set_traffic_generator_target_mac(target.data())) {
+      if (this->target_mac_text_ != nullptr) {
+        // The SDK accepts hex digits in either case and applies them in lower case.
+        for (char &digit : target) {
+          if (digit >= 'A' && digit <= 'F')
+            digit += 'a' - 'A';
+        }
+        if (!this->target_mac_pref_.save(&request)) {
+          ESP_LOGW(TAG, "Could not save the active target MAC");
+        }
+        this->target_mac_text_->publish_state(target.data());
+      }
+    } else {
+      ESP_LOGW(TAG, "Target MAC '%s' was rejected", target.data());
+      if (this->target_mac_text_ != nullptr)
+        this->target_mac_text_->publish_state(this->target_mac_text_->state);
+    }
   }
 #endif
 #ifdef USE_SWITCH
@@ -426,6 +493,9 @@ void ESPectreComponent::dump_config() {
   LOG_SELECT("  ", "Traffic generator mode", this->traffic_mode_select_);
   LOG_SELECT("  ", "Detection algorithm", this->detection_algorithm_select_);
   LOG_SELECT("  ", "CSI sample spacing", this->csi_sample_spacing_select_);
+#endif
+#ifdef USE_TEXT
+  LOG_TEXT("  ", "Traffic generator target MAC", this->target_mac_text_);
 #endif
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "Sensing", this->sensing_switch_);

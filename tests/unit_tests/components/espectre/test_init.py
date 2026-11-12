@@ -1,9 +1,12 @@
 """Validation tests for the ESPectre SDK adapter."""
 
+from pathlib import Path
+
 import pytest
 
 from esphome.components import espectre
 from esphome.components.wifi import POWER_SAVE_OFF_REASONS_KEY
+from esphome.config import validate_config
 import esphome.config_validation as cv
 from esphome.const import (
     KEY_CORE,
@@ -114,6 +117,58 @@ def test_traffic_target_mac_is_lowercase() -> None:
         {"traffic_generator_target_mac": "AA:BB:CC:DD:EE:02"}
     )
     assert config["traffic_generator_target_mac"] == "aa:bb:cc:dd:ee:02"
+
+
+def test_duplicate_target_mac_text(tmp_path: Path) -> None:
+    CORE.reset()
+    CORE.config_path = tmp_path / "test.yaml"
+    result = validate_config(
+        {
+            "esphome": {"name": "target-mac-test"},
+            "esp32": {"board": "esp32dev", "framework": {"type": "esp-idf"}},
+            "wifi": {"ssid": "test", "password": "password1"},
+            "espectre": {"id": "hub"},
+            "text": [
+                {
+                    "platform": "espectre",
+                    "espectre_id": "hub",
+                    "traffic_generator_target_mac": {"name": name},
+                }
+                for name in ("First target", "Second target")
+            ],
+        },
+        {},
+    )
+    assert any("Only one traffic_generator_target_mac" in str(e) for e in result.errors)
+
+
+@pytest.mark.parametrize(
+    ("board", "profile"), [("esp32-c6-devkitc-1", "auto"), ("esp32dev", "ht_vht")]
+)
+def test_target_mac_text_requires_wifi_raw(
+    tmp_path: Path, board: str, profile: str
+) -> None:
+    CORE.reset()
+    CORE.config_path = tmp_path / "test.yaml"
+    result = validate_config(
+        {
+            "esphome": {"name": "target-mac-test"},
+            "esp32": {"board": board, "framework": {"type": "esp-idf"}},
+            "wifi": {"ssid": "test", "password": "password1"},
+            "espectre": {"csi_capture_profile": profile},
+            "text": [
+                {
+                    "platform": "espectre",
+                    "traffic_generator_target_mac": {"name": "Target MAC"},
+                }
+            ],
+        },
+        {},
+    )
+    assert any(
+        "traffic_generator_target_mac text requires wifi_raw traffic" in str(error)
+        for error in result.errors
+    )
 
 
 def test_multicast_group_must_be_multicast() -> None:
