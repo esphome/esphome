@@ -78,7 +78,7 @@ BOARDS_ZEPHYR = {
     },
 }
 
-# Boards with only a connector for an external antenna; without one, Bluetooth is not received
+# Boards with only a connector for an external antenna; without one, no radio signal is received
 BOARDS_WITHOUT_ANTENNA = {
     "xiao_nrf54lm20a",
 }

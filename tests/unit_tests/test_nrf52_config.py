@@ -2,6 +2,7 @@
 
 from collections.abc import Generator
 import itertools
+import logging
 
 import pytest
 
@@ -11,6 +12,7 @@ from esphome.components.nrf52 import (
     _detect_bootloader,
     _validate_mcumgr,
     _validate_open_dfu_toolchain,
+    _warn_without_antenna,
     set_core_data,
 )
 from esphome.components.nrf52.boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
@@ -220,3 +222,16 @@ def test_xiao_nrf54lm20a_console_uart_on_the_debugger_pins() -> None:
     assert overlay.count("NRF_PSEL(UART_RX, 1, 10)") == 2
     assert "RTS" not in overlay
     assert "CTS" not in overlay
+
+
+@pytest.mark.parametrize(
+    ("board", "warns"),
+    [("xiao_nrf54lm20a", True), ("nrf54lm20dk/nrf54lm20a/cpuapp", False)],
+)
+def test_warns_about_a_board_without_antenna(
+    caplog: pytest.LogCaptureFixture, board: str, warns: bool
+) -> None:
+    """A board with only an antenna connector needs an external antenna for any radio."""
+    with caplog.at_level(logging.WARNING):
+        _warn_without_antenna({"board": board})
+    assert ("has no antenna of its own" in caplog.text) is warns

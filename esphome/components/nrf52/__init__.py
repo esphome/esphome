@@ -74,7 +74,13 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARD_ALIASES,
+    BOARDS_WITHOUT_ANTENNA,
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+)
 from .cmsis_dap import cmsis_dap_unique_id, upload_using_cmsis_dap
 from .const import (
     BOOTLOADER_ADAFRUIT,
@@ -453,6 +459,15 @@ def _warn_old_framework_version(config: ConfigType) -> None:
         )
 
 
+def _warn_without_antenna(config: ConfigType) -> None:
+    if (board := config[CONF_BOARD]) in BOARDS_WITHOUT_ANTENNA:
+        _LOGGER.warning(
+            "The %s has no antenna of its own: connect an external 2.4 GHz antenna to its "
+            "antenna connector, or Bluetooth, Thread and Zigbee will not be received",
+            board,
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -462,6 +477,7 @@ def _final_validate(config):
             "Please use 'toolchain: sdk-nrf' instead."
         )
     _warn_old_framework_version(config)
+    _warn_without_antenna(config)
     _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
