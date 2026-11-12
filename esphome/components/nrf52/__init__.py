@@ -119,7 +119,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
-from .jlink import jlink_serial_number, upload_using_jlink
+from .jlink import can_upload_using_jlink, jlink_serial_number, upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -938,11 +938,20 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         ):
             # The serial port of a J-Link probe, such as the one built into Nordic DKs:
             # flash through the probe, which works whatever firmware the device runs
-            _LOGGER.info(
-                "%s belongs to J-Link %s, flashing over J-Link", host, jlink_serial
+            if can_upload_using_jlink():
+                _LOGGER.info(
+                    "%s belongs to J-Link %s, flashing over J-Link", host, jlink_serial
+                )
+                upload_using_jlink(jlink_serial)
+                return True
+            _LOGGER.warning(
+                "%s belongs to J-Link %s, but flashing over J-Link needs the '%s' "
+                "toolchain and the SEGGER J-Link software; uploading with mcumgr instead, "
+                "which needs firmware that accepts it",
+                host,
+                jlink_serial,
+                Toolchain.SDK_NRF,
             )
-            upload_using_jlink(jlink_serial)
-            return True
         if (
             bootloader == BOOTLOADER_MCUBOOT
             and (dap_id := cmsis_dap_unique_id(host)) is not None

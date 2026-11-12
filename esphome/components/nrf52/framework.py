@@ -355,6 +355,10 @@ def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
         / "target_nRF54LM20A.py"
     )
     if not target.is_file():
+        _LOGGER.debug(
+            "pyOCD has no nRF54LM20A target at %s; not patching its flash algorithm",
+            target,
+        )
         return
     content = target.read_text(encoding="utf-8")
     if _PYOCD_NRF54LM20A_FLASH_ALGO in content:
@@ -365,6 +369,7 @@ def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
         )
         return
     _patch_framework_file(target, match.group(0), _PYOCD_NRF54LM20A_FLASH_ALGO)
+    _LOGGER.info("Patched pyOCD's nRF54LM20A flash algorithm in %s", target)
 
 
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:

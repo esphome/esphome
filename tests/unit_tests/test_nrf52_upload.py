@@ -26,6 +26,7 @@ from esphome.components.zephyr.const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
 )
 import esphome.config_validation as cv
@@ -68,6 +69,11 @@ def _setup_nrf52_core(
         KEY_PM_STATIC: [],
         KEY_KCONFIG: "",
     }
+
+
+def _set_sdk(version: cv.Version, sysbuild: bool = False) -> None:
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = version
+    CORE.data[KEY_ZEPHYR][KEY_SYSBUILD] = sysbuild
 
 
 def _make_paths(tmp_path: Path) -> dict:
@@ -1057,6 +1063,7 @@ def test_mcuboot_serial_upload_on_jlink_port_flashes_over_jlink(
         patch(
             "esphome.components.nrf52.jlink_serial_number", return_value="1051234567"
         ),
+        patch("esphome.components.nrf52.can_upload_using_jlink", return_value=True),
         patch("esphome.components.nrf52.upload_using_jlink") as mock_jlink,
         patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()) as mock_smp,
     ):
@@ -1066,16 +1073,66 @@ def test_mcuboot_serial_upload_on_jlink_port_flashes_over_jlink(
     mock_smp.assert_not_awaited()
 
 
+def test_mcuboot_serial_upload_on_jlink_port_without_jlink_software_uses_mcumgr(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Without the J-Link software, a DK's serial port still takes an mcumgr upload."""
+    from esphome.components.nrf52 import upload_program
+    from esphome.upload_targets import PortType
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    with (
+        patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
+        patch("esphome.__main__.check_permissions"),
+        patch(
+            "esphome.components.nrf52.jlink_serial_number", return_value="1051234567"
+        ),
+        patch("esphome.components.nrf52.can_upload_using_jlink", return_value=False),
+        patch("esphome.components.nrf52.cmsis_dap_unique_id", return_value=None),
+        patch("esphome.components.nrf52.upload_using_jlink") as mock_jlink,
+        patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()) as mock_smp,
+    ):
+        config = {"ota": [{"platform": "zephyr_mcumgr"}]}
+        assert upload_program(config=config, args=None, host="/dev/ttyACM0")
+    mock_jlink.assert_not_called()
+    mock_smp.assert_awaited_once_with("/dev/ttyACM0", None)
+    assert "uploading with mcumgr instead" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "commander", "expected"),
+    [
+        (Toolchain.SDK_NRF, Path("JLinkExe"), True),
+        (Toolchain.SDK_NRF, None, False),
+        (Toolchain.PLATFORMIO, Path("JLinkExe"), False),
+    ],
+)
+def test_can_upload_using_jlink(
+    setup_core: Path, toolchain: Toolchain, commander: Path | None, expected: bool
+) -> None:
+    from esphome.components.nrf52.jlink import can_upload_using_jlink
+
+    _setup_nrf52_core(toolchain=toolchain)
+    with patch(
+        "esphome.components.nrf52.jlink.find_jlink_commander", return_value=commander
+    ):
+        assert can_upload_using_jlink() is expected
+
+
 @pytest.mark.parametrize(
     ("vid", "serial_number", "expected"),
     [
         (0x1366, "001051234567", "1051234567"),
         (0x1366, None, ""),
+        (0x1366, "000000000000", ""),
         (0x2FE3, "001051234567", None),
     ],
 )
 def test_jlink_serial_number(
-    vid: int, serial_number: str | None, expected: str | None
+    vid: int,
+    serial_number: str | None,
+    expected: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     import serial.tools.list_ports
 
@@ -1085,6 +1142,8 @@ def test_jlink_serial_number(
     with patch.object(serial.tools.list_ports, "comports", return_value=[port]):
         assert jlink_serial_number("/dev/ttyACM0") == expected
         assert jlink_serial_number("/dev/ttyACM1") is None
+    # Without a serial number the probe cannot be picked, which is worth a warning
+    assert ("reports no serial number" in caplog.text) == (expected == "")
 
 
 def test_jlink_passes_the_probe_serial_number(setup_core: Path, tmp_path: Path) -> None:
@@ -1150,7 +1209,11 @@ def test_mcuboot_serial_upload_on_cmsis_dap_port_flashes_with_pyocd(
     ],
 )
 def test_cmsis_dap_unique_id(
-    vid: int, product: str, serial_number: str | None, expected: str | None
+    vid: int,
+    product: str,
+    serial_number: str | None,
+    expected: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     import serial.tools.list_ports
 
@@ -1166,6 +1229,7 @@ def test_cmsis_dap_unique_id(
     with patch.object(serial.tools.list_ports, "comports", return_value=[port]):
         assert cmsis_dap_unique_id("/dev/ttyACM0") == expected
         assert cmsis_dap_unique_id("/dev/ttyACM1") is None
+    assert ("reports no serial number" in caplog.text) == (expected == "")
 
 
 def test_cmsis_dap_flashes_mcuboot_and_signed_app(
@@ -1177,12 +1241,14 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
     from esphome.components.nrf52.framework import set_nrf52_variant
 
     _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    _set_sdk(cv.Version(3, 4, 0), sysbuild=True)
     set_nrf52_variant(VARIANT_NRF54LM20)
     CORE.config_path = tmp_path / "test.yaml"
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     mcuboot = build_dir / "mcuboot" / "zephyr" / "zephyr.hex"
     app = build_dir / "zephyr" / "zephyr" / "zephyr.signed.hex"
-    for image in (mcuboot, app, app.with_name("zephyr.hex")):
+    # merged.hex is left by an older SDK build, zephyr.hex is the unsigned app
+    for image in (mcuboot, app, app.with_name("zephyr.hex"), build_dir / "merged.hex"):
         image.parent.mkdir(parents=True, exist_ok=True)
         image.write_text("")
     paths = _make_paths(tmp_path)
@@ -1225,6 +1291,7 @@ def test_cmsis_dap_flashes_nrf52_with_pyocd_flash(
     from esphome.components.nrf52.framework import set_nrf52_variant
 
     _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    _set_sdk(cv.Version(3, 4, 0))
     set_nrf52_variant(VARIANT_NRF52840)
     CORE.config_path = tmp_path / "test.yaml"
     app = CORE.relative_pioenvs_path(CORE.name) / "zephyr" / "zephyr" / "zephyr.hex"
@@ -1256,20 +1323,87 @@ def test_cmsis_dap_flashes_nrf52_with_pyocd_flash(
     ]
 
 
-def test_cmsis_dap_without_firmware_raises(setup_core: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("version", "sysbuild", "present", "error"),
+    [
+        # A fresh build of these versions always has merged.hex
+        (cv.Version(2, 9, 2), True, ["zephyr/zephyr/zephyr.signed.hex"], "merged.hex"),
+        # With MCUboot built, both images are needed, not the app alone
+        (
+            cv.Version(3, 4, 0),
+            True,
+            ["zephyr/zephyr/zephyr.hex", "zephyr/zephyr/zephyr.signed.hex"],
+            "mcuboot",
+        ),
+        (
+            cv.Version(3, 4, 0),
+            True,
+            ["mcuboot/zephyr/zephyr.hex", "zephyr/zephyr/zephyr.hex"],
+            "zephyr.signed.hex",
+        ),
+        (cv.Version(3, 4, 0), False, ["merged.hex"], "zephyr.hex"),
+        (cv.Version(2, 6, 1), False, ["zephyr/zephyr.hex"], "2.9.2 or newer"),
+    ],
+)
+def test_cmsis_dap_without_firmware_raises(
+    setup_core: Path,
+    tmp_path: Path,
+    version: cv.Version,
+    sysbuild: bool,
+    present: list[str],
+    error: str,
+) -> None:
     from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
     from esphome.components.nrf52.const import VARIANT_NRF54LM20
     from esphome.components.nrf52.framework import set_nrf52_variant
 
     _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    _set_sdk(version, sysbuild)
     set_nrf52_variant(VARIANT_NRF54LM20)
     CORE.config_path = tmp_path / "test.yaml"
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    for name in present:
+        (build_dir / name).parent.mkdir(parents=True, exist_ok=True)
+        (build_dir / name).write_text("")
     with (
         patch("esphome.components.nrf52.cmsis_dap.run_command_ok") as mock_run,
-        pytest.raises(EsphomeError, match="compile first"),
+        pytest.raises(EsphomeError, match=error),
     ):
         upload_using_cmsis_dap("CB1D0165")
     mock_run.assert_not_called()
+
+
+def test_cmsis_dap_flashes_merged_hex_before_sdk_3_4_0(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """SDK 2.9.2 to 3.3.x put MCUboot and the signed app together in merged.hex."""
+    from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
+    from esphome.components.nrf52.const import VARIANT_NRF52840
+    from esphome.components.nrf52.framework import set_nrf52_variant
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    _set_sdk(cv.Version(3, 2, 0), sysbuild=True)
+    set_nrf52_variant(VARIANT_NRF52840)
+    CORE.config_path = tmp_path / "test.yaml"
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    merged = build_dir / "merged.hex"
+    app = build_dir / "zephyr" / "zephyr" / "zephyr.signed.hex"
+    for image in (merged, app):
+        image.parent.mkdir(parents=True, exist_ok=True)
+        image.write_text("")
+    with (
+        patch("esphome.components.nrf52.cmsis_dap.check_and_install"),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.get_build_paths",
+            return_value=_make_paths(tmp_path),
+        ),
+        patch("esphome.components.nrf52.cmsis_dap.get_build_env", return_value={}),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.run_command_ok", return_value=True
+        ) as mock_run,
+    ):
+        upload_using_cmsis_dap("CB1D0165")
+    assert mock_run.call_args[0][0][-1:] == [str(merged)]
 
 
 @pytest.mark.parametrize(
@@ -1285,6 +1419,7 @@ def test_cmsis_dap_flashes_again_after_a_failure(
     from esphome.components.nrf52.framework import set_nrf52_variant
 
     _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    _set_sdk(cv.Version(3, 4, 0))
     set_nrf52_variant(VARIANT_NRF52840)
     CORE.config_path = tmp_path / "test.yaml"
     app = CORE.relative_pioenvs_path(CORE.name) / "zephyr" / "zephyr" / "zephyr.hex"

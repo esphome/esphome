@@ -113,8 +113,21 @@ def jlink_serial_number(port: str) -> str | None:
         if info.device == port and info.vid == SEGGER_USB_VID:
             # The USB serial number has leading zeros that J-Link does not use
             serial = info.serial_number or ""
-            return serial.lstrip("0") if serial.isdigit() else serial
+            if serial.isdigit():
+                serial = serial.lstrip("0")
+            if not serial:
+                _LOGGER.warning(
+                    "The J-Link behind %s reports no serial number; with more than one "
+                    "J-Link connected, another one may be flashed",
+                    port,
+                )
+            return serial
     return None
+
+
+def can_upload_using_jlink() -> bool:
+    """True when upload_using_jlink can run: the 'sdk-nrf' toolchain and the J-Link software."""
+    return not CORE.using_toolchain_platformio and find_jlink_commander() is not None
 
 
 def upload_using_jlink(serial_number: str | None = None) -> None:
