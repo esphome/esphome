@@ -11,7 +11,8 @@ from .framework_helpers import ensure_venv
 from .sdk_install import ensure_sdk
 
 _REQUIREMENTS: Path = Path(__file__).parent / "requirements.txt"
-# The SDK versions in use are unknown; a partial download untouched this long has no owner
+# The SDK versions in use are unknown; a partial download untouched this long has no owner,
+# so a download interrupted more than a day ago starts over
 _STALE_DOWNLOAD_AGE: int = 24 * 60 * 60
 
 
