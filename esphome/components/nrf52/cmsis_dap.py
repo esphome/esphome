@@ -81,6 +81,7 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     if not run_command_ok(cmd, env=get_build_env(None), stream_output=True):
         raise EsphomeError(
             "pyOCD could not flash the device; its output above says why. If it says "
-            "the chip is locked or write-protected, erase it once with "
-            f"'pyocd erase -t {target} --chip' and upload again."
+            "the chip is locked, or reports a memory transfer fault (a write cut off "
+            "earlier leaves memory that cannot be read), erase the whole chip once "
+            f"with 'pyocd erase -t {target} --chip' and upload again."
         )
