@@ -13,13 +13,15 @@ $PY -m esptool --port "$DUT" erase_flash > "$O/erase.log" 2>&1 || { echo "$N era
 (cd "$W" && PYTHONPATH=$W $PY -m esphome upload "$Y" --device "$DUT") > "$O/upload.log" 2>&1 || { echo "$N upload failed"; exit 1; }
 $PY "$SC" "$DUT" $((T + 40)) "$O/dut.txt" --reset > "$O/dut-capture.log" 2>&1 &
 CAP=$!
+trap 'kill $CAP 2>/dev/null' EXIT
 sleep 30
 $PY "$SC" "$CLI" "$T" "$O/cli.txt" --reset > "$O/cli-capture.log" 2>&1 || { echo "$N client capture failed"; exit 1; }
 wait "$CAP" || { echo "$N DUT capture failed"; exit 1; }
 B=$(dirname "$Y")/.esphome/build/$N/src/main.cpp
 [ -f "$B" ] || { echo "$N: $B not found (file name differs from name:?)"; exit 1; }
 echo "== $N window=$(grep -o 'set_scan_window([0-9]*)' "$B" || echo none)"
-grep -a -m1 "JOIN 1" "$O/cli.txt" | cut -c1-100
+J=$(grep -a -m1 "JOIN 1" "$O/cli.txt" | cut -c1-100); echo "${J:-$N NO JOIN}"
 grep -a "STAT" "$O/cli.txt" | tail -1 | cut -c1-140
 echo "client disconnect reasons: $(grep -a -o "reason='[^']*'" "$O/cli.txt" | sort | uniq -c | tr '\n' ' ')"
 echo "dut resets: $(grep -a -c 'rst:' "$O/dut.txt")"
+[ -n "$J" ]

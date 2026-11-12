@@ -1,7 +1,7 @@
 #!/bin/bash
 # run.sh NAME SECONDS PPS: build NAME.yaml (next to this script, or a path) from TREE, flash it over serial, capture the
 # log for SECONDS plus 40 and run wifi_load.py at PPS packets per second (0: no load). Prints the boot count, every
-# reset reason and the last ALIVE line. A clean run has exactly one BOOT line.
+# reset reason and the last ALIVE line. Exits 0 only for a clean run (exactly one BOOT line), 2 for an invalid run.
 # env: TREE (checkout under test), PORT, SC (path to serial_capture.py), PY (checkout python)
 D=$(cd "$(dirname "$0")" && pwd); N=${1:?name}; T=${2:?seconds}; P=${3:?pps}
 W=${TREE:?set TREE}; PORT=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:-$W/venv/bin/python}
@@ -18,12 +18,15 @@ for _ in $(seq 60); do
 done
 if [ "$P" -gt 0 ]; then
   [ -n "$IP" ] || { kill "$CAP"; echo "$N no IP (check the secrets file)"; exit 1; }
-  python3 "$D/wifi_load.py" "$IP" "$T" "$P" > "$O/load.txt" 2>&1 || echo "$N load script failed (see $O/load.txt)"
+  python3 "$D/wifi_load.py" "$IP" "$T" "$P" > "$O/load.txt" 2>&1 || { echo "$N INVALID: load failed (see $O/load.txt)"; BAD=1; }
 else
   sleep "$T"
 fi
-wait "$CAP" || echo "$N capture failed (see $O/capture.log); counts cover part of the run"
-echo "== $N pps=$P boots=$(LC_ALL=C grep -a -c 'BOOT reason' "$O/serial.txt")"
+wait "$CAP" || { echo "$N INVALID: capture failed (see $O/capture.log)"; BAD=1; }
+BOOTS=$(LC_ALL=C grep -a -c 'BOOT reason' "$O/serial.txt")
+echo "== $N pps=$P boots=$BOOTS"
 LC_ALL=C grep -a "BOOT reason" "$O/serial.txt" | cut -c1-150
 LC_ALL=C grep -a "ALIVE" "$O/serial.txt" | tail -1 | cut -c1-200
 tail -1 "$O/load.txt" 2>/dev/null
+[ -z "$BAD" ] || exit 2
+[ "$BOOTS" = 1 ]

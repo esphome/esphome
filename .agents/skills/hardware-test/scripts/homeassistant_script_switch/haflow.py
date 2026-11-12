@@ -21,10 +21,14 @@ r = req_or_exit(
 if r.get("type") == "form":  # confirmation step
     r = req_or_exit(f"{flow}/{r['flow_id']}", {}, token=tok)
 if r.get("type") != "create_entry":
-    sys.exit(f"config flow ended with {r.get('type')} {r.get('errors')}")
+    sys.exit(
+        f"config flow ended with {r.get('type')} {r.get('errors') or r.get('reason')}"
+    )
 opts = "/api/config/config_entries/options/flow"
 o = req_or_exit(opts, {"handler": r["result"]["entry_id"]}, token=tok)
 o = req_or_exit(f"{opts}/{o['flow_id']}", {"allow_service_calls": True}, token=tok)
 if o.get("type") != "create_entry":
-    sys.exit(f"options flow ended with {o.get('type')} {o.get('errors')}")
+    sys.exit(
+        f"options flow ended with {o.get('type')} {o.get('errors') or o.get('reason')}"
+    )
 print("added", r.get("title"), "with allow_service_calls")
