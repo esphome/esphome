@@ -53,6 +53,13 @@ async def build_basic_fragmentation(
     config: ConfigType, lower: MockObj, lower_size: PacketSize
 ) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_BASIC_FRAGMENTATION")
-    var = cg.new_Pvariable(config[CONF_ID], lower, config[CONF_MAX_PACKET_SIZE])
+    max_packet_size = config[CONF_MAX_PACKET_SIZE]
+    buffer = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint8,
+        BasicFragmentation.static_("buffer_size")(lower_size, max_packet_size),
+        psram=True,
+    )
+    var = cg.new_Pvariable(config[CONF_ID], lower, max_packet_size, buffer)
     await cg.register_component(var, config)
-    return var, config[CONF_MAX_PACKET_SIZE]
+    return var, max_packet_size

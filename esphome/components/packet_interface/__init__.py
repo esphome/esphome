@@ -7,7 +7,7 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -49,6 +49,7 @@ __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
     "interface_layers",
+    "interface_packet_size",
     "PacketInterface",
     "final_validate_interface",
     "new_packet_interface",
@@ -101,13 +102,26 @@ def _validate_layers(config: ConfigType) -> ConfigType:
 
 
 def _holds_id(config: ConfigType, interface_id: ID) -> bool:
-    """Whether the id is that of this link or peer, or of one of its layers."""
+    """Whether the id is that of this link or peer, or one in its layers, such as an addressing port's."""
     return config[CONF_ID].id == interface_id.id or any(
-        isinstance(layer := config.get(key), dict)
-        and (layer_id := layer.get(CONF_ID)) is not None
-        and layer_id.id == interface_id.id
+        isinstance(value, ID) and value.id == interface_id.id
         for key in (CONF_ADDRESSING, *(kind.key for kind in STACK_ORDER))
+        if isinstance(layer := config.get(key), dict)
+        for value in layer.values()
     )
+
+
+def _find_interface(
+    interface_id: ID, full_config: ConfigType
+) -> tuple[ConfigType, ConfigType]:
+    """The link holding the packet interface with this id, and the link or peer configuration holding its layers."""
+    for interface in full_config.get(DOMAIN, []):
+        if _holds_id(interface, interface_id):
+            return interface, interface
+        for peer in interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS, []):
+            if _holds_id(peer, interface_id):
+                return interface, peer
+    raise cv.Invalid(f"'{interface_id.id}' is not a packet interface")
 
 
 def interface_layers(interface_id: ID) -> ConfigType:
@@ -116,13 +130,16 @@ def interface_layers(interface_id: ID) -> ConfigType:
     The id is a link's, an addressing peer's, or a layer's: applications send through top(), so they use every
     layer of that link or peer.
     """
-    for interface in fv.full_config.get().get(DOMAIN, []):
-        if _holds_id(interface, interface_id):
-            return interface
-        for peer in interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS, []):
-            if _holds_id(peer, interface_id):
-                return peer
-    raise cv.Invalid(f"'{interface_id.id}' is not a packet interface")
+    return _find_interface(interface_id, fv.full_config.get())[1]
+
+
+def interface_packet_size(interface_id: ID) -> int:
+    """During code generation, the largest packet that top() of the packet interface with this id takes."""
+    link, layers_config = _find_interface(interface_id, CORE.config)
+    size = link[CONF_MAX_PACKET_SIZE]
+    if (addressing := link.get(CONF_ADDRESSING)) is not None:
+        size = ADDRESSING.get_type(addressing).packet_size(addressing, size)
+    return check_packet_sizes(layers_config, size)
 
 
 def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:

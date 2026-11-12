@@ -59,7 +59,10 @@ namespace esphome::entity_transport {
  */
 class EntityTransport : public Component {
  public:
-  explicit EntityTransport(packet_interface::PacketInterface *interface) : interface_(interface) {}
+  /// @param buffer Holds the packet being built, \p buffer_size bytes, at least the largest packet of the
+  /// interface's top layer; setup() fails if it is nullptr or smaller
+  EntityTransport(packet_interface::PacketInterface *interface, uint8_t *buffer, size_t buffer_size)
+      : interface_(interface), buffer_(buffer), max_packet_size_(buffer_size) {}
 
   void setup() override;
   void loop() override;
@@ -152,9 +155,8 @@ class EntityTransport : public Component {
   StaticVector<RemoteEntity<binary_sensor::BinarySensor>, ENTITY_TRANSPORT_REMOTE_BINARY_SENSOR_COUNT>
       remote_binary_sensors_;
 #endif
-  // Packets are built here, allocated in setup()
-  uint8_t *buffer_{nullptr};
-  size_t max_packet_size_{0};
+  uint8_t *buffer_;
+  size_t max_packet_size_;     // the buffer's size until setup(), then the interface's largest packet
   size_t dictionary_next_{0};  // the first entity of the next dictionary packet to send
   uint32_t update_interval_ms_{0};
   uint32_t remote_timeout_ms_{0};
