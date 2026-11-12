@@ -1,0 +1,26 @@
+sensor:
+  - platform: hx711
+    id: hx
+    name: Load A
+    dout_pin: {number: GPIO33, mode: {input: true, pullup: true}}
+    clk_pin: GPIO32
+    gain: 128
+    update_interval: 2s
+    on_value: {logger.log: {format: "ENT A %.0f", args: [x]}}
+script:
+  - id: run_all
+    then:
+      - delay: 30s
+      - logger.log: "CASE stuck_busy"
+      - lambda: hxsim::chip.mode = hxsim::STUCK_BUSY;
+      - delay: 6s
+      - logger.log: "CASE recover"
+      - lambda: hxsim::chip.mode = hxsim::NORMAL;
+      - delay: 6s
+      - logger.log: "CASE dout_low"
+      - lambda: hxsim::chip.mode = hxsim::DOUT_STAYS_LOW;
+      - delay: 6s
+      - logger.log: "CASE recover2"
+      - lambda: hxsim::chip.mode = hxsim::NORMAL;
+      - delay: 6s
+      - script.execute: done

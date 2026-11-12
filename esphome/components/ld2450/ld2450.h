@@ -40,7 +40,7 @@ namespace esphome::ld2450 {
 using namespace ld24xx;
 
 // Constants
-static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
+static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presence status 5 sec.
 // Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
 // lands inside the buffer during footer-based resynchronization after losing sync.
 static constexpr uint8_t MAX_LINE_LENGTH = 45;

@@ -1,29 +1,35 @@
-from collections.abc import Iterator
 import configparser
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 import hashlib
 import logging
 import os
 from pathlib import Path
-import platform
 import shutil
 import sys
 
 from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
+from esphome.components.zephyr.framework_helpers import (
+    install_sitecustomize,
+    needs_venv_rebuild,
+)
+from esphome.components.zephyr.sdk_install import (
+    ARM_TOOLCHAIN,
+    get_sdk_host_info,
+    install_sdk,
+    sdk_toolchain_path,
+)
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     create_venv,
-    download_and_extract,
     download_with_resume,
     get_python_env_executable_path,
+    install_lock,
     rmdir,
     run_command_ok,
-    str_to_lst_of_str,
 )
 
 from .const import VARIANT_NRF52840
@@ -38,11 +44,7 @@ _TOOLCHAIN_VERSIONS = (TOOLCHAIN_VERSION, _TOOLCHAIN_VERSION_NCS_3_4_0)
 
 
 def _uses_sdk_ng_1_toolchain() -> bool:
-    """True when the framework needs Zephyr SDK 1.0+.
-
-    SDK 1.0 moved the GNU toolchain under gnu/ and renamed its archive
-    to toolchain_gnu_*.
-    """
+    """True when the framework needs Zephyr SDK 1.0+."""
     return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0)
 
 
@@ -58,57 +60,11 @@ def _get_toolchain_version() -> str:
 # framework-sdk-nrf scripts/platformio/platformio-build.py.
 _PLATFORMIO_PENV_REQUIREMENTS: tuple[str, ...] = ("cbor2==5.6.5",)
 
-SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS",
-        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
-    )
-)
-_SDK_NG_TOOLCHAIN_GNU_MIRRORS = str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_SDK_NG_TOOLCHAIN_GNU_MIRRORS",
-        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
-    )
-)
-
-
-def _get_sdk_ng_toolchain_mirrors() -> list[str]:
-    """Return toolchain mirror URLs for the current framework version."""
-    if _uses_sdk_ng_1_toolchain():
-        return _SDK_NG_TOOLCHAIN_GNU_MIRRORS
-    return SDK_NG_TOOLCHAIN_MIRRORS
-
-
-# Minimal SDK provides cmake discovery files (Zephyr-sdkConfig.cmake) and
-# host tools (dtc etc.) required by the Zephyr cmake build system.
-SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_SDK_NG_MINIMAL_MIRRORS",
-        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/zephyr-sdk-{VERSION}_{sysname}-{machine}_minimal.{extension}",
-    )
-)
-
 
 def get_sdk_nrf_tools_path() -> Path:
     # Machine-global (OS user cache dir) so all projects share one install;
     # see espidf.framework.get_idf_tools_path for the location rationale.
     return tools_cache_path(*SDK_NRF_TOOLS_CACHE)
-
-
-def _needs_venv_rebuild(
-    env_python_path: Path, sentinel: Path, requirements_hash: str
-) -> bool:
-    """True when a penv must be (re)built.
-
-    Rebuild when the interpreter is not a regular file, which covers a
-    dangling symlink (a cached venv outliving a host interpreter upgrade)
-    and a corrupt restore, or when the sentinel is missing or stale.
-    """
-    return (
-        not env_python_path.is_file()
-        or not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    )
 
 
 def _get_python_env_path(version: str) -> Path:
@@ -124,64 +80,17 @@ def _get_toolchain_path(version: str) -> Path:
 
 
 def _get_arm_toolchain_path() -> Path:
-    """The arm-zephyr-eabi directory inside the pinned Zephyr SDK.
-
-    The single owner of the SDK 0.x (arm-zephyr-eabi/) and SDK 1.0+
-    (gnu/arm-zephyr-eabi/) layouts.
-    """
-    toolchain_root = _get_toolchain_path(_get_toolchain_version())
-    if _uses_sdk_ng_1_toolchain():
-        return toolchain_root / "gnu" / "arm-zephyr-eabi"
-    return toolchain_root / "arm-zephyr-eabi"
+    """The arm-zephyr-eabi directory inside the pinned Zephyr SDK."""
+    toolchain_version = _get_toolchain_version()
+    return sdk_toolchain_path(
+        _get_toolchain_path(toolchain_version), toolchain_version, ARM_TOOLCHAIN
+    )
 
 
 def toolchain_tool(name: str) -> Path:
     """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...)."""
     suffix = ".exe" if os.name == "nt" else ""
     return _get_arm_toolchain_path() / "bin" / f"arm-zephyr-eabi-{name}{suffix}"
-
-
-_SITECUSTOMIZE = """\
-import os, stat, shutil
-_orig = shutil.rmtree
-def _handler(func, path, exc):
-    os.chmod(path, stat.S_IWRITE); func(path)
-def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
-    if onerror is None and onexc is None:
-        onexc = _handler
-    return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
-shutil.rmtree = _rmtree
-"""
-
-
-def _install_sitecustomize(python_env_path: Path) -> None:
-    """Patch shutil.rmtree inside the penv to handle read-only files.
-
-    west init's shutil.move falls back to copytree+rmtree on Windows, and
-    rmtree dies on the read-only .idx/.pack files git just wrote into
-    manifest-tmp. Dropping a sitecustomize.py into the venv applies the
-    same fix esphome.helpers.rmtree uses, but inside the subprocess.
-    """
-    if os.name != "nt":
-        return
-    site_packages = python_env_path / "Lib" / "site-packages"
-    site_packages.mkdir(parents=True, exist_ok=True)
-    (site_packages / "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
-
-
-def _get_toolchain_platform_info() -> tuple[str, str, str]:
-    """Return (sysname, machine, extension) for the current host."""
-    extension = "tar.xz"
-    sysname = platform.system().lower()
-    machine = platform.machine()
-    if machine == "arm64":
-        machine = "aarch64"
-    if sysname == "darwin":
-        sysname = "macos"
-    elif sysname == "windows":
-        machine = "x86_64"
-        extension = "7z"
-    return sysname, machine, extension
 
 
 def _get_version_str() -> str:
@@ -291,7 +200,7 @@ def setup_platformio_python_env() -> None:
         + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
         + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
     ).hexdigest()
-    if _needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
+    if needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
         rmdir(penv_path, msg="Clean up PlatformIO toolchain Python environment")
 
         create_venv(penv_path, msg="PlatformIO toolchain")
@@ -532,39 +441,6 @@ def _restore_project_filter(
         )
 
 
-# Lock wait slices, so Ctrl-C stays responsive
-_INSTALL_LOCK_POLL = 1
-
-
-@contextmanager
-def _install_lock(name: str) -> Iterator[None]:
-    """Serialize a shared install step across builds running at once."""
-    from filelock import FileLock, Timeout
-
-    lock_path = get_sdk_nrf_tools_path() / f"{name}.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    # No soft lock: its marker outlives a killed build and hangs every later one
-    lock = FileLock(str(lock_path), fallback_to_soft=False)
-    waiting = False
-    while True:
-        try:
-            lock.acquire(timeout=_INSTALL_LOCK_POLL)
-            break
-        except Timeout:  # before OSError, which it subclasses
-            if not waiting:
-                waiting = True
-                _LOGGER.info("Waiting for another build installing %s ...", name)
-        except OSError as err:
-            _LOGGER.warning(
-                "Can't lock %s (%s), continuing without a lock", lock_path, err
-            )
-            break
-    try:
-        yield
-    finally:
-        lock.release()
-
-
 def _fetch_missing_west_projects(
     env_python_path: Path, framework_path: Path, version: str, projects: set[str]
 ) -> None:
@@ -638,7 +514,7 @@ def _install_framework(
 
 def check_and_install() -> None:
     version = _get_version_str()
-    with _install_lock(f"sdk-{version}"):
+    with install_lock(get_sdk_nrf_tools_path(), f"sdk-{version}"):
         _check_and_install(version)
 
 
@@ -647,13 +523,13 @@ def _check_and_install(version: str) -> None:
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
     requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
-    install_venv = _needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
+    install_venv = needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 
         create_venv(python_env_path, msg=version)
 
-        _install_sitecustomize(python_env_path)
+        install_sitecustomize(python_env_path)
 
         _LOGGER.info("Installing requirements ...")
         cmd = [
@@ -709,7 +585,7 @@ def _check_and_install(version: str) -> None:
     # while missing
     toolchain_version = _get_toolchain_version()
     if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
-        with _install_lock(f"toolchain-{toolchain_version}"):
+        with install_lock(get_sdk_nrf_tools_path(), f"toolchain-{toolchain_version}"):
             _install_toolchain()
 
 
@@ -753,7 +629,7 @@ NRF5SDK_TOOLS_VERSION = "1.1.0"
 
 
 def _nrfutil_target_triple() -> str:
-    sysname, machine, _ = _get_toolchain_platform_info()
+    sysname, machine, _ = get_sdk_host_info()
     triple = f"{machine}-{_NRFUTIL_OS_SUFFIX.get(sysname, sysname)}"
     if triple not in _NRFUTIL_LAUNCHERS:
         raise EsphomeError(f"Nordic's nrfutil is not available for {sysname} {machine}")
@@ -783,7 +659,7 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
 
     if installed():
         return str(exe)
-    with _install_lock("nrfutil"):
+    with install_lock(get_sdk_nrf_tools_path(), "nrfutil"):
         if not installed():
             exe.parent.mkdir(parents=True, exist_ok=True)
             _LOGGER.info("Downloading Nordic's nrfutil ...")
@@ -816,35 +692,7 @@ def _install_toolchain() -> None:
     toolchains_dir = _get_toolchain_path(toolchain_version)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():
-        rmdir(toolchains_dir, msg=f"Clean up {toolchain_version} toolchain environment")
-        sysname, machine, extension = _get_toolchain_platform_info()
-        substitutions = {
-            "VERSION": toolchain_version,
-            "sysname": sysname,
-            "machine": machine,
-            "extension": extension,
-        }
-        # Downloaded next to the destination (not a temp file) so an
-        # interrupted download's .part file resumes on the next run.
-        # SDK 1.0+ Zephyr-sdkConfig.cmake looks for the toolchain in
-        # gnu/arm-zephyr-eabi/; extraction strips the archive's single root.
-        for mirrors, extract_dir, what, slug in (
-            (SDK_NG_MINIMAL_MIRRORS, toolchains_dir, "Zephyr SDK minimal", "minimal"),
-            (
-                _get_sdk_ng_toolchain_mirrors(),
-                _get_arm_toolchain_path(),
-                "toolchain",
-                "toolchain",
-            ),
-        ):
-            _LOGGER.info("Downloading %s %s ...", toolchain_version, what)
-            download_and_extract(
-                mirrors,
-                substitutions,
-                toolchains_dir.with_name(f"{toolchains_dir.name}.{slug}.archive"),
-                extract_dir,
-                progress_header="Extracting",
-            )
+        install_sdk(toolchains_dir, toolchain_version, ARM_TOOLCHAIN)
         # Best-effort prune of resume leftovers, including orphans of retired
         # toolchain versions; the SDK archives are hundreds of MB. The other
         # toolchain still in use may be downloading under its own lock, so its
