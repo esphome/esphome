@@ -477,7 +477,8 @@ def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
     if port_pins and f"{prefix}TX" not in port_pins:
         raise cv.Invalid(
             f"Board {board} has no default pins for {hardware_uart}; "
-            "choose another hardware_uart"
+            "choose another hardware_uart",
+            path=[CONF_HARDWARE_UART],
         )
 
 
