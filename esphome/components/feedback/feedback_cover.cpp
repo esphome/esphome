@@ -39,8 +39,6 @@ void FeedbackCover::setup() {
 #endif
 
   this->last_recompute_time_ = this->start_dir_time_ = App.get_loop_component_start_time();
-  if (this->current_operation == COVER_OPERATION_IDLE)
-    this->disable_loop();
 }
 
 CoverTraits FeedbackCover::get_traits() {
@@ -73,9 +71,11 @@ void FeedbackCover::dump_config() {
   if (this->has_built_in_endstop_) {
     ESP_LOGCONFIG(TAG, "  Has builtin endstop: YES");
   }
+#ifdef USE_FEEDBACK_COVER_MOVEMENT
   if (this->infer_endstop_) {
     ESP_LOGCONFIG(TAG, "  Infer endstop from movement: YES");
   }
+#endif
   if (this->max_duration_ < UINT32_MAX) {
     ESP_LOGCONFIG(TAG, "  Max Duration: %.1fs", this->max_duration_ / 1e3f);
   }
@@ -91,7 +91,7 @@ void FeedbackCover::dump_config() {
   }
 #endif
 #ifdef USE_FEEDBACK_COVER_OBSTACLE
-  if (this->obstacle_rollback_ && (this->open_obstacle_ != nullptr || this->close_obstacle_ != nullptr)) {
+  if (this->obstacle_rollback_) {
     ESP_LOGCONFIG(TAG, "  Obstacle rollback: %.1f%%", this->obstacle_rollback_ * 100);
   }
 #endif
@@ -165,8 +165,6 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
 }
 
 void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool is_triggered) {
-  if (operation != COVER_OPERATION_IDLE)
-    this->enable_loop();
   if (is_triggered) {
     this->current_trigger_operation_ = operation;
     // With movement sensors they set the actual operation
@@ -176,6 +174,8 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
 
   const uint32_t now = App.get_loop_component_start_time();
   this->current_operation = operation;
+  if (operation != COVER_OPERATION_IDLE)
+    this->enable_loop();
   this->start_dir_time_ = this->last_recompute_time_ = now;
   this->publish_state();
   this->last_publish_time_ = now;
@@ -276,7 +276,7 @@ void FeedbackCover::control(const CoverCall &call) {
     if (pos == this->position) {
       // Resend in case the assumed state is wrong
       if (this->has_built_in_endstop_ &&
-          ((pos == COVER_OPEN && !this->has_open_endstop_()) || (pos == COVER_CLOSED && !this->has_close_endstop_()))) {
+          ((pos == COVER_OPEN && !this->has_endstop_(true)) || (pos == COVER_CLOSED && !this->has_endstop_(false)))) {
         this->target_position_ = pos;
         this->start_direction_(pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING);
       } else if (this->current_operation != COVER_OPERATION_IDLE ||
@@ -390,12 +390,12 @@ void FeedbackCover::recompute_position_() {
       dir = 1.0f;
       action_dur = this->open_duration_;
       min_pos = COVER_CLOSED;
-      max_pos = this->has_open_endstop_() && this->position < COVER_OPEN ? 0.99f : COVER_OPEN;
+      max_pos = this->has_endstop_(true) && this->position < COVER_OPEN ? 0.99f : COVER_OPEN;
       break;
     case COVER_OPERATION_CLOSING:
       dir = -1.0f;
       action_dur = this->close_duration_;
-      min_pos = this->has_close_endstop_() && this->position > COVER_CLOSED ? 0.01f : COVER_CLOSED;
+      min_pos = this->has_endstop_(false) && this->position > COVER_CLOSED ? 0.01f : COVER_CLOSED;
       max_pos = COVER_OPEN;
       break;
     default:

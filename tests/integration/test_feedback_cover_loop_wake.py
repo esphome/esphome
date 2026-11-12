@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable
 
 from aioesphomeapi import CoverInfo, CoverOperation, CoverState, EntityState, SwitchInfo
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import require_entity, subscribe_after_initial_states
+from .state_utils import StateWaiter, require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
-def _idle(key: int) -> Callable[[EntityState], bool]:
-    return lambda s: (
-        isinstance(s, CoverState)
-        and s.key == key
-        and s.current_operation == CoverOperation.IDLE
+def _expect_idle(waiter: StateWaiter, cover: CoverInfo) -> Awaitable[EntityState]:
+    return waiter.expect(
+        lambda s: (
+            isinstance(s, CoverState)
+            and s.key == cover.key
+            and s.current_operation == CoverOperation.IDLE
+        ),
+        label=f"{cover.name} IDLE",
     )
 
 
@@ -52,34 +55,27 @@ async def test_feedback_cover_loop_wake(
         target = 0.2 if start >= 0.5 else 0.8
 
         # Only loop() stops a time-only cover at its target
-        done = waiter.expect(
-            _idle(time_cover.key), timeout=5.0, label="time_cover IDLE"
-        )
+        done = _expect_idle(waiter, time_cover)
         client.cover_command(key=time_cover.key, position=target)
         state = await done
         assert state.position == pytest.approx(target, abs=0.05)
 
         # Stop mid move, then a new command must move it again and stop at the target
-        stopped = waiter.expect(
-            _idle(time_cover.key), timeout=5.0, label="time_cover IDLE"
-        )
+        stopped = _expect_idle(waiter, time_cover)
         client.cover_command(key=time_cover.key, position=start)
         await asyncio.sleep(0.3)
         client.cover_command(key=time_cover.key, stop=True)
         mid = (await stopped).position
         assert mid != pytest.approx(target, abs=0.05)
-        await asyncio.sleep(0.5)
-        done = waiter.expect(
-            _idle(time_cover.key), timeout=5.0, label="time_cover IDLE"
-        )
+        done = _expect_idle(waiter, time_cover)
         client.cover_command(key=time_cover.key, position=target)
         state = await done
         assert state.position == pytest.approx(target, abs=0.05)
 
-        # 1s max_duration against a 3s travel with an endstop that never fires
+        # 1s max_duration against a 3s travel
         max_start = sub.initial_states[max_cover.key].position
         max_target = 0.0 if max_start >= 0.5 else 1.0
-        done = waiter.expect(_idle(max_cover.key), timeout=5.0, label="max_cover IDLE")
+        done = _expect_idle(waiter, max_cover)
         client.cover_command(key=max_cover.key, position=max_target)
         state = await done
         await asyncio.wait_for(max_stopped, 1.0)
@@ -92,9 +88,7 @@ async def test_feedback_cover_loop_wake(
         sensor_states.clear()
         client.switch_command(switch.key, True)
         await asyncio.sleep(1.2)
-        settled = waiter.expect(
-            _idle(sensor_cover.key), timeout=5.0, label="sensor_cover IDLE"
-        )
+        settled = _expect_idle(waiter, sensor_cover)
         client.switch_command(switch.key, False)
         await settled
         moving = {

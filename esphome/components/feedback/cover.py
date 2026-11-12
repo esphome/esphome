@@ -140,6 +140,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_FEEDBACK_COVER_MOVEMENT")
         await cg.add_variable(var.set_open_sensor, config[CONF_OPEN_SENSOR])
         await cg.add_variable(var.set_close_sensor, config[CONF_CLOSE_SENSOR])
+        cg.add(var.set_infer_endstop(config[CONF_INFER_ENDSTOP_FROM_MOVEMENT]))
     if CONF_OPEN_OBSTACLE_SENSOR in config or CONF_CLOSE_OBSTACLE_SENSOR in config:
         cg.add_define("USE_FEEDBACK_COVER_OBSTACLE")
         await cg.add_variable(
@@ -160,7 +161,6 @@ async def to_code(config: ConfigType) -> None:
         )
     cg.add(var.set_assumed_state(assumed_state))
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-    cg.add(var.set_infer_endstop(config[CONF_INFER_ENDSTOP_FROM_MOVEMENT]))
     cg.add_optional(
         var.set_direction_change_waittime, config.get(CONF_DIRECTION_CHANGE_WAIT_TIME)
     )
