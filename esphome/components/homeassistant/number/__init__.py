@@ -13,6 +13,7 @@ from .. import (
 
 CODEOWNERS = ["@landonr"]
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 SUPPORTED_DOMAINS = ["input_number", "number"]
 

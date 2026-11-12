@@ -17,7 +17,8 @@ namespace esphome::homeassistant {
 /// set, "unavailable" and "unknown" for the state of an entity that is not ready
 bool is_unset(StringRef value);
 
-/// True for the entity id of an input helper: it starts with the "input_" of input_service, an action name in flash
+/// True when entity_id belongs to an input helper. input_service is the helper's action name in flash, such as
+/// "input_number.set_value"; it must start with "input_", as only those first 6 characters are compared
 inline bool is_input_helper(const char *entity_id, const char *input_service) {
   return ESPHOME_strncmp_P(entity_id, input_service, sizeof("input_") - 1) == 0;
 }

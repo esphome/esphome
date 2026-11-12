@@ -2,6 +2,7 @@
 
 #include "esphome/components/number/number.h"
 #include "esphome/core/component.h"
+#include "esphome/core/optional.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
