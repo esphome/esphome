@@ -15,8 +15,9 @@ BLEService::~BLEService() {
   for (auto *chr : this->characteristics_) {
     if (chr->owned_) {
       delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
-    } else {
-      chr->service_ = nullptr;  // a caller-owned characteristic outlives this service
+    } else if (chr->service_ == this) {
+      // A caller-owned characteristic outlives this service, and may already belong to another one
+      chr->service_ = nullptr;
     }
   }
 }
