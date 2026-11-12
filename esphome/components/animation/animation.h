@@ -15,7 +15,7 @@ class Animation final : public image::Image {
 
   /** Selects a specific frame within the animation.
    *
-   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
+   * @param frame If positive, advance to the frame. If negative, recede to that frame from the end frame.
    */
   void set_frame(int frame);
 

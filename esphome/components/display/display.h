@@ -784,7 +784,7 @@ class Display : public PollingComponent {
     this->extend_clipping(Rect(left, top, right - left, bottom - top));
   };
 
-  /** substract a rectangular region to the invalidation region
+  /** subtract a rectangular region to the invalidation region
    *  - This is usually called when an element has been modified
    *
    * @param[in]  rect: Rectangle to add to the invalidation region
