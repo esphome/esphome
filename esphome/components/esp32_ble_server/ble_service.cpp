@@ -87,8 +87,14 @@ void BLEService::do_delete() {
   // Call all characteristics to delete
   for (auto *characteristic : this->characteristics_)
     characteristic->do_delete();
+  // Removed before the stack created it: there is nothing to stop or delete
+  if (this->handle_ == 0xFFFF) {
+    this->state_ = DELETED;
+    return;
+  }
   this->stop_();
   esp_err_t err = esp_ble_gatts_delete_service(this->handle_);
+  this->handle_ = 0xFFFF;  // a later add creates it again with a new handle
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_delete_service failed: %d", err);
     return;
