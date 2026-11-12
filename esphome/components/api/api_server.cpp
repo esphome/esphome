@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <cstring>
 #include "api_connection.h"
+#include "api_connection_buffer.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
