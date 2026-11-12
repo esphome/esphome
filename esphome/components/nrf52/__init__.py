@@ -587,7 +587,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_to_code(config)
 
-    if CORE.testing_mode:
+    # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
+    if CORE.testing_mode and variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
         zephyr_add_overlay(
             f"""
                 &flash0 {{
