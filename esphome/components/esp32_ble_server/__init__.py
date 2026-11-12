@@ -718,7 +718,7 @@ async def to_code_characteristic(service_var, char_conf):
         parse_properties(char_conf),
         characteristic_permissions(char_conf),
     )
-    cg.add(service_var.add_characteristic(cg.MockObj(f"*{char_var}")))
+    cg.add(service_var.add_characteristic(UnaryOpExpression("*", char_var)))
     if (on_write_conf := char_conf.get(CONF_ON_WRITE)) is not None:
         await _build_on_write_automation(char_var, on_write_conf)
     if CONF_VALUE in char_conf:
@@ -829,7 +829,7 @@ async def to_code(config):
             num_handles,
             service_config[CONF_ADVERTISE],
         )
-        cg.add(var.add_service(cg.MockObj(f"*{service_var}")))
+        cg.add(var.add_service(UnaryOpExpression("*", service_var)))
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             await to_code_characteristic(service_var, char_conf)
         if uuid_is(service_config[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID):

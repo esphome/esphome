@@ -161,14 +161,14 @@ def test_yaml_services_and_characteristics_are_static(
         main_cpp,
     )
     assert service is not None
-    assert f"ble_server->add_service(*{service[1]});" in main_cpp
+    assert f"ble_server->add_service((*{service[1]}));" in main_cpp
     characteristic = re.search(
         r"new\((\w+)\) esp32_ble_server::BLECharacteristic\("
         r'esp32_ble::ESPBTUUID::from_raw\("CAD48E28-7FBE-41CF-BAE9-D77A6C233423"\)',
         main_cpp,
     )
     assert characteristic is not None
-    assert f"{service[1]}->add_characteristic(*{characteristic[1]});" in main_cpp
+    assert f"{service[1]}->add_characteristic((*{characteristic[1]}));" in main_cpp
     assert "create_service(" not in main_cpp
     assert "create_characteristic(" not in main_cpp
 
