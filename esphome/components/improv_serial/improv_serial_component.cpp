@@ -20,7 +20,7 @@ ESPHOME_LOG_TAG(TAG, "improv_serial");
 
 static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 0;
 
-static constexpr uint8_t FRAME_PREFIX[] PROGMEM = {'I', 'M', 'P', 'R', 'O', 'V', IMPROV_SERIAL_VERSION};
+static constexpr uint8_t FRAME_PREFIX[] PROGMEM = {'I', 'M', 'P', 'R', 'O', 'V', improv::IMPROV_SERIAL_VERSION};
 static_assert(sizeof(FRAME_PREFIX) + 2 == FRAME_HEADER_SIZE, "type and length follow the prefix");
 
 #if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
@@ -30,7 +30,7 @@ static constexpr bool WIFI_URL_FIRST = false;
 #endif
 
 /// Fill the frame header and return its checksum.
-static uint8_t write_header(uint8_t *frame, ImprovSerialType type, uint8_t length) {
+static uint8_t write_header(uint8_t *frame, improv::ImprovSerialType type, uint8_t length) {
   progmem_memcpy(frame, FRAME_PREFIX, sizeof(FRAME_PREFIX));
   frame[FRAME_HEADER_SIZE - 2] = type;
   frame[FRAME_HEADER_SIZE - 1] = length;
@@ -191,25 +191,26 @@ void ImprovSerialComponent::send_version_info_() {
 }
 
 bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
-  size_t at = this->rx_buffer_.size();
+  const size_t at = this->rx_len_;
   ESP_LOGV(TAG, "Byte: 0x%02X", byte);
-  // The parser's own first test; a stray byte then costs no heap block
-  if (at == 0 && byte != 'I')
-    return false;
-  // Two exact allocations per frame: the header, then the whole frame once its length is known
   if (at == 0) {
-    this->rx_buffer_.reserve(FRAME_HEADER_SIZE);
-  } else if (at == FRAME_HEADER_SIZE - 1) {
-    this->rx_buffer_.reserve(FRAME_HEADER_SIZE + byte + 1);
+    // The parser's own first test; a stray byte then costs no heap block
+    if (byte != 'I')
+      return false;
+    this->rx_buffer_ = std::make_unique<uint8_t[]>(MAX_FRAME_SIZE);
+  } else if (at > FRAME_HEADER_SIZE && at > FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1]) {
+    // Past the checksum, where the parser rejects the byte without reading it
+    return false;
   }
-  this->rx_buffer_.push_back(byte);
-  const uint8_t *raw = this->rx_buffer_.data();
+  this->rx_buffer_[at] = byte;
+  this->rx_len_ = at + 1;
 
   return improv::parse_improv_serial_byte(
-      at, byte, raw, [this](improv::ImprovCommand command) -> bool { return this->parse_improv_payload_(command); },
+      at, byte, this->rx_buffer_.get(),
+      [this](improv::ImprovCommand command) -> bool { return this->parse_improv_payload_(command); },
       [this](improv::Error error) -> void {
         ESP_LOGW(TAG, "Error decoding payload");
-        this->send_state_byte_(TYPE_ERROR_STATE, error);
+        this->send_state_byte_(improv::TYPE_ERROR_STATE, error);
       });
 }
 
@@ -224,7 +225,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         // Wi-Fi is disabled, so we can't provision. Respond immediately
         // instead of letting the client wait out its provisioning timeout.
         ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
-        this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
+        this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
         return true;
       }
       this->connecting_sta_ = std::make_unique<wifi::WiFiAP>();
@@ -245,7 +246,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 #else
       // No Wi-Fi support compiled in; there is nothing to provision.
       ESP_LOGW(TAG, "Wi-Fi not supported; cannot provision");
-      this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
+      this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
 #endif
       return true;
     }
@@ -258,7 +259,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       if (wifi == nullptr || wifi->is_disabled()) {
         // Reported transiently without disturbing our internal provisioning state machine,
         // so a later `wifi.enable` still reports the correct state.
-        this->send_state_byte_(TYPE_CURRENT_STATE, improv::STATE_STOPPED);
+        this->send_state_byte_(improv::TYPE_CURRENT_STATE, improv::STATE_STOPPED);
         return true;
       }
       this->set_state_(this->state_);
@@ -266,7 +267,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         this->send_settings_response_(improv::GET_CURRENT_STATE);
       }
 #else
-      this->send_state_byte_(TYPE_CURRENT_STATE, improv::STATE_STOPPED);
+      this->send_state_byte_(improv::TYPE_CURRENT_STATE, improv::STATE_STOPPED);
 #endif
       return true;
     }
@@ -338,7 +339,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
     }
     default: {
       ESP_LOGW(TAG, "Unknown payload");
-      this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNKNOWN_RPC);
+      this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNKNOWN_RPC);
       return false;
     }
   }
@@ -346,10 +347,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
 void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
-  this->send_state_byte_(TYPE_CURRENT_STATE, state);
+  this->send_state_byte_(improv::TYPE_CURRENT_STATE, state);
 }
 
-void ImprovSerialComponent::send_state_byte_(ImprovSerialType type, uint8_t value) {
+void ImprovSerialComponent::send_state_byte_(improv::ImprovSerialType type, uint8_t value) {
   uint8_t frame[FRAME_HEADER_SIZE + 3];
   const uint8_t checksum = write_header(frame, type, 1) + value;
   frame[FRAME_HEADER_SIZE] = value;
@@ -363,12 +364,13 @@ void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
   if (response.size() > MAX_SERIAL_RESPONSE) {
     ESP_LOGE(TAG, "Response too long");
     // Fail fast instead of leaving the client to wait out its timeout
-    this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNKNOWN);
+    this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNKNOWN);
     return;
   }
   uint8_t header[FRAME_HEADER_SIZE];
   const uint8_t footer[2] = {
-      sum_bytes(response.data(), response.size(), write_header(header, TYPE_RPC_RESPONSE, response.size())), '\n'};
+      sum_bytes(response.data(), response.size(), write_header(header, improv::TYPE_RPC_RESPONSE, response.size())),
+      '\n'};
   this->write_(header, sizeof(header));
   this->write_(response.data(), response.size());
   this->write_(footer, sizeof(footer));
@@ -377,7 +379,7 @@ void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
 #ifdef USE_WIFI
 void ImprovSerialComponent::on_wifi_connect_timeout_() {
   this->connecting_sta_.reset();
-  this->send_state_byte_(TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
+  this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();

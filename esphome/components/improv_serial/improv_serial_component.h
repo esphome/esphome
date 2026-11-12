@@ -8,11 +8,10 @@
 #include "esphome/core/helpers.h"
 #ifdef USE_IMPROV_SERIAL
 #include <improv.h>
+#include <memory>
 #include <span>
-#include <vector>
 
 #ifdef USE_WIFI
-#include <memory>
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 
@@ -22,15 +21,7 @@
 
 namespace esphome::improv_serial {
 
-enum ImprovSerialType : uint8_t {
-  TYPE_CURRENT_STATE = 0x01,
-  TYPE_ERROR_STATE = 0x02,
-  TYPE_RPC = 0x03,
-  TYPE_RPC_RESPONSE = 0x04
-};
-
 static constexpr uint16_t IMPROV_SERIAL_TIMEOUT = 100;
-static constexpr uint8_t IMPROV_SERIAL_VERSION = 1;
 // "IMPROV", version, type, length
 static constexpr size_t FRAME_HEADER_SIZE = 9;
 
@@ -44,6 +35,8 @@ static constexpr uint32_t WIFI_SWITCH_TIMEOUT_MS = 90000;
 
 // The serial frame length field is one byte
 static constexpr size_t MAX_SERIAL_RESPONSE = 255;
+// Header, payload, checksum
+static constexpr size_t MAX_FRAME_SIZE = FRAME_HEADER_SIZE + MAX_SERIAL_RESPONSE + 1;
 // command + data length + trailing byte
 static constexpr size_t RPC_RESPONSE_OVERHEAD = 3;
 static constexpr size_t MAX_SERIAL_PAYLOAD = MAX_SERIAL_RESPONSE - RPC_RESPONSE_OVERHEAD;
@@ -75,10 +68,13 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   bool parse_improv_serial_byte_(uint8_t byte);
   bool parse_improv_payload_(improv::ImprovCommand &command);
   /// Free the frame buffer; a session holds it only while a frame is arriving.
-  void reset_rx_buffer_() { std::vector<uint8_t>().swap(this->rx_buffer_); }
+  void reset_rx_buffer_() {
+    this->rx_buffer_.reset();
+    this->rx_len_ = 0;
+  }
 
   void set_state_(improv::State state);
-  void send_state_byte_(ImprovSerialType type, uint8_t value);
+  void send_state_byte_(improv::ImprovSerialType type, uint8_t value);
   void send_response_(std::span<const uint8_t> response);
 #ifdef USE_WIFI
   void on_wifi_connect_timeout_();
@@ -95,14 +91,16 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   ESPHOME_ALWAYS_INLINE bool read_byte_(uint8_t &byte) {
 #ifdef USE_IMPROV_SERIAL_UART
     return this->uart_->available() && this->uart_->read_byte(&byte);
-#else
+#elif defined(USE_LOGGER_CONSOLE)
     return logger::global_logger->console_read(byte);
+#else
+    return false;
 #endif
   }
   ESPHOME_ALWAYS_INLINE void write_(const uint8_t *data, size_t len) {
 #ifdef USE_IMPROV_SERIAL_UART
     this->uart_->write_array(data, len);
-#else
+#elif defined(USE_LOGGER_CONSOLE)
     logger::global_logger->console_write(data, len);
 #endif
   }
@@ -111,13 +109,14 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   uart::UARTComponent *uart_{nullptr};
 #endif
 
-  std::vector<uint8_t> rx_buffer_;
+  std::unique_ptr<uint8_t[]> rx_buffer_;
   uint32_t last_read_byte_{0};
 #ifdef USE_WIFI
   // Only held while provisioning
   std::unique_ptr<wifi::WiFiAP> connecting_sta_;
 #endif
   improv::State state_{improv::STATE_AUTHORIZED};
+  uint16_t rx_len_{0};
 };
 
 extern ImprovSerialComponent
