@@ -28,15 +28,19 @@ DEFAULT_TIMEOUT = cv.TimePeriodMilliseconds(milliseconds=200)
 HdlcReliability = packet_interface_ns.class_("HdlcReliability", PacketInterface)
 
 
-def _ack_delay_within_timeout(config: ConfigType) -> ConfigType:
+def check_ack_delay(config: ConfigType, timeout: cv.TimePeriod) -> None:
     """The peer, configured the same, must hear the acknowledgement before its timeout."""
-    if (
-        config[CONF_ACK_DELAY].total_milliseconds
-        >= config.get(CONF_TIMEOUT, DEFAULT_TIMEOUT).total_milliseconds
-    ):
+    if config[CONF_ACK_DELAY].total_milliseconds >= timeout.total_milliseconds:
         raise cv.Invalid(
-            f"Must be shorter than '{CONF_TIMEOUT}'", path=[CONF_ACK_DELAY]
+            f"Must be shorter than '{CONF_TIMEOUT}', which is {timeout.total_milliseconds}ms",
+            path=[CONF_ACK_DELAY],
         )
+
+
+def _ack_delay_within_timeout(config: ConfigType) -> ConfigType:
+    # Without a timeout, the link checks against the one it chooses
+    if (timeout := config.get(CONF_TIMEOUT)) is not None:
+        check_ack_delay(config, timeout)
     return config
 
 
