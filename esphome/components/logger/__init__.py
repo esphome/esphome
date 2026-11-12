@@ -226,6 +226,17 @@ def uart_selection(value: Any) -> str:
     raise NotImplementedError
 
 
+def _nrf52_board_default_uart(config: ConfigType) -> ConfigType:
+    """Default to UART0 on nRF52 boards whose USB port is a debugger's serial bridge."""
+    if CORE.is_nrf52 and CONF_HARDWARE_UART not in config:
+        from esphome.components.nrf52.boards import BOARDS_WITH_UART_CONSOLE
+        from esphome.components.nrf52.framework import get_nrf52_board
+
+        if get_nrf52_board() in BOARDS_WITH_UART_CONSOLE:
+            return {**config, CONF_HARDWARE_UART: UART0}
+    return config
+
+
 def _zephyr_uart0_label() -> str:
     """The devicetree label of UART0."""
     from esphome.components.nrf52.const import VARIANT_CONSOLE_UART
@@ -329,6 +340,7 @@ LoggerMessageTrigger = logger_ns.class_(
 
 
 CONFIG_SCHEMA = cv.All(
+    _nrf52_board_default_uart,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Logger),
