@@ -48,15 +48,11 @@ static const uint8_t HTU31D_DIAGNOSTICS = 0x08;
  * I2C.
  */
 void HTU31DComponent::setup() {
-  if (!this->reset_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->reset_()))
     return;
-  }
 
-  if (this->read_serial_num_() == 0) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_serial_num_() != 0))
     return;
-  }
 }
 
 /**
@@ -70,7 +66,7 @@ void HTU31DComponent::update() {
   // a single temperature and humidity conversion.
   if (this->write_register(HTU31D_CONVERSION, nullptr, 0) != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "Received errror writing conversion register");
+    ESP_LOGE(TAG, "Received error writing conversion register");
     return;
   }
 
@@ -98,9 +94,7 @@ void HTU31DComponent::update() {
     temperature *= 165;
     temperature -= 40;
 
-    if (this->temperature_ != nullptr) {
-      this->temperature_->publish_state(temperature);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
 
     // Calculate humidty value.
     uint16_t raw_hum = encode_uint16(thdata[3], thdata[4]);
@@ -116,9 +110,7 @@ void HTU31DComponent::update() {
     humidity /= 65535.0f;
     humidity *= 100;
 
-    if (this->humidity_ != nullptr) {
-      this->humidity_->publish_state(humidity);
-    }
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
     this->status_clear_warning();
@@ -132,8 +124,8 @@ void HTU31DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU31D:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
 /**

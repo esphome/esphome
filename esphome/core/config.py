@@ -57,6 +57,7 @@ from esphome.core import (
     CORE,
     KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
+    TimePeriodMilliseconds,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
@@ -76,6 +77,9 @@ CONF_RELATION = "relation"
 CONF_SBOM = "sbom"
 CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
+
+# Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
+DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -209,6 +213,13 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
         )
 
     return config
+
+
+def get_loop_interval() -> TimePeriodMilliseconds:
+    """Return the main loop interval of the configuration; for final validation."""
+    return fv.full_config.get()[CONF_ESPHOME].get(
+        CONF_LOOP_INTERVAL, DEFAULT_LOOP_INTERVAL
+    )
 
 
 def validate_loop_interval(config: ConfigType) -> ConfigType:
@@ -834,7 +845,7 @@ async def _add_controller_registry_dispatch() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT and its storage. Sizing of looping_components_
     # happens in core to_code() so it lands before safe_mode's early return.
     entries = CORE.data.get("looping_component_entries", [])
 
@@ -850,6 +861,14 @@ async def _add_looping_components() -> None:
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
+        )
+    )
+    # In namespace esphome so analyze-memory counts it as core; sized at least 1 to avoid a zero-length array
+    cg.add_global(
+        cg.RawStatement(
+            "namespace esphome {\n"
+            "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];\n"
+            "}  // namespace esphome"
         )
     )
 
@@ -896,11 +915,12 @@ async def to_code(config: ConfigType) -> None:
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
+    # Pre-init the list with exact capacity so calculate_looping_components_()
+    # can skip the counting pass; the storage is emitted by _add_looping_components()
     cg.add(
         cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+            "App.looping_components_.init(std::span<Component *>("
+            "looping_components_storage, ESPHOME_LOOPING_COMPONENT_COUNT))"
         )
     )
 
@@ -910,7 +930,7 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_automations, config)
 
-    if not CORE.using_toolchain_esp_idf:
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
         cg.add_build_flag("-fno-exceptions")
 
     # Libraries

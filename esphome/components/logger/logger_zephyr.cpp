@@ -10,9 +10,15 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
-#include <zephyr/usb/usb_device.h>
+#include <zephyr/version.h>
+#ifdef USE_LOGGER_USB_CDC
+#include "esphome/components/zephyr/usb_device.h"
+#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
+#endif
+#ifdef USE_BOOTLOADER_ADAFRUIT
+#include <hal/nrf_timer.h>
 #endif
 
 namespace esphome::logger {
@@ -71,17 +77,18 @@ void Logger::pre_setup() {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(ESPHOME_LOGGER_UART0_NODE));
         break;
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
-#ifdef CONFIG_USB_DEVICE_STACK
+#if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
         if (device_is_ready(uart_dev)) {
-          usb_enable(nullptr);
+          // Nothing can log this early, and the logger has no output without USB anyway
+          zephyr::usb_device_enable();
         }
 #endif
         break;
@@ -170,6 +177,31 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
       return buf;
   }
 }
+
+#ifdef USE_BOOTLOADER_ADAFRUIT
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MAJOR = 0;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MINOR = 11;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_PATCH = 0;
+// Adafruit_nRF52_Bootloader passes its version to the app as 0x00MMmmpp (major, minor, patch)
+static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION =
+    (ADAFRUIT_BOOTLOADER_MIN_MAJOR << 16) | (ADAFRUIT_BOOTLOADER_MIN_MINOR << 8) | ADAFRUIT_BOOTLOADER_MIN_PATCH;
+
+void Logger::dump_bootloader_() {
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_TIMER2 is MMIO at a fixed address
+  const uint32_t version = NRF_TIMER2->CC[0];
+  if (version >= ADAFRUIT_BOOTLOADER_MIN_VERSION)
+    return;
+  // Releases too old to pass their version leave the register at its reset value
+  char version_buf[sizeof("255.255.255")] = "unknown";
+  if (version != 0) {
+    snprintf(version_buf, sizeof(version_buf), "%u.%u.%u", static_cast<unsigned>((version >> 16) & 0xFF),
+             static_cast<unsigned>((version >> 8) & 0xFF), static_cast<unsigned>(version & 0xFF));
+  }
+  ESP_LOGW(TAG,
+           "Adafruit_nRF52_Bootloader version %s has known stability issues. Please update it to %u.%u.%u or newer.",
+           version_buf, ADAFRUIT_BOOTLOADER_MIN_MAJOR, ADAFRUIT_BOOTLOADER_MIN_MINOR, ADAFRUIT_BOOTLOADER_MIN_PATCH);
+}
+#endif
 
 void Logger::dump_crash_() {
   ESP_LOGD(TAG, "Crash buffer address %p", &crash_buf);

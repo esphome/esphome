@@ -325,6 +325,10 @@ async def to_code(config: ConfigType) -> None:
 
         # Re-enable the I2C driver (excluded by default to save compile time)
         include_builtin_idf_component("esp_driver_i2c")
+        if get_esp32_variant() == VARIANT_ESP32:
+            # ACK_ERR interrupt storm after a NACK; see i2c_bus_esp_idf.cpp
+            cg.add_define("USE_I2C_ISR_GUARD")
+            cg.add_build_flag("-Wl,--wrap=esp_intr_alloc_intrstatus")
     if CORE.is_host:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)

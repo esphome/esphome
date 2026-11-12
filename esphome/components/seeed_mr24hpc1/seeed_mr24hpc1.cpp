@@ -26,7 +26,7 @@ void MR24HPC1Component::dump_config() {
   LOG_TEXT_SENSOR(" ", "Product Model Text Sensor", this->product_model_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Product ID Text Sensor", this->product_id_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Hardware Model Text Sensor", this->hardware_model_text_sensor_);
-  LOG_TEXT_SENSOR(" ", "Firware Verison Text Sensor", this->firware_version_text_sensor_);
+  LOG_TEXT_SENSOR(" ", "Firmware Version Text Sensor", this->firmware_version_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Keep Away Text Sensor", this->keep_away_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Motion Status Text Sensor", this->motion_status_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Custom Mode End Text Sensor", this->custom_mode_end_text_sensor_);
@@ -70,19 +70,14 @@ void MR24HPC1Component::dump_config() {
 // Initialisation functions
 void MR24HPC1Component::setup() {
 #ifdef USE_NUMBER
-  if (this->custom_mode_number_ != nullptr) {
-    this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
-  }
+  // Zero out the custom mode
+  PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
 #ifdef USE_SENSOR
-  if (this->custom_mode_num_sensor_ != nullptr) {
-    this->custom_mode_num_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->custom_mode_num_sensor_, 0);
 #endif
 #ifdef USE_TEXT_SENSOR
-  if (this->custom_mode_end_text_sensor_ != nullptr) {
-    this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
-  }
+  PUBLISH_STATE(this->custom_mode_end_text_sensor_, "Not in custom mode");
 #endif
   this->poll_time_base_func_check_ = false;
   this->check_dev_inf_sign_ = true;
@@ -118,7 +113,7 @@ void MR24HPC1Component::update_() {
 void MR24HPC1Component::loop() {
   this->read_available([this](uint8_t b) { this->r24_split_data_frame_(b); });
 
-  if ((this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) &&
+  if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) &&
       (this->sg_start_query_data_ > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) && (!this->check_dev_inf_sign_)) {
     this->sg_start_query_data_ = STANDARD_FUNCTION_QUERY_SCENE_MODE;
   } else if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_ON) &&
@@ -216,7 +211,7 @@ void MR24HPC1Component::loop() {
       case CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED:
         this->get_custom_unman_time();
         this->sg_start_query_data_++;
-        if (this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) {
+        if (this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) {
           this->poll_time_base_func_check_ = false;  // Avoiding high-speed polling that can cause the device to jam
         }
         break;
@@ -336,7 +331,7 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
         if (get_frame_check_status(this->sg_frame_prase_buf_, this->sg_frame_len_)) {
           this->r24_parse_data_frame_(this->sg_frame_prase_buf_, this->sg_frame_len_);
         } else {
-          ESP_LOGD(TAG, "frame check failer!");
+          ESP_LOGD(TAG, "frame check failure!");
         }
       } else {
         ESP_LOGD(TAG, "FRAME_TAIL2 ERROR value:%x", value);
@@ -382,10 +377,10 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
       ESP_LOGD(TAG, "Reply: get hardwareModel error!");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_FIRMWARE_VERSION) {
-    if ((this->firware_version_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
+    if ((this->firmware_version_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_firmware_version_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_firmware_version_, &data[FRAME_DATA_INDEX], product_len);
-      this->firware_version_text_sensor_->publish_state(this->c_firmware_version_);
+      this->firmware_version_text_sensor_->publish_state(this->c_firmware_version_);
     } else {
       ESP_LOGD(TAG, "Reply: get firmwareVersion error!");
     }
@@ -399,45 +394,27 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
     case 0x00:
     case 0x80:
 #ifdef USE_SWITCH
-      if (this->underlying_open_function_switch_ != nullptr) {
-        this->underlying_open_function_switch_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->underlying_open_function_switch_, data[FRAME_DATA_INDEX]);
 #endif
-      this->s_output_info_switch_flag_ = data[FRAME_DATA_INDEX] ? OUTPUT_SWITCH_ON : OUTPUT_SWTICH_OFF;
+      this->s_output_info_switch_flag_ = data[FRAME_DATA_INDEX] ? OUTPUT_SWITCH_ON : OUTPUT_SWITCH_OFF;
       break;
 #ifdef USE_SENSOR
     case 0x01:
-      if (this->custom_spatial_static_value_sensor_ != nullptr) {
-        this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
-      if (this->custom_presence_of_detection_sensor_ != nullptr) {
-        this->custom_presence_of_detection_sensor_->publish_state(data[FRAME_DATA_INDEX + 1] * 0.5f);
-      }
-      if (this->custom_spatial_motion_value_sensor_ != nullptr) {
-        this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX + 2]);
-      }
-      if (this->custom_motion_distance_sensor_ != nullptr) {
-        this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX + 3] * 0.5f);
-      }
-      if (this->custom_motion_speed_sensor_ != nullptr) {
-        this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX + 4] - 10) * 0.5f);
-      }
+      PUBLISH_STATE(this->custom_spatial_static_value_sensor_, data[FRAME_DATA_INDEX]);
+      PUBLISH_STATE(this->custom_presence_of_detection_sensor_, data[FRAME_DATA_INDEX + 1] * 0.5f);
+      PUBLISH_STATE(this->custom_spatial_motion_value_sensor_, data[FRAME_DATA_INDEX + 2]);
+      PUBLISH_STATE(this->custom_motion_distance_sensor_, data[FRAME_DATA_INDEX + 3] * 0.5f);
+      PUBLISH_STATE(this->custom_motion_speed_sensor_, (data[FRAME_DATA_INDEX + 4] - 10) * 0.5f);
       break;
     case 0x07:
     case 0x87:
-      if (this->movement_signs_sensor_ != nullptr) {
-        this->movement_signs_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->movement_signs_sensor_, data[FRAME_DATA_INDEX]);
       break;
     case 0x81:
-      if (this->custom_spatial_static_value_sensor_ != nullptr) {
-        this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->custom_spatial_static_value_sensor_, data[FRAME_DATA_INDEX]);
       break;
     case 0x82:
-      if (this->custom_spatial_motion_value_sensor_ != nullptr) {
-        this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->custom_spatial_motion_value_sensor_, data[FRAME_DATA_INDEX]);
       break;
     case 0x83:
       // 0 to 3 m in steps of 0.5 m
@@ -446,14 +423,10 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       }
       break;
     case 0x84:
-      if (this->custom_motion_distance_sensor_ != nullptr) {
-        this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
-      }
+      PUBLISH_STATE(this->custom_motion_distance_sensor_, data[FRAME_DATA_INDEX] * 0.5f);
       break;
     case 0x85:
-      if (this->custom_motion_speed_sensor_ != nullptr) {
-        this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
-      }
+      PUBLISH_STATE(this->custom_motion_speed_sensor_, (data[FRAME_DATA_INDEX] - 10) * 0.5f);
       break;
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -469,39 +442,23 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
 #ifdef USE_NUMBER
     case 0x08:
     case 0x88:
-      if (this->existence_threshold_number_ != nullptr) {
-        this->existence_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->existence_threshold_number_, data[FRAME_DATA_INDEX]);
       break;
     case 0x09:
     case 0x89:
-      if (this->motion_threshold_number_ != nullptr) {
-        this->motion_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->motion_threshold_number_, data[FRAME_DATA_INDEX]);
       break;
     case 0x0c:
     case 0x8c:
-      if (this->motion_trigger_number_ != nullptr) {
-        uint32_t motion_trigger_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
-                                                     data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
-        this->motion_trigger_number_->publish_state(motion_trigger_time);
-      }
+      PUBLISH_STATE(this->motion_trigger_number_, encode_value<uint32_t>(&data[FRAME_DATA_INDEX]));
       break;
     case 0x0d:
     case 0x8d:
-      if (this->motion_to_rest_number_ != nullptr) {
-        uint32_t move_to_rest_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
-                                                   data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
-        this->motion_to_rest_number_->publish_state(move_to_rest_time);
-      }
+      PUBLISH_STATE(this->motion_to_rest_number_, encode_value<uint32_t>(&data[FRAME_DATA_INDEX]));
       break;
     case 0x0e:
     case 0x8e:
-      if (this->custom_unman_time_number_ != nullptr) {
-        uint32_t enter_unmanned_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
-                                                     data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
-        this->custom_unman_time_number_->publish_state(enter_unmanned_time / 1000.0f);
-      }
+      PUBLISH_STATE(this->custom_unman_time_number_, encode_value<uint32_t>(&data[FRAME_DATA_INDEX]) / 1000.0f);
       break;
 #endif
 #ifdef USE_SELECT
@@ -533,10 +490,8 @@ void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
         break;
       }
 #ifdef USE_TEXT_SENSOR
-      if (this->heartbeat_state_text_sensor_ != nullptr) {
-        this->heartbeat_state_text_sensor_->publish_state(
-            data[FRAME_COMMAND_WORD_INDEX] == 0x01 ? "Equipment Normal" : "Equipment Abnormal");
-      }
+      PUBLISH_STATE(this->heartbeat_state_text_sensor_,
+                    data[FRAME_COMMAND_WORD_INDEX] == 0x01 ? "Equipment Normal" : "Equipment Abnormal");
 #endif
     } break;
     case 0x02: {
@@ -565,37 +520,25 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
       break;
     case 0x09:
 #ifdef USE_SENSOR
-      if (this->custom_mode_num_sensor_ != nullptr) {
-        this->custom_mode_num_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->custom_mode_num_sensor_, data[FRAME_DATA_INDEX]);
 #endif
 #ifdef USE_NUMBER
-      if (this->custom_mode_number_ != nullptr) {
-        this->custom_mode_number_->publish_state(0);
-      }
+      PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
 #ifdef USE_TEXT_SENSOR
-      if (this->custom_mode_end_text_sensor_ != nullptr) {
-        this->custom_mode_end_text_sensor_->publish_state("Setup in progress");
-      }
+      PUBLISH_STATE(this->custom_mode_end_text_sensor_, "Setup in progress");
 #endif
       break;
     case 0x89:
 #ifdef USE_SENSOR
-      if (this->custom_mode_num_sensor_ != nullptr) {
-        this->custom_mode_num_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->custom_mode_num_sensor_, data[FRAME_DATA_INDEX]);
 #endif
       if (data[FRAME_DATA_INDEX] == 0) {
 #ifdef USE_TEXT_SENSOR
-        if (this->custom_mode_end_text_sensor_ != nullptr) {
-          this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
-        }
+        PUBLISH_STATE(this->custom_mode_end_text_sensor_, "Not in custom mode");
 #endif
 #ifdef USE_NUMBER
-        if (this->custom_mode_number_ != nullptr) {
-          this->custom_mode_number_->publish_state(0);
-        }
+        PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
       }
       break;
@@ -612,16 +555,12 @@ void MR24HPC1Component::r24_frame_parse_work_status_(uint8_t *data) {
 #ifdef USE_NUMBER
     case 0x08:
     case 0x88:
-      if (this->sensitivity_number_ != nullptr) {
-        this->sensitivity_number_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->sensitivity_number_, data[FRAME_DATA_INDEX]);
       break;
 #endif
 #ifdef USE_TEXT_SENSOR
     case 0x0A:
-      if (this->custom_mode_end_text_sensor_ != nullptr) {
-        this->custom_mode_end_text_sensor_->publish_state("Set Success!");
-      }
+      PUBLISH_STATE(this->custom_mode_end_text_sensor_, "Set Success!");
       break;
 #endif
     default:
@@ -643,9 +582,7 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 #ifdef USE_SENSOR
     case 0x03:
     case 0x83:
-      if (this->movement_signs_sensor_ != nullptr) {
-        this->movement_signs_sensor_->publish_state(data[FRAME_DATA_INDEX]);
-      }
+      PUBLISH_STATE(this->movement_signs_sensor_, data[FRAME_DATA_INDEX]);
       break;
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -784,29 +721,15 @@ void MR24HPC1Component::set_underlying_open_function(bool enable) {
     this->send_query_(UNDERLYING_SWITCH_OFF, sizeof(UNDERLYING_SWITCH_OFF));
   }
 #ifdef USE_TEXT_SENSOR
-  if (this->keep_away_text_sensor_ != nullptr) {
-    this->keep_away_text_sensor_->publish_state("");
-  }
-  if (this->motion_status_text_sensor_ != nullptr) {
-    this->motion_status_text_sensor_->publish_state("");
-  }
+  PUBLISH_STATE(this->keep_away_text_sensor_, "");
+  PUBLISH_STATE(this->motion_status_text_sensor_, "");
 #endif
 #ifdef USE_SENSOR
-  if (this->custom_spatial_static_value_sensor_ != nullptr) {
-    this->custom_spatial_static_value_sensor_->publish_state(NAN);
-  }
-  if (this->custom_spatial_motion_value_sensor_ != nullptr) {
-    this->custom_spatial_motion_value_sensor_->publish_state(NAN);
-  }
-  if (this->custom_motion_distance_sensor_ != nullptr) {
-    this->custom_motion_distance_sensor_->publish_state(NAN);
-  }
-  if (this->custom_presence_of_detection_sensor_ != nullptr) {
-    this->custom_presence_of_detection_sensor_->publish_state(NAN);
-  }
-  if (this->custom_motion_speed_sensor_ != nullptr) {
-    this->custom_motion_speed_sensor_->publish_state(NAN);
-  }
+  PUBLISH_STATE(this->custom_spatial_static_value_sensor_, NAN);
+  PUBLISH_STATE(this->custom_spatial_motion_value_sensor_, NAN);
+  PUBLISH_STATE(this->custom_motion_distance_sensor_, NAN);
+  PUBLISH_STATE(this->custom_presence_of_detection_sensor_, NAN);
+  PUBLISH_STATE(this->custom_motion_speed_sensor_, NAN);
 #endif
 }
 
@@ -816,14 +739,10 @@ void MR24HPC1Component::set_scene_mode(uint8_t value) {
   send_data[7] = get_frame_crc_sum(send_data, send_data_len);
   this->send_query_(send_data, send_data_len);
 #ifdef USE_NUMBER
-  if (this->custom_mode_number_ != nullptr) {
-    this->custom_mode_number_->publish_state(0);
-  }
+  PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
 #ifdef USE_SENSOR
-  if (this->custom_mode_num_sensor_ != nullptr) {
-    this->custom_mode_num_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->custom_mode_num_sensor_, 0);
 #endif
   this->get_scene_mode();
   this->get_sensitivity();
@@ -865,9 +784,7 @@ void MR24HPC1Component::set_custom_mode(uint8_t mode) {
   if (mode == 0) {
     this->set_custom_end_mode();  // Equivalent to end setting
 #ifdef USE_NUMBER
-    if (this->custom_mode_number_ != nullptr) {
-      this->custom_mode_number_->publish_state(0);
-    }
+    PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
     return;
   }
@@ -892,9 +809,8 @@ void MR24HPC1Component::set_custom_end_mode() {
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x0a, 0x00, 0x01, 0x0F, 0xCB, 0x54, 0x43};
   this->send_query_(send_data, send_data_len);
 #ifdef USE_NUMBER
-  if (this->custom_mode_number_ != nullptr) {
-    this->custom_mode_number_->publish_state(0);  // Clear setpoints
-  }
+  // Clear setpoints
+  PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
   this->get_existence_boundary();
   this->get_motion_boundary();

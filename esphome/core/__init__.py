@@ -43,7 +43,7 @@ from esphome.coroutine import (  # noqa: F401
     coroutine,
     coroutine_with_priority,
 )
-from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
+from esphome.helpers import get_str_env, is_ha_addon, unique_name
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -413,15 +413,23 @@ class ID:
         self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
-        from esphome.config_validation import RESERVED_IDS
+        """Give an unnamed ID a unique generated name.
 
+        ``registered_ids`` is any collection of names in use; pass a set when
+        resolving many IDs so each name check is a hash lookup.
+        """
         if self.id is None:
+            from esphome.config_validation import RESERVED_IDS_SET
+
             base = str(self.type).replace("::", "_").lower()
             if base == self.type:
                 base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
-            self.id = ensure_unique_string(name, used)
+            loaded = CORE.loaded_integrations
+            self.id = unique_name(
+                name,
+                lambda c: c in registered_ids or c in RESERVED_IDS_SET or c in loaded,
+            )
         return self.id
 
     def __str__(self):
@@ -791,6 +799,11 @@ class EsphomeCore:
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
 
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
+
         return None
 
     @property
@@ -1032,6 +1045,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_zephyr(self) -> bool:
+        return self.toolchain == Toolchain.ZEPHYR
 
     @property
     def using_toolchain_arduino(self):

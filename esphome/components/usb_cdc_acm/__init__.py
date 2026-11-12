@@ -11,7 +11,12 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
 )
 from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
-from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_claim_cdc_acm
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
+    zephyr_enable_cdc_acm_rate_callback,
+    zephyr_use_usb_device_next,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -132,11 +137,11 @@ async def to_code(config: ConfigType) -> None:
             cg.add_global(uart_ns.using)
             await debug_to_code(debug, interface)
     if CORE.using_zephyr:
-        zephyr_add_prj_conf("UART_LINE_CTRL", True)
-        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-        # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer
-        # slot per endpoint; the default of 4 leaves a third instance without any
-        zephyr_add_prj_conf("USB_MAX_NUM_TRANSFERS", 8)
+        zephyr_enable_cdc_acm_rate_callback()
+        if not zephyr_use_usb_device_next():
+            # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer
+            # slot per endpoint; the default of 4 leaves a third instance without any
+            zephyr_add_prj_conf("USB_MAX_NUM_TRANSFERS", 8)
         cg.add_define("ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE])
         cg.add_define("ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
     else:

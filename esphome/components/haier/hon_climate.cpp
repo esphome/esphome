@@ -78,9 +78,7 @@ void HonClimate::set_beeper_state(bool state) {
   if (state != this->settings_.beeper_state) {
     this->settings_.beeper_state = state;
 #ifdef USE_SWITCH
-    if (this->beeper_switch_ != nullptr) {
-      this->beeper_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->beeper_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -98,9 +96,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
     }
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
-    if (this->quiet_mode_switch_ != nullptr) {
-      this->quiet_mode_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->quiet_mode_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -536,7 +532,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
           this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
-          // Message already sent, reseting request and return to idle
+          // Message already sent, resetting request and return to idle
           this->action_request_.reset();
           this->set_phase(ProtocolPhases::IDLE);
         }
@@ -901,24 +897,19 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
 
 void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
-  if (this->sub_text_sensors_[index] != nullptr)
-    this->sub_text_sensors_[index]->publish_state(value);
+  PUBLISH_STATE(this->sub_text_sensors_[index], value);
 }
 #endif  // USE_TEXT_SENSOR
 
 #ifdef USE_SWITCH
 void HonClimate::set_beeper_switch(switch_::Switch *sw) {
   this->beeper_switch_ = sw;
-  if (this->beeper_switch_ != nullptr) {
-    this->beeper_switch_->publish_state(this->get_beeper_state());
-  }
+  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
 }
 
 void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
   this->quiet_mode_switch_ = sw;
-  if (this->quiet_mode_switch_ != nullptr) {
-    this->quiet_mode_switch_->publish_state(this->settings_.quiet_mode_state);
-  }
+  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
 }
 #endif  // USE_SWITCH
 
@@ -961,7 +952,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
   if (size < expected_size) {
-    ESP_LOGW(TAG, "Unexpected message size %u (expexted >= %zu)", size, expected_size);
+    ESP_LOGW(TAG, "Unexpected message size %u (expected >= %zu)", size, expected_size);
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   }
   uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
@@ -1162,9 +1153,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         this->quiet_mode_state_ = new_quiet_mode ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
         this->settings_.quiet_mode_state = new_quiet_mode;
 #ifdef USE_SWITCH
-        if (this->quiet_mode_switch_ != nullptr) {
-          this->quiet_mode_switch_->publish_state(new_quiet_mode);
-        }
+        PUBLISH_STATE(this->quiet_mode_switch_, new_quiet_mode);
 #endif  // USE_SWITCH
         this->hon_rtc_.save(&this->settings_);
       }

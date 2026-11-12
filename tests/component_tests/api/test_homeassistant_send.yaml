@@ -1,0 +1,53 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - homeassistant.action:
+          action: notify.notify
+          data:
+            message: Booted
+          data_template:
+            title: "{{ name }}"
+          variables:
+            name: !lambda 'return App.get_name();'
+      - logger.log: after action
+
+esp8266:
+  board: esp01_1m
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+api:
+
+script:
+  - id: ha_by_value
+    parameters:
+      level: int
+    then:
+      - homeassistant.service:
+          service: light.turn_on
+          data:
+            doubled: !lambda 'level *= 2; return level;'
+            tripled: !lambda 'return level *= 3;'
+      - homeassistant.event:
+          event: esphome.level
+          data:
+            doubled: !lambda 'level *= 2; return level;'
+  - id: ha_response
+    then:
+      - homeassistant.action:
+          action: notify.notify
+          on_error:
+            - logger.log: failed
+
+button:
+  - platform: template
+    name: Ring
+    on_press:
+      - homeassistant.event:
+          event: esphome.ring
+      - homeassistant.tag_scanned: front_door

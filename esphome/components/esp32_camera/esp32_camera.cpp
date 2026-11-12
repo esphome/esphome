@@ -359,9 +359,6 @@ void ESP32Camera::set_data_pins(std::array<uint8_t, 8> pins) {
   this->config_.pin_d6 = pins[6];
   this->config_.pin_d7 = pins[7];
 }
-void ESP32Camera::set_vsync_pin(uint8_t pin) { this->config_.pin_vsync = pin; }
-void ESP32Camera::set_href_pin(uint8_t pin) { this->config_.pin_href = pin; }
-void ESP32Camera::set_pixel_clock_pin(uint8_t pin) { this->config_.pin_pclk = pin; }
 void ESP32Camera::set_external_clock(uint8_t pin, uint32_t frequency) {
   this->config_.pin_xclk = pin;
   this->config_.xclk_freq_hz = frequency;
@@ -377,8 +374,6 @@ void ESP32Camera::set_i2c_id(i2c::InternalI2CBus *i2c_bus) {
   this->config_.pin_sccb_scl = -1;
 }
 #endif  // USE_I2C
-void ESP32Camera::set_reset_pin(uint8_t pin) { this->config_.pin_reset = pin; }
-void ESP32Camera::set_power_down_pin(uint8_t pin) { this->config_.pin_pwdn = pin; }
 
 /* set image parameters */
 void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
@@ -470,26 +465,15 @@ void ESP32Camera::set_pixel_format(ESP32CameraPixelFormat format) {
       break;
   }
 }
-void ESP32Camera::set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
 /* set exposure parameters */
 /* set gains parameters */
 /* set white balance */
 /* set test mode */
 /* set fps */
-void ESP32Camera::set_max_update_interval(uint32_t max_update_interval) {
-  this->max_update_interval_ = max_update_interval;
-}
-void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
-  this->idle_update_interval_ = idle_update_interval;
-}
 /* set frame buffer parameters */
-void ESP32Camera::set_frame_buffer_mode(camera_grab_mode_t mode) { this->config_.grab_mode = mode; }
 void ESP32Camera::set_frame_buffer_count(uint8_t fb_count) {
   this->config_.fb_count = fb_count;
   this->set_frame_buffer_mode(fb_count > 1 ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY);
-}
-void ESP32Camera::set_frame_buffer_location(camera_fb_location_t fb_location) {
-  this->config_.fb_location = fb_location;
 }
 
 /* ---------------- public API (specific) ---------------- */

@@ -1,5 +1,6 @@
 #include "zyaura.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::zyaura {
 
@@ -23,12 +24,12 @@ bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
     if (this->num_bits_ == ZA_FRAME_SIZE) {
       // validate checksum
       uint8_t checksum = this->buffer_[ZA_BYTE_TYPE] + this->buffer_[ZA_BYTE_HIGH] + this->buffer_[ZA_BYTE_LOW];
-      if (checksum != this->buffer_[ZA_BYTE_SUM] || this->buffer_[ZA_BYTE_END] != ZA_MSG_DELIMETER) {
+      if (checksum != this->buffer_[ZA_BYTE_SUM] || this->buffer_[ZA_BYTE_END] != ZA_MSG_DELIMITER) {
         return false;
       }
 
       this->message->type = (ZaDataType) this->buffer_[ZA_BYTE_TYPE];
-      this->message->value = this->buffer_[ZA_BYTE_HIGH] << 8 | this->buffer_[ZA_BYTE_LOW];
+      this->message->value = encode_uint16(this->buffer_[ZA_BYTE_HIGH], this->buffer_[ZA_BYTE_LOW]);
       return true;
     }
   }

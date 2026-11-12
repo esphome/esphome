@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .. import gree_ns
@@ -82,7 +83,10 @@ def _feature_switch_schema(
         entity_category=ENTITY_CATEGORY_CONFIG,
     )
 
+    @schema_extractor("schema")
     def validator(value: ConfigType) -> ConfigType:
+        if value is SCHEMA_EXTRACT:
+            return schema
         explicit = isinstance(value, dict) and any(
             key in value for key in _RESTORE_KEYS
         )

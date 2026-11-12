@@ -1,0 +1,12 @@
+substitutions:
+  min_count: "0"
+  cap_ms: "30000"
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include v6common.yaml
+  inject: !include v6inject.yaml
