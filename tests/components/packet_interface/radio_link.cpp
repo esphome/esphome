@@ -41,7 +41,7 @@ class TestLink : public RadioLink<FakeRadio, FakeListener, FakeError, 16> {
   uint8_t not_understood_count() const { return this->not_understood_count_; }
 
  protected:
-  uint32_t now_() const override { return App.get_loop_component_start_time(); }
+  uint32_t current_time_ms() const override { return App.get_loop_component_start_time(); }
 };
 
 static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
