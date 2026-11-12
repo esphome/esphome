@@ -6,11 +6,14 @@ namespace esphome::xl9535 {
 
 ESPHOME_LOG_TAG(TAG, "xl9535");
 
-void XL9535Component::setup() {
-  // Start from the levels the chip already holds, which survive a reboot of the MCU
-  this->setup_check(this->read_byte(XL9535_OUTPUT_PORT_0_REGISTER, &this->output_[0]) &&
-                    this->read_byte(XL9535_OUTPUT_PORT_1_REGISTER, &this->output_[1]));
+// Start from the levels the chip already holds, which survive a reboot of the MCU
+bool XL9535Component::load_outputs_() {
+  this->outputs_loaded_ = this->read_byte(XL9535_OUTPUT_PORT_0_REGISTER, &this->output_[0]) &&
+                          this->read_byte(XL9535_OUTPUT_PORT_1_REGISTER, &this->output_[1]);
+  return this->outputs_loaded_;
 }
+
+void XL9535Component::setup() { this->setup_check(this->outputs_loaded_ || this->load_outputs_()); }
 
 void XL9535Component::dump_config() {
   ESP_LOGCONFIG(TAG, "XL9535:");
@@ -30,6 +33,9 @@ bool XL9535Component::digital_read(uint8_t pin) {
 }
 
 void XL9535Component::digital_write(uint8_t pin, bool value) {
+  // Without the chip's levels a write would clear the port's other outputs
+  if (this->is_failed() || (!this->outputs_loaded_ && !this->status_comm_result(this->load_outputs_())))
+    return;
   uint8_t &output = this->output_[port_index(pin)];
   assign_bits(output, pin_mask(pin), value);
   this->status_comm_result(this->write_byte(port_register(XL9535_OUTPUT_PORT_0_REGISTER, pin), output));
