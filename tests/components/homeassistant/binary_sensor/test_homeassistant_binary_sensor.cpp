@@ -64,6 +64,7 @@ TEST_F(HomeassistantBinarySensorTest, NoValueDoesNotChangeStateAndDoesNotWarn) {
   this->deliver_("on");
   for (const char *state : {"unavailable", "unknown", "None"}) {
     const std::string logged = this->deliver_(state);
+    EXPECT_TRUE(this->binary_sensor_.has_state()) << state;
     EXPECT_TRUE(this->binary_sensor_.state) << state;
     EXPECT_EQ(logged.find("Can't convert"), std::string::npos) << state << " logged: " << logged;
   }

@@ -71,8 +71,10 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         # earlier 'default' initial state was already processed
         await waiter.wait_for("initial_off on_release", timeout=5.0)
         # Both 'unavailable' senders must have been seen and rejected
-        assert sum("No value (unavailable)" in line for line in waiter.lines) == 2
-        assert not any("Can't convert 'unavailable'" in line for line in waiter.lines)
+        no_value = [line for line in waiter.lines if "No value (unavailable)" in line]
+        assert len(no_value) == 2
+        assert all("[V]" in line for line in no_value), no_value
+        assert not any("[W]" in line and "unavailable" in line for line in waiter.lines)
         # Guard every phase 2 needle against being satisfied by a stale
         # phase 1 line, and pin that the initial states fired nothing else
         for absent in (
