@@ -359,6 +359,11 @@ def validate_light_esp32(config: ConfigType) -> ConfigType:
                     {CONF_ATTRIBUTE_ID: 0x4002, CONF_TYPE: "UINT16", CONF_VALUE: 0},
                 ],
             },
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "CLIENT",
+                CONF_ATTRIBUTES: [],
+            },
         ],
     }
     config["zigbee_ep"] = ep

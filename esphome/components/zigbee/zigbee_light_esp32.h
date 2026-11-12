@@ -64,6 +64,7 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   light::LightCall next_call_ = light::LightCall(nullptr);
   bool synchronizing_from_zigbee_{false};
   bool call_pending_{false};
+  bool block_zigbee_{false};
 };
 
 }  // namespace esphome::zigbee
