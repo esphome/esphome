@@ -186,7 +186,9 @@ void ESP8266UartComponent::dump_config() {
     }
     if (this->tx_pin_ != nullptr && this->baud_rate_ <= SW_SERIAL_TX_BIT_LOCK_MAX_BAUD &&
         this->sw_serial_->locks_whole_frame()) {
-      ESP_LOGW(TAG, "  TX locks interrupts for whole bytes: a software UART receives above %u baud",
+      ESP_LOGW(TAG,
+               "  TX locks interrupts for whole bytes because a software UART receives above %u baud; Wi-Fi "
+               "watchdog resets are possible under load",
                (unsigned) SW_SERIAL_EDGE_MODE_MAX_BAUD);
     }
   }
