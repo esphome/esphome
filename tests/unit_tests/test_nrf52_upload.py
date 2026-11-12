@@ -1171,7 +1171,6 @@ def test_cmsis_dap_unique_id(
 def test_cmsis_dap_flashes_mcuboot_and_signed_app(
     setup_core: Path, tmp_path: Path
 ) -> None:
-    from esphome.components.nrf52 import cmsis_dap
     from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
     from esphome.components.nrf52.const import VARIANT_NRF54LM20
     from esphome.components.nrf52.framework import set_nrf52_variant
@@ -1195,13 +1194,16 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
         ) as mock_run,
     ):
         upload_using_cmsis_dap("CB1D0165")
-    loader = Path(cmsis_dap.__file__).with_name("pyocd_rram_load.py")
     assert mock_run.call_args[0][0] == [
         str(paths["python_executable"]),
-        "-I",
-        str(loader),
+        "-m",
+        "pyocd",
+        "flash",
+        "-t",
         "nrf54lm20a",
-        "0x5004e000",
+        "-e",
+        "sector",
+        "-u",
         "CB1D0165",
         str(mcuboot),
         str(app),

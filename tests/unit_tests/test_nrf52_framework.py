@@ -1283,6 +1283,49 @@ def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
     framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
 
 
+PYOCD_NRF54LM20A_BEFORE = """\
+from ..family.target_nRF54L import NRF54L
+
+FLASH_ALGO = {
+    'load_address' : 0x20000000,
+    'instructions': [
+    0xe7fdbe00,
+    0x68134a02, 0xd1fc2b01, 0x46c04770, 0x5004e400, 0x47702000, 0x47702000, 0x2501b570, 0x60254c05,
+    ],
+    'page_size' : 0x4,
+    'sector_sizes': (
+        (0x0, 0x1fd000),
+        (0xffd000, 0x1000),
+    )
+}
+
+class NRF54LM20A(NRF54L):
+    pass
+"""
+
+
+def test_patch_pyocd_nrf54lm20a_flash_algo(tmp_path: Path) -> None:
+    """PyOCD's faulting nRF54LM20A flash algorithm is replaced by the fixed one."""
+    target = (
+        framework._get_penv_site_packages(tmp_path)
+        / "pyocd"
+        / "target"
+        / "builtin"
+        / "target_nRF54LM20A.py"
+    )
+    target.parent.mkdir(parents=True)
+    target.write_text(PYOCD_NRF54LM20A_BEFORE)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    patched = target.read_text()
+    assert framework._PYOCD_NRF54LM20A_FLASH_ALGO in patched
+    assert "0x68134a02" not in patched
+    assert patched.startswith("from ..family.target_nRF54L import NRF54L\n\n")
+    assert patched.endswith("\nclass NRF54LM20A(NRF54L):\n    pass\n")
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)  # idempotent
+    assert target.read_text() == patched
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path / "absent")  # tolerant
+
+
 def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
     tmp_path: Path,
 ) -> None:
