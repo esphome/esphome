@@ -29,8 +29,11 @@ def test_rejects_reserved_addresses(address: int) -> None:
 
 def test_rejects_broadcast_address() -> None:
     """0 is the Modbus broadcast address, so no server device can be identified by it."""
-    with pytest.raises(cv.Invalid, match="broadcast address"):
+    with pytest.raises(cv.Invalid) as excinfo:
         hoermann_hcp.CONFIG_SCHEMA({"address": 0})
+    assert "broadcast address" in str(excinfo.value)
+    # The guidance points at the future default, read from the constant rather than repeated.
+    assert f"such as 0x{hoermann_hcp.HCP2_DEFAULT_ADDRESS:02X}" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("address", OUT_OF_RANGE_ADDRESSES)
@@ -60,6 +63,6 @@ def test_explicit_valid_address_emits_no_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A user who pins a non-deprecated address gets no warning."""
-    config = hoermann_hcp.CONFIG_SCHEMA({"address": 0x2A})
-    assert config["address"] == 0x2A
+    config = hoermann_hcp.CONFIG_SCHEMA({"address": hoermann_hcp.HCP2_DEFAULT_ADDRESS})
+    assert config["address"] == hoermann_hcp.HCP2_DEFAULT_ADDRESS
     assert not caplog.records
