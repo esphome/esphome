@@ -381,18 +381,10 @@ void HomeassistantLight::write_state(LightState *state) {
     }
     return;
   }
-  if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
+  if (!can_send_action(TAG, this->entity_id_, state)) {
     this->fall_back_();
     return;
   }
-#ifdef USE_API_WIZARD_LINKED_INPUTS
-  if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(state->get_log_name()));
-    this->fall_back_();
-    return;
-  }
-#endif
 
   // In flash on the ESP8266 and encoded from there
   static constexpr char SERVICE_TURN_ON[] PROGMEM = "light.turn_on";

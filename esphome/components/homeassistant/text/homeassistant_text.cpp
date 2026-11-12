@@ -71,17 +71,8 @@ void HomeassistantText::dump_config() {
 float HomeassistantText::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantText::control(const std::string &value) {
-  if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "No clients connected to API server");
+  if (!can_send_action(TAG, this->entity_id_, this))
     return;
-  }
-
-#ifdef USE_API_WIZARD_LINKED_INPUTS
-  if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
-    return;
-  }
-#endif
 
   // In flash on the ESP8266 and encoded from there
   static constexpr char SERVICE_TEXT[] PROGMEM = "text.set_value";

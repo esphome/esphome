@@ -3,6 +3,7 @@
 #include <cctype>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
@@ -24,8 +25,11 @@ inline bool is_input_helper(const char *entity_id, const char *input_service) {
 }
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-/// Adds the entity_id entry to an action's data. Inline, as the control platforms using it do not all
-/// compile homeassistant.cpp
+/// False, after logging why, when an action for entity_id cannot be sent now: no API client is connected or,
+/// with the device wizard, no entity is linked yet. tag is the caller's log tag
+bool can_send_action(const char *tag, const char *entity_id, EntityBase *entity);
+
+/// Adds the entity_id entry to an action's data
 inline void add_entity_id(api::HomeassistantActionRequest &resp, const char *entity_id) {
   // In flash on the ESP8266 and encoded from there
   static constexpr char ENTITY_ID_KEY[] PROGMEM = "entity_id";

@@ -30,17 +30,8 @@ void HomeassistantSwitch::dump_config() {
 float HomeassistantSwitch::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantSwitch::write_state(bool state) {
-  if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "No clients connected to API server");
+  if (!can_send_action(TAG, this->entity_id_, this))
     return;
-  }
-
-#ifdef USE_API_WIZARD_LINKED_INPUTS
-  if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
-    return;
-  }
-#endif
 
   // In flash on the ESP8266 and encoded from there
   static constexpr char SERVICE_ON[] PROGMEM = "homeassistant.turn_on";
