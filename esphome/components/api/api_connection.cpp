@@ -2516,11 +2516,17 @@ void APIConnection::on_fatal_error() {
 }
 
 void APIConnection::send_shutdown_disconnect_() {
-  // Home Assistant marks the entities unavailable on DisconnectRequest, and a state after it
-  // makes the same state after the reconnect look like a duplicate: send what the socket takes now
+  // States after DisconnectRequest reach Home Assistant once it has marked the entities
+  // unavailable (#22610): send every queued state the socket takes now, one packet per call
   this->flags_.state_subscription = false;
   this->destroy_active_iterator_();
-  this->process_batch_();
+  for (size_t left = this->deferred_batch_.size(); left != 0 && this->helper_->can_write_without_blocking();) {
+    this->process_batch_();
+    const size_t now_left = this->deferred_batch_.size();
+    if (now_left >= left)
+      break;
+    left = now_left;
+  }
   DisconnectRequest req;
   if (!this->send_message(req)) {
     // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout
