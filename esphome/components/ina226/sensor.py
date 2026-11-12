@@ -187,7 +187,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.resistance, cv.Range(min=0.0)
             ),
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
-                cv.current, cv.Range(min=0.0)
+                cv.current, cv.Range(min=0.0, min_included=False)
             ),
             cv.Optional(CONF_ADC_TIME, default="1100 us"): _per_channel(
                 validate_adc_time
