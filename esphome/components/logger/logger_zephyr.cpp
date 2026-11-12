@@ -133,16 +133,6 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   }
 }
 
-const LogString *Logger::get_uart_selection_() {
-#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-  return LOG_STR("USB_CDC");
-#elif defined(USE_LOGGER_UART_SELECTION_UART1)
-  return LOG_STR("UART1");
-#else
-  return LOG_STR("UART0");
-#endif
-}
-
 static constexpr uint8_t REASON_BUF_SIZE = 32;
 
 static const char *reason_to_str(unsigned int reason, char *buf) {

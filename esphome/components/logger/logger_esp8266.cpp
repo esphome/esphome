@@ -35,20 +35,6 @@ void Logger::pre_setup() {
 #endif
 }
 
-const LogString *Logger::get_uart_selection_() {
-#if defined(USE_ESP8266_LOGGER_SERIAL)
-#ifdef USE_LOGGER_UART_SELECTION_UART0_SWAP
-  return LOG_STR("UART0_SWAP");
-#else
-  return LOG_STR("UART0");
-#endif
-#elif defined(USE_ESP8266_LOGGER_SERIAL1)
-  return LOG_STR("UART1");
-#else
-  return LOG_STR("NONE");
-#endif
-}
-
 #ifdef USE_CRASH_HANDLER
 bool crash_log_pending() { return esp8266::crash_handler_has_data(); }
 void log_crash_to_client() { esp8266::crash_handler_log(); }

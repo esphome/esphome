@@ -126,20 +126,7 @@ enum UARTSelection : uint8_t {
 };
 
 // The port chosen by hardware_uart, fixed at build time
-static constexpr UARTSelection CONFIGURED_UART_SELECTION =
-#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-    UART_SELECTION_USB_CDC;
-#elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
-    UART_SELECTION_USB_SERIAL_JTAG;
-#elif defined(USE_LOGGER_UART_SELECTION_UART0_SWAP)
-    UART_SELECTION_UART0_SWAP;
-#elif defined(USE_LOGGER_UART_SELECTION_UART2)
-    UART_SELECTION_UART2;
-#elif defined(USE_LOGGER_UART_SELECTION_UART1)
-    UART_SELECTION_UART1;
-#else
-    static_cast<UARTSelection>(0);  // UART0, or DEFAULT on LibreTiny
-#endif
+static constexpr UARTSelection CONFIGURED_UART_SELECTION = ESPHOME_LOGGER_UART_SELECTION;
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2 || USE_LIBRETINY || USE_ZEPHYR
 
 /**
@@ -204,9 +191,10 @@ class Logger final : public Component {
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   size_t console_write(const uint8_t *data, size_t len) { return this->hw_serial_->write(data, len); }
   bool console_read(uint8_t &byte) {
-    if (!this->hw_serial_->available())
+    int c = this->hw_serial_->read();
+    if (c < 0)
       return false;
-    this->hw_serial_->readBytes(&byte, 1);
+    byte = c;
     return true;
   }
 #elif defined(USE_ESP32)

@@ -43,21 +43,6 @@ void Logger::pre_setup() {
 #endif
 }
 
-const LogString *Logger::get_uart_selection_() {
-  // DEFAULT is only resolved when serial logging is on
-  switch (this->baud_rate_ > 0 ? this->get_uart() : CONFIGURED_UART_SELECTION) {
-    case UART_SELECTION_DEFAULT:
-      return LOG_STR("DEFAULT");
-    case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
-    case UART_SELECTION_UART2:
-    default:
-      return LOG_STR("UART2");
-  }
-}
-
 #ifdef USE_LIBRETINY_CRASH_HANDLER
 bool crash_log_pending() { return libretiny::crash_handler_has_data(); }
 void log_crash_to_client() { libretiny::crash_handler_log(); }

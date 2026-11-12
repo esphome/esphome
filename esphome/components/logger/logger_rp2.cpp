@@ -45,16 +45,6 @@ void Logger::pre_setup() {
 #endif
 }
 
-const LogString *Logger::get_uart_selection_() {
-#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-  return LOG_STR("USB_CDC");
-#elif defined(USE_LOGGER_UART_SELECTION_UART1)
-  return LOG_STR("UART1");
-#else
-  return LOG_STR("UART0");
-#endif
-}
-
 #ifdef USE_CRASH_HANDLER
 bool crash_log_pending() { return rp2::crash_handler_has_data(); }
 void log_crash_to_client() { rp2::crash_handler_log(); }
