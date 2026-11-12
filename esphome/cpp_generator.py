@@ -867,9 +867,8 @@ def declare_static_function(
     add_global(RawStatement(f"{signature};"))
 
     def define(body: list[str | Statement]) -> RawExpression:
-        add_global_after_includes(
-            RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
-        )
+        lines = indent("\n".join(map(str, body)))
+        add_global_after_includes(RawStatement(f"{signature} {{\n{lines}\n}}"))
         return RawExpression(name)
 
     return define
