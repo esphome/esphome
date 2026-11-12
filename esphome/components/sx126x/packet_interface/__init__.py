@@ -13,7 +13,6 @@ from .. import (
     CONF_RX_START,
     CONF_SX126X_ID,
     CONF_SYNC_VALUE,
-    DOMAIN,
     SX126x,
     SX126xListener,
     sx126x_ns,
@@ -47,4 +46,4 @@ FINAL_VALIDATE_SCHEMA = radio_link_final_validate(
 
 
 async def to_code(config: ConfigType) -> None:
-    await new_radio_link(config, CONF_SX126X_ID, DOMAIN)
+    await new_radio_link(config, CONF_SX126X_ID)

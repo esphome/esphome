@@ -1,6 +1,7 @@
 from esphome.components import packet_interface
 from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
 from esphome.components.packet_interface.radio_link import (
+    MAX_PACKET_SIZE,
     new_radio_link,
     radio_link_final_validate,
     radio_link_schema,
@@ -15,7 +16,6 @@ from .. import (
     CONF_RX_START,
     CONF_SX127X_ID,
     CONF_SYNC_VALUE,
-    DOMAIN,
     SX127x,
     SX127xListener,
     sx127x_ns,
@@ -24,8 +24,8 @@ from .. import (
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["sx127x"]
 
-# The FIFO limit outside LoRa mode
-FSK_MAX_PACKET_SIZE = 64
+# Outside LoRa mode the 64 byte FIFO also holds the length byte
+FSK_MAX_PACKET_SIZE = 63
 
 SX127xPacketInterface = sx127x_ns.class_(
     "SX127xPacketInterface", packet_interface.PacketInterface, SX127xListener
@@ -65,4 +65,10 @@ FINAL_VALIDATE_SCHEMA = radio_link_final_validate(
 
 
 async def to_code(config: ConfigType) -> None:
-    await new_radio_link(config, CONF_SX127X_ID, DOMAIN)
+    await new_radio_link(
+        config,
+        CONF_SX127X_ID,
+        lambda radio: (
+            MAX_PACKET_SIZE if radio[CONF_MODULATION] == "LORA" else FSK_MAX_PACKET_SIZE
+        ),
+    )

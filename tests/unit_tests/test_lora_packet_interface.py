@@ -1,5 +1,7 @@
 """Unit tests for the sx126x and sx127x packet interface platforms."""
 
+import math
+
 import pytest
 
 from esphome import config_validation as cv
@@ -70,6 +72,18 @@ def test_max_busy_follows_airtime() -> None:
     )
 
 
+def _fsk(**options: object) -> dict:
+    return {
+        "modulation": "FSK",
+        "packet_mode": True,
+        "payload_length": 0,
+        "sync_value": [0x12],
+        "preamble_size": 4,
+        "bitrate": 4800,
+        **options,
+    }
+
+
 class _FullConfig(dict):
     """Enough of the full configuration for the radio links' final validation."""
 
@@ -107,10 +121,7 @@ class _FullConfig(dict):
             sx127x_packet_interface,
             "sx127x",
             {
-                "modulation": "FSK",
-                "packet_mode": False,
-                "payload_length": 0,
-                "sync_value": [0x12],
+                **_fsk(modulation="FSK", packet_mode=False),
             },
             {},
             "packet_mode",
@@ -120,23 +131,17 @@ class _FullConfig(dict):
             sx127x_packet_interface,
             "sx127x",
             {
-                "modulation": "OOK",
-                "packet_mode": True,
-                "payload_length": 0,
-                "sync_value": [0x12],
+                **_fsk(modulation="OOK"),
             },
-            {CONF_MAX_PACKET_SIZE: 65},
-            "at most 64",
+            {CONF_MAX_PACKET_SIZE: 64},
+            "at most 63",
             None,
         ),
         (
             sx127x_packet_interface,
             "sx127x",
             {
-                "modulation": "FSK",
-                "packet_mode": True,
-                "payload_length": 0,
-                "sync_value": [],
+                **_fsk(sync_value=[]),
             },
             {},
             "sync_value",
@@ -145,7 +150,7 @@ class _FullConfig(dict):
         (
             sx126x_packet_interface,
             "sx126x",
-            {"modulation": "FSK", "payload_length": 0, "sync_value": []},
+            _fsk(sync_value=[]),
             {},
             "sync_value",
             {"sync_value": [0x12, 0x34]},
@@ -160,10 +165,10 @@ def test_radio_settings_checked(
     match: str,
     fix: dict | None,
 ) -> None:
-    """Packets vary in length; FSK or OOK on an SX127x needs packet mode and a sync word, and holds at most 64 bytes;
+    """Packets vary in length; FSK or OOK on an SX127x needs packet mode and a sync word, and holds at most 63 bytes;
     FSK on an SX126x needs a sync word.
     """
-    config = {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64, **link}
+    config = {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 63, **link}
     token = fv.full_config.set(_FullConfig(domain, radio))
     try:
         with pytest.raises(cv.Invalid, match=match):
@@ -208,3 +213,39 @@ def test_rx_start_needed_for_replies(setup_core, link: dict, match: str | None) 
             sx126x_packet_interface.FINAL_VALIDATE_SCHEMA(config)
     finally:
         fv.full_config.reset(token)
+
+
+def _final_validate(radio: dict, link: dict) -> None:
+    config = sx126x_packet_interface.CONFIG_SCHEMA({"sx126x_id": "radio", **link})
+    token = fv.full_config.set(_FullConfig("sx126x", {"payload_length": 0, **radio}))
+    try:
+        sx126x_packet_interface.FINAL_VALIDATE_SCHEMA(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_packet_must_fit_transmit_time(setup_core) -> None:
+    """The radios give up on a packet that takes longer than 4 s to send, so the largest packet must take less."""
+    slow = _lora(spreading_factor=12)
+    with pytest.raises(cv.Invalid, match=r"255 bytes takes 9019 ms.*to 7\d or less"):
+        _final_validate(slow, {})
+    _final_validate(slow, {CONF_MAX_PACKET_SIZE: 64})
+    _final_validate(_lora(), {})
+
+
+def test_reliability_timeout_follows_airtime(setup_core) -> None:
+    """A reliability timeout must allow for the peer's largest packet and the acknowledgement."""
+    needed = radio_link.reliability_timeout_ms(_lora(), 255, 0)
+    assert needed == math.ceil(
+        (
+            radio_link.packet_airtime_ms(_lora(), 255)
+            + radio_link.packet_airtime_ms(_lora(), radio_link.ACK_PACKET_SIZE)
+        )
+        * radio_link.MARGIN
+    )
+    assert radio_link.reliability_timeout_ms(_lora(), 255, 100) == needed + 100
+    with pytest.raises(cv.Invalid, match=f"at least {needed}ms"):
+        _final_validate(_lora(), {"reliability": {"timeout": "200ms"}})
+    # Left out, the link works it out when generating code
+    _final_validate(_lora(), {"reliability": {}})
+    _final_validate(_lora(), {"reliability": {"timeout": f"{needed}ms"}})
