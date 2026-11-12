@@ -215,7 +215,11 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       break;
     }
     case ESP_GATTS_ADD_CHAR_EVT: {
-      if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
+      // Only while creating, in its own service: a late event for a removed service or a same-UUID
+      // characteristic elsewhere must not set the handle or start the descriptors
+      if (this->state_ == CREATING && this->service_ != nullptr &&
+          this->service_->get_handle() == param->add_char.service_handle &&
+          this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
         this->handle_ = param->add_char.attr_handle;
 
         for (auto *descriptor : this->descriptors_) {
