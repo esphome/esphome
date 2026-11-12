@@ -91,6 +91,15 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # The penv build lives in the shared Zephyr framework helpers
+        patch("esphome.components.zephyr.framework_helpers.rmdir", mock_rmdir),
+        patch(
+            "esphome.components.zephyr.framework_helpers.create_venv",
+            mock_create_venv,
+        ),
+        patch(
+            "esphome.components.zephyr.framework_helpers.run_command_ok", mock_run_cmd
+        ),
         # download_and_extract resolves its internals in framework_helpers,
         # so the download/extract seams are patched there.
         patch(
