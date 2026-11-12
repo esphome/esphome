@@ -4,6 +4,7 @@ import asyncio
 from contextlib import ExitStack
 from pathlib import Path
 import re
+import shlex
 import socket
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1451,7 +1452,12 @@ def test_cmsis_dap_flashes_again_after_a_failure(
             with pytest.raises(
                 EsphomeError,
                 match=re.escape(
-                    f"'{python} -m pyocd erase -t nrf52840 -u CB1D0165 --mass'"
+                    "'"
+                    + shlex.join(
+                        [str(python), "-m", "pyocd", "erase", "-t", "nrf52840"]
+                        + ["-u", "CB1D0165", "--mass"]
+                    )
+                    + "'"
                 ),
             ):
                 upload_using_cmsis_dap("CB1D0165")
