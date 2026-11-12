@@ -21,7 +21,8 @@ B=$(dirname "$Y")/.esphome/build/$N/src/main.cpp
 [ -f "$B" ] || { echo "$N: $B not found (file name differs from name:?)"; exit 1; }
 echo "== $N window=$(grep -o 'set_scan_window([0-9]*)' "$B" || echo none)"
 J=$(grep -a -m1 "JOIN 1" "$O/cli.txt" | cut -c1-100); echo "${J:-$N NO JOIN}"
-grep -a "STAT" "$O/cli.txt" | tail -1 | cut -c1-140
+STAT=$(grep -a "STAT" "$O/cli.txt" | tail -1 | cut -c1-140); echo "$STAT"
 echo "client disconnect reasons: $(grep -a -o "reason='[^']*'" "$O/cli.txt" | sort | uniq -c | tr '\n' ' ')"
 echo "dut resets: $(grep -a -c 'rst:' "$O/dut.txt")"
-[ -n "$J" ]
+# pass: the client joined, fetched pages, and the DUT only reset once (the capture's own reset)
+[ -n "$J" ] && [[ "$STAT" != *"pages_ok=0 "* ]] && [ "$(grep -a -c 'rst:' "$O/dut.txt")" -le 1 ]

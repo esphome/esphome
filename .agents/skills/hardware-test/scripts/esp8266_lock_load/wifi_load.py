@@ -45,5 +45,9 @@ while (now := time.monotonic()) < end:
         last = now
         print(time.strftime("%H:%M:%S"), stats, flush=True)
 print("done", stats, flush=True)
-if stats["http_ok"] == 0 or stats["http_err"] > stats["http_ok"]:
-    sys.exit("the device did not take the HTTP load; the run is invalid")
+if (
+    stats["http_ok"] == 0
+    or stats["http_err"] > stats["http_ok"]
+    or stats["udp"] < secs * pps / 2
+):
+    sys.exit("the load did not reach the device; the run is invalid")
