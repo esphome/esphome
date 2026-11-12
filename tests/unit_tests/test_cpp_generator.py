@@ -969,6 +969,19 @@ class TestSharedProgmemArray:
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
 
+    def test_name_avoids_reserved_ids(self) -> None:
+        CORE.config = {}
+        array = cg.shared_progmem_array("alarm", ct.uint8, [1])
+        assert str(array) == "alarm_2"
+
+    def test_name_avoids_integrations_loaded_after_the_first_name(self) -> None:
+        # Only the config ids are collected once; integrations are checked on every call
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1])
+        CORE.loaded_integrations.add("late_hub")
+        array = cg.shared_progmem_array("late_hub", ct.uint8, [2])
+        assert str(array) == "late_hub_2"
+
 
 class TestStaticBuffer:
     def test_is_named_after_its_owner_and_unique(self) -> None:
