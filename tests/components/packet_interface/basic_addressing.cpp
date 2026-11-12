@@ -104,6 +104,26 @@ TEST(BasicAddressingTest, ChosenDestinationOnlyThroughBroadcastPort) {
   EXPECT_EQ(hub.link.sent, (std::vector<Packet>{{0x42, 0x00, 0x01, 0x00, 0xBB}, {0x02, 0x00, 0x01, 0x00, 0xBB}}));
 }
 
+class TestPort : public AddressingPort {
+ public:
+  using AddressingPort::AddressingPort;
+  bool warned() const { return this->destination_warned_; }
+};
+
+// Each port warns about its own refusals, so a refusal on one does not hide one on another
+TEST(BasicAddressingTest, RefusalWarnedPerPort) {
+  MockLink link;
+  BasicAddressing addressing(&link, 0x0001);
+  TestPort peer(&addressing, 0x0002, false);
+  TestPort everyone(&addressing, BROADCAST, false);
+  Packet packet{0xBB};
+  EXPECT_FALSE(peer.send_to_interface(PacketBuffer(packet), destination(0x0042)));
+  EXPECT_TRUE(peer.warned());
+  EXPECT_FALSE(everyone.warned());
+  EXPECT_FALSE(everyone.send_to_interface(PacketBuffer(packet), destination(0x0001)));
+  EXPECT_TRUE(everyone.warned());
+}
+
 TEST(BasicAddressingTest, LinkTooSmallLeavesNoRoom) {
   MockLink link(BasicAddressing::HEADER_SIZE);
   BasicAddressing addressing(&link, 0x0001);

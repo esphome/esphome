@@ -231,6 +231,11 @@ def check_packet_sizes(config: ConfigType, size: int) -> int:
             err.prepend([kind.key])
             raise
         size = layer_type.packet_size(layer, size)
+        if size <= 0:
+            raise cv.Invalid(
+                "The layers below leave no room for this layer's packets; increase max_packet_size",
+                path=[kind.key],
+            )
         capacity = layer_type.send_capacity(layer)
     return size
 
