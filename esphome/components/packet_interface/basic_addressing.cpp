@@ -19,21 +19,6 @@ void BasicAddressing::dump_config() {
 }
 
 bool BasicAddressing::send(const PacketBuffer &data, const PacketMetaData &meta_data, uint16_t destination) {
-  uint16_t chosen = meta_data.destination_address;
-  if (chosen != 0 && chosen != destination) {
-    if (destination != BROADCAST_ADDRESS || chosen == this->address_) {
-      // The same call is made for every packet, so once is enough
-      if (!this->destination_warned_) {
-        this->destination_warned_ = true;
-        ESP_LOGW(TAG,
-                 "%s: Packet for 0x%04X refused; only the broadcast port sends to a chosen address, and not to "
-                 "this device's own",
-                 this->link_->get_name(), chosen);
-      }
-      return false;
-    }
-    destination = chosen;
-  }
   uint8_t header[HEADER_SIZE];
   put_le16(put_le16(header, destination), this->address_);
   PacketBuffer packet(header, HEADER_SIZE, &data, nullptr, 0);
@@ -92,6 +77,26 @@ AddressingPort::AddressingPort(BasicAddressing *addressing, uint16_t destination
   }
   // A link with no room leaves the layers above none either, so they fail their setup
   addressing->add_port(this);
+}
+
+bool AddressingPort::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  uint16_t destination = this->destination_;
+  uint16_t chosen = meta_data.destination_address;
+  if (chosen != 0 && chosen != destination) {
+    if (destination != BasicAddressing::BROADCAST_ADDRESS || chosen == this->addressing_->get_address()) {
+      // The same call is made for every packet, so once is enough
+      if (!this->destination_warned_) {
+        this->destination_warned_ = true;
+        ESP_LOGW(TAG,
+                 "%s: Packet for 0x%04X refused; only the broadcast port sends to a chosen address, and not to "
+                 "this device's own",
+                 this->name_, chosen);
+      }
+      return false;
+    }
+    destination = chosen;
+  }
+  return this->addressing_->send(data, meta_data, destination);
 }
 
 void AddressingPort::dump_config() {

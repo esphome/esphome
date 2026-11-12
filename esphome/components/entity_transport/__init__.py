@@ -158,8 +158,7 @@ async def register_remote_binary_sensor(config: ConfigType, var: MockObj) -> Non
 
 async def to_code(config: ConfigType) -> None:
     interface = await cg.get_variable(config[CONF_PACKET_INTERFACE])
-    # A stack too small for any packet fails the transport's setup
-    size = max(interface_packet_size(config[CONF_PACKET_INTERFACE]), 1)
+    size = interface_packet_size(config[CONF_PACKET_INTERFACE])
     buffer = cg.static_buffer(config[CONF_ID], cg.uint8, size, psram=True)
     var = cg.new_Pvariable(config[CONF_ID], interface, buffer, size)
     await cg.register_component(var, config)

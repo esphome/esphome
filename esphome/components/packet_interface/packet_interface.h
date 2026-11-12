@@ -143,8 +143,10 @@ class PacketInterface : public Component {
    * read the buffer, and that send would overwrite it.
    */
   template<typename F> bool send_exclusive_(F &&send) {
-    if (this->sending_)
+    if (this->sending_) {
+      this->nested_send_refused_();
       return false;
+    }
     this->sending_ = true;
     bool sent = send();
     this->sending_ = false;
@@ -160,6 +162,9 @@ class PacketInterface : public Component {
   uint8_t not_understood_count_{0};
 
  private:
-  bool sending_{false};
+  void nested_send_refused_();
+
+  bool sending_ : 1 {false};
+  bool nested_warned_ : 1 {false};
 };
 }  // namespace esphome::packet_interface

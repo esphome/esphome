@@ -36,4 +36,18 @@ void PacketInterface::note_received_(bool understood) {
     }
   }
 }
+
+void PacketInterface::nested_send_refused_() {
+  if (this->nested_warned_)
+    return;
+  this->nested_warned_ = true;
+  // Logged later, as the send is usually made from an automation run by a log line, and the logger drops lines
+  // logged while it runs one
+  this->defer([this]() {
+    ESP_LOGW(TAG,
+             "%s: A send made while another was in progress was refused; an automation run by a log line or by "
+             "UART debug output may be sending",
+             this->name_);
+  });
+}
 }  // namespace esphome::packet_interface
