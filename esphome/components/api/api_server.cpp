@@ -806,6 +806,26 @@ void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &imag
 }
 #endif
 
+// Defined here rather than in api_connection.cpp: another caller there changes how GCC inlines the send path
+void APIConnection::send_shutdown_disconnect_() {
+  // States after DisconnectRequest reach Home Assistant once it has marked the entities
+  // unavailable (#22610): send every queued state the socket takes now, one packet per call
+  this->flags_.state_subscription = false;
+  this->destroy_active_iterator_();
+  for (size_t left = this->deferred_batch_.size(); left != 0 && this->helper_->can_write_without_blocking();) {
+    this->process_batch_();
+    const size_t now_left = this->deferred_batch_.size();
+    if (now_left >= left)
+      break;
+    left = now_left;
+  }
+  DisconnectRequest req;
+  if (!this->send_message(req)) {
+    // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout
+    this->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
+  }
+}
+
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
