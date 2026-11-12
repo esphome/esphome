@@ -1,4 +1,5 @@
 #include "homeassistant_binary_sensor.h"
+#include "../homeassistant.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -11,7 +12,12 @@ void HomeassistantBinarySensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
     auto val = parse_on_off(state.c_str());
     if (val != PARSE_ON && val != PARSE_OFF) {
-      ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+      // Home Assistant sends these when there is no value, which is not an error
+      if (is_unset(state)) {
+        ESP_LOGV(TAG, "'%s': No value (%s)", this->entity_id_, state.c_str());
+      } else {
+        ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+      }
       return;
     }
     bool new_state = val == PARSE_ON;
