@@ -2,10 +2,16 @@ from collections.abc import Iterator
 import io
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from esphome import config_validation as cv, cpp_generator as cg, cpp_types as ct
+from esphome import (
+    config as esphome_config,
+    config_validation as cv,
+    cpp_generator as cg,
+    cpp_types as ct,
+)
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -162,6 +168,23 @@ class TestParameterListExpression:
 
 
 class TestLambdaExpression:
+    def test_body_lines(self) -> None:
+        """The body as function statements: the #line mark before it and the reset after."""
+        plain = cg.LambdaExpression(("return x;",), ((float, "x"),), "")
+        assert plain.body_lines == ["return x;"]
+
+        source = DocumentLocation("cfg.yaml", 4, 0)
+        marked = cg.LambdaExpression(("return x;",), ((float, "x"),), "", source=source)
+        assert marked.body_lines == [
+            source.as_line_directive,
+            "return x;",
+            LINE_DIRECTIVE_RESET,
+        ]
+        assert str(marked) == (
+            f"[](float x) {{\n  {source.as_line_directive}\n  return x;\n"
+            f"  {LINE_DIRECTIVE_RESET}\n}}"
+        )
+
     def test_str__no_return(self):
         target = cg.LambdaExpression(
             (
@@ -932,14 +955,32 @@ class TestSharedProgmemArray:
 
     def test_name_avoids_config_ids(self) -> None:
         CORE.config = {"sensor": [{"id": ID("table", is_declaration=True)}]}
-        array = cg.shared_progmem_array("table", ct.uint8, [1])
-        assert str(array) == "table_2"
+        with patch.object(
+            esphome_config, "iter_ids", wraps=esphome_config.iter_ids
+        ) as walk:
+            first = cg.shared_progmem_array("table", ct.uint8, [1])
+            second = cg.shared_progmem_array("table", ct.uint8, [2])
+        assert [str(first), str(second)] == ["table_2", "table_3"]
+        assert walk.call_count == 1
 
     def test_name_avoids_registered_variables(self) -> None:
         CORE.config = {}
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+    def test_name_avoids_reserved_ids(self) -> None:
+        CORE.config = {}
+        array = cg.shared_progmem_array("alarm", ct.uint8, [1])
+        assert str(array) == "alarm_2"
+
+    def test_name_avoids_integrations_loaded_after_the_first_name(self) -> None:
+        # Only the config ids are collected once; integrations are checked on every call
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1])
+        CORE.loaded_integrations.add("late_hub")
+        array = cg.shared_progmem_array("late_hub", ct.uint8, [2])
+        assert str(array) == "late_hub_2"
 
 
 class TestStaticBuffer:
