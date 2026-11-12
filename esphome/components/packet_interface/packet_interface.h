@@ -29,7 +29,7 @@ enum Capability : uint8_t {
  * @param info Additional information about the packet
  * @param source_address With an addressing layer, the sender of a received packet; 0 if not known
  * @param destination_address With an addressing layer, the destination of a packet; when sending, 0 uses the
- * configured destination
+ * configured destination, and only an addressing layer's broadcast port takes another
  * @param rssi The RSSI of the packet
  * @param snr The SNR of the packet
  * @param mac_address The MAC address of the sender/receiver
@@ -137,6 +137,23 @@ class PacketInterface : public Component {
       lower->add_on_session_state_callback([this](bool connected) { this->session_callback_.call(connected); });
     }
   }
+  /**
+   * For a layer that sends from a buffer of its own: runs \p send, or returns false if a send through this layer is
+   * still in progress. A log line further down can run an automation that sends again before the layer below has
+   * read the buffer, and that send would overwrite it.
+   */
+  template<typename F> bool send_exclusive_(F &&send) {
+    if (this->sending_) {
+      this->nested_refused_ = true;
+      return false;
+    }
+    this->sending_ = true;
+    bool sent = send();
+    this->sending_ = false;
+    if (this->nested_refused_)
+      this->warn_nested_send_();
+    return sent;
+  }
 
   LazyCallbackManager<void(const PacketBuffer &, const PacketMetaData &)> callback_;
   LazyCallbackManager<void(bool)> session_callback_;
@@ -145,5 +162,12 @@ class PacketInterface : public Component {
   const size_t max_packet_size_;
   uint8_t capabilities_{0};
   uint8_t not_understood_count_{0};
+
+ private:
+  void warn_nested_send_();
+
+  bool sending_ : 1 {false};
+  bool nested_refused_ : 1 {false};  // during the send in progress
+  bool nested_warned_ : 1 {false};
 };
 }  // namespace esphome::packet_interface

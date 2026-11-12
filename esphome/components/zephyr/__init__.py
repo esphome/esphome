@@ -87,6 +87,8 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # Add port 0 even when no component claims a port (see zephyr_require_cdc_acm())
+    cdc_acm_required: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -99,6 +101,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
+        cdc_acm_required=False,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -264,28 +267,93 @@ def zephyr_claim_cdc_acm(
     users.append(new)
 
 
-def _cdc_acm_add_ports() -> None:
-    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
-    users = zephyr_data()["cdc_acm_users"]
-    if not users:
-        return
+def zephyr_use_usb_device_next() -> bool:
+    """Return True when the build uses the new Zephyr USB device stack.
+
+    The new stack (device_next) is used from nRF Connect SDK 3.4.1, where the
+    legacy stack is deprecated. Older SDKs keep the legacy stack.
+    """
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
+    return CORE.is_nrf52 and framework_ver >= cv.Version(3, 4, 1)
+
+
+def _disable_board_cdc_acm_overlay() -> str:
+    """Disable the CDC ACM port that boards with a USB serial backend add.
+
+    On boards without that port the overlay adds an empty disabled node, which
+    does nothing, so it is safe on every board.
+    """
+    return """
+        &zephyr_udc0 {
+            board_cdc_acm_uart: board_cdc_acm_uart {
+                status = "disabled";
+            };
+        };
+    """
+
+
+def zephyr_enable_usb_cdc_acm() -> None:
+    """Enable the USB device stack with the CDC ACM class."""
+    zephyr_add_prj_conf("SERIAL", True)
+    # DTR (port opened) and the bit rate are read with uart_line_ctrl_get()
+    zephyr_add_prj_conf("UART_LINE_CTRL", True)
+    if zephyr_use_usb_device_next():
+        zephyr_add_prj_conf("USB_DEVICE_STACK", False)
+        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", True)
+        zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
+        # The serial number string descriptor is read from the chip ID
+        zephyr_add_prj_conf("HWINFO", True)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
+        # Boards with a USB serial backend (xiao_ble, feather_nrf52840, ...) start their own USB
+        # device at boot with their own CDC ACM port. usb_device.cpp sets up the device instead,
+        # and only the ports ESPHome adds may be on the bus.
+        zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", False)
+        zephyr_add_overlay_builder(_disable_board_cdc_acm_overlay)
+        return
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("SERIAL", True)
     # prevent device to go to susspend, without this communication stop working in python
     # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+
+
+def zephyr_enable_cdc_acm_rate_callback() -> None:
+    """Make the bit rate a USB host sets on a CDC ACM port reach zephyr::CdcAcm."""
+    cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
+    # The new stack reports the rate with a USB device message, so it needs no option
+    if not zephyr_use_usb_device_next():
+        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+
+
+def zephyr_require_cdc_acm() -> None:
+    """Make sure the USB device has a CDC ACM port, even when no component claims one.
+
+    For users that only watch the bit rate the host sets (DFU), which works on any
+    port. On the legacy stack, boards with a USB serial backend keep their own port.
+    """
+    zephyr_enable_usb_cdc_acm()
+    if zephyr_use_usb_device_next():
+        zephyr_data()["cdc_acm_required"] = True
+
+
+def _cdc_acm_add_ports() -> None:
+    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    data = zephyr_data()
+    ids = sorted(data["cdc_acm_users"])
+    if not ids and data["cdc_acm_required"]:
+        ids = [0]
+    if not ids:
+        return
+    zephyr_enable_usb_cdc_acm()
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
                 }};"""
-        for id in sorted(users)
+        for id in ids
     )
     zephyr_add_overlay(
         f"""

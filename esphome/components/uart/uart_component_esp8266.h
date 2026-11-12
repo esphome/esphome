@@ -26,6 +26,10 @@ class ESP8266SoftwareSerial {
 
   size_t available();
 
+  /// TX holds interrupts off for whole frames: above the edge mode limit, or while any instance's RX interrupt reads
+  /// whole bytes (it must not run between TX bits).
+  bool locks_whole_frame() const { return this->lock_frame_ || blocking_rx_count != 0; }
+
  protected:
   /// Above SW_SERIAL_EDGE_MODE_MAX_BAUD; reads the whole byte in the ISR.
   static void gpio_intr(ESP8266SoftwareSerial *arg);
@@ -51,6 +55,8 @@ class ESP8266SoftwareSerial {
   UARTParityOptions parity_;
   uint8_t stop_bits_;
   uint8_t data_bits_;
+  bool lock_frame_{false};
+  static inline uint8_t blocking_rx_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 class ESP8266UartComponent final : public UARTComponent, public Component {
@@ -73,7 +79,7 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   /**
    * Load the UART with the current settings.
    * @param dump_config (Optional, default `true`): True for displaying new settings or
-   * false to change it quitely
+   * false to change it quietly
    *
    * Example:
    * ```cpp

@@ -27,12 +27,18 @@ class Filter {
    */
   virtual bool new_value(std::string &value) = 0;
 
-  /// Initialize this filter, please note this can be called more than once.
+  /// Put this filter in its state before the first value. reset_chain() calls it again to put the filter
+  /// back there, so an override must be safe to repeat.
   virtual void initialize(TextSensor *parent, Filter *next);
 
   void input(std::string value);
 
   void output(std::string &value);
+
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+  /// Re-initialize this filter and every filter after it, so they behave as at boot.
+  void reset_chain();
+#endif
 
  protected:
   friend TextSensor;
@@ -62,27 +68,14 @@ class LambdaFilter : public Filter {
   lambda_filter_t lambda_filter_;
 };
 
-/** Optimized lambda filter for stateless lambdas (no capture).
- *
- * Uses function pointer instead of std::function to reduce memory overhead.
- * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
- */
-class StatelessLambdaFilter : public Filter {
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+template<auto Fn> class ApplyFilter final : public Filter {
  public:
-  explicit StatelessLambdaFilter(optional<std::string> (*lambda_filter)(std::string)) : lambda_filter_(lambda_filter) {}
-
-  bool new_value(std::string &value) override {
-    auto result = this->lambda_filter_(value);
-    if (result.has_value()) {
-      value = std::move(*result);
-      return true;
-    }
-    return false;
-  }
-
- protected:
-  optional<std::string> (*lambda_filter_)(std::string);
+  bool new_value(std::string &value) override { return Fn(value); }
 };
+
+/// Replace `value` with a lambda filter's result, or return false to stop the chain when it is empty.
+bool apply_lambda_filter_result(std::string &value, optional<std::string> &&result);
 
 /// A simple filter that converts all text to uppercase
 class ToUpperFilter : public Filter {
@@ -174,6 +167,12 @@ class ThrottleFilter : public Filter {
  public:
   explicit ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
   bool new_value(std::string &value) override;
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+  void initialize(TextSensor *parent, Filter *next) override {
+    Filter::initialize(parent, next);
+    this->last_input_ = 0;
+  }
+#endif
 
  protected:
   uint32_t last_input_{0};
@@ -197,6 +196,12 @@ class ThrottleWithPriorityFilter : public ThrottleFilter {
 class TimeoutFilterBase : public Filter, public Component {
  public:
   bool new_value(std::string &value) override;
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+  void initialize(TextSensor *parent, Filter *next) override {
+    Filter::initialize(parent, next);
+    this->disable_loop();
+  }
+#endif
   void loop() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
@@ -228,6 +233,12 @@ class TimeoutThrottleFilter : public TimeoutFilterLast {
   TimeoutThrottleFilter(uint32_t time_period, const char *const *prioritized)
       : TimeoutFilterLast(time_period), prioritized_(prioritized) {}
   bool new_value(std::string &value) override;
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+  void initialize(TextSensor *parent, Filter *next) override {
+    TimeoutFilterLast::initialize(parent, next);
+    this->last_input_ = 0;
+  }
+#endif
 
  protected:
   void send_timeout_value() override;

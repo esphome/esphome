@@ -47,7 +47,7 @@ _STRING_CALLBACK_AUTOMATIONS = tuple(
     automation.CallbackAutomation(conf_key, callback_method, [(cg.StringRef, "x")])
     for conf_key, callback_method in (
         (CONF_ON_CUSTOM, "add_custom_callback"),
-        (CONF_ON_DEVICE_INFORMATION, "add_device_infomation_callback"),
+        (CONF_ON_DEVICE_INFORMATION, "add_device_information_callback"),
         (CONF_ON_SLOPE, "add_slope_callback"),
         (CONF_ON_CALIBRATION, "add_calibration_callback"),
         (CONF_ON_T, "add_t_callback"),
