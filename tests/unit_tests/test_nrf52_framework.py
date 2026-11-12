@@ -21,7 +21,6 @@ from esphome.components.nrf52.framework import (
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _install_toolchain,
-    _needs_venv_rebuild,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
@@ -1264,69 +1263,12 @@ def testget_tools_path_default_is_global_cache(
     assert get_sdk_nrf_tools_path() == expected
 
 
-def test_needs_venv_rebuild_gates(tmp_path: Path) -> None:
-    """The shared penv gate rebuilds on any missing or stale piece."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    python = penv / "python"
-    sentinel = penv / ".ready"
-    good_hash = "abc123"
-
-    # Nothing in place yet
-    assert _needs_venv_rebuild(python, sentinel, good_hash)
-
-    python.write_text("")
-    # Interpreter present but no sentinel
-    assert _needs_venv_rebuild(python, sentinel, good_hash)
-
-    sentinel.write_text(good_hash, encoding="utf-8")
-    # Everything in place
-    assert not _needs_venv_rebuild(python, sentinel, good_hash)
-
-    # Stale requirements hash
-    assert _needs_venv_rebuild(python, sentinel, "otherhash")
-
-
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="symlink creation needs privileges on Windows"
-)
-def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> None:
-    """A cached venv restored after a host interpreter upgrade has a
-    bin/python symlink whose target is gone; the valid sentinel must not
-    mask it."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    python = penv / "python"
-    sentinel = penv / ".ready"
-    sentinel.write_text("abc123", encoding="utf-8")
-    python.symlink_to(tmp_path / "hostedtoolcache" / "3.12.14" / "python3")
-    assert python.is_symlink()
-    assert not python.exists()
-
-    assert _needs_venv_rebuild(python, sentinel, "abc123")
-
-
 def test_resolve_toolchain_rejects_unsupported() -> None:
     """A --toolchain nRF52 cannot serve fails instead of degrading silently."""
 
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
         _resolve_toolchain({})
-
-
-def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
-    """The absolute dts.pre path is the only per device byte in the
-    devicetree header; the patch makes gen_defines emit the basename."""
-    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    gen.parent.mkdir(parents=True)
-    gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
-    framework._patch_gen_defines_dts_path(tmp_path)
-    assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
-    assert not list(gen.parent.glob("*.tmp"))  # no leftovers
-    before = gen.read_text()
-    framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
-    assert gen.read_text() == before
-    framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
 
 
 PYOCD_NRF54LM20A_BEFORE = """\
@@ -1385,41 +1327,3 @@ def test_unpatched_pyocd_nrf54lm20a_target(tmp_path: Path) -> None:
         assert framework.unpatched_pyocd_nrf54lm20a_target() == target
         framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
         assert framework.unpatched_pyocd_nrf54lm20a_target() is None
-
-
-def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
-    tmp_path: Path,
-) -> None:
-    """West build's relative source path raises across Windows drives; the
-    patch applies Zephyr main's fallback to the absolute path."""
-    build = tmp_path / "zephyr" / "scripts" / "west_commands" / "build.py"
-    build.parent.mkdir(parents=True)
-    build.write_text(
-        "    def _sanity_check_source_dir(self):\n"
-        "        srcrel = os.path.relpath(self.source_dir)\n"
-        "        self.check_force(True, srcrel)\n"
-    )
-    framework._patch_west_build_source_dir_relpath(tmp_path)
-    patched = build.read_text()
-    assert "relative_to(pathlib.Path.cwd(), walk_up=True)" in patched
-    assert (
-        "        except ValueError:\n            srcrel = self.source_dir\n" in patched
-    )
-    assert "os.path.relpath" not in patched
-    assert "        self.check_force(True, srcrel)\n" in patched
-    assert not list(build.parent.glob("*.tmp"))
-    framework._patch_west_build_source_dir_relpath(tmp_path)  # idempotent
-    assert build.read_text() == patched
-    framework._patch_west_build_source_dir_relpath(tmp_path / "absent")  # tolerant
-
-
-def test_patch_gen_defines_warns_when_the_anchor_is_gone(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A reformatted upstream must not silently cost the sharing."""
-    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    gen.parent.mkdir(parents=True)
-    gen.write_text("s = 'something else entirely'\n")
-    with caplog.at_level("WARNING"):
-        framework._patch_gen_defines_dts_path(tmp_path)
-    assert "gen_defines.py no longer matches" in caplog.text

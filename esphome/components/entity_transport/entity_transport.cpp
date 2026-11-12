@@ -142,6 +142,12 @@ static bool dictionary_well_formed(std::span<const uint8_t> packet) {
 
 void EntityTransport::setup() {
   this->interface_ = this->interface_->top();
+  if (!this->setup_check(this->buffer_ != nullptr, LOG_STR("Not enough memory for the packet buffer")))
+    return;
+  // Code generation sizes the buffer from the configured layers, which must give the same size as the C++ ones
+  if (!this->setup_check(this->interface_->get_max_packet_size() <= this->max_packet_size_,
+                         LOG_STR("Packet buffer smaller than the interface's packets")))
+    return;
   this->max_packet_size_ = this->interface_->get_max_packet_size();
   const auto &name = App.get_name();
   size_t longest_id = 0;
@@ -151,12 +157,6 @@ void EntityTransport::setup() {
   if (name.size() > MAX_STRING_LENGTH || longest_id > MAX_STRING_LENGTH ||
       HEADER_SIZE + 2 + name.size() + SECTION_HEADER_SIZE + 1 + longest_id > this->max_packet_size_) {
     this->mark_failed(LOG_STR("max_packet_size too small for the device name and entity ids"));
-    return;
-  }
-  RAMAllocator<uint8_t> allocator;
-  this->buffer_ = allocator.allocate(this->max_packet_size_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Not enough memory for the packet buffer"));
     return;
   }
   // The dictionary id changes when the device name or any entity changes

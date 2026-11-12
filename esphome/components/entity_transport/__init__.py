@@ -7,7 +7,12 @@ import esphome.codegen as cg
 from esphome.components import packet_interface
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
-from esphome.components.packet_interface import CONF_PACKET_INTERFACE, interface_layers
+from esphome.components.packet_interface import (
+    CONF_PACKET_INTERFACE,
+    final_validate_interface,
+    interface_layers,
+    interface_packet_size,
+)
 from esphome.components.packet_interface.layers import CONF_SESSION
 from esphome.components.sensor import Sensor
 import esphome.config_validation as cv
@@ -108,7 +113,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(
+    final_validate_interface(CONF_PACKET_INTERFACE), _final_validate
+)
 
 
 def _validate_remote_id(config: ConfigType) -> ConfigType:
@@ -151,7 +158,9 @@ async def register_remote_binary_sensor(config: ConfigType, var: MockObj) -> Non
 
 async def to_code(config: ConfigType) -> None:
     interface = await cg.get_variable(config[CONF_PACKET_INTERFACE])
-    var = cg.new_Pvariable(config[CONF_ID], interface)
+    size = interface_packet_size(config[CONF_PACKET_INTERFACE])
+    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, size, psram=True)
+    var = cg.new_Pvariable(config[CONF_ID], interface, buffer, size)
     await cg.register_component(var, config)
     if (interval := config.get(CONF_UPDATE_INTERVAL)) is not None:
         cg.add(var.set_update_interval(interval))
