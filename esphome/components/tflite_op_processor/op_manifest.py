@@ -2,9 +2,9 @@
 
 Parses the X-macro operator table (``tflm_operators.h``) so the set of
 supported TFLite Micro operators is available to the ESPHome code generator at
-compile (config) time, and reads the operator list of a model from its
-companion ``.txt`` metadata report. The C++ table remains the single source of
-truth; this module only reads it and never edits it.
+compile (config) time, and reads the operator list of a model from the model
+file itself. The C++ table remains the single source of truth; this module only
+reads it and never edits it.
 
 :func:`build_selective_op_defines` turns a set of operator names into the
 ``TFLM_OP_ENABLED_<suffix>`` build defines that limit the firmware to the
@@ -15,11 +15,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-import logging
 from pathlib import Path
 import re
 
-_LOGGER = logging.getLogger(__name__)
+from .model_reader import read_model_operators
 
 # X-macro entry patterns used in tflm_operators.h. Inline comments are stripped
 # before matching, so a trailing "// note" is allowed.
@@ -28,11 +27,6 @@ _CONDITIONAL_RE = re.compile(
     r"^TFLM_OP_CONDITIONAL\(([A-Za-z0-9_]+),\s*([A-Za-z0-9_]+)\)$"
 )
 _UNAVAILABLE_RE = re.compile(r"^TFLM_OP_UNAVAILABLE\(([A-Za-z0-9_]+)\)$")
-# A line in the model .txt report listing one operator type, e.g. "  REDUCE_MIN: 1"
-_OP_COUNT_RE = re.compile(r"^\s*([A-Z][A-Z0-9_]*):\s+\d+\s*$")
-# The header of that list, e.g. "Unique operator types: 18"; trailing text after
-# the count is allowed.
-_OP_LIST_HEADER_RE = re.compile(r"^Unique operator types:\s*(\d+)\b")
 
 _TABLE_GUARD = "TFLM_OPERATORS_ACTIVE"
 # The block holds plain entries and nothing else. A conditional inside it would
@@ -151,80 +145,27 @@ def _is_op_entry(line: str) -> bool:
     )
 
 
-def extract_model_ops(model_path: str | Path) -> set[str] | None:
-    """Extract the operators required by a model from its companion .txt report.
+def extract_model_ops(model_path: str | Path) -> set[str]:
+    """Extract the operators a model requires from the model file.
 
-    The ``.txt`` metadata report (same basename, ``.txt`` extension) lists the
-    unique operator types used by the model, e.g.::
-
-        Unique operator types: 18
-          ADD: 3
-          REDUCE_MIN: 1
+    The ``.tflite`` file lists the operator codes it uses, so the model itself is
+    authoritative and a companion ``.txt`` report is not consulted. The names are
+    the ``BuiltinOperator`` suffixes that :func:`build_selective_op_defines` and
+    the C++ operator table use.
 
     Args:
         model_path: path to the ``.tflite`` model file.
 
     Returns:
-        A set of operator names, or ``None`` when no companion ``.txt`` file
-        exists or it has no operator section. A report that exists but has no
-        readable list is logged: the caller then compiles every kernel in, and the
-        build log says why. The device-side runtime check remains the final safety
-        net in both cases.
+        The distinct operator names the model declares, which is also the number
+        of resolver slots it needs.
 
     Raises:
-        ValueError: if an entry in the list cannot be read, the number of entries
-            does not match the count in the header, or the header declares zero
-            operators. A partial set would compile out kernels the model needs,
-            and the device would only find out when it tries to register them. A
-            zero count usually means the report generator failed, so it raises
-            instead of falling back to compiling every kernel.
+        ValueError: if the model cannot be read, or declares no operator codes.
+            A partial or empty set would compile out kernels the model needs, and
+            the device would only find out when it tries to register them.
     """
-    txt_path = Path(model_path).with_suffix(".txt")
-    if not txt_path.exists():
-        return None
-    lines = txt_path.read_text(encoding="utf-8").replace("\r\n", "\n").splitlines()
-    declared: int | None = None
-    start = 0
-    for index, line in enumerate(lines):
-        if (header := _OP_LIST_HEADER_RE.match(line)) is not None:
-            declared = int(header.group(1))
-            start = index + 1
-            break
-    if declared is None:
-        # The file exists but says nothing about the model's operators, so the
-        # caller keeps every kernel. Without this line that fallback would be
-        # invisible, which looks exactly like a model that needs no kernel.
-        _LOGGER.warning(
-            "Model report %s has no 'Unique operator types' section; the operators "
-            "of the model cannot be checked, so every kernel is compiled in",
-            txt_path.name,
-        )
-        return None
-    # A zero count almost certainly means the report generator failed, so we
-    # treat it as an error rather than falling back to every kernel. It only
-    # depends on the header, so it fails before any entries are read.
-    if declared == 0:
-        raise ValueError(
-            f"{txt_path}: the operator list declares zero operators; "
-            "regenerate the report instead of editing it"
-        )
-    ops: set[str] = set()
-    for line in lines[start:]:
-        # The list ends at a blank line or at the next non-indented section.
-        if not line.strip() or not line[:1].isspace():
-            break
-        if (entry := _OP_COUNT_RE.match(line)) is None:
-            raise ValueError(
-                f"{txt_path}: cannot read operator entry {line.strip()!r}; "
-                "regenerate the report instead of editing it"
-            )
-        ops.add(entry.group(1))
-    if len(ops) != declared:
-        raise ValueError(
-            f"{txt_path}: the operator list names {len(ops)} operator(s) but "
-            f"declares {declared}; regenerate the report instead of editing it"
-        )
-    return ops
+    return set(read_model_operators(model_path))
 
 
 def build_selective_op_defines(
@@ -239,7 +180,7 @@ def build_selective_op_defines(
     C++, which is why the whole registerable set is always returned.
 
     Args:
-        ops: operator names as they appear in a model ``.txt`` report, e.g.
+        ops: operator names as :func:`extract_model_ops` returns them, e.g.
             ``{"CONV_2D", "SOFTMAX"}``.
         path: optional explicit path to the table (defaults to the table in the
             same directory as this module).

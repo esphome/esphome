@@ -1,12 +1,20 @@
 """Tests for the tflite_op_processor operator manifest helpers."""
 
-import logging
+from collections.abc import Callable, Sequence
+from functools import partial
 from pathlib import Path
+import struct
 
 import pytest
 
 from esphome.components import tflite_op_processor
 from esphome.components.tflite_op_processor import CONF_OPERATORS
+from esphome.components.tflite_op_processor.builtin_codes import BUILTIN_OPERATOR_NAMES
+from esphome.components.tflite_op_processor.model_reader import (
+    ModelReadError,
+    estimate_tensor_arena,
+    read_model_operators,
+)
 from esphome.components.tflite_op_processor.op_manifest import (
     OpTable,
     build_selective_op_defines,
@@ -16,15 +24,151 @@ from esphome.components.tflite_op_processor.op_manifest import (
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 
-MODEL_REPORT = """Model report
-=================
-Unique operator types: 3
-  ADD: 2
-  REDUCE_MIN: 1
-  SOFTMAX: 1
 
-Recommended tensor_arena_size: 64KB
-"""
+class _FlatBufferWriter:
+    """Writes the few flatbuffer objects the model reader tests need.
+
+    Objects are appended in file order, so an offset always points forward, as
+    the format requires. A table field holds an int for a scalar or a callable
+    that writes a child object and returns its position.
+    """
+
+    def __init__(self) -> None:
+        # Root offset and file identifier, patched once the root table exists.
+        self.data = bytearray(b"\x00\x00\x00\x00TFL3")
+
+    def _pad(self, alignment: int) -> None:
+        while len(self.data) % alignment:
+            self.data.append(0)
+
+    def _patch(self, position: int, value: int) -> None:
+        self.data[position : position + 4] = struct.pack("<I", value)
+
+    def table(self, fields: dict[int, int | Callable[[], int]]) -> int:
+        """Write a table and return its position. Fields are 4 bytes each."""
+        count = max(fields) + 1 if fields else 0
+        self._pad(2)
+        vtable = len(self.data)
+        self.data += struct.pack("<HH", 4 + 2 * count, 4 + 4 * count)
+        for field_id in range(count):
+            offset = 4 + 4 * field_id if field_id in fields else 0
+            self.data += struct.pack("<H", offset)
+        self._pad(4)
+        table = len(self.data)
+        self.data += struct.pack("<i", table - vtable) + bytes(4 * count)
+        for field_id, value in fields.items():
+            position = table + 4 + 4 * field_id
+            if callable(value):
+                self._patch(position, value() - position)
+            else:
+                self.data[position : position + 4] = struct.pack("<i", value)
+        return table
+
+    def i32_vector(self, values: Sequence[int]) -> int:
+        self._pad(4)
+        position = len(self.data)
+        self.data += struct.pack("<I", len(values))
+        self.data += struct.pack(f"<{len(values)}i", *values)
+        return position
+
+    def u8_vector(self, values: bytes) -> int:
+        position = len(self.data)
+        self.data += struct.pack("<I", len(values)) + values
+        return position
+
+    def table_vector(self, build: Sequence[Callable[[], int]]) -> int:
+        self._pad(4)
+        position = len(self.data)
+        self.data += struct.pack("<I", len(build))
+        elements = len(self.data)
+        self.data += bytes(4 * len(build))
+        for index, write in enumerate(build):
+            element = elements + 4 * index
+            self._patch(element, write() - element)
+        return position
+
+    def finish(self, root: int) -> bytes:
+        self._patch(0, root)
+        return bytes(self.data)
+
+
+def write_model(
+    operator_codes: Sequence[tuple[int | None, int | None]],
+    *,
+    subgraph: bool = True,
+    tensors: Sequence[tuple[Sequence[int], int, int]] = (),
+    buffers: Sequence[bytes | None] = (),
+    operators: Sequence[tuple[Sequence[int], Sequence[int]]] = (),
+) -> bytes:
+    """Build a minimal .tflite model.
+
+    ``operator_codes`` holds (deprecated_builtin_code, builtin_code) per entry,
+    with None for a field the writer leaves out. ``tensors`` holds (shape,
+    TensorType, buffer index) per tensor, ``buffers`` the data of each buffer
+    (None for an empty one) and ``operators`` the (inputs, outputs) per operator.
+    """
+    writer = _FlatBufferWriter()
+
+    def write_opcode(deprecated: int | None, builtin: int | None) -> int:
+        fields: dict[int, int] = {}
+        if deprecated is not None:
+            fields[0] = deprecated
+        if builtin is not None:
+            fields[3] = builtin
+        return writer.table(fields)
+
+    def write_tensor(shape: Sequence[int], tensor_type: int, buffer: int) -> int:
+        return writer.table(
+            {0: partial(writer.i32_vector, shape), 1: tensor_type, 2: buffer}
+        )
+
+    def write_operator(inputs: Sequence[int], outputs: Sequence[int]) -> int:
+        return writer.table(
+            {
+                1: partial(writer.i32_vector, inputs),
+                2: partial(writer.i32_vector, outputs),
+            }
+        )
+
+    def write_buffer(data: bytes | None) -> int:
+        if data is None:
+            return writer.table({})
+        return writer.table({0: partial(writer.u8_vector, data)})
+
+    def write_subgraph() -> int:
+        return writer.table(
+            {
+                0: partial(
+                    writer.table_vector,
+                    [partial(write_tensor, *tensor) for tensor in tensors],
+                ),
+                3: partial(
+                    writer.table_vector,
+                    [partial(write_operator, *operator) for operator in operators],
+                ),
+            }
+        )
+
+    model = writer.table(
+        {
+            1: partial(
+                writer.table_vector,
+                [partial(write_opcode, *code) for code in operator_codes],
+            ),
+            **({2: partial(writer.table_vector, [write_subgraph])} if subgraph else {}),
+            4: partial(
+                writer.table_vector,
+                [partial(write_buffer, data) for data in buffers],
+            ),
+        }
+    )
+    return writer.finish(model)
+
+
+def write_model_file(tmp_path: Path, data: bytes, name: str = "model.tflite") -> Path:
+    path = tmp_path / name
+    path.write_bytes(data)
+    return path
 
 
 def test_parse_op_table_returns_all_three_sets() -> None:
@@ -292,68 +436,174 @@ def test_unterminated_block_is_rejected(tmp_path: Path) -> None:
 
 
 def test_extract_model_ops(tmp_path: Path) -> None:
-    model = tmp_path / "model.tflite"
-    (tmp_path / "model.txt").write_text(MODEL_REPORT, encoding="utf-8")
+    model = write_model_file(tmp_path, write_model([(0, 0), (0, 25), (0, 89)]))
 
-    assert extract_model_ops(model) == {"ADD", "REDUCE_MIN", "SOFTMAX"}
-
-
-def test_extract_model_ops_handles_crlf(tmp_path: Path) -> None:
-    model = tmp_path / "model.tflite"
-    (tmp_path / "model.txt").write_bytes(MODEL_REPORT.replace("\n", "\r\n").encode())
-
-    assert extract_model_ops(model) == {"ADD", "REDUCE_MIN", "SOFTMAX"}
+    assert extract_model_ops(model) == {"ADD", "SOFTMAX", "REDUCE_MIN"}
 
 
-def test_extract_model_ops_without_report(tmp_path: Path) -> None:
-    assert extract_model_ops(tmp_path / "model.tflite") is None
-
-
-def test_extract_model_ops_without_operator_section(tmp_path: Path, caplog) -> None:
-    """Falling back to every kernel must be visible in the build log."""
-    model = tmp_path / "model.tflite"
-    (tmp_path / "model.txt").write_text(
-        "Recommended tensor_arena_size: 64KB\n", encoding="utf-8"
+def test_extract_model_ops_ignores_a_report_next_to_the_model(tmp_path: Path) -> None:
+    """The model is authoritative, so a stale or edited report cannot change it."""
+    model = write_model_file(tmp_path, write_model([(0, 25)]))
+    model.with_suffix(".txt").write_text(
+        "Unique operator types: 1\n  CONV_2D: 1\n\n", encoding="utf-8"
     )
 
-    with caplog.at_level(logging.WARNING):
-        assert extract_model_ops(model) is None
+    assert extract_model_ops(model) == {"SOFTMAX"}
 
-    assert any(
-        "no 'Unique operator types' section" in r.getMessage() for r in caplog.records
+
+@pytest.mark.parametrize(
+    ("deprecated", "builtin", "expected"),
+    (
+        (25, None, "SOFTMAX"),  # older schema: only the byte field is written
+        (None, 25, "SOFTMAX"),  # newer schema: only the extended field is written
+        (25, 0, "SOFTMAX"),  # builtin_code left at its default
+        (127, 151, "DYNAMIC_UPDATE_SLICE"),  # past 127, placeholder in the byte field
+    ),
+)
+def test_read_model_operators_resolves_the_builtin_code(
+    tmp_path: Path, deprecated: int | None, builtin: int | None, expected: str
+) -> None:
+    """Both schema generations must resolve, as TFLM's GetBuiltinCode() does."""
+    model = write_model_file(tmp_path, write_model([(deprecated, builtin)]))
+
+    assert read_model_operators(model) == {expected}
+
+
+def test_read_model_operators_names_a_code_the_table_does_not_have(
+    tmp_path: Path,
+) -> None:
+    """A model from a newer schema is reported by number instead of being dropped."""
+    model = write_model_file(tmp_path, write_model([(None, 300)]))
+
+    assert read_model_operators(model) == {"BUILTIN_300"}
+
+
+def test_read_model_operators_requires_operator_codes(tmp_path: Path) -> None:
+    model = write_model_file(tmp_path, write_model([]))
+
+    with pytest.raises(ModelReadError, match="no operator codes"):
+        read_model_operators(model)
+
+
+def test_read_model_operators_rejects_a_file_that_is_not_a_model(
+    tmp_path: Path,
+) -> None:
+    model = write_model_file(tmp_path, b"not a tflite model at all")
+
+    with pytest.raises(ModelReadError, match="TFL3"):
+        read_model_operators(model)
+
+
+def test_read_model_operators_rejects_a_truncated_model(tmp_path: Path) -> None:
+    data = write_model([(0, 25)])
+    model = write_model_file(tmp_path, data[:12])
+
+    with pytest.raises(ModelReadError, match="truncated or corrupt"):
+        read_model_operators(model)
+
+
+def test_read_model_operators_rejects_a_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(ModelReadError, match="missing.tflite"):
+        read_model_operators(tmp_path / "missing.tflite")
+
+
+def test_estimate_tensor_arena_excludes_constants(tmp_path: Path) -> None:
+    """A tensor whose buffer holds data is read from flash, not from the arena."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            tensors=(
+                ([1, 4], 0, 1),  # input, FLOAT32, empty buffer
+                ([4], 0, 2),  # weight, FLOAT32, buffer with data
+                ([1, 4], 0, 3),  # output, FLOAT32, empty buffer
+            ),
+            buffers=(None, None, bytes(16), None),
+            operators=(([0, 1], [2]),),
+        ),
     )
 
+    estimate = estimate_tensor_arena(model)
 
-def test_extract_model_ops_rejects_an_unreadable_entry(tmp_path: Path) -> None:
-    """A line the parser cannot read must not shrink the operator set."""
-    model = tmp_path / "model.tflite"
-    (tmp_path / "model.txt").write_text(
-        "Unique operator types: 2\n  ADD: 1\n  softmax (classifier): 1\n\n",
-        encoding="utf-8",
+    assert estimate.tensor_count == 3
+    # The 16-byte input and the 16-byte output are live together; the weight is not.
+    assert estimate.peak_activation_bytes == 32
+    assert estimate.bytes == 1024
+
+
+def test_estimate_tensor_arena_finds_the_peak_of_the_graph(tmp_path: Path) -> None:
+    """Only the tensors live at the same operator are counted together."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            tensors=(
+                ([1, 4], 0, 1),  # 0 input
+                ([4], 0, 2),  # 1 weight, constant
+                ([1, 4], 0, 3),  # 2
+                ([1, 4], 0, 4),  # 3
+                ([1, 4], 0, 5),  # 4
+                ([1, 4], 0, 6),  # 5
+            ),
+            buffers=(None, None, bytes(16), None, None, None, None),
+            operators=(
+                ([0, 1], [2, 3]),
+                ([2], [4]),
+                ([3], [5]),
+            ),
+        ),
     )
 
-    with pytest.raises(ValueError, match="cannot read operator entry"):
-        extract_model_ops(model)
+    estimate = estimate_tensor_arena(model)
+
+    # Tensors 0, 2 and 3 are live at the first operator, two per operator after it.
+    assert estimate.peak_activation_bytes == 48
 
 
-def test_extract_model_ops_rejects_a_count_mismatch(tmp_path: Path) -> None:
-    """The declared count catches entries that were dropped by a bad regex."""
-    model = tmp_path / "model.tflite"
-    (tmp_path / "model.txt").write_text(
-        "Unique operator types: 3\n  ADD: 1\n  SOFTMAX: 1\n\n",
-        encoding="utf-8",
+def test_estimate_tensor_arena_sizes_a_tensor_by_its_type(tmp_path: Path) -> None:
+    """INT8 elements are one byte, not the four of the default FLOAT32."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            tensors=(
+                ([1, 8], 9, 1),  # input, INT8
+                ([1, 8], 9, 2),  # output, INT8
+            ),
+            buffers=(None, None, None),
+            operators=(([0], [1]),),
+        ),
     )
 
-    with pytest.raises(ValueError, match="declares 3"):
-        extract_model_ops(model)
+    assert estimate_tensor_arena(model).peak_activation_bytes == 16
 
 
-def test_extract_model_ops_rejects_a_zero_count(tmp_path: Path) -> None:
-    """A zero count means the report generator failed, not that no kernel is needed."""
-    model = tmp_path / "model.tflite"
-    (tmp_path / "model.txt").write_text(
-        "Unique operator types: 0\n\n", encoding="utf-8"
-    )
+def test_estimate_tensor_arena_requires_a_subgraph(tmp_path: Path) -> None:
+    model = write_model_file(tmp_path, write_model([(None, 9)], subgraph=False))
 
-    with pytest.raises(ValueError, match="zero operators"):
-        extract_model_ops(model)
+    with pytest.raises(ModelReadError, match="no subgraph"):
+        estimate_tensor_arena(model)
+
+
+def test_every_table_operator_has_a_builtin_code() -> None:
+    """A suffix the code table cannot name would be reported by number instead."""
+    assert not parse_op_table().suffixes - set(BUILTIN_OPERATOR_NAMES.values())
+
+
+@pytest.mark.parametrize(
+    ("code", "name"),
+    (
+        (0, "ADD"),
+        (25, "SOFTMAX"),
+        (51, "DELEGATE"),
+        (89, "REDUCE_MIN"),
+        (114, "QUANTIZE"),
+        (126, "BATCH_MATMUL"),
+        (127, "PLACEHOLDER_FOR_GREATER_OP_CODES"),
+        (128, "CUMSUM"),
+        (140, "REDUCE_ALL"),
+        (151, "DYNAMIC_UPDATE_SLICE"),
+    ),
+)
+def test_builtin_operator_codes_match_the_schema(code: int, name: str) -> None:
+    assert BUILTIN_OPERATOR_NAMES[code] == name
