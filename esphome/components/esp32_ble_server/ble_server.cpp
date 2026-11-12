@@ -1,6 +1,6 @@
 #include "ble_server.h"
 
-#include <algorithm>
+#include <vector>
 
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/esp32_ble/ble.h"
@@ -147,7 +147,7 @@ uint8_t BLEServer::free_inst_id_(const ESPBTUUID &uuid) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char uuid_buf[esp32_ble::UUID_STR_LEN];
   uuid.to_str(uuid_buf);
-  ESP_LOGV(TAG, "Creating BLE service - %s", uuid_buf);
+  ESP_LOGV(TAG, "Adding BLE service - %s", uuid_buf);
 #endif
   for (uint8_t inst_id = 0; inst_id < INVALID_INST_ID; inst_id++) {
     if (this->get_service(uuid, inst_id) == nullptr)
@@ -179,9 +179,7 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
     if (service->get_inst_id() == inst_id && service->get_uuid() == uuid) {
       service->do_delete();
       // A service still waiting to start must not stay queued once it is unregistered or freed
-      this->services_to_start_.erase(
-          std::remove(this->services_to_start_.begin(), this->services_to_start_.end(), service),
-          this->services_to_start_.end());
+      std::erase(this->services_to_start_, service);
       if (service->owned_)
         delete service;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.erase(it);
