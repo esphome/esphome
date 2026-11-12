@@ -27,8 +27,7 @@ BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t p
 
 BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }  // NOLINT
 
-void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
-  this->characteristic_ = characteristic;
+void BLEDescriptor::do_create() {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_AUTO_RSP;
 

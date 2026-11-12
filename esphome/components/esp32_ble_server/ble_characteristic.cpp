@@ -87,9 +87,9 @@ void BLECharacteristic::notify() {
 }
 
 bool BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
-  // Bound until removed or this characteristic is destroyed, so a descriptor can never sit in two characteristics
+  // Bound until removed or the parent is destroyed
   if (descriptor.characteristic_ != nullptr) {
-    ESP_LOGE(TAG, "Descriptor already belongs to a characteristic");
+    ESP_LOGE(TAG, "Already added");
     return false;
   }
   descriptor.characteristic_ = this;
@@ -120,8 +120,7 @@ void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
   descriptor->characteristic_ = nullptr;
 }
 
-void BLECharacteristic::do_create(BLEService *service) {
-  this->service_ = service;
+void BLECharacteristic::do_create() {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
@@ -132,8 +131,9 @@ void BLECharacteristic::do_create(BLEService *service) {
 #endif
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
-  esp_err_t err = esp_ble_gatts_add_char(service->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
-                                         this->properties_, nullptr, &control);
+  esp_err_t err =
+      esp_ble_gatts_add_char(this->service_->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
+                             this->properties_, nullptr, &control);
 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_add_char failed: %d", err);
@@ -208,7 +208,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         this->handle_ = param->add_char.attr_handle;
 
         for (auto *descriptor : this->descriptors_) {
-          descriptor->do_create(this);
+          descriptor->do_create();
         }
 
         this->state_ = CREATING_DEPENDENTS;

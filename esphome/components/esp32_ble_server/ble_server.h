@@ -50,8 +50,8 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
 
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
   /// Adds a service the caller keeps alive (such as a component member); remove_service() never frees it.
-  /// Add it once, and do not add it again after remove_service(). Returns false when the UUID already has 255
-  /// instances.
+  /// Do not add it again after remove_service(). Returns false when it is already added or the UUID already has
+  /// 255 instances.
   bool add_service(BLEService &service);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
