@@ -43,6 +43,8 @@ static struct {
 } micros_state;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static constexpr uint32_t CYCLES_PER_US = 64;  // nRF52 cores always run at 64 MHz.
+// Drift between unlocked calls stays far below this; a larger lead is a lag of over 2^31 us that wrapped.
+static constexpr int32_t MAX_LEAD_US = 1000000;
 
 uint32_t micros() {
   const unsigned int key = irq_lock();
@@ -56,11 +58,11 @@ uint32_t micros() {
   const int32_t tick_us = k_ticks_to_us_ceil32(1) + 1;
   const int32_t ahead = static_cast<int32_t>(value - kernel_us);
   const bool unlocked = arch_irq_unlocked(key);
-  if (ahead < -tick_us && (unlocked || elapsed_us == 0)) {
+  if ((ahead < -tick_us || ahead > MAX_LEAD_US) && (unlocked || elapsed_us == 0)) {
     // The CPU slept, so the cycle counter fell behind.
     value = kernel_us;
     micros_state.last_cycles = cycles;
-  } else if (ahead >= tick_us && unlocked) {
+  } else if (ahead >= tick_us && ahead <= MAX_LEAD_US && unlocked) {
     // The CPU clock can run fast against the RTC; cap the drift at one tick, but never below a result already
     // returned under a lock.
     const uint32_t cap = kernel_us + tick_us - 1;
