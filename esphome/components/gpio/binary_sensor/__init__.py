@@ -24,6 +24,7 @@ GPIOBinarySensor = gpio_ns.class_(
 
 CONF_USE_INTERRUPT = "use_interrupt"
 CONF_INTERRUPT_TYPE = "interrupt_type"
+DEFAULT_INTERRUPT_TYPE = "ANY"  # the C++ default, so its setter is skipped
 
 INTERRUPT_TYPES = {
     "RISING": gpio_ns.INTERRUPT_RISING_EDGE,
@@ -51,7 +52,7 @@ CONFIG_SCHEMA = (
                 rp2=True,
                 rtl87xx=False,
             ): cv.boolean,
-            cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(
+            cv.Optional(CONF_INTERRUPT_TYPE, default=DEFAULT_INTERRUPT_TYPE): cv.enum(
                 INTERRUPT_TYPES, upper=True
             ),
         }
@@ -137,7 +138,7 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_USE_INTERRUPT]:
         cg.add_define("USE_GPIO_BINARY_SENSOR_INTERRUPT")
-        if config[CONF_INTERRUPT_TYPE] != "ANY":
+        if config[CONF_INTERRUPT_TYPE] != DEFAULT_INTERRUPT_TYPE:
             cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
     else:
         cg.add(var.set_use_interrupt(False))
