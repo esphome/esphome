@@ -813,7 +813,8 @@ void APIConnection::send_shutdown_disconnect_() {
   // Not with deep sleep: its entities stay available, and the disconnect must not wait on a slow link
   this->flags_.state_subscription = false;
   this->destroy_active_iterator_();
-  for (size_t left = this->deferred_batch_.size(); left != 0 && this->helper_->can_write_without_blocking();) {
+  // process_batch_ first flushes any overflow without blocking; stop once the queue stops shrinking
+  for (size_t left = this->deferred_batch_.size(); left != 0;) {
     this->process_batch_();
     const size_t now_left = this->deferred_batch_.size();
     if (now_left >= left)
