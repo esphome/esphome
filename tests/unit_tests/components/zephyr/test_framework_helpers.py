@@ -8,11 +8,14 @@ import pytest
 
 from esphome.components.zephyr import framework_helpers
 from esphome.components.zephyr.framework_helpers import (
+    ensure_venv,
     install_sitecustomize,
     needs_venv_rebuild,
     patch_gen_defines_dts_path,
     patch_west_build_source_dir_relpath,
 )
+from esphome.core import EsphomeError
+from esphome.framework_helpers import get_python_env_executable_path
 
 
 def test_needs_venv_rebuild_gates(tmp_path: Path) -> None:
@@ -123,3 +126,43 @@ def test_patch_gen_defines_warns_when_the_anchor_is_gone(
     with caplog.at_level("WARNING"):
         patch_gen_defines_dts_path(tmp_path)
     assert "gen_defines.py no longer matches" in caplog.text
+
+
+def _fake_create_venv(root: Path, msg: str | None = None) -> None:
+    python = get_python_env_executable_path(root, "python")
+    python.parent.mkdir(parents=True)
+    python.touch()
+
+
+def test_ensure_venv_builds_once_per_requirements(tmp_path: Path) -> None:
+    """Built when missing, skipped while current, rebuilt when requirements change."""
+    penv = tmp_path / "penv"
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("west==1.5.0\n")
+    with (
+        patch.object(
+            framework_helpers, "create_venv", side_effect=_fake_create_venv
+        ) as create,
+        patch.object(framework_helpers, "run_command_ok", return_value=True) as pip,
+    ):
+        assert ensure_venv(penv, requirements, "v1") is True
+        assert ensure_venv(penv, requirements, "v1") is False
+        requirements.write_text("west==1.6.0\n")
+        assert ensure_venv(penv, requirements, "v1") is True
+
+    assert create.call_count == 2
+    assert pip.call_args.args[0][-2:] == ["-r", str(requirements)]
+
+
+def test_ensure_venv_raises_when_pip_fails(tmp_path: Path) -> None:
+    penv = tmp_path / "penv"
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("west==1.5.0\n")
+    with (
+        patch.object(framework_helpers, "create_venv", side_effect=_fake_create_venv),
+        patch.object(framework_helpers, "run_command_ok", return_value=False),
+        pytest.raises(EsphomeError, match="Install requirements for v1"),
+    ):
+        ensure_venv(penv, requirements, "v1")
+
+    assert not (penv / ".ready").exists()
