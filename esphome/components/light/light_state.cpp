@@ -96,9 +96,10 @@ void LightState::setup() {
   }
   call.perform();
 #ifdef USE_LIGHT_WRITE_ON_SETUP
-  // Otherwise the output is first written from loop(), which only runs once every component is set up
+  // Otherwise the output is first written from loop(), which only runs once every component is set up. The same
+  // pass as loop(), so an addressable light's power limit applies to this write too.
   if (this->write_on_setup_)
-    this->write_if_pending_();
+    this->loop();
 #endif  // USE_LIGHT_WRITE_ON_SETUP
 }
 void LightState::dump_config() {
