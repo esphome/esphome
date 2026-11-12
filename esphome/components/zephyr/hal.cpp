@@ -6,7 +6,8 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 
-#ifdef CONFIG_CPU_CORTEX_M_HAS_DWT
+#if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC != 1000000 && defined(CONFIG_CPU_CORTEX_M_HAS_DWT)
+#define USE_ZEPHYR_DWT_MICROS
 #include <cmsis_core.h>
 #endif
 
@@ -26,7 +27,10 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 // arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
 // components/zephyr/hal.h.
 
-#ifdef CONFIG_CPU_CORTEX_M_HAS_DWT
+#if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 1000000
+// The system timer counts microseconds (the GRTC on nRF54L) and wraps at 2^32 like micros().
+uint32_t micros() { return k_cycle_get_32(); }
+#elif defined(USE_ZEPHYR_DWT_MICROS)
 // The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
 // micros() adds the cycles counted since the last call and keeps the result within one tick of the kernel clock.
 // One struct so the code loads a single base address.
@@ -71,7 +75,7 @@ uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 
 void arch_init() {
   main_loop_thread() = k_current_get();
-#ifdef CONFIG_CPU_CORTEX_M_HAS_DWT
+#ifdef USE_ZEPHYR_DWT_MICROS
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 #endif
