@@ -30,7 +30,7 @@ namespace esphome::mixer_speaker {
  *    the number of channels required for the output speaker.
  *  - In queue mode, the audio sent to the SourceSpeakers can have different sample rates.
  *  - In non-queue mode, the audio sent to the SourceSpeakers must have the same sample rates.
- *  - SourceSpeaker has an internal ring buffer. It also allocates a shared_ptr for an AudioTranserBuffer object.
+ *  - SourceSpeaker has an internal ring buffer. It also allocates a shared_ptr for an AudioTransferBuffer object.
  *  - Audio Data Flow:
  *      - Audio data played on a SourceSpeaker first writes to its internal ring buffer.
  *      - MixerSpeaker task temporarily takes shared ownership of each SourceSpeaker's AudioTransferBuffer.
