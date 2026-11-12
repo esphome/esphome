@@ -170,6 +170,11 @@ async def to_code(config: ConfigType) -> None:
             len(config[CONF_SOURCES]),
         )
         cg.add(var.set_source_storage(storage))
+    else:
+        storage = cg.static_storage(
+            config[CONF_ID], sensor.Sensor.operator("ptr"), len(config[CONF_SOURCES])
+        )
+        cg.add(var.set_sensor_storage(storage))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])

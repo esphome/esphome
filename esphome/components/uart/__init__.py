@@ -693,7 +693,7 @@ automation.register_apply_action(
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+    if CORE.is_esp32 or CORE.is_esp8266:
         # Wake-on-RX is essentially free (just an ISR function pointer
         # registration on ESP32, an inline flag set on ESP8266 software
         # serial) — enable by default to reduce RX buffer overflow risk by
