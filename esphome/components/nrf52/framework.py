@@ -4,12 +4,19 @@ import hashlib
 import logging
 import os
 from pathlib import Path
-import shutil
+import re
 import sys
 
 from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
+from esphome.components.zephyr.framework_helpers import (
+    ensure_venv,
+    needs_venv_rebuild,
+    patch_framework_file,
+    patch_gen_defines_dts_path,
+    patch_west_build_source_dir_relpath,
+)
 from esphome.components.zephyr.sdk_install import (
     ARM_TOOLCHAIN,
     get_sdk_host_info,
@@ -63,22 +70,6 @@ def get_sdk_nrf_tools_path() -> Path:
     return tools_cache_path(*SDK_NRF_TOOLS_CACHE)
 
 
-def _needs_venv_rebuild(
-    env_python_path: Path, sentinel: Path, requirements_hash: str
-) -> bool:
-    """True when a penv must be (re)built.
-
-    Rebuild when the interpreter is not a regular file, which covers a
-    dangling symlink (a cached venv outliving a host interpreter upgrade)
-    and a corrupt restore, or when the sentinel is missing or stale.
-    """
-    return (
-        not env_python_path.is_file()
-        or not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    )
-
-
 def _get_python_env_path(version: str) -> Path:
     return get_sdk_nrf_tools_path() / "penvs" / version
 
@@ -103,34 +94,6 @@ def toolchain_tool(name: str) -> Path:
     """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...)."""
     suffix = ".exe" if os.name == "nt" else ""
     return _get_arm_toolchain_path() / "bin" / f"arm-zephyr-eabi-{name}{suffix}"
-
-
-_SITECUSTOMIZE = """\
-import os, stat, shutil
-_orig = shutil.rmtree
-def _handler(func, path, exc):
-    os.chmod(path, stat.S_IWRITE); func(path)
-def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
-    if onerror is None and onexc is None:
-        onexc = _handler
-    return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
-shutil.rmtree = _rmtree
-"""
-
-
-def _install_sitecustomize(python_env_path: Path) -> None:
-    """Patch shutil.rmtree inside the penv to handle read-only files.
-
-    west init's shutil.move falls back to copytree+rmtree on Windows, and
-    rmtree dies on the read-only .idx/.pack files git just wrote into
-    manifest-tmp. Dropping a sitecustomize.py into the venv applies the
-    same fix esphome.helpers.rmtree uses, but inside the subprocess.
-    """
-    if os.name != "nt":
-        return
-    site_packages = python_env_path / "Lib" / "site-packages"
-    site_packages.mkdir(parents=True, exist_ok=True)
-    (site_packages / "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
 
 
 def _get_version_str() -> str:
@@ -240,7 +203,7 @@ def setup_platformio_python_env() -> None:
         + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
         + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
     ).hexdigest()
-    if _needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
+    if needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
         rmdir(penv_path, msg="Clean up PlatformIO toolchain Python environment")
 
         create_venv(penv_path, msg="PlatformIO toolchain")
@@ -266,30 +229,109 @@ def setup_platformio_python_env() -> None:
     _prepend_env_path("PATH", str(env_python_path.parent))
 
 
-def _patch_framework_file(path: Path, old: str, new: str) -> bool:
-    """Replace ``old`` with ``new`` in a framework script, atomically and
-    keeping the file mode (helpers.write_file would flatten it to 0o644).
-    Returns False when nothing matched."""
-    import tempfile
+# pyOCD 0.44 to 0.46 write the nRF54LM20A RRAM without its write buffer, which faults on the first
+# store (pyocd/pyOCD#2016), and the Seeed XIAO nRF54LM20A boards flash through pyOCD. This is the
+# flash algorithm of pyocd/pyOCD#2033, which fixes it, put in place until a release carries it.
+_PYOCD_NRF54LM20A_FLASH_ALGO = """\
+FLASH_ALGO = {
+    'load_address' : 0x20000000,
 
-    content = path.read_text(encoding="utf-8")
-    patched = content.replace(old, new)
-    if patched == content:
-        return False
-    # Unique sibling tmp: the install lock is best effort, so two builds
-    # may patch at once and a shared tmp name could rename a half
-    # written file into place.
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    tmp = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(patched)
-        shutil.copymode(path, tmp)
-        tmp.replace(path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
-    return True
+    # Flash algorithm as a hex string
+    'instructions': [
+        0xe7fdbe00,
+        0xf8d24a02, 0x07db3400, 0x4770d5fb, 0x5004e000, 0xf7ffb508, 0x2000fff5, 0x2000bd08, 0x00004770,
+        0x49072001, 0xf8c1b508, 0xf7ff0500, 0xf8c1ffe9, 0x20000540, 0xffe4f7ff, 0x0500f8c1, 0xbf00bd08,
+        0x5004e000, 0xf242b508, 0x49080301, 0x3500f8c1, 0xffd6f7ff, 0x33fff04f, 0x23016003, 0x608b2000,
+        0xffcef7ff, 0x0500f8c1, 0xbf00bd08, 0x5004e000, 0xf242b538, 0x46140301, 0xf0214d0c, 0xf8c50103,
+        0xf7ff3500, 0x4622ffbd, 0x1b004421, 0xeb02428a, 0xd1070300, 0x20002301, 0xf7ff60ab, 0xf8c5ffb1,
+        0xbd380500, 0x4b04f852, 0xe7ef601c, 0x5004e000,
+    ],
+
+    # Relative function addresses
+    'pc_init': 0x20000015,
+    'pc_unInit': 0x2000001f,
+    'pc_program_page': 0x20000075,
+    'pc_erase_sector': 0x20000049,
+    'pc_eraseAll': 0x20000025,
+
+    'static_base' : 0x200000B8,
+    'begin_stack' : 0x20003000,
+    'page_size' : 0x1000,
+    'analyzer_supported' : False,
+    'analyzer_address' : 0x00000000,
+    'page_buffers' : [0x20000100,0x20001100],   # 4 KiB double buffers, 128-bit line aligned
+    'min_program_length' : 0x4,
+
+    # Relative region addresses and sizes
+    'ro_start': 0xb4,
+    'ro_size': 0x0,
+    'rw_start': 0xb4,
+    'rw_size': 0x0,
+    'zi_start': 0xb4,
+    'zi_size': 0x0,
+
+    # Flash information
+    'flash_start': 0x0,
+    'flash_size': 0x1fd000,
+    'sector_sizes': (
+        (0x0, 0x1fd000),
+        (0xffd000, 0x1000),
+    )
+}
+"""
+_PYOCD_FLASH_ALGO_RE = re.compile(r"^FLASH_ALGO = \{.*?^\}\n", re.MULTILINE | re.DOTALL)
+# An instruction word of the faulting algorithm only; an algorithm without it is left alone
+_PYOCD_NRF54LM20A_FAULTY_WORD = "0x68134a02"
+
+
+def _pyocd_builtin_target(python_env_path: Path, target_file: str) -> Path:
+    site_packages = _get_penv_site_packages(python_env_path)
+    if not site_packages.is_dir():
+        # An env kept across an ESPHome Python upgrade still has its own Python version
+        site_packages = next(
+            python_env_path.glob("lib/python3.*/site-packages"), site_packages
+        )
+    return site_packages / "pyocd" / "target" / "builtin" / target_file
+
+
+def _pyocd_nrf54lm20a_target(python_env_path: Path) -> Path:
+    return _pyocd_builtin_target(python_env_path, "target_nRF54LM20A.py")
+
+
+def pyocd_has_builtin_target(target_file: str) -> bool:
+    """True when the SDK's pyOCD has this target file, e.g. target_nRF54L15.py."""
+    env_path = _get_python_env_path(_get_version_str())
+    return _pyocd_builtin_target(env_path, target_file).is_file()
+
+
+def unpatched_pyocd_nrf54lm20a_target() -> Path | None:
+    """PyOCD's nRF54LM20A target file when it has the faulting flash algorithm, else None."""
+    target = _pyocd_nrf54lm20a_target(_get_python_env_path(_get_version_str()))
+    if target.is_file() and _PYOCD_NRF54LM20A_FAULTY_WORD in target.read_text(
+        encoding="utf-8"
+    ):
+        return target
+    return None
+
+
+def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
+    target = _pyocd_nrf54lm20a_target(python_env_path)
+    if not target.is_file():
+        _LOGGER.debug(
+            "pyOCD has no nRF54LM20A target at %s; not patching its flash algorithm",
+            target,
+        )
+        return
+    content = target.read_text(encoding="utf-8")
+    if _PYOCD_NRF54LM20A_FAULTY_WORD not in content:
+        return
+    if (match := _PYOCD_FLASH_ALGO_RE.search(content)) is None:
+        _LOGGER.warning(
+            "Could not patch pyOCD's nRF54LM20A flash algorithm in %s", target
+        )
+        return
+    patch_framework_file(target, match.group(0), _PYOCD_NRF54LM20A_FLASH_ALGO)
+    _LOGGER.info("Patched pyOCD's nRF54LM20A flash algorithm in %s", target)
 
 
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
@@ -297,49 +339,8 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
     if uf2conv.exists():
-        _patch_framework_file(
+        patch_framework_file(
             uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
-        )
-
-
-_WEST_BUILD_RELPATH = "        srcrel = os.path.relpath(self.source_dir)\n"
-# Zephyr main's replacement, verbatim (zephyr commit dfbdca0e13)
-_WEST_BUILD_RELPATH_SAFE = """        try:
-            srcrel = pathlib.Path(self.source_dir).relative_to(pathlib.Path.cwd(), walk_up=True)
-        except ValueError:
-            srcrel = self.source_dir
-"""
-
-
-def _patch_west_build_source_dir_relpath(framework_path: Path) -> None:
-    # west build names the source dir relative to the working directory (the
-    # SDK workspace) in two warnings; Python refuses that on Windows when the
-    # project is on another drive, and west dies before building. Applies
-    # Zephyr main's fix; SDKs that carry it have no line to patch.
-    build = framework_path / "zephyr" / "scripts" / "west_commands" / "build.py"
-    if build.exists():
-        _patch_framework_file(build, _WEST_BUILD_RELPATH, _WEST_BUILD_RELPATH_SAFE)
-
-
-def _patch_gen_defines_dts_path(framework_path: Path) -> None:
-    # The absolute zephyr.dts.pre path in the header's top comment is
-    # its only per device byte and blocks ccache sharing; emit the
-    # basename. Upstream candidate.
-    gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    if not gen_defines.exists():
-        return
-    if _patch_framework_file(
-        gen_defines, "  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}"
-    ):
-        return
-    if "{os.path.basename(edt.dts_path)}" not in gen_defines.read_text(
-        encoding="utf-8"
-    ):
-        # Upstream reformatted the comment; sharing silently degrading
-        # would be invisible, so say it out loud.
-        _LOGGER.warning(
-            "gen_defines.py no longer matches; the devicetree header "
-            "stays per device and ccache sharing between devices degrades"
         )
 
 
@@ -355,6 +356,7 @@ _WEST_PROJECTS_FILE = ".west_projects"
 class _Nrf52Data:
     west_projects: set[str] = field(default_factory=lambda: set(DEFAULT_WEST_PROJECTS))
     variant: str = VARIANT_NRF52840
+    board: str = ""
 
 
 def _get_data() -> _Nrf52Data:
@@ -370,6 +372,15 @@ def set_nrf52_variant(variant: str) -> None:
 def get_nrf52_variant() -> str:
     """The SoC variant, taken from the board name; NRF52840 until nrf52 is validated."""
     return _get_data().variant
+
+
+def set_nrf52_board(board: str) -> None:
+    _get_data().board = board
+
+
+def get_nrf52_board() -> str:
+    """The board name from the config; empty until nrf52 is validated."""
+    return _get_data().board
 
 
 def include_west_project(name: str) -> None:
@@ -561,30 +572,7 @@ def check_and_install() -> None:
 def _check_and_install(version: str) -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
-    sentinel = python_env_path / ".ready"
-    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
-    install_venv = _needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
-    if install_venv:
-        rmdir(python_env_path, msg=f"Clean up {version} Python environment")
-
-        create_venv(python_env_path, msg=version)
-
-        _install_sitecustomize(python_env_path)
-
-        _LOGGER.info("Installing requirements ...")
-        cmd = [
-            str(env_python_path),
-            "-m",
-            "pip",
-            "install",
-            "-r",
-            str(_REQUIREMENTS),
-        ]
-        if not run_command_ok(cmd):
-            raise EsphomeError(
-                f"Install requirements for {version} Python environment failure"
-            )
-        sentinel.write_text(requirements_hash, encoding="utf-8")
+    install_venv = ensure_venv(python_env_path, _REQUIREMENTS, version)
 
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
@@ -599,8 +587,8 @@ def _check_and_install(version: str) -> None:
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
     # Every run: existing installs need these too, and they are no-ops once applied
-    _patch_gen_defines_dts_path(framework_path)
-    _patch_west_build_source_dir_relpath(framework_path)
+    patch_gen_defines_dts_path(framework_path)
+    patch_west_build_source_dir_relpath(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
@@ -620,6 +608,7 @@ def _check_and_install(version: str) -> None:
         if not run_command_ok(cmd):
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
+    _patch_pyocd_nrf54lm20a_flash_algo(python_env_path)
 
     # Shared by every SDK version that uses the same toolchain; locked only
     # while missing
