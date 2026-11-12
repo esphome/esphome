@@ -38,7 +38,7 @@ namespace esphome::logger {
  * - Variable-size messages with header + text stored contiguously (NOSPLIT style)
  * - FreeRTOS mutex protects all buffer operations
  * - Volatile counter enables fast has_messages() without lock overhead
- * - If message doesn't fit at end, padding is added and message wraps to start
+ * - A message that doesn't fit at the end wraps to the start, after a padding marker if a header fits there
  */
 class TaskLogBuffer {
  public:
@@ -77,7 +77,7 @@ class TaskLogBuffer {
   inline bool HOT has_messages() const { return this->message_count_ != 0; }
 
   // Get the total buffer size in bytes
-  static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
+  static constexpr size_t size() { return CAPACITY; }
 
  private:
   // Keep headers aligned: BK72xx silently misreads unaligned words instead of faulting
