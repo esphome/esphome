@@ -35,5 +35,11 @@ ALIVE=$(LC_ALL=C grep -a "ALIVE" "$O/serial.txt" | tail -1)
 case "$ALIVE" in
   *" ok=0 "*|*" rx_ok=0 "*|"") echo "$N INVALID: no ALIVE line or the workload did not run"; BAD=1 ;;
 esac
+# one-wire: the searches must find the sensor (busy_control runs no searches)
+S=$(echo "$ALIVE" | sed -n 's/.* searches=\([0-9]*\) search_bad=\([0-9]*\).*/\1 \2/p')
+if [ -n "$S" ]; then
+  set -- $S
+  [ "$1" -gt 0 ] && [ "$2" -ge "$1" ] && { echo "$N INVALID: no search found the sensor"; BAD=1; }
+fi
 [ -z "$BAD" ] || exit 2
 [ "$BOOTS" = 1 ]
