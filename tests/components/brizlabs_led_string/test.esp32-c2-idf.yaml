@@ -1,7 +1,0 @@
-# The ESP32-C2 is the only hardware this component has been tested on so far.
-substitutions:
-  data_pin: GPIO0
-  power_pin: GPIO3
-
-packages:
-  brizlabs_led_string: !include common.yaml
