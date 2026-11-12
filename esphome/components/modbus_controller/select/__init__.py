@@ -108,7 +108,7 @@ async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(parent.add_sensor_item(var))
     cg.add(var.set_parent(parent))
-    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    cg.add(var.set_use_write_multiple(config[CONF_USE_WRITE_MULTIPLE]))
     modbus.add_command_options(var, "set_write_options", config, direction="write")
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
