@@ -8,7 +8,7 @@
 # (the server's BLE address), SC (path to serial_capture.py), PY
 D=$(cd "$(dirname "$0")" && pwd); Y=$(cd "$(dirname "${1:?proxy yaml}")" && pwd)/$(basename "$1"); R=${2:-3}
 W=${TREE:?set TREE}; SP=${SERVER_PORT:?set SERVER_PORT}; PP=${PROXY_PORT:?set PROXY_PORT}; MAC=${SERVER_BLE_MAC:?set SERVER_BLE_MAC}
-SC=${SC:?set SC}; PY=${PY:-$W/venv/bin/python}; N=$(basename "$Y" .yaml); O=$D/out-$N; mkdir -p "$O"
+API_KEY=${API_KEY:?set API_KEY}; SC=${SC:?set SC}; PY=${PY:-$W/venv/bin/python}; N=$(basename "$Y" .yaml); O=$D/out-$N; mkdir -p "$O"
 (cd "$W" && PYTHONPATH=$W $PY -m esphome -s name attsrv run --no-logs "$D/${SERVER_YAML:-server.yaml}" --device "$SP") > "$O/server.log" 2>&1 ||
   { echo "server build or upload failed"; exit 2; }
 (cd "$W" && PYTHONPATH=$W $PY -m esphome run --no-logs "$Y" --device "$PP") > "$O/proxy-upload.log" 2>&1 ||

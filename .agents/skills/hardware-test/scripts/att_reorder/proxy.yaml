@@ -1,4 +1,4 @@
-# Proxy (classic ESP32): bluetooth_proxy without service cache, plaintext API, the reorder wrapper.
+# Proxy (classic ESP32): bluetooth_proxy without service cache, encrypted API, the reorder wrapper.
 # Substitutions: name, idf.
 # Keep the per-build file in this directory: attswap.hpp and components/ are found relative to it.
 esphome:
