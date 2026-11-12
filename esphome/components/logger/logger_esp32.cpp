@@ -76,6 +76,7 @@ static void init_usb_serial_jtag() {
 }
 #endif
 
+#if !defined(USE_LOGGER_UART_SELECTION_USB_CDC) && !defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
 static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config_t uart_config{};
   uart_config.baud_rate = (int) baud_rate;
@@ -100,6 +101,7 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
   esp_sleep_set_console_uart_handling_mode(ESP_SLEEP_ALWAYS_FLUSH_UART);
 #endif
 }
+#endif
 
 // get_uart_num() and pre_setup() cast the selection straight to a port
 static_assert(static_cast<int>(UART_SELECTION_UART0) == static_cast<int>(UART_NUM_0) &&
