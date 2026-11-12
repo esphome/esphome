@@ -498,6 +498,15 @@ async def to_code(config: ConfigType) -> None:
         cg.add(log.create_pthread_key())
     if (hardware_uart := config.get(CONF_HARDWARE_UART)) is not None:
         cg.add_define(f"USE_LOGGER_UART_SELECTION_{hardware_uart}")
+        cg.add_define(
+            "ESPHOME_LOGGER_UART_SELECTION",
+            cg.RawExpression(f"logger::UART_SELECTION_{hardware_uart}"),
+        )
+        # ESP8266 without serial logging never opens a port
+        cg.add_define(
+            "ESPHOME_LOGGER_UART_NAME",
+            "NONE" if CORE.is_esp8266 and baud_rate == 0 else hardware_uart,
+        )
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
