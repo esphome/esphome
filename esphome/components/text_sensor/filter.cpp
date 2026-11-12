@@ -26,6 +26,12 @@ void Filter::output(std::string &value) {
     this->next_->input(std::move(value));
   }
 }
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+void Filter::reset_chain() {
+  for (Filter *filter = this; filter != nullptr; filter = filter->next_)
+    filter->initialize(filter->parent_, filter->next_);
+}
+#endif
 void Filter::initialize(TextSensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
   this->parent_ = parent;

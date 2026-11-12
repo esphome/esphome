@@ -364,6 +364,11 @@ follow_text_sensor = FollowEntity(
 )
 
 
+def request_filter_reset() -> None:
+    """Request ``Filter::reset_chain()``; call from the to_code of a component that resets a filter chain."""
+    cg.add_define("USE_TEXT_SENSOR_FILTER_RESET")
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(text_sensor_ns.using)
