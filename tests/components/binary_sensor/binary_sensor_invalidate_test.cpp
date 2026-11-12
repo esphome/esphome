@@ -43,6 +43,25 @@ TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
   EXPECT_FALSE(sensor.has_state());
 }
 
+// Mirrors the code generated for `delayed_on_off: 10ms`
+static optional<bool> delayed_on_off_10ms(Filter *filter, bool x) { return delay_output(filter, 10, x); }
+
+TEST(BinarySensorInvalidate, PendingApplyFilterOutputIsDropped) {
+  BinarySensor sensor;
+  ApplyFilter<delayed_on_off_10ms> delayed_on_off;
+  sensor.add_filter(&delayed_on_off);
+  sensor.publish_state(true);
+  sensor.invalidate_state();
+  run_scheduler_after(30);
+  EXPECT_FALSE(sensor.has_state());
+
+  // Without the invalidate the delayed output lands
+  sensor.publish_state(true);
+  run_scheduler_after(30);
+  ASSERT_TRUE(sensor.has_state());
+  EXPECT_TRUE(sensor.state);
+}
+
 TEST(BinarySensorInvalidate, SettleFilterStartsSteadyAfterInvalidate) {
   BinarySensor sensor;
   SettleFilter settle;
