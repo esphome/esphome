@@ -4,7 +4,6 @@ import asyncio
 from contextlib import ExitStack
 from pathlib import Path
 import re
-import shlex
 import socket
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1422,7 +1421,7 @@ def test_cmsis_dap_flashes_again_after_a_failure(
     setup_core: Path, tmp_path: Path, results: list[bool], succeeds: bool
 ) -> None:
     """Unlocking a locked chip fails that pyOCD run; a second run reaches the chip."""
-    from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
+    from esphome.components.nrf52.cmsis_dap import _command_line, upload_using_cmsis_dap
     from esphome.components.nrf52.const import VARIANT_NRF52840
     from esphome.components.nrf52.framework import set_nrf52_variant
 
@@ -1453,7 +1452,7 @@ def test_cmsis_dap_flashes_again_after_a_failure(
                 EsphomeError,
                 match=re.escape(
                     "'"
-                    + shlex.join(
+                    + _command_line(
                         [str(python), "-m", "pyocd", "erase", "-t", "nrf52840"]
                         + ["-u", "CB1D0165", "--mass"]
                     )
@@ -1634,17 +1633,40 @@ def test_can_upload_using_cmsis_dap_needs_a_pyocd_target(setup_core: Path) -> No
     assert not can_upload_using_cmsis_dap()
     set_nrf52_variant(VARIANT_NRF54LM20)
     # pyOCD releases the SDK requirements still allow lack the nRF54L targets
-    with patch(
-        "esphome.components.nrf52.cmsis_dap.pyocd_has_builtin_target",
-        return_value=False,
-    ) as mock_has:
+    with (
+        patch("esphome.components.nrf52.cmsis_dap.check_and_install") as mock_install,
+        patch(
+            "esphome.components.nrf52.cmsis_dap.pyocd_has_builtin_target",
+            return_value=False,
+        ) as mock_has,
+    ):
         assert not can_upload_using_cmsis_dap()
+    # A cleared SDK cache is reinstalled first, so it is not mistaken for a missing target
+    mock_install.assert_called_once_with()
     mock_has.assert_called_once_with("target_nRF54LM20A.py")
-    with patch(
-        "esphome.components.nrf52.cmsis_dap.pyocd_has_builtin_target",
-        return_value=True,
+    with (
+        patch("esphome.components.nrf52.cmsis_dap.check_and_install"),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.pyocd_has_builtin_target",
+            return_value=True,
+        ),
     ):
         assert can_upload_using_cmsis_dap()
+
+
+@pytest.mark.parametrize(
+    ("platform", "expected"),
+    [
+        ("win32", r'"C:\SDK env\python" -m pyocd'),
+        ("linux", "'/sdk env/python' -m pyocd"),
+    ],
+)
+def test_command_line_quotes_for_the_users_shell(platform: str, expected: str) -> None:
+    from esphome.components.nrf52 import cmsis_dap
+
+    path = r"C:\SDK env\python" if platform == "win32" else "/sdk env/python"
+    with patch.object(cmsis_dap.sys, "platform", platform):
+        assert cmsis_dap._command_line([path, "-m", "pyocd"]) == expected
 
 
 def test_mcuboot_serial_upload_on_a_probe_without_serial_number_uses_mcumgr(

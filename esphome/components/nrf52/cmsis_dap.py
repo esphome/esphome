@@ -4,6 +4,8 @@ import logging
 import os
 from pathlib import Path
 import shlex
+import subprocess
+import sys
 
 import esphome.config_validation as cv
 from esphome.const import CONF_OTA, CONF_PLATFORM, KEY_CORE, KEY_FRAMEWORK_VERSION
@@ -82,8 +84,17 @@ def can_upload_using_cmsis_dap() -> bool:
         or CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 9, 2)
     ):
         return False
-    target_file = _PYOCD_TARGET_FILES.get(variant)
-    return target_file is None or pyocd_has_builtin_target(target_file)
+    if (target_file := _PYOCD_TARGET_FILES.get(variant)) is None:
+        return True
+    check_and_install()  # a cleared SDK cache would otherwise look like a pyOCD without the target
+    return pyocd_has_builtin_target(target_file)
+
+
+def _command_line(args: list[str]) -> str:
+    """The command quoted for the shell the user runs it in."""
+    return (
+        subprocess.list2cmdline(args) if sys.platform == "win32" else shlex.join(args)
+    )
 
 
 def _builds_mcuboot() -> bool:
@@ -156,6 +167,6 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
             raise EsphomeError(
                 "pyOCD could not flash the device; its output above says why. If it says "
                 "the chip is locked or reports a memory transfer fault, unlock and erase it "
-                f"once with '{shlex.join([*pyocd, 'erase', *probe, '--mass'])}' and upload "
+                f"once with '{_command_line([*pyocd, 'erase', *probe, '--mass'])}' and upload "
                 "again. Not with '--chip': it leaves an nRF54L locked, as no firmware opens it at reset."
             )
