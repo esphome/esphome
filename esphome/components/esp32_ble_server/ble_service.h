@@ -37,10 +37,8 @@ class BLEService final {
   BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties,
                                            esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
   /// Adds a characteristic the caller keeps alive (such as a component member); it is never freed here.
-  void add_characteristic(BLECharacteristic &characteristic) {
-    characteristic.service_ = this;  // bound now so ~BLEService can tell it is ours; do_create() sets it again
-    this->characteristics_.push_back(&characteristic);
-  }
+  /// Adds a characteristic the caller keeps alive; false when it already belongs to a service.
+  bool add_characteristic(BLECharacteristic &characteristic);
 
   ESPBTUUID get_uuid() { return this->uuid_; }
   uint8_t get_inst_id() { return this->inst_id_; }

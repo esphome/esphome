@@ -22,6 +22,17 @@ BLEService::~BLEService() {
   }
 }
 
+bool BLEService::add_characteristic(BLECharacteristic &characteristic) {
+  // Bound until the service is destroyed, so a characteristic can never sit in two services
+  if (characteristic.service_ != nullptr) {
+    ESP_LOGE(TAG, "Characteristic already belongs to a service");
+    return false;
+  }
+  characteristic.service_ = this;
+  this->characteristics_.push_back(&characteristic);
+  return true;
+}
+
 BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
   for (auto *chr : this->characteristics_) {
     if (chr->get_uuid() == uuid)
