@@ -824,8 +824,10 @@ void APIConnection::send_shutdown_disconnect_() {
 #endif
   DisconnectRequest req;
   if (!this->send_message(req)) {
-    // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout
+    // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout.
+    // Due at once: teardown does not advance the cached loop time the batch_delay gate reads
     this->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
+    this->make_batch_due_now_();
   }
 }
 
