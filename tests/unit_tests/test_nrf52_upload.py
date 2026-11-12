@@ -1284,3 +1284,41 @@ def test_cmsis_dap_without_firmware_raises(setup_core: Path, tmp_path: Path) -> 
     ):
         upload_using_cmsis_dap("CB1D0165")
     mock_run.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("results", "succeeds"),
+    [([False, True], True), ([False, False], False)],
+)
+def test_cmsis_dap_flashes_again_after_a_failure(
+    setup_core: Path, tmp_path: Path, results: list[bool], succeeds: bool
+) -> None:
+    """Unlocking a locked chip fails that pyOCD run; a second run reaches the chip."""
+    from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
+    from esphome.components.nrf52.const import VARIANT_NRF52840
+    from esphome.components.nrf52.framework import set_nrf52_variant
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    set_nrf52_variant(VARIANT_NRF52840)
+    CORE.config_path = tmp_path / "test.yaml"
+    app = CORE.relative_pioenvs_path(CORE.name) / "zephyr" / "zephyr" / "zephyr.hex"
+    app.parent.mkdir(parents=True)
+    app.write_text("")
+    with (
+        patch("esphome.components.nrf52.cmsis_dap.check_and_install"),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.get_build_paths",
+            return_value=_make_paths(tmp_path),
+        ),
+        patch("esphome.components.nrf52.cmsis_dap.get_build_env", return_value={}),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.run_command_ok", side_effect=results
+        ) as mock_run,
+    ):
+        if succeeds:
+            upload_using_cmsis_dap("CB1D0165")
+        else:
+            with pytest.raises(EsphomeError, match="--mass"):
+                upload_using_cmsis_dap("CB1D0165")
+    assert mock_run.call_count == 2
+    assert mock_run.call_args_list[0] == mock_run.call_args_list[1]

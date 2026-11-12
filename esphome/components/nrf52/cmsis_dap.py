@@ -1,5 +1,6 @@
 """Flashing with pyOCD through a CMSIS-DAP probe, such as the one built into Seeed XIAO nRF54 boards."""
 
+import logging
 from pathlib import Path
 
 from esphome.core import CORE, EsphomeError
@@ -26,6 +27,8 @@ _PYOCD_TARGETS = {
     VARIANT_NRF54LM20: "nrf54lm20a",
 }
 
+
+_LOGGER = logging.getLogger(__name__)
 
 # Watchdog of the nRF54L chips that Zephyr uses, and its registers for stopping it
 _NRF54L_WDT31 = 0x50109000
@@ -96,9 +99,15 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
         run_command_ok(cmd, env=env, stream_output=True)
     cmd = [*pyocd, "flash", *probe, "-e", "sector", *(str(image) for image in images)]
     if not run_command_ok(cmd, env=env, stream_output=True):
-        raise EsphomeError(
-            "pyOCD could not flash the device; its output above says why. If it says "
-            "the chip is locked or reports a memory transfer fault, unlock and erase it "
-            f"once with 'pyocd erase -t {target} --mass' and upload again. Not with "
-            "'--chip': it leaves an nRF54L locked, as no firmware opens it at reset."
+        # pyOCD unlocks a locked chip by erasing it, then resets it in a way that faults the rest
+        # of that connection; a new connection reaches the unlocked chip
+        _LOGGER.warning(
+            "Flashing failed, trying once more in case the chip was just unlocked"
         )
+        if not run_command_ok(cmd, env=env, stream_output=True):
+            raise EsphomeError(
+                "pyOCD could not flash the device; its output above says why. If it says "
+                "the chip is locked or reports a memory transfer fault, unlock and erase it "
+                f"once with 'pyocd erase -t {target} --mass' and upload again. Not with "
+                "'--chip': it leaves an nRF54L locked, as no firmware opens it at reset."
+            )
