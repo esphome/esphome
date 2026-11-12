@@ -4,6 +4,7 @@
 
 #include "esphome/components/packet_interface/listen_before_talk.h"
 #include "esphome/components/packet_interface/packet_interface.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::packet_interface {
 
@@ -14,15 +15,18 @@ class RadioLinkBase : public PacketInterface {
 
  protected:
   explicit RadioLinkBase(size_t max_packet_size) : PacketInterface(max_packet_size) {}
+  /// The time now, not the loop's start: earlier sends in the same loop pass may have waited seconds for the radio.
+  virtual uint32_t now_() const { return millis(); }
   /// False if a packet of this size is too large.
   bool check_size_(size_t size) const;
   /// False if sending must wait, as the radio is busy; starts loop() to watch the radio.
   bool may_send_(bool busy);
   /**
-   * Returns \p sent, after warning if the packet was sent over a radio that seemed busy. Called only once the radio
-   * has the packet, as a log line can run an automation that sends again and overwrites the buffer it came from.
+   * Returns \p sent, after ending the busy period and warning if the packet was sent over a radio that seemed busy.
+   * Called only once the radio has the packet, as a log line can run an automation that sends again and overwrites
+   * the buffer it came from.
    */
-  bool sent_(bool sent, bool busy) const;
+  bool sent_(bool sent, bool busy);
   /// Returns true for an empty packet, which the radios cannot send, so there is nothing to retry.
   bool skip_empty_() const;
   /// Warns once when a send finds the radio failed; until its setup has run, sends are refused quietly.

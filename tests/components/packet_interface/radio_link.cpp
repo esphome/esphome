@@ -34,7 +34,15 @@ class FakeRadio : public Component {
   FakeError result{FakeError::NONE};
 };
 
-using TestLink = RadioLink<FakeRadio, FakeListener, FakeError, 16>;
+// Reads the time that set_time() sets
+class TestLink : public RadioLink<FakeRadio, FakeListener, FakeError, 16> {
+ public:
+  using RadioLink::RadioLink;
+  uint8_t not_understood_count() const { return this->not_understood_count_; }
+
+ protected:
+  uint32_t now_() const override { return App.get_loop_component_start_time(); }
+};
 
 static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
 
@@ -164,6 +172,26 @@ TEST_F(RadioLinkTest, OversizedReceptionDropped) {
   this->link_.on_packet(Packet(17, 0x55), -80.0f, 7.5f);
   this->link_.on_packet(Packet(16, 0x55), -80.0f, 7.5f);
   EXPECT_EQ(sizes, std::vector<size_t>{16});
+}
+
+// A send made over a busy flag that seemed stuck lets the radio listen again, so a reception that starts before
+// loop() runs is waited for in a new busy period
+TEST_F(RadioLinkTest, ForcedSendEndsBusyPeriod) {
+  set_time(START);
+  this->radio_.receiving = true;
+  EXPECT_FALSE(this->send_());
+  set_time(START + MAX_BUSY);
+  EXPECT_TRUE(this->send_());
+  set_time(START + MAX_BUSY + 100);
+  EXPECT_FALSE(this->send_());
+  EXPECT_EQ(this->radio_.sent.size(), 1u);
+}
+
+TEST_F(RadioLinkTest, AcceptedPacketEndsRunOfOversizedOnes) {
+  this->link_.on_packet(Packet(17, 0x55), -80.0f, 7.5f);
+  EXPECT_EQ(this->link_.not_understood_count(), 1);
+  this->link_.on_packet(Packet(16, 0x55), -80.0f, 7.5f);
+  EXPECT_EQ(this->link_.not_understood_count(), 0);
 }
 
 }  // namespace esphome::packet_interface::radio_link_testing
