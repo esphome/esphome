@@ -181,8 +181,9 @@ void ESP8266UartComponent::dump_config() {
                     this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
                                                                      : LOG_STR_LITERAL("start bit sampler"));
 #ifdef USE_UART_AUTO_BAUD
-      if (this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD)
+      if (this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
         ESP_LOGCONFIG(TAG, "  Auto baud sync byte: 0x%02X", UART_AUTO_BAUD_SYNC_BYTE);
+      }
 #endif
     }
     if (this->tx_pin_ != nullptr && this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD &&

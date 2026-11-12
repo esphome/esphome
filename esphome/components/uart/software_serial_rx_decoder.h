@@ -168,8 +168,8 @@ class SoftwareSerialRxDecoder {
   /// Inlined into the IRAM ISR; a flash copy would fault while flash is busy.
   void ESPHOME_ALWAYS_INLINE end_sync_frame_(bool framed, uint8_t value, uint8_t bits) {
     this->sync_timing_ = false;
-    // A byte ending in a long run of ones leaves too few edges to time
-    if (!framed || value != UART_AUTO_BAUD_SYNC_BYTE || bits < this->data_bits_)
+    // A byte ending in a long run of ones leaves too few edges to time; 0 is a frame that broke at its start
+    if (!framed || value != UART_AUTO_BAUD_SYNC_BYTE || bits == 0 || bits < this->data_bits_)
       return;
     this->set_bit_ticks_((this->last_edge_ - this->sync_start_ + bits / 2) / bits);
   }
