@@ -459,6 +459,13 @@ def _names_parent(text: str) -> bool:
     return any(f == "parent" for _, f, _, _ in string.Formatter().parse(text))
 
 
+def _lambda_type(type_: Any, parent: str | None) -> Any:
+    """Raw C++ type text becomes an expression with ``{parent}`` filled in."""
+    if isinstance(type_, str):
+        return cg.RawExpression(type_.format(parent=parent))
+    return type_
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
@@ -788,9 +795,7 @@ async def _render_call(
     exprs: list[str] = []
     for (_, type_, const_fn), value in zip(members, values, strict=True):
         if isinstance(value, Lambda):
-            if isinstance(type_, str):
-                type_ = cg.RawExpression(type_.format(parent=parent))
-            expr = await _call_user_lambda(value, args, type_)
+            expr = await _call_user_lambda(value, args, _lambda_type(type_, parent))
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -1100,6 +1105,7 @@ class ApplyFilterDomain:
                 zip(members, values, strict=True)
             ):
                 if isinstance(value, Lambda):
+                    type_ = _lambda_type(type_, None)
                     # The call is already the argument text, so no const_fn applies
                     members[i] = (key, type_, None)
                     values[i] = await _apply_value_function(
