@@ -26,11 +26,6 @@ class ESP8266SoftwareSerial {
 
   size_t available();
 
-#ifdef USE_UART_AUTO_BAUD
-  /// Call after setup(); edge mode only.
-  void set_auto_baud_sync(uint8_t sync) { this->rx_.set_auto_baud_sync(sync); }
-#endif
-
   /// TX holds interrupts off for whole frames: above the edge mode limit, or while any instance's RX interrupt reads
   /// whole bytes (it must not run between TX bits).
   bool locks_whole_frame() const { return this->lock_frame_ || blocking_rx_count != 0; }
@@ -96,20 +91,11 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
-#ifdef USE_UART_AUTO_BAUD
-  /// Software serial only: re-time the receiver on `sync`, the first byte after an idle line.
-  void set_auto_baud_sync(uint8_t sync) { this->auto_baud_sync_ = sync; }
-#endif
-
  protected:
   void check_logger_conflict() override;
-  void setup_software_serial_();
 
   HardwareSerial *hw_serial_{nullptr};
   ESP8266SoftwareSerial *sw_serial_{nullptr};
-#ifdef USE_UART_AUTO_BAUD
-  int16_t auto_baud_sync_{-1};  // -1: off
-#endif
 
  private:
   static bool serial0_in_use;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

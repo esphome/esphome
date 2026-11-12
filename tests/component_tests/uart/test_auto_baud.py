@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome import config_validation as cv
+from esphome import config, config_validation as cv, yaml_util
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY
 from esphome.components.uart import CONF_AUTO_BAUD_SYNC_BYTE, validate_auto_baud
 from esphome.const import CONF_BAUD_RATE, CONF_RX_PIN, CONF_TX_PIN
@@ -25,14 +25,16 @@ def _config(sync: int, **overrides: object) -> ConfigType:
     return config
 
 
-def test_auto_baud_emits_setter_and_define(
+def test_auto_baud_emits_sync_byte_define(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("auto_baud_esp8266.yaml"))
 
-    assert "gdo_uart->set_auto_baud_sync(0x55);" in main_cpp
-    assert "USE_UART_AUTO_BAUD" in {d.name for d in CORE.defines}
+    defines = {d.name: d.value for d in CORE.defines}
+    assert "USE_UART_AUTO_BAUD" in defines
+    assert str(defines["UART_AUTO_BAUD_SYNC_BYTE"]) == "0x55"
+    assert "set_auto_baud" not in main_cpp
 
 
 @pytest.mark.parametrize(
@@ -68,3 +70,13 @@ def test_invalid_sync_bytes(
 ) -> None:
     with pytest.raises(cv.Invalid, match=match):
         validate_auto_baud(_config(sync, **overrides))
+
+
+def test_different_sync_bytes_are_rejected(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    path = component_config_path("auto_baud_two_sync_bytes.yaml")
+    CORE.config_path = path
+    result = config.validate_config(yaml_util.load_yaml(path), {})
+    errors = [str(err) for err in result.errors]
+    assert any("must use the same byte" in err for err in errors), errors

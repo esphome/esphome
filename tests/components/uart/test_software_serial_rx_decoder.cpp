@@ -306,15 +306,16 @@ std::vector<uint8_t> send_packets(LineSim &sim, const std::vector<double> &line_
   return sent;
 }
 
-TEST(SoftwareSerialRxDecoder, WithoutAutoBaudA7PercentFastLineCorruptsLongRuns) {
+// The unit test build sets UART_AUTO_BAUD_SYNC_BYTE to 0x55 (tests/components/uart/__init__.py).
+
+TEST(SoftwareSerialRxDecoder, AutoBaudPacketWithoutSyncStaysNominalAndA7PercentFastLineCorrupts) {
   LineSim sim(9600, 8, false, false, 1);
-  const auto sent = send_packets(sim, {9600 * 1.07}, 0x55, 11);
+  const auto sent = send_packets(sim, {9600 * 1.07}, 0x01, 11);
   EXPECT_NE(sim.received(), sent);
 }
 
 TEST(SoftwareSerialRxDecoder, AutoBaudRetimesEachPacketFromTheSyncByte) {
   LineSim sim(9600, 8, false, false, 1);
-  sim.decoder().set_auto_baud_sync(0x55);
   // Each packet at its own rate: fast, slow, nominal, fast again
   const auto sent = send_packets(sim, {9600 * 1.07, 9600 * 0.93, 9600, 9600 * 1.10}, 0x55, 12);
   EXPECT_EQ(sim.received(), sent);
@@ -324,14 +325,12 @@ TEST(SoftwareSerialRxDecoder, AutoBaudRetimesEachPacketFromTheSyncByte) {
 
 TEST(SoftwareSerialRxDecoder, AutoBaudWithEvenParityAt1200) {
   LineSim sim(1200, 8, true, false, 1);
-  sim.decoder().set_auto_baud_sync(0x55);
   const auto sent = send_packets(sim, {1200 * 0.94, 1200 * 1.06}, 0x55, 13);
   EXPECT_EQ(sim.received(), sent);
 }
 
 TEST(SoftwareSerialRxDecoder, AutoBaudLoneSyncByteIsTimedWhenFinalized) {
   LineSim sim(9600, 8, false, false, 1);
-  sim.decoder().set_auto_baud_sync(0x55);
   sim.set_line_baud(9600 * 1.05);
   uint32_t t = sim.send(0x55, IDLE_START);
   // No closing edge: finalize() ends the frame
@@ -342,7 +341,6 @@ TEST(SoftwareSerialRxDecoder, AutoBaudLoneSyncByteIsTimedWhenFinalized) {
 
 TEST(SoftwareSerialRxDecoder, AutoBaudKeepsNominalWhenThePacketDoesNotStartWithSync) {
   LineSim sim(9600, 8, false, false, 1);
-  sim.decoder().set_auto_baud_sync(0x55);
   sim.set_line_baud(9600 * 1.05);
   uint32_t t = sim.send(0x55, IDLE_START);
   t = sim.send(0x01, t);
@@ -356,7 +354,6 @@ TEST(SoftwareSerialRxDecoder, AutoBaudKeepsNominalWhenThePacketDoesNotStartWithS
 
 TEST(SoftwareSerialRxDecoder, AutoBaudIgnoresASyncFrameWithALowStopBit) {
   LineSim sim(9600, 8, false, false, 1);
-  sim.decoder().set_auto_baud_sync(0x55);
   const uint32_t bit = TICKS_PER_SECOND / (9600 * 105 / 100);
   uint32_t t = IDLE_START;
   // 0x55 with the stop bit held low (framing error), then the line idles

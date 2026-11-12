@@ -23,7 +23,6 @@ class SoftwareSerialRxDecoder {
     this->set_bit_ticks_(bit_ticks);
 #ifdef USE_UART_AUTO_BAUD
     this->nominal_bit_ticks_ = bit_ticks;
-    this->idle_ticks_ = UINT32_MAX;  // auto baud off until set_auto_baud_sync()
 #endif
     this->buffer_ = buffer;
     this->buffer_size_ = buffer_size;
@@ -33,12 +32,6 @@ class SoftwareSerialRxDecoder {
   }
 
 #ifdef USE_UART_AUTO_BAUD
-  /// Call after setup(). After an idle line, return to the nominal bit time and time the first frame;
-  /// when it decodes to `sync`, the measured bit time is used until the line idles again.
-  void set_auto_baud_sync(uint8_t sync) {
-    this->sync_byte_ = sync;
-    this->idle_ticks_ = this->nominal_bit_ticks_ * this->run_bits_;
-  }
   uint32_t bit_ticks() const { return this->bit_ticks_; }
 #endif
 
@@ -63,7 +56,8 @@ class SoftwareSerialRxDecoder {
     // LX106 has no divider, so count
     uint32_t delta = now - this->last_edge_;
 #ifdef USE_UART_AUTO_BAUD
-    const bool idle_start = !level && delta >= this->idle_ticks_;
+    // A start bit after the line idled longer than a frame
+    const bool idle_start = !level && delta > this->max_run_ticks_;
     const uint8_t run_bit = this->bit_;
 #endif
     if (delta > this->max_run_ticks_)
@@ -164,8 +158,7 @@ class SoftwareSerialRxDecoder {
       this->end_sync_frame_(run_level, this->cur_byte_, run_bit + 1);
     }
     if (idle_start && bit == RX_IDLE) {
-      this->bit_ticks_ = this->nominal_bit_ticks_;
-      this->max_run_ticks_ = this->idle_ticks_;
+      this->set_bit_ticks_(this->nominal_bit_ticks_);
       this->sync_start_ = now;
       this->sync_timing_ = true;
     }
@@ -176,7 +169,7 @@ class SoftwareSerialRxDecoder {
   void ESPHOME_ALWAYS_INLINE end_sync_frame_(bool framed, uint8_t value, uint8_t bits) {
     this->sync_timing_ = false;
     // A byte ending in a long run of ones leaves too few edges to time
-    if (!framed || value != this->sync_byte_ || bits < this->data_bits_)
+    if (!framed || value != UART_AUTO_BAUD_SYNC_BYTE || bits < this->data_bits_)
       return;
     this->set_bit_ticks_((this->last_edge_ - this->sync_start_ + bits / 2) / bits);
   }
@@ -232,10 +225,8 @@ class SoftwareSerialRxDecoder {
   volatile size_t in_pos_{0};
   size_t out_pos_{0};  // reader only
 #ifdef USE_UART_AUTO_BAUD
-  // Touched only by the ISR, and by setup(), set_auto_baud_sync() and finalize() with the ISR masked or detached
+  // Touched only by the ISR, and by setup() and finalize() with the ISR detached or masked
   uint32_t nominal_bit_ticks_{0};
-  /// Nominal max run; UINT32_MAX turns auto baud off.
-  uint32_t idle_ticks_{UINT32_MAX};
   uint32_t sync_start_{0};
 #endif
   /// Next frame bit (data, parity, then stop at stop_bit_) or RX_IDLE.
@@ -247,7 +238,6 @@ class SoftwareSerialRxDecoder {
   /// Longest run counted, in bits: one more than a frame.
   uint8_t run_bits_{11};
 #ifdef USE_UART_AUTO_BAUD
-  uint8_t sync_byte_{0};
   bool sync_timing_{false};
 #endif
 };

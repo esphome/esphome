@@ -198,6 +198,26 @@ def validate_auto_baud(config: ConfigType) -> ConfigType:
     return config
 
 
+def _final_validate_auto_baud(config: ConfigType) -> ConfigType:
+    # The sync byte is a build-wide constant shared by every software UART
+    if CONF_AUTO_BAUD_SYNC_BYTE not in config:
+        return config
+    syncs = {
+        conf[CONF_AUTO_BAUD_SYNC_BYTE]
+        for conf in fv.full_config.get().get(DOMAIN, [])
+        if CONF_AUTO_BAUD_SYNC_BYTE in conf
+    }
+    if len(syncs) > 1:
+        raise cv.Invalid(
+            f"All UARTs with {CONF_AUTO_BAUD_SYNC_BYTE} must use the same byte",
+            [CONF_AUTO_BAUD_SYNC_BYTE],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_auto_baud
+
+
 def validate_host_config(config):
     if CORE.is_host:
         if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -452,8 +472,8 @@ async def to_code(config):
         await debug_to_code(config[CONF_DEBUG], var)
 
     if (sync := config.get(CONF_AUTO_BAUD_SYNC_BYTE)) is not None:
-        cg.add(var.set_auto_baud_sync(sync))
         cg.add_define("USE_UART_AUTO_BAUD")
+        cg.add_define("UART_AUTO_BAUD_SYNC_BYTE", sync)
 
     # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
     # The C++ code selects hardware serial at runtime based on these pin combinations:
