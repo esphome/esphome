@@ -3516,11 +3516,12 @@ async def test_apply_filter_shares_constant_functions(mock_cg: MockCodegen) -> N
 
 
 @pytest.mark.asyncio
-async def test_apply_filter_lambda_values(mock_cg: MockCodegen) -> None:
+@pytest.mark.parametrize("type_", [cg.float_, "float"])
+async def test_apply_filter_lambda_values(mock_cg: MockCodegen, type_: object) -> None:
     """A value lambda is its own function without parameters, so an id named like the
     filter's ``x`` keeps meaning that id; such a filter is never shared. The type may be
     raw C++ text."""
-    statement = ApplyCall("return x * {};", ((WHOLE_CONFIG, "float"),))
+    statement = ApplyCall("return x * {};", ((WHOLE_CONFIG, type_),))
     body = Lambda("static float a = x->state;\nreturn a;")
     for filter_id in ("filt_1", "filt_2"):
         await _run_apply_filter(
