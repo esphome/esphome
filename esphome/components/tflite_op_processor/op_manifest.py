@@ -1,8 +1,7 @@
 """Operator manifest helpers for the tflite_op_processor component.
 
 Parses the X-macro operator table (``tflm_operators.h``) at config time and reads a
-model's operator list from the model file itself. The C++ table stays the single
-source of truth; this module only reads it.
+model's operator list from the model file; the C++ table stays the source of truth.
 """
 
 from __future__ import annotations
@@ -53,7 +52,6 @@ def table_path() -> Path:
 
 def parse_op_table(path: str | Path | None = None) -> OpTable:
     """Parse tflm_operators.h into the operator sets used by the resolver.
-
     Raises ``ValueError`` when the table and this parser could drift apart: no
     ``TFLM_OPERATORS_ACTIVE`` block, an unterminated block, a preprocessor
     directive other than the closing ``#endif``, or an operator entry outside it.
@@ -123,7 +121,6 @@ def _is_op_entry(line: str) -> bool:
 
 def extract_model_ops(model_path: str | Path) -> set[str]:
     """Extract the operators a model requires from the model file.
-
     The ``.tflite`` file is authoritative; a companion ``.txt`` report is not
     consulted. Raises ``ValueError`` when the model cannot be read or declares no
     operator codes, so a partial set cannot compile out a kernel it needs.
@@ -135,7 +132,6 @@ def build_selective_op_defines(
     ops: Iterable[str], path: str | Path | None = None
 ) -> dict[str, int]:
     """Build the ``TFLM_OP_ENABLED_<suffix>`` defines for a set of operators.
-
     Every registerable entry gets a value, 1 when a model needs the kernel and 0
     when it is compiled out, because a missing flag would make the ``if constexpr``
     in ``op_resolver.h`` invalid C++. Raises ``ValueError`` for a name that is not in

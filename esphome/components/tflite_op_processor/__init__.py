@@ -73,7 +73,6 @@ async def to_code(config):
 
 def emit_selective_op_defines(operators: list[str]) -> None:
     """Compile in only the kernels ``operators`` need, leaving the rest out.
-
     The public entry point for every component that configures the selective build,
     because the flags are process-global. A kernel another component enabled stays
     enabled, so the set only widens; a component that does not know its operators
@@ -121,7 +120,6 @@ def emit_selective_op_defines(operators: list[str]) -> None:
 
 def emit_all_ops() -> None:
     """Compile in every kernel, cancelling any selective flags emitted so far.
-
     For a component that cannot tell which operators its model needs. The request
     is sticky, so the result does not depend on the order components run in.
     """

@@ -1,11 +1,9 @@
 """Read a TFLite model's flatbuffer without TensorFlow.
 
 The operator list and the tensor shapes a model declares live in the ``.tflite``
-file, so reading them there needs nothing beyond the standard library and cannot go
-stale like a companion report. Only the tables used here are parsed, and every read
-is bounds checked, so a truncated model raises :class:`ModelReadError` with the
-offset instead of reading past the end. Field ids come from ``schema.fbs``, which
-is append-only.
+file, so reading them needs nothing beyond the standard library and cannot go stale
+like a report. Every read is bounds checked, so a truncated model raises
+:class:`ModelReadError` with the offset instead of reading past the end.
 """
 
 from __future__ import annotations
@@ -205,7 +203,6 @@ def _operator_name(code: int) -> str:
 
 def read_model_operators(model_path: str | Path) -> frozenset[str]:
     """The operators a model declares, as ``tflm_operators.h`` names them.
-
     There is one entry per distinct operator code, so ``len()`` is also the number
     of resolver slots the model needs. Raises :class:`ModelReadError` when the file
     cannot be read or is not a valid model.
@@ -267,7 +264,6 @@ def _peak_activation_bytes(
     tensors: list[_Tensor], operators: list[tuple[list[int], list[int]]]
 ) -> int:
     """Largest total size of the tensors that are live at the same point.
-
     A tensor is live from the first operator that mentions it to the last.
     """
     first_use: dict[int, int] = {}
@@ -296,7 +292,6 @@ def _peak_activation_bytes(
 
 def estimate_tensor_arena(model_path: str | Path) -> ArenaEstimate:
     """Estimate the tensor arena a model needs, from the model itself.
-
     The device measures the exact size, so this is only the seed the probe starts
     from; a close one keeps its first attempt small.
     """
