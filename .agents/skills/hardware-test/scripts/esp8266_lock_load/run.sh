@@ -1,8 +1,9 @@
 #!/bin/bash
-# run.sh NAME SECONDS PPS: build NAME.yaml (next to this script, or a path) from TREE, flash it over serial, capture the
-# log for SECONDS plus 160 (boot, up to 120 s for the IP, the load) and run wifi_load.py at PPS packets per second (0: no load). Prints the boot count, every
-# reset reason and the last ALIVE line. Exits 0 only for a clean run (exactly one BOOT line), 2 for an invalid run
-# (no load, capture cut short, or the sensor or IR loopback never worked).
+# run.sh NAME SECONDS PPS: build NAME.yaml (next to this script, or a path) from TREE, flash it over serial, capture
+# the log for SECONDS plus 160 (boot, up to 120 s for the IP, the load) and run wifi_load.py at PPS packets per second
+# (0: no load). Prints the boot count, every reset reason and the last ALIVE line. Exit 0: a clean run (exactly one
+# BOOT line); 1: the run finished and saw resets; 2: setup failed or the run is invalid (no load, capture cut short,
+# or the sensor or IR loopback never worked).
 # env: TREE (checkout under test), PORT, SC (path to serial_capture.py), PY (checkout python)
 D=$(cd "$(dirname "$0")" && pwd); N=${1:?name}; T=${2:?seconds}; P=${3:?pps}
 W=${TREE:?set TREE}; PORT=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:-$W/venv/bin/python}
@@ -10,8 +11,8 @@ Y=$N; [ -f "$Y" ] || Y=$D/$N.yaml; Y=$(cd "$(dirname "$Y")" && pwd)/$(basename "
 O=$D/out-$N; mkdir -p "$O"
 pkill -f "[s]erial_capture.py $PORT "
 rm -f "$O/serial.txt" "$O/load.txt"
-(cd "$W" && PYTHONPATH=$W $PY -m esphome compile "$Y") > "$O/compile.log" 2>&1 || { echo "$N compile failed"; exit 1; }
-(cd "$W" && PYTHONPATH=$W $PY -m esphome upload "$Y" --device "$PORT") > "$O/upload.log" 2>&1 || { echo "$N upload failed"; exit 1; }
+(cd "$W" && PYTHONPATH=$W $PY -m esphome compile "$Y") > "$O/compile.log" 2>&1 || { echo "$N compile failed"; exit 2; }
+(cd "$W" && PYTHONPATH=$W $PY -m esphome upload "$Y" --device "$PORT") > "$O/upload.log" 2>&1 || { echo "$N upload failed"; exit 2; }
 $PY "$SC" "$PORT" $((T + 160)) "$O/serial.txt" --reset > "$O/capture.log" 2>&1 &
 CAP=$!
 for _ in $(seq 60); do
@@ -19,7 +20,7 @@ for _ in $(seq 60); do
   [ -n "$IP" ] && break; sleep 2
 done
 if [ "$P" -gt 0 ]; then
-  [ -n "$IP" ] || { kill "$CAP"; echo "$N no IP (check the secrets file)"; exit 1; }
+  [ -n "$IP" ] || { kill "$CAP"; echo "$N no IP (check the secrets file)"; exit 2; }
   python3 "$D/wifi_load.py" "$IP" "$T" "$P" > "$O/load.txt" 2>&1 || { echo "$N INVALID: load failed (see $O/load.txt)"; BAD=1; }
 else
   sleep "$T"

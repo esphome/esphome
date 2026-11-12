@@ -18,6 +18,8 @@ f = req_or_exit(flow, {"handler": "esphome"}, token=tok)
 r = req_or_exit(
     f"{flow}/{f['flow_id']}", {"host": "127.0.0.1", "port": 6053}, token=tok
 )
+if r.get("type") == "form" and r.get("errors"):
+    sys.exit(f"config flow step {r.get('step_id')} failed: {r['errors']}")
 if r.get("type") == "form":  # confirmation step
     r = req_or_exit(f"{flow}/{r['flow_id']}", {}, token=tok)
 if r.get("type") != "create_entry":
