@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from pathlib import Path
 import shutil
+
+from esphome.core import EsphomeError
+from esphome.framework_helpers import (
+    create_venv,
+    get_python_env_executable_path,
+    rmdir,
+    run_command_ok,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,3 +128,36 @@ def patch_gen_defines_dts_path(framework_path: Path) -> None:
             "gen_defines.py no longer matches; the devicetree header "
             "stays per device and ccache sharing between devices degrades"
         )
+
+
+def ensure_venv(python_env_path: Path, requirements: Path, label: str) -> bool:
+    """Build the penv from ``requirements`` unless it is current.
+
+    Returns True when it was (re)built.
+    """
+    env_python_path = get_python_env_executable_path(python_env_path, "python")
+    sentinel = python_env_path / ".ready"
+    requirements_hash = hashlib.sha256(requirements.read_bytes()).hexdigest()
+    if not needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
+        return False
+    rmdir(python_env_path, msg=f"Clean up {label} Python environment")
+
+    create_venv(python_env_path, msg=label)
+
+    install_sitecustomize(python_env_path)
+
+    _LOGGER.info("Installing requirements ...")
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "pip",
+        "install",
+        "-r",
+        str(requirements),
+    ]
+    if not run_command_ok(cmd):
+        raise EsphomeError(
+            f"Install requirements for {label} Python environment failure"
+        )
+    sentinel.write_text(requirements_hash, encoding="utf-8")
+    return True
