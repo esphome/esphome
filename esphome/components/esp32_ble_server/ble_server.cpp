@@ -1,5 +1,6 @@
 #include "ble_server.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "esphome/components/ble_device_base/ble_device.h"
@@ -78,11 +79,11 @@ void BLEServer::loop() {
         // it is at the top of the GATT table
         this->device_information_service_->do_create(this);
         // Create all services previously created
-        for (auto &entry : this->services_) {
-          if (entry.service == this->device_information_service_) {
+        for (auto *service : this->services_) {
+          if (service == this->device_information_service_) {
             continue;
           }
-          entry.service->do_create(this);
+          service->do_create(this);
         }
         this->state_ = STARTING_SERVICE;
       }
@@ -130,22 +131,21 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
   if (inst_id == INVALID_INST_ID)
     return nullptr;
   auto *service = new BLEService(uuid, num_handles, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
-  this->register_service_(*service, inst_id, true);
+  service->owned_ = true;
+  this->register_service_(*service, inst_id);
   return service;
 }
 
 bool BLEServer::add_service(BLEService &service) {
   // Adding it twice would free or start it twice
-  for (auto &entry : this->services_) {
-    if (entry.service == &service) {
-      ESP_LOGE(TAG, "Already added");
-      return false;
-    }
+  if (std::ranges::find(this->services_, &service) != this->services_.end()) {
+    ESP_LOGE(TAG, "Already added");
+    return false;
   }
   const uint8_t inst_id = this->free_inst_id_(service.get_uuid());
   if (inst_id == INVALID_INST_ID)
     return false;
-  this->register_service_(service, inst_id, false);
+  this->register_service_(service, inst_id);
   return true;
 }
 
@@ -165,9 +165,10 @@ uint8_t BLEServer::free_inst_id_(const ESPBTUUID &uuid) {
   return INVALID_INST_ID;
 }
 
-void BLEServer::register_service_(BLEService &service, uint8_t inst_id, bool owned) {
+void BLEServer::register_service_(BLEService &service, uint8_t inst_id) {
   service.inst_id_ = inst_id;
-  this->services_.push_back({service.get_uuid(), inst_id, owned, &service});
+  BLEService *ptr = &service;  // an lvalue reuses the push_back already linked for services_to_start_
+  this->services_.push_back(ptr);
   if (this->parent_->is_active() && this->registered_) {
     service.do_create(this);
   }
@@ -180,12 +181,13 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
   ESP_LOGV(TAG, "Removing BLE service - %s %d", uuid_buf, inst_id);
 #endif
   for (auto it = this->services_.begin(); it != this->services_.end(); ++it) {
-    if (it->uuid == uuid && it->inst_id == inst_id) {
-      it->service->do_delete();
+    BLEService *service = *it;
+    if (service->get_inst_id() == inst_id && service->get_uuid() == uuid) {
+      service->do_delete();
       // A service still waiting to start must not stay queued once it is unregistered or freed
-      std::erase(this->services_to_start_, it->service);
-      if (it->owned)
-        delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
+      std::erase(this->services_to_start_, service);
+      if (service->owned_)
+        delete service;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.erase(it);
       return;
     }
@@ -196,9 +198,9 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
 }
 
 BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
-  for (auto &entry : this->services_) {
-    if (entry.uuid == uuid && entry.inst_id == inst_id) {
-      return entry.service;
+  for (auto *service : this->services_) {
+    if (service->get_inst_id() == inst_id && service->get_uuid() == uuid) {
+      return service;
     }
   }
   return nullptr;
@@ -241,14 +243,14 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (auto &entry : this->services_) {
-    entry.service->gatts_event_handler(event, gatts_if, param);
+  for (auto *service : this->services_) {
+    service->gatts_event_handler(event, gatts_if, param);
   }
   // A service this server asked for but removed while the stack was still creating it is deleted once its handle
   // arrives; services of other GATT applications are left alone
   if (event == ESP_GATTS_CREATE_EVT && gatts_if == this->gatts_if_ && param->create.status == ESP_GATT_OK) {
-    for (auto &entry : this->services_) {
-      if (entry.service->get_handle() == param->create.service_handle)
+    for (auto *service : this->services_) {
+      if (service->get_handle() == param->create.service_handle)
         return;
     }
     esp_ble_gatts_delete_service(param->create.service_handle);
@@ -313,8 +315,8 @@ void BLEServer::ble_before_disabled_event_handler() {
   // Delete all clients
   this->client_count_ = 0;
   // Delete all services
-  for (auto &entry : this->services_) {
-    entry.service->do_delete();
+  for (auto *service : this->services_) {
+    service->do_delete();
   }
   this->registered_ = false;
   this->state_ = INIT;
