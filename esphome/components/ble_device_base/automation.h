@@ -1,8 +1,8 @@
-// Platform-neutral BLE advertisement triggers and the shared start_scan action: ESPBTDeviceListener subclasses
+// Platform-neutral BLE advertisement triggers: ESPBTDeviceListener subclasses
 // registered on a BLEHub, exposed by each tracker under its own automation
 // names. parse_device()'s return feeds the "Found device" suppression.
 // Constructors are templated on the hub type so this header also builds with
-// no tracker present (host unit tests).
+// no tracker present (host unit tests). Also holds start_scan(), the body of each tracker's start_scan action.
 
 #pragma once
 
