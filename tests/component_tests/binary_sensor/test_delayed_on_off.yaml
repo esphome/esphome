@@ -18,3 +18,9 @@ binary_sensor:
       - delayed_on_off: !lambda |-
           static uint32_t n = 0;
           return ++n * 100;
+  - platform: template
+    id: delayed_on_constant
+    lambda: return true;
+    filters:
+      - delayed_on: 20ms
+      - delayed_off: 30ms

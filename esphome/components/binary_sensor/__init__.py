@@ -205,15 +205,13 @@ _DELAY_ON_OFF = automation.ApplyCall(
     "return binary_sensor::delay_output(filter, x ? {} : {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
 )
-_DELAYED_ON = automation.ApplyCall(
-    "return x ? binary_sensor::delay_output(filter, {}, true)"
-    " : binary_sensor::cancel_and_pass(filter, false);",
-    _DELAY,
+# delayed_on and delayed_off: the delayed value waits, the other drops the pending output and passes
+_PASS_AT_ONCE = "return binary_sensor::cancel_and_pass(filter, x);"
+_DELAY_ON = automation.ApplyCall(
+    "if (x) return binary_sensor::delay_output(filter, {}, x);", _DELAY
 )
-_DELAYED_OFF = automation.ApplyCall(
-    "return x ? binary_sensor::cancel_and_pass(filter, true)"
-    " : binary_sensor::delay_output(filter, {}, false);",
-    _DELAY,
+_DELAY_OFF = automation.ApplyCall(
+    "if (!x) return binary_sensor::delay_output(filter, {}, x);", _DELAY
 )
 
 
@@ -242,8 +240,8 @@ async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     )
 
 
-APPLY_FILTER.register("delayed_on", _DELAY_SCHEMA, _DELAYED_ON)
-APPLY_FILTER.register("delayed_off", _DELAY_SCHEMA, _DELAYED_OFF)
+APPLY_FILTER.register("delayed_on", _DELAY_SCHEMA, _DELAY_ON, _PASS_AT_ONCE)
+APPLY_FILTER.register("delayed_off", _DELAY_SCHEMA, _DELAY_OFF, _PASS_AT_ONCE)
 
 
 @register_filter(
