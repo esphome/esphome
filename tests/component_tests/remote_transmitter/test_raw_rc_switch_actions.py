@@ -107,7 +107,7 @@ def test_rc_switch_raw(bodies: list[str]) -> None:
     _in_order(
         lambda_,
         # A lambda naming no argument is reduced to its expression
-        'const std::string esphome__code = (std::string("0010100110"));',
+        'const std::string esphome__code = static_cast<std::string>(std::string("0010100110"));',
         "remote_base::rc_switch_protocol(1).transmit(esphome__call.get_data(), "
         "remote_base::decode_binary_string(esphome__code), esphome__code.size());",
         "esphome__call.set_send_times(2);",
@@ -140,7 +140,7 @@ def test_rc_switch_type_a(bodies: list[str]) -> None:
     _in_order(
         bodies[8],
         "const auto esphome__group = remote_base::decode_binary_string("
-        '(std::string("11001")));',
+        'static_cast<std::string>(std::string("11001")));',
         "const auto esphome__device = remote_base::decode_binary_string(",
         "const auto esphome__state = static_cast<bool>(false);",
         "remote_base::RCSwitchBase::type_a_code(esphome__group, esphome__device, "
@@ -163,9 +163,9 @@ def test_rc_switch_type_c(bodies: list[str]) -> None:
     ) in bodies[10]
     _in_order(
         bodies[11],
-        # A bare expression is parenthesized before it is indexed
+        # A bare expression is cast to the lambda's type, so it binds as an operand
         "const auto esphome__family = static_cast<uint8_t>(tolower("
-        "(std::string(\"C\"))[0]) - 'a');",
+        "static_cast<std::string>(std::string(\"C\"))[0]) - 'a');",
         "const auto esphome__group = static_cast<uint8_t>(1);",
         "const auto esphome__device = static_cast<uint8_t>(2);",
         "const auto esphome__state = static_cast<bool>(true);",
@@ -181,7 +181,7 @@ def test_rc_switch_type_d(bodies: list[str]) -> None:
     ) in bodies[12]
     assert (
         "const auto esphome__group = static_cast<uint8_t>(tolower("
-        "(std::string(\"b\"))[0]) - 'a');"
+        "static_cast<std::string>(std::string(\"b\"))[0]) - 'a');"
     ) in bodies[13]
 
 

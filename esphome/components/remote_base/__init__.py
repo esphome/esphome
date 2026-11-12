@@ -64,7 +64,7 @@ from esphome.core import (
     coroutine,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, StaticCastExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
@@ -475,8 +475,10 @@ async def _transmit_value(
     """Argument text for one templatable transmit value."""
     if isinstance(value, Lambda):
         expr = await automation.call_user_lambda(value, args, type_)
-        # Used as an operand (.transmit, [0])
-        return f"({expr})" if isinstance(expr, cg.RawExpression) else str(expr)
+        if isinstance(expr, cg.RawExpression):
+            # Used as an operand (.transmit, [0]): the cast binds as a whole and converts like the lambda's return
+            expr = StaticCastExpression(type_, expr)
+        return str(expr)
     return str(const_fn(value))
 
 
