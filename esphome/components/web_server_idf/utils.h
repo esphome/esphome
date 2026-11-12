@@ -2,6 +2,7 @@
 #ifdef USE_ESP32
 
 #include <esp_http_server.h>
+#include <span>
 #include <string>
 #include "esphome/core/helpers.h"
 
@@ -13,6 +14,9 @@ size_t url_decode(char *str);
 
 bool request_has_header(httpd_req_t *req, const char *name);
 optional<std::string> request_get_header(httpd_req_t *req, const char *name);
+/// Copy a header value into buf, nul-terminated, without heap allocation.
+/// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+size_t request_get_header_to(httpd_req_t *req, const char *name, std::span<char> buf);
 optional<std::string> query_key_value(const char *query_url, size_t query_len, const char *key);
 bool query_has_key(const char *query_url, size_t query_len, const char *key);
 

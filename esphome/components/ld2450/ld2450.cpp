@@ -84,9 +84,7 @@ static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t)
 
 static inline void convert_int_values_to_hex(const int *values, uint8_t *bytes) {
   for (uint8_t i = 0; i < 4; i++) {
-    uint16_t val = values[i] & 0xFFFF;
-    bytes[i * 2] = val & 0xFF;             // Store low byte first (little-endian)
-    bytes[i * 2 + 1] = (val >> 8) & 0xFF;  // Store high byte second
+    put_le16(bytes + i * 2, values[i]);
   }
 }
 
@@ -437,7 +435,7 @@ void LD2450Component::send_set_zone_command_() {
   this->set_config_mode_(false);
 }
 
-// Check presense timeout to reset presence status
+// Check presence timeout to reset presence status
 bool LD2450Component::get_timeout_status_(uint32_t check_millis) {
   if (check_millis == 0) {
     return true;

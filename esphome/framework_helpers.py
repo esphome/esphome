@@ -9,11 +9,15 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from typing import IO, TYPE_CHECKING
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
@@ -1082,6 +1086,36 @@ def wait_for_download_lock(
             raise Timeout(lock.lock_file)
 
 
+@contextmanager
+def install_lock(root: Path, name: str) -> Iterator[None]:
+    """Serialize a shared install step across builds running at once."""
+    from filelock import FileLock, Timeout
+
+    lock_path = root / f"{name}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # No soft lock: its marker outlives a killed build and hangs every later one
+    lock = FileLock(str(lock_path), fallback_to_soft=False)
+    waiting = False
+    while True:
+        try:
+            # Reuse constant: same timing need, so Ctrl-C stays responsive
+            lock.acquire(timeout=_DOWNLOAD_LOCK_POLL)
+            break
+        except Timeout:  # before OSError, which it subclasses
+            if not waiting:
+                waiting = True
+                _LOGGER.info("Waiting for another build installing %s ...", name)
+        except OSError as err:
+            _LOGGER.warning(
+                "Can't lock %s (%s), continuing without a lock", lock_path, err
+            )
+            break
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 def discard_partial_download(dest: Path) -> None:
     """Remove ``dest`` and the resume sidecars of an abandoned download."""
     part = _part_path(dest)
@@ -1323,6 +1357,68 @@ def failure_reason(e: BaseException) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
+def local_path_from_url(url: str) -> Path:
+    """The filesystem path a ``file://`` URL names.
+
+    Handles ``file:///home/me/x`` and ``file:///C:/x`` (no host), ``file://localhost/x``
+    and ``file://server/share/x`` (a UNC path).
+    """
+    from esphome.core import EsphomeError
+
+    try:
+        parsed = urlparse(url)
+    except ValueError as e:
+        raise EsphomeError(f"invalid file URL {url}: {e}") from e
+    path = url2pathname(parsed.path)
+    if parsed.netloc and parsed.netloc.lower() != "localhost":
+        path = f"//{parsed.netloc}{path}"
+    result = Path(path)
+    # A relative URL would resolve against the current directory
+    if not result.is_absolute():
+        raise EsphomeError(f"not an absolute path: {url}")
+    return result
+
+
+def _copy_local_mirror(
+    url: str, path_target: Path, progress: Callable[[int], None] | None
+) -> None:
+    """Satisfy a ``file://`` mirror by copying the archive to ``path_target``.
+
+    The copy keeps the contract that the target holds the archive after a
+    successful "download", so ``download_and_extract`` can delete it after
+    extracting without touching the user's own file.
+    """
+    from esphome.core import EsphomeError
+
+    source = local_path_from_url(url)
+    if not source.is_file() or not os.access(source, os.R_OK):
+        raise EsphomeError(f"not a readable file: {source}")
+    path_target.parent.mkdir(parents=True, exist_ok=True)
+    # An archive already at the target sits in the download cache, which is
+    # consumed by the install anyway, so it is used in place.
+    if not (path_target.is_file() and source.samefile(path_target)):
+        # An exclusively created staging file: an interrupted copy never
+        # leaves a truncated archive at the target, no mirror path can name
+        # it, and the .part file the HTTP download resumes from is untouched.
+        fd, name = tempfile.mkstemp(
+            dir=path_target.parent, prefix=path_target.name + ".", suffix=".copy"
+        )
+        os.close(fd)
+        staged = Path(name)
+        try:
+            shutil.copyfile(source, staged)
+            rename_with_retry(staged, path_target, overwrite=True)
+        except BaseException:
+            # Best-effort: a failed cleanup must not replace the copy error
+            try:
+                staged.unlink(missing_ok=True)
+            except OSError as err:
+                _LOGGER.debug("Could not remove %s: %s", staged, err)
+            raise
+    if progress is not None:
+        progress(path_target.stat().st_size)
+
+
 def _try_mirrors_once(
     urls: list[str],
     path_target: Path,
@@ -1343,6 +1439,23 @@ def _try_mirrors_once(
 
     for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
+
+        # A file:// mirror is an archive already on disk (an offline or
+        # firewalled install); a missing or unreadable file falls to the
+        # next mirror like any other failure.
+        if url.lower().startswith("file:"):
+            try:
+                _copy_local_mirror(url, path_target, progress)
+                return url
+            except (OSError, EsphomeError) as e:
+                # A warning, not debug: a local mirror is deliberate setup
+                # for an offline install, and a later network mirror
+                # succeeding would otherwise hide the broken path.
+                _LOGGER.warning(
+                    "Local mirror %s is unusable: %s", url, failure_reason(e)
+                )
+                failures.append((url, e))
+            continue
 
         # Delegate to download_with_resume so a partial download persists
         # (and resumes) across esphome runs.

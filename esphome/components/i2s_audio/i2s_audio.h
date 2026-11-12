@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include <esp_idf_version.h>
 #include <driver/i2s_std.h>
+#include <soc/soc_caps.h>
 
 namespace esphome::i2s_audio {
 
@@ -24,7 +25,7 @@ class I2SAudioBase : public Parented<I2SAudioComponent> {
 
  protected:
   i2s_clock_src_t get_clock_source_() const {
-#ifdef I2S_CLK_SRC_APLL
+#if SOC_CLK_APLL_SUPPORTED
     if (this->use_apll_) {
       return I2S_CLK_SRC_APLL;
     }

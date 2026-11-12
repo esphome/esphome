@@ -14,7 +14,7 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import SESSION, PacketInterface, packet_interface_ns
+from . import SESSION, Layer, PacketInterface, PacketSize, packet_interface_ns
 
 BasicSession = packet_interface_ns.class_("BasicSession", PacketInterface)
 
@@ -58,7 +58,9 @@ BASIC_SESSION_SCHEMA = cv.All(
     schema=BASIC_SESSION_SCHEMA,
     auto_load=lambda config: ["binary_sensor"] if CONF_BINARY_SENSOR in config else [],
 )
-async def build_basic_session(config: ConfigType, lower: MockObj) -> MockObj:
+async def build_basic_session(
+    config: ConfigType, lower: MockObj, lower_size: PacketSize
+) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_BASIC_SESSION")
     var = cg.new_Pvariable(config[CONF_ID], lower)
     cg.add(var.set_keep_alive(config[CONF_KEEP_ALIVE]))
@@ -66,4 +68,4 @@ async def build_basic_session(config: ConfigType, lower: MockObj) -> MockObj:
     await cg.register_component(var, config)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_BINARY_SENSOR, var.set_connected_binary_sensor)
-    return var
+    return var, BasicSession.static_("packet_size")(lower_size)

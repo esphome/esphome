@@ -337,14 +337,14 @@ void PacketTransport::update() {
   }
   uint32_t now = millis();
   uint32_t ping_request_age = now - this->last_key_time_;
-  if (ping_request_age > this->ping_pong_recyle_time_ * 1000u) {
+  if (ping_request_age > this->ping_pong_recycle_time_ * 1000u) {
     this->resend_ping_key_ = this->ping_pong_enable_;
     ESP_LOGV(TAG, "Ping request, age %" PRIu32, ping_request_age);
     this->last_key_time_ = now;
   }
   for (const auto &provider : this->providers_) {
     uint32_t key_response_age = now - provider.second.last_key_response_time;
-    if (key_response_age > (this->ping_pong_recyle_time_ * 2000u)) {
+    if (key_response_age > (this->ping_pong_recycle_time_ * 2000u)) {
 #ifdef USE_STATUS_SENSOR
       if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
         ESP_LOGI(TAG, "Ping status for %s timeout at %" PRIu32 " with age %" PRIu32, provider.first.c_str(), now,

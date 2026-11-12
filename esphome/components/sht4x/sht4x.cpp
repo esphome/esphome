@@ -1,5 +1,6 @@
 #include "sht4x.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sht4x {
@@ -18,21 +19,26 @@ static constexpr float RAW_MAX = 65535.0f;
 
 void SHT4XComponent::read_serial_number_() {
   uint16_t buffer[2];
-  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 1)) {
+  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 10)) {
     ESP_LOGE(TAG, "Get serial number failed");
     this->serial_number_ = 0;
     return;
   }
   this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
   ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
+#ifdef USE_TEXT_SENSOR
+  if (this->serial_number_text_sensor_ != nullptr) {
+    char serial_number[format_hex_size(sizeof(this->serial_number_))];
+    format_hex_to(serial_number, this->serial_number_);
+    this->serial_number_text_sensor_->publish_state(serial_number);
+  }
+#endif
 }
 
 void SHT4XComponent::setup() {
   auto err = this->write(nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
 
   this->read_serial_number_();
 
@@ -41,23 +47,11 @@ void SHT4XComponent::setup() {
     ESP_LOGD(TAG, "Heater interval: %" PRIu32, this->heater_interval_);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
-      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-        this->heater_command_ = 0x39;
-      } else {
-        this->heater_command_ = 0x32;
-      }
+      this->heater_command_ = this->heater_time_ == SHT4X_HEATERTIME_LONG ? 0x39 : 0x32;
     } else if (this->heater_power_ == SHT4X_HEATERPOWER_MED) {
-      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-        this->heater_command_ = 0x2F;
-      } else {
-        this->heater_command_ = 0x24;
-      }
+      this->heater_command_ = this->heater_time_ == SHT4X_HEATERTIME_LONG ? 0x2F : 0x24;
     } else {
-      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-        this->heater_command_ = 0x1E;
-      } else {
-        this->heater_command_ = 0x15;
-      }
+      this->heater_command_ = this->heater_time_ == SHT4X_HEATERTIME_LONG ? 0x1E : 0x15;
     }
     ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
   }

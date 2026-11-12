@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.11.0-dev"
+__version__ = "2026.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -21,6 +21,7 @@ class Toolchain(StrEnum):
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
     SDK_NRF = "sdk-nrf"
+    ZEPHYR = "zephyr"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
     # host: the system C/C++ compiler driven by ninja (no PlatformIO)

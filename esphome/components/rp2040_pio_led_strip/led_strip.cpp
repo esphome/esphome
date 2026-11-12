@@ -19,7 +19,7 @@ ESPHOME_LOG_TAG(TAG, "rp2040_pio_led_strip");
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
   uint32_t channel = dma_hw->ints0;
-  for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
+  for (uint dma_chan = 0; dma_chan < NUM_DMA_CHANNELS; ++dma_chan) {
     if (RP2040PIOLEDStripLightOutput::dma_chan_active[dma_chan] && (channel & (1u << dma_chan))) {
       dma_hw->ints0 = (1u << dma_chan);                                              // Clear the interrupt
       sem_release(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[dma_chan]);  // Handle the interrupt
@@ -28,56 +28,53 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  RAMAllocator<uint8_t> allocator;
-  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
-    return;
-  }
-
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
-  if (this->pio_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to claim PIO instance"));
+  if (!this->setup_check(this->pio_ != nullptr, LOG_STR("Failed to claim PIO instance")))
     return;
-  }
 
-  // if there are multiple strips, we can reuse the same PIO program and save space
-  // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
+  // There are only 4 state machines on each PIO, so at most 4 strips per PIO
+  auto &loaded = RP2040PIOLEDStripLightOutput::loaded_programs[pio_get_index(this->pio_)];
+  if (!this->setup_check(loaded.strips < NUM_PIO_STATE_MACHINES, LOG_STR("Too many instances of PIO program")))
+    return;
+
+  // Strips with the same program on the same PIO share one copy of it in instruction memory
   uint offset = 0;
-
-  if (RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1] >= 4) {
-    this->mark_failed(LOG_STR("Too many instances of PIO program"));
-    return;
+  for (uint8_t i = 0; i < NUM_PIO_STATE_MACHINES; i++) {
+    if (loaded.program[i] == nullptr) {
+      // The SDK panics when instruction memory is full
+      if (!this->setup_check(pio_can_add_program(this->pio_, this->program_),
+                             LOG_STR("No PIO instruction memory left")))
+        return;
+      offset = pio_add_program(this->pio_, this->program_);
+      loaded.program[i] = this->program_;
+      loaded.offset[i] = offset;
+      break;
+    }
+    if (loaded.program[i] == this->program_) {
+      offset = loaded.offset[i];
+      break;
+    }
   }
-  // keep track of how many instances of the PIO program are running on each PIO
-  RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1]++;
-
-  // if there are multiple strips of the same chipset, we can reuse the same PIO program and save space
-  if (RP2040PIOLEDStripLightOutput::conf_count[this->chipset_]) {
-    offset = RP2040PIOLEDStripLightOutput::chipset_offsets[this->chipset_];
-  } else {
-    // Load the assembled program into the PIO and get its location in the PIO's instruction memory and save it
-    offset = pio_add_program(this->pio_, this->program_);
-    RP2040PIOLEDStripLightOutput::chipset_offsets[this->chipset_] = offset;
-    RP2040PIOLEDStripLightOutput::conf_count[this->chipset_] = true;
-  }
+  loaded.strips++;
 
   // Configure the state machine's PIO, and start it
-  this->sm_ = pio_claim_unused_sm(this->pio_, true);
-  if (this->sm_ < 0) {
-    // in theory this code should never be reached
+  int sm = pio_claim_unused_sm(this->pio_, false);
+  if (sm < 0) {
     this->mark_failed(LOG_STR("Failed to claim PIO state machine"));
     return;
   }
+  this->sm_ = sm;
 
-  // Initalize the DMA channel (Note: There are 12 DMA channels and 8 state machines so we won't run out)
-
-  this->dma_chan_ = dma_claim_unused_channel(true);
-  if (this->dma_chan_ < 0) {
+  // Other code may already hold every DMA channel
+  int dma_chan = dma_claim_unused_channel(false);
+  if (dma_chan < 0) {
+    pio_sm_unclaim(this->pio_, this->sm_);
     this->mark_failed(LOG_STR("Failed to claim DMA channel"));
     return;
   }
+  this->dma_chan_ = dma_chan;
 
   // Mark the DMA channel as active
   RP2040PIOLEDStripLightOutput::dma_chan_active[this->dma_chan_] = true;
@@ -115,11 +112,6 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Light is in failed state, not writing state.");
-    return;
-  }
-
-  if (this->internal_accessor_.color_data == nullptr) {
-    ESP_LOGW(TAG, "Buffer is null, not writing state.");
     return;
   }
 
