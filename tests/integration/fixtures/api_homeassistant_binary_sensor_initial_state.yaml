@@ -6,8 +6,8 @@ host:
 api:
 
 logger:
-  # VERY_VERBOSE so the 'No value (unavailable)' line the sensor logs at V is visible
-  level: VERY_VERBOSE
+  # VERBOSE so the 'No value (unavailable)' line the sensor logs at V is visible
+  level: VERBOSE
 
 binary_sensor:
   # trigger_on_initial_state: true must fire on_press for the first state from HA
