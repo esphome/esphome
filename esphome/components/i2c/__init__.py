@@ -27,6 +27,8 @@ from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_s31 import esp32_s31_validate_lp_i2c
+from esphome.components.nrf52.const import VARIANT_I2C_BY_PORT
+from esphome.components.nrf52.framework import get_nrf52_variant
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -159,6 +161,15 @@ def validate_config(config: ConfigType) -> ConfigType:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
+    if CORE.is_nrf52 and (by_port := VARIANT_I2C_BY_PORT.get(get_nrf52_variant())):
+        sda_port = config[CONF_SDA] // 32
+        if config[CONF_SCL] // 32 != sda_port:
+            raise cv.Invalid("SDA and SCL must be on the same GPIO port", [CONF_SCL])
+        if sda_port not in by_port:
+            ports = ", ".join(f"P{port}" for port in by_port)
+            raise cv.Invalid(
+                f"{get_nrf52_variant()} has I2C only on the pins of {ports}", [CONF_SDA]
+            )
     if CORE.is_rp2:
         sda_controller = _rp2040_i2c_controller(config[CONF_SDA])
         scl_controller = _rp2040_i2c_controller(config[CONF_SCL])
@@ -265,6 +276,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _zephyr_i2c_node(config: ConfigType) -> str:
+    """Devicetree label of the I2C instance that drives the bus."""
+    if CORE.is_nrf52 and (by_port := VARIANT_I2C_BY_PORT.get(get_nrf52_variant())):
+        return by_port[config[CONF_SDA] // 32]
+    if zephyr_data()[KEY_BOARD] == "xiao_ble":
+        return "i2c1"
+    return "i2c0"
+
+
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()[DOMAIN]
     if CORE.using_zephyr and len(full_config) > 1:
@@ -337,9 +357,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_scan(config[CONF_SCAN]))
     elif CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
-        i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] == "xiao_ble":
-            i2c = "i2c1"
+        i2c = _zephyr_i2c_node(config)
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
@@ -359,6 +377,18 @@ async def to_code(config: ConfigType) -> None:
                 }};
             """
         )
+        if CORE.is_nrf52 and get_nrf52_variant() in VARIANT_I2C_BY_PORT:
+            # The nRF54L boards leave these instances disabled and without pins
+            zephyr_add_overlay(
+                f"""
+                    &{i2c} {{
+                        status = "okay";
+                        pinctrl-0 = <&{i2c}_default>;
+                        pinctrl-1 = <&{i2c}_sleep>;
+                        pinctrl-names = "default", "sleep";
+                    }};
+                """
+            )
         var = cg.new_Pvariable(
             config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")
         )

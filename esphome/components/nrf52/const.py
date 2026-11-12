@@ -23,6 +23,13 @@ VARIANT_PORT_PINS = {
 
 # Devicetree label of the console UART, which the logger calls UART0
 VARIANT_CONSOLE_UART = {VARIANT_NRF54L15: "uart20", VARIANT_NRF54LM20: "uart20"}
+# Devicetree label of the I2C (TWIM) instance for each GPIO port. A TWIM uses the pins of its own power
+# domain: P0 is in the low power domain (instance 30), P1 and P3 in the peripheral domain (instances 2x,
+# of which 20 holds the console UART); P2 has no TWIM
+VARIANT_I2C_BY_PORT = {
+    VARIANT_NRF54L15: {0: "i2c30", 1: "i2c22"},
+    VARIANT_NRF54LM20: {0: "i2c30", 1: "i2c22", 3: "i2c22"},
+}
 VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF52832, VARIANT_NRF54L15})
 # Devicetree label of the main regulator, reg1 on the others
 VARIANT_REGULATOR = {VARIANT_NRF52832: "reg"}
