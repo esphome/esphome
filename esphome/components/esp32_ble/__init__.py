@@ -598,6 +598,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
         _wrap_bluedroid_symbols("gatt_client_handle_server_rsp")
 
+    # Every ESP-IDF drops the status of a failed GATT discovery (see bluedroid_gattc_discovery.cpp)
+    if "esp32_ble_client" in CORE.config:
+        cg.add_define("USE_ESP32_BLE_GATTC_DISCOVERY_STATUS")
+        _wrap_bluedroid_symbols("bta_gattc_disc_cmpl_cback")
+
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
     # instead of large static DRAM arrays. This frees ~40 kB of internal RAM.
@@ -679,5 +684,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
         "bluedroid_bond_keys.c": "USE_ESP32_BLE_BLUEDROID_BOND_KEYS",
         "bluedroid_gattc_order.cpp": "USE_ESP32_BLE_GATTC_HANDLE_ORDER",
+        "bluedroid_gattc_discovery.cpp": "USE_ESP32_BLE_GATTC_DISCOVERY_STATUS",
     }
 )
