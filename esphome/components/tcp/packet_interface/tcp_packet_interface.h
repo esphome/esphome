@@ -40,6 +40,11 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   void on_shutdown() override;
   bool send_to_interface(const packet_interface::PacketBuffer &data,
                          const packet_interface::PacketMetaData &meta_data) override;
+  /**
+   * Unlimited while the socket takes what is sent. Once frames wait for it, how many more full frames fit, so a
+   * fragmented packet is not started when it would be cut short.
+   */
+  size_t get_send_capacity() const override;
 
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
@@ -63,6 +68,7 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   void on_connection_(bool connected);
   void read_();
   bool queue_frame_(const packet_interface::PacketBuffer *data, size_t size);
+  void flush_();
 
   socket::TcpClientLink link_;
 #ifdef USE_SOCKET_TCP_LISTENER
@@ -80,9 +86,10 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   // Bytes of the current frame received so far, counting the 2 byte length
   uint16_t rx_have_{0};
   uint8_t rx_header_[2]{};
-  bool connected_{false};
+  bool connected_ : 1 {false};
+  bool tx_waiting_ : 1 {false};  // frames are queued that the socket has not taken yet
 #ifdef USE_SOCKET_TCP_LISTENER
-  bool server_{false};
+  bool server_ : 1 {false};
 #endif
 };
 

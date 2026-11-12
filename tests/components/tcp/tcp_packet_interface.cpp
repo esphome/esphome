@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <csignal>
+#include <cstddef>
+#include <fcntl.h>
 #include <cstdint>
 #include <memory>
 #include <netinet/in.h>
@@ -217,6 +219,49 @@ TEST_F(TcpPacketInterfaceTest, FrameAssembledAcrossReads) {
   c.link.loop();
   EXPECT_EQ(c.received, (std::vector<Packet>{{0xAA, 0xBB, 0xCC}}));
   EXPECT_TRUE(c.link.is_connected());
+  ::close(fds[1]);
+}
+
+// A peer that sends without a pause is read a few frames at a time, so other components still run
+TEST_F(TcpPacketInterfaceTest, FramesReadPerLoopAreLimited) {
+  End c;
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  c.link.link().adopt(std::make_unique<socket::Socket>(fds[0]));
+  c.link.loop();
+  const uint8_t frame[3] = {0x01, 0x00, 0x42};
+  for (int i = 0; i != 10; i++)
+    ASSERT_EQ(::write(fds[1], frame, sizeof(frame)), 3);
+  c.link.loop();
+  EXPECT_EQ(c.received.size(), 8u);
+  c.link.loop();
+  EXPECT_EQ(c.received.size(), 10u);
+  ::close(fds[1]);
+}
+
+// Once frames wait for a peer that is not reading, the capacity reported is what still fits, so a fragmented packet
+// is not started only to be cut short
+TEST_F(TcpPacketInterfaceTest, CapacityFollowsBacklog) {
+  End c;
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  c.link.link().adopt(std::make_unique<socket::Socket>(fds[0]));
+  c.link.loop();
+  EXPECT_EQ(c.link.get_send_capacity(), SIZE_MAX);
+  const Packet packet(c.link.get_max_packet_size(), 0x55);
+  for (int i = 0; i != 100000 && c.link.get_send_capacity() == SIZE_MAX; i++)
+    c.send(packet);
+  ASSERT_NE(c.link.get_send_capacity(), SIZE_MAX);
+  EXPECT_LT(c.link.get_send_capacity(), 1024 / (packet.size() + 2) + 1);
+  // Once the peer reads everything, the link takes what is sent again
+  ASSERT_EQ(fcntl(fds[1], F_SETFL, O_NONBLOCK), 0);
+  uint8_t sink[4096];
+  for (int i = 0; i != 1000 && c.link.get_send_capacity() != SIZE_MAX; i++) {
+    while (::read(fds[1], sink, sizeof(sink)) > 0) {
+    }
+    c.link.loop();
+  }
+  EXPECT_EQ(c.link.get_send_capacity(), SIZE_MAX);
   ::close(fds[1]);
 }
 
