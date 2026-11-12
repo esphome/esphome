@@ -26,7 +26,7 @@ class BLEDescriptor {
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t permissions);
   virtual ~BLEDescriptor();
-  void do_create(BLECharacteristic *characteristic);
+  void do_create();
   ESPBTUUID get_uuid() const { return this->uuid_; }
 
   void set_value(const uint8_t *data, size_t length);

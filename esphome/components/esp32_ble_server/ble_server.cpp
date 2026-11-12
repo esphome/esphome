@@ -135,10 +135,10 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
 }
 
 bool BLEServer::add_service(BLEService &service) {
-  // There is one server, so a service in its list is registered; adding it twice would free or start it twice
+  // Adding it twice would free or start it twice
   for (auto &entry : this->services_) {
     if (entry.service == &service) {
-      ESP_LOGE(TAG, "BLE service already added");
+      ESP_LOGE(TAG, "Already added");
       return false;
     }
   }
