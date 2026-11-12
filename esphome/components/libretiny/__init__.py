@@ -57,6 +57,7 @@ from .const import (
     LibreTinyComponent,
     LTComponent,
 )
+from .gpio import _lookup_board_pins
 
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
@@ -176,6 +177,11 @@ def get_libretiny_component(core_obj=None):
 
 def get_libretiny_family(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
+
+
+def get_board_pins() -> dict[str, int]:
+    """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
+    return _lookup_board_pins(CORE.data[KEY_LIBRETINY][KEY_BOARD])
 
 
 def only_on_family(*, supported=None, unsupported=None):
