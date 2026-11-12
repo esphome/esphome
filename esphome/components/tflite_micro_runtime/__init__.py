@@ -8,7 +8,6 @@ metadata parsing live in the tflite_model_source component.
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-import re
 import zlib
 
 import esphome.codegen as cg
@@ -17,13 +16,13 @@ from esphome.components.tflite_model_source import (
     infer_model_config_from_filename,
     parse_audio_txt_file,
     parse_model_txt_file,
-    read_report,
     resolve_model_source,
 )
 from esphome.components.tflite_op_processor import (
     emit_all_ops,
     emit_selective_op_defines,
 )
+from esphome.components.tflite_op_processor.model_reader import estimate_tensor_arena
 from esphome.components.tflite_op_processor.op_manifest import (
     extract_model_ops,
     parse_op_table,
@@ -63,15 +62,6 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@nliaudat"]
 
 DOMAIN = "tflite_micro_runtime"
-
-# Operator slots kept when no .txt report says how many the model needs.
-_MAX_OPERATORS_FLOOR = 30
-
-# Headroom over the counted operators, covering a slot per operator version.
-_MAX_OPERATORS_MARGIN = 5
-
-# "Total operations: N" in a model's .txt report.
-_TOTAL_OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
 
 # The build-wide resolver size, in operator slots.
 _MAX_OPERATORS_DEFINE = "TFLITE_MICRO_MAX_OPERATORS"
@@ -121,8 +111,7 @@ async def to_code(config: ConfigType) -> None:
     model_path, model_data = resolve_model_source(config)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    rhs = [HexInt(x) for x in model_data]
-    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+    prog_arr = _emit_model_buffer(config, model_data)
     cg.add(var.set_model(prog_arr, len(model_data)))
     # Per-instance CRC32 - MULTI_CONF safe, each helper carries its own checksum.
     cg.add(var.set_expected_crc32(zlib.crc32(model_data) & 0xFFFFFFFF))
@@ -150,22 +139,26 @@ def _model_filename(model_path: Path) -> str:
     return Path(str(model_path).replace("\\", "/")).name
 
 
+def _emit_model_buffer(config: ConfigType, model_data: bytes) -> cg.MockObj:
+    """Emit the model as a PROGMEM array and return a reference to it."""
+    # TFLM reads the model through a flatbuffer cast, so the buffer's address must
+    # be aligned like one; a PROGMEM array is otherwise aligned to a single byte.
+    return cg.progmem_array(
+        config[CONF_RAW_DATA_ID], [HexInt(x) for x in model_data], align=16
+    )
+
+
 def _validate_model_operators(model_path: Path) -> None:
     """Reject a model whose operators the pinned TFLM cannot register.
 
-    A missing or operator-less report cannot be checked here; the device-side check
-    covers it at load time. A report that cannot be read is a config error.
+    The model file always lists its operator codes, so an unreadable model is a
+    configuration error here rather than something the device finds out at load
+    time.
     """
     try:
         model_ops = extract_model_ops(model_path)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
-    if not model_ops:
-        _LOGGER.info(
-            "No usable operator report for model '%s'; the operator check runs on the device",
-            _model_filename(model_path),
-        )
-        return
     supported_ops = parse_op_table().supported
     if unsupported_ops := sorted(model_ops - supported_ops):
         raise cv.Invalid(
@@ -255,80 +248,33 @@ def _emit_max_operators(value: int) -> None:
     cg.add_define(_MAX_OPERATORS_DEFINE, value)
 
 
+def _configured_model_ops() -> list[set[str]]:
+    """The operators each configured model needs, empty outside a config run."""
+    if CORE.config is None:
+        return []
+    return [
+        extract_model_ops(resolve_model_source(entry)[0])
+        for entry in CORE.config.get(DOMAIN, [])
+    ]
+
+
 def _add_operator_defines() -> None:
     """Emit the operator defines once for the whole build."""
     data = _runtime_data()
     if data.operator_defines_emitted:
         return
     data.operator_defines_emitted = True
-    _emit_max_operators(_compute_max_operators())
-    if (ops := _selective_op_defines()) is None:
-        # A model's operator set is unknown, so the whole table must win.
+    model_ops = _configured_model_ops()
+    if not model_ops:
+        # Without a configured model neither the resolver size nor the kernels can
+        # be narrowed, so the whole table has to win.
         emit_all_ops()
         return
+    # One resolver slot per distinct operator code, so the model with the most
+    # operators sizes the resolver and the union decides which kernels are built.
+    _emit_max_operators(max(len(ops) for ops in model_ops))
     # tflite_op_processor owns the flags, so the selective build goes through it.
-    emit_selective_op_defines(sorted(ops))
-
-
-def _selective_op_defines() -> set[str] | None:
-    """Return the operators the configured models need, or None to keep every kernel."""
-    if CORE.config is None:
-        return None
-    ops: set[str] = set()
-    for entry in CORE.config.get(DOMAIN, []):
-        model_ops = extract_model_ops(resolve_model_source(entry)[0])
-        if not model_ops:
-            _LOGGER.info(
-                "A configured model has no usable operator report, so every operator is compiled in"
-            )
-            return None
-        ops |= model_ops
-    if not ops:
-        return None
-    return ops
-
-
-def _compute_max_operators() -> int:
-    """Compute the single TFLITE_MICRO_MAX_OPERATORS value for the entire build.
-
-    Defines are process-global, so every to_code() invocation must compute the same
-    max across every configured model. Both readings of a report count: its operator
-    list and its "Total operations" line; the larger one wins.
-    """
-    if CORE.config is None:
-        return _MAX_OPERATORS_FLOOR
-    max_ops = 0
-    for entry in CORE.config.get(DOMAIN, []):
-        model_path, _ = resolve_model_source(entry)
-        model_ops = extract_model_ops(model_path)
-        if model_ops:
-            max_ops = max(max_ops, len(model_ops) + _MAX_OPERATORS_MARGIN)
-        txt_path = Path(model_path).with_suffix(".txt")
-        if not txt_path.exists():
-            _LOGGER.info(
-                "No operator report for model '%s'; keeping %d operator slots",
-                _model_filename(model_path),
-                _MAX_OPERATORS_FLOOR,
-            )
-            continue
-        txt_content = read_report(txt_path)
-        if ops_match := _TOTAL_OPERATIONS_RE.search(txt_content):
-            max_ops = max(max_ops, int(ops_match.group(1)) + _MAX_OPERATORS_MARGIN)
-        elif model_ops:
-            _LOGGER.warning(
-                "Operator report '%s' has no 'Total operations' line; sizing the "
-                "resolver from its %d listed operator types",
-                txt_path.name,
-                len(model_ops),
-            )
-        else:
-            _LOGGER.warning(
-                "Operator report '%s' has no 'Total operations' line; keeping %d "
-                "operator slots",
-                txt_path.name,
-                _MAX_OPERATORS_FLOOR,
-            )
-    return max(_MAX_OPERATORS_FLOOR, max_ops)
+    emit_selective_op_defines(sorted(set().union(*model_ops)))
 
 
 # Keys a .txt report supplies under the same name as the YAML option.
@@ -414,6 +360,19 @@ async def _configure_image_model(
     cg.add(var.set_invert(auto_config.get(CONF_INVERT, False)))
     if (arena_size := auto_config.get(CONF_TENSOR_ARENA_SIZE)) is not None:
         cg.add(var.set_tensor_arena_size(arena_size))
+    else:
+        # Only a seed: the device measures the size the model actually needs and
+        # allocates that, so a close estimate keeps the probe's first attempt small.
+        estimate = estimate_tensor_arena(model_path)
+        _LOGGER.info(
+            "Estimated tensor arena for '%s': %d bytes (%d peak activation bytes "
+            "over %d tensors)",
+            _model_filename(model_path),
+            estimate.bytes,
+            estimate.peak_activation_bytes,
+            estimate.tensor_count,
+        )
+        cg.add(var.set_tensor_arena_size(estimate.bytes))
 
 
 async def _configure_audio_model(
@@ -428,6 +387,8 @@ async def _configure_audio_model(
         )
         report = {}
     _merge_report_values(report, entry, _AUDIO_REPORT_KEYS)
+    # No estimate here: a streaming model's arena belongs to the consumer, which
+    # sizes it from its own manifest, so the runtime's value is only reported.
     if (arena_size := report.get(CONF_TENSOR_ARENA_SIZE)) is not None:
         cg.add(var.set_tensor_arena_size(arena_size))
     if (cutoff := report.get(CONF_PROBABILITY_CUTOFF)) is not None:

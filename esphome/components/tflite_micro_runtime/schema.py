@@ -101,7 +101,7 @@ PER_MODEL_SCHEMA = cv.Schema(
 )
 
 # Values a model's .txt report may supply, validated like the YAML options. Unknown
-# keys are kept: the operator count of an image report is used elsewhere in the build.
+# keys are kept, so a report written by a newer generator is not dropped whole.
 IMAGE_REPORT_VALUES_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_INPUT_TYPE): cv.enum(INPUT_TYPE_NAMES, lower=True),

@@ -1,7 +1,7 @@
-# The audio model in common.yaml has no .txt report upstream, so the runtime
-# keeps the full operator table for that build. This variant uses the image model
-# alone, whose report lists its operators, so codegen emits the selective
-# TFLM_OP_ENABLED_* defines and tflite_op_processor compiles in only those kernels.
+# common.yaml configures an audio and an image model, so the selective build must
+# carry the kernels of both. This variant uses the image model alone, so codegen
+# emits the selective TFLM_OP_ENABLED_* defines for that model's operators only and
+# tflite_op_processor compiles in just those kernels.
 psram:
   mode: quad
 

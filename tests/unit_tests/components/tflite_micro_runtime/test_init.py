@@ -1,16 +1,17 @@
 """Tests for the tflite_micro_runtime configuration and .txt report handling."""
 
 import asyncio
-import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome import cpp_types as ct
 from esphome.components import tflite_micro_runtime as tflm
 from esphome.components.tflite_micro_runtime import schema as tflm_schema
+from esphome.components.tflite_op_processor.model_reader import ArenaEstimate
 import esphome.config_validation as cv
-from esphome.core import CORE, Define, EsphomeError
+from esphome.core import CORE, ID, Define, EsphomeError
 
 MODEL_PATH = Path("/models/digit.tflite")
 
@@ -26,16 +27,23 @@ def _image_report(**values: object) -> dict:
     }
 
 
+# What estimate_tensor_arena() makes of a test model: the seed the device starts
+# from before it measures the size the model really needs.
+ARENA_ESTIMATE = ArenaEstimate(
+    bytes=28672, peak_activation_bytes=12800, tensor_count=31
+)
+
+
 def test_report_values_are_validated_and_normalised() -> None:
     report = tflm._validate_report_values(
-        _image_report(input_type="UINT8", input_width="28", max_operators=47),
+        _image_report(input_type="UINT8", input_width="28", model_version=2),
         "image",
         MODEL_PATH,
     )
     assert report["input_type"] == "uint8"
     assert report["input_width"] == 28
-    # Keys the schema does not know are kept: the rest of the build uses them.
-    assert report["max_operators"] == 47
+    # Keys the schema does not know are kept: a newer report may carry more.
+    assert report["model_version"] == 2
 
 
 @pytest.mark.parametrize(
@@ -58,7 +66,8 @@ def test_report_value_outside_the_supported_set_names_the_model(
 def test_final_validate_rejects_a_bad_report(setup_core: Path) -> None:
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value=None),
+        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
+        patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
         patch.object(tflm, "parse_model_txt_file", return_value={"input_type": "int8"}),
         pytest.raises(cv.Invalid, match="digit.tflite"),
     ):
@@ -78,7 +87,8 @@ def test_final_validate_accepts_a_supported_model(setup_core: Path) -> None:
 def test_final_validate_requires_the_image_shape(setup_core: Path) -> None:
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value=None),
+        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
+        patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
         patch.object(tflm, "parse_model_txt_file", return_value=None),
         pytest.raises(cv.Invalid, match="digit.tflite"),
     ):
@@ -115,6 +125,7 @@ def test_yaml_input_geometry_overrides_the_report() -> None:
     var = MagicMock()
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
     ):
         asyncio.run(
@@ -151,6 +162,7 @@ def test_report_output_processing_alias_reaches_the_setter_as_its_mode() -> None
     report = _image_report(output_processing="logits_jomjol")
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
     ):
         asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
@@ -182,6 +194,7 @@ def test_filename_conventions_are_validated() -> None:
             "infer_model_config_from_filename",
             return_value={"input_order": "rgb"},
         ),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
     ):
         asyncio.run(tflm._configure_image_model(entry, var, MODEL_PATH))
@@ -240,43 +253,19 @@ def test_build_defines_emit_the_helper_flags() -> None:
     ]
 
 
-def test_max_operators_uses_both_readings_of_the_report(
-    setup_core: Path, tmp_path: Path
-) -> None:
-    model = tmp_path / "digit.tflite"
-    model.write_bytes(b"")
-    report = tmp_path / "digit.txt"
-    ops = {f"OP{i}" for i in range(40)}
-    CORE.config = {tflm.DOMAIN: [{}]}
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(model, b"")),
-        patch.object(tflm, "extract_model_ops", return_value=ops),
-    ):
-        # The operator list sizes the resolver when the report has no total line.
-        report.write_text("no total line\n", encoding="utf-8")
-        assert tflm._compute_max_operators() == len(ops) + 5
+def test_the_model_buffer_is_aligned_for_the_flatbuffer_cast(setup_core: Path) -> None:
+    """TFLM casts the buffer, so its address must be aligned like one."""
+    CORE.main_statements = []
 
-        # With a total line, the larger of the two readings wins.
-        report.write_text("Total operations: 60\n", encoding="utf-8")
-        assert tflm._compute_max_operators() == 65
+    tflm._emit_model_buffer(
+        {tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8)},
+        b"\x01\x02",
+    )
 
-
-def test_max_operators_names_an_unreadable_report(
-    setup_core: Path, tmp_path: Path
-) -> None:
-    """A report that cannot be decoded must name the file instead of a traceback."""
-    model = tmp_path / "digit.tflite"
-    model.write_bytes(b"")
-    (tmp_path / "digit.txt").write_bytes(b"\xff\xfe Total operations: 60\n")
-    CORE.config = {tflm.DOMAIN: [{}]}
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(model, b"")),
-        patch.object(tflm, "extract_model_ops", return_value=set()),
-        pytest.raises(cv.Invalid, match="Could not read the model report") as err,
-    ):
-        tflm._compute_max_operators()
-
-    assert "digit.txt" in str(err.value)
+    assert (
+        str(CORE.main_statements[-1])
+        == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {0x01, 0x02};"
+    )
 
 
 def test_yaml_input_type_rejects_int8(setup_core: Path, tmp_path: Path) -> None:
@@ -292,41 +281,51 @@ def test_yaml_input_type_rejects_int8(setup_core: Path, tmp_path: Path) -> None:
         tflm_schema.PER_MODEL_SCHEMA(config)
 
 
-def test_operator_check_accepts_a_report_without_operators(setup_core: Path) -> None:
-    # A report that names no operator cannot be checked here; it must not pass as
-    # a model that needs no kernel either.
-    with patch.object(tflm, "extract_model_ops", return_value=set()):
-        tflm._validate_model_operators(MODEL_PATH)
-
-
-def test_a_report_without_operators_keeps_the_full_operator_table(
-    setup_core: Path,
-) -> None:
+def test_every_configured_model_contributes_its_operators(setup_core: Path) -> None:
+    """A selective build must contain a kernel whichever model needs it."""
     CORE.config = {tflm.DOMAIN: [{}, {}]}
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        # The second model's report exists but names no operator.
-        patch.object(tflm, "extract_model_ops", side_effect=[{"ADD"}, set()]),
+        patch.object(
+            tflm, "extract_model_ops", side_effect=[{"ADD"}, {"SOFTMAX", "ADD"}]
+        ),
+        patch.object(tflm, "emit_selective_op_defines") as emit,
+        patch("esphome.codegen.add_define"),
     ):
-        assert tflm._selective_op_defines() is None
+        tflm._add_operator_defines()
+
+    emit.assert_called_once_with(["ADD", "SOFTMAX"])
 
 
-def test_unknown_operators_cancel_an_earlier_selective_build(
-    setup_core: Path,
-) -> None:
-    """A selective build must not compile out a kernel another model needs."""
-    CORE.config = {tflm.DOMAIN: [{}]}
+def test_the_resolver_is_sized_by_the_widest_model(setup_core: Path) -> None:
+    """One resolver slot per distinct operator code, with no margin to spare."""
+    CORE.config = {tflm.DOMAIN: [{}, {}]}
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value=None),
+        patch.object(
+            tflm, "extract_model_ops", side_effect=[{"ADD", "SOFTMAX"}, {"ADD"}]
+        ),
+        patch.object(tflm, "emit_selective_op_defines"),
+        patch("esphome.codegen.add_define") as add_define,
+    ):
+        tflm._add_operator_defines()
+
+    add_define.assert_called_once_with("TFLITE_MICRO_MAX_OPERATORS", 2)
+
+
+def test_no_configured_models_keep_the_full_operator_table(setup_core: Path) -> None:
+    """Outside a config run there is no model to narrow the kernels to."""
+    CORE.config = None
+    with (
         patch.object(tflm, "emit_all_ops") as emit_all,
         patch.object(tflm, "emit_selective_op_defines") as emit_selective,
-        patch("esphome.codegen.add_define"),
+        patch("esphome.codegen.add_define") as add_define,
     ):
         tflm._add_operator_defines()
 
     emit_all.assert_called_once_with()
     emit_selective.assert_not_called()
+    add_define.assert_not_called()
 
 
 def test_selective_operators_are_emitted_by_the_op_processor(setup_core: Path) -> None:
@@ -397,21 +396,43 @@ def test_a_non_numeric_operator_define_is_an_error(
         tflm._emit_max_operators(47)
 
 
-def test_an_empty_operator_set_does_not_size_the_resolver(
-    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A report that lists no operator must not read as '0 listed operator types'."""
-    model = tmp_path / "digit.tflite"
-    model.write_bytes(b"")
-    (tmp_path / "digit.txt").write_text("no total line\n", encoding="utf-8")
-    CORE.config = {tflm.DOMAIN: [{}]}
+def test_image_arena_is_seeded_from_the_model(setup_core: Path) -> None:
+    """Without a configured size the estimate starts the device's own measurement."""
+    var = MagicMock()
     with (
-        patch.object(tflm, "resolve_model_source", return_value=(model, b"")),
-        patch.object(tflm, "extract_model_ops", return_value=set()),
-        caplog.at_level(logging.WARNING, logger=tflm.__name__),
+        patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
+        patch("esphome.codegen.add"),
     ):
-        assert tflm._compute_max_operators() == tflm._MAX_OPERATORS_FLOOR
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
 
-    messages = [record.getMessage() for record in caplog.records]
-    assert not any("0 listed operator types" in message for message in messages)
-    assert any("keeping 30 operator slots" in message for message in messages)
+    var.set_tensor_arena_size.assert_called_once_with(ARENA_ESTIMATE.bytes)
+
+
+def test_a_configured_arena_size_is_not_estimated(setup_core: Path) -> None:
+    """The model estimate never overrides what the user or the report asked for."""
+    var = MagicMock()
+    report = _image_report(tensor_arena_size="200KB")
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch.object(tflm, "estimate_tensor_arena") as estimate,
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    estimate.assert_not_called()
+    var.set_tensor_arena_size.assert_called_once_with(200 * 1024)
+
+
+def test_audio_arena_is_not_estimated(setup_core: Path) -> None:
+    """A streaming consumer sizes its own arena from its manifest, not from a guess."""
+    var = MagicMock()
+    with (
+        patch.object(tflm, "parse_audio_txt_file", return_value=None),
+        patch.object(tflm, "estimate_tensor_arena") as estimate,
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_audio_model({}, var, MODEL_PATH))
+
+    estimate.assert_not_called()
+    var.set_tensor_arena_size.assert_not_called()
