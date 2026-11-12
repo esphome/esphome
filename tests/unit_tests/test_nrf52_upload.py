@@ -11,6 +11,8 @@ import pytest
 
 from esphome.address_cache import AddressCache
 from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
 )
@@ -468,6 +470,37 @@ class TestUploadProgramSerialDfu:
         assert "-p" in cmd
         assert host in cmd
         assert "--singlebank" in cmd
+
+    @pytest.mark.parametrize(
+        ("bootloader", "single_bank"),
+        [
+            (BOOTLOADER_ADAFRUIT_NRF52_SD132_V6, True),
+            (BOOTLOADER_ADAFRUIT_NRF52_SD132_V2, False),
+        ],
+    )
+    def test_serial_dfu_without_native_usb_skips_the_touch(
+        self, setup_core: Path, tmp_path: Path, bootloader: str, single_bank: bool
+    ) -> None:
+        """adafruit-nrfutil resets an nRF52832 through the USB serial chip's DTR line itself;
+        only the dual bank bootloader is flashed without --singlebank."""
+        import serial
+
+        from esphome.components.nrf52 import upload_program
+        from esphome.components.nrf52.const import VARIANT_NRF52832
+        from esphome.components.nrf52.framework import set_nrf52_variant
+
+        paths, dfu_package = _prepare_serial_dfu(tmp_path, bootloader)
+        set_nrf52_variant(VARIANT_NRF52832)
+        host = "/dev/ttyUSB0"
+        with ExitStack() as stack:
+            mock_run = _enter_serial_dfu_patches(stack, host, tmp_path, paths)
+            assert upload_program(config={}, args=None, host=host) is True
+            assert not serial.Serial.mock_calls  # pylint: disable=no-member
+
+        cmd = mock_run.call_args[0][0]
+        assert str(dfu_package) in cmd
+        assert host in cmd
+        assert ("--singlebank" in cmd) is single_bank
 
     def test_serial_upload_refuses_an_unlisted_bootloader(
         self, setup_core: Path, tmp_path: Path

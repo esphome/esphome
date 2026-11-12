@@ -23,8 +23,6 @@ CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
 CONF_BACKGROUND_CORRECTION = "background_correction"
 CONF_BACKGROUND_CORRECTION_DURATION = "background_correction_duration"
-CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
-CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -53,22 +51,6 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
-
-for i in range(9):
-    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
-        cv.Schema(
-            {
-                cv.Optional(CONF_MOVE_THRESHOLDS[i]): cv.invalid(
-                    f"The '{CONF_MOVE_THRESHOLDS[i]}' option has been moved to the '{CONF_MOVE_THRESHOLDS[i]}'"
-                    f" number component"
-                ),
-                cv.Optional(CONF_STILL_THRESHOLDS[i]): cv.invalid(
-                    f"The '{CONF_STILL_THRESHOLDS[i]}' option has been moved to the '{CONF_STILL_THRESHOLDS[i]}'"
-                    f" number component"
-                ),
-            }
-        )
-    )
 
 CONFIG_SCHEMA = cv.All(
     CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
