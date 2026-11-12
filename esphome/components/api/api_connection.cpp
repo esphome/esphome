@@ -2515,25 +2515,6 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void APIConnection::send_shutdown_disconnect_() {
-  // States after DisconnectRequest reach Home Assistant once it has marked the entities
-  // unavailable (#22610): send every queued state the socket takes now, one packet per call
-  this->flags_.state_subscription = false;
-  this->destroy_active_iterator_();
-  for (size_t left = this->deferred_batch_.size(); left != 0 && this->helper_->can_write_without_blocking();) {
-    this->process_batch_();
-    const size_t now_left = this->deferred_batch_.size();
-    if (now_left >= left)
-      break;
-    left = now_left;
-  }
-  DisconnectRequest req;
-  if (!this->send_message(req)) {
-    // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout
-    this->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
-  }
-}
-
 bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
   this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
   return this->schedule_batch_();
