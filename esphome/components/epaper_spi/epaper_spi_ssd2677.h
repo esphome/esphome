@@ -41,8 +41,8 @@ class EPaperSSD2677 : public EPaperUltraChip {
   void power_off() override;
   void deep_sleep() override { this->send_deep_sleep_(); }
 
-  // The stream for row y, where mono is that row from mono_row()
-  void stream_row_(size_t y, const uint8_t *mono, uint8_t *out);
+  // The stream for row y, where mono is that row from mono_row() and row_length is mono_row_length_()
+  void stream_row_(size_t y, const uint8_t *mono, uint8_t *out, size_t row_length);
   // The reading in whole degrees C, or the default for a missing reading (NAN)
   static int whole_degrees(float reading);
   float temperature_reading_() const;

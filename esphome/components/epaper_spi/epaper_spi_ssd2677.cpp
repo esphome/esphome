@@ -88,8 +88,7 @@ bool EPaperSSD2677::initialise(bool partial) {
   return true;
 }
 
-void HOT EPaperSSD2677::stream_row_(size_t y, const uint8_t *mono, uint8_t *out) {
-  const size_t row_length = this->mono_row_length_();
+void HOT EPaperSSD2677::stream_row_(size_t y, const uint8_t *mono, uint8_t *out, size_t row_length) {
   const size_t data_idx = y * row_length;
   const bool partial = this->is_partial_refresh_();
   for (size_t i = 0; i != row_length; i++) {
@@ -122,7 +121,7 @@ bool HOT EPaperSSD2677::transfer_data() {
       for (size_t i = 0; i != stream_length; i++)
         stream_alloc.get()[i] = this->buffer_[src_row + i];
     } else {
-      this->stream_row_(y, mono_alloc.get(), stream_alloc.get());
+      this->stream_row_(y, mono_alloc.get(), stream_alloc.get(), row_length);
     }
     this->write_array(stream_alloc.get(), stream_length);
     if (need_mono)
