@@ -22,7 +22,12 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import cpp_string_escape, indent, indent_all_but_first_and_last
+from esphome.helpers import (
+    cpp_string_escape,
+    indent,
+    indent_all_but_first_and_last,
+    unique_name,
+)
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
@@ -501,16 +506,16 @@ def unique_global_id(name: str, type_: "MockObjClass") -> ID:
         config_ids = CORE.data[_CONFIG_ID_NAMES] = {
             str(i) for i, _ in iter_ids(CORE.config)
         }
-    candidate, tries = name, 1
-    while (
-        candidate in config_ids
-        or candidate in RESERVED_IDS_SET
-        or candidate in CORE.loaded_integrations
-        or ID(candidate) in CORE.variables
-    ):
-        tries += 1
-        candidate = f"{name}_{tries}"
-    return ID(candidate, is_declaration=True, type=type_)
+    unique = unique_name(
+        name,
+        lambda c: (
+            c in config_ids
+            or c in RESERVED_IDS_SET
+            or c in CORE.loaded_integrations
+            or ID(c) in CORE.variables
+        ),
+    )
+    return ID(unique, is_declaration=True, type=type_)
 
 
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
