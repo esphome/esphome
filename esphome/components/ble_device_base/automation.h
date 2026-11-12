@@ -1,4 +1,4 @@
-// Platform-neutral BLE advertisement triggers: ESPBTDeviceListener subclasses
+// Platform-neutral BLE advertisement triggers and the shared start_scan action: ESPBTDeviceListener subclasses
 // registered on a BLEHub, exposed by each tracker under its own automation
 // names. parse_device()'s return feeds the "Found device" suppression.
 // Constructors are templated on the hub type so this header also builds with
@@ -12,6 +12,21 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::ble_device_base {
+
+/// Codegen use only: start a scan on `tracker`, continuous or one-shot. A running scan in the same mode is left as
+/// is, so a repeated action cannot keep a one-shot scan alive; one in the other mode switches and runs a full
+/// duration from now.
+template<typename Tracker> void start_scan(Tracker *tracker, bool continuous) {
+  if (tracker->scan_running()) {
+    if (continuous != tracker->scan_continuous()) {
+      tracker->set_scan_continuous(continuous);
+      tracker->restart_scan_duration();
+    }
+    return;
+  }
+  tracker->set_scan_continuous(continuous);
+  tracker->start_scan();
+}
 
 /// True if `address` is in `table`, a list of MACs ended by 0.
 inline bool mac_in_table(const uint64_t *table, uint64_t address) {
