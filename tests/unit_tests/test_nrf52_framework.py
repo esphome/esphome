@@ -12,7 +12,7 @@ from unittest.mock import ANY, call, patch
 import platformdirs
 import pytest
 
-from esphome.components.nrf52 import _resolve_toolchain, framework
+from esphome.components.nrf52 import _resolve_toolchain
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
@@ -1269,56 +1269,3 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
         _resolve_toolchain({})
-
-
-def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
-    """The absolute dts.pre path is the only per device byte in the
-    devicetree header; the patch makes gen_defines emit the basename."""
-    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    gen.parent.mkdir(parents=True)
-    gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
-    framework._patch_gen_defines_dts_path(tmp_path)
-    assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
-    assert not list(gen.parent.glob("*.tmp"))  # no leftovers
-    before = gen.read_text()
-    framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
-    assert gen.read_text() == before
-    framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
-
-
-def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
-    tmp_path: Path,
-) -> None:
-    """West build's relative source path raises across Windows drives; the
-    patch applies Zephyr main's fallback to the absolute path."""
-    build = tmp_path / "zephyr" / "scripts" / "west_commands" / "build.py"
-    build.parent.mkdir(parents=True)
-    build.write_text(
-        "    def _sanity_check_source_dir(self):\n"
-        "        srcrel = os.path.relpath(self.source_dir)\n"
-        "        self.check_force(True, srcrel)\n"
-    )
-    framework._patch_west_build_source_dir_relpath(tmp_path)
-    patched = build.read_text()
-    assert "relative_to(pathlib.Path.cwd(), walk_up=True)" in patched
-    assert (
-        "        except ValueError:\n            srcrel = self.source_dir\n" in patched
-    )
-    assert "os.path.relpath" not in patched
-    assert "        self.check_force(True, srcrel)\n" in patched
-    assert not list(build.parent.glob("*.tmp"))
-    framework._patch_west_build_source_dir_relpath(tmp_path)  # idempotent
-    assert build.read_text() == patched
-    framework._patch_west_build_source_dir_relpath(tmp_path / "absent")  # tolerant
-
-
-def test_patch_gen_defines_warns_when_the_anchor_is_gone(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A reformatted upstream must not silently cost the sharing."""
-    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    gen.parent.mkdir(parents=True)
-    gen.write_text("s = 'something else entirely'\n")
-    with caplog.at_level("WARNING"):
-        framework._patch_gen_defines_dts_path(tmp_path)
-    assert "gen_defines.py no longer matches" in caplog.text

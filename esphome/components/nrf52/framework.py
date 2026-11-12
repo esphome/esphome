@@ -4,7 +4,6 @@ import hashlib
 import logging
 import os
 from pathlib import Path
-import shutil
 import sys
 
 from esphome.build_helpers.ccache import ccache_env
@@ -13,6 +12,9 @@ from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 from esphome.components.zephyr.framework_helpers import (
     install_sitecustomize,
     needs_venv_rebuild,
+    patch_framework_file,
+    patch_gen_defines_dts_path,
+    patch_west_build_source_dir_relpath,
 )
 from esphome.components.zephyr.sdk_install import (
     ARM_TOOLCHAIN,
@@ -226,80 +228,13 @@ def setup_platformio_python_env() -> None:
     _prepend_env_path("PATH", str(env_python_path.parent))
 
 
-def _patch_framework_file(path: Path, old: str, new: str) -> bool:
-    """Replace ``old`` with ``new`` in a framework script, atomically and
-    keeping the file mode (helpers.write_file would flatten it to 0o644).
-    Returns False when nothing matched."""
-    import tempfile
-
-    content = path.read_text(encoding="utf-8")
-    patched = content.replace(old, new)
-    if patched == content:
-        return False
-    # Unique sibling tmp: the install lock is best effort, so two builds
-    # may patch at once and a shared tmp name could rename a half
-    # written file into place.
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    tmp = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(patched)
-        shutil.copymode(path, tmp)
-        tmp.replace(path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
-    return True
-
-
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
     # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
     if uf2conv.exists():
-        _patch_framework_file(
+        patch_framework_file(
             uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
-        )
-
-
-_WEST_BUILD_RELPATH = "        srcrel = os.path.relpath(self.source_dir)\n"
-# Zephyr main's replacement, verbatim (zephyr commit dfbdca0e13)
-_WEST_BUILD_RELPATH_SAFE = """        try:
-            srcrel = pathlib.Path(self.source_dir).relative_to(pathlib.Path.cwd(), walk_up=True)
-        except ValueError:
-            srcrel = self.source_dir
-"""
-
-
-def _patch_west_build_source_dir_relpath(framework_path: Path) -> None:
-    # west build names the source dir relative to the working directory (the
-    # SDK workspace) in two warnings; Python refuses that on Windows when the
-    # project is on another drive, and west dies before building. Applies
-    # Zephyr main's fix; SDKs that carry it have no line to patch.
-    build = framework_path / "zephyr" / "scripts" / "west_commands" / "build.py"
-    if build.exists():
-        _patch_framework_file(build, _WEST_BUILD_RELPATH, _WEST_BUILD_RELPATH_SAFE)
-
-
-def _patch_gen_defines_dts_path(framework_path: Path) -> None:
-    # The absolute zephyr.dts.pre path in the header's top comment is
-    # its only per device byte and blocks ccache sharing; emit the
-    # basename. Upstream candidate.
-    gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    if not gen_defines.exists():
-        return
-    if _patch_framework_file(
-        gen_defines, "  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}"
-    ):
-        return
-    if "{os.path.basename(edt.dts_path)}" not in gen_defines.read_text(
-        encoding="utf-8"
-    ):
-        # Upstream reformatted the comment; sharing silently degrading
-        # would be invisible, so say it out loud.
-        _LOGGER.warning(
-            "gen_defines.py no longer matches; the devicetree header "
-            "stays per device and ccache sharing between devices degrades"
         )
 
 
@@ -559,8 +494,8 @@ def _check_and_install(version: str) -> None:
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
     # Every run: existing installs need these too, and they are no-ops once applied
-    _patch_gen_defines_dts_path(framework_path)
-    _patch_west_build_source_dir_relpath(framework_path)
+    patch_gen_defines_dts_path(framework_path)
+    patch_west_build_source_dir_relpath(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
