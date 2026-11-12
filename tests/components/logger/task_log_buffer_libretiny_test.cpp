@@ -35,6 +35,8 @@
 #undef ESPHOME_TASK_LOG_BUFFER_SIZE
 #define ESPHOME_TASK_LOG_BUFFER_SIZE TASK_LOG_TEST_SIZE
 namespace TASK_LOG_TEST_NS {
+// Not global, where speaker_source's FreeRTOS double defines it in the same build
+inline constexpr int pdTRUE = 1;
 // NOLINTNEXTLINE(bugprone-suspicious-include): exercise production code with the host FreeRTOS double.
 #include "esphome/components/logger/task_log_buffer_libretiny.cpp"
 }  // namespace TASK_LOG_TEST_NS
