@@ -28,6 +28,8 @@ class BasicSession : public PacketInterface {
   /// The packet type byte.
   static constexpr size_t HEADER_SIZE = 1;
 
+  static constexpr size_t packet_size(size_t lower_size) { return remaining_packet_size(lower_size, HEADER_SIZE); }
+
   explicit BasicSession(PacketInterface *lower);
 
   void setup() override;
