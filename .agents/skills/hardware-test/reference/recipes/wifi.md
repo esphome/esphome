@@ -93,3 +93,27 @@ connected channel starts and ends on the bench channel with another channel in b
 - Dropping the AP under a connected device gives a `Beacon Timeout` link loss.
 - The 90 s interval fires once right after boot.
 - A `Disconnected ... Association Leave` right after `Connecting to` is the aborted attempt, not a missed connect.
+
+## Soft AP with the BLE tracker scanning (#22534, #22566)
+
+`scripts/ble_scan_soft_ap/`: `dut.yaml` runs only `wifi: ap:` with `captive_portal:` and `bluetooth_proxy:`, and
+`client.yaml` (on a second ESP32) joins that AP and fetches the portal page every 5 s, logging `JOIN` and `STAT`
+lines. `run.sh` erases and flashes the DUT, resets the client and prints the generated scan window, the first join, the
+page counts and the client's disconnect reasons (usage in its header).
+
+- A scan window equal to the scan interval (320 ms of 320 ms) leaves the radio no time for the soft AP: on dev no
+  client joined on the classic ESP32, S3, C3 or C6. With #22566 the tracker uses its 30 ms connection window while
+  the AP runs, and every chip took a client in about 4 s.
+- Only one AP with the test SSID may be up at a time; list the other AP boards in `PARK` so they wait in their ROM
+  bootloader.
+- To check that the full window comes back after provisioning, log `esp32_ble_tracker` at VERBOSE and provision
+  with `templates/client-wifisave.yaml` (set `ap_ssid` to the DUT's and `ap_password: ""`, the DUT's AP is open): `Connection or AP active, using 48 unit scan window` must stop once the AP stops.
+- Some clients do not join an ESP8266 AP at all (the C6 failed on dev too with `Too Many Associations`); use a C3.
+
+## ESP8266 power save after captive portal provisioning (#22542, #22564)
+
+The DUT runs `ap:` plus `captive_portal:` with no station network and logs `wifi_get_sleep_type()` every 5 s (0 is
+`NONE_SLEEP_T`, 2 is `MODEM_SLEEP_T`); an ESP32-C3 with `templates/client-wifisave.yaml` posts the real credentials.
+Erase the flash before each run so no saved credentials skip the portal. On dev the sleep type stayed 2 after
+provisioning although the config asked for none; with #22564 it read 0 from the moment the AP started, and the
+`networks:` path still read 0.
