@@ -47,7 +47,6 @@ _AUDIO_INPUT_RE = re.compile(
     r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)(?:\s+\d+)?\][^\r\n]*"
     r"(?:\r?\n[ \t]*)?numpy\.(\w+)"
 )
-_OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
 # A zero count says the report found no delegate, so it must not reject the
 # model.
 _DELEGATE_RE = re.compile(r"Found [1-9]\d* DELEGATE operation")
@@ -205,8 +204,6 @@ def parse_model_txt_file(model_path):
         )
     if (arena_size := _parse_arena_size(content, txt_path)) is not None:
         config["tensor_arena_size"] = arena_size
-    if (ops_match := _OPERATIONS_RE.search(content)) is not None:
-        config["max_operators"] = int(ops_match.group(1)) + 5
     # A model that ends in SOFTMAX already outputs probabilities, so the class
     # index is the argmax of the tensor; otherwise the softmax is applied here.
     config["output_processing"] = "argmax" if _SOFTMAX_RE.search(content) else "softmax"

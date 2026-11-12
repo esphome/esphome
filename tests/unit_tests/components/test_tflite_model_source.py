@@ -166,7 +166,6 @@ def test_parse_model_txt_file_image_report(tmp_path):
     assert config["input_type"] == "uint8"
     assert config["scale_factor"] == 1.0
     assert config["tensor_arena_size"] == 65536
-    assert config["max_operators"] == 17
     assert config["output_processing"] == "softmax"
 
 
