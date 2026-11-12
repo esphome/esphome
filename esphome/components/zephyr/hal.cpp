@@ -29,18 +29,27 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #ifdef CONFIG_CPU_CORTEX_M_HAS_DWT
 // The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
 // micros() adds the cycles counted since the last call and keeps the result within one tick of the kernel clock.
-static uint32_t micros_value;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static uint32_t micros_last_cycles;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static uint32_t micros_cycles_left;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// One struct so the code loads a single base address.
+static struct {
+  uint32_t value;
+  uint32_t last_cycles;  // Moves on by whole microseconds only, so the remainder carries over.
+} micros_state;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static inline uint32_t cycles_per_us() {
+#ifdef CONFIG_SOC_SERIES_NRF52X
+  return 64;  // nRF52 cores always run at 64 MHz, so the division below becomes a shift.
+#else
+  return SystemCoreClock / 1000000U;
+#endif
+}
 
 uint32_t micros() {
+  const uint32_t per_us = cycles_per_us();
   const unsigned int key = irq_lock();
   const uint32_t cycles = DWT->CYCCNT;
-  const uint32_t cycles_per_us = SystemCoreClock / 1000000U;
-  const uint32_t elapsed = cycles - micros_last_cycles + micros_cycles_left;
-  micros_last_cycles = cycles;
-  micros_cycles_left = elapsed % cycles_per_us;
-  uint32_t value = micros_value + elapsed / cycles_per_us;
+  const uint32_t elapsed_us = (cycles - micros_state.last_cycles) / per_us;
+  micros_state.last_cycles += elapsed_us * per_us;
+  uint32_t value = micros_state.value + elapsed_us;
 
   const uint32_t kernel_us = k_ticks_to_us_floor32(k_uptime_ticks());
   const uint32_t tick_us = k_ticks_to_us_ceil32(1);
@@ -48,11 +57,11 @@ uint32_t micros() {
   if (ahead < 0) {
     // The CPU slept, so the cycle counter fell behind.
     value = kernel_us;
-    micros_cycles_left = 0;
+    micros_state.last_cycles = cycles;
   } else if (static_cast<uint32_t>(ahead) >= tick_us) {
     value = kernel_us + tick_us - 1;
   }
-  micros_value = value;
+  micros_state.value = value;
   irq_unlock(key);
   return value;
 }
