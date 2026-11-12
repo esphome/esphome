@@ -58,13 +58,20 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   void report_internal(bool has_lock) override;
   void apply_on_off_(bool on);
   void apply_level_(uint8_t level);
+  void apply_x_(uint16_t x);
+  void apply_y_(uint16_t y);
+  void apply_color_();
   ZigbeeOnValueForwarder<bool, ZigbeeLight> on_off_forwarder_;
   ZigbeeOnValueForwarder<uint8_t, ZigbeeLight> *level_forwarder_{nullptr};
+  ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *x_forwarder_{nullptr};
+  ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *y_forwarder_{nullptr};
   light::LightState *light_state_;
   light::LightCall next_call_ = light::LightCall(nullptr);
   bool synchronizing_from_zigbee_{false};
   bool call_pending_{false};
   bool block_zigbee_{false};
+  uint16_t x_{0xFFFF};
+  uint16_t y_{0xFFFF};
 };
 
 }  // namespace esphome::zigbee

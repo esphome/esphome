@@ -98,6 +98,8 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_binary_input_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_BINARY_OUTPUT:
       return ezb_zcl_binary_output_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_COLOR_CONTROL:
+      return ezb_zcl_color_control_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT:
       return ezb_zcl_illuminance_measurement_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_TEMPERATURE_MEASUREMENT:
@@ -143,6 +145,8 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
       return ezb_zcl_binary_input_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_BINARY_OUTPUT:
       return ezb_zcl_binary_output_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_COLOR_CONTROL:
+      return ezb_zcl_color_control_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT:
       return ezb_zcl_illuminance_measurement_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_TEMPERATURE_MEASUREMENT:
