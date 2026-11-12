@@ -26,7 +26,7 @@ void MR24HPC1Component::dump_config() {
   LOG_TEXT_SENSOR(" ", "Product Model Text Sensor", this->product_model_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Product ID Text Sensor", this->product_id_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Hardware Model Text Sensor", this->hardware_model_text_sensor_);
-  LOG_TEXT_SENSOR(" ", "Firware Verison Text Sensor", this->firware_version_text_sensor_);
+  LOG_TEXT_SENSOR(" ", "Firmware Version Text Sensor", this->firware_version_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Keep Away Text Sensor", this->keep_away_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Motion Status Text Sensor", this->motion_status_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Custom Mode End Text Sensor", this->custom_mode_end_text_sensor_);
@@ -331,7 +331,7 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
         if (get_frame_check_status(this->sg_frame_prase_buf_, this->sg_frame_len_)) {
           this->r24_parse_data_frame_(this->sg_frame_prase_buf_, this->sg_frame_len_);
         } else {
-          ESP_LOGD(TAG, "frame check failer!");
+          ESP_LOGD(TAG, "frame check failure!");
         }
       } else {
         ESP_LOGD(TAG, "FRAME_TAIL2 ERROR value:%x", value);

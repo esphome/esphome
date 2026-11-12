@@ -1086,6 +1086,36 @@ def wait_for_download_lock(
             raise Timeout(lock.lock_file)
 
 
+@contextmanager
+def install_lock(root: Path, name: str) -> Iterator[None]:
+    """Serialize a shared install step across builds running at once."""
+    from filelock import FileLock, Timeout
+
+    lock_path = root / f"{name}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # No soft lock: its marker outlives a killed build and hangs every later one
+    lock = FileLock(str(lock_path), fallback_to_soft=False)
+    waiting = False
+    while True:
+        try:
+            # Reuse constant: same timing need, so Ctrl-C stays responsive
+            lock.acquire(timeout=_DOWNLOAD_LOCK_POLL)
+            break
+        except Timeout:  # before OSError, which it subclasses
+            if not waiting:
+                waiting = True
+                _LOGGER.info("Waiting for another build installing %s ...", name)
+        except OSError as err:
+            _LOGGER.warning(
+                "Can't lock %s (%s), continuing without a lock", lock_path, err
+            )
+            break
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 def discard_partial_download(dest: Path) -> None:
     """Remove ``dest`` and the resume sidecars of an abandoned download."""
     part = _part_path(dest)
