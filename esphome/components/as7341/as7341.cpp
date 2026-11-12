@@ -146,8 +146,8 @@ void AS7341Component::configure_smux_low_channels() {
   this->write_byte(0x03, 0x00);  // F8 left disabled
   this->write_byte(0x04, 0x00);  // F6 left disabled
   this->write_byte(0x05, 0x42);  // F4 left connected to ADC3/f2 left connected to ADC1
-  this->write_byte(0x06, 0x00);  // F5 left disbled
-  this->write_byte(0x07, 0x00);  // F7 left disbled
+  this->write_byte(0x06, 0x00);  // F5 left disabled
+  this->write_byte(0x07, 0x00);  // F7 left disabled
   this->write_byte(0x08, 0x50);  // CLEAR connected to ADC4
   this->write_byte(0x09, 0x00);  // F5 right disabled
   this->write_byte(0x0A, 0x00);  // F7 right disabled

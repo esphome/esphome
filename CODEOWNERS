@@ -98,7 +98,6 @@ esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bme68x_bsec2/* @kbx81 @neffs
 esphome/components/bme68x_bsec2_i2c/* @kbx81 @neffs
-esphome/components/bmi160/* @flaviut
 esphome/components/bmi270/* @clydebarrow
 esphome/components/bmp280_base/* @ademuri
 esphome/components/bmp280_i2c/* @ademuri
@@ -198,6 +197,7 @@ esphome/components/ens160_base/* @latonita @vincentscode
 esphome/components/ens160_i2c/* @latonita
 esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
+esphome/components/entity_transport/* @clydebarrow
 esphome/components/epaper_spi/* @esphome/core
 esphome/components/es7210/* @kahrendt
 esphome/components/es7243/* @Chorty
@@ -400,6 +400,7 @@ esphome/components/mcp23x08_base/* @jesserockz
 esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
+esphome/components/mcp251xfd/* @jc2a
 esphome/components/mcp3204/* @rsumner
 esphome/components/mcp3221/* @philippderdiedas
 esphome/components/mcp4461/* @p1ngb4ck

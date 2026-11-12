@@ -533,19 +533,19 @@ class LvLineType : public LvCompound {
 // content width changes.
 class LvTableType : public LvCompound {
  public:
+  struct ColumnPct {
+    uint32_t col;
+    uint8_t pct;
+  };
+
   void set_obj(lv_obj_t *lv_obj) override;
-  // count is the number of percentage-width columns, known at code-generation time.
-  void init_column_pct(size_t count) { this->column_pct_.init(count); }
+  void set_column_pct_storage(std::span<ColumnPct> storage) { this->column_pct_.init(storage); }
   void add_column_width_pct(uint32_t col, uint8_t pct);
 
  protected:
   void update_column_widths_();
 
-  struct ColumnPct {
-    uint32_t col;
-    uint8_t pct;
-  };
-  FixedVector<ColumnPct> column_pct_{};
+  StaticFixedVector<ColumnPct> column_pct_;
 };
 #endif  // USE_LVGL_TABLE
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)

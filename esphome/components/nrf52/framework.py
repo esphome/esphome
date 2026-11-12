@@ -1,6 +1,4 @@
-from collections.abc import Iterator
 import configparser
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 import hashlib
 import logging
@@ -21,6 +19,7 @@ from esphome.framework_helpers import (
     download_and_extract,
     download_with_resume,
     get_python_env_executable_path,
+    install_lock,
     rmdir,
     run_command_ok,
     str_to_lst_of_str,
@@ -532,39 +531,6 @@ def _restore_project_filter(
         )
 
 
-# Lock wait slices, so Ctrl-C stays responsive
-_INSTALL_LOCK_POLL = 1
-
-
-@contextmanager
-def _install_lock(name: str) -> Iterator[None]:
-    """Serialize a shared install step across builds running at once."""
-    from filelock import FileLock, Timeout
-
-    lock_path = get_sdk_nrf_tools_path() / f"{name}.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    # No soft lock: its marker outlives a killed build and hangs every later one
-    lock = FileLock(str(lock_path), fallback_to_soft=False)
-    waiting = False
-    while True:
-        try:
-            lock.acquire(timeout=_INSTALL_LOCK_POLL)
-            break
-        except Timeout:  # before OSError, which it subclasses
-            if not waiting:
-                waiting = True
-                _LOGGER.info("Waiting for another build installing %s ...", name)
-        except OSError as err:
-            _LOGGER.warning(
-                "Can't lock %s (%s), continuing without a lock", lock_path, err
-            )
-            break
-    try:
-        yield
-    finally:
-        lock.release()
-
-
 def _fetch_missing_west_projects(
     env_python_path: Path, framework_path: Path, version: str, projects: set[str]
 ) -> None:
@@ -638,7 +604,7 @@ def _install_framework(
 
 def check_and_install() -> None:
     version = _get_version_str()
-    with _install_lock(f"sdk-{version}"):
+    with install_lock(get_sdk_nrf_tools_path(), f"sdk-{version}"):
         _check_and_install(version)
 
 
@@ -709,7 +675,7 @@ def _check_and_install(version: str) -> None:
     # while missing
     toolchain_version = _get_toolchain_version()
     if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
-        with _install_lock(f"toolchain-{toolchain_version}"):
+        with install_lock(get_sdk_nrf_tools_path(), f"toolchain-{toolchain_version}"):
             _install_toolchain()
 
 
@@ -783,7 +749,7 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
 
     if installed():
         return str(exe)
-    with _install_lock("nrfutil"):
+    with install_lock(get_sdk_nrf_tools_path(), "nrfutil"):
         if not installed():
             exe.parent.mkdir(parents=True, exist_ok=True)
             _LOGGER.info("Downloading Nordic's nrfutil ...")
