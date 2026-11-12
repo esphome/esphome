@@ -79,8 +79,10 @@ async def main() -> None:
                 log.write(f"{stamp()} >>> press {rest}\n")
                 c.button_command(buttons[rest].key)
             elif kind == "text":
-                if not texts:
-                    sys.exit("text op needs a text entity; the build has none")
+                if len(texts) != 1:
+                    sys.exit(
+                        f"text op needs exactly one text entity; the build has {len(texts)}"
+                    )
                 print(f"{stamp()} >>> {rest}", flush=True)
                 log.write(f"{stamp()} >>> {rest}\n")
                 c.text_command(texts[0].key, rest)

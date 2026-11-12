@@ -13,10 +13,10 @@ import urllib.request
 
 host, secs, pps = sys.argv[1], float(sys.argv[2]), int(sys.argv[3])
 end = time.monotonic() + secs
-stats = {"udp": 0, "http_ok": 0, "http_err": 0}
+stats = {"udp": 0, "udp_err": 0, "http_ok": 0, "http_err": 0}
 
 
-def http() -> None:
+def http_load() -> None:
     while time.monotonic() < end:
         try:
             with urllib.request.urlopen(f"http://{host}/", timeout=5) as r:
@@ -27,7 +27,7 @@ def http() -> None:
             time.sleep(1)
 
 
-threading.Thread(target=http, daemon=True).start()
+threading.Thread(target=http_load, daemon=True).start()
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 payload = b"x" * 512
 nxt = last = time.monotonic()
@@ -35,7 +35,8 @@ while (now := time.monotonic()) < end:
     try:
         s.sendto(payload, (host, 9))
         stats["udp"] += 1
-    except OSError:  # ENOBUFS when the host outruns the network
+    except OSError:  # mostly ENOBUFS when the host outruns the network
+        stats["udp_err"] += 1
         time.sleep(0.01)
     nxt += 1 / pps
     if (d := nxt - time.monotonic()) > 0:

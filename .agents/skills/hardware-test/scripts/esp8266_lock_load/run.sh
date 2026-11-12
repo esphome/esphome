@@ -16,8 +16,12 @@ for _ in $(seq 60); do
   IP=$(LC_ALL=C grep -a -o -E "IP Address: [0-9.]+" "$O/serial.txt" | tail -1 | cut -d' ' -f3)
   [ -n "$IP" ] && break; sleep 2
 done
-[ -z "$IP" ] && echo "$N no IP (check the secrets file)"
-if [ "$P" -gt 0 ] && [ -n "$IP" ]; then python3 "$D/wifi_load.py" "$IP" "$T" "$P" > "$O/load.txt" 2>&1; else sleep "$T"; fi
+if [ "$P" -gt 0 ]; then
+  [ -n "$IP" ] || { kill "$CAP"; echo "$N no IP (check the secrets file)"; exit 1; }
+  python3 "$D/wifi_load.py" "$IP" "$T" "$P" > "$O/load.txt" 2>&1 || echo "$N load script failed (see $O/load.txt)"
+else
+  sleep "$T"
+fi
 wait "$CAP" || echo "$N capture failed (see $O/capture.log); counts cover part of the run"
 echo "== $N pps=$P boots=$(LC_ALL=C grep -a -c 'BOOT reason' "$O/serial.txt")"
 LC_ALL=C grep -a "BOOT reason" "$O/serial.txt" | cut -c1-150
