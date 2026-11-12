@@ -10,6 +10,10 @@ import sys
 from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
+from esphome.components.zephyr.framework_helpers import (
+    install_sitecustomize,
+    needs_venv_rebuild,
+)
 from esphome.components.zephyr.sdk_install import (
     ARM_TOOLCHAIN,
     get_sdk_host_info,
@@ -63,22 +67,6 @@ def get_sdk_nrf_tools_path() -> Path:
     return tools_cache_path(*SDK_NRF_TOOLS_CACHE)
 
 
-def _needs_venv_rebuild(
-    env_python_path: Path, sentinel: Path, requirements_hash: str
-) -> bool:
-    """True when a penv must be (re)built.
-
-    Rebuild when the interpreter is not a regular file, which covers a
-    dangling symlink (a cached venv outliving a host interpreter upgrade)
-    and a corrupt restore, or when the sentinel is missing or stale.
-    """
-    return (
-        not env_python_path.is_file()
-        or not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    )
-
-
 def _get_python_env_path(version: str) -> Path:
     return get_sdk_nrf_tools_path() / "penvs" / version
 
@@ -103,34 +91,6 @@ def toolchain_tool(name: str) -> Path:
     """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...)."""
     suffix = ".exe" if os.name == "nt" else ""
     return _get_arm_toolchain_path() / "bin" / f"arm-zephyr-eabi-{name}{suffix}"
-
-
-_SITECUSTOMIZE = """\
-import os, stat, shutil
-_orig = shutil.rmtree
-def _handler(func, path, exc):
-    os.chmod(path, stat.S_IWRITE); func(path)
-def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
-    if onerror is None and onexc is None:
-        onexc = _handler
-    return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
-shutil.rmtree = _rmtree
-"""
-
-
-def _install_sitecustomize(python_env_path: Path) -> None:
-    """Patch shutil.rmtree inside the penv to handle read-only files.
-
-    west init's shutil.move falls back to copytree+rmtree on Windows, and
-    rmtree dies on the read-only .idx/.pack files git just wrote into
-    manifest-tmp. Dropping a sitecustomize.py into the venv applies the
-    same fix esphome.helpers.rmtree uses, but inside the subprocess.
-    """
-    if os.name != "nt":
-        return
-    site_packages = python_env_path / "Lib" / "site-packages"
-    site_packages.mkdir(parents=True, exist_ok=True)
-    (site_packages / "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
 
 
 def _get_version_str() -> str:
@@ -240,7 +200,7 @@ def setup_platformio_python_env() -> None:
         + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
         + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
     ).hexdigest()
-    if _needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
+    if needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
         rmdir(penv_path, msg="Clean up PlatformIO toolchain Python environment")
 
         create_venv(penv_path, msg="PlatformIO toolchain")
@@ -563,13 +523,13 @@ def _check_and_install(version: str) -> None:
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
     requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
-    install_venv = _needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
+    install_venv = needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 
         create_venv(python_env_path, msg=version)
 
-        _install_sitecustomize(python_env_path)
+        install_sitecustomize(python_env_path)
 
         _LOGGER.info("Installing requirements ...")
         cmd = [
