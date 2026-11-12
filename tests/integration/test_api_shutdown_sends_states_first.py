@@ -16,17 +16,8 @@ from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedWithDisconnectFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
-# More states than one batch packet holds (MAX_MESSAGES_PER_BATCH is 34)
-BURST_SENSORS = 60
-
-
-def _config(yaml_config: str) -> str:
-    """Fill in the burst sensors; both tests share one build, so both call this."""
-    assert "# GENERATED_SENSORS" in yaml_config
-    sensors = "\n".join(
-        f'  - platform: template\n    name: "Burst {i}"' for i in range(BURST_SENSORS)
-    )
-    return yaml_config.replace("  # GENERATED_SENSORS", sensors)
+# Sensors in the fixture: more than MAX_MESSAGES_PER_BATCH (34) states
+BURST_SENSORS = 40
 
 
 @pytest.mark.asyncio
@@ -37,7 +28,7 @@ async def test_api_shutdown_sends_states_first(
     api_client_connected_with_disconnect: APIClientConnectedWithDisconnectFactory,
 ) -> None:
     async with (
-        run_compiled(_config(yaml_config)),
+        run_compiled(yaml_config),
         api_client_connected_with_disconnect() as (client, disconnect_event),
     ):
         entities, _ = await client.list_entities_services()
@@ -67,7 +58,7 @@ async def test_api_shutdown_sends_burst_before_disconnect(
 ) -> None:
     """More states than one batch packet holds all arrive before the disconnect."""
     async with (
-        run_compiled(_config(yaml_config)),
+        run_compiled(yaml_config),
         api_client_connected_with_disconnect() as (client, disconnect_event),
     ):
         entities, _ = await client.list_entities_services()
