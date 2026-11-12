@@ -2,6 +2,7 @@
 
 from collections.abc import Generator
 import itertools
+import logging
 
 import pytest
 
@@ -11,18 +12,26 @@ from esphome.components.nrf52 import (
     _detect_bootloader,
     _validate_mcumgr,
     _validate_open_dfu_toolchain,
+    _warn_without_antenna,
     set_core_data,
 )
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
 from esphome.components.nrf52.const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
     BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_NRF,
+    VARIANT_NRF54LM20,
     VARIANT_NRF52832,
 )
-from esphome.components.nrf52.framework import get_nrf52_variant
+from esphome.components.nrf52.framework import get_nrf52_board, get_nrf52_variant
 from esphome.components.zephyr import Section
-from esphome.components.zephyr.const import KEY_BOARD, KEY_PM_STATIC, KEY_ZEPHYR
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOARD,
+    KEY_OVERLAY,
+    KEY_PM_STATIC,
+    KEY_ZEPHYR,
+)
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 from esphome.config import path_context
 import esphome.config_validation as cv
@@ -194,3 +203,37 @@ def test_dfu_component_needs_usb() -> None:
 def test_board_dcdc_default(given: dict[str, str | bool], dcdc: bool | None) -> None:
     """The Feather defaults to LDO; a user setting wins and other boards get nothing."""
     assert _default_dcdc(given).get("dcdc") is dcdc
+
+
+def test_xiao_nrf54lm20a_builds_on_the_nrf54lm20_dk() -> None:
+    """sdk-nrf 3.4.1 has no XIAO nRF54LM20A board; it builds on the nRF54LM20 DK with MCUboot."""
+    assert _detect_bootloader({"board": "xiao_nrf54lm20a"})["bootloader"] == (
+        BOOTLOADER_MCUBOOT
+    )
+    _core_data("xiao_nrf54lm20a", BOOTLOADER_MCUBOOT)
+    assert CORE.data[KEY_ZEPHYR][KEY_BOARD] == "nrf54lm20dk/nrf54lm20a/cpuapp"
+    assert get_nrf52_variant() == VARIANT_NRF54LM20
+    # The logger default follows the board, not the DK it builds on
+    assert get_nrf52_board() == "xiao_nrf54lm20a"
+
+
+def test_xiao_nrf54lm20a_console_uart_on_the_debugger_pins() -> None:
+    """The console UART uses the pins of the on-board debugger: TX P1.11, RX P1.10."""
+    overlay = BOARDS_ZEPHYR["xiao_nrf54lm20a"][KEY_OVERLAY]
+    assert overlay.count("NRF_PSEL(UART_TX, 1, 11)") == 2
+    assert overlay.count("NRF_PSEL(UART_RX, 1, 10)") == 2
+    assert "RTS" not in overlay
+    assert "CTS" not in overlay
+
+
+@pytest.mark.parametrize(
+    ("board", "warns"),
+    [("xiao_nrf54lm20a", True), ("nrf54lm20dk/nrf54lm20a/cpuapp", False)],
+)
+def test_warns_about_a_board_without_antenna(
+    caplog: pytest.LogCaptureFixture, board: str, warns: bool
+) -> None:
+    """A board with only an antenna connector needs an external antenna for any radio."""
+    with caplog.at_level(logging.WARNING):
+        _warn_without_antenna({"board": board})
+    assert ("has no antenna of its own" in caplog.text) is warns
