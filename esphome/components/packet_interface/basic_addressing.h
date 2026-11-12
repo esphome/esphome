@@ -34,12 +34,9 @@ class BasicAddressing : public Component {
   void dump_config() override;
 
   PacketInterface *get_link() const { return this->link_; }
+  uint16_t get_address() const { return this->address_; }
   void add_port(AddressingPort *port) { this->ports_.push_back(port); }
-  /**
-   * Sends \p data to \p destination. Through the broadcast port, a destination set in \p meta_data is used instead;
-   * any other port refuses one that differs from its own, as its layers may keep state for that one peer, and a
-   * packet to this device's own address is refused, as every receiver drops it.
-   */
+  /// Sends \p data to \p destination, which the port has checked.
   bool send(const PacketBuffer &data, const PacketMetaData &meta_data, uint16_t destination);
 
  protected:
@@ -47,7 +44,6 @@ class BasicAddressing : public Component {
 
   PacketInterface *link_;
   const uint16_t address_;
-  bool destination_warned_{false};
   StaticVector<AddressingPort *, PACKET_INTERFACE_ADDRESSING_PORT_COUNT> ports_;
 };
 
@@ -58,14 +54,19 @@ class AddressingPort : public PacketInterface {
   AddressingPort(BasicAddressing *addressing, uint16_t destination, bool only_port);
 
   void dump_config() override;
-  bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override {
-    return this->addressing_->send(data, meta_data, this->destination_);
-  }
+  /**
+   * Sends to the port's destination. Through the broadcast port, a destination set in \p meta_data is used instead;
+   * any other port refuses one that differs from its own, as its layers may keep state for that one peer, and a
+   * packet to this device's own address is refused, as every receiver drops it.
+   */
+  bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
   uint16_t get_destination() const { return this->destination_; }
 
  protected:
   friend class BasicAddressing;
 
+  // First, so it fills the spare byte at the end of PacketInterface
+  bool destination_warned_{false};
   BasicAddressing *addressing_;
   const uint16_t destination_;
 };
