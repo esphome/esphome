@@ -78,7 +78,6 @@ class FeedbackCover final : public cover::Cover, public Component {
 #endif
     return this->infer_endstop_;
   }
-  // With movement sensors the actual operation comes from them, not from the command
   bool has_movement_sensors_() const {
 #ifdef USE_FEEDBACK_COVER_MOVEMENT
     return this->open_feedback_ != nullptr && this->close_feedback_ != nullptr;

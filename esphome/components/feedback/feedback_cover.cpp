@@ -144,7 +144,7 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
 
   this->position = open_endstop ? COVER_OPEN : COVER_CLOSED;
 
-  // only act when moving towards this endstop, the cover may be coming back from slightly past it
+  // Only when moving towards it; the cover may be returning from just past it
   if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
     float dur = (now - this->start_dir_time_) / 1e3f;
     ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()),
@@ -155,7 +155,7 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
     } else {
       this->set_current_operation_(COVER_OPERATION_IDLE, true);
     }
-    // Without movement sensors the stop above already published the new position
+    // Without movement sensors the stop above already published
     if (!this->has_movement_sensors_())
       return;
   }
@@ -169,8 +169,7 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
     this->enable_loop();
   if (is_triggered) {
     this->current_trigger_operation_ = operation;
-    // With movement sensors the actual operation is set by them, and may differ from the command
-    // because of delays or because the movement was started externally
+    // With movement sensors they set the actual operation
     if (this->has_movement_sensors_())
       return;
   }
@@ -247,7 +246,7 @@ void FeedbackCover::loop() {
     }
   }
 
-  // publish intermediate positions, also for movement started externally, without saving them
+  // Publish intermediate positions without saving them
   if (now - this->last_publish_time_ > this->update_interval_) {
     this->publish_state(false);
     this->last_publish_time_ = now;
@@ -258,7 +257,6 @@ void FeedbackCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->start_direction_(COVER_OPERATION_IDLE);
   } else if (call.get_toggle().has_value()) {
-    // OPEN - STOP - CLOSE
     if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
       this->start_direction_(COVER_OPERATION_IDLE);
     } else {
@@ -276,8 +274,7 @@ void FeedbackCover::control(const CoverCall &call) {
       return;
     auto pos = *pos_opt;
     if (pos == this->position) {
-      // a cover with a built-in endstop but no sensor for it gets the command again,
-      // in case the assumed state is wrong
+      // Resend in case the assumed state is wrong
       if (this->has_built_in_endstop_ &&
           ((pos == COVER_OPEN && !this->has_open_endstop_()) || (pos == COVER_CLOSED && !this->has_close_endstop_()))) {
         this->target_position_ = pos;
@@ -304,7 +301,6 @@ void FeedbackCover::stop_prev_trigger_() {
 }
 
 bool FeedbackCover::is_at_target_() const {
-  // a movement started externally may differ from the commanded one, so compare against the command
   switch (this->current_trigger_operation_) {
     case COVER_OPERATION_OPENING:
       return this->position >= this->target_position_;
@@ -353,8 +349,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   this->stop_prev_trigger_();
 
 #ifdef USE_FEEDBACK_COVER_OBSTACLE
-  // an obstacle present before starting aborts without any change; one appearing while moving is
-  // handled in on_obstacle_()
+  // An obstacle already present aborts the start
   if (obstacle != nullptr && obstacle->state) {
     ESP_LOGD(TAG, "'%s' - %s obstacle detected. Action not started.", LOG_STR_ARG(this->get_log_name()),
              dir == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"));
@@ -389,8 +384,7 @@ void FeedbackCover::recompute_position_() {
   float min_pos;
   float max_pos;
 
-  // With an endstop, the estimate stops just short of fully open/closed; the endstop callback sets the end
-  // value, which is kept if the movement continues past the endstop (inertia)
+  // With an endstop the estimate stops short of the end; the endstop callback sets it
   switch (this->current_operation) {
     case COVER_OPERATION_OPENING:
       dir = 1.0f;
@@ -408,7 +402,6 @@ void FeedbackCover::recompute_position_() {
       return;
   }
 
-  // leave the acceleration wait time out of the position estimate
   if (now - this->start_dir_time_ > this->acceleration_wait_time_) {
     uint32_t accel_end_time = this->start_dir_time_ + this->acceleration_wait_time_;
     uint32_t effective_start;
