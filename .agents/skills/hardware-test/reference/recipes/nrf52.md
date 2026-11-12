@@ -101,3 +101,14 @@ once on a build without TCP, or `tcp ok udp ok` twice and no error with it. Add 
 come back, and connect with `apicheck.py ADDR` over Thread. Measured on the ItsyBitsy: 12.9 KB less flash and 17.1 KB
 less RAM without TCP (Zephyr's default pools, 16/16 instead of 24/48), and SMP over UDP OTA still works with them.
 Results: https://github.com/esphome/esphome/pull/21910#issuecomment-6518287139
+
+## sdk-nrf 3.4.1 on the ItsyBitsy (#22233, #22558)
+
+- Set `framework: version: 3.4.1` and `board: adafruit_itsybitsy`.
+- Trees before #22233 include `<nrf.h>` in `logger_zephyr.cpp`, which 3.4.1 no longer has on the include path, so
+  Adafruit bootloader boards fail to build (`nrf.h: No such file or directory`). To test such a tree on 3.4.1, change
+  that include to `<nrfx.h>` locally.
+- On the new USB stack, `usb_cdc_acm` bulk echo ran at about half the legacy rate (67 against 121 KiB/s for 64 KiB),
+  and `flush()` returned `3`. The logger, DTR, line coding and the 1200 baud touch worked.
+- The zephyr_ble_server flow above, on 3.4.1: before #22558 advertising failed to restart after the first disconnect
+  (`Advertising failed to start (rc -12)`); with it the server took 39 connections in 120 s.
