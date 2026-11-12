@@ -26,6 +26,14 @@ switch:
     name: "Dead Reverse Opening"
     id: dead_reverse_opening
     optimistic: true
+  - platform: template
+    name: "Overlap Opening"
+    id: overlap_opening
+    optimistic: true
+  - platform: template
+    name: "Overlap Closing"
+    id: overlap_closing
+    optimistic: true
 
 binary_sensor:
   - platform: template
@@ -52,6 +60,12 @@ binary_sensor:
   - platform: template
     id: dead_reverse_close_sensor
     lambda: return false;
+  - platform: template
+    id: overlap_open_sensor
+    lambda: return id(overlap_opening).state;
+  - platform: template
+    id: overlap_close_sensor
+    lambda: return id(overlap_closing).state;
   - platform: template
     id: stuck_open_sensor
     lambda: return false;
@@ -129,3 +143,17 @@ cover:
       - logger.log: "DEAD_CLOSE_ACTION"
     stop_action:
       - logger.log: "DEAD_STOP_ACTION"
+  - platform: feedback
+    name: "Overlap Cover"
+    open_duration: 6s
+    open_sensor: overlap_open_sensor
+    close_duration: 6s
+    close_sensor: overlap_close_sensor
+    direction_change_wait_time: 0s
+    max_duration: 1s
+    open_action:
+      - logger.log: "OVERLAP_OPEN_ACTION"
+    close_action:
+      - logger.log: "OVERLAP_CLOSE_ACTION"
+    stop_action:
+      - logger.log: "OVERLAP_STOP_ACTION"

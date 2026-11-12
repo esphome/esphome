@@ -104,7 +104,9 @@ void FeedbackCover::set_open_sensor(binary_sensor::BinarySensor *open_feedback) 
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_OPENING) {
       this->endstop_reached_(true);
     }
-    this->set_current_operation_(state ? COVER_OPERATION_OPENING : COVER_OPERATION_IDLE, false);
+    // In a reversal the other sensor may already report the new direction
+    if (state || this->current_operation == COVER_OPERATION_OPENING)
+      this->set_current_operation_(state ? COVER_OPERATION_OPENING : COVER_OPERATION_IDLE, false);
   });
 }
 
@@ -119,7 +121,9 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
       this->endstop_reached_(false);
     }
 
-    this->set_current_operation_(state ? COVER_OPERATION_CLOSING : COVER_OPERATION_IDLE, false);
+    // In a reversal the other sensor may already report the new direction
+    if (state || this->current_operation == COVER_OPERATION_CLOSING)
+      this->set_current_operation_(state ? COVER_OPERATION_CLOSING : COVER_OPERATION_IDLE, false);
   });
 }
 

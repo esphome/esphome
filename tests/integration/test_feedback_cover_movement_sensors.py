@@ -17,7 +17,8 @@ async def test_feedback_cover_movement_sensors(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test max_duration, a self-stopping motor, a flickering sensor and reverses with no wait time."""
+    """Test max_duration, a self-stopping motor, a flickering sensor and reverses with no wait time,
+    including one where the movement sensors overlap."""
     lines: list[str] = []
 
     def count(marker: str) -> int:
@@ -40,6 +41,9 @@ async def test_feedback_cover_movement_sensors(
         flicker_opening = require_entity(entities, "flicker_opening", SwitchInfo)
         dead = require_entity(entities, "dead_reverse_cover", CoverInfo)
         dead_opening = require_entity(entities, "dead_reverse_opening", SwitchInfo)
+        overlap = require_entity(entities, "overlap_cover", CoverInfo)
+        overlap_opening = require_entity(entities, "overlap_opening", SwitchInfo)
+        overlap_closing = require_entity(entities, "overlap_closing", SwitchInfo)
 
         # The motor never reports movement, so max_duration has to stop it
         client.cover_command(key=stuck.key, position=1.0)
@@ -86,6 +90,24 @@ async def test_feedback_cover_movement_sensors(
         await asyncio.sleep(1.0)
         assert count("DEAD_CLOSE_ACTION") == 1
         assert count("DEAD_STOP_ACTION") == 2
+
+        # The close sensor starts before the open sensor ends; max_duration must still stop the close
+        client.cover_command(key=overlap.key, position=1.0)
+        await asyncio.sleep(0.1)
+        client.switch_command(key=overlap_opening.key, state=True)
+        await asyncio.sleep(0.1)
+        client.cover_command(key=overlap.key, position=0.0)
+        await asyncio.sleep(0.1)
+        client.switch_command(key=overlap_closing.key, state=True)
+        await asyncio.sleep(0.1)
+        client.switch_command(key=overlap_opening.key, state=False)
+        await asyncio.sleep(0.2)
+        overlap_state = states[overlap.key]
+        assert isinstance(overlap_state, CoverState)
+        assert overlap_state.current_operation == CoverOperation.IS_CLOSING
+        await asyncio.sleep(1.2)
+        assert count("OVERLAP_CLOSE_ACTION") == 1
+        assert count("OVERLAP_STOP_ACTION") == 2
 
         # Reverse while the open sensor still reports movement for a while
         client.cover_command(key=reverse.key, position=1.0)
