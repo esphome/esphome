@@ -475,7 +475,7 @@ async def _transmit_value(
     """Argument text for one templatable transmit value."""
     if isinstance(value, Lambda):
         expr = await automation.call_user_lambda(value, args, type_)
-        # Some uses are operands (``.transmit``, ``[0]``), so a bare expression binds as a whole
+        # Used as an operand (.transmit, [0])
         return f"({expr})" if isinstance(expr, cg.RawExpression) else str(expr)
     return str(const_fn(value))
 
