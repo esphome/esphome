@@ -365,7 +365,11 @@ follow_text_sensor = FollowEntity(
 
 
 def request_filter_reset() -> None:
-    """Request ``Filter::reset_chain()``; call from the to_code of a component that resets a filter chain."""
+    """Compile ``TextSensor::detach_filters()``/``attach_filters()`` and ``Filter::reset_chain()``.
+
+    Call from the to_code of a component that uses them.
+    """
+    cg.add_define("USE_TEXT_SENSOR_FILTER")
     cg.add_define("USE_TEXT_SENSOR_FILTER_RESET")
 
 
