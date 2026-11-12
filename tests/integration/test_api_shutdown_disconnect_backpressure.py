@@ -64,7 +64,7 @@ async def _fill_then_restart(
                 api_pb2.ListEntitiesServicesResponse.FromString(payload)
                 for payload in client.frames(SERVICES_RESPONSE)
             ]
-            (action_key,) = [svc.key for svc in services if svc.name == action]
+            (action_key,) = (svc.key for svc in services if svc.name == action)
             if subscribe_states:
                 await client.send_message(api_pb2.SubscribeStatesRequest())
                 # Take the initial state so nothing is queued before the fill
