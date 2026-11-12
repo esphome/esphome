@@ -31,10 +31,10 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 // micros() adds the cycles counted since the last call. While the CPU stays busy the result and the kernel clock
 // each trail the true time by less than a tick, so they differ by less than a tick either way. A sleep shorter
 // than a tick can go unnoticed, so the result may trail the true time by up to two ticks until the next resync.
-// The CPU cannot sleep while interrupts are locked, so a lag there comes from before the lock. It is left for the
-// next unlocked call, which keeps differences inside an InterruptLock exact; InterruptLock makes that call just
-// before it locks, so timestamps taken under the lock line up with later unlocked ones. A counter that has not
-// moved since the last call is not running, and then the kernel clock is used even under a lock.
+// The CPU cannot sleep while interrupts are locked, so a lag there comes from before the lock. It and any drift
+// are left for the next unlocked call, which keeps differences inside an InterruptLock exact; InterruptLock makes that
+// call just before it locks, so timestamps taken under the lock line up with later unlocked ones. A counter that has
+// not moved since the last call is not running, and then the kernel clock is used even under a lock.
 
 // One struct so the code loads a single base address.
 static struct {
@@ -55,13 +55,16 @@ uint32_t micros() {
   // A tick, plus 1 us because kernel_us is rounded down.
   const int32_t tick_us = k_ticks_to_us_ceil32(1) + 1;
   const int32_t ahead = static_cast<int32_t>(value - kernel_us);
-  if (ahead < -tick_us && (arch_irq_unlocked(key) || elapsed_us == 0)) {
+  const bool unlocked = arch_irq_unlocked(key);
+  if (ahead < -tick_us && (unlocked || elapsed_us == 0)) {
     // The CPU slept, so the cycle counter fell behind.
     value = kernel_us;
     micros_state.last_cycles = cycles;
-  } else if (ahead >= tick_us) {
-    // The CPU clock can run fast against the RTC; cap the drift at one tick.
-    value = kernel_us + tick_us - 1;
+  } else if (ahead >= tick_us && unlocked) {
+    // The CPU clock can run fast against the RTC; cap the drift at one tick, but never below a result already
+    // returned under a lock.
+    const uint32_t cap = kernel_us + tick_us - 1;
+    value = static_cast<int32_t>(cap - micros_state.value) > 0 ? cap : micros_state.value;
   }
   micros_state.value = value;
   irq_unlock(key);
