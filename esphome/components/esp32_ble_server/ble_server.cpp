@@ -1,5 +1,6 @@
 #include "ble_server.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "esphome/components/ble_device_base/ble_device.h"
@@ -137,11 +138,9 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
 
 bool BLEServer::add_service(BLEService &service) {
   // There is one server, so a service in its list is registered; adding it twice would free or start it twice
-  for (auto &entry : this->services_) {
-    if (entry.service == &service) {
-      ESP_LOGE(TAG, "BLE service already added");
-      return false;
-    }
+  if (std::ranges::find(this->services_, &service) != this->services_.end()) {
+    ESP_LOGE(TAG, "BLE service already added");
+    return false;
   }
   const uint8_t inst_id = this->free_inst_id_(service.get_uuid());
   if (inst_id == INVALID_INST_ID)
