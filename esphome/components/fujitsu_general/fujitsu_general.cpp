@@ -356,7 +356,7 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   else {
-    ESP_LOGV(TAG, "Received unsupprted message type %X", recv_message_type);
+    ESP_LOGV(TAG, "Received unsupported message type %X", recv_message_type);
     return false;
   }
 
