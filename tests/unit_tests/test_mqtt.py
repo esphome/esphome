@@ -576,9 +576,8 @@ def test_get_esphome_device_ip_answer_without_ip_fails_fast(
     # A mock stop event records whether the wait loop slept at all
     stop_event = MagicMock(spec=threading.Event)
     stop_event.is_set.return_value = False
-    stop_event.wait.return_value = (
-        False  # a regression then fails on the wait assertion
-    )
+    # A regression then fails on the wait assertion, not on pytest.raises
+    stop_event.wait.return_value = False
 
     with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
         _deliver_on_loop_start(
@@ -617,9 +616,8 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
     # A mock stop event records whether the wait loop slept at all
     stop_event = MagicMock(spec=threading.Event)
     stop_event.is_set.return_value = False
-    stop_event.wait.return_value = (
-        False  # a regression then fails on the wait assertion
-    )
+    # A regression then fails on the wait assertion, not on pytest.raises
+    stop_event.wait.return_value = False
 
     with patch("esphome.mqtt.prepare", return_value=client):
 
