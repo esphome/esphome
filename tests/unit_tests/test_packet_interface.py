@@ -15,6 +15,7 @@ from esphome.components.packet_interface.layers import (
     CONF_RELIABILITY,
     CONF_SESSION,
     RELIABILITY,
+    SESSION,
     STACK_ORDER,
     LayerKind,
     xxtea_encryption,
@@ -518,3 +519,26 @@ def test_interface_packet_size(setup_core) -> None:
     assert packet_interface.interface_packet_size(ID("b")) == 96
     # The default 508 bytes, less the encryption's 4-byte check
     assert packet_interface.interface_packet_size(ID("single")) == 504
+
+
+def test_no_room_left_rejected(setup_core) -> None:
+    """A layer that the layers below leave no room for is rejected when the config is checked, not at boot."""
+    with pytest.raises(cv.Invalid, match="no room"):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {
+                CONF_MAX_PACKET_SIZE: 16,
+                CONF_ADDRESSING: {"address": 1, "destination": 2},
+                CONF_ENCRYPTION: {"key": "secret", "rolling_code_enable": True},
+                CONF_SESSION: None,
+            }
+        )
+
+
+def test_session_packet_size(setup_core) -> None:
+    """The session layer takes one byte of each packet, and needs room below for its keep-alive."""
+    session = uart_packet_interface.CONFIG_SCHEMA({CONF_SESSION: None})[CONF_SESSION]
+    session_type = SESSION.get_type(session)
+    assert session_type.packet_size(session, 100) == 99
+    session_type.check_lower(session, 5, None)
+    with pytest.raises(cv.Invalid, match="keep-alive"):
+        session_type.check_lower(session, 4, None)
