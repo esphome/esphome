@@ -49,15 +49,15 @@ struct Writer {
   size_t n = 0;
   void slot(uint8_t level) {
     if (level)
-      out[n >> 3] |= 0x80 >> (n & 7);
-    n++;
+      this->out[this->n >> 3] |= 0x80 >> (this->n & 7);
+    this->n++;
   }
   void field(uint32_t v, int bits) {
     for (int b = 0; b < bits; b++) {
-      slot(1);
+      this->slot(1);
       if ((v >> b) & 1)
-        slot(1);
-      slot(0);
+        this->slot(1);
+      this->slot(0);
     }
   }
 };

@@ -56,16 +56,15 @@ bool BrizLabsLEDString::transmit_all_() {
     const uint8_t *p = this->buf_ + z * 3;
     uniform &= memcmp(p, this->buf_, 3) == 0;
   }
-  bool ok = true;
-  if (uniform) {
-    ok = this->send_frame_(0, this->buf_[0], this->buf_[1], this->buf_[2]);
-  } else {
-    for (int z = 0; z < this->num_zones_; z++) {
-      const uint8_t *p = this->buf_ + z * 3;
-      ok &= this->send_frame_(z + 1, p[0], p[1], p[2]);
-    }
+  if (uniform)
+    return this->send_frame_(0, this->buf_[0], this->buf_[1], this->buf_[2]);
+  for (int z = 0; z < this->num_zones_; z++) {
+    const uint8_t *p = this->buf_ + z * 3;
+    // Stop at the first failure; write_state() sends every zone again on the next loop
+    if (!this->send_frame_(z + 1, p[0], p[1], p[2]))
+      return false;
   }
-  return ok;
+  return true;
 }
 
 void BrizLabsLEDString::write_state(light::LightState *state) {
