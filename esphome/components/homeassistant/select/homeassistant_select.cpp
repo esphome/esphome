@@ -1,7 +1,5 @@
 #include "homeassistant_select.h"
 
-#include <cstring>
-
 #include "../homeassistant.h"
 
 #include "esphome/components/api/api_pb2.h"
@@ -126,21 +124,17 @@ void HomeassistantSelect::control(size_t index) {
 #endif
 
   // In flash on the ESP8266 and encoded from there
-  static const char SERVICE_SELECT[] PROGMEM = "select.select_option";
-  static const char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
-  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
-  static const char OPTION_KEY[] PROGMEM = "option";
+  static constexpr char SERVICE_SELECT[] PROGMEM = "select.select_option";
+  static constexpr char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
+  static constexpr char OPTION_KEY[] PROGMEM = "option";
 
   api::HomeassistantActionRequest resp;
-  // An input helper entity id starts with the "input_" its action name starts with
-  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_SELECT, sizeof("input_") - 1) == 0;
-  resp.service =
-      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT) : ProgmemStringRef::from_lit(SERVICE_SELECT);
+  resp.service = is_input_helper(this->entity_id_, SERVICE_INPUT_SELECT)
+                     ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT)
+                     : ProgmemStringRef::from_lit(SERVICE_SELECT);
 
   resp.data.init(2);
-  auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
-  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
+  add_entity_id(resp, this->entity_id_);
 
   auto &option = resp.data.emplace_back();
   option.key = ProgmemStringRef::from_lit(OPTION_KEY);

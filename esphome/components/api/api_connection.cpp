@@ -1262,34 +1262,32 @@ void APIConnection::try_send_store_yaml_() {
 
 #ifdef USE_HOMEASSISTANT_TIME
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
-  if (homeassistant::global_homeassistant_time != nullptr) {
-    homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
+  homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
-    // Apply only if the sender provided pre-parsed timezone data (Home Assistant 2026.3.0
-    // and newer); field presence distinguishes a genuine all-zero UTC timezone from an
-    // absent field. Older clients send only the deprecated timezone string, which is no
-    // longer decoded; for them the device keeps its codegen-configured timezone.
-    if (value.has_parsed_timezone) {
-      const auto &pt = value.parsed_timezone;
-      time::ParsedTimezone tz{};
-      tz.std_offset_seconds = pt.std_offset_seconds;
-      tz.dst_offset_seconds = pt.dst_offset_seconds;
-      tz.dst_start.time_seconds = pt.dst_start.time_seconds;
-      tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
-      tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
-      tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
-      tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
-      tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
-      tz.dst_end.time_seconds = pt.dst_end.time_seconds;
-      tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
-      tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
-      tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
-      tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
-      tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
-      time::set_global_tz(tz);
-    }
-#endif
+  // Apply only if the sender provided pre-parsed timezone data (Home Assistant 2026.3.0
+  // and newer); field presence distinguishes a genuine all-zero UTC timezone from an
+  // absent field. Older clients send only the deprecated timezone string, which is no
+  // longer decoded; for them the device keeps its codegen-configured timezone.
+  if (value.has_parsed_timezone) {
+    const auto &pt = value.parsed_timezone;
+    time::ParsedTimezone tz{};
+    tz.std_offset_seconds = pt.std_offset_seconds;
+    tz.dst_offset_seconds = pt.dst_offset_seconds;
+    tz.dst_start.time_seconds = pt.dst_start.time_seconds;
+    tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
+    tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
+    tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
+    tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
+    tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
+    tz.dst_end.time_seconds = pt.dst_end.time_seconds;
+    tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
+    tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
+    tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
+    tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
+    tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
+    time::set_global_tz(tz);
   }
+#endif
 }
 #endif
 
@@ -1941,9 +1939,7 @@ void APIConnection::complete_authentication_() {
   }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
-  if (homeassistant::global_homeassistant_time != nullptr) {
-    this->send_time_request();
-  }
+  this->send_time_request();
 #endif
 #ifdef USE_ZWAVE_PROXY
   if (zwave_proxy::global_zwave_proxy != nullptr) {

@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 from .. import (
@@ -42,8 +41,6 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await switch.new_switch(config)
     await cg.register_component(var, config)
-    await switch.register_switch(var, config)
-    setup_home_assistant_entity(var, config)
+    setup_home_assistant_entity(var, config, services=True)

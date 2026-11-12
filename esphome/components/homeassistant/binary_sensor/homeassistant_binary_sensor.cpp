@@ -10,27 +10,17 @@ ESPHOME_LOG_TAG(TAG, "homeassistant.binary_sensor");
 void HomeassistantBinarySensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
     auto val = parse_on_off(state.c_str());
-    switch (val) {
-      case PARSE_NONE:
-      case PARSE_TOGGLE:
-        ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
-        break;
-      case PARSE_ON:
-      case PARSE_OFF:
-        bool new_state = val == PARSE_ON;
-        if (this->attribute_ != nullptr) {
-          ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_, this->attribute_, ONOFF(new_state));
-        } else {
-          ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_, ONOFF(new_state));
-        }
-        if (this->initial_) {
-          this->publish_initial_state(new_state);
-        } else {
-          this->publish_state(new_state);
-        }
-        break;
+    if (val != PARSE_ON && val != PARSE_OFF) {
+      ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+      return;
     }
-    this->initial_ = false;
+    bool new_state = val == PARSE_ON;
+    if (this->attribute_ != nullptr) {
+      ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_, this->attribute_, ONOFF(new_state));
+    } else {
+      ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_, ONOFF(new_state));
+    }
+    this->publish_state(new_state);
   });
 }
 void HomeassistantBinarySensor::dump_config() {

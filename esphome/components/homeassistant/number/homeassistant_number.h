@@ -16,9 +16,8 @@ class HomeassistantNumber final : public number::Number, public Component {
 
  protected:
   void state_changed_(StringRef state);
-  void min_retrieved_(StringRef min);
-  void max_retrieved_(StringRef max);
-  void step_retrieved_(StringRef step);
+  /// Parses a min/max/step attribute, logging the result
+  optional<float> parse_attribute_(const char *name, StringRef value);
 
   void control(float value) override;
 

@@ -1,6 +1,6 @@
 #include "homeassistant_text.h"
 
-#include <cstring>
+#include "../homeassistant.h"
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
@@ -13,6 +13,9 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.text");
 
+// Indexed by text::TextMode
+PROGMEM_STRING_TABLE(TextModeNames, "text", "password");
+
 void HomeassistantText::state_changed_(StringRef state) {
   if (state == this->state) {
     return;
@@ -21,35 +24,23 @@ void HomeassistantText::state_changed_(StringRef state) {
   this->publish_state(state.c_str(), state.size());
 }
 
-void HomeassistantText::min_retrieved_(StringRef min) {
-  auto min_value = parse_number<int>(min.c_str());
-  if (!min_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'min' value '%s' to number!", this->entity_id_, min.c_str());
-    return;
+optional<int> HomeassistantText::parse_length_(const char *name, StringRef value) {
+  auto length = parse_number<int>(value.c_str());
+  if (!length.has_value()) {
+    ESP_LOGE(TAG, "'%s': Can't convert '%s' value '%s' to number!", this->entity_id_, name, value.c_str());
+    return nullopt;
   }
-  ESP_LOGD(TAG, "'%s': Min retrieved: %s", this->entity_id_, min.c_str());
-  this->traits.set_min_length(min_value.value());
-}
-
-void HomeassistantText::max_retrieved_(StringRef max) {
-  auto max_value = parse_number<int>(max.c_str());
-  if (!max_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'max' value '%s' to number!", this->entity_id_, max.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "'%s': Max retrieved: %s", this->entity_id_, max.c_str());
-  this->traits.set_max_length(max_value.value());
+  ESP_LOGD(TAG, "'%s': Retrieved '%s': %s", this->entity_id_, name, value.c_str());
+  return length;
 }
 
 void HomeassistantText::mode_retrieved_(StringRef mode) {
-  if (mode == "text") {
-    this->traits.set_mode(text::TEXT_MODE_TEXT);
-  } else if (mode == "password") {
-    this->traits.set_mode(text::TEXT_MODE_PASSWORD);
-  } else {
+  const int16_t index = progmem_string_table_find<TextModeNames>(mode.c_str(), mode.size());
+  if (index < 0) {
     ESP_LOGW(TAG, "'%s': Unknown 'mode' value '%s'", this->entity_id_, mode.c_str());
     return;
   }
+  this->traits.set_mode(static_cast<text::TextMode>(index));
   ESP_LOGD(TAG, "'%s': Mode retrieved: %s", this->entity_id_, mode.c_str());
 }
 
@@ -57,10 +48,14 @@ void HomeassistantText::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
                                                          [this](StringRef state) { this->state_changed_(state); });
 
-  api::global_api_server->get_home_assistant_state(this->entity_id_, "min",
-                                                   [this](StringRef min) { this->min_retrieved_(min); });
-  api::global_api_server->get_home_assistant_state(this->entity_id_, "max",
-                                                   [this](StringRef max) { this->max_retrieved_(max); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "min", [this](StringRef value) {
+    if (auto min = this->parse_length_("min", value))
+      this->traits.set_min_length(*min);
+  });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "max", [this](StringRef value) {
+    if (auto max = this->parse_length_("max", value))
+      this->traits.set_max_length(*max);
+  });
   api::global_api_server->get_home_assistant_state(this->entity_id_, "mode",
                                                    [this](StringRef mode) { this->mode_retrieved_(mode); });
   // The "pattern" attribute is not fetched: Home Assistant sends "None" when it is unset,
@@ -88,21 +83,16 @@ void HomeassistantText::control(const std::string &value) {
 #endif
 
   // In flash on the ESP8266 and encoded from there
-  static const char SERVICE_TEXT[] PROGMEM = "text.set_value";
-  static const char SERVICE_INPUT_TEXT[] PROGMEM = "input_text.set_value";
-  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
-  static const char VALUE_KEY[] PROGMEM = "value";
+  static constexpr char SERVICE_TEXT[] PROGMEM = "text.set_value";
+  static constexpr char SERVICE_INPUT_TEXT[] PROGMEM = "input_text.set_value";
+  static constexpr char VALUE_KEY[] PROGMEM = "value";
 
   api::HomeassistantActionRequest resp;
-  // An input helper entity id starts with the "input_" its action name starts with
-  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_TEXT, sizeof("input_") - 1) == 0;
-  resp.service =
-      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_TEXT) : ProgmemStringRef::from_lit(SERVICE_TEXT);
+  resp.service = is_input_helper(this->entity_id_, SERVICE_INPUT_TEXT) ? ProgmemStringRef::from_lit(SERVICE_INPUT_TEXT)
+                                                                       : ProgmemStringRef::from_lit(SERVICE_TEXT);
 
   resp.data.init(2);
-  auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
-  entity_id_kv.value = ProgmemStringRef(StringRef(this->entity_id_));
+  add_entity_id(resp, this->entity_id_);
 
   auto &value_kv = resp.data.emplace_back();
   value_kv.key = ProgmemStringRef::from_lit(VALUE_KEY);

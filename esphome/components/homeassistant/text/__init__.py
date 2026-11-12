@@ -34,8 +34,7 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await text.new_text(config)
     await cg.register_component(var, config)
     # 1 state + min/max/mode fetches in HomeassistantText::setup()
-    setup_home_assistant_entity(var, config, state_subscription_count=4)
+    setup_home_assistant_entity(var, config, state_subscription_count=4, services=True)

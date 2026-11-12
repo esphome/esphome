@@ -2,14 +2,37 @@
 
 #include <cctype>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+#include "esphome/components/api/api_pb2.h"
+#endif
 
 namespace esphome::homeassistant {
 
 /// True for what Home Assistant reports when there is no value: "None" for an attribute that is not
 /// set, "unavailable" and "unknown" for the state of an entity that is not ready
 bool is_unset(StringRef value);
+
+/// True for the entity id of an input helper: it starts with the "input_" of input_service, an action name in flash
+inline bool is_input_helper(const char *entity_id, const char *input_service) {
+  return ESPHOME_strncmp_P(entity_id, input_service, sizeof("input_") - 1) == 0;
+}
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+/// Adds the entity_id entry to an action's data. Inline, as the control platforms using it do not all
+/// compile homeassistant.cpp
+inline void add_entity_id(api::HomeassistantActionRequest &resp, const char *entity_id) {
+  // In flash on the ESP8266 and encoded from there
+  static constexpr char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  auto &entry = resp.data.emplace_back();
+  entry.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entry.value = ProgmemStringRef(StringRef(entity_id));
+}
+#endif
 
 /// Emit the UTF-8 encoding of a code point. Rejects NUL, which would end the item early.
 template<typename C> bool emit_utf8(uint32_t code_point, C &on_char) {

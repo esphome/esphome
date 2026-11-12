@@ -8,7 +8,7 @@ namespace esphome::homeassistant {
 
 class HomeassistantTime final : public time::RealTimeClock {
  public:
-  void setup() override;
+  HomeassistantTime();
   void update() override;
   void dump_config() override;
   void set_epoch_time(uint32_t epoch) { this->synchronize_epoch_(epoch); }
