@@ -10,36 +10,39 @@
 namespace esphome::epaper_spi::testing {
 namespace {
 
-/// A driver left as a completed refresh leaves it: nothing drawn and no full update pending.
-template<typename Driver> class TestableDriver : public Driver {
+/// Reaches the protected EPaperBase members of any driver, including final ones, through member pointers.
+class EPaperBaseAccess : public EPaperBase {
  public:
-  template<typename... Args> TestableDriver(Args... args) : Driver("test", 16, 2, nullptr, 0, args...) {
-    EXPECT_TRUE(this->init_buffer_(this->buffer_length_));
-    this->reset_bounds_();
-    this->full_update_requested_ = false;
-  }
-
-  /// Runs the UPDATE state; true if the update goes on to send the frame.
-  bool update_is_sent() {
-    this->update();
-    this->loop();
-    return this->is_updating();
+  /// Leaves the display as a completed refresh leaves it: nothing drawn and no full update pending.
+  static void set_refreshed(EPaperBase &display) {
+    EXPECT_TRUE((display.*&EPaperBaseAccess::init_buffer_)(display.*&EPaperBaseAccess::buffer_length_));
+    (display.*&EPaperBaseAccess::reset_bounds_)();
+    display.*&EPaperBaseAccess::full_update_requested_ = false;
   }
 };
 
-template<typename Driver> std::unique_ptr<TestableDriver<Driver>> make_display() {
-  return std::make_unique<TestableDriver<Driver>>();
+template<typename Driver, typename... Args> std::unique_ptr<Driver> make_refreshed(Args... args) {
+  auto display = std::make_unique<Driver>("test", 16, 2, nullptr, 0, args...);
+  EPaperBaseAccess::set_refreshed(*display);
+  return display;
 }
 
-template<> std::unique_ptr<TestableDriver<EPaperJD79660>> make_display() {
-  return std::make_unique<TestableDriver<EPaperJD79660>>(nullptr, 0);
+template<typename Driver> std::unique_ptr<Driver> make_display() { return make_refreshed<Driver>(); }
+
+template<> std::unique_ptr<EPaperJD79660> make_display() { return make_refreshed<EPaperJD79660>(nullptr, 0); }
+
+/// Runs the UPDATE state; true if the update goes on to send the frame.
+bool update_is_sent(EPaperBase &display) {
+  display.update();
+  display.loop();
+  return display.is_updating();
 }
 
 /// fill() writes the whole buffer without drawing pixels, so it must mark the frame drawn itself. Otherwise the
 /// UPDATE state finds nothing drawn after a refresh, and returns to idle without sending the frame.
 template<typename Driver> class EPaperFillMarksDrawn : public ::testing::Test {
  protected:
-  std::unique_ptr<TestableDriver<Driver>> display_ = make_display<Driver>();
+  std::unique_ptr<Driver> display_ = make_display<Driver>();
 };
 
 using Drivers = ::testing::Types<EPaperWaveshareBWR, EPaperT133A01, EPaperJD79660, EPaperWeAct3C>;
@@ -49,7 +52,7 @@ TYPED_TEST(EPaperFillMarksDrawn, FillOnlyUpdateIsSent) {
   this->display_->set_auto_clear(false);
   this->display_->fill(Color::WHITE);
 
-  EXPECT_TRUE(this->display_->update_is_sent()) << "fill-only update was skipped";
+  EXPECT_TRUE(update_is_sent(*this->display_)) << "fill-only update was skipped";
 }
 
 /// Auto clear fills the frame before the lambda runs, so an update whose lambda draws nothing still erases the
@@ -57,7 +60,7 @@ TYPED_TEST(EPaperFillMarksDrawn, FillOnlyUpdateIsSent) {
 TYPED_TEST(EPaperFillMarksDrawn, AutoClearUpdateIsSentWhenTheLambdaDrawsNothing) {
   this->display_->set_writer([](display::Display &) {});
 
-  EXPECT_TRUE(this->display_->update_is_sent()) << "auto clear did not erase the previous image";
+  EXPECT_TRUE(update_is_sent(*this->display_)) << "auto clear did not erase the previous image";
 }
 
 }  // namespace
