@@ -93,12 +93,13 @@ class HdlcReliability : public PacketInterface {
   uint8_t va_{0};  // oldest unacknowledged frame
   uint8_t vr_{0};  // next frame expected from the peer
   LinkState state_{LinkState::LINK_STATE_RESET_PENDING};
-  bool ack_pending_{false};  // an RR is owed
-  bool ack_due_{false};      // and should be sent now
-  bool rej_sent_{false};
-  bool peer_frame_seen_{false};  // a numbered frame has arrived since the link came up
-  bool oversize_warned_{false};
-  bool reset_wait_logged_{false};  // the queue filled while waiting for this reset to be answered
+  bool ack_pending_ : 1 {false};  // an RR is owed
+  bool ack_due_ : 1 {false};      // and should be sent now
+  bool rej_sent_ : 1 {false};
+  bool peer_frame_seen_ : 1 {false};  // a numbered frame has arrived since the link came up
+  bool oversize_warned_ : 1 {false};
+  bool reset_wait_logged_ : 1 {false};  // the queue filled while waiting for this reset to be answered
+  bool destination_warned_ : 1 {false};
 };
 
 }  // namespace esphome::packet_interface
