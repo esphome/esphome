@@ -4,7 +4,13 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_TEMPERATURE_SENSOR
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_DATA_RATE, CONF_DIMENSIONS, CONF_INVERTED
+from esphome.const import (
+    CONF_BUSY_PIN,
+    CONF_DATA_RATE,
+    CONF_DIMENSIONS,
+    CONF_INVERTED,
+    CONF_RESET_PIN,
+)
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -49,6 +55,11 @@ class SSD2677(EpaperModel):
             )
         # The controller's busy signal is active low
         busy_pin[CONF_INVERTED] = True
+        if CONF_RESET_PIN not in config:
+            # The panel sleeps after every update, and only the hardware reset wakes it
+            raise cv.Invalid(
+                f"{self.name} needs a {CONF_RESET_PIN}", path=[CONF_RESET_PIN]
+            )
         if self.get_dimensions(config)[1] > GATES:
             raise cv.Invalid(
                 f"{self.name} has at most {GATES} rows", path=[CONF_DIMENSIONS]

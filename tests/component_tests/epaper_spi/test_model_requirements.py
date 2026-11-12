@@ -449,15 +449,20 @@ def test_temperature_sensor_only_offered_for_ssd2677(
 
 
 @pytest.mark.parametrize(
-    ("busy_pin", "dimensions", "message"),
+    ("pins", "dimensions", "message"),
     [
-        (None, {"width": 800, "height": 480}, "busy pin"),
-        (18, {"width": 804, "height": 480}, "multiple of 8"),
-        (18, {"width": 800, "height": 681}, "680 rows"),
+        ({"reset_pin": 17}, {"width": 800, "height": 480}, "busy pin"),
+        ({"busy_pin": 18}, {"width": 800, "height": 480}, "reset_pin"),
+        (
+            {"busy_pin": 18, "reset_pin": 17},
+            {"width": 804, "height": 480},
+            "multiple of 8",
+        ),
+        ({"busy_pin": 18, "reset_pin": 17}, {"width": 800, "height": 681}, "680 rows"),
     ],
 )
 def test_ssd2677_rejects_unusable_settings(
-    busy_pin: Any,
+    pins: dict[str, int],
     dimensions: dict[str, int],
     message: str,
     set_core_config: SetCoreConfigCallable,
@@ -472,9 +477,8 @@ def test_ssd2677_rejects_unusable_settings(
         "model": "ssd2677",
         "dc_pin": 16,
         "dimensions": dimensions,
+        **pins,
     }
-    if busy_pin is not None:
-        config["busy_pin"] = busy_pin
 
     with pytest.raises(cv.Invalid, match=message):
         CONFIG_SCHEMA(config)
@@ -496,6 +500,7 @@ def test_ssd2677_busy_pin_is_active_low(
         config |= {
             "dc_pin": 16,
             "busy_pin": 18,
+            "reset_pin": 17,
             "dimensions": {"width": 800, "height": 480},
         }
 

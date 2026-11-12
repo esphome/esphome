@@ -43,7 +43,7 @@ void EPaperSSD2677::dump_config() {
 #endif
 }
 
-int EPaperSSD2677::whole_degrees_(float reading) {
+int EPaperSSD2677::whole_degrees(float reading) {
   return std::isnan(reading) ? DEFAULT_TEMPERATURE : (int) std::lround(reading);
 }
 
@@ -78,7 +78,7 @@ bool EPaperSSD2677::initialise(bool partial) {
   }
   this->init_sequence_sent_ = false;
   this->cmd_data(CMD_CCSET, {CCSET_FORCE_TEMPERATURE});
-  const int temperature = whole_degrees_(this->temperature_reading_());
+  const int temperature = whole_degrees(this->temperature_reading_());
   const uint8_t waveform =
       this->is_partial_refresh_() ? partial_waveform(temperature) : this->full_waveform(temperature);
   ESP_LOGD(TAG, "Temperature %d C, waveform 0x%02X", temperature, waveform);
@@ -109,7 +109,8 @@ bool HOT EPaperSSD2677::transfer_data() {
   const bool buffer_is_stream = !this->is_partial_refresh_() && !this->buffer_is_mono_();
   const bool need_mono = !buffer_is_stream || this->sent_.is_valid();
   SmallBufferWithHeapFallback<128> mono_alloc(row_length);
-  SmallBufferWithHeapFallback<256> stream_alloc(row_length * 2);
+  const size_t stream_length = row_length * 2;
+  SmallBufferWithHeapFallback<256> stream_alloc(stream_length);
   this->start_data_();
   // current_data_index_ counts rows
   while (this->current_data_index_ != this->height_) {
@@ -118,12 +119,12 @@ bool HOT EPaperSSD2677::transfer_data() {
       this->mono_row(y, mono_alloc.get());
     if (buffer_is_stream) {
       const size_t src_row = y * this->row_width_;
-      for (size_t i = 0; i != this->row_width_; i++)
+      for (size_t i = 0; i != stream_length; i++)
         stream_alloc.get()[i] = this->buffer_[src_row + i];
     } else {
       this->stream_row_(y, mono_alloc.get(), stream_alloc.get());
     }
-    this->write_array(stream_alloc.get(), row_length * 2);
+    this->write_array(stream_alloc.get(), stream_length);
     if (need_mono)
       this->record_sent_(y * row_length, mono_alloc.get(), row_length);
     if (this->current_data_index_ != this->height_ && millis() - start_time > MAX_TRANSFER_TIME) {

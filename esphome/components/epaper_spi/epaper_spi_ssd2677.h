@@ -44,7 +44,7 @@ class EPaperSSD2677 : public EPaperUltraChip {
   // The stream for row y, where mono is that row from mono_row()
   void stream_row_(size_t y, const uint8_t *mono, uint8_t *out);
   // The reading in whole degrees C, or the default for a missing reading (NAN)
-  static int whole_degrees_(float reading);
+  static int whole_degrees(float reading);
   float temperature_reading_() const;
   // The forced temperature value that selects the full refresh waveform at this temperature
   virtual uint8_t full_waveform(int temperature) const;

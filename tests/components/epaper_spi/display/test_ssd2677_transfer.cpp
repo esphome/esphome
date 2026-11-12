@@ -61,7 +61,7 @@ template<typename Driver> class Testable : public Driver {
   }
 
   using Driver::full_waveform;
-  using Driver::whole_degrees_;
+  using Driver::whole_degrees;
 
   RecordingPin dc;
   RecordingPin reset_pin;
@@ -241,9 +241,9 @@ TEST(EPaperSSD2677Gray4, PartialUsesThePartialWaveform) {
 }
 
 TEST(EPaperSSD2677, ReadingBecomesWholeDegreesWithDefaultForNoReading) {
-  EXPECT_EQ(Mono::whole_degrees_(NAN), 25);
-  EXPECT_EQ(Mono::whole_degrees_(7.6f), 8);
-  EXPECT_EQ(Mono::whole_degrees_(-3.4f), -3);
+  EXPECT_EQ(Mono::whole_degrees(NAN), 25);
+  EXPECT_EQ(Mono::whole_degrees(7.6f), 8);
+  EXPECT_EQ(Mono::whole_degrees(-3.4f), -3);
 }
 
 }  // namespace esphome::epaper_spi::testing
