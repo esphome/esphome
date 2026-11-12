@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import remote_base
@@ -182,14 +184,21 @@ def _find_actions(
     return found
 
 
+def _actions_of(
+    config: ConfigType, names: tuple[str, ...]
+) -> Iterator[tuple[list, ConfigType]]:
+    """Every action named in names on this remote, with the path to report it at."""
+    for path, action in _find_actions(fv.full_config.get(), [], names):
+        if str(action[CONF_ID]) == str(config[CONF_ID]):
+            yield [cv.ROOT_CONFIG_PATH] + path, action
+
+
 def _take_over_has_a_receiver(config: ConfigType) -> ConfigType:
     # keeloq.take_over waits for a frame of the hand remote.
     if CONF_RECEIVER_ID in config:
         return config
-    for path, action in _find_actions(fv.full_config.get(), [], ("keeloq.take_over",)):
-        if str(action[CONF_ID]) != str(config[CONF_ID]):
-            continue
-        with cv.prepend_path([cv.ROOT_CONFIG_PATH] + path):
+    for path, _ in _actions_of(config, ("keeloq.take_over",)):
+        with cv.prepend_path(path):
             raise cv.Invalid(f"keeloq.take_over needs receiver_id on {config[CONF_ID]}")
     return config
 
@@ -198,10 +207,8 @@ def _learn_has_a_serial(config: ConfigType) -> ConfigType:
     # keeloq.learn pairs the remote's own serial.
     if CONF_SERIAL in config:
         return config
-    for path, action in _find_actions(fv.full_config.get(), [], ("keeloq.learn",)):
-        if str(action[CONF_ID]) != str(config[CONF_ID]):
-            continue
-        with cv.prepend_path([cv.ROOT_CONFIG_PATH] + path):
+    for path, _ in _actions_of(config, ("keeloq.learn",)):
+        with cv.prepend_path(path):
             raise cv.Invalid(
                 f"keeloq.learn needs serial on {config[CONF_ID]}; a remote without serial takes over a hand remote"
             )
@@ -213,10 +220,10 @@ def _actions_have_channels(config: ConfigType) -> ConfigType:
     if CONF_CHANNELS in config or CONF_SERIAL not in config:
         return config
     sending = ("keeloq.send", "keeloq.learn")
-    for path, action in _find_actions(fv.full_config.get(), [], sending):
-        if str(action[CONF_ID]) != str(config[CONF_ID]) or CONF_CHANNELS in action:
+    for path, action in _actions_of(config, sending):
+        if CONF_CHANNELS in action:
             continue
-        with cv.prepend_path([cv.ROOT_CONFIG_PATH] + path):
+        with cv.prepend_path(path):
             raise cv.Invalid(
                 f"{action[CONF_ID]} has no channels; set channels on the action or the remote",
                 [CONF_CHANNELS],
