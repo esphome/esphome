@@ -491,9 +491,9 @@ class StaticConstAssignmentExpression(AssignmentExpression):
 def progmem_array(id_, rhs, *, align: int | None = None) -> "MockObj":
     """Emit a ``static constexpr`` PROGMEM array and return a reference to it.
 
-    ``align`` prefixes the declaration with ``alignas(align)``. A PROGMEM array is
-    otherwise aligned to 1 byte, so data read through a cast, such as a flatbuffer
-    model buffer, needs this to keep the address it is dereferenced at legal.
+    ``align`` prefixes the declaration with ``alignas(align)``. Without it the array
+    only gets its element type's alignment (1 byte for a byte array), so data read
+    through a cast, such as a flatbuffer model buffer, needs this to stay aligned.
     """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
