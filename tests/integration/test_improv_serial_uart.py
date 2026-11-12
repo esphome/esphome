@@ -29,6 +29,7 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 IMPROV_HEADER = b"IMPROV"
 IMPROV_VERSION = 1
 TYPE_CURRENT_STATE = 0x01
+TYPE_ERROR_STATE = 0x02
 TYPE_RPC = 0x03
 TYPE_RPC_RESPONSE = 0x04
 
@@ -37,6 +38,9 @@ CMD_GET_CURRENT_STATE = 0x02
 CMD_GET_DEVICE_INFO = 0x03
 CMD_GET_WIFI_NETWORKS = 0x04
 CMD_WIFI_SETTINGS = 0x01
+
+# improv::Error values
+ERROR_INVALID_RPC = 0x01
 
 
 def build_rpc_frame(command: int, data: bytes = b"") -> list[int]:
@@ -47,9 +51,9 @@ def build_rpc_frame(command: int, data: bytes = b"") -> list[int]:
     return list(frame + bytes([checksum]) + b"\n")
 
 
-def state_frame_hex(state: int) -> str:
-    """Full 12 byte current-state frame as hex, checksum and newline included."""
-    frame = IMPROV_HEADER + bytes([IMPROV_VERSION, TYPE_CURRENT_STATE, 1, state])
+def state_frame_hex(state: int, frame_type: int = TYPE_CURRENT_STATE) -> str:
+    """Full 12 byte one-value frame as hex, checksum and newline included."""
+    frame = IMPROV_HEADER + bytes([IMPROV_VERSION, frame_type, 1, state])
     checksum = sum(frame) & 0xFF
     return ":".join(f"{b:02X}" for b in frame + bytes([checksum]) + b"\n")
 
@@ -104,11 +108,15 @@ async def test_improv_serial_uart(
         )
         await waiter.wait(reply, msg="no reply to a 255 byte payload")
 
-        # A bad checksum is dropped, and the next frame parses from the start
+        # A bad checksum is reported, and the next frame parses from the start
         bad = get_state.copy()
         bad[-2] ^= 0xFF
+        error = waiter.expect(
+            f"TX 12 bytes: {state_frame_hex(ERROR_INVALID_RPC, TYPE_ERROR_STATE)}"
+        )
         reply = waiter.expect(authorized)
         await client.execute_service(inject, {"payload": bad + get_state})
+        await waiter.wait(error, msg="no error frame for a bad checksum")
         await waiter.wait(reply, msg="no reply after a bad checksum")
 
         # A frame cut off for longer than the 100 ms timeout is discarded
