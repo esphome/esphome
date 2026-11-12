@@ -1443,3 +1443,40 @@ def test_cmsis_dap_flashes_again_after_a_failure(
                 upload_using_cmsis_dap("CB1D0165")
     assert mock_run.call_count == 2
     assert mock_run.call_args_list[0] == mock_run.call_args_list[1]
+
+
+@pytest.mark.parametrize("patched", [True, False])
+def test_cmsis_dap_failure_names_an_unpatched_nrf54lm20a_flash_algo(
+    setup_core: Path, tmp_path: Path, patched: bool
+) -> None:
+    """With pyOCD's original algorithm the flash faults; the error says so, not 'locked'."""
+    from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
+    from esphome.components.nrf52.const import VARIANT_NRF54LM20
+    from esphome.components.nrf52.framework import set_nrf52_variant
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    _set_sdk(cv.Version(3, 4, 0))
+    set_nrf52_variant(VARIANT_NRF54LM20)
+    CORE.config_path = tmp_path / "test.yaml"
+    app = CORE.relative_pioenvs_path(CORE.name) / "zephyr" / "zephyr" / "zephyr.hex"
+    app.parent.mkdir(parents=True)
+    app.write_text("")
+    target = tmp_path / "target_nRF54LM20A.py"
+    with (
+        patch("esphome.components.nrf52.cmsis_dap.check_and_install"),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.get_build_paths",
+            return_value=_make_paths(tmp_path),
+        ),
+        patch("esphome.components.nrf52.cmsis_dap.get_build_env", return_value={}),
+        patch("esphome.components.nrf52.cmsis_dap.run_command_ok", return_value=False),
+        patch(
+            "esphome.components.nrf52.cmsis_dap.unpatched_pyocd_nrf54lm20a_target",
+            return_value=None if patched else target,
+        ),
+        pytest.raises(
+            EsphomeError,
+            match="--mass" if patched else "fixed nRF54LM20A flash algorithm",
+        ),
+    ):
+        upload_using_cmsis_dap("CB1D0165")

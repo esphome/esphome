@@ -346,14 +346,28 @@ FLASH_ALGO = {
 _PYOCD_FLASH_ALGO_RE = re.compile(r"^FLASH_ALGO = \{.*?^\}\n", re.MULTILINE | re.DOTALL)
 
 
-def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
-    target = (
+def _pyocd_nrf54lm20a_target(python_env_path: Path) -> Path:
+    return (
         _get_penv_site_packages(python_env_path)
         / "pyocd"
         / "target"
         / "builtin"
         / "target_nRF54LM20A.py"
     )
+
+
+def unpatched_pyocd_nrf54lm20a_target() -> Path | None:
+    """PyOCD's nRF54LM20A target file when it lacks the fixed flash algorithm, else None."""
+    target = _pyocd_nrf54lm20a_target(_get_python_env_path(_get_version_str()))
+    if target.is_file() and _PYOCD_NRF54LM20A_FLASH_ALGO in target.read_text(
+        encoding="utf-8"
+    ):
+        return None
+    return target
+
+
+def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
+    target = _pyocd_nrf54lm20a_target(python_env_path)
     if not target.is_file():
         _LOGGER.debug(
             "pyOCD has no nRF54LM20A target at %s; not patching its flash algorithm",

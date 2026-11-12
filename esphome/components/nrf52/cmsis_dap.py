@@ -20,6 +20,7 @@ from .framework import (
     get_build_env,
     get_build_paths,
     get_nrf52_variant,
+    unpatched_pyocd_nrf54lm20a_target,
 )
 
 # pyOCD's built-in target names
@@ -107,6 +108,15 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
             "Flashing failed, trying once more in case the chip was just unlocked"
         )
         if not run_command_ok(cmd, env=env, stream_output=True):
+            if variant == VARIANT_NRF54LM20 and (
+                unpatched := unpatched_pyocd_nrf54lm20a_target()
+            ):
+                raise EsphomeError(
+                    f"pyOCD could not flash the device. {unpatched} does not have the "
+                    "fixed nRF54LM20A flash algorithm that ESPHome installs, and the "
+                    "original one faults while writing. This pyOCD version is not "
+                    "supported yet; please report it."
+                )
             raise EsphomeError(
                 "pyOCD could not flash the device; its output above says why. If it says "
                 "the chip is locked or reports a memory transfer fault, unlock and erase it "

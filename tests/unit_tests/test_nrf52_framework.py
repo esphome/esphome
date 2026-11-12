@@ -1372,6 +1372,21 @@ def test_patch_pyocd_nrf54lm20a_flash_algo(tmp_path: Path) -> None:
     framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path / "absent")  # tolerant
 
 
+def test_unpatched_pyocd_nrf54lm20a_target(tmp_path: Path) -> None:
+    """The upload error names pyOCD's target file until the fix is in it."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    with (
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.unpatched_pyocd_nrf54lm20a_target() == target  # absent
+        target.parent.mkdir(parents=True)
+        target.write_text(PYOCD_NRF54LM20A_BEFORE)
+        assert framework.unpatched_pyocd_nrf54lm20a_target() == target
+        framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
 def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
     tmp_path: Path,
 ) -> None:
