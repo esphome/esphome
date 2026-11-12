@@ -344,6 +344,7 @@ _WEST_PROJECTS_FILE = ".west_projects"
 class _Nrf52Data:
     west_projects: set[str] = field(default_factory=lambda: set(DEFAULT_WEST_PROJECTS))
     variant: str = VARIANT_NRF52840
+    board: str = ""
 
 
 def _get_data() -> _Nrf52Data:
@@ -359,6 +360,15 @@ def set_nrf52_variant(variant: str) -> None:
 def get_nrf52_variant() -> str:
     """The SoC variant, taken from the board name; NRF52840 until nrf52 is validated."""
     return _get_data().variant
+
+
+def set_nrf52_board(board: str) -> None:
+    _get_data().board = board
+
+
+def get_nrf52_board() -> str:
+    """The board name from the config; empty until nrf52 is validated."""
+    return _get_data().board
 
 
 def include_west_project(name: str) -> None:

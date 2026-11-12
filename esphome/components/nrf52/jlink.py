@@ -109,8 +109,9 @@ def jlink_serial_number(port: str) -> str | None:
     """The serial number of the J-Link probe that provides ``port``, or None for other ports."""
     import serial.tools.list_ports as _list_ports
 
+    port = os.path.realpath(port)
     for info in _list_ports.comports(include_links=True):
-        if info.device == port and info.vid == SEGGER_USB_VID:
+        if os.path.realpath(info.device) == port and info.vid == SEGGER_USB_VID:
             # The USB serial number has leading zeros that J-Link does not use
             serial = info.serial_number or ""
             if serial.isdigit():

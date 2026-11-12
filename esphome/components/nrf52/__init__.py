@@ -81,7 +81,11 @@ from .boards import (
     BOOTLOADER_CONFIG,
     SELF_RESET_PINS,
 )
-from .cmsis_dap import cmsis_dap_unique_id, upload_using_cmsis_dap
+from .cmsis_dap import (
+    can_upload_using_cmsis_dap,
+    cmsis_dap_unique_id,
+    upload_using_cmsis_dap,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -111,6 +115,7 @@ from .framework import (
     get_build_paths,
     get_nrf52_variant,
     include_west_project,
+    set_nrf52_board,
     set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
@@ -184,6 +189,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
     if (target := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_BOARD)) is not None:
         zephyr_data()[KEY_BOARD] = target
     set_nrf52_variant(_board_variant(zephyr_data()[KEY_BOARD]))
+    set_nrf52_board(config[CONF_BOARD])
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -928,14 +934,14 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         set_framework(platform_config)
 
     mcumgr_device: str | None = None
+    file = getattr(args, "file", None)
 
     if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
         bootloader = zephyr_data()[KEY_BOOTLOADER]
-        if (
-            bootloader == BOOTLOADER_MCUBOOT
-            and (jlink_serial := jlink_serial_number(host)) is not None
-        ):
+        # A probe flashes the local build, so a given file goes over mcumgr
+        probe_upload = bootloader == BOOTLOADER_MCUBOOT and file is None
+        if probe_upload and (jlink_serial := jlink_serial_number(host)) is not None:
             # The serial port of a J-Link probe, such as the one built into Nordic DKs:
             # flash through the probe, which works whatever firmware the device runs
             if can_upload_using_jlink():
@@ -952,17 +958,25 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 jlink_serial,
                 Toolchain.SDK_NRF,
             )
-        if (
-            bootloader == BOOTLOADER_MCUBOOT
-            and (dap_id := cmsis_dap_unique_id(host)) is not None
-        ):
+        if probe_upload and (dap_id := cmsis_dap_unique_id(host)) is not None:
             # The serial port of a CMSIS-DAP probe, such as the one built into Seeed XIAO
             # nRF54 boards: flash through the probe, which works whatever firmware runs
-            _LOGGER.info(
-                "%s belongs to CMSIS-DAP probe %s, flashing with pyOCD", host, dap_id
+            if can_upload_using_cmsis_dap():
+                _LOGGER.info(
+                    "%s belongs to CMSIS-DAP probe %s, flashing with pyOCD",
+                    host,
+                    dap_id,
+                )
+                upload_using_cmsis_dap(dap_id)
+                return True
+            _LOGGER.warning(
+                "%s belongs to CMSIS-DAP probe %s, but flashing with pyOCD needs the "
+                "'%s' toolchain at version 2.9.2 or newer; uploading with mcumgr "
+                "instead, which needs firmware that accepts it",
+                host,
+                dap_id,
+                Toolchain.SDK_NRF,
             )
-            upload_using_cmsis_dap(dap_id)
-            return True
         if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         elif CORE.using_toolchain_platformio:
@@ -1051,7 +1065,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
-    file = getattr(args, "file", None)
     if mcumgr_device:
         # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
         asyncio.run(_smpmgr_upload(mcumgr_device, file))

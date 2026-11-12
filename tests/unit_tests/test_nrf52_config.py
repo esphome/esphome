@@ -23,7 +23,7 @@ from esphome.components.nrf52.const import (
     VARIANT_NRF54LM20,
     VARIANT_NRF52832,
 )
-from esphome.components.nrf52.framework import get_nrf52_variant
+from esphome.components.nrf52.framework import get_nrf52_board, get_nrf52_variant
 from esphome.components.zephyr import Section
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
@@ -213,6 +213,8 @@ def test_xiao_nrf54lm20a_builds_on_the_nrf54lm20_dk() -> None:
     _core_data("xiao_nrf54lm20a", BOOTLOADER_MCUBOOT)
     assert CORE.data[KEY_ZEPHYR][KEY_BOARD] == "nrf54lm20dk/nrf54lm20a/cpuapp"
     assert get_nrf52_variant() == VARIANT_NRF54LM20
+    # The logger default follows the board, not the DK it builds on
+    assert get_nrf52_board() == "xiao_nrf54lm20a"
 
 
 def test_xiao_nrf54lm20a_console_uart_on_the_debugger_pins() -> None:

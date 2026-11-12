@@ -83,6 +83,11 @@ BOARDS_WITHOUT_ANTENNA = {
     "xiao_nrf54lm20a",
 }
 
+# Boards whose USB port is the on-board debugger's serial bridge to UART0, not the chip's USB
+BOARDS_WITH_UART_CONSOLE = {
+    "xiao_nrf54lm20a",
+}
+
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
 # bootloader takes as its cue to stay in DFU mode (Nordic's own USB DFU trigger does the same)
 SELF_RESET_PINS = {
