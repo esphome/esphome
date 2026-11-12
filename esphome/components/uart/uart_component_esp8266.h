@@ -26,8 +26,8 @@ class ESP8266SoftwareSerial {
 
   size_t available();
 
-  /// TX holds interrupts off for whole frames: above the per-bit lock limit, or while any instance's RX interrupt reads
-  /// whole bytes (it must not run between TX bits).
+  /// TX holds interrupts off for each byte up to the edge into its trailing run of 1 bits, rather than per bit: above
+  /// the per-bit lock limit, or while any instance's RX interrupt reads whole bytes (it must not run between TX edges).
   bool locks_whole_frame() const { return this->lock_frame_ || blocking_rx_count != 0; }
 
  protected:
