@@ -60,6 +60,15 @@ class TextSensor : public EntityBase {
 
   /// Clear the entire filter chain.
   void clear_filters();
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+  /// Reset the filter chain and take it out of use, so values publish unfiltered. A value the filters were holding
+  /// back is sent. Returns the chain, or nullptr if there is none, for attach_filters(). Not for use from this
+  /// sensor's own raw state callback; defer instead.
+  Filter *detach_filters();
+  /// Put back a chain from detach_filters() and run the current state through it, without calling the raw state
+  /// callbacks again.
+  void attach_filters(Filter *filters);
+#endif
 #endif
 
   template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
