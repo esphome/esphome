@@ -1,4 +1,5 @@
 #include "sx127x.h"
+#include <cmath>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -168,7 +169,7 @@ void SX127x::configure_fsk_ook_() {
       this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->payload_length_);
       this->write_register_(REG_PACKET_CONFIG_1, crc_mode | FIXED_LENGTH);
     } else {
-      this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->get_max_packet_size() - 1);
+      this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->get_max_packet_size());
       this->write_register_(REG_PACKET_CONFIG_1, crc_mode | VARIABLE_LENGTH);
     }
     this->write_register_(REG_PACKET_CONFIG_2, PACKET_MODE);
@@ -258,7 +259,8 @@ size_t SX127x::get_max_packet_size() {
   if (this->modulation_ == MOD_LORA) {
     return SX127X_MAX_PACKET_SIZE;
   }
-  return 64;
+  // The 64 byte FIFO also holds the length byte
+  return 63;
 }
 
 SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
@@ -334,7 +336,8 @@ void SX127x::loop() {
   if (this->modulation_ == MOD_LORA) {
     uint8_t status = this->read_register_(REG_IRQ_FLAGS);
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
-    if ((status & PAYLOAD_CRC_ERROR) == 0) {
+    // DIO0 also signals TX_DONE, when the radio sleeps after sending
+    if ((status & RX_DONE) != 0 && (status & PAYLOAD_CRC_ERROR) == 0) {
       uint8_t bytes = this->read_register_(REG_NB_RX_BYTES);
       uint8_t addr = this->read_register_(REG_FIFO_RX_CURR_ADDR);
       uint8_t rssi = this->read_register_(REG_PKT_RSSI_VALUE);
@@ -355,13 +358,16 @@ void SX127x::loop() {
     }
     this->packet_.resize(payload_length);
     this->read_fifo_(this->packet_);
-    this->call_listeners_(this->packet_, 0.0f, 0.0f);
+    // Only LoRa measures each packet
+    this->call_listeners_(this->packet_, NAN, NAN);
   }
 }
 
 bool SX127x::is_receiving() {
-  // In receive mode DIO0 signals a received packet; the transmit FIFO would overwrite it
-  if (this->dio0_pin_ != nullptr && this->dio0_pin_->digital_read())
+  // In receive mode DIO0 signals a received packet; the transmit FIFO would overwrite it. A LoRa radio that sleeps
+  // after sending leaves DIO0 signalling TX_DONE
+  if (this->dio0_pin_ != nullptr && this->dio0_pin_->digital_read() &&
+      (this->modulation_ != MOD_LORA || (this->read_register_(REG_IRQ_FLAGS) & RX_DONE) != 0))
     return true;
   if (this->modulation_ != MOD_LORA) {
     // Set from the sync word until the packet has been read; the preamble flag stays set when no sync word follows

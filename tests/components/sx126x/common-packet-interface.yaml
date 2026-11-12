@@ -16,4 +16,4 @@ packet_interface:
       address: 0x0001
       destination: 0x0002
     reliability:
-      timeout: 500ms
+      ack_delay: 100ms

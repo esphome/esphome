@@ -48,6 +48,13 @@ void RadioLinkBase::radio_free_() {
 }
 
 void RadioLinkBase::receive_(const std::vector<uint8_t> &packet, float rssi, float snr) {
+  // The radio takes packets up to its own limit, so a larger one is from a device configured differently
+  if (packet.size() > this->max_packet_size_) {
+    ESP_LOGV(TAG, "%s: Packet of %zu bytes is larger than %zu, dropped", this->name_, packet.size(),
+             this->max_packet_size_);
+    this->note_received_(false);
+    return;
+  }
   PacketMetaData meta_data;
   meta_data.rssi = rssi;
   meta_data.snr = snr;

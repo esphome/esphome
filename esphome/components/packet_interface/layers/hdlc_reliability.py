@@ -22,6 +22,9 @@ CONF_MAX_RETRIES = "max_retries"
 # The control byte and the CRC-16
 FRAME_OVERHEAD = 3
 
+# Unless the link works out a longer one from how long its packets take, as a radio link does
+DEFAULT_TIMEOUT = cv.TimePeriodMilliseconds(milliseconds=200)
+
 HdlcReliability = packet_interface_ns.class_("HdlcReliability", PacketInterface)
 
 
@@ -29,7 +32,7 @@ def _ack_delay_within_timeout(config: ConfigType) -> ConfigType:
     """The peer, configured the same, must hear the acknowledgement before its timeout."""
     if (
         config[CONF_ACK_DELAY].total_milliseconds
-        >= config[CONF_TIMEOUT].total_milliseconds
+        >= config.get(CONF_TIMEOUT, DEFAULT_TIMEOUT).total_milliseconds
     ):
         raise cv.Invalid(
             f"Must be shorter than '{CONF_TIMEOUT}'", path=[CONF_ACK_DELAY]
@@ -42,7 +45,7 @@ HDLC_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(HdlcReliability),
             # Retransmitting more often than the main loop runs would exhaust the retries at once
-            cv.Optional(CONF_TIMEOUT, default="200ms"): cv.All(
+            cv.Optional(CONF_TIMEOUT): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(min=cv.TimePeriod(milliseconds=50)),
             ),
@@ -76,7 +79,7 @@ async def build_hdlc(
         psram=True,
     )
     var = cg.new_Pvariable(config[CONF_ID], lower, tx_slots, queue_length)
-    cg.add(var.set_ack_timeout(config[CONF_TIMEOUT]))
+    cg.add(var.set_ack_timeout(config.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)))
     cg.add(var.set_ack_delay(config[CONF_ACK_DELAY]))
     cg.add(var.set_max_retries(config[CONF_MAX_RETRIES]))
     await cg.register_component(var, config)
