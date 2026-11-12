@@ -64,36 +64,27 @@ def test_logger_pre_setup_before_other_components(generate_main):
         )
 
 
-def test_default_uart_selection_is_not_emitted(generate_main):
-    """UART0 is the C++ initializer on ESP8266, so the setter is skipped."""
-    main_cpp = generate_main("tests/component_tests/logger/test_logger.yaml")
+@pytest.mark.parametrize(
+    ("config", "define"),
+    [
+        pytest.param("test_logger.yaml", "UART0", id="esp8266_default"),
+        pytest.param("test_logger_uart1.yaml", "UART1", id="esp8266_uart1"),
+        pytest.param(
+            "test_logger_libretiny_default.yaml", "DEFAULT", id="libretiny_default"
+        ),
+        pytest.param("test_logger_libretiny_uart0.yaml", "UART0", id="libretiny_uart0"),
+    ],
+)
+def test_uart_selection_define(
+    generate_main: Callable[[str | Path], str], config: str, define: str
+) -> None:
+    """The chosen UART is fixed at build time by exactly one define."""
+    generate_main(f"tests/component_tests/logger/{config}")
 
-    assert "set_uart_selection(" not in main_cpp
-
-
-def test_custom_uart_selection_is_emitted(generate_main):
-    """A non default UART still reaches the setter before pre_setup()."""
-    main_cpp = generate_main("tests/component_tests/logger/test_logger_uart1.yaml")
-
-    assert "set_uart_selection(logger::UART_SELECTION_UART1);" in main_cpp
-
-
-def test_libretiny_default_uart_selection_is_not_emitted(generate_main):
-    """DEFAULT is the C++ initializer on LibreTiny, so the setter is skipped."""
-    main_cpp = generate_main(
-        "tests/component_tests/logger/test_logger_libretiny_default.yaml"
-    )
-
-    assert "set_uart_selection(" not in main_cpp
-
-
-def test_libretiny_uart0_is_emitted(generate_main):
-    """UART0 is not the LibreTiny initializer, so it must still be set."""
-    main_cpp = generate_main(
-        "tests/component_tests/logger/test_logger_libretiny_uart0.yaml"
-    )
-
-    assert "set_uart_selection(logger::UART_SELECTION_UART0);" in main_cpp
+    selections = {
+        d.name for d in CORE.defines if d.name.startswith("USE_LOGGER_UART_SELECTION_")
+    }
+    assert selections == {f"USE_LOGGER_UART_SELECTION_{define}"}
 
 
 def test_ram_log_strings_is_deprecated(

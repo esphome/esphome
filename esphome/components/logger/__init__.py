@@ -94,16 +94,6 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
-HARDWARE_UART_TO_UART_SELECTION = {
-    UART0: logger_ns.UART_SELECTION_UART0,
-    UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
-    UART1: logger_ns.UART_SELECTION_UART1,
-    UART2: logger_ns.UART_SELECTION_UART2,
-    USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
-    USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
-    DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
-}
-
 HARDWARE_UART_TO_SERIAL = {
     PLATFORM_ESP8266: {
         UART0: cg.global_ns.Serial,
@@ -506,17 +496,8 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(log.set_boot_log_level(tag, LOG_LEVELS[log_level]))
     if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
-    # set_uart_selection() must be called before pre_setup() because
-    # pre_setup() switches on uart_ to decide which hardware to initialize
-    # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
-    # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
-    # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
-    # setter when the config matches it.
-    cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
-    if (
-        hardware_uart := config.get(CONF_HARDWARE_UART)
-    ) is not None and hardware_uart != cpp_default_uart:
-        cg.add(log.set_uart_selection(HARDWARE_UART_TO_UART_SELECTION[hardware_uart]))
+    if (hardware_uart := config.get(CONF_HARDWARE_UART)) is not None:
+        cg.add_define(f"USE_LOGGER_UART_SELECTION_{hardware_uart}")
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
@@ -613,7 +594,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
         # Log V2 formats centrally in esp_log() (~4KB flash, ~180B RAM). 6.1
         # adds CONSTRAINED_ENV_SAFE=n, keeping early/DRAM logs on
         # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
@@ -631,10 +611,12 @@ async def _late_logger_init(config: ConfigType) -> None:
             # --wrap: a strong definition collides; see logger_esp32.cpp
             cg.add_build_flag("-Wl,--wrap=esp_log_format")
     # Zephyr polls the USB port only when it logs there
-    if config.get(CONF_HARDWARE_UART) == USB_CDC and (
-        has_serial_logging or not CORE.is_nrf52
+    if (
+        CORE.using_zephyr
+        and has_serial_logging
+        and config[CONF_HARDWARE_UART] == USB_CDC
     ):
-        cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
+        cg.add_define("USE_LOGGER_ZEPHYR_CDC_LOOP")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
@@ -850,6 +832,11 @@ def request_logger_level_listeners() -> None:
 
 
 _request_log_listener_slot = cg.slot_counter("ESPHOME_LOG_MAX_LISTENERS")
+
+
+def request_console() -> None:
+    """Compile in Logger::console_read() and console_write(); call from to_code."""
+    cg.add_define("USE_LOGGER_CONSOLE")
 
 
 def request_log_listener() -> None:

@@ -26,20 +26,16 @@ void Logger::setup() {
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-        break;
-      case UART_SELECTION_UART1:
-        this->hw_serial_ = &Serial2;
-        Serial2.begin(this->baud_rate_);
-        break;
-      case UART_SELECTION_USB_CDC:
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-        break;
-    }
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+    this->hw_serial_ = &Serial;
+    Serial.begin(this->baud_rate_);
+#elif defined(USE_LOGGER_UART_SELECTION_UART1)
+    this->hw_serial_ = &Serial2;
+    Serial2.begin(this->baud_rate_);
+#else
+    this->hw_serial_ = &Serial1;
+    Serial1.begin(this->baud_rate_);
+#endif
   }
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
@@ -50,16 +46,13 @@ void Logger::pre_setup() {
 }
 
 const LogString *Logger::get_uart_selection_() {
-  switch (this->uart_) {
-    case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
-    case UART_SELECTION_USB_CDC:
-      return LOG_STR("USB_CDC");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+  return LOG_STR("USB_CDC");
+#elif defined(USE_LOGGER_UART_SELECTION_UART1)
+  return LOG_STR("UART1");
+#else
+  return LOG_STR("UART0");
+#endif
 }
 
 #ifdef USE_CRASH_HANDLER

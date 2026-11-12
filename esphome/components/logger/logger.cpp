@@ -182,10 +182,10 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #endif
 }
 
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
 void Logger::loop() {
   this->process_messages_();
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
   this->cdc_loop_();
 #endif
 }
@@ -212,7 +212,7 @@ void Logger::process_messages_() {
     }
   }
   // Zephyr with USB CDC keeps the loop running for cdc_loop_()
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#ifndef USE_LOGGER_ZEPHYR_CDC_LOOP
   else {
     // A concurrent enable_loop_soon_any_context() still wakes the next iteration
     this->disable_loop();
