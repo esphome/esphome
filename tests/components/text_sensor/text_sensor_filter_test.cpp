@@ -69,6 +69,18 @@ TEST_F(TextFilterTest, TimeoutSendsTheConfiguredValue) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "Offline"}));
 }
 
+TEST_F(TextFilterTest, ResetChainMakesTheFiltersBehaveAsAtBoot) {
+  TimeoutThrottleFilter combined(1000, PRIORITIZED);
+  ThrottleFilter throttle(1000);
+  this->sensor_.add_filters({&combined, &throttle});
+  this->publish_at_(1000, "a");
+  this->publish_at_(1200, "b");  // held by the throttle
+  combined.reset_chain();
+  EXPECT_TRUE(combined.is_idle());  // no timeout is left to send "b" later
+  this->publish_at_(1300, "c");     // passes at once, as the first value after boot
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "c"}));
+}
+
 // Feeds the same values to the timeout + throttle chain and to the merged filter
 static std::vector<std::string> run_sequence(std::initializer_list<Filter *> filters, Component &timeout) {
   TextSensor sensor;
