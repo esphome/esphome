@@ -891,14 +891,15 @@ async def mqtt_publish_json_action_to_code(
             values[key] = (
                 const_fn(config, value) if const_fn else str(cg.safe_exp(value))
             )
+    # The payload gets its own copies of the trigger args, as any lambda does
     payload = await cg.process_lambda(
         config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
     )
-    statements.append(
-        f"{parent}->publish_json({values[CONF_TOPIC]}, [&]({cg.JsonObject} root) {{ "
-        f"{automation.immediate_lambda_call(payload)}; }}, "
-        f"{values[CONF_QOS]}, {values[CONF_RETAIN]});"
+    build = (
+        f"[&]({cg.JsonObject} root) {{ {automation.immediate_lambda_call(payload)}; }}"
     )
+    topic, qos, retain = (values[key] for key in (CONF_TOPIC, CONF_QOS, CONF_RETAIN))
+    statements.append(f"{parent}->publish_json({topic}, {build}, {qos}, {retain});")
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
