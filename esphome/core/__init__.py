@@ -31,6 +31,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     ErrorFormat,
     Toolchain,
 )
@@ -1021,6 +1022,10 @@ class EsphomeCore:
     @property
     def is_nrf52(self):
         return self.target_platform == PLATFORM_NRF52
+
+    @property
+    def is_stm32(self) -> bool:
+        return self.target_platform == PLATFORM_STM32
 
     @property
     def is_host(self):
