@@ -1,0 +1,6 @@
+# Config-only: the CI base board does not support the BLE 5.x tracker, so this
+# fixture verifies the platform-neutral schema and generated hub binding.
+bk72xx_ble_tracker:
+
+packages:
+  bthome: !include common.yaml
