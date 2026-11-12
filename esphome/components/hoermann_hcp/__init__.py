@@ -44,8 +44,8 @@ HCP2_MAX_ADDRESS = 0xF3
 def _validate_hcp2_address(value: int) -> int:
     modbus.reject_broadcast_address(
         value,
-        "a hoermann_hcp server address",
-        "Assign a unique unit address instead.",
+        "an HCP2 server address",
+        f"Pick a free unit address such as 0x{HCP2_DEFAULT_ADDRESS:02X} and run a bus scan.",
     )
     if value in RESERVED_HCP2_ADDRESSES:
         raise cv.Invalid(
