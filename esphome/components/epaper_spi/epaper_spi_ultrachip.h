@@ -7,9 +7,8 @@ namespace esphome::epaper_spi {
 /**
  * Shared base for controllers with the UltraChip style command set (UC8179, UC8279, SSD2677).
  *
- * It holds the shared commands and the deep-sleep and partial-window handling, which a driver uses
- * as far as its controller needs them; the concrete drivers differ in how each refresh is configured
- * and how the image is sent.
+ * It holds the shared commands and the deep-sleep and partial-window handling; the concrete drivers
+ * differ in how each refresh is configured and how the image is sent.
  */
 class EPaperUltraChip : public EPaperBase {
  public:
