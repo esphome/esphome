@@ -7,6 +7,7 @@ from esphome.components.const import CONF_ON_STOP
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
+from esphome.cpp_generator import call_lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -242,9 +243,13 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
-            arg = await cg.templatable(
-                config_args[name], args, type, convert(str(type))
-            )
+            value = config_args[name]
+            if cg.is_template(value):
+                arg = await automation.call_user_lambda(value, args, type)
+            else:
+                arg = call_lambda(
+                    await cg.templatable(value, args, type, convert(str(type)))
+                )
             script_args.append(arg)
         return script_args
 
@@ -256,8 +261,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     # Separate statements, because the order of evaluation inside one call is not defined
     statements = [
-        f"auto esphome__arg_{index} = {automation.immediate_lambda_call(arg)};"
-        for index, arg in enumerate(script_args)
+        f"auto esphome__arg_{index} = {arg};" for index, arg in enumerate(script_args)
     ]
     names = ", ".join(
         f"std::move(esphome__arg_{index})" for index in range(len(script_args))

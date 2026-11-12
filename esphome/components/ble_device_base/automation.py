@@ -189,8 +189,7 @@ def register_start_scan_action(name: str, tracker_class: MockObjClass) -> None:
         if (continuous := config.get(CONF_CONTINUOUS)) is None:
             mode = tracker.configured_continuous()
         elif cg.is_template(continuous):
-            lambda_ = await cg.process_lambda(continuous, args, return_type=cg.bool_)
-            mode = automation.immediate_lambda_call(lambda_)
+            mode = await automation.call_user_lambda(continuous, args, cg.bool_)
         else:
             mode = continuous
         text = str(cg.statement(ble_device_base_ns.start_scan(tracker, mode)))

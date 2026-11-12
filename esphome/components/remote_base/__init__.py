@@ -472,14 +472,11 @@ async def _transmit_value(
     type_: SafeExpType,
     const_fn: Callable[[Any], Any] = cg.safe_exp,
 ) -> str:
-    """Argument text for one templatable transmit value.
-
-    A lambda keeps the trigger's own argument types and is always called, so its body may
-    modify its by-value arguments.
-    """
+    """Argument text for one templatable transmit value."""
     if isinstance(value, Lambda):
-        lamb = await cg.process_lambda(value, args, return_type=type_)
-        return str(automation.immediate_lambda_call(lamb))
+        expr = await automation.call_user_lambda(value, args, type_)
+        # Some uses are operands (``.transmit``, ``[0]``), so a bare expression binds as a whole
+        return f"({expr})" if isinstance(expr, cg.RawExpression) else str(expr)
     return str(const_fn(value))
 
 
