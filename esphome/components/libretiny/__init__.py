@@ -24,7 +24,7 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeCore
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
@@ -179,9 +179,13 @@ def get_libretiny_family(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
 
 
+def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
+    return (core_obj or CORE).data[KEY_LIBRETINY][KEY_BOARD]
+
+
 def get_board_pins() -> dict[str, int]:
     """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
-    return lookup_board_pins(CORE.data[KEY_LIBRETINY][KEY_BOARD])
+    return lookup_board_pins(get_libretiny_board())
 
 
 def only_on_family(*, supported=None, unsupported=None):

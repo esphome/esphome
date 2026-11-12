@@ -465,12 +465,11 @@ def _final_validate(config: ConfigType) -> None:
 
 def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
     """Reject a port with pin choices but no default; opening it hangs at boot (BW15 UART1)."""
-    from esphome.components.libretiny import get_board_pins
-    from esphome.components.libretiny.const import KEY_BOARD, KEY_LIBRETINY
+    from esphome.components.libretiny import get_board_pins, get_libretiny_board
 
     if not hardware_uart.startswith("UART"):
         return
-    board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
+    board = get_libretiny_board()
     prefix = f"SERIAL{hardware_uart[-1]}_"
     port_pins = [pin for pin in get_board_pins() if pin.startswith(prefix)]
     # A port the board lacks falls back to the default one at boot
