@@ -10,14 +10,15 @@ O=$D/out-$N; mkdir -p "$O"
 pkill -f "[s]erial_capture.py $PORT"
 (cd "$W" && PYTHONPATH=$W $PY -m esphome compile "$Y") > "$O/compile.log" 2>&1 || { echo "$N compile failed"; exit 1; }
 (cd "$W" && PYTHONPATH=$W $PY -m esphome upload "$Y" --device "$PORT") > "$O/upload.log" 2>&1 || { echo "$N upload failed"; exit 1; }
-$PY "$SC" "$PORT" $((T + 40)) "$O/serial.txt" > /dev/null 2>&1 &
+$PY "$SC" "$PORT" $((T + 40)) "$O/serial.txt" > "$O/capture.log" 2>&1 &
+CAP=$!
 for _ in $(seq 60); do
   IP=$(LC_ALL=C grep -a -o -E "IP Address: [0-9.]+" "$O/serial.txt" | tail -1 | cut -d' ' -f3)
   [ -n "$IP" ] && break; sleep 2
 done
 [ -z "$IP" ] && echo "$N no IP (check the secrets file)"
 if [ "$P" -gt 0 ] && [ -n "$IP" ]; then python3 "$D/wifi_load.py" "$IP" "$T" "$P" > "$O/load.txt" 2>&1; else sleep "$T"; fi
-wait
+wait "$CAP" || echo "$N capture failed (see $O/capture.log); counts cover part of the run"
 echo "== $N pps=$P boots=$(LC_ALL=C grep -a -c 'BOOT reason' "$O/serial.txt")"
 LC_ALL=C grep -a "BOOT reason" "$O/serial.txt" | cut -c1-150
 LC_ALL=C grep -a "ALIVE" "$O/serial.txt" | tail -1 | cut -c1-200

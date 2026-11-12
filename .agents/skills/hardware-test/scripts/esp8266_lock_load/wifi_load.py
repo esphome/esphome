@@ -4,6 +4,7 @@ usage: wifi_load.py HOST SECONDS PPS
 Prints the counts every minute and a final "done" line.
 """
 
+import http.client
 import socket
 import sys
 import threading
@@ -21,7 +22,7 @@ def http() -> None:
             with urllib.request.urlopen(f"http://{host}/", timeout=5) as r:
                 r.read()
             stats["http_ok"] += 1
-        except OSError:
+        except (OSError, http.client.HTTPException):
             stats["http_err"] += 1
             time.sleep(1)
 

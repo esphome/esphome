@@ -143,6 +143,7 @@ script:
             bool asleep = cs_low_so_high(c);
             uint8_t marc = status(c, 0x35) & 0x1F;
             ESP_LOGI("cct", "T6 %-20s while asleep: chip %s, MARCSTATE=%02X", k.name, asleep ? "still asleep" : "AWAKE", marc);
+            if (!asleep) fails++;
             c->wake_up();
           }
           c->begin_rx();

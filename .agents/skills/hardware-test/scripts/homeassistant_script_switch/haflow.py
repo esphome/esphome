@@ -25,4 +25,6 @@ if r.get("type") != "create_entry":
 opts = "/api/config/config_entries/options/flow"
 o = req_or_exit(opts, {"handler": r["result"]["entry_id"]}, token=tok)
 o = req_or_exit(f"{opts}/{o['flow_id']}", {"allow_service_calls": True}, token=tok)
-print("added", r.get("title"), "options", o.get("type"))
+if o.get("type") != "create_entry":
+    sys.exit(f"options flow ended with {o.get('type')} {o.get('errors')}")
+print("added", r.get("title"), "with allow_service_calls")
