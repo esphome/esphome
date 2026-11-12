@@ -124,6 +124,22 @@ enum UARTSelection : uint8_t {
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
 };
+
+// The port chosen by hardware_uart, fixed at build time
+static constexpr UARTSelection CONFIGURED_UART_SELECTION =
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+    UART_SELECTION_USB_CDC;
+#elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+    UART_SELECTION_USB_SERIAL_JTAG;
+#elif defined(USE_LOGGER_UART_SELECTION_UART0_SWAP)
+    UART_SELECTION_UART0_SWAP;
+#elif defined(USE_LOGGER_UART_SELECTION_UART2)
+    UART_SELECTION_UART2;
+#elif defined(USE_LOGGER_UART_SELECTION_UART1)
+    UART_SELECTION_UART1;
+#else
+    static_cast<UARTSelection>(0);  // UART0, or DEFAULT on LibreTiny
+#endif
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2 || USE_LIBRETINY || USE_ZEPHYR
 
 /**
@@ -146,7 +162,7 @@ enum UARTSelection : uint8_t {
 class Logger final : public Component {
  public:
   explicit Logger(uint32_t baud_rate);
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
   void loop() override;
 #endif
 #if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
@@ -160,11 +176,11 @@ class Logger final : public Component {
 #endif
 #ifdef USE_ESP32
   /// UART_NUM_0 when logging to USB
-  uart_port_t get_uart_num() const {
+  constexpr uart_port_t get_uart_num() const {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
     return UART_NUM_0;
 #else
-    return static_cast<uart_port_t>(this->uart_);
+    return static_cast<uart_port_t>(CONFIGURED_UART_SELECTION);
 #endif
   }
 #endif
@@ -172,9 +188,33 @@ class Logger final : public Component {
   void create_pthread_key() { pthread_key_create(&this->log_recursion_key_, nullptr); }
 #endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  void set_uart_selection(UARTSelection uart_selection) { this->uart_ = uart_selection; }
   /// Get the UART used by the logger.
-  UARTSelection get_uart() const { return this->uart_; }
+#ifdef USE_LIBRETINY
+  // DEFAULT resolves to the board's default port
+  constexpr UARTSelection get_uart() const {
+    return CONFIGURED_UART_SELECTION == UART_SELECTION_DEFAULT ? static_cast<UARTSelection>(LT_UART_DEFAULT_SERIAL + 1)
+                                                               : CONFIGURED_UART_SELECTION;
+  }
+#else
+  constexpr UARTSelection get_uart() const { return CONFIGURED_UART_SELECTION; }
+#endif
+#endif
+#ifdef USE_LOGGER_CONSOLE
+  // Raw bytes on the console port, without log framing; request with logger.request_console()
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+  size_t console_write(const uint8_t *data, size_t len) { return this->hw_serial_->write(data, len); }
+  bool console_read(uint8_t &byte) {
+    if (!this->hw_serial_->available())
+      return false;
+    this->hw_serial_->readBytes(&byte, 1);
+    return true;
+  }
+#elif defined(USE_ESP32)
+  /// Blocking write; returns the bytes written.
+  size_t console_write(const uint8_t *data, size_t len);
+  /// Non-blocking read of one byte; false if none is waiting.
+  bool console_read(uint8_t &byte);
+#endif
 #endif
 
   /// Set the default log level for this logger.
@@ -245,7 +285,7 @@ class Logger final : public Component {
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
 #endif
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
   void cdc_loop_();
 #endif
   void process_messages_();
@@ -390,10 +430,6 @@ class Logger final : public Component {
   bool boot_log_done_{false};     // Set on first replay; stops further capture
 #endif
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  // 0 is UART0, or DEFAULT on LibreTiny; must match cpp_default_uart in __init__.py
-  UARTSelection uart_{};
-#endif
   bool main_task_recursion_guard_{false};  // Guards tx_buffer_ on the main loop
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
