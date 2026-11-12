@@ -808,8 +808,11 @@ void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &imag
 
 // Defined here rather than in api_connection.cpp: another caller there changes how GCC inlines the send path
 void APIConnection::send_shutdown_disconnect_() {
+#ifndef USE_DEEP_SLEEP
   // States after DisconnectRequest reach Home Assistant once it has marked the entities
-  // unavailable (#22610): send every queued state the socket takes now, one packet per call
+  // unavailable (#22610): send every queued state the socket takes now, one packet per call.
+  // Not with deep sleep: Home Assistant keeps those entities available and still takes later
+  // states, and the disconnect must not wait behind states on a slow link before the device sleeps
   this->flags_.state_subscription = false;
   this->destroy_active_iterator_();
   for (size_t left = this->deferred_batch_.size(); left != 0 && this->helper_->can_write_without_blocking();) {
@@ -819,6 +822,7 @@ void APIConnection::send_shutdown_disconnect_() {
       break;
     left = now_left;
   }
+#endif
   DisconnectRequest req;
   if (!this->send_message(req)) {
     // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout
