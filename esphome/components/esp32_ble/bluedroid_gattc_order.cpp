@@ -8,10 +8,7 @@
 
 #include "bluedroid_gattc_order.h"
 
-namespace esphome::esp32_ble {
-static constexpr uint8_t ATT_READ_BY_TYPE_RSP = 0x09;
-static constexpr uint8_t ATT_READ_BY_GRP_TYPE_RSP = 0x11;
-}  // namespace esphome::esp32_ble
+namespace esphome::esp32_ble {}
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
@@ -23,9 +20,7 @@ void __real_gatt_client_handle_server_rsp(void *p_tcb, uint8_t op_code, uint16_t
 // Runs on the Bluetooth host task
 void __wrap_gatt_client_handle_server_rsp(void *p_tcb, uint8_t op_code, uint16_t len, uint8_t *p_data,
                                           uint16_t eatt_bearer_lcid) {
-  namespace ble = esphome::esp32_ble;
-  if (op_code == ble::ATT_READ_BY_TYPE_RSP || op_code == ble::ATT_READ_BY_GRP_TYPE_RSP)
-    ble::sort_att_records_by_handle(p_data, len);
+  esphome::esp32_ble::sort_att_response_by_handle(op_code, p_data, len);
   __real_gatt_client_handle_server_rsp(p_tcb, op_code, len, p_data, eatt_bearer_lcid);
 }
 
