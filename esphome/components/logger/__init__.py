@@ -225,6 +225,17 @@ def uart_selection(value: Any) -> str:
     raise NotImplementedError
 
 
+def _nrf52_board_default_uart(config: ConfigType) -> ConfigType:
+    """Default to UART0 on nRF52 boards whose USB port is a debugger's serial bridge."""
+    if CORE.is_nrf52 and CONF_HARDWARE_UART not in config:
+        from esphome.components.nrf52.boards import BOARDS_WITH_UART_CONSOLE
+        from esphome.components.nrf52.framework import get_nrf52_board
+
+        if get_nrf52_board() in BOARDS_WITH_UART_CONSOLE:
+            return {**config, CONF_HARDWARE_UART: UART0}
+    return config
+
+
 def _zephyr_uart0_label() -> str:
     """The devicetree label of UART0."""
     from esphome.components.nrf52.const import VARIANT_CONSOLE_UART
@@ -328,6 +339,7 @@ LoggerMessageTrigger = logger_ns.class_(
 
 
 CONFIG_SCHEMA = cv.All(
+    _nrf52_board_default_uart,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Logger),
@@ -458,6 +470,26 @@ def _final_validate(config: ConfigType) -> None:
         from esphome.components.zephyr import zephyr_claim_cdc_acm
 
         zephyr_claim_cdc_acm(0, "logger", write_only=True)
+    if CORE.is_libretiny and config[CONF_BAUD_RATE] != 0:
+        _validate_libretiny_uart_pins(config[CONF_HARDWARE_UART])
+
+
+def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
+    """Reject a port with pin choices but no default; opening it hangs at boot (BW15 UART1)."""
+    from esphome.components.libretiny import get_board_pins, get_libretiny_board
+
+    if not hardware_uart.startswith("UART"):
+        return
+    board = get_libretiny_board()
+    prefix = f"SERIAL{hardware_uart[-1]}_"
+    port_pins = [pin for pin in get_board_pins() if pin.startswith(prefix)]
+    # A port the board lacks falls back to the default one at boot
+    if port_pins and f"{prefix}TX" not in port_pins:
+        raise cv.Invalid(
+            f"Board {board} has no default pins for {hardware_uart}; "
+            "choose another hardware_uart",
+            path=[CONF_HARDWARE_UART],
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

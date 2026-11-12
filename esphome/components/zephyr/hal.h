@@ -14,8 +14,7 @@ namespace esphome::zephyr {}
 namespace esphome {
 
 /// Returns true when executing inside an interrupt handler.
-/// Zephyr/nRF52: not currently consulted — wake path is platform-specific.
-__attribute__((always_inline)) inline bool in_isr_context() { return false; }
+__attribute__((always_inline)) inline bool in_isr_context() { return k_is_in_isr(); }
 
 inline k_tid_t &main_loop_thread() {
   static k_tid_t thread = nullptr;
@@ -23,7 +22,10 @@ inline k_tid_t &main_loop_thread() {
 }
 
 /// arch_init() stores the thread before any component runs, so no unset case exists.
-__attribute__((always_inline)) inline bool is_main_loop_thread() { return k_current_get() == main_loop_thread(); }
+/// In an interrupt handler k_current_get() is the interrupted thread, so that case is ruled out first.
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  return !in_isr_context() && k_current_get() == main_loop_thread();
+}
 
 __attribute__((always_inline)) inline void yield() { ::k_yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::k_msleep(ms); }
