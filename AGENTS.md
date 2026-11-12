@@ -246,7 +246,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
-        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; in `setup()`,
+        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
+        poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
@@ -264,7 +265,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         (`cg.add_define("USE_SELEC_METER_EM4M")`), so the other models' builds leave it out; the runtime model check
         stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
-        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+        sets `status_set_warning()` and the next success of the last step clears it; writes skip work when
+        `is_failed()`.
     *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
         `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
         passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
@@ -374,7 +376,7 @@ file does, and it is the authority when they disagree. The most useful starting 
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Changes to shared code (`esphome/core/`, entity platform components such as `esphome/components/sensor/` or `esphome/components/text_sensor/`, buses, shared constants in `esphome/components/const/`, codegen) go in their own PR, never inside a component PR, unless the shared change must update several components at once to avoid breaking them; a component's own `USE_*` lines in `esphome/core/defines.h` are fine. Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
     7.  **Fixes for a release branch:** a fix that should ship in a beta or patch release goes to `dev` like any other
         PR, with the milestone of that release; the release manager cherry-picks the squash-merge commit of each PR in
         the milestone onto `beta` or `release`.
@@ -427,6 +429,14 @@ file does, and it is the authority when they disagree. The most useful starting 
     members of `esphome/core/` and base classes are public API. Aim for a 6-month deprecation window
     (`ESPDEPRECATED` in C++, `cv.rename_key(..., removed_in=...)` for config keys) and document the migration
     path in the PR description. The `breaking-changes` skill has the full policy, checklist and patterns.
+
+*   **The YAML language is frozen** until ESPHome configurations move to yaml.rocks
+    ([esphome/backlog#201](https://github.com/esphome/backlog/issues/201)). Do not add YAML tags beyond the existing
+    `!include`, `!include_dir_*`, `!secret`, `!env_var`, `!lambda`, `!literal`, `!extend` and `!remove`, new
+    `packages:` or `substitutions:` behaviour (including new Jinja globals or filters), or new ways to merge,
+    override or remove parts of a configuration.
+    Bug fixes to the existing features are still accepted. A component's own configuration options are not part of
+    this freeze.
 
 ## 9. English Language
 

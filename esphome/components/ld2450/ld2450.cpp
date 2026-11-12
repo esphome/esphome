@@ -435,7 +435,7 @@ void LD2450Component::send_set_zone_command_() {
   this->set_config_mode_(false);
 }
 
-// Check presense timeout to reset presence status
+// Check presence timeout to reset presence status
 bool LD2450Component::get_timeout_status_(uint32_t check_millis) {
   if (check_millis == 0) {
     return true;

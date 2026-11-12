@@ -1,0 +1,37 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+
+button:
+  # Both fields are constants totalling 1 byte, under the 2-byte minimum rs485_frame accepts
+  # on receive. Must be rejected.
+  - platform: template
+    name: "Too Short"
+    on_press:
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x01]
+          payload: []

@@ -672,7 +672,7 @@ def add_clusters_to_first_ep(
     """Add a list of Zigbee clusters to CORE.data.
 
     Args:
-        cl: list of cluster dictonaries.
+        cl: list of cluster dictionaries.
     """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])

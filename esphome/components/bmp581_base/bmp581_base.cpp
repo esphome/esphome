@@ -2,7 +2,7 @@
  * Adds support for Bosch's BMP581 high accuracy pressure and temperature sensor
  *  - Component structure based on ESPHome's BMP3XX component (as of March, 2023)
  *    - Implementation is easier as the sensor itself automatically compensates pressure for the temperature
- *      - Temperature and pressure data is converted via simple divison operations in this component
+ *      - Temperature and pressure data is converted via simple division operations in this component
  *    - IIR filter level can independently be applied to temperature and pressure measurements
  *  - Bosch's BMP5-Sensor-API was consulted to verify that sensor configuration is done correctly
  *    - Copyright (c) 2022 Bosch Sensortec Gmbh, SPDX-License-Identifier: BSD-3-Clause
@@ -317,9 +317,9 @@ bool BMP581Component::prime_iir_filter_() {
     return false;
   }
 
-  // forces an intial measurement
+  // forces an initial measurement
   //  - this measurements flushes the IIR filter reflecting written DSP settings
-  //  - flushing with this initial reading avoids having the internal previous data aquisition being 0, which
+  //  - flushing with this initial reading avoids having the internal previous data acquisition being 0, which
   //    (I)nfinitely affects future values
   if (!this->start_measurement_()) {
     ESP_LOGE(TAG, "Failed to request a forced measurement");
