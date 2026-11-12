@@ -33,7 +33,6 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WIFI,
     CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_LIGHT,
     DEVICE_CLASS_OUTLET,
 )
 from esphome.core import CORE
@@ -53,6 +52,7 @@ from .const import (
     CONF_ROUTER,
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
+    CONF_ZIGBEE_LIGHT,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,

@@ -1374,23 +1374,9 @@ def test_integration_class_handles_match_owning_definitions() -> None:
         _conf_key,
         class_name,
         _cluster_options,
-    ) in (
-        entity_helpers._ZIGBEE_ENTITY_CLASSES[platform]
-        for platform in ("binary_sensor", "sensor", "switch", "number")
-    ):
+    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
         owning = getattr(zigbee_zephyr, class_name)
         assert str(owning) == f"zigbee::{class_name}"
-
-
-def test_zigbee_light_class_handle_matches_esp32_definition() -> None:
-    """The Zigbee light class is declared by the ESP32 implementation."""
-    from esphome.components.zigbee import zigbee_esp32
-
-    _conf_key, class_name, _cluster_options = entity_helpers._ZIGBEE_ENTITY_CLASSES[
-        "light"
-    ]
-    owning = getattr(zigbee_esp32, class_name)
-    assert str(owning) == "zigbee::ZigbeeLight"
 
 
 @cache
