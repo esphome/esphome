@@ -29,6 +29,7 @@ from .const import SMP_UDP_LINK_MTU, SMP_UDP_PORT
 
 BLE_SCAN_TIMEOUT = 10.0  # seconds
 RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
+IMAGE_HASH_TLVS = (IMAGE_TLV.SHA256, IMAGE_TLV.SHA384, IMAGE_TLV.SHA512)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ async def smpmgr_upload(device: str, firmware: Path, udp: bool = False) -> None:
         raise EsphomeError(f"{device} was not found.") from exc
 
 
-def _get_image_tlv_sha256(file: Path) -> bytes:
+def _get_image_hash(file: Path) -> bytes:
     _LOGGER.info("Checking image: %s", str(file))
     try:
         image_info = ImageInfo.load_file(str(file))
@@ -81,12 +82,15 @@ def _get_image_tlv_sha256(file: Path) -> bytes:
             f"Firmware image file not found: {file}. Build with zephyr_mcumgr enabled"
         ) from exc
 
-    try:
-        image_tlv_sha256 = image_info.get_tlv(IMAGE_TLV.SHA256)
-        _LOGGER.info("Image tlv sha256: %s", image_tlv_sha256)
-    except TLVNotFound as exc:
-        raise EsphomeError("Could not find IMAGE_TLV_SHA256 in image.") from exc
-    return image_tlv_sha256.value
+    # MCUboot writes one hash TLV; nRF54L builds use SHA512 instead of SHA256
+    for tlv_type in IMAGE_HASH_TLVS:
+        try:
+            image_hash = image_info.get_tlv(tlv_type)
+        except TLVNotFound:
+            continue
+        _LOGGER.info("Image hash (%s): %s", tlv_type.name, image_hash.value.hex())
+        return image_hash.value
+    raise EsphomeError("Could not find an image hash TLV (SHA256/384/512) in image.")
 
 
 async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
@@ -96,7 +100,7 @@ async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
         _SequenceMatchingUDPTransport,
     )
 
-    image_tlv_sha256 = _get_image_tlv_sha256(firmware)
+    image_hash = _get_image_hash(firmware)
 
     if udp:
         smp_client = SMPClient(
@@ -131,9 +135,7 @@ async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
 
     _LOGGER.info("Connected %s...", device)
     try:
-        await _smpmgr_upload_connected(
-            smp_client, device, firmware, image_tlv_sha256, udp
-        )
+        await _smpmgr_upload_connected(smp_client, device, firmware, image_hash, udp)
     finally:
         await smp_client.disconnect()
 
@@ -178,7 +180,7 @@ async def _smpmgr_upload_connected(
     smp_client: SMPClient,
     device: str,
     firmware: Path,
-    image_tlv_sha256: bytes,
+    image_hash: bytes,
     udp: bool,
 ) -> None:
     from .ota_udp import (
@@ -220,9 +222,9 @@ async def _smpmgr_upload_connected(
             )
             if image.active and not image.confirmed:
                 raise EsphomeError("No free slot. Testing mode but not confirmed yet.")
-        if sum(image.hash == image_tlv_sha256 for image in images) > 1:
+        if sum(image.hash == image_hash for image in images) > 1:
             raise EsphomeError("Both slots have the same image already")
-        if (ours := _find_image(image_state, image_tlv_sha256)) is not None:
+        if (ours := _find_image(image_state, image_hash)) is not None:
             if ours.confirmed:
                 raise EsphomeError("The same image already confirmed")
             _LOGGER.warning("The same image already uploaded")
@@ -245,9 +247,7 @@ async def _smpmgr_upload_connected(
             progress.update(0)
             try:
                 if udp:
-                    await _udp_upload(
-                        smp_client, image, progress, target, image_tlv_sha256
-                    )
+                    await _udp_upload(smp_client, image, progress, target, image_hash)
                 else:
                     async for offset in smp_client.upload(image):
                         progress.update(offset / upload_size)
@@ -257,7 +257,7 @@ async def _smpmgr_upload_connected(
     _LOGGER.info("Mark image for testing")
     r = await _request_with_retry(
         smp_client,
-        partial(ImageStatesWrite, hash=image_tlv_sha256),
+        partial(ImageStatesWrite, hash=image_hash),
         write_timeout,
         retries,
         target,
@@ -268,7 +268,7 @@ async def _smpmgr_upload_connected(
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
     if udp:
-        await _udp_reset(smp_client, device, image_tlv_sha256)
+        await _udp_reset(smp_client, device, image_hash)
         return
     r = await smp_client.request(ResetWrite(), write_timeout)
 

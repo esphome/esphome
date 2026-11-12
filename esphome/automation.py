@@ -459,6 +459,13 @@ def _names_parent(text: str) -> bool:
     return any(f == "parent" for _, f, _, _ in string.Formatter().parse(text))
 
 
+def _lambda_type(type_: Any, parent: str | None) -> Any:
+    """Raw C++ type text becomes an expression with ``{parent}`` filled in."""
+    if isinstance(type_, str):
+        return cg.RawExpression(type_.format(parent=parent))
+    return type_
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
@@ -739,14 +746,15 @@ def _has_top_level_comma(code: str) -> bool:
     return False
 
 
-async def _call_user_lambda(
+async def call_user_lambda(
     value: Lambda, args: TemplateArgsType, return_type: SafeExpType
 ) -> Expression:
-    """Call a config lambda in place; a value arg its body names is a copy it may modify.
+    """Call a config lambda in an apply function's statements; a value arg its body names is a copy it may modify.
 
-    The other args are the generated function's const references, so a body that names
-    none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
+    The other args are the function's const references (``register_apply_action``, ``apply_statements_action``),
+    so a body that names none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
     name check counts a use: a needless copy is only a cost, a missed one fails to compile.
+    The result is safe as an argument or initializer; parenthesize it before using it as an operand.
     """
     code = _cpp_code_only(value.value)
     by_value = {
@@ -788,9 +796,7 @@ async def _render_call(
     exprs: list[str] = []
     for (_, type_, const_fn), value in zip(members, values, strict=True):
         if isinstance(value, Lambda):
-            if isinstance(type_, str):
-                type_ = cg.RawExpression(type_.format(parent=parent))
-            expr = await _call_user_lambda(value, args, type_)
+            expr = await call_user_lambda(value, args, _lambda_type(type_, parent))
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -910,7 +916,7 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        call = await _call_user_lambda(value, args, _BYTE_VECTOR)
+        call = await call_user_lambda(value, args, _BYTE_VECTOR)
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",
@@ -1100,6 +1106,7 @@ class ApplyFilterDomain:
                 zip(members, values, strict=True)
             ):
                 if isinstance(value, Lambda):
+                    type_ = _lambda_type(type_, None)
                     # The call is already the argument text, so no const_fn applies
                     members[i] = (key, type_, None)
                     values[i] = await _apply_value_function(
