@@ -18,20 +18,17 @@ namespace esphome::homeassistant {
 /// set, "unavailable" and "unknown" for the state of an entity that is not ready
 bool is_unset(StringRef value);
 
-/// True when entity_id belongs to an input helper. input_service is the helper's action name in flash, such as
-/// "input_number.set_value"; it must start with "input_", as only those first 6 characters are compared
+/// True if entity_id is an input helper; input_service must start with "input_"
 inline bool is_input_helper(const char *entity_id, const char *input_service) {
   return ESPHOME_strncmp_P(entity_id, input_service, sizeof("input_") - 1) == 0;
 }
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-/// False, after logging why, when an action for entity_id cannot be sent now: no API client is connected or,
-/// with the device wizard, no entity is linked yet. tag is the caller's log tag
+/// Logs and returns false when no API client is connected or no entity is linked yet
 bool can_send_action(const char *tag, const char *entity_id, EntityBase *entity);
 
 /// Adds the entity_id entry to an action's data
 inline void add_entity_id(api::HomeassistantActionRequest &resp, const char *entity_id) {
-  // In flash on the ESP8266 and encoded from there
   static constexpr char ENTITY_ID_KEY[] PROGMEM = "entity_id";
   auto &entry = resp.data.emplace_back();
   entry.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);

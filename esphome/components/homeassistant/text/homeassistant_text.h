@@ -17,7 +17,6 @@ class HomeassistantText final : public text::Text, public Component {
 
  protected:
   void state_changed_(StringRef state);
-  /// Parses a min/max length attribute, logging the result
   optional<int> parse_length_(const char *name, StringRef value);
   void mode_retrieved_(StringRef mode);
 

@@ -13,7 +13,6 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.text");
 
-// Indexed by text::TextMode
 PROGMEM_STRING_TABLE(TextModeNames, "text", "password");
 static_assert(text::TEXT_MODE_TEXT == 0 && text::TEXT_MODE_PASSWORD == 1 && TextModeNames::COUNT == 2);
 

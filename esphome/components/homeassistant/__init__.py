@@ -85,7 +85,7 @@ def setup_home_assistant_entity(
     state_subscription_count: int = 1,
     services: bool = False,
 ) -> None:
-    """Set up an imported entity; services is for one that sends actions to Home Assistant."""
+    """Set up an imported entity; services for one that sends actions."""
     if services:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     # A wizard input has no entity_id; the api wizard sets it
