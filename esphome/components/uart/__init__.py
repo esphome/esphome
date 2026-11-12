@@ -156,6 +156,48 @@ def validate_rx_pin(value):
     return value
 
 
+CONF_AUTO_BAUD_SYNC_BYTE = "auto_baud_sync_byte"
+# Matches SW_SERIAL_EDGE_MODE_MAX_BAUD; auto baud times edges, so it needs the edge decoder
+ESP8266_EDGE_MODE_MAX_BAUD = 19200
+
+
+def validate_auto_baud(config: ConfigType) -> ConfigType:
+    if (sync := config.get(CONF_AUTO_BAUD_SYNC_BYTE)) is None:
+        return config
+    tx_num = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+    rx_num = config[CONF_RX_PIN][CONF_NUMBER]
+    # Pin pairs that setup() gives to a hardware UART (see to_code)
+    if (tx_num, rx_num) in ((None, 3), (1, 3), (None, 13), (15, 13), (None, 8), (2, 8)):
+        raise cv.Invalid(
+            f"{CONF_AUTO_BAUD_SYNC_BYTE} needs software serial; these pins use a hardware UART",
+            [CONF_AUTO_BAUD_SYNC_BYTE],
+        )
+    if config[CONF_BAUD_RATE] > ESP8266_EDGE_MODE_MAX_BAUD:
+        raise cv.Invalid(
+            f"{CONF_AUTO_BAUD_SYNC_BYTE} works up to {ESP8266_EDGE_MODE_MAX_BAUD} baud",
+            [CONF_AUTO_BAUD_SYNC_BYTE],
+        )
+    data_bits = config[CONF_DATA_BITS]
+    if sync >> data_bits:
+        raise cv.Invalid(
+            f"Sync byte 0x{sync:02X} does not fit in {data_bits} data bits",
+            [CONF_AUTO_BAUD_SYNC_BYTE],
+        )
+    # The frame is timed from the start bit to its last edge, which must be at or after the last data bit
+    frame = [0] + [(sync >> i) & 1 for i in range(data_bits)]
+    if (parity := config[CONF_PARITY]) != "NONE":
+        frame.append((sync.bit_count() + (parity == "ODD")) & 1)
+    frame.append(1)  # stop bit
+    last_edge = max(i for i in range(1, len(frame)) if frame[i] != frame[i - 1])
+    if last_edge < data_bits:
+        raise cv.Invalid(
+            f"Sync byte 0x{sync:02X} ends in a long run of ones, too few edges to time; "
+            "use a byte with alternating bits such as 0x55",
+            [CONF_AUTO_BAUD_SYNC_BYTE],
+        )
+    return config
+
+
 def validate_host_config(config):
     if CORE.is_host:
         if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -325,10 +367,15 @@ CONFIG_SCHEMA = cv.All(
                 UART_PARITY_OPTIONS, upper=True
             ),
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
+            cv.Optional(CONF_AUTO_BAUD_SYNC_BYTE): cv.All(
+                cv.only_on_esp8266, cv.hex_uint8_t
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
+    cv.key_requires(CONF_AUTO_BAUD_SYNC_BYTE, CONF_RX_PIN),
+    validate_auto_baud,
     validate_rx_buffer_size,
 )
 
@@ -403,6 +450,10 @@ async def to_code(config):
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
+
+    if (sync := config.get(CONF_AUTO_BAUD_SYNC_BYTE)) is not None:
+        cg.add(var.set_auto_baud_sync(sync))
+        cg.add_define("USE_UART_AUTO_BAUD")
 
     # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
     # The C++ code selects hardware serial at runtime based on these pin combinations:

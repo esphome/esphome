@@ -14,6 +14,8 @@ namespace {
 // Firmware time base: micros() << 4
 constexpr uint32_t TICKS_PER_SECOND = 16000000;
 constexpr uint32_t TICKS_PER_US = 16;
+// Far enough after reset() for the line to count as idle, so the first frame is a sync candidate
+constexpr uint32_t IDLE_START = 1000000;
 
 // Simulated line: frames become edges at exact baud timing plus jitter, truncated
 // to whole microseconds like micros(); poll() emulates the main loop.
@@ -29,6 +31,8 @@ class LineSim {
   }
 
   uint32_t bit_ticks() const { return this->bit_; }
+  // The sender's real rate; the decoder keeps the nominal one from the constructor.
+  void set_line_baud(double baud) { this->exact_bit_ = TICKS_PER_SECOND / baud; }
   SoftwareSerialRxDecoder &decoder() { return this->dec_; }
   const std::vector<uint8_t> &received() const { return this->received_; }
 
@@ -279,6 +283,92 @@ TEST(SoftwareSerialRxDecoder, ResetDiscardsPartialFrame) {
   EXPECT_FALSE(sim.decoder().pending());
   sim.poll(5000 + 30 * bit);
   EXPECT_TRUE(sim.received().empty());
+}
+
+// Packets of sync then mixed bytes, each after an idle gap and at its own rate; returns what was sent.
+std::vector<uint8_t> send_packets(LineSim &sim, const std::vector<double> &line_bauds, uint8_t sync, unsigned seed) {
+  std::vector<uint8_t> sent;
+  std::mt19937 rng(seed);
+  uint32_t t = IDLE_START;
+  for (double baud : line_bauds) {
+    sim.set_line_baud(baud);
+    sent.push_back(sync);
+    t = sim.send(sync, t);
+    for (int n = 0; n < 18; n++) {
+      // Long runs of zeros and ones are what a wrong bit time miscounts
+      uint8_t b = (n % 3 == 0) ? 0x00 : (n % 3 == 1) ? 0xFF : static_cast<uint8_t>(rng());
+      sent.push_back(b);
+      t = sim.send(b, t);
+    }
+    t += 40 * sim.bit_ticks();
+    sim.poll(t);
+  }
+  return sent;
+}
+
+TEST(SoftwareSerialRxDecoder, WithoutAutoBaudA7PercentFastLineCorruptsLongRuns) {
+  LineSim sim(9600, 8, false, false, 1);
+  const auto sent = send_packets(sim, {9600 * 1.07}, 0x55, 11);
+  EXPECT_NE(sim.received(), sent);
+}
+
+TEST(SoftwareSerialRxDecoder, AutoBaudRetimesEachPacketFromTheSyncByte) {
+  LineSim sim(9600, 8, false, false, 1);
+  sim.decoder().set_auto_baud_sync(0x55);
+  // Each packet at its own rate: fast, slow, nominal, fast again
+  const auto sent = send_packets(sim, {9600 * 1.07, 9600 * 0.93, 9600, 9600 * 1.10}, 0x55, 12);
+  EXPECT_EQ(sim.received(), sent);
+  // Measured from the last packet, 10% fast
+  EXPECT_NEAR(sim.decoder().bit_ticks(), TICKS_PER_SECOND / (9600 * 1.10), 2.0);
+}
+
+TEST(SoftwareSerialRxDecoder, AutoBaudWithEvenParityAt1200) {
+  LineSim sim(1200, 8, true, false, 1);
+  sim.decoder().set_auto_baud_sync(0x55);
+  const auto sent = send_packets(sim, {1200 * 0.94, 1200 * 1.06}, 0x55, 13);
+  EXPECT_EQ(sim.received(), sent);
+}
+
+TEST(SoftwareSerialRxDecoder, AutoBaudLoneSyncByteIsTimedWhenFinalized) {
+  LineSim sim(9600, 8, false, false, 1);
+  sim.decoder().set_auto_baud_sync(0x55);
+  sim.set_line_baud(9600 * 1.05);
+  uint32_t t = sim.send(0x55, IDLE_START);
+  // No closing edge: finalize() ends the frame
+  sim.poll(t + 20 * sim.bit_ticks());
+  ASSERT_EQ(sim.received().size(), 1u);
+  EXPECT_NEAR(sim.decoder().bit_ticks(), TICKS_PER_SECOND / (9600 * 1.05), 2.0);
+}
+
+TEST(SoftwareSerialRxDecoder, AutoBaudKeepsNominalWhenThePacketDoesNotStartWithSync) {
+  LineSim sim(9600, 8, false, false, 1);
+  sim.decoder().set_auto_baud_sync(0x55);
+  sim.set_line_baud(9600 * 1.05);
+  uint32_t t = sim.send(0x55, IDLE_START);
+  t = sim.send(0x01, t);
+  sim.poll(t + 40 * sim.bit_ticks());
+  ASSERT_NE(sim.decoder().bit_ticks(), sim.bit_ticks());
+  // Next packet starts with another byte: back to the nominal bit time
+  t = sim.send(0xAA, t + 40 * sim.bit_ticks());
+  sim.poll(t + 40 * sim.bit_ticks());
+  EXPECT_EQ(sim.decoder().bit_ticks(), sim.bit_ticks());
+}
+
+TEST(SoftwareSerialRxDecoder, AutoBaudIgnoresASyncFrameWithALowStopBit) {
+  LineSim sim(9600, 8, false, false, 1);
+  sim.decoder().set_auto_baud_sync(0x55);
+  const uint32_t bit = TICKS_PER_SECOND / (9600 * 105 / 100);
+  uint32_t t = IDLE_START;
+  // 0x55 with the stop bit held low (framing error), then the line idles
+  bool level = false;
+  for (int i = 0; i < 9; i++) {
+    sim.edge(t + i * bit, level);
+    level = !level;
+  }
+  sim.edge(t + 12 * bit, true);
+  sim.poll(t + 40 * bit);
+  EXPECT_TRUE(sim.received().empty());
+  EXPECT_EQ(sim.decoder().bit_ticks(), sim.bit_ticks());
 }
 
 }  // namespace esphome::uart::testing

@@ -17,7 +17,8 @@
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
-// Edge decoder up to this baud rate; at 38400 WiFi interrupt latency corrupts bytes.
+// Edge decoder up to this baud rate (auto baud validation in __init__.py repeats it); at 38400 WiFi interrupt latency
+// corrupts bytes.
 static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 19200;
 // Edge decoder time base: 1/16 us from the 1 MHz system timer, which keeps its rate during a
 // CpuFrequencyBoost; the cycle counter does not.
@@ -128,9 +129,17 @@ void ESP8266UartComponent::setup() {
 #endif  // USE_ESP8266_UART_SERIAL1
   {
     this->sw_serial_ = new ESP8266SoftwareSerial();  // NOLINT
-    this->sw_serial_->setup(tx_pin_, rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
-                            this->rx_buffer_size_);
+    this->setup_software_serial_();
   }
+}
+
+void ESP8266UartComponent::setup_software_serial_() {
+  this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
+                          this->parity_, this->rx_buffer_size_);
+#ifdef USE_UART_AUTO_BAUD
+  if (this->auto_baud_sync_ >= 0)
+    this->sw_serial_->set_auto_baud_sync(this->auto_baud_sync_);
+#endif
 }
 
 void ESP8266UartComponent::load_settings(bool dump_config) {
@@ -145,8 +154,7 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
       this->hw_serial_->swap();
 #endif  // USE_ESP8266_UART_SERIAL
   } else {
-    this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
-                            this->parity_, this->rx_buffer_size_);
+    this->setup_software_serial_();
   }
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
@@ -179,6 +187,10 @@ void ESP8266UartComponent::dump_config() {
       ESP_LOGCONFIG(TAG, "  RX decoder: %s",
                     this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
                                                                      : LOG_STR_LITERAL("start bit sampler"));
+#ifdef USE_UART_AUTO_BAUD
+      if (this->auto_baud_sync_ >= 0)
+        ESP_LOGCONFIG(TAG, "  Auto baud sync byte: 0x%02X", (unsigned) this->auto_baud_sync_);
+#endif
     }
     if (this->tx_pin_ != nullptr && this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD &&
         this->sw_serial_->locks_whole_frame()) {
