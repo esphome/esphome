@@ -221,7 +221,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def _add_build_defines() -> None:
     """Emit the defines that describe the build rather than one model."""
     cg.add_define("USE_TFLITE_MICRO_HELPER")
-    cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
 
 
 def _emit_max_operators(value: int) -> None:

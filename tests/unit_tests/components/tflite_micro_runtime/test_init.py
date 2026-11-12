@@ -243,13 +243,12 @@ def test_audio_configuration_sets_no_build_define() -> None:
     var.set_probability_cutoff.assert_called_once_with(0.5)
 
 
-def test_build_defines_emit_the_helper_flags() -> None:
+def test_build_defines_emit_the_helper_flag() -> None:
     with patch("esphome.codegen.add_define") as add_define:
         tflm._add_build_defines()
 
     assert [call.args[0] for call in add_define.call_args_list] == [
-        "USE_TFLITE_MICRO_HELPER",
-        "DEBUG_TFLITE_MICRO_HELPER",
+        "USE_TFLITE_MICRO_HELPER"
     ]
 
 
