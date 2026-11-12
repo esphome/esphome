@@ -940,7 +940,7 @@ def lint_new_constant_in_multiple_files() -> list[str]:
     Constants that already exist on the base branch are left to the 3+ files checks
     above, which a workflow can fix by moving them. Skipped when no base commit is known.
     """
-    candidates = {}
+    candidates: dict[str, list[str]] = {}
     for name, uses in (*CONSTANTS_USES.items(), *UNIT_CONSTANTS_USES.items()):
         files = sorted({str(u) for u in uses if fnmatch.fnmatch(str(u), "esphome/*")})
         if len(files) >= 2:
