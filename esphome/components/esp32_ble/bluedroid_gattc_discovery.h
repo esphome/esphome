@@ -34,7 +34,13 @@ template<size_t N> class DiscoveryErrors {
   std::array<std::atomic<uint32_t>, N> slots_{};
 };
 
-/// Take the failed discovery status recorded for `conn_id`; see bluedroid_gattc_discovery.cpp.
-uint8_t take_discovery_error(uint16_t conn_id);
+/// Bluedroid's own connection id, (tcb index << 8) | gatt_if, from the id and gattc_if an ESP_GATTC event
+/// carries; the event's conn_id is the stack id >> 8 (BTC_GATT_CREATE_CONN_ID / BTC_GATT_GET_CONN_ID).
+inline uint16_t stack_conn_id(uint16_t event_conn_id, uint8_t gattc_if) {
+  return uint16_t(event_conn_id << 8) | gattc_if;
+}
+
+/// Take the failed discovery status recorded for Bluedroid's connection id; see bluedroid_gattc_discovery.cpp.
+uint8_t take_discovery_error(uint16_t stack_conn_id);
 
 }  // namespace esphome::esp32_ble

@@ -54,4 +54,15 @@ TEST(DiscoveryErrors, FullTableKeepsTheRecordedConnections) {
   EXPECT_EQ(errors.take(0x0003), GATT_INVALID_HANDLE);
 }
 
+// The wrap records Bluedroid's own id; the event that takes it carries that id >> 8 and gattc_if apart
+TEST(DiscoveryErrors, EventIdsFindTheStackIdTheWrapRecorded) {
+  DiscoveryErrors<3> errors;
+  errors.record(0x0103, GATT_INVALID_HANDLE);  // tcb 1, gatt_if 3
+  errors.record(0x0003, GATT_ERROR);           // tcb 0, gatt_if 3
+  EXPECT_EQ(stack_conn_id(0x01, 3), 0x0103);
+  EXPECT_EQ(errors.take(stack_conn_id(0x03, 0)), 0);  // the stripped id alone matches nothing
+  EXPECT_EQ(errors.take(stack_conn_id(0x01, 3)), GATT_INVALID_HANDLE);
+  EXPECT_EQ(errors.take(stack_conn_id(0x00, 3)), GATT_ERROR);
+}
+
 }  // namespace esphome::esp32_ble::testing

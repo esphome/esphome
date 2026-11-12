@@ -12,7 +12,7 @@ namespace esphome::esp32_ble {
 
 static DiscoveryErrors<USE_ESP32_BLE_MAX_CONNECTIONS> discovery_errors;  // NOLINT
 
-uint8_t take_discovery_error(uint16_t conn_id) { return discovery_errors.take(conn_id); }
+uint8_t take_discovery_error(uint16_t stack_conn_id) { return discovery_errors.take(stack_conn_id); }
 
 }  // namespace esphome::esp32_ble
 
@@ -22,7 +22,7 @@ extern "C" {
 // tGATT_DISC_TYPE and tGATT_STATUS are UINT8
 void __real_bta_gattc_disc_cmpl_cback(uint16_t conn_id, uint8_t disc_type, uint8_t status);
 
-// Runs on the Bluetooth host task, before the search result is sent
+// Runs on the Bluetooth host task, before the search result is sent; conn_id is Bluedroid's own id
 void __wrap_bta_gattc_disc_cmpl_cback(uint16_t conn_id, uint8_t disc_type, uint8_t status) {
   if (status != 0)
     esphome::esp32_ble::discovery_errors.record(conn_id, status);

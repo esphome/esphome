@@ -794,13 +794,13 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
   if (event == ESP_GATTC_DISCONNECT_EVT) {
     global_ble->forget_conn_param_failure_(param->disconnect.remote_bda);
 #ifdef USE_ESP32_BLE_GATTC_DISCOVERY_STATUS
-    take_discovery_error(param->disconnect.conn_id);
+    take_discovery_error(stack_conn_id(param->disconnect.conn_id, gattc_if));
 #endif
   }
 #ifdef USE_ESP32_BLE_GATTC_DISCOVERY_STATUS
   // Report a discovery that Bluedroid ended with an error as failed, not as a complete partial table
   if (event == ESP_GATTC_SEARCH_CMPL_EVT) {
-    const uint8_t error = take_discovery_error(param->search_cmpl.conn_id);
+    const uint8_t error = take_discovery_error(stack_conn_id(param->search_cmpl.conn_id, gattc_if));
     if (error != 0 && param->search_cmpl.status == ESP_GATT_OK)
       param->search_cmpl.status = static_cast<esp_gatt_status_t>(error);
   }
