@@ -42,6 +42,11 @@ HCP2_MAX_ADDRESS = 0xF3
 
 
 def _validate_hcp2_address(value: int) -> int:
+    modbus.reject_broadcast_address(
+        value,
+        "a hoermann_hcp server address",
+        "Assign a unique unit address instead.",
+    )
     if value in RESERVED_HCP2_ADDRESSES:
         raise cv.Invalid(
             f"Modbus address 0x{value:02X} is fixed to an official HCP2 "
@@ -96,11 +101,14 @@ CONFIG_SCHEMA = cv.All(
         .extend(modbus.modbus_device_schema(None, role="server"))
         .extend(
             {
+                # A later marker for the same key replaces the Required(CONF_ADDRESS)
+                # from modbus_device_schema above: the address stays optional during
+                # the deprecation window and this chain adds the HCP2 checks.
                 cv.Optional(CONF_ADDRESS): cv.All(
                     cv.hex_uint8_t,
-                    cv.int_range(min=1, max=HCP2_MAX_ADDRESS),
-                    _validate_deprecated_hcp2_address,  # Remove in 2027.04.0
                     _validate_hcp2_address,
+                    cv.int_range(max=HCP2_MAX_ADDRESS),
+                    _validate_deprecated_hcp2_address,  # Remove in 2027.04.0
                 )
             }
         )
