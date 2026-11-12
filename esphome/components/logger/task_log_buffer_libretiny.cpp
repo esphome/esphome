@@ -61,12 +61,8 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &tex
   }
   LogMessage *msg = reinterpret_cast<LogMessage *>(this->storage_ + this->tail_);
   message = msg;
-  // Trim here; the stored length matches the space the writer reserved
   this->current_message_size_ = message_total_size(msg->text_length);
   text_length = msg->text_length;
-  while (text_length > 0 && msg->text_data()[text_length - 1] == '\n') {
-    text_length--;
-  }
 
   // Keep mutex held until release_message_main_loop()
   return true;
@@ -153,10 +149,14 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     return false;
   }
 
-  // Untrimmed: the reader derives the reserved size from it
+  // Trim before storing so the next message reuses the freed bytes
+  while (text_length > 0 && text_area[text_length - 1] == '\n') {
+    text_length--;
+  }
+  text_area[text_length] = '\0';
   msg->text_length = text_length;
 
-  this->head_ = write_pos + total_size;
+  this->head_ = write_pos + message_total_size(text_length);
   if (this->head_ >= CAPACITY) {
     this->head_ = 0;
   }
