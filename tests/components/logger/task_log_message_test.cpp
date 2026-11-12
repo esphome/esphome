@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <cstring>
 
+#include "esphome/core/defines.h"
+
 // The cap and message header are compiled only for platforms with a task log buffer
 #define USE_LIBRETINY
 #ifndef USE_ESPHOME_TASK_LOG_BUFFER
