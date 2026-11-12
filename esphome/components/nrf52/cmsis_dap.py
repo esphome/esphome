@@ -167,6 +167,6 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
             raise EsphomeError(
                 "pyOCD could not flash the device; its output above says why. If it says "
                 "the chip is locked or reports a memory transfer fault, unlock and erase it "
-                f"once with '{_command_line([*pyocd, 'erase', *probe, '--mass'])}' and upload "
+                f"once with:\n  {_command_line([*pyocd, 'erase', *probe, '--mass'])}\nand upload "
                 "again. Not with '--chip': it leaves an nRF54L locked, as no firmware opens it at reset."
             )

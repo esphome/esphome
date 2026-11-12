@@ -1451,12 +1451,12 @@ def test_cmsis_dap_flashes_again_after_a_failure(
             with pytest.raises(
                 EsphomeError,
                 match=re.escape(
-                    "'"
+                    "\n  "
                     + _command_line(
                         [str(python), "-m", "pyocd", "erase", "-t", "nrf52840"]
                         + ["-u", "CB1D0165", "--mass"]
                     )
-                    + "'"
+                    + "\n"
                 ),
             ):
                 upload_using_cmsis_dap("CB1D0165")
