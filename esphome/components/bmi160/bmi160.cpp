@@ -80,7 +80,7 @@ enum class GyroBandwidth : uint8_t {
   OSR2 = 0x10,
   NORMAL = 0x20,
 };
-enum class GyroOuputDataRate : uint8_t {
+enum class GyroOutputDataRate : uint8_t {
   HZ_25 = 0x06,
   HZ_50 = 0x07,
   HZ_100 = 0x08,
@@ -151,7 +151,7 @@ bool BMI160Component::setup_stage_(int stage) {
 
     case 2: {
       ESP_LOGV(TAG, "  Setting up Gyro Config");
-      uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
+      uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOutputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
       if (!this->write_byte(BMI160_REGISTER_GYRO_CONFIG, gyro_config)) {
         return false;

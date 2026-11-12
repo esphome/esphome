@@ -56,3 +56,9 @@ include of random base64 lines with `include_secrets: true` gives four chunks (1
 0bd3738430: `include_secrets: true` fails the build when a package in another directory uses `!secret` and has no
 `secrets.yaml` beside it; a copy next to the package works around it.
 Results: https://github.com/esphome/esphome/pull/16445#issuecomment-6335435397
+
+## Allocations of a connecting client (ratgdo/esphome-ratgdo#705)
+
+An API client that connects allocates about 15 times on ESP32: the connection object, then the list entities and
+initial state batches growing the `DeferredBatch` vector. A log subscription adds more per line. Connect before a
+heap measurement and subscribe to logs only afterwards (`heap_alloc.md`).

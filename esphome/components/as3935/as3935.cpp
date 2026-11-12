@@ -291,10 +291,10 @@ bool AS3935Component::calibrate_oscillator() {
   // reg_val_trco &= CALIB_MASK;
   // reg_val_trco >>= 6;
   if (!reg_val_srco && !reg_val_trco) {  // Zero upon success
-    ESP_LOGI(TAG, "Calibration was succesful");
+    ESP_LOGI(TAG, "Calibration was successful");
     return true;
   } else {
-    ESP_LOGW(TAG, "Calibration was NOT succesful");
+    ESP_LOGW(TAG, "Calibration was NOT successful");
     return false;
   }
 }
