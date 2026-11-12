@@ -99,6 +99,9 @@ def test_ack_delay_shorter_than_timeout(setup_core) -> None:
         uart_packet_interface.CONFIG_SCHEMA(
             {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "500ms"}}
         )
+    # Without a timeout, the link's default of 200 ms applies
+    with pytest.raises(cv.Invalid, match="shorter than 'timeout', which is 200ms"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"ack_delay": "250ms"}})
 
 
 def test_layer_types_registered() -> None:

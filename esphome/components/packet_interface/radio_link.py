@@ -1,6 +1,6 @@
 """Shared code generation for the packet interface links over packet radios, such as the SX126x and SX127x."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 import math
 
 import esphome.codegen as cg
@@ -12,8 +12,8 @@ from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import new_packet_interface, packet_interface_schema
-from .layers import CONF_ADDRESSING, CONF_PEERS, CONF_RELIABILITY, STACK_ORDER
+from . import new_packet_interface, packet_interface_schema, reliability_layers
+from .layers import CONF_ADDRESSING, CONF_PEERS, STACK_ORDER
 from .layers.hdlc_reliability import CONF_ACK_DELAY, DEFAULT_TIMEOUT
 
 # The radios' payload length register is 8 bits
@@ -77,15 +77,6 @@ def reliability_timeout_ms(
     return math.ceil(airtime * MARGIN) + ack_delay_ms
 
 
-def _reliability_layers(config: ConfigType) -> Iterator[tuple[list, ConfigType]]:
-    """The reliability layers on the link and in its peers, each with its path in the link's configuration."""
-    if (layer := config.get(CONF_RELIABILITY)) is not None:
-        yield [CONF_RELIABILITY], layer
-    for index, peer in enumerate(config.get(CONF_ADDRESSING, {}).get(CONF_PEERS, [])):
-        if (layer := peer.get(CONF_RELIABILITY)) is not None:
-            yield [CONF_ADDRESSING, CONF_PEERS, index, CONF_RELIABILITY], layer
-
-
 def _check_transmit_time(config: ConfigType, radio: ConfigType) -> None:
     """The radio drivers give up on a packet that takes longer to send than they wait."""
     size = config[CONF_MAX_PACKET_SIZE]
@@ -110,7 +101,7 @@ def _check_transmit_time(config: ConfigType, radio: ConfigType) -> None:
 
 def _check_reliability_timeouts(config: ConfigType, radio: ConfigType) -> None:
     """A reliability timeout shorter than a packet and its acknowledgement take would send packets again too soon."""
-    for path, layer in _reliability_layers(config):
+    for path, layer in reliability_layers(config):
         if (timeout := layer.get(CONF_TIMEOUT)) is None:
             continue
         needed = reliability_timeout_ms(
@@ -130,9 +121,9 @@ def radio_link_schema(
     class_: MockObjClass, radio_id_key: str, radio_class: MockObjClass
 ) -> cv.Schema:
     """Schema for a radio link, referring to its radio by radio_id_key."""
-    return packet_interface_schema(class_, MAX_PACKET_SIZE, MAX_PACKET_SIZE).extend(
-        {cv.GenerateID(radio_id_key): cv.use_id(radio_class)}
-    )
+    return packet_interface_schema(
+        class_, MAX_PACKET_SIZE, MAX_PACKET_SIZE, chooses_reliability_timeout=True
+    ).extend({cv.GenerateID(radio_id_key): cv.use_id(radio_class)})
 
 
 def _two_way_layer(config: ConfigType) -> str | None:
@@ -189,7 +180,7 @@ async def new_radio_link(
     """
     radio_config = fv.get_declaring_config(config[radio_id_key], CORE.config)
     # A reliability layer without a timeout gets one long enough for a packet and its acknowledgement
-    for _, layer in _reliability_layers(config):
+    for _, layer in reliability_layers(config):
         if CONF_TIMEOUT not in layer:
             needed = reliability_timeout_ms(
                 radio_config,
