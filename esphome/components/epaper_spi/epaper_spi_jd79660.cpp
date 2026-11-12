@@ -85,7 +85,7 @@ bool EPaperJD79660::reset() {
       if (!this->is_idle_()) {
         // Expectation: Idle after reset + settle time.
         // Improperly connected/unexpected hardware?
-        // Error path reproducable e.g. with disconnected VDD/... pins
+        // Error path reproducible e.g. with disconnected VDD/... pins
         // (optimally while busy_pin configured with local pulldown).
         // -> Mark failed to avoid followup problems.
         this->mark_failed(LOG_STR("Busy after reset"));
