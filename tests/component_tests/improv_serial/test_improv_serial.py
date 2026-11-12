@@ -28,3 +28,15 @@ def test_dedicated_uart_skips_console(
     defines = {d.name for d in CORE.defines}
     assert "USE_IMPROV_SERIAL_UART" in defines
     assert "USE_LOGGER_CONSOLE" not in defines
+
+
+def test_nrf52_requests_nothing(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zephyr logger has no console, so Improv there is a no-op."""
+    generate_main(component_config_path("improv_nrf52.yaml"))
+
+    defines = {d.name for d in CORE.defines}
+    assert "USE_LOGGER_CONSOLE" not in defines
+    assert "USE_IMPROV_SERIAL_UART" not in defines
