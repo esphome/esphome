@@ -25,13 +25,16 @@ class BrizLabsLEDString : public light::AddressableLight {
   void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_zones_); }
 
  protected:
-  bool send_frame_(uint8_t zone, uint8_t r, uint8_t g, uint8_t b);  // zone 0 = whole string
+  bool queue_frame_(uint8_t zone, uint8_t r, uint8_t g, uint8_t b);  // zone 0 = whole string
   bool transmit_all_();
 
   int pin_;
   int num_zones_;
   spi_device_handle_t dev_{nullptr};
-  alignas(4) uint8_t frame_[FRAME_BYTES]{};
+  // A queued frame and its transaction belong to the SPI driver until write_state() collects the result
+  spi_transaction_t trans_[MAX_ZONES]{};
+  uint8_t frames_[MAX_ZONES][FRAME_BYTES]{};
+  uint8_t in_flight_{0};
   uint8_t buf_[MAX_ZONES * 3]{};
   uint8_t effect_data_[MAX_ZONES]{};
   light::CorrectedBufferColorAccessor internal_accessor_{this->buf_, this->effect_data_, {0, 1, 2}, &this->correction_};

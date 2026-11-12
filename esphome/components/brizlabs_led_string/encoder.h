@@ -7,8 +7,7 @@
 // supply lines per this protocol.
 // We run SPI at 100 kHz, giving 10 us time slots to pull either high (1) or low (0)
 // A 0 bit is encoded as 10, and a 1 bit is encoded as 110
-// Each individual field is sent LSB first, and we pack everything into bytes for a single
-// synchronous SPI write.
+// Each individual field is sent LSB first, and we pack everything into bytes for a single SPI write.
 //
 // ┌───────────────┬──────┬───────────┐
 // │     Field     │ Bits │   Slots   │
