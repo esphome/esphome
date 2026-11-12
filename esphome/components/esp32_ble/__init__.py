@@ -506,9 +506,7 @@ def final_validation(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
-    has_ble_client = (
-        "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
-    )
+    has_ble_client = _has_gatt_client(full_config)
 
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
@@ -594,7 +592,7 @@ async def to_code(config: ConfigType) -> None:
 
     # ESP-IDF 5.5.6 and 6.0.3 end GATT discovery on a response listing handles out of order
     # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
-    if "esp32_ble_client" in CORE.config and _has_strict_handle_order(idf_version()):
+    if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
         cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
         _wrap_bluedroid_symbols("gatt_client_handle_server_rsp")
 
@@ -662,6 +660,11 @@ for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
     automation.register_apply_action(
         _name, BLE_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
     )
+
+
+def _has_gatt_client(config: ConfigType) -> bool:
+    """Whether Bluedroid's GATT client is built: the tracker (and bluetooth_proxy) or esp32_ble_client."""
+    return "esp32_ble_tracker" in config or "esp32_ble_client" in config
 
 
 def _has_strict_handle_order(version: cv.Version) -> bool:
