@@ -462,16 +462,20 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ("constexpr",)
+    __slots__ = ("constexpr", "align")
 
-    def __init__(self, type_, name, rhs, constexpr: bool = True):
+    def __init__(
+        self, type_, name, rhs, constexpr: bool = True, align: int | None = None
+    ):
         super().__init__(type_, "", name, rhs)
         self.constexpr = constexpr
+        self.align = align
 
     def __str__(self):
+        prefix = "" if self.align is None else f"alignas({self.align}) "
         if self.constexpr:
-            return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
-        return f"ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
+            return f"{prefix}static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"{prefix}ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -484,10 +488,16 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
-def progmem_array(id_, rhs) -> "MockObj":
+def progmem_array(id_, rhs, *, align: int | None = None) -> "MockObj":
+    """Emit a ``static constexpr`` PROGMEM array and return a reference to it.
+
+    ``align`` prefixes the declaration with ``alignas(align)``. A PROGMEM array is
+    otherwise aligned to 1 byte, so data read through a cast, such as a flatbuffer
+    model buffer, needs this to keep the address it is dereferenced at legal.
+    """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
+    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, align=align)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
