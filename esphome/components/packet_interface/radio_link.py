@@ -1,23 +1,42 @@
 """Shared code generation for the packet interface links over packet radios, such as the SX126x and SX127x."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+import logging
 import math
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
-from esphome.const import CONF_TIMEOUT
+from esphome.const import CONF_FRAGMENTATION, CONF_ID, CONF_TIMEOUT
 from esphome.core import CORE
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import new_packet_interface, packet_interface_schema, reliability_layers
-from .layers import CONF_ADDRESSING, CONF_PEERS, STACK_ORDER
-from .layers.hdlc_reliability import CONF_ACK_DELAY, DEFAULT_TIMEOUT
+from .layers import (
+    ADDRESSING,
+    CONF_ADDRESSING,
+    CONF_PEERS,
+    CONF_RELIABILITY,
+    STACK_ORDER,
+)
+from .layers.basic_fragmentation import HEADER_SIZE as FRAGMENT_HEADER_SIZE
+from .layers.hdlc_reliability import (
+    CONF_ACK_DELAY,
+    CONF_MAX_QUEUE_LENGTH,
+    DEFAULT_TIMEOUT,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+# The largest packet a radio receives, from any device on the channel, given the radio's settings
+ReceiveLimit = Callable[[ConfigType], int]
 
 # The radios' payload length register is 8 bits
 MAX_PACKET_SIZE = 255
+# The smallest max_packet_size that packet_interface_schema() takes
+MIN_PACKET_SIZE = 16
 
 # Listen before talk holds a send back for at most the airtime of the largest packet, and never less than this
 MIN_MAX_BUSY_MS = 2000
@@ -67,11 +86,36 @@ def max_busy_ms(radio: ConfigType, max_packet_size: int) -> int:
     )
 
 
+def _fits_transmit_time(radio: ConfigType, size: int) -> bool:
+    return packet_airtime_ms(radio, size) * MARGIN <= TRANSMIT_TIMEOUT_MS
+
+
+def _largest_sendable(radio: ConfigType, limit: int) -> int | None:
+    """The largest max_packet_size, up to limit, whose packets the radio sends within the drivers' wait."""
+    return next(
+        (
+            size
+            for size in range(limit, MIN_PACKET_SIZE - 1, -1)
+            if _fits_transmit_time(radio, size)
+        ),
+        None,
+    )
+
+
+def channel_packet_size(radio: ConfigType, receive_limit: int) -> int:
+    """The largest packet any device on the channel can send: no more than the radio receives, and no more than a
+    device with these radio settings is allowed to send.
+    """
+    return _largest_sendable(radio, receive_limit) or receive_limit
+
+
 def reliability_timeout_ms(
-    radio: ConfigType, max_packet_size: int, ack_delay_ms: int
+    radio: ConfigType, packet_size: int, ack_delay_ms: int
 ) -> int:
-    """The shortest reliability timeout: before acknowledging, the peer may be sending its own largest packet."""
-    airtime = packet_airtime_ms(radio, max_packet_size) + packet_airtime_ms(
+    """The shortest reliability timeout: before acknowledging, the peer may be sending, or receiving from another
+    device, a packet of packet_size bytes.
+    """
+    airtime = packet_airtime_ms(radio, packet_size) + packet_airtime_ms(
         radio, ACK_PACKET_SIZE
     )
     return math.ceil(airtime * MARGIN) + ack_delay_ms
@@ -80,13 +124,9 @@ def reliability_timeout_ms(
 def _check_transmit_time(config: ConfigType, radio: ConfigType) -> None:
     """The radio drivers give up on a packet that takes longer to send than they wait."""
     size = config[CONF_MAX_PACKET_SIZE]
-
-    def fits(length: int) -> bool:
-        return packet_airtime_ms(radio, length) * MARGIN <= TRANSMIT_TIMEOUT_MS
-
-    if fits(size):
+    if _fits_transmit_time(radio, size):
         return
-    largest = next((length for length in range(size - 1, 0, -1) if fits(length)), None)
+    largest = _largest_sendable(radio, size - 1)
     advice = (
         f"set '{CONF_MAX_PACKET_SIZE}' to {largest} or less"
         if largest is not None
@@ -99,21 +139,67 @@ def _check_transmit_time(config: ConfigType, radio: ConfigType) -> None:
     )
 
 
-def _check_reliability_timeouts(config: ConfigType, radio: ConfigType) -> None:
+def _check_reliability_timeouts(
+    config: ConfigType, radio: ConfigType, packet_size: int
+) -> None:
     """A reliability timeout shorter than a packet and its acknowledgement take would send packets again too soon."""
     for path, layer in reliability_layers(config):
         if (timeout := layer.get(CONF_TIMEOUT)) is None:
             continue
         needed = reliability_timeout_ms(
-            radio,
-            config[CONF_MAX_PACKET_SIZE],
-            layer[CONF_ACK_DELAY].total_milliseconds,
+            radio, packet_size, layer[CONF_ACK_DELAY].total_milliseconds
         )
         if timeout.total_milliseconds < needed:
             raise cv.Invalid(
                 f"With these radio settings a packet and its acknowledgement can take {needed} ms, so this must be "
                 f"at least {needed}ms; leave it out to use that",
                 path=[*path, CONF_TIMEOUT],
+            )
+
+
+def _stacks(config: ConfigType) -> Iterator[tuple[ConfigType, int]]:
+    """The link's stacks of layers, on the link or in each peer, each with the largest packet below it."""
+    size = config[CONF_MAX_PACKET_SIZE]
+    if (addressing := config.get(CONF_ADDRESSING)) is None:
+        yield config, size
+        return
+    size = ADDRESSING.get_type(addressing).packet_size(addressing, size)
+    yield from ((stack, size) for stack in addressing.get(CONF_PEERS, [config]))
+
+
+def _radio_packets_per_send(stack: ConfigType, size: int) -> int:
+    """How many radio packets one send through the stack can send one after another, each waited for in turn."""
+    if (reliability := stack.get(CONF_RELIABILITY)) is not None:
+        # It sends, and after a timeout sends again, every packet in its queue at once
+        return reliability[CONF_MAX_QUEUE_LENGTH]
+    if (fragmentation := stack.get(CONF_FRAGMENTATION)) is None:
+        return 1
+    for kind in STACK_ORDER:
+        if kind.key == CONF_FRAGMENTATION:
+            break
+        if (layer := stack.get(kind.key)) is not None:
+            size = kind.get_type(layer).packet_size(layer, size)
+    fragment = size - FRAGMENT_HEADER_SIZE
+    if fragment <= 0:
+        return 1
+    return math.ceil(fragmentation[CONF_MAX_PACKET_SIZE] / fragment)
+
+
+def _warn_long_sends(config: ConfigType, radio: ConfigType) -> None:
+    """The radio drivers wait for each packet to be sent, so a send of several packets holds up everything else."""
+    airtime = packet_airtime_ms(radio, config[CONF_MAX_PACKET_SIZE])
+    for stack, size in _stacks(config):
+        count = _radio_packets_per_send(stack, size)
+        if count > 1 and count * airtime > TRANSMIT_TIMEOUT_MS:
+            _LOGGER.warning(
+                "A send through '%s' can send %d radio packets in a row, holding up other components for about "
+                "%.1f s while the radio sends them; reduce '%s' or the reliability '%s', or use faster radio "
+                "settings",
+                stack[CONF_ID].id,
+                count,
+                count * airtime / 1000,
+                CONF_MAX_PACKET_SIZE,
+                CONF_MAX_QUEUE_LENGTH,
             )
 
 
@@ -142,6 +228,7 @@ def radio_link_final_validate(
     payload_length_key: str,
     rx_start_key: str,
     check: Callable[[ConfigType, ConfigType], None] | None = None,
+    receive_limit: ReceiveLimit = lambda radio: MAX_PACKET_SIZE,
 ) -> Callable[[ConfigType], ConfigType]:
     """Final validation for a radio link: packets vary in length, the radio listens after sending when a layer needs
     replies, and check(link, radio) checks the rest.
@@ -163,7 +250,10 @@ def radio_link_final_validate(
         if check is not None:
             check(config, radio)
         _check_transmit_time(config, radio)
-        _check_reliability_timeouts(config, radio)
+        _check_reliability_timeouts(
+            config, radio, channel_packet_size(radio, receive_limit(radio))
+        )
+        _warn_long_sends(config, radio)
         return config
 
     return validator
@@ -172,24 +262,20 @@ def radio_link_final_validate(
 async def new_radio_link(
     config: ConfigType,
     radio_id_key: str,
-    receive_limit: Callable[[ConfigType], int] = lambda radio: MAX_PACKET_SIZE,
+    receive_limit: ReceiveLimit = lambda radio: MAX_PACKET_SIZE,
 ) -> None:
-    """Create a radio link, with timings worked out from the radio's settings.
-
-    receive_limit gives the largest packet the radio receives, from any device on the channel.
-    """
+    """Create a radio link, with timings worked out from the radio's settings and the largest packet on the channel."""
     radio_config = fv.get_declaring_config(config[radio_id_key], CORE.config)
+    packet_size = channel_packet_size(radio_config, receive_limit(radio_config))
     # A reliability layer without a timeout gets one long enough for a packet and its acknowledgement
     for _, layer in reliability_layers(config):
         if CONF_TIMEOUT not in layer:
             needed = reliability_timeout_ms(
-                radio_config,
-                config[CONF_MAX_PACKET_SIZE],
-                layer[CONF_ACK_DELAY].total_milliseconds,
+                radio_config, packet_size, layer[CONF_ACK_DELAY].total_milliseconds
             )
             layer[CONF_TIMEOUT] = cv.TimePeriodMilliseconds(
                 milliseconds=max(DEFAULT_TIMEOUT.total_milliseconds, needed)
             )
     radio = await cg.get_variable(config[radio_id_key])
     var = await new_packet_interface(config, radio, config[CONF_MAX_PACKET_SIZE])
-    cg.add(var.set_max_busy(max_busy_ms(radio_config, receive_limit(radio_config))))
+    cg.add(var.set_max_busy(max_busy_ms(radio_config, packet_size)))

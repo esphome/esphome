@@ -1,4 +1,5 @@
 #include "sx126x.h"
+#include <cmath>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -384,7 +385,7 @@ void SX126x::loop() {
   uint16_t status;
   uint8_t buf[3];
   uint8_t rssi;
-  int8_t snr;
+  float snr;
   this->read_opcode_(RADIO_GET_IRQSTATUS, buf, 2);
   this->write_opcode_(RADIO_CLR_IRQSTATUS, buf, 2);
   status = (buf[0] << 8) | buf[1];
@@ -393,15 +394,16 @@ void SX126x::loop() {
       this->read_opcode_(RADIO_GET_PACKETSTATUS, buf, 3);
       if (this->modulation_ == PACKET_TYPE_LORA) {
         rssi = buf[0];
-        snr = buf[1];
+        snr = (float) (int8_t) buf[1] / 4.0f;
       } else {
         rssi = buf[2];
-        snr = 0;
+        // Only LoRa measures it
+        snr = NAN;
       }
       this->read_opcode_(RADIO_GET_RXBUFFERSTATUS, buf, 2);
       this->packet_.resize(buf[0]);
       this->read_fifo_(buf[1], this->packet_);
-      this->call_listeners_(this->packet_, (float) rssi / -2.0f, (float) snr / 4.0f);
+      this->call_listeners_(this->packet_, (float) rssi / -2.0f, snr);
     }
   }
 }
