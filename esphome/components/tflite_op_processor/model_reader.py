@@ -1,18 +1,11 @@
 """Read a TFLite model's flatbuffer without TensorFlow.
 
-A ``.tflite`` file is a flatbuffer, and the operator list and the tensor shapes
-a model declares live in it. Reading them here means the code generator knows
-what a model needs from the model itself, instead of from a companion report
-that can be missing, stale or hand-edited, and it needs nothing beyond the
-standard library.
-
-Only the tables this component uses are parsed, and every read is bounds
-checked, so a truncated or corrupt model raises :class:`ModelReadError` naming
-the offset instead of reading past the end of the buffer.
-
-Field ids and enum values come from the TFLite flatbuffer schema (``schema.fbs``
-and ``schema_generated.h``). Both are append-only, so a model written by a newer
-converter stays readable.
+The operator list and the tensor shapes a model declares live in the ``.tflite``
+file, so reading them there needs nothing beyond the standard library and cannot go
+stale like a companion report. Only the tables used here are parsed, and every read
+is bounds checked, so a truncated model raises :class:`ModelReadError` with the
+offset instead of reading past the end. Field ids come from ``schema.fbs``, which
+is append-only.
 """
 
 from __future__ import annotations
@@ -23,36 +16,24 @@ import struct
 
 from .builtin_codes import BUILTIN_OPERATOR_NAMES
 
-# Every .tflite file starts with a 4-byte root offset followed by this identifier.
 _TFL3_IDENTIFIER = b"TFL3"
 
-# Model table field ids.
+# Field ids of the Model, Buffer, OperatorCode, SubGraph, Operator and Tensor tables.
 _MODEL_OPERATOR_CODES = 1
 _MODEL_SUBGRAPHS = 2
 _MODEL_BUFFERS = 4
-
-# Buffer table field ids.
 _BUFFER_DATA = 0
-
-# OperatorCode table field ids.
 _OPCODE_DEPRECATED_BUILTIN_CODE = 0
 _OPCODE_BUILTIN_CODE = 3
-
-# SubGraph table field ids.
 _SUBGRAPH_TENSORS = 0
 _SUBGRAPH_OPERATORS = 3
-
-# Operator table field ids.
 _OPERATOR_INPUTS = 1
 _OPERATOR_OUTPUTS = 2
-
-# Tensor table field ids.
 _TENSOR_SHAPE = 0
 _TENSOR_TYPE = 1
 _TENSOR_BUFFER = 2
 
-# Bytes per element, following ``TensorTypeGetSize()`` in the TFLM schema utils.
-# A type it does not support has no size and contributes nothing to the estimate.
+# Bytes per element, following ``TensorTypeGetSize()``; an unsupported type is absent.
 TENSOR_TYPE_SIZES: dict[int, int] = {
     0: 4,  # FLOAT32
     1: 2,  # FLOAT16
@@ -70,11 +51,8 @@ TENSOR_TYPE_SIZES: dict[int, int] = {
     16: 2,  # UINT16
 }
 
-# The peak of concurrently live tensors is only a lower bound: the arena also
-# holds the planner's bookkeeping, one buffer handle per tensor and the scratch
-# buffers the kernels ask for. The factor and the head overhead were calibrated
-# against TFLM's own arena_used_bytes() on quantized digit-recognition models,
-# where the size TFLM needed was 1.8x to 2.1x the peak.
+# Calibrated against TFLM's arena_used_bytes() on quantized models, where the size
+# TFLM needed was 1.8x to 2.1x the peak of the tensors that are live together.
 _ARENA_SAFETY_FACTOR_TENTHS = 22
 _ARENA_HEAD_OVERHEAD = 64
 _ARENA_HEAD_PER_TENSOR = 12
@@ -89,22 +67,15 @@ class ModelReadError(ValueError):
 class ArenaEstimate:
     """A compile-time estimate of the tensor arena a model needs."""
 
-    bytes: int
-    """The estimate, rounded up to 1 KiB."""
-    peak_activation_bytes: int
-    """Bytes held by the tensors that are live at the same time, at the peak."""
-    tensor_count: int
-    """Number of tensors in the model's main subgraph."""
+    bytes: int  # rounded up to 1 KiB
+    peak_activation_bytes: int  # held by the tensors live at the same time
+    tensor_count: int  # tensors in the model's main subgraph
 
 
 @dataclass(frozen=True)
 class _Tensor:
-    """One tensor of a subgraph, as far as the arena estimate needs it."""
-
-    size: int
-    """Bytes the tensor occupies, 0 for a type with no known element size."""
-    in_arena: bool
-    """Whether the tensor is allocated in the arena rather than read from the model."""
+    size: int  # bytes, 0 for a type with no known element size
+    in_arena: bool  # allocated in the arena rather than read from the model
 
 
 class _FlatBuffer:
@@ -148,8 +119,7 @@ class _FlatBuffer:
 
     def field(self, table: int, field_id: int) -> int | None:
         """Position of a table field's value, or None when the field is absent."""
-        # A table starts with a signed offset back to its vtable, which holds one
-        # 16-bit offset per field after the two sizes.
+        # The vtable holds one 16-bit offset per field after the two sizes.
         vtable = table - self.i32(table)
         entry = 4 + 2 * field_id
         if entry >= self.u16(vtable):
@@ -216,9 +186,8 @@ def _operator_codes(buffer: _FlatBuffer) -> list[int]:
     """The builtin code of every operator the model declares."""
     codes = []
     for table in buffer.table_vector(buffer.root(), _MODEL_OPERATOR_CODES):
-        # TFLM's GetBuiltinCode() takes the larger of the two fields: a model
-        # written with the older schema leaves builtin_code at its default 0, and
-        # a code past 127 does not fit the byte-sized deprecated field.
+        # GetBuiltinCode() takes the larger of the two fields: the older schema
+        # leaves builtin_code at 0, and a code past 127 does not fit the byte field.
         deprecated = buffer.i8_field(table, _OPCODE_DEPRECATED_BUILTIN_CODE) or 0
         builtin = buffer.i32_field(table, _OPCODE_BUILTIN_CODE) or 0
         codes.append(max(builtin, deprecated))
@@ -235,21 +204,11 @@ def _operator_name(code: int) -> str:
 
 
 def read_model_operators(model_path: str | Path) -> frozenset[str]:
-    """The operators a model declares, by their ``tflm_operators.h`` name.
+    """The operators a model declares, as ``tflm_operators.h`` names them.
 
-    The names are the suffixes of the ``BuiltinOperator`` enum, which is what the
-    operator table and the ``Add*()`` methods use. There is one entry per distinct
-    operator code, so the result is also the number of resolver slots the model
-    needs.
-
-    Args:
-        model_path: path to the ``.tflite`` model file.
-
-    Returns:
-        The operator names, which is never empty.
-
-    Raises:
-        ModelReadError: if the file cannot be read or is not a valid model.
+    There is one entry per distinct operator code, so ``len()`` is also the number
+    of resolver slots the model needs. Raises :class:`ModelReadError` when the file
+    cannot be read or is not a valid model.
     """
     return frozenset(
         _operator_name(code) for code in _operator_codes(_load(model_path))
@@ -283,9 +242,8 @@ def _read_tensors(
         elements = 1
         for dimension in buffer.i32_vector(table, _TENSOR_SHAPE):
             elements *= max(dimension, 0)
-        # A tensor whose buffer holds data is a constant, read in place from the
-        # model file. The converter gives every other tensor a buffer entry too,
-        # usually its own empty one, so the buffer index alone says nothing.
+        # A tensor whose buffer holds data is a constant read in place from the
+        # model; the converter gives the others a buffer entry too, usually empty.
         index = buffer.u32_field(table, _TENSOR_BUFFER) or 0
         in_arena = not (index < len(constant_buffers) and constant_buffers[index])
         tensors.append(_Tensor(element_size * elements, in_arena))
@@ -310,8 +268,7 @@ def _peak_activation_bytes(
 ) -> int:
     """Largest total size of the tensors that are live at the same point.
 
-    A tensor is live from the first operator that mentions it to the last, which
-    is the lifetime the TFLM planner reuses arena space by.
+    A tensor is live from the first operator that mentions it to the last.
     """
     first_use: dict[int, int] = {}
     last_use: dict[int, int] = {}
@@ -321,7 +278,6 @@ def _peak_activation_bytes(
                 continue
             first_use.setdefault(tensor, index)
             last_use[tensor] = index
-
     arena_tensors = [
         (index, tensor.size)
         for index, tensor in enumerate(tensors)
@@ -341,25 +297,13 @@ def _peak_activation_bytes(
 def estimate_tensor_arena(model_path: str | Path) -> ArenaEstimate:
     """Estimate the tensor arena a model needs, from the model itself.
 
-    The device measures the exact size with TFLM's own memory planner, so this is
-    only the starting point that measurement needs: a size close to the real one
-    keeps the probe's temporary allocation small, and one that is too small makes
-    it retry at a larger size.
-
-    Args:
-        model_path: path to the ``.tflite`` model file.
-
-    Returns:
-        The estimate and the figures it is made of, for logging.
-
-    Raises:
-        ModelReadError: if the file cannot be read or is not a valid model.
+    The device measures the exact size, so this is only the seed the probe starts
+    from; a close one keeps its first attempt small.
     """
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
     tensors = _read_tensors(buffer, subgraph, _buffers_with_data(buffer))
     peak = _peak_activation_bytes(tensors, _read_operators(buffer, subgraph))
-
     head = (_ARENA_HEAD_OVERHEAD + _ARENA_HEAD_PER_TENSOR * len(tensors) + 63) & ~63
     raw = head + peak * _ARENA_SAFETY_FACTOR_TENTHS // 10
     return ArenaEstimate(
