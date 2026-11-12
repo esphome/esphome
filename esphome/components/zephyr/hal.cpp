@@ -23,14 +23,11 @@ static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-glo
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
-// yield(), delay(), millis(), millis_64(), delayMicroseconds(),
+// yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() on a 1 MHz system timer,
 // arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
 // components/zephyr/hal.h.
 
-#if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 1000000
-// The system timer counts microseconds (the GRTC on nRF54L) and wraps at 2^32 like micros().
-uint32_t micros() { return k_cycle_get_32(); }
-#elif defined(USE_ZEPHYR_DWT_MICROS)
+#ifdef USE_ZEPHYR_DWT_MICROS
 // The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
 // micros() adds the cycles counted since the last call and keeps the result within one tick of the kernel clock.
 // One struct so the code loads a single base address.
@@ -69,7 +66,7 @@ uint32_t micros() {
   irq_unlock(key);
   return value;
 }
-#else
+#elif CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC != 1000000
 uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 #endif
 
