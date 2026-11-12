@@ -59,16 +59,14 @@ def _check_fsk(config: ConfigType, radio: ConfigType) -> None:
         )
 
 
+def _receive_limit(radio: ConfigType) -> int:
+    return MAX_PACKET_SIZE if radio[CONF_MODULATION] == "LORA" else FSK_MAX_PACKET_SIZE
+
+
 FINAL_VALIDATE_SCHEMA = radio_link_final_validate(
-    CONF_SX127X_ID, CONF_PAYLOAD_LENGTH, CONF_RX_START, _check_fsk
+    CONF_SX127X_ID, CONF_PAYLOAD_LENGTH, CONF_RX_START, _check_fsk, _receive_limit
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    await new_radio_link(
-        config,
-        CONF_SX127X_ID,
-        lambda radio: (
-            MAX_PACKET_SIZE if radio[CONF_MODULATION] == "LORA" else FSK_MAX_PACKET_SIZE
-        ),
-    )
+    await new_radio_link(config, CONF_SX127X_ID, _receive_limit)

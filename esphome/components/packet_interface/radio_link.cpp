@@ -1,6 +1,5 @@
 #include "radio_link.h"
 #include <cinttypes>
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::packet_interface {
@@ -15,17 +14,18 @@ bool RadioLinkBase::check_size_(size_t size) const {
 }
 
 bool RadioLinkBase::may_send_(bool busy) {
-  uint32_t now = App.get_loop_component_start_time();
   if (busy)
     this->enable_loop();
-  return this->listen_before_talk_.may_send(busy, now);
+  return this->listen_before_talk_.may_send(busy, this->now_());
 }
 
-bool RadioLinkBase::sent_(bool sent, bool busy) const {
+bool RadioLinkBase::sent_(bool sent, bool busy) {
   if (busy) {
+    uint32_t busy_ms = this->listen_before_talk_.busy_for(this->now_());
+    // The radio listens again, and a reception that starts now must be waited for afresh
+    this->listen_before_talk_.end_busy();
     // The limit is longer than any packet takes, so the radio's busy indication is stuck or the channel is jammed
-    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, sent anyway",
-             this->listen_before_talk_.busy_for(App.get_loop_component_start_time()));
+    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, sent anyway", busy_ms);
   }
   return sent;
 }
@@ -55,6 +55,7 @@ void RadioLinkBase::receive_(const std::vector<uint8_t> &packet, float rssi, flo
     this->note_received_(false);
     return;
   }
+  this->note_received_(true);
   PacketMetaData meta_data;
   meta_data.rssi = rssi;
   meta_data.snr = snr;

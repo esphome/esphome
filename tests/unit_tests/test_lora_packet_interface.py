@@ -251,3 +251,42 @@ def test_reliability_timeout_follows_airtime(setup_core) -> None:
     _final_validate(_lora(), {"reliability": {"timeout": f"{needed}ms"}})
     # The worked out timeout allows for any ack_delay, so one longer than 200 ms needs no timeout set
     _final_validate(_lora(spreading_factor=9), {"reliability": {"ack_delay": "250ms"}})
+
+
+def test_suggested_size_is_allowed(setup_core) -> None:
+    """The suggested max_packet_size is never below the smallest one allowed."""
+    slowest = _lora(spreading_factor=12, bandwidth="7_8kHz")
+    with pytest.raises(cv.Invalid, match="use faster radio settings"):
+        _final_validate(slowest, {CONF_MAX_PACKET_SIZE: 16})
+
+
+def test_channel_packet_size(setup_core) -> None:
+    """Other devices can send no more than the radio receives, nor more than their own checks allow."""
+    assert radio_link.channel_packet_size(_lora(), 255) == 255
+    assert radio_link.channel_packet_size(_lora(spreading_factor=12), 255) == 77
+    assert radio_link.channel_packet_size(_fsk(), 63) == 63
+
+
+def test_reliability_timeout_allows_for_other_devices(setup_core) -> None:
+    """A small max_packet_size still needs a timeout that allows for the largest packet another device can send."""
+    needed = radio_link.reliability_timeout_ms(_lora(), 255, 0)
+    with pytest.raises(cv.Invalid, match=f"at least {needed}ms"):
+        _final_validate(
+            _lora(),
+            {
+                CONF_MAX_PACKET_SIZE: 16,
+                "reliability": {
+                    "timeout": f"{radio_link.reliability_timeout_ms(_lora(), 16, 0)}ms"
+                },
+            },
+        )
+
+
+def test_long_sends_warned(setup_core, caplog: pytest.LogCaptureFixture) -> None:
+    """A send of many radio packets, each waited for, is warned about."""
+    slow = _lora(spreading_factor=10)
+    _final_validate(slow, {CONF_MAX_PACKET_SIZE: 64})
+    assert "radio packets in a row" not in caplog.text
+    _final_validate(slow, {CONF_MAX_PACKET_SIZE: 64, "fragmentation": {}})
+    # 1024 bytes in fragments of 62
+    assert "can send 17 radio packets in a row" in caplog.text
