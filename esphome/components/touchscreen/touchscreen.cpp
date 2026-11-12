@@ -13,7 +13,7 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
   irq_pin->attach_interrupt(TouchscreenInterrupt::gpio_intr, &this->store_, type);
   this->store_.init = true;
   this->store_.touched = false;
-  ESP_LOGD(TAG, "Attach Touch Interupt");
+  ESP_LOGD(TAG, "Attach Touch Interrupt");
 }
 
 void Touchscreen::call_setup() {
