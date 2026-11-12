@@ -50,10 +50,10 @@ def test_on_boot_inline_priorities(main_cpp: str) -> None:
     The priority is the float's bit pattern: 0x44480000 is 800.0f, 0x44160000 is 600.0f.
     """
     assert constructed(main_cpp, "startuptrigger_id") == (
-        "StartupCallback<esphome__startuptrigger_id__fn, 0x44480000u>()"
+        "StartupCallback<esphome__startuptrigger_id__fn, 0x44480000>()"
     )
     assert constructed(main_cpp, "startuptrigger_id_2") == (
-        "StartupCallback<esphome__startuptrigger_id_2__fn, 0x44160000u>()"
+        "StartupCallback<esphome__startuptrigger_id_2__fn, 0x44160000>()"
     )
     assert "Automation<>(startuptrigger_id" not in main_cpp
     # Both actions of the first block run in the one function, with no stop checks
@@ -68,7 +68,7 @@ def test_on_boot_inline_priorities(main_cpp: str) -> None:
 def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
     """A delay keeps the Automation of separate actions, which the function triggers."""
     assert constructed(main_cpp, "startuptrigger_id_3") == (
-        "StartupCallback<esphome__startuptrigger_id_3__fn, 0xC2C80000u>()"
+        "StartupCallback<esphome__startuptrigger_id_3__fn, 0xC2C80000>()"
     )
     delayed_automation(main_cpp, "esphome__startuptrigger_id_3__fn")
 
@@ -82,13 +82,13 @@ def test_on_boot_manual_trigger_id_keeps_trigger(main_cpp: str) -> None:
 def test_on_shutdown_priorities(main_cpp: str) -> None:
     """on_shutdown calls its function at its priority; a delay keeps the Automation."""
     assert constructed(main_cpp, "shutdowntrigger_id") == (
-        "ShutdownCallback<esphome__shutdowntrigger_id__fn, 0x442F0000u>()"
+        "ShutdownCallback<esphome__shutdowntrigger_id__fn, 0x442F0000>()"
     )
     assert "shutdown inline" in actions_body(
         main_cpp, "esphome__shutdowntrigger_id__fn"
     )
     assert constructed(main_cpp, "shutdowntrigger_id_2") == (
-        "ShutdownCallback<esphome__shutdowntrigger_id_2__fn, 0x44160000u>()"
+        "ShutdownCallback<esphome__shutdowntrigger_id_2__fn, 0x44160000>()"
     )
     delayed_automation(main_cpp, "esphome__shutdowntrigger_id_2__fn")
 

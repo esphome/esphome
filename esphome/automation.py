@@ -2017,7 +2017,7 @@ def _call_target(
 ) -> MockObj | str:
     """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
     if (target := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+        target = parent_ref(_automation_from_plan(plan, args, config)).trigger
     return target
 
 
@@ -2060,7 +2060,7 @@ async def build_component_automation(
         await build_automation(var, [], config)
         return var
     # Declared and registered before the actions are built, which can wait for other ids
-    name = f"esphome__{trigger_id.id}__fn"
+    name = _apply_function_name(trigger_id)
     define = cg.declare_static_function(name, cg.void, [])
     id_ = trigger_id.copy()
     id_.type = component_class
@@ -2070,14 +2070,14 @@ async def build_component_automation(
     )
     await cg.register_component(var, config)
     plan = await _build_automation_plan([], config)
-    define([f"{_call_target(plan, [], config)}();"])
+    define([str(cg.statement(CallExpression(_call_target(plan, [], config))))])
     return var
 
 
-def _float_bits(value: float) -> cg.RawExpression:
+def _float_bits(value: float) -> HexInt:
     """``value`` as a C++ float's bit pattern, for a template argument."""
     (bits,) = struct.unpack("<I", struct.pack("<f", value))
-    return cg.RawExpression(f"0x{bits:08X}u")
+    return HexInt(bits)
 
 
 async def build_trigger_callback(
