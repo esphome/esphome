@@ -144,12 +144,10 @@ size_t Logger::console_write(const uint8_t *data, size_t len) {
 bool Logger::console_read(uint8_t &byte) {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
 #ifdef CONFIG_ESP_CONSOLE_USB_CDC
-  if (esp_usb_console_available_for_read()) {
-    esp_usb_console_read_buf(reinterpret_cast<char *>(&byte), 1);
-    return true;
-  }
-#endif
+  return esp_usb_console_available_for_read() && esp_usb_console_read_buf(reinterpret_cast<char *>(&byte), 1) == 1;
+#else
   return false;
+#endif
 #elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
   return usb_serial_jtag_read_bytes(&byte, 1, 0) > 0;
 #else
