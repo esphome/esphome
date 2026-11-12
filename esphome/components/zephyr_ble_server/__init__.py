@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 
 from esphome import automation
 import esphome.codegen as cg
@@ -6,20 +7,24 @@ from esphome.components.ble_device_base.server_automation import (
     register_server_apply_action,
 )
 from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
+from esphome.components.nrf52.boards import BOARDS_WITHOUT_ANTENNA
 from esphome.components.nrf52.framework import (
     bluetooth_west_projects,
     include_west_project,
 )
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, Framework
+from esphome.const import CONF_BOARD, CONF_ID, PLATFORM_NRF52, Framework
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 # BLE LE Data Length Extension maximum LL PDU payload (BLE spec)
 _DLE_MAX_PDU = 251
 
 DOMAIN = "zephyr_ble_server"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -70,6 +75,19 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework(Framework.ZEPHYR),
 )
+
+
+def _warn_without_antenna(config: ConfigType) -> None:
+    board = fv.full_config.get().get(PLATFORM_NRF52, {}).get(CONF_BOARD)
+    if board in BOARDS_WITHOUT_ANTENNA:
+        _LOGGER.warning(
+            "The %s has no antenna of its own: connect an external 2.4 GHz antenna to "
+            "its antenna connector, or Bluetooth will not be received",
+            board,
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _warn_without_antenna
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(

@@ -78,6 +78,11 @@ BOARDS_ZEPHYR = {
     },
 }
 
+# Boards with only a connector for an external antenna; without one, Bluetooth is not received
+BOARDS_WITHOUT_ANTENNA = {
+    "xiao_nrf54lm20a",
+}
+
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
 # bootloader takes as its cue to stay in DFU mode (Nordic's own USB DFU trigger does the same)
 SELF_RESET_PINS = {
