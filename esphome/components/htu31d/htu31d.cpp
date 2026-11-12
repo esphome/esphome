@@ -66,7 +66,7 @@ void HTU31DComponent::update() {
   // a single temperature and humidity conversion.
   if (this->write_register(HTU31D_CONVERSION, nullptr, 0) != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "Received errror writing conversion register");
+    ESP_LOGE(TAG, "Received error writing conversion register");
     return;
   }
 

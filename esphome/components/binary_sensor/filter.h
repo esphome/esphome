@@ -151,6 +151,13 @@ class StatelessLambdaFilter : public Filter {
   optional<bool> (*f_)(bool);
 };
 
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+/// The function gets the filter, so it can schedule output on it.
+template<auto Fn> class ApplyFilter final : public Filter {
+ public:
+  optional<bool> new_value(bool value) override { return Fn(this, value); }
+};
+
 class SettleFilter : public Filter {
  public:
   // User provided, not "= default": `new(p) SettleFilter()` would zero-fill .bss that is already zero.
