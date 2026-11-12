@@ -248,8 +248,8 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   }
   // A service removed while the stack was still creating it is deleted once its handle arrives
   if (event == ESP_GATTS_CREATE_EVT && param->create.status == ESP_GATT_OK) {
-    for (auto &entry : this->services_) {
-      if (entry.service->get_handle() == param->create.service_handle)
+    for (auto *service : this->services_) {
+      if (service->get_handle() == param->create.service_handle)
         return;
     }
     esp_ble_gatts_delete_service(param->create.service_handle);
