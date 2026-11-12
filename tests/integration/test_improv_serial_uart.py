@@ -10,9 +10,14 @@ Covered:
   2. Get Device Info returns the firmware/device info RPC response
   3. Get Wi-Fi Networks returns deduplicated scan results and a terminator
   4. Wi-Fi Settings provisions: saves credentials and reports PROVISIONED
+
+Between 1 and 2, a 255 byte payload, malformed input and a frame cut off past
+the timeout must each leave the parser ready for the next request.
 """
 
 from __future__ import annotations
+
+import asyncio
 
 import pytest
 
@@ -88,6 +93,30 @@ async def test_improv_serial_uart(
             inject, {"payload": build_rpc_frame(CMD_GET_CURRENT_STATE)}
         )
         await waiter.wait_for("uart_mock", f"TX 12 bytes: {state_frame_hex(0x02)}")
+
+        authorized = f"TX 12 bytes: {state_frame_hex(0x02)}"
+        get_state = build_rpc_frame(CMD_GET_CURRENT_STATE)
+
+        # The largest payload (255 bytes) fills the fixed frame buffer exactly
+        reply = waiter.expect(authorized)
+        await client.execute_service(
+            inject, {"payload": build_rpc_frame(CMD_GET_CURRENT_STATE, bytes(253))}
+        )
+        await waiter.wait(reply, msg="no reply to a 255 byte payload")
+
+        # A bad checksum is dropped, and the next frame parses from the start
+        bad = get_state.copy()
+        bad[-2] ^= 0xFF
+        reply = waiter.expect(authorized)
+        await client.execute_service(inject, {"payload": bad + get_state})
+        await waiter.wait(reply, msg="no reply after a bad checksum")
+
+        # A frame cut off for longer than the 100 ms timeout is discarded
+        await client.execute_service(inject, {"payload": get_state[:8]})
+        await asyncio.sleep(0.3)
+        reply = waiter.expect(authorized)
+        await client.execute_service(inject, {"payload": get_state})
+        await waiter.wait(reply, msg="no reply after a timed out frame")
 
         # 2. Get Device Info: the always logged 9 byte response header, then the
         # payload with the firmware name (must stay under uart_mock's 64 byte
