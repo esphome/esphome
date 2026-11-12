@@ -180,7 +180,7 @@ def test_yaml_descriptors_are_added_by_reference(
     main_cpp = generate_main(component_config_path("set_value.yaml"))
 
     # Descriptors live in static storage, so the characteristic must not take ownership
-    assert "->add_descriptor(*test_descriptor);" in main_cpp
+    assert "->add_descriptor((*test_descriptor));" in main_cpp
     assert "->add_descriptor(test_descriptor);" not in main_cpp
 
 

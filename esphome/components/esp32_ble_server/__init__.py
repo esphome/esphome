@@ -41,7 +41,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, ID, MACAddress
-from esphome.cpp_generator import MockObj, StaticCastExpression
+from esphome.cpp_generator import MockObj, StaticCastExpression, UnaryOpExpression
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType, TemplateArgsType
@@ -705,7 +705,7 @@ async def to_code_descriptor(descriptor_conf, char_conf, char_var):
         descriptor_permissions(descriptor_conf, char_conf),
     )
     # Static storage, so the characteristic must not free it
-    cg.add(char_var.add_descriptor(cg.MockObj(f"*{desc_var}")))
+    cg.add(char_var.add_descriptor(UnaryOpExpression("*", desc_var)))
     cg.add(desc_var.set_value(value))
     if (on_write_conf := descriptor_conf.get(CONF_ON_WRITE)) is not None:
         await _build_on_write_automation(desc_var, on_write_conf)

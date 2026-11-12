@@ -2,7 +2,7 @@
 #include "ble_server.h"
 #include "ble_service.h"
 
-#include <algorithm>
+#include <vector>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -17,8 +17,9 @@ BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
     if (descriptor->owned_) {
       delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
-    } else {
-      descriptor->characteristic_ = nullptr;  // a caller-owned descriptor outlives this characteristic
+    } else if (descriptor->characteristic_ == this) {
+      // A caller-owned descriptor outlives this characteristic, and may already belong to another one
+      descriptor->characteristic_ = nullptr;
     }
   }
 }
@@ -106,11 +107,8 @@ void BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
 }
 
 void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
-  auto it = std::remove(this->descriptors_.begin(), this->descriptors_.end(), descriptor);
-  if (it == this->descriptors_.end())
-    return;
-  descriptor->owned_ = false;  // the caller owns it again
-  this->descriptors_.erase(it, this->descriptors_.end());
+  if (std::erase(this->descriptors_, descriptor) != 0)
+    descriptor->owned_ = false;  // the caller owns it again
 }
 
 void BLECharacteristic::do_create(BLEService *service) {

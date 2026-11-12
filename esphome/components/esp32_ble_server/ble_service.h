@@ -38,7 +38,7 @@ class BLEService final {
                                            esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
   /// Adds a characteristic the caller keeps alive (such as a component member); it is never freed here.
   void add_characteristic(BLECharacteristic &characteristic) {
-    characteristic.service_ = this;  // a reused caller-owned characteristic may still point nowhere
+    characteristic.service_ = this;  // bound now so ~BLEService can tell it is ours; do_create() sets it again
     this->characteristics_.push_back(&characteristic);
   }
 
