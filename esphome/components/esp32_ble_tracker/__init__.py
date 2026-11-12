@@ -19,6 +19,7 @@ from esphome.components.esp32 import (
     request_software_coexistence,
 )
 from esphome.components.esp32_ble import IDF_MAX_CONNECTIONS, BTLoggers
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
@@ -29,7 +30,6 @@ from esphome.const import (
     CONF_INTERVAL,
     CONF_MAX_CONNECTIONS,
     CONF_TRIGGER_ID,
-    CONF_WIFI,
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 from esphome.enum import StrEnum
@@ -313,7 +313,7 @@ async def to_code(config: ConfigType) -> None:
 
         @coroutine_with_priority(CoroPriority.FINAL)
         async def _emit_connection_scan_window() -> None:
-            has_ap = CONF_AP in CORE.config.get(CONF_WIFI, {})
+            has_ap = CONF_AP in CORE.config.get(WIFI_DOMAIN, {})
             if cg.get_slot_count(CLIENT_COUNT_DEFINE) or has_ap:
                 cg.add_define(SHORT_SCAN_WINDOW_DEFINE)
                 cg.add(var.set_connection_scan_window(window_units))
