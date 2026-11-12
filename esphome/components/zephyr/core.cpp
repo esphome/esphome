@@ -20,7 +20,12 @@ void Mutex::lock() { k_mutex_lock(static_cast<k_mutex *>(this->handle_), K_FOREV
 bool Mutex::try_lock() { return k_mutex_lock(static_cast<k_mutex *>(this->handle_), K_NO_WAIT) == 0; }
 void Mutex::unlock() { k_mutex_unlock(static_cast<k_mutex *>(this->handle_)); }
 
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = irq_lock(); }
+IRAM_ATTR InterruptLock::InterruptLock() {
+#ifdef USE_ZEPHYR_DWT_MICROS
+  micros();  // Unlocked, so it catches up any sleep before timestamps are taken under the lock
+#endif
+  state_ = irq_lock();
+}
 IRAM_ATTR InterruptLock::~InterruptLock() { irq_unlock(state_); }
 
 // Zephyr LwIPLock is defined inline as a no-op in helpers.h
