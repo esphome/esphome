@@ -818,15 +818,8 @@ void APIServer::on_shutdown() {
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;
 
-  // Send disconnect requests to all connected clients
-  for (auto &c : this->active_clients()) {
-    DisconnectRequest req;
-    if (!c->send_message(req)) {
-      // If we can't send the disconnect request directly (tx_buffer full),
-      // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
-    }
-  }
+  for (auto &c : this->active_clients())
+    c->send_shutdown_disconnect_();
 }
 
 bool APIServer::teardown() {

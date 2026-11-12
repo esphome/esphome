@@ -802,8 +802,10 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Helper function to schedule a high priority message at the front of the batch
-  // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
+  // Out-of-line: the caller (check_keepalive_) is a cold path
   bool schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size);
+  // Sends the queued states, then DisconnectRequest as the last state related message
+  void send_shutdown_disconnect_();
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);

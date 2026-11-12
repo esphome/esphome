@@ -2515,6 +2515,17 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
+void APIConnection::send_shutdown_disconnect_() {
+  // Home Assistant marks the entities unavailable on DisconnectRequest, and a state after it
+  // makes the same state after the reconnect look like a duplicate, so nothing may follow it
+  this->flags_.state_subscription = false;
+  this->destroy_active_iterator_();
+  this->process_batch_();
+  DisconnectRequest req;
+  if (!this->deferred_batch_.empty() || !this->send_message(req))
+    this->schedule_message_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
+}
+
 bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
   this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
   return this->schedule_batch_();

@@ -1,0 +1,24 @@
+esphome:
+  name: api-shutdown-order
+
+host:
+
+logger:
+
+api:
+
+switch:
+  - platform: template
+    id: test_switch
+    name: "Test switch"
+    optimistic: true
+
+button:
+  - platform: restart
+    id: restart_button
+    name: "Restart"
+  - platform: template
+    name: "Toggle then restart"
+    on_press:
+      - switch.toggle: test_switch
+      - button.press: restart_button
