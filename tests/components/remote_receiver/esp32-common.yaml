@@ -11,6 +11,16 @@ remote_receiver:
 
 binary_sensor:
   - platform: remote_receiver
+    name: KeeLoq Remote Input
+    keeloq:
+      address: 0x57ffe7b
+      command: 0x2
+  - platform: remote_receiver
+    name: KeeLoq Remote Input With Code
+    keeloq:
+      address: 0x57ffe7b
+      code: 0xd19ef0a9
+  - platform: remote_receiver
     name: Panasonic Remote Input
     panasonic:
       address: 0x4004
