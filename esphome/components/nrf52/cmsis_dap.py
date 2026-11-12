@@ -1,7 +1,9 @@
 """Flashing with pyOCD through a CMSIS-DAP probe, such as the one built into Seeed XIAO nRF54 boards."""
 
 import logging
+import os
 from pathlib import Path
+import subprocess
 
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import run_command_ok
@@ -92,11 +94,16 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     pyocd = [str(paths["python_executable"]), "-m", "pyocd"]
     probe = ["-t", target] + (["-u", unique_id] if unique_id else [])
     if commands := _stop_watchdog_commands(variant):
-        # Best effort: a locked chip refuses it, and 'pyocd flash' then unlocks the chip
         cmd = [*pyocd, "cmd", *probe]
         for command in commands:
             cmd += ["-c", command]
-        run_command_ok(cmd, env=env, stream_output=True)
+        # Best effort and quiet: a locked chip refuses it, and 'pyocd flash' unlocks the chip
+        result = subprocess.run(
+            cmd, env={**os.environ, **env}, capture_output=True, text=True, check=False
+        )
+        if result.returncode != 0:
+            _LOGGER.info("Could not stop the watchdog, the chip may be locked")
+            _LOGGER.debug("%s", result.stdout + result.stderr)
     cmd = [*pyocd, "flash", *probe, "-e", "sector", *(str(image) for image in images)]
     if not run_command_ok(cmd, env=env, stream_output=True):
         # pyOCD unlocks a locked chip by erasing it, then resets it in a way that faults the rest

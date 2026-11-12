@@ -1192,41 +1192,45 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
         patch(
             "esphome.components.nrf52.cmsis_dap.run_command_ok", return_value=True
         ) as mock_run,
+        patch(
+            "esphome.components.nrf52.cmsis_dap.subprocess.run",
+            return_value=SimpleNamespace(returncode=4, stdout="", stderr="locked"),
+        ) as mock_stop,
     ):
         upload_using_cmsis_dap("CB1D0165")
     python = str(paths["python_executable"])
-    # The watchdog is stopped first, so it cannot reset the chip while it is halted
-    assert [c[0][0] for c in mock_run.call_args_list] == [
-        [
-            python,
-            "-m",
-            "pyocd",
-            "cmd",
-            "-t",
-            "nrf54lm20a",
-            "-u",
-            "CB1D0165",
-            "-c",
-            "write32 0x50109520 0x6e524635",
-            "-c",
-            "write32 0x50109004 1",
-            "-c",
-            "write32 0x50109520 0",
-        ],
-        [
-            python,
-            "-m",
-            "pyocd",
-            "flash",
-            "-t",
-            "nrf54lm20a",
-            "-u",
-            "CB1D0165",
-            "-e",
-            "sector",
-            str(mcuboot),
-            str(app),
-        ],
+    # The watchdog is stopped first, so it cannot reset the chip while it is halted;
+    # a failure there (a locked chip) does not stop the upload
+    assert mock_stop.call_args[0][0] == [
+        python,
+        "-m",
+        "pyocd",
+        "cmd",
+        "-t",
+        "nrf54lm20a",
+        "-u",
+        "CB1D0165",
+        "-c",
+        "write32 0x50109520 0x6e524635",
+        "-c",
+        "write32 0x50109004 1",
+        "-c",
+        "write32 0x50109520 0",
+    ]
+    mock_run.assert_called_once()
+    assert mock_run.call_args[0][0] == [
+        python,
+        "-m",
+        "pyocd",
+        "flash",
+        "-t",
+        "nrf54lm20a",
+        "-u",
+        "CB1D0165",
+        "-e",
+        "sector",
+        str(mcuboot),
+        str(app),
     ]
 
 
