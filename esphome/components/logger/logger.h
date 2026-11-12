@@ -164,7 +164,6 @@ class Logger final : public Component {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
     return UART_NUM_0;
 #else
-    // UART_SELECTION_UART0/1/2 equal UART_NUM_0/1/2
     return static_cast<uart_port_t>(this->uart_);
 #endif
   }

@@ -98,6 +98,13 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
 #endif
 }
 
+// get_uart_num() and pre_setup() cast the selection straight to a port
+static_assert(static_cast<int>(UART_SELECTION_UART0) == static_cast<int>(UART_NUM_0) &&
+              static_cast<int>(UART_SELECTION_UART1) == static_cast<int>(UART_NUM_1));
+#ifdef USE_ESP32_VARIANT_ESP32
+static_assert(static_cast<int>(UART_SELECTION_UART2) == static_cast<int>(UART_NUM_2));
+#endif
+
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
     switch (this->uart_) {

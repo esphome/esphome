@@ -29,7 +29,11 @@ TaskLogBuffer::TaskLogBuffer() {
 
 bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {
-  int ret = task_log_text_length(format, args);
+  // Measure on a copy; the caller's va_list formats the text later
+  va_list args_copy;
+  va_copy(args_copy, args);
+  int ret = task_log_cap_length(vsnprintf(nullptr, 0, format, args_copy));
+  va_end(args_copy);
   if (ret <= 0) {
     return false;  // Formatting error or empty message
   }

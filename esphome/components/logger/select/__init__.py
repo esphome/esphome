@@ -1,15 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_BUG
+from esphome.const import CONF_LEVEL, ENTITY_CATEGORY_CONFIG, ICON_BUG
+from esphome.core import CORE
 from esphome.cpp_helpers import register_component, register_parented
 from esphome.types import ConfigType
 
 from .. import (
     CONF_LOGGER_ID,
+    DOMAIN,
     LOG_LEVELS,
     Logger,
-    _get_data,
     logger_ns,
     request_logger_level_listeners,
 )
@@ -31,7 +32,7 @@ async def to_code(config: ConfigType) -> None:
     request_logger_level_listeners()
     parent = await cg.get_variable(config[CONF_LOGGER_ID])
     levels = list(LOG_LEVELS)
-    index = levels.index(_get_data().level)
+    index = levels.index(CORE.data[DOMAIN][CONF_LEVEL])
     levels = levels[: index + 1]
     var = await select.new_select(config, options=levels)
     await register_parented(var, parent)

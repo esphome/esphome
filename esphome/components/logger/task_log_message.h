@@ -27,14 +27,7 @@ struct TaskLogMessage {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 static constexpr int TASK_LOG_MAX_TEXT_SIZE = 255;
 
-// Capped text length; <= 0 on error or empty text
-inline int task_log_text_length(const char *format, va_list args) {
-  va_list args_copy;
-  va_copy(args_copy, args);
-  int ret = vsnprintf(nullptr, 0, format, args_copy);
-  va_end(args_copy);
-  return ret > TASK_LOG_MAX_TEXT_SIZE ? TASK_LOG_MAX_TEXT_SIZE : ret;
-}
+inline int task_log_cap_length(int ret) { return ret > TASK_LOG_MAX_TEXT_SIZE ? TASK_LOG_MAX_TEXT_SIZE : ret; }
 #endif
 
 template<typename Message>

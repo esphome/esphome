@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import functools
 import logging
 import re
@@ -468,7 +467,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
-    _get_data().level = level
+    CORE.data.setdefault(DOMAIN, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     # The host has a fixed 64 slots
@@ -838,17 +837,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "task_log_buffer_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
-
-
-@dataclass
-class LoggerData:
-    level: str | None = None  # Global level, read by the level select
-
-
-def _get_data() -> LoggerData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = LoggerData()
-    return CORE.data[DOMAIN]
 
 
 def request_logger_level_listeners() -> None:
