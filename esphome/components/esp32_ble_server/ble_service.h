@@ -63,7 +63,9 @@ class BLEService final {
  protected:
   std::vector<BLECharacteristic *> characteristics_;
   BLECharacteristic *last_created_characteristic_{nullptr};
-  uint32_t created_characteristic_count_{0};
+  uint16_t created_characteristic_count_{0};  // never above num_handles_, so owned_ fits beside it
+  // Set by BLEServer::create_service(), which allocates it; remove_service() frees it
+  bool owned_{false};
   BLEServer *server_ = nullptr;
   ESPBTUUID uuid_;
   uint16_t num_handles_;
@@ -87,8 +89,6 @@ class BLEService final {
     DELETING,
     DELETED,
   } state_{INIT};
-  // Set by BLEServer::create_service(), which allocates it; remove_service() frees it
-  bool owned_{false};
 };
 
 }  // namespace esphome::esp32_ble_server
