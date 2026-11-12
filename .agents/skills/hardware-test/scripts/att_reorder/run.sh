@@ -1,8 +1,9 @@
 #!/bin/bash
 # run.sh PROXY_YAML [ROUNDS]: build server.yaml and PROXY_YAML from TREE, flash both, capture the proxy and read the
 # server's services through it ROUNDS times (default 3). Prints the services per round and the Bluedroid discovery
-# errors. Exit 0: every round got all services; 1: a round got a partial table (the bug); 2 on a setup failure or when the swap never fired (the result would be meaningless). PROXY_YAML must
-# sit in this directory, next to attswap.hpp and components/.
+# errors. Exit 0: every round got all services; 1: a round got a partial table (the bug); 2: setup failed, a round
+# did not connect, or the swap never fired (the result would be meaningless). PROXY_YAML must sit in this
+# directory, next to attswap.hpp and components/.
 # env: TREE, SERVER_PORT, PROXY_PORT, SERVER_BLE_MAC (the server's BLE address), SC (path to serial_capture.py), PY
 D=$(cd "$(dirname "$0")" && pwd); Y=$(cd "$(dirname "${1:?proxy yaml}")" && pwd)/$(basename "$1"); R=${2:-3}
 W=${TREE:?set TREE}; SP=${SERVER_PORT:?set SERVER_PORT}; PP=${PROXY_PORT:?set PROXY_PORT}; MAC=${SERVER_BLE_MAC:?set SERVER_BLE_MAC}

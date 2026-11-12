@@ -19,6 +19,7 @@ async def main(host: str, peer: str, rounds: int) -> None:
 
     cli.subscribe_bluetooth_le_raw_advertisements(adv)
     await asyncio.wait_for(seen.wait(), 30)
+    failed = 0
     for r in range(1, rounds + 1):
         state: asyncio.Queue = asyncio.Queue()
         cancel = await cli.bluetooth_device_connect(
@@ -32,6 +33,7 @@ async def main(host: str, peer: str, rounds: int) -> None:
         c, mtu, err = await asyncio.wait_for(state.get(), 25)
         if not c:
             print(f"R{r} connect failed err={err}", flush=True)
+            failed += 1
             cancel()
             await asyncio.sleep(5)
             continue
@@ -46,6 +48,8 @@ async def main(host: str, peer: str, rounds: int) -> None:
         cancel()
         await asyncio.sleep(5)
     await cli.disconnect()
+    if failed:
+        sys.exit(f"{failed} of {rounds} rounds did not connect")
 
 
 asyncio.run(main(sys.argv[1], sys.argv[2], int(sys.argv[3])))
