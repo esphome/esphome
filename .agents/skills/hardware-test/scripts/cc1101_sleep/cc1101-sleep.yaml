@@ -47,6 +47,11 @@ script:
                    base.marc, base.reg[0x0D], base.reg[0x0E], base.reg[0x0F], base.reg[0x2C], base.reg[0x2D],
                    base.reg[0x2E], cs_low_so_high(c));
           hexpa("T0 baseline", base.pa);
+          // the sleep checks below need a probe that sees an awake chip as awake
+          if (cs_low_so_high(c)) {
+            ESP_LOGW("cct", "T0 FAIL: SO reads high on an awake chip, the sleep checks cannot be trusted");
+            fails++;
+          }
 
           // T1: mark PATABLE 1-7, sleep, wake by hand: lost entries prove the chip slept
           const uint8_t marks[8] = {base.pa[0], 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77};
