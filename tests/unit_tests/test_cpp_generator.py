@@ -503,7 +503,7 @@ class TestStatements:
 
 class TestProgmemArray:
     def test_align_is_emitted(self) -> None:
-        """A PROGMEM array is aligned to 1 byte unless the caller asks for more."""
+        """``align`` prefixes the declaration with ``alignas``."""
         CORE.main_statements = []
         cg.progmem_array(
             ID("model_data", is_declaration=True, type=ct.uint8), [1, 2], align=16
