@@ -1171,6 +1171,7 @@ def test_cmsis_dap_unique_id(
 def test_cmsis_dap_flashes_mcuboot_and_signed_app(
     setup_core: Path, tmp_path: Path
 ) -> None:
+    from esphome.components.nrf52 import cmsis_dap
     from esphome.components.nrf52.cmsis_dap import upload_using_cmsis_dap
     from esphome.components.nrf52.const import VARIANT_NRF54LM20
     from esphome.components.nrf52.framework import set_nrf52_variant
@@ -1192,31 +1193,9 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
         patch(
             "esphome.components.nrf52.cmsis_dap.run_command_ok", return_value=True
         ) as mock_run,
-        patch(
-            "esphome.components.nrf52.cmsis_dap.subprocess.run",
-            return_value=SimpleNamespace(returncode=4, stdout="", stderr="locked"),
-        ) as mock_stop,
     ):
         upload_using_cmsis_dap("CB1D0165")
     python = str(paths["python_executable"])
-    # The watchdog is stopped first, so it cannot reset the chip while it is halted;
-    # a failure there (a locked chip) does not stop the upload
-    assert mock_stop.call_args[0][0] == [
-        python,
-        "-m",
-        "pyocd",
-        "cmd",
-        "-t",
-        "nrf54lm20a",
-        "-u",
-        "CB1D0165",
-        "-c",
-        "write32 0x50109520 0x6e524635",
-        "-c",
-        "write32 0x50109004 1",
-        "-c",
-        "write32 0x50109520 0",
-    ]
     mock_run.assert_called_once()
     assert mock_run.call_args[0][0] == [
         python,
@@ -1229,6 +1208,9 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
         "CB1D0165",
         "-e",
         "sector",
+        # Stops the watchdog, so it cannot reset the chip while it is halted
+        "--script",
+        str(Path(cmsis_dap.__file__).with_name("pyocd_nrf54l_watchdog.py")),
         str(mcuboot),
         str(app),
     ]

@@ -1,9 +1,7 @@
 """Flashing with pyOCD through a CMSIS-DAP probe, such as the one built into Seeed XIAO nRF54 boards."""
 
 import logging
-import os
 from pathlib import Path
-import subprocess
 
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import run_command_ok
@@ -32,24 +30,8 @@ _PYOCD_TARGETS = {
 
 _LOGGER = logging.getLogger(__name__)
 
-# Watchdog of the nRF54L chips that Zephyr uses, and its registers for stopping it
-_NRF54L_WDT31 = 0x50109000
-_WDT_TASKS_STOP = 0x004
-_WDT_TSEN = 0x520
-_WDT_TSEN_KEY = 0x6E524635
-
-
-def _stop_watchdog_commands(variant: str) -> list[str]:
-    """PyOCD commands that stop a running watchdog, which keeps counting while flashing halts
-    the CPU in firmware that does not pause it then, and would reset the chip part way."""
-    if variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
-        return []
-    tsen = _NRF54L_WDT31 + _WDT_TSEN
-    return [
-        f"write32 0x{tsen:08x} 0x{_WDT_TSEN_KEY:08x}",
-        f"write32 0x{_NRF54L_WDT31 + _WDT_TASKS_STOP:08x} 1",
-        f"write32 0x{tsen:08x} 0",
-    ]
+# pyOCD user script that stops the watchdog of the nRF54L chips after connecting
+_NRF54L_WATCHDOG_SCRIPT = Path(__file__).with_name("pyocd_nrf54l_watchdog.py")
 
 
 def cmsis_dap_unique_id(port: str) -> str | None:
@@ -93,18 +75,10 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     env = get_build_env(None)
     pyocd = [str(paths["python_executable"]), "-m", "pyocd"]
     probe = ["-t", target] + (["-u", unique_id] if unique_id else [])
-    if commands := _stop_watchdog_commands(variant):
-        cmd = [*pyocd, "cmd", *probe]
-        for command in commands:
-            cmd += ["-c", command]
-        # Best effort and quiet: a locked chip refuses it, and 'pyocd flash' unlocks the chip
-        result = subprocess.run(
-            cmd, env={**os.environ, **env}, capture_output=True, text=True, check=False
-        )
-        if result.returncode != 0:
-            _LOGGER.info("Could not stop the watchdog, the chip may be locked")
-            _LOGGER.debug("%s", result.stdout + result.stderr)
-    cmd = [*pyocd, "flash", *probe, "-e", "sector", *(str(image) for image in images)]
+    cmd = [*pyocd, "flash", *probe, "-e", "sector"]
+    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+        cmd += ["--script", str(_NRF54L_WATCHDOG_SCRIPT)]
+    cmd += [str(image) for image in images]
     if not run_command_ok(cmd, env=env, stream_output=True):
         # pyOCD unlocks a locked chip by erasing it, then resets it in a way that faults the rest
         # of that connection; a new connection reaches the unlocked chip
