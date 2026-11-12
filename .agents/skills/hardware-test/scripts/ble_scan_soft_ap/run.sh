@@ -24,5 +24,5 @@ J=$(grep -a -m1 "JOIN 1" "$O/cli.txt" | cut -c1-100); echo "${J:-$N NO JOIN}"
 STAT=$(grep -a "STAT" "$O/cli.txt" | tail -1 | cut -c1-140); echo "$STAT"
 echo "client disconnect reasons: $(grep -a -o "reason='[^']*'" "$O/cli.txt" | sort | uniq -c | tr '\n' ' ')"
 echo "dut resets: $(grep -a -c 'rst:' "$O/dut.txt")"
-# pass: the client joined, fetched pages, and the DUT only reset once (the capture's own reset)
-[ -n "$J" ] && [[ "$STAT" != *"pages_ok=0 "* ]] && [ "$(grep -a -c 'rst:' "$O/dut.txt")" -le 1 ]
+# pass: the client joined and fetched pages, and the DUT reset exactly once (the capture's own reset)
+[ -n "$J" ] && [ -n "$STAT" ] && [[ "$STAT" != *"pages_ok=0 "* ]] && [ "$(grep -a -c 'rst:' "$O/dut.txt")" = 1 ]

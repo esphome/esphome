@@ -106,8 +106,8 @@ page counts and the client's disconnect reasons (usage in its header).
   the AP runs, and every chip took a client in about 4 s.
 - Only one AP with the test SSID may be up at a time; list the other AP boards in `PARK` so they wait in their ROM
   bootloader.
-- To check that the full window comes back after provisioning, log `esp32_ble_tracker` at VERBOSE and provision with
-  `templates/client-wifisave.yaml`: `Connection or AP active, using 48 unit scan window` must stop once the AP stops.
+- To check that the full window comes back after provisioning, log `esp32_ble_tracker` at VERBOSE and provision
+  with `templates/client-wifisave.yaml` (set `ap_ssid` to the DUT's and `ap_password: ""`, the DUT's AP is open): `Connection or AP active, using 48 unit scan window` must stop once the AP stops.
 - Some clients do not join an ESP8266 AP at all (the C6 failed on dev too with `Too Many Associations`); use a C3.
 
 ## ESP8266 power save after captive portal provisioning (#22542, #22564)

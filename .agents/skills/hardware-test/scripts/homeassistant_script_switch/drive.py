@@ -14,7 +14,7 @@ sys.path.insert(
 from ha_rest import req_or_exit  # noqa: E402
 
 tok = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").strip()
-name = sys.argv[2]
+name = sys.argv[2].replace("-", "_")  # entity ids use underscores
 t0 = time.monotonic()
 
 
