@@ -23,13 +23,15 @@ static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-glo
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
-// yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() on a 1 MHz system timer,
+// yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() except the cycle-counter one,
 // arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
 // components/zephyr/hal.h.
 
 #ifdef USE_ZEPHYR_DWT_MICROS
 // The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
-// micros() adds the cycles counted since the last call and keeps the result within one tick of the kernel clock.
+// micros() adds the cycles counted since the last call. While the CPU stays busy the result and the kernel clock
+// each trail the true time by less than a tick, so they differ by less than a tick either way. A sleep shorter
+// than a tick can go unnoticed, so the result may trail the true time by up to two ticks until the next resync.
 // One struct so the code loads a single base address.
 static struct {
   uint32_t value;
@@ -53,21 +55,20 @@ uint32_t micros() {
   uint32_t value = micros_state.value + elapsed_us;
 
   const uint32_t kernel_us = k_ticks_to_us_floor32(k_uptime_ticks());
-  const uint32_t tick_us = k_ticks_to_us_ceil32(1);
+  const int32_t tick_us = k_ticks_to_us_ceil32(1);
   const int32_t ahead = static_cast<int32_t>(value - kernel_us);
-  if (ahead < 0) {
+  if (ahead <= -tick_us) {
     // The CPU slept, so the cycle counter fell behind.
     value = kernel_us;
     micros_state.last_cycles = cycles;
-  } else if (static_cast<uint32_t>(ahead) >= tick_us) {
+  } else if (ahead >= tick_us) {
+    // The CPU clock can run fast against the RTC; cap the drift at one tick.
     value = kernel_us + tick_us - 1;
   }
   micros_state.value = value;
   irq_unlock(key);
   return value;
 }
-#elif CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC != 1000000
-uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 #endif
 
 void arch_init() {

@@ -30,8 +30,10 @@ __attribute__((always_inline)) inline void delay(uint32_t ms) { ::k_msleep(ms); 
 #if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 1000000
 // The system timer counts microseconds (the GRTC on nRF54L) and wraps at 2^32 like micros().
 __attribute__((always_inline)) inline uint32_t micros() { return k_cycle_get_32(); }
+#elif defined(CONFIG_CPU_CORTEX_M_HAS_DWT)
+uint32_t micros();  // CPU cycles kept close to the kernel clock, see hal.cpp
 #else
-uint32_t micros();
+__attribute__((always_inline)) inline uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 #endif
 __attribute__((always_inline)) inline uint64_t millis_64() { return static_cast<uint64_t>(k_uptime_get()); }
 __attribute__((always_inline)) inline uint32_t millis() { return static_cast<uint32_t>(millis_64()); }
