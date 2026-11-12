@@ -14,8 +14,6 @@ namespace {
 // Firmware time base: micros() << 4
 constexpr uint32_t TICKS_PER_SECOND = 16000000;
 constexpr uint32_t TICKS_PER_US = 16;
-// Far enough after reset() for the line to count as idle, so the first frame is a sync candidate
-constexpr uint32_t IDLE_START = 1000000;
 
 // Simulated line: frames become edges at exact baud timing plus jitter, truncated
 // to whole microseconds like micros(); poll() emulates the main loop.
@@ -285,6 +283,10 @@ TEST(SoftwareSerialRxDecoder, ResetDiscardsPartialFrame) {
   EXPECT_TRUE(sim.received().empty());
 }
 
+#ifdef USE_UART_AUTO_BAUD
+// Far enough after reset() for the line to count as idle, so the first frame is a sync candidate
+constexpr uint32_t IDLE_START = 1000000;
+
 // Packets of sync then mixed bytes, each after an idle gap and at its own rate; returns what was sent.
 std::vector<uint8_t> send_packets(LineSim &sim, const std::vector<double> &line_bauds, uint8_t sync, unsigned seed) {
   std::vector<uint8_t> sent;
@@ -367,5 +369,7 @@ TEST(SoftwareSerialRxDecoder, AutoBaudIgnoresASyncFrameWithALowStopBit) {
   EXPECT_TRUE(sim.received().empty());
   EXPECT_EQ(sim.decoder().bit_ticks(), sim.bit_ticks());
 }
+
+#endif  // USE_UART_AUTO_BAUD
 
 }  // namespace esphome::uart::testing
