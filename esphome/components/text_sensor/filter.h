@@ -56,7 +56,7 @@ class LambdaFilter : public Filter {
   bool new_value(std::string &value) override;
 
   const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter);
+  void set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
 
  protected:
   lambda_filter_t lambda_filter_;
@@ -82,6 +82,12 @@ class StatelessLambdaFilter : public Filter {
 
  protected:
   optional<std::string> (*lambda_filter_)(std::string);
+};
+
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+template<auto Fn> class ApplyFilter final : public Filter {
+ public:
+  bool new_value(std::string &value) override { return Fn(value); }
 };
 
 /// A simple filter that converts all text to uppercase

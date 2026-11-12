@@ -8,11 +8,19 @@
 namespace esphome::spi_led_strip {
 
 ESPHOME_LOG_TAG(TAG, "spi_led_strip");
+
+static constexpr size_t BUFFER_PADDING = 8;
+/// SPI frame bytes: start frame, 4 bytes per LED and end frame
+static constexpr size_t frame_size(uint16_t num_leds) { return num_leds * 4 + BUFFER_PADDING; }
+/// The frame plus one effect byte per LED
+static constexpr size_t buffer_bytes(uint16_t num_leds) { return frame_size(num_leds) + num_leds; }
 class SpiLedStrip final : public light::AddressableLight,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   SpiLedStrip(uint16_t num_leds);
+  /// A word aligned block of buffer_bytes() bytes from cg.static_buffer(..., psram=True), nullptr if that failed.
+  void set_buffer(uint8_t *buffer);
   void setup() override;
   float get_setup_priority() const override { return setup_priority::IO; }
 
@@ -29,7 +37,6 @@ class SpiLedStrip final : public light::AddressableLight,
  protected:
   light::CorrectedBufferColorAccessor internal_accessor_{
       nullptr, nullptr, {2, 1, 0, light::ChannelColors::RESERVED_WHITE}, &this->correction_};
-  size_t buffer_size_{};
   uint16_t num_leds_;
 };
 

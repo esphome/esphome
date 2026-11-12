@@ -305,6 +305,8 @@ for _name, _call in (
     ("cc1101.begin_rx", "begin_rx()"),
     ("cc1101.reset", "reset()"),
     ("cc1101.set_idle", "set_idle()"),
+    ("cc1101.power_down", "power_down()"),
+    ("cc1101.wake_up", "wake_up()"),
 ):
     automation.register_apply_action(
         _name, CC1101_ACTION_SCHEMA, automation.ApplyCall(_call)

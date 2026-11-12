@@ -46,8 +46,7 @@ void SPIComponent::setup() {
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
-    ESP_LOGE(TAG, "No clock pin");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("No clock pin"));
     return;
   }
 
@@ -82,7 +81,7 @@ void SPIComponent::dump_config() {
   }
 }
 
-void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
+void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPI device not set up, or its bus failed"); }
 
 #ifdef USE_SPI_SOFTWARE
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) { return this->transfer_(data, 8); }
@@ -95,12 +94,7 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   uint16_t out_data = 0;
 
   for (uint8_t i = 0; i != num_bits; i++) {
-    uint8_t shift;
-    if (bit_order_ == BIT_ORDER_MSB_FIRST) {
-      shift = num_bits - 1 - i;
-    } else {
-      shift = i;
-    }
+    const uint8_t shift = this->bit_order_ == BIT_ORDER_MSB_FIRST ? num_bits - 1 - i : i;
 
     if (clock_phase_ == CLOCK_PHASE_LEADING) {
       // sampling on leading edge
