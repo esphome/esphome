@@ -249,3 +249,5 @@ def test_reliability_timeout_follows_airtime(setup_core) -> None:
     # Left out, the link works it out when generating code
     _final_validate(_lora(), {"reliability": {}})
     _final_validate(_lora(), {"reliability": {"timeout": f"{needed}ms"}})
+    # The worked out timeout allows for any ack_delay, so one longer than 200 ms needs no timeout set
+    _final_validate(_lora(spreading_factor=9), {"reliability": {"ack_delay": "250ms"}})

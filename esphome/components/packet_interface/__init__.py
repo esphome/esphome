@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 import importlib
 import pkgutil
 from typing import Any
@@ -6,7 +6,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TIMEOUT
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
@@ -19,6 +19,7 @@ from .layers import (
     CONF_ADDRESSING,
     CONF_DESTINATION,
     CONF_PEERS,
+    CONF_RELIABILITY,
     STACK_ORDER,
     PacketInterface,
     build_stack,
@@ -29,6 +30,7 @@ from .layers import (
     stack_auto_load,
     stack_schema,
 )
+from .layers.hdlc_reliability import DEFAULT_TIMEOUT, check_ack_delay
 
 CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "packet_interface"
@@ -158,13 +160,38 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
+def reliability_layers(config: ConfigType) -> Iterator[tuple[list, ConfigType]]:
+    """The reliability layers on a link and in its peers, each with its path in the link's configuration."""
+    if (layer := config.get(CONF_RELIABILITY)) is not None:
+        yield [CONF_RELIABILITY], layer
+    for index, peer in enumerate(config.get(CONF_ADDRESSING, {}).get(CONF_PEERS, [])):
+        if (layer := peer.get(CONF_RELIABILITY)) is not None:
+            yield [CONF_ADDRESSING, CONF_PEERS, index, CONF_RELIABILITY], layer
+
+
+def _check_default_ack_delays(config: ConfigType) -> ConfigType:
+    """A reliability layer without a timeout uses the default one on this link."""
+    for path, layer in reliability_layers(config):
+        if CONF_TIMEOUT not in layer:
+            try:
+                check_ack_delay(layer, DEFAULT_TIMEOUT)
+            except cv.Invalid as err:
+                err.prepend(path)
+                raise
+    return config
+
+
 def packet_interface_schema(
     class_: MockObjClass,
     default_max_packet_size: int,
     max_packet_size_limit: int = 4096,
+    chooses_reliability_timeout: bool = False,
 ) -> cv.Schema:
-    """Schema for a link platform, with the layers that can be stacked on it."""
-    return (
+    """Schema for a link platform, with the layers that can be stacked on it.
+
+    chooses_reliability_timeout is for a link that works out a reliability timeout of its own, when none is set.
+    """
+    schema = (
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(class_),
@@ -177,6 +204,9 @@ def packet_interface_schema(
         .extend(cv.COMPONENT_SCHEMA)
         .add_extra(_validate_layers)
     )
+    if not chooses_reliability_timeout:
+        schema = schema.add_extra(_check_default_ack_delays)
+    return schema
 
 
 async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
