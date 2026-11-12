@@ -24,9 +24,9 @@ from esphome.core import (
 )
 from esphome.helpers import (
     cpp_string_escape,
-    ensure_unique_string,
     indent,
     indent_all_but_first_and_last,
+    unique_name,
 )
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
@@ -493,15 +493,29 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+_CONFIG_ID_NAMES = "config_id_names"
+
+
 def unique_global_id(name: str, type_: "MockObjClass") -> ID:
     """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
     from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
+    from esphome.config_validation import RESERVED_IDS_SET
 
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    # The config is final during code generation, so its ids are collected once per run.
+    if (config_ids := CORE.data.get(_CONFIG_ID_NAMES)) is None:
+        config_ids = CORE.data[_CONFIG_ID_NAMES] = {
+            str(i) for i, _ in iter_ids(CORE.config)
+        }
+    unique = unique_name(
+        name,
+        lambda c: (
+            c in config_ids
+            or c in RESERVED_IDS_SET
+            or c in CORE.loaded_integrations
+            or ID(c) in CORE.variables
+        ),
+    )
+    return ID(unique, is_declaration=True, type=type_)
 
 
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
