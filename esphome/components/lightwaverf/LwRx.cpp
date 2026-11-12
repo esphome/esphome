@@ -337,7 +337,7 @@ bool LwRx::rx_report_message_() {
     return false;
   } else {
     bool all_devices;
-    // True if mood to device 15 or Off cmd with Allof paramater
+    // True if mood to device 15 or Off cmd with Allof parameter
     all_devices = ((this->rx_msg[3] == RX_CMD_MOOD && this->rx_msg[2] == RX_DEV_15) ||
                    (this->rx_msg[3] == RX_CMD_OFF && this->rx_msg[0] == RX_PAR0_ALLOFF));
     return (rx_check_pairs_(&this->rx_msg[2], all_devices) != -1);

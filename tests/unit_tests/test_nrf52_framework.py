@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import ANY, call, patch
 
 import platformdirs
@@ -19,7 +20,6 @@ from esphome.components.nrf52.framework import (
     TOOLCHAIN_VERSION,
     _get_penv_site_packages,
     _get_platformio_penv_path,
-    _get_toolchain_platform_info,
     _install_toolchain,
     _needs_venv_rebuild,
     check_and_install,
@@ -50,31 +50,6 @@ def _isolate_sdk_nrf_install_path(
     env themselves.
     """
     monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(tmp_path / "sdk_nrf_install"))
-
-
-@pytest.mark.parametrize(
-    ("system", "machine", "expected"),
-    [
-        # default — no branch hit
-        ("Linux", "x86_64", ("linux", "x86_64", "tar.xz")),
-        # arm64 → aarch64 rename
-        ("Linux", "arm64", ("linux", "aarch64", "tar.xz")),
-        # darwin → macos rename only
-        ("Darwin", "x86_64", ("macos", "x86_64", "tar.xz")),
-        # both renames apply
-        ("Darwin", "arm64", ("macos", "aarch64", "tar.xz")),
-        # windows forces x86_64 + 7z; arm64 rename is overwritten
-        ("Windows", "arm64", ("windows", "x86_64", "7z")),
-    ],
-)
-def test_get_toolchain_platform_info(
-    system: str, machine: str, expected: tuple[str, str, str]
-) -> None:
-    with (
-        patch("platform.system", return_value=system),
-        patch("platform.machine", return_value=machine),
-    ):
-        assert _get_toolchain_platform_info() == expected
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +86,8 @@ def mock_nrf52_ops():
     """Patch all heavy I/O operations used by check_and_install."""
     with (
         patch("esphome.components.nrf52.framework.rmdir") as mock_rmdir,
+        # The toolchain install lives in the shared Zephyr SDK installer
+        patch("esphome.components.zephyr.sdk_install.rmdir", mock_rmdir),
         patch("esphome.components.nrf52.framework.create_venv") as mock_create_venv,
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
@@ -792,12 +769,12 @@ class TestCheckAndInstall:
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """download_from_mirrors receives VERSION + platform triple from _get_toolchain_platform_info."""
+        """download_from_mirrors receives VERSION + platform triple from get_sdk_host_info."""
         _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".ready").touch()
 
         with patch(
-            "esphome.components.nrf52.framework._get_toolchain_platform_info",
+            "esphome.components.zephyr.sdk_install.get_sdk_host_info",
             return_value=("linux", "x86_64", "tar.xz"),
         ):
             check_and_install()
@@ -1166,7 +1143,7 @@ def test_install_toolchain_keeps_other_live_toolchain_leftovers(
         leftover.write_text("")
 
     with patch(
-        "esphome.components.nrf52.framework.download_and_extract",
+        "esphome.components.zephyr.sdk_install.download_and_extract",
         side_effect=lambda *args, **kwargs: args[3].mkdir(parents=True),
     ):
         _install_toolchain()
@@ -1175,6 +1152,75 @@ def test_install_toolchain_keeps_other_live_toolchain_leftovers(
     assert other.exists()
     assert not retired.exists()
     assert (toolchains / "1.0.1" / ".ready").exists()
+
+
+@pytest.mark.parametrize(
+    ("ncs", "sdk", "toolchain_url", "toolchain_dir"),
+    [
+        (
+            "3.3.0",
+            "0.17.4",
+            "toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz",
+            ("arm-zephyr-eabi",),
+        ),
+        (
+            "3.4.0",
+            "1.0.1",
+            "toolchain_gnu_linux-x86_64_arm-zephyr-eabi.tar.xz",
+            ("gnu", "arm-zephyr-eabi"),
+        ),
+    ],
+)
+def test_install_toolchain_downloads_the_arm_toolchain(
+    setup_core: Path,
+    ncs: str,
+    sdk: str,
+    toolchain_url: str,
+    toolchain_dir: tuple[str, ...],
+) -> None:
+    """The exact archives nrf52 installs, and where they are extracted."""
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(ncs)}
+    toolchains = get_sdk_nrf_tools_path() / "toolchains"
+    base = f"https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{sdk}/"
+    downloads: list[tuple[list[str], Path, Path]] = []
+
+    def _download(
+        mirrors: list[str],
+        substitutions: dict[str, str],
+        archive: Path,
+        extract_dir: Path,
+        **kwargs: Any,
+    ) -> None:
+        downloads.append(
+            ([m.format(**substitutions) for m in mirrors], archive, extract_dir)
+        )
+        extract_dir.mkdir(parents=True, exist_ok=True)
+
+    with (
+        patch(
+            "esphome.components.zephyr.sdk_install.download_and_extract",
+            side_effect=_download,
+        ),
+        patch(
+            "esphome.components.zephyr.sdk_install.get_sdk_host_info",
+            return_value=("linux", "x86_64", "tar.xz"),
+        ),
+    ):
+        _install_toolchain()
+
+    assert downloads == [
+        (
+            [f"{base}zephyr-sdk-{sdk}_linux-x86_64_minimal.tar.xz"],
+            toolchains / f"{sdk}.minimal.archive",
+            toolchains / sdk,
+        ),
+        (
+            [f"{base}{toolchain_url}"],
+            toolchains / f"{sdk}.toolchain.archive",
+            toolchains.joinpath(sdk, *toolchain_dir),
+        ),
+    ]
+    assert (toolchains / sdk / ".ready").exists()
 
 
 # ---------------------------------------------------------------------------
