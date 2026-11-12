@@ -9,9 +9,12 @@ from esphome import config_validation as cv
 from esphome.components import packet_interface
 from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
 from esphome.components.packet_interface.layers import (
+    CONF_ADDRESSING,
+    CONF_FRAGMENTATION,
     CONF_RELIABILITY,
     CONF_SESSION,
     RELIABILITY,
+    SESSION,
     STACK_ORDER,
     LayerKind,
     xxtea_encryption,
@@ -23,6 +26,8 @@ from esphome.components.packet_interface.layers.hdlc_reliability import (
 from esphome.components.uart import packet_interface as uart_packet_interface
 from esphome.components.udp import packet_interface as udp_packet_interface
 from esphome.const import CONF_ENCRYPTION
+from esphome.core import CORE, ID
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -94,6 +99,7 @@ def test_layer_types_registered() -> None:
     assert {kind.key: set(kind.types) for kind in STACK_ORDER} == {
         CONF_ENCRYPTION: {"xxtea"},
         CONF_RELIABILITY: {"hdlc"},
+        CONF_FRAGMENTATION: {"basic"},
         CONF_SESSION: {"basic"},
     }
 
@@ -178,6 +184,149 @@ def test_rolling_code_requires_session(setup_core) -> None:
     uart_packet_interface.CONFIG_SCHEMA({CONF_ENCRYPTION: "secret"})
 
 
+def test_addressing_defaults_to_broadcast(setup_core) -> None:
+    """Without a destination, packets are broadcast; broadcast can also be named."""
+    for addressing in ({"address": 1}, {"address": 1, "destination": "broadcast"}):
+        config = uart_packet_interface.CONFIG_SCHEMA({CONF_ADDRESSING: addressing})
+        assert config[CONF_ADDRESSING]["destination"] == 0xFFFF
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_ADDRESSING: {"address": 0xFFFF}})
+
+
+@pytest.mark.parametrize(
+    "layers",
+    [
+        {CONF_RELIABILITY: None},
+        {CONF_SESSION: None},
+        {
+            CONF_ENCRYPTION: {"key": "secret", "rolling_code_enable": True},
+            CONF_SESSION: None,
+        },
+    ],
+)
+def test_two_device_layers_need_destination(setup_core, layers: dict) -> None:
+    """Layers that work between two devices only cannot be used with broadcast addressing."""
+    with pytest.raises(cv.Invalid, match="destination"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_ADDRESSING: {"address": 1}, **layers})
+    uart_packet_interface.CONFIG_SCHEMA(
+        {CONF_ADDRESSING: {"address": 1, "destination": 2}, **layers}
+    )
+
+
+def _peer(peer_id: str | ID, destination: Any, **layers: Any) -> dict:
+    return {"id": peer_id, "destination": destination, **layers}
+
+
+def test_addressing_peers(setup_core) -> None:
+    """Each peer has its own destination and layers."""
+    config = uart_packet_interface.CONFIG_SCHEMA(
+        {
+            CONF_ADDRESSING: {
+                "address": 1,
+                "peers": [
+                    _peer("peer_a", 2, reliability=None, session=None),
+                    _peer("peer_b", 3, encryption="secret"),
+                    _peer("everyone", "broadcast"),
+                ],
+            }
+        }
+    )
+    peers = config[CONF_ADDRESSING]["peers"]
+    assert [peer["destination"] for peer in peers] == [2, 3, 0xFFFF]
+    assert CONF_RELIABILITY in peers[0]
+
+
+@pytest.mark.parametrize(
+    ("addressing", "layers", "match"),
+    [
+        ({"peers": [_peer("a", 2), _peer("b", 2)]}, {}, "different destination"),
+        ({"peers": [_peer("a", "broadcast", reliability=None)]}, {}, "broadcast"),
+        ({"peers": [_peer("a", 2)]}, {CONF_RELIABILITY: None}, "goes in each peer"),
+        ({"destination": 2, "peers": [_peer("a", 3)]}, {}, "destination"),
+    ],
+)
+def test_addressing_peers_invalid(
+    setup_core, addressing: dict, layers: dict, match: str
+) -> None:
+    """Peers need different destinations, two-device layers need a destination, and layers go in the peers."""
+    with pytest.raises(cv.Invalid, match=match):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_ADDRESSING: {"address": 1, **addressing}, **layers}
+        )
+
+
+def test_fragmentation_defaults(setup_core) -> None:
+    """An empty fragmentation key joins packets of up to 1024 bytes."""
+    fragmentation = uart_packet_interface.CONFIG_SCHEMA({CONF_FRAGMENTATION: None})[
+        CONF_FRAGMENTATION
+    ]
+    assert fragmentation["type"] == "basic"
+    assert fragmentation["max_packet_size"] == 1024
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_FRAGMENTATION: {"max_packet_size": 8}}
+        )
+
+
+@pytest.mark.parametrize(
+    ("layers", "valid"),
+    [
+        # 508 - 3 leaves fragments of 503 bytes: 1024 bytes take 3, 2048 bytes take 5
+        ({CONF_RELIABILITY: None, CONF_FRAGMENTATION: None}, True),
+        (
+            {CONF_RELIABILITY: None, CONF_FRAGMENTATION: {"max_packet_size": 2048}},
+            False,
+        ),
+        (
+            {
+                CONF_RELIABILITY: {CONF_MAX_QUEUE_LENGTH: 5},
+                CONF_FRAGMENTATION: {"max_packet_size": 2048},
+            },
+            True,
+        ),
+        ({CONF_FRAGMENTATION: {"max_packet_size": 16384}}, True),
+    ],
+)
+def test_fragments_fit_reliability_queue(setup_core, layers: dict, valid: bool) -> None:
+    """Every fragment of the largest packet must fit in the reliability queue at once."""
+    if valid:
+        uart_packet_interface.CONFIG_SCHEMA(layers)
+        return
+    with pytest.raises(cv.Invalid, match="5 fragments") as err:
+        uart_packet_interface.CONFIG_SCHEMA(layers)
+    assert err.value.path == [CONF_FRAGMENTATION, CONF_MAX_PACKET_SIZE]
+
+
+@pytest.mark.parametrize(
+    ("link", "match"),
+    [
+        # 256 - 4 for addressing - 16 for the rolling code - 3 for reliability leaves fragments of 231 bytes
+        ({}, "5 fragments of 231 bytes"),
+        # 24 - 4 - 16 - 3 leaves 1 byte, too few for the fragment header
+        ({CONF_MAX_PACKET_SIZE: 24}, "no room"),
+    ],
+)
+def test_fragments_checked_in_peers(setup_core, link: dict, match: str) -> None:
+    """Fragments are checked against the layers of each peer, below the addressing layer."""
+    peer = _peer(
+        "a",
+        2,
+        encryption={"key": "secret", "rolling_code_enable": True},
+        reliability=None,
+        fragmentation=None,
+        session=None,
+    )
+    with pytest.raises(cv.Invalid, match=match) as err:
+        uart_packet_interface.CONFIG_SCHEMA(
+            {
+                CONF_MAX_PACKET_SIZE: 256,
+                **link,
+                CONF_ADDRESSING: {"address": 1, "peers": [peer]},
+            }
+        )
+    assert err.value.path[:4] == [CONF_ADDRESSING, "peers", 0, CONF_FRAGMENTATION]
+
+
 @pytest.mark.parametrize(
     ("config", "loads"),
     [
@@ -185,6 +334,15 @@ def test_rolling_code_requires_session(setup_core) -> None:
         ({CONF_RELIABILITY: None, CONF_SESSION: None}, []),
         ({CONF_SESSION: {"binary_sensor": {"name": "Link"}}}, ["binary_sensor"]),
         ({CONF_ENCRYPTION: "secret"}, ["xxtea"]),
+        (
+            {
+                CONF_ADDRESSING: {
+                    "address": 1,
+                    "peers": [_peer("a", 2, encryption="secret"), _peer("b", 3)],
+                }
+            },
+            ["xxtea"],
+        ),
     ],
 )
 def test_auto_load_follows_layers(
@@ -214,3 +372,116 @@ def test_xxtea_key_stretched() -> None:
     assert key != xxtea_encryption.derive_key("Johnny Cash ")
     sha = hashlib.sha256(b"Johnny Cash").digest()
     assert key[0] != int.from_bytes(sha[:4], "little")
+
+
+@pytest.mark.parametrize(
+    "addressing",
+    [
+        {"address": 1, "destination": 1},
+        {"address": 1, "peers": [_peer("a", 2), _peer("b", 1)]},
+    ],
+)
+def test_addressing_own_address_rejected(setup_core, addressing: dict) -> None:
+    """A device cannot send to its own address, as its own packets are dropped as echoes."""
+    with pytest.raises(cv.Invalid, match="own address"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_ADDRESSING: addressing})
+
+
+def test_application_needs_peer_id_with_peers(setup_core) -> None:
+    """An application must use one peer's id, not the id of a link with peers."""
+    validator = packet_interface.final_validate_interface("packet_interface")
+    token = fv.full_config.set(
+        {
+            "packet_interface": [
+                {"id": ID("bus"), CONF_ADDRESSING: {"peers": [_peer(ID("a"), 2)]}},
+                {
+                    "id": ID("single"),
+                    CONF_ADDRESSING: {"port_id": ID("port"), "destination": 2},
+                },
+            ]
+        }
+    )
+    try:
+        with pytest.raises(
+            cv.Invalid, match="has peers, so use the id of one of them, such as 'a'"
+        ):
+            validator({"packet_interface": ID("bus")})
+        assert validator({"packet_interface": ID("single")})
+        # The single addressing port is named by port_id, not id
+        assert validator({"packet_interface": ID("port")})
+        assert validator({"packet_interface": ID("a")})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_peers_with_rolling_code_need_own_keys(setup_core) -> None:
+    """A packet relabelled with another peer's address would pass its checks if both peers shared a key."""
+
+    def peers(key_b: str, rolling_code: bool) -> dict:
+        def encryption(key: str) -> dict:
+            return {"key": key, "rolling_code_enable": rolling_code}
+
+        return {
+            CONF_ADDRESSING: {
+                "address": 1,
+                "peers": [
+                    _peer("a", 2, encryption=encryption("one"), session=None),
+                    _peer("b", 3, encryption=encryption(key_b), session=None),
+                ],
+            }
+        }
+
+    with pytest.raises(cv.Invalid, match="same key as peer 'a'"):
+        uart_packet_interface.CONFIG_SCHEMA(peers("one", True))
+    uart_packet_interface.CONFIG_SCHEMA(peers("two", True))
+    # Without the rolling code no packet is protected against being sent again anyway
+    uart_packet_interface.CONFIG_SCHEMA(peers("one", False))
+
+
+def test_interface_packet_size(setup_core) -> None:
+    """An application's buffer is sized for the top layer of the link or peer that it names."""
+    link = uart_packet_interface.CONFIG_SCHEMA(
+        {
+            "id": "bus",
+            CONF_MAX_PACKET_SIZE: 100,
+            CONF_ADDRESSING: {
+                "address": 1,
+                "peers": [
+                    _peer("a", 2, fragmentation={CONF_MAX_PACKET_SIZE: 500}),
+                    _peer("b", 3),
+                ],
+            },
+        }
+    )
+    single = uart_packet_interface.CONFIG_SCHEMA(
+        {"id": "single", CONF_ENCRYPTION: "secret"}
+    )
+    CORE.config = {"packet_interface": [link, single]}
+    assert packet_interface.interface_packet_size(ID("a")) == 500
+    # The address header takes 4 bytes
+    assert packet_interface.interface_packet_size(ID("b")) == 96
+    # The default 508 bytes, less the encryption's 4-byte check
+    assert packet_interface.interface_packet_size(ID("single")) == 504
+
+
+def test_no_room_left_rejected(setup_core) -> None:
+    """A layer that the layers below leave no room for is rejected when the config is checked, not at boot."""
+    with pytest.raises(cv.Invalid, match="no room"):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {
+                CONF_MAX_PACKET_SIZE: 16,
+                CONF_ADDRESSING: {"address": 1, "destination": 2},
+                CONF_ENCRYPTION: {"key": "secret", "rolling_code_enable": True},
+                CONF_SESSION: None,
+            }
+        )
+
+
+def test_session_packet_size(setup_core) -> None:
+    """The session layer takes one byte of each packet, and needs room below for its keep-alive."""
+    session = uart_packet_interface.CONFIG_SCHEMA({CONF_SESSION: None})[CONF_SESSION]
+    session_type = SESSION.get_type(session)
+    assert session_type.packet_size(session, 100) == 99
+    session_type.check_lower(session, 5, None)
+    with pytest.raises(cv.Invalid, match="keep-alive"):
+        session_type.check_lower(session, 4, None)
