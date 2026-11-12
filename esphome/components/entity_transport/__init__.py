@@ -11,6 +11,7 @@ from esphome.components.packet_interface import (
     CONF_PACKET_INTERFACE,
     final_validate_interface,
     interface_layers,
+    interface_packet_size,
 )
 from esphome.components.packet_interface.layers import CONF_SESSION
 from esphome.components.sensor import Sensor
@@ -157,7 +158,10 @@ async def register_remote_binary_sensor(config: ConfigType, var: MockObj) -> Non
 
 async def to_code(config: ConfigType) -> None:
     interface = await cg.get_variable(config[CONF_PACKET_INTERFACE])
-    var = cg.new_Pvariable(config[CONF_ID], interface)
+    # A stack too small for any packet fails the transport's setup
+    size = max(interface_packet_size(config[CONF_PACKET_INTERFACE]), 1)
+    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, size, psram=True)
+    var = cg.new_Pvariable(config[CONF_ID], interface, buffer, size)
     await cg.register_component(var, config)
     if (interval := config.get(CONF_UPDATE_INTERVAL)) is not None:
         cg.add(var.set_update_interval(interval))

@@ -41,6 +41,19 @@ class MockLink : public PacketInterface {
   size_t capacity{SIZE_MAX};
 };
 
+struct BufferHolder {
+  explicit BufferHolder(size_t size) : buffer(size) {}
+  std::vector<uint8_t> buffer;
+};
+
+// The layer with a buffer of the size that code generation gives it
+class TestFragmentation : private BufferHolder, public BasicFragmentation {
+ public:
+  TestFragmentation(PacketInterface *lower, size_t max_packet_size)
+      : BufferHolder(BasicFragmentation::buffer_size(lower->get_max_packet_size(), max_packet_size)),
+        BasicFragmentation(lower, max_packet_size, this->buffer.data()) {}
+};
+
 struct Peer {
   explicit Peer(PacketInterface *lower) : fragmentation(lower, 100) {
     this->fragmentation.add_packet_interface_listener(
@@ -49,7 +62,7 @@ struct Peer {
   }
   bool send(const Packet &data) { return this->fragmentation.send_to_interface(PacketBuffer(data), {}); }
 
-  BasicFragmentation fragmentation;
+  TestFragmentation fragmentation;
   std::vector<Packet> received;
 };
 
@@ -214,7 +227,7 @@ TEST_F(BasicFragmentationTest, OverReliabilityWithLosses) {
 
 TEST_F(BasicFragmentationTest, OversizedSingleFragmentDropped) {
   // A link packet holds more than this layer's max_packet_size
-  BasicFragmentation fragmentation(&this->link_a_, 4);
+  TestFragmentation fragmentation(&this->link_a_, 4);
   std::vector<Packet> received;
   fragmentation.add_packet_interface_listener(
       [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(to_vector(data)); });
@@ -227,7 +240,16 @@ TEST_F(BasicFragmentationTest, OversizedSingleFragmentDropped) {
 
 TEST_F(BasicFragmentationTest, LinkTooSmallFailsSetup) {
   MockLink link(BasicFragmentation::HEADER_SIZE);
-  BasicFragmentation fragmentation(&link, 100);
+  TestFragmentation fragmentation(&link, 100);
+  fragmentation.setup();
+  EXPECT_TRUE(fragmentation.is_failed());
+  Packet packet{1};
+  EXPECT_FALSE(fragmentation.send_to_interface(PacketBuffer(packet), {}));
+}
+
+// With PSRAM, the buffer is allocated at boot and can be missing
+TEST_F(BasicFragmentationTest, MissingBufferFailsSetup) {
+  BasicFragmentation fragmentation(&this->link_a_, 100, nullptr);
   fragmentation.setup();
   EXPECT_TRUE(fragmentation.is_failed());
   Packet packet{1};
