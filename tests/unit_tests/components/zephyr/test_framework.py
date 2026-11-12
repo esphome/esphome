@@ -23,5 +23,5 @@ def test_check_and_install_builds_the_venv(tmp_path: Path) -> None:
     )
     assert framework._REQUIREMENTS.is_file()
     assert [Path(c.args[0]).name for c in file_lock.call_args_list] == [
-        "sdk-v4.5.0.lock"
+        "penv-v4.5.0.lock"
     ]

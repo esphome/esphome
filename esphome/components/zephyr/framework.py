@@ -21,7 +21,7 @@ def _get_python_env_path(version: str) -> Path:
 
 
 def check_and_install(version: str) -> None:
-    with install_lock(get_zephyr_tools_path(), f"sdk-{version}"):
+    with install_lock(get_zephyr_tools_path(), f"penv-{version}"):
         _check_and_install(version)
 
 
