@@ -754,6 +754,7 @@ async def call_user_lambda(
     The other args are the function's const references (``register_apply_action``, ``apply_statements_action``),
     so a body that names none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
     name check counts a use: a needless copy is only a cost, a missed one fails to compile.
+    The result is safe as an argument or initializer; parenthesize it before using it as an operand.
     """
     code = _cpp_code_only(value.value)
     by_value = {
