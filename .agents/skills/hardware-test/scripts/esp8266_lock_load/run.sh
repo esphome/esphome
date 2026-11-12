@@ -42,5 +42,6 @@ if [ -n "$S" ]; then
   set -- $S
   [ "$1" -gt 0 ] && [ "$2" -ge "$1" ] && { echo "$N INVALID: no search found the sensor"; BAD=1; }
 fi
-[ -z "$BAD" ] || exit 2
-[ "$BOOTS" = 1 ]
+# resets are a failure even when they also broke the load or the workload
+[ "$BOOTS" -gt 1 ] && exit 1
+[ -z "$BAD" ] && [ "$BOOTS" = 1 ] || exit 2
