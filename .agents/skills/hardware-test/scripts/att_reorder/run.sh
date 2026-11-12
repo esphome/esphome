@@ -4,11 +4,12 @@
 # errors. Exit 0: every round got all services; 1: a round got a partial table (the bug); 2: setup failed, a round
 # did not connect, or the swap never fired (the result would be meaningless). PROXY_YAML must sit in this
 # directory, next to attswap.hpp and components/.
-# env: TREE, SERVER_PORT, PROXY_PORT, SERVER_BLE_MAC (the server's BLE address), SC (path to serial_capture.py), PY
+# env: TREE, SERVER_YAML (default server.yaml), API_KEY (proxy api key), SERVER_PORT, PROXY_PORT, SERVER_BLE_MAC
+# (the server's BLE address), SC (path to serial_capture.py), PY
 D=$(cd "$(dirname "$0")" && pwd); Y=$(cd "$(dirname "${1:?proxy yaml}")" && pwd)/$(basename "$1"); R=${2:-3}
 W=${TREE:?set TREE}; SP=${SERVER_PORT:?set SERVER_PORT}; PP=${PROXY_PORT:?set PROXY_PORT}; MAC=${SERVER_BLE_MAC:?set SERVER_BLE_MAC}
 SC=${SC:?set SC}; PY=${PY:-$W/venv/bin/python}; N=$(basename "$Y" .yaml); O=$D/out-$N; mkdir -p "$O"
-(cd "$W" && PYTHONPATH=$W $PY -m esphome -s name attsrv run --no-logs "$D/server.yaml" --device "$SP") > "$O/server.log" 2>&1 ||
+(cd "$W" && PYTHONPATH=$W $PY -m esphome -s name attsrv run --no-logs "$D/${SERVER_YAML:-server.yaml}" --device "$SP") > "$O/server.log" 2>&1 ||
   { echo "server build or upload failed"; exit 2; }
 (cd "$W" && PYTHONPATH=$W $PY -m esphome run --no-logs "$Y" --device "$PP") > "$O/proxy-upload.log" 2>&1 ||
   { echo "$N build or upload failed"; exit 2; }

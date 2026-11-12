@@ -1,7 +1,8 @@
 """Connect to PEER_MAC through the proxy like Home Assistant (v3 without cache) and print the services it returns.
-usage: gattget.py PROXY PEER_MAC ROUNDS"""
+usage: gattget.py PROXY PEER_MAC ROUNDS   env: API_KEY (the proxy's api encryption key)"""
 
 import asyncio
+import os
 import sys
 
 from aioesphomeapi import APIClient
@@ -9,7 +10,7 @@ from aioesphomeapi import APIClient
 
 async def main(host: str, peer: str, rounds: int) -> None:
     addr = int(peer.replace(":", ""), 16)
-    cli = APIClient(host, 6053, None)
+    cli = APIClient(host, 6053, None, noise_psk=os.environ["API_KEY"])
     await cli.connect(login=True)
     seen = asyncio.Event()
 

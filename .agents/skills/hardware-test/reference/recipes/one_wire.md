@@ -27,3 +27,6 @@ Notes:
 - A search with no sensor answering is much shorter than one with a sensor (about 190 slot locks per search with
   one DS18B20), so test with a real sensor on the bus.
 - A stale `secrets.yaml` gives `No networks found` and the run has no IP to load.
+- The 1-Wire bus code is shared by every platform, so check a lock change on an ESP32 too: the same DS18B20 search
+  config on ESP-IDF with `bluetooth_proxy` scanning and the same load gave 0 resets and no missed searches on dev and
+  on #22452.

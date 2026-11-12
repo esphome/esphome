@@ -16,6 +16,9 @@ wifi:
   password: !secret wifi_password
 api:
   reboot_timeout: 0s
+  # a plaintext proxy can be taken over by any Home Assistant on the network mid-test
+  encryption:
+    key: !secret api_key
 ota:
   - platform: esphome
 external_components:
