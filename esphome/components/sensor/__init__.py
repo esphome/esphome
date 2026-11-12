@@ -946,16 +946,16 @@ CLAMP_SCHEMA = cv.All(
 
 
 def _clamp_bound(config: ConfigType, value: float) -> str:
-    """The bound as the filter's float, NAN for no bound.
+    """The bound as written, NAN for no bound.
 
     A literal beyond float range was infinite in the old ClampFilter, so no bound; one that
-    rounds to FLT_MAX stays a bound.
+    rounds to FLT_MAX stays a bound. The compiler rounds the literal, as it always did.
     """
     try:
         bound = struct.unpack("f", struct.pack("f", value))[0]
     except OverflowError:
         return "NAN"
-    return str(cg.safe_exp(bound)) if math.isfinite(bound) else "NAN"
+    return str(cg.safe_exp(value)) if math.isfinite(bound) else "NAN"
 
 
 APPLY_FILTER.register(

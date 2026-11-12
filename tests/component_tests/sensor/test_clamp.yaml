@@ -36,3 +36,11 @@ sensor:
       - clamp:
           min_value: -3.4028235e38
           max_value: 5.5
+  # Rounded by the compiler from the literal, not by Python first
+  - platform: template
+    id: clamp_float_midpoint
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: 1.0000000596046448
+          ignore_out_of_range: true

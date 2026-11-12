@@ -53,5 +53,6 @@ def test_clamp_bounds_are_compared_as_float(
 
     assert "clamp_filter_value(x, 1.25f, NAN, false);" in main_cpp
     assert "clamp_filter_value(x, NAN, 2.75f, true);" in main_cpp
-    assert "clamp_filter_value(x, 0.5f, 3.4028234663852886e+38f, false);" in main_cpp
-    assert "clamp_filter_value(x, -3.4028234663852886e+38f, 5.5f, false);" in main_cpp
+    assert "clamp_filter_value(x, 0.5f, 3.4028235e+38f, false);" in main_cpp
+    assert "clamp_filter_value(x, -3.4028235e+38f, 5.5f, false);" in main_cpp
+    assert "clamp_filter_value(x, 1.0000000596046448f, NAN, true);" in main_cpp
