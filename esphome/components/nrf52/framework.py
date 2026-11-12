@@ -11,7 +11,7 @@ from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 from esphome.components.zephyr.framework_helpers import (
-    install_sitecustomize,
+    ensure_venv,
     needs_venv_rebuild,
     patch_framework_file,
     patch_gen_defines_dts_path,
@@ -572,30 +572,7 @@ def check_and_install() -> None:
 def _check_and_install(version: str) -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
-    sentinel = python_env_path / ".ready"
-    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
-    install_venv = needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
-    if install_venv:
-        rmdir(python_env_path, msg=f"Clean up {version} Python environment")
-
-        create_venv(python_env_path, msg=version)
-
-        install_sitecustomize(python_env_path)
-
-        _LOGGER.info("Installing requirements ...")
-        cmd = [
-            str(env_python_path),
-            "-m",
-            "pip",
-            "install",
-            "-r",
-            str(_REQUIREMENTS),
-        ]
-        if not run_command_ok(cmd):
-            raise EsphomeError(
-                f"Install requirements for {version} Python environment failure"
-            )
-        sentinel.write_text(requirements_hash, encoding="utf-8")
+    install_venv = ensure_venv(python_env_path, _REQUIREMENTS, version)
 
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
