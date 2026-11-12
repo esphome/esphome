@@ -30,6 +30,7 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_OVERLAY,
     KEY_SYSBUILD,
     KEY_ZEPHYR,
 )
@@ -533,6 +534,10 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    if (
+        overlay := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_OVERLAY)
+    ) is not None:
+        zephyr_add_overlay(overlay)
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if variant == VARIANT_NRF51822:
