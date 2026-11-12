@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_RESTORE_STATE,
     CONF_RGB_ORDER,
+    CONF_SETUP_PRIORITY,
     CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
@@ -742,11 +743,20 @@ async def setup_light_core_(light_var, config, output_var):
     await entity_helpers.setup_entity_integrations(light_var, config)
 
 
+def _light_component_config(config: ConfigType) -> ConfigType:
+    """An addressable light's output takes setup_priority from the same config, and must be set up first."""
+    is_addressable = config[CONF_ID].type.inherits_from(AddressableLightState)
+    if (priority := config.get(CONF_SETUP_PRIORITY)) is None or not is_addressable:
+        return config
+    # The same gap as the defaults, HARDWARE and HARDWARE - 1
+    return {**config, CONF_SETUP_PRIORITY: priority - 1}
+
+
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
     queue_entity_register("light", config)
     CORE.register_platform_component("light", light_var)
-    await cg.register_component(light_var, config)
+    await cg.register_component(light_var, _light_component_config(config))
     await setup_light_core_(light_var, config, output_var)
 
 
