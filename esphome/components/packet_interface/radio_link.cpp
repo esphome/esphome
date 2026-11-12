@@ -16,12 +16,12 @@ bool RadioLinkBase::check_size_(size_t size) const {
 bool RadioLinkBase::may_send_(bool busy) {
   if (busy)
     this->enable_loop();
-  return this->listen_before_talk_.may_send(busy, this->now_());
+  return this->listen_before_talk_.may_send(busy, this->current_time_ms());
 }
 
 bool RadioLinkBase::sent_(bool sent, bool busy) {
   if (busy) {
-    uint32_t busy_ms = this->listen_before_talk_.busy_for(this->now_());
+    uint32_t busy_ms = this->listen_before_talk_.busy_for(this->current_time_ms());
     // The radio listens again, and a reception that starts now must be waited for afresh
     this->listen_before_talk_.end_busy();
     // The limit is longer than any packet takes, so the radio's busy indication is stuck or the channel is jammed
