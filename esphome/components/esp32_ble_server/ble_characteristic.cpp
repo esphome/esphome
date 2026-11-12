@@ -2,6 +2,8 @@
 #include "ble_server.h"
 #include "ble_service.h"
 
+#include <algorithm>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -104,11 +106,11 @@ void BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
 }
 
 void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
-  auto it = std::find(this->descriptors_.begin(), this->descriptors_.end(), descriptor);
+  auto it = std::remove(this->descriptors_.begin(), this->descriptors_.end(), descriptor);
   if (it == this->descriptors_.end())
     return;
   descriptor->owned_ = false;  // the caller owns it again
-  this->descriptors_.erase(it);
+  this->descriptors_.erase(it, this->descriptors_.end());
 }
 
 void BLECharacteristic::do_create(BLEService *service) {
