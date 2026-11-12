@@ -52,11 +52,12 @@ class BLECharacteristic final {
 
   /// Takes ownership of a heap-allocated descriptor and frees it with this characteristic.
   void add_descriptor(BLEDescriptor *descriptor) {
-    descriptor->owned_ = true;
-    this->add_descriptor(*descriptor);
+    if (this->add_descriptor(*descriptor))
+      descriptor->owned_ = true;
   }
   /// Adds a descriptor the caller keeps alive (such as a component member); it is never freed here.
-  void add_descriptor(BLEDescriptor &descriptor);
+  /// False when it already belongs to a characteristic.
+  bool add_descriptor(BLEDescriptor &descriptor);
   void remove_descriptor(BLEDescriptor *descriptor);
 
   BLEService *get_service() { return this->service_; }
