@@ -209,7 +209,7 @@ prometheus:
   include_internal: true
   relabel:
     prometheus_template_sensor1:
-      id: hellow_world
+      id: hello_world
       name: Hello World
     template_text_sensor1:
       id: hello_text
