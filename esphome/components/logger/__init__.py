@@ -464,16 +464,17 @@ def _final_validate(config: ConfigType) -> None:
 
 
 def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
-    """Reject a port without default pins; opening one hangs at boot (BW15 UART1)."""
+    """Reject a port with pin choices but no default; opening it hangs at boot (BW15 UART1)."""
     from esphome.components.libretiny.const import KEY_BOARD, KEY_LIBRETINY
     from esphome.components.libretiny.gpio import _lookup_board_pins
 
     if not hardware_uart.startswith("UART"):
         return
     board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
-    board_pins = _lookup_board_pins(board)
-    # Unknown boards have no pin map to check against
-    if board_pins and f"SERIAL{hardware_uart[-1]}_TX" not in board_pins:
+    prefix = f"SERIAL{hardware_uart[-1]}_"
+    port_pins = [pin for pin in _lookup_board_pins(board) if pin.startswith(prefix)]
+    # A port the board lacks falls back to the default one at boot
+    if port_pins and f"{prefix}TX" not in port_pins:
         raise cv.Invalid(
             f"Board {board} has no default pins for {hardware_uart}; "
             "choose another hardware_uart"
