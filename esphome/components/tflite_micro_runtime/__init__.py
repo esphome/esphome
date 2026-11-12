@@ -1,8 +1,6 @@
 """Component to manage TFLite Micro models and inference runtime.
 
-Supports image (single-shot) and audio (streaming) model types. The C++ runtime
-wraps https://github.com/espressif/esp-tflite-micro; model source resolution and
-metadata parsing live in the tflite_model_source component.
+Image (single-shot) and audio (streaming) models, on top of esp-tflite-micro.
 """
 
 from dataclasses import dataclass
@@ -141,8 +139,7 @@ def _model_filename(model_path: Path) -> str:
 
 def _emit_model_buffer(config: ConfigType, model_data: bytes) -> cg.MockObj:
     """Emit the model as a PROGMEM array and return a reference to it."""
-    # TFLM reads the model through a flatbuffer cast, so the buffer's address must
-    # be aligned like one; a PROGMEM array is otherwise aligned to a single byte.
+    # TFLM casts the buffer to a flatbuffer, so it cannot be byte-aligned.
     return cg.progmem_array(
         config[CONF_RAW_DATA_ID], [HexInt(x) for x in model_data], align=16
     )
@@ -151,9 +148,8 @@ def _emit_model_buffer(config: ConfigType, model_data: bytes) -> cg.MockObj:
 def _validate_model_operators(model_path: Path) -> None:
     """Reject a model whose operators the pinned TFLM cannot register.
 
-    The model file always lists its operator codes, so an unreadable model is a
-    configuration error here rather than something the device finds out at load
-    time.
+    The model file always lists its operator codes, so an unreadable one is a
+    configuration error rather than a load failure on the device.
     """
     try:
         model_ops = extract_model_ops(model_path)
@@ -265,14 +261,11 @@ def _add_operator_defines() -> None:
     data.operator_defines_emitted = True
     model_ops = _configured_model_ops()
     if not model_ops:
-        # Without a configured model neither the resolver size nor the kernels can
-        # be narrowed, so the whole table has to win.
+        # Without a configured model neither the size nor the kernels can be narrowed.
         emit_all_ops()
         return
-    # One resolver slot per distinct operator code, so the model with the most
-    # operators sizes the resolver and the union decides which kernels are built.
+    # One slot per distinct operator code, so the widest model sizes the resolver.
     _emit_max_operators(max(len(ops) for ops in model_ops))
-    # tflite_op_processor owns the flags, so the selective build goes through it.
     emit_selective_op_defines(sorted(set().union(*model_ops)))
 
 
@@ -360,8 +353,7 @@ async def _configure_image_model(
     if (arena_size := auto_config.get(CONF_TENSOR_ARENA_SIZE)) is not None:
         cg.add(var.set_tensor_arena_size(arena_size))
     else:
-        # Only a seed: the device measures the size the model actually needs and
-        # allocates that, so a close estimate keeps the probe's first attempt small.
+        # A seed only: the device measures what the model needs and allocates that.
         estimate = estimate_tensor_arena(model_path)
         _LOGGER.info(
             "Estimated tensor arena for '%s': %d bytes (%d peak activation bytes "
@@ -386,8 +378,7 @@ async def _configure_audio_model(
         )
         report = {}
     _merge_report_values(report, entry, _AUDIO_REPORT_KEYS)
-    # No estimate here: a streaming model's arena belongs to the consumer, which
-    # sizes it from its own manifest, so the runtime's value is only reported.
+    # No estimate: the consumer sizes a streaming model's arena from its manifest.
     if (arena_size := report.get(CONF_TENSOR_ARENA_SIZE)) is not None:
         cg.add(var.set_tensor_arena_size(arena_size))
     if (cutoff := report.get(CONF_PROBABILITY_CUTOFF)) is not None:

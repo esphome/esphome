@@ -279,10 +279,8 @@ bool TFLiteMicroHelper::load_model() {
     return false;
   }
   ESP_LOGI(TAG, "Loading TFLite model...");
-
   LoadStats stats;
   stats.load_start_ms = millis();
-
   if (const LogString *reason = this->check_model_integrity_(); reason != nullptr) {
     ESP_LOGE(TAG, "%s", LOG_STR_ARG(reason));
     stats.total_load_time_ms = millis() - stats.load_start_ms;
@@ -290,7 +288,6 @@ bool TFLiteMicroHelper::load_model() {
     this->state_.store(LoadState::UNLOADED);
     return false;
   }
-
   // Probe the arena size; the result is kept apart from the configured value so a
   // reload asks for the same size and the report does not call it requested.
   this->tensor_arena_size_effective_ = this->tensor_arena_size_requested_;
@@ -311,7 +308,6 @@ bool TFLiteMicroHelper::load_model() {
     }
   }
   stats.parse_time_ms = millis() - stats.load_start_ms;
-
   uint32_t arena_alloc_start = millis();
   if (!this->allocate_tensor_arena_()) {
     stats.arena_alloc_time_ms = millis() - arena_alloc_start;
@@ -321,7 +317,6 @@ bool TFLiteMicroHelper::load_model() {
     return false;
   }
   stats.arena_alloc_time_ms = millis() - arena_alloc_start;
-
   // The arena exists from here on, so every failure releases it and leaves UNLOADED.
   auto fail_load = [&]() {
     this->model_handler_.unload();
@@ -331,7 +326,6 @@ bool TFLiteMicroHelper::load_model() {
     this->state_.store(LoadState::UNLOADED);
     return false;
   };
-
   ModelConfig config = this->build_config_();
   if (!this->model_handler_.load_model_with_arena(this->model_data_, this->model_length_,
                                                   this->tensor_arena_allocation_.data.get(),
@@ -339,7 +333,6 @@ bool TFLiteMicroHelper::load_model() {
     ESP_LOGE(TAG, "Failed to load model into interpreter");
     return fail_load();
   }
-
   // A configured input that does not match the model's tensor would only show up
   // as bad predictions.
   if (this->model_type_ == ModelType::MODEL_TYPE_IMAGE) {
@@ -351,7 +344,6 @@ bool TFLiteMicroHelper::load_model() {
     img_cfg.normalize = this->normalize_;
     img_cfg.invert = this->invert_;
     this->model_handler_.set_image_config(img_cfg);
-
     const int model_width = this->model_handler_.get_input_width();
     const int model_height = this->model_handler_.get_input_height();
     const int model_channels = this->model_handler_.get_input_channels();
@@ -362,7 +354,6 @@ bool TFLiteMicroHelper::load_model() {
       ESP_LOGE(TAG, "  Set input_width/input_height/input_channels, or supply the model's .txt report");
       return fail_load();
     }
-
     const TfLiteType expected_type = configured_input_tensor_type(this->input_type_);
     const TfLiteTensor *input = this->model_handler_.input_tensor();
     if (input == nullptr) {
@@ -376,11 +367,9 @@ bool TFLiteMicroHelper::load_model() {
       return fail_load();
     }
   }
-
   stats.success = true;
   stats.total_load_time_ms = millis() - stats.load_start_ms;
   this->last_load_stats_ = stats;
-
   this->state_.store(LoadState::READY);
   ESP_LOGI(TAG, "Model loaded successfully");
   if (this->debug_) {
@@ -409,7 +398,6 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   this->model_handler_.unload();
   // The arena is owned here; load_model() hands it to the loader, which never frees it.
   this->tensor_arena_allocation_.reset();
-
   // Config is kept by default so a same-model reload works without re-issuing setters.
   if (reset_config) {
     this->reset_config();
@@ -419,14 +407,12 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
 
 void TFLiteMicroHelper::reset_config() {
   ESP_LOGI(TAG, "Resetting model configuration to defaults");
-
   this->model_data_ = nullptr;
   this->model_length_ = 0;
   this->tensor_arena_size_requested_ = tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE;
   this->tensor_arena_size_effective_ = 0;
   this->arena_heap_ = ArenaHeap::ARENA_HEAP_UNKNOWN;
   this->expected_crc32_ = 0;
-
   this->model_type_ = ModelType::MODEL_TYPE_IMAGE;
   this->input_type_ = InputType::INPUT_TYPE_UINT8;
   this->input_channels_ = 3;
@@ -437,7 +423,6 @@ void TFLiteMicroHelper::reset_config() {
   this->input_order_ = InputOrder::INPUT_ORDER_RGB;
   this->normalize_ = false;
   this->invert_ = false;
-
   this->audio_config_ = AudioModelConfig{};
 }
 
@@ -450,7 +435,6 @@ ModelSpec TFLiteMicroHelper::get_model_spec() const {
   spec.input_channels = this->get_input_channels();
   spec.normalize = this->normalize_;
   spec.input_order = this->input_order_;
-
   // From the tensor the model was converted with: a byte-count heuristic mis-reads
   // 3D/audio tensors, whose element count is not width*height*channels.
   const TfLiteTensor *input = this->model_handler_.input_tensor();
@@ -471,7 +455,6 @@ ArenaStats TFLiteMicroHelper::get_arena_stats() const {
 void TFLiteMicroHelper::report_memory_status() {
   MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->get_tensor_arena_size_actual(),
                                       this->get_arena_used_bytes(), this->model_length_);
-
   // Measure the heap the arena came from (PSRAM vs internal), which is only known
   // once a load has allocated it.
   if (this->arena_heap_ == ArenaHeap::ARENA_HEAP_UNKNOWN) {
@@ -482,9 +465,7 @@ void TFLiteMicroHelper::report_memory_status() {
   const uint32_t heap_caps = from_psram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
   const size_t total_free = heap_caps_get_free_size(heap_caps);
   const size_t max_block = heap_caps_get_largest_free_block(heap_caps);
-
   ESP_LOGD(TAG, "Heap status - Total free: %zu bytes, Largest block: %zu bytes", total_free, max_block);
-
   // Compare against the size the last load actually used, which a reload allocates again.
   const size_t needed =
       this->tensor_arena_size_effective_ > 0 ? this->tensor_arena_size_effective_ : this->tensor_arena_size_requested_;

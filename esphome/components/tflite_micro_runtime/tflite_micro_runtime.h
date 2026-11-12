@@ -24,7 +24,7 @@ using tflite_model_loader::ImageModelConfig;
 using tflite_model_loader::ModelConfig;
 using tflite_output_processor::ProcessedOutput;
 
-/// Audio (streaming) parameters from the YAML configuration, read by the consumer.
+/// Audio (streaming) parameters, read by the consumer that owns the interpreter.
 struct AudioModelConfig {
   uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
   size_t sliding_window_size{10};
@@ -49,13 +49,11 @@ struct LoadStats {
   bool success{false};
 };
 
-/// What the configured model consumes.
 enum class ModelType : uint8_t {
   MODEL_TYPE_IMAGE,
   MODEL_TYPE_AUDIO,
 };
 
-/// Element type of the buffer handed to run_inference().
 enum class InputType : uint8_t {
   INPUT_TYPE_UNKNOWN,  // no model loaded, or its input type is unsupported
   INPUT_TYPE_UINT8,
@@ -63,21 +61,19 @@ enum class InputType : uint8_t {
   INPUT_TYPE_FLOAT32,
 };
 
-/// Channel order of an image input.
 enum class InputOrder : uint8_t {
   INPUT_ORDER_RGB,
   INPUT_ORDER_BGR,
   INPUT_ORDER_GRAY,
 };
 
-/// Heap the tensor arena came from.
 enum class ArenaHeap : uint8_t {
   ARENA_HEAP_UNKNOWN,  // no arena allocated since setup()
   ARENA_HEAP_INTERNAL,
   ARENA_HEAP_PSRAM,
 };
 
-/// Model dimensions and input spec; IMAGE (4D) semantics, filled only by a loaded model.
+/// IMAGE (4D) input spec, filled only by a loaded model.
 struct ModelSpec {
   int input_width{0};
   int input_height{0};
@@ -87,32 +83,27 @@ struct ModelSpec {
   InputType input_type{InputType::INPUT_TYPE_UNKNOWN};
 };
 
-/// Reusable TFLite Micro helper: model loading, tensor arena and inference.
-/// A Component on its own: setup() loads the configured model and dump_config()
-/// reports it. An audio model is loaded by its streaming consumer instead.
+/// Model loading, tensor arena and inference. A Component on its own, so setup()
+/// loads the configured model; an audio model is left to its streaming consumer.
 class TFLiteMicroHelper : public Component {
  public:
   TFLiteMicroHelper() = default;
   ~TFLiteMicroHelper() = default;
 
-  // Component lifecycle
   void setup() override;
   void dump_config() override;
 
-  // Common model config
   void set_model_type(ModelType t) { this->model_type_ = t; }
   void set_tensor_arena_size(size_t size);
-  /// Point the helper at the model data in flash; false (logged) while a model is loaded or loading.
+  /// Point the helper at the model data in flash; false while a model is loaded or loading.
   bool set_model(const uint8_t *model_data, size_t model_size);
   void set_output_processing(const std::string &p) { this->output_processing_ = p; }
   void set_scale_factor(float f) { this->scale_factor_ = f; }
-  /// Per-instance verbose logging (load timings, tensor details).
   void set_debug(bool d) {
     this->debug_ = d;
     this->model_handler_.set_debug(d);
   }
 
-  // Image model config
   void set_input_type(InputType t) { this->input_type_ = t; }
   void set_input_channels(int c);
   void set_input_width(int w);
@@ -121,28 +112,21 @@ class TFLiteMicroHelper : public Component {
   void set_normalize(bool n);
   void set_invert(bool i);
 
-  // Audio model config
   void set_probability_cutoff(float f);  // 0.0-1.0, quantized internally
   void set_sliding_window_size(size_t n);
   void set_features_step_size(uint8_t ms);
   void set_feature_count(size_t n);
-
-  /// Validated audio parameters, for the consumer that streams the input.
   const AudioModelConfig &get_audio_config() const { return this->audio_config_; }
 
   void set_expected_crc32(uint32_t crc) { this->expected_crc32_ = crc; }
 
-  /// Load the model and allocate the arena. An audio model is rejected: only its
-  /// streaming consumer can supply the MicroResourceVariables.
+  /// Load the model and allocate the arena. An audio model is rejected.
   bool load_model();
   /// Unload the model and free the arena; true when unloaded on return.
-  /// With reset_config, also clear every config field (see reset_config()).
   bool unload_model(bool reset_config = false);
-  /// Reset all configuration fields to defaults, for switching models.
   void reset_config();
   bool is_model_loaded() const { return this->state_.load() == LoadState::READY; }
 
-  // Inference
   /// Run the model on whatever is in input_tensor().
   TfLiteStatus invoke();
   /// Tensors of the loaded model; nullptr unless it is READY.
@@ -165,7 +149,6 @@ class TFLiteMicroHelper : public Component {
   int get_input_channels() const { return this->is_model_loaded() ? this->model_handler_.get_input_channels() : 0; }
   const ModelConfig &get_config() const { return this->model_handler_.get_config(); }
 
-  // Memory
   size_t get_arena_used_bytes() const {
     return this->is_model_loaded() ? this->model_handler_.get_arena_used_bytes() : 0;
   }
@@ -176,51 +159,41 @@ class TFLiteMicroHelper : public Component {
   size_t get_model_size_bytes() const { return this->model_length_; }
   ArenaStats get_arena_stats() const;
   void report_memory_status();
-
   const LoadStats &get_last_load_stats() const { return this->last_load_stats_; }
 
 #ifdef USE_TFLITE_MODEL_DEBUG
-  /// Parameter sweep of the debug component.
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
     this->model_handler_.debug_test_parameters(zone_data);
   }
 #endif
 
  private:
-  // Model config (set from __init__.py)
   ModelType model_type_{ModelType::MODEL_TYPE_IMAGE};
   InputType input_type_{InputType::INPUT_TYPE_UINT8};
   int input_channels_{3};
   int input_width_{32};
   int input_height_{20};
-  /// Passed by name to ModelConfig, which parses it into its own enum.
-  std::string output_processing_{"argmax"};
+  std::string output_processing_{"argmax"};  // passed by name; ModelConfig parses it
   float scale_factor_{1.0f};
   InputOrder input_order_{InputOrder::INPUT_ORDER_RGB};
   bool normalize_{false};
   bool invert_{false};
   bool debug_{false};
 
-  // Model data (set via set_model)
   const uint8_t *model_data_{nullptr};
   size_t model_length_{0};
   size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
   size_t tensor_arena_size_effective_{0};  // after probing; 0 before the first load
-
   AudioModelConfig audio_config_;
 
   tflite_model_loader::ModelHandler model_handler_;
-  /// Tensor arena owned by this helper; freed in unload_model().
-  MemoryManager::AllocationResult tensor_arena_allocation_;
-  /// Heap the last arena came from, cached at allocation for reports after an unload.
-  ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};
-
+  MemoryManager::AllocationResult tensor_arena_allocation_;  // owned here, freed in unload_model()
+  ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};      // cached for reports after an unload
   LoadStats last_load_stats_{};
 
-  // One atomic value, no check-then-act across flags.
+  // One atomic value, so there is no check-then-act across flags.
   enum class LoadState : uint8_t { UNLOADED, LOADING, READY };
   std::atomic<LoadState> state_{LoadState::UNLOADED};
-
   uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
 
   /// Why the model data does not match the configured checksum, or nullptr.
