@@ -29,7 +29,7 @@ echo "== $N"
 LC_ALL=C grep -a -E "invalid handle|Service discovery complete|attswap swaps=[1-9]" "$O/proxy.txt" | sed 's/^\[[0-9:]*\]//' |
   sort | uniq -c
 grep -a -q -E "attswap swaps=[1-9]" "$O/proxy.txt" || { echo "$N INVALID: the reorder never fired"; exit 2; }
-# every round must list the service after the reordered one (1826) with its characteristics
+# every round must list the reordered service (fff0) and the one after it (1826) with all their characteristics
 grep -a -q "^R[0-9]* mtu=" "$O/client.txt" || { echo "$N no client output"; exit 2; }
-grep -a "^R[0-9]* mtu=" "$O/client.txt" | grep -v -q "1826(2)" && exit 1
+grep -a "^R[0-9]* mtu=" "$O/client.txt" | grep -v -q "fff0(6) 1826(2)" && exit 1
 exit 0
