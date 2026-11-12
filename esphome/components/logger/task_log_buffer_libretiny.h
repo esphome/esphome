@@ -80,13 +80,19 @@ class TaskLogBuffer {
   static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
 
  private:
-  // Calculate total size needed for a message (header + text + null terminator)
-  static inline size_t message_total_size(size_t text_length) { return sizeof(LogMessage) + text_length + 1; }
+  // Keep headers aligned: BK72xx silently misreads unaligned words instead of faulting
+  static constexpr size_t ALIGNMENT = alignof(LogMessage);
+  static constexpr size_t CAPACITY = ESPHOME_TASK_LOG_BUFFER_SIZE & ~(ALIGNMENT - 1);
+
+  // Header + text + null, rounded up to keep the next header aligned
+  static constexpr size_t message_total_size(size_t text_length) {
+    return (sizeof(LogMessage) + text_length + 1 + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
+  }
 
   // Calculate available contiguous space at write position
   size_t available_contiguous_space_() const;
 
-  uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
+  alignas(LogMessage) uint8_t storage_[CAPACITY];  // Embedded in Logger (no separate heap allocation)
   size_t head_{0};                                 // Write position
   size_t tail_{0};                                 // Read position
 
