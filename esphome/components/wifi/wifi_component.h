@@ -847,6 +847,8 @@ class WiFiComponent final : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+  /// Output power and power save, wherever the radio first comes up: start() with networks, the AP without.
+  void apply_radio_settings_();
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   bool wifi_apply_band_mode_();
 #endif
