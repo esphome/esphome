@@ -1,6 +1,6 @@
 """Tests for the Zephyr variants registry."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 import logging
 import sys
 from types import ModuleType
@@ -96,10 +96,13 @@ def test_registry_loads_variants_and_families(fake_platform: ModuleType) -> None
         lambda r: next(iter(r.values())),
         lambda r: _VARIANT if "chip1" in r else None,
         lambda r: _VARIANT if list(r) == ["chip1"] else None,
+        lambda r: _VARIANT if list(r.keys()) == ["chip1"] else None,
+        lambda r: _VARIANT if r == {"chip1": _VARIANT} else None,
+        lambda r: dict(r)["chip1"],
     ],
 )
 def test_each_lookup_loads_the_registry(
-    fake_platform: ModuleType, access: Callable[[dict[str, ZephyrVariant]], object]
+    fake_platform: ModuleType, access: Callable[[Mapping[str, ZephyrVariant]], object]
 ) -> None:
     assert access(variants._LazyVariants()) is _VARIANT
 
@@ -113,7 +116,16 @@ def test_failed_variant_import_is_raised_on_every_lookup(
     for _ in range(2):
         with pytest.raises(ModuleNotFoundError):
             registry.get("chip1")
-    assert dict.__len__(registry) == 0
+    assert registry._variants == {}
+
+
+def test_duplicate_variant_name_is_rejected(fake_platform: ModuleType) -> None:
+    sys.modules[_PACKAGE].VARIANT_MODULES = ["chip1", "chip1"]
+    registry = variants._LazyVariants()
+
+    for _ in range(2):
+        with pytest.raises(ValueError, match="are both 'chip1'"):
+            registry.get("chip1")
 
 
 def test_module_lookups(

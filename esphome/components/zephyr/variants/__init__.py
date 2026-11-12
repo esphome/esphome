@@ -4,12 +4,11 @@ Each platform lists its chips in its own ``zephyr_variants`` package; a chip's m
 holds its ``ZephyrVariant`` and its ``config_schema`` and ``to_code``.
 """
 
-from collections.abc import ItemsView, Iterator, ValuesView
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 import importlib
 import logging
 from types import ModuleType
-from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -135,15 +134,16 @@ def set_core_data(
 _ZEPHYR_PLATFORMS: tuple[str, ...] = (PLATFORM_STM32,)
 
 
-class _LazyVariants(dict[str, ZephyrVariant]):
+class _LazyVariants(Mapping[str, ZephyrVariant]):
     """Loads the variant modules on first use; they import this package."""
 
     _built: bool = False
+    _variants: dict[str, ZephyrVariant]
     _modules: dict[str, ModuleType]
     _families: dict[str, ModuleType]
 
     def __init__(self) -> None:
-        super().__init__()
+        self._variants = {}
         self._modules = {}
         self._families = {}
 
@@ -157,7 +157,7 @@ class _LazyVariants(dict[str, ZephyrVariant]):
         except BaseException:
             # Raise the import error again next time, not a KeyError on a partial registry
             self._built = False
-            self.clear()
+            self._variants.clear()
             self._modules.clear()
             self._families.clear()
             raise
@@ -169,7 +169,11 @@ class _LazyVariants(dict[str, ZephyrVariant]):
             )
             for mod_name in package.VARIANT_MODULES:
                 mod = importlib.import_module(f".{mod_name}", package.__name__)
-                self[mod.VARIANT_NAME] = mod.VARIANT
+                if (other := self._modules.get(mod.VARIANT_NAME)) is not None:
+                    raise ValueError(
+                        f"{mod.__name__} and {other.__name__} are both {mod.VARIANT_NAME!r}"
+                    )
+                self._variants[mod.VARIANT_NAME] = mod.VARIANT
                 self._modules[mod.VARIANT_NAME] = mod
                 if (family := mod.VARIANT.family) and family not in self._families:
                     self._families[family] = importlib.import_module(
@@ -188,35 +192,19 @@ class _LazyVariants(dict[str, ZephyrVariant]):
 
     def __getitem__(self, key: str) -> ZephyrVariant:
         self._ensure()
-        return super().__getitem__(key)
-
-    def __contains__(self, key: object) -> bool:
-        self._ensure()
-        return super().__contains__(key)
+        return self._variants[key]
 
     def __iter__(self) -> Iterator[str]:
         self._ensure()
-        return super().__iter__()
+        return iter(self._variants)
 
     def __len__(self) -> int:
         self._ensure()
-        return super().__len__()
-
-    def items(self) -> ItemsView[str, ZephyrVariant]:
-        self._ensure()
-        return super().items()
-
-    def values(self) -> ValuesView[ZephyrVariant]:
-        self._ensure()
-        return super().values()
-
-    def get(self, key: str, default: Any = None) -> Any:
-        self._ensure()
-        return super().get(key, default)
+        return len(self._variants)
 
 
 _variants_instance: _LazyVariants = _LazyVariants()
-VARIANTS: dict[str, ZephyrVariant] = _variants_instance
+VARIANTS: Mapping[str, ZephyrVariant] = _variants_instance
 
 
 def get_variant_module(variant: str) -> ModuleType:

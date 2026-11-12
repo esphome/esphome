@@ -22,7 +22,7 @@ VARIANT: ZephyrVariant = ZephyrVariant(sdk=MAINLINE, family="stm32")
 def config_schema(config: ConfigType) -> ConfigType:
     config = {CONF_BOARD: _DEFAULT_BOARD, **config}
     _, framework_ver, sdk_name, _ = resolve_framework_version(
-        VARIANT, "stm32", config, "mainline STM32 support"
+        VARIANT, VARIANT_NAME, config, "mainline STM32 support"
     )
     set_core_data(
         VARIANT_NAME, config, framework_ver, framework_type=sdk_name, bootloader=""
