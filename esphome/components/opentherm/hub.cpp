@@ -370,7 +370,7 @@ void OpenthermHub::stop_opentherm_() {
 void OpenthermHub::handle_protocol_error_() {
   OpenThermError error;
   this->opentherm_->get_protocol_error(error);
-  ESP_LOGW(TAG, "Protocol error occured while receiving response: %s",
+  ESP_LOGW(TAG, "Protocol error occurred while receiving response: %s",
            this->opentherm_->protocol_error_to_str(error.error_type));
   this->opentherm_->debug_error(error);
   this->stop_opentherm_();
