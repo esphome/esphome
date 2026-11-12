@@ -6,7 +6,7 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 
-#if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC != 1000000 && defined(CONFIG_CPU_CORTEX_M_HAS_DWT)
+#if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC != 1000000 && defined(CONFIG_SOC_SERIES_NRF52X)
 #define USE_ZEPHYR_DWT_MICROS
 #include <cmsis_core.h>
 #endif
@@ -38,24 +38,18 @@ static struct {
   uint32_t last_cycles;  // Moves on by whole microseconds only, so the remainder carries over.
 } micros_state;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static inline uint32_t cycles_per_us() {
-#ifdef CONFIG_SOC_SERIES_NRF52X
-  return 64;  // nRF52 cores always run at 64 MHz, so the division below becomes a shift.
-#else
-  return SystemCoreClock / 1000000U;
-#endif
-}
+static constexpr uint32_t CYCLES_PER_US = 64;  // nRF52 cores always run at 64 MHz.
 
 uint32_t micros() {
-  const uint32_t per_us = cycles_per_us();
   const unsigned int key = irq_lock();
   const uint32_t cycles = DWT->CYCCNT;
-  const uint32_t elapsed_us = (cycles - micros_state.last_cycles) / per_us;
-  micros_state.last_cycles += elapsed_us * per_us;
+  const uint32_t elapsed_us = (cycles - micros_state.last_cycles) / CYCLES_PER_US;
+  micros_state.last_cycles += elapsed_us * CYCLES_PER_US;
   uint32_t value = micros_state.value + elapsed_us;
 
   const uint32_t kernel_us = k_ticks_to_us_floor32(k_uptime_ticks());
-  const int32_t tick_us = k_ticks_to_us_ceil32(1);
+  // A tick, plus 1 us because kernel_us is rounded down.
+  const int32_t tick_us = k_ticks_to_us_ceil32(1) + 1;
   const int32_t ahead = static_cast<int32_t>(value - kernel_us);
   if (ahead <= -tick_us) {
     // The CPU slept, so the cycle counter fell behind.
