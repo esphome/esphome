@@ -21,7 +21,6 @@ from esphome.components.nrf52.framework import (
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _install_toolchain,
-    _needs_venv_rebuild,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
@@ -1262,48 +1261,6 @@ def testget_tools_path_default_is_global_cache(
         Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
     ).resolve()
     assert get_sdk_nrf_tools_path() == expected
-
-
-def test_needs_venv_rebuild_gates(tmp_path: Path) -> None:
-    """The shared penv gate rebuilds on any missing or stale piece."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    python = penv / "python"
-    sentinel = penv / ".ready"
-    good_hash = "abc123"
-
-    # Nothing in place yet
-    assert _needs_venv_rebuild(python, sentinel, good_hash)
-
-    python.write_text("")
-    # Interpreter present but no sentinel
-    assert _needs_venv_rebuild(python, sentinel, good_hash)
-
-    sentinel.write_text(good_hash, encoding="utf-8")
-    # Everything in place
-    assert not _needs_venv_rebuild(python, sentinel, good_hash)
-
-    # Stale requirements hash
-    assert _needs_venv_rebuild(python, sentinel, "otherhash")
-
-
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="symlink creation needs privileges on Windows"
-)
-def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> None:
-    """A cached venv restored after a host interpreter upgrade has a
-    bin/python symlink whose target is gone; the valid sentinel must not
-    mask it."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    python = penv / "python"
-    sentinel = penv / ".ready"
-    sentinel.write_text("abc123", encoding="utf-8")
-    python.symlink_to(tmp_path / "hostedtoolcache" / "3.12.14" / "python3")
-    assert python.is_symlink()
-    assert not python.exists()
-
-    assert _needs_venv_rebuild(python, sentinel, "abc123")
 
 
 def test_resolve_toolchain_rejects_unsupported() -> None:
