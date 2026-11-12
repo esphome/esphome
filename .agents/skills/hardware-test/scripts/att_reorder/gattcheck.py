@@ -1,7 +1,8 @@
 """Through the proxy (no cache): print the full GATT table, read FFF1/FFF2/FFF3 by handle, and enable notify on
 FFF1, FFF2 and 2ACD (writing the CCCD the way Home Assistant does), counting what arrives per handle for 6 s.
 usage: gattcheck.py PROXY PEER_MAC   env: API_KEY (the proxy's api encryption key)
-Exits 1 when a characteristic or CCCD is missing, a notify fails, or a notifying characteristic sends nothing."""
+Exits 1 when a characteristic or CCCD is missing, a read or notification carries another characteristic's value,
+a notify fails, or a notifying characteristic sends nothing."""
 
 import asyncio
 import os
@@ -55,11 +56,12 @@ async def main(host: str, peer: str) -> None:
     problems = [f"{u} missing" for u in wanted if u not in chars]
     for u in ("fff1", "fff2", "fff3", "2acc"):
         if u in chars:
-            v = await cli.bluetooth_gatt_read(addr, chars[u].handle)
-            print(
-                f"READ {u} 0x{chars[u].handle:04X} -> {bytes(v).decode(errors='replace')}",
-                flush=True,
-            )
+            v = bytes(await cli.bluetooth_gatt_read(addr, chars[u].handle))
+            text = v.decode(errors="replace")
+            print(f"READ {u} 0x{chars[u].handle:04X} -> {text}", flush=True)
+            # every server value starts with its own UUID, so a mixed-up handle shows here
+            if not text.startswith(f"{u}-"):
+                problems.append(f"{u} read returned {text!r}")
     got: dict[int, list[str]] = {}
 
     def on_notify(handle: int, data: bytearray) -> None:
@@ -100,6 +102,11 @@ async def main(host: str, peer: str) -> None:
         name = next((u for u, ch in chars.items() if ch.handle == h), "?")
         print(
             f"GOT 0x{h:04X} ({name}) x{len(vals)}: {vals[0]} .. {vals[-1]}", flush=True
+        )
+        problems.extend(
+            f"0x{h:04X} ({name}) notified {v!r}"
+            for v in vals
+            if name == "?" or not v.startswith(f"{name}-")
         )
     # the server notifies FFF1 and 2ACD every second
     problems.extend(
