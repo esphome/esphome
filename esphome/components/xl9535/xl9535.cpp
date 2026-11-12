@@ -18,7 +18,8 @@ void XL9535Component::dump_config() {
 }
 
 // Pins 0-7 are port 0 and pins 10-17 are port 1; each register pair holds port 0 then port 1
-static uint8_t port_register(uint8_t port_0_register, uint8_t pin) { return port_0_register + pin / 10; }
+static uint8_t port_index(uint8_t pin) { return pin / 10; }
+static uint8_t port_register(uint8_t port_0_register, uint8_t pin) { return port_0_register + port_index(pin); }
 static uint8_t pin_mask(uint8_t pin) { return 1 << (pin % 10); }
 
 bool XL9535Component::digital_read(uint8_t pin) {
@@ -29,7 +30,7 @@ bool XL9535Component::digital_read(uint8_t pin) {
 }
 
 void XL9535Component::digital_write(uint8_t pin, bool value) {
-  uint8_t &output = this->output_[pin / 10];
+  uint8_t &output = this->output_[port_index(pin)];
   assign_bits(output, pin_mask(pin), value);
   this->status_comm_result(this->write_byte(port_register(XL9535_OUTPUT_PORT_0_REGISTER, pin), output));
 }
