@@ -106,7 +106,7 @@ def find_jlink_commander() -> Path | None:
 
 
 def jlink_serial_number(port: str) -> str | None:
-    """The serial number of the J-Link probe that provides ``port``, or None for other ports."""
+    """The serial number of the J-Link probe behind ``port``, or None for other ports or no number."""
     import serial.tools.list_ports as _list_ports
 
     port = os.path.realpath(port)
@@ -117,11 +117,13 @@ def jlink_serial_number(port: str) -> str | None:
             if serial.isdigit():
                 serial = serial.lstrip("0")
             if not serial:
+                # Without one, another connected J-Link could be flashed
                 _LOGGER.warning(
-                    "The J-Link behind %s reports no serial number; with more than one "
-                    "J-Link connected, another one may be flashed",
+                    "The J-Link behind %s reports no serial number, so the board is not "
+                    "flashed through it",
                     port,
                 )
+                return None
             return serial
     return None
 

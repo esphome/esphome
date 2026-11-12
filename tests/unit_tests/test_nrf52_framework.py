@@ -1321,9 +1321,53 @@ def test_unpatched_pyocd_nrf54lm20a_target(tmp_path: Path) -> None:
         patch.object(framework, "_get_version_str", return_value="v3.4.0"),
         patch.object(framework, "_get_python_env_path", return_value=tmp_path),
     ):
-        assert framework.unpatched_pyocd_nrf54lm20a_target() == target  # absent
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None  # absent
         target.parent.mkdir(parents=True)
         target.write_text(PYOCD_NRF54LM20A_BEFORE)
         assert framework.unpatched_pyocd_nrf54lm20a_target() == target
         framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
         assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
+def test_patch_pyocd_nrf54lm20a_leaves_another_algorithm_alone(tmp_path: Path) -> None:
+    """A newer pyOCD's algorithm, without the faulting instructions, is not replaced."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    target.parent.mkdir(parents=True)
+    newer = PYOCD_NRF54LM20A_BEFORE.replace("0x68134a02", "0x12345678")
+    target.write_text(newer)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    assert target.read_text() == newer
+    with (
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
+def test_patch_pyocd_nrf54lm20a_warns_on_an_unknown_layout(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The faulting algorithm in a layout the patch cannot find is left as it is."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    target.parent.mkdir(parents=True)
+    indented = PYOCD_NRF54LM20A_BEFORE.replace("FLASH_ALGO = {", "  FLASH_ALGO = {")
+    target.write_text(indented)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    assert target.read_text() == indented
+    assert "Could not patch pyOCD's nRF54LM20A flash algorithm" in caplog.text
+
+
+def test_pyocd_target_found_in_an_env_of_another_python_version(
+    tmp_path: Path,
+) -> None:
+    """An SDK env kept across a Python upgrade still has its packages under its own version."""
+    builtin = tmp_path / "lib" / "python3.9" / "site-packages" / "pyocd" / "target"
+    (builtin / "builtin").mkdir(parents=True)
+    (builtin / "builtin" / "target_nRF54L15.py").write_text("")
+    with (
+        patch.object(framework.sys, "version_info", SimpleNamespace(major=3, minor=99)),
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.pyocd_has_builtin_target("target_nRF54L15.py")
+        assert not framework.pyocd_has_builtin_target("target_nRF54LM20A.py")

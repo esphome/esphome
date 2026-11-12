@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import ExitStack
 from pathlib import Path
+import re
 import socket
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1120,18 +1121,19 @@ def test_can_upload_using_jlink(
 
 
 @pytest.mark.parametrize(
-    ("vid", "serial_number", "expected"),
+    ("vid", "serial_number", "expected", "warns"),
     [
-        (0x1366, "001051234567", "1051234567"),
-        (0x1366, None, ""),
-        (0x1366, "000000000000", ""),
-        (0x2FE3, "001051234567", None),
+        (0x1366, "001051234567", "1051234567", False),
+        (0x1366, None, None, True),
+        (0x1366, "000000000000", None, True),
+        (0x2FE3, "001051234567", None, False),
     ],
 )
 def test_jlink_serial_number(
     vid: int,
     serial_number: str | None,
     expected: str | None,
+    warns: bool,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     import serial.tools.list_ports
@@ -1142,8 +1144,8 @@ def test_jlink_serial_number(
     with patch.object(serial.tools.list_ports, "comports", return_value=[port]):
         assert jlink_serial_number("/dev/ttyACM0") == expected
         assert jlink_serial_number("/dev/ttyACM1") is None
-    # Without a serial number the probe cannot be picked, which is worth a warning
-    assert ("reports no serial number" in caplog.text) == (expected == "")
+    # Without a serial number another probe could be flashed, so this one is not used
+    assert ("reports no serial number" in caplog.text) is warns
 
 
 def test_jlink_passes_the_probe_serial_number(setup_core: Path, tmp_path: Path) -> None:
@@ -1204,7 +1206,7 @@ def test_mcuboot_serial_upload_on_cmsis_dap_port_flashes_with_pyocd(
     ("vid", "product", "serial_number", "expected"),
     [
         (0x2886, "Seeed Studio XIAO nRF54LM20A CMSIS-DAP", "CB1D0165", "CB1D0165"),
-        (0x2886, "Seeed Studio XIAO nRF54LM20A CMSIS-DAP", None, ""),
+        (0x2886, "Seeed Studio XIAO nRF54LM20A CMSIS-DAP", None, None),
         (0x2FE3, "ESPHome", "CB1D0165", None),
     ],
 )
@@ -1230,7 +1232,9 @@ def test_cmsis_dap_unique_id(
     with patch.object(serial.tools.list_ports, "comports", return_value=[port]):
         assert cmsis_dap_unique_id("/dev/ttyACM0") == expected
         assert cmsis_dap_unique_id("/dev/ttyACM1") is None
-    assert ("reports no serial number" in caplog.text) == (expected == "")
+    assert ("reports no serial number" in caplog.text) == (
+        vid == 0x2886 and serial_number is None
+    )
 
 
 def test_cmsis_dap_flashes_mcuboot_and_signed_app(
@@ -1442,7 +1446,14 @@ def test_cmsis_dap_flashes_again_after_a_failure(
         if succeeds:
             upload_using_cmsis_dap("CB1D0165")
         else:
-            with pytest.raises(EsphomeError, match="--mass"):
+            # The hint names the SDK's pyOCD and the probe that was picked
+            python = _make_paths(tmp_path)["python_executable"]
+            with pytest.raises(
+                EsphomeError,
+                match=re.escape(
+                    f"'{python} -m pyocd erase -t nrf52840 -u CB1D0165 --mass'"
+                ),
+            ):
                 upload_using_cmsis_dap("CB1D0165")
     assert mock_run.call_count == 2
     assert mock_run.call_args_list[0] == mock_run.call_args_list[1]
@@ -1603,3 +1614,108 @@ def test_mcuboot_serial_upload_of_a_given_file_skips_the_probes(
     mock_jlink_serial.assert_not_called()
     mock_dap_id.assert_not_called()
     mock_smp.assert_awaited_once_with("/dev/ttyACM0", "other.bin")
+
+
+def test_can_upload_using_cmsis_dap_needs_a_pyocd_target(setup_core: Path) -> None:
+    """Without a pyOCD target for the chip, the shortcut is skipped rather than failing."""
+    from esphome.components.nrf52.cmsis_dap import can_upload_using_cmsis_dap
+    from esphome.components.nrf52.const import VARIANT_NRF54LM20, VARIANT_NRF51822
+    from esphome.components.nrf52.framework import set_nrf52_variant
+
+    _setup_nrf52_core()
+    _set_sdk(cv.Version(3, 4, 0))
+    set_nrf52_variant(VARIANT_NRF51822)
+    assert not can_upload_using_cmsis_dap()
+    set_nrf52_variant(VARIANT_NRF54LM20)
+    # pyOCD releases the SDK requirements still allow lack the nRF54L targets
+    with patch(
+        "esphome.components.nrf52.cmsis_dap.pyocd_has_builtin_target",
+        return_value=False,
+    ) as mock_has:
+        assert not can_upload_using_cmsis_dap()
+    mock_has.assert_called_once_with("target_nRF54LM20A.py")
+    with patch(
+        "esphome.components.nrf52.cmsis_dap.pyocd_has_builtin_target",
+        return_value=True,
+    ):
+        assert can_upload_using_cmsis_dap()
+
+
+def test_mcuboot_serial_upload_on_a_probe_without_serial_number_uses_mcumgr(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """A probe that cannot be told apart from another one is not flashed through."""
+    import serial.tools.list_ports
+
+    from esphome.components.nrf52 import upload_program
+    from esphome.upload_targets import PortType
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    jlink = MagicMock(device="/dev/ttyACM0", vid=0x1366, serial_number=None)
+    dap = MagicMock(
+        device="/dev/ttyACM0",
+        vid=0x2886,
+        pid=0x0068,
+        product=None,
+        interface=None,
+        serial_number=None,
+    )
+    with (
+        patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
+        patch("esphome.__main__.check_permissions"),
+        patch.object(serial.tools.list_ports, "comports", return_value=[jlink, dap]),
+        patch("esphome.components.nrf52.upload_using_jlink") as mock_jlink,
+        patch("esphome.components.nrf52.upload_using_cmsis_dap") as mock_dap,
+        patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()) as mock_smp,
+    ):
+        config = {"ota": [{"platform": "zephyr_mcumgr"}]}
+        assert upload_program(config=config, args=None, host="/dev/ttyACM0")
+    mock_jlink.assert_not_called()
+    mock_dap.assert_not_called()
+    mock_smp.assert_awaited_once_with("/dev/ttyACM0", None)
+
+
+@pytest.mark.parametrize("probe", ["jlink", "cmsis_dap"])
+def test_probe_upload_does_not_check_serial_port_permissions(
+    setup_core: Path, tmp_path: Path, probe: str
+) -> None:
+    """The probe uploads never open the serial port, so its permissions do not matter."""
+    from esphome.components.nrf52 import upload_program
+    from esphome.upload_targets import PortType
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    with (
+        patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
+        patch("esphome.__main__.check_permissions") as mock_permissions,
+        patch(
+            "esphome.components.nrf52.jlink_serial_number",
+            return_value="1051234567" if probe == "jlink" else None,
+        ),
+        patch("esphome.components.nrf52.can_upload_using_jlink", return_value=True),
+        patch("esphome.components.nrf52.cmsis_dap_unique_id", return_value="CB1D0165"),
+        patch("esphome.components.nrf52.can_upload_using_cmsis_dap", return_value=True),
+        patch("esphome.components.nrf52.upload_using_jlink") as mock_jlink,
+        patch("esphome.components.nrf52.upload_using_cmsis_dap") as mock_dap,
+    ):
+        assert upload_program(config={"ota": []}, args=None, host="/dev/ttyACM0")
+    mock_permissions.assert_not_called()
+    assert (mock_jlink if probe == "jlink" else mock_dap).call_count == 1
+
+
+def test_mcumgr_serial_upload_checks_serial_port_permissions(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    from esphome.components.nrf52 import upload_program
+    from esphome.upload_targets import PortType
+
+    _setup_nrf52_core(bootloader=BOOTLOADER_MCUBOOT, build_path=tmp_path / "build")
+    with (
+        patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
+        patch("esphome.__main__.check_permissions") as mock_permissions,
+        patch("esphome.components.nrf52.jlink_serial_number", return_value=None),
+        patch("esphome.components.nrf52.cmsis_dap_unique_id", return_value=None),
+        patch("esphome.components.nrf52._smpmgr_upload", new=AsyncMock()),
+    ):
+        config = {"ota": [{"platform": "zephyr_mcumgr"}]}
+        assert upload_program(config=config, args=None, host="/dev/ttyACM0")
+    mock_permissions.assert_called_once_with("/dev/ttyACM0")

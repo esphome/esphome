@@ -3,6 +3,7 @@
 import logging
 import os
 from pathlib import Path
+import shlex
 
 import esphome.config_validation as cv
 from esphome.const import CONF_OTA, CONF_PLATFORM, KEY_CORE, KEY_FRAMEWORK_VERSION
@@ -20,6 +21,7 @@ from .framework import (
     get_build_env,
     get_build_paths,
     get_nrf52_variant,
+    pyocd_has_builtin_target,
     unpatched_pyocd_nrf54lm20a_target,
 )
 
@@ -29,6 +31,11 @@ _PYOCD_TARGETS = {
     VARIANT_NRF52840: "nrf52840",
     VARIANT_NRF54L15: "nrf54l",
     VARIANT_NRF54LM20: "nrf54lm20a",
+}
+# Target files of the chips that older pyOCD releases, still allowed by the SDK requirements, lack
+_PYOCD_TARGET_FILES = {
+    VARIANT_NRF54L15: "target_nRF54L15.py",
+    VARIANT_NRF54LM20: "target_nRF54LM20A.py",
 }
 
 
@@ -44,7 +51,7 @@ _NRF54L_WATCHDOG_SCRIPT = Path(__file__).with_name("pyocd_nrf54l_watchdog.py")
 
 
 def cmsis_dap_unique_id(port: str) -> str | None:
-    """The unique ID of the CMSIS-DAP probe that provides ``port``, or None for other ports."""
+    """The unique ID of the CMSIS-DAP probe behind ``port``, or None for other ports or no ID."""
     import serial.tools.list_ports as _list_ports
 
     port = os.path.realpath(port)
@@ -56,20 +63,27 @@ def cmsis_dap_unique_id(port: str) -> str | None:
         ):
             return None
         if not info.serial_number:
+            # Without one, another connected probe could be flashed
             _LOGGER.warning(
-                "The CMSIS-DAP probe behind %s reports no serial number; with more than "
-                "one probe connected, another one may be flashed",
+                "The CMSIS-DAP probe behind %s reports no serial number, so the board is "
+                "not flashed through it",
                 port,
             )
-        return info.serial_number or ""
+        return info.serial_number or None
     return None
 
 
 def can_upload_using_cmsis_dap() -> bool:
-    """True when upload_using_cmsis_dap can run: the 'sdk-nrf' toolchain at 2.9.2 or newer."""
-    return not CORE.using_toolchain_platformio and CORE.data[KEY_CORE][
-        KEY_FRAMEWORK_VERSION
-    ] >= cv.Version(2, 9, 2)
+    """True when upload_using_cmsis_dap can run: 'sdk-nrf' 2.9.2 or newer, its pyOCD knowing the chip."""
+    variant = get_nrf52_variant()
+    if (
+        CORE.using_toolchain_platformio
+        or variant not in _PYOCD_TARGETS
+        or CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 9, 2)
+    ):
+        return False
+    target_file = _PYOCD_TARGET_FILES.get(variant)
+    return target_file is None or pyocd_has_builtin_target(target_file)
 
 
 def _builds_mcuboot() -> bool:
@@ -142,6 +156,6 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
             raise EsphomeError(
                 "pyOCD could not flash the device; its output above says why. If it says "
                 "the chip is locked or reports a memory transfer fault, unlock and erase it "
-                f"once with 'pyocd erase -t {target} --mass' and upload again. Not with "
-                "'--chip': it leaves an nRF54L locked, as no firmware opens it at reset."
+                f"once with '{shlex.join([*pyocd, 'erase', *probe, '--mass'])}' and upload "
+                "again. Not with '--chip': it leaves an nRF54L locked, as no firmware opens it at reset."
             )

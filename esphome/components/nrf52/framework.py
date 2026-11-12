@@ -280,26 +280,38 @@ FLASH_ALGO = {
 }
 """
 _PYOCD_FLASH_ALGO_RE = re.compile(r"^FLASH_ALGO = \{.*?^\}\n", re.MULTILINE | re.DOTALL)
+# An instruction word of the faulting algorithm only; an algorithm without it is left alone
+_PYOCD_NRF54LM20A_FAULTY_WORD = "0x68134a02"
+
+
+def _pyocd_builtin_target(python_env_path: Path, target_file: str) -> Path:
+    site_packages = _get_penv_site_packages(python_env_path)
+    if not site_packages.is_dir():
+        # An env kept across an ESPHome Python upgrade still has its own Python version
+        site_packages = next(
+            python_env_path.glob("lib/python3.*/site-packages"), site_packages
+        )
+    return site_packages / "pyocd" / "target" / "builtin" / target_file
 
 
 def _pyocd_nrf54lm20a_target(python_env_path: Path) -> Path:
-    return (
-        _get_penv_site_packages(python_env_path)
-        / "pyocd"
-        / "target"
-        / "builtin"
-        / "target_nRF54LM20A.py"
-    )
+    return _pyocd_builtin_target(python_env_path, "target_nRF54LM20A.py")
+
+
+def pyocd_has_builtin_target(target_file: str) -> bool:
+    """True when the SDK's pyOCD has this target file, e.g. target_nRF54L15.py."""
+    env_path = _get_python_env_path(_get_version_str())
+    return _pyocd_builtin_target(env_path, target_file).is_file()
 
 
 def unpatched_pyocd_nrf54lm20a_target() -> Path | None:
-    """PyOCD's nRF54LM20A target file when it lacks the fixed flash algorithm, else None."""
+    """PyOCD's nRF54LM20A target file when it has the faulting flash algorithm, else None."""
     target = _pyocd_nrf54lm20a_target(_get_python_env_path(_get_version_str()))
-    if target.is_file() and _PYOCD_NRF54LM20A_FLASH_ALGO in target.read_text(
+    if target.is_file() and _PYOCD_NRF54LM20A_FAULTY_WORD in target.read_text(
         encoding="utf-8"
     ):
-        return None
-    return target
+        return target
+    return None
 
 
 def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
@@ -311,7 +323,7 @@ def _patch_pyocd_nrf54lm20a_flash_algo(python_env_path: Path) -> None:
         )
         return
     content = target.read_text(encoding="utf-8")
-    if _PYOCD_NRF54LM20A_FLASH_ALGO in content:
+    if _PYOCD_NRF54LM20A_FAULTY_WORD not in content:
         return
     if (match := _PYOCD_FLASH_ALGO_RE.search(content)) is None:
         _LOGGER.warning(

@@ -937,7 +937,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     file = getattr(args, "file", None)
 
     if get_port_type(host) == PortType.SERIAL:
-        check_permissions(host)
         bootloader = zephyr_data()[KEY_BOOTLOADER]
         # A probe flashes the local build, so a given file goes over mcumgr
         probe_upload = bootloader == BOOTLOADER_MCUBOOT and file is None
@@ -971,12 +970,14 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 return True
             _LOGGER.warning(
                 "%s belongs to CMSIS-DAP probe %s, but flashing with pyOCD needs the "
-                "'%s' toolchain at version 2.9.2 or newer; uploading with mcumgr "
-                "instead, which needs firmware that accepts it",
+                "'%s' toolchain at version 2.9.2 or newer and a pyOCD that knows the "
+                "chip; uploading with mcumgr instead, which needs firmware that accepts it",
                 host,
                 dap_id,
                 Toolchain.SDK_NRF,
             )
+        # Not before the probe uploads, which do not open the port
+        check_permissions(host)
         if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         elif CORE.using_toolchain_platformio:
