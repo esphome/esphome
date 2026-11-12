@@ -27,6 +27,26 @@ _PYOCD_TARGETS = {
 }
 
 
+# Watchdog of the nRF54L chips that Zephyr uses, and its registers for stopping it
+_NRF54L_WDT31 = 0x50109000
+_WDT_TASKS_STOP = 0x004
+_WDT_TSEN = 0x520
+_WDT_TSEN_KEY = 0x6E524635
+
+
+def _stop_watchdog_commands(variant: str) -> list[str]:
+    """PyOCD commands that stop a running watchdog, which keeps counting while flashing halts
+    the CPU in firmware that does not pause it then, and would reset the chip part way."""
+    if variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+        return []
+    tsen = _NRF54L_WDT31 + _WDT_TSEN
+    return [
+        f"write32 0x{tsen:08x} 0x{_WDT_TSEN_KEY:08x}",
+        f"write32 0x{_NRF54L_WDT31 + _WDT_TASKS_STOP:08x} 1",
+        f"write32 0x{tsen:08x} 0",
+    ]
+
+
 def cmsis_dap_unique_id(port: str) -> str | None:
     """The unique ID of the CMSIS-DAP probe that provides ``port``, or None for other ports."""
     import serial.tools.list_ports as _list_ports
@@ -65,24 +85,19 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     images = _images(CORE.relative_pioenvs_path(CORE.name))
     check_and_install()  # the Zephyr requirements install pyOCD, and it is patched
     paths = get_build_paths()
-    cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "pyocd",
-        "flash",
-        "-t",
-        target,
-        "-e",
-        "sector",
-    ]
-    if unique_id:
-        cmd += ["-u", unique_id]
-    cmd += [str(image) for image in images]
-    if not run_command_ok(cmd, env=get_build_env(None), stream_output=True):
+    env = get_build_env(None)
+    pyocd = [str(paths["python_executable"]), "-m", "pyocd"]
+    probe = ["-t", target] + (["-u", unique_id] if unique_id else [])
+    if commands := _stop_watchdog_commands(variant):
+        # Best effort: a locked chip refuses it, and 'pyocd flash' then unlocks the chip
+        cmd = [*pyocd, "cmd", *probe]
+        for command in commands:
+            cmd += ["-c", command]
+        run_command_ok(cmd, env=env, stream_output=True)
+    cmd = [*pyocd, "flash", *probe, "-e", "sector", *(str(image) for image in images)]
+    if not run_command_ok(cmd, env=env, stream_output=True):
         raise EsphomeError(
             "pyOCD could not flash the device; its output above says why. If it says "
-            "the chip is locked, or reports a memory transfer fault (firmware built "
-            "before ESPHome paused its watchdog for the debugger resets the chip while "
-            "it is flashed), erase the whole chip once with "
-            f"'pyocd erase -t {target} --chip' and upload again."
+            "the chip is locked or reports a memory transfer fault, erase the whole "
+            f"chip once with 'pyocd erase -t {target} --chip' and upload again."
         )

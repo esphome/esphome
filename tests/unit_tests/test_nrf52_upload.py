@@ -1194,19 +1194,39 @@ def test_cmsis_dap_flashes_mcuboot_and_signed_app(
         ) as mock_run,
     ):
         upload_using_cmsis_dap("CB1D0165")
-    assert mock_run.call_args[0][0] == [
-        str(paths["python_executable"]),
-        "-m",
-        "pyocd",
-        "flash",
-        "-t",
-        "nrf54lm20a",
-        "-e",
-        "sector",
-        "-u",
-        "CB1D0165",
-        str(mcuboot),
-        str(app),
+    python = str(paths["python_executable"])
+    # The watchdog is stopped first, so it cannot reset the chip while it is halted
+    assert [c[0][0] for c in mock_run.call_args_list] == [
+        [
+            python,
+            "-m",
+            "pyocd",
+            "cmd",
+            "-t",
+            "nrf54lm20a",
+            "-u",
+            "CB1D0165",
+            "-c",
+            "write32 0x50109520 0x6e524635",
+            "-c",
+            "write32 0x50109004 1",
+            "-c",
+            "write32 0x50109520 0",
+        ],
+        [
+            python,
+            "-m",
+            "pyocd",
+            "flash",
+            "-t",
+            "nrf54lm20a",
+            "-u",
+            "CB1D0165",
+            "-e",
+            "sector",
+            str(mcuboot),
+            str(app),
+        ],
     ]
 
 
@@ -1234,6 +1254,7 @@ def test_cmsis_dap_flashes_nrf52_with_pyocd_flash(
         ) as mock_run,
     ):
         upload_using_cmsis_dap("CB1D0165")
+    mock_run.assert_called_once()
     assert mock_run.call_args[0][0] == [
         str(paths["python_executable"]),
         "-m",
@@ -1241,10 +1262,10 @@ def test_cmsis_dap_flashes_nrf52_with_pyocd_flash(
         "flash",
         "-t",
         "nrf52840",
-        "-e",
-        "sector",
         "-u",
         "CB1D0165",
+        "-e",
+        "sector",
         str(app),
     ]
 
