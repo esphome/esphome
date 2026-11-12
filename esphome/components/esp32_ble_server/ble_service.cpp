@@ -87,7 +87,7 @@ void BLEService::do_delete() {
   // Call all characteristics to delete
   for (auto *characteristic : this->characteristics_)
     characteristic->do_delete();
-  // Removed before the stack created it: there is nothing to stop or delete
+  // Not created on the stack yet; if a create is in flight, the server deletes it when its handle arrives
   if (this->handle_ == 0xFFFF) {
     this->state_ = DELETED;
     return;
@@ -164,7 +164,7 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
                                      esp_ble_gatts_cb_param_t *param) {
   switch (event) {
     case ESP_GATTS_CREATE_EVT: {
-      if (this->uuid_ == ESPBTUUID::from_uuid(param->create.service_id.id.uuid) &&
+      if (this->state_ == CREATING && this->uuid_ == ESPBTUUID::from_uuid(param->create.service_id.id.uuid) &&
           this->inst_id_ == param->create.service_id.id.inst_id) {
         this->handle_ = param->create.service_handle;
         this->state_ = CREATED;
