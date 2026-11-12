@@ -31,7 +31,7 @@ from esphome.components.packet_interface.layers.lzss_compression import (
 from esphome.components.uart import packet_interface as uart_packet_interface
 from esphome.components.udp import packet_interface as udp_packet_interface
 from esphome.const import CONF_COMPRESSION, CONF_ENCRYPTION
-from esphome.core import ID
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 
 
@@ -400,7 +400,10 @@ def test_application_needs_peer_id_with_peers(setup_core) -> None:
         {
             "packet_interface": [
                 {"id": ID("bus"), CONF_ADDRESSING: {"peers": [_peer(ID("a"), 2)]}},
-                {"id": ID("single"), CONF_ADDRESSING: {"destination": 2}},
+                {
+                    "id": ID("single"),
+                    CONF_ADDRESSING: {"port_id": ID("port"), "destination": 2},
+                },
             ]
         }
     )
@@ -410,6 +413,8 @@ def test_application_needs_peer_id_with_peers(setup_core) -> None:
         ):
             validator({"packet_interface": ID("bus")})
         assert validator({"packet_interface": ID("single")})
+        # The single addressing port is named by port_id, not id
+        assert validator({"packet_interface": ID("port")})
         assert validator({"packet_interface": ID("a")})
     finally:
         fv.full_config.reset(token)
@@ -463,3 +468,53 @@ def test_compression_above_fragmentation(setup_core) -> None:
 def test_dictionary_check_differs() -> None:
     assert dictionary_check(b"") != dictionary_check(DEFAULT_DICTIONARY.encode())
     assert 0 <= dictionary_check(b"abc") <= 0x7F
+
+
+def test_peers_with_rolling_code_need_own_keys(setup_core) -> None:
+    """A packet relabelled with another peer's address would pass its checks if both peers shared a key."""
+
+    def peers(key_b: str, rolling_code: bool) -> dict:
+        def encryption(key: str) -> dict:
+            return {"key": key, "rolling_code_enable": rolling_code}
+
+        return {
+            CONF_ADDRESSING: {
+                "address": 1,
+                "peers": [
+                    _peer("a", 2, encryption=encryption("one"), session=None),
+                    _peer("b", 3, encryption=encryption(key_b), session=None),
+                ],
+            }
+        }
+
+    with pytest.raises(cv.Invalid, match="same key as peer 'a'"):
+        uart_packet_interface.CONFIG_SCHEMA(peers("one", True))
+    uart_packet_interface.CONFIG_SCHEMA(peers("two", True))
+    # Without the rolling code no packet is protected against being sent again anyway
+    uart_packet_interface.CONFIG_SCHEMA(peers("one", False))
+
+
+def test_interface_packet_size(setup_core) -> None:
+    """An application's buffer is sized for the top layer of the link or peer that it names."""
+    link = uart_packet_interface.CONFIG_SCHEMA(
+        {
+            "id": "bus",
+            CONF_MAX_PACKET_SIZE: 100,
+            CONF_ADDRESSING: {
+                "address": 1,
+                "peers": [
+                    _peer("a", 2, fragmentation={CONF_MAX_PACKET_SIZE: 500}),
+                    _peer("b", 3),
+                ],
+            },
+        }
+    )
+    single = uart_packet_interface.CONFIG_SCHEMA(
+        {"id": "single", CONF_ENCRYPTION: "secret"}
+    )
+    CORE.config = {"packet_interface": [link, single]}
+    assert packet_interface.interface_packet_size(ID("a")) == 500
+    # The address header takes 4 bytes
+    assert packet_interface.interface_packet_size(ID("b")) == 96
+    # The default 508 bytes, less the encryption's 4-byte check
+    assert packet_interface.interface_packet_size(ID("single")) == 504

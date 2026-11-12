@@ -223,8 +223,11 @@ def remaining_packet_size(size: int, used: int) -> int:
     return max(size - used, 0)
 
 
-def check_packet_sizes(config: ConfigType, size: int) -> None:
-    """Check each layer in config against the layer below it; size is the largest packet that the stack sits on takes."""
+def check_packet_sizes(config: ConfigType, size: int) -> int:
+    """Check each layer in config against the layer below it, and return the top layer's largest packet.
+
+    size is the largest packet that the stack sits on takes.
+    """
     capacity = None
     for kind in STACK_ORDER:
         if (layer := config.get(kind.key)) is None:
@@ -237,6 +240,7 @@ def check_packet_sizes(config: ConfigType, size: int) -> None:
             raise
         size = layer_type.packet_size(layer, size)
         capacity = layer_type.send_capacity(layer)
+    return size
 
 
 def check_broadcast_link(config: ConfigType) -> None:

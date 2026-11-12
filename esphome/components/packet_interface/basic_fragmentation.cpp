@@ -12,8 +12,8 @@ ESPHOME_LOG_TAG(TAG, "packet_interface.fragmentation");
 static constexpr uint8_t LAST_FRAGMENT = 0x80;
 static constexpr uint8_t INDEX_MASK = 0x7F;
 
-BasicFragmentation::BasicFragmentation(PacketInterface *lower, size_t max_packet_size)
-    : PacketInterface(max_packet_size), lower_(lower) {
+BasicFragmentation::BasicFragmentation(PacketInterface *lower, size_t max_packet_size, uint8_t *buffer)
+    : PacketInterface(max_packet_size), lower_(lower), tx_buffer_(buffer) {
   this->stack_on_(lower, CAPABILITY_FRAGMENTATION);
 }
 
@@ -36,12 +36,8 @@ void BasicFragmentation::setup() {
   // Checked now, while the layer below holds nothing; a failed layer below reports its own failure instead
   this->queue_too_short_ =
       !this->lower_->is_failed() && this->fragments_for_(this->max_packet_size_) > this->lower_->get_send_capacity();
-  RAMAllocator<uint8_t> allocator;
-  this->tx_buffer_ = allocator.allocate(this->fragment_size_() + this->max_packet_size_);
-  if (this->tx_buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Not enough memory for the packet buffers"));
+  if (!this->setup_check(this->tx_buffer_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
     return;
-  }
   this->rx_buffer_ = this->tx_buffer_ + this->fragment_size_();
   // Numbering from a random start makes it unlikely that a packet joins fragments from before a restart
   this->tx_number_ = random_uint32();
@@ -68,7 +64,8 @@ bool BasicFragmentation::send_to_interface(const PacketBuffer &data, const Packe
 }
 
 bool BasicFragmentation::send_(const PacketBuffer &data, const PacketMetaData &meta_data) {
-  if (this->tx_buffer_ == nullptr)
+  // Set only once setup() succeeds
+  if (this->rx_buffer_ == nullptr)
     return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {
