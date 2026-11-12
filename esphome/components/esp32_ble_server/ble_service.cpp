@@ -23,9 +23,9 @@ BLEService::~BLEService() {
 }
 
 bool BLEService::add_characteristic(BLECharacteristic &characteristic) {
-  // Bound until the service is destroyed, so a characteristic can never sit in two services
+  // Bound until the parent is destroyed
   if (characteristic.service_ != nullptr) {
-    ESP_LOGE(TAG, "Characteristic already belongs to a service");
+    ESP_LOGE(TAG, "Already added");
     return false;
   }
   characteristic.service_ = this;
@@ -105,7 +105,7 @@ bool BLEService::do_create_characteristics_() {
 
   auto *characteristic = this->characteristics_[this->created_characteristic_count_++];
   this->last_created_characteristic_ = characteristic;
-  characteristic->do_create(this);
+  characteristic->do_create();
   return true;
 }
 
