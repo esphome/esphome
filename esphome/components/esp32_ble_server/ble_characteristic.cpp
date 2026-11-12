@@ -86,7 +86,13 @@ void BLECharacteristic::notify() {
   }
 }
 
-void BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
+bool BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
+  // Bound until removed or this characteristic is destroyed, so a descriptor can never sit in two characteristics
+  if (descriptor.characteristic_ != nullptr) {
+    ESP_LOGE(TAG, "Descriptor already belongs to a characteristic");
+    return false;
+  }
+  descriptor.characteristic_ = this;
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
   if (descriptor.get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
     descriptor.on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
@@ -104,11 +110,14 @@ void BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
     });
   }
   this->descriptors_.push_back(&descriptor);
+  return true;
 }
 
 void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
-  if (std::erase(this->descriptors_, descriptor) != 0)
-    descriptor->owned_ = false;  // the caller owns it again
+  if (std::erase(this->descriptors_, descriptor) == 0)
+    return;
+  descriptor->owned_ = false;  // the caller owns it again
+  descriptor->characteristic_ = nullptr;
 }
 
 void BLECharacteristic::do_create(BLEService *service) {
