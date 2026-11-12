@@ -460,7 +460,7 @@ def _warn_old_framework_version(config: ConfigType) -> None:
 
 
 def _warn_without_antenna(config: ConfigType) -> None:
-    if (board := config[CONF_BOARD]) in BOARDS_WITHOUT_ANTENNA:
+    if (board := config.get(CONF_BOARD)) in BOARDS_WITHOUT_ANTENNA:
         _LOGGER.warning(
             "The %s has no antenna of its own: connect an external 2.4 GHz antenna to its "
             "antenna connector, or Bluetooth, Thread and Zigbee will not be received",
