@@ -95,13 +95,14 @@ class BitReader {
 }  // namespace
 
 LzssCompression::LzssCompression(PacketInterface *lower, size_t max_packet_size, const uint8_t *dictionary,
-                                 size_t dictionary_size, uint8_t check)
-    : PacketInterface(max_packet_size != 0 ? max_packet_size
-                                           : remaining_packet_size(lower->get_max_packet_size(), HEADER_SIZE)),
+                                 size_t dictionary_size, uint8_t check, uint8_t *buffers, uint16_t *chains)
+    : PacketInterface(max_packet_size != 0 ? max_packet_size : packet_size(lower->get_max_packet_size())),
       check_(check & HEADER_CHECK_MASK),
       lower_(lower),
       dictionary_(dictionary),
-      dictionary_size_(dictionary_size) {
+      dictionary_size_(dictionary_size),
+      tx_input_(buffers),
+      head_(chains) {
   this->stack_on_(lower, CAPABILITY_COMPRESSION);
 }
 
@@ -110,19 +111,12 @@ void LzssCompression::setup() {
   if (!this->setup_check(this->max_packet_size_ != 0 && lower_size > HEADER_SIZE,
                          LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  // The packet buffers last, as tx_input_ being set means the layer is ready
-  RAMAllocator<uint16_t> chains;
-  this->head_ = chains.allocate((size_t{1} << HASH_BITS) + WINDOW);
-  if (!this->setup_check(this->head_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
+  if (!this->setup_check(this->tx_input_ != nullptr && this->head_ != nullptr,
+                         LOG_STR("Not enough memory for the packet buffers")))
     return;
   this->previous_ = this->head_ + (size_t{1} << HASH_BITS);
-  RAMAllocator<uint8_t> allocator;
-  uint8_t *buffers = allocator.allocate(2 * this->max_packet_size_ + lower_size);
-  if (!this->setup_check(buffers != nullptr, LOG_STR("Not enough memory for the packet buffers")))
-    return;
-  this->rx_output_ = buffers + this->max_packet_size_;
+  this->rx_output_ = this->tx_input_ + this->max_packet_size_;
   this->tx_output_ = this->rx_output_ + this->max_packet_size_;
-  this->tx_input_ = buffers;
   this->lower_->add_packet_interface_listener(
       [this](const PacketBuffer &data, const PacketMetaData &meta_data) { this->receive_(data, meta_data); });
 }
@@ -248,7 +242,7 @@ bool LzssCompression::send_to_interface(const PacketBuffer &data, const PacketMe
 }
 
 bool LzssCompression::send_(const PacketBuffer &data, const PacketMetaData &meta_data) {
-  if (this->tx_input_ == nullptr)
+  if (this->tx_output_ == nullptr)
     return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {

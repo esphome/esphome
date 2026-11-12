@@ -39,15 +39,22 @@ class LzssCompression : public PacketInterface {
   static constexpr size_t MAX_CHAIN = 32;
   /// How far back the compressor looks for a match, a power of 2; the format allows any distance.
   static constexpr size_t WINDOW = 512;
+  /// The latest position for each hash, then the previous one for each position in the window.
+  static constexpr size_t CHAIN_WORDS = (size_t{1} << HASH_BITS) + WINDOW;
+  /// The packet to compress, the compressed packet, and an expanded packet.
+  static constexpr size_t buffer_size(size_t lower_size, size_t max_packet_size) {
+    return 2 * (max_packet_size != 0 ? max_packet_size : packet_size(lower_size)) + lower_size;
+  }
 
   /**
    * @param max_packet_size The largest packet before compression, or 0 for what the layer below takes less the
    * header; a packet larger than that is refused when it does not compress enough
    * @param dictionary The preset dictionary, in flash; may be null when \p dictionary_size is 0
    * @param check The dictionary check sent in each header
+   * @param buffers buffer_size() bytes, and \p chains CHAIN_WORDS words; setup() fails if either is nullptr
    */
   LzssCompression(PacketInterface *lower, size_t max_packet_size, const uint8_t *dictionary, size_t dictionary_size,
-                  uint8_t check);
+                  uint8_t check, uint8_t *buffers, uint16_t *chains);
 
   void setup() override;
   void dump_config() override;
@@ -75,14 +82,12 @@ class LzssCompression : public PacketInterface {
   PacketInterface *lower_;
   const uint8_t *dictionary_;
   const size_t dictionary_size_;
-  // The packet to compress, the compressed packet, and an expanded packet; one block allocated in setup(), and
-  // tx_input_ stays null if that fails
-  uint8_t *tx_input_{nullptr};
-  uint8_t *tx_output_{nullptr};
+  uint8_t *tx_input_;
+  uint8_t *tx_output_{nullptr};  // set once setup() succeeds
   uint8_t *rx_output_{nullptr};
   // For each hash, the latest position with it; for each of the last WINDOW positions, the one before it with the same
   // hash
-  uint16_t *head_{nullptr};
+  uint16_t *head_;
   uint16_t *previous_{nullptr};
 };
 

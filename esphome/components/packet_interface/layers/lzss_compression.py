@@ -78,13 +78,28 @@ async def build_lzss(
         if dictionary
         else cg.nullptr
     )
+    max_packet_size = config.get(CONF_MAX_PACKET_SIZE, 0)
+    buffers = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint8,
+        LzssCompression.static_("buffer_size")(lower_size, max_packet_size),
+        psram=True,
+    )
+    chains = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint16,
+        LzssCompression.static_("CHAIN_WORDS"),
+        psram=True,
+    )
     var = cg.new_Pvariable(
         config[CONF_ID],
         lower,
-        config.get(CONF_MAX_PACKET_SIZE, 0),
+        max_packet_size,
         table,
         len(dictionary),
         dictionary_check(dictionary),
+        buffers,
+        chains,
     )
     await cg.register_component(var, config)
     if (size := config.get(CONF_MAX_PACKET_SIZE)) is not None:

@@ -50,10 +50,14 @@ static const std::string WEATHER =
 
 struct Peer {
   Peer(const std::string &dictionary, size_t link_size = 255, size_t max_packet_size = 0, uint8_t check = 0x2A)
-      : link(link_size), dictionary(dictionary.begin(), dictionary.end()) {
+      : link(link_size),
+        dictionary(dictionary.begin(), dictionary.end()),
+        buffers(LzssCompression::buffer_size(link_size, max_packet_size)),
+        chains(LzssCompression::CHAIN_WORDS) {
     this->link.set_name("test_link");
-    this->compression = std::make_unique<LzssCompression>(&this->link, max_packet_size, this->dictionary.data(),
-                                                          this->dictionary.size(), check);
+    this->compression =
+        std::make_unique<LzssCompression>(&this->link, max_packet_size, this->dictionary.data(),
+                                          this->dictionary.size(), check, this->buffers.data(), this->chains.data());
     this->compression->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->compression->setup();
@@ -67,6 +71,8 @@ struct Peer {
 
   MockLink link;
   Packet dictionary;
+  std::vector<uint8_t> buffers;
+  std::vector<uint16_t> chains;
   std::unique_ptr<LzssCompression> compression;
   std::vector<Packet> received;
 };
@@ -300,6 +306,17 @@ TEST_F(LzssCompressionTest, Speed) {
   end = std::chrono::steady_clock::now();
   std::printf("%zu bytes of noise: %lld us to find that it does not compress, on this host\n", noise.size(),
               static_cast<long long>(us(end - start)));
+}
+
+// With PSRAM, the buffers are allocated at boot and can be missing
+TEST_F(LzssCompressionTest, MissingBuffersFailSetup) {
+  MockLink link(255);
+  uint16_t chains[LzssCompression::CHAIN_WORDS];
+  LzssCompression compression(&link, 0, nullptr, 0, 0, nullptr, chains);
+  compression.setup();
+  EXPECT_TRUE(compression.is_failed());
+  Packet packet{1};
+  EXPECT_FALSE(compression.send_to_interface(PacketBuffer(packet), {}));
 }
 
 }  // namespace esphome::packet_interface::compression_testing
