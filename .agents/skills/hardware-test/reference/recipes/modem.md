@@ -16,3 +16,18 @@ states, saves the device log). Before 8cc8df4a1f a modem only config with `api:`
 config dependent `AUTO_LOAD` added `network` after the dependency check; an explicit `network:` block was the
 workaround. Results: https://github.com/esphome/esphome/pull/6721#issuecomment-6347395159 and
 https://github.com/esphome/esphome/pull/6721#issuecomment-6348520416
+
+## SIM7080G on an M5Stack Atom Lite (#6721)
+
+The M5 Unit CatM (SIM7080G) on the Atom Lite's Grove port: RX GPIO32, TX GPIO26, `model: SIM7080`.
+`templates/modem/modem-passthrough.yaml` is a raw UART passthrough with both directions logged, and
+`scripts/modem/mdrive.py HOST LOGFILE text:AT+CPIN? wait:5 ...` sends AT commands through it and saves the
+replies, to check what the module does with no component in the way.
+
+- With no SIM, the component sets the `SIM not ready` warning and polls `AT+CPIN?` once a second.
+- With a SIM that has no data plan, `AT+CGATT=1` blocks the AT channel for about 141 s and then answers `ERROR`.
+  The module answers nothing meanwhile, so the component logs `Network attachment request refused` and then `Modem not
+  responding`, and loops every 2 minutes 22 seconds.
+- `AT+CFUN=1,1` leaves the module silent for about 2.5 minutes. It comes back without a power cycle.
+- A module left in CMUX (`AT+CMUX=0`, then an ESP restart) recovered 10 of 10 times (`Autodetect mode: 5`).
+- PPP and a warm reboot during PPP need a SIM with a working data plan.

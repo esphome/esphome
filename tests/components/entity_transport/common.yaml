@@ -1,0 +1,33 @@
+packet_interface:
+  - platform: uart
+    id: entity_transport_link
+    reliability:
+
+sensor:
+  - platform: template
+    id: entity_transport_sensor
+    lambda: return 1.0;
+  - platform: entity_transport
+    provider: remote-device
+    remote_id: entity_transport_sensor
+    name: Remote sensor
+
+binary_sensor:
+  - platform: template
+    id: entity_transport_binary_sensor
+    lambda: return true;
+  - platform: entity_transport
+    id: remote_binary_sensor
+    provider: remote-device
+    remote_id: door
+    name: Remote binary sensor
+
+entity_transport:
+  - packet_interface: entity_transport_link
+    update_interval: 60s
+    timeout: 3min
+    sensors:
+      - entity_transport_sensor
+    binary_sensors:
+      - id: entity_transport_binary_sensor
+        broadcast_id: door
