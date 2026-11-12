@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::uart {
@@ -23,6 +24,7 @@ class SoftwareSerialRxDecoder {
     this->set_bit_ticks_(bit_ticks);
 #ifdef USE_UART_AUTO_BAUD
     this->nominal_bit_ticks_ = bit_ticks;
+    this->nominal_max_run_ticks_ = this->max_run_ticks_;
 #endif
     this->buffer_ = buffer;
     this->buffer_size_ = buffer_size;
@@ -56,8 +58,8 @@ class SoftwareSerialRxDecoder {
     // LX106 has no divider, so count
     uint32_t delta = now - this->last_edge_;
 #ifdef USE_UART_AUTO_BAUD
-    // A start bit after the line idled longer than a frame
-    const bool idle_start = !level && delta > this->max_run_ticks_;
+    // A start bit after the line idled longer than a frame at the nominal rate
+    const bool idle_start = !level && delta > this->nominal_max_run_ticks_;
     const uint8_t run_bit = this->bit_;
 #endif
     if (delta > this->max_run_ticks_)
@@ -158,7 +160,8 @@ class SoftwareSerialRxDecoder {
       this->end_sync_frame_(run_level, this->cur_byte_, run_bit + 1);
     }
     if (idle_start && bit == RX_IDLE) {
-      this->set_bit_ticks_(this->nominal_bit_ticks_);
+      this->bit_ticks_ = this->nominal_bit_ticks_;
+      this->max_run_ticks_ = this->nominal_max_run_ticks_;
       this->sync_start_ = now;
       this->sync_timing_ = true;
     }
@@ -227,6 +230,7 @@ class SoftwareSerialRxDecoder {
 #ifdef USE_UART_AUTO_BAUD
   // Touched only by the ISR, and by setup() and finalize() with the ISR detached or masked
   uint32_t nominal_bit_ticks_{0};
+  uint32_t nominal_max_run_ticks_{0};
   uint32_t sync_start_{0};
 #endif
   /// Next frame bit (data, parity, then stop at stop_bit_) or RX_IDLE.

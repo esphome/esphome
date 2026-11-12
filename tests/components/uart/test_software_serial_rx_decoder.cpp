@@ -370,6 +370,24 @@ TEST(SoftwareSerialRxDecoder, AutoBaudIgnoresASyncFrameWithALowStopBit) {
   EXPECT_EQ(sim.decoder().bit_ticks(), sim.bit_ticks());
 }
 
+TEST(SoftwareSerialRxDecoder, AutoBaudIdleAfterASlowPacketIsMeasuredAtTheNominalRate) {
+  LineSim sim(9600, 8, false, false, 1);
+  const uint32_t nominal = sim.bit_ticks();
+  sim.set_line_baud(9600 * 0.93);
+  uint32_t t = sim.send(0x55, IDLE_START);
+  t = sim.send(0x00, t);
+  // With the stop bit, the line stays high about 11.3 nominal bits: over a frame (11 bits) at the nominal
+  // rate, under one at the slow measured rate
+  t += 10 * nominal + nominal / 4;
+  sim.poll(t);
+  sim.set_line_baud(9600);
+  t = sim.send(0x55, t);
+  t = sim.send(0x00, t);
+  sim.poll(t + 40 * nominal);
+  EXPECT_EQ(sim.received(), (std::vector<uint8_t>{0x55, 0x00, 0x55, 0x00}));
+  EXPECT_NEAR(sim.decoder().bit_ticks(), nominal, 2.0);
+}
+
 #endif  // USE_UART_AUTO_BAUD
 
 }  // namespace esphome::uart::testing
