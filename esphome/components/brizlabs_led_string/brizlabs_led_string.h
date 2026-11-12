@@ -15,7 +15,7 @@ static constexpr int NUM_ZONES = BRIZLABS_LED_STRING_ZONE_COUNT;
 
 // Two-wire LED string: color frames are pulse-coded power dips, shaped by SPI MOSI (encoder.h)
 // One addressable "pixel" per zone, with each zone comprising one or more actual LED modules
-class BrizLabsLEDString : public light::AddressableLight {
+class BrizLabsLEDString final : public light::AddressableLight {
  public:
   explicit BrizLabsLEDString(int pin) : pin_(pin) {}
   void setup() override;
