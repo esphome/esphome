@@ -1,0 +1,13 @@
+# No endstop, movement or obstacle sensors, so their code is compiled out
+cover:
+  - platform: feedback
+    id: feedback_minimal
+    name: Minimal Feedback Cover
+    open_action:
+      - logger.log: open
+    open_duration: 10s
+    close_action:
+      - logger.log: close
+    close_duration: 10s
+    stop_action:
+      - logger.log: stop
