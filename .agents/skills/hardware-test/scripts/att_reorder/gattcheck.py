@@ -1,6 +1,7 @@
 """Through the proxy (no cache): print the full GATT table, read FFF1/FFF2/FFF3 by handle, and enable notify on
 FFF1, FFF2 and 2ACD (writing the CCCD the way Home Assistant does), counting what arrives per handle for 6 s.
-usage: gattcheck.py PROXY PEER_MAC   env: API_KEY (the proxy's api encryption key)"""
+usage: gattcheck.py PROXY PEER_MAC   env: API_KEY (the proxy's api encryption key)
+Exits 1 when a characteristic or CCCD is missing, a notify fails, or a notifying characteristic sends nothing."""
 
 import asyncio
 import os
@@ -50,6 +51,8 @@ async def main(host: str, peer: str) -> None:
             )
             for d in ch.descriptors:
                 print(f"    DSC {short(d.uuid)} 0x{d.handle:04X}", flush=True)
+    wanted = ("fff1", "fff2", "fff3", "2acc", "2acd")
+    problems = [f"{u} missing" for u in wanted if u not in chars]
     for u in ("fff1", "fff2", "fff3", "2acc"):
         if u in chars:
             v = await cli.bluetooth_gatt_read(addr, chars[u].handle)
@@ -75,6 +78,7 @@ async def main(host: str, peer: str) -> None:
                         f"NOTIFY {u} 0x{chars[u].handle:04X} NO CCCD in its descriptor list",
                         flush=True,
                     )
+                    problems.append(f"{u} has no CCCD")
                     continue
                 await cli.bluetooth_gatt_write_descriptor(
                     addr, cccd.handle, b"\x01\x00"
@@ -88,6 +92,7 @@ async def main(host: str, peer: str) -> None:
                     f"NOTIFY {u} 0x{chars[u].handle:04X} FAILED {type(exc).__name__}: {exc}",
                     flush=True,
                 )
+                problems.append(f"{u} notify failed")
     await asyncio.sleep(6)
     if not got:
         print("GOT nothing", flush=True)
@@ -96,9 +101,18 @@ async def main(host: str, peer: str) -> None:
         print(
             f"GOT 0x{h:04X} ({name}) x{len(vals)}: {vals[0]} .. {vals[-1]}", flush=True
         )
+    # the server notifies FFF1 and 2ACD every second
+    problems.extend(
+        f"{u} sent nothing"
+        for u in ("fff1", "2acd")
+        if u in chars and chars[u].handle not in got
+    )
     await cli.bluetooth_device_disconnect(addr)
     cancel()
     await cli.disconnect()
+    if problems:
+        sys.exit("FAIL: " + ", ".join(problems))
+    print("PASS", flush=True)
 
 
 asyncio.run(main(sys.argv[1], sys.argv[2]))

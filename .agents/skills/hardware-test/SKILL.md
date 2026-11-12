@@ -57,7 +57,8 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    74880 baud, LibreTiny boards print `[LT]` and ESPHome lines, BK7238 prints its bootloader version).
    `ports.py --wait 2e8a` blocks until a Pico re-enumerates.
    A change in validation or platform independent code needs no board: a `host:` build serves the API on
-   127.0.0.1:6053 (see recipes/homeassistant.md for one against a throwaway Home Assistant).
+   port 6053 on every interface (reach it at 127.0.0.1, and add `api: encryption:` on a shared network); see
+   recipes/homeassistant.md for one against a throwaway Home Assistant.
 2. **Make a scratch directory** outside the checkout, with `secrets.yaml` and the templates you need.
    One yaml per board per variant, file name equal to `name:`.
 3. **Compile** in the right tree:
