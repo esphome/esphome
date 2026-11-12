@@ -212,6 +212,24 @@ def test_registry_validate_tracks_usage_and_get_count(
 
 
 @pytest.mark.usefixtures("pin_path")
+def test_registry_get_user_paths(registry: pins.PinRegistry) -> None:
+    assert registry.get_user_paths("hub", "h1", 4) == []
+
+    for path in (["switch", 0, "pin"], ["deep_sleep", "wakeup_pin"]):
+        token = path_context.set(path)
+        try:
+            registry.validate({"hub": "h1", CONF_NUMBER: 4}, "hub")
+        finally:
+            path_context.reset(token)
+
+    assert registry.get_user_paths("hub", "h1", 4) == [
+        ["switch", 0, "pin"],
+        ["deep_sleep", "wakeup_pin"],
+    ]
+    assert registry.get_user_paths("hub", "h1", 5) == []
+
+
+@pytest.mark.usefixtures("pin_path")
 def test_registry_validate_without_number_is_not_tracked(
     registry: pins.PinRegistry,
 ) -> None:

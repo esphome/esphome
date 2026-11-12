@@ -94,6 +94,16 @@ class PinRegistry(dict):
         pin_key = (key, id, number)
         return len(self.pins_used[pin_key]) if pin_key in self.pins_used else 0
 
+    def get_user_paths(self, key, id, number) -> list[list[str | int]]:
+        """
+        Get the config paths of the places a given pin is used.
+        :param key: The key of the registered pin schema.
+        :param id: The ID of the defining component
+        :param number: The pin number
+        :return: One config path per use, empty if the pin is unused.
+        """
+        return [path for path, _, _ in self.pins_used.get((key, id, number), [])]
+
     def register(self, name, schema, final_validate=None):
         """
         Register a pin schema
