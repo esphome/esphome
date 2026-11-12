@@ -34,6 +34,9 @@ def test_calibration_tables_are_shared_progmem(
     assert main_cpp.count(f"sensor::CalibrateLinearFilter({exact});") == 2
     # A single segment needs no table: its function is baked into an apply filter
     assert "return x * 2.0f + 1.0f;" in main_cpp
+    # So does an exact one, from two points or from collinear points
+    assert "return x * 2.0f + 3.0f;" in main_cpp
+    assert "return x * 3.0f + 5.0f;" in main_cpp
 
     poly = re.search(
         r"static constexpr float (\w+)\[\] PROGMEM = \{2\.0f, 1\.0f, 2\.0f\};", main_cpp
