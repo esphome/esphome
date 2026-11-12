@@ -60,7 +60,9 @@ void RemoteTransmitterComponent::await_target_time_(int32_t lead_us) {
 void RemoteTransmitterComponent::write_at_target_(bool value) {
   std::optional<InterruptLock> edge_lock;
   if (LOCK_PER_EDGE) {
-    this->await_target_time_(EDGE_LOCK_US);
+    // The first edge anchors the frame, so it takes the time under the lock, right before the write
+    if (this->target_time_ != 0)
+      this->await_target_time_(EDGE_LOCK_US);
     edge_lock.emplace();
   }
   this->await_target_time_();
