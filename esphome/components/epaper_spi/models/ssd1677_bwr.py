@@ -11,6 +11,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_DIMENSIONS,
+    CONF_HEIGHT,
     CONF_OFFSET_HEIGHT,
     CONF_RESET_PIN,
     CONF_WIDTH,
@@ -51,17 +52,18 @@ class SSD1677BWR(EpaperModel):
                 f"The panel width must not exceed {SOURCE_COUNT} sources",
                 path=[CONF_DIMENSIONS, CONF_WIDTH],
             )
+        # The model's defaults fit, so this fails only with explicit dimensions, which always have a height
         if self.get_offset_height(config) + height > GATE_COUNT:
             raise cv.Invalid(
                 f"{CONF_OFFSET_HEIGHT} plus the panel height must not exceed {GATE_COUNT} gates",
-                path=[CONF_DIMENSIONS, CONF_OFFSET_HEIGHT],
+                path=[CONF_DIMENSIONS, CONF_HEIGHT],
             )
         return config
 
-    def get_constructor_args(self, config) -> tuple:
+    def get_constructor_args(self, config: ConfigType) -> tuple:
         return (self.get_offset_height(config),)
 
-    def get_init_sequence(self, config):
+    def get_init_sequence(self, config: ConfigType) -> tuple:
         """Follow Waveshare's EPD_7in5b_HD init, less the steps the driver does itself.
 
         The RAM window is set before each push, the RAM fills (0x46, 0x47) are not needed as both

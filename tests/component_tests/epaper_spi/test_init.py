@@ -711,20 +711,24 @@ def test_waveshare_7p5in_hd_b_uses_the_ssd1677_bwr_driver() -> None:
 
 
 @pytest.mark.parametrize(
-    ("dimensions", "error"),
+    ("dimensions", "error", "error_key"),
     [
-        ({"width": 880, "height": 528}, None),
+        ({"width": 880, "height": 528}, None, None),
         (
             {"width": 880, "height": 528, "offset_height": 153},
             "must not exceed 680 gates",
+            "height",
         ),
-        ({"width": 880, "height": 680, "offset_height": 0}, None),
+        ({"width": 880, "height": 680, "offset_height": 0}, None, None),
         (
             {"width": 880, "height": 681, "offset_height": 0},
             "must not exceed 680 gates",
+            "height",
         ),
-        ({"width": 960, "height": 528}, None),
-        ({"width": 968, "height": 528}, "must not exceed 960 sources"),
+        # offset_height not written: the model's 152 applies, and the error must not point at a missing key
+        ({"width": 880, "height": 529}, "must not exceed 680 gates", "height"),
+        ({"width": 960, "height": 528}, None, None),
+        ({"width": 968, "height": 528}, "must not exceed 960 sources", "width"),
     ],
 )
 def test_waveshare_7p5in_hd_b_dimensions_must_fit_the_controller(
@@ -732,6 +736,7 @@ def test_waveshare_7p5in_hd_b_dimensions_must_fit_the_controller(
     set_component_config: Callable[[str, Any], None],
     dimensions: dict[str, int],
     error: str | None,
+    error_key: str | None,
 ) -> None:
     """The SSD1677 has 960 sources for the width and 680 gates for offset_height plus the height."""
     set_core_config(
@@ -751,8 +756,9 @@ def test_waveshare_7p5in_hd_b_dimensions_must_fit_the_controller(
     if error is None:
         run_schema_validation(config)
     else:
-        with pytest.raises(cv.Invalid, match=error):
+        with pytest.raises(cv.Invalid, match=error) as exc_info:
             run_schema_validation(config)
+        assert exc_info.value.path[-2:] == ["dimensions", error_key]
 
 
 def test_gdey029z95_uses_the_good_display_driver() -> None:
