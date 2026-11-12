@@ -59,11 +59,22 @@ def install_toolchain(framework_path: Path, toolchain: str) -> Path:
     sdk_version = _read_sdk_version(framework_path)
     sdk_path = _get_toolchain_path(sdk_version, toolchain)
     cutoff = time.time() - _STALE_DOWNLOAD_AGE
+
+    def _keep_leftover(leftover: Path) -> bool:
+        part = leftover.with_name(leftover.name.removesuffix(".meta"))
+        for candidate in (part, part.with_name(f"{part.name}.meta")):
+            try:
+                if candidate.stat().st_mtime >= cutoff:
+                    return True
+            except FileNotFoundError:
+                continue
+        return False
+
     ensure_sdk(
         sdk_path,
         sdk_version,
         toolchain,
-        keep_leftover=lambda leftover: leftover.stat().st_mtime >= cutoff,
+        keep_leftover=_keep_leftover,
         lock_root=get_zephyr_tools_path(),
     )
     return sdk_path
