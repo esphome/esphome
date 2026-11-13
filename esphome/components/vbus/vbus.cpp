@@ -8,11 +8,14 @@ namespace esphome::vbus {
 
 ESPHOME_LOG_TAG(TAG, "vbus");
 
-// Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
+// Longer payloads are truncated in the verbose hex log rather than growing the stack buffer
+// (16 frames * 4 bytes = 64 bytes typical).
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
+// Payload bytes are transmitted with bit 7 cleared; the septet byte carries the stripped bits,
+// least significant bit first, for the `count` bytes starting at `start`.
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   for (int i = 0; i < count; i++, septet >>= 1) {
     if (septet & 1)
@@ -20,6 +23,7 @@ static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   }
 }
 
+// The checksum byte is part of the checksummed range, so a valid block sums back to zero.
 static bool checksum(const uint8_t *data, int start, int count) {
   uint8_t csum = 0x7f;
   for (int i = 0; i < count; i++)
@@ -30,18 +34,18 @@ static bool checksum(const uint8_t *data, int start, int count) {
 void VBus::loop() {
   this->read_available([this](uint8_t c) {
     if (c == 0xaa) {
-      this->state_ = 1;
+      this->state_ = ParseState::PARSE_STATE_HEADER;
       this->buffer_.clear();
       return;
     }
     if (c & 0x80) {
-      this->state_ = 0;
+      this->state_ = ParseState::PARSE_STATE_IDLE;
       return;
     }
-    if (this->state_ == 0)
+    if (this->state_ == ParseState::PARSE_STATE_IDLE)
       return;
 
-    if (this->state_ == 1) {
+    if (this->state_ == ParseState::PARSE_STATE_HEADER) {
       this->buffer_.push_back(c);
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
@@ -50,7 +54,7 @@ void VBus::loop() {
         this->command_ = (this->buffer_[6] << 8) + this->buffer_[5];
       }
       if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
-        this->state_ = 0;
+        this->state_ = ParseState::PARSE_STATE_IDLE;
         if (!checksum(this->buffer_.data(), 0, 15)) {
           ESP_LOGE(TAG, "P2 checksum failed");
           return;
@@ -58,39 +62,40 @@ void VBus::loop() {
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
         uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
-        ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
+        ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
         if (!checksum(this->buffer_.data(), 0, 9)) {
           ESP_LOGE(TAG, "P1 checksum failed");
-          this->state_ = 0;
+          this->state_ = ParseState::PARSE_STATE_IDLE;
           return;
         }
         this->frames_ = this->buffer_[7];
         if (this->frames_) {
-          this->state_ = 2;
+          this->state_ = ParseState::PARSE_STATE_FRAMES;
           this->cframe_ = 0;
           this->fbcount_ = 0;
           this->buffer_.clear();
         } else {
-          this->state_ = 0;
+          this->state_ = ParseState::PARSE_STATE_IDLE;
           ESP_LOGD(TAG, "P1 empty message");
         }
       } else if (this->buffer_.size() > 15) {
         ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
-        this->state_ = 0;
+        this->state_ = ParseState::PARSE_STATE_IDLE;
       }
       return;
     }
 
-    if (this->state_ == 2) {
+    if (this->state_ == ParseState::PARSE_STATE_FRAMES) {
       this->fbytes_[this->fbcount_++] = c;
       if (this->fbcount_ < 6)
         return;
       this->fbcount_ = 0;
       if (!checksum(this->fbytes_, 0, 6)) {
+        // Dropping just this frame would shift every later frame into the wrong payload offset.
         ESP_LOGE(TAG, "frame checksum failed");
-        this->state_ = 0;
+        this->state_ = ParseState::PARSE_STATE_IDLE;
         return;
       }
       septet_spread(this->fbytes_, 0, 4, this->fbytes_[4]);
@@ -102,11 +107,11 @@ void VBus::loop() {
       char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
       size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
 #endif
-      ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
+      ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
                format_hex_to(hex_buf, this->buffer_.data(), log_bytes));
       for (auto &listener : this->listeners_)
         listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
-      this->state_ = 0;
+      this->state_ = ParseState::PARSE_STATE_IDLE;
       return;
     }
   });
