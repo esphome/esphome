@@ -103,14 +103,8 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
   /// Handles a complete frame.
   bool handle_frame_();
 
-  /// Reset STM32 with the BOOT0 pin set to the given value.
+  /// Reset STM32 into the bootloader (boot0) or the firmware, with the UART parity each needs.
   void reset_(bool boot0);
-
-  /// Reset STM32 to boot the regular firmware.
-  void reset_normal_boot_();
-
-  /// Reset STM32 to boot into DFU mode to enable firmware upgrades.
-  void reset_dfu_boot_();
 };
 
 }  // namespace esphome::shelly_dimmer

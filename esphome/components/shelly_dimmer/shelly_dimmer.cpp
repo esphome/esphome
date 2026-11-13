@@ -8,10 +8,6 @@
 #include "stm32flash.h"
 #endif
 
-#ifndef USE_ESP_IDF
-#include <HardwareSerial.h>
-#endif
-
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -70,7 +66,7 @@ bool ShellyDimmer::is_running_configured_version() const {
 
 void ShellyDimmer::handle_firmware() {
   // Reset the STM32 and check the firmware version.
-  this->reset_normal_boot_();
+  this->reset_(false);
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
   ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
            this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION, USE_SHD_FIRMWARE_MINOR_VERSION);
@@ -83,7 +79,7 @@ void ShellyDimmer::handle_firmware() {
       return;
     }
 
-    this->reset_normal_boot_();
+    this->reset_(false);
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
     if (!this->setup_check(is_running_configured_version(),
                            LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
@@ -151,7 +147,7 @@ void ShellyDimmer::write_state(light::LightState *state) {
 #ifdef USE_SHD_FIRMWARE_DATA
 bool ShellyDimmer::upgrade_firmware_() {
   ESP_LOGW(TAG, "Starting STM32 firmware upgrade");
-  this->reset_dfu_boot_();
+  this->reset_(true);
 
   // Cleanup with RAII
   auto stm32 = stm32_init(this, STREAM_SERIAL, 1);
@@ -468,6 +464,11 @@ bool ShellyDimmer::handle_frame_() {
 void ShellyDimmer::reset_(bool boot0) {
   ESP_LOGD(TAG, "Reset STM32, boot0=%d", boot0);
 
+  // The STM32 bootloader needs even parity, the regular firmware none
+  this->parent_->set_parity(boot0 ? uart::UART_CONFIG_PARITY_EVEN : uart::UART_CONFIG_PARITY_NONE);
+  this->parent_->load_settings(false);
+  this->flush();
+
   this->pin_boot0_->digital_write(boot0);
   this->pin_nrst_->digital_write(false);
 
@@ -481,32 +482,6 @@ void ShellyDimmer::reset_(bool boot0) {
   delay(50);  // NOLINT
 
   ESP_LOGD(TAG, "Reset STM32 done");
-}
-
-void ShellyDimmer::reset_normal_boot_() {
-  // set NONE parity in normal mode
-
-#ifndef USE_ESP_IDF  // workaround for reconfiguring the uart
-  Serial.end();
-  Serial.begin(115200, SERIAL_8N1);
-  Serial.flush();
-#endif
-
-  this->flush();
-  this->reset_(false);
-}
-
-void ShellyDimmer::reset_dfu_boot_() {
-  // set EVEN parity in bootloader mode
-
-#ifndef USE_ESP_IDF  // workaround for reconfiguring the uart
-  Serial.end();
-  Serial.begin(115200, SERIAL_8E1);
-  Serial.flush();
-#endif
-
-  this->flush();
-  this->reset_(true);
 }
 
 }  // namespace esphome::shelly_dimmer
