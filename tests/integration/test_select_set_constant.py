@@ -19,6 +19,9 @@ async def test_select_set_constant(
 ) -> None:
     waiter_log = LineWaiter()
     invalid_lambda = waiter_log.expect("'Picked': Invalid option turbo")
+    # An unknown constant keeps the lookup by text and its warning, never a compiled index
+    invalid_constant = waiter_log.expect("'Fan' - No option set")
+    out_of_bounds = waiter_log.expect("out of bounds")
     async with (
         run_compiled(yaml_config, line_callback=waiter_log.callback),
         api_client_connected() as client,
@@ -38,6 +41,8 @@ async def test_select_set_constant(
         # An option the select does not have changes nothing; the next press is the next state
         client.button_command(require_entity(entities, "set_invalid").key)
         assert await press("set_medium", fan.key) == "medium"
+        await wait_or_fail(invalid_constant, 5.0, "invalid constant was not logged")
+        assert not out_of_bounds.done()
 
         assert await press("pick_high", picked.key) == "high"
         client.button_command(require_entity(entities, "pick_invalid").key)
