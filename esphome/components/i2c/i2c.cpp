@@ -18,7 +18,7 @@ void I2CBus::i2c_scan_() {
   uint8_t results[SCAN_END_ADDRESS - SCAN_FIRST_ADDRESS];
   size_t count = 0;
   for (uint8_t address = SCAN_FIRST_ADDRESS; address != SCAN_END_ADDRESS; address++) {
-    auto err = write_readv(address, nullptr, 0, nullptr, 0);
+    auto err = this->write_readv(address, nullptr, 0, nullptr, 0);
     if (err == ERROR_OK) {
       results[count++] = address;
     } else if (err == ERROR_UNKNOWN) {
