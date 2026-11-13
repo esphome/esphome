@@ -182,10 +182,10 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #endif
 }
 
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
 void Logger::loop() {
   this->process_messages_();
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
   this->cdc_loop_();
 #endif
 }
@@ -212,7 +212,7 @@ void Logger::process_messages_() {
     }
   }
   // Zephyr with USB CDC keeps the loop running for cdc_loop_()
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#ifndef USE_LOGGER_ZEPHYR_CDC_LOOP
   else {
     // A concurrent enable_loop_soon_any_context() still wakes the next iteration
     this->disable_loop();
@@ -304,6 +304,25 @@ PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG",
 static const LogString *get_log_level_str(uint8_t level) {
   return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
 }
+
+#ifndef USE_HOST
+const LogString *Logger::get_uart_selection_() {
+#ifdef USE_LOGGER_UART_SELECTION_DEFAULT
+  // LibreTiny resolves DEFAULT to the board's port only when serial logging is on
+  if (this->baud_rate_ > 0) {
+    switch (this->get_uart()) {
+      case UART_SELECTION_UART0:
+        return LOG_STR("UART0");
+      case UART_SELECTION_UART1:
+        return LOG_STR("UART1");
+      default:
+        return LOG_STR("UART2");
+    }
+  }
+#endif
+  return LOG_STR(ESPHOME_LOGGER_UART_NAME);
+}
+#endif
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,

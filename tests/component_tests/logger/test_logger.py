@@ -68,38 +68,6 @@ def test_logger_pre_setup_before_other_components(generate_main):
         )
 
 
-def test_default_uart_selection_is_not_emitted(generate_main):
-    """UART0 is the C++ initializer on ESP8266, so the setter is skipped."""
-    main_cpp = generate_main("tests/component_tests/logger/test_logger.yaml")
-
-    assert "set_uart_selection(" not in main_cpp
-
-
-def test_custom_uart_selection_is_emitted(generate_main):
-    """A non default UART still reaches the setter before pre_setup()."""
-    main_cpp = generate_main("tests/component_tests/logger/test_logger_uart1.yaml")
-
-    assert "set_uart_selection(logger::UART_SELECTION_UART1);" in main_cpp
-
-
-def test_libretiny_default_uart_selection_is_not_emitted(generate_main):
-    """DEFAULT is the C++ initializer on LibreTiny, so the setter is skipped."""
-    main_cpp = generate_main(
-        "tests/component_tests/logger/test_logger_libretiny_default.yaml"
-    )
-
-    assert "set_uart_selection(" not in main_cpp
-
-
-def test_libretiny_uart0_is_emitted(generate_main):
-    """UART0 is not the LibreTiny initializer, so it must still be set."""
-    main_cpp = generate_main(
-        "tests/component_tests/logger/test_logger_libretiny_uart0.yaml"
-    )
-
-    assert "set_uart_selection(logger::UART_SELECTION_UART0);" in main_cpp
-
-
 def test_ram_log_strings_is_deprecated(
     generate_main: Callable[[str | Path], str],
     caplog: pytest.LogCaptureFixture,
@@ -168,35 +136,97 @@ def test_log_v2_only_on_native_toolchain(
 
 
 @pytest.mark.parametrize(
-    ("config", "expected"),
+    ("config", "port", "name", "zephyr_cdc_loop"),
     [
-        pytest.param("test_logger_rp2_usb_cdc.yaml", {"USB_CDC"}, id="rp2_usb_cdc"),
-        pytest.param("test_logger_rp2_uart0.yaml", set(), id="rp2_uart0"),
-        pytest.param("test_logger_esp32_usb_cdc.yaml", {"USB_CDC"}, id="esp32_usb_cdc"),
+        pytest.param("test_logger.yaml", "UART0", "UART0", False, id="esp8266_default"),
+        pytest.param(
+            "test_logger_uart1.yaml", "UART1", "UART1", False, id="esp8266_uart1"
+        ),
+        pytest.param(
+            "test_logger_uart0_swap.yaml",
+            "UART0_SWAP",
+            "UART0_SWAP",
+            False,
+            id="esp8266_uart0_swap",
+        ),
+        # ESP8266 without serial logging never opens a port
+        pytest.param(
+            "test_logger_no_serial.yaml", "UART0", "NONE", False, id="esp8266_no_serial"
+        ),
+        pytest.param(
+            "test_logger_libretiny_default.yaml",
+            "DEFAULT",
+            "DEFAULT",
+            False,
+            id="libretiny_default",
+        ),
+        pytest.param(
+            "test_logger_libretiny_uart0.yaml",
+            "UART0",
+            "UART0",
+            False,
+            id="libretiny_uart0",
+        ),
+        pytest.param(
+            "test_logger_rp2_usb_cdc.yaml",
+            "USB_CDC",
+            "USB_CDC",
+            False,
+            id="rp2_usb_cdc",
+        ),
+        pytest.param(
+            "test_logger_rp2_uart0.yaml", "UART0", "UART0", False, id="rp2_uart0"
+        ),
+        pytest.param(
+            "test_logger_esp32_usb_cdc.yaml",
+            "USB_CDC",
+            "USB_CDC",
+            False,
+            id="esp32_usb_cdc",
+        ),
         pytest.param(
             "test_logger_esp32_usb_serial_jtag.yaml",
-            {"USB_SERIAL_JTAG"},
+            "USB_SERIAL_JTAG",
+            "USB_SERIAL_JTAG",
+            False,
             id="esp32_usb_serial_jtag",
         ),
-        pytest.param("test_logger_nrf52_usb_cdc.yaml", {"USB_CDC"}, id="nrf52_usb_cdc"),
+        pytest.param(
+            "test_logger_nrf52_usb_cdc.yaml",
+            "USB_CDC",
+            "USB_CDC",
+            True,
+            id="nrf52_usb_cdc",
+        ),
         # Zephyr polls the USB port only when it logs there
         pytest.param(
-            "test_logger_nrf52_usb_cdc_no_serial.yaml", set(), id="nrf52_no_serial"
+            "test_logger_nrf52_usb_cdc_no_serial.yaml",
+            "USB_CDC",
+            "USB_CDC",
+            False,
+            id="nrf52_no_serial",
         ),
     ],
 )
 def test_uart_selection_defines(
     generate_main: Callable[[str | Path], str],
     config: str,
-    expected: set[str],
+    port: str,
+    name: str,
+    zephyr_cdc_loop: bool,
 ) -> None:
-    """USB ports get a selection define, which gates their port code and crash replay."""
+    """The chosen port is fixed at build time: one flag, its enum value and its dump_config name."""
     generate_main(f"tests/component_tests/logger/{config}")
 
+    defines = {d.name: d.value for d in CORE.defines}
     prefix = "USE_LOGGER_UART_SELECTION_"
-    assert {
-        d.name.removeprefix(prefix) for d in CORE.defines if d.name.startswith(prefix)
-    } == expected
+    assert {d.removeprefix(prefix) for d in defines if d.startswith(prefix)} == {port}
+    assert (
+        str(defines["ESPHOME_LOGGER_UART_SELECTION"])
+        == f"logger::UART_SELECTION_{port}"
+    )
+    assert str(defines["ESPHOME_LOGGER_UART_NAME"]) == f'"{name}"'
+    assert ("USE_LOGGER_ZEPHYR_CDC_LOOP" in defines) is zephyr_cdc_loop
 
 
 def test_log_listener_slots_count_every_listener(

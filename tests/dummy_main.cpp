@@ -17,7 +17,6 @@ void setup() {
   App.pre_setup(name, sizeof(name) - 1, friendly_name, sizeof(friendly_name) - 1);
   auto *log = new logger::Logger(115200);  // NOLINT
   log->pre_setup();
-  log->set_uart_selection(logger::UART_SELECTION_UART0);
   App.register_component_(log);
 
   auto *wifi = new wifi::WiFiComponent();  // NOLINT
