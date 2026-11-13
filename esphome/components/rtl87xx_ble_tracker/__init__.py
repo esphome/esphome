@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERVAL,
 )
-from esphome.core import ID, TimePeriod
+from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["rtl87xx"]
@@ -43,8 +43,6 @@ rtl87xx_ble_tracker_ns = cg.esphome_ns.namespace("rtl87xx_ble_tracker")
 RTL87xxBLETracker = rtl87xx_ble_tracker_ns.class_(
     "RTL87xxBLETracker", ble_device_base.BLEHub, cg.Component
 )
-
-StartScanAction = rtl87xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
 
 BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
@@ -118,28 +116,9 @@ async def to_code(config: ConfigType) -> None:
         await ble_automation.scan_end_trigger_to_code(conf, var)
 
 
-@automation.register_action(
-    "rtl87xx_ble_tracker.start_scan",
-    StartScanAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(RTL87xxBLETracker),
-            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
-        }
-    ),
-    synchronous=True,
+ble_automation.register_start_scan_action(
+    "rtl87xx_ble_tracker.start_scan", RTL87xxBLETracker
 )
-async def start_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
-        cg.add(var.set_continuous(await cg.templatable(continuous, args, cg.bool_)))
-    return var
 
 
 automation.register_apply_action(

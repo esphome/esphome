@@ -30,11 +30,22 @@ def test_trigger_codegen(
     # Service/manufacturer data triggers come from the shared ble_device_base
     # codegen (full matrix in the esp32_ble_tracker test); check it ran here.
     assert len(ble_adv_matches(main_cpp)) == 5
-    # scan-control actions: templatable continuous lambda, and stop_scan as an apply action.
-    # Exactly one set_continuous: the bare start_scan emits none, pinning the
-    # restore-configured-mode divergence from esp32 against a future default=.
-    assert main_cpp.count("->set_continuous(") == 1
-    assert "startscanaction_id->set_continuous(" in main_cpp
+    # scan-control actions: start_scan calls ble_device_base::start_scan and stop_scan
+    # goes straight to the tracker, with no action class.
+    # A set continuous passes as is; the bare start_scan passes the configured mode,
+    # pinning the restore-configured-mode divergence from esp32 against a future default=.
+    assert (
+        main_cpp.count(
+            "ble_device_base::start_scan(::rtl87xx_ble_tracker_rtl87xxbletracker_id, true);"
+        )
+        == 1
+    )
+    assert (
+        main_cpp.count(
+            "::rtl87xx_ble_tracker_rtl87xxbletracker_id->configured_continuous());"
+        )
+        == 1
+    )
     assert "_rtl87xxbletracker_id->stop_scan();" in main_cpp
     # scan_parameters continuous: false reaches the YAML-mode setter, not the
     # runtime override.

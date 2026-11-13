@@ -3,7 +3,7 @@
 # compiles the rtl87xx_ble C++. AmebaD stays validate-only until a release
 # carries realtek-ambd.
 esphome:
-  on_boot:  # instantiates automation.h's action templates in a real build
+  on_boot:  # builds the start_scan and stop_scan actions in a real build
     then:
       - rtl87xx_ble_tracker.start_scan:
           continuous: true
