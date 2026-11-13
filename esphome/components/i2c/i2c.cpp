@@ -1,5 +1,7 @@
 #include "i2c.h"
 
+#include <span>
+
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
