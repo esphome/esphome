@@ -1,0 +1,42 @@
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+logger:
+
+interval:
+  - interval: 1s
+    then:
+      - logger.log: inline tick
+      - lambda: ESP_LOGD("test", "inline lambda");
+  - interval: 2s
+    startup_delay: 5s
+    then:
+      - logger.log: delayed start tick
+  - interval: 3s
+    then:
+      - logger.log: before delay
+      - delay: 10ms
+      - logger.log: after delay
+  - id: named_interval
+    interval: 4s
+    startup_delay: 3s
+    then:
+      - logger.log: named tick
+  - interval: 5s
+    setup_priority: 250
+    then:
+      # The script is declared later, so building this action waits for it
+      - script.execute: later_script
+
+script:
+  - id: later_script
+    then:
+      - logger.log: script ran
+
+sensor:
+  - platform: template
+    id: some_sensor
+    lambda: return 1.0;
