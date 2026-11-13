@@ -658,13 +658,21 @@ def test_register_field_is_on_reads_a_set_bit_directly() -> None:
     assert str(cg.RegisterField(register=2).shifted(status)) == "(status[2] >> 0)"
 
 
-@pytest.mark.parametrize(("mask", "on"), [(0x3F, (1,)), (0x01, (2,)), (0x03, (4,))])
+@pytest.mark.parametrize(("mask", "on"), [(0x01, (2,)), (0x03, (4,))])
 def test_register_field_rejects_values_outside_the_field(
     mask: int, on: tuple[int, ...]
 ) -> None:
-    """A mask over 0x1F or an on value outside the field would be an undefined C++ shift."""
-    with pytest.raises(ValueError, match="at most 0x1F"):
+    """An on value outside the field would be an undefined C++ shift."""
+    with pytest.raises(ValueError, match="a value of the field"):
         cg.RegisterField(register=0, mask=mask, on=on)
+
+
+def test_register_field_wide_mask_is_text_only() -> None:
+    """A text field can be 6 bits wide; only the binary bitmap is limited to 0x1F."""
+    field = cg.RegisterField(register=0, mask=0x3F)
+    assert str(field.shifted(MockObj("status"))) == "(status[0] >> 0)"
+    with pytest.raises(ValueError, match="at most 0x1F"):
+        field.is_on(MockObj("status"))
 
 
 def test_add_table_on_change_declares_last_and_publishes() -> None:

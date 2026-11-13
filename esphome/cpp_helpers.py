@@ -404,10 +404,10 @@ class RegisterField:
 
     def __post_init__(self) -> None:
         # Checked when the table row is built, so a bad row fails on import, not only when configured
-        if self.mask > 0x1F or any(value & ~self.mask for value in self.on):
+        if any(value & ~self.mask for value in self.on):
             raise ValueError(
                 f"RegisterField mask {self.mask:#x} with on values {self.on}: "
-                "the mask must be at most 0x1F and every on value a value of the field"
+                "every on value must be a value of the field"
             )
 
     def shifted(self, values: MockObj) -> MockObj:
@@ -420,6 +420,11 @@ class RegisterField:
         A one-bit field on at 1 is ``((status[1] >> 7) & 0x01)``; any other is a lookup in a bitmap of the
         on values, ``((0b0110 >> ((status[0] >> 5) & 0x03)) & 1)`` for ``mask=0x03, on=(1, 2)``.
         """
+        # The bitmap is shifted by the field value, so wider fields would be an undefined C++ shift
+        if self.mask > 0x1F:
+            raise ValueError(
+                f"RegisterField mask {self.mask:#x}: a binary field's mask must be at most 0x1F"
+            )
         bits = self.shifted(values) & HexIntLiteral(self.mask)
         if self.mask == 0x01 and self.on == (1,):
             return bits
