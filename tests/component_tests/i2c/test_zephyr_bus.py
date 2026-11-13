@@ -7,6 +7,8 @@ import pytest
 
 from esphome.components.zephyr import zephyr_data
 from esphome.components.zephyr.const import KEY_OVERLAY
+from esphome.config import read_config
+from esphome.core import CORE
 
 
 @pytest.mark.parametrize(
@@ -32,3 +34,14 @@ def test_zephyr_i2c_instance(
     assert "<NRF_PSEL(TWIM_SCL, 1, 8)>" in overlay
     assert f"{label}_default: {label}_default {{" in overlay
     assert (f"pinctrl-0 = <&{label}_default>;" in overlay) is enabled_here
+
+
+def test_zephyr_i2c_rejects_pin_outside_bus_domain(
+    component_config_path: Callable[[str], Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Port 3 shares the bus's power domain on the nRF54LM20, port 0 does not
+    CORE.config_path = component_config_path("zephyr_nrf54lm20dk_port0.yaml")
+    assert read_config({}) is None
+    assert "P0.04 is not in the power domain of the I2C bus; use a pin on P1 or P3" in (
+        capsys.readouterr().out
+    )
