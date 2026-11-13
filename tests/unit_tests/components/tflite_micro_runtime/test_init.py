@@ -9,7 +9,11 @@ import pytest
 from esphome import cpp_types as ct
 from esphome.components import tflite_micro_runtime as tflm
 from esphome.components.tflite_micro_runtime import schema as tflm_schema
-from esphome.components.tflite_op_processor.model_reader import ArenaEstimate
+from esphome.components.tflite_op_processor.model_reader import (
+    ArenaEstimate,
+    ModelInput,
+    ModelReadError,
+)
 import esphome.config_validation as cv
 from esphome.core import CORE, ID, Define, EsphomeError
 
@@ -32,6 +36,10 @@ def _image_report(**values: object) -> dict:
 ARENA_ESTIMATE = ArenaEstimate(
     bytes=28672, peak_activation_bytes=12800, tensor_count=31
 )
+
+# What read_model_input() makes of a test model. It differs from _image_report()
+# so a test can tell which of the two supplied a value.
+MODEL_INPUT = ModelInput(height=32, width=20, channels=3, type="uint8")
 
 
 def test_report_values_are_validated_and_normalised() -> None:
@@ -80,17 +88,26 @@ def test_final_validate_accepts_a_supported_model(setup_core: Path) -> None:
         patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
         patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
         patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
     ):
         tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
 
 
-def test_final_validate_requires_the_image_shape(setup_core: Path) -> None:
+def test_final_validate_rejects_a_model_without_an_image_input(
+    setup_core: Path,
+) -> None:
+    """A streaming model's input has no width or height to configure."""
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
         patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
         patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
         patch.object(tflm, "parse_model_txt_file", return_value=None),
-        pytest.raises(cv.Invalid, match="digit.tflite"),
+        patch.object(
+            tflm,
+            "read_model_input",
+            side_effect=ModelReadError("digit.tflite: input tensor shape [1, 49, 40]"),
+        ),
+        pytest.raises(cv.Invalid, match=r"\[1, 49, 40\]"),
     ):
         tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
 
@@ -121,10 +138,11 @@ def test_final_validate_reports_a_broken_operator_report(setup_core: Path) -> No
         tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
 
 
-def test_yaml_input_geometry_overrides_the_report() -> None:
+def test_yaml_input_geometry_overrides_the_model() -> None:
     var = MagicMock()
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
     ):
@@ -135,9 +153,9 @@ def test_yaml_input_geometry_overrides_the_report() -> None:
         )
 
     var.set_input_width.assert_called_once_with(32)
-    # Everything the YAML does not set still comes from the report.
-    var.set_input_height.assert_called_once_with(28)
-    var.set_input_channels.assert_called_once_with(1)
+    # Everything the YAML does not set comes from the model's input tensor.
+    var.set_input_height.assert_called_once_with(32)
+    var.set_input_channels.assert_called_once_with(3)
 
 
 def test_report_values_reach_the_setters_normalised() -> None:
@@ -148,13 +166,44 @@ def test_report_values_reach_the_setters_normalised() -> None:
     )
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch("esphome.codegen.add"),
     ):
         asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
 
     var.set_input_type.assert_called_once_with(tflm_schema.INPUT_TYPES["uint8"])
-    var.set_input_width.assert_called_once_with(28)
     var.set_tensor_arena_size.assert_called_once_with(200 * 1024)
+
+
+def test_the_model_shape_wins_over_a_stale_report() -> None:
+    """The .txt can be left over from another model; the model itself cannot."""
+    var = MagicMock()
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    var.set_input_width.assert_called_once_with(MODEL_INPUT.width)
+    var.set_input_height.assert_called_once_with(MODEL_INPUT.height)
+    var.set_input_channels.assert_called_once_with(MODEL_INPUT.channels)
+
+
+def test_a_one_channel_model_is_read_in_gray() -> None:
+    """A single channel cannot be in a colour order, whatever the file name says."""
+    var = MagicMock()
+    gray = ModelInput(height=32, width=20, channels=1, type="uint8")
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=gray),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    var.set_input_order.assert_called_once_with(tflm_schema.INPUT_ORDERS["GRAY"])
 
 
 def test_report_output_processing_alias_reaches_the_setter_as_its_mode() -> None:
@@ -162,6 +211,7 @@ def test_report_output_processing_alias_reaches_the_setter_as_its_mode() -> None
     report = _image_report(output_processing="logits_jomjol")
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
     ):
@@ -189,6 +239,7 @@ def test_filename_conventions_are_validated() -> None:
     }
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(
             tflm,
             "infer_model_config_from_filename",
@@ -202,19 +253,27 @@ def test_filename_conventions_are_validated() -> None:
     var.set_input_order.assert_called_once_with(tflm_schema.INPUT_ORDERS["RGB"])
 
 
-def test_filename_conventions_without_a_shape_are_a_configuration_error() -> None:
+def test_the_model_supplies_the_shape_no_report_has() -> None:
+    """A model without a .txt report or a usable file name is still configurable."""
+    var = MagicMock()
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(tflm, "infer_model_config_from_filename", return_value={}),
+        patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
-        pytest.raises(cv.Invalid, match="no input_width"),
     ):
-        asyncio.run(tflm._configure_image_model({}, MagicMock(), MODEL_PATH))
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    var.set_input_width.assert_called_once_with(MODEL_INPUT.width)
+    var.set_input_height.assert_called_once_with(MODEL_INPUT.height)
+    var.set_input_type.assert_called_once_with(tflm_schema.INPUT_TYPES["uint8"])
 
 
 def test_unusable_filename_conventions_are_a_configuration_error() -> None:
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(
             tflm,
             "infer_model_config_from_filename",
@@ -400,6 +459,7 @@ def test_image_arena_is_seeded_from_the_model(setup_core: Path) -> None:
     var = MagicMock()
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(tflm, "estimate_tensor_arena", return_value=ARENA_ESTIMATE),
         patch("esphome.codegen.add"),
     ):
@@ -414,6 +474,7 @@ def test_a_configured_arena_size_is_not_estimated(setup_core: Path) -> None:
     report = _image_report(tensor_arena_size="200KB")
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
         patch.object(tflm, "estimate_tensor_arena") as estimate,
         patch("esphome.codegen.add"),
     ):

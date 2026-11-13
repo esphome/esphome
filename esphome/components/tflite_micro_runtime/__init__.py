@@ -20,7 +20,10 @@ from esphome.components.tflite_op_processor import (
     emit_all_ops,
     emit_selective_op_defines,
 )
-from esphome.components.tflite_op_processor.model_reader import estimate_tensor_arena
+from esphome.components.tflite_op_processor.model_reader import (
+    estimate_tensor_arena,
+    read_model_input,
+)
 from esphome.components.tflite_op_processor.op_manifest import (
     extract_model_ops,
     parse_op_table,
@@ -205,7 +208,7 @@ def _final_validate(config: ConfigType) -> None:
     model_path, _ = resolve_model_source(config)
     _validate_model_operators(model_path)
     if model_type == "image":
-        # Also rejects a model whose input shape no source provides.
+        # Also rejects a model whose input is not an image tensor.
         _resolve_image_config(config, model_path)
         return
     _report_values(model_path, model_type)
@@ -302,30 +305,29 @@ def _merge_report_values(
 
 
 def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
-    """The image configuration, with the YAML values applied over the report."""
-    model_filename = _model_filename(model_path)
+    """The image configuration: the model, then its report, then the YAML values."""
+    try:
+        model_input = read_model_input(model_path)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
     if (values := _report_values(model_path, "image")) is not None:
         auto_config = values
     else:
         auto_config = _validate_report_values(
-            infer_model_config_from_filename(model_filename),
+            infer_model_config_from_filename(_model_filename(model_path)),
             "image",
             model_path,
             source="the file name conventions",
         )
+    # The model is authoritative for its own input tensor, so its shape wins over a
+    # report that may be stale and supplies what no report or file name can.
+    auto_config[CONF_INPUT_HEIGHT] = model_input.height
+    auto_config[CONF_INPUT_WIDTH] = model_input.width
+    auto_config[CONF_INPUT_CHANNELS] = model_input.channels
+    auto_config[CONF_INPUT_TYPE] = model_input.type
+    if model_input.channels == 1:
+        auto_config[CONF_INPUT_ORDER] = "GRAY"  # one channel has no colour order
     _merge_report_values(auto_config, entry, _IMAGE_REPORT_KEYS)
-    if missing := [
-        key
-        for key in (CONF_INPUT_WIDTH, CONF_INPUT_HEIGHT)
-        if auto_config.get(key) is None
-    ]:
-        raise cv.Invalid(
-            f"Model '{model_filename}' has no {' or '.join(missing)}: neither its "
-            f".txt report nor the YAML configuration sets "
-            f"{'them' if len(missing) > 1 else 'it'}, and the file name conventions "
-            f"only describe the channel order. Set {' and '.join(missing)} for the "
-            "model."
-        )
     return auto_config
 
 
@@ -336,8 +338,8 @@ async def _configure_image_model(
     _LOGGER.info(
         "Image configuration for '%s': %s", _model_filename(model_path), auto_config
     )
-    cg.add(var.set_input_type(INPUT_TYPES[auto_config.get(CONF_INPUT_TYPE, "uint8")]))
-    cg.add(var.set_input_channels(auto_config.get(CONF_INPUT_CHANNELS, 3)))
+    cg.add(var.set_input_type(INPUT_TYPES[auto_config[CONF_INPUT_TYPE]]))
+    cg.add(var.set_input_channels(auto_config[CONF_INPUT_CHANNELS]))
     cg.add(var.set_input_width(auto_config[CONF_INPUT_WIDTH]))
     cg.add(var.set_input_height(auto_config[CONF_INPUT_HEIGHT]))
     # Through the table, so C++ only receives a mode tflite_output_processor implements.
