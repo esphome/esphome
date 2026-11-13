@@ -424,15 +424,29 @@ def test_fetch_with_the_project_only_checks_the_names(
 def test_fetch_without_a_record_fetches_again(
     workspace: Path, west: MagicMock, lose_config: bool
 ) -> None:
-    """Nothing says what the install has, so the wanted projects are fetched."""
+    """Nothing says what the install has, so the wanted projects are fetched with a
+    full update, which skips a required project the manifest lacks."""
     _mark_finished(workspace, None)
     if lose_config:
         (workspace / ".west" / "config").unlink()
 
     _fetch(workspace, {"zephyr", "hal_a"})
 
-    assert _subcommands(west) == ["list", "config", "update"]
-    assert _west_call(west, "update").args[0][-2:] == ["hal_a", "zephyr"]
+    assert _subcommands(west) == ["list", "config", "update", "list"]
+    assert _west_call(west, "update").args[0][-1] == "--fetch-opt=--depth=1"
+
+
+def test_fetch_of_a_new_required_project_updates_in_full(
+    workspace: Path, west: MagicMock
+) -> None:
+    """A stamp from before a project became required: west update by name would
+    fail on a version whose manifest lacks it."""
+    _mark_finished(workspace, "hal_a")
+
+    _fetch(workspace, {"zephyr", "hal_b"})
+
+    assert _west_call(west, "update").args[0][-1] == "--fetch-opt=--depth=1"
+    assert _project_filter(west) == "-hal_.*,+hal_a,+hal_b,+zephyr"
 
 
 @pytest.mark.parametrize(
@@ -520,7 +534,7 @@ def test_ensure_zephyr_requirements(
 ) -> None:
     """Installed when the venv was rebuilt, the marker is missing, or the
     workspace's requirements are newer than the marker."""
-    marker = tmp_path / "penv" / ".zephyr_reqs_ready"
+    marker = tmp_path / "penv" / ".zephyr_reqs_ready-sdk"
     if marker_age is not None:
         marker.touch()
         reqs_time = marker.stat().st_mtime - marker_age
@@ -544,4 +558,19 @@ def test_ensure_zephyr_requirements_raises_when_pip_fails(
     ):
         _ensure_zephyr_requirements(tmp_path)
 
-    assert not (tmp_path / "penv" / ".zephyr_reqs_ready").exists()
+    assert not (tmp_path / "penv" / ".zephyr_reqs_ready-sdk").exists()
+
+
+def test_each_workspace_sharing_the_penv_installs_its_requirements(
+    tmp_path: Path, zephyr_reqs: Path
+) -> None:
+    """Another workspace's newer marker does not stand for this one's install."""
+    marker = tmp_path / "penv" / ".zephyr_reqs_ready-other-sdk"
+    marker.touch()
+    reqs_time = marker.stat().st_mtime - 10
+    os.utime(zephyr_reqs, (reqs_time, reqs_time))
+
+    with patch.object(framework_helpers, "run_command_ok", return_value=True) as pip:
+        _ensure_zephyr_requirements(tmp_path)
+
+    assert pip.called

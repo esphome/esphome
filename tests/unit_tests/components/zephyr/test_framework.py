@@ -140,7 +140,7 @@ def test_installed_workspace_only_checks_the_hals(
     """Every build checks the names, so an unknown HAL fails on any workspace; a
     required HAL a later Zephyr dropped must not, so those are left out."""
     _mark_installed(workspace)
-    (zephyr_tools / "penvs" / VERSION / ".zephyr_reqs_ready").touch()
+    (zephyr_tools / "penvs" / VERSION / f".zephyr_reqs_ready-zephyr-{VERSION}").touch()
 
     _check_and_install()
 
@@ -164,7 +164,7 @@ def test_new_hal_fetches_only_that_hal(
 ) -> None:
     """A workspace only gains HALs; the projects already there are left alone."""
     _mark_installed(workspace, frozenset({"hal_nordic"}))
-    (zephyr_tools / "penvs" / VERSION / ".zephyr_reqs_ready").touch()
+    (zephyr_tools / "penvs" / VERSION / f".zephyr_reqs_ready-zephyr-{VERSION}").touch()
 
     _check_and_install()
 
@@ -183,7 +183,9 @@ def test_rebuilt_venv_reinstalls_only_zephyr_requirements(
         _check_and_install()
 
     assert _subcommands(mock_west) == ["list", "install"]
-    assert (zephyr_tools / "penvs" / VERSION / ".zephyr_reqs_ready").exists()
+    assert (
+        zephyr_tools / "penvs" / VERSION / f".zephyr_reqs_ready-zephyr-{VERSION}"
+    ).exists()
 
 
 def test_installed_workspace_gets_the_patches(
