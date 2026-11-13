@@ -300,7 +300,6 @@ void CC1101Component::begin_tx() {
 
 void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Beginning RX sequence");
-  this->write_(Register::PKTCTRL0);
   this->end_tx_();
   // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
   this->enter_idle_();
@@ -318,6 +317,8 @@ void CC1101Component::reset() {
 
 void CC1101Component::end_tx_() {
   this->transmitting_ = false;
+  // begin_tx() put only the chip in async serial mode; state_ still holds the configured value
+  this->write_(Register::PKTCTRL0);
   if (this->gdo0_pin_ == nullptr)
     return;
   this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
@@ -481,7 +482,6 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   // Write packet
   this->enter_idle_();
   // Undo the async serial mode of an earlier begin_tx(); the packet ends back in RX
-  this->write_(Register::PKTCTRL0);
   if (this->transmitting_)
     this->end_tx_();
   this->strobe_(Command::FTX);
