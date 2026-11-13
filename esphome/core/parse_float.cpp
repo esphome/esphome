@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 
 #include <strings.h>
+#include <algorithm>
 #include <cstring>
 
 namespace esphome {
@@ -22,7 +23,8 @@ constexpr uint32_t FLOAT_NAN_BITS = 0x7FC00000;  // nanf(""), which newlib's str
 constexpr uint32_t EXACT_DIGITS = 200;
 // The largest operand: 200 digits (665 bits), or a 55-bit bound times 5^245 (624 bits), shifted to match.
 constexpr uint8_t EXACT_WORDS = 26;
-// The guess is within one float of the result, so the exact comparison moves at most twice
+static_assert(EXACT_WORDS * 32 >= EXACT_DIGITS * 3322 / 1000 + 64, "EXACT_WORDS too small for EXACT_DIGITS");
+// The guess is within one float of the result, so the exact comparison moves at most once
 constexpr uint32_t MAX_EXACT_STEPS = 3;
 
 #ifdef USE_HOST
@@ -139,7 +141,6 @@ int compare_decimal(const ExactDecimal &d, uint64_t mantissa, int32_t exp2) {
   ExactNumber lhs(d.digits);
   ExactNumber rhs(mantissa);
   rhs.multiply_pow5(d.pow5);
-  exp2 += static_cast<int32_t>(d.pow5);
   if (d.exp2 > exp2) {
     lhs.shift_left(d.exp2 - exp2);
   } else {
@@ -162,7 +163,7 @@ MidpointRange midpoint_range(uint32_t k) {
   const uint32_t exp = k >> 23;
   const uint32_t odd = 2 * ((k & 0x7FFFFF) | (exp != 0 ? 0x800000 : 0)) + 1;
   // As a double, m * 2^m_exp2 with 2^52 <= m < 2^53
-  const uint32_t shift = 53 - (32 - __builtin_clz(odd));
+  const uint32_t shift = 53 - bit_length(odd);
   const uint64_t m = static_cast<uint64_t>(odd) << shift;
   const int32_t m_exp2 = (exp != 0 ? static_cast<int32_t>(exp) - 151 : -150) - static_cast<int32_t>(shift);
   // Below a power of two the next double is half as far away
@@ -171,7 +172,7 @@ MidpointRange midpoint_range(uint32_t k) {
   return {2 * m - 1, m_exp2 - 1, 2 * m + 1, m_exp2 - 1};
 }
 
-uint32_t even_of(uint32_t k) { return (k & 1) != 0 ? k + 1 : k; }
+uint32_t even_of(uint32_t k) { return k + (k & 1); }
 
 // Out of line and cold: ordinary input never runs it, so it stays out of the flash cache
 __attribute__((noinline, cold)) uint32_t exact_float_bits(const Decimal &in, uint32_t k) {
@@ -194,16 +195,12 @@ __attribute__((noinline, cold)) uint32_t exact_float_bits(const Decimal &in, uin
   d.sticky = false;
   for (; p < in.end && !d.sticky; p++)
     d.sticky = *p >= '1' && *p <= '9';
-  // decimal = digits * 10^e = digits * 5^e * 2^e
+  // decimal = digits * 10^e = digits * 2^e * 5^e
   const int32_t e = in.exp10 - static_cast<int32_t>(used);
   d.exp2 = e;
-  d.pow5 = 0;
-  if (e >= 0) {
+  d.pow5 = e < 0 ? -e : 0;
+  if (e >= 0)
     d.digits.multiply_pow5(e);
-  } else {
-    d.exp2 = 0;
-    d.pow5 = -e;
-  }
   for (uint32_t step = 0; step < MAX_EXACT_STEPS; step++) {
 #ifdef USE_HOST
     exact_steps++;
@@ -237,32 +234,26 @@ uint32_t decimal_to_float_bits(const Decimal &in) {
     return 0;
   if (in.exp10 >= 40)
     return FLOAT_INF_BITS;
-  const uint32_t scale_digits = in.digits < 19 ? in.digits : 19;
-  const int32_t scale = in.exp10 - static_cast<int32_t>(scale_digits);
+  const int32_t scale = in.exp10 - static_cast<int32_t>(std::min<uint32_t>(in.digits, 19));
   const uint32_t power = scale < 0 ? -scale : scale;
-  if (in.digits <= 19) {
-    // Both operands are exact floats, and a double has more than 2 * 24 + 1 bits, so one float operation gives
-    // the same float as the double operation strtod does followed by the float conversion (Figueroa)
-    if (in.top < (1u << 24) && power <= 10) {
-      const auto value = static_cast<float>(static_cast<uint32_t>(in.top));
-      const float factor = pow10<float>(power);
-      return bit_cast<uint32_t>(scale < 0 ? value / factor : value * factor);
-    }
-    // Both exact doubles: one double operation is strtod's correctly rounded double
-    if (in.top <= (uint64_t{1} << 53) && power <= 22) {
-      const auto value = static_cast<double>(in.top);
-      const double factor = pow10<double>(power);
-      return internal::double_to_float_bits(scale < 0 ? value / factor : value * factor);
-    }
+  // Both operands are exact floats, and a double has more than 2 * 24 + 1 bits, so one float operation gives
+  // the same float as the double operation strtod does followed by the float conversion (Figueroa)
+  if (in.digits <= 19 && in.top < (1u << 24) && power <= 10) {
+    const auto value = static_cast<float>(static_cast<uint32_t>(in.top));
+    const float factor = pow10<float>(power);
+    return bit_cast<uint32_t>(scale < 0 ? value / factor : value * factor);
   }
-  // Within 13 doubles of the decimal: the digits' conversion, the dropped digits and the last operation cost one
-  // each, and 10^n at most 10 (10^32 and 10^64 are inexact, plus up to 6 multiplications). 64 doubles either
-  // side that round to the same float leave strtod no other choice.
   const auto value = static_cast<double>(in.top);
   const double factor = pow10<double>(power);
   const double guess = scale < 0 ? value / factor : value * factor;
-  const uint64_t guess_bits = bit_cast<uint64_t>(guess);
   const uint32_t k = internal::double_to_float_bits(guess);
+  // Both exact doubles (up to 2^53 and 10^22): the one double operation is strtod's correctly rounded double
+  if (in.digits <= 19 && in.top <= (uint64_t{1} << 53) && power <= 22)
+    return k;
+  // Otherwise within 13 doubles of the decimal: the digits' conversion, the dropped digits and the last operation
+  // cost one each, and 10^n at most 10 (10^32 and 10^64 are inexact, plus up to 6 multiplications). 64 doubles
+  // either side that round to the same float leave strtod no other choice.
+  const uint64_t guess_bits = bit_cast<uint64_t>(guess);
   if (internal::double_to_float_bits(bit_cast<double>(guess_bits - 64)) == k &&
       internal::double_to_float_bits(bit_cast<double>(guess_bits + 64)) == k)
     return k;
@@ -381,9 +372,7 @@ __attribute__((noinline, cold)) uint32_t parse_hex_float(const char *str, bool *
       bit_cast<double>((static_cast<uint64_t>(e + 1075) << 52) | (m & ((uint64_t{1} << 52) - 1))));
 }
 
-// Plain decimals (an optional sign, up to 24 bits of digits, up to 9 after the point, then anything but an
-// exponent or hex marker) in one float operation, as in decimal_to_float_bits. Returns nullptr to take the full
-// parser.
+// An optional sign, up to 24 bits of digits and 9 after the point, in one float operation; nullptr otherwise.
 ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, uint32_t *bits, bool *negative) {
   const char *p = str;
   *negative = *p == '-';
@@ -410,25 +399,24 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
   if (p - digits == (point != nullptr ? 1 : 0) || fraction > 9 || c == 'e' || c == 'x')
     return nullptr;
   float value = static_cast<float>(mantissa);
-  if (fraction != 0) {
-    uint32_t scale = 10;  // 10^9 is an exact float
-    for (uint32_t i = 1; i < fraction; i++)
-      scale *= 10;
-    value /= static_cast<float>(scale);
-  }
+  if (fraction != 0)
+    value /= pow10<float>(fraction);  // exact up to 10^10
   *bits = bit_cast<uint32_t>(value);
   return p;
+}
+
+uint32_t no_number(const char *str, const char **end, bool *negative) {
+  *end = str;
+  *negative = false;
+  return 0;
 }
 
 // Everything but a plain decimal; returns the bits without the sign, which goes in *negative
 __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char **end, bool *negative) {
   // No number starts with a letter but i (inf) or n (nan): "unavailable", "on" and "unknown" stop here
   const char lower = static_cast<char>(*str | 0x20);
-  if (lower >= 'a' && lower <= 'z' && lower != 'i' && lower != 'n') {
-    *end = str;
-    *negative = false;
-    return 0;
-  }
+  if (lower >= 'a' && lower <= 'z' && lower != 'i' && lower != 'n')
+    return no_number(str, end, negative);
   const char *s = str;
   *negative = false;
   // Leading white space, then one sign that must be followed by something
@@ -443,9 +431,7 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
     } else if (c != '\0') {
       break;
     }
-    *end = str;
-    *negative = false;
-    return 0;
+    return no_number(str, end, negative);
   }
   if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
     return parse_hex_float(s, negative, end);
@@ -455,6 +441,7 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
   for (; *p == '0'; p++)
     any_digit = true;
   Decimal d{nullptr, nullptr, 0, 0, 0};
+  // Separate loops before and after the point: one merged loop costs a few instructions per digit
   for (; is_digit(*p); p++, d.exp10++) {
     d.first = d.first != nullptr ? d.first : p;
     if (d.digits < 19)
@@ -466,6 +453,7 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
   if (point) {
     for (p++; is_digit(*p); p++) {
       any_digit = true;
+      // Zeros before the first other digit only move the point
       if (d.first == nullptr && *p == '0') {
         d.exp10--;
         continue;
@@ -478,7 +466,6 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
   }
   d.end = p;
   if (!any_digit) {
-    // Most rejected text ("unavailable", "on") fails on the first letter, before any case-insensitive compare
     const char first_letter = static_cast<char>(*p | 0x20);
     if (!point && first_letter == 'i' && strncasecmp(p, "inf", 3) == 0) {
       p += 3;
@@ -502,9 +489,7 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
       *end = p;
       return FLOAT_NAN_BITS;
     }
-    *end = str;
-    *negative = false;
-    return 0;
+    return no_number(str, end, negative);
   }
   bool exp_negative = false;
   const char *q = *p == 'e' || *p == 'E' ? read_exponent(p + 1, &exp_negative) : nullptr;
@@ -555,8 +540,8 @@ uint32_t double_to_float_bits(double value) {
     q++;
   if (exp2 < -126)
     return static_cast<uint32_t>(q);  // 2^23 here is the smallest normal float, as it should be
-  const uint32_t out = (static_cast<uint32_t>(exp2 + 127) << 23) + static_cast<uint32_t>(q - (uint64_t{1} << 23));
-  return out > FLOAT_INF_BITS ? FLOAT_INF_BITS : out;
+  // Rounding up past the largest float gives exactly FLOAT_INF_BITS
+  return (static_cast<uint32_t>(exp2 + 127) << 23) + static_cast<uint32_t>(q - (uint64_t{1} << 23));
 }
 
 #ifdef USE_HOST
@@ -566,7 +551,8 @@ uint32_t parse_float_exact_steps() { return exact_steps; }
 }  // namespace internal
 
 optional<float> parse_float(const char *str) {
-  // The whole string a plain decimal: up to 7 digits and 9 after the point, one float division (as above)
+  // Its own loop for the whole string as a plain decimal (up to 7 digits and 9 after the point): sharing
+  // parse_plain_decimal costs 12 to 18% more instructions on plain decimals, the most common input here
   const char *p = str;
   const bool negative = *p == '-';
   if (negative || *p == '+')
@@ -592,12 +578,8 @@ optional<float> parse_float(const char *str) {
     float value = static_cast<float>(mantissa);
     if (negative)
       value = -value;
-    if (fraction != 0) {
-      uint32_t scale = 10;
-      for (uint32_t i = 1; i < fraction; i++)
-        scale *= 10;
-      value /= static_cast<float>(scale);
-    }
+    if (fraction != 0)
+      value /= pow10<float>(fraction);
     return value;
   }
   const char *end;

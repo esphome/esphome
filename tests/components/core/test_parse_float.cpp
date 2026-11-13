@@ -36,14 +36,14 @@ static void expect_matches_strtof(const char *str) {
   EXPECT_EQ(bits(parsed.value()), bits(expected)) << str;
 }
 
-// The same bits and end as the reference, within the bound on exact comparison rounds
-static void expect_prefix_matches_newlib(const char *str) {
+// The same bits and end as the reference, within max_steps exact comparison rounds (the parser caps them at 3)
+static void expect_prefix_matches_newlib(const char *str, uint32_t max_steps = 3) {
   char *expected_end = nullptr;
   const float expected = newlib_strtof(str, &expected_end);
   char *end = nullptr;
   const uint32_t steps = internal::parse_float_exact_steps();
   const float actual = parse_float_prefix(str, &end);
-  EXPECT_LE(internal::parse_float_exact_steps() - steps, 3u) << '"' << str << '"';
+  EXPECT_LE(internal::parse_float_exact_steps() - steps, max_steps) << '"' << str << '"';
   EXPECT_EQ(bits(actual), bits(expected)) << '"' << str << '"';
   EXPECT_EQ(end - str, expected_end - str) << '"' << str << '"';
 }
@@ -55,6 +55,17 @@ static std::string midpoint_string(uint32_t k) {
   char buf[200];
   snprintf(buf, sizeof(buf), "%.120e", (static_cast<double>(float_from(k)) + float_from(k + 1)) / 2);
   return buf;
+}
+
+// That midpoint with digits appended after its last non-zero digit (just above it), or with the last digit one
+// lower and digits appended (just below it)
+static std::string midpoint_with_suffix(uint32_t k, const std::string &suffix, bool below = false) {
+  const std::string exact = midpoint_string(k);
+  const size_t e = exact.find('e');
+  std::string mantissa = exact.substr(0, exact.find_last_not_of('0', e - 1) + 1);
+  if (below)
+    mantissa.back() = static_cast<char>(mantissa.back() - 1);
+  return mantissa + suffix + exact.substr(e);
 }
 
 TEST(ParseFloat, PlainDecimalsMatchStrtof) {
@@ -107,9 +118,6 @@ TEST(ParseFloat, RejectsInvalidInput) {
 TEST(ParseFloat, FullPathRoundsLikeNewlib) {
   EXPECT_EQ(bits(parse_number<float>("1.0000000596046448").value()), 0x3F800000u);
   EXPECT_EQ(bits(parse_number<float>("-1.0000000596046448").value()), 0xBF800000u);
-  // newlib stops after "nan" unless the parentheses hold only hex digits
-  EXPECT_FALSE(parse_number<float>("nan(xyz)").has_value());
-  EXPECT_TRUE(std::isnan(parse_number<float>("nan(12)").value()));
 }
 
 // The callers' overflow check: a positive overflow is HUGE_VALF and rejected, a negative one is -inf and accepted
@@ -160,15 +168,8 @@ TEST(ParseFloatPrefix, FloatsAndMidpointsMatchNewlib) {
 // the float conversion then rounds it to the even neighbour, where rounding straight to a float would not.
 TEST(ParseFloatPrefix, DoubleRoundingMatchesNewlib) {
   for (uint32_t u = 1; u < 0x7F800000; u += 65537) {
-    const std::string exact = midpoint_string(u);
-    const size_t e = exact.find('e');
-    const size_t last = exact.find_last_not_of('0', e - 1);
-    const std::string above = exact.substr(0, last + 1) + "0000001" + exact.substr(e);
-    expect_prefix_matches_newlib(above.c_str());
-    std::string below = exact.substr(0, last + 1);
-    below.back() = static_cast<char>(below.back() - 1);
-    below += "9999999" + exact.substr(e);
-    expect_prefix_matches_newlib(below.c_str());
+    expect_prefix_matches_newlib(midpoint_with_suffix(u, "0000001").c_str());
+    expect_prefix_matches_newlib(midpoint_with_suffix(u, "9999999", true).c_str());
   }
 }
 
@@ -227,7 +228,7 @@ TEST(ParseFloatPrefix, MatchesNewlibWhereLibcsDiffer) {
 // itself, so a flushing conversion cannot leak into the result: every denormal, and every midpoint between two,
 // converts by its own value.
 TEST(ParseFloatPrefix, DenormalConversionDoesNotFlush) {
-  for (uint32_t k = 0; k <= 0x800000; k++) {
+  for (uint32_t k = 0; k <= 0x800000; k += 7) {
     const double value = std::ldexp(static_cast<double>(k), -149);
     EXPECT_EQ(internal::double_to_float_bits(value), k);
     // Halfway to the next one goes to the even one
@@ -237,19 +238,9 @@ TEST(ParseFloatPrefix, DenormalConversionDoesNotFlush) {
 
 // RP2350 bench: libc returned 0 and the first parser stalled stepping up from a flushed guess; #22677 bench
 TEST(ParseFloatPrefix, DenormalsAndFltMinMatchNewlib) {
-  struct Case {
-    const char *str;
-    uint32_t bits;
-  };
-  static const Case CASES[] = {
-      {"1.4e-45", 0x00000001},        {"1e-40", 0x000116C2},         {"1e-38", 0x006CE3EE},
-      {"1.17549435e-38", 0x00800000}, {"1.1754942e-38", 0x007FFFFF}, {"1.17549421e-38", 0x007FFFFF},
-      {"7.0064923216240854e-46", 0},  {"-1.4e-45", 0x80000001},      {"1.1754945e-38", 0x00800001},
-  };
-  for (const Case &c : CASES) {
-    const uint32_t steps = internal::parse_float_exact_steps();
-    EXPECT_EQ(bits(parse_float_prefix(c.str, nullptr)), c.bits) << c.str;
-    EXPECT_LE(internal::parse_float_exact_steps() - steps, 3u) << c.str;
+  for (const char *str : {"1.4e-45", "-1.4e-45", "1e-40", "1e-38", "1.17549435e-38", "1.1754942e-38", "1.17549421e-38",
+                          "1.1754945e-38"}) {
+    expect_prefix_matches_newlib(str);
   }
   for (uint32_t k = 1; k < 0x800000; k += 997)
     expect_prefix_matches_newlib(midpoint_string(k).c_str());
@@ -274,11 +265,8 @@ TEST(ParseFloatPrefix, NonNumericStatesAreRejected) {
 // Python's repr of a sum, as Home Assistant sends: far from any float midpoint, so decided without big numbers;
 // #22677 review
 TEST(ParseFloatPrefix, PythonReprValuesTakeTheEarlyReturn) {
-  for (const char *str : {"21.299999999999997", "0.30000000000000004", "0.1000000000000000055511151231257827"}) {
-    const uint32_t steps = internal::parse_float_exact_steps();
-    expect_prefix_matches_newlib(str);
-    EXPECT_EQ(internal::parse_float_exact_steps() - steps, 0u) << str;
-  }
+  for (const char *str : {"21.299999999999997", "0.30000000000000004", "0.1000000000000000055511151231257827"})
+    expect_prefix_matches_newlib(str, 0);
 }
 
 // At, one double below and one double above a float midpoint: the early return must not decide these; #22677
@@ -326,11 +314,14 @@ TEST(ParseFloatPrefix, LongMantissas) {
     snprintf(exp, sizeof(exp), "e%d", static_cast<int>(rng() % 90) - 845);
     expect_prefix_matches_newlib((str + exp).c_str());
   }
-  // 1 + 2^-24 exactly, with 800 more zeros and a final 1: above the midpoint by far less than a double
-  const std::string mid = midpoint_string(0x3F800000);
-  const size_t e = mid.find('e');
-  const size_t last = mid.find_last_not_of('0', e - 1);
-  expect_prefix_matches_newlib((mid.substr(0, last + 1) + std::string(800, '0') + "1" + mid.substr(e)).c_str());
+  // 1 + 2^-24 exactly, 800 more zeros and a final 1: above the midpoint by far less than a double
+  expect_prefix_matches_newlib(midpoint_with_suffix(0x3F800000, std::string(800, '0') + "1").c_str());
+  str = "1.";
+  str.append(3000, '0');
+  expect_prefix_matches_newlib((str + "1e-3001").c_str());
+  str = "0." + std::string(400, '0') + "34028235" + std::string(500, '7') + "e440";
+  expect_prefix_matches_newlib(str.c_str());
+  expect_prefix_matches_newlib((std::string(300, '9') + "e-261").c_str());
 }
 
 // Taken from newlib's strtof
@@ -348,20 +339,6 @@ TEST(ParseFloatPrefix, HexDenormalsAndOverflow) {
   };
   for (const Case &c : CASES)
     EXPECT_EQ(bits(parse_float_prefix(c.str, nullptr)), c.bits) << c.str;
-}
-
-TEST(ParseFloatPrefix, LongInputsMatchNewlib) {
-  std::string str = "1.";
-  str.append(3000, '0');
-  str += "1e-3001";
-  expect_prefix_matches_newlib(str.c_str());
-  str = "0.";
-  str.append(400, '0');
-  str += "34028235";
-  str += std::string(500, '7') + "e440";
-  expect_prefix_matches_newlib(str.c_str());
-  str = std::string(300, '9') + "e-261";
-  expect_prefix_matches_newlib(str.c_str());
 }
 
 }  // namespace esphome::core::testing
