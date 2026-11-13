@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR_ID, CONF_THRESHOLD
+from esphome.core import Lambda
 from esphome.types import ConfigType
 
 analog_threshold_ns = cg.esphome_ns.namespace("analog_threshold")
@@ -13,6 +14,22 @@ AnalogThresholdBinarySensor = analog_threshold_ns.class_(
 CONF_UPPER = "upper"
 CONF_LOWER = "lower"
 
+
+def validate_thresholds(config: ConfigType) -> ConfigType:
+    lower = config[CONF_LOWER]
+    upper = config[CONF_UPPER]
+    if (
+        not isinstance(lower, Lambda)
+        and not isinstance(upper, Lambda)
+        and lower > upper
+    ):
+        raise cv.Invalid(
+            "Lower threshold must be less than or equal to upper threshold",
+            path=[CONF_LOWER],
+        )
+    return config
+
+
 CONFIG_SCHEMA = (
     binary_sensor.binary_sensor_schema(AnalogThresholdBinarySensor)
     .extend(
@@ -20,11 +37,14 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_SENSOR_ID): cv.use_id(sensor.Sensor),
             cv.Required(CONF_THRESHOLD): cv.Any(
                 cv.templatable(cv.float_),
-                cv.Schema(
-                    {
-                        cv.Required(CONF_UPPER): cv.templatable(cv.float_),
-                        cv.Required(CONF_LOWER): cv.templatable(cv.float_),
-                    }
+                cv.All(
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_UPPER): cv.templatable(cv.float_),
+                            cv.Required(CONF_LOWER): cv.templatable(cv.float_),
+                        }
+                    ),
+                    validate_thresholds,
                 ),
             ),
         }
