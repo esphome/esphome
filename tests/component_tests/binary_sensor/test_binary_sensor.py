@@ -85,3 +85,19 @@ def test_delayed_on_off_shorthand(generate_main) -> None:
         assert re.search(
             rf"static uint32_t {fn}\(\) {{\n(.*\n)?  static uint32_t n = 0;", main_cpp
         )
+
+
+def test_delayed_on_and_off(generate_main) -> None:
+    """Only the delayed value waits; the other drops the pending output and passes."""
+    main_cpp = generate_main(
+        "tests/component_tests/binary_sensor/test_delayed_on_off.yaml"
+    )
+
+    assert (
+        "  if (x) return binary_sensor::delay_output(filter, 20, x);\n"
+        "  return binary_sensor::cancel_and_pass(filter, x);\n"
+    ) in main_cpp
+    assert (
+        "  if (!x) return binary_sensor::delay_output(filter, 30, x);\n"
+        "  return binary_sensor::cancel_and_pass(filter, x);\n"
+    ) in main_cpp
