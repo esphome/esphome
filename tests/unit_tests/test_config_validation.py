@@ -2007,6 +2007,14 @@ def test_time_period_str_colon_too_many_parts() -> None:
         cv.time_period_str_colon("1:2:3:4")
 
 
+@pytest.mark.parametrize("value", ("25:99", "0:99", "1:30:99"))
+def test_time_period_str_colon_out_of_range_minute_second(value) -> None:
+    # a minute/second value of 99 silently carried into the next unit
+    # ("0:99" was 1h39), while the sibling date_time range-checks every field
+    with pytest.raises(Invalid, match="between 0 and 59"):
+        cv.time_period_str_colon(value)
+
+
 def test_time_period_str_unit_int() -> None:
     with pytest.raises(Invalid, match=r"no time \*unit\*"):
         cv.time_period_str_unit(5)
