@@ -1,5 +1,7 @@
 """Tests for the ethernet final-validation coexistence gate and schema bounds."""
 
+import asyncio
+
 import pytest
 from voluptuous import Invalid
 
@@ -16,12 +18,15 @@ from esphome.components.ethernet import (
     CONF_CLOCK_SPEED,
     CONFIG_SCHEMA,
     _final_validate_wifi,
+    final_step,
+    request_ethernet_connect_state_listener,
 )
 from esphome.components.network import _validate_priority_list
 from esphome.const import CONF_AP, CONF_NETWORKS, CONF_PRIORITY, PlatformFramework
 from esphome.core import CORE
 import esphome.final_validate as fv
 
+from ..helpers import get_define_value
 from ..types import SetCoreConfigCallable
 
 _CH390_CONFIG = {
@@ -171,3 +176,17 @@ def test_rmii_requires_clk(set_core_config: SetCoreConfigCallable) -> None:
     _set_esp32_core(set_core_config)
     with pytest.raises(Invalid, match=r"required key not provided @ data\['clk'\]"):
         CONFIG_SCHEMA(_LAN8720_CONFIG)
+
+
+@pytest.mark.parametrize("requests", [0, 2])
+def test_connect_state_listener_defines(requests: int) -> None:
+    """Each request adds a listener slot; without one the listener code stays compiled out."""
+    for _ in range(requests):
+        request_ethernet_connect_state_listener()
+    asyncio.run(final_step())
+    assert (
+        "USE_ETHERNET_CONNECT_STATE_LISTENERS" in {d.name for d in CORE.defines}
+    ) is (requests > 0)
+    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == (
+        str(requests) if requests else None
+    )

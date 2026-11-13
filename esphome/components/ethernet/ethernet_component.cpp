@@ -30,6 +30,14 @@ void EthernetComponent::notify_ip_state_listeners_() {
 }
 #endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
+#ifdef USE_ETHERNET_CONNECT_STATE_LISTENERS
+void EthernetComponent::notify_connect_state_listeners_(bool connected) {
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_ethernet_connect_state(connected);
+  }
+}
+#endif  // USE_ETHERNET_CONNECT_STATE_LISTENERS
+
 }  // namespace esphome::ethernet
 
 #endif  // USE_ETHERNET
