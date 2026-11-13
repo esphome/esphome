@@ -2175,6 +2175,20 @@ def test_mac_address_non_hex() -> None:
         cv.mac_address("GG:BB:CC:DD:EE:FF")
 
 
+@pytest.mark.parametrize(
+    "value",
+    (
+        " A:BB:CC:DD:EE:FF",
+        "A :BB:CC:DD:EE:FF",
+        "+A:BB:CC:DD:EE:FF",
+        "-B:BB:CC:DD:EE:FF",
+    ),
+)
+def test_mac_address_rejects_sign_padded_parts(value) -> None:
+    with pytest.raises(Invalid, match="hexadecimal values"):
+        cv.mac_address(value)
+
+
 def test_uuid_valid() -> None:
     result = cv.uuid("12345678-1234-5678-1234-567812345678")
     assert str(result) == "12345678-1234-5678-1234-567812345678"
