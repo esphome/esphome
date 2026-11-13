@@ -94,7 +94,7 @@ update:
   - platform: http_request
     name: OTA Update
     id: ota_update
-    ota_id: http_request_ota
+    target_id: http_request_ota
     source: http://my.ha.net:8123/local/esphome/manifest.json
     on_update_available:
       - logger.log: "A new update is available"
