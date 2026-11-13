@@ -35,10 +35,7 @@ async def test_tcp_uart_connections(
         reader_a, writer_a = await asyncio.open_connection("127.0.0.1", port)
         await lines.wait_for("Client connected from 127.0.0.1")
         reader_b, writer_b = await asyncio.open_connection("127.0.0.1", port)
-        # wait_for() would match A's line again, so count the lines.
-        async with asyncio.timeout(10):
-            while sum("Client connected" in line for line in lines.lines) < 2:
-                await asyncio.sleep(0.05)
+        await lines.wait_count("Client connected", 2, timeout=10)
 
         # Both ask at the same time; B is answered after A's turn ends.
         writer_a.write(b"from A")

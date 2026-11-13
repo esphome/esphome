@@ -46,7 +46,7 @@ class TcpUart : public uart::UARTComponent, public Component {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   /// Server: open this many connections at once. Call once, before setup().
   void set_max_connections(uint8_t count);
-  void set_turn_timeout(uint32_t ms) { this->turn_timeout_ms_ = ms; }
+  void set_turn_timeout(uint16_t ms) { this->turn_timeout_ms_ = ms; }
 #endif
 
   /// Changes whenever another connection, or a new session, gets the turn, and when that connection closes.
@@ -135,11 +135,8 @@ class TcpUart : public uart::UARTComponent, public Component {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   // Slots 1 and up; slot 0 is link_, which also holds the port and the listener's retry clock.
   FixedVector<socket::TcpClientLink> extra_;
-  // Per slot: when it connected or last sent bytes. A full pool closes the quietest.
-  FixedVector<uint32_t> seen_ms_;
   // Last byte in either direction on the holder's connection.
   uint32_t last_traffic_ms_{0};
-  uint32_t turn_timeout_ms_{100};
   uint8_t holder_{NO_SLOT};
   // Writes go here: the holder, else the last holder until it closes.
   uint8_t tx_slot_{NO_SLOT};
@@ -152,6 +149,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   bool release_{false};
   // Bytes the released turn may still read: the rest of a request started in the bytes already read.
   uint16_t rest_{0};
+  uint16_t turn_timeout_ms_{100};
 #endif
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};

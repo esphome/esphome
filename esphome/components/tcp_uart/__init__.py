@@ -58,14 +58,6 @@ def _consume_replacement_socket(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_turn_timeout(config: ConfigType) -> ConfigType:
-    if CONF_TURN_TIMEOUT in config and config.get(CONF_MAX_CONNECTIONS, 1) == 1:
-        raise cv.Invalid(
-            "turn_timeout needs max_connections of 2 or more", [CONF_TURN_TIMEOUT]
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -84,6 +76,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_TURN_TIMEOUT): cv.All(
                         cv.positive_not_null_time_period,
                         cv.positive_time_period_milliseconds,
+                        cv.Range(max=cv.TimePeriod(milliseconds=65535)),
                     ),
                 }
             ),
@@ -92,7 +85,6 @@ CONFIG_SCHEMA = cv.All(
         default_type="client",
         lower=True,
     ),
-    _validate_turn_timeout,
     socket.consume_role_sockets("tcp_uart", CONF_MAX_CONNECTIONS),
     _consume_replacement_socket,
 )

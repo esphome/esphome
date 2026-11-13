@@ -1,19 +1,15 @@
 #include <gtest/gtest.h>
 
-#include <cerrno>
 #include <chrono>
 #include <csignal>
 #include <cstring>
-#include <netinet/in.h>
 #include <string>
-#include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
 
+#include "common.h"
 #include "esphome/components/logger/logger.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/tcp_uart/tcp_uart.h"
-#include "esphome/core/application.h"
 #include "esphome/core/wake/wake_host.h"
 
 #ifdef USE_HOST
@@ -36,7 +32,7 @@ class TcpUartTwoClients : public ::testing::Test {
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
     this->at(1000);
-    this->port_ = free_port();
+    ASSERT_NO_FATAL_FAILURE(find_free_port(&this->port_));
     this->uart_.set_server(true);
     this->uart_.set_port(this->port_);
     this->uart_.set_max_connections(this->slots_);
@@ -59,42 +55,29 @@ class TcpUartTwoClients : public ::testing::Test {
     this->uart_.on_shutdown();
   }
 
-  static uint16_t free_port() {
-    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    socklen_t len = sizeof(addr);
-    ::bind(fd, reinterpret_cast<struct sockaddr *>(&addr), len);
-    ::getsockname(fd, reinterpret_cast<struct sockaddr *>(&addr), &len);
-    ::close(fd);
-    return ntohs(addr.sin_port);
-  }
-  // Sets the loop clock.
-  static void at(uint32_t ms) { LoopBlockingGuard{nullptr, nullptr, ms}; }
-  // Each pass: select() marks the ready sockets, as the main loop does, then the UART runs.
+  static void at(uint32_t ms) { set_loop_clock(ms); }
   void loops(int count) {
     for (int i = 0; i < count; i++) {
-      internal::wakeable_delay(5);
-      this->uart_.loop();
+      loop_pass(this->uart_);
     }
+  }
+  // Loopback needs a moment to deliver what a client sent. Then 3 passes, which alone take no time while
+  // another client's bytes keep select() ready.
+  void deliver() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    this->loops(3);
   }
   // Connects a client and runs the loop until the UART took it.
   int connect_client() {
-    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(this->port_);
-    EXPECT_EQ(::connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+    int fd = -1;
+    EXPECT_NO_FATAL_FAILURE(connect_loopback(this->port_, &fd));
     const uint8_t before = this->uart_.open_connections();
     for (int i = 0; i < 50 && this->uart_.open_connections() == before; i++) {
       this->loops(1);
     }
     return fd;
   }
-  static void send(int fd, const char *text) {
-    ASSERT_EQ(::write(fd, text, strlen(text)), static_cast<ssize_t>(strlen(text)));
-  }
+  static void send(int fd, const char *text) { send_bytes(fd, text, strlen(text)); }
   // What the client received within 200 ms: "" for nothing, "<closed>" for EOF.
   static std::string received(int fd) {
     struct pollfd pfd{fd, POLLIN, 0};
@@ -107,9 +90,24 @@ class TcpUartTwoClients : public ::testing::Test {
   }
   // Runs the loop until the UART has count bytes to read.
   void wait_for_bytes(size_t count) {
-    for (int i = 0; i < 50 && this->uart_.available() < count; i++) {
-      this->loops(1);
-    }
+    pass_until_available(this->uart_, count, [this]() { this->loops(1); });
+  }
+  // Requests are two bytes. A writes "1." and the first byte of "2.", then B sends "hi". The consumer answers
+  // "1.", takes "2" and names the one byte it lacks.
+  void split_second_request() {
+    send(this->a_, "1.2");
+    this->wait_for_bytes(3);
+    send(this->b_, "hi");
+    char request[3]{};
+    this->uart_.hold_turn();
+    ASSERT_TRUE(this->uart_.read_array(reinterpret_cast<uint8_t *>(request), 2));
+    EXPECT_STREQ(request, "1.");
+    this->uart_.release_turn();
+    this->loops(3);
+    uint8_t first_byte;
+    ASSERT_TRUE(this->uart_.read_byte(&first_byte));
+    EXPECT_EQ(first_byte, '2');
+    this->uart_.release_turn(1);
   }
   std::string read_all() {
     char buf[32]{};
@@ -233,9 +231,7 @@ TEST_F(TcpUartTwoClients, ReleasedTurnReadsNothingNewFromItsConnection) {
   ASSERT_TRUE(this->uart_.read_byte(&request));
   EXPECT_EQ(request, '2');
   send(this->a_, "3");
-  // 20 ms for loopback to deliver "3". The loop passes alone take no time: B's "hi" keeps select() ready.
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  this->loops(3);
+  this->deliver();
   // "3" stays in A's socket for A's next turn.
   EXPECT_EQ(this->uart_.available(), 0u);
 
@@ -267,9 +263,7 @@ TEST_F(TcpUartTwoClients, RequestSplitAfterAReleaseKeepsItsTurn) {
   this->loops(3);
   this->at(1020);
   send(this->a_, ".");
-  // Loopback needs a moment; B's "hi" keeps select() ready, so the loop passes alone take no time.
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  this->loops(3);
+  this->deliver();
   EXPECT_EQ(this->uart_.turn(), turn_of_a);
   EXPECT_EQ(this->read_all(), ".");
 
@@ -281,26 +275,10 @@ TEST_F(TcpUartTwoClients, RequestSplitAfterAReleaseKeepsItsTurn) {
 }
 
 TEST_F(TcpUartTwoClients, RestOfASplitRequestIsAllTheReleasedTurnReads) {
-  // Requests are two bytes. A writes "1." and the first byte of "2.", then B sends "hi".
-  send(this->a_, "1.2");
-  this->wait_for_bytes(3);
-  send(this->b_, "hi");
-  char request[3]{};
-  this->uart_.hold_turn();
-  ASSERT_TRUE(this->uart_.read_array(reinterpret_cast<uint8_t *>(request), 2));
-  EXPECT_STREQ(request, "1.");
-  this->uart_.release_turn();
-  this->loops(3);
-
-  // The consumer takes "2" and names the one byte it lacks. A sends that byte and its next request "3." at once.
-  uint8_t first_byte;
-  ASSERT_TRUE(this->uart_.read_byte(&first_byte));
-  EXPECT_EQ(first_byte, '2');
-  this->uart_.release_turn(1);
+  ASSERT_NO_FATAL_FAILURE(this->split_second_request());
+  // A sends the missing byte and its next request "3." at once.
   send(this->a_, ".3.");
-  // Loopback needs a moment; B's "hi" keeps select() ready, so the loop passes alone take no time.
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  this->loops(3);
+  this->deliver();
   // Only the missing "." is read. "3." stays in A's socket.
   EXPECT_EQ(this->read_all(), ".");
 
@@ -316,26 +294,10 @@ TEST_F(TcpUartTwoClients, RestOfASplitRequestIsAllTheReleasedTurnReads) {
 }
 
 TEST_F(TcpUartTwoClients, ExactRestLeavesNoEmptyTurn) {
-  // Requests are two bytes. A writes "1." and the first byte of "2.", then B sends "hi".
-  send(this->a_, "1.2");
-  this->wait_for_bytes(3);
-  send(this->b_, "hi");
-  char request[3]{};
-  this->uart_.hold_turn();
-  ASSERT_TRUE(this->uart_.read_array(reinterpret_cast<uint8_t *>(request), 2));
-  EXPECT_STREQ(request, "1.");
-  this->uart_.release_turn();
-  this->loops(3);
-
-  // The consumer takes "2" and names the one byte it lacks. A sends that byte and nothing more.
-  uint8_t first_byte;
-  ASSERT_TRUE(this->uart_.read_byte(&first_byte));
-  EXPECT_EQ(first_byte, '2');
-  this->uart_.release_turn(1);
+  ASSERT_NO_FATAL_FAILURE(this->split_second_request());
+  // A sends the missing byte and nothing more.
   send(this->a_, ".");
-  // Loopback needs a moment; B's "hi" keeps select() ready, so the loop passes alone take no time.
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  this->loops(3);
+  this->deliver();
   EXPECT_EQ(this->read_all(), ".");
 
   // Request 2 is answered, then B's "hi".
