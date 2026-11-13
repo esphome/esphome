@@ -481,8 +481,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
-  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
-  void init_sta(size_t count);
+  // add_sta kept out of line: inlining it into the generated setup() grows flash
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
@@ -641,6 +640,12 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+  void set_on_ap_start(void (*callback)()) { this->on_ap_start_ = callback; }
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+  void set_on_ap_stop(void (*callback)()) { this->on_ap_stop_ = callback; }
+#endif
 
   int32_t get_wifi_channel();
 
@@ -798,9 +803,12 @@ class WiFiComponent final : public Component {
   bool ssid_was_seen_in_scan_(const CompactString &ssid) const;
   /// Check if full scan results are needed (captive portal active, improv, listeners)
   bool needs_full_scan_results_() const;
-  /// Check if network matches any configured network (for scan result filtering)
+  /// The configured network a scan result belongs to, or nullptr (for scan result filtering)
   /// Matches by SSID when configured, or by BSSID for BSSID-only configs
-  bool matches_configured_network_(const char *ssid, const uint8_t *bssid) const;
+  const WiFiAP *find_configured_network_(const char *ssid, const uint8_t *bssid) const;
+  bool matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+    return this->find_configured_network_(ssid, bssid) != nullptr;
+  }
   /// Log a discarded scan result at VERBOSE level (skipped during roaming scans to avoid log overflow)
   void log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel);
   /// Find next SSID that wasn't in scan results (might be hidden)
@@ -844,6 +852,8 @@ class WiFiComponent final : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+  /// Output power and power save, wherever the radio first comes up: start() with networks, the AP without.
+  void apply_radio_settings_();
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   bool wifi_apply_band_mode_();
 #endif
@@ -990,7 +1000,6 @@ class WiFiComponent final : public Component {
 #endif
 
   // Large/pointer-aligned members first
-  FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
@@ -1025,6 +1034,12 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> disconnect_trigger_;
+#endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+  void (*on_ap_start_)(){nullptr};
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+  void (*on_ap_stop_)(){nullptr};
 #endif
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
@@ -1156,6 +1171,9 @@ class WiFiComponent final : public Component {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
   bool handled_connected_state_{false};
 #endif
+#if defined(USE_WIFI_AP_START_TRIGGER) || defined(USE_WIFI_AP_STOP_TRIGGER)
+  bool handled_ap_state_{false};
+#endif
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
@@ -1220,6 +1238,8 @@ class WiFiComponent final : public Component {
   FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
 #endif
+  // Last, so the inline network slots do not push the other members past short load offsets
+  StaticVector<WiFiAP, WIFI_NETWORK_COUNT> sta_;
 
  private:
   // Stores a pointer to a string literal (static storage duration).

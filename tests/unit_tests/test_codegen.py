@@ -77,6 +77,10 @@ def test_exists(attr):
     assert hasattr(cg, attr)
 
 
+def test_byte_span() -> None:
+    assert str(cg.byte_span) == "std::span<const uint8_t>"
+
+
 @pytest.mark.parametrize(
     ("type_str", "expected"),
     (

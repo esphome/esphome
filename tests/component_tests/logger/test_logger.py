@@ -6,7 +6,11 @@ import re
 
 import pytest
 
-from esphome.components.logger import validate_task_log_buffer_alignment
+from esphome.components.logger import (
+    FINAL_VALIDATE_SCHEMA,
+    _validate_libretiny_uart_pins,
+    validate_task_log_buffer_alignment,
+)
 from esphome.config_validation import Invalid
 from esphome.const import PlatformFramework
 from esphome.core import CORE
@@ -161,3 +165,99 @@ def test_log_v2_only_on_native_toolchain(
     assert ("USE_ESP32_LOG_V2" in {d.name for d in CORE.defines}) is log_v2
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert ("CONFIG_LOG_VERSION_2" in sdkconfig) is log_v2
+
+
+@pytest.mark.parametrize(
+    ("config", "usb_cdc"),
+    [
+        pytest.param("test_logger_rp2_usb_cdc.yaml", True, id="usb_cdc"),
+        pytest.param("test_logger_rp2_uart0.yaml", False, id="uart0"),
+    ],
+)
+def test_rp2_usb_cdc_selection_define(
+    generate_main: Callable[[str | Path], str],
+    config: str,
+    usb_cdc: bool,
+) -> None:
+    """The USB CDC crash replay only compiles in when the logger uses USB CDC."""
+    generate_main(f"tests/component_tests/logger/{config}")
+
+    assert (
+        "USE_LOGGER_UART_SELECTION_USB_CDC" in {d.name for d in CORE.defines}
+    ) is usb_cdc
+
+
+@pytest.mark.parametrize(
+    ("board", "hardware_uart", "valid"),
+    [
+        pytest.param("bw15", "UART1", False, id="bw15_uart1_two_pin_choices"),
+        pytest.param("bw15", "UART0", True, id="bw15_uart0"),
+        pytest.param("bw15", "UART2", True, id="bw15_uart2"),
+        pytest.param("bw15", "DEFAULT", True, id="bw15_default"),
+        pytest.param("not-a-board", "UART1", True, id="unknown_board"),
+        # bw12 has no UART1, which falls back to the default port
+        pytest.param("bw12", "UART1", True, id="bw12_missing_port"),
+    ],
+)
+def test_libretiny_uart_needs_default_pins(
+    set_core_config: SetCoreConfigCallable,
+    board: str,
+    hardware_uart: str,
+    valid: bool,
+) -> None:
+    """Opening a LibreTiny port with no default pins hangs at boot, so it is rejected."""
+    from esphome.components import rtl87xx
+    from esphome.components.libretiny.const import (
+        KEY_BOARD,
+        KEY_COMPONENT_DATA,
+        KEY_LIBRETINY,
+    )
+
+    set_core_config(PlatformFramework.RTL87XX_ARDUINO)
+    CORE.data[KEY_LIBRETINY] = {
+        KEY_COMPONENT_DATA: rtl87xx.COMPONENT_DATA,
+        KEY_BOARD: board,
+    }
+    if valid:
+        _validate_libretiny_uart_pins(hardware_uart)
+    else:
+        with pytest.raises(Invalid, match="no default pins for UART1"):
+            _validate_libretiny_uart_pins(hardware_uart)
+
+
+@pytest.mark.parametrize(
+    ("platform", "baud_rate", "valid"),
+    [
+        pytest.param(PlatformFramework.RTL87XX_ARDUINO, 115200, False, id="serial"),
+        pytest.param(PlatformFramework.RTL87XX_ARDUINO, 0, True, id="no_serial"),
+        pytest.param(
+            PlatformFramework.ESP8266_ARDUINO, 115200, True, id="not_libretiny"
+        ),
+    ],
+)
+def test_final_validate_checks_libretiny_uart_pins(
+    set_core_config: SetCoreConfigCallable,
+    platform: PlatformFramework,
+    baud_rate: int,
+    valid: bool,
+) -> None:
+    """The pin check runs from final validation, only when serial logging is on."""
+    from esphome.components import rtl87xx
+    from esphome.components.libretiny.const import (
+        KEY_BOARD,
+        KEY_COMPONENT_DATA,
+        KEY_LIBRETINY,
+    )
+    from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART
+
+    set_core_config(platform)
+    CORE.data[KEY_LIBRETINY] = {
+        KEY_COMPONENT_DATA: rtl87xx.COMPONENT_DATA,
+        KEY_BOARD: "bw15",
+    }
+    config = {CONF_BAUD_RATE: baud_rate, CONF_HARDWARE_UART: "UART1"}
+    if valid:
+        FINAL_VALIDATE_SCHEMA(config)
+    else:
+        with pytest.raises(Invalid, match="no default pins for UART1"):
+            FINAL_VALIDATE_SCHEMA(config)
