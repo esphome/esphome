@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import socket, uart
+from esphome.components import noise, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
     CONF_DATA_BITS,
@@ -10,13 +10,20 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_PORT, CONF_TIMEOUT
+from esphome.const import (
+    CONF_BAUD_RATE,
+    CONF_ENCRYPTION,
+    CONF_ID,
+    CONF_KEY,
+    CONF_PORT,
+    CONF_TIMEOUT,
+)
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["uart", "socket"]
 DOMAIN = "tcp_uart"
+AUTO_LOAD = noise.stream_auto_load(DOMAIN, ["uart", "socket"])
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
@@ -39,6 +46,7 @@ BASE_SCHEMA = cv.Schema(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ENCRYPTION): noise.STREAM_ENCRYPTION_SCHEMA,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -63,7 +71,10 @@ CONFIG_SCHEMA = cv.All(
     socket.consume_role_sockets("tcp_uart"),
 )
 
-FINAL_VALIDATE_SCHEMA = socket.final_validate_idle_timeout
+FINAL_VALIDATE_SCHEMA = cv.All(
+    socket.final_validate_idle_timeout,
+    noise.final_validate_stream_key(DOMAIN),
+)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -87,3 +98,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
     cg.add_optional(var.set_host, config.get(CONF_HOST))
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        # The TCP client starts the handshake
+        stream = noise.new_stream(
+            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client", DOMAIN
+        )
+        cg.add(var.set_noise_stream(stream))
