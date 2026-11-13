@@ -6,12 +6,14 @@
 #include "esphome/core/helpers.h"
 #include <zephyr/sys/mpsc_pbuf.h>
 
+#include "task_log_message.h"
+
 namespace esphome::logger {
 
 // "0x" + 2 hex digits per byte + '\0'
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
-extern __thread bool non_main_task_recursion_guard_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern __thread bool non_main_task_recursion_guard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
@@ -34,7 +36,6 @@ class TaskLogBuffer {
     inline char *text_data() { return reinterpret_cast<char *>(this) + sizeof(LogMessage); }
   };
   TaskLogBuffer();
-  ~TaskLogBuffer() = default;
 
   // Check if there are messages ready to be processed using an atomic counter for performance
   inline bool HOT has_messages() { return mpsc_pbuf_is_pending(&this->log_buffer_); }
