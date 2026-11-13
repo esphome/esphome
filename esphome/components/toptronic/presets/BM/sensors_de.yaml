@@ -1,0 +1,15 @@
+sensor:
+  - platform: toptronic
+    name: Raum-Ist
+    device_type: BM
+    function_group: 83
+    function_number: 0
+    datapoint: 0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement

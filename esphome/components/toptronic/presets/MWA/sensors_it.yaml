@@ -1,0 +1,2049 @@
+sensor:
+  - platform: toptronic
+    name: Energia attuale (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Energia attuale (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza attuale (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Volume attuale (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Volume attuale (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Portata attuale (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Temperatura di mandata attuale  (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura di ritorno attuale  (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura differenziale attuale (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: N. di serie (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Corrente elettrica (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Tensione (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Coseno phi (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001

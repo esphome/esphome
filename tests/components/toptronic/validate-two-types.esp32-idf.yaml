@@ -1,0 +1,23 @@
+# Config-only: two hubs of different device types. Their preset corpora share
+# names (FW and WEZ share 18 in English), so both hubs' entities must carry the
+# address prefix or ESPHome rejects the duplicates. A single hub keeps the bare
+# names, which test.esp32-idf.yaml covers.
+canbus:
+  - platform: esp32_can
+    id: canbus_toptronic
+    rx_pin: GPIO4
+    tx_pin: GPIO5
+    can_id: 0
+    bit_rate: 50kbps
+
+toptronic:
+  - id: tt_fw
+    canbus_id: canbus_toptronic
+    device_type: FW
+    device_addr: 1
+    language: en
+  - id: tt_wez
+    canbus_id: canbus_toptronic
+    device_type: WEZ
+    device_addr: 2
+    language: en
