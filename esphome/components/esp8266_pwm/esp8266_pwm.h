@@ -14,7 +14,7 @@ class ESP8266PWM final : public output::FloatOutput, public Component {
   ESP8266PWM() {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
-  void set_frequency(float frequency) { this->frequency_ = frequency; }
+  void set_frequency(float frequency);
   /// Dynamically update frequency
   void update_frequency(float frequency) override {
     this->set_frequency(frequency);
@@ -31,7 +31,8 @@ class ESP8266PWM final : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
   InternalGPIOPin *pin_{nullptr};
-  float frequency_{1000.0};  // Keep in sync with DEFAULT_FREQUENCY in output.py
+  float frequency_{1000.0};   // Keep in sync with DEFAULT_FREQUENCY in output.py
+  uint32_t period_us_{1000};  // 1e6 / frequency_, rounded
   /// Cache last output level for dynamic frequency updating
   float last_output_{0.0};
 };

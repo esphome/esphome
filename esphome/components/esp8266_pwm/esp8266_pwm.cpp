@@ -24,6 +24,11 @@ void ESP8266PWM::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
   LOG_FLOAT_OUTPUT(this);
 }
+void ESP8266PWM::set_frequency(float frequency) {
+  this->frequency_ = frequency;
+  // Cached: write_state() runs every loop during transitions and the ESP8266 has no FPU
+  this->period_us_ = static_cast<uint32_t>(roundf(1e6f / frequency));
+}
 void HOT ESP8266PWM::write_state(float state) {
   this->last_output_ = state;
 
@@ -32,7 +37,7 @@ void HOT ESP8266PWM::write_state(float state) {
     state = 1.0f - state;
   }
 
-  auto total_time_us = static_cast<uint32_t>(roundf(1e6f / this->frequency_));
+  const uint32_t total_time_us = this->period_us_;
   auto duty_on = static_cast<uint32_t>(roundf(total_time_us * state));
   uint32_t duty_off = total_time_us - duty_on;
 
