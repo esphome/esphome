@@ -1,0 +1,7 @@
+substitutions:
+  status_pin: P6
+
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+  common: !include common.yaml
+  weather: !include common-weather.yaml

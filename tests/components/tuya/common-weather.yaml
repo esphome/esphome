@@ -1,0 +1,29 @@
+sensor:
+  - platform: template
+    id: weather_temperature
+    lambda: return 21.4f;
+  - platform: template
+    id: weather_wind_speed
+    lambda: return 2.7f;
+
+text_sensor:
+  - platform: template
+    id: weather_condition
+    lambda: return std::string("120");
+
+tuya:
+  weather:
+    update_interval: 30min
+    w.temp: weather_temperature
+    w.thigh.1: weather_temperature
+    w.windSpeed: weather_wind_speed
+    w.conditionNum: weather_condition
+    on_weather_request:
+      - then:
+          - tuya.send_weather:
+              w.humidity: 55
+              w.windDir: "NE"
+              w.tlow.1: !lambda "return 3;"
+          - logger.log:
+              format: "%u weather keys requested"
+              args: ["(unsigned) x.size()"]
