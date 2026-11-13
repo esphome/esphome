@@ -92,5 +92,9 @@ async def to_code(config: ConfigType) -> None:
     await ota_to_code(var, config)
     await cg.register_component(var, config)
     cg.add_define("USE_WEBSERVER_OTA")
+    # web_server and prometheus create the server in an earlier setup(); without them
+    # the handler waits until captive_portal starts it
+    if not {"web_server", "prometheus"} & CORE.config.keys():
+        cg.add_define("USE_WEBSERVER_BASE_PENDING_HANDLER")
     if CORE.is_esp32:
         add_idf_component(name="zorxx/multipart-parser", ref="1.0.1")
