@@ -50,6 +50,7 @@ class XxteaEncryption : public PacketInterface {
   void set_key(std::initializer_list<uint32_t> key);
 
  protected:
+  bool send_(const PacketBuffer &data, const PacketMetaData &meta_data);
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);
   bool accept_counter_(uint32_t boot, uint32_t counter);
   void next_boot_();

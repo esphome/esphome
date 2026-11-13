@@ -24,9 +24,9 @@ from esphome.core import (
 )
 from esphome.helpers import (
     cpp_string_escape,
-    ensure_unique_string,
     indent,
     indent_all_but_first_and_last,
+    unique_name,
 )
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
@@ -462,16 +462,20 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ("constexpr",)
+    __slots__ = ("constexpr", "align")
 
-    def __init__(self, type_, name, rhs, constexpr: bool = True):
+    def __init__(
+        self, type_, name, rhs, constexpr: bool = True, align: int | None = None
+    ):
         super().__init__(type_, "", name, rhs)
         self.constexpr = constexpr
+        self.align = align
 
     def __str__(self):
+        prefix = "" if self.align is None else f"alignas({self.align}) "
         if self.constexpr:
-            return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
-        return f"ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
+            return f"{prefix}static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"{prefix}ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -484,24 +488,44 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
-def progmem_array(id_, rhs) -> "MockObj":
+def progmem_array(id_, rhs, *, align: int | None = None) -> "MockObj":
+    """Emit a ``static constexpr`` PROGMEM array and return a reference to it.
+
+    ``align`` prefixes the declaration with ``alignas(align)``. Without it the array
+    only gets its element type's alignment (1 byte for a byte array), so data read
+    through a cast, such as a flatbuffer model buffer, needs this to stay aligned.
+    """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
+    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, align=align)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
 
+_CONFIG_ID_NAMES = "config_id_names"
+
+
 def unique_global_id(name: str, type_: "MockObjClass") -> ID:
     """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
     from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
+    from esphome.config_validation import RESERVED_IDS_SET
 
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    # The config is final during code generation, so its ids are collected once per run.
+    if (config_ids := CORE.data.get(_CONFIG_ID_NAMES)) is None:
+        config_ids = CORE.data[_CONFIG_ID_NAMES] = {
+            str(i) for i, _ in iter_ids(CORE.config)
+        }
+    unique = unique_name(
+        name,
+        lambda c: (
+            c in config_ids
+            or c in RESERVED_IDS_SET
+            or c in CORE.loaded_integrations
+            or ID(c) in CORE.variables
+        ),
+    )
+    return ID(unique, is_declaration=True, type=type_)
 
 
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):

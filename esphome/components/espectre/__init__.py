@@ -248,7 +248,7 @@ async def to_code(config: ConfigType) -> None:
         )
 
     wifi.enable_runtime_roaming_suppression()
-    esp32.add_idf_component(name="francescopace/espectre", ref="3.1.0")
+    esp32.add_idf_component(name="francescopace/espectre", ref="3.2.0")
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CSI_ENABLED", True)
     # CSI is reported once per received transmission, so aggregation hides frames from sensing.
     # Disabling TX aggregation also lets the SDK fix the station TX rate (6.5 Mbps on ESP32).
