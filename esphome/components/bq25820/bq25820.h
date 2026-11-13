@@ -51,15 +51,6 @@ using BQ25820AdcRegisters = std::array<uint8_t, 1>;
 // CHARGE_STAT codes, then TS_STAT codes; undefined TS codes 5-7 fall back to index 5
 PROGMEM_STRING_TABLE(BQ25820StatusStrings, "Not Charging", "Trickle", "Precharge", "Fast Charge", "Taper", "Unknown",
                      "Top-Off", "Done", "Normal", "Warm", "Cool", "Cold", "Hot");
-
-/// Publishes string `first + (value & 7)`, only on change
-inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
-  value &= 0x07;
-  if (value == last)
-    return;
-  last = value;
-  sensor->publish_state(BQ25820StatusStrings::get_progmem_str(first + value, 5));
-}
 #endif
 
 class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {

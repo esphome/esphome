@@ -91,8 +91,10 @@ static void publish_status(const BQ25186StatusRegisters &status) {
   entities->binary[VIN_OVP_FLAG].publish_state(((status[2] >> 2) & 0x01));
   entities->binary[BATTERY_UVLO_FLAG].publish_state(((status[2] >> 1) & 0x01));
   entities->binary[BATTERY_OCP_FLAG].publish_state(((status[2] >> 0) & 0x01));
-  publish_status_text(&entities->text[CHARGE_STATUS], entities->charge_status_last, (status[0] >> 5), 0);
-  publish_status_text(&entities->text[TS_STATUS], entities->ts_status_last, (status[1] >> 3), 4);
+  text_sensor::publish_table_on_change<bq25186::BQ25186StatusStrings, 0x03, bq25186::BQ25186StatusStrings::LAST_INDEX>(
+      &entities->text[CHARGE_STATUS], entities->charge_status_last, (status[0] >> 5), 0);
+  text_sensor::publish_table_on_change<bq25186::BQ25186StatusStrings, 0x03, bq25186::BQ25186StatusStrings::LAST_INDEX>(
+      &entities->text[TS_STATUS], entities->ts_status_last, (status[1] >> 3), 4);
 }
 
 class BQ25186StatusTest : public ::testing::Test {
