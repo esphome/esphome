@@ -26,6 +26,9 @@ static constexpr uint16_t RTP_JPEG_MAX_DIMENSION = 255 * 8;
 // A frame whose packets make no write progress for this long is dropped, so a stalled client cannot hold
 // the camera image (esp32_camera captures nothing while any copy is held).
 static constexpr uint32_t FRAME_STALL_MS = 500;
+// Once one session has sent a frame, the others get this much longer before they drop it, so a slow but steady
+// client cannot hold the camera image for the faster ones either.
+static constexpr uint32_t FRAME_LAGGARD_MS = 200;
 
 /// The fields of a JPEG frame that an RFC 2435 RTP/JPEG payload needs. Pointers refer into the frame.
 struct JpegInfo {
@@ -40,6 +43,38 @@ struct JpegInfo {
 
 bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out);
 
+/// Tracks the sessions sending one camera frame, as bits by slot. Once any of them has sent all of it, the rest
+/// must drop it after FRAME_LAGGARD_MS. A single session is never cut short, and one that stops sending the frame
+/// for another reason (it closed, paused or stalled) is only no longer tracked.
+class FrameLaggards {
+ public:
+  /// The sessions that took a new frame. The tracked set is replaced, not added to: esp32_camera returns no new
+  /// image while any copy is held, so no session is still sending the previous frame.
+  void start(uint8_t sessions) {
+    this->sending_ = sessions;
+    this->any_done_ = false;
+  }
+  /// `sending` are the sessions that still hold a frame, and `finished` those whose last frame was sent in full;
+  /// returns those that must drop it now.
+  uint8_t update(uint8_t sending, uint8_t finished, uint32_t now) {
+    sending &= this->sending_;
+    if ((this->sending_ & ~sending & finished) != 0 && !this->any_done_) {
+      this->any_done_ = true;
+      this->first_done_ms_ = now;
+    }
+    this->sending_ = sending;
+    if (sending == 0 || !this->any_done_ || now - this->first_done_ms_ <= FRAME_LAGGARD_MS)
+      return 0;
+    this->sending_ = 0;
+    return sending;
+  }
+
+ protected:
+  uint32_t first_done_ms_{0};
+  uint8_t sending_{0};
+  bool any_done_{false};
+};
+
 /** A single RTSP client: one TCP connection carrying both the RTSP control channel and, once playing,
  *  RTP/JPEG media interleaved on the same socket (RFC 2326 §10.12). No UDP transport is supported.
  *  The object is a reusable slot: open() starts a connection, and it closes itself when the connection ends.
@@ -51,8 +86,15 @@ class RTSPSession {
 
   void open(std::unique_ptr<socket::Socket> socket, uint32_t now);
   void loop(uint32_t now, uint16_t port);
+  bool has_frame() const { return this->frame_ != nullptr; }
+  /// Whether the last frame taken was sent in full, rather than dropped or abandoned.
+  bool finished_frame() const { return this->frame_finished_; }
+
   /// Ignored unless playing with no output pending; packets of the frame being sent point into that frame.
-  void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
+  /// Returns whether the session took the frame.
+  bool on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
+  /// Releases the frame; the frame-backed rest of the current packet is sent as zeros to keep the framing.
+  void drop_frame();
 
  protected:
   enum class State : uint8_t { INIT, READY, PLAYING };
@@ -71,8 +113,6 @@ class RTSPSession {
       __attribute__((format(printf, 4, 5)));
   void stop_playing_();
   bool queue_next_packet_();
-  /// Releases the frame; the frame-backed rest of the current packet is sent as zeros to keep the framing.
-  void drop_frame_();
   /// Writes what is queued; true once all of it is written, false while backlogged or after a failure.
   bool flush_(uint32_t now);
 
@@ -104,6 +144,7 @@ class RTSPSession {
   bool should_close_{false};
   bool close_after_send_{false};
   bool sending_packet_{false};  // iov_ holds an RTP packet rather than a response
+  bool frame_finished_{false};  // the last frame taken was sent in full
   bool read_pending_{false};    // reading stopped before EAGAIN; read again without waiting for ready()
   char session_id_[9]{};
 
