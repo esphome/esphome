@@ -1,5 +1,5 @@
 """Improv over BLE: find the device by name, send WIFI_SETTINGS and print state, errors and the RPC result URLs.
-usage: improvble.py NAME SECRETS   (needs bleak; the device needs esp32_improv authorizer: none)"""
+usage: improvble.py NAME SECRETS   (needs bleak; the device needs improv_ble authorizer: none and a next_url)"""
 
 import asyncio
 import pathlib
@@ -58,7 +58,11 @@ async def main(name: str, secrets: str) -> None:
                 strs.append(p[1 : 1 + p[0]].decode(errors="replace"))
                 p = p[1 + p[0] :]
             print(f"{loop.time() - t0:6.2f} RESULT cmd={d[0]} {strs}", flush=True)
-            if d[0] == 1:  # the WIFI_SETTINGS reply
+            if (
+                d[0] == 1
+            ):  # the WIFI_SETTINGS reply; the example sets next_url, so it carries a URL
+                if not any(x.startswith("http") for x in strs):
+                    errors.append("no URL in result")
                 done.set()
 
         await c.start_notify(STATE, on_state)
@@ -66,6 +70,10 @@ async def main(name: str, secrets: str) -> None:
         await c.start_notify(RESULT, on_result)
         s = await c.read_gatt_char(STATE)
         print(f"initial state {STATES.get(s[0], s[0]) if s else 'empty'}")
+        if not s or s[0] == 4:
+            sys.exit(
+                "FAIL: board already provisioned or no state; erase the flash or use a fresh config name first"
+            )
         payload = bytes([len(ssid)]) + ssid + bytes([len(pw)]) + pw
         await c.write_gatt_char(RPC, pkt(1, payload), response=True)
         try:

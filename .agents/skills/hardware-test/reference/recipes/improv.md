@@ -13,7 +13,8 @@
   run. `--skip-bad` leaves out the bad password case, `--keep-dtr` leaves DTR asserted, `--allow-reset` accepts a
   reboot.
 - `improvble.py NAME SECRETS`: Improv BLE client (bleak). Finds the device by name, sends WIFI_SETTINGS and prints
-  the state changes and the RPC result URLs. Needs `esp32_improv: authorizer: none`.
+  the state changes and the RPC result URLs. Needs `improv_ble` (formerly `esp32_improv`) with `authorizer: none`
+  and a `next_url`; the result must carry a URL.
 - `common.yaml`: package with Wi-Fi and no network, `web_server`, `improv_serial` with a `next_url` (so the
   provisioned reply carries URLs) and an ALIVE line every 5 s. `example-esp32.yaml` uses it on a classic ESP32.
 - `run.sh NAME [improvcli args]` (env `TREE`, `PORT`, `SECRETS`, `PY`): compile, erase, flash and run the client.
@@ -31,7 +32,8 @@ Per board:
   only for a reboot that is known and expected.
 - Pico 2 W: its USB CDC sends nothing until the host asserts DTR, so run with `--keep-dtr`. Its Improv scan lists
   no networks, on dev and PR alike.
-- Erase the flash between builds: a saved network skips the provisioning path entirely.
+- Erase the flash between builds: a saved network skips the provisioning path entirely. Both clients fail at once
+  when the board already reports `provisioned`; erase it or give the config a fresh name first.
 
 When posting results:
 

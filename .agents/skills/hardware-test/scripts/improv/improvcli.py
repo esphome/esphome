@@ -66,15 +66,17 @@ class Dev:
 
     def reopen(self) -> None:
         # Native USB ports re-enumerate on reset; wait up to 10 s for them.
+        err: Exception | None = None
         for _ in range(40):
             try:
                 if self.ser.is_open:
                     self.ser.close()
                 self.ser.open()
                 return
-            except (serial.SerialException, OSError):
+            except (serial.SerialException, OSError) as exc:
+                err = exc
                 time.sleep(0.25)
-        raise SystemExit("port did not come back")
+        raise SystemExit(f"port did not come back: {err}")
 
     def pump(self, dur: float) -> None:
         end = time.time() + dur
@@ -220,7 +222,12 @@ def main() -> None:
     d.pump(1.0)
     # Stray bytes must be ignored silently; the state reply below shows the parser recovered.
     ok = not any(e[1] == 2 and e[3] and e[2][0] for e in d.events[j:])
-    ok &= ask(d, "state", 2, state)
+    # A saved network skips provisioning: the board must start unprovisioned.
+    ok &= ask(d, "state", 2, lambda e: state(e) and e[2][0] != 4)
+    if any(state(e) and e[2][0] == 4 for e in d.events[j:]):
+        print(
+            "board is already provisioned: erase the flash or use a fresh config name first"
+        )
     ok &= ask(d, "info", 3, rpc(3))
     ok &= ask(d, "netstate", 7, rpc(7))
     # The scan sends one reply per network and ends with an empty one.

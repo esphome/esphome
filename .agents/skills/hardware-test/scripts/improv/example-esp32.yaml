@@ -10,5 +10,6 @@ esp32:
     type: esp-idf
 logger:
   hardware_uart: UART0
-esp32_improv:
+improv_ble:
   authorizer: none
+  next_url: https://example.com/?device_name={{device_name}}&ip_address={{ip_address}}
