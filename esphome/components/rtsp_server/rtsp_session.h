@@ -26,6 +26,9 @@ static constexpr uint16_t RTP_JPEG_MAX_DIMENSION = 255 * 8;
 // A frame whose packets make no write progress for this long is dropped, so a stalled client cannot hold
 // the camera image (esp32_camera captures nothing while any copy is held).
 static constexpr uint32_t FRAME_STALL_MS = 500;
+// Once one session has sent a frame, the others get this much longer before they drop it, so a slow but steady
+// client cannot hold the camera image for the faster ones either.
+static constexpr uint32_t FRAME_LAGGARD_MS = 200;
 
 /// The fields of a JPEG frame that an RFC 2435 RTP/JPEG payload needs. Pointers refer into the frame.
 struct JpegInfo {
@@ -40,6 +43,35 @@ struct JpegInfo {
 
 bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out);
 
+/// Tracks the sessions sending one camera frame, as bits by slot. Once any of them has finished it, the rest must
+/// drop it after FRAME_LAGGARD_MS. A single session is never cut short.
+class FrameLaggards {
+ public:
+  /// The sessions that took a new frame.
+  void start(uint8_t sessions) {
+    this->sending_ = sessions;
+    this->any_done_ = false;
+  }
+  /// `sending` are the sessions that still hold a frame; returns those that must drop it now.
+  uint8_t update(uint8_t sending, uint32_t now) {
+    sending &= this->sending_;
+    if (sending != this->sending_ && !this->any_done_) {
+      this->any_done_ = true;
+      this->first_done_ms_ = now;
+    }
+    this->sending_ = sending;
+    if (sending == 0 || !this->any_done_ || now - this->first_done_ms_ <= FRAME_LAGGARD_MS)
+      return 0;
+    this->sending_ = 0;
+    return sending;
+  }
+
+ protected:
+  uint32_t first_done_ms_{0};
+  uint8_t sending_{0};
+  bool any_done_{false};
+};
+
 /** A single RTSP client: one TCP connection carrying both the RTSP control channel and, once playing,
  *  RTP/JPEG media interleaved on the same socket (RFC 2326 §10.12). No UDP transport is supported.
  *  The object is a reusable slot: open() starts a connection, and it closes itself when the connection ends.
@@ -51,8 +83,13 @@ class RTSPSession {
 
   void open(std::unique_ptr<socket::Socket> socket, uint32_t now);
   void loop(uint32_t now, uint16_t port);
+  bool has_frame() const { return this->frame_ != nullptr; }
+
   /// Ignored unless playing with no output pending; packets of the frame being sent point into that frame.
-  void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
+  /// Returns whether the session took the frame.
+  bool on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
+  /// Releases the frame being sent; the rest of the packet in flight is sent as zeros to keep the framing.
+  void drop_frame() { this->drop_frame_(); }
 
  protected:
   enum class State : uint8_t { INIT, READY, PLAYING };

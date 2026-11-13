@@ -29,10 +29,7 @@ class StubImage : public camera::CameraImage {
   std::vector<uint8_t> data_;
 };
 
-class RTSPSessionUnderTest : public RTSPSession {
- public:
-  bool has_frame() const { return this->frame_ != nullptr; }
-};
+using RTSPSessionUnderTest = RTSPSession;
 
 class RTSPSessionTest : public ::testing::Test {
  protected:
@@ -318,6 +315,45 @@ TEST_F(RTSPSessionTest, RepeatPlayContinuesSequence) {
   ASSERT_TRUE(parse_interleaved(this->receive(), 0, after));
   ASSERT_EQ(after.size(), 1u);
   EXPECT_EQ(after[0], static_cast<uint16_t>(sequences[0] + 1));
+}
+
+TEST_F(RTSPSessionTest, NewFrameReportsWhetherTaken) {
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 5000);
+  EXPECT_FALSE(this->session_.on_new_frame(image, stub_jpeg(*image), this->now_)) << "not playing";
+  this->start_playing();
+  EXPECT_TRUE(this->session_.on_new_frame(image, stub_jpeg(*image), this->now_));
+  EXPECT_FALSE(this->session_.on_new_frame(image, stub_jpeg(*image), this->now_)) << "busy with the first";
+  this->session_.drop_frame();
+  EXPECT_FALSE(this->session_.has_frame());
+}
+
+TEST(RTSPFrameLaggards, SingleSessionIsNeverCutShort) {
+  FrameLaggards laggards;
+  laggards.start(0b01);
+  EXPECT_EQ(laggards.update(0b01, 1000), 0);
+  EXPECT_EQ(laggards.update(0b01, 60000), 0);
+  EXPECT_EQ(laggards.update(0b00, 60001), 0);
+}
+
+TEST(RTSPFrameLaggards, SlowSessionDropsAfterTheOthersFinish) {
+  FrameLaggards laggards;
+  laggards.start(0b111);
+  EXPECT_EQ(laggards.update(0b111, 1000), 0);
+  EXPECT_EQ(laggards.update(0b110, 1100), 0);  // session 0 finished
+  EXPECT_EQ(laggards.update(0b100, 1100 + FRAME_LAGGARD_MS), 0);
+  EXPECT_EQ(laggards.update(0b100, 1101 + FRAME_LAGGARD_MS), 0b100);
+  EXPECT_EQ(laggards.update(0b100, 1200 + FRAME_LAGGARD_MS), 0) << "reported once";
+}
+
+TEST(RTSPFrameLaggards, OnlyTheSessionsThatTookTheFrameCount) {
+  FrameLaggards laggards;
+  laggards.start(0b01);
+  // Session 1 holds an older frame it did not take now; it is not compared with session 0.
+  EXPECT_EQ(laggards.update(0b11, 1000), 0);
+  EXPECT_EQ(laggards.update(0b11, 5000), 0);
+  laggards.start(0b11);  // the next frame restarts the count
+  EXPECT_EQ(laggards.update(0b01, 6000), 0);
+  EXPECT_EQ(laggards.update(0b01, 6001 + FRAME_LAGGARD_MS), 0b01);
 }
 
 // Minimal JPEG: SOI, DQT (two tables), optional DRI, SOF0, SOS, scan byte, EOI.

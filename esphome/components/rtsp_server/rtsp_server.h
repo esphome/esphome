@@ -37,6 +37,7 @@ class RTSPServer : public Component, public camera::CameraListener {
 
   socket::ListenSocket *socket_{nullptr};
   std::array<RTSPSession, MAX_RTSP_CONNECTIONS> sessions_{};
+  FrameLaggards laggards_;
 #ifdef USE_SOCKET_IPV4_ALLOW
   socket::Ipv4Allow allow_;
 #endif

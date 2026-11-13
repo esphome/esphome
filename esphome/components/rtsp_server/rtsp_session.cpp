@@ -401,11 +401,11 @@ void RTSPSession::stop_playing_() {
   this->frame_.reset();
 }
 
-void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now) {
+bool RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now) {
   // Pending output means a frame is in flight or a stalled one is still being padded out.
   if (this->state_ != State::PLAYING || this->frame_ != nullptr || this->iov_pos_ < this->iov_count_ ||
       this->filler_len_ > 0)
-    return;
+    return false;
   this->frame_ = image;
   this->jpeg_ = jpeg;
   this->frame_sent_ = 0;
@@ -414,6 +414,7 @@ void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
   uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : now - this->last_frame_ms_;
   this->rtp_timestamp_ += static_cast<uint32_t>((static_cast<uint64_t>(elapsed_ms) * RTP_CLOCK_RATE) / 1000);
   this->last_frame_ms_ = now;
+  return true;
 }
 
 bool RTSPSession::queue_next_packet_() {
