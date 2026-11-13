@@ -14,13 +14,13 @@ static const uint16_t DALY_CURRENT_OFFSET = 30000;
 
 // One cycle sends these requests in this order. The IDs are consecutive, so the request at position N of the cycle
 // is DALY_REQUEST_BATTERY_LEVEL + N; a request added later must keep them consecutive.
-static const uint8_t DALY_REQUEST_BATTERY_LEVEL = 0x90;
-static const uint8_t DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
-static const uint8_t DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
-static const uint8_t DALY_REQUEST_MOS = 0x93;
-static const uint8_t DALY_REQUEST_STATUS = 0x94;
-static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
-static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
+static constexpr uint8_t DALY_REQUEST_BATTERY_LEVEL = 0x90;
+static constexpr uint8_t DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
+static constexpr uint8_t DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
+static constexpr uint8_t DALY_REQUEST_MOS = 0x93;
+static constexpr uint8_t DALY_REQUEST_STATUS = 0x94;
+static constexpr uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
+static constexpr uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 static constexpr uint8_t DALY_REQUEST_COUNT = DALY_REQUEST_TEMPERATURE - DALY_REQUEST_BATTERY_LEVEL + 1;
 // A response can span several frames (three cell voltages per frame). Once a frame is complete and the line
