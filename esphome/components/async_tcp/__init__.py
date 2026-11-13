@@ -35,7 +35,7 @@ async def to_code(config: ConfigType) -> None:
         add_idf_component(name="esp32async/asynctcp", ref="3.4.91")
     elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
-        cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
+        cg.add_library("ESP32Async/AsyncTCP", "3.5.0")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
