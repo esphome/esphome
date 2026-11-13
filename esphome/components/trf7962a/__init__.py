@@ -40,6 +40,12 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
+# The reader's SPI clock is limited to 10 MHz
+DATA_RATE_SCHEMA = cv.All(
+    spi.SPI_DATA_RATE_SCHEMA,
+    cv.Range(max=10e6, msg="The TRF7962A supports an SPI data rate of at most 10MHz"),
+)
+
 # Reads and writes use opposite clock phases in one CS window, so CS and SPI mode are fixed
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -47,7 +53,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_SPI_ID): cv.use_id(spi.SPIComponent),
         cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_DATA_RATE, default="2MHz"): spi.SPI_DATA_RATE_SCHEMA,
+        cv.Optional(CONF_DATA_RATE, default="2MHz"): DATA_RATE_SCHEMA,
         cv.Optional(CONF_VIN, default="5V"): cv.enum(VIN, upper=True),
         cv.Optional(CONF_RF_POWER, default="FULL"): cv.enum(RF_POWER, upper=True),
         cv.Optional(CONF_ON_TAG): automation.validate_automation({}),
