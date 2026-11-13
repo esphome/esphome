@@ -37,11 +37,18 @@ void ResamplerMicrophone::dump_config() {
                 "  Taps: %u\n"
                 "  Filters: %u",
                 this->target_sample_rate_, this->taps_, this->filters_);
+#ifdef USE_DSP_DECIMATOR
+  ESP_LOGCONFIG(TAG, "  ESP-DSP integer-ratio decimation: %s", YESNO(this->fast_decimation_));
+#endif
 }
 
 void ResamplerMicrophone::start() {
   if (this->is_failed() || this->active_listeners_ == UINT8_MAX)
     return;
+#ifdef USE_DSP_DECIMATOR
+  if (this->active_listeners_ == 0)
+    this->fast_errors_logged_ = 0;
+#endif
   ++this->active_listeners_;
   this->enable_loop();
 }
@@ -54,6 +61,20 @@ void ResamplerMicrophone::stop() {
 }
 
 void ResamplerMicrophone::loop() {
+#ifdef USE_DSP_DECIMATOR
+  const uint8_t errors = this->fast_errors_pending_.exchange(0, std::memory_order_acq_rel) &
+                         static_cast<uint8_t>(~this->fast_errors_logged_);
+  if (errors & FAST_ERROR_INVALID_FORMAT) {
+    ESP_LOGE(TAG, "Fast decimation requires mono 16-bit input and an integer rate ratio from 2:1 to 16:1");
+  }
+  if (errors & FAST_ERROR_INITIALIZATION) {
+    ESP_LOGE(TAG, "ESP-DSP decimator initialization failed");
+  }
+  if (errors & FAST_ERROR_RESET) {
+    ESP_LOGE(TAG, "ESP-DSP decimator reset failed");
+  }
+  this->fast_errors_logged_ |= errors;
+#endif
   if (this->active_listeners_ == 0) {
     if (this->state_ != microphone::STATE_STOPPED) {
       this->source_->stop();
@@ -65,6 +86,11 @@ void ResamplerMicrophone::loop() {
 
   switch (this->state_) {
     case microphone::STATE_STOPPED:
+#ifdef USE_DSP_DECIMATOR
+      if (this->fast_decimation_) {
+        this->dsp_decimator_.request_reset();
+      }
+#endif
       this->source_->start();
       this->state_ = microphone::STATE_STARTING;
       break;
@@ -84,7 +110,8 @@ void ResamplerMicrophone::loop() {
   }
 }
 
-bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_stream_info) {
+bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_stream_info,
+                                          [[maybe_unused]] bool from_audio_callback) {
   this->resampler_.reset();
   this->resampler_ready_ = false;
 
@@ -95,6 +122,37 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
     this->resampler_ready_ = true;
     return true;
   }
+
+#ifdef USE_DSP_DECIMATOR
+  if (this->fast_decimation_) {
+    const uint32_t source_rate = input_stream_info.get_sample_rate();
+    if (source_rate <= this->target_sample_rate_ || source_rate % this->target_sample_rate_ != 0 ||
+        source_rate / this->target_sample_rate_ < audio::MIN_DSP_DECIMATION_RATIO ||
+        source_rate / this->target_sample_rate_ > audio::MAX_DSP_DECIMATION_RATIO ||
+        input_stream_info.get_bits_per_sample() != 16 || input_stream_info.get_channels() != 1) {
+      if (from_audio_callback) {
+        this->fast_errors_pending_.fetch_or(FAST_ERROR_INVALID_FORMAT, std::memory_order_release);
+      } else {
+        ESP_LOGE(TAG, "Fast decimation requires mono 16-bit input and an integer rate ratio from 2:1 to 16:1");
+      }
+      return false;
+    }
+    const uint32_t ratio = source_rate / this->target_sample_rate_;
+    if (!this->dsp_decimator_.configure(source_rate, this->target_sample_rate_)) {
+      if (from_audio_callback) {
+        this->fast_errors_pending_.fetch_or(FAST_ERROR_INITIALIZATION, std::memory_order_release);
+      } else {
+        ESP_LOGE(TAG, "ESP-DSP decimator initialization failed");
+      }
+      return false;
+    }
+    const uint32_t max_input_frames = input_stream_info.ms_to_frames(BUFFER_DURATION_MS);
+    this->output_buffer_.reserve(this->audio_stream_info_.frames_to_bytes((max_input_frames + ratio - 1) / ratio));
+    this->input_stream_info_ = input_stream_info;
+    this->resampler_ready_ = true;
+    return true;
+  }
+#endif
 
   const audio::AudioStreamInfo output_stream_info(input_stream_info.get_bits_per_sample(),
                                                   input_stream_info.get_channels(), this->target_sample_rate_);
@@ -131,11 +189,34 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
 void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture) {
   const audio::AudioStreamInfo &input_stream_info = capture.stream_info;
   if (input_stream_info != this->input_stream_info_) {
-    this->init_resampler_(input_stream_info);
+    this->init_resampler_(input_stream_info, true);
   }
   if (!this->resampler_ready_) {
     return;
   }
+
+#ifdef USE_DSP_DECIMATOR
+  if (this->fast_decimation_ && input_stream_info.get_sample_rate() != this->target_sample_rate_) {
+    // Keep the callback output within its setup-time reservation.
+    const size_t max_input_bytes = input_stream_info.ms_to_bytes(BUFFER_DURATION_MS);
+    for (size_t offset = 0; offset < capture.data.size(); offset += max_input_bytes) {
+      const size_t bytes = std::min(max_input_bytes, capture.data.size() - offset);
+      if (!this->dsp_decimator_.process(capture.data.data() + offset, bytes, this->output_buffer_)) {
+        this->fast_errors_pending_.fetch_or(FAST_ERROR_RESET, std::memory_order_release);
+        return;
+      }
+      if (!this->output_buffer_.empty()) {
+        int64_t capture_time_us = capture.capture_time_us;
+        if (capture_time_us != 0) {
+          capture_time_us += static_cast<int64_t>(input_stream_info.bytes_to_frames(offset)) * 1000000 /
+                             input_stream_info.get_sample_rate();
+        }
+        this->publish_audio_(this->output_buffer_, this->audio_stream_info_, capture_time_us);
+      }
+    }
+    return;
+  }
+#endif
 
   if (this->resampler_ == nullptr) {
     if (this->mute_state_) {
