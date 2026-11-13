@@ -2572,6 +2572,14 @@ def test_mqtt_qos_out_of_range() -> None:
         cv.mqtt_qos(5)
 
 
+@pytest.mark.parametrize("value", (2.9, 1.2, True, False))
+def test_mqtt_qos_rejects_fractions_and_booleans(value) -> None:
+    # a float silently truncated to the QoS below it, and bool is an int
+    # subclass so `qos: yes` silently selected 1
+    with pytest.raises(Invalid, match="must be integer"):
+        cv.mqtt_qos(value)
+
+
 # ---------------------------------------------------------------------------
 # requires_component / conflicts_with_component
 # ---------------------------------------------------------------------------

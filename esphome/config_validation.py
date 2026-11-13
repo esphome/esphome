@@ -1875,6 +1875,10 @@ def mqtt_payload(value):
 
 
 def mqtt_qos(value):
+    if isinstance(value, bool) or (isinstance(value, float) and int(value) != value):
+        # bool is an int subclass so `yes`/`no` silently selected 1/0, and a
+        # fractional float silently truncated to the QoS below it
+        raise Invalid(f"MQTT Quality of Service must be integer, got {value}")
     try:
         value = int(value)
     except (TypeError, ValueError):
