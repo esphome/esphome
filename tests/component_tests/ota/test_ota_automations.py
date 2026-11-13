@@ -51,9 +51,9 @@ def test_ota_automations_are_callbacks(generate_main: Callable[[str], str]) -> N
     assert main_cpp.count("component == ::ota_http") == 1
     assert main_cpp.count("!component->is_failed()") == 10
     assert "Trigger" not in main_cpp
-    assert "->trigger(progress);" in main_cpp
-    assert "->trigger(error);" in main_cpp
-    assert "->trigger(state);" in main_cpp
+    assert "__fn(progress);" in main_cpp
+    assert "__fn(error);" in main_cpp
+    assert "__fn(state);" in main_cpp
     counts = {d.name: str(d.value) for d in CORE.defines}
     assert counts["OTA_STATE_CALLBACK_COUNT"] == "10"
 
