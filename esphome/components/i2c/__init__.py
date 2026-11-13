@@ -142,9 +142,10 @@ def _i2c_pin_number(value: Any) -> Any:
 
 
 def _validate_pins_in_bus_domain(config: ConfigType) -> None:
-    """Reject a pin on a GPIO port outside the power domain of the nRF54L bus.
+    """Reject nRF54L bus pins outside its power domain, or on two different ports.
 
-    The datasheet lets a peripheral use only the GPIO ports of its own power domain.
+    The datasheet lets a peripheral use only the GPIO ports of its own power domain, and all its pins
+    must be on one port.
     """
     from esphome.components.nrf52.const import VARIANT_I2C
     from esphome.components.nrf52.framework import get_nrf52_variant
@@ -160,6 +161,13 @@ def _validate_pins_in_bus_domain(config: ConfigType) -> None:
                 f"use a pin on {ports}",
                 [key],
             )
+    sda_port, sda_pin = divmod(config[CONF_SDA], 32)
+    scl_port, scl_pin = divmod(config[CONF_SCL], 32)
+    if sda_port != scl_port:
+        raise cv.Invalid(
+            f"SDA P{sda_port}.{sda_pin:02d} and SCL P{scl_port}.{scl_pin:02d} must be on the same GPIO port",
+            [CONF_SCL],
+        )
 
 
 def validate_config(config: ConfigType) -> ConfigType:
