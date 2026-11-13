@@ -53,8 +53,8 @@ struct Model {
 static constexpr uint8_t REQUEST_IDENTITY = 0xFE;
 static constexpr uint8_t REQUEST_NONE = 0xFF;
 
-/// A Grundfos ALPHA circulator pump. It reads the pump's unit family, type and version once, then polls the
-/// objects of that model. It only reads; it never writes to the pump.
+/// A Grundfos ALPHA circulator pump. It reads the pump's unit family, type and version at each connection, then
+/// polls the objects of that model. It only reads; it never writes to the pump.
 class GrundfosAlpha final : public genibus::GenibusDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(flow)
@@ -71,6 +71,9 @@ class GrundfosAlpha final : public genibus::GenibusDevice {
   void dump_config() override;
   void on_response(const genibus::GenibusResponse &response) override;
   void on_connected() override {
+    // A new connection may be to a pump with other firmware: identify it again
+    this->model_ = nullptr;
+    this->unsupported_ = false;
     this->missing_ = 0;
     this->update();
   }

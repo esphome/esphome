@@ -117,9 +117,15 @@ bool GrundfosAlpha::identify_(const genibus::GenibusResponse &response) {
     return false;
   genibus::ApduReader reader(response.apdus);
   genibus::Apdu apdu{};
-  if (!reader.next(apdu) || apdu.data_class != CLASS_MEASURED_DATA || apdu.ack != 0 || apdu.data.size() != 3) {
+  const bool has_apdu = reader.next(apdu);
+  if (!has_apdu || apdu.data_class != CLASS_MEASURED_DATA || apdu.ack != 0 || apdu.data.size() != 3) {
     if (this->first_warning_(WARNED_IDENTITY)) {
-      ESP_LOGW(TAG, "No unit family, type and version in the reply (class %u, ACK %u)", apdu.data_class, apdu.ack);
+      if (!has_apdu) {
+        ESP_LOGW(TAG, "No APDU in the identity reply");
+      } else {
+        ESP_LOGW(TAG, "No unit family, type and version in the reply (class %u, ACK %u, %u bytes)", apdu.data_class,
+                 apdu.ack, static_cast<unsigned>(apdu.data.size()));
+      }
     }
     this->status_set_warning(LOG_STR("No pump identity"));
     return false;
@@ -147,8 +153,9 @@ void GrundfosAlpha::decode_(uint8_t index, const genibus::GenibusResponse &respo
   genibus::Apdu apdu{};
   genibus::DataObject object{};
   const bool replied = response.error == GenibusError::GENIBUS_ERROR_NONE && reader.next(apdu);
-  const bool ok = replied && genibus::parse_data_object(apdu, object) && object.type == layout.type &&
-                  object.version == layout.version && object.body.size() == layout.size;
+  const bool parsed = replied && genibus::parse_data_object(apdu, object);
+  const bool ok =
+      parsed && object.type == layout.type && object.version == layout.version && object.body.size() == layout.size;
   if (replied && genibus::is_object_missing(apdu)) {
     // A firmware without the object: skip it until the next connection instead of asking at every update
     this->missing_ |= 1u << index;
@@ -156,10 +163,16 @@ void GrundfosAlpha::decode_(uint8_t index, const genibus::GenibusResponse &respo
       ESP_LOGW(TAG, "The pump has no object %u/%u; its sensors stay unknown", layout.object, layout.sub_id);
     }
   } else if (!ok && response.error == GenibusError::GENIBUS_ERROR_NONE && this->first_warning_(1u << index)) {
-    // Never read offsets from another version of the object
-    ESP_LOGW(TAG, "Unexpected reply to object %u/%u: class %u, ACK %u, type 0x%04X v%u, %u bytes", layout.object,
-             layout.sub_id, apdu.data_class, apdu.ack, object.type, object.version,
-             static_cast<unsigned>(object.body.size()));
+    // Never read offsets from another version of the object; log only the fields the reply really had
+    if (!replied) {
+      ESP_LOGW(TAG, "No APDU in the reply to object %u/%u", layout.object, layout.sub_id);
+    } else if (!parsed) {
+      ESP_LOGW(TAG, "Unexpected reply to object %u/%u: class %u, ACK %u, %u bytes", layout.object, layout.sub_id,
+               apdu.data_class, apdu.ack, static_cast<unsigned>(apdu.data.size()));
+    } else {
+      ESP_LOGW(TAG, "Unexpected reply to object %u/%u: type 0x%04X v%u, %u bytes", layout.object, layout.sub_id,
+               object.type, object.version, static_cast<unsigned>(object.body.size()));
+    }
   }
   for (const auto &field : layout.fields) {
     float value = NAN;

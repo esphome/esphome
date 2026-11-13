@@ -139,6 +139,8 @@ TEST_F(GrundfosAlphaTest, MissingObjectGivesNanAndIsSkippedUntilReconnect) {
   // A new connection may be to a pump with other firmware
   this->bus_.lose_connection();
   this->bus_.establish_connection();
+  ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
+  this->reply_(REPLY_IDENTITY_ALPHA3);
   EXPECT_EQ(this->next_request_(), FRAME_PROCESS);
 }
 
@@ -199,14 +201,32 @@ TEST_F(GrundfosAlphaTest, FirstConnectionIdentifiesAtOnce) {
   EXPECT_EQ(this->next_request_(), FRAME_IDENTITY);
 }
 
-TEST_F(GrundfosAlphaTest, ReconnectReadsAtOnce) {
+TEST_F(GrundfosAlphaTest, ReconnectIdentifiesAgainAndReadsAtOnce) {
   this->read_all_();
   this->bus_.lose_connection();
   EXPECT_TRUE(std::isnan(this->flow_.state));
   this->bus_.establish_connection();
-  ASSERT_EQ(this->next_request_(), FRAME_PROCESS);  // identity stays known
+  ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
+  this->reply_(REPLY_IDENTITY_ALPHA3);
+  ASSERT_EQ(this->next_request_(), FRAME_PROCESS);
   this->reply_(REPLY_PROCESS);
   EXPECT_FLOAT_EQ(this->head_.state, 4.0f);
+}
+
+TEST_F(GrundfosAlphaTest, UnsupportedModelIsIdentifiedAgainAfterReconnect) {
+  this->bus_.connected = false;
+  this->bus_.establish_connection();
+  ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
+  this->reply_(REPLY_IDENTITY_ALPHA15);
+  EXPECT_TRUE(this->pump_.status_has_warning());
+  this->pump_.update();
+  EXPECT_TRUE(this->next_request_().empty());
+  this->bus_.lose_connection();
+  this->bus_.establish_connection();
+  ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
+  this->reply_(REPLY_IDENTITY_ALPHA3);
+  EXPECT_FALSE(this->pump_.status_has_warning());
+  EXPECT_EQ(this->next_request_(), FRAME_PROCESS);
 }
 
 }  // namespace esphome::grundfos_alpha::testing

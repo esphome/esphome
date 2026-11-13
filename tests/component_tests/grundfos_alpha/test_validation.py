@@ -3,8 +3,11 @@
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.genibus import CONF_GENIBUS_ID
 from esphome.components.grundfos_alpha import CONFIG_SCHEMA, validate_update_interval
-from esphome.const import CONF_UPDATE_INTERVAL
+from esphome.const import CONF_UPDATE_INTERVAL, PlatformFramework
+from esphome.types import ConfigType
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 @pytest.mark.parametrize("value", ["5s", "30s", "10min"])
@@ -22,8 +25,21 @@ def test_update_interval_below_5_s_is_rejected(value: str) -> None:
         validate_update_interval(value)
 
 
-def test_schema_uses_the_checked_update_interval() -> None:
-    keys = [k for k in CONFIG_SCHEMA.schema if k == CONF_UPDATE_INTERVAL]
-    assert len(keys) == 1
-    assert keys[0].default() == "30s"
-    assert CONFIG_SCHEMA.schema[keys[0]] is validate_update_interval
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [({}, 30), ({CONF_UPDATE_INTERVAL: "5s"}, 5)],
+)
+def test_schema_defaults_to_30_s_and_accepts_5_s(
+    set_core_config: SetCoreConfigCallable, config: ConfigType, expected: int
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    result = CONFIG_SCHEMA({CONF_GENIBUS_ID: "bus", **config})
+    assert result[CONF_UPDATE_INTERVAL] == cv.TimePeriod(seconds=expected)
+
+
+def test_schema_rejects_an_update_interval_below_5_s(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    with pytest.raises(cv.Invalid, match="at least 5s"):
+        CONFIG_SCHEMA({CONF_GENIBUS_ID: "bus", CONF_UPDATE_INTERVAL: "4s"})
