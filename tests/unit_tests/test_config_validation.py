@@ -2706,6 +2706,18 @@ def test_one_of_string_underscore_default_unchanged() -> None:
         cv.one_of("a-b", string=True)("a_b")
 
 
+def test_one_of_rejects_boolean_matching_int_option() -> None:
+    # bool is an int subclass (True == 1): the raw boolean used to pass the
+    # membership check and flow into the config unconverted
+    with pytest.raises(Invalid, match="Unknown value"):
+        cv.one_of(1, 2, 4, 8)(True)
+
+
+def test_one_of_accepts_boolean_options() -> None:
+    assert cv.one_of(True, False)(True) is True
+    assert cv.one_of(True, False)(False) is False
+
+
 def test_one_of_string_and_hyphen() -> None:
     assert cv.one_of("a_b", string=True, hyphen="_")("a-b") == "a_b"
     assert cv.one_of("a_b", string=True, hyphen="_")("a_b") == "a_b"
