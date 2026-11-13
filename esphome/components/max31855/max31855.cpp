@@ -10,12 +10,14 @@ ESPHOME_LOG_TAG(TAG, "max31855");
 static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 void MAX31855Sensor::update() {
+  // The MAX31855 converts continuously and updates its output register only
+  // while CS is high. Toggling CS restarts the conversion process, so the read
+  // below returns a fresh result. Conversion time is 70ms typ, 100ms max
+  // (datasheet, Electrical Characteristics); 220ms leaves ample margin.
   this->enable();
   delay(1);
-  // conversion initiated by rising edge
   this->disable();
 
-  // Conversion time typ: 170ms, max: 220ms
   this->set_timeout(READ_TIMEOUT_ID, 220, [this]() { this->read_data_(); });
 }
 
