@@ -1,4 +1,5 @@
 #include "vbus.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -10,8 +11,71 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
+static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
+
+#ifdef USE_VBUS_TX
+bool VBus::request_bus() {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Bus request rejected: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transmitter_ != nullptr && this->transmitter_->request_bus();
+}
+
+bool VBus::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply) {
+#ifdef USE_VBUS_TRANSACTIONS
+  if (this->transactions_ != nullptr && this->transactions_->is_busy()) {
+    ESP_LOGW(TAG, "Datagram not sent: transaction in progress");
+    return false;
+  }
+#endif
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Datagram not sent: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transmitter_ != nullptr &&
+         this->transmitter_->send_datagram(grant_id, command, value_id, value, expect_reply);
+}
+
+void VBus::release_bus(uint32_t grant_id) {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Bus release rejected: polling owns the bus");
+    return;
+  }
+#endif
+  if (this->transmitter_ != nullptr)
+    this->transmitter_->release_bus(grant_id);
+}
+#endif
+
+#ifdef USE_VBUS_TRANSACTIONS
+bool VBus::read_value(uint32_t grant_id, uint16_t value_id) {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Read rejected: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transactions_ != nullptr && this->transactions_->read_value(grant_id, value_id);
+}
+
+bool VBus::write_value(uint32_t grant_id, uint16_t value_id, uint32_t value, uint16_t command) {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Write rejected: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transactions_ != nullptr && this->transactions_->write_value(grant_id, value_id, value, command);
+}
+#endif
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   for (int i = 0; i < count; i++, septet >>= 1) {
@@ -28,7 +92,27 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  this->read_available([this](uint8_t c) {
+  const uint32_t now = App.get_loop_component_start_time();
+  const size_t available = this->available();
+#ifdef USE_VBUS_TX
+  if (this->transmitter_ != nullptr)
+    this->transmitter_->observe_rx(available);
+#endif
+  if (available == 0) {
+    // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
+    if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
+      this->state_ = 0;
+      this->buffer_.clear();
+    }
+    return;
+  }
+
+  auto on_byte = [this, now](uint8_t c) {
+    this->last_rx_ms_ = now;
+#ifdef USE_VBUS_TX
+    if (this->transmitter_ != nullptr)
+      this->transmitter_->observe_byte(c);
+#endif
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
@@ -43,11 +127,17 @@ void VBus::loop() {
 
     if (this->state_ == 1) {
       this->buffer_.push_back(c);
+      if (this->buffer_.size() < 7)
+        return;
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
         this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
         this->dest_ = (this->buffer_[1] << 8) + this->buffer_[0];
         this->command_ = (this->buffer_[6] << 8) + this->buffer_[5];
+#ifdef USE_VBUS_TX
+        if (this->transmitter_ != nullptr)
+          this->transmitter_->on_header(this->protocol_, this->source_, this->dest_);
+#endif
       }
       if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
         this->state_ = 0;
@@ -55,11 +145,22 @@ void VBus::loop() {
           ESP_LOGE(TAG, "P2 checksum failed");
           return;
         }
+        if (this->buffer_[13] & 0x40) {
+          ESP_LOGE(TAG, "Invalid P2 septet");
+          return;
+        }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
         uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
-        ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
+#ifdef USE_VBUS_TX
+        if (this->transmitter_ != nullptr)
+          this->transmitter_->on_datagram(this->command_, this->source_, this->dest_, id, value);
+#endif
+        ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
+#ifdef USE_VBUS_DATAGRAM
+        this->datagram_callback_.call(this->command_, this->source_, this->dest_, id, value);
+#endif
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
         if (!checksum(this->buffer_.data(), 0, 9)) {
           ESP_LOGE(TAG, "P1 checksum failed");
@@ -109,7 +210,13 @@ void VBus::loop() {
       this->state_ = 0;
       return;
     }
-  });
+  };
+#ifdef USE_VBUS_TX
+  // Keep queued bytes visible to bus-grant and collision checks.
+  this->read_available<1>(on_byte, available);
+#else
+  this->read_available(on_byte, available);
+#endif
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {

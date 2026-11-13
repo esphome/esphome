@@ -1,0 +1,47 @@
+esphome:
+  name: uart-mock-vbus-test
+host:
+api:
+logger:
+  level: DEBUG
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+uart:
+  baud_rate: 9600
+  port: /dev/null
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  auto_start: false
+vbus:
+  uart_id: mock_uart
+  on_datagram:
+    - then:
+        - delay: 50ms
+        - lambda: |-
+            ESP_LOGI("vbus.received", "%04x %04x %04x %04x %08" PRIx32,
+                     command, source, destination, value_id, value);
+button:
+  - platform: template
+    name: Start Scenario
+    on_press:
+      # A bad checksum and a checksum-valid unused septet bit must not trigger callbacks.
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x20, 0x00, 0x09,
+                 0x34, 0x12, 0x6F, 0x4D, 0x2B, 0x09, 0x3E, 0x1E]
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x20, 0x00, 0x09,
+                 0x34, 0x12, 0x6F, 0x4D, 0x2B, 0x09, 0x7E, 0x5F]
+      # Two callbacks remain pending at the same time; delayed actions must retain their own values.
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x20, 0x00, 0x09,
+                 0x34, 0x12, 0x6F, 0x4D, 0x2B, 0x09, 0x3E, 0x1F]
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x00, 0x00, 0x34, 0x12, 0x20, 0x00, 0x06,
+                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13]
