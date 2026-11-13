@@ -16,7 +16,7 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 from esphome.components.zephyr.variants import (
-    MAINLINE,
+    ZEPHYR_MAINLINE,
     ZephyrSDK,
     ZephyrVariant,
     resolve_framework_version,
@@ -149,8 +149,10 @@ def test_stm32_variants_load() -> None:
     assert registry.family_module("stm32").__name__.endswith(".stm32_family")
 
 
-def test_mainline_default_is_its_minimum() -> None:
-    assert cv.Version.parse(MAINLINE.default_version) == MAINLINE.min_version
+def test_zephyr_mainline_default_is_its_minimum() -> None:
+    assert (
+        cv.Version.parse(ZEPHYR_MAINLINE.default_version) == ZEPHYR_MAINLINE.min_version
+    )
 
 
 @pytest.mark.parametrize("version", [None, "recommended", "4.5.0"])

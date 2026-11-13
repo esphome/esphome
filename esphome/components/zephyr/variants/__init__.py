@@ -52,7 +52,7 @@ class ZephyrVariant:
     family: str | None = None
 
 
-MAINLINE: ZephyrSDK = ZephyrSDK(
+ZEPHYR_MAINLINE: ZephyrSDK = ZephyrSDK(
     default_version="4.5.0",
     min_version=cv.Version(4, 5, 0),
 )
