@@ -14,6 +14,7 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
+static constexpr uint8_t RX_FIFO_SIZE = 64;
 // The crystal takes about 150 us to start after CSn goes low
 static constexpr uint32_t WAKEUP_DELAY_US = 200;
 
@@ -210,6 +211,14 @@ void CC1101Component::loop() {
     this->strobe_(Command::FRX);
     this->enter_rx_();
     return;
+  }
+  // GDO0 also rises when the FIFO fills, which for a 64 byte packet is before the CRC has arrived
+  if (rx_bytes == RX_FIFO_SIZE) {
+    this->read_(Register::MARCSTATE);
+    if (static_cast<State>(this->state_.MARC_STATE) == State::RX) {
+      this->enable_loop();
+      return;
+    }
   }
 
   // Read packet
