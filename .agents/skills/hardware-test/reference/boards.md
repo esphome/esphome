@@ -80,6 +80,19 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A board left in the ROM bootloader after an upload (BOOT held, or the USB JTAG reset landing in download mode
   again) starts its app without a replug through `esptool --port <port> --after watchdog-reset chip-id`; flash a
   minimal Wi-Fi plus API image first when recovering from a crash-looping one.
+- On macOS a software reboot of an ESP32-C3 does not drop its USB JTAG serial port: pyserial keeps reading and gets
+  no error, so a client that watches for a port reset misses it. Count ESPHome's `Running through setup()` line
+  instead.
+- W5500 SPI Ethernet with IPv6 on (seen on an ESP32-S3, #22676): every `safe_reboot()` (OTA, restart button)
+  aborts while an API client is subscribed to logs. `mdns_free()` leaves the IPv6 group inside `tcpip_api_call`, the
+  W5500 driver logs "IPv6 multicast is always filtered in by W5500", the logger sends that line to the API inline,
+  and the nested `LwIPLock` in `setsockopt(TCP_NODELAY)` releases the core lock it did not take, so `udp_recv`
+  asserts. No crash with IPv6 off, with no log subscriber (a connected client that does not subscribe is fine), or
+  on RMII Ethernet.
+- Crash records over the API: the record is replayed and cleared by the first log subscribe, so drain it on the
+  first boot after an OTA, or a stale record from the previous build shows up. Moving `api: port:` keeps Home
+  Assistant off the board. `scripts/api_logs_quiet_then_subscribe.py HOST PORT OUT N` drains, stays connected
+  without a log subscription for N reboots, then subscribes and records the replayed record.
 - Power lock check for a light sleep issue: `power_management: esp32_power_management` with `profiling: true` and
   an `interval` lambda that calls `esp_pm_dump_locks(stdout);` prints the lock and mode tables on the USB console
   (not through the ESPHome logger). Compare lock lists between builds: `usb_serial_jtag` holds `NO_LIGHT_SLEEP` by
@@ -120,6 +133,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   each RD_REQ with one byte from a 256-byte register file, so any read length works (used for BME280/BMP280 in
   esphome#22236). The ESP32-S3 I2C slave v2 driver is not usable for register emulation: answering from a task or
   straight from the interrupt both gave shifted multi-byte reads.
+- RP2350 PIO instruction memory survives a reflash (the 1200 baud touch and the UF2 reboot), so a program loaded by
+  the previous firmware can hide a missing `pio_add_program`. Clear it from an `on_boot` priority 1000 lambda
+  (`pio1->instr_mem[i] = 0` for i < 32) to start from power-on state. A PIO pin's output can be counted without
+  wires through a GPIO interrupt on that same pin (`gpio_set_irq_enabled_with_callback`), see
+  `scripts/pio_led_strip/`.
+- `RP2Preferences::reset()` erases the flash sector but not the RAM copy the preferences load from, so the LibreTiny
+  `on_boot` wipe-once pattern still boots with the old saved Wi-Fi credentials. Use a fallback AP config with
+  `networks:` and a fresh `name:` per build instead.
+- WIZnet W5100S-EVB-Pico (RP2040, `rp2: board: wiznet_5100s_evb_pico`): W5100S on SPI with CLK 18, MOSI 19, MISO 16,
+  CS 17, INT 21, RST 20 (`ethernet: type: W5100`). ESPHome firmware gives it no USB CDC port; reach it over Ethernet,
+  OTA by address.
+- arduino-pico framework bumps and the RPAsyncTCP SSE stall: see `recipes/arduino_pico.md`.
 - USB CDC sends nothing until the host asserts DTR; a client that opens with DTR low (`improvcli.py` without
   `--keep-dtr`) sees silence.
 - Powering a breakout from the Pico: use 3V3(OUT), pin 36. Pin 37 is 3V3_EN, which switches the Pico off when pulled
@@ -326,6 +351,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   the port open, and the logger warns `logger took a long time`. Print one line per `loop()` instead.
 - Zephyr settings survive a reflash: key a `restore_value` global by a `run` substitution when a test needs
   a never-saved value.
+- `2fe3:0100` is Zephyr's default USB VID:PID, so `ports.py` labels any board running a Zephyr ESPHome build as an
+  nRF52840 Dongle. Tell an ItsyBitsy from a PCA10059 with a 1200 baud touch: the ItsyBitsy shows its `ITSY840BOOT`
+  UF2 volume, the PCA10059 its Nordic DFU port.
+- nRF52 Zephyr builds use newlib; the nRF54LM20 builds use picolibc.
 - Thread: nRF52 `openthread:` accepts only `tlv:`; the individual keys (network_key, channel, ...) are rejected at
   validation. To list nearby networks with channel and PAN ID, call
   `otThreadDiscover(InstanceLock::acquire().get_instance(), 0, 0xFFFF, false, false, cb, nullptr)` from an
@@ -378,6 +407,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `~/.platformio/platforms/libretiny` when done.
 - BDK headers such as `power_save_pub.h` have no `extern "C"`; wrap them when including them from the Arduino
   core's C++ files.
+
+## Shared PlatformIO directory
+
+- ESPHome stamps the PlatformIO core directory with the Python version that last built
+  (`.esphome.pio.stamp.json`). A build from another Python version deletes the shared `packages`, `platforms` and
+  `.cache` and reinstalls them, which breaks builds running at the same time. When other sessions may build with
+  another interpreter, set a private `PLATFORMIO_CORE_DIR=<scratch>/pio` on every compile and upload.
+- Building an old release (2025.7.0, Arduino ESP32) against the shared directory swapped `tool-scons` for an older
+  version and broke it midway (`No module named 'SCons.SConf'`) for every PlatformIO build until a newer build
+  reinstalled it. Build old releases with their own `PLATFORMIO_CORE_DIR`.
+- Two arduino-pico framework versions share the plain `framework-arduinopico` package directory, so an A/B swaps the
+  framework on every build; give each side its own `PLATFORMIO_CORE_DIR`.
 
 ## LibreTiny crash and abort() facts (esphome#21596, #22288)
 
@@ -458,6 +499,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - LED0 P1.22, LED1 P1.25; BUTTON0 P1.26, BUTTON1 P1.09, BUTTON2 P1.08, BUTTON3 P0.05 (active low, pull-up). GPIO
   P1 registers at 0x500D8200 (IN +0x00C, PIN_CNF +0x080), P0 at 0x5010A200.
 - Binary sensor state changes are not logged at DEBUG; log the states or count `on_press` to see button presses.
+- FICR INFO.PART reads 0x054BC20B; the build target is `nrf54lm20dk`.
+- Zephyr `micros()` on nRF has 30.5 us resolution. Time short blocks with the DWT cycle counter instead; nRF54L idle
+  clears `DWT_CTRL`, so enable it again before each timed block.
 - The nrf52 logger defaults to USB_CDC (the chip's own USB); set `logger: hardware_uart: UART0` to get the log on the
   J-Link VCOM port.
 - I2C (#22642): TWIM21 only takes pins on P1 or P3; P0 pins are rejected at config. BUTTON1 (P1.09) and BUTTON2

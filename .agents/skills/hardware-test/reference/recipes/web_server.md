@@ -59,3 +59,11 @@ valve, update, alarm_control_panel or water_heater entity reboots with `Exceptio
 `json::linked(const char *)` (the ROM `strlen` on a flash address), fixed by #21316. The cover in the template keeps
 that path covered; before #21316 is merged, apply its one line change to both trees or the web_server comparison
 cannot run.
+
+## Basic auth on the async web servers (ESP8266, RP2040, LibreTiny)
+
+`scripts/web_auth/` (see its README) fuzzes Basic auth over raw sockets: functional routes with and without
+credentials, wrong credentials, other schemes, a tampered hash, spacing and case, then large headers, many failed
+attempts next to an authenticated `/events` stream, and a timing comparison of wrong first and last bytes. It also
+has a captive portal client package that probes `/`, `/config.json`, POST with and without credentials and
+`/wifisave`. `compare.py` lines a dev run up with a PR run. These scripts were still being extended when copied here.

@@ -1,0 +1,49 @@
+# web_server v3 with Basic auth, web OTA, fast sensor, switch, light, heap sensor
+esphome:
+  name: ${name}
+logger:
+  level: DEBUG
+ota:
+  - platform: esphome
+  - platform: web_server
+web_server:
+  port: 80
+  version: 3
+  auth:
+    username: ${web_user}
+    password: ${web_pass}
+    type: basic
+debug:
+  update_interval: 5s
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: Reset reason
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 1s
+  - platform: debug
+    free:
+      name: Heap free
+  - platform: template
+    name: Fast counter
+    update_interval: 200ms
+    lambda: |-
+      static uint32_t n = 0;
+      return n++;
+switch:
+  - platform: template
+    name: Test switch
+    optimistic: true
+output:
+  - platform: template
+    id: light_out
+    type: float
+    write_action:
+      - lambda: ESP_LOGD("test", "light out %.3f", state);
+light:
+  - platform: monochromatic
+    name: Test light
+    output: light_out
+    default_transition_length: 0s

@@ -1,0 +1,18 @@
+# Fallback AP device under test (fresh name per build so no saved credentials carry over)
+substitutions:
+  name: pap22671pr1
+  ap_ssid: pap22671
+rp2:
+  board: rpipicow
+esphome:
+  includes: [appeek.hpp]
+packages:
+  hwtest: !include dut-fallback-ap.yaml
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          static int last = -1;
+          int n = appeek::ap_clients();
+          if (n != last) ESP_LOGI("test", "AP clients %d", n);
+          last = n;

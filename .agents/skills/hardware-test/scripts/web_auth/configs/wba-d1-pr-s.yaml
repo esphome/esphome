@@ -1,0 +1,11 @@
+substitutions:
+  name: wba-d1-pr-s
+esp8266:
+  board: d1_mini
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+packages:
+  creds: !include creds-short.yaml
+  common: !include wba-common.yaml

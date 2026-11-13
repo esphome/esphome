@@ -1,0 +1,12 @@
+substitutions:
+  name: pw22671pr
+rp2:
+  board: rpipicow
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+rp2_ble_tracker:
+bluetooth_proxy:
+  active: true
+packages:
+  common: !include rp-common.yaml

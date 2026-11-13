@@ -73,3 +73,13 @@ address they do not simulate.
 - An `addressable_light` display writes nothing until its light is turned on.
 - Before calling a rebased PR's change trivial, diff the PR's own diff (head against its parent) old against new: a
   move that looks like a merge only can carry real commits from below.
+
+## TRF7962A fake chip (#22188)
+
+`scripts/trf7962a_sim/`: `trfsim.hpp` replaces the SPI component's bus (`SPIComponent` is final, so `spi_bus_` is
+reached through the explicit-instantiation member pointer trick) with a `FakeBus` from `on_boot` priority 800, between
+the bus (1000) and the reader's setup (600). The bus hands both of the reader's clients (MODE0 write, MODE1 read)
+delegates on one register, FIFO and IRQ model; the IRQ pad is switched to input/output after setup and driven by the
+model. `trfpr.yaml` runs the tag scenarios (none, present, slow, flaky, swap, collision, CRC, error flag, bad MSB,
+TX only, stuck IRQ) and prints per-phase counters (CS, field timing, TX payload). The same FakeBus approach works for
+any SPI chip whose reply depends on the address byte inside one CS window, which the ESP32 SPI slave cannot fake.

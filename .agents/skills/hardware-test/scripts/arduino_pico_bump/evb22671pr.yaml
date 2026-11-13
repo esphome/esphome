@@ -1,0 +1,14 @@
+substitutions:
+  name: evb22671pr
+rp2:
+  board: wiznet_5100s_evb_pico
+ethernet:
+  type: W5100
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+packages:
+  common: !include rp-common.yaml

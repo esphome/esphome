@@ -55,3 +55,12 @@ real device uses, decode an Android HCI snoop: a Read By Type response lists its
 - Give the proxy an `api` encryption key (`API_KEY` for the scripts). A Home Assistant on the same network connected to
   a plaintext test proxy and took over its Bluetooth subscription (`Subscription from Home Assistant ... replaces
   aioesphomeapi`), dropping the test client's connection mid-run.
+
+## GATT UUID forms through a proxy (#22679)
+
+`scripts/gatt_uuid/`: `bnsrv22679.yaml` (an ESP32-S3 server with 16 bit, 32-bit base and 128 bit UUIDs on services,
+characteristics and descriptors, plus 2901 and 2902), `gattlist.py PROXY PEER OUT.json` (lists every UUID, reads,
+notifies 10 s, retries 0x3E), `cmp.py REF.json OTHER.json` (entry by entry diff). Take the reference from an ESP32
+proxy (a plaintext API needs `API_KEY=` empty). On rp2 before #22679 BTstack truncated 32-bit base UUIDs with a nonzero
+low half to 16 bits; a zero low half (5ec10000) came through intact. Expect several 0x3E retries per connect on the
+Pico W.

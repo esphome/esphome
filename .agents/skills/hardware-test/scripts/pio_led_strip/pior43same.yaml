@@ -1,0 +1,5 @@
+substitutions:
+  name: pior43same
+  chipset1: WS2812B
+packages:
+  common: !include common.yaml

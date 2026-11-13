@@ -61,3 +61,12 @@ frame of two LEDs set to `Color(0xA5, 0x3C, 0x0F)` reads `3ca50f3ca50f`.
 - An RP2350 `panic()` escalates to a HardFault and the rp2 crash handler reboots within about a second, so a panic
   during component setup boot-loops before USB CDC enumerates and the board looks dead (no port, no BOOTSEL drive).
   Hold BOOTSEL while plugging it in and flash the UF2 drive. To see such a fault, trigger it after boot.
+
+## rp2040_pio_led_strip with two PIO blocks (#16243)
+
+`scripts/pio_led_strip/` runs two `rp2040_pio_led_strip` lights on a Pico 2 W with no LEDs attached, one on PIO0
+(GPIO2) and one on PIO1 (GPIO3), and toggles both every 2 s. `edges.hpp` counts rising edges on each data pin through
+a GPIO interrupt on the same pin and logs them with the PIO1 state machine enable mask and program counters. An
+`on_boot` priority 1000 lambda clears PIO1 instruction memory first, because it survives a reflash and a program left
+by the previous firmware can hide a missing `pio_add_program`. `pior43same.yaml` is the per-build file (set
+`chipset1` to test a second chipset on PIO1); a strip that sends nothing shows 0 edges per report.
