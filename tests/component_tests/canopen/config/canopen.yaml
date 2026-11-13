@@ -1,0 +1,40 @@
+esphome:
+  name: canopen-test
+  on_boot:
+    then:
+      - canopen.sdo_read:
+          node_id: 0x20
+          index: 0x1018
+          subindex: 1
+          size: 4
+          on_value:
+            - logger.log:
+                format: "vendor id 0x%08x"
+                args: [x]
+          on_error:
+            - logger.log:
+                format: "error %u, abort 0x%08x"
+                args: ["(unsigned) result", abort_code]
+      - canopen.sdo_write:
+          node_id: 0x20
+          index: 0x2000
+          value: 1
+          size: 1
+
+esp32:
+  board: esp32dev
+
+logger:
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+
+canopen:
+  - id: canopen_hub
+    canbus_id: can_bus
+    response_timeout: 200ms

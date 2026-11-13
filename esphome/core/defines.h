@@ -69,6 +69,9 @@
 #define USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
 #define USE_BUTTON
 #define USE_CAMERA
+// canopen: the CANopenNode configuration codegen sets as build flags
+#define CO_CONFIG_SDO_CLI 0x03
+#define CO_CONFIG_FIFO 0x01
 #define USE_CANBUS_FD
 #define USE_CLIMATE
 #define USE_CLIMATE_VISUAL_OVERRIDES
