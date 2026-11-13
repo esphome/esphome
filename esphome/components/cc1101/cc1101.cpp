@@ -1078,6 +1078,11 @@ void CC1101Component::set_bs_post_kp(BsPostKp value) {
 }
 
 void CC1101Component::configure_packet_mode_() {
+#ifdef USE_CC1101_LONG_PACKET
+  // Ends a long reception in progress, also when switching to a short packet mode
+  this->high_freq_.stop();
+  this->packet_.clear();
+#endif
   if (!this->packet_mode_) {
     this->state_.PKT_FORMAT = static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_ASYNC_SERIAL);
     this->state_.GDO0_CFG = 0x0D;
@@ -1160,7 +1165,8 @@ void CC1101Component::set_packet_length_lambda(packet_length_func_t func) {
 #endif
 
 void CC1101Component::reconfigure_packet_length_() {
-  if (!this->initialized_) {
+  // While asleep the writes wait for wake_up() and the radio stays asleep, like set_frequency()
+  if (!this->initialized_ || this->sleeping_) {
     this->configure_packet_mode_();
     return;
   }
