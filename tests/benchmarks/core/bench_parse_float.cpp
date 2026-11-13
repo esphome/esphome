@@ -24,7 +24,6 @@ template<size_t N, typename F> static void run(benchmark::State &state, const ch
 }
 
 static float parse_number_float(const char *str) { return parse_number<float>(str).value_or(0.0f); }
-static float parse_prefix(const char *str) { return parse_float_prefix(str, nullptr); }
 
 static void ParseNumberFloat_Plain(benchmark::State &state) { run(state, PLAIN, parse_number_float); }
 BENCHMARK(ParseNumberFloat_Plain);
@@ -37,11 +36,5 @@ BENCHMARK(ParseNumberFloat_Precise);
 
 static void ParseNumberFloat_Reject(benchmark::State &state) { run(state, REJECT, parse_number_float); }
 BENCHMARK(ParseNumberFloat_Reject);
-
-static void ParseFloatPrefix_Exponent(benchmark::State &state) { run(state, EXPONENT, parse_prefix); }
-BENCHMARK(ParseFloatPrefix_Exponent);
-
-static void ParseFloatPrefix_Precise(benchmark::State &state) { run(state, PRECISE, parse_prefix); }
-BENCHMARK(ParseFloatPrefix_Precise);
 
 }  // namespace esphome::benchmarks
