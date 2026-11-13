@@ -3136,6 +3136,15 @@ def test_validate_registry_entry_none_value() -> None:
     assert "foo" in result
 
 
+def test_validate_registry_entry_does_not_mutate_input() -> None:
+    # the `{}` substituted for a null value must not land in the caller's
+    # (YAML-parsed) mapping: copy first, mutate after
+    registry = _make_registry("foo")
+    original = {"foo": None}
+    cv.validate_registry_entry("action", registry)(original)
+    assert original == {"foo": None}
+
+
 def test_validate_registry_entry_no_type_id() -> None:
     registry = _make_registry("foo", type_id=None)
     result = cv.validate_registry_entry("action", registry)({"foo": {}})
