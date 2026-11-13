@@ -1,55 +1,55 @@
 #include "device_decoders.h"
+#include <cmath>
 #include <cstdlib>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
 namespace esphome::fendt_caravan {
 ESPHOME_LOG_TAG(TAG, "fendt_caravan.decoders");
 
+// Copies `value` without surrounding whitespace into `buffer`; false when it does not fit
+static bool copy_trimmed(const char *value, char *buffer, size_t size) {
+  while (std::isspace(static_cast<unsigned char>(*value)))
+    value++;
+  size_t len = strlen(value);
+  while (len > 0 && std::isspace(static_cast<unsigned char>(value[len - 1])))
+    len--;
+  if (len >= size)
+    return false;
+  memcpy(buffer, value, len);
+  buffer[len] = '\0';
+  return true;
+}
+
 float DeviceDecoders::decode_float(const char *data) {
-  char buffer[128];
-  memset(buffer, 0, sizeof(buffer));
-  if (strlen(data) >= sizeof(buffer) - 1) {
-    ESP_LOGW(TAG, "Data too long for decode_float: '%s'", data);
-    return 0.0f;
+  char buffer[32];
+  if (!copy_trimmed(data, buffer, sizeof(buffer))) {
+    ESP_LOGW(TAG, "Value too long for a number: '%s'", data);
+    return NAN;
   }
-  std::strncpy(buffer, data, strlen(data));
   for (char *p = buffer; *p != '\0'; p++) {
     if (*p == ',')
       *p = '.';
   }
-  float out = strtof(buffer, nullptr);
-  return out;
+  auto val = parse_number<float>(buffer);
+  if (!val.has_value() || !std::isfinite(*val)) {
+    ESP_LOGW(TAG, "Not a number: '%s'", data);
+    return NAN;
+  }
+  return *val;
 }
 
-int DeviceDecoders::decode_int(const char *value) {
-  char data[64];
-  size_t len = strlen(value);
-  if (len >= sizeof(data))
-    len = sizeof(data) - 1;
-  memcpy(data, value, len);
-  data[len] = '\0';
-
-  // left trim
-  char *start = data;
-  while (*start != '\0' && std::isspace(static_cast<unsigned char>(*start)))
-    start++;
-  // right trim
-  char *end = data + strlen(data);
-  while (end > start && std::isspace(static_cast<unsigned char>(*(end - 1))))
-    end--;
-  *end = '\0';
-
-  // shift trimmed content to beginning
-  size_t trimmed_len = end - start;
-  memmove(data, start, trimmed_len + 1);
-
-  auto val = parse_number<int>(data);
-  if (val.has_value())
-    return val.value();
-  return 0;
+bool DeviceDecoders::decode_int(const char *value, int &out) {
+  char buffer[16];
+  optional<int> val;
+  if (copy_trimmed(value, buffer, sizeof(buffer)))
+    val = parse_number<int>(buffer);
+  if (!val.has_value()) {
+    ESP_LOGW(TAG, "Not a whole number: '%s'", value);
+    return false;
+  }
+  out = *val;
+  return true;
 }
 
 }  // namespace esphome::fendt_caravan
-#endif

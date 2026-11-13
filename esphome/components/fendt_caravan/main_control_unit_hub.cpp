@@ -53,6 +53,8 @@ void MainControlUnitHub::write_state(switch_::Switch *sw, bool state) {
       return;
     this->parent_->send_command(Commands::update_run(cmd, "HS_KEY"));
   } else if (sw == this->floor_heater_switch_) {
+    if (!sw->has_state() || (sw->state != sw->is_inverted()) == state)
+      return;
     this->parent_->send_command(Commands::update_toggle(cmd, "FLOOR_HEATER_ON"));
   }
 }
@@ -74,7 +76,9 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
       break;
     }
     case Key::KEY_WATER_LEVEL: {
-      PUBLISH_STATE(this->water_level_sensor_, float(DeviceDecoders::decode_int(value) * 100) / 4.0f);
+      int level;
+      if (DeviceDecoders::decode_int(value, level))
+        PUBLISH_STATE(this->water_level_sensor_, float(level * 100) / 4.0f);
       break;
     }
     case Key::KEY_LINE_EN: {
@@ -82,7 +86,8 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
       break;
     }
     case Key::KEY_HS_KEY_STATE: {
-      this->hs_key_state_ = DeviceDecoders::decode_int(value);
+      if (!DeviceDecoders::decode_int(value, this->hs_key_state_))
+        break;
       PUBLISH_STATE(this->main_switch_switch_, this->hs_key_state_ > 0);
       PUBLISH_STATE(this->all_lights_switch_, this->hs_key_state_ == 2);
       break;

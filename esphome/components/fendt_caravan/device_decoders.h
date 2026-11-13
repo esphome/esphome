@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef USE_ESP32
 #include <cctype>
 #include <cstring>
 
@@ -18,9 +17,10 @@ class DeviceDecoders {
            strcmp(decoded, "on") == 0;
   }
 
+  /// NAN when the value is empty or not a number; accepts ',' as the decimal separator
   static float decode_float(const char *data);
-  static int decode_int(const char *value);
+  /// False, leaving `out` unchanged, when the value is empty or not a whole number
+  static bool decode_int(const char *value, int &out);
 };
 
 }  // namespace esphome::fendt_caravan
-#endif

@@ -140,8 +140,10 @@ void FendtCaravan::send_command(const char *command) {
     return;
   }
   ESP_LOGV(TAG, "send_command: %s", command);
-  if (this->wait_handshake_)
+  if (this->parent()->state() != espbt::ClientState::ESTABLISHED ||
+      this->node_state != espbt::ClientState::ESTABLISHED || this->wait_handshake_) {
     return;
+  }
   this->add_command_(command, strlen(command));
 }
 
