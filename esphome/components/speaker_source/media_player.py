@@ -16,6 +16,8 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
     CONF_VOLUME,
@@ -186,6 +188,10 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await media_player.register_media_player(var, config)
+
+    if CONF_ON_TURN_OFF in config or CONF_ON_TURN_ON in config:
+        cg.add_define("USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF", True)
+        cg.add(var.set_on_off_enabled(True))
 
     cg.add(var.set_volume_increment(config[CONF_VOLUME_INCREMENT]))
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))
