@@ -94,7 +94,9 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    bold result, one of **Test result: PASS**, **Test result: FAIL**, **Test result: PASS WITH CAVEATS** or
    **Test result: UNCLEAR**, followed by one sentence with the key numbers (for example "the device closed none of 32
    streams, dev closed 12 of 16"). FAIL means a regression or a fix that does not work. PASS WITH CAVEATS means it works
-   but something needs a look; name the caveat in that sentence. UNCLEAR means the run could not decide; say what is
+   but something about the change itself needs a look; name the caveat in that sentence. A limit of the test (the
+   original crash did not reproduce) or a device or network quirk the tooling reported correctly is not a caveat on
+   the change; say it as a separate note. UNCLEAR means the run could not decide; say what is
    missing. A reader must not have to dig through the table or guess. Side findings that do not change the result (a
    bug already on `dev`, a one-off oddity) go in the bullets, marked as separate from the result.
 
