@@ -52,13 +52,8 @@ bool GuardMiddlewareHandler::check_auth_(AsyncWebServerRequest *request) {
   // compiled out. On ESP32 our own server picks the scheme internally.
 #if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
   bool success = request->authenticate(credentials.username, credentials.password);
-  if (!success) {
-#if USE_ESP32
+  if (!success)
     request->requestAuthentication();
-#else
-    request->requestAuthentication(nullptr, true);
-#endif
-  }
 #else
   // Checked here, not with the library's authenticate()/requestAuthentication(): those also link its
   // Digest code, since the scheme is only known at run time there
