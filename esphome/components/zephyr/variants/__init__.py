@@ -56,7 +56,7 @@ class ZephyrVariant:
     family: str | None = None
 
 
-MAINLINE: ZephyrSDK = ZephyrSDK(
+ZEPHYR_MAINLINE: ZephyrSDK = ZephyrSDK(
     source=FrameworkSource(
         name="Zephyr",
         url="https://github.com/zephyrproject-rtos/zephyr",

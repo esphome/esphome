@@ -2,7 +2,7 @@
 
 import esphome.codegen as cg
 from esphome.components.zephyr.variants import (
-    MAINLINE,
+    ZEPHYR_MAINLINE,
     ZephyrVariant,
     resolve_framework_version,
     set_core_data,
@@ -16,7 +16,7 @@ from ..const import VARIANT_STM32C5
 _DEFAULT_BOARD: str = "nucleo_c5a3zg"
 
 VARIANT_NAME: str = VARIANT_STM32C5
-VARIANT: ZephyrVariant = ZephyrVariant(sdk=MAINLINE, family="stm32")
+VARIANT: ZephyrVariant = ZephyrVariant(sdk=ZEPHYR_MAINLINE, family="stm32")
 
 
 def config_schema(config: ConfigType) -> ConfigType:
