@@ -1,0 +1,36 @@
+# Config-only fixture: the schema paths the compile fixture does not need - a
+# fixed R0 instead of a calibration, the linear regression of the MQ-135 and
+# the YAML spelling of the type and gas names.
+sensor:
+  - platform: adc
+    id: mq_validate_adc
+    name: ADC voltage
+    pin: GPIO35
+    attenuation: 12db
+    update_interval: 60s
+
+  # Type and gas names are accepted in the YAML spelling, R0 is pinned (no
+  # calibration).
+  - platform: mq_gas_sensors
+    id: mq_validate_sampler
+    name: MQ-8 on a voltage sampler
+    sensor_type: mq-8
+    gas: h2
+    voltage: mq_validate_adc
+    voltage_multiplier: 1.5
+    r0: 9.5
+    ratio_in_clean_air: 70.0
+    sample_count: 4
+
+  # The linear regression of the MQ-135, calibrated at boot.
+  - platform: mq_gas_sensors
+    id: mq_validate_mq135
+    name: MQ-135
+    sensor_type: MQ-135
+    gas: NH3
+    voltage: mq_validate_adc
+    voltage_multiplier: 1.5
+    calibration:
+      delay: 5s
+      sample_count: 10
+      sample_interval: 50ms
