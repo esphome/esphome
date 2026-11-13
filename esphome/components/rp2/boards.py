@@ -486,6 +486,17 @@ RP2_BOARD_PINS = {
         "SS": 21,
         "TX": 16,
     },
+    "challenger_zp_2350_lora": {
+        "LED": 15,
+        "MISO": 16,
+        "MOSI": 19,
+        "RX": 13,
+        "SCK": 18,
+        "SCL": 21,
+        "SDA": 20,
+        "SS": 17,
+        "TX": 12,
+    },
     "connectivity_2040_lte_wifi_ble": {
         "LED": 19,
         "MISO": 20,
@@ -528,6 +539,7 @@ RP2_BOARD_PINS = {
         "SDA1": 2,
         "TX": 0,
     },
+    "cytron_maker_sumo_rp2350": {"LED": 3, "RX": 1, "SCL": 1, "SDA": 0, "TX": 0},
     "cytron_maker_uno_rp2040": {
         "LED": 3,
         "MISO": 12,
@@ -868,7 +880,7 @@ RP2_BOARD_PINS = {
     },
     "pcbcupid_glyph_2040": {
         "LED": 0,
-        "MISO": 8,
+        "MISO": 4,
         "MOSI": 7,
         "RX": 13,
         "SCK": 6,
@@ -1828,6 +1840,12 @@ BOARDS = {
         "mcu": "rp2040",
         "max_pin": 29,
     },
+    "challenger_zp_2350_lora": {
+        "name": "iLabs Challenger ZP 2350 LoRa",
+        "mcu": "rp2350",
+        "max_pin": 29,
+        "die": "A",
+    },
     "connectivity_2040_lte_wifi_ble": {
         "name": "iLabs Connectivity 2040 LTE/WiFi/BLE",
         "mcu": "rp2040",
@@ -1848,6 +1866,12 @@ BOARDS = {
         "name": "Cytron Maker Pi RP2040",
         "mcu": "rp2040",
         "max_pin": 29,
+    },
+    "cytron_maker_sumo_rp2350": {
+        "name": "Cytron Maker Sumo RP2350",
+        "mcu": "rp2350",
+        "max_pin": 29,
+        "die": "A",
     },
     "cytron_maker_uno_rp2040": {
         "name": "Cytron Maker Uno RP2040",
