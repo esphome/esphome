@@ -1,0 +1,16 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+uart:
+  - id: gdo_uart
+    rx_pin: GPIO5
+    baud_rate: 9600
+    auto_baud_sync_byte: 0x55
+  - id: other_uart
+    rx_pin: GPIO4
+    baud_rate: 9600
+    auto_baud_sync_byte: 0xAA

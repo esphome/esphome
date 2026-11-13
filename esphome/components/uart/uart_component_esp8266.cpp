@@ -17,7 +17,8 @@
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
-// Edge decoder up to this baud rate; at 38400 WiFi interrupt latency corrupts bytes.
+// Edge decoder up to this baud rate (auto baud validation in __init__.py repeats it); at 38400 WiFi interrupt latency
+// corrupts bytes.
 static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 19200;
 // TX locks interrupts per bit up to this baud rate and per byte above it. At 38400 byte locks still trip the Wi-Fi
 // watchdog when every byte is below 0x80, while an interrupt between bits leaves the bytes intact; at 115200 it
@@ -183,6 +184,11 @@ void ESP8266UartComponent::dump_config() {
       ESP_LOGCONFIG(TAG, "  RX decoder: %s",
                     this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
                                                                      : LOG_STR_LITERAL("start bit sampler"));
+#ifdef USE_UART_AUTO_BAUD
+      if (this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
+        ESP_LOGCONFIG(TAG, "  Auto baud sync byte: 0x%02X", UART_AUTO_BAUD_SYNC_BYTE);
+      }
+#endif
     }
     if (this->tx_pin_ != nullptr && this->baud_rate_ <= SW_SERIAL_TX_BIT_LOCK_MAX_BAUD &&
         this->sw_serial_->locks_whole_frame()) {
