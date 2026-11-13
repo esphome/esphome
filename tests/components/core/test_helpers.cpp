@@ -257,6 +257,20 @@ TEST(BufAppendSepStr, Truncation) {
   EXPECT_EQ(end - buf, 7);
 }
 
+// --- buf_append_str_p() ---
+
+TEST(BufAppendStrP, AppendsAndTruncates) {
+  static const char UNIT[] PROGMEM = "days";
+  char buf[8] = "";
+  size_t pos = buf_append_printf(buf, sizeof(buf), 0, "%u", 12u);
+  pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
+  EXPECT_STREQ(buf, "12days");
+  EXPECT_EQ(pos, 6u);
+  pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
+  EXPECT_STREQ(buf, "12daysd");
+  EXPECT_EQ(pos, 7u);
+}
+
 // --- base64 encode/decode ---
 
 static const char BASE64_ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
