@@ -12,6 +12,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::rtsp_server {
 
@@ -22,13 +23,28 @@ static constexpr uint32_t RTP_CLOCK_RATE = 90000;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 60000;
 static constexpr char REQUEST_END[] = "\r\n\r\n";
 static constexpr size_t REQUEST_END_LEN = sizeof(REQUEST_END) - 1;
-static constexpr uint8_t ZERO_FILL[64]{};
+static constexpr uint8_t ZERO_FILL[FILL_LEN]{};
 static constexpr char SDP_BODY[] = "v=0\r\n"
                                    "o=- 0 0 IN IP4 0.0.0.0\r\n"
                                    "s=ESPHome RTSP\r\n"
                                    "t=0 0\r\n"
                                    "m=video 0 RTP/AVP 26\r\n"
                                    "a=control:trackID=0\r\n";
+#ifdef USE_RTSP_SERVER_AUDIO
+static constexpr uint8_t RTCP_SENDER_REPORT = 200;
+static constexpr uint8_t RTCP_SOURCE_DESCRIPTION = 202;
+static constexpr uint8_t RTCP_SDES_CNAME = 1;
+
+static constexpr std::array<uint8_t, FILL_LEN> make_fill(uint8_t value) {
+  std::array<uint8_t, FILL_LEN> fill{};
+  for (auto &byte : fill)
+    byte = value;
+  return fill;
+}
+// G.711 silence: encode_ulaw(0) and encode_alaw(0).
+static constexpr std::array<uint8_t, FILL_LEN> ULAW_SILENCE_FILL = make_fill(0xFF);
+static constexpr std::array<uint8_t, FILL_LEN> ALAW_SILENCE_FILL = make_fill(0xD5);
+#endif
 
 namespace {
 
@@ -64,7 +80,115 @@ bool contains(const StringRef &hay, const StringRef &needle) {
   return false;
 }
 
+/// Writes the 12-byte RTP header and returns the pointer past it.
+uint8_t *put_rtp_header(uint8_t *buf, bool marker, uint8_t payload_type, uint16_t sequence, uint32_t timestamp,
+                        uint32_t ssrc) {
+  *buf++ = 0x80;  // V=2, P=0, X=0, CC=0
+  *buf++ = static_cast<uint8_t>((marker ? 0x80 : 0x00) | payload_type);
+  buf = put_be16(buf, sequence);
+  buf = put_be32(buf, timestamp);
+  return put_be32(buf, ssrc);
+}
+
+#ifdef USE_RTSP_SERVER_AUDIO
+/// Writes an interleaved compound RTCP packet, a sender report (RFC 3550 section 6.4.1) and an SDES with the
+/// CNAME, and returns the pointer past it. The NTP timestamp counts from boot; receivers only compare the reports
+/// of one session with each other, which share the CNAME.
+uint8_t *put_sender_report(uint8_t *buf, uint8_t channel, uint32_t ssrc, uint64_t time_ms, uint32_t rtp_timestamp,
+                           uint32_t packets, uint32_t octets, const char *cname) {
+  *buf++ = '$';
+  *buf++ = channel;
+  buf = put_be16(buf, RTCP_REPORT_LEN);
+  *buf++ = 0x80;  // V=2, P=0, RC=0
+  *buf++ = RTCP_SENDER_REPORT;
+  buf = put_be16(buf, RTCP_SR_LEN / 4 - 1);
+  buf = put_be32(buf, ssrc);
+  buf = put_be32(buf, static_cast<uint32_t>(time_ms / 1000));
+  buf = put_be32(buf, static_cast<uint32_t>(((time_ms % 1000) << 32) / 1000));
+  buf = put_be32(buf, rtp_timestamp);
+  buf = put_be32(buf, packets);
+  buf = put_be32(buf, octets);
+
+  uint8_t *const sdes = buf;
+  *buf++ = 0x81;  // V=2, P=0, SC=1
+  *buf++ = RTCP_SOURCE_DESCRIPTION;
+  buf = put_be16(buf, RTCP_SDES_LEN / 4 - 1);
+  buf = put_be32(buf, ssrc);
+  *buf++ = RTCP_SDES_CNAME;
+  *buf++ = RTCP_CNAME_LEN;
+  std::memcpy(buf, cname, RTCP_CNAME_LEN);
+  buf += RTCP_CNAME_LEN;
+  while (buf < sdes + RTCP_SDES_LEN)
+    *buf++ = 0;  // END item and padding
+  return buf;
+}
+#endif
+
 }  // namespace
+
+#ifdef USE_RTSP_SERVER_AUDIO
+// In AudioCodec order
+PROGMEM_STRING_TABLE(AudioCodecNames, "L16", "PCMU", "PCMA");
+
+const LogString *audio_codec_name(AudioCodec codec) {
+  return AudioCodecNames::get_log_str(static_cast<uint8_t>(codec), 0);
+}
+
+const uint8_t *silence_fill(AudioCodec codec) {
+  switch (codec) {
+    case AudioCodec::AUDIO_CODEC_PCMU:
+      return ULAW_SILENCE_FILL.data();
+    case AudioCodec::AUDIO_CODEC_PCMA:
+      return ALAW_SILENCE_FILL.data();
+    default:
+      return ZERO_FILL;
+  }
+}
+
+size_t format_audio_sdp(char *buf, size_t size, AudioCodec codec, uint8_t payload_type, uint32_t sample_rate) {
+  int len = snprintf(buf, size,
+                     "%s"
+                     "m=audio 0 RTP/AVP %u\r\n"
+                     "a=rtpmap:%u %s/%" PRIu32 "/1\r\n"
+                     "a=control:trackID=1\r\n",
+                     SDP_BODY, payload_type, payload_type, LOG_STR_ARG(audio_codec_name(codec)), sample_rate);
+  return len > 0 && static_cast<size_t>(len) < size ? static_cast<size_t>(len) : 0;
+}
+
+// G.711 encoders as in the ITU-T reference (and the Sun g711.c most implementations derive from).
+uint8_t encode_ulaw(int16_t sample) {
+  static constexpr int32_t ULAW_BIAS = 0x84;
+  static constexpr int32_t ULAW_CLIP = 32635;
+  int32_t value = sample;
+  uint8_t sign = 0;
+  if (value < 0) {
+    value = -value;
+    sign = 0x80;
+  }
+  value = std::min(value, ULAW_CLIP) + ULAW_BIAS;
+  uint8_t exponent = 7;
+  for (int32_t mask = 0x4000; (value & mask) == 0 && exponent > 0; mask >>= 1)
+    exponent--;
+  const auto mantissa = static_cast<uint8_t>((value >> (exponent + 3)) & 0x0F);
+  return static_cast<uint8_t>(~(sign | (exponent << 4) | mantissa));
+}
+
+uint8_t encode_alaw(int16_t sample) {
+  int32_t value = sample >> 3;  // 13-bit magnitude
+  uint8_t mask = 0xD5;
+  if (value < 0) {
+    mask = 0x55;
+    value = -value - 1;
+  }
+  uint8_t segment = 0;
+  while (segment < 8 && value >= (0x20 << segment))  // segment ends at (0x20 << segment) - 1
+    segment++;
+  if (segment >= 8)
+    return 0x7F ^ mask;
+  const int32_t mantissa = (segment < 2 ? value >> 1 : value >> segment) & 0x0F;
+  return static_cast<uint8_t>(((segment << 4) | mantissa) ^ mask);
+}
+#endif
 
 /// Scans JPEG marker segments (SOF0/1, DQT, SOS) for the dimensions, quantization tables and the start of
 /// the entropy-coded scan data. Assumes the standard Huffman tables (true for esp32-camera), so DHT segments
@@ -162,6 +286,17 @@ void RTSPSession::open(std::unique_ptr<socket::Socket> socket, uint32_t now) {
   this->ssrc_ = random_uint32();
   this->sequence_number_ = static_cast<uint16_t>(random_uint32());
   this->rtp_timestamp_ = random_uint32();
+  this->tracks_ = 0;
+  this->filler_ = ZERO_FILL;
+#ifdef USE_RTSP_SERVER_AUDIO
+  this->audio_ssrc_ = random_uint32();
+  this->audio_sequence_number_ = static_cast<uint16_t>(random_uint32());
+  this->audio_rtp_offset_ = random_uint32();
+  this->audio_packets_ = 0;
+  this->audio_octets_ = 0;
+  this->video_packets_ = 0;
+  this->video_octets_ = 0;
+#endif
   format_hex_to(this->session_id_, random_uint32());
 }
 
@@ -202,7 +337,7 @@ void RTSPSession::service_(uint32_t now, uint16_t port) {
       this->should_close_ = true;
       return;
     }
-    if (!this->queue_next_packet_())
+    if (!this->queue_next_packet_(now))
       return;
   }
 }
@@ -332,15 +467,22 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
     char addr_buf[socket::SOCKADDR_STR_LEN];
     this->socket_->getsockname_to(addr_buf);
     const bool ipv6 = std::strchr(addr_buf, ':') != nullptr;
+    const char *sdp = SDP_BODY;
+    size_t sdp_len = sizeof(SDP_BODY) - 1;
+#ifdef USE_RTSP_SERVER_AUDIO
+    if (this->audio_track_ != nullptr) {
+      sdp = this->audio_track_->sdp;
+      sdp_len = this->audio_track_->sdp_len;
+    }
+#endif
     this->queue_response_(200, "OK",
                           "Content-Base: rtsp://%s%s%s:%u/\r\n"
                           "Content-Type: application/sdp\r\n"
                           "Content-Length: %u\r\n",
-                          ipv6 ? "[" : "", addr_buf, ipv6 ? "]" : "", port,
-                          static_cast<unsigned>(sizeof(SDP_BODY) - 1));
-    this->iov_[this->iov_count_++] = {const_cast<char *>(SDP_BODY), sizeof(SDP_BODY) - 1};
+                          ipv6 ? "[" : "", addr_buf, ipv6 ? "]" : "", port, static_cast<unsigned>(sdp_len));
+    this->iov_[this->iov_count_++] = {const_cast<char *>(sdp), sdp_len};
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("SETUP"))) {
-    this->handle_setup_(transport);
+    this->handle_setup_(StringRef(first_line.c_str() + sp1 + 1, sp2 - sp1 - 1), transport);
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("PLAY"))) {
     this->handle_play_();
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("TEARDOWN"))) {
@@ -372,18 +514,35 @@ void RTSPSession::queue_response_(uint16_t code, const char *reason, const char 
   this->iov_[0] = {buf, std::min(pos, size - 1)};
   this->iov_pos_ = 0;
   this->iov_count_ = 1;
-  this->sending_packet_ = false;
+  this->output_ = Output::OUTPUT_CONTROL;
 }
 
-void RTSPSession::handle_setup_(StringRef transport_header) {
+void RTSPSession::handle_setup_([[maybe_unused]] StringRef uri, StringRef transport_header) {
+  bool audio = false;
+#ifdef USE_RTSP_SERVER_AUDIO
+  // The SDP names the tracks trackID=0 (video) and trackID=1 (audio); any other URL is the video track.
+  audio = contains(uri, StringRef::from_lit("trackID=1"));
+  if (audio && this->audio_track_ == nullptr) {
+    this->queue_response_(404, "Not Found");
+    return;
+  }
+#endif
   if (!contains(transport_header, StringRef::from_lit("RTP/AVP/TCP"))) {
     this->queue_response_(461, "Unsupported Transport");
     return;
   }
   // A SETUP while streaming stops playback, ending in READY like a first SETUP.
   this->stop_playing_();
-  // The single video track always uses interleaved channels 0 (RTP) and 1 (RTCP, unused).
-  this->queue_response_(200, "OK", "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n");
+  // Each track uses fixed interleaved channels, whatever the client asked for.
+  if (audio) {
+    this->tracks_ |= TRACK_AUDIO;
+    this->queue_response_(200, "OK", "Transport: RTP/AVP/TCP;unicast;interleaved=%u-%u\r\n", AUDIO_RTP_CHANNEL,
+                          AUDIO_RTCP_CHANNEL);
+  } else {
+    this->tracks_ |= TRACK_VIDEO;
+    this->queue_response_(200, "OK", "Transport: RTP/AVP/TCP;unicast;interleaved=%u-%u\r\n", VIDEO_RTP_CHANNEL,
+                          VIDEO_RTCP_CHANNEL);
+  }
 }
 
 void RTSPSession::handle_play_() {
@@ -393,6 +552,11 @@ void RTSPSession::handle_play_() {
   }
   this->state_ = State::PLAYING;
   this->frame_.reset();  // a repeated PLAY may arrive mid-frame
+#ifdef USE_RTSP_SERVER_AUDIO
+  if (this->audio_track_ != nullptr)
+    this->audio_next_ = this->audio_track_->produced;  // start with fresh audio
+  this->last_report_ms_ = 0;                           // report as soon as both tracks have sent
+#endif
   this->queue_response_(200, "OK", "Range: npt=0.000-\r\n");
 }
 
@@ -401,10 +565,12 @@ void RTSPSession::stop_playing_() {
   this->frame_.reset();
 }
 
-void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now) {
-  // Pending output means a frame is in flight or a stalled one is still being padded out.
-  if (this->state_ != State::PLAYING || this->frame_ != nullptr || this->iov_pos_ < this->iov_count_ ||
-      this->filler_len_ > 0)
+void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now,
+                               [[maybe_unused]] uint64_t time_ms) {
+  // Pending output other than audio means a frame is in flight or a stalled one is still being padded out.
+  if (!this->is_playing_video() || this->frame_ != nullptr || this->filler_len_ > 0 ||
+      (this->iov_pos_ < this->iov_count_ && this->output_ != Output::OUTPUT_AUDIO &&
+       this->output_ != Output::OUTPUT_REPORT))
     return;
   this->frame_ = image;
   this->jpeg_ = jpeg;
@@ -414,9 +580,34 @@ void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
   uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : now - this->last_frame_ms_;
   this->rtp_timestamp_ += static_cast<uint32_t>((static_cast<uint64_t>(elapsed_ms) * RTP_CLOCK_RATE) / 1000);
   this->last_frame_ms_ = now;
+#ifdef USE_RTSP_SERVER_AUDIO
+  this->frame_time_ms_ = time_ms;
+#endif
 }
 
-bool RTSPSession::queue_next_packet_() {
+bool RTSPSession::queue_next_packet_(uint32_t now) {
+#ifdef USE_RTSP_SERVER_AUDIO
+  // A frame whose last packet is written is released first, so it is not held behind audio or a report;
+  // this runs only once the previous packet is written.
+  if (this->frame_ != nullptr && this->frame_sent_ >= this->jpeg_.scan_len)
+    this->frame_.reset();
+  if (this->queue_sender_reports_(now))
+    return true;
+  // Audio and video packets alternate while both are waiting: audio is not delayed behind a whole frame, and a
+  // client slower than the audio stream still gets the video, so it cannot hold the camera frame indefinitely.
+  if (this->video_turn_ && this->queue_video_packet_()) {
+    this->video_turn_ = false;
+    return true;
+  }
+  if (this->queue_audio_packet_()) {
+    this->video_turn_ = true;
+    return true;
+  }
+#endif
+  return this->queue_video_packet_();
+}
+
+bool RTSPSession::queue_video_packet_() {
   if (this->frame_ == nullptr)
     return false;
   if (this->frame_sent_ >= this->jpeg_.scan_len) {
@@ -436,23 +627,13 @@ bool RTSPSession::queue_next_packet_() {
   auto *buf = reinterpret_cast<uint8_t *>(this->send_buf_.data());
   size_t pos = 0;
   buf[pos++] = '$';
-  buf[pos++] = 0;  // interleaved channel 0
+  buf[pos++] = VIDEO_RTP_CHANNEL;
   buf[pos++] = static_cast<uint8_t>(rtp_len >> 8);
   buf[pos++] = static_cast<uint8_t>(rtp_len);
 
-  buf[pos++] = 0x80;  // V=2, P=0, X=0, CC=0
-  buf[pos++] = static_cast<uint8_t>((last_fragment ? 0x80 : 0x00) | RTP_PAYLOAD_TYPE_JPEG);
-  buf[pos++] = static_cast<uint8_t>(this->sequence_number_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->sequence_number_);
-  this->sequence_number_++;
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 24);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 24);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_);
+  pos = put_rtp_header(buf + pos, last_fragment, RTP_PAYLOAD_TYPE_JPEG, this->sequence_number_++, this->rtp_timestamp_,
+                       this->ssrc_) -
+        buf;
 
   // RFC 2435 main JPEG header
   buf[pos++] = 0;  // type-specific
@@ -481,21 +662,98 @@ bool RTSPSession::queue_next_packet_() {
   this->iov_[count++] = {const_cast<uint8_t *>(this->jpeg_.scan_data + this->frame_sent_), payload_len};
   this->iov_pos_ = 0;
   this->iov_count_ = count;
-  this->sending_packet_ = true;
+  this->output_ = Output::OUTPUT_FRAME;
   this->frame_sent_ += payload_len;
+#ifdef USE_RTSP_SERVER_AUDIO
+  this->video_packets_++;
+  this->video_octets_ += rtp_len - RTP_HEADER_LEN;
+#endif
   return true;
 }
 
+#ifdef USE_RTSP_SERVER_AUDIO
+bool RTSPSession::queue_audio_packet_() {
+  const AudioTrack *track = this->audio_track_;
+  if (!this->is_playing_audio() || this->audio_next_ == track->produced)
+    return false;
+  // The oldest packets are gone; a session that fell that far behind skips them.
+  if (track->produced - this->audio_next_ > AUDIO_SLOTS)
+    this->audio_next_ = track->produced - AUDIO_SLOTS;
+  const uint32_t index = this->audio_next_++;
+  // Timestamps count captured samples, so they stay exact however the packets are paced, and audio the device
+  // lost shows as a gap.
+  this->audio_timestamp_ = this->audio_rtp_offset_ + track->sample_pos[index % AUDIO_SLOTS];
+  this->audio_capture_ms_ = track->capture_ms[index % AUDIO_SLOTS];
+
+  auto *buf = reinterpret_cast<uint8_t *>(this->send_buf_.data());
+  const size_t rtp_len = RTP_HEADER_LEN + track->payload_len;
+  buf[0] = '$';
+  buf[1] = AUDIO_RTP_CHANNEL;
+  put_be16(buf + 2, rtp_len);
+  put_rtp_header(buf + INTERLEAVED_HEADER_LEN, false, track->payload_type, this->audio_sequence_number_++,
+                 this->audio_timestamp_, this->audio_ssrc_);
+  this->iov_[0] = {buf, INTERLEAVED_HEADER_LEN + RTP_HEADER_LEN};
+  this->iov_[1] = {const_cast<uint8_t *>(track->packet(index)), track->payload_len};
+  this->iov_pos_ = 0;
+  this->iov_count_ = 2;
+  this->output_ = Output::OUTPUT_AUDIO;
+  this->audio_in_flight_ = index;
+  this->audio_packets_++;
+  this->audio_octets_ += track->payload_len;
+  return true;
+}
+
+bool RTSPSession::queue_sender_reports_(uint32_t now) {
+  if (this->audio_packets_ == 0 || !this->is_playing_audio() ||
+      (this->last_report_ms_ != 0 && now - this->last_report_ms_ < RTCP_INTERVAL_MS))
+    return false;
+  // With video set up, wait for its first packet too, so the first reports already pair the two tracks.
+  const bool video = this->is_playing_video();
+  if (video && this->video_packets_ == 0)
+    return false;
+  this->last_report_ms_ = now;
+
+  auto *buf = reinterpret_cast<uint8_t *>(this->send_buf_.data());
+  uint8_t *end = buf;
+  if (video) {
+    end = put_sender_report(end, VIDEO_RTCP_CHANNEL, this->ssrc_, this->frame_time_ms_, this->rtp_timestamp_,
+                            this->video_packets_, this->video_octets_, this->session_id_);
+  }
+  end = put_sender_report(end, AUDIO_RTCP_CHANNEL, this->audio_ssrc_, this->audio_capture_ms_, this->audio_timestamp_,
+                          this->audio_packets_, this->audio_octets_, this->session_id_);
+  this->iov_[0] = {buf, static_cast<size_t>(end - buf)};
+  this->iov_pos_ = 0;
+  this->iov_count_ = 1;
+  this->output_ = Output::OUTPUT_REPORT;
+  return true;
+}
+
+void RTSPSession::on_audio_slot_reuse(uint32_t index) {
+  if (this->output_ == Output::OUTPUT_AUDIO && this->audio_in_flight_ == index)
+    this->detach_payload_();
+}
+#endif
+
 void RTSPSession::drop_frame_() {
   this->frame_.reset();
-  if (!this->sending_packet_ || this->iov_pos_ >= this->iov_count_)
+  if (this->output_ == Output::OUTPUT_FRAME)
+    this->detach_payload_();
+}
+
+void RTSPSession::detach_payload_() {
+  this->filler_ = ZERO_FILL;
+#ifdef USE_RTSP_SERVER_AUDIO
+  if (this->output_ == Output::OUTPUT_AUDIO)
+    this->filler_ = this->audio_track_->filler;
+#endif
+  this->output_ = Output::OUTPUT_CONTROL;
+  if (this->iov_pos_ >= this->iov_count_)
     return;
   // Even an unwritten packet is kept, so output stays pending and on_new_frame() takes nothing until the
-  // socket drains. Entries after the header point into the frame.
+  // socket drains. Entries after the header point into the frame or an audio slot.
   for (uint8_t i = std::max<uint8_t>(this->iov_pos_, 1); i < this->iov_count_; i++)
     this->filler_len_ += this->iov_[i].iov_len;
   this->iov_count_ = std::max<uint8_t>(this->iov_pos_, 1);
-  this->sending_packet_ = false;
 }
 
 bool RTSPSession::flush_(uint32_t now) {
@@ -508,8 +766,8 @@ bool RTSPSession::flush_(uint32_t now) {
       this->iov_pos_ = 0;
       this->iov_count_ = 0;
       while (this->filler_len_ > 0 && this->iov_count_ < this->iov_.size()) {
-        const size_t len = std::min<size_t>(this->filler_len_, sizeof(ZERO_FILL));
-        this->iov_[this->iov_count_++] = {const_cast<uint8_t *>(ZERO_FILL), len};
+        const size_t len = std::min<size_t>(this->filler_len_, FILL_LEN);
+        this->iov_[this->iov_count_++] = {const_cast<uint8_t *>(this->filler_), len};
         this->filler_len_ -= len;
       }
     }
@@ -524,7 +782,9 @@ bool RTSPSession::flush_(uint32_t now) {
       return false;
     }
     this->last_activity_ms_ = now;
-    this->frame_progress_ms_ = now;
+    // Only the frame's own packets count: a client that takes audio but no video still stalls the frame.
+    if (this->output_ == Output::OUTPUT_FRAME)
+      this->frame_progress_ms_ = now;
     // Step over what was written; a partial write leaves the rest of the current entry pending.
     auto remaining = static_cast<size_t>(written);
     while (remaining > 0) {

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <csignal>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <netinet/in.h>
@@ -32,6 +33,14 @@ class StubImage : public camera::CameraImage {
 class RTSPSessionUnderTest : public RTSPSession {
  public:
   bool has_frame() const { return this->frame_ != nullptr; }
+  bool audio_in_flight() const { return this->output_ == Output::OUTPUT_AUDIO && this->iov_pos_ < this->iov_count_; }
+  uint32_t audio_in_flight_index() const { return this->audio_in_flight_; }
+  uint16_t filler_len() const { return this->filler_len_; }
+  // The frame's last packet is written, yet the frame is kept while something else is queued.
+  bool holds_sent_frame() const {
+    return this->frame_ != nullptr && this->frame_sent_ >= this->jpeg_.scan_len &&
+           this->output_ != Output::OUTPUT_FRAME;
+  }
 };
 
 class RTSPSessionTest : public ::testing::Test {
@@ -250,7 +259,7 @@ TEST_F(RTSPSessionTest, StalledWriterDropsFrame) {
   this->reopen_over_tcp();
   this->start_playing();
   auto image = std::make_shared<StubImage>(8 * 1024 * 1024);
-  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
   this->loops(100);  // the peer does not read, so the socket buffers fill up
   ASSERT_TRUE(this->session_.has_frame());
   EXPECT_GT(image.use_count(), 1);
@@ -269,7 +278,7 @@ TEST_F(RTSPSessionTest, StalledWriterDropsFrame) {
   for (int i = 0; i < 5; i++) {
     this->now_ += 100;
     auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
-    this->session_.on_new_frame(next, stub_jpeg(*next), this->now_);
+    this->session_.on_new_frame(next, stub_jpeg(*next), this->now_, this->now_);
     this->loops(1);
     EXPECT_FALSE(this->session_.has_frame());
     EXPECT_EQ(next.use_count(), 1);
@@ -288,7 +297,7 @@ TEST_F(RTSPSessionTest, StalledWriterDropsFrame) {
 
   // Once drained, the next frame is taken and follows on in sequence.
   auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
-  this->session_.on_new_frame(next, stub_jpeg(*next), this->now_);
+  this->session_.on_new_frame(next, stub_jpeg(*next), this->now_, this->now_);
   EXPECT_TRUE(this->session_.has_frame());
   this->loops(2);
   std::vector<uint16_t> after;
@@ -301,7 +310,7 @@ TEST_F(RTSPSessionTest, StalledWriterDropsFrame) {
 TEST_F(RTSPSessionTest, RepeatPlayContinuesSequence) {
   this->start_playing();
   auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
-  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
   this->loops(1);
   std::vector<uint16_t> sequences;
   ASSERT_TRUE(parse_interleaved(this->receive(), 0, sequences));
@@ -312,12 +321,493 @@ TEST_F(RTSPSessionTest, RepeatPlayContinuesSequence) {
   std::string reply = this->receive();
   ASSERT_NE(reply.find("CSeq: 3\r\n"), std::string::npos);
   this->now_ += 100;
-  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
   this->loops(1);
   std::vector<uint16_t> after;
   ASSERT_TRUE(parse_interleaved(this->receive(), 0, after));
   ASSERT_EQ(after.size(), 1u);
   EXPECT_EQ(after[0], static_cast<uint16_t>(sequences[0] + 1));
+}
+
+struct InterleavedPacket {
+  uint8_t channel;
+  std::string data;
+};
+
+// Splits '$' channel length packets; false if the stream is not well framed.
+static bool split_interleaved(const std::string &stream, std::vector<InterleavedPacket> &packets) {
+  size_t pos = 0;
+  while (pos < stream.size()) {
+    if (pos + 4 > stream.size() || stream[pos] != '$')
+      return false;
+    size_t len = (static_cast<uint8_t>(stream[pos + 2]) << 8) | static_cast<uint8_t>(stream[pos + 3]);
+    if (pos + 4 + len > stream.size())
+      return false;
+    packets.push_back({static_cast<uint8_t>(stream[pos + 1]), stream.substr(pos + 4, len)});
+    pos += 4 + len;
+  }
+  return true;
+}
+
+// Only the packets on one interleaved channel.
+static std::vector<InterleavedPacket> on_channel(const std::vector<InterleavedPacket> &packets, uint8_t channel) {
+  std::vector<InterleavedPacket> out;
+  for (const auto &packet : packets) {
+    if (packet.channel == channel)
+      out.push_back(packet);
+  }
+  return out;
+}
+
+static uint32_t be32(const std::string &data, size_t pos) {
+  return (static_cast<uint32_t>(static_cast<uint8_t>(data[pos])) << 24) |
+         (static_cast<uint32_t>(static_cast<uint8_t>(data[pos + 1])) << 16) |
+         (static_cast<uint32_t>(static_cast<uint8_t>(data[pos + 2])) << 8) | static_cast<uint8_t>(data[pos + 3]);
+}
+static uint16_t be16(const std::string &data, size_t pos) {
+  return (static_cast<uint8_t>(data[pos]) << 8) | static_cast<uint8_t>(data[pos + 1]);
+}
+
+class RTSPAudioSessionTest : public RTSPSessionTest {
+ protected:
+  static constexpr uint16_t PAYLOAD_LEN = 320;  // 20 ms of 8 kHz L16
+  static constexpr uint16_t SAMPLES = 160;
+
+  void SetUp() override {
+    RTSPSessionTest::SetUp();
+    this->slots_.assign(AUDIO_SLOTS * PAYLOAD_LEN, 0);
+    this->track_.slots = this->slots_.data();
+    this->track_.sdp_len =
+        static_cast<uint16_t>(format_audio_sdp(this->sdp_, sizeof(this->sdp_), AudioCodec::AUDIO_CODEC_L16, 96, 8000));
+    this->track_.sdp = this->sdp_;
+    this->track_.payload_len = PAYLOAD_LEN;
+    this->track_.samples_per_packet = SAMPLES;
+    this->track_.payload_type = 96;
+    this->track_.filler = silence_fill(AudioCodec::AUDIO_CODEC_L16);
+    this->session_.set_audio_track(&this->track_);
+  }
+  // Writes one packet the way the server does: each byte of its payload is the packet index.
+  void produce() {
+    for (auto &session : {&this->session_})
+      session->on_audio_slot_reuse(this->track_.produced - AUDIO_SLOTS);
+    uint8_t *slot = this->slots_.data() + (this->track_.produced % AUDIO_SLOTS) * PAYLOAD_LEN;
+    std::memset(slot, static_cast<uint8_t>(this->track_.produced), PAYLOAD_LEN);
+    this->track_.capture_ms[this->track_.produced % AUDIO_SLOTS] = this->now_;
+    this->track_.sample_pos[this->track_.produced % AUDIO_SLOTS] = this->track_.produced * SAMPLES;
+    this->track_.produced++;
+  }
+  static std::string setup(const char *track, int cseq, const char *channels) {
+    char line[160];
+    snprintf(line, sizeof(line),
+             "SETUP rtsp://host/%s RTSP/1.0\r\nCSeq: %d\r\nTransport: RTP/AVP/TCP;unicast;interleaved=%s\r\n\r\n",
+             track, cseq, channels);
+    return line;
+  }
+  void play(bool video, bool audio) {
+    int cseq = 1;
+    if (video)
+      this->send(setup("trackID=0", cseq++, "0-1"));
+    this->loops(2);
+    if (audio)
+      this->send(setup("trackID=1", cseq++, "2-3"));
+    this->loops(2);
+    this->send(request("PLAY", cseq));
+    this->loops(2);
+    std::string out = this->receive();
+    ASSERT_EQ(count(out, "RTSP/1.0 200 OK\r\n"), static_cast<size_t>(video + audio + 1)) << out;
+    ASSERT_TRUE(this->session_.is_playing());
+  }
+
+  void check_g711_padding(AudioCodec codec, char silence);
+
+  std::vector<uint8_t> slots_;
+  AudioTrack track_;
+  char sdp_[256];
+};
+
+TEST_F(RTSPAudioSessionTest, DescribeOffersAudioTrack) {
+  this->send(request("DESCRIBE", 1));
+  this->loops(1);
+  std::string out = this->receive();
+  EXPECT_NE(out.find("m=video 0 RTP/AVP 26\r\na=control:trackID=0\r\n"), std::string::npos) << out;
+  EXPECT_NE(out.find("m=audio 0 RTP/AVP 96\r\na=rtpmap:96 L16/8000/1\r\na=control:trackID=1\r\n"), std::string::npos)
+      << out;
+  char length[32];
+  snprintf(length, sizeof(length), "Content-Length: %u\r\n", this->track_.sdp_len);
+  EXPECT_NE(out.find(length), std::string::npos) << out;
+}
+
+TEST_F(RTSPSessionTest, AudioSetupWithoutTrackIsRefused) {
+  this->send("SETUP rtsp://host/trackID=1 RTSP/1.0\r\nCSeq: 4\r\nTransport: RTP/AVP/TCP;interleaved=2-3\r\n\r\n");
+  this->loops(1);
+  EXPECT_EQ(this->receive().rfind("RTSP/1.0 404 Not Found\r\nCSeq: 4\r\n", 0), 0u);
+}
+
+TEST_F(RTSPAudioSessionTest, SetupAnswersEachTrackOnItsChannels) {
+  this->send(setup("trackID=0", 1, "0-1"));
+  this->loops(1);
+  EXPECT_NE(this->receive().find("interleaved=0-1\r\n"), std::string::npos);
+  this->send(setup("trackID=1", 2, "0-1"));  // a client that asks for taken channels gets 2-3
+  this->loops(1);
+  EXPECT_NE(this->receive().find("interleaved=2-3\r\n"), std::string::npos);
+}
+
+TEST_F(RTSPAudioSessionTest, AudioPacketsCarryTheTrack) {
+  this->play(false, true);
+  ASSERT_TRUE(this->session_.is_playing_audio());
+  EXPECT_FALSE(this->session_.is_playing_video());
+  for (int i = 0; i < 3; i++)
+    this->produce();
+  this->loops(2);
+  std::vector<InterleavedPacket> all;
+  ASSERT_TRUE(split_interleaved(this->receive(), all));
+  const auto packets = on_channel(all, 2);  // an audio only session also sends its report
+  ASSERT_EQ(packets.size(), 3u);
+  for (size_t i = 0; i < packets.size(); i++) {
+    const std::string &rtp = packets[i].data;
+    EXPECT_EQ(packets[i].channel, 2);
+    ASSERT_EQ(rtp.size(), RTP_HEADER_LEN + PAYLOAD_LEN);
+    EXPECT_EQ(static_cast<uint8_t>(rtp[0]), 0x80);
+    EXPECT_EQ(static_cast<uint8_t>(rtp[1]), 96);  // no marker
+    if (i > 0) {
+      EXPECT_EQ(be16(rtp, 2), static_cast<uint16_t>(be16(packets[i - 1].data, 2) + 1));
+      EXPECT_EQ(be32(rtp, 4), be32(packets[i - 1].data, 4) + SAMPLES);
+      EXPECT_EQ(be32(rtp, 8), be32(packets[0].data, 8));
+    }
+    EXPECT_EQ(rtp.find_first_not_of(static_cast<char>(i), RTP_HEADER_LEN), std::string::npos);
+  }
+
+  // Audio only: frames are not taken.
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
+  EXPECT_FALSE(this->session_.has_frame());
+}
+
+TEST_F(RTSPAudioSessionTest, PlayStartsWithFreshAudio) {
+  this->produce();
+  this->produce();
+  this->play(false, true);
+  this->loops(2);
+  EXPECT_TRUE(this->receive().empty());
+  this->produce();
+  this->loops(1);
+  std::vector<InterleavedPacket> all;
+  ASSERT_TRUE(split_interleaved(this->receive(), all));
+  const auto packets = on_channel(all, 2);  // an audio only session also sends its report
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(static_cast<uint8_t>(packets[0].data[RTP_HEADER_LEN]), 2);
+}
+
+TEST_F(RTSPAudioSessionTest, AudioAndVideoShareTheConnection) {
+  this->play(true, true);
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 5000);  // several video packets
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
+  this->produce();
+  this->loops(3);
+  // A frame arriving while an audio packet is pending is taken.
+  this->produce();
+  auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+  this->now_ += 100;
+  this->session_.on_new_frame(next, stub_jpeg(*next), this->now_, this->now_);
+  this->loops(3);
+
+  std::vector<InterleavedPacket> packets;
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  size_t video = 0;
+  size_t audio = 0;
+  for (const auto &packet : packets) {
+    if (packet.channel == 0)
+      video++;
+    if (packet.channel == 2)
+      audio++;
+  }
+  EXPECT_GE(video, 6u);
+  EXPECT_EQ(audio, 2u);
+  EXPECT_EQ(image.use_count(), 1);
+  EXPECT_EQ(next.use_count(), 1);
+}
+
+TEST_F(RTSPAudioSessionTest, SenderReportsPairTheTracks) {
+  this->play(true, true);
+  this->produce();  // captured at 1000 ms
+  this->loops(1);
+  std::vector<InterleavedPacket> packets;
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  ASSERT_EQ(packets.size(), 1u) << "no report before the first video packet";
+  const uint32_t audio_timestamp = be32(packets[0].data, 4);
+
+  this->now_ += 40;
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
+  this->loops(1);
+  packets.clear();
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  ASSERT_EQ(packets.size(), 3u);
+  EXPECT_EQ(packets[0].channel, 0);
+  const uint32_t video_timestamp = be32(packets[0].data, 4);
+  const InterleavedPacket &video = packets[1];
+  const InterleavedPacket &audio = packets[2];
+  EXPECT_EQ(video.channel, 1);
+  EXPECT_EQ(audio.channel, 3);
+  for (const auto *report : {&video, &audio}) {
+    ASSERT_EQ(report->data.size(), RTCP_REPORT_LEN);
+    EXPECT_EQ(static_cast<uint8_t>(report->data[0]), 0x80);
+    EXPECT_EQ(static_cast<uint8_t>(report->data[1]), 200);
+    EXPECT_EQ(be16(report->data, 2), 6);
+    // The SDES with the session's CNAME, the same for both tracks (RFC 3550 section 6.5)
+    const std::string sdes = report->data.substr(RTCP_SR_LEN);
+    ASSERT_EQ(sdes.size(), RTCP_SDES_LEN);
+    EXPECT_EQ(static_cast<uint8_t>(sdes[0]), 0x81);
+    EXPECT_EQ(static_cast<uint8_t>(sdes[1]), 202);
+    EXPECT_EQ(be16(sdes, 2), RTCP_SDES_LEN / 4 - 1);
+    EXPECT_EQ(be32(sdes, 4), be32(report->data, 4));  // the report's SSRC
+    EXPECT_EQ(sdes[8], 1);                            // CNAME
+    EXPECT_EQ(static_cast<uint8_t>(sdes[9]), RTCP_CNAME_LEN);
+    EXPECT_EQ(sdes.substr(10, RTCP_CNAME_LEN), video.data.substr(RTCP_SR_LEN + 10, RTCP_CNAME_LEN));
+    EXPECT_EQ(sdes.find_first_not_of('\0', 10 + RTCP_CNAME_LEN), std::string::npos);
+  }
+  // Each report maps the track's last timestamp to the time it was captured, on one clock.
+  EXPECT_EQ(be32(video.data, 8), 1u);
+  EXPECT_EQ(be32(video.data, 12), static_cast<uint32_t>((40ull << 32) / 1000));
+  EXPECT_EQ(be32(video.data, 16), video_timestamp);
+  EXPECT_EQ(be32(video.data, 20), 1u);
+  EXPECT_EQ(be32(video.data, 24), 100u + JPEG_HEADER_LEN + QUANT_HEADER_LEN + 2 * QTABLE_LEN);
+  EXPECT_EQ(be32(audio.data, 8), 1u);
+  EXPECT_EQ(be32(audio.data, 12), 0u);
+  EXPECT_EQ(be32(audio.data, 16), audio_timestamp);
+  EXPECT_EQ(be32(audio.data, 20), 1u);
+  EXPECT_EQ(be32(audio.data, 24), PAYLOAD_LEN);
+
+  // The next reports wait for the interval, then go ahead of the audio.
+  this->now_ += RTCP_INTERVAL_MS - 1;
+  this->produce();
+  this->loops(1);
+  packets.clear();
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  ASSERT_EQ(packets.size(), 1u);
+  this->now_ += 1;
+  this->produce();
+  this->loops(1);
+  packets.clear();
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  ASSERT_EQ(packets.size(), 3u);
+  EXPECT_EQ(packets[0].channel, 1);
+  EXPECT_EQ(packets[1].channel, 3);
+  EXPECT_EQ(packets[2].channel, 2);
+}
+
+TEST_F(RTSPAudioSessionTest, LaggingSessionSkipsOldAudio) {
+  this->play(false, true);
+  for (size_t i = 0; i < AUDIO_SLOTS + 3; i++)
+    this->produce();
+  this->loops(2);
+  std::vector<InterleavedPacket> all;
+  ASSERT_TRUE(split_interleaved(this->receive(), all));
+  const auto packets = on_channel(all, 2);  // an audio only session also sends its report
+  ASSERT_EQ(packets.size(), AUDIO_SLOTS);
+  EXPECT_EQ(static_cast<uint8_t>(packets[0].data[RTP_HEADER_LEN]), 3);
+  // Sequence numbers count what was sent, timestamps count samples, so the gap shows in the timestamps.
+  EXPECT_EQ(be16(packets[1].data, 2), static_cast<uint16_t>(be16(packets[0].data, 2) + 1));
+  EXPECT_EQ(be32(packets[1].data, 4), be32(packets[0].data, 4) + SAMPLES);
+}
+
+TEST_F(RTSPAudioSessionTest, LostCaptureShowsInTimestamps) {
+  this->play(false, true);
+  this->produce();
+  this->produce();
+  // The server lost 800 samples before the next packet (a full ring buffer); its position says so.
+  this->produce();
+  this->track_.sample_pos[2] += 800;
+  this->loops(2);
+  std::vector<InterleavedPacket> all;
+  ASSERT_TRUE(split_interleaved(this->receive(), all));
+  const auto packets = on_channel(all, AUDIO_RTP_CHANNEL);
+  ASSERT_EQ(packets.size(), 3u);
+  EXPECT_EQ(be32(packets[1].data, 4), be32(packets[0].data, 4) + SAMPLES);
+  EXPECT_EQ(be32(packets[2].data, 4), be32(packets[1].data, 4) + SAMPLES + 800);
+  EXPECT_EQ(be16(packets[2].data, 2), static_cast<uint16_t>(be16(packets[1].data, 2) + 1));
+}
+
+TEST_F(RTSPAudioSessionTest, ReusedSlotInFlightIsPaddedWithZeros) {
+  this->reopen_over_tcp();
+  this->session_.set_audio_track(&this->track_);
+  this->play(false, true);
+  // The peer does not read, so the socket backs up part way through an audio packet.
+  for (int i = 0; i < 1000 && !this->session_.audio_in_flight(); i++) {
+    this->produce();
+    this->loops(1);
+  }
+  ASSERT_TRUE(this->session_.audio_in_flight());
+  const auto in_flight = static_cast<uint8_t>(this->session_.audio_in_flight_index());
+
+  // Replacing every slot cuts the packet loose from its slot; the rest of it is owed as zeros.
+  for (size_t i = 0; i < AUDIO_SLOTS; i++)
+    this->produce();
+  EXPECT_FALSE(this->session_.audio_in_flight());
+  EXPECT_GT(this->session_.filler_len(), 0u);
+
+  std::string stream;
+  for (int i = 0; i < 300; i++) {
+    stream += this->receive();
+    this->loops(1);
+  }
+  stream += this->receive();
+  std::vector<InterleavedPacket> all;
+  ASSERT_TRUE(split_interleaved(stream, all));
+  const auto packets = on_channel(all, 2);
+  bool padded = false;
+  for (const auto &packet : packets) {
+    ASSERT_EQ(packet.data.size(), RTP_HEADER_LEN + PAYLOAD_LEN);
+    const size_t data_end = packet.data.find_first_not_of(static_cast<char>(in_flight), RTP_HEADER_LEN);
+    if (data_end != std::string::npos && packet.data.find_first_not_of('\0', data_end) == std::string::npos &&
+        packet.data.back() == '\0')
+      padded = true;
+  }
+  EXPECT_TRUE(padded);
+  // The session goes on with the newest audio.
+  EXPECT_EQ(static_cast<uint8_t>(packets.back().data[RTP_HEADER_LEN]), static_cast<uint8_t>(this->track_.produced - 1));
+}
+
+void RTSPAudioSessionTest::check_g711_padding(AudioCodec codec, char silence) {
+  this->track_.filler = silence_fill(codec);  // zeros would decode as a loud click
+  this->reopen_over_tcp();
+  this->session_.set_audio_track(&this->track_);
+  this->play(false, true);
+  for (int i = 0; i < 1000 && !this->session_.audio_in_flight(); i++) {
+    this->produce();
+    this->loops(1);
+  }
+  ASSERT_TRUE(this->session_.audio_in_flight());
+  const auto in_flight = static_cast<uint8_t>(this->session_.audio_in_flight_index());
+  for (size_t i = 0; i < AUDIO_SLOTS; i++)
+    this->produce();
+  ASSERT_GT(this->session_.filler_len(), 0u);
+
+  std::string stream;
+  for (int i = 0; i < 300; i++) {
+    stream += this->receive();
+    this->loops(1);
+  }
+  stream += this->receive();
+  std::vector<InterleavedPacket> all;
+  ASSERT_TRUE(split_interleaved(stream, all));
+  bool padded = false;
+  for (const auto &packet : on_channel(all, AUDIO_RTP_CHANNEL)) {
+    const size_t data_end = packet.data.find_first_not_of(static_cast<char>(in_flight), RTP_HEADER_LEN);
+    if (data_end != std::string::npos && packet.data.find_first_not_of(silence, data_end) == std::string::npos)
+      padded = true;
+  }
+  EXPECT_TRUE(padded);
+}
+
+TEST_F(RTSPAudioSessionTest, ReusedPcmaSlotIsPaddedWithSilence) {
+  this->check_g711_padding(AudioCodec::AUDIO_CODEC_PCMA, '\xD5');
+}
+
+TEST_F(RTSPAudioSessionTest, ReusedPcmuSlotIsPaddedWithSilence) {
+  this->check_g711_padding(AudioCodec::AUDIO_CODEC_PCMU, '\xFF');
+}
+
+TEST_F(RTSPAudioSessionTest, SlowReaderStillGetsVideo) {
+  // A small Unix socket buffer frees space as the peer reads, like a steady slow link (loopback TCP opens its
+  // window in bursts, which lets the queued audio catch up).
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  int size = 4096;
+  ::setsockopt(fds[0], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+  ::close(this->peer_fd_);
+  this->peer_fd_ = fds[1];
+  this->session_.open(std::make_unique<socket::Socket>(fds[0]), this->now_);
+  this->session_.set_audio_track(&this->track_);
+  this->play(true, true);
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 3000);
+  // The peer reads 200 bytes per 20 ms, below the audio's 336 bytes per packet, so audio is always waiting, and
+  // the camera offers a frame every 100 ms. Audio first, always, would starve the video, while the audio writes
+  // kept the frame from counting as stalled.
+  std::string stream;
+  size_t throttled_from = 0;
+  size_t held = 0;
+  for (int i = 0; i < 1500; i++) {
+    if (i == 300)
+      throttled_from = stream.size();  // the socket has long been backed up
+    this->now_ += AUDIO_PACKET_MS;
+    this->produce();
+    if (i % 5 == 0)
+      this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
+    this->loops(1);
+    char buf[200];
+    ssize_t n = ::recv(this->peer_fd_, buf, sizeof(buf), MSG_DONTWAIT);
+    if (n > 0)
+      stream.append(buf, static_cast<size_t>(n));
+    held += this->session_.holds_sent_frame();
+  }
+  EXPECT_EQ(held, 0u) << "a sent frame was held behind audio";
+  const size_t throttled_to = stream.size();
+  for (int i = 0; i < 3000 && image.use_count() > 1; i++) {
+    stream += this->receive();
+    this->loops(1);
+  }
+  stream += this->receive();
+
+  size_t video = 0;
+  size_t audio = 0;
+  size_t pos = 0;
+  while (pos + 4 <= stream.size() && stream[pos] == '$') {
+    const size_t len = be16(stream, pos + 2);
+    if (pos >= throttled_from && pos < throttled_to) {
+      video += stream[pos + 1] == VIDEO_RTP_CHANNEL;
+      audio += stream[pos + 1] == AUDIO_RTP_CHANNEL;
+    }
+    pos += 4 + len;
+  }
+  EXPECT_GE(video, 5u) << "audio starved the video";
+  EXPECT_GE(audio, 10u);
+}
+
+// ITU-T G.711 decoders, to check the encoders against.
+static int16_t decode_ulaw(uint8_t code) {
+  code = ~code;
+  int32_t value = ((code & 0x0F) << 3) + 0x84;
+  value <<= (code & 0x70) >> 4;
+  return static_cast<int16_t>((code & 0x80) ? 0x84 - value : value - 0x84);
+}
+static int16_t decode_alaw(uint8_t code) {
+  code ^= 0x55;
+  int32_t value = (code & 0x0F) << 4;
+  const int segment = (code & 0x70) >> 4;
+  if (segment == 0) {
+    value += 8;
+  } else {
+    value = (value + 0x108) << (segment - 1);
+  }
+  return static_cast<int16_t>((code & 0x80) ? value : -value);
+}
+
+TEST(RTSPG711, SilenceFillIsTheEncodedZero) {
+  EXPECT_EQ(silence_fill(AudioCodec::AUDIO_CODEC_PCMU)[FILL_LEN - 1], encode_ulaw(0));
+  EXPECT_EQ(silence_fill(AudioCodec::AUDIO_CODEC_PCMA)[0], encode_alaw(0));
+  EXPECT_EQ(silence_fill(AudioCodec::AUDIO_CODEC_L16)[0], 0);
+}
+
+TEST(RTSPG711, KnownCodes) {
+  EXPECT_EQ(encode_ulaw(0), 0xFF);
+  EXPECT_EQ(encode_ulaw(32767), 0x80);
+  EXPECT_EQ(encode_ulaw(-32768), 0x00);
+  EXPECT_EQ(encode_alaw(0), 0xD5);
+  EXPECT_EQ(encode_alaw(-1), 0x55);
+  EXPECT_EQ(encode_alaw(32767), 0xAA);
+  EXPECT_EQ(encode_alaw(-32768), 0x2A);
+}
+
+TEST(RTSPG711, RoundTripStaysWithinTheStep) {
+  for (int32_t sample = -32768; sample <= 32767; sample++) {
+    const auto pcm = static_cast<int16_t>(sample);
+    // The step doubles with each segment; within a segment it is at most 1/16 of the value.
+    const int32_t limit = std::abs(sample) / 16 + 16;
+    const int32_t clip = std::abs(sample) > 32124 ? 1024 : 0;  // the top of the largest segment is clipped
+    ASSERT_LE(std::abs(decode_ulaw(encode_ulaw(pcm)) - sample), limit + clip) << sample;
+    ASSERT_LE(std::abs(decode_alaw(encode_alaw(pcm)) - sample), limit + clip) << sample;
+  }
 }
 
 // Minimal JPEG: SOI, DQT (two tables), optional DRI, SOF0, SOS, scan byte, EOI.
