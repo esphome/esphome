@@ -2,7 +2,7 @@
 // registered on a BLEHub, exposed by each tracker under its own automation
 // names. parse_device()'s return feeds the "Found device" suppression.
 // Constructors are templated on the hub type so this header also builds with
-// no tracker present (host unit tests).
+// no tracker present (host unit tests). Also holds start_scan(), the body of each tracker's start_scan action.
 
 #pragma once
 
@@ -12,6 +12,21 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::ble_device_base {
+
+/// Codegen use only: start a scan on `tracker`, continuous or one-shot. A running scan in the same mode is left as
+/// is, so a repeated action cannot keep a one-shot scan alive; one in the other mode switches and runs a full
+/// duration from now.
+template<typename Tracker> void start_scan(Tracker *tracker, bool continuous) {
+  if (tracker->scan_running()) {
+    if (continuous != tracker->scan_continuous()) {
+      tracker->set_scan_continuous(continuous);
+      tracker->restart_scan_duration();
+    }
+    return;
+  }
+  tracker->set_scan_continuous(continuous);
+  tracker->start_scan();
+}
 
 /// True if `address` is in `table`, a list of MACs ended by 0.
 inline bool mac_in_table(const uint64_t *table, uint64_t address) {
@@ -41,72 +56,36 @@ class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public 
   const uint64_t *addresses_{nullptr};
 };
 
-// on_ble_service_data_advertise: fires when an advertisement contains service
-// data for the given UUID. Optional single-MAC filter.
-class BLEServiceDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
- public:
-  template<typename Hub> explicit BLEServiceDataAdvertiseTrigger(Hub *parent) { parent->register_listener(this); }
-
-  void set_service_uuid16(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint16(static_cast<uint16_t>(uuid)); }
-  void set_service_uuid32(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint32(static_cast<uint32_t>(uuid)); }
-  void set_service_uuid128(const uint8_t *uuid) { this->uuid_ = ESPBTUUID::from_raw(uuid); }
-
-  void set_address(uint64_t address) {
-    this->address_ = address;
-    this->has_address_ = true;
-  }
-
-  bool parse_device(const ESPBTDevice &device) override {
-    if (this->has_address_ && device.address_uint64() != this->address_) {
-      return false;
-    }
-    for (const auto &sd : device.get_service_datas()) {
-      if (sd.uuid == this->uuid_) {
-        this->trigger(sd.data);
-        return true;
-      }
-    }
-    return false;
-  }
-
- protected:
-  ESPBTUUID uuid_{};
-  uint64_t address_{0};
-  bool has_address_{false};
+/// Filter of one service or manufacturer data trigger; codegen emits one constexpr per distinct filter.
+struct AdvDataMatch {
+  uint64_t address;  // MAC, checked only when has_address is set
+  ESPBTUUID uuid;
+  bool manufacturer;  // match manufacturer data instead of service data
+  bool has_address;
 };
 
-// on_ble_manufacturer_data_advertise: fires when an advertisement contains
-// manufacturer data for the given ID. Optional single-MAC filter.
-class BLEManufacturerDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
+// on_ble_service_data_advertise / on_ble_manufacturer_data_advertise: fires with the data of the
+// first entry whose UUID matches, optionally only for one MAC.
+class BLEAdvertiseDataTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
  public:
-  template<typename Hub> explicit BLEManufacturerDataAdvertiseTrigger(Hub *parent) { parent->register_listener(this); }
-
-  void set_manufacturer_uuid16(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint16(static_cast<uint16_t>(uuid)); }
-  void set_manufacturer_uuid32(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint32(static_cast<uint32_t>(uuid)); }
-  void set_manufacturer_uuid128(const uint8_t *uuid) { this->uuid_ = ESPBTUUID::from_raw(uuid); }
-
-  void set_address(uint64_t address) {
-    this->address_ = address;
-    this->has_address_ = true;
+  template<typename Hub> BLEAdvertiseDataTrigger(Hub *parent, const AdvDataMatch *match) : match_(match) {
+    parent->register_listener(this);
   }
 
   bool parse_device(const ESPBTDevice &device) override {
-    if (this->has_address_ && device.address_uint64() != this->address_) {
+    const AdvDataMatch &match = *this->match_;
+    if (match.has_address && device.address_uint64() != match.address)
       return false;
-    }
-    for (const auto &md : device.get_manufacturer_datas()) {
-      if (md.uuid == this->uuid_) {
-        this->trigger(md.data);
-        return true;
-      }
-    }
-    return false;
+    const adv_data_t *data =
+        find_adv_data(match.manufacturer ? device.get_manufacturer_datas() : device.get_service_datas(), match.uuid);
+    if (data == nullptr)
+      return false;
+    this->trigger(*data);
+    return true;
   }
 
  protected:
-  ESPBTUUID uuid_{};
-  uint64_t address_{0};
-  bool has_address_{false};
+  const AdvDataMatch *match_;
 };
 
 // on_scan_end: fires whenever a scan period ends (duration elapsed or stop

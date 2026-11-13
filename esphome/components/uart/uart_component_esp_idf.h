@@ -55,7 +55,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   /**
    * Load the UART with the current settings.
    * @param dump_config (Optional, default `true`): True for displaying new settings or
-   * false to change it quitely
+   * false to change it quietly
    *
    * Example:
    * ```cpp

@@ -420,6 +420,9 @@ def test_ssd1683_named_models(
         ("goodisplay-gdey042t81-4.2", (400, 300)),
         ("goodisplay-gdey029t94-2.9", (128, 296)),
         ("029BN-T94-D2", (128, 296)),
+        ("goodisplay-gdey0213b74-2.13", (122, 250)),
+        ("0213BN-B74", (122, 250)),
+        ("ttgo-t5-2.13in-b74", (122, 250)),
     ):
         model = MODELS[name.upper()]
         assert model.class_name == "EPaperSSD1683"
@@ -428,6 +431,7 @@ def test_ssd1683_named_models(
                 "id": "test_display",
                 "model": name,
                 "dc_pin": 21,
+                "reset_pin": 23,
                 "full_update_every": 5,
             }
         )
@@ -456,6 +460,44 @@ def test_ssd1681_needs_reset_pin(
                     "full_update_every": full_update_every,
                 }
             )
+
+
+@pytest.mark.parametrize(
+    "name", ["goodisplay-gdey0213b74-2.13", "0213BN-B74", "ttgo-t5-2.13in-b74"]
+)
+def test_gdey0213b74_needs_reset_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    name: str,
+) -> None:
+    """The GDEY0213B74 sleeps after every update and only a hardware reset wakes it, so reset_pin is required."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="reset_pin"):
+        run_schema_validation({"id": "test_display", "model": name, "dc_pin": 21})
+
+
+def test_ssd1683_without_reset_pin_still_accepted(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Models that do not require a reset pin still validate without one."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = run_schema_validation(
+        {"id": "test_display", "model": "goodisplay-gdey042t81-4.2", "dc_pin": 21}
+    )
+    assert "reset_pin" not in config
 
 
 def test_ssd1681_dimensions_over_controller_limit_rejected(
@@ -626,6 +668,37 @@ def test_uc8179_e1001_code_generation(
     # for 800x480: command 0x61, 4 data bytes 0x03 0x20 0x01 0xE0
     # (rendered as decimal in the generated array)
     assert "97, 4, 3, 32, 1, 224" in main_cpp
+
+
+def test_uc8179_named_models(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The named UC8179 models use the UC8179 driver class with their own dimensions."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for name, dimensions in (
+        ("goodisplay-gdew075t7-7.5", (800, 480)),
+        ("075BN-T7-D2", (800, 480)),
+        ("goodisplay-gdey0583t81-5.83", (648, 480)),
+        ("0583BN-T81-D2", (648, 480)),
+    ):
+        model = MODELS[name.upper()]
+        assert model.class_name == "EPaperUC8179"
+        config = run_schema_validation(
+            {
+                "id": "test_display",
+                "model": name,
+                "dc_pin": 21,
+                "full_update_every": 5,
+            }
+        )
+        assert model.get_dimensions(config) == dimensions
 
 
 def test_uc8279_width_must_be_a_multiple_of_8(
@@ -818,9 +891,18 @@ def test_uc8279_offset_height_configurable(
     assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
 
 
+@pytest.mark.parametrize(
+    "dimensions",
+    [
+        {"width": 16, "height": 2, "offset_height": 0xFFFF},
+        # offset_height not written: the default of 0 applies, and the error must not point at a missing key
+        {"width": 16, "height": 0x10000},
+    ],
+)
 def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
 ) -> None:
     """offset_height plus the panel height is the gate count, which the controller holds in 16 bits."""
     set_core_config(
@@ -829,15 +911,16 @@ def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     )
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
 
-    with pytest.raises(cv.Invalid, match="must not exceed"):
+    with pytest.raises(cv.Invalid, match="must not exceed") as exc_info:
         run_schema_validation(
             {
                 "id": "test_display",
                 "model": "uc8279",
                 "dc_pin": 21,
-                "dimensions": {"width": 16, "height": 2, "offset_height": 0xFFFF},
+                "dimensions": dimensions,
             }
         )
+    assert exc_info.value.path[-2:] == ["dimensions", "height"]
 
 
 def test_uc8279_x4pro_explicit_dimensions_keep_the_model_offset(

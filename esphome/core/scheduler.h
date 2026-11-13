@@ -239,7 +239,16 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(SchedulerItem *a, SchedulerItem *b);
+    // Heap order for items_: the item due first is on top. A function object rather than a function, so the
+    // heap algorithms call it directly and can inline it.
+    struct Cmp {
+      bool operator()(const SchedulerItem *a, const SchedulerItem *b) const {
+        // High bits are almost always equal (change only on 32-bit rollover ~49 days)
+        return (a->next_execution_high_ == b->next_execution_high_)
+                   ? (a->next_execution_low_ > b->next_execution_low_)
+                   : (a->next_execution_high_ > b->next_execution_high_);
+      }
+    };
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since

@@ -57,6 +57,15 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   void set_adc_time_current(AdcTime time) { adc_time_current_ = time; }
   void set_adc_avg_samples(AdcAvgSamples samples) { adc_avg_samples_ = samples; }
 
+#ifdef USE_INA226_ALERT
+  // Register values computed in Python
+  void set_alert(uint16_t limit, uint16_t mask) {
+    this->alert_limit_ = limit;
+    this->alert_mask_ = mask;
+  }
+  void clear_alert_flag();
+#endif
+
  protected:
   float shunt_resistance_ohm_;
   float max_current_a_;
@@ -64,6 +73,10 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   AdcTime adc_time_current_{AdcTime::ADC_TIME_1100US};
   AdcAvgSamples adc_avg_samples_{AdcAvgSamples::ADC_AVG_SAMPLES_4};
   uint32_t calibration_lsb_;
+#ifdef USE_INA226_ALERT
+  uint16_t alert_limit_{0};
+  uint16_t alert_mask_{0};
+#endif
 };
 
 }  // namespace esphome::ina226
