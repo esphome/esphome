@@ -13,8 +13,8 @@
 namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
-static constexpr size_t TX_FIFO_SIZE = 64;
-static constexpr uint8_t RX_FIFO_SIZE = 64;
+// The TX and RX FIFOs are both 64 bytes
+static constexpr size_t FIFO_SIZE = 64;
 // The crystal takes about 150 us to start after CSn goes low
 static constexpr uint32_t WAKEUP_DELAY_US = 200;
 
@@ -213,7 +213,7 @@ void CC1101Component::loop() {
     return;
   }
   // GDO0 also rises when the FIFO fills, which for a 64 byte packet is before the CRC has arrived
-  if (rx_bytes == RX_FIFO_SIZE) {
+  if (rx_bytes == FIFO_SIZE) {
     this->read_(Register::MARCSTATE);
     if (static_cast<State>(this->state_.MARC_STATE) == State::RX) {
       this->enable_loop();
@@ -230,7 +230,7 @@ void CC1101Component::loop() {
     payload_length = this->state_.PKTLEN;
     expected_rx = payload_length;
   }
-  if (payload_length == 0 || payload_length > RX_FIFO_SIZE || rx_bytes != expected_rx) {
+  if (payload_length == 0 || payload_length > FIFO_SIZE || rx_bytes != expected_rx) {
     ESP_LOGW(TAG, "Invalid packet: rx_bytes %u, payload_length %u", rx_bytes, payload_length);
     this->enter_idle_();
     this->strobe_(Command::FRX);
@@ -469,7 +469,7 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   }
   const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
   // In variable length mode the FIFO also holds the length byte
-  if (len + (variable ? 1 : 0) > TX_FIFO_SIZE) {
+  if (len + (variable ? 1 : 0) > FIFO_SIZE) {
     ESP_LOGE(TAG, "Packet of %u bytes does not fit the TX FIFO", static_cast<unsigned>(len));
     return CC1101Error::PARAMS;
   }
@@ -482,7 +482,7 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   }
 #ifdef USE_ESP32
   // SPI DMA cannot read flash or unaligned buffers; stage them here so the driver does not allocate a copy
-  alignas(4) uint8_t staged[TX_FIFO_SIZE];
+  alignas(4) uint8_t staged[FIFO_SIZE];
   if (len != 0 && (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0)) {
     std::memcpy(staged, data, len);
     data = staged;
