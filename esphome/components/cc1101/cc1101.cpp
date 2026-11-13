@@ -868,7 +868,8 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
-    if (this->gdo0_pin_ != nullptr) {
+    // GDO0 is an output during TX; end_tx_() applies the interrupt state
+    if (this->gdo0_pin_ != nullptr && !this->transmitting_) {
       if (value) {
         this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
       } else {
