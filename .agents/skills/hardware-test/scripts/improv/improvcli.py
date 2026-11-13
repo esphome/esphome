@@ -44,6 +44,10 @@ BOOT_MARKER = (
 )
 
 
+def rpc_strings(data: bytes) -> bytes:
+    return data[2 : 2 + data[1]]
+
+
 def strings(p: bytes) -> list[str]:
     """Split length-prefixed strings; raise ValueError when a prefix runs past the end."""
     out = []
@@ -145,8 +149,9 @@ class Dev:
             short = len(data) < {1: 1, 2: 1, 4: 2}.get(typ, 0)
             if typ == 4 and not short:
                 try:
-                    strings(data[2:])
-                    short = data[1] != len(data) - 2
+                    # ESPHome sends one trailing byte after the strings (an unused checksum slot).
+                    short = data[1] > len(data) - 2
+                    strings(rpc_strings(data))
                 except ValueError:
                     short = True
             self.events.append((time.time() - self.t0, typ, data, ok and not short))
@@ -162,7 +167,9 @@ class Dev:
         elif typ == 2:
             print(f"{t} ERROR {ERRORS.get(data[0], data[0])}{tag}")
         elif typ == 4:
-            strs = ["<ssid>" if x == self.ssid else x for x in strings(data[2:])]
+            strs = [
+                "<ssid>" if x == self.ssid else x for x in strings(rpc_strings(data))
+            ]
             print(f"{t} RPC cmd={data[0]} len={data[1]} {strs}{tag}")
         else:
             print(f"{t} TYPE{typ} {data.hex()}{tag}")
@@ -267,9 +274,12 @@ def main() -> None:
     # A saved network skips provisioning: the board must start unprovisioned.
     ok &= ask(d, "state", 2, lambda e: state(e) and e[2][0] != 4)
     if any(state(e) and e[2][0] == 4 for e in d.events[j:]):
+        # The rest of the flow means nothing on a provisioned board; stop before re-provisioning it.
         print(
             "board is already provisioned: erase the flash first (a new config name keeps the saved network)"
         )
+        print("FAIL")
+        sys.exit(1)
     ok &= ask(d, "info", 3, rpc(3))
     ok &= ask(d, "netstate", 7, rpc(7))
     # The scan sends one reply per network and ends with an empty one.
@@ -293,7 +303,9 @@ def main() -> None:
         d,
         "provision good",
         1,
-        lambda e: rpc(1)(e) and any(x.startswith("http") for x in strings(e[2][2:])),
+        lambda e: (
+            rpc(1)(e) and any(x.startswith("http") for x in strings(rpc_strings(e[2])))
+        ),
         timeout=60,
         payload=creds + bytes([len(w)]) + w,
     )

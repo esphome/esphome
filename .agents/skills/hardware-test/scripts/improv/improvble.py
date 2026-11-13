@@ -39,7 +39,9 @@ async def main(name: str, secrets: str) -> None:
     ssid, pw = (str(x).encode() for x in raw)
     dev = await BleakScanner.find_device_by_name(name, timeout=30)
     if dev is None:
-        sys.exit("device not found")
+        sys.exit(
+            "FAIL: device not found (a provisioned board stops advertising Improv)"
+        )
     loop = asyncio.get_running_loop()
     t0 = loop.time()
     done = asyncio.Event()
