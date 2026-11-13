@@ -90,6 +90,12 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    > Automated testing results
    ```
 
+   Right after the alert, a bold verdict line that answers the PR's question plainly: **Result: fixed.**, **Result:
+   not fixed.**, **Result: regression found.** or **Result: inconclusive.**, then one sentence with the key numbers
+   (for example "the device closed none of 32 streams, dev closed 12 of 16"). A reader must not have to dig through
+   the table or guess whether it works. Side findings (a bug already on `dev`, a one-off oddity) go in the bullets,
+   marked as separate from the verdict, never left to blur it.
+
    Then one short sentence saying what was tested (builds and SHAs, board, what was driven), a results table
    (build SHA, board and framework, what was driven, counts, result, plus the `dev` control row), short bullets
    for the findings, and the setup and exact flow in a collapsed `<details>` block. Answer any question asked on
