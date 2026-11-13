@@ -18,6 +18,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
 )
 from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -187,6 +188,16 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option(
         "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP", config[CONF_IDLE_TIME_BEFORE_SLEEP]
     )
+    # At 1000 Hz the tick step after a light sleep can overshoot the next wake time
+    # by a tick and trip vTaskStepTick's assert; IDF 6.0.1 added a Kconfig option to
+    # clamp it, older releases get the same clamp from tick_overflow_guard.cpp.
+    if idf_version() >= cv.Version(6, 0, 1):
+        add_idf_sdkconfig_option("CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION", True)
+    else:
+        cg.add_define("USE_ESP32_PM_TICK_OVERFLOW_GUARD")
+        for symbol in ("vApplicationSleep", "vTaskStepTick"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
     if config[CONF_POWER_DOWN_PERIPHERALS]:
         add_idf_sdkconfig_option("CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP", True)
     if config[CONF_POWER_DOWN_FLASH]:
