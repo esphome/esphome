@@ -11,6 +11,7 @@ from esphome.components.uart import (
     mark_unclocked,
 )
 from esphome.components.usb_host import (
+    CONF_INTERFACE_DESCRIPTION,
     get_max_packet_size,
     register_usb_client,
     usb_device_schema,
@@ -226,11 +227,22 @@ def channel_schema(type_: "Type") -> cv.Schema:
     return schema
 
 
+def _validate_filtered_channels(config: ConfigType) -> ConfigType:
+    # The filter binds a single interface, so only one port can be used
+    if CONF_INTERFACE_DESCRIPTION in config and len(config[CONF_CHANNELS]) > 1:
+        raise cv.Invalid(
+            f"Only one channel is supported when '{CONF_INTERFACE_DESCRIPTION}' is set",
+            path=[CONF_CHANNELS],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
-            it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it)
+            it.name: cv.All(
+                usb_device_schema(it.cls, it.vid, it.pid).extend(channel_schema(it)),
+                _validate_filtered_channels,
             )
             for it in uart_types
         },

@@ -118,8 +118,9 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
   if (!has_flow_ctl_reg && step >= 1)
     step++;
 
-  uint8_t cmd = 0xA1 + channel->index_;
-  if (channel->index_ >= 2)
+  const uint8_t port = channel->cdc_dev_.device_port;
+  uint8_t cmd = 0xA1 + port;
+  if (port >= 2)
     cmd += 0xE;
   switch (step) {
     case 0: {
@@ -183,8 +184,9 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
 }
 
 void USBUartTypeCH34X::modem_control_transfer(USBUartChannelBase *channel) {
-  uint8_t request = CH341_REQ_MODEM_CTRL + channel->index_;
-  if (channel->index_ >= 2)
+  const uint8_t port = channel->cdc_dev_.device_port;
+  uint8_t request = CH341_REQ_MODEM_CTRL + port;
+  if (port >= 2)
     request += 0xE;
   const uint8_t control = (channel->dtr_ ? CH341_BIT_DTR : 0) | (channel->rts_ ? CH341_BIT_RTS : 0);
   ESP_LOGD(TAG, "MODEM_CTRL: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
