@@ -1,7 +1,8 @@
 #!/bin/bash
 # run.sh NAME [improvcli.py args...]: build NAME.yaml (next to this script, or a path) from TREE, erase the flash so no
 # credentials are saved, flash it over serial and run improvcli.py on PORT. Output lands in out-NAME/.
-# env: TREE (checkout under test), PORT, PY (checkout python), SECRETS (secrets.yaml with wifi_ssid, wifi_password)
+# env: TREE (checkout under test), PORT, PY (checkout python), SECRETS (secrets.yaml with wifi_ssid, wifi_password),
+# BUILD_LOCK (optional); builds go through ../pio_build.sh with a private PlatformIO directory
 # ESP chips only (esptool erase). On LibreTiny or RP2040 erase and flash with that platform's tools, then run
 # improvcli.py directly. Exit status is improvcli.py's: 0 pass, 1 fail, 2 setup failed.
 set -o pipefail
@@ -14,12 +15,9 @@ echo "== $N $REV"
 # the erase runs while the firmware compiles
 $PY -m esptool --port "$PORT" erase_flash > "$O/erase.log" 2>&1 &
 ERASE=$!
-(cd "$W" && PYTHONPATH=$W PYTHONUNBUFFERED=1 $PY -m esphome compile "$Y") > "$O/compile.log" 2>&1 \
-  || { echo "$N compile failed"; tail -20 "$O/compile.log"; wait $ERASE; exit 2; }
-grep -E "^(RAM|Flash):" "$O/compile.log"
+"$(dirname "$D")/pio_build.sh" compile "$N" "$Y" || { wait $ERASE; exit 2; }
 wait $ERASE || { echo "$N erase failed"; exit 2; }
-(cd "$W" && PYTHONPATH=$W $PY -m esphome upload "$Y" --device "$PORT") > "$O/upload.log" 2>&1 \
-  || { echo "$N upload failed"; tail -5 "$O/upload.log"; exit 2; }
+"$(dirname "$D")/pio_build.sh" upload "$N" "$Y" "$PORT" || exit 2
 sleep 1
 rm -f "$O/raw.bin"
 $PY "$D/improvcli.py" "$PORT" "$O/raw.bin" --secrets "$S" "$@" 2>&1 | tee "$O/improv.txt"

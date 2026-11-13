@@ -81,7 +81,8 @@ the box tx 19 rx 18 at 57600, wired across. `gen.py NAME pr|dev` writes the conf
 comfort, sntp clock) with an `on_value` log per entity (`STATE id = '...'`, newlines as `\n`); `DUCO_VERBOSE=1` shows
 `Found node`, `DUCO_SERIAL_SIZE=18` gives the dev fixture's short serial answer. `run.sh NAME KIND SECONDS` (env
 `TREE`, `DUCO_PORT`, `PY`, optional `BUILD_LOCK`), run from a scratch directory with a copy of `ducosim.hpp`,
-generates, builds through `scripts/pio_build.sh`, flashes and captures with `scripts/serial_capture.py`.
+generates, builds through `scripts/pio_build.sh`, flashes and captures with `scripts/serial_capture.py`; a pr build
+ends with `check.py` against `expected.txt` (exit 1 on a mismatch), and the model logs requests it has no answer for.
 - Answer one request per poll call. Answering a 26 request burst in one pass blocks about 100 ms and overflows the
   hub's 256 byte UART RX buffer, which silently drops the serial and version answers every round.
 - Dev's hub frame is 32 bytes: the PR model's 34 byte serial answer is dropped there and duco sets "No answer".

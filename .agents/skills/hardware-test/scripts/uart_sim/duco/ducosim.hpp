@@ -37,7 +37,13 @@ inline void reply(uint8_t fn, uint8_t message_id, const std::vector<uint8_t> &pa
   bus->write_array(out.data(), out.size());
 }
 
-inline void handle(const std::vector<uint8_t> &frame) {
+inline void handle(std::vector<uint8_t> frame) {
+  // frame: length, function, message id, payload, CRC16 (low byte first) over everything before it
+  const uint16_t crc = esphome::crc16(frame.data(), frame.size() - 2);
+  if ((crc & 0xFF) != frame[frame.size() - 2] || (crc >> 8) != frame[frame.size() - 1])
+    ESP_LOGW("box", "RX request with a bad CRC (answered anyway)");
+  if (frame.size() < 10)
+    frame.resize(10, 0);  // the handlers read up to five payload bytes
   const uint8_t function = frame[1];
   const uint8_t message_id = frame[2];
   const uint8_t *d = frame.data() + 3;
@@ -121,6 +127,8 @@ inline void handle(const std::vector<uint8_t> &frame) {
   } else if (function == 0x24 && d[0] == 0x05) {
     ESP_LOGI("box", "Time set to %u", (unsigned) esphome::encode_uint32(d[4], d[3], d[2], d[1]));
     reply(0x26, message_id, {0x05});
+  } else {
+    ESP_LOGW("box", "RX request fn %02X sub %02X has no model answer, sent only the ack", function, d[0]);
   }
 }
 

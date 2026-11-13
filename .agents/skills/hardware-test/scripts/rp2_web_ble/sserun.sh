@@ -8,6 +8,7 @@ PY=${PY:-${TREE:?set TREE or PY}/venv/bin/python}; IFACE=${IFACE:-en0}  # the ho
 cd $D
 rm -f $T-*.txt $T.pcap $T-api*.log
 tcpdump -i $IFACE -n -s 200 -w $T.pcap host $H and port 80 2>$T-tcpdump.err & TP=$!
+sleep 1; kill -0 $TP 2>/dev/null || { echo "FAIL: tcpdump did not start: $(cat $T-tcpdump.err)"; exit 1; }
 (while true; do echo "$(date +%s) $(netstat -anp tcp | grep -F "$H.80 " | tr -s ' ' | tr '\n' '|')"; sleep 1; done) > $T-netstat.txt 2>&1 & NP=$!
 sleep 1
 TOT=$(( (S+12)*N + 10 ))

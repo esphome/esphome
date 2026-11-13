@@ -42,12 +42,17 @@ async def once(host: str, addr: int) -> dict | None:
             if ch.properties & 0x10:
                 notif[ch.uuid] = 0
                 try:
-                    await enable_notify(
+                    if not await enable_notify(
                         cli,
                         addr,
                         ch,
-                        lambda h, d, u=ch.uuid: notif.__setitem__(u, notif[u] + 1),
-                    )
+                        lambda h, d, u=ch.uuid: (
+                            notif.__setitem__(u, notif[u] + 1)
+                            if isinstance(notif[u], int)
+                            else None
+                        ),
+                    ):
+                        notif[ch.uuid] = "FAILED no CCCD"
                 except Exception as e:  # noqa: BLE001
                     notif[ch.uuid] = f"FAILED {type(e).__name__}"
         out["services"].append(so)

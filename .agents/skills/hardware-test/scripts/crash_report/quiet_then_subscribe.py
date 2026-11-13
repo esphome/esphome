@@ -1,7 +1,8 @@
 """quiet_then_subscribe.py HOST PORT OUT QUIET_BOOTS: on the first boot drain any crash record (the first log
 subscribe replays and clears it), then stay connected without a log subscription for QUIET_BOOTS reboots, then
 subscribe on the next boot and record the log (including a crash record replayed on subscribe) until a line with
-REBOOT. env: API_KEY (unset for a plaintext API)."""
+REBOOT. Exits 1 when that line never comes. Every lost connection counts as a reboot, so run it on a stable link.
+env: API_KEY (unset for a plaintext API)."""
 
 import asyncio
 import contextlib
@@ -49,6 +50,8 @@ async def main(host: str, port: int, outf: str, quiet: int) -> None:
                     w("=== no REBOOT within 120 s")
                 with contextlib.suppress(Exception):
                     await cli.disconnect()
+                if not done.is_set():
+                    sys.exit("FAIL: no REBOOT line within 120 s of subscribing")
                 return
             if boots == 1:
                 # drain any crash record left by the reboot that brought this build up

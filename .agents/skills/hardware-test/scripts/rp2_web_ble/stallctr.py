@@ -5,7 +5,8 @@ apilog.py with counter log lines tagged [atcp."""
 import pathlib
 import sys
 
-from pcapsum import packets
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from pcapsum import packets  # noqa: E402
 
 
 def main(pcap: str, dev: str, logf: str) -> None:

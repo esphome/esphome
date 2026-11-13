@@ -46,6 +46,11 @@ ble_client:
           int n = ++id(rounds);
           ESP_LOGI("btu", "ROUND %d start conn_id=%u handle=0x%04x", n, conn_id, handle);
           TaskHandle_t btu = xTaskGetHandle("BTU_TASK");
+          if (btu == nullptr) {
+            // vTaskSuspend(nullptr) would suspend this task forever
+            ESP_LOGE("btu", "ROUND %d aborted, no BTU_TASK", n);
+            return;
+          }
           vTaskSuspend(btu);
           esp_ble_gap_disconnect(id(srv)->get_remote_bda());
           for (int i = 0; i < 4; i++)

@@ -1,5 +1,6 @@
 """API soak: subscribe states and logs for SECONDS, reconnect on drops, report the state count, uptime resets
-(reboots), reset reason and crash or assert lines. usage: soak.py HOST SECONDS LOGFILE  env: API_KEY"""
+(reboots), reset reason and crash or assert lines. usage: soak.py HOST SECONDS LOGFILE  env: API_KEY
+Exits 1 on a drop, an uptime reset, a crash or assert line, or no states at all."""
 
 import asyncio
 import contextlib
@@ -69,6 +70,9 @@ async def main(host: str, secs: float, logf: str) -> None:
     )
     for b in bad[:10]:
         print("BAD", b)
+    if drops or reboots or bad or not states:
+        sys.exit("FAIL")
+    print("PASS")
 
 
 asyncio.run(main(sys.argv[1], float(sys.argv[2]), sys.argv[3]))

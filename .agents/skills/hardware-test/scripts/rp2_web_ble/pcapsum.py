@@ -22,10 +22,13 @@ def packets(pcap: str, dev: str) -> Iterator[dict]:
     )
     if r.returncode != 0:
         sys.exit(f"tcpdump -r {pcap} failed: {r.stderr.strip()}")
+    skipped = parsed = 0
     for line in r.stdout.splitlines():
         m = RX.match(line)
         if not m:
+            skipped += " IP " in line and "Flags [" in line
             continue
+        parsed += 1
         t, sip, sp, _dip, dp, fl, s1, s2, ack, win, ln = m.groups()
         from_dev = sip == dev
         yield {
@@ -39,6 +42,10 @@ def packets(pcap: str, dev: str) -> Iterator[dict]:
             "len": int(ln),
             "line": line,
         }
+    if skipped:
+        print(f"warning: {skipped} TCP lines did not parse", file=sys.stderr)
+    if skipped and not parsed:
+        sys.exit("no TCP line parsed; the tcpdump output format differs")
 
 
 def main(pcap: str, dev: str) -> None:

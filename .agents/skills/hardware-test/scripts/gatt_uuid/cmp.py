@@ -1,5 +1,6 @@
 """cmp.py REF.json OTHER.json : list each UUID (service / characteristic / descriptor, in order) where OTHER differs
-from REF, and whether reads and notifications worked. Exits 1 on any difference or failed read."""
+from REF, whether reads match (static characteristics) and whether every notifying characteristic notified.
+Exits 1 on any difference."""
 
 import json
 import pathlib
@@ -25,13 +26,30 @@ print(
 )
 for a, b in diff:
     print(f"  {a[0]} ref {a[1]}  other {b[1]}")
-reads = od["reads"]
-print(
-    f"reads ok={sum(not str(v).startswith('FAILED') for v in reads.values())}/{len(reads)} "
-    f"same values as ref by position={[*reads.values()][-4:] == [*rd['reads'].values()][-4:]}"
-)
+
+
+def chars(d: dict) -> list[dict]:
+    return [c for s in d["services"] for c in s["characteristics"]]
+
+
+# compare by position: a UUID form bug renames the keys, so values and notify counts are matched by table order
+problems = []
+rc, oc = chars(rd), chars(od)
+for i, (a, b) in enumerate(zip(rc, oc, strict=False)):
+    rv, ov = rd["reads"].get(a["uuid"]), od["reads"].get(b["uuid"])
+    if str(ov).startswith("FAILED"):
+        problems.append(f"read {i} {b['uuid']} {ov}")
+    elif not a["props"] & 0x10 and rv is not None and ov != rv:
+        problems.append(f"read {i} {b['uuid']} {ov!r} != ref {rv!r}")
+    if a["props"] & 0x10:
+        n = od["notify"].get(b["uuid"])
+        if not isinstance(n, int) or n <= 0:
+            problems.append(f"notify {i} {b['uuid']} {n}")
 print(f"notify {od['notify']}")
-failed = [u for u, v in reads.items() if str(v).startswith("FAILED")]
-if diff or len(ref) != len(oth) or failed:
-    sys.exit(f"FAIL: {len(diff)} differing entries, {len(failed)} failed reads")
+for x in problems:
+    print(" ", x)
+if diff or len(ref) != len(oth) or problems:
+    sys.exit(
+        f"FAIL: {len(diff)} differing entries, {len(problems)} read or notify problems"
+    )
 print("PASS")

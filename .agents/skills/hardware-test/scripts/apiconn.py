@@ -86,7 +86,8 @@ async def ble_connect(
 ) -> tuple[bool, int, int, Callable[[], None]]:
     """Wait for an advert from ADDR, then connect through the proxy without a cache (like Home Assistant).
 
-    Returns (connected, mtu, error, cancel). ON_LOST(error) is called when the link drops later.
+    Returns (connected, mtu, error, cancel); a missing advert or a connect timeout gives (False, 0, -1, cancel), so
+    callers can retry. ON_LOST(error) is called when the link drops later.
     """
     seen = asyncio.Event()
     unsub = cli.subscribe_bluetooth_le_raw_advertisements(
@@ -94,8 +95,12 @@ async def ble_connect(
             seen.set() if any(a.address == addr for a in m.advertisements) else None
         )
     )
-    await asyncio.wait_for(seen.wait(), advert_timeout)
-    unsub()
+    try:
+        await asyncio.wait_for(seen.wait(), advert_timeout)
+    except TimeoutError:
+        return False, 0, -1, lambda: None
+    finally:
+        unsub()
     first: asyncio.Queue = asyncio.Queue()
     pending = True
 
@@ -115,7 +120,10 @@ async def ble_connect(
         feature_flags=0xFF,
         has_cache=False,
     )
-    connected, mtu, err = await asyncio.wait_for(first.get(), timeout + 5)
+    try:
+        connected, mtu, err = await asyncio.wait_for(first.get(), timeout + 5)
+    except TimeoutError:
+        return False, 0, -1, cancel
     return connected, mtu, err, cancel
 
 

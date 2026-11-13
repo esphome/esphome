@@ -43,9 +43,10 @@ async def main(host: str, peer: str, hold: float) -> None:
     reads = fails = empty = 0
     samples: list[bytes] = []
     for u in (NUM, TXT):
-        await enable_notify(
+        if not await enable_notify(
             cli, addr, chars[u], lambda h, d, u=u: got.__setitem__(u, got[u] + 1)
-        )
+        ):
+            sys.exit(f"FAIL: {u[:8]} lists no CCCD")
     end = time.monotonic() + hold
     while time.monotonic() < end and not lost:
         for u in (NUM, TXT):

@@ -178,6 +178,10 @@ inline void write_reg(uint8_t r, uint8_t v) {
         C.tx_armed = false;
         start_tx();
       }
+    } else {
+      // a FIFO write with no transmit armed, or past the 8 byte TX buffer: a malformed transmission
+      C.bad_tx++;
+      ESP_LOGW(TAG, "dropped FIFO byte 0x%02X (armed=%d got=%u len=%u)", v, C.tx_armed, C.tx_got, C.tx_len);
     }
     return;
   }
