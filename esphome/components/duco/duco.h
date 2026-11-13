@@ -6,6 +6,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -18,6 +19,17 @@ static constexpr uint8_t FUNCTION_NODE = 0x0c;       // discovery, status and mo
 static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data (sensors, serial number)
 static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
 static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
+
+/// Set in a node type byte for a node on network type 3 (BS); the node type codes stay below it.
+static constexpr uint8_t NODE_TYPE_BS = 0x80;
+
+/// The node type byte for the type and network type of a node's answer.
+inline uint8_t node_type_byte(uint8_t type, uint8_t network_type) {
+  return type | (network_type == 3 ? NODE_TYPE_BS : 0);
+}
+
+/// The name of a node type byte.
+const LogString *node_type_name(uint8_t type);
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
@@ -91,8 +103,7 @@ class DucoDiscovery : public DucoDevice {
  protected:
   static constexpr uint8_t NODE_COUNT = 0x45;
 
-  std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
-  std::array<uint8_t, NODE_COUNT> node_network_types_{};
+  std::array<uint8_t, NODE_COUNT> node_types_{};  // node type bytes, 0 when no node answered at that address
   uint8_t next_node_{0};
   uint8_t attempts_{0};
 };
