@@ -304,9 +304,23 @@ void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t mes
   this->send(message, event, id, reconnect);
 }
 
+// On RP2 the async TCP callbacks run from lwIP's async context and add and free clients there, while the
+// library's client list has no lock outside ESP32: every main loop access holds the lwIP lock, which keeps them out.
 bool DeferredUpdateEventSourceList::loop() {
-  for (DeferredUpdateEventSource *dues : *this) {
+  LwIPLock lock;
+  for (auto it = this->begin(); it != this->end();) {
+    DeferredUpdateEventSource *dues = *it;
+    if (dues->disconnected_) {
+      it = this->erase(it);
+      delete dues;  // NOLINT
+      continue;
+    }
+    if (dues->connected_) {
+      dues->connected_ = false;
+      dues->send_initial_();
+    }
     dues->loop();
+    ++it;
   }
   return !this->empty();
 }
@@ -316,6 +330,7 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, bool det
   // Skip if no event sources (no connected clients) to avoid unnecessary iteration
   if (this->empty())
     return;
+  LwIPLock lock;
   for (DeferredUpdateEventSource *dues : *this) {
     dues->deferrable_send_state(source, detail_all, message_generator);
   }
@@ -323,6 +338,7 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, bool det
 
 void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
                                                      uint32_t id, uint32_t reconnect) {
+  LwIPLock lock;
   for (DeferredUpdateEventSource *dues : *this) {
     dues->try_send_nodefer(message, message_len, event, id, reconnect);
   }
@@ -332,46 +348,41 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
-  es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
-
-  es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
+  // These run in the network callback context: they only set a flag, which loop() handles on the main loop
+  es->onConnect([es](AsyncEventSourceClient *) {
+    es->connected_ = true;
+    es->web_server_->enable_loop_soon_any_context();
+  });
+  es->onDisconnect([es](AsyncEventSourceClient *) {
+    es->disconnected_ = true;
+    es->web_server_->enable_loop_soon_any_context();
+  });
 
   es->handleRequest(request);
   ws->enable_loop_soon_any_context();
 }
 
-void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
-  WebServer *ws = source->web_server_;
-  ws->defer([ws, source]() {
-    // Configure reconnect timeout and send config
-    // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-    auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
+void DeferredUpdateEventSource::send_initial_() {
+  WebServer *ws = this->web_server_;
+  // Configure reconnect timeout and send config
+  // this should always go through since the AsyncEventSourceClient event queue is empty on connect
+  auto message = ws->get_config_json();
+  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
-    for (auto &group : ws->sorting_groups_) {
-      json::JsonBuilder builder;
-      JsonObject root = builder.root();
-      root[ESPHOME_F("name")] = linked(group.second.name);
-      root[ESPHOME_F("sorting_weight")] = group.second.weight;
-      auto group_msg = builder.serialize();
+  for (auto &group : ws->sorting_groups_) {
+    json::JsonBuilder builder;
+    JsonObject root = builder.root();
+    root[ESPHOME_F("name")] = linked(group.second.name);
+    root[ESPHOME_F("sorting_weight")] = group.second.weight;
+    auto group_msg = builder.serialize();
 
-      // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
-    }
+    // up to 31 groups should be able to be queued initially without defer
+    this->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
+  }
 #endif
 
-    source->entities_iterator_.begin(ws->include_internal_);
-  });
-}
-
-void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
-  source->web_server_->defer([this, source]() {
-    // This method was called via WebServer->defer() and is no longer executing in the
-    // context of the network callback. The object is now dead and can be safely deleted.
-    this->remove(source);
-    delete source;  // NOLINT
-  });
+  this->entities_iterator_.begin(ws->include_internal_);
 }
 #endif
 
