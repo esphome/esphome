@@ -74,11 +74,9 @@ class ArenaEstimate:
 
 @dataclass(frozen=True)
 class ModelInput:
-    """Shape and type of the input tensor a model declares."""
+    """The shape and element type of the input tensor a model declares."""
 
-    height: int
-    width: int
-    channels: int
+    shape: tuple[int, ...]
     type: str  # the YAML input_type name of the tensor
 
 
@@ -228,8 +226,9 @@ def _subgraph(buffer: _FlatBuffer) -> int:
 def read_model_input(model_path: str | Path) -> ModelInput:
     """The input tensor a model declares.
 
-    A model stores its input as ``[batch, height, width, channels]``, the shape a companion report would otherwise
-    describe. Any other layout, or a type the runtime cannot fill, raises :class:`ModelReadError`.
+    The shape is returned as the model stores it: ``[1, height, width, channels]`` for an image model and
+    ``[1, frames, features]`` for a streaming one, so each consumer checks the layout it can fill. A type the
+    runtime cannot fill raises :class:`ModelReadError`.
     """
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
@@ -239,19 +238,12 @@ def read_model_input(model_path: str | Path) -> ModelInput:
         raise ModelReadError(f"{buffer.path}: the model declares no input tensor")
     table = tensors[inputs[0]]
     shape = buffer.i32_vector(table, _TENSOR_SHAPE)
-    if len(shape) != 4 or shape[0] != 1:
-        raise ModelReadError(
-            f"{buffer.path}: input tensor shape {shape} is not the "
-            f"[1, height, width, channels] image layout the runtime expects"
-        )
     code = buffer.i8_field(table, _TENSOR_TYPE) or 0
     if (type_name := INPUT_TENSOR_TYPES.get(code)) is None:
         raise ModelReadError(
             f"{buffer.path}: input tensor type {code} is not one the runtime can fill"
         )
-    return ModelInput(
-        height=shape[1], width=shape[2], channels=shape[3], type=type_name
-    )
+    return ModelInput(shape=tuple(shape), type=type_name)
 
 
 def _buffers_with_data(buffer: _FlatBuffer) -> list[bool]:

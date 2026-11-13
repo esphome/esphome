@@ -512,7 +512,7 @@ def test_read_model_operators_rejects_a_missing_file(tmp_path: Path) -> None:
 
 
 def test_read_model_input_describes_the_input_tensor(tmp_path: Path) -> None:
-    """A model keeps its input as [batch, height, width, channels]."""
+    """An image model keeps its input as [batch, height, width, channels]."""
     model = write_model_file(
         tmp_path,
         write_model(
@@ -525,10 +525,26 @@ def test_read_model_input_describes_the_input_tensor(tmp_path: Path) -> None:
 
     model_input = read_model_input(model)
 
-    assert model_input.height == 32
-    assert model_input.width == 20
-    assert model_input.channels == 3
+    assert model_input.shape == (1, 32, 20, 3)
     assert model_input.type == "uint8"
+
+
+def test_read_model_input_describes_a_streaming_input(tmp_path: Path) -> None:
+    """A streaming model's [batch, frames, features] input is reported as it is."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 49, 40], 9, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    model_input = read_model_input(model)
+
+    assert model_input.shape == (1, 49, 40)
+    assert model_input.type == "int8"
 
 
 def test_read_model_input_names_the_type_the_runtime_fills(tmp_path: Path) -> None:
@@ -550,22 +566,6 @@ def test_read_model_input_requires_an_input_tensor(tmp_path: Path) -> None:
     model = write_model_file(tmp_path, write_model([(None, 9)]))
 
     with pytest.raises(ModelReadError, match="no input tensor"):
-        read_model_input(model)
-
-
-def test_read_model_input_rejects_a_shape_that_is_not_an_image(tmp_path: Path) -> None:
-    """A streaming model's [batch, time, features] input has no width or height."""
-    model = write_model_file(
-        tmp_path,
-        write_model(
-            [(None, 9)],
-            inputs=(0,),
-            tensors=(([1, 49, 40], 9, 0),),
-            buffers=(None,),
-        ),
-    )
-
-    with pytest.raises(ModelReadError, match=r"\[1, height, width, channels\]"):
         read_model_input(model)
 
 
