@@ -273,10 +273,13 @@ void OpenThreadComponent::ot_main_() {
       break;
     }
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-    // loop() stops the main loop to have the border router started here, then it runs again
-    if (this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_NOT_STARTED &&
-        this->border_router_start_requested_.exchange(false)) {
-      this->start_border_router_();
+    // Only teardown ends the task. Otherwise loop() stopped the main loop to have the border router
+    // started here (or an exit came from elsewhere), and the main loop runs again: it sets its running
+    // flag on entry, so an exit posted meanwhile is handled on the next run
+    if (this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_NOT_STARTED) {
+      if (this->border_router_start_requested_.exchange(false)) {
+        this->start_border_router_();
+      }
       continue;
     }
 #endif
@@ -416,6 +419,8 @@ void OpenThreadComponent::loop() {
         ESP_LOGW(TAG, "Stack did not take the backbone loss, routes stay until the %s backbone returns", BACKBONE_NAME);
       }
     }
+    // A start the OpenThread task has not picked up yet is no longer wanted
+    this->border_router_start_requested_ = false;
     this->backbone_up_ = false;
     this->disable_loop();
     return;
@@ -459,6 +464,8 @@ void OpenThreadComponent::start_border_router_() {
     if (err == ESP_OK) {
       this->status_clear_error();
       ESP_LOGI(TAG, "Border routing started");
+      // The backbone may have gone while the router started; loop() checks again
+      this->enable_loop();
       return;
     }
     ESP_LOGE(TAG, "Failed to %s OpenThread Border Router: %s",
