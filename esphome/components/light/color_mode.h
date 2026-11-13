@@ -143,14 +143,11 @@ struct ColorModeBitPolicy {
     const auto value = static_cast<uint8_t>(mode);
     unsigned bit = value;
     if (value > 1) {
-      bit = (mode & ColorCapability::RGB) ? 6 : 2;
-      if (mode & ColorCapability::COLD_WARM_WHITE) {
-        bit += 3;
-      } else if (mode & ColorCapability::COLOR_TEMPERATURE) {  // RGB_COLOR_TEMPERATURE also has WHITE
-        bit += 2;
-      } else if (mode & ColorCapability::WHITE) {
-        bit += 1;
-      }
+      const unsigned white = (mode & ColorCapability::COLD_WARM_WHITE)     ? 3
+                             : (mode & ColorCapability::COLOR_TEMPERATURE) ? 2
+                             : (mode & ColorCapability::WHITE)             ? 1
+                                                                           : 0;
+      bit = ((mode & ColorCapability::RGB) ? 6 : 2) + white;
     }
     return (bit < MAX_BITS && color_mode_at(bit) == mode) ? bit : 0;
   }
