@@ -314,6 +314,9 @@ void CC1101Component::reset() {
 
 void CC1101Component::end_tx_() {
   this->transmitting_ = false;
+  // Release GDO0 first: in packet mode the radio drives it again
+  if (this->gdo0_pin_ != nullptr)
+    this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   this->write_(Register::PKTCTRL0);
   if (this->gdo0_pin_ != nullptr)
     this->gdo0_to_input_();
