@@ -60,6 +60,14 @@ switch:
     cluster: on_off
     device_class: outlet
 
+cover:
+  - platform: template
+    name: "Template Cover Endpoint"
+    endpoint: 7
+  - platform: template
+    name: "Template Cover Reported"
+    report: force
+
 zigbee:
   model: zigbee_test
   manufacturer: test

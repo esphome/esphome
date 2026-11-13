@@ -114,6 +114,7 @@ CONF_VOLUME_MAX_DB = "volume_max_db"
 CONF_VOLUME_MIN = "volume_min"
 CONF_VOLUME_MIN_DB = "volume_min_db"
 CONF_WINDOW = "window"
+CONF_ZIGBEE_COVER = "zigbee_cover"
 
 ICON_CURRENT_DC = "mdi:current-dc"
 ICON_SOLAR_PANEL = "mdi:solar-panel"

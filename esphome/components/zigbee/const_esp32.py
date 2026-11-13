@@ -23,6 +23,7 @@ DEVICE_ID = {
     "TEMPERATURE_SENSOR": cg.RawExpression("EZB_ZHA_TEMPERATURE_SENSOR_DEVICE_ID"),
     "PRESSURE_SENSOR": cg.RawExpression("EZB_ZHA_PRESSURE_SENSOR_DEVICE_ID"),
     "FLOW_SENSOR": cg.RawExpression("EZB_ZHA_FLOW_SENSOR_DEVICE_ID"),
+    "WINDOW_COVERING": cg.RawExpression("EZB_ZHA_WINDOW_COVERING_DEVICE_ID"),
     "CUSTOM_ATTR": 0xFFF2,
 }
 cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")
@@ -42,6 +43,7 @@ CLUSTER_ID = cluster_id.options(
     "OCCUPANCY_SENSING",
     "CARBON_DIOXIDE_MEASUREMENT",
     "PM2_5_MEASUREMENT",
+    "WINDOW_COVERING",
     prefix="EZB_ZCL_CLUSTER_ID_",
 )
 CLUSTER_ROLE = {
