@@ -1,10 +1,9 @@
-// strtof without libc's strtod (_strtod_l, __gethex and their helpers: about 6.5 KB of flash on ESP8266), giving
-// newlib's value and end pointer (C locale) for every input.
-//
-// newlib's strtof is (float) strtod: the decimal rounds to the nearest double, which then rounds to the nearest
-// float. A double approximation picks a candidate float, and exact integer comparisons with the values that strtod
-// would round onto a float midpoint settle the result.
+// strtof without libc's strtod (_strtod_l, __gethex and their helpers), giving newlib's value and end pointer
+// (C locale) for every input. newlib's strtof is (float) strtod: a decimal rounds to the nearest double, which
+// then rounds to the nearest float. Exact cases use one float or double operation; otherwise a double guess
+// decides unless it lies near a float midpoint, where exact integer comparisons settle it.
 
+#include "esphome/core/parse_float.h"
 #include "esphome/core/helpers.h"
 
 #include <strings.h>
@@ -21,21 +20,33 @@ constexpr uint32_t FLOAT_NAN_BITS = 0x7FC00000;  // nanf(""), which newlib's str
 // The bounds compared with have at most about 160 significant decimal digits, so later digits only count as
 // "something non-zero follows".
 constexpr uint32_t EXACT_DIGITS = 200;
-// The largest operand: 200 digits (665 bits), or a 55-bit bound times 5^245 (624 bits), shifted to match;
-// 21 words is the most the host tests reach.
+// The largest operand: 200 digits (665 bits), or a 55-bit bound times 5^245 (624 bits), shifted to match.
 constexpr uint8_t EXACT_WORDS = 26;
+// The guess is within one float of the result, so the exact comparison moves at most twice
+constexpr uint32_t MAX_EXACT_STEPS = 3;
 
-float float_from_bits(uint32_t bits, bool negative) { return bit_cast<float>(negative ? bits | FLOAT_SIGN_BIT : bits); }
+#ifdef USE_HOST
+uint32_t exact_steps = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables): test counter
+#endif
 
 bool is_digit(char c) { return static_cast<uint8_t>(c - '0') <= 9; }
 
 bool is_hex_digit(char c) { return parse_hex_char(c) != INVALID_HEX_CHAR; }
 
-uint32_t bit_length(uint64_t value) {
-  uint32_t n = 0;
-  for (; value != 0; value >>= 1)
-    n++;
-  return n;
+uint32_t bit_length(uint64_t value) { return value == 0 ? 0 : 64 - __builtin_clzll(value); }
+
+// 10^n by squaring; exact for float up to 10^10 and for double up to 10^22
+template<typename T> T pow10(uint32_t n) {
+  T result = 1;
+  T base = 10;
+  for (;;) {
+    if ((n & 1) != 0)
+      result *= base;
+    n >>= 1;
+    if (n == 0)
+      return result;
+    base *= base;
+  }
 }
 
 // Unsigned integer of up to EXACT_WORDS 32-bit words
@@ -45,6 +56,10 @@ class ExactNumber {
     for (; value != 0; value >>= 32)
       this->words_[this->len_++] = static_cast<uint32_t>(value);
   }
+  ExactNumber(const ExactNumber &other) : len_(other.len_) {
+    memcpy(this->words_, other.words_, this->len_ * sizeof(uint32_t));
+  }
+  ExactNumber &operator=(const ExactNumber &) = delete;
 
   void multiply_add(uint32_t factor, uint32_t addend) {
     uint64_t carry = addend;
@@ -61,8 +76,10 @@ class ExactNumber {
     static constexpr uint32_t POW5_13 = 1220703125;  // the largest power of 5 in 32 bits
     for (; exponent >= 13; exponent -= 13)
       this->multiply_add(POW5_13, 0);
-    uint32_t factor = 1;
-    for (; exponent != 0; exponent--)
+    if (exponent == 0)
+      return;
+    uint32_t factor = 5;
+    for (; exponent > 1; exponent--)
       factor *= 5;
     this->multiply_add(factor, 0);
   }
@@ -96,33 +113,37 @@ class ExactNumber {
   }
 
  private:
-  uint32_t words_[EXACT_WORDS]{};
+  uint32_t words_[EXACT_WORDS];
   uint8_t len_{0};
 };
 
-// A non-zero decimal digits * 10^exp10, plus sticky when non-zero digits past EXACT_DIGITS were dropped
+// The parsed decimal 0.<digits> * 10^exp10; first..end holds the digits and maybe a point
+struct Decimal {
+  const char *first;
+  const char *end;
+  uint64_t top;     // the first 19 digits
+  uint32_t digits;  // all of them
+  int32_t exp10;
+};
+
+// A non-zero decimal digits * 2^exp2 / 5^pow5, plus sticky when non-zero digits past EXACT_DIGITS were dropped
 struct ExactDecimal {
   ExactNumber digits{0};
-  int32_t exp10;
+  int32_t exp2;
+  uint32_t pow5;
   bool sticky;
 };
 
 // The sign of (decimal - mantissa * 2^exp2)
 int compare_decimal(const ExactDecimal &d, uint64_t mantissa, int32_t exp2) {
-  ExactNumber lhs = d.digits;
+  ExactNumber lhs(d.digits);
   ExactNumber rhs(mantissa);
-  int32_t lhs_exp2 = 0;
-  if (d.exp10 >= 0) {
-    lhs.multiply_pow5(d.exp10);
-    lhs_exp2 = d.exp10;
+  rhs.multiply_pow5(d.pow5);
+  exp2 += static_cast<int32_t>(d.pow5);
+  if (d.exp2 > exp2) {
+    lhs.shift_left(d.exp2 - exp2);
   } else {
-    rhs.multiply_pow5(-d.exp10);
-    exp2 -= d.exp10;
-  }
-  if (lhs_exp2 > exp2) {
-    lhs.shift_left(lhs_exp2 - exp2);
-  } else {
-    rhs.shift_left(exp2 - lhs_exp2);
+    rhs.shift_left(exp2 - d.exp2);
   }
   const int order = lhs.compare(rhs);
   return order == 0 && d.sticky ? 1 : order;
@@ -139,10 +160,10 @@ struct MidpointRange {
 
 MidpointRange midpoint_range(uint32_t k) {
   const uint32_t exp = k >> 23;
-  const uint64_t odd = 2 * static_cast<uint64_t>((k & 0x7FFFFF) | (exp != 0 ? 0x800000 : 0)) + 1;
+  const uint32_t odd = 2 * ((k & 0x7FFFFF) | (exp != 0 ? 0x800000 : 0)) + 1;
   // As a double, m * 2^m_exp2 with 2^52 <= m < 2^53
-  const uint32_t shift = 53 - bit_length(odd);
-  const uint64_t m = odd << shift;
+  const uint32_t shift = 53 - (32 - __builtin_clz(odd));
+  const uint64_t m = static_cast<uint64_t>(odd) << shift;
   const int32_t m_exp2 = (exp != 0 ? static_cast<int32_t>(exp) - 151 : -150) - static_cast<int32_t>(shift);
   // Below a power of two the next double is half as far away
   if (odd == 1)
@@ -152,47 +173,41 @@ MidpointRange midpoint_range(uint32_t k) {
 
 uint32_t even_of(uint32_t k) { return (k & 1) != 0 ? k + 1 : k; }
 
-// first..end holds the digits and maybe a point; the value is 0.<digits> * 10^exp10
-uint32_t decimal_to_float_bits(const char *first, const char *end, int32_t exp10) {
-  // 10^-46 is below half the smallest float, 10^39 above the largest
-  if (exp10 <= -46)
-    return 0;
-  if (exp10 >= 40)
-    return FLOAT_INF_BITS;
-  uint64_t top = 0;  // the first 19 digits
-  uint32_t digits = 0;
-  for (const char *p = first; p < end; p++) {
-    if (*p == '.')
-      continue;
-    if (digits < 19)
-      top = top * 10 + (*p - '0');
-    digits++;
-  }
-  const int32_t scale = exp10 - static_cast<int32_t>(digits < 19 ? digits : 19);
-  double power = 1.0;
-  for (int32_t i = scale < 0 ? -scale : scale; i > 0; i--)
-    power *= 10.0;
-  const double guess = scale < 0 ? static_cast<double>(top) / power : static_cast<double>(top) * power;
-  // Every digit, the value up to 2^53 and the power of ten up to 10^22 are exact doubles, so the one IEEE
-  // operation above is strtod's correctly rounded double
-  if (digits <= 19 && top <= (uint64_t{1} << 53) && scale >= -22 && scale <= 22)
-    return bit_cast<uint32_t>(static_cast<float>(guess));
+// Out of line and cold: ordinary input never runs it, so it stays out of the flash cache
+__attribute__((noinline, cold)) uint32_t exact_float_bits(const Decimal &in, uint32_t k) {
   ExactDecimal d;
   uint32_t used = 0;
-  const char *p = first;
-  for (; p < end && used < EXACT_DIGITS; p++) {
-    if (*p == '.')
-      continue;
-    d.digits.multiply_add(10, *p - '0');
-    used++;
+  const char *p = in.first;
+  while (p < in.end && used < EXACT_DIGITS) {
+    // Up to 9 digits per pass
+    uint32_t chunk = 0;
+    uint32_t n = 0;
+    for (; p < in.end && n < 9 && used < EXACT_DIGITS; p++) {
+      if (*p == '.')
+        continue;
+      chunk = chunk * 10 + (*p - '0');
+      n++;
+      used++;
+    }
+    d.digits.multiply_add(pow10<uint32_t>(n), chunk);
   }
   d.sticky = false;
-  for (; p < end && !d.sticky; p++)
+  for (; p < in.end && !d.sticky; p++)
     d.sticky = *p >= '1' && *p <= '9';
-  d.exp10 = exp10 - static_cast<int32_t>(used);
-  // Otherwise the guess only has to land within a float or two of the result
-  uint32_t k = bit_cast<uint32_t>(static_cast<float>(guess));
-  for (;;) {
+  // decimal = digits * 10^e = digits * 5^e * 2^e
+  const int32_t e = in.exp10 - static_cast<int32_t>(used);
+  d.exp2 = e;
+  d.pow5 = 0;
+  if (e >= 0) {
+    d.digits.multiply_pow5(e);
+  } else {
+    d.exp2 = 0;
+    d.pow5 = -e;
+  }
+  for (uint32_t step = 0; step < MAX_EXACT_STEPS; step++) {
+#ifdef USE_HOST
+    exact_steps++;
+#endif
     if (k < FLOAT_INF_BITS) {
       const MidpointRange up = midpoint_range(k);
       if (compare_decimal(d, up.low_mantissa, up.low_exp2) >= 0) {
@@ -213,12 +228,59 @@ uint32_t decimal_to_float_bits(const char *first, const char *end, int32_t exp10
     }
     return k;
   }
+  return k;
+}
+
+uint32_t decimal_to_float_bits(const Decimal &in) {
+  // 10^-46 is below half the smallest float, 10^39 above the largest
+  if (in.exp10 <= -46)
+    return 0;
+  if (in.exp10 >= 40)
+    return FLOAT_INF_BITS;
+  const uint32_t scale_digits = in.digits < 19 ? in.digits : 19;
+  const int32_t scale = in.exp10 - static_cast<int32_t>(scale_digits);
+  const uint32_t power = scale < 0 ? -scale : scale;
+  if (in.digits <= 19) {
+    // Both operands are exact floats, and a double has more than 2 * 24 + 1 bits, so one float operation gives
+    // the same float as the double operation strtod does followed by the float conversion (Figueroa)
+    if (in.top < (1u << 24) && power <= 10) {
+      const auto value = static_cast<float>(static_cast<uint32_t>(in.top));
+      const float factor = pow10<float>(power);
+      return bit_cast<uint32_t>(scale < 0 ? value / factor : value * factor);
+    }
+    // Both exact doubles: one double operation is strtod's correctly rounded double
+    if (in.top <= (uint64_t{1} << 53) && power <= 22) {
+      const auto value = static_cast<double>(in.top);
+      const double factor = pow10<double>(power);
+      return internal::double_to_float_bits(scale < 0 ? value / factor : value * factor);
+    }
+  }
+  // Within 13 doubles of the decimal: the digits' conversion, the dropped digits and the last operation cost one
+  // each, and 10^n at most 10 (10^32 and 10^64 are inexact, plus up to 6 multiplications). 64 doubles either
+  // side that round to the same float leave strtod no other choice.
+  const auto value = static_cast<double>(in.top);
+  const double factor = pow10<double>(power);
+  const double guess = scale < 0 ? value / factor : value * factor;
+  const uint64_t guess_bits = bit_cast<uint64_t>(guess);
+  const uint32_t k = internal::double_to_float_bits(guess);
+  if (internal::double_to_float_bits(bit_cast<double>(guess_bits - 64)) == k &&
+      internal::double_to_float_bits(bit_cast<double>(guess_bits + 64)) == k)
+    return k;
+  return exact_float_bits(in, k);
+}
+
+// Reads [eE]-style exponent digits after a sign at p; returns the end, or nullptr when no digit follows
+const char *read_exponent(const char *p, bool *negative) {
+  *negative = *p == '-';
+  if (*negative || *p == '+')
+    p++;
+  return is_digit(*p) ? p : nullptr;
 }
 
 // newlib's gethex for "0x...". It rounds to 53 bits upwards when the first dropped bit is set and either the kept
 // part is odd or a bit below the second dropped bit is set (the second one is not looked at); the double then
-// rounds to a float.
-float parse_hex_float(const char *str, bool negative, const char **end) {
+// rounds to a float. Clears negative when nothing is taken but the "0".
+__attribute__((noinline, cold)) uint32_t parse_hex_float(const char *str, bool *negative, const char **end) {
   const char *p = str + 2;
   bool any_digit = false;
   for (; *p == '0'; p++)
@@ -256,26 +318,23 @@ float parse_hex_float(const char *str, bool negative, const char **end) {
       exp2 = 0u - (static_cast<uint32_t>(p - point) << 2);
   }
   const char *mantissa_end = p;
-  if (*p == 'p' || *p == 'P') {
-    const char *q = p + 1;
-    const bool exp_negative = *q == '-';
-    if (exp_negative || *q == '+')
-      q++;
-    if (is_digit(*q)) {
-      uint32_t value = 0;
-      for (; is_digit(*q); q++)
-        value = value * 10 + (*q - '0');
-      exp2 += exp_negative ? 0u - value : value;
-      p = q;
-    }
+  bool exp_negative = false;
+  const char *exp_digits = *p == 'p' || *p == 'P' ? read_exponent(p + 1, &exp_negative) : nullptr;
+  if (exp_digits != nullptr) {
+    uint32_t value = 0;
+    for (; is_digit(*exp_digits); exp_digits++)
+      value = value * 10 + (*exp_digits - '0');
+    exp2 += exp_negative ? 0u - value : value;
+    p = exp_digits;
   }
   *end = p;
   if (zero) {
-    if (any_digit)
-      return float_from_bits(0, negative);
-    // No digit at all: newlib keeps only the leading "0" and drops the sign
-    *end = str + 1;
-    return 0.0f;
+    if (!any_digit) {
+      // No digit at all: newlib keeps only the leading "0" and drops the sign
+      *end = str + 1;
+      *negative = false;
+    }
+    return 0;
   }
   // The first 16 digits in full; the bits of later ones all lie below the second dropped bit
   uint64_t acc = 0;
@@ -309,37 +368,84 @@ float parse_hex_float(const char *str, bool negative, const char **end) {
   }
   int32_t e = static_cast<int32_t>(exp2);
   if (e > 971)
-    return float_from_bits(FLOAT_INF_BITS, negative);
+    return FLOAT_INF_BITS;
   if (e < -1074)  // a double below 2^-1021: the float is zero
-    return float_from_bits(0, negative);
+    return 0;
   if (round_up && ++m == uint64_t{1} << 53) {
     m >>= 1;
     if (++e > 971)
-      return float_from_bits(FLOAT_INF_BITS, negative);
+      return FLOAT_INF_BITS;
   }
   // m * 2^e, a normal double
-  const double value = bit_cast<double>((static_cast<uint64_t>(e + 1075) << 52) | (m & ((uint64_t{1} << 52) - 1)));
-  const float out = static_cast<float>(value);
-  return negative ? -out : out;
+  return internal::double_to_float_bits(
+      bit_cast<double>((static_cast<uint64_t>(e + 1075) << 52) | (m & ((uint64_t{1} << 52) - 1))));
 }
 
-float parse_float_from(const char *str, const char **end) {
+// Plain decimals (an optional sign, up to 24 bits of digits, up to 9 after the point, then anything but an
+// exponent or hex marker) in one float operation, as in decimal_to_float_bits. Returns nullptr to take the full
+// parser.
+ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, uint32_t *bits, bool *negative) {
+  const char *p = str;
+  *negative = *p == '-';
+  if (*negative || *p == '+')
+    p++;
+  const char *digits = p;
+  const char *point = nullptr;
+  uint32_t mantissa = 0;
+  for (;; p++) {
+    const uint32_t d = static_cast<uint8_t>(*p) - '0';
+    if (d > 9) {
+      if (*p == '.' && point == nullptr) {
+        point = p;
+        continue;
+      }
+      break;
+    }
+    if (mantissa > 1677720)  // the next digit could pass 2^24
+      return nullptr;
+    mantissa = mantissa * 10 + d;
+  }
+  const uint32_t fraction = point != nullptr ? p - point - 1 : 0;
+  const char c = static_cast<char>(*p | 0x20);
+  if (p - digits == (point != nullptr ? 1 : 0) || fraction > 9 || c == 'e' || c == 'x')
+    return nullptr;
+  float value = static_cast<float>(mantissa);
+  if (fraction != 0) {
+    uint32_t scale = 10;  // 10^9 is an exact float
+    for (uint32_t i = 1; i < fraction; i++)
+      scale *= 10;
+    value /= static_cast<float>(scale);
+  }
+  *bits = bit_cast<uint32_t>(value);
+  return p;
+}
+
+// Everything but a plain decimal; returns the bits without the sign, which goes in *negative
+__attribute__((noinline)) uint32_t parse_float_full(const char *str, const char **end, bool *negative) {
+  // No number starts with a letter but i (inf) or n (nan): "unavailable", "on" and "unknown" stop here
+  const char lower = static_cast<char>(*str | 0x20);
+  if (lower >= 'a' && lower <= 'z' && lower != 'i' && lower != 'n') {
+    *end = str;
+    *negative = false;
+    return 0;
+  }
   const char *s = str;
-  bool negative = false;
+  *negative = false;
   // Leading white space, then one sign that must be followed by something
   for (;; s++) {
     const char c = *s;
     if (c == ' ' || (c >= '\t' && c <= '\r'))
       continue;
     if (c == '-' || c == '+') {
-      negative = c == '-';
+      *negative = c == '-';
       if (*++s != '\0')
         break;
     } else if (c != '\0') {
       break;
     }
     *end = str;
-    return 0.0f;
+    *negative = false;
+    return 0;
   }
   if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
     return parse_hex_float(s, negative, end);
@@ -348,33 +454,40 @@ float parse_float_from(const char *str, const char **end) {
   bool any_digit = false;
   for (; *p == '0'; p++)
     any_digit = true;
-  const char *first = nullptr;  // first non-zero digit
-  int32_t exp10 = 0;
-  for (; is_digit(*p); p++, exp10++) {
-    first = first != nullptr ? first : p;
+  Decimal d{nullptr, nullptr, 0, 0, 0};
+  for (; is_digit(*p); p++, d.exp10++) {
+    d.first = d.first != nullptr ? d.first : p;
+    if (d.digits < 19)
+      d.top = d.top * 10 + (*p - '0');
+    d.digits++;
     any_digit = true;
   }
   const bool point = *p == '.';
   if (point) {
     for (p++; is_digit(*p); p++) {
       any_digit = true;
-      if (first == nullptr && *p == '0') {
-        exp10--;
+      if (d.first == nullptr && *p == '0') {
+        d.exp10--;
         continue;
       }
-      first = first != nullptr ? first : p;
+      d.first = d.first != nullptr ? d.first : p;
+      if (d.digits < 19)
+        d.top = d.top * 10 + (*p - '0');
+      d.digits++;
     }
   }
-  const char *mantissa_end = p;
+  d.end = p;
   if (!any_digit) {
-    if (!point && strncasecmp(p, "inf", 3) == 0) {
+    // Most rejected text ("unavailable", "on") fails on the first letter, before any case-insensitive compare
+    const char first_letter = static_cast<char>(*p | 0x20);
+    if (!point && first_letter == 'i' && strncasecmp(p, "inf", 3) == 0) {
       p += 3;
       if (strncasecmp(p, "inity", 5) == 0)
         p += 5;
       *end = p;
-      return float_from_bits(FLOAT_INF_BITS, negative);
+      return FLOAT_INF_BITS;
     }
-    if (!point && strncasecmp(p, "nan", 3) == 0) {
+    if (!point && first_letter == 'n' && strncasecmp(p, "nan", 3) == 0) {
       p += 3;
       // "nan(...)" is taken when the parentheses hold only hex digits and characters up to ' '
       if (*p == '(') {
@@ -387,43 +500,122 @@ float parse_float_from(const char *str, const char **end) {
         }
       }
       *end = p;
-      return float_from_bits(FLOAT_NAN_BITS, negative);
+      return FLOAT_NAN_BITS;
     }
     *end = str;
-    return 0.0f;
+    *negative = false;
+    return 0;
   }
-  if (*p == 'e' || *p == 'E') {
-    const char *q = p + 1;
-    const bool exp_negative = *q == '-';
-    if (exp_negative || *q == '+')
-      q++;
-    if (is_digit(*q)) {
-      // newlib caps the exponent at 19999
-      int32_t exp = 0;
-      for (; is_digit(*q); q++) {
-        if (exp < 20000)
-          exp = exp * 10 + (*q - '0');
-      }
-      if (exp > 19999)
-        exp = 19999;
-      exp10 += exp_negative ? -exp : exp;
-      p = q;
+  bool exp_negative = false;
+  const char *q = *p == 'e' || *p == 'E' ? read_exponent(p + 1, &exp_negative) : nullptr;
+  if (q != nullptr) {
+    // newlib caps the exponent at 19999
+    int32_t exp = 0;
+    for (; is_digit(*q); q++) {
+      if (exp < 20000)
+        exp = exp * 10 + (*q - '0');
     }
+    if (exp > 19999)
+      exp = 19999;
+    d.exp10 += exp_negative ? -exp : exp;
+    p = q;
   }
   *end = p;
-  if (first == nullptr)
-    return float_from_bits(0, negative);
-  return float_from_bits(decimal_to_float_bits(first, mantissa_end, exp10), negative);
+  return d.first == nullptr ? 0 : decimal_to_float_bits(d);
+}
+
+// Returns the bits without the sign, which goes in *negative
+ESPHOME_ALWAYS_INLINE inline uint32_t parse_float_bits(const char *str, const char **end, bool *negative) {
+  uint32_t plain;
+  if (const char *stop = parse_plain_decimal(str, &plain, negative)) {
+    *end = stop;
+    return plain;
+  }
+  return parse_float_full(str, end, negative);
 }
 
 }  // namespace
 
+namespace internal {
+
+uint32_t double_to_float_bits(double value) {
+  const uint64_t bits = bit_cast<uint64_t>(value);
+  const int32_t exp2 = static_cast<int32_t>(bits >> 52) - 1023;  // value = 1.m * 2^exp2
+  if (exp2 >= 128)
+    return FLOAT_INF_BITS;
+  if (exp2 < -150)  // below half the smallest float
+    return 0;
+  const uint64_t m = (bits & ((uint64_t{1} << 52) - 1)) | (uint64_t{1} << 52);
+  // Keep 24 bits for a normal float, fewer below 2^-126 so the unit is 2^-149
+  const uint32_t shift = exp2 >= -126 ? 29 : static_cast<uint32_t>(29 - 126 - exp2);
+  uint64_t q = m >> shift;
+  const uint64_t rem = m & ((uint64_t{1} << shift) - 1);
+  const uint64_t half = uint64_t{1} << (shift - 1);
+  if (rem > half || (rem == half && (q & 1) != 0))
+    q++;
+  if (exp2 < -126)
+    return static_cast<uint32_t>(q);  // 2^23 here is the smallest normal float, as it should be
+  const uint32_t out = (static_cast<uint32_t>(exp2 + 127) << 23) + static_cast<uint32_t>(q - (uint64_t{1} << 23));
+  return out > FLOAT_INF_BITS ? FLOAT_INF_BITS : out;
+}
+
+#ifdef USE_HOST
+uint32_t parse_float_exact_steps() { return exact_steps; }
+#endif
+
+}  // namespace internal
+
+optional<float> parse_float(const char *str) {
+  // The whole string a plain decimal: up to 7 digits and 9 after the point, one float division (as above)
+  const char *p = str;
+  const bool negative = *p == '-';
+  if (negative || *p == '+')
+    p++;
+  const char *digits = p;
+  const char *point = nullptr;
+  uint32_t mantissa = 0;
+  for (;; p++) {
+    const uint32_t d = static_cast<uint8_t>(*p) - '0';
+    if (d > 9) {
+      if (*p == '.' && point == nullptr) {
+        point = p;
+        continue;
+      }
+      break;
+    }
+    if (mantissa >= 1000000)  // one more digit stays below 2^24
+      break;
+    mantissa = mantissa * 10 + d;
+  }
+  const uint32_t fraction = point != nullptr ? p - point - 1 : 0;
+  if (*p == '\0' && p - digits > (point != nullptr ? 1 : 0) && fraction <= 9) {
+    float value = static_cast<float>(mantissa);
+    if (negative)
+      value = -value;
+    if (fraction != 0) {
+      uint32_t scale = 10;
+      for (uint32_t i = 1; i < fraction; i++)
+        scale *= 10;
+      value /= static_cast<float>(scale);
+    }
+    return value;
+  }
+  const char *end;
+  bool full_negative;
+  const uint32_t bits = parse_float_full(str, &end, &full_negative);
+  // HUGE_VALF, positive overflow or "inf", is rejected like before
+  if (end == str || *end != '\0' || (!full_negative && bits == FLOAT_INF_BITS))
+    return {};
+  return bit_cast<float>(full_negative ? bits | FLOAT_SIGN_BIT : bits);
+}
+
 float parse_float_prefix(const char *str, char **end) {
   const char *stop;
-  const float value = parse_float_from(str, &stop);
+  bool negative;
+  const uint32_t bits = parse_float_bits(str, &stop, &negative);
   if (end != nullptr)
     *end = const_cast<char *>(stop);  // strtof's signature
-  return value;
+  return bit_cast<float>(negative ? bits | FLOAT_SIGN_BIT : bits);
 }
 
 }  // namespace esphome
