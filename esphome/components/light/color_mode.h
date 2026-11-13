@@ -136,18 +136,21 @@ struct ColorModeBitPolicy {
   using mask_t = uint16_t;  // 10 bits requires uint16_t
   static constexpr int MAX_BITS = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
 
-  /// The modes are built from capability bits, so the position is computed from them instead of searched for: 2 for a
-  /// mode with brightness, plus 4 with RGB, plus an offset for the white, colour temperature and cold/warm white bits.
+  /// The position follows from the capability bits: UNKNOWN and ON_OFF are bits 0 and 1, every other mode is
+  /// 2, plus 4 with RGB, plus 1 for WHITE, 2 for COLOR_TEMPERATURE or 3 for COLD_WARM_WHITE.
   /// One table read confirms the result, so a value that is not a mode still gives bit 0.
   static constexpr unsigned to_bit(ColorMode mode) {
     const auto value = static_cast<uint8_t>(mode);
     unsigned bit = value;
     if (value > 1) {
-      // Offset by those three bits, two bits per entry: none 0, WHITE 1, COLOR_TEMPERATURE 2,
-      // WHITE | COLOR_TEMPERATURE 2 (RGB_COLOR_TEMPERATURE), COLD_WARM_WHITE 3
-      const unsigned white = (value >> 2) & 0x07;
-      const unsigned offset = (0b11'10'10'01'00u >> (2 * white)) & 0x03;
-      bit = 2 + ((value & static_cast<uint8_t>(ColorCapability::RGB)) ? 4 : 0) + offset;
+      bit = (mode & ColorCapability::RGB) ? 6 : 2;
+      if (mode & ColorCapability::COLD_WARM_WHITE) {
+        bit += 3;
+      } else if (mode & ColorCapability::COLOR_TEMPERATURE) {  // RGB_COLOR_TEMPERATURE also has WHITE
+        bit += 2;
+      } else if (mode & ColorCapability::WHITE) {
+        bit += 1;
+      }
     }
     return (bit < MAX_BITS && color_mode_at(bit) == mode) ? bit : 0;
   }
