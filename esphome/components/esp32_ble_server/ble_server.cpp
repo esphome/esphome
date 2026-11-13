@@ -1,5 +1,7 @@
 #include "ble_server.h"
 
+#include <vector>
+
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/core/log.h"
@@ -123,31 +125,52 @@ void BLEServer::release_advertising_() {
 }
 
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles) {
+  // Checked before allocating, so a failure never deletes a service and pulls in its destructor
+  const uint8_t inst_id = this->free_inst_id_(uuid);
+  if (inst_id == INVALID_INST_ID)
+    return nullptr;
+  auto *service = new BLEService(uuid, num_handles, advertise);  // NOLINT(cppcoreguidelines-owning-memory)
+  this->register_service_(*service, inst_id, true);
+  return service;
+}
+
+bool BLEServer::add_service(BLEService &service) {
+  // Adding it twice would free or start it twice
+  for (auto &entry : this->services_) {
+    if (entry.service == &service) {
+      ESP_LOGE(TAG, "Already added");
+      return false;
+    }
+  }
+  const uint8_t inst_id = this->free_inst_id_(service.get_uuid());
+  if (inst_id == INVALID_INST_ID)
+    return false;
+  this->register_service_(service, inst_id, false);
+  return true;
+}
+
+uint8_t BLEServer::free_inst_id_(const ESPBTUUID &uuid) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char uuid_buf[esp32_ble::UUID_STR_LEN];
   uuid.to_str(uuid_buf);
-  ESP_LOGV(TAG, "Creating BLE service - %s", uuid_buf);
+  ESP_LOGV(TAG, "Adding BLE service - %s", uuid_buf);
 #endif
-  // Calculate the inst_id for the service
-  uint8_t inst_id = 0;
-  for (; inst_id < 0xFF; inst_id++) {
-    if (this->get_service(uuid, inst_id) == nullptr) {
-      break;
-    }
+  for (uint8_t inst_id = 0; inst_id < INVALID_INST_ID; inst_id++) {
+    if (this->get_service(uuid, inst_id) == nullptr)
+      return inst_id;
   }
-  if (inst_id == 0xFF) {
-    char warn_uuid_buf[esp32_ble::UUID_STR_LEN];
-    uuid.to_str(warn_uuid_buf);
-    ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", warn_uuid_buf);
-    return nullptr;
-  }
-  BLEService *service =  // NOLINT(cppcoreguidelines-owning-memory)
-      new BLEService(uuid, num_handles, inst_id, advertise);
-  this->services_.push_back({uuid, inst_id, service});
+  char warn_uuid_buf[esp32_ble::UUID_STR_LEN];
+  uuid.to_str(warn_uuid_buf);
+  ESP_LOGW(TAG, "Could not create BLE service %s, too many instances", warn_uuid_buf);
+  return INVALID_INST_ID;
+}
+
+void BLEServer::register_service_(BLEService &service, uint8_t inst_id, bool owned) {
+  service.inst_id_ = inst_id;
+  this->services_.push_back({service.get_uuid(), inst_id, owned, &service});
   if (this->parent_->is_active() && this->registered_) {
-    service->do_create(this);
+    service.do_create(this);
   }
-  return service;
 }
 
 void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
@@ -159,7 +182,10 @@ void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
   for (auto it = this->services_.begin(); it != this->services_.end(); ++it) {
     if (it->uuid == uuid && it->inst_id == inst_id) {
       it->service->do_delete();
-      delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
+      // A service still waiting to start must not stay queued once it is unregistered or freed
+      std::erase(this->services_to_start_, it->service);
+      if (it->owned)
+        delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.erase(it);
       return;
     }
@@ -217,6 +243,15 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
 
   for (auto &entry : this->services_) {
     entry.service->gatts_event_handler(event, gatts_if, param);
+  }
+  // A service this server asked for but removed while the stack was still creating it is deleted once its handle
+  // arrives; services of other GATT applications are left alone
+  if (event == ESP_GATTS_CREATE_EVT && gatts_if == this->gatts_if_ && param->create.status == ESP_GATT_OK) {
+    for (auto &entry : this->services_) {
+      if (entry.service->get_handle() == param->create.service_handle)
+        return;
+    }
+    esp_ble_gatts_delete_service(param->create.service_handle);
   }
 }
 

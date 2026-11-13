@@ -147,6 +147,17 @@ def test_set_value_constants_share_a_flash_table(
     assert "ByteBuffer::wrap" not in main_cpp
 
 
+def test_yaml_descriptors_are_added_by_reference(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("set_value.yaml"))
+
+    # Descriptors live in static storage, so the characteristic must not take ownership
+    assert "->add_descriptor((*test_descriptor));" in main_cpp
+    assert "->add_descriptor(test_descriptor);" not in main_cpp
+
+
 def test_float32_rejects_out_of_range() -> None:
     for value in (1e40, -1e40):
         with pytest.raises(cv.Invalid, match="out of range for a float"):

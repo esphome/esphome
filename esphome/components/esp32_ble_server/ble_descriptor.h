@@ -20,11 +20,13 @@ class BLECharacteristic;
 
 // Base class for BLE descriptors
 class BLEDescriptor {
+  friend class BLECharacteristic;
+
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t permissions);
   virtual ~BLEDescriptor();
-  void do_create(BLECharacteristic *characteristic);
+  void do_create();
   ESPBTUUID get_uuid() const { return this->uuid_; }
 
   void set_value(const uint8_t *data, size_t length);
@@ -60,6 +62,8 @@ class BLEDescriptor {
     CREATING,
     CREATED,
   } state_{INIT};
+  // Set when the characteristic took ownership through add_descriptor(BLEDescriptor *) and frees it
+  bool owned_{false};
 };
 
 }  // namespace esphome::esp32_ble_server
