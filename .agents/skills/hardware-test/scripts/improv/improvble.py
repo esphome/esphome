@@ -72,7 +72,7 @@ async def main(name: str, secrets: str) -> None:
         print(f"initial state {STATES.get(s[0], s[0]) if s else 'empty'}")
         if not s or s[0] == 4:
             sys.exit(
-                "FAIL: board already provisioned or no state; erase the flash or use a fresh config name first"
+                "FAIL: board already provisioned or no state; erase the flash first"
             )
         payload = bytes([len(ssid)]) + ssid + bytes([len(pw)]) + pw
         await c.write_gatt_char(RPC, pkt(1, payload), response=True)

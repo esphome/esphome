@@ -1,10 +1,10 @@
 """Improv serial client that reads frames out of the log stream on the same port.
 usage: improvcli.py PORT OUT --secrets FILE [--baud N] [--keep-dtr] [--settle S] [--skip-bad] [--allow-reset]
 Runs: 300 stray bytes, state, info, network state, scan, provision with a bad password, provision with the real one,
-state and network state again. Prints parsed frames; the raw stream goes to OUT.
-Exit 1 when any request goes unanswered, an unexpected error or a bad or short frame arrives, or the port resets
-(unless --allow-reset). Credentials come from the secrets file (wifi_ssid, wifi_password) and are never printed;
-the SSID is masked in scan results."""
+state and network state again. Prints parsed frames; the raw stream overwrites OUT.
+Exit 2 when the port does not open or the secrets file lacks a key. Exit 1 when any request goes unanswered, an
+unexpected error or a bad or short frame arrives, or the port resets (unless --allow-reset). Credentials come from
+the secrets file (wifi_ssid, wifi_password) and are never printed; the SSID is masked in scan results."""
 
 import argparse
 import pathlib
@@ -55,16 +55,16 @@ class Dev:
         if not keep_dtr:
             self.ser.dtr = False
             self.ser.rts = False
-        self.reopen()
+        self.reopen(setup=True)
         self.buf = bytearray()
-        self.log = pathlib.Path(out).open("ab")  # noqa: SIM115
+        self.log = pathlib.Path(out).open("wb")  # noqa: SIM115
         self.t0 = time.time()
         self.events: list[tuple[float, int, bytes, bool]] = []
         self.loglines = 0
         self.reopens = 0
         self.ssid = ssid
 
-    def reopen(self) -> None:
+    def reopen(self, setup: bool = False) -> None:
         # Native USB ports re-enumerate on reset; wait up to 10 s for them.
         err: Exception | None = None
         for _ in range(40):
@@ -76,7 +76,10 @@ class Dev:
             except (serial.SerialException, OSError) as exc:
                 err = exc
                 time.sleep(0.25)
-        raise SystemExit(f"port did not come back: {err}")
+        print(
+            f"port did not {'open' if setup else 'come back'}: {err}", file=sys.stderr
+        )
+        sys.exit(2 if setup else 1)
 
     def pump(self, dur: float) -> None:
         end = time.time() + dur
@@ -206,7 +209,11 @@ def main() -> None:
     o = a.parse_args()
     with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
         sec = yaml.safe_load(f)
-    ssid, pw = sec["wifi_ssid"], sec["wifi_password"]
+    try:
+        ssid, pw = sec["wifi_ssid"], sec["wifi_password"]
+    except (KeyError, TypeError) as exc:
+        print(f"secrets file lacks {exc}", file=sys.stderr)
+        sys.exit(2)
     s, w = ssid.encode(), pw.encode()
     print(f"password length {len(w)} bytes")
     d = Dev(o.port, o.baud, o.out, o.keep_dtr, ssid)
@@ -226,7 +233,7 @@ def main() -> None:
     ok &= ask(d, "state", 2, lambda e: state(e) and e[2][0] != 4)
     if any(state(e) and e[2][0] == 4 for e in d.events[j:]):
         print(
-            "board is already provisioned: erase the flash or use a fresh config name first"
+            "board is already provisioned: erase the flash first (a new config name keeps the saved network)"
         )
     ok &= ask(d, "info", 3, rpc(3))
     ok &= ask(d, "netstate", 7, rpc(7))
@@ -260,8 +267,8 @@ def main() -> None:
     ok &= ask(d, "netstate", 7, rpc(7))
     d.pump(2)
     bad = sum(1 for e in d.events if not e[3])
-    # Errors outside an ask() window: only the bad password case may report one.
-    errors = sum(1 for e in d.events[j:] if e[1] == 2 and e[3] and e[2][0])
+    # Errors outside an ask() window, boot included: only the bad password case may report one.
+    errors = sum(1 for e in d.events if e[1] == 2 and e[3] and e[2][0])
     if errors > (0 if o.skip_bad else 1):
         print(f"unexpected error frames: {errors}")
         ok = False

@@ -33,7 +33,8 @@ Per board:
 - Pico 2 W: its USB CDC sends nothing until the host asserts DTR, so run with `--keep-dtr`. Its Improv scan lists
   no networks, on dev and PR alike.
 - Erase the flash between builds: a saved network skips the provisioning path entirely. Both clients fail at once
-  when the board already reports `provisioned`; erase it or give the config a fresh name first.
+  when the board already reports `provisioned`; erase the flash first. A new config name does not help: the
+  network is saved under a fixed key when the config has no `networks:`.
 
 When posting results:
 
