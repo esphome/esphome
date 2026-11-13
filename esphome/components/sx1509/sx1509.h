@@ -6,10 +6,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
-
-#include <vector>
 
 namespace esphome::sx1509 {
 
@@ -36,11 +35,10 @@ const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3,
                               REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
                               REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
 
-// for all components that implement the process(uint16_t data )
-class SX1509Processor {
- public:
-  virtual void process(uint16_t data) {};
-};
+// A template on the sensor type keeps binary_sensor.h out of this hub header
+template<typename T> inline void publish_key(T *sensor, uint16_t key_data, uint16_t key) {
+  sensor->publish_state(key_data == key);
+}
 
 class SX1509Component final : public Component,
                               public i2c::I2CDevice,
@@ -67,9 +65,9 @@ class SX1509Component final : public Component,
   void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
   void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
   void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
-  void register_keypad_binary_sensor(SX1509Processor *binary_sensor) {
-    this->keypad_binary_sensors_.push_back(binary_sensor);
-  }
+#ifdef USE_SX1509_KEYPAD_PUBLISHER
+  HUB_PUBLISHER(keypad, uint16_t)
+#endif
 #ifdef SX1509_ON_KEY_COUNT
   void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.add(automation); }
 #endif
@@ -95,7 +93,6 @@ class SX1509Component final : public Component,
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
   uint8_t last_key_ = 0;
-  std::vector<SX1509Processor *> keypad_binary_sensors_;
 #ifdef SX1509_ON_KEY_COUNT
   AutomationList<SX1509_ON_KEY_COUNT, uint8_t> key_automations_;
 #endif

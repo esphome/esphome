@@ -3,11 +3,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
-
-#include <vector>
 
 namespace esphome::mpr121 {
 
@@ -52,21 +51,20 @@ enum {
   MPR121_SOFTRESET = 0x80,
 };
 
-class MPR121Channel {
- public:
-  virtual void setup() = 0;
-  virtual void process(uint16_t data) = 0;
-};
+// A template on the sensor type keeps binary_sensor.h out of this hub header
+template<typename T> inline void publish_channel(T *sensor, uint16_t touched, uint8_t channel) {
+  sensor->publish_state((touched >> channel) & 1);
+}
 
 class MPR121Component final : public Component, public i2c::I2CDevice {
  public:
-  void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
+#ifdef USE_MPR121_CHANNEL_PUBLISHERS
+  HUB_PUBLISHER(thresholds)
+  HUB_PUBLISHER(channels, uint16_t)
+  void write_thresholds(uint8_t channel, uint8_t touch, uint8_t release);
+#endif
   void set_touch_debounce(uint8_t debounce);
   void set_release_debounce(uint8_t debounce);
-  void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
-  void set_release_threshold(uint8_t release_threshold) { this->release_threshold_ = release_threshold; };
-  uint8_t get_touch_threshold() const { return this->touch_threshold_; };
-  uint8_t get_release_threshold() const { return this->release_threshold_; };
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
@@ -80,10 +78,7 @@ class MPR121Component final : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
  protected:
-  std::vector<MPR121Channel *> channels_{};
   uint8_t debounce_{0};
-  uint8_t touch_threshold_{};
-  uint8_t release_threshold_{};
   uint8_t max_touch_channel_{3};
 
   bool flush_gpio_();

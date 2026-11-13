@@ -1,0 +1,24 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+cap1188:
+  - id: hub
+  - id: idle_hub
+    address: 0x28
+
+binary_sensor:
+  - platform: cap1188
+    cap1188_id: hub
+    id: key0
+    channel: 0
+  - platform: cap1188
+    cap1188_id: hub
+    id: key7
+    channel: 7

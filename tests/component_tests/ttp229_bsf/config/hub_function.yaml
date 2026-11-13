@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+ttp229_bsf:
+  - id: hub
+    sdo_pin: GPIO16
+    scl_pin: GPIO17
+  - id: idle_hub
+    sdo_pin: GPIO18
+    scl_pin: GPIO19
+
+binary_sensor:
+  - platform: ttp229_bsf
+    ttp229_id: hub
+    id: key3
+    channel: 3

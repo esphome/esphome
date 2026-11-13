@@ -17,10 +17,10 @@ void MPR121Component::setup() {
   this->set_timeout(100, [this]() {
     if (!this->setup_check(this->write_byte(MPR121_ECR, 0x0)))
       return;
-    // set touch sensitivity for all 12 channels
-    for (auto *channel : this->channels_) {
-      channel->setup();
-    }
+#ifdef USE_MPR121_CHANNEL_PUBLISHERS
+    if (this->thresholds_publisher_ != nullptr)
+      this->thresholds_publisher_();
+#endif
     this->write_byte(MPR121_MHDR, 0x01);
     this->write_byte(MPR121_NHDR, 0x01);
     this->write_byte(MPR121_NCLR, 0x0E);
@@ -65,16 +65,25 @@ void MPR121Component::set_release_debounce(uint8_t debounce) {
   this->debounce_ |= mask;
 };
 
+#ifdef USE_MPR121_CHANNEL_PUBLISHERS
+void MPR121Component::write_thresholds(uint8_t channel, uint8_t touch, uint8_t release) {
+  this->write_byte(MPR121_TOUCHTH_0 + 2 * channel, touch);
+  this->write_byte(MPR121_RELEASETH_0 + 2 * channel, release);
+}
+#endif
+
 void MPR121Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPR121:");
   LOG_I2C_DEVICE(this);
 }
 void MPR121Component::loop() {
-  uint16_t val = 0;
-  this->read_byte_16_le(MPR121_TOUCHSTATUS_L, &val);
-
-  for (auto *channel : this->channels_)
-    channel->process(val);
+#ifdef USE_MPR121_CHANNEL_PUBLISHERS
+  if (this->channels_publisher_ != nullptr) {
+    uint16_t val = 0;
+    this->read_byte_16_le(MPR121_TOUCHSTATUS_L, &val);
+    this->channels_publisher_(val);
+  }
+#endif
 
   this->read_byte(MPR121_GPIODATA, &this->gpio_input_);
 }

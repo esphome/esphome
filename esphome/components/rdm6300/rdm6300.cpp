@@ -48,11 +48,10 @@ void rdm6300::RDM6300Component::loop() {
         this->status_clear_warning();
         const uint32_t result = encode_uint32(this->buffer_[1], this->buffer_[2], this->buffer_[3], this->buffer_[4]);
         bool report = result != last_id_;
-        for (auto *card : this->cards_) {
-          if (card->process(result)) {
-            report = false;
-          }
-        }
+#ifdef USE_RDM6300_CARDS_PUBLISHER
+        if (this->cards_publisher_ != nullptr && this->cards_publisher_(result))
+          report = false;
+#endif
 #ifdef RDM6300_ON_TAG_COUNT
         this->tag_automations_.trigger(result);
 #endif

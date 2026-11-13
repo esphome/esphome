@@ -30,6 +30,15 @@ DOMAIN = "sx1509"
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
+
+# Publishes the keypad binary sensors from the key data read on each scan
+KEYPAD_PUBLISHER = cg.HubFunction(
+    "keypad",
+    cg.void,
+    [(cg.uint16, "key_data")],
+    define="USE_SX1509_KEYPAD_PUBLISHER",
+)
+KEY_DATA = KEYPAD_PUBLISHER.param("key_data")
 LedDriverFrequency = sx1509_ns.enum("LedDriverFrequency")
 
 # The PWM frequency is shared by all output pins; the values are nominal (see sx1509.h).

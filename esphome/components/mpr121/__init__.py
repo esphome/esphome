@@ -28,6 +28,18 @@ DOMAIN = "mpr121"
 
 mpr121_ns = cg.esphome_ns.namespace("mpr121")
 MPR121Component = mpr121_ns.class_("MPR121Component", cg.Component, i2c.I2CDevice)
+
+# Both run only for channels: the thresholds once at setup, the states on each loop
+THRESHOLDS_PUBLISHER = cg.HubFunction(
+    "thresholds", cg.void, [], define="USE_MPR121_CHANNEL_PUBLISHERS"
+)
+CHANNELS_PUBLISHER = cg.HubFunction(
+    "channels",
+    cg.void,
+    [(cg.uint16, "touched")],
+    define="USE_MPR121_CHANNEL_PUBLISHERS",
+)
+TOUCHED = CHANNELS_PUBLISHER.param("touched")
 MPR121GPIOPin = mpr121_ns.class_(
     "MPR121GPIOPin", cg.GPIOPin, cg.Parented.template(MPR121Component)
 )
@@ -78,8 +90,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_touch_debounce(config[CONF_TOUCH_DEBOUNCE]))
     cg.add(var.set_release_debounce(config[CONF_RELEASE_DEBOUNCE]))
-    cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
-    cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
     cg.add(var.set_max_touch_channel(config[CONF_MAX_TOUCH_CHANNEL]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
