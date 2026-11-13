@@ -1,0 +1,7 @@
+substitutions:
+  sample_rate: "48000"
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  common: !include common.yaml
+  multi_client: !include multi-client.yaml
