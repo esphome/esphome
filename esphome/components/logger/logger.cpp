@@ -52,7 +52,8 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
 #ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
     // lwIP code run under the core lock (tcpip_api_call, netif callbacks) can log. A listener that writes
-    // to a socket would take that lock again and deadlock, so queue the message for loop() instead.
+    // to a socket would take that lock again and deadlock, so queue the message for loop() instead. Such lines
+    // can print after later inline ones, and are lost if loop() never runs again (safe_reboot()).
     if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED))
         [[unlikely]] {
       this->log_vprintf_non_main_thread_(level, tag, line, format, args, nullptr);
