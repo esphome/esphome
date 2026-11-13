@@ -61,14 +61,10 @@ RADAR_ALLOWED_CUR_CONSUMPTION = [
     78e-6,
 ]
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(AT581XComponent),
-    }
-)
-
-CONFIG_SCHEMA = cv.All(
-    CONFIG_SCHEMA.extend(i2c.i2c_device_schema(0x28)).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema({cv.GenerateID(): cv.declare_id(AT581XComponent)})
+    .extend(i2c.i2c_device_schema(0x28))
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 
@@ -94,6 +90,16 @@ def _microamps(value: float) -> int:
     return round(value * 1000000)
 
 
+def _time_ms(min_ms: int) -> cv.All:
+    return cv.All(
+        cv.positive_time_period_milliseconds,
+        cv.Range(
+            min=core.TimePeriod(milliseconds=min_ms),
+            max=core.TimePeriod(milliseconds=65535),
+        ),
+    )
+
+
 RADAR_SETTINGS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(AT581XComponent),
@@ -105,51 +111,18 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
             cv.int_range(min=0, max=1023)
         ),
         cv.Optional(CONF_POWERON_SELFCHECK_TIME, default="2000ms"): cv.templatable(
-            cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(max=core.TimePeriod(milliseconds=65535)),
-            )
+            _time_ms(0)
         ),
         cv.Optional(CONF_POWER_CONSUMPTION, default="70uA"): cv.templatable(
             cv.All(cv.current, cv.one_of(*RADAR_ALLOWED_CUR_CONSUMPTION), _microamps)
         ),
-        cv.Optional(CONF_PROTECT_TIME, default="1000ms"): cv.templatable(
-            cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(
-                    min=core.TimePeriod(milliseconds=1),
-                    max=core.TimePeriod(milliseconds=65535),
-                ),
-            )
-        ),
-        cv.Optional(CONF_TRIGGER_BASE, default="500ms"): cv.templatable(
-            cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(
-                    min=core.TimePeriod(milliseconds=1),
-                    max=core.TimePeriod(milliseconds=65535),
-                ),
-            )
-        ),
-        cv.Optional(CONF_TRIGGER_KEEP, default="1500ms"): cv.templatable(
-            cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(
-                    min=core.TimePeriod(milliseconds=1),
-                    max=core.TimePeriod(milliseconds=65535),
-                ),
-            )
-        ),
+        cv.Optional(CONF_PROTECT_TIME, default="1000ms"): cv.templatable(_time_ms(1)),
+        cv.Optional(CONF_TRIGGER_BASE, default="500ms"): cv.templatable(_time_ms(1)),
+        cv.Optional(CONF_TRIGGER_KEEP, default="1500ms"): cv.templatable(_time_ms(1)),
         cv.Optional(CONF_STAGE_GAIN, default=3): cv.templatable(
             cv.int_range(min=0, max=12)
         ),
     }
-).add_extra(
-    cv.has_at_least_one_key(
-        CONF_HW_FRONTEND_RESET,
-        CONF_FREQUENCY,
-        CONF_SENSING_DISTANCE,
-    )
 )
 
 
