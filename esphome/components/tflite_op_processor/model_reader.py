@@ -1,9 +1,8 @@
 """Read a TFLite model's flatbuffer without TensorFlow.
 
-The operator list and the tensor shapes a model declares live in the ``.tflite``
-file, so reading them needs nothing beyond the standard library and cannot go stale
-like a report. Every read is bounds checked, so a truncated model raises
-:class:`ModelReadError` with the offset instead of reading past the end.
+The operators and tensor shapes live in the ``.tflite`` file, so reading them needs nothing beyond the standard
+library and cannot go stale like a report. Every read is bounds checked, so a truncated model raises
+:class:`ModelReadError` with the offset.
 """
 
 from __future__ import annotations
@@ -53,8 +52,7 @@ TENSOR_TYPE_SIZES: dict[int, int] = {
 # The input tensor types the runtime can fill, as the YAML input_type names them.
 INPUT_TENSOR_TYPES: dict[int, str] = {0: "float32", 3: "uint8", 9: "int8"}
 
-# Calibrated against TFLM's arena_used_bytes() on quantized models, where the size
-# TFLM needed was 1.8x to 2.1x the peak of the tensors that are live together.
+# Calibrated against TFLM's arena_used_bytes() on quantized models: TFLM needed 1.8x to 2.1x the live peak.
 _ARENA_SAFETY_FACTOR_TENTHS = 22
 _ARENA_HEAD_OVERHEAD = 64
 _ARENA_HEAD_PER_TENSOR = 12
@@ -110,9 +108,6 @@ class _FlatBuffer:
         self._require(position, struct.calcsize(fmt))
         return struct.unpack_from(fmt, self._data, position)[0]
 
-    def u8(self, position: int) -> int:
-        return self._unpack("<B", position)
-
     def i8(self, position: int) -> int:
         return self._unpack("<b", position)
 
@@ -126,7 +121,6 @@ class _FlatBuffer:
         return self._unpack("<i", position)
 
     def root(self) -> int:
-        """Position of the root table."""
         return self.u32(0)
 
     def field(self, table: int, field_id: int) -> int | None:
@@ -198,8 +192,8 @@ def _operator_codes(buffer: _FlatBuffer) -> list[int]:
     """The builtin code of every operator the model declares."""
     codes = []
     for table in buffer.table_vector(buffer.root(), _MODEL_OPERATOR_CODES):
-        # GetBuiltinCode() takes the larger of the two fields: the older schema
-        # leaves builtin_code at 0, and a code past 127 does not fit the byte field.
+        # GetBuiltinCode() takes the larger field: the older schema leaves builtin_code at 0, and a code past 127
+        # does not fit the byte field.
         deprecated = buffer.i8_field(table, _OPCODE_DEPRECATED_BUILTIN_CODE) or 0
         builtin = buffer.i32_field(table, _OPCODE_BUILTIN_CODE) or 0
         codes.append(max(builtin, deprecated))
@@ -217,9 +211,8 @@ def _operator_name(code: int) -> str:
 
 def read_model_operators(model_path: str | Path) -> frozenset[str]:
     """The operators a model declares, as ``tflm_operators.h`` names them.
-    There is one entry per distinct operator code, so ``len()`` is also the number
-    of resolver slots the model needs. Raises :class:`ModelReadError` when the file
-    cannot be read or is not a valid model.
+    One entry per distinct code, so ``len()`` is the resolver slots the model needs; raises
+    :class:`ModelReadError` when the file cannot be read or is not a model.
     """
     return frozenset(
         _operator_name(code) for code in _operator_codes(_load(model_path))
@@ -227,7 +220,6 @@ def read_model_operators(model_path: str | Path) -> frozenset[str]:
 
 
 def _subgraph(buffer: _FlatBuffer) -> int:
-    """Position of the first (main) subgraph."""
     if not (subgraphs := buffer.table_vector(buffer.root(), _MODEL_SUBGRAPHS)):
         raise ModelReadError(f"{buffer.path}: the model has no subgraph")
     return subgraphs[0]
@@ -236,9 +228,8 @@ def _subgraph(buffer: _FlatBuffer) -> int:
 def read_model_input(model_path: str | Path) -> ModelInput:
     """The input tensor a model declares.
 
-    A model stores its input as ``[batch, height, width, channels]``, so this is the
-    shape and type a companion report would otherwise have to describe. Raises
-    :class:`ModelReadError` for any other layout, or a type the runtime cannot fill.
+    A model stores its input as ``[batch, height, width, channels]``, the shape a companion report would otherwise
+    describe. Any other layout, or a type the runtime cannot fill, raises :class:`ModelReadError`.
     """
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
@@ -264,7 +255,6 @@ def read_model_input(model_path: str | Path) -> ModelInput:
 
 
 def _buffers_with_data(buffer: _FlatBuffer) -> list[bool]:
-    """Whether each entry of the model's buffer table holds constant data."""
     return [
         buffer._vector(table, _BUFFER_DATA, 1)[1] > 0
         for table in buffer.table_vector(buffer.root(), _MODEL_BUFFERS)
@@ -283,8 +273,8 @@ def _read_tensors(
         elements = 1
         for dimension in buffer.i32_vector(table, _TENSOR_SHAPE):
             elements *= max(dimension, 0)
-        # A tensor whose buffer holds data is a constant read in place from the
-        # model; the converter gives the others a buffer entry too, usually empty.
+        # A tensor whose buffer holds data is a constant read in place from the model; the converter gives the
+        # others a buffer entry too, usually empty.
         index = buffer.u32_field(table, _TENSOR_BUFFER) or 0
         in_arena = not (index < len(constant_buffers) and constant_buffers[index])
         tensors.append(_Tensor(element_size * elements, in_arena))
@@ -307,9 +297,7 @@ def _read_operators(
 def _peak_activation_bytes(
     tensors: list[_Tensor], operators: list[tuple[list[int], list[int]]]
 ) -> int:
-    """Largest total size of the tensors that are live at the same point.
-    A tensor is live from the first operator that mentions it to the last.
-    """
+    """Largest total size of the tensors live at the same point, from the first operator that mentions each to the last."""
     first_use: dict[int, int] = {}
     last_use: dict[int, int] = {}
     for index, (inputs, outputs) in enumerate(operators):
@@ -336,8 +324,8 @@ def _peak_activation_bytes(
 
 def estimate_tensor_arena(model_path: str | Path) -> ArenaEstimate:
     """Estimate the tensor arena a model needs, from the model itself.
-    The device measures the exact size, so this is only the seed the probe starts
-    from; a close one keeps its first attempt small.
+    The device measures the exact size, so this is only the seed the probe starts from; a close one keeps its first
+    attempt small.
     """
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)

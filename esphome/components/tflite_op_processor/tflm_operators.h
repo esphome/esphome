@@ -1,22 +1,15 @@
-// X-macro body, #included inside a switch statement and inside an enum body in
-// op_resolver.h, so it takes no namespace of its own; the marker below satisfies
-// the ci-custom.py regex check.
+// X-macro body, #included inside a switch statement and an enum body in op_resolver.h, so it takes no namespace of
+// its own; the marker below satisfies the ci-custom.py regex check.
 // namespace esphome::tflite_op_processor
-//
-// No #pragma once: it is expanded every time it is included, once per mode
-// (TFLM_OPERATORS_ACTIVE for the switch, _TRAITS for has_<method>, _FLAGS for the
-// compiled-in flags). Each mode defines TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE and
+// No #pragma once: it is expanded once per mode (TFLM_OPERATORS_ACTIVE for the switch, _TRAITS for has_<method>,
+// _FLAGS for the compiled-in flags). Each mode defines TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE and
 // TFLM_OP_CONDITIONAL first, and the guard below makes a stray include a no-op.
-//
-// Verified against esp-tflite-micro 1.4.1 micro_mutable_op_resolver.h.
-// DO NOT EDIT without cross-referencing that header. Format:
-//   TFLM_OP_AVAILABLE(suffix, AddMethod)     operator exists in the ESP32 library
-//   TFLM_OP_UNAVAILABLE(suffix)              operator is not available
-//   TFLM_OP_CONDITIONAL(suffix, AddMethod)   registered only if the resolver has AddMethod
+// Verified against esp-tflite-micro 1.4.1 micro_mutable_op_resolver.h. DO NOT EDIT without cross-referencing it.
+// Format: TFLM_OP_AVAILABLE(suffix, AddMethod) exists in the ESP32 library; TFLM_OP_UNAVAILABLE(suffix) does not;
+// TFLM_OP_CONDITIONAL(suffix, AddMethod) is registered only if the resolver has AddMethod.
 
 #if defined(TFLM_OPERATORS_ACTIVE) || defined(TFLM_OPERATORS_TRAITS) || defined(TFLM_OPERATORS_FLAGS)
 
-// ====== Core Neural Network Ops ======
 TFLM_OP_AVAILABLE(CONV_2D, AddConv2D)
 TFLM_OP_AVAILABLE(DEPTHWISE_CONV_2D, AddDepthwiseConv2D)
 TFLM_OP_AVAILABLE(FULLY_CONNECTED, AddFullyConnected)
@@ -28,7 +21,6 @@ TFLM_OP_AVAILABLE(L2_NORMALIZATION, AddL2Normalization)
 TFLM_OP_AVAILABLE(UNIDIRECTIONAL_SEQUENCE_LSTM, AddUnidirectionalSequenceLSTM)
 TFLM_OP_UNAVAILABLE(BIDIRECTIONAL_SEQUENCE_LSTM)
 TFLM_OP_UNAVAILABLE(BIDIRECTIONAL_SEQUENCE_RNN)
-// ====== Activation Functions ======
 TFLM_OP_AVAILABLE(RELU, AddRelu)
 TFLM_OP_AVAILABLE(RELU6, AddRelu6)
 TFLM_OP_UNAVAILABLE(RELU_N1_TO_1)
@@ -39,7 +31,6 @@ TFLM_OP_AVAILABLE(LEAKY_RELU, AddLeakyRelu)
 TFLM_OP_AVAILABLE(PRELU, AddPrelu)
 TFLM_OP_AVAILABLE(LOG_SOFTMAX, AddLogSoftmax)
 TFLM_OP_AVAILABLE(ELU, AddElu)
-// ====== Basic Math Ops ======
 TFLM_OP_AVAILABLE(ADD, AddAdd)
 TFLM_OP_AVAILABLE(ADD_N, AddAddN)
 TFLM_OP_AVAILABLE(SUB, AddSub)
@@ -63,14 +54,12 @@ TFLM_OP_AVAILABLE(COS, AddCos)
 TFLM_OP_AVAILABLE(NEG, AddNeg)
 TFLM_OP_AVAILABLE(CAST, AddCast)
 TFLM_OP_AVAILABLE(CUMSUM, AddCumSum)
-// ====== Comparison Ops ======
 TFLM_OP_AVAILABLE(EQUAL, AddEqual)
 TFLM_OP_AVAILABLE(NOT_EQUAL, AddNotEqual)
 TFLM_OP_AVAILABLE(GREATER, AddGreater)
 TFLM_OP_AVAILABLE(GREATER_EQUAL, AddGreaterEqual)
 TFLM_OP_AVAILABLE(LESS, AddLess)
 TFLM_OP_AVAILABLE(LESS_EQUAL, AddLessEqual)
-// ====== Tensor Operations ======
 TFLM_OP_AVAILABLE(RESHAPE, AddReshape)
 TFLM_OP_AVAILABLE(SHAPE, AddShape)
 TFLM_OP_AVAILABLE(QUANTIZE, AddQuantize)
@@ -98,7 +87,6 @@ TFLM_OP_AVAILABLE(BROADCAST_ARGS, AddBroadcastArgs)
 TFLM_OP_AVAILABLE(BROADCAST_TO, AddBroadcastTo)
 TFLM_OP_AVAILABLE(ZEROS_LIKE, AddZerosLike)
 TFLM_OP_CONDITIONAL(DYNAMIC_UPDATE_SLICE, AddDynamicUpdateSlice)
-// ====== Reduction Ops ======
 TFLM_OP_AVAILABLE(REDUCE_MAX, AddReduceMax)
 TFLM_OP_CONDITIONAL(REDUCE_MIN, AddReduceMin)
 TFLM_OP_CONDITIONAL(REDUCE_ALL, AddReduceAll)
@@ -106,18 +94,15 @@ TFLM_OP_UNAVAILABLE(REDUCE_PROD)
 TFLM_OP_AVAILABLE(SUM, AddSum)
 TFLM_OP_AVAILABLE(MEAN, AddMean)
 TFLM_OP_UNAVAILABLE(REDUCE_ANY)
-// ====== Element-wise Ops ======
 TFLM_OP_AVAILABLE(MAXIMUM, AddMaximum)
 TFLM_OP_AVAILABLE(MINIMUM, AddMinimum)
 TFLM_OP_AVAILABLE(ARG_MAX, AddArgMax)
 TFLM_OP_AVAILABLE(ARG_MIN, AddArgMin)
 TFLM_OP_AVAILABLE(SELECT_V2, AddSelectV2)
 TFLM_OP_UNAVAILABLE(SELECT)
-// ====== Logical Ops ======
 TFLM_OP_AVAILABLE(LOGICAL_AND, AddLogicalAnd)
 TFLM_OP_AVAILABLE(LOGICAL_OR, AddLogicalOr)
 TFLM_OP_AVAILABLE(LOGICAL_NOT, AddLogicalNot)
-// ====== Advanced Ops ======
 TFLM_OP_AVAILABLE(RESIZE_NEAREST_NEIGHBOR, AddResizeNearestNeighbor)
 TFLM_OP_AVAILABLE(RESIZE_BILINEAR, AddResizeBilinear)
 TFLM_OP_AVAILABLE(GATHER, AddGather)
@@ -131,14 +116,12 @@ TFLM_OP_UNAVAILABLE(EMBEDDING_LOOKUP_SPARSE)
 TFLM_OP_AVAILABLE(SVDF, AddSvdf)
 TFLM_OP_UNAVAILABLE(LSH_PROJECTION)
 TFLM_OP_UNAVAILABLE(SKIP_GRAM)
-// ====== Variable / Control Flow Ops ======
 TFLM_OP_AVAILABLE(IF, AddIf)
 TFLM_OP_AVAILABLE(WHILE, AddWhile)
 TFLM_OP_AVAILABLE(CALL_ONCE, AddCallOnce)
 TFLM_OP_AVAILABLE(ASSIGN_VARIABLE, AddAssignVariable)
 TFLM_OP_AVAILABLE(READ_VARIABLE, AddReadVariable)
 TFLM_OP_AVAILABLE(VAR_HANDLE, AddVarHandle)
-// ====== Others (not in TFLM) ======
 TFLM_OP_UNAVAILABLE(FAKE_QUANT)
 TFLM_OP_UNAVAILABLE(LOCAL_RESPONSE_NORMALIZATION)
 TFLM_OP_UNAVAILABLE(CUSTOM)

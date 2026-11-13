@@ -1,7 +1,6 @@
 """Operator resolution for TFLite Micro models.
 
-Library-only component, loaded by tflite_micro_runtime: its C++ sources register
-the operators a model needs.
+Library-only component, loaded by tflite_micro_runtime: its C++ sources register the operators a model needs.
 """
 
 from dataclasses import dataclass
@@ -28,8 +27,6 @@ _SELECTIVE_FLAG_PREFIX = "TFLM_OP_ENABLED_"
 
 @dataclass
 class _OpSelection:
-    """Operator selection state of this configuration run."""
-
     all_ops: bool = False
 
 
@@ -48,8 +45,8 @@ def _validate_operators(operators: list[str]) -> list[str]:
     return operators
 
 
-# Library-only component: the schema only accepts the operator list a component
-# can supply, so the selective build can be exercised without tflite_micro_runtime.
+# Library-only component: the schema only accepts the operator list a component can supply, so the selective build
+# can be exercised without tflite_micro_runtime.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPERATORS): cv.All(
@@ -62,9 +59,9 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     # Emit the flag this component's sources need, so it also works standalone.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
-    # Verified against 1.4.1, which provides the TFLM_OP_CONDITIONAL Add*() methods.
-    # Keep in sync with micro_wake_word and the other tflite_* components: the last
-    # ref wins, and an unpinned esp-nn makes arena sizes vary per build.
+    # Verified against 1.4.1, which provides the TFLM_OP_CONDITIONAL Add*() methods. Keep in sync with
+    # micro_wake_word and the other tflite_* components: the last ref wins, and an unpinned esp-nn makes arena
+    # sizes vary per build.
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
     if (operators := config.get(CONF_OPERATORS)) is not None:
@@ -73,10 +70,9 @@ async def to_code(config):
 
 def emit_selective_op_defines(operators: list[str]) -> None:
     """Compile in only the kernels ``operators`` need, leaving the rest out.
-    The public entry point for every component that configures the selective build,
-    because the flags are process-global. A kernel another component enabled stays
-    enabled, so the set only widens; a component that does not know its operators
-    calls :func:`emit_all_ops` instead, which cancels the flags.
+    The public entry point for every component that configures the selective build, because the flags are
+    process-global. A kernel another component enabled stays enabled, so the set only widens; a component that does
+    not know its operators calls :func:`emit_all_ops` instead, which cancels the flags.
     """
     try:
         defines = build_selective_op_defines(operators)
@@ -120,8 +116,8 @@ def emit_selective_op_defines(operators: list[str]) -> None:
 
 def emit_all_ops() -> None:
     """Compile in every kernel, cancelling any selective flags emitted so far.
-    For a component that cannot tell which operators its model needs. The request
-    is sticky, so the result does not depend on the order components run in.
+    For a component that cannot tell which operators its model needs. The request is sticky, so the result does
+    not depend on the order components run in.
     """
     _selection().all_ops = True
     dropped = 0

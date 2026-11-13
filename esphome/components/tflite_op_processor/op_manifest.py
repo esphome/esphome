@@ -1,7 +1,7 @@
 """Operator manifest helpers for the tflite_op_processor component.
 
-Parses the X-macro operator table (``tflm_operators.h``) at config time and reads a
-model's operator list from the model file; the C++ table stays the source of truth.
+Parses the X-macro operator table (``tflm_operators.h``) at config time and reads a model's operator list from the
+model file; the C++ table stays the source of truth.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ _CONDITIONAL_RE = re.compile(
 _UNAVAILABLE_RE = re.compile(r"^TFLM_OP_UNAVAILABLE\(([A-Za-z0-9_]+)\)$")
 
 _TABLE_GUARD = "TFLM_OPERATORS_ACTIVE"
-# The block holds plain entries only: a conditional inside it could let the
-# preprocessor drop an entry this parser still reports as supported.
+# The block holds plain entries only: a conditional inside it could let the preprocessor drop an entry this parser
+# still reports as supported.
 _ENDIF = "#endif"
 
 
@@ -46,15 +46,13 @@ class OpTable:
 
 
 def table_path() -> Path:
-    """Return the absolute path of the operator table shipped with this module."""
     return Path(__file__).resolve().parent / "tflm_operators.h"
 
 
 def parse_op_table(path: str | Path | None = None) -> OpTable:
     """Parse tflm_operators.h into the operator sets used by the resolver.
-    Raises ``ValueError`` when the table and this parser could drift apart: no
-    ``TFLM_OPERATORS_ACTIVE`` block, an unterminated block, a preprocessor
-    directive other than the closing ``#endif``, or an operator entry outside it.
+    Raises ``ValueError`` when the table and this parser could drift apart: no ``TFLM_OPERATORS_ACTIVE`` block, an
+    unterminated block, a preprocessor directive other than the closing ``#endif``, or an entry outside it.
     """
     table = Path(path) if path is not None else table_path()
     available: set[str] = set()
@@ -73,8 +71,7 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
                 in_table = True
                 seen_table = True
                 continue
-            # An entry outside the block would be compiled out of the C++ table
-            # while this parser silently ignored it.
+            # An entry outside the block would be compiled out of the C++ table while this parser ignored it.
             if _is_op_entry(line):
                 raise ValueError(
                     f"{table}:{lineno}: operator entry outside the "
@@ -111,7 +108,6 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
 
 
 def _is_op_entry(line: str) -> bool:
-    """Whether a stripped line is one of the three X-macro entry kinds."""
     return (
         _AVAILABLE_RE.match(line) is not None
         or _CONDITIONAL_RE.match(line) is not None
@@ -121,9 +117,8 @@ def _is_op_entry(line: str) -> bool:
 
 def extract_model_ops(model_path: str | Path) -> set[str]:
     """Extract the operators a model requires from the model file.
-    The ``.tflite`` file is authoritative; a companion ``.txt`` report is not
-    consulted. Raises ``ValueError`` when the model cannot be read or declares no
-    operator codes, so a partial set cannot compile out a kernel it needs.
+    The ``.tflite`` file is authoritative; a companion ``.txt`` report is not consulted. Raises ``ValueError`` when
+    the model cannot be read or declares no operator codes, so a partial set cannot compile out a kernel it needs.
     """
     return set(read_model_operators(model_path))
 
@@ -132,11 +127,10 @@ def build_selective_op_defines(
     ops: Iterable[str], path: str | Path | None = None
 ) -> dict[str, int]:
     """Build the ``TFLM_OP_ENABLED_<suffix>`` defines for a set of operators.
-    Every registerable entry gets a value, 1 when a model needs the kernel and 0
-    when it is compiled out, because a missing flag would make the ``if constexpr``
-    in ``op_resolver.h`` invalid C++. Raises ``ValueError`` for a name that is not in
-    the table, or one it marks ``TFLM_OP_UNAVAILABLE``: the resolver cannot register
-    it, so the build should say so rather than the device.
+    Every registerable entry gets a value, 1 when a model needs the kernel and 0 when it is compiled out, because a
+    missing flag would make the ``if constexpr`` in ``op_resolver.h`` invalid C++. Raises ``ValueError`` for a name
+    that is not in the table, or one it marks ``TFLM_OP_UNAVAILABLE``: the resolver cannot register it, so the build
+    should say so rather than the device.
     """
     table = parse_op_table(path)
     requested = frozenset(ops)
