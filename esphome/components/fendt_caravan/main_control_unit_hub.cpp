@@ -33,10 +33,14 @@ void MainControlUnitHub::dump_config() {
 
 // The panel reports temperatures many times a second; publish only the latest one once per update interval
 void MainControlUnitHub::update() {
-  if (this->temp_in_sensor_ != nullptr && !std::isnan(this->temp_in_))
-    this->temp_in_sensor_->publish_state(this->temp_in_);
-  if (this->temp_out_sensor_ != nullptr && !std::isnan(this->temp_out_))
-    this->temp_out_sensor_->publish_state(this->temp_out_);
+  const float temp_in = this->temp_in_;
+  const float temp_out = this->temp_out_;
+  this->temp_in_ = NAN;
+  this->temp_out_ = NAN;
+  if (!std::isnan(temp_in))
+    PUBLISH_STATE(this->temp_in_sensor_, temp_in);
+  if (!std::isnan(temp_out))
+    PUBLISH_STATE(this->temp_out_sensor_, temp_out);
 }
 
 void MainControlUnitHub::write_state(switch_::Switch *sw, bool state) {

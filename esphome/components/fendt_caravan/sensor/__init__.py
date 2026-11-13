@@ -1,3 +1,4 @@
+from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -10,7 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_PARENT_ID, MainControlUnitHub
+from .. import CONF_PARENT_ID, DOMAIN, MainControlUnitHub
 
 CONF_TEMP_IN = "temp_in"
 CONF_TEMP_OUT = "temp_out"
@@ -61,7 +62,21 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+# The hub keeps one pointer per type, so a second entry would take over the first one's updates
+FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
+    domain="sensor",
+    platform=DOMAIN,
+    keys=(CONF_PARENT_ID, CONF_TYPE),
+    message="Only one fendt_caravan sensor of type '{type}' is allowed per hub",
+)
+
+
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_PARENT_ID])
+    hub = await cg.get_variable(config[CONF_PARENT_ID])
+    setter = {
+        CONF_TEMP_IN: hub.set_temp_in_sensor,
+        CONF_TEMP_OUT: hub.set_temp_out_sensor,
+        CONF_WATER_LEVEL: hub.set_water_level_sensor,
+    }[config[CONF_TYPE]]
     var = await sensor.new_sensor(config)
-    cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_sensor")(var))
+    cg.add(setter(var))
