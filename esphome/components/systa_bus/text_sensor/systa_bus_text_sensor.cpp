@@ -5,7 +5,7 @@ namespace esphome::systa_bus {
 
 ESPHOME_LOG_TAG(TAG, "systa_bus.text_sensor");
 
-void SystaSolarAquaTextSensor::dump_config() {
+void SystaSolarAquaTextSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
   LOG_TEXT_SENSOR("  ", "Error code", this->error_code_text_sensor_);
 }
