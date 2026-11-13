@@ -31,6 +31,8 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_STM32,
 )
 from esphome.core import CORE
 
@@ -125,6 +127,17 @@ def test_duplicate_variant_name_is_rejected(fake_platform: ModuleType) -> None:
 
     for _ in range(2):
         with pytest.raises(ValueError, match="are both 'chip1'"):
+            registry.get("chip1")
+
+
+def test_registry_read_while_loading_is_rejected(fake_platform: ModuleType) -> None:
+    registry = variants._LazyVariants()
+    # VARIANT_NAME is missing, so reading it calls __getattr__, which reads the registry
+    del fake_platform.VARIANT_NAME
+    fake_platform.__getattr__ = lambda name: registry.get("chip1")
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="read VARIANTS while it loaded"):
             registry.get("chip1")
 
 
@@ -231,3 +244,14 @@ def test_no_variant_without_the_registry() -> None:
     assert [lookup() for lookup in lookups] == [None, None, None]
     zephyr_set_core_data(_config())
     assert [lookup() for lookup in lookups] == [None, None, None]
+
+
+@pytest.mark.parametrize(
+    "lookup", [zephyr_variant, zephyr_variant_family, zephyr_framework_type]
+)
+def test_variant_read_before_the_platform_schema_is_rejected(
+    lookup: Callable[[], str | None],
+) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_STM32}
+    with pytest.raises(RuntimeError, match="before the platform schema set it"):
+        lookup()

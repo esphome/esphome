@@ -138,6 +138,7 @@ class _LazyVariants(Mapping[str, ZephyrVariant]):
     """Loads the variant modules on first use; they import this package."""
 
     _built: bool = False
+    _loading: bool = False
     _variants: dict[str, ZephyrVariant]
     _modules: dict[str, ModuleType]
     _families: dict[str, ModuleType]
@@ -150,17 +151,20 @@ class _LazyVariants(Mapping[str, ZephyrVariant]):
     def _ensure(self) -> None:
         if self._built:
             return
-        # Set first: a variant module may read the registry while it loads
-        self._built = True
+        if self._loading:
+            raise RuntimeError("A Zephyr variant module read VARIANTS while it loaded")
+        self._loading = True
         try:
             self._load()
         except BaseException:
             # Raise the import error again next time, not a KeyError on a partial registry
-            self._built = False
             self._variants.clear()
             self._modules.clear()
             self._families.clear()
             raise
+        finally:
+            self._loading = False
+        self._built = True
 
     def _load(self) -> None:
         for platform in _ZEPHYR_PLATFORMS:
