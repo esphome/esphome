@@ -1,0 +1,20 @@
+esphome:
+  name: ow-model-digital-device
+  on_boot:
+    then:
+      - logger.log: "HIL_IMAGE models-v3 DS2413"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+binary_sensor:
+  - platform: template
+    id: stimulus_a
+    lambda: return (millis() / 5000) % 2 == 0;
+one_wire_device:
+  pin: GPIO4
+  type: DS2413
+  values:
+    pio_a: !lambda return id(stimulus_a).state;

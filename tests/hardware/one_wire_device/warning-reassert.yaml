@@ -1,0 +1,25 @@
+esphome:
+  name: ow-warning-reassert
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(emulated).status_set_warning(LOG_STR("Other bench condition"));
+          id(emulated).set_value(0, NAN);
+          id(emulated).status_clear_warning();
+      - delay: 100ms
+      - lambda: |-
+          bool warned = id(emulated).status_has_warning();
+          id(emulated).set_value(0, 23.5f);
+          ESP_LOGI("hil", "HIL_REASSERT warning=%d recovered=%d", warned, !id(emulated).status_has_warning());
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  address: 0x6EB807A434E3EC28
+  update_interval: never

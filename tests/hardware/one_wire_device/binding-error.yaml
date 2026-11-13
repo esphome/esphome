@@ -1,0 +1,26 @@
+esphome:
+  name: ow-binding-error
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(emulated).set_value_function(3, []() -> float { id(bad_calls)++; return 23.5f; });
+          bool range_warning = id(emulated).status_has_warning();
+          id(emulated).set_value_function(1, []() -> float { id(bad_calls)++; return 23.5f; });
+          id(emulated).update();
+          ESP_LOGI("hil", "HIL_BINDING range_warning=%d model_warning=%d calls=%d", range_warning,
+                   id(emulated).status_has_warning(), id(bad_calls));
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+globals:
+  - id: bad_calls
+    type: int
+    initial_value: '0'
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  address: 0x6EB807A434E3EC28
