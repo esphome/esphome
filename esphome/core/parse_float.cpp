@@ -8,6 +8,7 @@
 
 #include <strings.h>
 #include <algorithm>
+#include <bit>
 #include <cstring>
 
 namespace esphome {
@@ -23,33 +24,18 @@ constexpr uint32_t FLOAT_NAN_BITS = 0x7FC00000;  // nanf(""), which newlib's str
 constexpr uint32_t EXACT_DIGITS = 200;
 // The largest operand: 200 digits (665 bits), or a 55-bit bound times 5^245 (624 bits), shifted to match.
 constexpr uint8_t EXACT_WORDS = 26;
-static_assert(EXACT_WORDS * 32 >= EXACT_DIGITS * 3322 / 1000 + 64, "EXACT_WORDS too small for EXACT_DIGITS");
-// The guess is within one float of the result, so the exact comparison moves at most once
+// Both operands: the digits (log2(10) bits each), or a 55-bit bound times 5^(EXACT_DIGITS + 45) (log2(5) bits each)
+static_assert(EXACT_WORDS * 32 >= std::max(EXACT_DIGITS * 3322 / 1000, 55 + (EXACT_DIGITS + 45) * 2322 / 1000) + 64,
+              "EXACT_WORDS too small for EXACT_DIGITS");
+// The guess is within one float of the result, so the exact comparison moves at most once: two rounds, and a
+// third to spare
 constexpr uint32_t MAX_EXACT_STEPS = 3;
 
 #ifdef USE_HOST
 uint32_t exact_steps = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables): test counter
 #endif
 
-bool is_digit(char c) { return static_cast<uint8_t>(c - '0') <= 9; }
-
 bool is_hex_digit(char c) { return parse_hex_char(c) != INVALID_HEX_CHAR; }
-
-uint32_t bit_length(uint64_t value) { return value == 0 ? 0 : 64 - __builtin_clzll(value); }
-
-// 10^n by squaring; exact for float up to 10^10 and for double up to 10^22
-template<typename T> T pow10(uint32_t n) {
-  T result = 1;
-  T base = 10;
-  for (;;) {
-    if ((n & 1) != 0)
-      result *= base;
-    n >>= 1;
-    if (n == 0)
-      return result;
-    base *= base;
-  }
-}
 
 // Unsigned integer of up to EXACT_WORDS 32-bit words
 class ExactNumber {
@@ -163,7 +149,7 @@ MidpointRange midpoint_range(uint32_t k) {
   const uint32_t exp = k >> 23;
   const uint32_t odd = 2 * ((k & 0x7FFFFF) | (exp != 0 ? 0x800000 : 0)) + 1;
   // As a double, m * 2^m_exp2 with 2^52 <= m < 2^53
-  const uint32_t shift = 53 - bit_length(odd);
+  const uint32_t shift = 53 - static_cast<uint32_t>(std::bit_width(odd));
   const uint64_t m = static_cast<uint64_t>(odd) << shift;
   const int32_t m_exp2 = (exp != 0 ? static_cast<int32_t>(exp) - 151 : -150) - static_cast<int32_t>(shift);
   // Below a power of two the next double is half as far away
@@ -240,7 +226,7 @@ uint32_t decimal_to_float_bits(const Decimal &in) {
   // the same float as the double operation strtod does followed by the float conversion (Figueroa)
   if (in.digits <= 19 && in.top < (1u << 24) && power <= 10) {
     const auto value = static_cast<float>(static_cast<uint32_t>(in.top));
-    const float factor = pow10<float>(power);
+    const auto factor = static_cast<float>(pow10<uint64_t>(power));  // exact: 10^10 is a float
     return bit_cast<uint32_t>(scale < 0 ? value / factor : value * factor);
   }
   const auto value = static_cast<double>(in.top);
@@ -342,7 +328,7 @@ __attribute__((noinline, cold)) uint32_t parse_hex_float(const char *str, bool *
     }
     digits++;
   }
-  const uint32_t acc_bits = bit_length(acc);
+  const auto acc_bits = static_cast<uint32_t>(std::bit_width(acc));
   const uint32_t bits = acc_bits + 4 * (digits > 16 ? digits - 16 : 0);
   uint64_t m;
   bool round_up = false;
@@ -400,7 +386,7 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
     return nullptr;
   float value = static_cast<float>(mantissa);
   if (fraction != 0)
-    value /= pow10<float>(fraction);  // exact up to 10^10
+    value /= static_cast<float>(pow10<uint32_t>(fraction));  // 10^9 is an exact float
   *bits = bit_cast<uint32_t>(value);
   return p;
 }
@@ -422,7 +408,7 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
   // Leading white space, then one sign that must be followed by something
   for (;; s++) {
     const char c = *s;
-    if (c == ' ' || (c >= '\t' && c <= '\r'))
+    if (is_space_c(c))
       continue;
     if (c == '-' || c == '+') {
       *negative = c == '-';
@@ -579,7 +565,7 @@ optional<float> parse_float(const char *str) {
     if (negative)
       value = -value;
     if (fraction != 0)
-      value /= pow10<float>(fraction);
+      value /= static_cast<float>(pow10<uint32_t>(fraction));
     return value;
   }
   const char *end;
