@@ -77,6 +77,7 @@ _SENSITIVE_KEYS = frozenset(
     {"password", "new_password", "private_key", "peer_preshared_key"}
     | {"client_certificate_key", "network_key", "old_key", "pin_code", "pskc", "tlv"}
     | {"static_pairing_code", "encryption", "bindkey", "decryption_key", "auth_key"}
+    | {"manufacturer_key"}
 )
 # Keys under these name declared arguments, not values (`variables: {password: string}`).
 _DECLARATIONS = frozenset({"variables", "parameters"})
@@ -368,7 +369,14 @@ def _check_sensitive_usage(
                 if is_key
                 else shown(path)
             )
-            if verified(text):
+            # prepare() swaps an integer credential only at its own keys
+            unswapped = (
+                isinstance(node, int)
+                and not isinstance(node, bool)
+                and (info := sensitive.get(str(int(node)))) is not None
+                and info.is_int
+            )
+            if verified(text) and not unswapped:
                 # A whole scalar is swapped for its `!secret`; a key never is.
                 if is_key and (info := sensitive.get(text)) is not None:
                     embedded.append(f"{info.config_path} (as {where} in {rel})")
@@ -417,6 +425,15 @@ def _check_sensitive_usage(
             )
 
 
+def _int_text(text: str) -> str | None:
+    """Decimal text of a string cv.int_ accepts, such as "0x12345678", else None."""
+    try:
+        return str(cv.int_(text))
+    except (cv.Invalid, ValueError):
+        # ValueError: too many digits for str()
+        return None
+
+
 def _collect_sensitive_values() -> tuple[
     dict[str, _SensitiveValue], set[tuple[str, ...]]
 ]:
@@ -455,6 +472,19 @@ def _collect_sensitive_values() -> tuple[
             )
         entry.is_int = entry.is_int and isinstance(node, int)
         entry.sensitive_keys.update(path[-1:])
+    # A quoted secret such as "0x12345678" is registered as written. Its name fits
+    # only if every use is an integer: a string credential with the same decimal
+    # text would otherwise be restored as the hex string.
+    int_secrets: dict[str, str] = {}
+    for secret, name in yaml_util.registered_secret_values().items():
+        if (text := _int_text(secret)) is not None:
+            int_secrets.setdefault(text, name)
+    for value, entry in result.items():
+        if entry.from_secret or not entry.is_int:
+            continue
+        if name := int_secrets.get(value):
+            entry.secret_name = name
+            entry.from_secret = True
     return result, paths
 
 
@@ -685,6 +715,42 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
     if pos != len(blob):
         raise EsphomeError("corrupt envelope: size mismatch")
     return files
+
+
+def decode_stored_yaml(blob: bytes) -> dict[str, bytes]:
+    """Unpack the compressed blob a device returns for get_yaml."""
+    return unpack_envelope(zstd_module().decompress(blob))
+
+
+def write_recovered_files(files: dict[str, bytes], out_dir: Path) -> list[Path]:
+    """Write unpacked files into `out_dir` and return their paths.
+
+    `out_dir` must be new or empty, and the main YAML comes first. Files from above
+    the main YAML's folder keep their place: the main YAML goes one folder, named
+    after it, deeper per `..` level, so every file stays inside `out_dir`.
+    """
+    # Counted per path part, so a `..` behind a folder name cannot climb out either.
+    depth = max((Path(rel).parts.count("..") for rel in files), default=0)
+    name = Path(next(iter(files), "")).stem
+    root = out_dir.resolve()
+    base = root.joinpath(*[name] * depth)
+    written: list[Path] = []
+    for rel, content in files.items():
+        target = (base / rel).resolve()
+        # The paths come from the device; an odd main path such as "" or ".." would let one climb out.
+        if target == root or not target.is_relative_to(root):
+            raise EsphomeError(f"Stored file {rel!r} would be written outside {root}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Exclusive create: two stored paths that resolve to one file must not overwrite each other.
+        try:
+            with target.open("xb") as file:
+                file.write(content)
+        except FileExistsError as err:
+            raise EsphomeError(
+                f"Two stored files would both be written to {target}"
+            ) from err
+        written.append(target)
+    return written
 
 
 async def to_code(config: ConfigType) -> None:

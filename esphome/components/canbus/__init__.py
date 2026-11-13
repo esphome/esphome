@@ -4,6 +4,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_FRAME
 from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM
@@ -24,7 +25,6 @@ CONF_USE_EXTENDED_ID = "use_extended_id"
 CONF_REMOTE_TRANSMISSION_REQUEST = "remote_transmission_request"
 CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
-CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
 CONF_FD = "fd"
 CONF_BIT_RATE_SWITCH = "bit_rate_switch"

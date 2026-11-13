@@ -640,6 +640,12 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+  void set_on_ap_start(void (*callback)()) { this->on_ap_start_ = callback; }
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+  void set_on_ap_stop(void (*callback)()) { this->on_ap_stop_ = callback; }
+#endif
 
   int32_t get_wifi_channel();
 
@@ -846,6 +852,8 @@ class WiFiComponent final : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+  /// Output power and power save, wherever the radio first comes up: start() with networks, the AP without.
+  void apply_radio_settings_();
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   bool wifi_apply_band_mode_();
 #endif
@@ -1027,6 +1035,12 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> disconnect_trigger_;
 #endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+  void (*on_ap_start_)(){nullptr};
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+  void (*on_ap_stop_)(){nullptr};
+#endif
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
@@ -1156,6 +1170,9 @@ class WiFiComponent final : public Component {
   bool has_ap_{false};
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
   bool handled_connected_state_{false};
+#endif
+#if defined(USE_WIFI_AP_START_TRIGGER) || defined(USE_WIFI_AP_STOP_TRIGGER)
+  bool handled_ap_state_{false};
 #endif
   bool scan_done_{false};
   bool ap_setup_{false};

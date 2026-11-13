@@ -98,7 +98,6 @@ esphome/components/bme280_spi/* @apbodrov
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bme68x_bsec2/* @kbx81 @neffs
 esphome/components/bme68x_bsec2_i2c/* @kbx81 @neffs
-esphome/components/bmi160/* @flaviut
 esphome/components/bmi270/* @clydebarrow
 esphome/components/bmp280_base/* @ademuri
 esphome/components/bmp280_i2c/* @ademuri
@@ -117,6 +116,7 @@ esphome/components/bq25820/* @beforeyouknowit
 esphome/components/bq27220/* @rggammon
 esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
+esphome/components/brizlabs_led_string/* @TFenby
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
@@ -198,6 +198,7 @@ esphome/components/ens160_base/* @latonita @vincentscode
 esphome/components/ens160_i2c/* @latonita
 esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
+esphome/components/entity_transport/* @clydebarrow
 esphome/components/epaper_spi/* @esphome/core
 esphome/components/es7210/* @kahrendt
 esphome/components/es7243/* @Chorty
@@ -639,6 +640,7 @@ esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
 esphome/components/stcc4/* @j9brown
+esphome/components/stm32/* @rwrozelle
 esphome/components/store_yaml/* @bdraco
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
