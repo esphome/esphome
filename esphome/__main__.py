@@ -2201,8 +2201,10 @@ def _run_config_captured(
 
         progress = JobProgress(display, name)
 
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    output = []
     try:
-        proc = subprocess.Popen(
+        with subprocess.Popen(
             cmd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -2211,28 +2213,24 @@ def _run_config_captured(
             # instead of waiting for a full buffer.
             bufsize=0,
             env=env,
-        )
+        ) as proc:
+            with lock:
+                running.add(proc)
+            try:
+                while chunk := proc.stdout.read(4096):
+                    text = decoder.decode(chunk)
+                    output.append(progress.feed(text) if progress is not None else text)
+            finally:
+                with lock:
+                    running.discard(proc)
+        rc = proc.returncode
     except OSError as err:
         if progress is not None:
             progress.finish(False)
         return 1, f"Running command failed: {err}\n"
-    with lock:
-        running.add(proc)
-    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-    output = []
-    try:
-        while chunk := proc.stdout.read(4096):
-            text = decoder.decode(chunk)
-            output.append(progress.feed(text) if progress is not None else text)
-        output.append(decoder.decode(b"", final=True))
-        if progress is not None:
-            output.append(progress.flush())
-        rc = proc.wait()
-    finally:
-        proc.stdout.close()
-        with lock:
-            running.discard(proc)
+    output.append(decoder.decode(b"", final=True))
     if progress is not None:
+        output.append(progress.flush())
         progress.finish(rc == 0)
     # Children write the platform's line endings; print() adds them back.
     return rc, "".join(output).replace("\r\n", "\n")

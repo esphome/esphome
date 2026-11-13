@@ -26,9 +26,11 @@ __all__ = [
 
 # One frame as written by esphome.helpers.ProgressBar. The 100% frame ends its
 # own line; every other frame leaves the cursor on the line for the next one.
+# On Windows the child's text-mode stream turns that frame's "\r\n" into
+# "\r\r\n".
 _FRAME_RE = re.compile(
     r"\r(?P<header>[^\r\n\[\]]*): \[[= ]*\] "
-    r"(?:(?P<done>100)% Done\.\.\.\r\n|(?P<pct>\d{1,2})% )"
+    r"(?:(?P<done>100)% Done\.\.\.\r+\n|(?P<pct>\d{1,2})% )"
 )
 
 # Longest run of output held back while waiting to see whether it is a frame;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Generator
+import concurrent.futures
 from dataclasses import dataclass
 import io
 import json
@@ -7580,6 +7581,60 @@ def test_run_multiple_configs_parallel_live_progress(
     assert logs.index("OTA successful fast") < logs.index(f"Processing {files[2]}")
     assert "INFO Connecting bad\nERROR timed out\n" in logs
     assert f"  - {files[2]}: FAILED" in logs
+
+
+def test_run_multiple_configs_parallel_live_same_file_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Configs that share a file name are told apart by their full path."""
+    files = [tmp_path / "a" / "light.yaml", tmp_path / "b" / "light.yaml"]
+    terminal = _FakeTerminal()
+    monkeypatch.setattr(sys, "stdout", terminal)
+
+    failed = main.run_multiple_configs(
+        files, lambda f: _child_script("print('ran')"), jobs=2
+    )
+
+    assert failed == 0
+    bars = strip_ansi_codes(terminal.getvalue()).split("Processing ", 2)[1]
+    for f in files:
+        assert str(f)[:20] in bars
+
+
+def test_run_multiple_configs_parallel_interrupt_stops_children(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """Ctrl-C terminates running children and starts no queued ones."""
+    files = [tmp_path / f"device{i}.yaml" for i in range(4)]
+    script = (
+        "import sys, time, pathlib\npathlib.Path(sys.argv[1]).touch()\ntime.sleep(60)\n"
+    )
+    started: list[Path] = []
+
+    def build_command(f: Path) -> list[str]:
+        marker = tmp_path / f"{Path(f).stem}.started"
+        started.append(marker)
+        return [*_child_script(script), str(marker)]
+
+    def interrupt_once_running(futures: dict) -> None:
+        # Wait for the first two children, then act like Ctrl-C
+        deadline = time.monotonic() + 30
+        while not all(m.exists() for m in started[:2]):
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        raise KeyboardInterrupt
+
+    begin = time.monotonic()
+    with (
+        patch.object(concurrent.futures, "as_completed", interrupt_once_running),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        main.run_multiple_configs(files, build_command, jobs=2)
+
+    # The children sleep for a minute; returning early means they were stopped
+    assert time.monotonic() - begin < 30
+    assert not started[2].exists()
+    assert not started[3].exists()
 
 
 def test_run_multiple_configs_single_job_streams(tmp_path: Path) -> None:

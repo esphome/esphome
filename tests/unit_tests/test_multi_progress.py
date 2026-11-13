@@ -90,6 +90,20 @@ def test_filter_drops_newline_that_closed_an_unfinished_bar(size: int) -> None:
     assert seen == [("Uploading", 60)]
 
 
+@pytest.mark.parametrize("size", [1, 4, 1000])
+def test_filter_handles_windows_line_endings(size: int) -> None:
+    """A Windows child's text-mode stream writes CRLF for every newline."""
+    stream = (
+        "before\n" + _frame(50) + _frame(100) + "after\n" + _frame(60) + "\nend\n"
+    ).replace("\n", "\r\n")
+    chunks = [stream[i : i + size] for i in range(0, len(stream), size)]
+
+    text, seen = _run_filter(chunks)
+
+    assert text == "before\r\nafter\r\nend\r\n"
+    assert [pct for _, pct in seen] == [50, 100, 60]
+
+
 def test_filter_leaves_other_carriage_returns_alone() -> None:
     stream = "line one\r\nspinner |\rspinner /\rdone\n"
 
