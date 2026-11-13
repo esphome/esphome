@@ -206,6 +206,18 @@ def test_a_one_channel_model_is_read_in_gray() -> None:
     var.set_input_order.assert_called_once_with(tflm_schema.INPUT_ORDERS["GRAY"])
 
 
+def test_an_input_type_the_image_pipeline_cannot_fill_is_an_error() -> None:
+    """An int8 image model would be filled with the wrong zero point."""
+    int8 = ModelInput(height=32, width=20, channels=3, type="int8")
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=int8),
+        patch("esphome.codegen.add"),
+        pytest.raises(cv.Invalid, match="input tensor"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, MagicMock(), MODEL_PATH))
+
+
 def test_report_output_processing_alias_reaches_the_setter_as_its_mode() -> None:
     var = MagicMock()
     report = _image_report(output_processing="logits_jomjol")

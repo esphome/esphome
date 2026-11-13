@@ -320,11 +320,22 @@ def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
             source="the file name conventions",
         )
     # The model is authoritative for its own input tensor, so its shape wins over a
-    # report that may be stale and supplies what no report or file name can.
-    auto_config[CONF_INPUT_HEIGHT] = model_input.height
-    auto_config[CONF_INPUT_WIDTH] = model_input.width
-    auto_config[CONF_INPUT_CHANNELS] = model_input.channels
-    auto_config[CONF_INPUT_TYPE] = model_input.type
+    # report that may be stale and supplies what no report or file name can. It is
+    # validated like a report value, so a model the image pipeline cannot fill is
+    # reported instead of being configured.
+    auto_config.update(
+        _validate_report_values(
+            {
+                CONF_INPUT_TYPE: model_input.type,
+                CONF_INPUT_CHANNELS: model_input.channels,
+                CONF_INPUT_WIDTH: model_input.width,
+                CONF_INPUT_HEIGHT: model_input.height,
+            },
+            "image",
+            model_path,
+            source="the input tensor",
+        )
+    )
     if model_input.channels == 1:
         auto_config[CONF_INPUT_ORDER] = "GRAY"  # one channel has no colour order
     _merge_report_values(auto_config, entry, _IMAGE_REPORT_KEYS)

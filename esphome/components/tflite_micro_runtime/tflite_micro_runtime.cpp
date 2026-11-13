@@ -351,7 +351,7 @@ bool TFLiteMicroHelper::load_model() {
         model_channels != this->input_channels_) {
       ESP_LOGE(TAG, "Configured input %dx%dx%d does not match the model's %dx%dx%d", this->input_width_,
                this->input_height_, this->input_channels_, model_width, model_height, model_channels);
-      ESP_LOGE(TAG, "  Set input_width/input_height/input_channels, or supply the model's .txt report");
+      ESP_LOGE(TAG, "  Set input_width/input_height/input_channels to the model's values");
       return fail_load();
     }
     const TfLiteType expected_type = configured_input_tensor_type(this->input_type_);
@@ -363,7 +363,7 @@ bool TFLiteMicroHelper::load_model() {
     if (input->type != expected_type) {
       ESP_LOGE(TAG, "Configured input_type '%s' does not match the model's %s input tensor",
                input_type_name(this->input_type_), LOG_STR_ARG(tensor_type_name(input->type)));
-      ESP_LOGE(TAG, "  Supply the model's .txt report, or set input_type to the tensor's type");
+      ESP_LOGE(TAG, "  Set input_type to the tensor's type");
       return fail_load();
     }
   }
