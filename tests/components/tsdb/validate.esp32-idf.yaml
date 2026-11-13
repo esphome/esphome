@@ -1,0 +1,72 @@
+# Config-only: non-default sizes, page allocator, clock off.
+# sntp needs the network stack; nothing is flashed here.
+wifi:
+  ssid: MySSID
+  password: password1
+
+tsdb:
+  id: tsdb_validate
+  file: events.tsdb
+  time_id: tsdb_validate_time
+  partition_size: 1MB
+  max_file_size: 768KB
+  min_free_bytes: 64KB
+  index_stride: 190
+  buffer_pool_size: 8KB
+  memory: internal
+  paged_allocation: true
+  page_size: 4KB
+  sync_interval: 0s
+  require_time: false
+  on_missing: hold
+  update_interval: 30s
+  aggregate_window: 15min
+  aggregate_interval: 60s
+  dump_rows: 120
+  columns:
+    - sensor: tsdb_validate_value
+      name: value
+      scale_factor: 100.0
+      offset: -40.0
+
+sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_validate
+    records:
+      name: TSDB validate records
+    used:
+      name: TSDB validate used
+    free:
+      name: TSDB validate free
+    oldest_age:
+      name: TSDB validate oldest age
+    newest_age:
+      name: TSDB validate newest age
+    evictions:
+      name: TSDB validate evictions
+    errors:
+      name: TSDB validate errors
+    columns:
+      - column: value
+        average:
+          name: TSDB validate average
+        min:
+          name: TSDB validate min
+        max:
+          name: TSDB validate max
+  - platform: template
+    id: tsdb_validate_value
+    name: TSDB validate value
+    lambda: return 21.4f;
+    update_interval: 60s
+
+text_sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_validate
+    log:
+      name: TSDB validate log
+
+time:
+  - platform: sntp
+    id: tsdb_validate_time
+    timezone: UTC
