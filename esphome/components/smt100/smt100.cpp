@@ -25,19 +25,19 @@ void SMT100Component::loop() {
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float permittivity = parse_float_prefix(token, nullptr);
+      float permittivity = str_to_float(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float moisture = parse_float_prefix(token, nullptr);
+      float moisture = str_to_float(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float temperature = parse_float_prefix(token, nullptr);
+      float temperature = str_to_float(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float voltage = parse_float_prefix(token, nullptr);
+      float voltage = str_to_float(token, nullptr);
 
       PUBLISH_STATE(this->counts_sensor_, counts);
 
