@@ -51,9 +51,10 @@ def test_code_storage_id_warns(
 def test_no_action_objects(main_cpp: str) -> None:
     assert "RawAction" not in main_cpp
     assert "RCSwitch" not in main_cpp.replace("RCSwitchBase", "")
-    # The script's two transmits merge into one action; the buttons call functions directly
-    assert main_cpp.count("new(applyaction_id") == 1
-    assert main_cpp.count("new(automation_id") == 1
+    # The script runs its transmits from one generated function; the buttons call functions directly
+    assert "new(applyaction_id" not in main_cpp
+    assert "new(automation_id" not in main_cpp
+    assert "FunctionScript<" in main_cpp
 
 
 def test_raw_static_code_in_flash(main_cpp: str, bodies: list[str]) -> None:
