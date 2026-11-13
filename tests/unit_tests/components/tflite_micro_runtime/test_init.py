@@ -12,7 +12,6 @@ from esphome.components.tflite_micro_runtime import schema as tflm_schema
 from esphome.components.tflite_op_processor.model_reader import (
     ArenaEstimate,
     ModelInput,
-    ModelReadError,
 )
 import esphome.config_validation as cv
 from esphome.core import CORE, ID, Define, EsphomeError
@@ -39,7 +38,10 @@ ARENA_ESTIMATE = ArenaEstimate(
 
 # What read_model_input() makes of a test model. It differs from _image_report()
 # so a test can tell which of the two supplied a value.
-MODEL_INPUT = ModelInput(height=32, width=20, channels=3, type="uint8")
+MODEL_INPUT = ModelInput(shape=(1, 32, 20, 3), type="uint8")
+
+# What read_model_input() makes of a streaming model: [batch, frames, features].
+AUDIO_INPUT = ModelInput(shape=(1, 49, 40), type="int8")
 
 
 def test_report_values_are_validated_and_normalised() -> None:
@@ -97,19 +99,30 @@ def test_final_validate_rejects_a_model_without_an_image_input(
     setup_core: Path,
 ) -> None:
     """A streaming model's input has no width or height to configure."""
+    streaming = ModelInput(shape=(1, 49, 40), type="int8")
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
         patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
         patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
         patch.object(tflm, "parse_model_txt_file", return_value=None),
-        patch.object(
-            tflm,
-            "read_model_input",
-            side_effect=ModelReadError("digit.tflite: input tensor shape [1, 49, 40]"),
-        ),
+        patch.object(tflm, "read_model_input", return_value=streaming),
         pytest.raises(cv.Invalid, match=r"\[1, 49, 40\]"),
     ):
         tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
+
+
+def test_final_validate_rejects_an_image_model_for_an_audio_entry(
+    setup_core: Path,
+) -> None:
+    """The model says which kind of input it has, so a wrong model_type is caught."""
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
+        patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
+        patch.object(tflm, "read_model_input", return_value=MODEL_INPUT),
+        pytest.raises(cv.Invalid, match=r"\[1, frames, features\]"),
+    ):
+        tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "audio"})
 
 
 def test_final_validate_rejects_an_unsupported_operator(setup_core: Path) -> None:
@@ -186,15 +199,15 @@ def test_the_model_shape_wins_over_a_stale_report() -> None:
     ):
         asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
 
-    var.set_input_width.assert_called_once_with(MODEL_INPUT.width)
-    var.set_input_height.assert_called_once_with(MODEL_INPUT.height)
-    var.set_input_channels.assert_called_once_with(MODEL_INPUT.channels)
+    var.set_input_width.assert_called_once_with(MODEL_INPUT.shape[2])
+    var.set_input_height.assert_called_once_with(MODEL_INPUT.shape[1])
+    var.set_input_channels.assert_called_once_with(MODEL_INPUT.shape[3])
 
 
 def test_a_one_channel_model_is_read_in_gray() -> None:
     """A single channel cannot be in a colour order, whatever the file name says."""
     var = MagicMock()
-    gray = ModelInput(height=32, width=20, channels=1, type="uint8")
+    gray = ModelInput(shape=(1, 32, 20, 1), type="uint8")
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=None),
         patch.object(tflm, "read_model_input", return_value=gray),
@@ -208,7 +221,7 @@ def test_a_one_channel_model_is_read_in_gray() -> None:
 
 def test_an_input_type_the_image_pipeline_cannot_fill_is_an_error() -> None:
     """An int8 image model would be filled with the wrong zero point."""
-    int8 = ModelInput(height=32, width=20, channels=3, type="int8")
+    int8 = ModelInput(shape=(1, 32, 20, 3), type="int8")
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=None),
         patch.object(tflm, "read_model_input", return_value=int8),
@@ -277,8 +290,8 @@ def test_the_model_supplies_the_shape_no_report_has() -> None:
     ):
         asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
 
-    var.set_input_width.assert_called_once_with(MODEL_INPUT.width)
-    var.set_input_height.assert_called_once_with(MODEL_INPUT.height)
+    var.set_input_width.assert_called_once_with(MODEL_INPUT.shape[2])
+    var.set_input_height.assert_called_once_with(MODEL_INPUT.shape[1])
     var.set_input_type.assert_called_once_with(tflm_schema.INPUT_TYPES["uint8"])
 
 
@@ -301,6 +314,7 @@ def test_audio_configuration_sets_no_build_define() -> None:
     var = MagicMock()
     with (
         patch.object(tflm, "parse_audio_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=AUDIO_INPUT),
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
     ):
@@ -312,6 +326,35 @@ def test_audio_configuration_sets_no_build_define() -> None:
 
     add_define.assert_not_called()
     var.set_probability_cutoff.assert_called_once_with(0.5)
+
+
+def test_the_audio_feature_count_comes_from_the_model() -> None:
+    """A streaming model's last input dimension is its features per frame."""
+    var = MagicMock()
+    with (
+        patch.object(tflm, "parse_audio_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=AUDIO_INPUT),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_audio_model({}, var, MODEL_PATH))
+
+    var.set_feature_count.assert_called_once_with(40)
+
+
+def test_a_configured_audio_feature_count_wins_over_the_model() -> None:
+    var = MagicMock()
+    with (
+        patch.object(tflm, "parse_audio_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=AUDIO_INPUT),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(
+            tflm._configure_audio_model(
+                {tflm_schema.CONF_FEATURE_COUNT: 32}, var, MODEL_PATH
+            )
+        )
+
+    var.set_feature_count.assert_called_once_with(32)
 
 
 def test_build_defines_emit_the_helper_flag() -> None:
@@ -501,6 +544,7 @@ def test_audio_arena_is_not_estimated(setup_core: Path) -> None:
     var = MagicMock()
     with (
         patch.object(tflm, "parse_audio_txt_file", return_value=None),
+        patch.object(tflm, "read_model_input", return_value=AUDIO_INPUT),
         patch.object(tflm, "estimate_tensor_arena") as estimate,
         patch("esphome.codegen.add"),
     ):

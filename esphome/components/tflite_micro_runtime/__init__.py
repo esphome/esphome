@@ -21,6 +21,7 @@ from esphome.components.tflite_op_processor import (
     emit_selective_op_defines,
 )
 from esphome.components.tflite_op_processor.model_reader import (
+    ModelInput,
     estimate_tensor_arena,
     read_model_input,
 )
@@ -211,6 +212,8 @@ def _final_validate(config: ConfigType) -> None:
         # Also rejects a model whose input is not an image tensor.
         _resolve_image_config(config, model_path)
         return
+    # Also rejects a model whose input is not a streaming one.
+    _audio_feature_count(model_path)
     _report_values(model_path, model_type)
 
 
@@ -304,12 +307,46 @@ def _merge_report_values(
             values[key] = value
 
 
-def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
-    """The image configuration: the model, then its report, then the YAML values."""
+def _model_input(model_path: Path) -> ModelInput:
+    """The input tensor a model declares, or a configuration error saying why not."""
     try:
-        model_input = read_model_input(model_path)
+        return read_model_input(model_path)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
+
+
+def _image_input(model_path: Path) -> ConfigType:
+    """The image values a model's input tensor supplies."""
+    model_input = _model_input(model_path)
+    shape = model_input.shape
+    if len(shape) != 4 or shape[0] != 1:
+        raise cv.Invalid(
+            f"Model '{_model_filename(model_path)}' declares the input shape "
+            f"{list(shape)}, not the [1, height, width, channels] layout an image "
+            f"model needs"
+        )
+    return {
+        CONF_INPUT_TYPE: model_input.type,
+        CONF_INPUT_CHANNELS: shape[3],
+        CONF_INPUT_WIDTH: shape[2],
+        CONF_INPUT_HEIGHT: shape[1],
+    }
+
+
+def _audio_feature_count(model_path: Path) -> int:
+    """The features per frame a streaming model's input tensor declares."""
+    shape = _model_input(model_path).shape
+    if len(shape) != 3 or shape[0] != 1:
+        raise cv.Invalid(
+            f"Model '{_model_filename(model_path)}' declares the input shape "
+            f"{list(shape)}, not the [1, frames, features] layout a streaming model "
+            f"needs"
+        )
+    return shape[2]
+
+
+def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
+    """The image configuration: the model, then its report, then the YAML values."""
     if (values := _report_values(model_path, "image")) is not None:
         auto_config = values
     else:
@@ -325,18 +362,10 @@ def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
     # reported instead of being configured.
     auto_config.update(
         _validate_report_values(
-            {
-                CONF_INPUT_TYPE: model_input.type,
-                CONF_INPUT_CHANNELS: model_input.channels,
-                CONF_INPUT_WIDTH: model_input.width,
-                CONF_INPUT_HEIGHT: model_input.height,
-            },
-            "image",
-            model_path,
-            source="the input tensor",
+            _image_input(model_path), "image", model_path, source="the input tensor"
         )
     )
-    if model_input.channels == 1:
+    if auto_config[CONF_INPUT_CHANNELS] == 1:
         auto_config[CONF_INPUT_ORDER] = "GRAY"  # one channel has no colour order
     _merge_report_values(auto_config, entry, _IMAGE_REPORT_KEYS)
     return auto_config
@@ -382,9 +411,12 @@ async def _configure_image_model(
 async def _configure_audio_model(
     entry: ConfigType, var: cg.MockObj, model_path: Path
 ) -> None:
+    # The model carries the feature count; the rest of the streaming settings are its
+    # consumer's, so they come from the report or the YAML.
+    model_features = _audio_feature_count(model_path)
     report = _report_values(model_path, "audio")
     if report is None:
-        _LOGGER.warning(
+        _LOGGER.debug(
             "No audio metadata for '%s'; the audio options come from the YAML "
             "configuration or the C++ defaults",
             _model_filename(model_path),
@@ -400,5 +432,4 @@ async def _configure_audio_model(
         cg.add(var.set_sliding_window_size(window))
     if (step := report.get(CONF_FEATURES_STEP_SIZE)) is not None:
         cg.add(var.set_features_step_size(step))
-    if (features := report.get(CONF_FEATURE_COUNT)) is not None:
-        cg.add(var.set_feature_count(features))
+    cg.add(var.set_feature_count(report.get(CONF_FEATURE_COUNT) or model_features))
