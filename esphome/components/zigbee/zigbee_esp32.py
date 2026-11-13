@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_VERSION,
     CONF_WIFI,
+    CONF_ZIGBEE_ID,
     DEVICE_CLASS_OUTLET,
 )
 from esphome.core import CORE
@@ -51,12 +52,14 @@ from .const import (
     CONF_ROUTER,
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
+    CONF_ZIGBEE_LIGHT,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeLight,
 )
 from .const_esp32 import (
     ALLOWED_UNITS,
@@ -336,6 +339,41 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_light_esp32(config: ConfigType) -> ConfigType:
+    device_type = config.get(CONF_USE_DEVICE_TYPE, True)
+    if not device_type:
+        raise cv.Invalid("Device_type cannot be set to `False` for lights.")
+    ep = {
+        DEVICE_TYPE: "ON_OFF_LIGHT",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "BOOL",
+                    },
+                    # {CONF_ATTRIBUTE_ID: 0x4000, CONF_TYPE: "BOOL", CONF_VALUE: True},
+                    {CONF_ATTRIBUTE_ID: 0x4001, CONF_TYPE: "UINT16", CONF_VALUE: 0},
+                    {CONF_ATTRIBUTE_ID: 0x4002, CONF_TYPE: "UINT16", CONF_VALUE: 0},
+                ],
+            },
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "CLIENT",
+                CONF_ATTRIBUTES: [],
+            },
+        ],
+    }
+    config["zigbee_ep"] = ep
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    config[CONF_ZIGBEE_LIGHT] = cv.declare_id(ZigbeeLight)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
+    return config
+
+
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support
@@ -460,6 +498,20 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
+    ep_num = config.get(CONF_ENDPOINT)
+    if ep_num is None:
+        ep_num = config["zigbee_ep"]["num"]
+    zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ZIGBEE_LIGHT],
+        zb,
+        ep_num,
+    )
+    await cg.register_component(var, config["zigbee_ep"])
+    cg.add(var.connect(entity))
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(

@@ -64,6 +64,7 @@ from esphome.core.entity_helpers import (  # noqa: F401  # pylint: disable=unuse
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
 ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZigbeeAttribute = zigbee_ns.class_("ZigbeeAttribute", cg.Component)
+ZigbeeLight = zigbee_ns.class_("ZigbeeLight", cg.Component)
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
@@ -73,6 +74,7 @@ CONF_WIPE_ON_BOOT = "wipe_on_boot"
 CONF_ROUTER = "router"
 CONF_POWER_SOURCE = "power_source"
 CONF_SLEEPY = "sleepy"
+CONF_ZIGBEE_LIGHT = "zigbee_light"
 POWER_SOURCE = {
     "UNKNOWN": 0x00,  # ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN
     "MAINS_SINGLE_PHASE": 0x01,  # ZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE

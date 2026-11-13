@@ -1179,6 +1179,7 @@ ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
 ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
 ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
+ZIGBEE_LIGHT_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
 
 
 def lazy_load_validator(
