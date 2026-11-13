@@ -1,0 +1,29 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+
+motion:
+  - platform: bmi270
+    id: imu
+    aux_device: BMM150
+  - platform: bmi270
+    id: idle_imu
+    address: 0x69
+    aux_device: BMM150
+
+sensor:
+  - platform: bmi270
+    bmi270_id: imu
+    id: mag_x
+    type: magnetic_field_x
+  - platform: bmi270
+    bmi270_id: imu
+    id: mag_z
+    type: magnetic_field_z

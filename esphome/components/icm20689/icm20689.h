@@ -46,10 +46,6 @@ class ICM20689Component final : public motion::MotionComponent,
   void set_accel_range(ICM20689AccelRange range) { this->accel_range_ = range; }
   void set_gyro_range(ICM20689GyroRange range) { this->gyro_range_ = range; }
 
-  template<typename F> void add_temperature_listener(F &&callback) {
-    this->temperature_callback_.add(std::forward<F>(callback));
-  }
-
  protected:
   bool update_data(motion::MotionData &data) override;
 
@@ -59,8 +55,6 @@ class ICM20689Component final : public motion::MotionComponent,
 
   ICM20689AccelRange accel_range_{ICM20689_ACCEL_RANGE_2G};
   ICM20689GyroRange gyro_range_{ICM20689_GYRO_RANGE_250};
-
-  LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
 }  // namespace esphome::icm20689

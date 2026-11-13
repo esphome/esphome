@@ -1,22 +1,23 @@
 #  YAML config keys
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.motion import (
+    temperature_sensor_schema,
+    temperature_sensor_to_code,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TYPE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
-    ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_MICROTESLA,
 )
-from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import CONF_BMI270_ID, BMI270Component, bmi270_ns
+from . import CONF_BMI270_ID, MAGNETOMETER_DATA, MAGNETOMETER_PUBLISHER, BMI270Component
 from .motion import CONF_AUX_DEVICE
 
 AUTO_LOAD = ["bmi270"]
@@ -25,23 +26,11 @@ CONF_MAGNETIC_FIELD_X = "magnetic_field_x"
 CONF_MAGNETIC_FIELD_Y = "magnetic_field_y"
 CONF_MAGNETIC_FIELD_Z = "magnetic_field_z"
 
-BMM150Data = bmi270_ns.namespace("bmm150").class_("BMM150Data")
-
 _MAGNETIC_FIELDS = (CONF_MAGNETIC_FIELD_X, CONF_MAGNETIC_FIELD_Y, CONF_MAGNETIC_FIELD_Z)
 
 
 def _parent_schema() -> cv.Schema:
     return cv.Schema({cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component)})
-
-
-def _temperature_sensor_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_THERMOMETER,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-    ).extend(_parent_schema())
 
 
 def _magnetic_field_sensor_schema() -> cv.Schema:
@@ -56,7 +45,9 @@ def _magnetic_field_sensor_schema() -> cv.Schema:
 # `type` defaults to temperature so existing configs that omit it keep working unchanged.
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_TEMPERATURE: _temperature_sensor_schema(),
+        CONF_TEMPERATURE: temperature_sensor_schema(
+            CONF_BMI270_ID, BMI270Component, type_key=False
+        ),
         **{x: _magnetic_field_sensor_schema() for x in _MAGNETIC_FIELDS},
     },
     default_type=CONF_TEMPERATURE,
@@ -79,22 +70,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     sensor_type = config[CONF_TYPE]
-    var = await sensor.new_sensor(config)
-    parent = await cg.get_variable(config[CONF_BMI270_ID])
-
     if sensor_type == CONF_TEMPERATURE:
-        data = MockObj("data")
-        value_lambda = await cg.process_lambda(
-            var.publish_state(data),
-            [(cg.float_, str(data))],
-        )
-        cg.add(parent.add_temperature_listener(value_lambda))
+        await temperature_sensor_to_code(config, CONF_BMI270_ID)
         return
 
+    var = await sensor.new_sensor(config)
+    parent = await cg.get_variable(config[CONF_BMI270_ID])
     axis = sensor_type[-1:]
-    data = MockObj("data")
-    value_lambda = await cg.process_lambda(
-        var.publish_state(getattr(data, axis)),
-        [(BMM150Data.operator("const").operator("ref"), str(data))],
+    MAGNETOMETER_PUBLISHER.add(
+        parent, parent_ref(var).publish_state(getattr(MAGNETOMETER_DATA, axis))
     )
-    cg.add(parent.add_magnetometer_listener(value_lambda))
