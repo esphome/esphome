@@ -210,4 +210,40 @@ TEST(ImageDraw, FallbackKeepsRgbChannelOrder) {
   }
 }
 
+// Each pixel the per pixel draw emits is the colour get_pixel() reads, and it skips exactly the pixels get_pixel()
+// reports as transparent. Grayscale with alpha is left out: draw() blends it, get_pixel() returns the alpha.
+TEST(ImageDraw, PerPixelDrawMatchesReader) {
+  const auto data = make_data(4);
+  for (ImageType type :
+       {IMAGE_TYPE_BINARY, IMAGE_TYPE_GRAYSCALE, IMAGE_TYPE_RGB, IMAGE_TYPE_RGB565, IMAGE_TYPE_RGB111}) {
+    for (Transparency transparency : {TRANSPARENCY_OPAQUE, TRANSPARENCY_CHROMA_KEY, TRANSPARENCY_ALPHA_CHANNEL}) {
+      const bool bulk = transparency == TRANSPARENCY_OPAQUE && (type == IMAGE_TYPE_RGB || type == IMAGE_TYPE_RGB565);
+      if (bulk || (type == IMAGE_TYPE_GRAYSCALE && transparency == TRANSPARENCY_ALPHA_CHANNEL))
+        continue;
+      for (bool big_endian : {false, true}) {
+        Image image(data.data(), W, H, type, transparency, big_endian);
+        FallbackDisplay display;
+        image.draw(0, 0, &display, Color::WHITE, Color::BLACK);
+        std::vector<int> drawn(W * H, 0);
+        for (const auto &pixel : display.pixels) {
+          ASSERT_TRUE(pixel.x >= 0 && pixel.x < W && pixel.y >= 0 && pixel.y < H);
+          drawn[pixel.y * W + pixel.x]++;
+          EXPECT_EQ(pixel.raw, image.get_pixel(pixel.x, pixel.y, Color::WHITE, Color::BLACK).raw_32)
+              << "type " << type << " transparency " << transparency << " at " << pixel.x << "," << pixel.y;
+        }
+        for (int y = 0; y < H; y++) {
+          for (int x = 0; x < W; x++) {
+            const Color expected = image.get_pixel(x, y, Color::WHITE, Color::BLACK);
+            const bool visible = type == IMAGE_TYPE_BINARY
+                                     ? (expected == Color::WHITE || transparency == TRANSPARENCY_OPAQUE)
+                                     : expected.w >= 0x80;
+            EXPECT_EQ(drawn[y * W + x], visible ? 1 : 0)
+                << "type " << type << " transparency " << transparency << " at " << x << "," << y;
+          }
+        }
+      }
+    }
+  }
+}
+
 }  // namespace esphome::image::testing

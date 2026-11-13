@@ -28,6 +28,73 @@ static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, int w
   }
 }
 
+// Pixel decoders for get_pixel() and draw_(). They take the image fields as arguments, so draw_() can pass copies it
+// made before its loop; a field read inside the loop is read again for every pixel after the virtual draw_pixel_at().
+static inline bool ESPHOME_ALWAYS_INLINE binary_pixel(const uint8_t *data, uint32_t width_8, int x, int y) {
+  const uint32_t pos = x + y * width_8;
+  return progmem_read_byte(data + (pos / 8u)) & (0x80 >> (pos % 8u));
+}
+
+static inline Color ESPHOME_ALWAYS_INLINE rgb111_pixel(const uint8_t *data, uint32_t row_bits, uint8_t bpp, int x,
+                                                       int y) {
+  const uint32_t bitpos = y * row_bits + x * bpp;
+  const uint8_t *byte = data + bitpos / 8;
+  const uint8_t shift = bitpos % 8;
+  // A pixel can straddle two bytes; read the second one only when it does.
+  uint16_t window = progmem_read_byte(byte) << 8;
+  if (shift + bpp > 8)
+    window |= progmem_read_byte(byte + 1);
+  const uint8_t bits = (window >> (16 - bpp - shift)) & ((1u << bpp) - 1);
+  const uint8_t rgb = bpp == 4 ? bits >> 1 : bits;
+  const bool opaque = bpp == 3 || (bits & 1);
+  return Color(rgb & 4 ? 0xFF : 0x00, rgb & 2 ? 0xFF : 0x00, rgb & 1 ? 0xFF : 0x00, opaque ? 0xFF : 0x00);
+}
+
+// pos is the pixel index, x + y * width
+static inline Color ESPHOME_ALWAYS_INLINE rgb_pixel(const uint8_t *data, uint32_t pos, Transparency transparency) {
+  const uint8_t *p = data + pos * (transparency == TRANSPARENCY_ALPHA_CHANNEL ? 4 : 3);
+  Color color = Color(progmem_read_byte(p + 2), progmem_read_byte(p + 1), progmem_read_byte(p + 0), 0xFF);
+  switch (transparency) {
+    case TRANSPARENCY_CHROMA_KEY:
+      if (color.g == 1 && color.r == 0 && color.b == 0) {
+        // (0, 1, 0) has been defined as transparent color for non-alpha images.
+        color.w = 0;
+      }
+      break;
+    case TRANSPARENCY_ALPHA_CHANNEL:
+      color.w = progmem_read_byte(p + 3);
+      break;
+    default:
+      break;
+  }
+  return color;
+}
+
+// pos is the pixel index, x + y * width; the alpha plane follows the colour data
+static inline Color ESPHOME_ALWAYS_INLINE rgb565_pixel(const uint8_t *data, const uint8_t *alpha, uint32_t pos,
+                                                       bool big_endian, Transparency transparency) {
+  const uint8_t *p = data + pos * 2;
+  // High byte first when big endian
+  const uint8_t high = big_endian ? 0 : 1;
+  const uint16_t rgb565 = encode_uint16(progmem_read_byte(p + high), progmem_read_byte(p + 1 - high));
+  auto r = (rgb565 & 0xF800) >> 11;
+  auto g = (rgb565 & 0x07E0) >> 5;
+  auto b = rgb565 & 0x001F;
+  auto a = 0xFF;
+  switch (transparency) {
+    case TRANSPARENCY_ALPHA_CHANNEL:
+      a = progmem_read_byte(alpha + pos);
+      break;
+    case TRANSPARENCY_CHROMA_KEY:
+      if (rgb565 == 0x0020)
+        a = 0;
+      break;
+    default:
+      break;
+  }
+  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2), a);
+}
+
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int x_start = 0;
   int y_start = 0;
@@ -84,28 +151,33 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
   // Local copies, or the virtual draw_pixel_at() forces a reload every pixel
   const Transparency transparency = this->transparency_;
   const int width = this->width_;
+  const uint8_t *const data = this->data_start_;
   switch (this->type_) {
-    case IMAGE_TYPE_BINARY:
+    case IMAGE_TYPE_BINARY: {
+      const uint32_t width_8 = ((width + 7u) / 8u) * 8u;
       for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
-                                   if (this->get_binary_pixel_(img_x, img_y)) {
+                                   if (binary_pixel(data, width_8, img_x, img_y)) {
                                      display->draw_pixel_at(x + img_x, y + img_y, color_on);
                                    } else if (transparency == TRANSPARENCY_OPAQUE) {
                                      display->draw_pixel_at(x + img_x, y + img_y, color_off);
                                    }
                                  });
       break;
-    case IMAGE_TYPE_RGB111:
+    }
+    case IMAGE_TYPE_RGB111: {
+      const uint32_t row_bits = this->get_width_stride() * 8;
+      const uint8_t bpp = this->bpp_;
       for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
-                                   auto color = this->get_rgb111_pixel_(img_x, img_y);
+                                   auto color = rgb111_pixel(data, row_bits, bpp, img_x, img_y);
                                    if (color.w >= 0x80) {
                                      display->draw_pixel_at(x + img_x, y + img_y, color);
                                    }
                                  });
       break;
+    }
     case IMAGE_TYPE_GRAYSCALE: {
-      const uint8_t *const data = this->data_start_;
       for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    const uint8_t gray = progmem_read_byte(data + pos);
@@ -124,19 +196,22 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  });
       break;
     }
-    case IMAGE_TYPE_RGB565:
+    case IMAGE_TYPE_RGB565: {
+      const uint8_t *const alpha = data + width * this->height_ * 2;
+      const bool big_endian = this->big_endian_;
       for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
-                                   auto color = this->get_rgb565_pixel_(img_x, img_y);
+                                   auto color = rgb565_pixel(data, alpha, pos, big_endian, transparency);
                                    if (color.w >= 0x80) {
                                      display->draw_pixel_at(x + img_x, y + img_y, color);
                                    }
                                  });
       break;
+    }
     case IMAGE_TYPE_RGB:
       for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
-                                   auto color = this->get_rgb_pixel_(img_x, img_y);
+                                   auto color = rgb_pixel(data, pos, transparency);
                                    if (color.w >= 0x80) {
                                      display->draw_pixel_at(x + img_x, y + img_y, color);
                                    }
@@ -230,64 +305,17 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
 #endif  // USE_LVGL
 
 bool Image::get_binary_pixel_(int x, int y) const {
-  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-  const uint32_t pos = x + y * width_8;
-  return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  return binary_pixel(this->data_start_, ((this->width_ + 7u) / 8u) * 8u, x, y);
 }
 Color Image::get_rgb111_pixel_(int x, int y) const {
-  const uint32_t bitpos = y * this->get_width_stride() * 8 + x * this->bpp_;
-  const uint8_t *byte = this->data_start_ + bitpos / 8;
-  const uint8_t shift = bitpos % 8;
-  // A pixel can straddle two bytes; read the second one only when it does.
-  uint16_t window = progmem_read_byte(byte) << 8;
-  if (shift + this->bpp_ > 8)
-    window |= progmem_read_byte(byte + 1);
-  const uint8_t bits = (window >> (16 - this->bpp_ - shift)) & ((1u << this->bpp_) - 1);
-  const uint8_t rgb = this->bpp_ == 4 ? bits >> 1 : bits;
-  const bool opaque = this->bpp_ == 3 || (bits & 1);
-  return Color(rgb & 4 ? 0xFF : 0x00, rgb & 2 ? 0xFF : 0x00, rgb & 1 ? 0xFF : 0x00, opaque ? 0xFF : 0x00);
+  return rgb111_pixel(this->data_start_, this->get_width_stride() * 8, this->bpp_, x, y);
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
-  const uint32_t pos = (x + y * this->width_) * static_cast<size_t>(this->bpp_) / 8;
-  Color color = Color(progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 1),
-                      progmem_read_byte(this->data_start_ + pos + 0), 0xFF);
-
-  switch (this->transparency_) {
-    case TRANSPARENCY_CHROMA_KEY:
-      if (color.g == 1 && color.r == 0 && color.b == 0) {
-        // (0, 1, 0) has been defined as transparent color for non-alpha images.
-        color.w = 0;
-      }
-      break;
-    case TRANSPARENCY_ALPHA_CHANNEL:
-      color.w = progmem_read_byte(this->data_start_ + (pos + 3));
-      break;
-    default:
-      break;
-  }
-  return color;
+  return rgb_pixel(this->data_start_, x + y * this->width_, this->transparency_);
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
-  const uint8_t *pos = this->data_start_ + (x + y * this->width_) * static_cast<size_t>(this->bpp_) / 8;
-  // High byte first when big endian
-  const uint8_t high = this->big_endian_ ? 0 : 1;
-  const uint16_t rgb565 = encode_uint16(progmem_read_byte(pos + high), progmem_read_byte(pos + 1 - high));
-  auto r = (rgb565 & 0xF800) >> 11;
-  auto g = (rgb565 & 0x07E0) >> 5;
-  auto b = rgb565 & 0x001F;
-  auto a = 0xFF;
-  switch (this->transparency_) {
-    case TRANSPARENCY_ALPHA_CHANNEL:
-      a = progmem_read_byte(this->data_start_ + this->width_ * this->height_ * 2 + (x + y * this->width_));
-      break;
-    case TRANSPARENCY_CHROMA_KEY:
-      if (rgb565 == 0x0020)
-        a = 0;
-      break;
-    default:
-      break;
-  }
-  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2), a);
+  return rgb565_pixel(this->data_start_, this->data_start_ + this->width_ * this->height_ * 2, x + y * this->width_,
+                      this->big_endian_, this->transparency_);
 }
 
 Color Image::get_grayscale_pixel_(int x, int y) const {
