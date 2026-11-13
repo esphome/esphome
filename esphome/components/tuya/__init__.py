@@ -3,7 +3,12 @@ from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_SENSOR_DATAPOINT, CONF_TIME_ID
+from esphome.const import (
+    CONF_ACTION,
+    CONF_HEARTBEAT,
+    CONF_SENSOR_DATAPOINT,
+    CONF_TIME_ID,
+)
 from esphome.core import CORE, AutoLoad, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -26,6 +31,12 @@ CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
 CONF_FORCE_TIME_SYNC = "force_time_sync"
+CONF_MCU_WATCHDOG = "mcu_watchdog"
+CONF_MISSED_HEARTBEATS = "missed_heartbeats"
+CONF_DATAPOINT_ACK = "datapoint_ack"
+
+ACTION_REBOOT = "reboot"
+ACTION_DISABLE = "disable"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
@@ -82,6 +93,45 @@ def _validate_time_options(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_heartbeat(config: ConfigType) -> ConfigType:
+    # runs before the defaults: only a watchdog set in the config is rejected
+    if not isinstance(config, dict):
+        return config  # the schema reports the wrong type
+    try:
+        if cv.boolean(config.get(CONF_HEARTBEAT, True)):
+            return config
+    except cv.Invalid:
+        return config  # the schema reports it at the key
+    watchdog = config.get(CONF_MCU_WATCHDOG) or {}
+    if not isinstance(watchdog, dict):
+        return config
+    action = str(watchdog.get(CONF_ACTION, "")).lower()
+    if CONF_MCU_WATCHDOG in config and action != ACTION_DISABLE:
+        raise cv.Invalid(
+            f"{CONF_MCU_WATCHDOG} requires {CONF_HEARTBEAT}",
+            path=[CONF_MCU_WATCHDOG],
+        )
+    return config
+
+
+# the options of each action: one without effect is rejected
+MCU_WATCHDOG_SCHEMA = cv.typed_schema(
+    {
+        ACTION_REBOOT: cv.Schema(
+            {
+                cv.Optional(CONF_MISSED_HEARTBEATS, default=6): cv.int_range(
+                    min=1, max=20
+                ),
+            }
+        ),
+        ACTION_DISABLE: cv.Schema({}),
+    },
+    key=CONF_ACTION,
+    default_type=ACTION_REBOOT,
+    lower=True,
+)
+
+
 TUYA_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(cv.uint8_t),
@@ -97,12 +147,17 @@ TUYA_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 UART_SCHEMA = cv.All(
+    _validate_heartbeat,
     TUYA_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TuyaUART),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Optional(CONF_FORCE_TIME_SYNC, default=False): cv.boolean,
             cv.Optional(CONF_STATUS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_HEARTBEAT, default=True): cv.boolean,
+            cv.Optional(CONF_DATAPOINT_ACK, default=False): cv.boolean,
+            # off unless set: an existing config keeps running without it
+            cv.Optional(CONF_MCU_WATCHDOG): MCU_WATCHDOG_SCHEMA,
         }
     ).extend(uart.UART_DEVICE_SCHEMA),
     _validate_time_options,
@@ -147,6 +202,18 @@ async def to_code(config: ConfigType | AutoLoad) -> None:
         if config[CONF_FORCE_TIME_SYNC]:
             cg.add(var.set_force_time_sync(True))
     await cg.add_pin(var.set_status_pin, config.get(CONF_STATUS_PIN))
+    if not config[CONF_HEARTBEAT]:
+        cg.add(var.set_heartbeat(False))
+    if config[CONF_DATAPOINT_ACK]:
+        cg.add(var.set_datapoint_ack(True))
+    watchdog = config.get(CONF_MCU_WATCHDOG)
+    if (
+        watchdog is not None
+        and config[CONF_HEARTBEAT]
+        and watchdog[CONF_ACTION] != ACTION_DISABLE
+    ):
+        cg.add_define("USE_TUYA_MCU_WATCHDOG")
+        cg.add(var.set_mcu_watchdog(watchdog[CONF_MISSED_HEARTBEATS]))
     await setup_tuya(var, config)
 
 

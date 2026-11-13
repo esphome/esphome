@@ -6,6 +6,7 @@ tuya:
   status_pin:
     number: ${status_pin}
     inverted: true
+  mcu_watchdog: {}
   on_datapoint_update:
     - sensor_datapoint: 6
       datapoint_type: raw

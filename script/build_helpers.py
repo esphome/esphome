@@ -169,7 +169,8 @@ def get_platform_components(components: list[str], tests_dir: Path) -> list[str]
             if not domain_dir.is_dir():
                 continue
             domain = domain_dir.name
-            if domain.startswith("__"):
+            # "components" holds the external components of the YAML build tests
+            if domain.startswith("__") or domain == "components":
                 continue
             domain_module = get_component(domain)
             if domain_module is None or not domain_module.is_platform_component:
