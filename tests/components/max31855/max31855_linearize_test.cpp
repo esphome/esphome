@@ -43,13 +43,13 @@ TEST(MAX31855Linearize, CorrectsChipReading) {
   struct Case {
     float t, e_t, t_cj, e_cj;
   };
-  constexpr Case CASES[] = {
+  constexpr Case cases[] = {
       {-200.0f, -5.891f, 25.0f, 1.000f},  // chip reports about -142 °C
       {-20.0f, -0.778f, 22.0f, 0.879f},   // chip reports about -18 °C
       {500.0f, 20.644f, 25.0f, 1.000f},   // chip reports about 501 °C
       {1300.0f, 52.410f, 25.0f, 1.000f},  // chip reports about 1271 °C
   };
-  for (const auto &c : CASES) {
+  for (const auto &c : cases) {
     const float t_chip = chip_reading(c.e_t, c.t_cj, c.e_cj);
     EXPECT_GT(std::fabs(t_chip - c.t), 0.5f) << "case should need a correction, T=" << c.t;
     EXPECT_NEAR(k_type_linearize(t_chip, c.t_cj), c.t, 0.1f) << "T=" << c.t;

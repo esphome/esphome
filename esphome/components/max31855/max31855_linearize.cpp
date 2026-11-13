@@ -62,7 +62,7 @@ float k_type_mv(float t) {
 }
 
 float k_type_celsius(float mv) {
-  if (!(mv >= K_TYPE_MV_MIN && mv <= K_TYPE_MV_MAX))
+  if (std::isnan(mv) || mv < K_TYPE_MV_MIN || mv > K_TYPE_MV_MAX)
     return NAN;
   if (mv < 0.0f)
     return poly(K_T_NEG, mv);
