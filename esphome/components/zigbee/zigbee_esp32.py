@@ -336,6 +336,17 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_light_esp32(config: ConfigType) -> ConfigType:
+    # Implemented in #22283
+    if CONF_USE_DEVICE_TYPE in config:
+        raise cv.Invalid(f"{CONF_USE_DEVICE_TYPE} is not allowed")
+    if CONF_REPORT in config:
+        raise cv.Invalid(f"{CONF_REPORT} is not allowed")
+    if CONF_ENDPOINT in config:
+        raise cv.Invalid(f"{CONF_ENDPOINT} is not allowed")
+    return config
+
+
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support

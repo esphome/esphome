@@ -60,6 +60,7 @@ from .const_zephyr import (
 from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
+    validate_light_esp32,
     validate_number_esp32,
     validate_sensor_esp32,
     validate_switch_esp32,
@@ -81,6 +82,7 @@ BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
 SENSOR_SCHEMA = entity_helpers.ZIGBEE_SENSOR_SCHEMA
 SWITCH_SCHEMA = entity_helpers.ZIGBEE_SWITCH_SCHEMA
 NUMBER_SCHEMA = entity_helpers.ZIGBEE_NUMBER_SCHEMA
+LIGHT_SCHEMA = entity_helpers.ZIGBEE_LIGHT_SCHEMA
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
@@ -283,6 +285,15 @@ async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(add_switch, entity, config)
 
 
+async def setup_light(entity: cg.MockObj, config: ConfigType) -> None:
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return
+    if CORE.using_zephyr:
+        return
+    # Implemented in #22283
+    return
+
+
 async def setup_number(
     entity: cg.MockObj,
     config: ConfigType,
@@ -341,6 +352,14 @@ def validate_switch(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         return validate_switch_esp32(config)
     return consume_endpoint(config)
+
+
+def validate_light(config: ConfigType) -> ConfigType:
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    if CORE.is_esp32:
+        return validate_light_esp32(config)
+    return config
 
 
 def validate_number(config: ConfigType) -> ConfigType:
