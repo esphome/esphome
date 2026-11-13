@@ -13,6 +13,7 @@ from esphome.components.tflite_op_processor.builtin_codes import BUILTIN_OPERATO
 from esphome.components.tflite_op_processor.model_reader import (
     ModelReadError,
     estimate_tensor_arena,
+    read_model_input,
     read_model_operators,
 )
 from esphome.components.tflite_op_processor.op_manifest import (
@@ -96,6 +97,7 @@ def write_model(
     operator_codes: Sequence[tuple[int | None, int | None]],
     *,
     subgraph: bool = True,
+    inputs: Sequence[int] = (),
     tensors: Sequence[tuple[Sequence[int], int, int]] = (),
     buffers: Sequence[bytes | None] = (),
     operators: Sequence[tuple[Sequence[int], Sequence[int]]] = (),
@@ -103,9 +105,10 @@ def write_model(
     """Build a minimal .tflite model.
 
     ``operator_codes`` holds (deprecated_builtin_code, builtin_code) per entry,
-    with None for a field the writer leaves out. ``tensors`` holds (shape,
-    TensorType, buffer index) per tensor, ``buffers`` the data of each buffer
-    (None for an empty one) and ``operators`` the (inputs, outputs) per operator.
+    with None for a field the writer leaves out. ``inputs`` holds the tensor
+    indexes of the subgraph's inputs, ``tensors`` (shape, TensorType, buffer
+    index) per tensor, ``buffers`` the data of each buffer (None for an empty one)
+    and ``operators`` the (inputs, outputs) per operator.
     """
     writer = _FlatBufferWriter()
 
@@ -142,6 +145,7 @@ def write_model(
                     writer.table_vector,
                     [partial(write_tensor, *tensor) for tensor in tensors],
                 ),
+                **({1: partial(writer.i32_vector, inputs)} if inputs else {}),
                 3: partial(
                     writer.table_vector,
                     [partial(write_operator, *operator) for operator in operators],
@@ -505,6 +509,82 @@ def test_read_model_operators_rejects_a_truncated_model(tmp_path: Path) -> None:
 def test_read_model_operators_rejects_a_missing_file(tmp_path: Path) -> None:
     with pytest.raises(ModelReadError, match="missing.tflite"):
         read_model_operators(tmp_path / "missing.tflite")
+
+
+def test_read_model_input_describes_the_input_tensor(tmp_path: Path) -> None:
+    """A model keeps its input as [batch, height, width, channels]."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 32, 20, 3], 3, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    model_input = read_model_input(model)
+
+    assert model_input.height == 32
+    assert model_input.width == 20
+    assert model_input.channels == 3
+    assert model_input.type == "uint8"
+
+
+def test_read_model_input_names_the_type_the_runtime_fills(tmp_path: Path) -> None:
+    """The float32 input of a non-quantized model must be recognised as such."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 8, 8, 1], 0, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    assert read_model_input(model).type == "float32"
+
+
+def test_read_model_input_requires_an_input_tensor(tmp_path: Path) -> None:
+    model = write_model_file(tmp_path, write_model([(None, 9)]))
+
+    with pytest.raises(ModelReadError, match="no input tensor"):
+        read_model_input(model)
+
+
+def test_read_model_input_rejects_a_shape_that_is_not_an_image(tmp_path: Path) -> None:
+    """A streaming model's [batch, time, features] input has no width or height."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 49, 40], 9, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match=r"\[1, height, width, channels\]"):
+        read_model_input(model)
+
+
+def test_read_model_input_rejects_a_type_the_runtime_cannot_fill(
+    tmp_path: Path,
+) -> None:
+    """An int32 input has no matching input_type, so the build must say so."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 8, 8, 1], 2, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match="not one the runtime can fill"):
+        read_model_input(model)
 
 
 def test_estimate_tensor_arena_excludes_constants(tmp_path: Path) -> None:
