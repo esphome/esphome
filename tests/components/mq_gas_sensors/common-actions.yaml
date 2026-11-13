@@ -1,0 +1,6 @@
+# The runtime calibration action: the button runs it on the MQ-8 of `common.yaml`.
+button:
+  - platform: template
+    name: MQ-8 calibrate R0
+    on_press:
+      - mq_gas_sensors.calibrate_r0: mq8_hydrogen
