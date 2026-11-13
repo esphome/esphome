@@ -326,6 +326,21 @@ def test_bind_key__rejects_non_hex_pair_length() -> None:
         cv.bind_key("0123456789ABCDEF0123456789ABCDE")
 
 
+@pytest.mark.parametrize(
+    "value",
+    (
+        " A A A A A A A A A A A A A A A A",
+        "0123456789ABCDEF0123456789ABCD-B",
+        "+E123456789ABCDEF0123456789ABCDE",
+    ),
+)
+def test_bind_key__rejects_sign_padded_pairs(value: str) -> None:
+    # int(part, 16) accepts surrounding whitespace and a +/- sign, which would
+    # silently validate a key different from the one the user typed.
+    with pytest.raises(Invalid, match="hex values"):
+        cv.bind_key(value)
+
+
 def test_bind_key__direct_call_with_name_validates_with_that_name() -> None:
     # Passing both a value and a name validates immediately using the custom
     # name for error wording, and still tags the result sensitive.
