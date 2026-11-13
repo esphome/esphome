@@ -20,3 +20,5 @@ def test_cards_publish_through_hub_function(
         "}"
     ) in main_cpp
     assert "reader->set_cards_publisher(esphome__reader__cards_fn);" in main_cpp
+    # A reader without cards keeps a null publisher
+    assert "idle_reader->set_cards_publisher" not in main_cpp
