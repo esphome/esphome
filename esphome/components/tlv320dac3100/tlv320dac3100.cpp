@@ -16,8 +16,8 @@ static constexpr uint8_t REG_RESET = 0x01;
 static constexpr uint8_t REG_DAC_MUTE = 0x40;
 static constexpr uint8_t REG_DAC_VOLUME_L = 0x41;
 static constexpr uint8_t REG_DAC_VOLUME_R = 0x42;
-// Power-up entries after the setup ones in the generated table: page 0, digital mute and the data path, then the
-// drivers
+// Power-up entries after the setup ones in the generated table (data_path and drivers in audio_dac.py, which asserts
+// these counts)
 static constexpr uint8_t DATA_PATH_COUNT = 3;
 static constexpr uint8_t DRIVERS_COUNT = 5;
 
@@ -66,12 +66,13 @@ void TLV320DAC3100::power_up_dac_() {
 }
 
 void TLV320DAC3100::unmute_outputs_() {
-  // Levels last; on failure the state returns to off, so the next audio start retries
-  const bool ok = this->status_comm_result(
-      this->write_registers(this->table_ + this->setup_count_ + DATA_PATH_COUNT, DRIVERS_COUNT) &&
-          this->write_levels_(),
-      LOG_STR("DAC power-up failed"));
-  this->dac_state_ = ok ? DacState::DAC_STATE_ON : DacState::DAC_STATE_OFF;
+  // On first so write_levels_() writes; on failure the state returns to off, so the next audio start retries
+  this->dac_state_ = DacState::DAC_STATE_ON;
+  if (!this->status_comm_result(
+          this->write_registers(this->table_ + this->setup_count_ + DATA_PATH_COUNT, DRIVERS_COUNT) &&
+              this->write_levels_(),
+          LOG_STR("DAC power-up failed")))
+    this->dac_state_ = DacState::DAC_STATE_OFF;
 }
 
 void TLV320DAC3100::dump_config() {
@@ -98,6 +99,9 @@ bool TLV320DAC3100::set_volume(float volume) {
 bool TLV320DAC3100::write_levels_() {
   if (this->is_failed())
     return false;
+  // Until the DAC is on, the digital mute stays set; unmute_outputs_() writes the current levels
+  if (this->dac_state_ != DacState::DAC_STATE_ON)
+    return true;
   const auto volume = static_cast<uint8_t>(lroundf(VOLUME_MIN * (1.0f - this->volume_)));
   const i2c::I2CRegValue levels[] = {
       {REG_PAGE, 0x00},
@@ -105,9 +109,7 @@ bool TLV320DAC3100::write_levels_() {
       {REG_DAC_VOLUME_L, volume},
       {REG_DAC_VOLUME_R, volume},
   };
-  const bool ok = this->write_registers(levels);
-  // Until the DAC is up, power_up_dac_() owns the warning status
-  return this->dac_state_ == DacState::DAC_STATE_ON ? this->status_comm_result(ok) : ok;
+  return this->status_comm_result(this->write_registers(levels));
 }
 
 }  // namespace esphome::tlv320dac3100
