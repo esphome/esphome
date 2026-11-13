@@ -499,6 +499,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     "OpenThread Border Router with 'backbone: ethernet' requires the "
                     "'ethernet' component."
                 )
+            # The Ethernet netif only exists once Ethernet has started
+            if not full_config[CONF_ETHERNET].get(CONF_ENABLE_ON_BOOT, True):
+                raise cv.Invalid(
+                    "OpenThread Border Router with 'backbone: ethernet' requires "
+                    "Ethernet 'enable_on_boot: true'."
+                )
         elif wifi_config is None:
             raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
         if wifi_config is not None and CONF_AP in wifi_config:

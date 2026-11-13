@@ -376,6 +376,10 @@ def test_ethernet_backbone_ignores_wifi_sta_rules(
             lambda config: config[CONF_WIFI].update({CONF_AP: {}}),
             "does not support Wi-Fi AP",
         ),
+        (
+            lambda config: config[CONF_ETHERNET].update({CONF_ENABLE_ON_BOOT: False}),
+            "Ethernet 'enable_on_boot: true'",
+        ),
     ],
 )
 def test_ethernet_backbone_rejects_incompatible_config(
