@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from typing import Any
 
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_DEVICE_CLASS,
-    CONF_ID,
     CONF_STATE_CLASS,
     CONF_TAG,
     CONF_UNIT_OF_MEASUREMENT,
@@ -30,13 +30,13 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_MK2PVROUTER_ID,
-    MK2PVROUTER_LISTENER_SCHEMA,
+    DUMP_PUBLISHER,
+    DUMP_TAG,
+    MK2PVROUTER_CHILD_SCHEMA,
+    TAG,
+    VAL,
+    VALUE_PUBLISHER,
     mk2pvrouter_ns,
-    register_mk2pvrouter_listener,
-)
-
-Mk2PVRouterSensor = mk2pvrouter_ns.class_(
-    "Mk2PVRouterSensor", sensor.Sensor, cg.Component
 )
 
 
@@ -48,7 +48,7 @@ class TagKind:
     device_class: str
     state_class: str
     accuracy_decimals: int
-    # The device sends the value * 100; Mk2PVRouterSensor::publish_val() corrects it.
+    # The device sends the value * 100; publish_sensor_value() corrects it.
     scale_centi: bool = False
 
     def defaults(self) -> dict[str, Any]:
@@ -111,18 +111,24 @@ def _inject_tag_defaults(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     _inject_tag_defaults,
     sensor.sensor_schema(
-        Mk2PVRouterSensor,
         accuracy_decimals=0,
         state_class=STATE_CLASS_MEASUREMENT,
-    ).extend(MK2PVROUTER_LISTENER_SCHEMA),
+    ).extend(MK2PVROUTER_CHILD_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     tag = config[CONF_TAG]
     kind = tag_kind(tag)
-    var = cg.new_Pvariable(config[CONF_ID], tag, kind is not None and kind.scale_centi)
-    await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
+    var = await sensor.new_sensor(config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
-    await register_mk2pvrouter_listener(mk2pvrouter, var)
+    scale_centi = kind is not None and kind.scale_centi
+    VALUE_PUBLISHER.add(
+        mk2pvrouter,
+        mk2pvrouter_ns.publish_sensor_value(
+            parent_ref(var), tag, scale_centi, TAG, VAL
+        ),
+    )
+    DUMP_PUBLISHER.add(
+        mk2pvrouter, mk2pvrouter_ns.dump_sensor(DUMP_TAG, parent_ref(var), tag)
+    )

@@ -1,32 +1,15 @@
 #include "systa_bus_sensor.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::systa_bus {
 
-ESPHOME_LOG_TAG(TAG, "systa_bus.sensor");
+// Indexed by AquaSensor
+PROGMEM_STRING_TABLE(AquaSensorNames, "Temperature TSA", "Temperature TSE", "Temperature TWU", "Temperature TW2",
+                     "Pump Speed");
 
-static int16_t get_i16be(std::span<const uint8_t> message, size_t start) {
-  return encode_value<int16_t>(&message[start]);
-}
-
-void SystaSolarAquaSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
-  LOG_SENSOR("  ", "Temperature TSA", this->temperature_tsa_sensor_);
-  LOG_SENSOR("  ", "Temperature TSE", this->temperature_tse_sensor_);
-  LOG_SENSOR("  ", "Temperature TWU", this->temperature_twu_sensor_);
-  LOG_SENSOR("  ", "Temperature TW2", this->temperature_tw2_sensor_);
-  LOG_SENSOR("  ", "Pump Speed", this->pump_speed_sensor_);
-}
-
-void SystaSolarAquaSensor::handle_message(std::span<const uint8_t> message) {
-  if (get_message_type(message) != MESSAGE_TYPE_AQUA_SENSOR_DATA)
-    return;
-  PUBLISH_STATE(this->temperature_tsa_sensor_, get_i16be(message, 4) * 0.1f);
-  PUBLISH_STATE(this->temperature_tse_sensor_, get_i16be(message, 6) * 0.1f);
-  PUBLISH_STATE(this->temperature_twu_sensor_, get_i16be(message, 8) * 0.1f);
-  PUBLISH_STATE(this->temperature_tw2_sensor_, get_i16be(message, 10) * 0.1f);
-  PUBLISH_STATE(this->pump_speed_sensor_, message[12]);
+void dump_aqua_sensor(const char *log_tag, sensor::Sensor *sensor, AquaSensor which) {
+  sensor::log_sensor(log_tag, "  ", LOG_STR_ARG(AquaSensorNames::get_log_str(static_cast<uint8_t>(which), 0)), sensor);
 }
 
 }  // namespace esphome::systa_bus

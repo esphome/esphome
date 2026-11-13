@@ -5,8 +5,8 @@ from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
-        # Listener storage is sized by code generation; the gtests register one listener per bus.
-        cg.add_define("SYSTA_BUS_LISTENER_COUNT", 1)
+        # The gtests install their own stand-in for the generated function.
+        cg.add_define("USE_SYSTA_BUS_AQUA_PUBLISHER")
 
     # A MULTI_CONF component gets no entry in the host build, so its to_code would never run.
     manifest.multi_conf = False
