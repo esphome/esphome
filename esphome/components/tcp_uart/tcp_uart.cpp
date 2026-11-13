@@ -34,6 +34,11 @@ void TcpUart::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval(), this->link_.idle_timeout());
+#ifdef USE_NOISE_STREAM
+  if (this->noise_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Encryption: Noise");
+  }
+#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -52,12 +57,13 @@ void TcpUart::on_shutdown() {
 #endif
 }
 
-void TcpUart::sync_link_() {
-  bool up = this->link_.connected();
+void TcpUart::sync_link_(bool up) {
   this->link_was_up_ = up;
   if (up) {
     // Unread bytes of the last session stay readable while down, never into the next one.
     this->rx_start_ = this->rx_end_ = 0;
+    // Read in the first pass: a handshake's last read can leave session bytes the socket's ready flag does not show
+    this->rx_pending_ = true;
   }
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->connected_binary_sensor_, up);
@@ -83,7 +89,7 @@ void TcpUart::read_socket_() {
     this->link_.note_io();
     return;
   }
-  ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
+  ssize_t count = this->read_link_(this->rx_ + this->rx_end_, room);
   if (count <= 0) {
     // A dropped link (-1) is seen by sync_link_() on the next loop.
     if (count == 0) {
@@ -107,8 +113,9 @@ void TcpUart::loop() {
 #else
   this->link_.poll();
 #endif
-  if (this->link_.connected() != this->link_was_up_) {
-    this->sync_link_();
+  bool up = this->link_up_();
+  if (up != this->link_was_up_) {
+    this->sync_link_(up);
   }
   if (!this->link_was_up_) {
     return;
@@ -116,17 +123,17 @@ void TcpUart::loop() {
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
-  this->link_.flush_tx();
+  this->flush_link_();
   this->link_.check_idle();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
-  size_t queued = this->link_.queue(data, len);
+  size_t queued = this->queue_link_(data, len);
   if (queued < len) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
       ESP_LOGW(TAG, "%s, dropped %u bytes",
-               this->link_.connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
+               this->session_up_() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
                static_cast<unsigned>(len - queued));
       this->last_drop_log_ms_ = now;
     }
@@ -151,8 +158,8 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult TcpUart::flush() {
-  bool emptied = this->link_.flush_tx();
-  if (!this->link_.connected()) {
+  bool emptied = this->flush_link_();
+  if (!this->session_up_()) {
     // A down link cannot have delivered anything, whether this flush dropped
     // it or an earlier loop() write did.
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
