@@ -1,0 +1,17 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+
+esp_ldo:
+  - id: ldo_id
+    channel: 3
+    voltage: 2.5V
+
+psram:
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20
+
+display:
+  - platform: mipi_dsi
+    model: LILYGO-T-DISPLAY-P4-AMOLED
