@@ -1709,6 +1709,30 @@ def test_float_range_no_min() -> None:
     assert validator(5.0) == 5.0
 
 
+@pytest.mark.parametrize(
+    "value", (float("inf"), float("-inf"), float("nan"), "inf", "-inf", "nan")
+)
+def test_float_rejects_non_finite(value) -> None:
+    with pytest.raises(Invalid, match="finite"):
+        cv.float_(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ({"seconds": float("inf")}, {"seconds": "inf"}, {"microseconds": float("nan")}),
+)
+def test_time_period_dict_rejects_non_finite(value) -> None:
+    # round(inf) raises OverflowError in TimePeriod, which escaped as a raw
+    # traceback instead of a validation error
+    with pytest.raises(Invalid):
+        cv.time_period_dict(value)
+
+
+def test_positive_float_rejects_infinity() -> None:
+    with pytest.raises(Invalid, match="finite"):
+        cv.positive_float(float("inf"))
+
+
 # ---------------------------------------------------------------------------
 # use_id / declare_id / templatable
 # ---------------------------------------------------------------------------

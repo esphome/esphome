@@ -811,7 +811,21 @@ def float_range(min=None, max=None, min_included=True, max_included=True):
 
 
 port = int_range(min=1, max=65535)
-float_ = Coerce(float)
+
+
+def float_(value):
+    """Validate that the config option is a finite float.
+
+    Strings like "inf" and YAML floats like .inf coerce cleanly but have no
+    place in a config value: they either poison the generated math or crash
+    later conversion steps (e.g. round(inf) in TimePeriod).
+    """
+    value = Coerce(float)(value)
+    if not math.isfinite(value):
+        raise Invalid(f"Expected a finite float, got {value}")
+    return value
+
+
 positive_float = float_range(min=0)
 zero_to_one_float = float_range(min=0, max=1)
 negative_one_to_one_float = float_range(min=-1, max=1)
