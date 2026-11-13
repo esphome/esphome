@@ -7,7 +7,7 @@ namespace esphome::pi4ioe5v6408 {
 static const uint8_t PI4IOE5V6408_REGISTER_DEVICE_ID = 0x01;
 static const uint8_t PI4IOE5V6408_REGISTER_IO_DIR = 0x03;
 static const uint8_t PI4IOE5V6408_REGISTER_OUT_SET = 0x05;
-static const uint8_t PI4IOE5V6408_REGISTER_OUT_HIGH_IMPEDENCE = 0x07;
+static const uint8_t PI4IOE5V6408_REGISTER_OUT_HIGH_IMPEDANCE = 0x07;
 static const uint8_t PI4IOE5V6408_REGISTER_IN_DEFAULT_STATE = 0x09;
 static const uint8_t PI4IOE5V6408_REGISTER_PULL_ENABLE = 0x0B;
 static const uint8_t PI4IOE5V6408_REGISTER_PULL_SELECT = 0x0D;
@@ -20,7 +20,7 @@ ESPHOME_LOG_TAG(TAG, "pi4ioe5v6408");
 void PI4IOE5V6408Component::setup() {
   if (this->reset_) {
     this->reg(PI4IOE5V6408_REGISTER_DEVICE_ID) |= 0b00000001;
-    this->reg(PI4IOE5V6408_REGISTER_OUT_HIGH_IMPEDENCE) = 0b00000000;
+    this->reg(PI4IOE5V6408_REGISTER_OUT_HIGH_IMPEDANCE) = 0b00000000;
   } else {
     if (!this->read_gpio_modes_()) {
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));

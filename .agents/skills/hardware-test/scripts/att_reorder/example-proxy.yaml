@@ -1,0 +1,5 @@
+substitutions:
+  name: attprx6
+  idf: 5.5.6
+packages:
+  c: !include proxy.yaml
