@@ -1,0 +1,48 @@
+uart:
+  - id: uart_auto_rx_only
+    rx_pin: GPIO16
+    baud_rate: 9600
+  - id: uart_controlled_pin
+    rx_pin: GPIO17
+    baud_rate: 9600
+  - id: uart_controlled_tx
+    tx_pin: GPIO18
+    rx_pin: GPIO19
+    baud_rate: 9600
+  - id: uart_auto_mode_pin
+    rx_pin: GPIO21
+    baud_rate: 9600
+  - id: uart_115200
+    rx_pin: GPIO22
+    baud_rate: 115200
+
+sensor:
+  - platform: distance_uart
+    id: distance_auto_rx_only
+    uart_id: uart_auto_rx_only
+    name: Distance Auto RX Only
+    model: A02YYUW
+  - platform: distance_uart
+    id: distance_controlled_pin
+    uart_id: uart_controlled_pin
+    name: Distance Controlled Trigger Pin
+    model: A02YYT
+    trigger_pin: GPIO4
+  - platform: distance_uart
+    id: distance_controlled_tx
+    uart_id: uart_controlled_tx
+    name: Distance Controlled TX
+    model: A02YYT
+  - platform: distance_uart
+    id: distance_auto_mode_pin
+    uart_id: uart_auto_mode_pin
+    name: Distance Auto Output Mode Pin
+    model: A02YYUW
+    output_mode_pin: GPIO5
+    output_mode: REALTIME
+    publish_mode: IMMEDIATE
+  - platform: distance_uart
+    id: distance_115200
+    uart_id: uart_115200
+    name: Distance 115200
+    model: A21AYYUW
