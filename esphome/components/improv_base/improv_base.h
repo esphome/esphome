@@ -3,8 +3,11 @@
 #include <cstddef>
 #include "esphome/core/defines.h"
 
-#ifdef USE_IMPROV_NEXT_URL
+#if defined(USE_IMPROV_NEXT_URL) || defined(USE_WEBSERVER)
 #include <improv.h>
+#endif
+#ifdef USE_WEBSERVER
+#include "esphome/components/network/ip_address.h"
 #endif
 
 namespace esphome::improv_base {
@@ -22,6 +25,10 @@ class ImprovBase {
   /// Append the formatted next_url to the RPC response, warning if it does not fit.
   void add_next_url_(improv::RpcResponseBuilder &builder, size_t max_len);
   const char *next_url_{nullptr};
+#endif
+#ifdef USE_WEBSERVER
+  /// Append "http://<ip>:<port>" to the response, warning if it does not fit.
+  void add_webserver_url_(improv::RpcResponseBuilder &builder, const network::IPAddress &ip);
 #endif
 };
 

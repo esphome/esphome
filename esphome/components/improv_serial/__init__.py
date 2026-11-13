@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import improv_base, uart
 from esphome.components.esp32 import VARIANT_ESP32S3, get_esp32_variant
-from esphome.components.logger import DOMAIN as LOGGER_DOMAIN, USB_CDC
+from esphome.components.logger import DOMAIN as LOGGER_DOMAIN, USB_CDC, request_console
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_UART_ID
 from esphome.core import CORE
@@ -34,7 +34,7 @@ CONFIG_SCHEMA = (
 
 
 _UART_FINAL_VALIDATE = uart.final_validate_device_schema(
-    "improv_serial", require_tx=True, require_rx=True
+    DOMAIN, require_tx=True, require_rx=True
 )
 
 
@@ -70,3 +70,6 @@ async def to_code(config: ConfigType) -> None:
     if (uart_id := config.get(CONF_UART_ID)) is not None:
         await cg.add_variable(var.set_uart, uart_id)
         cg.add_define("USE_IMPROV_SERIAL_UART")
+    # The Zephyr logger has no console, so Improv there stays a no-op
+    elif CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2 or CORE.is_libretiny:
+        request_console()
