@@ -159,28 +159,38 @@ uint32_t decimal_to_float_bits(const char *first, const char *end, int32_t exp10
     return 0;
   if (exp10 >= 40)
     return FLOAT_INF_BITS;
+  uint64_t top = 0;  // the first 19 digits
+  uint32_t digits = 0;
+  for (const char *p = first; p < end; p++) {
+    if (*p == '.')
+      continue;
+    if (digits < 19)
+      top = top * 10 + (*p - '0');
+    digits++;
+  }
+  const int32_t scale = exp10 - static_cast<int32_t>(digits < 19 ? digits : 19);
+  double power = 1.0;
+  for (int32_t i = scale < 0 ? -scale : scale; i > 0; i--)
+    power *= 10.0;
+  const double guess = scale < 0 ? static_cast<double>(top) / power : static_cast<double>(top) * power;
+  // Every digit, the value up to 2^53 and the power of ten up to 10^22 are exact doubles, so the one IEEE
+  // operation above is strtod's correctly rounded double
+  if (digits <= 19 && top <= (uint64_t{1} << 53) && scale >= -22 && scale <= 22)
+    return bit_cast<uint32_t>(static_cast<float>(guess));
   ExactDecimal d;
-  uint64_t top = 0;  // the first 19 digits, for the first guess
   uint32_t used = 0;
   const char *p = first;
   for (; p < end && used < EXACT_DIGITS; p++) {
     if (*p == '.')
       continue;
     d.digits.multiply_add(10, *p - '0');
-    if (used < 19)
-      top = top * 10 + (*p - '0');
     used++;
   }
   d.sticky = false;
   for (; p < end && !d.sticky; p++)
     d.sticky = *p >= '1' && *p <= '9';
   d.exp10 = exp10 - static_cast<int32_t>(used);
-  // The guess only has to land within a float or two of the result
-  const int32_t scale = exp10 - static_cast<int32_t>(used < 19 ? used : 19);
-  double power = 1.0;
-  for (int32_t i = scale < 0 ? -scale : scale; i > 0; i--)
-    power *= 10.0;
-  const double guess = scale < 0 ? static_cast<double>(top) / power : static_cast<double>(top) * power;
+  // Otherwise the guess only has to land within a float or two of the result
   uint32_t k = bit_cast<uint32_t>(static_cast<float>(guess));
   for (;;) {
     if (k < FLOAT_INF_BITS) {
