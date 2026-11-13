@@ -81,14 +81,15 @@ def test_to_code_esp32_idf_uses_managed_idf_components(
     assert lib_calls == []
 
 
-def test_to_code_esp32_arduino_below_idf6_uses_add_library(
+@pytest.mark.parametrize(
+    "idf_version", [cv.Version(5, 5, 4), cv.Version(6, 0, 0), cv.Version(6, 1, 0)]
+)
+def test_to_code_esp32_arduino_uses_add_library(
+    idf_version: cv.Version,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Arduino below IDF 6.0 bundles espressif/libsodium, so both stay PlatformIO
-    libraries."""
-    _setup_core(
-        Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF, cv.Version(5, 5, 4)
-    )
+    """Arduino bundles espressif/libsodium, so both stay PlatformIO libraries."""
+    _setup_core(Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF, idf_version)
     idf_calls, lib_calls = _record_calls(monkeypatch)
 
     asyncio.run(noise.to_code({}))
@@ -98,24 +99,6 @@ def test_to_code_esp32_arduino_below_idf6_uses_add_library(
         ("esphome/libsodium", noise.LIBSODIUM_VERSION),
     ]
     assert idf_calls == []
-
-
-@pytest.mark.parametrize("idf_version", [cv.Version(6, 0, 0), cv.Version(6, 1, 0)])
-def test_to_code_esp32_arduino_idf6_uses_managed_idf_components(
-    idf_version: cv.Version,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """From IDF 6.0 there is no clash, so Arduino uses managed components too."""
-    _setup_core(Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF, idf_version)
-    idf_calls, lib_calls = _record_calls(monkeypatch)
-
-    asyncio.run(noise.to_code({}))
-
-    assert idf_calls == [
-        {"name": "esphome/noise-c", "ref": noise.NOISE_C_VERSION},
-        {"name": "esphome/libsodium", "ref": noise.LIBSODIUM_VERSION},
-    ]
-    assert lib_calls == []
 
 
 def test_to_code_non_esp32_uses_add_library(
@@ -148,12 +131,10 @@ def test_versions_match_the_repo_manifests() -> None:
 
     assert deps["esphome/noise-c"]["version"] == noise.NOISE_C_VERSION
     assert deps["esphome/libsodium"]["version"] == noise.LIBSODIUM_VERSION
-    # Both are skipped on Arduino below IDF 6.0, where the PlatformIO library
-    # path is used instead (see noise._use_managed_components).
+    # Both are skipped on Arduino, where the PlatformIO library path is used
+    # instead (see noise._use_managed_components).
     for name in ("esphome/noise-c", "esphome/libsodium"):
-        assert deps[name]["rules"] == [
-            {"if": "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"}
-        ]
+        assert deps[name]["rules"] == [{"if": "$ESPHOME_ARDUINO_COMPONENT == 0"}]
     # Every noise-c pin in platformio.ini, not just one of them
     pins = re.findall(
         r"esphome/noise-c@(\S+)",
