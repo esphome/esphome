@@ -287,7 +287,6 @@ void EPaperBase::process_state_() {
       this->shown_hash_valid_ = false;
       // A full update resets update_count_ to zero, so a non-zero count marks a partial one
       this->partial_ = this->update_count_ != 0;
-      this->sent_count_ = 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -300,8 +299,6 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      if (this->sent_.is_valid() && this->sent_count_ == this->sent_.size())
-        this->sent_valid_ = true;
       // A draw during the chunked push may not have reached the panel, so the next update sends the whole frame
       this->sent_hash_intact_ = this->is_using_partial_update_() && !this->drawn_since_hash_;
       if (this->drawn_since_hash_) {
