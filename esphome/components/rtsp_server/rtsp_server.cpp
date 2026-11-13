@@ -7,11 +7,24 @@
 #include <utility>
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_RTSP_SERVER_CAPTURE
+#include "esphome/components/audio/audio.h"
+#include "esphome/components/microphone/microphone.h"
+#endif
 
 namespace esphome::rtsp_server {
 
 ESPHOME_LOG_TAG(TAG, "rtsp_server");
+
+#ifdef USE_RTSP_SERVER_CAPTURE
+static constexpr uint8_t RTP_PAYLOAD_TYPE_PCMU = 0;
+static constexpr uint8_t RTP_PAYLOAD_TYPE_PCMA = 8;
+static constexpr uint8_t RTP_PAYLOAD_TYPE_L16 = 96;  // dynamic, described by the SDP
+static constexpr uint32_t G711_SAMPLE_RATE = 8000;
+static constexpr size_t G711_SAMPLES_PER_PACKET = G711_SAMPLE_RATE * AUDIO_PACKET_MS / 1000;
+#endif
 
 void RTSPServer::socket_failed_(const char *what) {
   ESP_LOGE(TAG, "Socket %s failed: errno %d", what, errno);
@@ -48,8 +61,87 @@ void RTSPServer::setup() {
     return;
   }
 
+#ifdef USE_RTSP_SERVER_CAPTURE
+  this->setup_audio_();
+#endif
   camera::Camera::instance()->add_listener(this);
 }
+
+#ifdef USE_RTSP_SERVER_CAPTURE
+void RTSPServer::setup_audio_() {
+  const audio::AudioStreamInfo info = this->microphone_source_->get_audio_stream_info();
+  const uint32_t sample_rate = info.get_sample_rate();
+  const bool g711 = this->audio_codec_ != AudioCodec::AUDIO_CODEC_L16;
+  if (g711 && sample_rate != G711_SAMPLE_RATE) {
+    ESP_LOGE(TAG, "G.711 needs an %" PRIu32 " Hz microphone, not %" PRIu32 " Hz; streaming video only",
+             G711_SAMPLE_RATE, sample_rate);
+    return;
+  }
+  const auto samples = static_cast<uint16_t>(sample_rate * AUDIO_PACKET_MS / 1000);
+  const auto input_len = static_cast<uint16_t>(info.samples_to_bytes(samples));  // 16-bit mono
+  const uint16_t payload_len = g711 ? samples : input_len;
+  const uint8_t payload_type = this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMU   ? RTP_PAYLOAD_TYPE_PCMU
+                               : this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMA ? RTP_PAYLOAD_TYPE_PCMA
+                                                                                    : RTP_PAYLOAD_TYPE_L16;
+  const size_t sdp_len =
+      format_audio_sdp(this->sdp_.data(), this->sdp_.size(), this->audio_codec_, payload_type, sample_rate);
+
+  // Allocated once here and kept, so starting and stopping the stream never touches the heap.
+  this->ring_buffer_ = ring_buffer::RingBuffer::create(AUDIO_SLOTS * input_len);
+  RAMAllocator<uint8_t> allocator;
+  uint8_t *slots = allocator.allocate(AUDIO_SLOTS * payload_len);
+  if (this->ring_buffer_ == nullptr || slots == nullptr || sdp_len == 0) {
+    ESP_LOGE(TAG, "Audio buffer allocation failed; streaming video only");
+    if (slots != nullptr)
+      allocator.deallocate(slots, AUDIO_SLOTS * payload_len);
+    this->ring_buffer_.reset();
+    return;
+  }
+
+  this->audio_track_.slots = slots;
+  this->audio_track_.sdp = this->sdp_.data();
+  this->audio_track_.sdp_len = static_cast<uint16_t>(sdp_len);
+  this->audio_track_.payload_len = payload_len;
+  this->audio_track_.samples_per_packet = samples;
+  this->audio_track_.payload_type = payload_type;
+  for (auto &session : this->sessions_)
+    session.set_audio_track(&this->audio_track_);
+
+  // Runs on the microphone's task; a full ring buffer drops the oldest audio.
+  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
+    this->ring_buffer_->write(capture.data.data(), capture.data.size());
+  });
+  this->audio_ready_ = true;
+}
+
+void RTSPServer::read_audio_(uint32_t now) {
+  const audio::AudioStreamInfo info = this->microphone_source_->get_audio_stream_info();
+  const size_t input_len = info.samples_to_bytes(this->audio_track_.samples_per_packet);
+  AudioTrack &track = this->audio_track_;
+  while (this->ring_buffer_->available() >= input_len) {
+    const uint32_t index = track.produced;
+    for (auto &session : this->sessions_)
+      session.on_audio_slot_reuse(index - AUDIO_SLOTS);
+    auto *slot = const_cast<uint8_t *>(track.packet(index));
+    if (this->audio_codec_ == AudioCodec::AUDIO_CODEC_L16) {
+      if (this->ring_buffer_->read(slot, input_len) != input_len)
+        return;
+      for (size_t i = 0; i + 1 < input_len; i += 2)
+        std::swap(slot[i], slot[i + 1]);  // L16 is big endian (RFC 3551 section 4.5.11)
+    } else {
+      std::array<int16_t, G711_SAMPLES_PER_PACKET> samples;
+      if (this->ring_buffer_->read(samples.data(), input_len) != input_len)
+        return;
+      const bool ulaw = this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMU;
+      for (size_t i = 0; i < samples.size(); i++)
+        slot[i] = ulaw ? encode_ulaw(samples[i]) : encode_alaw(samples[i]);
+    }
+    // The audio still buffered was captured after this packet's last sample.
+    track.capture_ms[index % AUDIO_SLOTS] = now - info.bytes_to_ms(this->ring_buffer_->available());
+    track.produced++;
+  }
+}
+#endif
 
 void RTSPServer::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -57,10 +149,18 @@ void RTSPServer::loop() {
     this->accept_new_connections_(now);
   }
 
+#ifdef USE_RTSP_SERVER_CAPTURE
+  if (this->capturing_)
+    this->read_audio_(now);
+  bool audio = false;
+#endif
   bool playing = false;
   for (auto &session : this->sessions_) {
     session.loop(now, this->port_);
-    playing |= session.is_playing();
+    playing |= session.is_playing_video();
+#ifdef USE_RTSP_SERVER_CAPTURE
+    audio |= session.is_playing_audio();
+#endif
   }
 
   if (playing != this->streaming_) {
@@ -71,6 +171,18 @@ void RTSPServer::loop() {
       camera::Camera::instance()->stop_stream(camera::RTSP_REQUESTER);
     }
   }
+#ifdef USE_RTSP_SERVER_CAPTURE
+  if (audio != this->capturing_) {
+    this->capturing_ = audio;
+    if (audio) {
+      // The source ignores the microphone until start(), so nothing writes while the buffer is reset.
+      this->ring_buffer_->reset();
+      this->microphone_source_->start();
+    } else {
+      this->microphone_source_->stop();
+    }
+  }
+#endif
 }
 
 void RTSPServer::accept_new_connections_(uint32_t now) {
@@ -134,6 +246,12 @@ void RTSPServer::dump_config() {
                 this->port_, MAX_RTSP_CONNECTIONS);
 #ifdef USE_SOCKET_IPV4_ALLOW
   this->allow_.dump_config(TAG);
+#endif
+#ifdef USE_RTSP_SERVER_CAPTURE
+  if (this->audio_ready_) {
+    ESP_LOGCONFIG(TAG, "  Audio: %s, %" PRIu32 " Hz", LOG_STR_ARG(audio_codec_name(this->audio_codec_)),
+                  this->microphone_source_->get_audio_stream_info().get_sample_rate());
+  }
 #endif
 }
 
