@@ -4,9 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/output/binary_output.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
-
-#include <vector>
+#include "esphome/core/helpers.h"
 
 namespace esphome::cap1188 {
 
@@ -26,18 +24,16 @@ enum {
   CAP1188_SENSITIVITY = 0x1f,
 };
 
-class CAP1188Channel final : public binary_sensor::BinarySensor {
- public:
-  void set_channel(uint8_t channel) { channel_ = channel; }
-  void process(uint8_t data) { this->publish_state(static_cast<bool>(data & (1 << this->channel_))); }
-
- protected:
-  uint8_t channel_{0};
-};
+// A template on the sensor type keeps binary_sensor.h out of this hub header
+template<typename T> inline void publish_channel(T *sensor, uint8_t touched, uint8_t channel) {
+  sensor->publish_state((touched >> channel) & 1);
+}
 
 class CAP1188Component final : public Component, public i2c::I2CDevice {
  public:
-  void register_channel(CAP1188Channel *channel) { this->channels_.push_back(channel); }
+#ifdef USE_CAP1188_CHANNELS_PUBLISHER
+  HUB_PUBLISHER(channels, uint8_t)
+#endif
   void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
   void set_allow_multiple_touches(bool allow_multiple_touches) {
     this->allow_multiple_touches_ = allow_multiple_touches ? 0x41 : 0x80;
@@ -50,7 +46,6 @@ class CAP1188Component final : public Component, public i2c::I2CDevice {
  protected:
   void finish_setup_();
 
-  std::vector<CAP1188Channel *> channels_{};
   uint8_t touch_threshold_{0x20};
   uint8_t allow_multiple_touches_{0x80};
 

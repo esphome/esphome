@@ -79,9 +79,10 @@ void CAP1188Component::loop() {
   if (touched)
     this->update_register(CAP1188_MAIN, CAP1188_MAIN_INT, 0);
 
-  for (auto *channel : this->channels_) {
-    channel->process(touched);
-  }
+#ifdef USE_CAP1188_CHANNELS_PUBLISHER
+  if (this->channels_publisher_ != nullptr)
+    this->channels_publisher_(touched);
+#endif
 }
 
 }  // namespace esphome::cap1188

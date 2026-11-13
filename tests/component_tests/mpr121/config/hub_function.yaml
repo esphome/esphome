@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+mpr121:
+  - id: hub
+    touch_threshold: 0x10
+    release_threshold: 0x08
+  - id: idle_hub
+    address: 0x5B
+
+binary_sensor:
+  - platform: mpr121
+    mpr121_id: hub
+    id: key0
+    channel: 0
+  - platform: mpr121
+    mpr121_id: hub
+    id: key3
+    channel: 3
+    touch_threshold: 0x20

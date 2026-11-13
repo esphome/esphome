@@ -13,6 +13,15 @@ MULTI_CONF = True
 rdm6300_ns = cg.esphome_ns.namespace("rdm6300")
 RDM6300Component = rdm6300_ns.class_("RDM6300Component", cg.Component, uart.UARTDevice)
 
+# Publishes the card binary sensors for each tag read; returns whether one matched
+CARDS_PUBLISHER = cg.HubFunction(
+    "cards",
+    cg.bool_,
+    [(cg.uint32, "tag")],
+    define="USE_RDM6300_CARDS_PUBLISHER",
+)
+TAG = CARDS_PUBLISHER.param("tag")
+
 _AUTOMATION_LISTS = (
     automation.AutomationList(CONF_ON_TAG, "RDM6300_ON_TAG_COUNT", [(cg.uint32, "x")]),
 )

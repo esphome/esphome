@@ -12,6 +12,15 @@ ttp229_bsf_ns = cg.esphome_ns.namespace("ttp229_bsf")
 
 TTP229BSFComponent = ttp229_bsf_ns.class_("TTP229BSFComponent", cg.Component)
 
+# Publishes the channel binary sensors from the touch status read on each loop
+CHANNELS_PUBLISHER = cg.HubFunction(
+    "channels",
+    cg.void,
+    [(cg.uint16, "touched")],
+    define="USE_TTP229_BSF_CHANNELS_PUBLISHER",
+)
+TOUCHED = CHANNELS_PUBLISHER.param("touched")
+
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
     {

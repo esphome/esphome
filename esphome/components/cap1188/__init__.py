@@ -17,6 +17,15 @@ cap1188_ns = cg.esphome_ns.namespace("cap1188")
 CONF_CAP1188_ID = "cap1188_id"
 CAP1188Component = cap1188_ns.class_("CAP1188Component", cg.Component, i2c.I2CDevice)
 
+# Publishes the channel binary sensors from the touch status read on each loop
+CHANNELS_PUBLISHER = cg.HubFunction(
+    "channels",
+    cg.void,
+    [(cg.uint8, "touched")],
+    define="USE_CAP1188_CHANNELS_PUBLISHER",
+)
+TOUCHED = CHANNELS_PUBLISHER.param("touched")
+
 MULTI_CONF = True
 CONFIG_SCHEMA = (
     cv.Schema(
