@@ -145,11 +145,10 @@ void DucoTextSensor::publish_serial_number_(const DucoMessage &message) {
 void DucoTextSensor::publish_version_(const DucoMessage &message) {
   if (message.size < 7)
     return;
-  const uint16_t major = encode_uint16(message.data[3], message.data[2]);
+  const unsigned major = encode_uint16(message.data[3], message.data[2]);
+  const unsigned minor = message.data[4], patch = message.data[6], build = message.data[5];
   char version[20];
-  snprintf(version, sizeof(version), "%u.%u.%u.%u", static_cast<unsigned>(major),
-           static_cast<unsigned>(message.data[4]), static_cast<unsigned>(message.data[6]),
-           static_cast<unsigned>(message.data[5]));
+  snprintf(version, sizeof(version), "%u.%u.%u.%u", major, minor, patch, build);
   this->publish_state(version);
 }
 
