@@ -60,8 +60,8 @@ TEST(HoermannHcpDoorStateTest, FollowsTheDoorState) {
   connect_controller(door);
 
   const std::pair<uint16_t, const char *> states[] = {
-      {0x2000, "Open"},           {0x0200, "Closing"},        {0x4000, "Closed"},    {0x0900, "Moving to vent"},
-      {0x0A00, "Moving to vent"}, {0x0500, "Moving to half"}, {0x8000, "Half open"}, {0x0100, "Opening"},
+      {0x2000, "Open"},           {0x0200, "Closing"},        {0x4000, "Closed"},         {0x0900, "Moving to vent"},
+      {0x0A00, "Moving to vent"}, {0x0500, "Moving to half"}, {0x8000, "Half open"},      {0x0100, "Opening"},
       {0x0000, "Stopped"},        {0x0061, "Vent position"},  {0x0600, "Moving to half"},
   };
   for (const auto &[reg, text] : states) {
