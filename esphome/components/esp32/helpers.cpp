@@ -33,34 +33,18 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 
 LwIPLock::LwIPLock() {
 #ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-  // When CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled, lwIP uses a global mutex to protect
-  // its internal state. Any thread can take this lock to safely access lwIP APIs.
-  //
-  // sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) returns true if the current thread
-  // already holds the lwIP core lock. This prevents recursive locking attempts and
-  // allows nested LwIPLock instances to work correctly.
-  //
-  // If we don't already hold the lock, acquire it. This will block until the lock
-  // is available if another thread currently holds it.
+  // A thread that already holds the core lock (lwIP took it for a tcpip_api_call or netif callback, or an
+  // outer LwIPLock did) must not take it again, and must not release it when this nested guard ends.
   if (!sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
     LOCK_TCPIP_CORE();
+    this->locked_ = true;
   }
 #endif
 }
 
 LwIPLock::~LwIPLock() {
 #ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-  // Only release the lwIP core lock if this thread currently holds it.
-  //
-  // sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) queries lwIP's internal lock
-  // ownership tracking. It returns true only if the current thread is registered
-  // as the lock holder.
-  //
-  // This check is essential because:
-  // 1. We may not have acquired the lock in the constructor (if we already held it)
-  // 2. The lock might have been released by other means between constructor and destructor
-  // 3. Calling UNLOCK_TCPIP_CORE() without holding the lock causes undefined behavior
-  if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
+  if (this->locked_) {
     UNLOCK_TCPIP_CORE();
   }
 #endif
