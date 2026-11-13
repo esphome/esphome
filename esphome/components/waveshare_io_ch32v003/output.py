@@ -27,7 +27,7 @@ def validate_pwm_limits(config: ConfigType) -> ConfigType:
     return config
 
 
-CONF_SAFE_PWM_LEVELS_SCHEMA = cv.Schema(
+_SAFE_PWM_LEVELS_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_MIN_VALUE, default=DUTY_DEFAULT_MIN): cv.uint8_t,
         cv.Optional(CONF_MAX_VALUE, default=DUTY_DEFAULT_MAX): cv.uint8_t,
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WAVESHARE_IO_CH32V003_ID): cv.use_id(
                 WaveshareIOCH32V003Component
             ),
-            cv.Optional(CONF_SAFE_PWM_LEVELS): CONF_SAFE_PWM_LEVELS_SCHEMA,
+            cv.Optional(CONF_SAFE_PWM_LEVELS): _SAFE_PWM_LEVELS_SCHEMA,
         }
     ),
     validate_pwm_limits,

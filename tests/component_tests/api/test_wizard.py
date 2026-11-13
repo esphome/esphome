@@ -1,6 +1,7 @@
 """Tests for the api wizard: schema, final validation and generated tables."""
 
 from collections.abc import Callable
+import importlib
 import json
 from pathlib import Path
 import random
@@ -8,13 +9,20 @@ import re
 import string
 import textwrap
 
+from aioesphomeapi.model import COMPONENT_TYPE_TO_INFO
 import pytest
 
 from esphome.components.api import wizard
 from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_DOMAINS
 from esphome.config import load_config
 from esphome.core import CORE, ID
-from esphome.helpers import fnv1_hash, fnv1a_32bit_hash, zstd_module
+from esphome.cpp_generator import MockObjClass
+from esphome.helpers import (
+    fnv1_hash,
+    fnv1_hash_object_id,
+    fnv1a_32bit_hash,
+    zstd_module,
+)
 from tests.component_tests.helpers import get_define_value
 
 ESP32_HEADER = """
@@ -639,6 +647,10 @@ def test_number_input_accepts_input_number(tmp_path: Path) -> None:
     assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
 
 
+def _buffer(main_cpp: str, input_id: str) -> str:
+    return re.search(rf"\{{{fnv1_hash(input_id)}u, (\w+)", main_cpp)[1]
+
+
 def test_text_select_and_button_default_to_their_domains(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
@@ -658,7 +670,7 @@ def test_text_select_and_button_default_to_their_domains(
     assert filters[fnv1_hash("ha_number")] == [{"domain": ["input_number", "number"]}]
     assert filters[fnv1_hash("ha_binary")] is None
     for entity in ("ha_txt", "ha_select", "ha_button"):
-        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+        assert f"{entity}->set_entity_id({_buffer(main_cpp, entity)});" in main_cpp
 
 
 @pytest.mark.parametrize(
@@ -774,9 +786,14 @@ def test_the_blob_is_the_exact_json_document(
                 "description": "Pick",
                 "entities": [
                     # No device_id for the main device, and no description when unset
-                    {"key": entity_hash(main_cpp, "sw"), "description": "Enable"},
+                    {
+                        "key": entity_hash(main_cpp, "sw"),
+                        "platform": "switch",
+                        "description": "Enable",
+                    },
                     {
                         "key": entity_hash(main_cpp, "sw2"),
+                        "platform": "switch",
                         "device_id": fnv1a_32bit_hash("kitchen_dev"),
                     },
                 ],
@@ -851,8 +868,7 @@ def test_inputs_have_buffers_hashes_and_a_table(
 ) -> None:
     main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
 
-    # The buffer holds the YAML entity ID until the wizard sets another
-    assert 'static char api_wizard_input_ha_sensor[256] = "";' in main_cpp
+    assert f"static char {_buffer(main_cpp, 'ha_sensor')}[256];" in main_cpp
     entities = (
         "ha_sensor",
         "ha_binary",
@@ -865,14 +881,14 @@ def test_inputs_have_buffers_hashes_and_a_table(
         "weather_input",
         "unset_input",
     )
-    for entity in entities:
-        assert f"{{{fnv1_hash(entity)}u, api_wizard_input_{entity}}}" in main_cpp
+    buffers = {entity: _buffer(main_cpp, entity) for entity in entities}
+    assert len(set(buffers.values())) == len(entities)
     assert get_define_value("API_WIZARD_INPUT_COUNT") == str(len(entities))
     for entity in entities[:-2]:
-        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+        assert f"{entity}->set_entity_id({buffers[entity]});" in main_cpp
     # The standalone inputs are objects that read the same buffer
-    assert "WizardInput(api_wizard_input_weather_input)" in main_cpp
-    assert "WizardInput(api_wizard_input_unset_input)" in main_cpp
+    assert f"WizardInput({buffers['weather_input']})" in main_cpp
+    assert f"WizardInput({buffers['unset_input']})" in main_cpp
     # Not an input, so it keeps its constant
     assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
 
@@ -954,9 +970,7 @@ def test_an_entity_with_an_entity_id_that_is_no_input_is_valid(
 
     # Static entries keep their literal and are kept apart from the wizard buffers
     assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
-    assert "api_wizard_input_ha_plain_sensor" not in main_cpp
-    # Every buffer starts empty
-    assert '] = "sensor.' not in main_cpp.split("API_WIZARD_INPUTS")[0]
+    assert f"{fnv1_hash('ha_plain_sensor')}u" not in main_cpp
 
 
 @pytest.mark.parametrize(
@@ -1033,15 +1047,11 @@ def test_multiple_input_document_and_table(
         {"key": fnv1_hash("single")},
     ]
     # Only a multiple entry names its buffer size
-    assert 'static char api_wizard_input_cals[1024] = "";' in main_cpp
-    assert 'static char api_wizard_input_cals_default[256] = "";' in main_cpp
-    assert 'static char api_wizard_input_single[256] = "";' in main_cpp
-    assert f"{{{fnv1_hash('cals')}u, api_wizard_input_cals, 1024}}" in main_cpp
-    assert (
-        f"{{{fnv1_hash('cals_default')}u, api_wizard_input_cals_default, 256}}"
-        in main_cpp
-    )
-    assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
+    for input_id, size in (("cals", 1024), ("cals_default", 256), ("single", 256)):
+        assert f"static char {_buffer(main_cpp, input_id)}[{size}];" in main_cpp
+    assert f"{_buffer(main_cpp, 'cals')}, 1024}}" in main_cpp
+    assert f"{_buffer(main_cpp, 'cals_default')}, 256}}" in main_cpp
+    assert f"{_buffer(main_cpp, 'single')}}}" in main_cpp
 
 
 def test_inputs_without_multiple_keep_the_two_field_table(
@@ -1051,7 +1061,7 @@ def test_inputs_without_multiple_keep_the_two_field_table(
         write_config(tmp_path, ESP32_HEADER, wizard_inputs("- id: single"))
     )
 
-    assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
+    assert f"{_buffer(main_cpp, 'single')}}}" in main_cpp
     assert "MULTIPLE_INPUTS" not in {d.name for d in CORE.defines}
 
 
@@ -1074,14 +1084,204 @@ def test_an_entity_role_is_sent_with_the_entity(
     assert wizard_entities(main_cpp) == [
         {
             "key": entity_hash(main_cpp, "sw"),
+            "platform": "switch",
             "description": "Enable",
             "role": "example.enable",
         },
         {
             "key": entity_hash(main_cpp, "sw2"),
+            "platform": "switch",
             "device_id": fnv1a_32bit_hash("kitchen_dev"),
         },
     ]
+
+
+def test_entities_sharing_a_name_are_told_apart_by_platform(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    entities = """
+        sensor:
+          - platform: template
+            id: power_sensor
+            name: Power
+        switch:
+          - platform: template
+            id: power_switch
+            name: Power
+            optimistic: true
+        """
+    pages = """
+        - entities:
+            - id: power_sensor
+            - id: power_switch
+        """
+
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    # The key is the same, so the platform is what says which entity is meant
+    key = fnv1_hash_object_id("Power")
+    assert wizard_entities(main_cpp) == [
+        {"key": key, "platform": "sensor"},
+        {"key": key, "platform": "switch"},
+    ]
+
+
+def test_a_datetime_entity_has_the_platform_of_its_type(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    entities = """
+        datetime:
+          - platform: template
+            id: dt_date
+            name: Day
+            type: date
+            optimistic: true
+          - platform: template
+            id: dt_time
+            name: Hour
+            type: time
+            optimistic: true
+          - platform: template
+            id: dt_datetime
+            name: Moment
+            type: datetime
+            optimistic: true
+        """
+    pages = """
+        - entities:
+            - id: dt_date
+            - id: dt_time
+            - id: dt_datetime
+        """
+
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    assert wizard_entities(main_cpp) == [
+        {"key": fnv1_hash_object_id("Day"), "platform": "date"},
+        {"key": fnv1_hash_object_id("Hour"), "platform": "time"},
+        {"key": fnv1_hash_object_id("Moment"), "platform": "datetime"},
+    ]
+
+
+def test_an_entity_declared_in_its_component_has_the_platform_of_its_class(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    entities = """
+        uart:
+          tx_pin: 17
+          rx_pin: 16
+          baud_rate: 9600
+        gps:
+          latitude:
+            id: gps_lat
+            name: Latitude
+        """
+    pages = """
+        - entities:
+            - id: gps_lat
+        """
+
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    assert wizard_entities(main_cpp) == [
+        {"key": fnv1_hash_object_id("Latitude"), "platform": "sensor"}
+    ]
+
+
+def test_an_entity_of_a_platform_the_wizard_does_not_know_is_rejected(
+    tmp_path: Path,
+) -> None:
+    entities = """
+        psram:
+        i2c:
+          id: camera_bus
+          sda: 25
+          scl: 23
+        esp32_camera:
+          id: test_camera
+          name: Camera
+          data_pins: [17, 35, 34, 5, 39, 18, 36, 19]
+          vsync_pin: 22
+          href_pin: 26
+          pixel_clock_pin: 21
+          external_clock:
+            pin: 27
+          i2c_id: camera_bus
+        """
+    pages = """
+        - entities:
+            - id: test_camera
+        """
+
+    errors = config_errors(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    assert any(
+        "Entity 'test_camera' is not of a platform the wizard can show" in error
+        for error in errors
+    ), errors
+
+
+@pytest.mark.parametrize(
+    ("class_name", "platform"), wizard.WIZARD_ENTITY_PLATFORMS.items()
+)
+def test_every_wizard_entity_platform_names_a_real_entity_class(
+    class_name: str, platform: str
+) -> None:
+    namespace, _ = class_name.split("::")
+    component = importlib.import_module(
+        f"esphome.components.{namespace.removesuffix('_')}"
+    )
+    # Light keeps its classes in a submodule
+    modules = [component, *(getattr(component, "types", None),)]
+    classes = {
+        str(value)
+        for module in modules
+        if module is not None
+        for value in vars(module).values()
+        if isinstance(value, MockObjClass)
+    }
+    assert class_name in classes
+    # The name the API client knows the entity type by
+    assert platform in COMPONENT_TYPE_TO_INFO
+
+
+# Entity platforms of the API that a wizard page cannot show
+WIZARD_UNSUPPORTED_PLATFORMS: set[str] = {
+    # ESP32Camera derives from EntityBase directly, with no camera base class to recognise
+    "camera",
+    # MediaPlayer does not declare EntityBase, so the page's use_id(EntityBase) already rejects it
+    "media_player",
+    # No ESPHome component provides one
+    "siren",
+}
+
+
+def test_every_api_entity_platform_is_known_to_the_wizard() -> None:
+    """A new entity platform needs a WIZARD_ENTITY_PLATFORMS entry, or a reason to be left out."""
+    proto = (
+        Path(wizard.__file__).parent.joinpath("api.proto").read_text(encoding="utf-8")
+    )
+    messages = re.findall(r"message ListEntities(?!Done|Services)\w+Response \{", proto)
+    # The ifdef of each ListEntities message names its platform: USE_SENSOR, USE_DATETIME_DATE, ...
+    ifdefs = re.findall(
+        r"message ListEntities(?!Done|Services)\w+Response \{[^}]*?"
+        r'option \(ifdef\) = "USE_(\w+)";',
+        proto,
+    )
+    assert len(ifdefs) == len(messages)
+    proto_platforms = {ifdef.lower().removeprefix("datetime_") for ifdef in ifdefs}
+    assert (
+        set(wizard.WIZARD_ENTITY_PLATFORMS.values()) | WIZARD_UNSUPPORTED_PLATFORMS
+        == proto_platforms
+    )
 
 
 def test_an_entity_with_a_role_may_be_in_the_wizard_twice(tmp_path: Path) -> None:
