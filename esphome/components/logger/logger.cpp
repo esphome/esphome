@@ -7,6 +7,14 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#if defined(USE_ESP32) && defined(USE_NETWORK)
+#include <sdkconfig.h>
+#if defined(CONFIG_LWIP_TCPIP_CORE_LOCKING) && defined(USE_ESPHOME_TASK_LOG_BUFFER)
+#include "lwip/sys.h"
+#define USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+#endif
+#endif
+
 namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
@@ -42,6 +50,15 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Fast path: main thread, no recursion (99.9% of all logs)
   // Pass nullptr for thread_name since we already know this is the main task
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+    // lwIP code run under the core lock (tcpip_api_call, netif callbacks) can log. A listener that writes
+    // to a socket would take that lock again and deadlock, so queue the message for loop() instead.
+    if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED))
+        [[unlikely]] {
+      this->log_vprintf_non_main_thread_(level, tag, line, format, args, get_thread_name_(current_task));
+      return;
+    }
+#endif
     this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
     return;
   }
