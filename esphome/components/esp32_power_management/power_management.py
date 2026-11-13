@@ -211,7 +211,7 @@ _validate_single_instance = fv.unique_platform_key(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     _validate_single_instance(config)
     full_config = fv.full_config.get()
     boot_freq = full_config[esp32.DOMAIN][esp32.CONF_CPU_FREQUENCY]
@@ -251,7 +251,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"{CONF_POWER_DOWN_FLASH} is not allowed when the device has PSRAM",
             path=[CONF_POWER_DOWN_FLASH],
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

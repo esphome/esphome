@@ -56,16 +56,15 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     if CONF_ACTUAL_CURRENT not in config:
-        return config
+        return
     if fv.get_declaring_config(config[CONF_TMC2209_ID]).get(CONF_ANALOG_CURRENT_SCALE):
         raise cv.Invalid(
             f"'{CONF_ACTUAL_CURRENT}' can't be used with '{CONF_ANALOG_CURRENT_SCALE}', "
             "the current then depends on VREF",
             path=[CONF_ACTUAL_CURRENT],
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

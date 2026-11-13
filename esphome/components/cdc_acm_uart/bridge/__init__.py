@@ -47,7 +47,7 @@ def _reject_debug(uart_conf: ConfigType) -> ConfigType:
     return uart_conf
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Before the claim, which rejects only a dummy_receiver, not the whole debug block.
     fv.id_declaration_match_schema(_reject_debug)(config[CONF_UART_ID])
     # Bridges of any platform must own their interfaces exclusively; shared ring
@@ -58,7 +58,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # Bare `id:` references (a uart.write action) cannot be distinguished; not caught.
     uart.claim_exclusive(config, BRIDGE_DOMAIN)
     uart.claim_exclusive(config, BRIDGE_DOMAIN, CONF_USB_CDC_ACM_ID)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

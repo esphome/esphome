@@ -37,7 +37,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Two muxes on one bridge would each believe they own the bus.
     owned = fv.full_config.get().data.setdefault(DOMAIN, set())
     bridge_id = str(config[CONF_BRIDGE_ID])
@@ -48,7 +48,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             [CONF_BRIDGE_ID],
         )
     owned.add(bridge_id)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

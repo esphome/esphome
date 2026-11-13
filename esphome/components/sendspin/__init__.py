@@ -381,7 +381,7 @@ def _has_pairing_method(config: ConfigType) -> bool:
     return CONF_STATIC_PAIRING_CODE in config or _offers_dynamic_pairing_code(config)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     dynamic_code = _offers_dynamic_pairing_code(config)
     # The protocol allows only one pairing code method.
     if dynamic_code and CONF_STATIC_PAIRING_CODE in config:
@@ -399,7 +399,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             CONF_STATIC_PAIRING_CODE,
         )
     _final_validate_source(config)
-    return config
 
 
 def _final_validate_source(config: ConfigType) -> None:

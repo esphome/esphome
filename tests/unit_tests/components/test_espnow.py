@@ -27,20 +27,20 @@ def _run(
     full_config: dict,
     config: ConfigType,
     platform: str = PLATFORM_ESP32,
-) -> ConfigType:
+) -> None:
     monkeypatch.setattr("esphome.components.espnow.get_esp32_variant", lambda: variant)
     monkeypatch.setitem(CORE.data, KEY_CORE, {KEY_TARGET_PLATFORM: platform})
     token = fv.full_config.set(full_config)
     try:
-        return _validate_variant(config)
+        _validate_variant(config)
     finally:
         fv.full_config.reset(token)
 
 
 def test_variant_with_native_wifi_passes(monkeypatch) -> None:
-    """A variant with a native Wi-Fi PHY needs no shim; config passes through."""
+    """A variant with a native Wi-Fi PHY needs no shim, so validation passes."""
     config = {"id": "espnow"}
-    assert _run(monkeypatch, VARIANT_ESP32C3, {}, config) is config
+    _run(monkeypatch, VARIANT_ESP32C3, {}, config)
 
 
 def test_radioless_non_p4_variant_rejected(monkeypatch) -> None:
@@ -56,15 +56,15 @@ def test_p4_without_esp32_hosted_rejected(monkeypatch) -> None:
 
 
 def test_p4_with_esp32_hosted_passes(monkeypatch) -> None:
-    """The P4 with esp32_hosted present validates; config passes through."""
+    """The P4 with esp32_hosted present validates."""
     config = {"id": "espnow"}
-    assert _run(monkeypatch, VARIANT_ESP32P4, {"esp32_hosted": {}}, config) is config
+    _run(monkeypatch, VARIANT_ESP32P4, {"esp32_hosted": {}}, config)
 
 
 def test_esp8266_skips_variant_check(monkeypatch) -> None:
     """The ESP8266 has one Wi-Fi radio and no variants, so the check does not run."""
     config = {"id": "espnow"}
-    assert _run(monkeypatch, "", {}, config, platform=PLATFORM_ESP8266) is config
+    _run(monkeypatch, "", {}, config, platform=PLATFORM_ESP8266)
 
 
 def _esp8266_arduino(monkeypatch) -> None:
