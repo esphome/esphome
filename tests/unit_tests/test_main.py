@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Generator
+import concurrent.futures
 from dataclasses import dataclass
+import io
 import json
 import logging
 import os
@@ -7440,6 +7442,323 @@ def test_run_multiple_configs_marks_children_warned(tmp_path: Path) -> None:
         main.run_multiple_configs([tmp_path / "a.yaml"], lambda f: ["esphome", str(f)])
 
     assert mock_run.call_args.kwargs["env"][main._INTEL_MACOS_WARNED_ENV] == "1"
+
+
+def _child_script(body: str) -> list[str]:
+    """Build a command that runs a small Python snippet as the child."""
+    return [sys.executable, "-c", body]
+
+
+def test_run_multiple_configs_parallel_runs_concurrently(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """With jobs > 1, children overlap and each one's output stays together."""
+    files = [tmp_path / f"device{i}.yaml" for i in range(3)]
+    # Each child waits until every child has started, so the batch can only
+    # finish if they really run at the same time.
+    script = (
+        "import sys, time, pathlib\n"
+        "d = pathlib.Path(sys.argv[1]); name = sys.argv[2]\n"
+        "(d / (name + '.started')).touch()\n"
+        "deadline = time.monotonic() + 30\n"
+        "while len(list(d.glob('*.started'))) < 3:\n"
+        "    if time.monotonic() > deadline: sys.exit(3)\n"
+        "    time.sleep(0.01)\n"
+        "print('out ' + name); print('err ' + name, file=sys.stderr)\n"
+    )
+
+    failed = main.run_multiple_configs(
+        files,
+        lambda f: [*_child_script(script), str(tmp_path), Path(f).stem],
+        jobs=3,
+    )
+
+    assert failed == 0
+    out = strip_ansi_codes(capfd.readouterr().out)
+    for f in files:
+        # stderr is merged into the same captured block as stdout
+        assert f"out {f.stem}\nerr {f.stem}\n" in out
+        assert f"  - {f}: SUCCESS" in out
+
+
+def test_run_multiple_configs_parallel_reports_failures(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """A failing child is counted and does not stop the others."""
+    good = tmp_path / "good.yaml"
+    bad = tmp_path / "bad.yaml"
+    secrets = tmp_path / "secrets.yaml"
+    script = "import sys; print('ran ' + sys.argv[1]); sys.exit(sys.argv[1] == 'bad')"
+
+    failed = main.run_multiple_configs(
+        [good, secrets, bad],
+        lambda f: [*_child_script(script), Path(f).stem],
+        jobs=2,
+    )
+
+    assert failed == 1
+    out = strip_ansi_codes(capfd.readouterr().out)
+    assert "ran good" in out
+    assert "ran bad" in out
+    assert "ran secrets" not in out
+    assert f"  - {good}: SUCCESS" in out
+    assert f"  - {bad}: FAILED" in out
+
+
+def test_run_multiple_configs_parallel_closes_stdin(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """Parallel children cannot block on a prompt: stdin reads hit EOF."""
+    files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
+    script = "import sys; print('stdin=' + repr(sys.stdin.read()))"
+
+    failed = main.run_multiple_configs(files, lambda f: _child_script(script), jobs=2)
+
+    assert failed == 0
+    assert capfd.readouterr().out.count("stdin=''") == 2
+
+
+def test_run_multiple_configs_parallel_command_not_found(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """A child that cannot be started is a failure, not a crash."""
+    files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
+
+    failed = main.run_multiple_configs(
+        files, lambda f: [str(tmp_path / "does-not-exist")], jobs=2
+    )
+
+    assert failed == 2
+    assert "Running command failed" in capfd.readouterr().out
+
+
+class _FakeTerminal(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+def test_run_multiple_configs_parallel_live_progress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a terminal: bars first, then every log in order with no bar in it."""
+    files = [tmp_path / "slow.yaml", tmp_path / "fast.yaml", tmp_path / "bad.yaml"]
+    script = (
+        "import sys, time\n"
+        "from esphome.helpers import ProgressBar\n"
+        "name = sys.argv[1]\n"
+        "print('INFO Connecting ' + name, file=sys.stderr)\n"
+        "bar = ProgressBar('Uploading')\n"
+        "for i in range(0, 101, 10):\n"
+        "    bar.update(i / 100)\n"
+        "    if name == 'slow': time.sleep(0.02)\n"
+        "    if name == 'bad' and i == 40:\n"
+        "        bar.done(); print('ERROR timed out', file=sys.stderr); sys.exit(1)\n"
+        "bar.done()\n"
+        "print('INFO OTA successful ' + name, file=sys.stderr)\n"
+    )
+    terminal = _FakeTerminal()
+    monkeypatch.setattr(sys, "stdout", terminal)
+
+    failed = main.run_multiple_configs(
+        files, lambda f: [*_child_script(script), Path(f).stem], jobs=3
+    )
+
+    assert failed == 1
+    out = strip_ansi_codes(terminal.getvalue())
+    bars, logs = out.split(f"Processing {files[0]}\n", 1)
+    # Each redraw returns to column 0 before clearing the block
+    bars = bars.replace("\r", "")
+    # Live block: every job reached its final state
+    for name in ("slow", "fast"):
+        assert re.search(rf"^ {name} .*\] 100%$", bars, re.MULTILINE)
+    assert re.search(r"^ bad +FAILED +\[.*\]  40%$", bars, re.MULTILINE)
+    assert re.search(r"^ Total \(3/3\) .*\] 100%$", bars, re.MULTILINE)
+    # Logs come afterwards, in the order given, without any bar frames
+    assert "Uploading" not in logs
+    assert "\r" not in logs
+    assert logs.index("OTA successful slow") < logs.index(f"Processing {files[1]}")
+    assert logs.index(f"Processing {files[1]}") < logs.index("OTA successful fast")
+    assert logs.index("OTA successful fast") < logs.index(f"Processing {files[2]}")
+    assert "INFO Connecting bad\nERROR timed out\n" in logs
+    assert f"  - {files[2]}: FAILED" in logs
+
+
+def test_run_multiple_configs_parallel_live_same_file_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Configs that share a file name are told apart by their full path."""
+    files = [tmp_path / "a" / "light.yaml", tmp_path / "b" / "light.yaml"]
+    terminal = _FakeTerminal()
+    monkeypatch.setattr(sys, "stdout", terminal)
+
+    failed = main.run_multiple_configs(
+        files, lambda f: _child_script("print('ran')"), jobs=2
+    )
+
+    assert failed == 0
+    bars = strip_ansi_codes(terminal.getvalue()).split("Processing ", 2)[1]
+    for f in files:
+        assert str(f)[:20] in bars
+
+
+def test_run_multiple_configs_parallel_interrupt_stops_children(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """Ctrl-C terminates running children and starts no queued ones."""
+    files = [tmp_path / f"device{i}.yaml" for i in range(4)]
+    script = (
+        "import sys, time, pathlib\npathlib.Path(sys.argv[1]).touch()\ntime.sleep(60)\n"
+    )
+    started: list[Path] = []
+
+    def build_command(f: Path) -> list[str]:
+        marker = tmp_path / f"{Path(f).stem}.started"
+        started.append(marker)
+        return [*_child_script(script), str(marker)]
+
+    def interrupt_once_running(futures: dict) -> None:
+        # Wait for the first two children, then act like Ctrl-C
+        deadline = time.monotonic() + 30
+        while not all(m.exists() for m in started[:2]):
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        raise KeyboardInterrupt
+
+    begin = time.monotonic()
+    with (
+        patch.object(concurrent.futures, "as_completed", interrupt_once_running),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        main.run_multiple_configs(files, build_command, jobs=2)
+
+    # The children sleep for a minute; returning early means they were stopped
+    assert time.monotonic() - begin < 30
+    assert not started[2].exists()
+    assert not started[3].exists()
+
+
+def test_run_multiple_configs_parallel_live_command_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A child that cannot be started still retires its progress row."""
+    files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
+    terminal = _FakeTerminal()
+    monkeypatch.setattr(sys, "stdout", terminal)
+
+    failed = main.run_multiple_configs(
+        files, lambda f: [str(tmp_path / "does-not-exist")], jobs=2
+    )
+
+    assert failed == 2
+    out = strip_ansi_codes(terminal.getvalue()).replace("\r", "")
+    assert re.search(r"^ a +FAILED ", out, re.MULTILINE)
+    assert re.search(r"^ b +FAILED ", out, re.MULTILINE)
+    assert re.search(r"^ Total \(2/2\) ", out, re.MULTILINE)
+    assert out.count("Running command failed") == 2
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_run_config_captured_does_not_start_after_stop(
+    tmp_path: Path, live: bool
+) -> None:
+    """A worker that reaches its child after Ctrl-C must not start it."""
+    marker = tmp_path / "started"
+    script = "import sys, pathlib; pathlib.Path(sys.argv[1]).touch()"
+    children = main._ChildProcesses()
+    children.stop()
+    display = MagicMock() if live else None
+
+    rc, output = main._run_config_captured(
+        [*_child_script(script), str(marker)], dict(os.environ), children, display, "a"
+    )
+
+    assert rc != 0
+    assert "stopped" in output
+    assert not marker.exists()
+    if display is not None:
+        display.finish.assert_called_once_with("a", False)
+
+
+def test_child_processes_stop_terminates_running_children() -> None:
+    """stop() ends children that were started before it."""
+    children = main._ChildProcesses()
+    proc = children.start(
+        _child_script("import time; print('up', flush=True); time.sleep(60)"),
+        dict(os.environ),
+    )
+    assert proc is not None
+    with proc:
+        assert proc.stdout.readline().strip() == b"up"
+        children.stop()
+        assert proc.wait(timeout=30) != 0
+    children.finished(proc)
+
+
+def test_run_multiple_configs_single_job_streams(tmp_path: Path) -> None:
+    """jobs=1 keeps the sequential, live-streaming path."""
+    files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
+    with (
+        patch.object(main, "run_external_process", return_value=0) as mock_run,
+        patch.object(main, "_run_config_captured") as mock_captured,
+    ):
+        assert main.run_multiple_configs(files, lambda f: ["x", str(f)], jobs=1) == 0
+
+    assert mock_run.call_count == 2
+    mock_captured.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "expected_jobs", "expected_device"),
+    [
+        ([], 1, None),
+        (["--"], 1, None),
+        (["--jobs", "4"], 4, ["OTA"]),
+        # Added options must not land after the end-of-options marker
+        (["--jobs", "4", "--"], 4, ["OTA"]),
+        (["-j4"], 4, ["OTA"]),
+        (["--jobs", "4", "--device", "192.168.1.5"], 4, ["192.168.1.5"]),
+    ],
+)
+def test_run_esphome_upload_jobs(
+    tmp_path: Path,
+    extra_args: list[str],
+    expected_jobs: int,
+    expected_device: list[str] | None,
+) -> None:
+    """--jobs reaches run_multiple_configs and defaults children to OTA.
+
+    ``expected_device`` is the ``--device`` each child ends up with.
+    """
+    yaml1 = tmp_path / "device1.yaml"
+    yaml2 = tmp_path / "device2.yaml"
+    setup_core(tmp_path=tmp_path)
+
+    with patch.object(main, "run_multiple_configs", return_value=0) as mock_multi:
+        result = run_esphome(["esphome", "upload", *extra_args, str(yaml1), str(yaml2)])
+
+    assert result == 0
+    files, build_command = mock_multi.call_args.args
+    assert files == [str(yaml1), str(yaml2)]
+    assert mock_multi.call_args.kwargs["jobs"] == expected_jobs
+    cmd = build_command(str(yaml1))
+    # One config per child, last on the command line
+    assert cmd[-1] == str(yaml1)
+    assert str(yaml2) not in cmd
+    # What the child makes of it: one configuration, and the device if added
+    child_args = main.parse_args(cmd[len(main.ESPHOME_COMMAND) - 1 :])
+    assert child_args.configuration == [str(yaml1)]
+    assert child_args.device == expected_device
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "many"])
+def test_upload_jobs_rejects_non_positive(
+    value: str, capsys: CaptureFixture[str]
+) -> None:
+    """--jobs must be a positive integer."""
+    with pytest.raises(SystemExit):
+        main.parse_args(["esphome", "upload", "--jobs", value, "a.yaml", "b.yaml"])
+
+    assert "is not a positive integer" in capsys.readouterr().err
 
 
 def _make_checkout(root: Path) -> Path:

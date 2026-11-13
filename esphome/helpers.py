@@ -757,6 +757,10 @@ def sanitize(value: str) -> str:
     return _DISALLOWED_CHARS.sub("_", value)
 
 
+# Set in a child's environment so ProgressBar draws into a pipe.
+ENV_FORCE_PROGRESS = "ESPHOME_FORCE_PROGRESS"
+
+
 class ProgressBar:
     """A simple terminal progress bar for upload operations."""
 
@@ -772,8 +776,12 @@ class ProgressBar:
         # ``stdout=PIPE, stderr=STDOUT`` and parses the ``\rUploading: NN%``
         # frames to drive its own progress UI -- gating purely on ``isatty()``
         # silently disables every dashboard-side flash-progress indicator.
+        #
+        # A parent running several uploads at once does the same through a
+        # pipe to draw one bar per child, and asks for the frames with
+        # ESPHOME_FORCE_PROGRESS (see esphome.multi_progress).
         is_tty = hasattr(self.stream, "isatty") and self.stream.isatty()
-        self.enabled = is_tty or CORE.dashboard
+        self.enabled = is_tty or CORE.dashboard or get_bool_env(ENV_FORCE_PROGRESS)
 
     def update(self, progress: float) -> None:
         if not self.enabled:
