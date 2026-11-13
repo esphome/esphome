@@ -27,3 +27,6 @@ esphome:
           width: !lambda "return 320;"
           height: 240
       - esp32_camera.reset_window: test_camera
+      - lambda: |-
+          id(test_camera).set_jpeg_quality(12);
+          id(test_camera).update_camera_parameters();
