@@ -15,6 +15,7 @@ from esphome.components.zephyr import (
     zephyr_variant_family,
 )
 from esphome.components.zephyr.const import KEY_BOOTLOADER
+from esphome.components.zephyr.framework_helpers import FrameworkSource
 from esphome.components.zephyr.variants import (
     MAINLINE,
     ZephyrSDK,
@@ -35,11 +36,25 @@ from esphome.const import (
 from esphome.core import CORE
 
 _SDK: ZephyrSDK = ZephyrSDK(
+    source=FrameworkSource(
+        name="Zephyr",
+        url="https://example.com/zephyr",
+        optional=("hal_.*",),
+        required=frozenset(),
+    ),
+    workspace_prefix="zephyr",
     default_version="4.5.0",
     min_version=cv.Version(4, 4, 0),
 )
 _VARIANT: ZephyrVariant = ZephyrVariant(sdk=_SDK, family="chipfam")
 _VENDOR_SDK: ZephyrSDK = ZephyrSDK(
+    source=FrameworkSource(
+        name="Vendor",
+        url="https://example.com/vendor",
+        optional=(),
+        required=frozenset(),
+    ),
+    workspace_prefix="vendor",
     default_version="2.0.0",
     min_version=cv.Version(2, 0, 0),
 )

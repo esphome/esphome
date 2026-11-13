@@ -10,31 +10,23 @@ from unittest.mock import MagicMock, patch
 import platformdirs
 import pytest
 
-from esphome.components.zephyr import framework, sdk_install
+from esphome.components.zephyr import framework, framework_helpers, sdk_install
+from esphome.components.zephyr.variants import MAINLINE
 from esphome.core import EsphomeError
 
 TOOLCHAIN: str = "riscv64-zephyr-elf"
 
 
-def test_check_and_install_builds_the_venv(tmp_path: Path) -> None:
-    """Each Zephyr version gets its own venv, built from zephyr/requirements.txt
-    under that version's install lock."""
-    with (
-        patch.object(framework, "get_zephyr_tools_path", return_value=tmp_path),
-        patch.object(framework, "ensure_venv") as ensure,
-        patch("filelock.FileLock") as file_lock,
-    ):
-        framework.check_and_install("v4.5.0")
-
-    ensure.assert_called_once_with(
-        tmp_path / "penvs" / "v4.5.0",
-        Path(framework.__file__).parent / "requirements.txt",
-        "v4.5.0",
-    )
-    assert framework._REQUIREMENTS.is_file()
-    assert [Path(c.args[0]).name for c in file_lock.call_args_list] == [
-        "penv-v4.5.0.lock"
+VERSION: str = "v4.5.0"
+HALS: frozenset[str] = frozenset({"hal_stm32"})
+# The project filter of a workspace with HALS
+FILTER: str = ",".join(
+    [
+        "-hal_.*",
+        "-nrf_hw_models",
+        *(f"+{h}" for h in sorted(HALS | MAINLINE.source.required)),
     ]
+)
 
 
 @pytest.fixture
@@ -42,6 +34,171 @@ def zephyr_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Keep the test out of the real ~/.cache/esphome."""
     monkeypatch.setenv("ESPHOME_ZEPHYR_PREFIX", str(tmp_path / "cache"))
     return (tmp_path / "cache").resolve()
+
+
+@pytest.fixture
+def workspace(zephyr_tools: Path) -> Path:
+    return zephyr_tools / "frameworks" / f"zephyr-{VERSION}"
+
+
+@pytest.fixture
+def mock_west(zephyr_tools: Path, workspace: Path) -> Iterator[MagicMock]:
+    """run_command_ok for west and pip, with a built venv; west init leaves a
+    workspace."""
+    (zephyr_tools / "penvs" / VERSION).mkdir(parents=True)
+
+    def _run(cmd: list[str], **kwargs: Any) -> bool:
+        if "init" in cmd:
+            _mark_installed(workspace)
+            (workspace / ".ready").unlink()
+        return True
+
+    with (
+        patch.object(framework, "ensure_venv", return_value=False),
+        patch.object(framework_helpers, "rmdir"),
+        patch.object(framework_helpers, "run_command_ok", side_effect=_run) as run,
+    ):
+        yield run
+
+
+def _subcommands(run: MagicMock) -> list[str]:
+    return [
+        c.args[0][c.args[0].index("west" if "west" in c.args[0] else "pip") + 1]
+        for c in run.call_args_list
+    ]
+
+
+def _west_call(run: MagicMock, subcommand: str) -> list[str]:
+    (cmd,) = (c.args[0] for c in run.call_args_list if subcommand in c.args[0])
+    return cmd[cmd.index(subcommand) :]
+
+
+def _mark_installed(workspace: Path, hals: frozenset[str] = HALS) -> None:
+    (workspace / ".west").mkdir(parents=True, exist_ok=True)
+    (workspace / ".west" / "config").touch()
+    (workspace / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
+    (workspace / "zephyr" / "scripts" / "requirements.txt").touch()
+    (workspace / ".west_projects").write_text(
+        "\n".join(sorted(hals | MAINLINE.source.required)), encoding="utf-8"
+    )
+    (workspace / ".ready").touch()
+
+
+def _check_and_install(hals: frozenset[str] = HALS) -> None:
+    framework.check_and_install(MAINLINE, VERSION, hals)
+
+
+def test_check_and_install_builds_the_venv(
+    zephyr_tools: Path, mock_west: MagicMock
+) -> None:
+    """Each Zephyr version gets its own venv, built from zephyr/requirements.txt
+    under that version's lock, inside the workspace's lock."""
+    with (
+        patch.object(framework, "ensure_venv", return_value=False) as ensure,
+        patch("filelock.FileLock") as file_lock,
+    ):
+        _check_and_install()
+
+    ensure.assert_called_once_with(
+        zephyr_tools / "penvs" / VERSION,
+        Path(framework.__file__).parent / "requirements.txt",
+        VERSION,
+    )
+    assert framework._REQUIREMENTS.is_file()
+    assert [Path(c.args[0]).name for c in file_lock.call_args_list] == [
+        f"zephyr-{VERSION}.lock",
+        f"penv-{VERSION}.lock",
+        f"penv-{VERSION}.lock",
+    ]
+
+
+def test_fresh_install_fetches_only_the_wanted_hals(
+    workspace: Path, mock_west: MagicMock
+) -> None:
+    _check_and_install()
+
+    assert _subcommands(mock_west) == ["init", "config", "update", "list", "install"]
+    assert _west_call(mock_west, "init") == [
+        "init",
+        "-m",
+        MAINLINE.source.url,
+        "-o=--depth=1",
+        "--mr",
+        VERSION,
+        str(workspace),
+    ]
+    assert _west_call(mock_west, "config")[-1] == FILTER
+    assert (workspace / ".ready").exists()
+    assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == (
+        sorted(HALS | MAINLINE.source.required)
+    )
+
+
+def test_installed_workspace_only_checks_the_hals(
+    zephyr_tools: Path, workspace: Path, mock_west: MagicMock
+) -> None:
+    """Every build checks the names, so an unknown HAL fails on any workspace; a
+    required HAL a later Zephyr dropped must not, so those are left out."""
+    _mark_installed(workspace)
+    (zephyr_tools / "penvs" / VERSION / ".zephyr_reqs_ready").touch()
+
+    _check_and_install()
+
+    assert _subcommands(mock_west) == ["list"]
+    assert _west_call(mock_west, "list")[-1:] == sorted(HALS)
+
+
+def test_unknown_hal_fails_first(workspace: Path, mock_west: MagicMock) -> None:
+    _mark_installed(workspace)
+    mock_west.side_effect = None
+    mock_west.return_value = False
+
+    with pytest.raises(EsphomeError, match="west list failed .* Zephyr v4.5.0"):
+        _check_and_install(frozenset({"hal_unknown"}))
+
+    assert _subcommands(mock_west) == ["list"]
+
+
+def test_new_hal_fetches_only_that_hal(
+    zephyr_tools: Path, workspace: Path, mock_west: MagicMock
+) -> None:
+    """A workspace only gains HALs; the projects already there are left alone."""
+    _mark_installed(workspace, frozenset({"hal_nordic"}))
+    (zephyr_tools / "penvs" / VERSION / ".zephyr_reqs_ready").touch()
+
+    _check_and_install()
+
+    assert _subcommands(mock_west) == ["list", "config", "update"]
+    assert _west_call(mock_west, "update")[-1:] == ["hal_stm32"]
+    assert "+hal_nordic" in _west_call(mock_west, "config")[-1]
+    assert "hal_nordic" in (workspace / ".west_projects").read_text(encoding="utf-8")
+
+
+def test_rebuilt_venv_reinstalls_only_zephyr_requirements(
+    zephyr_tools: Path, workspace: Path, mock_west: MagicMock
+) -> None:
+    _mark_installed(workspace)
+
+    with patch.object(framework, "ensure_venv", return_value=True):
+        _check_and_install()
+
+    assert _subcommands(mock_west) == ["list", "install"]
+    assert (zephyr_tools / "penvs" / VERSION / ".zephyr_reqs_ready").exists()
+
+
+def test_installed_workspace_gets_the_patches(
+    workspace: Path, mock_west: MagicMock
+) -> None:
+    _mark_installed(workspace)
+
+    with (
+        patch.object(framework, "patch_gen_defines_dts_path") as gen_defines,
+        patch.object(framework, "patch_west_build_source_dir_relpath") as west_build,
+    ):
+        _check_and_install()
+
+    gen_defines.assert_called_once_with(workspace)
+    west_build.assert_called_once_with(workspace)
 
 
 def _make_framework(tmp_path: Path, sdk_version: str = "1.0.1") -> Path:
