@@ -40,10 +40,14 @@ async def to_code(config: ConfigType) -> None:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
     elif CORE.is_rp2:
-        # https://github.com/ayushsharma82/RPAsyncTCP
-        # RPAsyncTCP is a drop-in replacement for AsyncTCP_RP2040W with better
-        # ESPAsyncWebServer compatibility
-        cg.add_library("ayushsharma82/RPAsyncTCP", "1.3.2")
+        # https://github.com/esphome-libs/RPAsyncTCP, a fork of ayushsharma82/RPAsyncTCP
+        # 1.3.2 that counts queued bytes before lwIP can send and ACK them, so
+        # canSend() does not stay false and SSE streams do not stall (wired Ethernet)
+        cg.add_library(
+            "RPAsyncTCP",
+            "1.3.2",
+            "https://github.com/esphome-libs/RPAsyncTCP#1.3.2-esphome.1",
+        )
     # Other platforms (host, etc) use socket-based implementation
 
 
