@@ -2533,12 +2533,12 @@ def validate_registry_entry(name, registry):
                 f"Did you forget to indent the block inside the {key}?"
             )
 
-        if value[key] is None:
-            value[key] = {}
-
         registry_entry = registry[key]
 
+        # copy before mutating: the caller may hold the YAML-parsed mapping
         value = value.copy()
+        if value[key] is None:
+            value[key] = {}
 
         with prepend_path([key]):
             value[key] = registry_entry.schema(value[key])
