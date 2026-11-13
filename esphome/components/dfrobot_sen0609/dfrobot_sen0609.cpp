@@ -329,7 +329,7 @@ void DFRobotSEN0609Component::parse_response_(const char *args) {
   while (this->response_count_ < MAX_RESPONSE_VALUES) {
     char *end;
     const float value = parse_float_prefix(args, &end);
-    // strtof also takes "nan" and "inf", which no setting can hold
+    // It also takes "nan" and "inf", which no setting can hold
     if (end == args || !std::isfinite(value))
       break;
     this->response_[this->response_count_++] = value;
