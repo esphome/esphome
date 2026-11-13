@@ -52,6 +52,10 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
   }
   light::LightTraits get_traits() override { return this->segments_[0].get_src()->get_traits(); }
+  bool applies_own_gamma(int32_t index) const override {
+    const AddressableSegment &seg = this->get_segment_(index);
+    return seg.get_src()->applies_own_gamma(this->get_src_index_(seg, index));
+  }
   void write_state(light::LightState *state) override {
     for (auto seg : this->segments_) {
       seg.get_src()->schedule_show();
@@ -65,13 +69,22 @@ class PartitionLightOutput final : public light::AddressableLight {
     PartitionColorAccessor(const PartitionLightOutput *parent) : parent_(parent) {}
 
     Color get(int32_t index) const override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)->color_uncorrect(color_view.get_raw());
+      bool own_gamma;
+      light::ESPColorView color_view = this->parent_->get_color_view_(index, own_gamma);
+      const light::ESPColorCorrection *correction = this->parent_->get_color_correction_(color_view);
+      if (own_gamma) {
+        return correction->color_unscale(color_view.get_raw());
+      }
+      return correction->color_uncorrect(color_view.get_raw());
     }
     uint8_t get_channel(int32_t index, uint8_t channel) const override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)
-          ->color_uncorrect_channel(channel, color_view.get_channel_raw(channel));
+      bool own_gamma;
+      light::ESPColorView color_view = this->parent_->get_color_view_(index, own_gamma);
+      const light::ESPColorCorrection *correction = this->parent_->get_color_correction_(color_view);
+      if (own_gamma) {
+        return correction->color_unscale_channel(channel, color_view.get_channel_raw(channel));
+      }
+      return correction->color_uncorrect_channel(channel, color_view.get_channel_raw(channel));
     }
     Color get_raw(int32_t index) const override { return this->parent_->get_color_view_(index).get_raw(); }
     uint8_t get_channel_raw(int32_t index, uint8_t channel) const override {
@@ -82,13 +95,17 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
 
     void set(int32_t index, Color color) override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      color_view.set_raw(this->parent_->get_color_correction_(color_view)->color_correct(color));
+      bool own_gamma;
+      light::ESPColorView color_view = this->parent_->get_color_view_(index, own_gamma);
+      const light::ESPColorCorrection *correction = this->parent_->get_color_correction_(color_view);
+      color_view.set_raw(own_gamma ? correction->color_scale(color) : correction->color_correct(color));
     }
     void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      color_view.set_channel_raw(
-          channel, this->parent_->get_color_correction_(color_view)->color_correct_channel(channel, value));
+      bool own_gamma;
+      light::ESPColorView color_view = this->parent_->get_color_view_(index, own_gamma);
+      const light::ESPColorCorrection *correction = this->parent_->get_color_correction_(color_view);
+      color_view.set_channel_raw(channel, own_gamma ? correction->color_scale_channel(channel, value)
+                                                    : correction->color_correct_channel(channel, value));
     }
     void set_raw(int32_t index, Color raw_color) override { this->parent_->get_color_view_(index).set_raw(raw_color); }
     void set_channel_raw(int32_t index, uint8_t channel, uint8_t raw_value) override {
@@ -108,7 +125,20 @@ class PartitionLightOutput final : public light::AddressableLight {
     const PartitionLightOutput *const parent_;
   };
 
-  light::ESPColorView get_color_view_(int32_t index) const;
+  const AddressableSegment &get_segment_(int32_t index) const;
+  int32_t get_src_index_(const AddressableSegment &seg, int32_t index) const;
+  light::ESPColorView get_color_view_(int32_t index) const {
+    const AddressableSegment &seg = this->get_segment_(index);
+    return (*seg.get_src())[this->get_src_index_(seg, index)];
+  }
+  /// The view plus whether the light behind it applies its own gamma
+  light::ESPColorView get_color_view_(int32_t index, bool &own_gamma) const {
+    const AddressableSegment &seg = this->get_segment_(index);
+    light::AddressableLight *src = seg.get_src();
+    const int32_t src_index = this->get_src_index_(seg, index);
+    own_gamma = src->applies_own_gamma(src_index);
+    return (*src)[src_index];
+  }
 
   // Gets the color correction associated with the specified color view.
   // The correction will only be valid until the next call to this method.

@@ -53,6 +53,9 @@ class AddressableLight : public LightOutput, public Component {
   ESPColorView operator[](int32_t index) const { return ESPColorView(this->accessor_, this->interpret_index_(index)); }
   inline ESPColorView get(int32_t index) const { return (*this)[index]; }
   virtual void clear_effect_data() = 0;
+  /// True when the light behind this pixel applies its own gamma, so a partition over it stores
+  /// brightness-scaled linear values instead of gamma-corrected ones
+  virtual bool applies_own_gamma(int32_t index) const { return false; }
   ESPRangeView range(int32_t from, int32_t to) {
     return ESPRangeView(this->accessor_, this->interpret_index_(from), this->interpret_index_(to));
   }
