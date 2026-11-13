@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS
@@ -50,9 +53,13 @@ def apply_genibus_bus_config(var: MockObj, config: ConfigType) -> None:
 
 
 async def register_genibus_device(var: MockObj, config: ConfigType) -> None:
-    """Register a device created with genibus_device_schema(), and give it a request slot on its bus."""
-    await cg.register_component(var, config)
+    """Attach a device created with genibus_device_schema() to its bus and give it a request slot there."""
     bus = await cg.get_variable(config[CONF_GENIBUS_ID])
     await cg.register_parented(var, bus)
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(_register_device(bus, var))
+
+
+def new_genibus_device(config: ConfigType, *args: Any) -> Coroutine[Any, Any, MockObj]:
+    """Construct, register and attach a device to its bus; args go to the constructor."""
+    return cg.new_bus_component(register_genibus_device, config, *args)

@@ -37,6 +37,9 @@ class GenibusBLE final : public genibus::GenibusBus, public ble_client::BLEClien
   static constexpr uint32_t SETUP_TIMEOUT_ID = 1;
 
   bool write_frame(std::span<const uint8_t> frame) override;
+  bool node_connected_() const {
+    return this->node_state == espbt::ClientState::CONNECTED || this->node_state == espbt::ClientState::ESTABLISHED;
+  }
   void link_up_();
   void link_down_();
   void link_fault_(const LogString *reason);

@@ -192,6 +192,18 @@ TEST(GenibusBleLinkState, RepeatedSubscriptionSettlesAgain) {
   EXPECT_TRUE(link.settled());
 }
 
+TEST(GenibusBleLinkState, ActiveFromTheDiscoveryUntilDown) {
+  LinkState link;
+  EXPECT_FALSE(link.is_active());
+  link.set_handles(GENI_HANDLE, DESCRIPTOR_HANDLE);
+  EXPECT_TRUE(link.is_active());
+  make_ready(link);
+  link.up();
+  EXPECT_TRUE(link.is_active());
+  link.down();
+  EXPECT_FALSE(link.is_active());
+}
+
 TEST(GenibusBleLinkState, DescriptorBelongsToThisConnection) {
   LinkState link;
   EXPECT_FALSE(link.is_our_descriptor(0));
