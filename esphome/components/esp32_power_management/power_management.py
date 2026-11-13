@@ -193,9 +193,8 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option(
         "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP", config[CONF_IDLE_TIME_BEFORE_SLEEP]
     )
-    # At 1000 Hz the tick step after a light sleep can overshoot the next wake time
-    # by a tick and trip vTaskStepTick's assert; IDF 6.0.1 added a Kconfig option to
-    # clamp it, older releases get the same clamp from tick_overflow_guard.cpp.
+    # Stop vTaskStepTick asserting on a tick overshoot after light sleep; built into
+    # IDF 6.0.1, backported by tick_overflow_guard.cpp before that.
     if idf_version() >= cv.Version(6, 0, 1):
         add_idf_sdkconfig_option("CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION", True)
     else:

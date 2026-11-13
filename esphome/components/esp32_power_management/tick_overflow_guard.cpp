@@ -6,10 +6,8 @@
 
 namespace esphome::esp32_power_management {}
 
-// Backport of IDF 6.0.1's CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION. After an automatic light sleep,
-// pm_impl.c steps the tick count by the time slept, which can exceed the expected idle time by a tick and
-// trip the configASSERT in vTaskStepTick(). Clamp a small overshoot to the expected idle time instead.
-// Names are mandated by the --wrap linker mechanism.
+// Backport of IDF 6.0.1 CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION: clamp a small tick overshoot
+// after light sleep so vTaskStepTick() does not assert.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming,cppcoreguidelines-avoid-non-const-global-variables)
 extern "C" {
 
