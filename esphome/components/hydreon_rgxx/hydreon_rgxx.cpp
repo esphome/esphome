@@ -1,5 +1,5 @@
 #include "hydreon_rgxx.h"
-#include "esphome/core/helpers.h"
+#include "esphome/core/parse_float.h"
 #include "esphome/core/log.h"
 #include <cstring>
 

@@ -2,7 +2,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
+#include "esphome/core/parse_float.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -329,7 +329,7 @@ void DFRobotSEN0609Component::parse_response_(const char *args) {
   while (this->response_count_ < MAX_RESPONSE_VALUES) {
     char *end;
     const float value = parse_float_prefix(args, &end);
-    // It also takes "nan" and "inf", which no setting can hold
+    // parse_float_prefix also takes "nan" and "inf", which no setting can hold
     if (end == args || !std::isfinite(value))
       break;
     this->response_[this->response_count_++] = value;
