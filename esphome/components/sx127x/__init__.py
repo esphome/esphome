@@ -28,6 +28,7 @@ CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
 CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
+CONF_DIO1_PIN = "dio1_pin"
 CONF_PA_PIN = "pa_pin"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
@@ -132,7 +133,16 @@ MAX_PACKET_SIZE = 255
 validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
+def is_long_packet(config: ConfigType) -> bool:
+    """Whether config uses long packet RX (FSK/OOK packet mode, payload_length > 64 or a lambda)."""
+    if config[CONF_MODULATION] == "LORA" or not config.get(CONF_PACKET_MODE):
+        return False
+    payload_length = config[CONF_PAYLOAD_LENGTH]
+    return cg.is_template(payload_length) or payload_length > 64
+
+
 def validate_config(config: ConfigType) -> ConfigType:
+    payload_length_is_lambda = cg.is_template(config[CONF_PAYLOAD_LENGTH])
     if config[CONF_MODULATION] == "LORA":
         bws = [
             "7_8kHz",
@@ -152,8 +162,14 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Cannot use LoRa without dio0_pin")
         if config[CONF_PREAMBLE_SIZE] < 6:
             raise cv.Invalid("Minimum 'preamble_size' is 6 with LORA")
+        if payload_length_is_lambda:
+            raise cv.Invalid("payload_length as a lambda is not available with LORA")
         if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
             raise cv.Invalid("Payload length must be set when spreading factor is 6")
+        if config[CONF_PAYLOAD_LENGTH] > 255:
+            raise cv.Invalid("Payload length must be <= 255 with LORA")
+        if CONF_DIO1_PIN in config:
+            raise cv.Invalid("dio1_pin is not available with LORA")
     else:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
@@ -165,10 +181,35 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
             raise cv.Invalid("Config 'packet_mode' required with FSK/OOK")
-        if config[CONF_PACKET_MODE] and CONF_DIO0_PIN not in config:
+        if (
+            config[CONF_PACKET_MODE]
+            and not is_long_packet(config)
+            and CONF_DIO0_PIN not in config
+        ):
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
-        if config[CONF_PAYLOAD_LENGTH] > 64:
-            raise cv.Invalid("Payload length must be <= 64 with FSK/OOK")
+        if (
+            not payload_length_is_lambda
+            and config[CONF_PAYLOAD_LENGTH] > 64
+            and not config[CONF_PACKET_MODE]
+        ):
+            raise cv.Invalid(
+                "payload_length must be <= 64 when packet_mode is disabled"
+            )
+        if payload_length_is_lambda and not config[CONF_PACKET_MODE]:
+            raise cv.Invalid("packet_mode is required when payload_length is a lambda")
+        long_packet = is_long_packet(config)
+        if long_packet and CONF_DIO1_PIN not in config:
+            raise cv.Invalid(
+                "dio1_pin is required when payload_length > 64 or is a lambda"
+            )
+        if long_packet and config[CONF_CRC_ENABLE]:
+            raise cv.Invalid(
+                "crc_enable is not available with payload_length > 64 or a lambda"
+            )
+        if not long_packet and CONF_DIO1_PIN in config:
+            raise cv.Invalid(
+                "dio1_pin is only used in packet mode with payload_length > 64 or a lambda"
+            )
     if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
         raise cv.Invalid(
             "Config 'afc_bandwidth' only available with FSK", path=[CONF_AFC_BANDWIDTH]
@@ -195,6 +236,7 @@ CONFIG_SCHEMA = (
                 cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_DIO1_PIN): pins.internal_gpio_input_pin_schema,
             cv.Required(CONF_FREQUENCY): cv.All(
                 cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
@@ -204,8 +246,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=0, max=17),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
             cv.Optional(CONF_PACKET_MODE): cv.boolean,
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
-                min=0, max=MAX_PACKET_SIZE
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.templatable(
+                cv.int_range(min=0, max=1024)
             ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_PREAMBLE_ERRORS, default=0): cv.int_range(min=0, max=31),
@@ -240,6 +282,7 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ON_PACKET],
         )
     await cg.add_pin(var.set_dio0_pin, config.get(CONF_DIO0_PIN))
+    await cg.add_pin(var.set_dio1_pin, config.get(CONF_DIO1_PIN))
     await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
@@ -256,7 +299,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pa_power(config[CONF_PA_POWER]))
     cg.add(var.set_shaping(config[CONF_SHAPING]))
     cg.add(var.set_crc_enable(config[CONF_CRC_ENABLE]))
-    cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
+    if cg.is_template(config[CONF_PAYLOAD_LENGTH]):
+        lambda_ = await cg.process_lambda(
+            config[CONF_PAYLOAD_LENGTH],
+            [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
+            return_type=cg.int32,
+        )
+        cg.add(var.set_payload_length_lambda(lambda_))
+    else:
+        cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
     cg.add(var.set_preamble_detect(config[CONF_PREAMBLE_DETECT]))
     cg.add(var.set_preamble_size(config[CONF_PREAMBLE_SIZE]))
     cg.add(var.set_preamble_polarity(config[CONF_PREAMBLE_POLARITY]))
