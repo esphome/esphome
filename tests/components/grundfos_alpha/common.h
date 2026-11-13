@@ -106,8 +106,10 @@ class GrundfosAlphaTest : public ::testing::Test {
   void reply_(const Bytes &frame) { this->bus_.receive_bytes(frame); }
 
   // Identify the pump as an ALPHA3 and answer both objects
+  // Connect as the transport does at boot: on_connected() reads at once
   void read_all_() {
-    this->pump_.update();
+    this->bus_.connected = false;
+    this->bus_.establish_connection();
     ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
     this->reply_(REPLY_IDENTITY_ALPHA3);
     ASSERT_EQ(this->next_request_(), FRAME_PROCESS);
