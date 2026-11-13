@@ -345,7 +345,25 @@ class TypeInfo(ABC):
         return _encode_call(self.encode_func, str(self.number), value, force=self.force)
 
     def encode_element(self, number: int, element: str) -> str:
-        """Encode one element of a repeated field; elements are always written."""
+        """Encode one element of a repeated field; elements are always written.
+
+        A sint32 element with a single-byte tag writes the tag byte and then the zigzag value through
+        the short varint path, which writes 2-byte values inline; repeated sint32 values (such as
+        infrared timings) are mostly 2 or 3 bytes, which the general varint path sends to its loop.
+        """
+        tag = (number << 3) | (self.wire_type & 0b111)
+        raw = (
+            self.RAW_ENCODE_MAP.get(self.encode_func)
+            if self.encode_func == "encode_sint32"
+            else None
+        )
+        if tag < 128 and raw is not None:
+            func, arg = raw
+            return (
+                _encode_call("write_raw_byte", str(tag))
+                + "\n  "
+                + _encode_call(func, arg.format(value=element))
+            )
         return _encode_call(self.encode_func, str(number), element, force=True)
 
     encode_func = None
