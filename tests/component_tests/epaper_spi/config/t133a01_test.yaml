@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+spi:
+  clk_pin: GPIO8
+  mosi_pin: GPIO9
+
+display:
+  - platform: epaper_spi
+    id: e1004_display
+    model: seeed-reterminal-e1004
+    update_interval: never
+
+  - platform: epaper_spi
+    id: spectra_e6_display
+    model: 13.3in-spectra-e6
+    cs_pin: GPIO5
+    cs1_pin: GPIO7
+    reset_pin: GPIO16
+    busy_pin: GPIO4
+    update_interval: never
