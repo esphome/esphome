@@ -43,8 +43,10 @@ from esphome.automation import (
     XorCondition,
     _shadow_iteration,
     apply_action_builder,
+    apply_parent,
     apply_statements_action,
     apply_static_function,
+    bind_lambda,
     build_action,
     build_action_list,
     build_automation_lists,
@@ -3694,6 +3696,25 @@ def test_apply_static_function_share() -> None:
         "esphome__c__fn",
     ]
     assert len(CORE.global_statements_after_includes) == 2
+
+
+@pytest.mark.asyncio
+async def test_bind_lambda_keeps_args_by_value() -> None:
+    """A lambda that names a trigger arg gets it by value and is called in place."""
+    statement = await bind_lambda(
+        Lambda("return x *= 2;"), [(cg.int_, "x")], cg.uint8, "esphome__v"
+    )
+
+    assert statement == (
+        "const uint8_t esphome__v = [](int x) -> uint8_t {\n  return x *= 2;\n}(x);"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_parent_names_the_id_from_global_scope() -> None:
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
+
+    assert await apply_parent({"out": ID("comp", type=cg.Component)}, "out") == "::comp"
 
 
 @pytest.mark.asyncio
