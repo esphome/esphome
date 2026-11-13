@@ -18,6 +18,8 @@ static const espbt::ESPBTUUID GENI_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_
 static constexpr size_t CHUNK_SIZE = 20;
 // How long the link settles after notifications are on before the first request
 static constexpr uint32_t SETTLE_MS = 500;
+// How long the link may take from the service discovery until it is up: notifications, encryption and settling
+static constexpr uint32_t SETUP_TIMEOUT_MS = 10000;
 
 void GenibusBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "GENIbus BLE:\n  Address: %s", this->parent_->address_str());
@@ -28,10 +30,13 @@ void GenibusBLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t g
                                      esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_CONNECT_EVT: {
+      // Start clean even if the last connection ended without CLOSE or got stuck in its setup
+      this->link_down_();
       // The pump answers only on an encrypted link
       esp_err_t err = this->parent_->pair();
       if (err != ESP_OK) {
-        ESP_LOGW(TAG, "[%s] Starting encryption failed: %s", this->parent_->address_str(), esp_err_to_name(err));
+        ESP_LOGD(TAG, "[%s] Starting encryption failed: %s", this->parent_->address_str(), esp_err_to_name(err));
+        this->link_fault_(LOG_STR("Starting encryption failed"));
       }
       break;
     }
@@ -41,9 +46,19 @@ void GenibusBLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t g
         this->link_fault_(LOG_STR("No GENI characteristic"));
         break;
       }
-      this->link_.set_handle(chr->handle);
-      if (this->parent_->register_for_notify(chr->handle) != ESP_OK)
+      // Look the descriptor up now: ble_client frees the GATT cache once every node is established
+      auto *descr = this->parent_->get_config_descriptor(chr->handle);
+      if (descr == nullptr) {
+        this->link_fault_(LOG_STR("No notification descriptor"));
+        break;
+      }
+      this->link_.set_handles(chr->handle, descr->handle);
+      if (this->parent_->register_for_notify(chr->handle) != ESP_OK) {
         this->link_fault_(LOG_STR("Notify registration failed"));
+        break;
+      }
+      this->set_timeout(SETUP_TIMEOUT_ID, SETUP_TIMEOUT_MS,
+                        [this]() { this->link_fault_(LOG_STR("Connection setup timed out")); });
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -53,14 +68,27 @@ void GenibusBLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t g
         this->link_fault_(LOG_STR("Notify registration failed"));
         break;
       }
-      // BLEClientBase has just requested the CCCD write in this event; the BLE stack queues our first request
-      // behind it. The CCCD lookup needs the GATT cache, which ble_client frees once every node is established.
+      // BLEClientBase has just requested the descriptor write in this event, using the GATT cache
       this->node_state = espbt::ClientState::ESTABLISHED;
+      break;
+    }
+    case ESP_GATTC_WRITE_DESCR_EVT: {
+      if (param->write.conn_id != this->parent_->get_conn_id() || !this->link_.is_our_descriptor(param->write.handle))
+        break;
+      // Only the pump's write response tells that notifications are on
+      if (param->write.status != ESP_GATT_OK) {
+        this->link_fault_(LOG_STR("Enabling notifications failed"));
+        break;
+      }
       // The pump drops requests sent soon after notifications are on. Measured on an ALPHA3 from a Mac, 10
       // connections each: with waits of 0, 100 and 200 ms 4 to 5 lost a request, with 300 and 500 ms none.
       // Wait without blocking; a disconnect cancels the wait.
-      if (this->link_.settle())
-        this->set_timeout(SETTLE_TIMEOUT_ID, SETTLE_MS, [this]() { this->link_up_(); });
+      if (this->link_.settle()) {
+        this->set_timeout(SETTLE_TIMEOUT_ID, SETTLE_MS, [this]() {
+          if (this->link_.settled())
+            this->link_up_();
+        });
+      }
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -79,20 +107,39 @@ void GenibusBLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t g
 }
 
 void GenibusBLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  if (event != ESP_GAP_BLE_AUTH_CMPL_EVT || param->ble_security.auth_cmpl.success ||
-      !this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr))
+  if (event != ESP_GAP_BLE_AUTH_CMPL_EVT || !this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr))
     return;
-  // esp32_ble_client logs every failure with its reason; warn once per series of failures. The docs explain how to
-  // pair. They must not tell users to hold the Connect button: holding it for 2 s changes the control mode of an
-  // ALPHA3 (installation and operating instructions 99392378, section 7.10).
-  if (this->link_.fault()) {
-    ESP_LOGW(TAG, "[%s] Pairing failed", this->parent_->address_str());
-    this->status_set_warning(LOG_STR("Pairing failed"));
+  if (param->ble_security.auth_cmpl.success) {
+    if (this->link_.encrypted())
+      this->link_up_();
+    return;
   }
+  // A late result of an earlier connection
+  const auto state = this->parent_->state();
+  if (state != espbt::ClientState::CONNECTED && state != espbt::ClientState::ESTABLISHED)
+    return;
+  // esp32_ble_client logs every failure with its reason. Without encryption the pump does not answer, so free its
+  // only connection. The docs explain how to pair. They must not tell users to hold the Connect button: holding it
+  // for 2 s changes the control mode of an ALPHA3 (installation and operating instructions 99392378, section 7.10).
+  this->link_fault_(LOG_STR("Pairing failed"));
+}
+
+void GenibusBLE::loop() {
+  // GenibusBus and BLEClientNode both declare loop(), so the component loop and ble_client both call this one.
+  // ble_client calls its nodes also when the BLE stack goes down or a disconnect times out, both without CLOSE.
+  if (this->link_.is_up() && this->node_state != espbt::ClientState::ESTABLISHED)
+    this->link_down_();
+  if (this->is_in_loop_state())
+    GenibusBus::loop();
+}
+
+bool GenibusBLE::is_connected() const {
+  // BLE stack shutdown and the DISCONNECTING timeout set the client idle without CLOSE
+  return this->link_.is_up() && this->node_state == espbt::ClientState::ESTABLISHED;
 }
 
 bool GenibusBLE::write_frame(std::span<const uint8_t> frame) {
-  if (!this->link_.is_up())
+  if (!this->is_connected())
     return false;
   return write_in_chunks(frame, CHUNK_SIZE, [this](std::span<const uint8_t> chunk) {
     // The API does not write through the pointer
@@ -107,8 +154,9 @@ bool GenibusBLE::write_frame(std::span<const uint8_t> frame) {
 }
 
 void GenibusBLE::link_up_() {
-  if (!this->link_.is_settling())
+  if (!this->link_.is_ready())
     return;
+  this->cancel_timeout(SETUP_TIMEOUT_ID);
   if (this->link_.up())
     this->status_clear_warning();
   ESP_LOGI(TAG, "[%s] Connected", this->parent_->address_str());
@@ -117,6 +165,7 @@ void GenibusBLE::link_up_() {
 
 void GenibusBLE::link_down_() {
   this->cancel_timeout(SETTLE_TIMEOUT_ID);
+  this->cancel_timeout(SETUP_TIMEOUT_ID);
   if (!this->link_.down())
     return;
   ESP_LOGI(TAG, "[%s] Disconnected", this->parent_->address_str());
@@ -128,6 +177,7 @@ void GenibusBLE::link_down_() {
 
 void GenibusBLE::link_fault_(const LogString *reason) {
   this->cancel_timeout(SETTLE_TIMEOUT_ID);
+  this->cancel_timeout(SETUP_TIMEOUT_ID);
   if (this->link_.fault()) {
     ESP_LOGW(TAG, "[%s] %s, disconnecting", this->parent_->address_str(), LOG_STR_ARG(reason));
     this->status_set_warning(reason);
