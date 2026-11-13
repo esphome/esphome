@@ -230,7 +230,7 @@ void CC1101Component::loop() {
     payload_length = this->state_.PKTLEN;
     expected_rx = payload_length;
   }
-  if (payload_length == 0 || payload_length > 64 || rx_bytes != expected_rx) {
+  if (payload_length == 0 || payload_length > RX_FIFO_SIZE || rx_bytes != expected_rx) {
     ESP_LOGW(TAG, "Invalid packet: rx_bytes %u, payload_length %u", rx_bytes, payload_length);
     this->enter_idle_();
     this->strobe_(Command::FRX);
