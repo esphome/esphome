@@ -56,17 +56,13 @@ void SHT3XDComponent::update() {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
     this->write_command(SHT3XD_COMMAND_SOFT_RESET);
   }
-  if (!this->write_command(SHT3XD_COMMAND_POLLING_H)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_command(SHT3XD_COMMAND_POLLING_H)))
     return;
-  }
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[2];
-    if (!this->read_data(raw_data, 2)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 2)))
       return;
-    }
 
     float temperature = 175.0f * float(raw_data[0]) / 65535.0f - 45.0f;
     float humidity = 100.0f * float(raw_data[1]) / 65535.0f;
@@ -74,7 +70,6 @@ void SHT3XDComponent::update() {
     ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
     PUBLISH_STATE(this->temperature_sensor_, temperature);
     PUBLISH_STATE(this->humidity_sensor_, humidity);
-    this->status_clear_warning();
   });
 }
 

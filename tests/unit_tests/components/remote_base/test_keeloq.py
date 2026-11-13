@@ -8,7 +8,7 @@ from esphome.automation import ACTION_REGISTRY
 from esphome.components.remote_base import (
     CONF_SUFFIX,
     CONF_SUFFIX_BITS,
-    KEELOQ_SCHEMA,
+    KEELOQ_BINARY_SENSOR_SCHEMA,
     _keeloq_suffix_fits,
 )
 import esphome.config_validation as cv
@@ -18,9 +18,23 @@ from esphome.core import Lambda
 
 def test_binary_sensor_rejects_suffix() -> None:
     with pytest.raises(cv.Invalid):
-        KEELOQ_SCHEMA(
+        KEELOQ_BINARY_SENSOR_SCHEMA(
             {"address": 0x1, "code": 0x2, CONF_SUFFIX: 1, CONF_SUFFIX_BITS: 8}
         )
+
+
+def test_binary_sensor_does_not_need_code() -> None:
+    config = KEELOQ_BINARY_SENSOR_SCHEMA({"address": 0x1})
+    assert "code" not in config
+    assert config["command"] == 0x10
+    # Existing configs set a code, so it still has to validate.
+    assert KEELOQ_BINARY_SENSOR_SCHEMA({"address": 0x1, "code": 0x2})["code"] == 0x2
+
+
+def test_transmit_action_needs_code() -> None:
+    schema = ACTION_REGISTRY["remote_transmitter.transmit_keeloq"].raw_schema
+    with pytest.raises(cv.Invalid, match="required key not provided"):
+        schema({"address": 0x1})
 
 
 def test_plain_suffix_must_fit() -> None:

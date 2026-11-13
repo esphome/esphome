@@ -1,0 +1,24 @@
+# mDNS responder bench (a package): an extra service with TXT records and a heap line every 10 s. The per-run file
+# supplies the board, name and network; add mdns-wifi.yaml on a Wi-Fi board.
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+mdns:
+  services:
+    - service: _hwtest
+      protocol: _tcp
+      port: 1234
+      txt:
+        k1: v1
+        long: "0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnop"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("hwt", "HEAP free=%u min=%u largest=%u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                   (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));

@@ -81,7 +81,7 @@ void BinarySensorMap::process_bayesian_() {
   float posterior_probability = this->bayesian_prior_;
   uint64_t mask = 0x00;
 
-  // - compute the posterior probability by taking the product of the predicate probablities for each observation
+  // - compute the posterior probability by taking the product of the predicate probabilities for each observation
   // - create a bitmask for the binary_sensor states on all channels/observations
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];
