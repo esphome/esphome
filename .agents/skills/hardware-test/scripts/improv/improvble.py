@@ -19,8 +19,12 @@ def pkt(cmd: int, data: bytes) -> bytes:
 
 
 async def main(name: str, secrets: str) -> None:
-    with pathlib.Path(secrets).open(encoding="utf-8") as f:
-        sec = yaml.safe_load(f)
+    try:
+        with pathlib.Path(secrets).open(encoding="utf-8") as f:
+            sec = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as exc:
+        print(f"cannot read secrets file: {exc}", file=sys.stderr)
+        sys.exit(2)
     try:
         raw = (sec["wifi_ssid"], sec["wifi_password"])
     except (KeyError, TypeError) as exc:

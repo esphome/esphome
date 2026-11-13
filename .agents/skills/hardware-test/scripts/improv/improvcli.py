@@ -227,8 +227,12 @@ def main() -> None:
         help="a port reset or a reboot in the log does not fail the run",
     )
     o = a.parse_args()
-    with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
-        sec = yaml.safe_load(f)
+    try:
+        with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
+            sec = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as exc:
+        print(f"cannot read secrets file: {exc}", file=sys.stderr)
+        sys.exit(2)
     try:
         ssid, pw = sec["wifi_ssid"], sec["wifi_password"]
     except (KeyError, TypeError) as exc:
