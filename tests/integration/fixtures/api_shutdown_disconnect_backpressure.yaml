@@ -1,0 +1,65 @@
+esphome:
+  name: api-shutdown-bp-test
+
+host:
+
+api:
+  # One queued message, so DisconnectRequest cannot join the overflow buffer once it holds data
+  max_send_queue: 1
+  actions:
+    - action: fill_then_restart
+      then:
+        - lambda: &fill_pipe |-
+            // The client is not reading: log lines fill the TCP pipe, then the overflow buffer. Keep going
+            // until the overflow buffer holds data with the client's window closed, so nothing drains it
+            auto *client = sndbuf_pin::api_log_client();
+            const std::string padding(250, 'x');
+            const uint32_t start = millis();
+            bool full = false;
+            while (client != nullptr && millis() - start < 5000) {
+              const bool window_closed = sndbuf_pin::api_peer_window_closed();
+              if (client->try_to_clear_buffer(false)) {
+                ESP_LOGD("fill", "fill line %s", padding.c_str());
+              } else if (window_closed) {
+                full = true;
+                break;
+              } else {
+                delay(1);
+              }
+            }
+            if (!full)
+              ESP_LOGE("fill", "fill timed out");
+        # The test reads again once this line is on the console
+        - logger.log: fill done
+        # DisconnectRequest cannot be sent now, so it waits in an otherwise empty batch
+        - button.press: restart_button
+    - action: fill_publish_then_restart
+      then:
+        - lambda: *fill_pipe
+        # Queued behind the blocked socket when the shutdown starts
+        - lambda: id(queued_sensor).publish_state(42);
+        - logger.log: fill done
+        - button.press: restart_button
+
+button:
+  - platform: restart
+    id: restart_button
+    name: "Restart"
+
+sensor:
+  - platform: template
+    id: queued_sensor
+    name: "Queued sensor"
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [sndbuf_pin_component]
+
+# Pins the device's socket send buffers for deterministic TCP backpressure
+sndbuf_pin_component:
+  buffer_size: SERVER_SNDBUF
+
+logger:
+  level: DEBUG
