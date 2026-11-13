@@ -48,7 +48,7 @@ class FeedbackCover final : public cover::Cover, public Component {
   void control(const cover::CoverCall &call) override;
   void stop_prev_trigger_();
   bool is_at_target_() const;
-  void start_direction_(cover::CoverOperation dir);
+  void start_direction_(cover::CoverOperation dir, bool skip_wait = false);
   void update_operation_(cover::CoverOperation dir);
   void endstop_reached_(bool open_endstop);
   void recompute_position_();
@@ -78,6 +78,7 @@ class FeedbackCover final : public cover::Cover, public Component {
   bool has_built_in_endstop_{false};
   bool assumed_state_{false};
   bool infer_endstop_{false};
+  bool awaiting_movement_{false};
   float obstacle_rollback_{0};
 
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
