@@ -54,7 +54,7 @@ void DalyBmsComponent::loop() {
     this->data_.clear();
     this->receiving_ = false;
   }
-  if (this->frame_received_ && !this->receiving_ && avail == 0 &&
+  if (this->response_complete_() && !this->receiving_ && avail == 0 &&
       (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) && !this->trigger_next_) {
     // response complete and nothing more on the line -> trigger next request without waiting for the timeout
     this->last_transmission_ = now;
@@ -78,9 +78,6 @@ void DalyBmsComponent::loop() {
         if (this->data_.size() == 4)
           this->data_count_ = c;
         if ((this->data_.size() > 4) and (data_.size() == this->data_count_ + 5)) {
-          // only a frame answering the last request counts; a late one for an earlier request does not
-          if (this->data_[2] == this->last_request_)
-            this->frame_received_ = true;
           this->decode_data_(this->data_);
           this->data_.clear();
           this->receiving_ = false;
@@ -91,7 +88,7 @@ void DalyBmsComponent::loop() {
   if (!this->trigger_next_)
     return;
   this->trigger_next_ = false;
-  this->frame_received_ = false;
+  this->frames_received_ = 0;
   if (this->next_request_ >= DALY_REQUEST_COUNT) {
     // the response to the last request is in or has timed out: the cycle is over
     this->cycle_running_ = false;
@@ -108,6 +105,13 @@ void DalyBmsComponent::loop() {
   // the request IDs are consecutive, see DALY_REQUEST_BATTERY_LEVEL
   this->last_request_ = DALY_REQUEST_BATTERY_LEVEL + this->next_request_++;
   this->request_data_(this->last_request_);
+}
+
+bool DalyBmsComponent::response_complete_() const {
+  if (this->last_request_ != DALY_REQUEST_CELL_VOLTAGE)
+    return this->frames_received_ != 0;
+  // until the status response gave the cell count, the cell voltages wait for the timeout
+  return this->cell_frames_ != 0 && this->frames_received_ >= this->cell_frames_;
 }
 
 void DalyBmsComponent::request_data_(uint8_t data_id) {
@@ -141,6 +145,11 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
       const uint8_t checksum = sum_bytes(&*it, 12);
 
       if (checksum == it[12]) {
+        // only a valid frame answering the last request counts; an echoed request or a late answer does not
+        if (it[2] == this->last_request_)
+          this->frames_received_++;
+        if (it[2] == DALY_REQUEST_STATUS)
+          this->cell_frames_ = (it[4] + 2) / 3;  // three cells per cell voltage frame
         switch (it[2]) {
 #ifdef USE_SENSOR
           case DALY_REQUEST_BATTERY_LEVEL:

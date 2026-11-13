@@ -23,12 +23,15 @@ void loop_at(DalyBmsComponent &bms, uint32_t now) {
   bms.loop();
 }
 
-// A response frame from BMS address 0x01 with an empty payload and a valid checksum.
-std::vector<uint8_t> response_frame(uint8_t data_id) {
-  std::vector<uint8_t> frame{0xA5, 0x01, data_id, 0x08, 0, 0, 0, 0, 0, 0, 0, 0};
+// A frame with the given address and first payload byte, and a valid checksum.
+std::vector<uint8_t> frame(uint8_t address, uint8_t data_id, uint8_t first = 0) {
+  std::vector<uint8_t> frame{0xA5, address, data_id, 0x08, first, 0, 0, 0, 0, 0, 0, 0};
   frame.push_back(sum_bytes(frame.data(), frame.size()));
   return frame;
 }
+
+// A response frame from BMS address 0x01 with an empty payload.
+std::vector<uint8_t> response_frame(uint8_t data_id) { return frame(0x01, data_id); }
 
 void receive(FakeUART &uart, const std::vector<uint8_t> &bytes) {
   uart.rx.insert(uart.rx.end(), bytes.begin(), bytes.end());
@@ -52,6 +55,17 @@ class DalyBmsRequestCycleTest : public ::testing::Test {
   void advance_to_(uint8_t data_id) {
     while (last_request(this->uart_) != data_id) {
       this->now_ += TIMEOUT_MS;
+      loop_at(this->bms_, this->now_);
+    }
+  }
+
+  // Answers the status request with the cell count, which sets how many cell voltage frames to wait for, and
+  // waits until the cell voltage request has been sent.
+  void advance_to_cell_voltages_(uint8_t cells) {
+    this->advance_to_(0x94);
+    receive(this->uart_, frame(0x01, 0x94, cells));
+    while (last_request(this->uart_) != 0x95) {
+      this->now_ += 10;
       loop_at(this->bms_, this->now_);
     }
   }
@@ -88,7 +102,7 @@ TEST_F(DalyBmsRequestCycleTest, NextRequestFollowsCompleteResponse) {
 
 // A frame arriving shortly after the first one belongs to the same response and delays the next request.
 TEST_F(DalyBmsRequestCycleTest, MultiFrameResponseIsReadToTheEnd) {
-  this->advance_to_(0x95);
+  this->advance_to_cell_voltages_(6);
   receive(this->uart_, response_frame(0x95));
   loop_at(this->bms_, this->now_ + 10);
   receive(this->uart_, response_frame(0x95));
@@ -102,7 +116,7 @@ TEST_F(DalyBmsRequestCycleTest, MultiFrameResponseIsReadToTheEnd) {
 // Bytes that reached the buffer while the loop was held up are part of the response, even if the line
 // looked quiet long enough: they are read first, the next request waits for the gap after them.
 TEST_F(DalyBmsRequestCycleTest, BufferedBytesHoldTheNextRequest) {
-  this->advance_to_(0x95);
+  this->advance_to_cell_voltages_(6);
   receive(this->uart_, response_frame(0x95));
   loop_at(this->bms_, this->now_ + 10);
   receive(this->uart_, response_frame(0x95));
@@ -112,6 +126,55 @@ TEST_F(DalyBmsRequestCycleTest, BufferedBytesHoldTheNextRequest) {
   EXPECT_EQ(last_request(this->uart_), 0x95);
   loop_at(this->bms_, this->now_ + 120);
   EXPECT_EQ(last_request(this->uart_), 0x96);
+}
+
+// A BMS may leave more than the quiet gap between its cell voltage frames: the next request waits until
+// every frame the cell count announced is in.
+TEST_F(DalyBmsRequestCycleTest, CellVoltagesWaitForEveryFrame) {
+  this->advance_to_cell_voltages_(16);
+  for (int i = 0; i < 6; i++) {
+    receive(this->uart_, response_frame(0x95));
+    // the frame is read, then the line stays quiet for 80 ms
+    for (uint32_t t = 10; t <= 80; t += 10)
+      loop_at(this->bms_, this->now_ + t);
+    this->now_ += 80;
+    if (i < 5)
+      ASSERT_EQ(last_request(this->uart_), 0x95) << "after frame " << i + 1;
+  }
+  EXPECT_EQ(last_request(this->uart_), 0x96);
+}
+
+// Without the cell count the number of cell voltage frames is unknown, so the request waits for the timeout.
+TEST_F(DalyBmsRequestCycleTest, CellVoltagesWithoutCellCountWaitForTheTimeout) {
+  this->advance_to_(0x95);
+  receive(this->uart_, response_frame(0x95));
+  loop_at(this->bms_, this->now_ + 10);
+  loop_at(this->bms_, this->now_ + 200);
+  EXPECT_EQ(last_request(this->uart_), 0x95);
+  loop_at(this->bms_, this->now_ + 260);
+  EXPECT_EQ(last_request(this->uart_), 0x96);
+}
+
+// An RS485 adapter that echoes its own request does not count as the answer.
+TEST_F(DalyBmsRequestCycleTest, EchoedRequestIsNotAnAnswer) {
+  receive(this->uart_, frame(0x80, 0x90));
+  loop_at(this->bms_, 1010);
+  loop_at(this->bms_, 1100);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1260);
+  ASSERT_EQ(request_count(this->uart_), 2u);
+}
+
+// The first cycle runs at boot, before the first update().
+TEST(DalyBmsBootTest, FirstCycleRunsAtBoot) {
+  FakeUART uart;
+  DalyBmsComponent bms;
+  bms.set_uart_parent(&uart);
+  bms.set_address(0x80);
+  bms.setup();
+  loop_at(bms, 300);
+  ASSERT_EQ(request_count(uart), 1u);
+  EXPECT_EQ(last_request(uart), 0x90);
 }
 
 // A late answer to an earlier request is decoded, but it does not count as the answer to the current one.
