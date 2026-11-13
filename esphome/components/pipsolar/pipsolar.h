@@ -23,7 +23,7 @@ enum ENUMPollingCommand {
   POLLING_QLT = 8,
 };
 struct PollingCommand {
-  uint8_t *command;
+  const char *command;
   uint8_t length = 0;
   uint8_t errors;
   ENUMPollingCommand identifier;
@@ -211,7 +211,7 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   void add_polling_command_(const char *command, ENUMPollingCommand polling_command);
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
-  uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);
+  uint16_t pipsolar_crc_(const uint8_t *msg, uint8_t len);
   bool send_next_command_();
   bool send_next_poll_();
 

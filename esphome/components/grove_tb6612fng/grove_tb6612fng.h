@@ -64,7 +64,7 @@ class GroveMotorDriveTB6612FNG final : public Component, public i2c::I2CDevice {
 
   /*************************************************************
       Description
-       Exit standby mode. Motor driver does't do any action at this mode.
+       Exit standby mode. Motor driver doesn't do any action at this mode.
       Parameter
        Null.
       Return

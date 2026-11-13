@@ -33,7 +33,7 @@ static const float BL0906_KI = 12875 * 1 * (5.1 + 5.1) * 1000 / 2000 / 1.097;
 static const float BL0906_KP = 40.4125 * ((5.1 + 5.1) * 1000 / 2000) * 1 * 100 * 1 * 1000 / 1.097 / 1.097 /
                                (20000 + 20000 + 20000 + 20000 + 20000);
 
-static const uint8_t USR_WRPROT_WITABLE[6] = {0xCA, 0x9E, 0x55, 0x55, 0x00, 0xB7};
+static const uint8_t USR_WRPROT_WRITABLE[6] = {0xCA, 0x9E, 0x55, 0x55, 0x00, 0xB7};
 static const uint8_t USR_WRPROT_ONLYREAD[6] = {0xCA, 0x9E, 0x00, 0x00, 0x00, 0x61};
 
 static const uint8_t BL0906_READ_COMMAND = 0x35;

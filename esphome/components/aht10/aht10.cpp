@@ -51,28 +51,23 @@ void AHT10Component::setup() {
       error_code = this->write(AHT10_INITIALIZE_CMD, sizeof(AHT10_INITIALIZE_CMD));
       break;
   }
-  if (error_code != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(error_code == i2c::ERROR_OK))
     return;
-  }
   uint8_t cal_attempts = 0;
   uint8_t data = AHT10_STATUS_BUSY;
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
-    if (this->read(&data, 1) != i2c::ERROR_OK) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->setup_check(this->read(&data, 1) == i2c::ERROR_OK))
       return;
-    }
     ++cal_attempts;
     if (cal_attempts > AHT10_INIT_ATTEMPTS) {
       this->mark_failed(LOG_STR("Initialization timed out"));
       return;
     }
   }
-  if ((data & 0x68) != 0x08) {  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-    this->mark_failed(LOG_STR("Initialization failed"));
+  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
+  if (!this->setup_check((data & 0x68) == 0x08, LOG_STR("Initialization failed")))
     return;
-  }
 }
 
 void AHT10Component::restart_read_() {
@@ -107,9 +102,7 @@ void AHT10Component::read_data_() {
       ESP_LOGV(TAG, "Invalid humidity (reading not required)");
     } else {
       ESP_LOGD(TAG, "Invalid humidity, retrying");
-      if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      }
+      this->status_comm_check(this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) == i2c::ERROR_OK);
       this->restart_read_();
       return;
     }
@@ -135,10 +128,8 @@ void AHT10Component::update() {
   if (this->read_count_ != 0)
     return;
   this->start_time_ = millis();
-  if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) == i2c::ERROR_OK))
     return;
-  }
   this->restart_read_();
 }
 
