@@ -46,7 +46,11 @@ __attribute__((always_inline)) inline uint64_t millis_64() {
 
 // NOLINTNEXTLINE(readability-identifier-naming)
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
-__attribute__((always_inline)) inline void arch_feed_wdt() { esp_task_wdt_reset(); }
+__attribute__((always_inline)) inline void arch_feed_wdt() {
+#ifdef USE_ESP32_TASK_WDT
+  esp_task_wdt_reset();
+#endif
+}
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 
 void arch_init();
