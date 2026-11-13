@@ -50,7 +50,7 @@ class MAX6956 final : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_brightness_global(uint8_t current);
-  void set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode);
+  void set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode) { this->brightness_mode_ = brightness_mode; }
   void set_pin_brightness(uint8_t pin, float brightness);
 
   void dump_config() override;

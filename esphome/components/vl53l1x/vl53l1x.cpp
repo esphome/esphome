@@ -253,16 +253,12 @@ void VL53L1XSensor::setup() {
     this->set_i2c_address(final_address);
   }
 
-  if (!this->configure_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->configure_()))
     return;
-  }
 
   // The ULD ranges once during init to calibrate; loop() finishes that from the first result.
-  if (!this->start_ranging_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->start_ranging_()))
     return;
-  }
   this->measurement_start_ = millis();
 }
 
@@ -373,10 +369,9 @@ void VL53L1XSensor::loop() {
 
   if (this->first_result_) {
     // ULD SensorInit: after the first ranging, start VHV calibration from the previous temperature.
-    if (!this->write_byte16_(VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x09) || !this->write_byte16_(VHV_CONFIG_INIT, 0)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_byte16_(VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x09) &&
+                                 this->write_byte16_(VHV_CONFIG_INIT, 0)))
       return;
-    }
     this->first_result_ = false;
     return;
   }

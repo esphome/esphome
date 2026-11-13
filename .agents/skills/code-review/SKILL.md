@@ -20,6 +20,34 @@ flagging in a review; read the matching skill for the detail behind any item.
 Only raise findings that the diff actually introduces or changes. Do not ask for
 drive-by cleanup of pre-existing code the PR did not touch.
 
+## Scope: shared code does not ride a component PR
+
+Check the file list first. A PR titled for one component (`[ld2450] ...`) must
+not also change code other components build on: `esphome/core/`, the entity
+platform components (`esphome/components/sensor/`, `esphome/components/text_sensor/`
+including its `filter.*`, `binary_sensor/`, `number/`, ...), the buses
+(`esphome/components/{i2c,spi,uart}/`), `network/`, `socket/`, the shared
+constants (`esphome/components/const/`, `esphome/const.py`),
+`esphome/automation.py`, `esphome/cpp_generator.py` or `esphome/config_validation.py`.
+Flag it and ask for the shared change to move into its own PR, which lands first
+and is reviewed by that code's owners; the component PR then builds on it. This
+holds even when the shared change is small or only the component uses it today.
+The exception is a shared change that must update several components in the same
+PR so none of them breaks in between (a `[core]` or `[components]` PR that adds a
+helper and moves its callers at once).
+
+Not shared code: the component's own platform files (`esphome/components/<c>/sensor.py`,
+`text_sensor/__init__.py`, ...), its new `USE_*` lines in `esphome/core/defines.h`,
+and its `CODEOWNERS` entry.
+
+## YAML language freeze
+
+Until configurations move to yaml.rocks (esphome/backlog#201), flag any PR that adds to the YAML language: a new tag
+in `esphome/yaml_util.py`, new behaviour in the `packages` or `substitutions` components (a new entry in the Jinja
+`SAFE_GLOBALS` in `substitutions/jinja.py`, or a custom Jinja filter, counts), or new merge, override or remove
+semantics (`esphome/config_helpers.py`, `!extend`, `!remove`). Bug fixes to the existing features are fine. This
+covers how YAML files are read, included and combined, not a component's own configuration options.
+
 ## Memory and embedded constraints (highest value)
 
 Heap allocation after `setup()` is treated as a reliability bug, not a
@@ -30,8 +58,8 @@ performance nit, because it fragments a small shared heap. Flag:
   `StaticVector<T, N>` when a `push_back` API is needed) or fixed at runtime
   init (use `FixedVector<T>`).
 - Listener / child-entity registration lists stored as `std::vector`; these have
-  a compile-time-known count and should use `cg.slot_counter()` plus
-  `StaticVector`.
+  a compile-time-known count and should use `cg.slot_list()` plus
+  `SLOT_LIST` (or `cg.slot_counter()` plus `StaticVector`).
 - `std::vector<uint8_t>` for a byte buffer that never grows: prefer
   `std::unique_ptr<uint8_t[]>` or `std::array`.
 - `std::map` / `std::set` / `std::unordered_map` for small datasets (1-16
@@ -41,6 +69,12 @@ performance nit, because it fragments a small shared heap. Flag:
   literal already lives in flash).
 - `std::string` / `std::to_string` / string-returning helpers on hot paths where
   a buffer or view API exists.
+- A `set_timeout` / `set_interval` / `defer` lambda whose captures exceed 8 bytes
+  on 32-bit or are not trivially copyable (`this` plus two 4-byte values, `this`
+  plus a member function pointer, a `std::string`, a `std::function`):
+  `std::function` then heap-allocates each time it is scheduled. Flag it on
+  retries, re-armed timeouts and hot-path `defer`; a `set_interval` set up once
+  in `setup()` is a single allocation. `[this]` plus one 4-byte value fits.
 
 ## C++ conventions
 
@@ -78,11 +112,14 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | --- | --- |
 | `if (this->x_sensor_ != nullptr) this->x_sensor_->publish_state(v);` | `PUBLISH_STATE(this->x_sensor_, v);` (`esphome/core/entity_base.h`) |
 | set warning / `return` / clear warning around a bus result | `if (!this->status_comm_result(ok)) return;` |
+| set warning / `return` around an earlier step of a multi-step poll | `if (!this->status_comm_check(ok)) return;` |
+| warning set, but no `status_comm_result` or `status_clear_warning` on the success path | the last step uses `status_comm_result(ok)`, or the warning never clears |
 | hand-written `set_x_sensor()` plus `x_sensor_` member | `SUB_SENSOR(x)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`, `SUB_SWITCH`, ... |
 | `if CONF_X in config: s = await sensor.new_sensor(config[CONF_X])` plus setter | `sensors = sensor.sub_sensors(config)` then `await sensors(CONF_X, hub.set_x_sensor)` |
 | hand-written `{"a": MyEnum.MY_ENUM_A, ...}` dict | `MyEnum.options("a", "b", prefix="MY_ENUM_")` |
 | loops on `available()` / `read_byte()` | UART `read_available(on_byte)`, `discard_available()`, `LineReader<N>`, `FrameReader<N, HEADER...>` |
 | hand-rolled CRC, checksum or bit loop | `crc8`, `crc16`, `xor_bytes`, `sum16_bytes`, `encode_uint16`, ... (`esphome/core/helpers.h`) |
+| integer split into buffer bytes by hand (`buf[0] = v >> 8; buf[1] = v;`) | `put_be16`/`24`/`32`, `put_le16`, `put_le32` (`esphome/core/helpers.h`) |
 | bare `mark_failed()`, or `ESP_LOGE` then `mark_failed()` | `this->mark_failed(LOG_STR("reason"))` or `LOG_STR(ESP_LOG_MSG_COMM_FAIL)` |
 | button/switch/number/select C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect` with `apply=` |
 | action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
@@ -121,6 +158,18 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
   group builds. List-style packages or top-level merge keys block grouping.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
+
+## Naming user-facing functions
+
+Documented lambda methods, actions and config keys are public API, so a bad name
+is hard to fix once released. Flag:
+
+- A boolean where `true` means off (`display_off(true)`): name the positive
+  state, e.g. `set_power(bool on)`.
+- A name that differs from a sibling component's name for the same operation.
+
+Before a release, rename outright; after, follow the breaking-change policy
+below.
 
 ## Breaking changes and public API
 

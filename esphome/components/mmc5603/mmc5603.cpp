@@ -36,28 +36,22 @@ void MMC5603Component::setup() {
   if (!this->check_chip_id(this, MMC56X3_PRODUCT_ID, 0x00, static_cast<uint8_t>(~MMC56X3_CHIP_ID)))
     return;
 
-  if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
-    this->mark_failed(LOG_STR("Control 1 failed for set bit"));
+  // turn on set bit
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL1_REG, 0x80), LOG_STR("Control 1 failed for set bit")))
     return;
-  }
 
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x08)) {  // turn on set bit
-    this->mark_failed(LOG_STR("Control 0 failed for set bit"));
+  // turn on set bit
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL0_REG, 0x08), LOG_STR("Control 0 failed for set bit")))
     return;
-  }
 
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x10)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL0_REG, 0x10)))
     return;
-  }
 
   uint8_t ctrl_2 = 0;
 
   ctrl_2 &= ~0x10;  // turn off cmm_en bit
-  if (!this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)))
     return;
-  }
 }
 void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
@@ -73,35 +67,28 @@ void MMC5603Component::dump_config() {
 
 void MMC5603Component::update() {
   uint8_t ctrl0 = (this->auto_set_reset_) ? 0x21 : 0x01;
-  if (!this->write_byte(MMC56X3_CTRL0_REG, ctrl0)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte(MMC56X3_CTRL0_REG, ctrl0)))
     return;
-  }
   uint8_t status = 0;
-  if (!this->read_byte(MMC56X3_STATUS_REG, &status)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_byte(MMC56X3_STATUS_REG, &status)))
     return;
-  }
 
   uint8_t buffer[9] = {0};
 
-  if (!this->read_byte(MMC56X3_ADDR_XOUT0, &buffer[0]) || !this->read_byte(MMC56X3_ADDR_XOUT1, &buffer[1]) ||
-      !this->read_byte(MMC56X3_ADDR_XOUT2, &buffer[2])) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_byte(MMC56X3_ADDR_XOUT0, &buffer[0]) &&
+                               this->read_byte(MMC56X3_ADDR_XOUT1, &buffer[1]) &&
+                               this->read_byte(MMC56X3_ADDR_XOUT2, &buffer[2])))
     return;
-  }
 
-  if (!this->read_byte(MMC56X3_ADDR_YOUT0, &buffer[3]) || !this->read_byte(MMC56X3_ADDR_YOUT1, &buffer[4]) ||
-      !this->read_byte(MMC56X3_ADDR_YOUT2, &buffer[5])) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_byte(MMC56X3_ADDR_YOUT0, &buffer[3]) &&
+                               this->read_byte(MMC56X3_ADDR_YOUT1, &buffer[4]) &&
+                               this->read_byte(MMC56X3_ADDR_YOUT2, &buffer[5])))
     return;
-  }
 
-  if (!this->read_byte(MMC56X3_ADDR_ZOUT0, &buffer[6]) || !this->read_byte(MMC56X3_ADDR_ZOUT1, &buffer[7]) ||
-      !this->read_byte(MMC56X3_ADDR_ZOUT2, &buffer[8])) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_byte(MMC56X3_ADDR_ZOUT0, &buffer[6]) &&
+                                this->read_byte(MMC56X3_ADDR_ZOUT1, &buffer[7]) &&
+                                this->read_byte(MMC56X3_ADDR_ZOUT2, &buffer[8])))
     return;
-  }
 
   int32_t raw_x = 0;
   raw_x |= buffer[0] << 12;

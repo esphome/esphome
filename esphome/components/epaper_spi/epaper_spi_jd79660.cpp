@@ -24,7 +24,6 @@ void EPaperJD79660::fill_buffer(Color color) {
 
   // We store 4 pixels per byte
   this->buffer_.fill(pixel_color | (pixel_color << 2) | (pixel_color << 4) | (pixel_color << 6));
-  this->drawn_since_hash_ = true;
 }
 
 void HOT EPaperJD79660::draw_pixel_at(int x, int y, Color color) {
@@ -79,7 +78,7 @@ bool EPaperJD79660::reset() {
       if (!this->is_idle_()) {
         // Expectation: Idle after reset + settle time.
         // Improperly connected/unexpected hardware?
-        // Error path reproducable e.g. with disconnected VDD/... pins
+        // Error path reproducible e.g. with disconnected VDD/... pins
         // (optimally while busy_pin configured with local pulldown).
         // -> Mark failed to avoid followup problems.
         this->mark_failed(LOG_STR("Busy after reset"));

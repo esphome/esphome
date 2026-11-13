@@ -236,15 +236,15 @@ COMPILER_OPTIMIZATIONS = {
 #
 # Note: excluding a component only removes it from the initial build set.
 # ESP-IDF's requirement expansion adds an excluded component back when any
-# component still in the build REQUIRES it (e.g. espressif/mdns pulls
-# "console" back in, esp_http_client pulls "tcp_transport" back in), so
+# component still in the build REQUIRES it (e.g. esp_http_client pulls
+# "tcp_transport" back in), so
 # exclusions here are safe for such components and simply become no-ops in
 # builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "app_trace",  # CPU trace/SystemView support - unused by ESPHome
     "bt",  # Bluetooth stack - re-included by request_bluetooth(); its REQUIRES pulls the WiFi stack back
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
-    "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
+    "console",  # Console REPL - unused by ESPHome; espressif/mdns needs it only for its CLI, which mdns disables
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp-tls",  # TLS wrapper - re-included by request_tls()
     "esp_adc",  # ADC driver - only needed by adc component
@@ -2535,7 +2535,22 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
-def _configure_lwip_max_sockets(conf: dict) -> None:
+def get_user_lwip_max_sockets() -> int | None:
+    """CONFIG_LWIP_MAX_SOCKETS from the user's sdkconfig_options, or None when unset.
+
+    A value that is not a number reads as 0.
+    """
+    user_max_sockets = CORE.config[DOMAIN][CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS].get(
+        "CONFIG_LWIP_MAX_SOCKETS"
+    )
+    if user_max_sockets is None:
+        return None
+    with contextlib.suppress(ValueError, TypeError):
+        return int(user_max_sockets)
+    return 0
+
+
+def _configure_lwip_max_sockets() -> None:
     """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
 
     Socket component tracks consumer needs via consume_sockets() called during config validation.
@@ -2544,8 +2559,7 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     """
     from esphome.components.socket import get_socket_counts
 
-    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
-    user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
+    user_max_sockets = get_user_lwip_max_sockets()
 
     # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
     # types (TCP clients, TCP listeners, and UDP). Include all three counts.
@@ -2555,21 +2569,17 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
         _LOGGER.info(
-            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %d",
             user_max_sockets,
         )
 
-        user_sockets_int = 0
-        with contextlib.suppress(ValueError, TypeError):
-            user_sockets_int = int(user_max_sockets)
-
-        if user_sockets_int < total_sockets:
+        if user_max_sockets < total_sockets:
             _LOGGER.warning(
                 "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
                 "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
                 "experience socket exhaustion errors. Consider increasing to "
                 "at least %d.",
-                user_sockets_int,
+                user_max_sockets,
                 total_sockets,
                 sc.tcp,
                 sc.udp,
@@ -2993,6 +3003,7 @@ async def _finalize_arduino_aware_flags():
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 
@@ -3327,7 +3338,7 @@ async def to_code(config):
         # Kconfig range is [1,63]; 0 gets clamped to the default.
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 1)
 
-    _configure_lwip_max_sockets(conf)
+    _configure_lwip_max_sockets()
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
