@@ -23,6 +23,8 @@ VARIANT_PORT_PINS = {
 
 # Devicetree label of the console UART, which the logger calls UART0
 VARIANT_CONSOLE_UART = {VARIANT_NRF54L15: "uart20", VARIANT_NRF54LM20: "uart20"}
+# Devicetree label of the I2C bus, i2c0 on the others. TWIM20 shares its registers with the console UART
+VARIANT_I2C = {VARIANT_NRF54L15: "i2c21", VARIANT_NRF54LM20: "i2c21"}
 VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF52832, VARIANT_NRF54L15})
 # Devicetree label of the main regulator, reg1 on the others
 VARIANT_REGULATOR = {VARIANT_NRF52832: "reg"}

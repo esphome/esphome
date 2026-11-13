@@ -336,10 +336,14 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
     elif CORE.using_zephyr:
+        from esphome.components.nrf52.const import VARIANT_I2C
+        from esphome.components.nrf52.framework import get_nrf52_variant
+
         zephyr_add_prj_conf("I2C", True)
-        i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] == "xiao_ble":
-            i2c = "i2c1"
+        variant_i2c = VARIANT_I2C.get(get_nrf52_variant())
+        i2c = variant_i2c or (
+            "i2c1" if zephyr_data()[KEY_BOARD] == "xiao_ble" else "i2c0"
+        )
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
@@ -359,6 +363,18 @@ async def to_code(config: ConfigType) -> None:
                 }};
             """
         )
+        if variant_i2c is not None:
+            # The board leaves this bus disabled and without pins
+            zephyr_add_overlay(
+                f"""
+                    &{i2c} {{
+                        status = "okay";
+                        pinctrl-0 = <&{i2c}_default>;
+                        pinctrl-1 = <&{i2c}_sleep>;
+                        pinctrl-names = "default", "sleep";
+                    }};
+                """
+            )
         var = cg.new_Pvariable(
             config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")
         )
