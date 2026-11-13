@@ -160,13 +160,12 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
   bool &recursion_guard = this->main_loop_recursion_guard_();
   if (recursion_guard || !this->is_main_task_())
     return false;
-  const size_t len = strlen(msg);
-  if (memchr(msg, '%', len) != nullptr)
+  if (strchr(msg, '%') != nullptr)
     return false;
   RecursionGuard guard(recursion_guard);
   LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
   buf.write_header(level, tag, line, nullptr);
-  buf.write_unformatted_body(msg, len);
+  buf.write_unformatted_body(msg, strlen(msg));
   this->send_unformatted_line_(level, tag, buf);
   return true;
 }
