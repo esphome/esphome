@@ -116,6 +116,9 @@ class OpenThreadComponent final : public Component {
   void ot_main_();
   void mark_task_failed_(const LogString *reason);
 #endif
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && defined(USE_ESP32)
+  void start_border_router_();
+#endif
 #ifdef USE_OPENTHREAD_RCP_UART
   void reset_rcp_(bool recovery_attempt);
 #endif
@@ -148,7 +151,8 @@ class OpenThreadComponent final : public Component {
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   std::atomic<bool> mainloop_running_{false};
-  bool border_router_started_{false};
+  std::atomic<bool> border_router_started_{false};  // written by the OpenThread task
+  std::atomic<bool> border_router_start_requested_{false};
   bool backbone_up_{false};  // what the stack was told about the infra interface last
 #endif
 

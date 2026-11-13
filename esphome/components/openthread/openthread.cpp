@@ -299,14 +299,7 @@ bool OpenThreadComponent::teardown() {
         // stack drops from here on would otherwise become an MLD message that is sent, through
         // the event loop, after the clean-up has deleted the glue's packet queue, which aborts.
         otIp6SetAddressCallback(instance, nullptr, nullptr);
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-        if (this->border_router_started_) {
-          if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
-          }
-          this->border_router_started_ = false;
-        }
-#endif
+        // A border router is deinitialized by the OpenThread task's clean-up; on this task that deadlocks
 #ifdef USE_OPENTHREAD_SRP
         ESP_LOGV(TAG, "Clear SRP");
         otSrpClientClearHostAndServices(instance);
