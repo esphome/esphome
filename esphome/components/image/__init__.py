@@ -12,6 +12,7 @@ from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
+    CONF_DITHER,
     CONF_FILE,
     CONF_FILES,
     CONF_ID,
@@ -74,19 +75,31 @@ class ImageEncoder:
 
     # Control which transparency options are available for a given type
     allow_config = {CONF_ALPHA_CHANNEL, CONF_CHROMA_KEY, CONF_OPAQUE}
+    # Control which dithering options are available for a given type
+    allow_dither_config = {"NONE"}
 
     # All imageencoder types are valid
     @staticmethod
     def validate(value):
         return value
 
-    def __init__(self, width, height, transparency, dither, invert_alpha):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
+    ):
         """
         :param width:  The image width in pixels (or bytes)
         :param height:  The image height in pixels
         :param transparency: Transparency type
         :param dither: Dither method
         :param invert_alpha: True if the alpha channel should be inverted; for monochrome formats inverts the colours.
+        :param palette: Optional palette for dithering
         """
         self.transparency = transparency
         self.width = width
@@ -97,6 +110,7 @@ class ImageEncoder:
         self.invert_alpha = invert_alpha
         self.path = ""
         self.big_endian = False
+        self.palette = palette
 
     def convert(self, image, path):
         """
@@ -156,10 +170,17 @@ class BitPackedEncoder(ImageEncoder):
         transparency: str,
         dither: Image.Dither,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         self.bpp = bpp
         super().__init__(
-            (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
+            (width * bpp + 7) // 8,
+            height,
+            transparency,
+            dither,
+            invert_alpha,
+            palette=palette,
         )
         self.bitno = 0
 
@@ -178,9 +199,21 @@ class BitPackedEncoder(ImageEncoder):
 
 class ImageBinary(BitPackedEncoder):
     allow_config = {CONF_OPAQUE, CONF_INVERT_ALPHA, CONF_CHROMA_KEY}
+    allow_dither_config = {"NONE", "FLOYDSTEINBERG"}
 
-    def __init__(self, width, height, transparency, dither, invert_alpha):
-        super().__init__(1, width, height, transparency, dither, invert_alpha)
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
+    ):
+        super().__init__(
+            1, width, height, transparency, dither, invert_alpha, palette=palette
+        )
 
     def convert(self, image, path):
         if is_alpha_only(image):
@@ -198,6 +231,7 @@ _RGB111_PALETTE.putpalette([255 * int(x) for i in range(8) for x in f"{i:03b}"])
 
 class ImageRGB111(BitPackedEncoder):
     allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
+    allow_dither_config = {"NONE", "FLOYDSTEINBERG"}
 
     def __init__(
         self,
@@ -206,9 +240,24 @@ class ImageRGB111(BitPackedEncoder):
         transparency: str,
         dither: Image.Dither,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
-        super().__init__(bpp, width, height, transparency, dither, invert_alpha)
+        super().__init__(
+            bpp, width, height, transparency, dither, invert_alpha, palette=palette
+        )
+        if palette is None:
+            self.custom_palette = _RGB111_PALETTE
+        else:
+            dither_palette = []
+            for color in palette:
+                r = (color >> 16) & 0xFF
+                g = (color >> 8) & 0xFF
+                b = color & 0xFF
+                dither_palette.extend([r, g, b])
+            self.custom_palette = Image.new("P", (1, 1))
+            self.custom_palette.putpalette(dither_palette)
 
     def convert(self, image: Image, path: str):
         image = image.convert("RGBA")
@@ -216,7 +265,7 @@ class ImageRGB111(BitPackedEncoder):
             return image
         alpha = image.getchannel("A")
         image = image.convert("RGB").quantize(
-            palette=_RGB111_PALETTE, dither=Image.Dither.FLOYDSTEINBERG
+            palette=self.custom_palette, dither=Image.Dither.FLOYDSTEINBERG
         )
         image = image.convert("RGB")
         image.putalpha(alpha)
@@ -261,13 +310,23 @@ class ImageGrayscale(ImageEncoder):
 
 
 class ImageRGB565(ImageEncoder):
-    def __init__(self, width, height, transparency, dither, invert_alpha):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
+    ):
         super().__init__(
             width * 2,
             height,
             transparency,
             dither,
             invert_alpha,
+            palette=palette,
         )
         self.alpha = [0] * width * height
 
@@ -314,7 +373,16 @@ class ImageRGB565(ImageEncoder):
 
 
 class ImageRGB(ImageEncoder):
-    def __init__(self, width, height, transparency, dither, invert_alpha):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
+    ):
         stride = 4 if transparency == CONF_ALPHA_CHANNEL else 3
         super().__init__(
             width * stride,
@@ -322,6 +390,7 @@ class ImageRGB(ImageEncoder):
             transparency,
             dither,
             invert_alpha,
+            palette=palette,
         )
 
     def convert(self, image, path):
@@ -428,6 +497,13 @@ def validate_settings(value, path=()):
         and CONF_INVERT_ALPHA not in type_class.allow_config
     ):
         raise cv.Invalid("No alpha channel to invert")
+    dither = value.get(CONF_DITHER, {}).get(CONF_TYPE, "NONE")
+    if dither not in type_class.allow_dither_config:
+        _LOGGER.warning(
+            "Image format '%s' does not support dithering type: %s. This setting will be ignored.",
+            conf_type,
+            dither,
+        )
     if value.get(CONF_BYTE_ORDER) is not None and not type_class.is_endian():
         raise cv.Invalid(
             f"Image format '{conf_type}' does not support byte order configuration",
