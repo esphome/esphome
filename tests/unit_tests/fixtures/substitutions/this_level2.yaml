@@ -1,0 +1,7 @@
+# included by this_level1.yaml
+level2:
+  file: ${this.file.name}
+  dir: ${this.dir.name}
+  level3:
+    - !include
+      file: this_level3.yaml

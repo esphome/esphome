@@ -10,7 +10,7 @@ from ipaddress import _BaseAddress, _BaseNetwork
 import logging
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 import re
 from typing import Any, NamedTuple
 import uuid
@@ -1226,6 +1226,17 @@ def parse_yaml(
             yaml_loader,
             track_document_range=track_document_range,
         )
+    # Add built-in context variables scoped to this file
+    # Note: built-in 'this' takes precedence over user substitutions
+    res = add_context(
+        res,
+        {
+            "this": {
+                "file": PurePath(file_name.absolute()),
+                "dir": PurePath(file_name.parent.absolute()),
+            }
+        },
+    )
     # Resolved after the fallback so a failed first parse never loads the include twice
     return _resolve_include(res) if resolve_document_include else res
 
@@ -1708,5 +1719,6 @@ ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_path)
 ESPHomeDumper.add_multi_representer(IncludeFile, ESPHomeDumper.represent_include_file)
