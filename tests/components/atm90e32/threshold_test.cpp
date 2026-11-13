@@ -37,6 +37,7 @@ static constexpr ExpectedThresholds CLAMPED_THRESHOLDS{65535, 65535, 65535};
 class ThresholdRegisterDelegate : public spi::SPIDelegate {
  public:
   std::array<uint16_t, 1024> registers{};
+  uint16_t corrupt_read_address{0xFFFF};
 
   void begin_transaction() override {}
   void end_transaction() override {}
@@ -45,8 +46,9 @@ class ThresholdRegisterDelegate : public spi::SPIDelegate {
     ASSERT_EQ(length, 4);
     const auto address = ((data[0] & 0x03) << 8) | data[1];
     const uint16_t value = this->registers[address];
-    data[2] = value >> 8;
-    data[3] = value & 0xFF;
+    const uint16_t received = address == this->corrupt_read_address ? value ^ 0x8000 : value;
+    data[2] = received >> 8;
+    data[3] = received & 0xFF;
     if (address != ATM90E32_REGISTER_LASTSPIDATA)
       this->registers[ATM90E32_REGISTER_LASTSPIDATA] = value;
   }
@@ -233,6 +235,30 @@ TEST_F(ATM90E32ThresholdRegisters, CombinesNativeCurrentWithOtherPhaseAlarms) {
   this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 12000;
   this->component_.update();
   EXPECT_EQ(status.state, "Over Current; Over Voltage");
+}
+
+TEST_F(ATM90E32ThresholdRegisters, PreservesPhaseStatusWhenRmsReadIsCorrupt) {
+  text_sensor::TextSensor status;
+  this->component_.set_phase_status_text_sensor(1, &status);
+  this->component_.set_volt_gain(0, 7305);
+  this->component_.set_volt_gain(1, 14610);
+  this->component_.set_ct_gain(1, 27961);
+  this->setup_component_();
+  this->delegate_.registers[ATM90E32_REGISTER_URMS + 1] = 12000;
+  for (const uint16_t address : {ATM90E32_REGISTER_URMS + 1, ATM90E32_REGISTER_IRMS + 1}) {
+    SCOPED_TRACE(address);
+    this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] = 0;
+    this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE1] = 0;
+    this->component_.update();
+    ASSERT_EQ(status.state, "Okay");
+    this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE1] = ATM90E32_STATUS_S1_PHASELOSSBST;
+    this->delegate_.corrupt_read_address = address;
+    this->component_.update();
+    EXPECT_EQ(status.state, "Okay");
+    this->delegate_.corrupt_read_address = 0xFFFF;
+    this->component_.update();
+    EXPECT_EQ(status.state, "Phase Loss");
+  }
 }
 
 TEST_F(ATM90E32ThresholdRegisters, IgnoresLegacyCurrentFlagAndPreservesRmsLimit) {
