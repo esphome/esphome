@@ -101,7 +101,8 @@ class GenibusBus : public Component {
   uint8_t master_address_{0};
   uint8_t active_address_{0};
   bool quiet_{false};
-  bool down_notified_{false};  // whether the devices have heard of the current loss of the connection
+  // Whether the devices have heard of the current loss of the connection; at boot there was no connection to lose
+  bool down_notified_{true};
 };
 
 /// A device on the bus; it gets the answer to its request in on_response().

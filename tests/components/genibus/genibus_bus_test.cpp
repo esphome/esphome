@@ -416,7 +416,20 @@ TEST_F(GenibusBusTest, TransportDownWithoutNoticeOnTheWire) {
   EXPECT_EQ(this->pump_.responses[1].error, GenibusError::GENIBUS_ERROR_NONE);
 }
 
+TEST_F(GenibusBusTest, NoDisconnectNoticeAtBoot) {
+  this->bus_.connected = false;
+  this->run_();
+  this->bus_.lose_connection();
+  EXPECT_EQ(this->pump_.disconnects, 0);
+  EXPECT_EQ(this->other_.disconnects, 0);
+  this->bus_.establish_connection();
+  this->bus_.lose_connection();
+  EXPECT_EQ(this->pump_.disconnects, 1);
+  EXPECT_EQ(this->other_.disconnects, 1);
+}
+
 TEST_F(GenibusBusTest, EveryDeviceHearsOfConnectionChanges) {
+  this->bus_.establish_connection();
   this->bus_.send(&this->pump_, GET_FLOW_HEAD);
   this->bus_.lose_connection();
   // The request ends before the device hears of the loss, and it cannot send from there
@@ -429,8 +442,8 @@ TEST_F(GenibusBusTest, EveryDeviceHearsOfConnectionChanges) {
   this->run_();
   EXPECT_EQ(this->pump_.disconnects, 1);
   this->bus_.establish_connection();
-  EXPECT_EQ(this->pump_.connects, 1);
-  EXPECT_EQ(this->other_.connects, 1);
+  EXPECT_EQ(this->pump_.connects, 2);
+  EXPECT_EQ(this->other_.connects, 2);
   this->bus_.lose_connection();
   EXPECT_EQ(this->pump_.disconnects, 2);
   EXPECT_EQ(this->other_.disconnects, 2);
