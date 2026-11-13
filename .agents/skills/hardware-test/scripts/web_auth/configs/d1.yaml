@@ -1,5 +1,4 @@
-substitutions:
-  name: wba-d1-pr-s
+# D1 mini on the station network with the Basic auth web_server (name set with -s name).
 esp8266:
   board: d1_mini
 wifi:

@@ -19,34 +19,36 @@ import re
 import socket
 import statistics
 import string
+import sys
 import threading
 import time
 
-ap = argparse.ArgumentParser()
-ap.add_argument("host")
-ap.add_argument("user")
-ap.add_argument("password")
-ap.add_argument("out")
-ap.add_argument("--only", default="")
-ap.add_argument("--brute", type=int, default=600)
-ap.add_argument("--timing", type=int, default=300)
-ap.add_argument("--conc", type=float, default=60)
-ap.add_argument("--conc-threads", type=int, default=4)
-ap.add_argument("--ota", default="")
-ap.add_argument("--skip-heavy", action="store_true")
-A = ap.parse_args()
-HOST = A.host
-HASH = base64.b64encode(f"{A.user}:{A.password}".encode()).decode()
-GOOD = f"Basic {HASH}"
-OUT = pathlib.Path(A.out + "-summary.txt").open("w", encoding="utf-8")  # noqa: SIM115
+# Set by configure(); isolate.py imports this module and calls it too.
+A = argparse.Namespace()
+HOST = ""
+USER = ""
+PASSWORD = ""
+HASH = ""
+GOOD = ""
+OUT = None
 ROWS: list[dict] = []
+
+
+def configure(host: str, user: str, password: str, out: str | None = None) -> None:
+    global HOST, USER, PASSWORD, HASH, GOOD, OUT  # noqa: PLW0603
+    HOST, USER, PASSWORD = host, user, password
+    HASH = base64.b64encode(f"{user}:{password}".encode()).decode()
+    GOOD = f"Basic {HASH}"
+    if out:
+        OUT = pathlib.Path(out + "-summary.txt").open("w", encoding="utf-8")  # noqa: SIM115
 
 
 def p(*a: object) -> None:
     s = time.strftime("[%H:%M:%S] ") + " ".join(str(x) for x in a)
     print(s, flush=True)
-    OUT.write(s + "\n")
-    OUT.flush()
+    if OUT is not None:
+        OUT.write(s + "\n")
+        OUT.flush()
 
 
 def raw(
@@ -166,10 +168,17 @@ def uptime() -> object:
 def case(
     name: str, req: bytes, expect: int | str, note: str = "", **kw: object
 ) -> dict:
+    u0 = uptime() if expect == "reject" else None
     r = raw(req, **kw)
     st = r["status"]
     if expect == "reject":
-        ok = st in (400, 401, 413, 431, None) and st != 200
+        ok = st in (400, 401, 413, 431)
+        if st is None:
+            # no status (closed, reset or timeout) is a rejection only when the device stayed up
+            time.sleep(1)
+            u1 = uptime()
+            ok = u0 is not None and u1 is not None and u1 >= u0
+            note = (note + " " if note else "") + f"no status, uptime {u0} -> {u1}"
     else:
         ok = st == expect
     row = {
@@ -270,14 +279,12 @@ def run_cases() -> None:
     case("noauth GET /sensor", build("GET", "/sensor/Fast%20counter", None), 401)
     case("good GET /sensor", build("GET", "/sensor/Fast%20counter", GOOD), 200)
     # Wrong credentials
-    wp = base64.b64encode(f"{A.user}:{A.password}x".encode()).decode()
+    wp = base64.b64encode(f"{USER}:{PASSWORD}x".encode()).decode()
     wp2 = base64.b64encode(
-        f"{A.user}:{A.password[:-1] + flip(A.password[-1])}".encode()
+        f"{USER}:{PASSWORD[:-1] + flip(PASSWORD[-1])}".encode()
     ).decode()
-    wu = base64.b64encode(f"{A.user}x:{A.password}".encode()).decode()
-    wu2 = base64.b64encode(
-        f"{flip(A.user[0]) + A.user[1:]}:{A.password}".encode()
-    ).decode()
+    wu = base64.b64encode(f"{USER}x:{PASSWORD}".encode()).decode()
+    wu2 = base64.b64encode(f"{flip(USER[0]) + USER[1:]}:{PASSWORD}".encode()).decode()
     case("wrong password (longer)", build("GET", "/", "Basic " + wp), 401)
     case("wrong password (same length)", build("GET", "/", "Basic " + wp2), 401)
     case("wrong username (longer)", build("GET", "/", "Basic " + wu), 401)
@@ -292,7 +299,7 @@ def run_cases() -> None:
         build(
             "GET",
             "/",
-            f'Digest username="{A.user}", realm="Login Required", nonce="0", '
+            f'Digest username="{USER}", realm="Login Required", nonce="0", '
             f'uri="/", response="00000000000000000000000000000000"',
         ),
         401,
@@ -442,7 +449,7 @@ def heavy() -> None:
     t = time.monotonic()
     for i in range(A.brute):
         bad = base64.b64encode(
-            f"{A.user}:{''.join(random.choices(string.ascii_letters, k=len(A.password)))}".encode()
+            f"{USER}:{''.join(random.choices(string.ascii_letters, k=len(PASSWORD)))}".encode()
         ).decode()
         r = raw(
             build("GET", "/" if i % 2 else "/sensor/Fast%20counter", "Basic " + bad),
@@ -632,17 +639,38 @@ def ota(path: str) -> None:
     )
 
 
-only = set(filter(None, A.only.split(",")))
-if not only or "cases" in only:
-    run_cases()
-if (not only and not A.skip_heavy) or "heavy" in only:
-    heavy()
-if (not only and not A.skip_heavy) or "timing" in only:
-    timing()
-if A.ota:
-    ota(A.ota)
-pathlib.Path(A.out + "-cases.json").write_text(
-    json.dumps(ROWS, indent=1, default=str), encoding="utf-8"
-)
-fails = [r["case"] for r in ROWS if not r.get("pass")]
-p(f"TOTAL {len(ROWS)} rows, fails {len(fails)}: {fails}")
+def main() -> None:
+    global A  # noqa: PLW0603
+    ap = argparse.ArgumentParser()
+    ap.add_argument("host")
+    ap.add_argument("user")
+    ap.add_argument("password")
+    ap.add_argument("out")
+    ap.add_argument("--only", default="")
+    ap.add_argument("--brute", type=int, default=600)
+    ap.add_argument("--timing", type=int, default=300)
+    ap.add_argument("--conc", type=float, default=60)
+    ap.add_argument("--conc-threads", type=int, default=4)
+    ap.add_argument("--ota", default="")
+    ap.add_argument("--skip-heavy", action="store_true")
+    A = ap.parse_args()
+    configure(A.host, USER, PASSWORD, A.out)
+    only = set(filter(None, A.only.split(",")))
+    if not only or "cases" in only:
+        run_cases()
+    if (not only and not A.skip_heavy) or "heavy" in only:
+        heavy()
+    if (not only and not A.skip_heavy) or "timing" in only:
+        timing()
+    if A.ota:
+        ota(A.ota)
+    pathlib.Path(A.out + "-cases.json").write_text(
+        json.dumps(ROWS, indent=1, default=str), encoding="utf-8"
+    )
+    fails = [r["case"] for r in ROWS if not r.get("pass")]
+    p(f"TOTAL {len(ROWS)} rows, fails {len(fails)}: {fails}")
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    main()

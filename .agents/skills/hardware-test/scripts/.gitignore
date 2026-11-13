@@ -21,3 +21,13 @@ uart_button/uartbtn*.yaml
 value_range/rng*.yaml
 ld2420_sim/ldenergy*.yaml
 ld2420_sim/ldsimple*.yaml
+apikey.txt
+pio/
+rp2_web_ble/*.log
+rp2_web_ble/*.txt
+rp2_web_ble/*.pcap
+gatt_uuid/*.json
+gatt_uuid/*.txt
+web_auth/configs/*.log
+web_auth/configs/*.txt
+web_auth/configs/*.json

@@ -1,5 +1,4 @@
-substitutions:
-  name: pw22671pr
+# Pico W on the station network with an active bluetooth_proxy (name set with -s name).
 rp2:
   board: rpipicow
 wifi:

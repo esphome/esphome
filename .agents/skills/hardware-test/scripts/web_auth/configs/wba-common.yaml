@@ -1,10 +1,8 @@
-# web_server v3 with Basic auth, web OTA, fast sensor, switch, light, heap sensor
-esphome:
-  name: ${name}
-logger:
-  level: DEBUG
+# web_server v3 with Basic auth and web OTA, a switch and a light on top of the diagnostics package (fast sensor,
+# heap, reset reason). Substitutions: name, web_user, web_pass (from creds-*.yaml).
+packages:
+  diagnostics: !include ../../../templates/diagnostics.yaml
 ota:
-  - platform: esphome
   - platform: web_server
 web_server:
   port: 80
@@ -13,25 +11,6 @@ web_server:
     username: ${web_user}
     password: ${web_pass}
     type: basic
-debug:
-  update_interval: 5s
-text_sensor:
-  - platform: debug
-    reset_reason:
-      name: Reset reason
-sensor:
-  - platform: uptime
-    name: Uptime
-    update_interval: 1s
-  - platform: debug
-    free:
-      name: Heap free
-  - platform: template
-    name: Fast counter
-    update_interval: 200ms
-    lambda: |-
-      static uint32_t n = 0;
-      return n++;
 switch:
   - platform: template
     name: Test switch

@@ -32,9 +32,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Cover positions and other restored entity state live in RTC memory by default, so they survive `erase_flash`
   and a dev build's state carries into the next build's first boot. Set `esp8266: restore_from_flash: true` on A/B
   configs that erase between builds.
-- Software serial byte checks: the worst case for an unlock after a trailing run of high bits is a frame of bytes
-  all below 0x80; a mixed frame hides it. Under Wi-Fi load, check the load counters too: a run where most HTTP
-  requests failed was not loaded.
 
 ## ESP32 classic devkit
 
@@ -88,16 +85,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   W5500 driver logs "IPv6 multicast is always filtered in by W5500", the logger sends that line to the API inline,
   and the nested `LwIPLock` in `setsockopt(TCP_NODELAY)` releases the core lock it did not take, so `udp_recv`
   asserts. No crash with IPv6 off, with no log subscriber (a connected client that does not subscribe is fine), or
-  on RMII Ethernet.
-- Crash records over the API: the record is replayed and cleared by the first log subscribe, so drain it on the
-  first boot after an OTA, or a stale record from the previous build shows up. Moving `api: port:` keeps Home
-  Assistant off the board. `scripts/api_logs_quiet_then_subscribe.py HOST PORT OUT N` drains, stays connected
-  without a log subscription for N reboots, then subscribes and records the replayed record.
-- Power lock check for a light sleep issue: `power_management: esp32_power_management` with `profiling: true` and
-  an `interval` lambda that calls `esp_pm_dump_locks(stdout);` prints the lock and mode tables on the USB console
-  (not through the ESPHome logger). Compare lock lists between builds: `usb_serial_jtag` holds `NO_LIGHT_SLEEP` by
-  itself. For a soak that the USB console must not keep awake, set `logger: hardware_uart: UART0`, dump the locks
-  into `open_memstream()` and log the SLEEP, CPU_MAX and light sleep count lines, read over the API.
+  on RMII Ethernet. Reading the crash record afterwards: `recipes/crash_report.md`.
+- `usb_serial_jtag` holds a `NO_LIGHT_SLEEP` power lock by itself, so a light sleep soak on a native USB board logs
+  to UART0 instead (see `recipes/light_sleep_gpio_wake.md`).
 - The Waveshare ESP32-P4-WIFI6 needs `engineering_sample: true`. Its Wi-Fi is an ESP32-C6 over SDIO through
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
 
@@ -135,15 +125,15 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   straight from the interrupt both gave shifted multi-byte reads.
 - RP2350 PIO instruction memory survives a reflash (the 1200 baud touch and the UF2 reboot), so a program loaded by
   the previous firmware can hide a missing `pio_add_program`. Clear it from an `on_boot` priority 1000 lambda
-  (`pio1->instr_mem[i] = 0` for i < 32) to start from power-on state. A PIO pin's output can be counted without
-  wires through a GPIO interrupt on that same pin (`gpio_set_irq_enabled_with_callback`), see
-  `scripts/pio_led_strip/`.
+  (`pio1->instr_mem[i] = 0` for i < 32) to start from power-on state; `scripts/pio_probe/pio-common.yaml` does.
 - `RP2Preferences::reset()` erases the flash sector but not the RAM copy the preferences load from, so the LibreTiny
   `on_boot` wipe-once pattern still boots with the old saved Wi-Fi credentials. Use a fallback AP config with
   `networks:` and a fresh `name:` per build instead.
 - WIZnet W5100S-EVB-Pico (RP2040, `rp2: board: wiznet_5100s_evb_pico`): W5100S on SPI with CLK 18, MOSI 19, MISO 16,
   CS 17, INT 21, RST 20 (`ethernet: type: W5100`). ESPHome firmware gives it no USB CDC port; reach it over Ethernet,
   OTA by address.
+- Through a Pico W `bluetooth_proxy`, about 1 to 2 in 5 BLE connects fail with 0x3E (`connect err=62` in the
+  client) on every build; retry.
 - arduino-pico framework bumps and the RPAsyncTCP SSE stall: see `recipes/arduino_pico.md`.
 - USB CDC sends nothing until the host asserts DTR; a client that opens with DTR low (`improvcli.py` without
   `--keep-dtr`) sees silence.
@@ -410,15 +400,13 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 
 ## Shared PlatformIO directory
 
-- ESPHome stamps the PlatformIO core directory with the Python version that last built
-  (`.esphome.pio.stamp.json`). A build from another Python version deletes the shared `packages`, `platforms` and
-  `.cache` and reinstalls them, which breaks builds running at the same time. When other sessions may build with
-  another interpreter, set a private `PLATFORMIO_CORE_DIR=<scratch>/pio` on every compile and upload.
+- The stamp file is `.esphome.pio.stamp.json`; a mismatch deletes `packages`, `platforms` and `.cache`.
 - Building an old release (2025.7.0, Arduino ESP32) against the shared directory swapped `tool-scons` for an older
   version and broke it midway (`No module named 'SCons.SConf'`) for every PlatformIO build until a newer build
   reinstalled it. Build old releases with their own `PLATFORMIO_CORE_DIR`.
 - Two arduino-pico framework versions share the plain `framework-arduinopico` package directory, so an A/B swaps the
   framework on every build; give each side its own `PLATFORMIO_CORE_DIR`.
+- The general rule (a private directory whenever sessions may use different Pythons) is ground rule 8 in `SKILL.md`.
 
 ## LibreTiny crash and abort() facts (esphome#21596, #22288)
 

@@ -79,10 +79,15 @@ See `rs485_frame.md` for the same cross-wired UART trick on an ESP32-C3.
 plus answer, AA 01 stuffing, CRC16) on a second UART of the same board; on an ESP32-C6 the hub used tx 18 rx 19 and
 the box tx 19 rx 18 at 57600, wired across. `gen.py NAME pr|dev` writes the config (every text sensor, sensors, mode,
 comfort, sntp clock) with an `on_value` log per entity (`STATE id = '...'`, newlines as `\n`); `DUCO_VERBOSE=1` shows
-`Found node`, `DUCO_SERIAL_SIZE=18` gives the dev fixture's short serial answer. `run.sh NAME TREE KIND SECONDS`
-(env `DUCO_DIR`, `DUCO_PORT`, `PY`, optional `BUILDLOCK`) generates, builds, flashes and captures with `capduco.py`
-(a `serial_capture.py` copy).
+`Found node`, `DUCO_SERIAL_SIZE=18` gives the dev fixture's short serial answer. `run.sh NAME KIND SECONDS` (env
+`TREE`, `DUCO_PORT`, `PY`, optional `BUILD_LOCK`), run from a scratch directory with a copy of `ducosim.hpp`,
+generates, builds through `scripts/pio_build.sh`, flashes and captures with `scripts/serial_capture.py`.
 - Answer one request per poll call. Answering a 26 request burst in one pass blocks about 100 ms and overflows the
   hub's 256 byte UART RX buffer, which silently drops the serial and version answers every round.
 - Dev's hub frame is 32 bytes: the PR model's 34 byte serial answer is dropped there and duco sets "No answer".
 - Error cases 7 (three long, 210 B) and 8 (four short, 148 B) check that the code-only fallback goes by length.
+
+## ESP8266 software serial byte checks
+
+The worst case for an unlock after a trailing run of high bits is a frame of bytes all below 0x80; a mixed frame
+hides it.

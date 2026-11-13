@@ -1,5 +1,5 @@
 """cmp.py REF.json OTHER.json : list each UUID (service / characteristic / descriptor, in order) where OTHER differs
-from REF, and whether reads and notifications worked"""
+from REF, and whether reads and notifications worked. Exits 1 on any difference or failed read."""
 
 import json
 import pathlib
@@ -31,3 +31,7 @@ print(
     f"same values as ref by position={[*reads.values()][-4:] == [*rd['reads'].values()][-4:]}"
 )
 print(f"notify {od['notify']}")
+failed = [u for u, v in reads.items() if str(v).startswith("FAILED")]
+if diff or len(ref) != len(oth) or failed:
+    sys.exit(f"FAIL: {len(diff)} differing entries, {len(failed)} failed reads")
+print("PASS")

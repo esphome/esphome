@@ -1,5 +1,4 @@
-substitutions:
-  name: p2w22671pr
+# Pico 2 W on the station network (name set with -s name).
 rp2:
   board: rpipico2w
 wifi:

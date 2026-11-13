@@ -1,6 +1,7 @@
-# ESP32 Pico kit: trf7962a driven by a fake chip (trfsim.hpp) behind the SPI delegates; scenarios run from on_boot
+# ESP32 Pico kit: trf7962a driven by a fake chip (trfsim.hpp) behind the SPI delegates; the phase table in trfsim.hpp
+# runs from on_boot (name set with -s name). The 1 ms interval tick is the validated timing source; keep it.
 esphome:
-  name: trfpr
+  name: ${name}
   includes: [trfsim.hpp]
   on_boot:
     - priority: 800
@@ -51,42 +52,8 @@ script:
       - lambda: |-
           ESP_LOGI("ev", "SETUP failed=%d", id(nfcc).is_failed());
           trfsim::stats("boot");
-      - lambda: 'trfsim::C.tag = trfsim::NONE; ESP_LOGI("ev", "PHASE none");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("none"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE tagA");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("tagA"); trfsim::C.tag = trfsim::SLOW_A; ESP_LOGI("ev", "PHASE slowA");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("slowA"); trfsim::C.tag = trfsim::FLAKY_A; ESP_LOGI("ev", "PHASE flakyA");'
-      - delay: 6s
-      - lambda: 'trfsim::stats("flakyA"); trfsim::C.tag = trfsim::NONE; ESP_LOGI("ev", "PHASE none2");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("none2"); trfsim::C.tag = trfsim::TAG_B; ESP_LOGI("ev", "PHASE tagB");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("tagB"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE swapA");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("swapA"); trfsim::C.tag = trfsim::COLLIDE; ESP_LOGI("ev", "PHASE collision");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("collision"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE tagA2");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("tagA2"); trfsim::C.tag = trfsim::CRC_ERR; ESP_LOGI("ev", "PHASE crc_err");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("crc_err"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE tagA3");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("tagA3"); trfsim::C.tag = trfsim::ERR_FLAG; ESP_LOGI("ev", "PHASE err_flag");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("err_flag"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE tagA4");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("tagA4"); trfsim::C.tag = trfsim::BAD_MSB; ESP_LOGI("ev", "PHASE bad_msb");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("bad_msb"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE tagA5");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("tagA5"); trfsim::C.tag = trfsim::TX_ONLY; ESP_LOGI("ev", "PHASE tx_only");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("tx_only"); trfsim::C.tag = trfsim::TAG_A; ESP_LOGI("ev", "PHASE tagA6");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("tagA6"); trfsim::C.tag = trfsim::STUCK_IRQ; ESP_LOGI("ev", "PHASE stuck_irq");'
-      - delay: 4s
-      - lambda: 'trfsim::stats("stuck_irq"); trfsim::C.irq = 0; trfsim::C.tag = trfsim::NONE; ESP_LOGI("ev", "PHASE end");'
-      - delay: 3s
-      - lambda: 'trfsim::stats("end"); ESP_LOGI("ev", "DONE");'
+      - repeat:
+          count: !lambda return trfsim::NUM_PHASES;
+          then:
+            - delay: !lambda return trfsim::start_phase(iteration);
+      - lambda: 'trfsim::stats(trfsim::PHASES[trfsim::NUM_PHASES - 1].name); ESP_LOGI("ev", "DONE");'

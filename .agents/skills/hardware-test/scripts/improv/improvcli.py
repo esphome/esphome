@@ -59,6 +59,27 @@ def strings(p: bytes) -> list[str]:
     return out
 
 
+def load_wifi_secrets(path: str) -> tuple[str, str]:
+    """wifi_ssid and wifi_password from a secrets file; exits 2 (setup error) when it cannot be used."""
+    try:
+        with pathlib.Path(path).open(encoding="utf-8") as f:
+            sec = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as exc:
+        print(f"cannot read secrets file: {exc}", file=sys.stderr)
+        sys.exit(2)
+    try:
+        raw = (sec["wifi_ssid"], sec["wifi_password"])
+    except (KeyError, TypeError) as exc:
+        print(f"secrets file lacks {exc}", file=sys.stderr)
+        sys.exit(2)
+    if not all(
+        isinstance(x, (str, int, float)) and not isinstance(x, bool) for x in raw
+    ):
+        print("wifi_ssid and wifi_password must be plain values", file=sys.stderr)
+        sys.exit(2)
+    return str(raw[0]), str(raw[1])  # YAML reads an unquoted number as int
+
+
 class Dev:
     def __init__(
         self, port: str, baud: int, out: str, keep_dtr: bool, ssid: str
@@ -238,23 +259,7 @@ def main() -> None:
         help="a port reset or a reboot in the log does not fail the run",
     )
     o = a.parse_args()
-    try:
-        with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
-            sec = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as exc:
-        print(f"cannot read secrets file: {exc}", file=sys.stderr)
-        sys.exit(2)
-    try:
-        ssid, pw = sec["wifi_ssid"], sec["wifi_password"]
-    except (KeyError, TypeError) as exc:
-        print(f"secrets file lacks {exc}", file=sys.stderr)
-        sys.exit(2)
-    if not all(
-        isinstance(x, (str, int, float)) and not isinstance(x, bool) for x in (ssid, pw)
-    ):
-        print("wifi_ssid and wifi_password must be plain values", file=sys.stderr)
-        sys.exit(2)
-    ssid, pw = str(ssid), str(pw)  # YAML reads an unquoted number as int
+    ssid, pw = load_wifi_secrets(o.secrets)
     s, w = ssid.encode(), pw.encode()
     print(f"password length {len(w)} bytes")
     d = Dev(o.port, o.baud, o.out, o.keep_dtr, ssid)

@@ -1,8 +1,16 @@
-# Shared by pa.yaml and pc.yaml: Pico 2 W, pioscope.hpp, an ALIVE line every 2 s and the s_ws_p0 strip on pin 2.
+# Shared by pa.yaml and pc.yaml: Pico 2 W, pioscope.hpp, PIO1 memory cleared at boot, an ALIVE line every 2 s and
+# the s_ws_p0 strip on pin 2.
 esphome:
   name: ${name}
   includes:
     - pioscope.hpp
+  on_boot:
+    # PIO instruction memory survives a reflash; clear PIO1 so a program left by the previous firmware cannot hide a
+    # missing pio_add_program
+    - priority: 1000
+      then:
+        - lambda: |-
+            for (int i = 0; i < 32; i++) pio1->instr_mem[i] = 0;
 
 rp2040:
   board: rpipico2w

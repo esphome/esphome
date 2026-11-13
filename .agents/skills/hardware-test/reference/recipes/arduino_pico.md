@@ -1,9 +1,9 @@
 # arduino-pico framework bumps (RP2040/RP2350)
 
-Scripts: `scripts/arduino_pico_bump/` (README there). Used for #22671 (6.1.1 to 6.3.2).
+Scripts: `scripts/rp2_web_ble/` (README there). Used for #22671 (6.1.1 to 6.3.2).
 
-- Build PR and dev with a private `PLATFORMIO_CORE_DIR`: both use the plain `framework-arduinopico` package dir, so each
-  build swaps the other's framework out. Check the compile log line `framework-arduinopico @ 1.60302.0` per build.
+- Build PR and dev with a private `PLATFORMIO_CORE_DIR` (`scripts/pio_build.sh` does; see `reference/boards.md`).
+  Check the compile log line `framework-arduinopico @ 1.60302.0` per build.
 - Wired Ethernet (W5100S EVB): 6.3.2 defines `LWIP_ASSERT_CORE_LOCKED()` as `async_context_lock_check` on the
   Ethernet context (`cores/rp2040/lwip_wrap.cpp`), so unlocked lwIP calls panic there. Soak the API (200 ms template
   counter, 1 s uptime, logs subscribed), load pages, OTA and reboot; the rp2 crash handler shows a panic as
@@ -11,9 +11,8 @@ Scripts: `scripts/arduino_pico_bump/` (README there). Used for #22671 (6.1.1 to 
 - Fallback AP client count: `ap_clients_` is protected and `WiFiComponent` is final; read it from an
   `esphome: includes:` header through an explicitly instantiated member pointer (`appeek.hpp`). Join raises it to 1.
 - bluetooth_proxy on the Pico W: `rp2_ble_tracker:` + `bluetooth_proxy: active: true`. Drive with `gatthold.py`
-  against an ESP32-S3 GATT server (`bnsrv22671.yaml`). The rp2 proxy reports the 32-bit base UUID `5ec10001-...` as
-  `00000001-...` (dev too). About 1 to 2 in 5 connects fail with 0x3E on both builds; the client gets `connect
-  err=62`; retry. A "Failed to send notify data response" warning at each disconnect is normal.
+  against the ESP32-S3 server in `scripts/ble_notify/server.yaml`. UUID forms and the 0x3E connect failures are in
+  `bluetooth_proxy.md`. A "Failed to send notify data response" warning at each disconnect is normal.
 - web_server SSE on the W5100S (dev 2a6a1a050e4, 6.1.1): every `/events` stream stops after 0.3 to 11 s (alone, with
   the API, or with page loads alike), then the EVB closes it with a FIN 5.8 to 6.3 s after its last data segment, so
   curl exits 0. The pcap shows every byte ACKed by the host, window 65535, no retransmits, nothing sent in the gap:

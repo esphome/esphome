@@ -11,10 +11,13 @@ Y=$N; [ -f "$Y" ] || Y=$D/$N.yaml; Y=$(cd "$(dirname "$Y")" && pwd)/$(basename "
 O=$D/out-$N; mkdir -p "$O"
 REV=$(git -C "$W" rev-parse --short=10 HEAD) || { echo "TREE is not a git checkout: $W"; exit 2; }
 echo "== $N $REV"
+# the erase runs while the firmware compiles
+$PY -m esptool --port "$PORT" erase_flash > "$O/erase.log" 2>&1 &
+ERASE=$!
 (cd "$W" && PYTHONPATH=$W PYTHONUNBUFFERED=1 $PY -m esphome compile "$Y") > "$O/compile.log" 2>&1 \
-  || { echo "$N compile failed"; tail -20 "$O/compile.log"; exit 2; }
+  || { echo "$N compile failed"; tail -20 "$O/compile.log"; wait $ERASE; exit 2; }
 grep -E "^(RAM|Flash):" "$O/compile.log"
-$PY -m esptool --port "$PORT" erase_flash > "$O/erase.log" 2>&1 || { echo "$N erase failed"; exit 2; }
+wait $ERASE || { echo "$N erase failed"; exit 2; }
 (cd "$W" && PYTHONPATH=$W $PY -m esphome upload "$Y" --device "$PORT") > "$O/upload.log" 2>&1 \
   || { echo "$N upload failed"; tail -5 "$O/upload.log"; exit 2; }
 sleep 1

@@ -24,3 +24,11 @@ put `scripts/` on `PYTHONPATH`):
 - Quick crash reboots count toward BK72xx safe mode, so space out back-to-back crash tests on those boards.
 - A device that keeps the previous crash replays it to every new log client until the next crash; that is one
   record, not two.
+
+## Crash records and log subscribers
+
+The record is replayed and cleared by the first log subscribe (`on_subscribe_logs_request`), so drain it on the
+first boot after an OTA, or a stale record from the previous build shows up. Moving `api: port:` keeps Home Assistant
+off the board while testing. `scripts/crash_report/quiet_then_subscribe.py HOST PORT OUT N` drains the record, stays
+connected without a log subscription for N reboots, then subscribes and records the replayed record; it tells a crash
+that needs a log subscriber (like the W5500 IPv6 reboot abort in `reference/boards.md`) from one that does not.

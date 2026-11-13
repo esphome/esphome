@@ -6,7 +6,9 @@ import pathlib
 import sys
 
 from bleak import BleakClient, BleakScanner
-import yaml
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from improvcli import load_wifi_secrets, strings  # noqa: E402
 
 BASE = "00467768-6228-2272-4663-2774782680"
 STATE, ERROR, RPC, RESULT = BASE + "01", BASE + "02", BASE + "03", BASE + "04"
@@ -19,24 +21,7 @@ def pkt(cmd: int, data: bytes) -> bytes:
 
 
 async def main(name: str, secrets: str) -> None:
-    try:
-        with pathlib.Path(secrets).open(encoding="utf-8") as f:
-            sec = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as exc:
-        print(f"cannot read secrets file: {exc}", file=sys.stderr)
-        sys.exit(2)
-    try:
-        raw = (sec["wifi_ssid"], sec["wifi_password"])
-    except (KeyError, TypeError) as exc:
-        print(f"secrets file lacks {exc}", file=sys.stderr)
-        sys.exit(2)
-    if not all(
-        isinstance(x, (str, int, float)) and not isinstance(x, bool) for x in raw
-    ):
-        print("wifi_ssid and wifi_password must be plain values", file=sys.stderr)
-        sys.exit(2)
-    # YAML reads an unquoted number as int
-    ssid, pw = (str(x).encode() for x in raw)
+    ssid, pw = (x.encode() for x in load_wifi_secrets(secrets))
     dev = await BleakScanner.find_device_by_name(name, timeout=30)
     if dev is None:
         sys.exit(
@@ -70,13 +55,11 @@ async def main(name: str, secrets: str) -> None:
                     f"{loop.time() - t0:6.2f} BAD RESULT {bytes(d).hex()}", flush=True
                 )
                 return
-            p, strs = bytes(d[2:-1]), []
-            while p:
-                if 1 + p[0] > len(p):
-                    errors.append("string overruns the result")
-                    break
-                strs.append(p[1 : 1 + p[0]].decode(errors="replace"))
-                p = p[1 + p[0] :]
+            try:
+                strs = strings(bytes(d[2:-1]))
+            except ValueError:
+                errors.append("string overruns the result")
+                strs = []
             print(f"{loop.time() - t0:6.2f} RESULT cmd={d[0]} {strs}", flush=True)
             if (
                 d[0] == 1

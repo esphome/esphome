@@ -1,16 +1,11 @@
-# Shared by every STA/Ethernet build: API with 5 Hz state traffic, OTA, web_server, reset reason
+# Package for soak and load tests: DEBUG logs, esphome OTA, a 1 s uptime, the free heap and reset reason from
+# `debug:`, and a 200 ms template counter that keeps state traffic flowing. Substitution: name.
 esphome:
   name: ${name}
 logger:
   level: DEBUG
-api:
-  encryption:
-    key: !secret api_key
-  reboot_timeout: 0s
 ota:
   - platform: esphome
-web_server:
-  port: 80
 debug:
   update_interval: 5s
 text_sensor:
@@ -30,6 +25,3 @@ sensor:
     lambda: |-
       static uint32_t n = 0;
       return n++;
-button:
-  - platform: restart
-    name: Restart

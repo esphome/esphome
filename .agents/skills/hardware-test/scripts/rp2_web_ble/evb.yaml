@@ -1,5 +1,4 @@
-substitutions:
-  name: evb22671pr
+# WIZnet W5100S-EVB-Pico on wired Ethernet (name set with -s name).
 rp2:
   board: wiznet_5100s_evb_pico
 ethernet:

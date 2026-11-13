@@ -25,16 +25,12 @@ Per board:
 
 - Improv serial uses the logger's UART, so the client must open the port the log is on. On LibreTiny check which
   UART `logger: hardware_uart: DEFAULT` resolves to (see the board notes).
-- BW15 (and other LibreTiny boards with no Wi-Fi network and no `ap:`): `web_server:` makes the board reset about
-  10 s into setup, on dev too. Drop `web_server:` or add an `ap:`. With an `ap:` every provisioning reboots once
-  after `Disabling AP` (the known AP to station fault); the provisioned reply usually goes out first, not always.
-  Pass `--allow-reset` for that known reboot, and only for a reboot that is known and expected.
-- ESP32-C3 on USB_SERIAL_JTAG (checked with both clients): passes with and without `--keep-dtr`. A software reboot
-  does not drop the port on macOS, so only the `Running through setup()` count catches it. The scan returns only
-  the last scan's results, which are empty in the first seconds after boot; use `--settle 10` or more when the
-  target network should be listed.
-- Pico 2 W: its USB CDC sends nothing until the host asserts DTR, so run with `--keep-dtr`. Its Improv scan lists
-  no networks, on dev and PR alike.
+- BW15: drop `web_server:` or add an `ap:` (it resets during setup otherwise), and pass `--allow-reset` for the known
+  reboot after `Disabling AP`; the provisioned reply usually goes out first, not always. See `reference/boards.md`.
+- ESP32-C3 on USB_SERIAL_JTAG: passes with and without `--keep-dtr`; its reboots only show in the
+  `Running through setup()` count (see `reference/boards.md`). The scan returns only the last scan's results, which
+  are empty in the first seconds after boot; use `--settle 10` or more when the target network should be listed.
+- Pico 2 W: run with `--keep-dtr` (see `reference/boards.md`). Its Improv scan lists no networks, on dev and PR alike.
 - Erase the flash between builds: a saved network skips the provisioning path entirely. Both clients fail at once
   when the board already reports `provisioned`; erase the flash first. A new config name does not help: the
   network is saved under a fixed key when the config has no `networks:`. A provisioned board also stops advertising

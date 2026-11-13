@@ -12,8 +12,6 @@ static constexpr const char *const TAG = "trfsim";
 
 // Scenario of the tag in the field
 enum Tag : uint8_t { NONE, TAG_A, TAG_B, SLOW_A, FLAKY_A, COLLIDE, CRC_ERR, ERR_FLAG, STUCK_IRQ, BAD_MSB, TX_ONLY };
-static const char *const TAG_NAMES[] = {"none",    "tagA",     "tagB",      "slowA",   "flakyA", "collision",
-                                        "crc_err", "err_flag", "stuck_irq", "bad_msb", "tx_only"};
 static const uint8_t UID_A[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, 0xE0};  // LSB first: E0-04-01-00-00-00-00-01
 static const uint8_t UID_B[8] = {0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12, 0x07, 0xE0};  // E0-07-12-34-56-78-9A-BC
 
@@ -55,8 +53,12 @@ inline void soft_init() {
 }
 
 inline void set_irq_pin() {
-  if (C.irq_gpio >= 0)
-    gpio_set_level((gpio_num_t) C.irq_gpio, C.irq != 0);
+  static int last = -1;  // tick() runs every millisecond; write the pad only when the level changes
+  const int level = C.irq != 0;
+  if (C.irq_gpio >= 0 && level != last) {
+    gpio_set_level((gpio_num_t) C.irq_gpio, level);
+    last = level;
+  }
 }
 
 inline bool due(uint32_t t, uint32_t now) { return t != 0 && (int32_t) (now - t) >= 0; }
@@ -65,8 +67,7 @@ inline void tick() {
   const uint32_t now = esphome::micros();
   if (due(C.t_tx_end, now)) {
     C.t_tx_end = 0;
-    if (C.tag != STUCK_IRQ || true)
-      C.irq |= 0x80;
+    C.irq |= 0x80;
   }
   if (due(C.t_rx, now)) {
     C.t_rx = 0;
@@ -247,8 +248,6 @@ class FakeDelegate : public esphome::spi::SPIDelegate {
         C.addr++;
       return v;
     }
-    if (!C.have_addr || (C.rd == false && !C.cont && false)) {
-    }
     if (!C.have_addr) {
       this->addr_byte_(d);
       return 0;
@@ -311,6 +310,35 @@ inline void late_pin_setup() {
   // the reader configured the IRQ pad as input; also drive it so the chip model sets its level
   gpio_set_direction((gpio_num_t) C.irq_gpio, GPIO_MODE_INPUT_OUTPUT);
   set_irq_pin();
+}
+
+// Scenario sequence for the scenarios script: each phase sets the tag and lasts MS milliseconds
+struct Phase {
+  const char *name;
+  Tag tag;
+  uint16_t ms;
+};
+static const Phase PHASES[] = {
+    {"none", NONE, 4000},   {"tagA", TAG_A, 4000},          {"slowA", SLOW_A, 4000}, {"flakyA", FLAKY_A, 6000},
+    {"none2", NONE, 4000},  {"tagB", TAG_B, 3000},          {"swapA", TAG_A, 3000},  {"collision", COLLIDE, 4000},
+    {"tagA2", TAG_A, 3000}, {"crc_err", CRC_ERR, 4000},     {"tagA3", TAG_A, 3000},  {"err_flag", ERR_FLAG, 4000},
+    {"tagA4", TAG_A, 3000}, {"bad_msb", BAD_MSB, 4000},     {"tagA5", TAG_A, 3000},  {"tx_only", TX_ONLY, 4000},
+    {"tagA6", TAG_A, 3000}, {"stuck_irq", STUCK_IRQ, 4000}, {"end", NONE, 3000},
+};
+static constexpr int NUM_PHASES = sizeof(PHASES) / sizeof(PHASES[0]);
+
+inline void stats(const char *phase);
+
+// Log the counters of the phase that ended and start phase I; returns its length in ms
+inline uint32_t start_phase(int i) {
+  if (i > 0) {
+    stats(PHASES[i - 1].name);
+    if (PHASES[i - 1].tag == STUCK_IRQ)
+      C.irq = 0;
+  }
+  C.tag = PHASES[i].tag;
+  ESP_LOGI("ev", "PHASE %s", PHASES[i].name);
+  return PHASES[i].ms;
 }
 
 inline void stats(const char *phase) {

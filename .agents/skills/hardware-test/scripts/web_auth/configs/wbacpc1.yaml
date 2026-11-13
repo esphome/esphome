@@ -1,8 +1,0 @@
-substitutions:
-  name: wbacpc1
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-packages:
-  c: !include wbacpc-common.yaml

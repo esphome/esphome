@@ -1,13 +1,13 @@
-# Fallback AP device under test (fresh name per build so no saved credentials carry over)
+# Pico W that falls back to its AP; logs the AP client count when it changes (appeek.hpp). Set a fresh name per build
+# with -s name so no saved network carries over.
 substitutions:
-  name: pap22671pr1
-  ap_ssid: pap22671
+  ap_ssid: rp2webap
 rp2:
   board: rpipicow
 esphome:
   includes: [appeek.hpp]
 packages:
-  hwtest: !include dut-fallback-ap.yaml
+  hwtest: !include ../../templates/dut-fallback-ap.yaml
 interval:
   - interval: 2s
     then:

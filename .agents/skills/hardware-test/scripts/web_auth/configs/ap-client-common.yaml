@@ -1,27 +1,15 @@
-# Captive portal client: joins the DUT AP, probes portal and web_server routes without credentials,
-# one bogus save, then the real credentials. Lines: "probe <what> status N", "real save status N"
+# Captive portal client: the client-wifisave package (one bogus save, then the real credentials 20 s later) plus
+# probes of portal and web_server routes while it is on the device's AP. Lines: "probe <what> status N",
+# "bogus save status N", "real save status N". Substitutions: name, ap_ssid, web_user, web_pass (creds-*.yaml).
 substitutions:
   ap_ssid: wbacp
-  ap_password: hwtestpass
   real_ssid: !secret wifi_ssid
   real_psk: !secret wifi_password
-  basic_hash: "aHc6azdx"
-esphome:
-  name: ${name}
-logger:
-  level: DEBUG
-http_request:
-  id: http
-  verify_ssl: false
-  timeout: 10s
+  bogus_saves: "1"
+  save_interval: 20s
+packages:
+  client: !include ../../../templates/client-wifisave.yaml
 wifi:
-  id: wifi_id
-  networks:
-    - ssid: ${ap_ssid}
-      password: ${ap_password}
-      priority: 10
-    - ssid: ${real_ssid}
-      password: ${real_psk}
   on_connect:
     - if:
         condition:
@@ -34,7 +22,7 @@ script:
   - id: probe
     mode: single
     then:
-      - delay: 3s
+      - delay: 5s
       - http_request.get:
           url: "http://192.168.4.1/"
           capture_response: true
@@ -59,29 +47,11 @@ script:
       - http_request.post:
           url: "http://192.168.4.1/switch/Test%20switch/toggle"
           request_headers:
-            Authorization: "Basic ${basic_hash}"
+            Authorization: !lambda |-
+              static const char CREDS[] = "${web_user}:${web_pass}";
+              return "Basic " + esphome::base64_encode((const uint8_t *) CREDS, sizeof(CREDS) - 1);
           capture_response: true
           on_response:
             - lambda: ESP_LOGI("test", "probe post_auth status %d", response->status_code);
           on_error:
             - lambda: ESP_LOGW("test", "probe post_auth status -1");
-      - http_request.get:
-          url: "http://192.168.4.1/wifisave?ssid=hwtest-no-such-network&psk=nosuchpassword"
-          capture_response: true
-          on_response:
-            - lambda: ESP_LOGI("test", "probe bogus_save status %d", response->status_code);
-          on_error:
-            - lambda: ESP_LOGW("test", "probe bogus_save status -1");
-      - delay: 3s
-      - logger.log: "posting the real credentials"
-      - http_request.get:
-          url: "http://192.168.4.1/wifisave?ssid=${real_ssid}&psk=${real_psk}"
-          capture_response: true
-          on_response:
-            - lambda: ESP_LOGI("test", "real save status %d", response->status_code);
-          on_error:
-            - lambda: ESP_LOGW("test", "real save status -1");
-interval:
-  - interval: 5s
-    then:
-      - lambda: ESP_LOGI("test", "alive %u s", (unsigned) (millis() / 1000));

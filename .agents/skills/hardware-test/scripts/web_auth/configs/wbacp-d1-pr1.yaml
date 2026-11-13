@@ -1,9 +1,0 @@
-substitutions:
-  name: wbacp-d1-pr1
-  ap_ssid: wbacp
-esp8266:
-  board: d1_mini
-packages:
-  creds: !include creds-short.yaml
-  hwtest: !include dut-fallback-ap.yaml
-  common: !include wba-common.yaml

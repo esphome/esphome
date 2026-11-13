@@ -1,36 +1,19 @@
 """List every service, characteristic and descriptor UUID a bluetooth_proxy reports for a peer, read each readable
 characteristic, enable notify (CCCD write) on each notifying one and count 10 s of notifications, then disconnect.
-usage: gattlist.py PROXY PEER_MAC OUT_JSON   env: API_KEY (empty for a plaintext API). Retries 0x3E connect failures."""
+usage: gattlist.py PROXY PEER_MAC OUT_JSON   env: API_KEY (unset for a plaintext API). Retries 0x3E connect failures."""
 
 import asyncio
 import json
-import os
 import pathlib
 import sys
 
-from aioesphomeapi import APIClient
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from apiconn import ble_connect, connect, enable_notify  # noqa: E402
 
 
 async def once(host: str, addr: int) -> dict | None:
-    cli = APIClient(host, 6053, None, noise_psk=os.environ.get("API_KEY") or None)
-    await cli.connect(login=True)
-    seen = asyncio.Event()
-    cli.subscribe_bluetooth_le_raw_advertisements(
-        lambda m: (
-            seen.set() if any(a.address == addr for a in m.advertisements) else None
-        )
-    )
-    await asyncio.wait_for(seen.wait(), 60)
-    q: asyncio.Queue = asyncio.Queue()
-    cancel = await cli.bluetooth_device_connect(
-        addr,
-        lambda c, mtu, err: q.put_nowait((c, err)),
-        timeout=30,
-        address_type=0,
-        feature_flags=0xFF,
-        has_cache=False,
-    )
-    c, err = await asyncio.wait_for(q.get(), 35)
+    cli = await connect(host)
+    c, _mtu, err, cancel = await ble_connect(cli, addr)
     if not c:
         print(f"connect err={err}", flush=True)
         cancel()
@@ -57,25 +40,14 @@ async def once(host: str, addr: int) -> dict | None:
                 except Exception as e:  # noqa: BLE001
                     out["reads"][ch.uuid] = f"FAILED {type(e).__name__}"
             if ch.properties & 0x10:
-                cccd = next(
-                    (
-                        d
-                        for d in ch.descriptors
-                        if d.uuid.lower().startswith("00002902")
-                    ),
-                    None,
-                )
                 notif[ch.uuid] = 0
                 try:
-                    await cli.bluetooth_gatt_start_notify(
+                    await enable_notify(
+                        cli,
                         addr,
-                        ch.handle,
+                        ch,
                         lambda h, d, u=ch.uuid: notif.__setitem__(u, notif[u] + 1),
                     )
-                    if cccd is not None:
-                        await cli.bluetooth_gatt_write_descriptor(
-                            addr, cccd.handle, b"\x01\x00"
-                        )
                 except Exception as e:  # noqa: BLE001
                     notif[ch.uuid] = f"FAILED {type(e).__name__}"
         out["services"].append(so)

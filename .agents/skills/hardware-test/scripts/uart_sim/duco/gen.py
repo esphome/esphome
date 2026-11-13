@@ -211,7 +211,7 @@ for s, addr in SENSORS:
     if addr is not None:
         w(f"      - address: {addr}\n")
         pre = "        "
-    w(f"""{pre if addr is not None else pre}id: {s}
+    w(f"""{pre}id: {s}
 {pre}name: {s.replace("_", " ").title()}
 {pre}update_interval: never
 {pre}on_value:
