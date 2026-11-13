@@ -87,6 +87,8 @@ from esphome.util import (
 if TYPE_CHECKING:
     import threading
 
+    from esphome.multi_progress import MultiProgressDisplay
+
 # Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
 # module's top level. Every `esphome` invocation — including fast paths
 # like `esphome version` — pays the cost of what's imported here before
@@ -2171,14 +2173,84 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     )
 
 
+def _run_config_captured(
+    cmd: list[str],
+    env: dict[str, str],
+    running: set,
+    lock: "threading.Lock",
+    display: "MultiProgressDisplay | None" = None,
+    name: str = "",
+) -> tuple[int, str]:
+    """Run one child process to completion, returning its exit code and output.
+
+    stdout and stderr are merged and captured so parallel children do not
+    interleave on the terminal. stdin is closed so a child that would prompt
+    fails instead of blocking the whole batch.
+
+    With a display, the child's progress-bar frames are taken out of the
+    returned output and shown live on the display's row for ``name``, along
+    with the stage (resolving, connecting, retrying) its log lines report.
+    """
+    # Deferred: single-config runs never spawn a child process.
+    import codecs
+    import subprocess
+
+    progress = None
+    if display is not None:
+        from esphome.multi_progress import JobProgress
+
+        progress = JobProgress(display, name)
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            # Unbuffered, so a read returns what the child has written so far
+            # instead of waiting for a full buffer.
+            bufsize=0,
+            env=env,
+        )
+    except OSError as err:
+        if progress is not None:
+            progress.finish(False)
+        return 1, f"Running command failed: {err}\n"
+    with lock:
+        running.add(proc)
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    output = []
+    try:
+        while chunk := proc.stdout.read(4096):
+            text = decoder.decode(chunk)
+            output.append(progress.feed(text) if progress is not None else text)
+        output.append(decoder.decode(b"", final=True))
+        if progress is not None:
+            output.append(progress.flush())
+        rc = proc.wait()
+    finally:
+        proc.stdout.close()
+        with lock:
+            running.discard(proc)
+    if progress is not None:
+        progress.finish(rc == 0)
+    # Children write the platform's line endings; print() adds them back.
+    return rc, "".join(output).replace("\r\n", "\n")
+
+
 def run_multiple_configs(
-    files: list, command_builder: Callable[[str], list[str]]
+    files: list, command_builder: Callable[[str], list[str]], jobs: int = 1
 ) -> int:
     """Run a command for each configuration file in a subprocess.
 
     Args:
         files: List of configuration files to process.
         command_builder: Callable that takes a file path and returns a command list.
+        jobs: Number of configurations to process at once. With more than one,
+            each child's output is captured rather than streamed. On a
+            terminal, a live block of progress bars is shown and the captured
+            logs follow once every child has finished; otherwise each log is
+            printed as its child finishes.
 
     Returns:
         Number of failed files.
@@ -2194,23 +2266,7 @@ def run_multiple_configs(
         half_line = "=" * ((twidth - width) // 2)
         safe_print(f"{half_line}{middle_text}{half_line}")
 
-    for f in files:
-        f_path = Path(f) if not isinstance(f, Path) else f
-
-        if any(f_path.name == x for x in SECRETS_FILES):
-            _LOGGER.warning("Skipping secrets file %s", f_path)
-            continue
-
-        safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
-        safe_print("-" * twidth)
-        safe_print()
-
-        cmd = command_builder(f)
-        # The parent already logged the Intel macOS warning; children skip it.
-        rc = run_external_process(
-            *cmd, env={**os.environ, _INTEL_MACOS_WARNED_ENV: "1"}
-        )
-
+    def print_result(f, rc: int) -> None:
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
@@ -2221,6 +2277,97 @@ def run_multiple_configs(
         safe_print()
         safe_print()
         safe_print()
+
+    to_run = []
+    for f in files:
+        f_path = Path(f) if not isinstance(f, Path) else f
+
+        if any(f_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", f_path)
+            continue
+        to_run.append(f)
+
+    # The parent already logged the Intel macOS warning; children skip it.
+    env = {**os.environ, _INTEL_MACOS_WARNED_ENV: "1"}
+
+    def print_header(f) -> None:
+        safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
+        safe_print("-" * twidth)
+        safe_print()
+
+    def print_captured(f, rc: int, output: str) -> None:
+        print_header(f)
+        safe_print(output, end="" if output.endswith("\n") or not output else "\n")
+        print_result(f, rc)
+
+    if jobs <= 1 or len(to_run) <= 1:
+        for f in to_run:
+            print_header(f)
+            print_result(f, run_external_process(*command_builder(f), env=env))
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+
+        workers = min(jobs, len(to_run))
+        # Live bars need a terminal to redraw on; a log file or CI job gets
+        # each child's output as it finishes instead.
+        live = sys.stdout.isatty() and not CORE.dashboard
+        safe_print(f"Processing {len(to_run)} configurations")
+        safe_print()
+
+        # A piped stdout is block-buffered while stderr is not; unbuffered
+        # keeps each child's log lines and prints in the order they happened.
+        env["PYTHONUNBUFFERED"] = "1"
+        display = None
+        # Shown on the bars: file names are enough unless two of them clash
+        names = {f: Path(f).stem for f in to_run}
+        if len(set(names.values())) != len(names):
+            names = {f: str(f) for f in to_run}
+        if live:
+            from esphome.multi_progress import ENV_FORCE_PROGRESS, MultiProgressDisplay
+
+            # The children write to a pipe, where the bar is normally off
+            env[ENV_FORCE_PROGRESS] = "1"
+            display = MultiProgressDisplay(
+                len(to_run), sys.stdout, max(len(n) for n in names.values())
+            )
+
+        running: set = set()
+        lock = threading.Lock()
+        results: dict = {}
+        executor = ThreadPoolExecutor(max_workers=workers)
+        try:
+            futures = {
+                executor.submit(
+                    _run_config_captured,
+                    command_builder(f),
+                    env,
+                    running,
+                    lock,
+                    display,
+                    names[f],
+                ): f
+                for f in to_run
+            }
+            for future in as_completed(futures):
+                f = futures[future]
+                if live:
+                    results[f] = future.result()
+                else:
+                    print_captured(f, *future.result())
+        except BaseException:
+            # Ctrl-C or an unexpected error: don't start queued configs and
+            # don't leave running children behind.
+            executor.shutdown(wait=False, cancel_futures=True)
+            with lock:
+                for proc in running:
+                    proc.terminate()
+            raise
+        executor.shutdown()
+        if live:
+            safe_print()
+            for f in to_run:
+                print_captured(f, *results[f])
 
     print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
@@ -2493,6 +2640,16 @@ def _tcp_port(value: str) -> int:
     return port
 
 
+def _positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        number = 0
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a positive integer")
+    return number
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2656,6 +2813,16 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--upload_speed",
         help="Override the default or configured upload speed.",
+    )
+    parser_upload.add_argument(
+        "-j",
+        "--jobs",
+        type=_positive_int,
+        default=1,
+        help="Number of configurations to upload at once when several are "
+        "given. Defaults to 1 (one after another). With more than one, each "
+        "upload gets a live progress bar and the logs are printed once all "
+        "have finished, uploads cannot prompt, and --device defaults to OTA.",
     )
     parser_upload.add_argument(
         "--file",
@@ -3081,14 +3248,21 @@ def run_esphome(argv):
     if len(args.configuration) > 1:
         # Build command by reusing argv, replacing all configs with single file
         # argv[0] is the program path, skip it since we prefix with "esphome"
+        jobs = getattr(args, "jobs", 1)
+        # Parallel children have no stdin, so the interactive port chooser
+        # cannot run; resolve over the network unless told otherwise. A
+        # leftover --jobs in a child's argv is harmless: it has one config.
+        extra_args = ["--device", "OTA"] if jobs > 1 and not args.device else []
+
         def build_command(f):
             return (
                 [*ESPHOME_COMMAND]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
+                + extra_args
                 + [str(f)]
             )
 
-        return run_multiple_configs(args.configuration, build_command)
+        return run_multiple_configs(args.configuration, build_command, jobs=jobs)
 
     # Single configuration
     conf_path = Path(args.configuration[0])
