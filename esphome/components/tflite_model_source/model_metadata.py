@@ -280,17 +280,16 @@ def infer_model_config_from_filename(model_filename):
     else:
         config["input_channels"] = 3
         config["input_order"] = "RGB"
-        guessed.append("3-channel RGB input")
+        guessed.append("the colour order")
     # A "_10cls" tag is the default, so only "_100cls" changes the scale.
     num_classes = 100 if "_100cls_" in name or name.endswith("_100cls") else 10
     if num_classes == 10 and "_10cls" not in name:
-        guessed.append("10 classes")
+        guessed.append("the class count")
     if guessed:
-        # These defaults are wrong for grayscale and 100-class models, so the
-        # guesses must be visible in the build log.
-        _LOGGER.warning(
-            "Model '%s' has no file name tag for %s; assuming the defaults. "
-            "Rename the file or supply its .txt report to be explicit",
+        # The report is optional and the consumer logs the values it resolves, so a
+        # guess is only traced here rather than reported as a problem.
+        _LOGGER.debug(
+            "Model '%s' has no file name tag for %s; using the defaults",
             Path(model_filename).name,
             " or ".join(guessed),
         )

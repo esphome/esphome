@@ -130,15 +130,14 @@ def test_infer_model_config_from_filename(filename, channels, order, scale):
     assert config["scale_factor"] == scale
 
 
-def test_infer_model_config_from_filename_warns_about_the_defaults(caplog):
-    """The defaults are wrong for grayscale and 100-class models, so they are logged."""
-    with caplog.at_level(logging.WARNING):
+def test_infer_model_config_from_filename_does_not_warn(caplog):
+    """The report is optional and the consumer logs the values it resolves."""
+    with caplog.at_level(logging.DEBUG):
         infer_model_config_from_filename("model.tflite")
 
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    assert "3-channel RGB" in warnings[0].getMessage()
-    assert "10 classes" in warnings[0].getMessage()
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "the colour order" in caplog.text
+    assert "the class count" in caplog.text
 
 
 @pytest.mark.parametrize(
