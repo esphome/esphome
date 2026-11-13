@@ -7637,6 +7637,63 @@ def test_run_multiple_configs_parallel_interrupt_stops_children(
     assert not started[3].exists()
 
 
+def test_run_multiple_configs_parallel_live_command_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A child that cannot be started still retires its progress row."""
+    files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
+    terminal = _FakeTerminal()
+    monkeypatch.setattr(sys, "stdout", terminal)
+
+    failed = main.run_multiple_configs(
+        files, lambda f: [str(tmp_path / "does-not-exist")], jobs=2
+    )
+
+    assert failed == 2
+    out = strip_ansi_codes(terminal.getvalue()).replace("\r", "")
+    assert re.search(r"^ a +FAILED ", out, re.MULTILINE)
+    assert re.search(r"^ b +FAILED ", out, re.MULTILINE)
+    assert re.search(r"^ Total \(2/2\) ", out, re.MULTILINE)
+    assert out.count("Running command failed") == 2
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_run_config_captured_does_not_start_after_stop(
+    tmp_path: Path, live: bool
+) -> None:
+    """A worker that reaches its child after Ctrl-C must not start it."""
+    marker = tmp_path / "started"
+    script = "import sys, pathlib; pathlib.Path(sys.argv[1]).touch()"
+    children = main._ChildProcesses()
+    children.stop()
+    display = MagicMock() if live else None
+
+    rc, output = main._run_config_captured(
+        [*_child_script(script), str(marker)], dict(os.environ), children, display, "a"
+    )
+
+    assert rc != 0
+    assert "stopped" in output
+    assert not marker.exists()
+    if display is not None:
+        display.finish.assert_called_once_with("a", False)
+
+
+def test_child_processes_stop_terminates_running_children() -> None:
+    """stop() ends children that were started before it."""
+    children = main._ChildProcesses()
+    proc = children.start(
+        _child_script("import time; print('up', flush=True); time.sleep(60)"),
+        dict(os.environ),
+    )
+    assert proc is not None
+    with proc:
+        assert proc.stdout.readline().strip() == b"up"
+        children.stop()
+        assert proc.wait(timeout=30) != 0
+    children.finished(proc)
+
+
 def test_run_multiple_configs_single_job_streams(tmp_path: Path) -> None:
     """jobs=1 keeps the sequential, live-streaming path."""
     files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
@@ -7654,9 +7711,12 @@ def test_run_multiple_configs_single_job_streams(tmp_path: Path) -> None:
     ("extra_args", "expected_jobs", "expected_device"),
     [
         ([], 1, None),
-        (["--jobs", "4"], 4, ["--device", "OTA"]),
-        (["-j4"], 4, ["--device", "OTA"]),
-        (["--jobs", "4", "--device", "192.168.1.5"], 4, None),
+        (["--"], 1, None),
+        (["--jobs", "4"], 4, ["OTA"]),
+        # Added options must not land after the end-of-options marker
+        (["--jobs", "4", "--"], 4, ["OTA"]),
+        (["-j4"], 4, ["OTA"]),
+        (["--jobs", "4", "--device", "192.168.1.5"], 4, ["192.168.1.5"]),
     ],
 )
 def test_run_esphome_upload_jobs(
@@ -7665,7 +7725,10 @@ def test_run_esphome_upload_jobs(
     expected_jobs: int,
     expected_device: list[str] | None,
 ) -> None:
-    """--jobs reaches run_multiple_configs and defaults children to OTA."""
+    """--jobs reaches run_multiple_configs and defaults children to OTA.
+
+    ``expected_device`` is the ``--device`` each child ends up with.
+    """
     yaml1 = tmp_path / "device1.yaml"
     yaml2 = tmp_path / "device2.yaml"
     setup_core(tmp_path=tmp_path)
@@ -7681,10 +7744,10 @@ def test_run_esphome_upload_jobs(
     # One config per child, last on the command line
     assert cmd[-1] == str(yaml1)
     assert str(yaml2) not in cmd
-    if expected_device is None:
-        assert "OTA" not in cmd
-    else:
-        assert cmd[-3:-1] == expected_device
+    # What the child makes of it: one configuration, and the device if added
+    child_args = main.parse_args(cmd[len(main.ESPHOME_COMMAND) - 1 :])
+    assert child_args.configuration == [str(yaml1)]
+    assert child_args.device == expected_device
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "many"])

@@ -104,6 +104,14 @@ def test_filter_handles_windows_line_endings(size: int) -> None:
     assert [pct for _, pct in seen] == [50, 100, 60]
 
 
+def test_filter_keeps_text_that_follows_an_unfinished_bar() -> None:
+    """Only a newline is dropped after a partial bar, not other text."""
+    text, seen = _run_filter([_frame(60), "ERROR timed out\n"])
+
+    assert text == "ERROR timed out\n"
+    assert seen == [("Uploading", 60)]
+
+
 def test_filter_leaves_other_carriage_returns_alone() -> None:
     stream = "line one\r\nspinner |\rspinner /\rdone\n"
 
@@ -276,3 +284,16 @@ def test_display_update_without_percent_keeps_the_bar() -> None:
     screen = _screen(stream.getvalue())
     assert "retry 2/3" in screen[0]
     assert screen[0].endswith(" 40%")
+
+
+def test_display_does_not_redraw_when_nothing_changed() -> None:
+    stream = io.StringIO()
+    display = MultiProgressDisplay(1, stream, name_width=5)
+    display.start("one")
+    display.update("one", "Uploading", 40)
+    before = stream.getvalue()
+
+    display.update("one", "Uploading", 40)
+    display.update("one", "Uploading")
+
+    assert stream.getvalue() == before

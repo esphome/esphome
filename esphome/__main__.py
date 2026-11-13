@@ -85,6 +85,7 @@ from esphome.util import (
 )
 
 if TYPE_CHECKING:
+    import subprocess
     import threading
 
     from esphome.multi_progress import MultiProgressDisplay
@@ -2173,11 +2174,62 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     )
 
 
+class _ChildProcesses:
+    """The children of a parallel run, so that all of them can be stopped.
+
+    Starting a child and stopping them all take the same lock: a child is
+    either started before the stop and terminated by it, or not started.
+    """
+
+    def __init__(self) -> None:
+        import threading
+
+        self._lock = threading.Lock()
+        self._running: set[subprocess.Popen[bytes]] = set()
+        self._stopped = False
+
+    def start(
+        self, cmd: list[str], env: dict[str, str]
+    ) -> "subprocess.Popen[bytes] | None":
+        """Start a child with its output captured; None once stopped."""
+        # Deferred: single-config runs never spawn a child process.
+        import subprocess
+
+        with self._lock:
+            if self._stopped:
+                return None
+            # The caller enters it; it has to be registered before the lock
+            # is released.
+            proc = subprocess.Popen(  # pylint: disable=consider-using-with
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                # Unbuffered, so a read returns what the child has written so
+                # far instead of waiting for a full buffer.
+                bufsize=0,
+                env=env,
+            )
+            self._running.add(proc)
+            return proc
+
+    def finished(self, proc: "subprocess.Popen[bytes]") -> None:
+        """Forget a child that has closed its output."""
+        with self._lock:
+            self._running.discard(proc)
+
+    def stop(self) -> None:
+        """Terminate the running children and refuse to start any more."""
+        with self._lock:
+            self._stopped = True
+            for proc in self._running:
+                proc.terminate()
+
+
 def _run_config_captured(
     cmd: list[str],
     env: dict[str, str],
-    running: set,
-    lock: "threading.Lock",
+    children: _ChildProcesses,
     display: "MultiProgressDisplay | None" = None,
     name: str = "",
 ) -> tuple[int, str]:
@@ -2191,9 +2243,7 @@ def _run_config_captured(
     returned output and shown live on the display's row for ``name``, along
     with the stage (resolving, connecting, retrying) its log lines report.
     """
-    # Deferred: single-config runs never spawn a child process.
     import codecs
-    import subprocess
 
     progress = None
     if display is not None:
@@ -2201,33 +2251,28 @@ def _run_config_captured(
 
         progress = JobProgress(display, name)
 
-    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-    output = []
     try:
-        with subprocess.Popen(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            # Unbuffered, so a read returns what the child has written so far
-            # instead of waiting for a full buffer.
-            bufsize=0,
-            env=env,
-        ) as proc:
-            with lock:
-                running.add(proc)
-            try:
-                while chunk := proc.stdout.read(4096):
-                    text = decoder.decode(chunk)
-                    output.append(progress.feed(text) if progress is not None else text)
-            finally:
-                with lock:
-                    running.discard(proc)
-        rc = proc.returncode
+        proc = children.start(cmd, env)
     except OSError as err:
+        proc = None
+        failure = f"Running command failed: {err}\n"
+    else:
+        failure = "Not started: the run was stopped\n"
+    if proc is None:
         if progress is not None:
             progress.finish(False)
-        return 1, f"Running command failed: {err}\n"
+        return 1, failure
+
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    output = []
+    with proc:
+        try:
+            while chunk := proc.stdout.read(4096):
+                text = decoder.decode(chunk)
+                output.append(progress.feed(text) if progress is not None else text)
+        finally:
+            children.finished(proc)
+    rc = proc.returncode
     output.append(decoder.decode(b"", final=True))
     if progress is not None:
         output.append(progress.flush())
@@ -2264,7 +2309,7 @@ def run_multiple_configs(
         half_line = "=" * ((twidth - width) // 2)
         safe_print(f"{half_line}{middle_text}{half_line}")
 
-    def print_result(f, rc: int) -> None:
+    def print_result(f: str | Path, rc: int) -> None:
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
@@ -2288,12 +2333,12 @@ def run_multiple_configs(
     # The parent already logged the Intel macOS warning; children skip it.
     env = {**os.environ, _INTEL_MACOS_WARNED_ENV: "1"}
 
-    def print_header(f) -> None:
+    def print_header(f: str | Path) -> None:
         safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
 
-    def print_captured(f, rc: int, output: str) -> None:
+    def print_captured(f: str | Path, rc: int, output: str) -> None:
         print_header(f)
         safe_print(output, end="" if output.endswith("\n") or not output else "\n")
         print_result(f, rc)
@@ -2304,7 +2349,6 @@ def run_multiple_configs(
             print_result(f, run_external_process(*command_builder(f), env=env))
     else:
         from concurrent.futures import ThreadPoolExecutor, as_completed
-        import threading
 
         workers = min(jobs, len(to_run))
         # Live bars need a terminal to redraw on; a log file or CI job gets
@@ -2330,9 +2374,8 @@ def run_multiple_configs(
                 len(to_run), sys.stdout, max(len(n) for n in names.values())
             )
 
-        running: set = set()
-        lock = threading.Lock()
-        results: dict = {}
+        children = _ChildProcesses()
+        results: dict[str | Path, tuple[int, str]] = {}
         executor = ThreadPoolExecutor(max_workers=workers)
         try:
             futures = {
@@ -2340,8 +2383,7 @@ def run_multiple_configs(
                     _run_config_captured,
                     command_builder(f),
                     env,
-                    running,
-                    lock,
+                    children,
                     display,
                     names[f],
                 ): f
@@ -2357,9 +2399,7 @@ def run_multiple_configs(
             # Ctrl-C or an unexpected error: don't start queued configs and
             # don't leave running children behind.
             executor.shutdown(wait=False, cancel_futures=True)
-            with lock:
-                for proc in running:
-                    proc.terminate()
+            children.stop()
             raise
         executor.shutdown()
         if live:
@@ -3251,14 +3291,14 @@ def run_esphome(argv):
         # cannot run; resolve over the network unless told otherwise. A
         # leftover --jobs in a child's argv is harmless: it has one config.
         extra_args = ["--device", "OTA"] if jobs > 1 and not args.device else []
+        passthrough = [arg for arg in argv[1:] if arg not in args.configuration]
+        # After an end-of-options marker the child would take the added
+        # options for configurations, so they go before it.
+        marker = passthrough.index("--") if "--" in passthrough else len(passthrough)
+        passthrough[marker:marker] = extra_args
 
-        def build_command(f):
-            return (
-                [*ESPHOME_COMMAND]
-                + [arg for arg in argv[1:] if arg not in args.configuration]
-                + extra_args
-                + [str(f)]
-            )
+        def build_command(f: str) -> list[str]:
+            return [*ESPHOME_COMMAND, *passthrough, str(f)]
 
         return run_multiple_configs(args.configuration, build_command, jobs=jobs)
 
