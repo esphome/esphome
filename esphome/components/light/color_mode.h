@@ -136,18 +136,37 @@ struct ColorModeBitPolicy {
   using mask_t = uint16_t;  // 10 bits requires uint16_t
   static constexpr int MAX_BITS = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
 
+  /// The position follows from the capability bits: UNKNOWN and ON_OFF are bits 0 and 1, every other mode is
+  /// 2, plus 4 with RGB, plus 1 for WHITE, 2 for COLOR_TEMPERATURE or 3 for COLD_WARM_WHITE.
+  /// One table read confirms the result, so a value that is not a mode still gives bit 0.
   static constexpr unsigned to_bit(ColorMode mode) {
-    for (int i = 0; i < MAX_BITS; ++i) {
-      if (color_mode_at(i) == mode)
-        return i;
+    const auto value = static_cast<uint8_t>(mode);
+    unsigned bit = value;
+    if (value > 1) {
+      // COLOR_TEMPERATURE is checked before WHITE because RGB_COLOR_TEMPERATURE has both
+      const unsigned white = (mode & ColorCapability::COLD_WARM_WHITE)     ? 3
+                             : (mode & ColorCapability::COLOR_TEMPERATURE) ? 2
+                             : (mode & ColorCapability::WHITE)             ? 1
+                                                                           : 0;
+      bit = ((mode & ColorCapability::RGB) ? 6 : 2) + white;
     }
-    return 0;
+    return (bit < MAX_BITS && color_mode_at(bit) == mode) ? bit : 0;
   }
 
   static constexpr ColorMode from_bit(unsigned bit) {
     return (bit < MAX_BITS) ? color_mode_at(bit) : ColorMode::UNKNOWN;
   }
 };
+
+// to_bit() computes the position instead of searching COLOR_MODE_LOOKUP, so check it against the table
+constexpr bool to_bit_matches_lookup() {
+  for (int bit = 0; bit < ColorModeBitPolicy::MAX_BITS; bit++) {
+    if (ColorModeBitPolicy::to_bit(color_mode_at(bit)) != static_cast<unsigned>(bit))
+      return false;
+  }
+  return true;
+}
+static_assert(to_bit_matches_lookup(), "ColorModeBitPolicy::to_bit() does not match COLOR_MODE_LOOKUP");
 
 // Type alias for ColorMode bitmask using policy-based design
 using ColorModeMask = FiniteSetMask<ColorMode, ColorModeBitPolicy>;
