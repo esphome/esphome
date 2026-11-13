@@ -51,13 +51,17 @@ static void SensorFilter_ExponentialMovingAvg(benchmark::State &state) {
 }
 BENCHMARK(SensorFilter_ExponentialMovingAvg);
 
+// Mirror the code generated for `offset: 1` and `multiply: 2`
+static optional<float> offset_1(float x) { return x + 1.0f; }
+static optional<float> multiply_2(float x) { return x * 2.0f; }
+
 // Benchmark: sensor publish through a chain of 3 filters (offset + multiply + sliding window)
 static void SensorFilter_Chain3(benchmark::State &state) {
   Sensor sensor;
 
   sensor.add_filters({
-      new OffsetFilter([]() -> float { return 1.0f; }),
-      new MultiplyFilter([]() -> float { return 2.0f; }),
+      new ApplyFilter<offset_1>(),
+      new ApplyFilter<multiply_2>(),
       new SlidingWindowMovingAverageFilter(5, 1, 1),
   });
 

@@ -33,6 +33,26 @@ sensor:
       - calibrate_linear:
           - 0.0 -> 1.0
           - 10.0 -> 21.0
+  # Exact with one segment: two points, and collinear points that merge into one
+  - platform: template
+    id: exact_two_points
+    lambda: return 1.0;
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 3.0
+            - 10.0 -> 23.0
+  - platform: template
+    id: exact_collinear
+    lambda: return 1.0;
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 5.0
+            - 10.0 -> 35.0
+            - 20.0 -> 65.0
   - platform: template
     id: polynomial
     lambda: return 1.0;
