@@ -340,7 +340,7 @@ size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size
 // A plain decimal converts exactly with one division: the digits accumulate
 // into an integer that stays below 2^24 and the fraction's scale is a power of
 // ten up to 1e9 (2^9 * 5^9), so both convert to float exactly and IEEE division
-// rounds the quotient correctly, the same result strtof produces.
+// rounds the quotient correctly, the same result newlib's strtof produces.
 static constexpr uint32_t PARSE_FLOAT_MANTISSA_LIMIT = 1000000;  // one more digit stays below 2^24
 static constexpr uint32_t PARSE_FLOAT_MAX_FRACTION_DIGITS = 9;
 
@@ -380,9 +380,9 @@ optional<float> parse_float(const char *str) {
     }
     return value;
   }
-  // Exponents, hex, inf, nan, leading whitespace and longer inputs take the libc path.
+  // Exponents, hex, inf, nan, leading whitespace and longer inputs take the full parser.
   char *end = nullptr;
-  const float value = ::strtof(str, &end);
+  const float value = parse_float_prefix(str, &end);
   if (end == str || *end != '\0' || value == HUGE_VALF)
     return {};
   return value;

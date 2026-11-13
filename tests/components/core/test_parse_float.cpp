@@ -76,6 +76,16 @@ TEST(ParseFloat, RejectsInvalidInput) {
   }
 }
 
+// Above the midpoint 1 + 2^-24 by less than half a double: newlib's strtof rounds to the midpoint and then to
+// 1.0f, as on the devices, where a strtof that rounds straight to a float gives the next float.
+TEST(ParseFloat, FullPathRoundsLikeNewlib) {
+  EXPECT_EQ(bits(parse_number<float>("1.0000000596046448").value()), 0x3F800000u);
+  EXPECT_EQ(bits(parse_number<float>("-1.0000000596046448").value()), 0xBF800000u);
+  // newlib stops after "nan" unless the parentheses hold only hex digits
+  EXPECT_FALSE(parse_number<float>("nan(xyz)").has_value());
+  EXPECT_TRUE(std::isnan(parse_number<float>("nan(12)").value()));
+}
+
 // newlib's strtof is (float) strtod with every NaN as nanf(""). The host's strtod rounds decimals to the nearest
 // double just as newlib's does, so for decimal input this is newlib's strtof; hex and "nan(" input are compared
 // with values taken from newlib itself below, as libcs differ there.

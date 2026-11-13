@@ -292,6 +292,9 @@ inline bool operator==(const std::string &lhs, const ProgmemStringRef &rhs) { re
 inline bool operator!=(const std::string &lhs, const ProgmemStringRef &rhs) { return !rhs.equals(StringRef(lhs)); }
 #endif
 
+// helpers.h: strtof without libc's strtod
+float parse_float_prefix(const char *str, char **end);
+
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
 // Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
 namespace internal {
@@ -334,7 +337,7 @@ inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
   return internal::parse_number<long>(str, pos, base, std::strtol);
 }
 inline float stof(const StringRef &str, size_t *pos = nullptr) {
-  return internal::parse_number<float>(str, pos, std::strtof);
+  return internal::parse_number<float>(str, pos, parse_float_prefix);
 }
 inline double stod(const StringRef &str, size_t *pos = nullptr) {
   return internal::parse_number<double>(str, pos, std::strtod);

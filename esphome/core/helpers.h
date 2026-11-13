@@ -1569,7 +1569,7 @@ template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T
 optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str());
 }
-/// Parse a decimal floating-point number; plain decimals skip the libc parser.
+/// Parse a decimal floating-point number; plain decimals skip the full parser.
 optional<float> parse_float(const char *str);
 /** strtof without libc's strtod: the same value and end as newlib's strtof in the C locale for every input.
  *
