@@ -1529,7 +1529,9 @@ bind_key = BindKeyValidator()
 
 
 def uuid(value):
-    return Coerce(uuid_.UUID)(value)
+    # uuid.UUID's first parameter is the hex string; an int/float would die
+    # inside it with a raw AttributeError instead of a config error
+    return Coerce(uuid_.UUID)(string_strict(value))
 
 
 METRIC_SUFFIXES = {

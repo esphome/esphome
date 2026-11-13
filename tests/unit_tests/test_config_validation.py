@@ -2180,6 +2180,13 @@ def test_uuid_valid() -> None:
     assert str(result) == "12345678-1234-5678-1234-567812345678"
 
 
+@pytest.mark.parametrize("value", (12345, 12.5, None))
+def test_uuid_rejects_non_string(value) -> None:
+    # a raw AttributeError escaped from uuid.UUID's hex.replace before
+    with pytest.raises(Invalid):
+        cv.uuid(value)
+
+
 # ---------------------------------------------------------------------------
 # float_with_unit family
 # ---------------------------------------------------------------------------
