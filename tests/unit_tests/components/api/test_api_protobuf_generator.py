@@ -191,6 +191,29 @@ def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
     assert content.startswith("pos = ProtoEncode::encode_"), content
 
 
+@pytest.mark.parametrize(("number", "tag"), [(3, 24), (15, 120)])
+def test_repeated_sint32_single_byte_tag_uses_the_short_varint(
+    number: int, tag: int
+) -> None:
+    content = _encode_field(SINT32, number, repeated=True)
+    assert f"write_raw_byte(pos, {tag});" in content, content
+    assert "encode_varint_raw_short(pos, encode_zigzag32(it));" in content, content
+    assert "encode_sint32_force" not in content, content
+
+
+def test_repeated_sint32_multi_byte_tag_falls_back_to_the_force_overload() -> None:
+    content = _encode_field(SINT32, 16, repeated=True)
+    assert "encode_sint32_force(pos, 16, it);" in content, content
+    assert "write_raw_byte" not in content, content
+
+
+@pytest.mark.parametrize("field_type", [UINT32, UINT64])
+def test_other_repeated_varints_keep_the_force_overload(field_type: int) -> None:
+    content = _encode_field(field_type, 3, repeated=True)
+    assert "_force(pos, 3, it);" in content, content
+    assert "write_raw_byte" not in content, content
+
+
 def _decode_case(field_type: int, number: int, *, repeated: bool = False) -> str:
     """Return the decode_field() case the generator emits for one decoded field."""
     field = _field(field_type, number, repeated=repeated)
