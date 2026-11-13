@@ -55,7 +55,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     // to a socket would take that lock again and deadlock, so queue the message for loop() instead.
     if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED))
         [[unlikely]] {
-      this->log_vprintf_non_main_thread_(level, tag, line, format, args, get_thread_name_(current_task));
+      this->log_vprintf_non_main_thread_(level, tag, line, format, args, nullptr);
       return;
     }
 #endif
