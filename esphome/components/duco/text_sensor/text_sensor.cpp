@@ -10,6 +10,8 @@
 
 namespace esphome::duco {
 
+#ifdef USE_DUCO_ERROR_TEXT_SENSOR
+// Only built when an error text sensor is configured; the tables are about 3 kB of flash
 static constexpr size_t MAX_ERROR_TEXT_LENGTH = 255;
 
 PROGMEM_STRING_TABLE(ErrorCodes, "E01.04.01", "E03.01.01", "E03.01.02", "E03.01.03", "E03.01.04", "E03.01.05",
@@ -79,6 +81,7 @@ static size_t format_errors(const uint8_t *records, uint8_t count, char *text, s
   }
   return pos <= MAX_ERROR_TEXT_LENGTH ? pos : 0;
 }
+#endif
 
 void DucoTextSensor::update() {
   switch (this->reading_) {
@@ -94,7 +97,9 @@ void DucoTextSensor::update() {
       this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x00, 0x04});
       break;
     case DucoTextReading::DUCO_TEXT_READING_ERROR:
+#ifdef USE_DUCO_ERROR_TEXT_SENSOR
       this->parent_->send(this, FUNCTION_ERRORS, {this->address_, 0x00, 0x00, 0x04});
+#endif
       break;
     case DucoTextReading::DUCO_TEXT_READING_UPTIME:
       this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x49, 0x04});
@@ -114,7 +119,9 @@ void DucoTextSensor::receive_response(const DucoMessage &message) {
       this->publish_version_(message);
       break;
     case DucoTextReading::DUCO_TEXT_READING_ERROR:
+#ifdef USE_DUCO_ERROR_TEXT_SENSOR
       this->publish_errors_(message);
+#endif
       break;
     case DucoTextReading::DUCO_TEXT_READING_UPTIME:
       this->publish_uptime_(message);
@@ -152,6 +159,7 @@ void DucoTextSensor::publish_version_(const DucoMessage &message) {
   this->publish_state(version);
 }
 
+#ifdef USE_DUCO_ERROR_TEXT_SENSOR
 void DucoTextSensor::publish_errors_(const DucoMessage &message) {
   if (message.size == 0 || message.data[0] == 0) {
     this->publish_state("No errors");
@@ -167,6 +175,7 @@ void DucoTextSensor::publish_errors_(const DucoMessage &message) {
     length = format_errors(message.data + 1, error_count, text, sizeof(text), false);
   this->publish_state(text, length);
 }
+#endif
 
 void DucoTextSensor::publish_uptime_(const DucoMessage &message) {
   if (message.size < 10)

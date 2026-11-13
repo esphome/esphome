@@ -26,7 +26,9 @@ class DucoTextSensor : public DucoDevice, public text_sensor::TextSensor {
  protected:
   void publish_serial_number_(const DucoMessage &message);
   void publish_version_(const DucoMessage &message);
+#ifdef USE_DUCO_ERROR_TEXT_SENSOR
   void publish_errors_(const DucoMessage &message);
+#endif
   void publish_uptime_(const DucoMessage &message);
 
   DucoTextReading reading_;

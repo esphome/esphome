@@ -1,3 +1,4 @@
+import esphome.codegen as cg
 from esphome.components import text_sensor
 from esphome.components.const import CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
@@ -75,6 +76,8 @@ async def to_code(config: ConfigType) -> None:
         await register_duco_device(var, config, config[CONF_DUCO_ID])
         return
 
+    if config.get(CONF_ERROR):
+        cg.add_define("USE_DUCO_ERROR_TEXT_SENSOR")
     for key, (reading, _, _) in TEXT_SENSORS.items():
         for entity_config in config.get(key, []):
             var = await text_sensor.new_text_sensor(
