@@ -55,6 +55,9 @@ async def main(name: str, secrets: str) -> None:
                 return
             p, strs = bytes(d[2:-1]), []
             while p:
+                if 1 + p[0] > len(p):
+                    errors.append("string overruns the result")
+                    break
                 strs.append(p[1 : 1 + p[0]].decode(errors="replace"))
                 p = p[1 + p[0] :]
             print(f"{loop.time() - t0:6.2f} RESULT cmd={d[0]} {strs}", flush=True)

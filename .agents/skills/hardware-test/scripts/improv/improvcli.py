@@ -3,8 +3,9 @@ usage: improvcli.py PORT OUT --secrets FILE [--baud N] [--keep-dtr] [--settle S]
 Runs: 300 stray bytes, state, info, network state, scan, provision with a bad password, provision with the real one,
 state and network state again. Prints parsed frames; the raw stream overwrites OUT.
 Exit 2 when the port does not open or the secrets file lacks a key. Exit 1 when any request goes unanswered, an
-unexpected error or a bad or short frame arrives, or the port resets (unless --allow-reset). Credentials come from
-the secrets file (wifi_ssid, wifi_password) and are never printed; the SSID is masked in scan results."""
+unexpected error or a malformed frame arrives, or the port resets or the log shows a reboot (unless --allow-reset).
+Credentials come from the secrets file (wifi_ssid, wifi_password) and are never printed; the SSID is masked in scan
+results."""
 
 import argparse
 import pathlib
@@ -38,9 +39,17 @@ def frame(cmd: int, payload: bytes = b"") -> bytes:
     return body + bytes([sum(body) & 0xFF])
 
 
+BOOT_MARKER = (
+    b"Running through setup()"  # ESPHome logs it once per boot on every platform
+)
+
+
 def strings(p: bytes) -> list[str]:
+    """Split length-prefixed strings; raise ValueError when a prefix runs past the end."""
     out = []
     while p:
+        if 1 + p[0] > len(p):
+            raise ValueError("string overruns the payload")
         out.append(p[1 : 1 + p[0]].decode(errors="replace"))
         p = p[1 + p[0] :]
     return out
@@ -62,6 +71,8 @@ class Dev:
         self.events: list[tuple[float, int, bytes, bool]] = []
         self.loglines = 0
         self.reopens = 0
+        self.boots = 0
+        self.tail = b""
         self.ssid = ssid
 
     def reopen(self, setup: bool = False) -> None:
@@ -96,6 +107,9 @@ class Dev:
                 self.reopen()
                 continue
             if d:
+                seen = self.tail + d
+                self.boots += seen.count(BOOT_MARKER)
+                self.tail = seen[-(len(BOOT_MARKER) - 1) :]
                 self.log.write(d)
                 self.log.flush()
                 self.buf += d
@@ -123,8 +137,14 @@ class Dev:
             del self.buf[: 10 + ln]
             typ, data = body[7], body[9:]
             ok = (sum(body) & 0xFF) == ck
-            # A frame too short for its type is counted as bad, so the predicates never index past it.
+            # A malformed frame is counted as bad, so the predicates never index past it.
             short = len(data) < {1: 1, 2: 1, 4: 2}.get(typ, 0)
+            if typ == 4 and not short:
+                try:
+                    strings(data[2:])
+                    short = data[1] != len(data) - 2
+                except ValueError:
+                    short = True
             self.events.append((time.time() - self.t0, typ, data, ok and not short))
             self.show(typ, data, ok, short)
 
@@ -132,7 +152,7 @@ class Dev:
         t = f"{time.time() - self.t0:7.2f}"
         tag = "" if ok else " BADCHECKSUM"
         if short:
-            print(f"{t} TYPE{typ} {data.hex()} SHORT{tag}")
+            print(f"{t} TYPE{typ} {data.hex()} MALFORMED{tag}")
         elif typ == 1:
             print(f"{t} STATE {STATES.get(data[0], data[0])}{tag}")
         elif typ == 2:
@@ -204,7 +224,7 @@ def main() -> None:
     a.add_argument(
         "--allow-reset",
         action="store_true",
-        help="a port reset (board reboot) does not fail the run",
+        help="a port reset or a reboot in the log does not fail the run",
     )
     o = a.parse_args()
     with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
@@ -214,10 +234,17 @@ def main() -> None:
     except (KeyError, TypeError) as exc:
         print(f"secrets file lacks {exc}", file=sys.stderr)
         sys.exit(2)
+    if not all(
+        isinstance(x, (str, int, float)) and not isinstance(x, bool) for x in (ssid, pw)
+    ):
+        print("wifi_ssid and wifi_password must be plain values", file=sys.stderr)
+        sys.exit(2)
+    ssid, pw = str(ssid), str(pw)  # YAML reads an unquoted number as int
     s, w = ssid.encode(), pw.encode()
     print(f"password length {len(w)} bytes")
     d = Dev(o.port, o.baud, o.out, o.keep_dtr, ssid)
     d.pump(o.settle)
+    boots_at_start = d.boots
     before = d.loglines
     print("== stray bytes")
     j = len(d.events)
@@ -272,10 +299,11 @@ def main() -> None:
     if errors > (0 if o.skip_bad else 1):
         print(f"unexpected error frames: {errors}")
         ok = False
-    if d.reopens and not o.allow_reset:
+    reboots = d.boots - boots_at_start
+    if (d.reopens or reboots) and not o.allow_reset:
         ok = False
     print(
-        f"frames={len(d.events)} badframes={bad} reopens={d.reopens} loglines={d.loglines} "
+        f"frames={len(d.events)} badframes={bad} reopens={d.reopens} reboots={reboots} loglines={d.loglines} "
         f"(before stray {before})"
     )
     print("PASS" if ok and not bad else "FAIL")
