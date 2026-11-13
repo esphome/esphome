@@ -359,10 +359,11 @@ class TypeInfo(ABC):
         )
         if tag < 128 and raw is not None:
             func, arg = raw
-            return (
-                _encode_call("write_raw_byte", str(tag))
-                + "\n  "
-                + _encode_call(func, arg.format(value=element))
+            return "\n  ".join(
+                (
+                    _encode_call("write_raw_byte", str(tag)),
+                    _encode_call(func, arg.format(value=element)),
+                )
             )
         return _encode_call(self.encode_func, str(number), element, force=True)
 
