@@ -107,7 +107,7 @@ class RTSPSession {
   /// Set once before the first connection; without a track, only the video stream is offered.
   void set_audio_track(const AudioTrack *track) { this->audio_track_ = track; }
   /// Called before the server replaces the slot of packet `index`; if that packet is being written, the
-  /// rest of it is sent as zeros to keep the framing.
+  /// rest of it is sent as the codec's silence (AudioTrack::filler) to keep the framing.
   void on_audio_slot_reuse(uint32_t index);
 #endif
 
