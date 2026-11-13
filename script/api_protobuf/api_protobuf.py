@@ -262,6 +262,8 @@ class TypeInfo(ABC):
     }
     # Fixed32 value expression for the shared tag+fixed32 writer; None for other wire types
     fixed32_value_template: str | None = None
+    # Repeated elements write the tag byte and the RAW_ENCODE_MAP value encoder when the tag is one byte
+    raw_repeated_element: bool = False
 
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
         """Try to emit a precomputed-tag encode for a field.
@@ -345,20 +347,10 @@ class TypeInfo(ABC):
         return _encode_call(self.encode_func, str(self.number), value, force=self.force)
 
     def encode_element(self, number: int, element: str) -> str:
-        """Encode one element of a repeated field; elements are always written.
-
-        A sint32 element with a single-byte tag writes the tag byte and then the zigzag value through
-        the short varint path, which writes 2-byte values inline; repeated sint32 values (such as
-        infrared timings) are mostly 2 or 3 bytes, which the general varint path sends to its loop.
-        """
+        """Encode one element of a repeated field; elements are always written."""
         tag = (number << 3) | (self.wire_type & 0b111)
-        raw = (
-            self.RAW_ENCODE_MAP.get(self.encode_func)
-            if self.encode_func == "encode_sint32"
-            else None
-        )
-        if tag < 128 and raw is not None:
-            func, arg = raw
+        if self.raw_repeated_element and tag < 128:
+            func, arg = self.RAW_ENCODE_MAP[self.encode_func]
             return "\n  ".join(
                 (
                     _encode_call("write_raw_byte", str(tag)),
@@ -1691,6 +1683,9 @@ class SInt32Type(VarintTypeMixin, TypeInfo):
     decode_expr = "decode_zigzag32(static_cast<uint32_t>(value.as_varint()))"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
+    # The short varint path writes 2-byte values inline; repeated sint32 values (such as infrared timings)
+    # are mostly 2 or 3 bytes, which the general varint path sends to its loop
+    raw_repeated_element = True
 
     def dump(self, name: str) -> str:
         o = f'snprintf(buffer, sizeof(buffer), "%" PRId32, {name});\n'
