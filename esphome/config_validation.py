@@ -1462,12 +1462,12 @@ def mac_address(value):
     if any(len(part) != 2 for part in parts):
         raise Invalid("MAC Address must be format XX:XX:XX:XX:XX:XX")
     for part in parts:
-        try:
-            parts_int.append(int(part, 16))
-        except ValueError:
-            raise Invalid(
-                "MAC Address parts must be hexadecimal values from 00 to FF"
-            ) from None
+        # int() also accepts surrounding whitespace and a +/- sign, which would
+        # silently normalize the address (" A" -> 0x0A) or wrap a part negative
+        # ("-B" -> -11, breaking the generated C++ literal)
+        if not re.fullmatch(r"[0-9A-Fa-f]{2}", part):
+            raise Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
+        parts_int.append(int(part, 16))
 
     return core.MACAddress(*parts_int)
 
