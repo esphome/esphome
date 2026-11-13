@@ -124,6 +124,9 @@ ShutdownTrigger = cg.esphome_ns.class_(
 LoopTrigger = cg.esphome_ns.class_(
     "LoopTrigger", cg.Component, automation.Trigger.template()
 )
+StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
+ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
+LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
@@ -785,20 +788,15 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for conf in config.get(CONF_ON_BOOT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+    for key, component_class in (
+        (CONF_ON_BOOT, StartupCallback),
+        (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
+    ):
+        for conf in config.get(key, []):
+            await automation.build_component_automation(
+                conf, component_class, conf.get(CONF_PRIORITY)
+            )
 
 
 # Datetime component has special subtypes that need additional defines

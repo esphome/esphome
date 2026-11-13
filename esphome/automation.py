@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import string
+import struct
 from typing import Any
 
 import voluptuous as vol
@@ -2123,6 +2124,17 @@ def _direct_function(
     )
 
 
+def _call_target(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+) -> MockObj | str:
+    """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
+    if (target := _direct_function(plan, args, config)) is None:
+        target = parent_ref(_automation_from_plan(plan, args, config)).trigger
+    return target
+
+
 def _when_call(
     when: str | ApplyCall | None, parent: MockObj | None
 ) -> ApplyCall | None:
@@ -2138,6 +2150,40 @@ async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
     return await new_automation(args, config, trigger)
+
+
+async def build_component_automation(
+    config: ConfigType, component_class: MockObjClass, priority: float | None = None
+) -> MockObj:
+    """Create and register the Component that runs a no-argument automation.
+
+    That is ``component_class<function[, priority bits]>``, whose function runs the actions
+    directly when they are all inline, else triggers their Automation. A ``trigger_id`` set
+    by hand keeps its Trigger, built with ``priority`` if given.
+    """
+    trigger_id: ID = config[CONF_TRIGGER_ID]
+    if trigger_id.is_manual:
+        var = cg.new_Pvariable(trigger_id, *([] if priority is None else [priority]))
+        await cg.register_component(var, config)
+        await build_automation(var, [], config)
+        return var
+    # Declared and registered before the actions are built, which can wait for other ids
+    name = _apply_function_name(trigger_id)
+    define = cg.declare_static_function(name, cg.void, [])
+    id_ = trigger_id.copy()
+    id_.type = component_class
+    bits = [] if priority is None else [_float_bits(priority)]
+    var = cg.new_Pvariable(id_, cg.TemplateArguments(cg.RawExpression(name), *bits))
+    await cg.register_component(var, config)
+    plan = await _build_automation_plan([], config)
+    define([str(cg.statement(CallExpression(_call_target(plan, [], config))))])
+    return var
+
+
+def _float_bits(value: float) -> HexInt:
+    """``value`` as a C++ float's bit pattern, for a template argument."""
+    (bits,) = struct.unpack("<I", struct.pack("<f", value))
+    return HexInt(bits)
 
 
 async def build_trigger_callback(
@@ -2173,8 +2219,7 @@ async def _trigger_callback(
     call: ApplyCall | None,
     parent: MockObj | None,
 ) -> LambdaExpression:
-    if (target := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+    target = _call_target(plan, args, config)
     statements: list[str] = []
     if call is not None:
         members = call.members
