@@ -131,7 +131,8 @@ void EthernetComponent::loop() {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   // The IP events arrive on the event task; the listeners publish states, so notify them here
-  if (this->ip_state_pending_.exchange(false)) {
+  if (this->ip_state_pending_.load(std::memory_order_acquire) != 0) {
+    this->ip_state_pending_.store(0, std::memory_order_relaxed);
     this->notify_ip_state_listeners_();
   }
 #endif
@@ -777,7 +778,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       event_name = "ETH connected";
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
-      global_eth_component->ip_state_pending_ = true;
+      global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
       global_eth_component->enable_loop_soon_any_context();
 #endif
 #if USE_NETWORK_IPV6
@@ -807,7 +808,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  global_eth_component->ip_state_pending_ = true;
+  global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
 #endif
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
@@ -828,7 +829,7 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  global_eth_component->ip_state_pending_ = true;
+  global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
 #endif
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =

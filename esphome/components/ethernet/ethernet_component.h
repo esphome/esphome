@@ -369,7 +369,7 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
 #ifdef USE_ESP32
-  std::atomic<bool> ip_state_pending_{false};
+  std::atomic<uint8_t> ip_state_pending_{0};
 #endif
 #endif
 
