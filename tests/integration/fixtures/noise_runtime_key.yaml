@@ -1,0 +1,70 @@
+esphome:
+  name: noise-runtime-key-test
+
+host:
+
+api:
+  encryption:
+    key: "cnVudGltZSBrZXkgdGVzdDogdGhlIGFwaSBrZXkhISE="
+  actions:
+    - action: set_link_key
+      variables:
+        key: string
+      then:
+        - tcp_uart.set_encryption_key:
+            id: inbound
+            key: !lambda return key;
+        - tcp_uart.set_encryption_key:
+            id: outbound
+            key: !lambda return key;
+
+logger:
+  level: DEBUG
+
+# Both ends of the link take their key at runtime.
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 18136
+    encryption:
+  - id: outbound
+    host: 127.0.0.1
+    port: 18136
+    reconnect_interval: 1s
+    encryption:
+
+interval:
+  # Echoes what the client reads.
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t buf[64];
+          size_t n = std::min<size_t>(id(outbound).available(), sizeof(buf));
+          if (n != 0 && id(outbound).read_array(buf, n)) {
+            id(outbound).write_array(buf, n);
+          }
+  # Sends 512 bytes, more than one frame, into each new session and checks the echo.
+  - interval: 20ms
+    then:
+      - lambda: |-
+          static bool was_up = false;
+          static size_t got = 0;
+          bool up = id(inbound).is_connected();
+          if (up && !was_up) {
+            uint8_t data[512];
+            for (size_t i = 0; i < sizeof(data); i++) {
+              data[i] = static_cast<uint8_t>(i);
+            }
+            id(inbound).write_array(data, sizeof(data));
+            got = 0;
+          }
+          was_up = up;
+          uint8_t b;
+          while (id(inbound).read_byte(&b)) {
+            if (b != static_cast<uint8_t>(got)) {
+              ESP_LOGE("echo", "Echo mismatch at byte %u", static_cast<unsigned>(got));
+            }
+            if (++got == 512) {
+              ESP_LOGI("echo", "Echo complete");
+            }
+          }
