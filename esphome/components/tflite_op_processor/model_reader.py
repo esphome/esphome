@@ -24,6 +24,7 @@ _BUFFER_DATA = 0
 _OPCODE_DEPRECATED_BUILTIN_CODE = 0
 _OPCODE_BUILTIN_CODE = 3
 _SUBGRAPH_TENSORS = 0
+_SUBGRAPH_INPUTS = 1
 _SUBGRAPH_OPERATORS = 3
 _OPERATOR_INPUTS = 1
 _OPERATOR_OUTPUTS = 2
@@ -49,6 +50,9 @@ TENSOR_TYPE_SIZES: dict[int, int] = {
     16: 2,  # UINT16
 }
 
+# The input tensor types the runtime can fill, as the YAML input_type names them.
+INPUT_TENSOR_TYPES: dict[int, str] = {0: "float32", 3: "uint8", 9: "int8"}
+
 # Calibrated against TFLM's arena_used_bytes() on quantized models, where the size
 # TFLM needed was 1.8x to 2.1x the peak of the tensors that are live together.
 _ARENA_SAFETY_FACTOR_TENTHS = 22
@@ -68,6 +72,16 @@ class ArenaEstimate:
     bytes: int  # rounded up to 1 KiB
     peak_activation_bytes: int  # held by the tensors live at the same time
     tensor_count: int  # tensors in the model's main subgraph
+
+
+@dataclass(frozen=True)
+class ModelInput:
+    """Shape and type of the input tensor a model declares."""
+
+    height: int
+    width: int
+    channels: int
+    type: str  # the YAML input_type name of the tensor
 
 
 @dataclass(frozen=True)
@@ -217,6 +231,36 @@ def _subgraph(buffer: _FlatBuffer) -> int:
     if not (subgraphs := buffer.table_vector(buffer.root(), _MODEL_SUBGRAPHS)):
         raise ModelReadError(f"{buffer.path}: the model has no subgraph")
     return subgraphs[0]
+
+
+def read_model_input(model_path: str | Path) -> ModelInput:
+    """The input tensor a model declares.
+
+    A model stores its input as ``[batch, height, width, channels]``, so this is the
+    shape and type a companion report would otherwise have to describe. Raises
+    :class:`ModelReadError` for any other layout, or a type the runtime cannot fill.
+    """
+    buffer = _load(model_path)
+    subgraph = _subgraph(buffer)
+    tensors = buffer.table_vector(subgraph, _SUBGRAPH_TENSORS)
+    inputs = buffer.i32_vector(subgraph, _SUBGRAPH_INPUTS)
+    if not inputs or not 0 <= inputs[0] < len(tensors):
+        raise ModelReadError(f"{buffer.path}: the model declares no input tensor")
+    table = tensors[inputs[0]]
+    shape = buffer.i32_vector(table, _TENSOR_SHAPE)
+    if len(shape) != 4 or shape[0] != 1:
+        raise ModelReadError(
+            f"{buffer.path}: input tensor shape {shape} is not the "
+            f"[1, height, width, channels] image layout the runtime expects"
+        )
+    code = buffer.i8_field(table, _TENSOR_TYPE) or 0
+    if (type_name := INPUT_TENSOR_TYPES.get(code)) is None:
+        raise ModelReadError(
+            f"{buffer.path}: input tensor type {code} is not one the runtime can fill"
+        )
+    return ModelInput(
+        height=shape[1], width=shape[2], channels=shape[3], type=type_name
+    )
 
 
 def _buffers_with_data(buffer: _FlatBuffer) -> list[bool]:
