@@ -19,6 +19,8 @@ class EPaperBaseAccess : public EPaperBase {
     (display.*&EPaperBaseAccess::reset_bounds_)();
     display.*&EPaperBaseAccess::full_update_requested_ = false;
   }
+  /// The request count is shared by the whole test binary, so a display left mid-update must give its request back.
+  static void stop_fast_loop(EPaperBase &display) { (display.*&EPaperBaseAccess::high_frequency_loop_).stop(); }
 };
 
 template<typename Driver, typename... Args> std::unique_ptr<Driver> make_refreshed(Args... args) {
@@ -42,6 +44,7 @@ bool update_is_sent(EPaperBase &display) {
 /// UPDATE state finds nothing drawn after a refresh, and returns to idle without sending the frame.
 template<typename Driver> class EPaperFillMarksDrawn : public ::testing::Test {
  protected:
+  void TearDown() override { EPaperBaseAccess::stop_fast_loop(*this->display_); }
   std::unique_ptr<Driver> display_ = make_display<Driver>();
 };
 
