@@ -480,8 +480,10 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
 
   // Write packet
   this->enter_idle_();
-  // Undo the async serial mode of an earlier begin_tx()
+  // Undo the async serial mode of an earlier begin_tx(); the packet ends back in RX
   this->write_(Register::PKTCTRL0);
+  if (this->transmitting_)
+    this->end_tx_();
   this->strobe_(Command::FTX);
   if (variable) {
     this->write_(Register::FIFO, static_cast<uint8_t>(len));
