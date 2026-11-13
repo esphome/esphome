@@ -2,8 +2,8 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/parse_float.h"
 #include "esphome/core/log.h"
+#include "esphome/core/parse_float.h"
 #include "esphome/core/progmem.h"
 
 #include <cmath>

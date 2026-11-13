@@ -1,6 +1,6 @@
 #include "hydreon_rgxx.h"
-#include "esphome/core/parse_float.h"
 #include "esphome/core/log.h"
+#include "esphome/core/parse_float.h"
 #include <cstring>
 
 namespace esphome::hydreon_rgxx {

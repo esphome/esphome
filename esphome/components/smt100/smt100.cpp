@@ -1,6 +1,6 @@
 #include "smt100.h"
-#include "esphome/core/parse_float.h"
 #include "esphome/core/log.h"
+#include "esphome/core/parse_float.h"
 
 namespace esphome::smt100 {
 
