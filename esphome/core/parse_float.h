@@ -2,7 +2,12 @@
 
 #include <cstdint>
 
+#include "esphome/core/optional.h"
+
 namespace esphome {
+
+/// Parse a decimal floating-point number; the whole string must be the number.
+optional<float> parse_float(const char *str);
 
 /** strtof without libc's strtod: the same value and end as newlib's strtof in the C locale for every input.
  *
