@@ -51,8 +51,10 @@ class RTSPServer : public Component, public camera::CameraListener {
 #ifdef USE_RTSP_SERVER_CAPTURE
   /// Allocates the buffers and offers the audio track to the sessions; video keeps working if this fails.
   void setup_audio_();
+  /// Runs on the microphone's task: buffers the audio and records what is needed to time it.
+  void on_audio_(const microphone::AudioCapture &capture);
   /// Moves whole packets of captured audio from the ring buffer into the track's slots.
-  void read_audio_(uint32_t now);
+  void read_audio_();
 #endif
 
   socket::ListenSocket *socket_{nullptr};
@@ -64,6 +66,16 @@ class RTSPServer : public Component, public camera::CameraListener {
   microphone::MicrophoneSource *microphone_source_{nullptr};
   // Written by the microphone's task, read by the main loop.
   std::unique_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  // Guards the capture bookkeeping below, shared between the microphone's task and the main loop. Positions count
+  // samples of the whole captured stream, including any the full ring buffer dropped.
+  Mutex capture_lock_;
+  int64_t anchor_us_{0};       // capture time (esp_timer) of the sample at anchor_sample_
+  uint32_t anchor_sample_{0};  // position of the latest chunk's first sample
+  uint32_t captured_{0};       // samples received from the microphone
+  uint32_t gap_at_{0};         // position of the first sample dropped since the main loop last took the gap
+  uint32_t gap_len_{0};        // samples dropped since then
+  // Main loop only: position of the next sample read from the ring buffer.
+  uint32_t next_sample_{0};
   AudioTrack audio_track_;
   std::array<char, 224> sdp_{};
   AudioCodec audio_codec_{AudioCodec::AUDIO_CODEC_L16};

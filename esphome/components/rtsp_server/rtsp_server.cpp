@@ -7,9 +7,12 @@
 #include <utility>
 
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #ifdef USE_RTSP_SERVER_CAPTURE
+#include <esp_timer.h>
+
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/microphone/microphone.h"
 #endif
@@ -104,21 +107,62 @@ void RTSPServer::setup_audio_() {
   this->audio_track_.payload_len = payload_len;
   this->audio_track_.samples_per_packet = samples;
   this->audio_track_.payload_type = payload_type;
+  this->audio_track_.silence = this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMU   ? encode_ulaw(0)
+                               : this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMA ? encode_alaw(0)
+                                                                                    : 0;
   for (auto &session : this->sessions_)
     session.set_audio_track(&this->audio_track_);
 
-  // Runs on the microphone's task; a full ring buffer drops the oldest audio.
-  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
-    this->ring_buffer_->write(capture.data.data(), capture.data.size());
-  });
+  this->microphone_source_->add_data_callback(
+      [this](const microphone::AudioCapture &capture) { this->on_audio_(capture); });
   this->audio_ready_ = true;
 }
 
-void RTSPServer::read_audio_(uint32_t now) {
+void RTSPServer::on_audio_(const microphone::AudioCapture &capture) {
+  const audio::AudioStreamInfo &info = capture.stream_info;
+  const auto samples = static_cast<uint32_t>(info.bytes_to_samples(capture.data.size()));
+  // The esp_timer time of the chunk's first sample; without one, it ended about now.
+  const int64_t first_us = capture.capture_time_us != 0
+                               ? capture.capture_time_us
+                               : esp_timer_get_time() - static_cast<int64_t>(samples) * 1000000 /
+                                                            static_cast<int64_t>(info.get_sample_rate());
+  {
+    LockGuard guard(this->capture_lock_);
+    // A full ring buffer drops the new audio, so what it holds stays contiguous and the gap has one position.
+    const size_t written = this->ring_buffer_->write_without_replacement(capture.data.data(), capture.data.size());
+    const auto kept = static_cast<uint32_t>(info.bytes_to_samples(written));
+    if (kept < samples) {
+      if (this->gap_len_ == 0)
+        this->gap_at_ = this->captured_ + kept;
+      this->gap_len_ += samples - kept;
+    }
+    this->anchor_us_ = first_us;
+    this->anchor_sample_ = this->captured_;
+    this->captured_ += samples;
+  }
+  // Drain it promptly even with a long loop_interval; the ring buffer holds only 160 ms.
+  App.wake_loop_threadsafe();
+}
+
+void RTSPServer::read_audio_() {
   const audio::AudioStreamInfo info = this->microphone_source_->get_audio_stream_info();
-  const size_t input_len = info.samples_to_bytes(this->audio_track_.samples_per_packet);
+  const uint32_t samples = this->audio_track_.samples_per_packet;
+  const size_t input_len = info.samples_to_bytes(samples);
   AudioTrack &track = this->audio_track_;
   while (this->ring_buffer_->available() >= input_len) {
+    int64_t anchor_us;
+    uint32_t anchor_sample;
+    {
+      LockGuard guard(this->capture_lock_);
+      // A gap that starts within this packet is placed before it, at most a packet early.
+      if (this->gap_len_ != 0 &&
+          static_cast<int32_t>(this->gap_at_ - this->next_sample_) < static_cast<int32_t>(samples)) {
+        this->next_sample_ += this->gap_len_;
+        this->gap_len_ = 0;
+      }
+      anchor_us = this->anchor_us_;
+      anchor_sample = this->anchor_sample_;
+    }
     const uint32_t index = track.produced;
     for (auto &session : this->sessions_)
       session.on_audio_slot_reuse(index - AUDIO_SLOTS);
@@ -136,8 +180,13 @@ void RTSPServer::read_audio_(uint32_t now) {
       for (size_t i = 0; i < samples.size(); i++)
         slot[i] = ulaw ? encode_ulaw(samples[i]) : encode_alaw(samples[i]);
     }
-    // The audio still buffered was captured after this packet's last sample.
-    track.capture_ms[index % AUDIO_SLOTS] = now - info.bytes_to_ms(this->ring_buffer_->available());
+    // Measured from the latest chunk, so the microphone's clock cannot drift away from esp_timer.
+    const auto offset = static_cast<int32_t>(this->next_sample_ - anchor_sample);
+    const int64_t first_us =
+        anchor_us + static_cast<int64_t>(offset) * 1000000 / static_cast<int64_t>(info.get_sample_rate());
+    track.capture_ms[index % AUDIO_SLOTS] = static_cast<uint64_t>(first_us / 1000);  // the millis_64() clock
+    track.sample_pos[index % AUDIO_SLOTS] = this->next_sample_;
+    this->next_sample_ += samples;
     track.produced++;
   }
 }
@@ -151,7 +200,7 @@ void RTSPServer::loop() {
 
 #ifdef USE_RTSP_SERVER_CAPTURE
   if (this->capturing_)
-    this->read_audio_(now);
+    this->read_audio_();
   bool audio = false;
 #endif
   bool playing = false;
@@ -177,6 +226,12 @@ void RTSPServer::loop() {
     if (audio) {
       // The source ignores the microphone until start(), so nothing writes while the buffer is reset.
       this->ring_buffer_->reset();
+      {
+        LockGuard guard(this->capture_lock_);
+        this->captured_ = this->next_sample_;
+        this->anchor_sample_ = this->next_sample_;
+        this->gap_len_ = 0;
+      }
       this->microphone_source_->start();
     } else {
       this->microphone_source_->stop();
@@ -233,8 +288,9 @@ void RTSPServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &ima
   }
 
   const uint32_t now = App.get_loop_component_start_time();
+  const uint64_t time_ms = millis_64();
   for (auto &session : this->sessions_) {
-    session.on_new_frame(image, jpeg, now);
+    session.on_new_frame(image, jpeg, now, time_ms);
   }
 }
 

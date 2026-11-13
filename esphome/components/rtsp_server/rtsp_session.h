@@ -27,12 +27,22 @@ static constexpr uint16_t RTP_JPEG_MAX_DIMENSION = 255 * 8;
 // A frame whose packets make no write progress for this long is dropped, so a stalled client cannot hold
 // the camera image (esp32_camera captures nothing while any copy is held).
 static constexpr uint32_t FRAME_STALL_MS = 500;
+// Interleaved channels (RFC 2326 section 10.12), fixed per track.
+static constexpr uint8_t VIDEO_RTP_CHANNEL = 0;
+static constexpr uint8_t VIDEO_RTCP_CHANNEL = 1;
+static constexpr uint8_t AUDIO_RTP_CHANNEL = 2;
+static constexpr uint8_t AUDIO_RTCP_CHANNEL = 3;
 
 #ifdef USE_RTSP_SERVER_AUDIO
 // Audio packets kept for the sessions; a session that falls further behind skips the oldest.
 static constexpr size_t AUDIO_SLOTS = 8;
 static constexpr uint32_t AUDIO_PACKET_MS = 20;
 static constexpr size_t RTCP_SR_LEN = 28;
+static constexpr size_t RTCP_CNAME_LEN = 8;  // the session id
+// SDES header, SSRC, CNAME item (type, length, text), END item, padded to 32 bits (RFC 3550 section 6.5)
+static constexpr size_t RTCP_SDES_LEN = 4 + ((4 + 2 + RTCP_CNAME_LEN + 1 + 3) & ~size_t{3});
+// A sender report and the SDES with the CNAME, the compound packet RTP/AVP requires (RFC 3550 section 6.1).
+static constexpr size_t RTCP_REPORT_LEN = RTCP_SR_LEN + RTCP_SDES_LEN;
 // Sender reports let receivers line up the audio and video timestamps (RFC 3550 section 6.4.1).
 static constexpr uint32_t RTCP_INTERVAL_MS = 5000;
 
@@ -45,13 +55,16 @@ struct AudioTrack {
 
   uint8_t *slots{nullptr};
   const char *sdp{nullptr};  // the whole SDP body, video and audio
-  // Time (ms) the last sample of each packet was captured, for the sender reports.
-  std::array<uint32_t, AUDIO_SLOTS> capture_ms{};
+  // Time (millis_64()) the first sample of each packet was captured, for the sender reports.
+  std::array<uint64_t, AUDIO_SLOTS> capture_ms{};
+  // Position of each packet's first sample in the captured stream; samples the device lost leave a gap.
+  std::array<uint32_t, AUDIO_SLOTS> sample_pos{};
   uint32_t produced{0};  // packets written so far
   uint16_t sdp_len{0};
   uint16_t payload_len{0};
   uint16_t samples_per_packet{0};
   uint8_t payload_type{0};
+  uint8_t silence{0};  // the encoded value of a zero sample
 };
 
 /// The codec's encoding name, as in the SDP rtpmap.
@@ -97,7 +110,9 @@ class RTSPSession {
   void open(std::unique_ptr<socket::Socket> socket, uint32_t now);
   void loop(uint32_t now, uint16_t port);
   /// Ignored unless playing with no output pending; packets of the frame being sent point into that frame.
-  void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
+  /// `time_ms` is the frame's time on the millis_64() clock, for the sender reports.
+  void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now,
+                    uint64_t time_ms);
 
  protected:
   enum class State : uint8_t { INIT, READY, PLAYING };
@@ -145,12 +160,16 @@ class RTSPSession {
   uint32_t last_activity_ms_{0};
   uint32_t last_frame_ms_{0};
   uint32_t frame_progress_ms_{0};
+#ifdef USE_RTSP_SERVER_AUDIO
+  uint64_t frame_time_ms_{0};  // of the last frame taken, for the sender reports
+#endif
   // Bytes of an interleaved packet (RTCP) or request body from the client still to discard.
   uint32_t skip_len_{0};
   uint16_t sequence_number_{0};
   uint16_t request_len_{0};
-  // Zeros still owed for a packet whose frame was dropped part way through.
+  // Filler still owed for a packet cut loose from its frame or slot part way through.
   uint16_t filler_len_{0};
+  const uint8_t *filler_{nullptr};  // 64 bytes of zeros, or of encoded audio silence
 
 #ifdef USE_RTSP_SERVER_AUDIO
   const AudioTrack *audio_track_{nullptr};
@@ -159,13 +178,14 @@ class RTSPSession {
   uint32_t audio_ssrc_{0};
   uint32_t audio_rtp_offset_{0};
   uint32_t audio_timestamp_{0};  // of the last packet sent
-  uint32_t audio_capture_ms_{0};
+  uint64_t audio_capture_ms_{0};
   uint32_t audio_packets_{0};
   uint32_t audio_octets_{0};
   uint32_t video_packets_{0};
   uint32_t video_octets_{0};
   uint32_t last_report_ms_{0};
   uint16_t audio_sequence_number_{0};
+  bool video_turn_{false};  // a video packet goes next, so audio cannot starve the video
 #endif
 
   // Pending output: a response or one RTP packet. Packets point at the frame's tables and scan data.
