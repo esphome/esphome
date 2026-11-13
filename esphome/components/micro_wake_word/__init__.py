@@ -520,10 +520,15 @@ def _model_config_to_manifest_data(model_config):
     return _load_model_data(file)
 
 
-def _feature_step_size_validate(config):
+def _feature_step_size_validate(config: ConfigType) -> ConfigType:
+    # The VAD model shares the audio frontend with the wake word models
+    model_parameters_list = [*config[CONF_MODELS]]
+    if vad := config.get(CONF_VAD):
+        model_parameters_list.append(vad)
+
     features_step_size = None
 
-    for model_parameters in config[CONF_MODELS]:
+    for model_parameters in model_parameters_list:
         model_config = model_parameters.get(CONF_MODEL)
         manifest, _ = _model_config_to_manifest_data(model_config)
 
@@ -533,6 +538,8 @@ def _feature_step_size_validate(config):
             features_step_size = model_step_size
         elif features_step_size != model_step_size:
             raise cv.Invalid("Cannot load models with different features step sizes")
+
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(

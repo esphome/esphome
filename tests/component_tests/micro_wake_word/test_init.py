@@ -1,5 +1,6 @@
 """Tests for micro_wake_word local model validation."""
 
+from contextlib import AbstractContextManager, nullcontext
 import json
 import logging
 from pathlib import Path
@@ -8,12 +9,16 @@ from typing import Any
 import pytest
 
 from esphome.components.micro_wake_word import (
+    CONF_MODELS,
     CONF_RING_BUFFER_DURATION,
+    CONF_VAD,
     CONFIG_SCHEMA,
     LOCAL_SCHEMA,
+    TYPE_LOCAL,
+    _feature_step_size_validate,
 )
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework
+from esphome.const import CONF_MODEL, CONF_PATH, CONF_TYPE, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -143,3 +148,45 @@ def test_local_schema_bad_manifest_does_not_raise(
 
     assert _registered_files() == []
     assert "Not registering a model file" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("vad_step_size", "expectation"),
+    [
+        pytest.param(10, nullcontext(), id="matching"),
+        pytest.param(
+            20,
+            pytest.raises(cv.Invalid, match="different features step sizes"),
+            id="different",
+        ),
+    ],
+)
+def test_vad_feature_step_size_must_match_wake_word_models(
+    config_dir: Path, vad_step_size: int, expectation: AbstractContextManager
+) -> None:
+    """The VAD model shares the audio frontend, so its step size is validated too."""
+    vad_manifest = {
+        **MANIFEST,
+        "wake_word": "vad",
+        "micro": {**MANIFEST["micro"], "feature_step_size": vad_step_size},
+    }
+    (config_dir / "models" / "vad.json").write_text(json.dumps(vad_manifest))
+    config = {
+        CONF_MODELS: [
+            {
+                CONF_MODEL: {
+                    CONF_TYPE: TYPE_LOCAL,
+                    CONF_PATH: config_dir / "models" / "hey_jarvis.json",
+                }
+            }
+        ],
+        CONF_VAD: {
+            CONF_MODEL: {
+                CONF_TYPE: TYPE_LOCAL,
+                CONF_PATH: config_dir / "models" / "vad.json",
+            }
+        },
+    }
+
+    with expectation:
+        _feature_step_size_validate(config)
