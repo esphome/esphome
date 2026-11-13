@@ -1,0 +1,170 @@
+# CC1101 sleep and wake checks T0 to T6 on an ESP32-S3 (SPI on GPIO12/11/13, CS GPIO10, GDO0 GPIO9), run 4 s after
+# boot; the result is the "DONE fails=N" line. Substitution: name.
+esphome:
+  name: ${name}
+  includes: [cctest.hpp]
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 4s
+        - script.execute: run_tests
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+spi:
+  clk_pin: GPIO12
+  mosi_pin: GPIO11
+  miso_pin: GPIO13
+cc1101:
+  id: transceiver
+  cs_pin: GPIO10
+  gdo0_pin: GPIO9
+  frequency: 433.92MHz
+  modulation_type: GFSK
+  symbol_rate: 4800
+  packet_mode: true
+  packet_length: 8
+  crc_enable: true
+  sync_mode: "16/16"
+  output_power: 0
+  on_packet:
+    then:
+      - lambda: ESP_LOGI("cct", "RX packet %s rssi %.1f", format_hex(x).c_str(), rssi);
+script:
+  - id: run_tests
+    then:
+      - lambda: |-
+          using namespace cct;
+          auto *c = id(transceiver);
+          Snap base, s;
+          int fails = 0;
+          snap(c, base);
+          ESP_LOGI("cct", "T0 baseline MARCSTATE=%02X FREQ=%02X%02X%02X TEST2=%02X TEST1=%02X TEST0=%02X so_high_awake=%d",
+                   base.marc, base.reg[0x0D], base.reg[0x0E], base.reg[0x0F], base.reg[0x2C], base.reg[0x2D],
+                   base.reg[0x2E], cs_low_so_high(c));
+          hexpa("T0 baseline", base.pa);
+          // the sleep checks below need a probe that sees an awake chip as awake
+          if (cs_low_so_high(c)) {
+            ESP_LOGW("cct", "T0 FAIL: SO reads high on an awake chip, the sleep checks cannot be trusted");
+            fails++;
+          }
+
+          // T1: mark PATABLE 1-7, sleep, wake by hand: lost entries prove the chip slept
+          const uint8_t marks[8] = {base.pa[0], 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77};
+          write_pa(c, marks);
+          snap(c, s); hexpa("T1 marked", s.pa);
+          c->power_down();
+          bool so = cs_low_so_high(c);
+          snap(c, s);
+          hexpa("T1 after raw wake", s.pa);
+          bool lost = s.pa[1] != 0x11;
+          ESP_LOGI("cct", "T1 sleep proof: so_high_on_cs=%d pa_lost=%d MARCSTATE=%02X TEST0=%02X -> %s", so, lost, s.marc,
+                   s.reg[0x2E], (so && lost) ? "PASS" : "FAIL");
+          if (!(so && lost)) fails++;
+          // the component still thinks it sleeps
+          c->wake_up();
+          snap(c, s);
+          int d = diff(base, s, "T1 restore");
+          ESP_LOGI("cct", "T1 restore after wake_up: %d differences, MARCSTATE=%02X -> %s", d, s.marc, d == 0 ? "PASS" : "FAIL");
+          if (d) fails++;
+          c->begin_rx();
+
+          // T2: change settings while asleep, compare with the same change made awake
+          Snap awake;
+          c->set_frequency(433.42e6); c->set_output_power(5); c->set_symbol_rate(9600);
+          snap(c, awake);
+          c->set_frequency(433.92e6); c->set_output_power(0); c->set_symbol_rate(4800);
+          c->power_down();
+          c->set_frequency(433.42e6); c->set_output_power(5); c->set_symbol_rate(9600);
+          bool so2 = cs_low_so_high(c);  // wakes the chip by hand; component still asleep
+          c->wake_up();
+          c->begin_rx();
+          snap(c, s);
+          awake.marc = s.marc;
+          d = diff(awake, s, "T2 asleep vs awake");
+          ESP_LOGI("cct", "T2 settings changed asleep: so_high=%d %d differences FREQ=%02X%02X%02X MARCSTATE=%02X -> %s", so2, d,
+                   s.reg[0x0D], s.reg[0x0E], s.reg[0x0F], s.marc, (so2 && d == 0) ? "PASS" : "FAIL");
+          if (!(so2 && d == 0)) fails++;
+          c->set_frequency(433.92e6); c->set_output_power(0); c->set_symbol_rate(4800);
+          c->begin_rx();
+          snap(c, base);
+
+          // T3: send while asleep wakes the radio by itself
+          c->power_down();
+          uint8_t pkt[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+          int err = (int) c->transmit_packet(pkt, sizeof(pkt));
+          snap(c, s);
+          d = diff(base, s, "T3 after send");
+          ESP_LOGI("cct", "T3 send while asleep: err=%d MARCSTATE=%02X TXBYTES=%02X %d differences -> %s", err, s.marc,
+                   status(c, 0x3A), d, (err == 0 && d == 0) ? "PASS" : "FAIL");
+          if (!(err == 0 && d == 0)) fails++;
+
+          // T4: begin_rx while asleep
+          c->power_down();
+          c->begin_rx();
+          snap(c, s);
+          d = diff(base, s, "T4 begin_rx");
+          ESP_LOGI("cct", "T4 begin_rx while asleep: MARCSTATE=%02X %d differences -> %s", s.marc, d,
+                   (s.marc == 0x0D && d == 0) ? "PASS" : "FAIL");
+          if (!(s.marc == 0x0D && d == 0)) fails++;
+
+          // T5: 200 cycles, each one proven asleep and restored
+          int bad = 0, notslept = 0;
+          uint32_t t0 = micros();
+          for (int i = 0; i < 200; i++) {
+            write_pa(c, marks);
+            c->power_down();
+            if (!cs_low_so_high(c)) notslept++;
+            c->wake_up();
+            c->begin_rx();
+            snap(c, s);
+            if (diff(base, s, "T5") != 0) bad++;
+            if ((i & 31) == 0) App.feed_wdt();
+          }
+          ESP_LOGI("cct", "T5 200 cycles: not_slept=%d restore_fail=%d in %u ms heap=%u -> %s", notslept, bad,
+                   (unsigned) ((micros() - t0) / 1000), (unsigned) esp_get_free_heap_size(),
+                   (notslept == 0 && bad == 0) ? "PASS" : "FAIL");
+          if (notslept || bad) fails++;
+          // T6: each setter on its own while asleep: does it wake the chip, and in which state does it leave it
+          struct Case { const char *name; int kind; };
+          const Case cases[] = {{"set_frequency", 0}, {"set_channel", 1}, {"set_modulation_type", 2}, {"set_symbol_rate", 3},
+                                {"set_output_power", 4}, {"set_filter_bandwidth", 5}, {"set_fsk_deviation", 6}};
+          for (auto &k : cases) {
+            c->begin_rx();
+            c->power_down();
+            switch (k.kind) {
+              case 0: c->set_frequency(433.92e6); break;
+              case 1: c->set_channel(0); break;
+              case 2: c->set_modulation_type(cc1101::Modulation::MODULATION_GFSK); break;
+              case 3: c->set_symbol_rate(4800); break;
+              case 4: c->set_output_power(0); break;
+              case 5: c->set_filter_bandwidth(203e3); break;
+              case 6: c->set_fsk_deviation(1.5e3); break;
+            }
+            bool asleep = cs_low_so_high(c);
+            uint8_t marc = status(c, 0x35) & 0x1F;
+            ESP_LOGI("cct", "T6 %-20s while asleep: chip %s, MARCSTATE=%02X", k.name, asleep ? "still asleep" : "AWAKE", marc);
+            if (!asleep) fails++;
+            c->wake_up();
+          }
+          c->begin_rx();
+          uint8_t agc_rx = rd(c, 0x2B);
+          c->set_idle();
+          uint8_t agc_idle = rd(c, 0x2B);
+          ESP_LOGI("cct", "AGCTEST in RX=%02X in IDLE=%02X", agc_rx, agc_idle);
+          c->begin_rx();
+          ESP_LOGI("cct", "DONE fails=%d", fails);
+button:
+  - platform: template
+    id: yaml_actions
+    name: Yaml actions
+    on_press:
+      - cc1101.power_down: transceiver
+      - cc1101.wake_up: transceiver
+      - cc1101.power_down: transceiver
+      - cc1101.send_packet: [0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]
+      - lambda: ESP_LOGI("cct", "YAML actions done MARCSTATE=%02X", cct::status(id(transceiver), 0x35) & 0x1F);

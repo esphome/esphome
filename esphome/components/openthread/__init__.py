@@ -103,7 +103,7 @@ IDF_TO_OT_LOG_LEVEL = {
     "VERBOSE": "DEBG",
 }
 
-CONF_DEVICE_TYPES = [
+DEVICE_TYPES = [
     "FTD",
     "MTD",
 ]
@@ -430,7 +430,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
             cv.Optional(CONF_BORDER_ROUTER): _validate_border_router,
             cv.Optional(CONF_DEVICE_TYPE, default="FTD"): cv.one_of(
-                *CONF_DEVICE_TYPES, upper=True
+                *DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.sensitive(

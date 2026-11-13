@@ -11,25 +11,28 @@ One file per component, named after it:
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources
+- [`ld2420.md`](ld2420.md): hub setup and sensor states with a simulated module on a UART0 loopback (energy and simple mode)
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar, presence hold and link loss on a frame stream, BT MAC readback
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
-- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader
-- [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
+- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader, pulse counting, RTL8710B edge interrupts and millis timing
+- [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing, SIM7080G behaviour with no SIM and with no data plan through a raw UART passthrough
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
-- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks
+- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
-- [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark
+- [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
-- [`scheduler.md`](scheduler.md): loop wake A/B
+- [`scheduler.md`](scheduler.md): loop wake A/B, interval startup delay and control from lambdas
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
-- [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save
+- [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save, soft AP clients with the BLE tracker scanning, ESP8266 power save after captive portal provisioning
 - [`zephyr.md`](zephyr.md): preferences on the nRF52840 dongle
 - [`zephyr_coredump.md`](zephyr_coredump.md): crash and decode on nRF52 boards
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
+- [`one_wire.md`](one_wire.md): ESP8266 interrupt locks under Wi-Fi load with a DS18B20 search and a busy-wait control
+- [`cc1101.md`](cc1101.md): sleep and wake checks read directly from the chip (CHIP_RDYn, PATABLE loss, registers per setter)
 - [`globals.md`](globals.md): restoring globals with storage rtc and flash across every reset kind
-- [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls
+- [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls, wizard-linked entities on every platform, homeassistant switch on a script with a host build
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
@@ -41,9 +44,42 @@ One file per component, named after it:
 - [`xiaomi_ble.md`](xiaomi_ble.md): Xiaomi, ATC and PVVX parsing by injecting scan results into the ESP32 tracker or advertising them from a second ESP32, real AES-CCM frames, duplicate filter model
 - [`ble_terminate.md`](ble_terminate.md): proxy disconnect against a peer with peripheral latency
 - [`i2c_slave.md`](i2c_slave.md): fake I2C slave on a D1 mini, ESP32 hardware master as the control
+- [`fake_i2c.md`](fake_i2c.md): fake I2C devices with no chip: in-firmware buses for many drivers, a Pico 2 W BME280/BMP280 target, a DS2482-800 simulator, NACK injection for vl53l0x
 - [`gpio_hold.md`](gpio_hold.md): GPIO hold through the ISR pin API, pad read back with no wiring, per chip pin notes
 - [`ble_event_inject.md`](ble_event_inject.md): made up GAP and GATTC events fed into the ESP32 BLE handlers from a button
-- [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep
+- [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep, and with an external wave and peripheral power-down on the ESP32-P4
 - [`manual_ip_and_web_handlers.md`](manual_ip_and_web_handlers.md): station, AP and Ethernet manual IP, web handlers added late and web OTA with web_server, captive_portal or prometheus
 - [`ble_server_security.md`](ble_server_security.md): esp32_ble_server pairing, encrypted and MITM characteristics, subscription before and after pairing, bond reuse per ESP-IDF version
 - [`prometheus.md`](prometheus.md): date, time and datetime metrics in UTC and another time zone
+- [`ble_adv_triggers.md`](ble_adv_triggers.md): BLE service and manufacturer data advertise triggers over the air on the ESP32 and BK72xx trackers, with a second ESP32 advertising known frames
+- [`sun.md`](sun.md): on_sunrise and on_sunset by sweeping the observer's longitude, one full sweep in about 17 minutes
+- [`sensor_filters.md`](sensor_filters.md): every sensor, binary_sensor and text_sensor filter shape fed a fixed input sequence, outputs compared bit for bit between builds
+- [`led_driver_sniff.md`](led_driver_sniff.md): bit-banged LED drivers captured on the ESP32's own pads with SPI slaves through the GPIO matrix, no chips
+- [`hub_input_sim.md`](hub_input_sim.md): matrix_keypad, wiegand, rdm6300 and key_collector driven from a D1 mini's own pins and UART loopback
+- [`value_range.md`](value_range.md): sensor and number on_value_range with a fixed sequence and a restart
+- [`ezo_fake_bus.md`](ezo_fake_bus.md): the ezo component against a fake I2C bus that answers like an EZO circuit
+- [`twai_self.md`](twai_self.md): esp32_can on_frame with the controller hearing its own transmit pad, no transceiver
+- [`buttons.md`](buttons.md): output button pad timing, homeassistant button through a raw API client with the wizard input, uart button on the UART0 loopback
+- [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
+- [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
+- [`automation_trace.md`](automation_trace.md): automation codegen A/B, a marker trace of chains, conditions, loops and script modes over the API
+- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy
+- [`crash_report.md`](crash_report.md): crash buttons, fetching the previous boot's crash report over the API, per-chip abort facts
+- [`https_idf.md`](https_idf.md): web_server_idf HTTPS test component, listener switch, stalled TLS clients, bad key
+- [`mdns.md`](mdns.md): legacy unicast mDNS dump, hammer and latency straight to the device
+- [`sim_buses.md`](sim_buses.md): PCF8574/HD44780, MAX7219, SPI spy, packet_interface and SN74HC165 simulators, status LED probe, fake Home Assistant, cg.static_buffer probes
+- [`sigma_delta.md`](sigma_delta.md): pulse density of the sigma_delta speaker pin read inside the ESP32-P4, rtttl note onset and release
+- [`microphone_http_stream.md`](microphone_http_stream.md): raw PCM over HTTP with a counter fake mic or a USB mic, multi-reader client
+- [`i2s_audio.md`](i2s_audio.md): I2S microphone fed by an I2S TX channel on the same S3 through three jumpers
+- [`voice_assistant.md`](voice_assistant.md): late TTS start on the Voice PE with a slow announcement URL
+- [`mcp251xfd.md`](mcp251xfd.md): MCP2518FD CAN FD over SPI in loopback, forced modes, chip reset and bus-off recovery, TX objects read back from chip RAM, idle SPI cost from a PCNT on CS
+- [`crc32.md`](crc32.md): crc32 vectors on every platform path and the signed OTA signature block CRC on an ESP32-C3
+- [`i2c_isr_fault.md`](i2c_isr_fault.md): software INA219 on the master's own pads with seeded bus faults, interrupt storm and stuck bus
+- [`bmp390.md`](bmp390.md): BMP390/BMP388 register readback, INT data ready rate, start write faults by software NACK or held SDA, and the IDF I2C hang after a held SDA
+- [`ipv6.md`](ipv6.md): IPv6 link-local and SLAAC boot and reconnect timing on ESP32 Wi-Fi, with an injected esp-netif delay that forces the race
+- [`mcp23017.md`](mcp23017.md): MCP23017 IOCON aliasing and INT line behavior (open drain, push-pull, polling) on an ESP8266 with PA to PB jumpers
+- [`pwm_capture.md`](pwm_capture.md): every LEDC PWM period captured on the same ESP32-C6 through RMT receive and PCNT, with and without power save
+- [`spi.md`](spi.md): SPI bus capture on the same board with no chips (ESP32 SPI3 slave, edge interrupt snapshots on C3, ESP8266 and Pico 2 W), checked and diffed between builds
+- [`heap_alloc.md`](heap_alloc.md): operator new counting, and a ring of allocation callers decoded with addr2line to tell the first run after boot from repeats
+- [`wled.md`](wled.md): WLED realtime sender on a board's own access point
+- [`combination.md`](combination.md): combination sensor NaN behaviour from the last source

@@ -17,8 +17,14 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   return true;
 }
 bool WiFiComponent::wifi_sta_pre_setup_() { return true; }
-bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
-bool WiFiComponent::wifi_apply_power_save_() { return true; }
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  host_hooks.output_powers.push_back(output_power);
+  return true;
+}
+bool WiFiComponent::wifi_apply_power_save_() {
+  host_hooks.power_save_applies++;
+  return true;
+}
 bool WiFiComponent::wifi_apply_hostname_() { return true; }
 void WiFiComponent::wifi_pre_setup_() {}
 bool WiFiComponent::wifi_loop_() { return false; }
@@ -39,6 +45,11 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   return true;
 }
 bool WiFiComponent::wifi_disconnect_() { return true; }
+bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
+  host_hooks.ap_starts++;
+  return host_hooks.ap_start_ok;
+}
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {}; }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() { return {}; }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {

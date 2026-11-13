@@ -1,0 +1,16 @@
+# One run: p_fault is per mille of transactions, seed fixes the fault sequence (seed 1 hangs dev at about 245 s on #22270)
+substitutions:
+  name: i2cfault-pr
+  freq: 10kHz
+  hammer: 100ms
+  ina_interval: 1s
+  p_fault: "50"
+  fault_mask: "0xFF"
+  hold_max_ms: "3000"
+  diag_recover: "false"
+  seed: "1"
+  fw: esp-idf
+  fwver: 5.5.5
+
+packages:
+  base: !include i2cbase.yaml

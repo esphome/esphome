@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from pathlib import Path
 import re
-from typing import Any
 
 import pytest
 
@@ -130,8 +129,7 @@ def test_missing_class_declaration_is_reported() -> None:
 def test_extend_keeps_class_name_and_source_files() -> None:
 
     class _Model(EpaperModel):
-        def __init__(self, name: str, **kwargs: Any) -> None:
-            super().__init__(name, "EPaperX", **kwargs)
+        class_name = "EPaperX"
 
     base = _Model("test-extend-base", source_files=("x.cpp",))
     try:
