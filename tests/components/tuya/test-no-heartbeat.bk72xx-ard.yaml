@@ -1,0 +1,7 @@
+# MCU without a heartbeat that expects an answer to each datapoint report
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+
+tuya:
+  heartbeat: false
+  datapoint_ack: true

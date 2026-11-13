@@ -1,0 +1,7 @@
+# watchdog off
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+
+tuya:
+  mcu_watchdog:
+    action: disable
