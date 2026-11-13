@@ -1,0 +1,8 @@
+# action: reboot with an explicit count
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+
+tuya:
+  mcu_watchdog:
+    action: reboot
+    missed_heartbeats: 6
