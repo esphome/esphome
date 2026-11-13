@@ -14,30 +14,54 @@ static constexpr uint16_t CHARACTERISTIC_UUID = 0x0001;
 static constexpr char BT_VARS_COMMAND[] = "net-BT_VARS";
 
 void FendtCaravan::loop() {
-  if (this->parent()->state() != espbt::ClientState::ESTABLISHED)
+  if (this->parent()->state() != espbt::ClientState::ESTABLISHED || this->commands_.empty() || this->wait_handshake_ ||
+      this->write_in_flight_)
     return;
 
   uint32_t time_stamp = App.get_loop_component_start_time();
   if (this->commands_.empty() || this->wait_handshake_)
     return;
 
-  if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND_MS) {
-    Chunk &chunk = this->commands_.front();
-    auto status = esp_ble_gattc_write_char(
-        this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, chunk.len,
-        reinterpret_cast<uint8_t *>(chunk.data.data()), ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-    this->last_command_time_ = time_stamp;
-    if (status != ESP_OK) {
-      // Keep the chunk queued and retry; a disconnect clears the queue, so this cannot retry forever
-      ESP_LOGW(TAG, "Writing command failed (%d), will retry", status);
-      this->status_set_warning();
-      return;
-    }
-    this->status_clear_warning();
+  Chunk &chunk = this->commands_.front();
+  auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                         this->char_handle_, chunk.len, reinterpret_cast<uint8_t *>(chunk.data.data()),
+                                         ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status != ESP_OK) {
+    // Keep the chunk queued and retry; a disconnect clears the queue, so this cannot retry forever
+    ESP_LOGW(TAG, "Writing command failed (%d), will retry", status);
+    this->status_set_warning();
+    return;
+  }
+  this->status_clear_warning();
+  // The chunk stays queued until the peer confirms it in ESP_GATTC_WRITE_CHAR_EVT
+  this->write_in_flight_ = true;
+}
 
+void FendtCaravan::on_write_complete_(esp_gatt_status_t status) {
+  this->write_in_flight_ = false;
+  if (this->commands_.empty())
+    return;
+  const Chunk &chunk = this->commands_.front();
+  if (status == ESP_GATT_OK) {
     ESP_LOGV(TAG, "Command sent: %.*s", chunk.len, chunk.data.data());
     this->commands_.pop();
+    return;
   }
+
+  if (chunk.session || !chunk.first) {
+    // The panel holds part of a command or has no session; only a new connection resets it
+    ESP_LOGW(TAG, "Write rejected (status=%d), reconnecting", status);
+    this->commands_.clear();
+    this->parent()->disconnect();
+    return;
+  }
+  // Nothing of this command reached the panel, so dropping it leaves the session intact
+  ESP_LOGW(TAG, "Write rejected (status=%d), command dropped", status);
+  bool more;
+  do {
+    more = this->commands_.front().more;
+    this->commands_.pop();
+  } while (more && !this->commands_.empty());
 }
 
 void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -71,8 +95,14 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      this->add_command_(this->handshake_, strlen(this->handshake_));
-      this->add_command_(BT_VARS_COMMAND, sizeof(BT_VARS_COMMAND) - 1);
+      this->add_command_(this->handshake_, strlen(this->handshake_), true);
+      this->add_command_(BT_VARS_COMMAND, sizeof(BT_VARS_COMMAND) - 1, true);
+      break;
+    }
+    case ESP_GATTC_WRITE_CHAR_EVT: {
+      if (!this->write_in_flight_ || param->write.handle != this->char_handle_)
+        break;
+      this->on_write_complete_(param->write.status);
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -115,7 +145,7 @@ void FendtCaravan::send_command(const char *command) {
   this->add_command_(command, strlen(command));
 }
 
-bool FendtCaravan::add_command_(const char *cmd, size_t len) {
+bool FendtCaravan::add_command_(const char *cmd, size_t len, bool session) {
   if (len == 0)
     return false;
   // All chunks of a command are queued or none: a partial command would leave the panel waiting for the rest
@@ -127,6 +157,9 @@ bool FendtCaravan::add_command_(const char *cmd, size_t len) {
   for (size_t pos = 0; pos < len; pos += CHUNK_SIZE) {
     Chunk chunk;
     chunk.len = next_chunk(cmd, len, pos, chunk.data.data());
+    chunk.first = pos == 0;
+    chunk.more = pos + CHUNK_SIZE < len;
+    chunk.session = session;
     this->commands_.push(chunk);
   }
   return true;
@@ -135,6 +168,7 @@ bool FendtCaravan::add_command_(const char *cmd, size_t len) {
 // A link lost mid-session must not leave the next session waiting for a BT_STOP that never comes
 void FendtCaravan::reset_session_() {
   this->wait_handshake_ = false;
+  this->write_in_flight_ = false;
   this->char_handle_ = 0;
   this->commands_.clear();
   this->rx_.reset();

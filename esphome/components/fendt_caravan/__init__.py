@@ -44,9 +44,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     # The handshake carries the paired address in lower case
     bt_id = ":".join(f"{part:02x}" for part in config[CONF_BT_ID].parts)
-    var = cg.new_Pvariable(config[CONF_ID], f"net-BT_ID-{bt_id}")
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config, f"net-BT_ID-{bt_id}")
     hub = cg.new_Pvariable(config[CONF_MAIN_CONTROL_UNIT][CONF_ID])
     await cg.register_parented(hub, var)
     await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])

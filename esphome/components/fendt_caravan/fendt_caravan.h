@@ -37,9 +37,13 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   struct Chunk {
     std::array<char, CHUNK_SIZE + 1> data;
     uint8_t len;
+    bool first;    // first chunk of its command
+    bool more;     // more chunks of the same command follow
+    bool session;  // part of the session setup (handshake, BT_VARS)
   };
 
-  bool add_command_(const char *cmd, size_t len);
+  bool add_command_(const char *cmd, size_t len, bool session = false);
+  void on_write_complete_(esp_gatt_status_t status);
   // Splits the report in place at the first ':'
   void on_data_received_(char *data);
   void reset_session_();
@@ -47,6 +51,8 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
  private:
   const char *handshake_;
   bool wait_handshake_ = false;
+  // The front chunk was submitted and its ESP_GATTC_WRITE_CHAR_EVT has not arrived yet
+  bool write_in_flight_ = false;
   uint16_t char_handle_ = 0;
   StaticRingBuffer<Chunk, QUEUE_SIZE> commands_;
   uint32_t last_command_time_ = 0;
