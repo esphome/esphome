@@ -148,7 +148,11 @@ def test_border_waveform_in_generated_init_sequence(
 # --- full_update_every / supports_partial_update ------------------------------
 
 
+@pytest.mark.parametrize(
+    "model", ["seeed-reterminal-sticky-gray4", "seeed-reterminal-sticky-v2-gray4"]
+)
 def test_full_update_every_rejected_for_gray4(
+    model: str,
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
@@ -163,13 +167,17 @@ def test_full_update_every_rejected_for_gray4(
         CONFIG_SCHEMA(
             {
                 "id": "test_display",
-                "model": "seeed-reterminal-sticky-gray4",
+                "model": model,
                 "full_update_every": 5,
             }
         )
 
 
+@pytest.mark.parametrize(
+    "model", ["seeed-reterminal-sticky-gray4", "seeed-reterminal-sticky-v2-gray4"]
+)
 def test_full_update_every_accepted_for_gray4_with_monochrome_partials(
+    model: str,
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
@@ -182,7 +190,7 @@ def test_full_update_every_accepted_for_gray4_with_monochrome_partials(
     result = CONFIG_SCHEMA(
         {
             "id": "test_display",
-            "model": "seeed-reterminal-sticky-gray4",
+            "model": model,
             "full_update_every": 5,
             "monochrome_partial_updates": True,
         }
@@ -409,3 +417,91 @@ def test_gray4_code_generation(
 
     assert "epaper_spi::EPaperSSD1677Gray4" in main_cpp
     assert "epaper_spi::EPaperMono" not in main_cpp
+
+
+def test_temperature_sensor_only_offered_for_ssd2677(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Only the SSD2677 driver chooses its waveform from a temperature."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    with pytest.raises(cv.Invalid, match="temperature_sensor"):
+        CONFIG_SCHEMA(
+            {
+                "id": "test_display",
+                "model": "seeed-reterminal-sticky",
+                "temperature_sensor": "room",
+            }
+        )
+
+    result = CONFIG_SCHEMA(
+        {
+            "id": "test_display",
+            "model": "seeed-reterminal-sticky-v2",
+            "temperature_sensor": "room",
+        }
+    )
+    assert result["temperature_sensor"].id == "room"
+
+
+@pytest.mark.parametrize(
+    ("pins", "dimensions", "message"),
+    [
+        ({"reset_pin": 17}, {"width": 800, "height": 480}, "busy pin"),
+        ({"busy_pin": 18}, {"width": 800, "height": 480}, "reset_pin"),
+        (
+            {"busy_pin": 18, "reset_pin": 17},
+            {"width": 804, "height": 480},
+            "multiple of 8",
+        ),
+        ({"busy_pin": 18, "reset_pin": 17}, {"width": 800, "height": 681}, "680 rows"),
+    ],
+)
+def test_ssd2677_rejects_unusable_settings(
+    pins: dict[str, int],
+    dimensions: dict[str, int],
+    message: str,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The generic model has no pin defaults, and its stream fixes what can work."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    config = {
+        "id": "test_display",
+        "model": "ssd2677",
+        "dc_pin": 16,
+        "dimensions": dimensions,
+        **pins,
+    }
+
+    with pytest.raises(cv.Invalid, match=message):
+        CONFIG_SCHEMA(config)
+
+
+@pytest.mark.parametrize("model", ["ssd2677", "seeed-reterminal-sticky-v2"])
+def test_ssd2677_busy_pin_is_active_low(
+    model: str,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The controller's busy signal is active low, so the pin is always inverted."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+    config = {"id": "test_display", "model": model}
+    if model == "ssd2677":
+        config |= {
+            "dc_pin": 16,
+            "busy_pin": 18,
+            "reset_pin": 17,
+            "dimensions": {"width": 800, "height": 480},
+        }
+
+    assert CONFIG_SCHEMA(config)["busy_pin"]["inverted"] is True
