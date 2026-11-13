@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_VALUE_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMMAND,
@@ -29,6 +30,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT_HOURS,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
@@ -39,8 +41,12 @@ from .. import (
     CONF_DELTASOL_CS2,
     CONF_DELTASOL_CS4,
     CONF_DELTASOL_CS_PLUS,
+    CONF_RX_VALUE_IDS,
+    CONF_VALUE_ID,
+    CONF_VALUE_IDS,
     CONF_VBUS_ID,
     VBus,
+    VBusPolling,
     vbus_ns,
 )
 
@@ -52,6 +58,10 @@ DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
 DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor", cg.Component)
 VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
+VBusP2Sensor = vbus_ns.class_("VBusP2Sensor", sensor.Sensor, cg.Component)
+CONF_P2 = "p2"
+CONF_POLLING_ID = "polling_id"
+
 VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", sensor.Sensor)
 
 CONF_FLOW_RATE = "flow_rate"
@@ -70,6 +80,17 @@ CONF_TEMPERATURE_5 = "temperature_5"
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
+        CONF_P2: sensor.sensor_schema(VBusP2Sensor, accuracy_decimals=0)
+        .extend(
+            {
+                cv.Required(CONF_POLLING_ID): cv.use_id(VBusPolling),
+                cv.Required(CONF_VALUE_ID): cv.uint16_t,
+                cv.Optional(CONF_VALUE_TYPE, default="int32"): cv.one_of(
+                    "int32", "uint32", lower=True
+                ),
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA),
         CONF_DELTASOL_BS_PLUS: cv.COMPONENT_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS_Plus),
@@ -651,7 +672,34 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+def final_validate(config: ConfigType) -> None:
+    if config[CONF_MODEL] != CONF_P2:
+        return
+    full = fv.full_config.get()
+    polling = full.get_config_for_path(
+        full.get_path_for_id(config[CONF_POLLING_ID])[:-1]
+    )
+    if config[CONF_VALUE_ID] not in polling[CONF_VALUE_IDS]:
+        raise cv.Invalid(
+            "P2 sensor value_id must be registered in this polling component's value_ids"
+        )
+    if config[CONF_VALUE_ID] in polling[CONF_RX_VALUE_IDS]:
+        raise cv.Invalid(
+            "P2 sensors cannot duplicate values covered by RX telemetry; use the existing RX sensor"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
+
+
 async def to_code(config: ConfigType) -> None:
+    if config[CONF_MODEL] == CONF_P2:
+        polling = await cg.get_variable(config[CONF_POLLING_ID])
+        var = await sensor.new_sensor(
+            config, polling, config[CONF_VALUE_ID], config[CONF_VALUE_TYPE] == "int32"
+        )
+        await cg.register_component(var, config)
+        return
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     sensors = sensor.sub_sensors(config)
