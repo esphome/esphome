@@ -12,6 +12,8 @@ static const uint8_t DALY_FRAME_SIZE = 13;
 static const uint8_t DALY_TEMPERATURE_OFFSET = 40;
 static const uint16_t DALY_CURRENT_OFFSET = 30000;
 
+// One cycle sends these requests in this order. The IDs are consecutive, so the request at position N of the cycle
+// is DALY_REQUEST_BATTERY_LEVEL + N; a request added later must keep them consecutive.
 static const uint8_t DALY_REQUEST_BATTERY_LEVEL = 0x90;
 static const uint8_t DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
 static const uint8_t DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
@@ -20,7 +22,6 @@ static const uint8_t DALY_REQUEST_STATUS = 0x94;
 static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
-// One cycle sends the requests from DALY_REQUEST_BATTERY_LEVEL to DALY_REQUEST_TEMPERATURE in order.
 static constexpr uint8_t DALY_REQUEST_COUNT = DALY_REQUEST_TEMPERATURE - DALY_REQUEST_BATTERY_LEVEL + 1;
 // A response can span several frames (three cell voltages per frame). Once a frame is complete and the line
 // stays quiet this long, the response is over and the next request can go out.
@@ -98,6 +99,7 @@ void DalyBmsComponent::loop() {
   }
   // the response timeout counts from the request
   this->last_transmission_ = now;
+  // the request IDs are consecutive, see DALY_REQUEST_BATTERY_LEVEL
   this->last_request_ = DALY_REQUEST_BATTERY_LEVEL + this->next_request_++;
   this->request_data_(this->last_request_);
 }
