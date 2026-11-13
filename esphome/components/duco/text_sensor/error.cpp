@@ -50,44 +50,45 @@ PROGMEM_STRING_TABLE(
     "Unknown DUCO error");
 static_assert(ErrorCodes::COUNT + 1 == ErrorDescriptions::COUNT);
 
-void DucoError::setup() { this->state.reserve(MAX_ERROR_TEXT_LENGTH); }
-
-void DucoError::update() { this->parent_->send(this, 0x30, {this->address_, 0x00, 0x00, 0x04}); }
-
-void DucoError::receive_response(const DucoMessage &message) {
-  if (message.size == 0) {
-    this->publish_state("No errors");
-    return;
-  }
-
-  const uint8_t error_count = message.data[0];
-  const size_t expected_size = 1 + static_cast<size_t>(error_count) * 5;
-  if (error_count == 0) {
-    this->publish_state("No errors");
-    return;
-  }
-  if (message.size < expected_size)
-    return;
-
-  std::array<char, MAX_ERROR_TEXT_LENGTH + 1> error_text{};
+// One line per error, with its description or only its code. Returns the text length, or 0 if it does not fit.
+static size_t format_errors(const uint8_t *records, uint8_t count, char *text, size_t size, bool descriptions) {
   size_t length = 0;
-  for (size_t index = 0; index < error_count; index++) {
-    const size_t offset = 1 + index * 5;
+  for (uint8_t index = 0; index < count; index++) {
+    const uint8_t *record = records + index * 5;
     char code[13];
-    snprintf(code, sizeof(code), "E%02u.%02u.%02u", static_cast<unsigned>(message.data[offset + 1]),
-             static_cast<unsigned>(message.data[offset + 2]), static_cast<unsigned>(message.data[offset + 3]));
-    const int16_t description_index = progmem_string_table_find<ErrorCodes>(code, strlen(code));
-    char description[ErrorDescriptions::MAX_LENGTH + 1];
-    ESPHOME_strncpy_P(description,
-                      reinterpret_cast<ESPHOME_PGM_P>(
-                          ErrorDescriptions::get_progmem_str(description_index, ErrorDescriptions::LAST_INDEX)),
-                      sizeof(description));
-    description[sizeof(description) - 1] = '\0';
-    const int written = snprintf(error_text.data() + length, error_text.size() - length, "%s  %s\n", code, description);
-    if (written < 0 || static_cast<size_t>(written) >= error_text.size() - length)
-      break;
+    snprintf(code, sizeof(code), "E%02u.%02u.%02u", record[1], record[2], record[3]);
+    char description[ErrorDescriptions::MAX_LENGTH + 1] = "";
+    if (descriptions) {
+      const int16_t description_index = progmem_string_table_find<ErrorCodes>(code, strlen(code));
+      ESPHOME_strncpy_P(description,
+                        reinterpret_cast<ESPHOME_PGM_P>(
+                            ErrorDescriptions::get_progmem_str(description_index, ErrorDescriptions::LAST_INDEX)),
+                        sizeof(description));
+      description[sizeof(description) - 1] = '\0';
+    }
+    const int written = snprintf(text + length, size - length, descriptions ? "%s  %s\n" : "%s\n", code, description);
+    if (written < 0 || static_cast<size_t>(written) >= size - length)
+      return 0;
     length += written;
   }
+  return length;
+}
+
+void DucoError::update() { this->parent_->send(this, FUNCTION_ERRORS, {this->address_, 0x00, 0x00, 0x04}); }
+
+void DucoError::receive_response(const DucoMessage &message) {
+  if (message.size == 0 || message.data[0] == 0) {
+    this->publish_state("No errors");
+    return;
+  }
+  const uint8_t error_count = message.data[0];
+  if (message.size < 1 + static_cast<size_t>(error_count) * 5)
+    return;
+
+  std::array<char, MAX_ERROR_TEXT_LENGTH + 1> error_text;
+  size_t length = format_errors(message.data + 1, error_count, error_text.data(), error_text.size(), true);
+  if (length == 0)  // the descriptions do not fit, the codes always do
+    length = format_errors(message.data + 1, error_count, error_text.data(), error_text.size(), false);
   this->publish_state(error_text.data(), length);
 }
 

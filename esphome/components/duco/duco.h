@@ -17,6 +17,7 @@ namespace esphome::duco {
 static constexpr uint8_t FUNCTION_NODE = 0x0c;       // discovery, status and mode of a node
 static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data (sensors, serial number)
 static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
+static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
@@ -53,7 +54,8 @@ class Duco : public uart::UARTDevice, public Component {
   void send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
-  // The longest answer to a request sent here is 39 bytes (box serial number), the longest request 9
+  // The longest answer to a request sent here is 39 bytes (box serial number), the longest request 9.
+  // An error answer is 1 + 5 bytes per error, so one with more than eight errors is dropped.
   static constexpr size_t MAX_FRAME_SIZE = 48;
   static constexpr size_t MAX_REQUEST_DATA = 9;
 

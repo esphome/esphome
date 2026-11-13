@@ -67,7 +67,7 @@ async def test_uart_mock_duco(
         }
         mode = require_entity(entities, "mode", SelectInfo)
         comfort = require_entity(entities, "comfort_temperature", NumberInfo)
-        serial = require_entity(entities, "serial_number", TextSensorInfo)
+        serial = require_entity(entities, "serial_number", TextSensorInfo, exact=True)
         node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
         invalid_serial = require_entity(
             entities, "invalid_serial_number", TextSensorInfo
@@ -75,6 +75,9 @@ async def test_uart_mock_duco(
         version = require_entity(entities, "version", TextSensorInfo)
         node_error = require_entity(entities, "node_error", TextSensorInfo)
         node_no_error = require_entity(entities, "node_without_errors", TextSensorInfo)
+        zero_errors = require_entity(entities, "node_zero_errors", TextSensorInfo)
+        short_errors = require_entity(entities, "node_short_errors", TextSensorInfo)
+        many_errors = require_entity(entities, "node_many_errors", TextSensorInfo)
         uptime = require_entity(entities, "uptime", TextSensorInfo)
         node_type = require_entity(entities, "node_type", TextSensorInfo)
 
@@ -102,9 +105,18 @@ async def test_uart_mock_duco(
             "node error",
         )
         await wait_for(lambda: state_of(node_no_error) == "No errors", "no errors")
+        await wait_for(lambda: state_of(zero_errors) == "No errors", "zero errors")
+        # four descriptions do not fit the 255 character state, so only the codes are listed
+        await wait_for(
+            lambda: (
+                state_of(many_errors) == "E03.01.04\nE04.01.04\nE06.01.04\nE16.01.04\n"
+            ),
+            "many errors",
+        )
         await wait_for(lambda: state_of(uptime) == "1d 12h 30m", "uptime")
         await wait_for(lambda: state_of(node_type) == "BSRH", "node type")
         assert state_of(invalid_serial) is None
+        assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")
 
         client.select_command(mode.key, "CNT2")

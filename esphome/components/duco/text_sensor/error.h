@@ -13,7 +13,6 @@ class DucoError : public DucoDevice, public text_sensor::TextSensor {
  public:
   explicit DucoError(uint8_t address) : address_(address) {}
 
-  void setup() override;
   void update() override;
   void receive_response(const DucoMessage &message) override;
 

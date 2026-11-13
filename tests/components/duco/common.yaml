@@ -16,7 +16,7 @@ text_sensor:
   - platform: duco
     name: Serial Number
   - platform: duco
-    serial:
+    serial_number:
       - name: Serial Number Node 2
         address: 2
     version:

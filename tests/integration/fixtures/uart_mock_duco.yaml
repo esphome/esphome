@@ -21,6 +21,9 @@ esphome:
       - component.update: version
       - component.update: node_error
       - component.update: node_no_error
+      - component.update: node_zero_errors
+      - component.update: node_short_errors
+      - component.update: node_many_errors
       - component.update: uptime
       - component.update: node_type
       - component.update: comfort_temperature
@@ -123,6 +126,12 @@ uart_mock:
               } else if (function == 0x30) {
                 if (d[0] == 3)
                   reply(0x32, {2, 0, 31, 19, 1, 0, 0, 99, 99, 99, 0});
+                else if (d[0] == 4)
+                  reply(0x32, {0});
+                else if (d[0] == 5)
+                  reply(0x32, {2, 0, 31, 19, 1, 0});  // second error missing
+                else if (d[0] == 6)
+                  reply(0x32, {4, 0, 3, 1, 4, 0, 0, 4, 1, 4, 0, 0, 6, 1, 4, 0, 0, 16, 1, 4, 0});
                 else
                   reply(0x32, {});
               } else if (function == 0x24 && d[0] == 0x00) {
@@ -176,7 +185,7 @@ text_sensor:
     name: Serial Number
     update_interval: never
   - platform: duco
-    serial:
+    serial_number:
       - address: 2
         id: serial_number_node_2
         name: Serial Number Node 2
@@ -198,6 +207,18 @@ text_sensor:
       - address: 2
         id: node_no_error
         name: Node Without Errors
+        update_interval: never
+      - address: 4
+        id: node_zero_errors
+        name: Node Zero Errors
+        update_interval: never
+      - address: 5
+        id: node_short_errors
+        name: Node Short Errors
+        update_interval: never
+      - address: 6
+        id: node_many_errors
+        name: Node Many Errors
         update_interval: never
     uptime:
       - address: 2
