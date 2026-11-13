@@ -758,6 +758,10 @@ def int_(value):
     Automatically also converts strings to ints.
     """
     check_not_templatable(value)
+    if isinstance(value, bool):
+        # bool is an int subclass: a stray `yes`/`no` would otherwise silently
+        # become 1/0 in every option validated through this function
+        raise Invalid(f"Expected integer, got boolean. Did you mean {int(value)}?")
     if isinstance(value, int):
         return value
     if isinstance(value, float):

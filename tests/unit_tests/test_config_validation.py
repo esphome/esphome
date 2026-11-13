@@ -1694,6 +1694,18 @@ def test_int_hex_string() -> None:
     assert cv.int_("0xFF") == 255
 
 
+@pytest.mark.parametrize("value", (True, False))
+def test_int_rejects_boolean(value) -> None:
+    with pytest.raises(Invalid, match="Expected integer"):
+        cv.int_(value)
+
+
+@pytest.mark.parametrize("validator", (cv.port, cv.positive_int))
+def test_int_builtins_reject_boolean(validator) -> None:
+    with pytest.raises(Invalid):
+        validator(True)
+
+
 # ---------------------------------------------------------------------------
 # int_range / float_range no-min branches
 # ---------------------------------------------------------------------------
