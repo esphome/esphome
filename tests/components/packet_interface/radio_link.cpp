@@ -138,6 +138,22 @@ TEST_F(RadioLinkTest, ReceivedPacketCarriesSignal) {
   EXPECT_FLOAT_EQ(meta.snr, 7.5f);
 }
 
+// After a send, a send in a later loop pass waits for the peer's reply, which may come at once
+TEST_F(RadioLinkTest, LaterSendWaitsForPeerToReply) {
+  this->link_.set_turnaround(250);
+  set_time(START);
+  EXPECT_TRUE(this->send_());
+  EXPECT_TRUE(this->send_());  // the same loop pass, as the fragments of one packet
+  set_time(START + 100);
+  EXPECT_FALSE(this->send_());
+  set_time(START + 250);
+  EXPECT_TRUE(this->send_());
+  set_time(START + 300);
+  this->radio_.listener->on_packet(Packet{4, 5}, -50, 5);
+  EXPECT_TRUE(this->send_());
+  EXPECT_EQ(this->radio_.sent.size(), 4u);
+}
+
 // A packet in two parts, as a layer adds its header, is joined before it goes to the radio
 TEST_F(RadioLinkTest, SplitPacketIsJoined) {
   static const Packet HEADER{9, 8};

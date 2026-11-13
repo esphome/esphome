@@ -72,6 +72,29 @@ def test_max_busy_follows_airtime() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("radio", "expected_ms"),
+    [
+        # (8 + 4.25 + 8) symbols of 8.192 ms, then 50 ms for the reply to start, with a quarter added
+        (_lora(spreading_factor=10), 270),
+        (_lora(spreading_factor=7), 89),
+        # 6 bytes of preamble, sync word and length at 4800 bit/s
+        (
+            {
+                "modulation": "FSK",
+                "preamble_size": 4,
+                "bitrate": 4800,
+                "sync_value": [0x12],
+            },
+            75,
+        ),
+    ],
+)
+def test_turnaround_covers_reply_header(radio: dict, expected_ms: int) -> None:
+    """After sending, the link waits until the peer's reply would have started and its header been received."""
+    assert radio_link.turnaround_ms(radio) == expected_ms
+
+
 def _fsk(**options: object) -> dict:
     return {
         "modulation": "FSK",
