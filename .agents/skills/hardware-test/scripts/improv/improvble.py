@@ -21,7 +21,18 @@ def pkt(cmd: int, data: bytes) -> bytes:
 async def main(name: str, secrets: str) -> None:
     with pathlib.Path(secrets).open(encoding="utf-8") as f:
         sec = yaml.safe_load(f)
-    ssid, pw = sec["wifi_ssid"].encode(), sec["wifi_password"].encode()
+    try:
+        raw = (sec["wifi_ssid"], sec["wifi_password"])
+    except (KeyError, TypeError) as exc:
+        print(f"secrets file lacks {exc}", file=sys.stderr)
+        sys.exit(2)
+    if not all(
+        isinstance(x, (str, int, float)) and not isinstance(x, bool) for x in raw
+    ):
+        print("wifi_ssid and wifi_password must be plain values", file=sys.stderr)
+        sys.exit(2)
+    # YAML reads an unquoted number as int
+    ssid, pw = (str(x).encode() for x in raw)
     dev = await BleakScanner.find_device_by_name(name, timeout=30)
     if dev is None:
         sys.exit("device not found")
