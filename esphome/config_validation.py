@@ -2076,7 +2076,9 @@ def one_of(*values, **kwargs):
             value = Lower(value)
         if upper:
             value = Upper(value)
-        if isinstance(value, bool) and not any(isinstance(option, bool) for option in values):
+        if isinstance(value, bool) and not any(
+            isinstance(option, bool) for option in values
+        ):
             # bool is an int subclass (True == 1): a YAML boolean must not
             # match an integer option, it would flow into the config unconverted
             raise Invalid(f"Unknown value '{value}', valid options are {options}.")
