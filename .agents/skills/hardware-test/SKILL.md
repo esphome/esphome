@@ -91,11 +91,12 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    ```
 
    Then one short sentence saying what was tested (builds and SHAs, board, what was driven), and on the next line a
-   bold result: **Test result: PASS** or **Test result: FAIL**, followed by one sentence with the key numbers (for
-   example "the device closed none of 32 streams, dev closed 12 of 16"). Use FAIL for a regression or a fix that does
-   not work, and say **Test result: INCONCLUSIVE** only when the run could not decide. A reader must not have to dig
-   through the table or guess. Side findings (a bug already on `dev`, a one-off oddity) go in the bullets, marked as
-   separate from the result, never left to blur it.
+   bold result, one of **Test result: PASS**, **Test result: FAIL**, **Test result: PASS WITH CAVEATS** or
+   **Test result: UNCLEAR**, followed by one sentence with the key numbers (for example "the device closed none of 32
+   streams, dev closed 12 of 16"). FAIL means a regression or a fix that does not work. PASS WITH CAVEATS means it works
+   but something needs a look; name the caveat in that sentence. UNCLEAR means the run could not decide; say what is
+   missing. A reader must not have to dig through the table or guess. Side findings that do not change the result (a
+   bug already on `dev`, a one-off oddity) go in the bullets, marked as separate from the result.
 
    Then a results table
    (build SHA, board and framework, what was driven, counts, result, plus the `dev` control row), short bullets
