@@ -62,11 +62,11 @@ class I2CBus {
 #endif
 
  protected:
-  /// @brief Scans the I2C bus for devices and keeps the addresses that answered or failed in scan_results_
+  /// @brief Scans the I2C bus and keeps each address that answered (ERROR_OK) or returned ERROR_UNKNOWN
   void i2c_scan_();
   /// @brief Logs the scan results at config level, if the bus was scanned
   void dump_scan_results_();
-  /// One byte per address that answered, bit 7 set when it failed; inline for up to 4 devices
+  /// One byte per kept address, bit 7 set for ERROR_UNKNOWN; inline for up to 4 devices
   SmallInlineBuffer<4> scan_results_;
   bool scan_{false};  ///< Should we scan ? Can be set in the yaml
 };
