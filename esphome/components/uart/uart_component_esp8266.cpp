@@ -401,12 +401,20 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     parity_bit ^= __builtin_parity(frame);
     frame |= uint32_t(parity_bit) << num_bits++;
   }
-  // From the edge after the last 0 the line stays high through the stop bits
-  const uint32_t zeros = ~frame & ((1u << num_bits) - 1);
-  const uint32_t high_from = zeros == 0 ? 0 : 32 - __builtin_clz(zeros);
-  // Bit i starts a run of equal bits; the start bit is position 0 with the frame shifted up by one
+  // Line level per bit slot: the start bit at 0, then the frame, then a stop bit that ends the last run
   const uint32_t line = frame << 1 | (1u << (num_bits + 1));
-  const bool unlock_in_runs = this->lock_frame_ && blocking_rx_count == 0;
+  // From the edge after the last 0 the line stays high through the stop bits; slot 0 is the start bit, always 0
+  const uint32_t high_from = 31 - __builtin_clz(~line & ((2u << num_bits) - 1));
+  // Right after an edge into a long enough run of equal bits, a pending interrupt only delays bits that repeat the
+  // level. Decided before the start bit so the timed loop only tests a bit.
+  uint32_t unlock_at = 0;
+  if (this->lock_frame_ && blocking_rx_count == 0) {
+    const uint32_t edges = line ^ (line << 1 | 1);  // the idle line before the start bit is high
+    for (uint32_t pos = 0; pos <= high_from; pos++) {
+      if (((edges >> pos) & 1) && (__builtin_ctz(edges >> (pos + 1)) + 1) * bit_time >= TX_UNLOCK_MIN_RUN_CYCLES)
+        unlock_at |= 1u << pos;
+    }
+  }
   std::optional<InterruptLock> frame_lock;
   if (this->locks_whole_frame())
     frame_lock.emplace();
@@ -421,14 +429,9 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   for (uint32_t pos = 0; pos <= high_from; pos++) {
     if (pos != 0)
       this->write_bit_((line >> pos) & 1, &wait, start, bit_time);
-    // Right after an edge into a long enough run, a pending interrupt only delays the bits that repeat this level
-    const bool level = (line >> pos) & 1;
-    if (unlock_in_runs && (pos == 0 || level != ((line >> (pos - 1)) & 1))) {
-      const uint32_t run = __builtin_ctz((level ? ~line : line) >> pos);
-      if (run * bit_time >= TX_UNLOCK_MIN_RUN_CYCLES) {
-        frame_lock.reset();
-        frame_lock.emplace();
-      }
+    if ((unlock_at >> pos) & 1) {
+      frame_lock.reset();
+      frame_lock.emplace();
     }
   }
   this->write_bit_(true, &wait, start, bit_time);
