@@ -1,0 +1,9 @@
+ble_client:
+  - mac_address: 01:02:03:04:05:16
+    id: genibus_ble_blec
+
+# No device yet: this also checks that GENIBUS_DEVICE_COUNT is emitted as 0
+genibus_ble:
+  id: genibus_ble_bus
+  ble_client_id: genibus_ble_blec
+  master_address: 0xF8
