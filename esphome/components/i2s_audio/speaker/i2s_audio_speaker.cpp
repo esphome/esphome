@@ -26,6 +26,7 @@ static constexpr float SOFTWARE_VOLUME_MIN_DB = -49.0f;
 
 // Rate at which the software gain moves toward a new target.
 static constexpr uint32_t GAIN_RAMP_MS_PER_DB = 1;
+static constexpr uint32_t AUDIO_END_MUTE_HOLD_MS = 50;
 
 void I2SAudioSpeakerBase::setup() {
   this->event_group_ = xEventGroupCreate();
@@ -85,6 +86,14 @@ void I2SAudioSpeakerBase::loop() {
     event_group_bits &= ~(stop_bits | SpeakerEventGroupBits::COMMAND_START);
   }
 
+  // A delayed start automation must not unmute the codec after a hard stop or task shutdown.
+  const bool stopping = event_group_bits & (SpeakerEventGroupBits::COMMAND_STOP | SpeakerEventGroupBits::TASK_STOPPING |
+                                            SpeakerEventGroupBits::TASK_STOPPED);
+  if (stopping) {
+    for (auto *trigger : this->audio_start_triggers_)
+      trigger->stop_action();
+  }
+
   if ((event_group_bits & SpeakerEventGroupBits::COMMAND_START) && (this->state_ == speaker::STATE_STOPPED)) {
     this->state_ = speaker::STATE_STARTING;
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
@@ -103,6 +112,10 @@ void I2SAudioSpeakerBase::loop() {
     // The task raises TASK_RUNNING only after enabling the channel, so the clocks are already running
     this->notify_audio_dacs_started_();
 #endif  // USE_AUDIO_DAC
+    if (!stopping) {
+      for (auto *trigger : this->audio_start_triggers_)
+        trigger->trigger();
+    }
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
@@ -110,31 +123,45 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPING;
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPED) {
-    ESP_LOGD(TAG, "Stopped");
+    if (this->speaker_task_handle_ != nullptr) {
+      vTaskDelete(this->speaker_task_handle_);
+      this->speaker_task_handle_ = nullptr;
+    }
 
-    vTaskDelete(this->speaker_task_handle_);
-    this->speaker_task_handle_ = nullptr;
-
-    // The task raises this bit before it exits, possibly a loop pass before TASK_STOPPED is seen, so read it
-    // live here; a channel the task could not bring up is rebuilt next time rather than kept
+    // Read the live error bit: the task may set it after the snapshot at the start of loop().
     const bool task_failed = xEventGroupGetBits(this->event_group_) & SpeakerEventGroupBits::ERR_ESP_NO_MEM;
-    if (task_failed) {
-      ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
+    if ((event_group_bits & SpeakerEventGroupBits::TASK_AUDIO_ENDED) && !this->audio_end_waiting_ &&
+        !this->audio_end_callback_.empty()) {
+      this->audio_end_callback_.call();
+      this->audio_end_started_ms_ = App.get_loop_component_start_time();
+      this->audio_end_waiting_ = true;
     }
-    this->stop_i2s_driver_(this->keep_alive_ && !task_failed);
-    // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
-    // the top of loop(): the audio source's task can raise a start at any point above, including
-    // during stop_i2s_driver_(), and nothing would ever re-issue it.
-    const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
-    if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
-      ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
-      xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+    // Keep BCLK/LRCK running while the codec mutes. Delayed automation actions
+    // can run during this hold; no delay blocks the main loop.
+    const bool audio_end_hold_active =
+        this->audio_end_waiting_ &&
+        App.get_loop_component_start_time() - this->audio_end_started_ms_ < AUDIO_END_MUTE_HOLD_MS;
+    if (!audio_end_hold_active) {
+      this->audio_end_waiting_ = false;
+      if (task_failed) {
+        ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
+      }
+      ESP_LOGD(TAG, "Stopped");
+      this->stop_i2s_driver_(this->keep_alive_ && !task_failed);
+      // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
+      // the top of loop(): the audio source's task can raise a start at any point above, including
+      // during stop_i2s_driver_(), and nothing would ever re-issue it.
+      const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+      if ((bits_before_clear & SpeakerEventGroupBits::COMMAND_START) && !(bits_before_clear & stop_bits)) {
+        ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
+        xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+      }
+      this->status_clear_error();
+
+      this->on_task_stopped();
+
+      this->state_ = speaker::STATE_STOPPED;
     }
-    this->status_clear_error();
-
-    this->on_task_stopped();
-
-    this->state_ = speaker::STATE_STOPPED;
   }
 
   // Handle the speaker's state
