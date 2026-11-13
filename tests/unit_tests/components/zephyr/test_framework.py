@@ -11,7 +11,7 @@ import platformdirs
 import pytest
 
 from esphome.components.zephyr import framework, framework_helpers, sdk_install
-from esphome.components.zephyr.variants import MAINLINE
+from esphome.components.zephyr.variants import ZEPHYR_MAINLINE
 from esphome.core import EsphomeError
 
 TOOLCHAIN: str = "riscv64-zephyr-elf"
@@ -24,7 +24,7 @@ FILTER: str = ",".join(
     [
         "-hal_.*",
         "-nrf_hw_models",
-        *(f"+{h}" for h in sorted(HALS | MAINLINE.source.required)),
+        *(f"+{h}" for h in sorted(HALS | ZEPHYR_MAINLINE.source.required)),
     ]
 )
 
@@ -79,13 +79,13 @@ def _mark_installed(workspace: Path, hals: frozenset[str] = HALS) -> None:
     (workspace / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
     (workspace / "zephyr" / "scripts" / "requirements.txt").touch()
     (workspace / ".west_projects").write_text(
-        "\n".join(sorted(hals | MAINLINE.source.required)), encoding="utf-8"
+        "\n".join(sorted(hals | ZEPHYR_MAINLINE.source.required)), encoding="utf-8"
     )
     (workspace / ".ready").touch()
 
 
 def _check_and_install(hals: frozenset[str] = HALS) -> None:
-    framework.check_and_install(MAINLINE, VERSION, hals)
+    framework.check_and_install(ZEPHYR_MAINLINE, VERSION, hals)
 
 
 def test_check_and_install_builds_the_venv(
@@ -121,7 +121,7 @@ def test_fresh_install_fetches_only_the_wanted_hals(
     assert _west_call(mock_west, "init") == [
         "init",
         "-m",
-        MAINLINE.source.url,
+        ZEPHYR_MAINLINE.source.url,
         "-o=--depth=1",
         "--mr",
         VERSION,
@@ -130,7 +130,7 @@ def test_fresh_install_fetches_only_the_wanted_hals(
     assert _west_call(mock_west, "config")[-1] == FILTER
     assert (workspace / ".ready").exists()
     assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == (
-        sorted(HALS | MAINLINE.source.required)
+        sorted(HALS | ZEPHYR_MAINLINE.source.required)
     )
 
 
