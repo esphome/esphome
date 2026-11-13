@@ -891,9 +891,18 @@ def test_uc8279_offset_height_configurable(
     assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
 
 
+@pytest.mark.parametrize(
+    "dimensions",
+    [
+        {"width": 16, "height": 2, "offset_height": 0xFFFF},
+        # offset_height not written: the default of 0 applies, and the error must not point at a missing key
+        {"width": 16, "height": 0x10000},
+    ],
+)
 def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
 ) -> None:
     """offset_height plus the panel height is the gate count, which the controller holds in 16 bits."""
     set_core_config(
@@ -902,15 +911,16 @@ def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     )
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
 
-    with pytest.raises(cv.Invalid, match="must not exceed"):
+    with pytest.raises(cv.Invalid, match="must not exceed") as exc_info:
         run_schema_validation(
             {
                 "id": "test_display",
                 "model": "uc8279",
                 "dc_pin": 21,
-                "dimensions": {"width": 16, "height": 2, "offset_height": 0xFFFF},
+                "dimensions": dimensions,
             }
         )
+    assert exc_info.value.path[-2:] == ["dimensions", "height"]
 
 
 def test_uc8279_x4pro_explicit_dimensions_keep_the_model_offset(
