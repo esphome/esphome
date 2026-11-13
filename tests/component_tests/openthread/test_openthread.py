@@ -11,6 +11,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 from esphome.components.esp32.const import (
     KEY_BOARD,
@@ -25,15 +26,17 @@ from esphome.components.openthread import (
     RCP_BORDER_ROUTER_VARIANTS,
     _final_validate,
     _validate,
+    _validate_border_router,
     _validate_platform,
 )
-from esphome.components.openthread.const import CONF_RCP
+from esphome.components.openthread.const import CONF_BACKBONE, CONF_RCP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_BAUD_RATE,
     CONF_ENABLE_IPV6,
     CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_INVERTED,
     CONF_LOGGER,
@@ -50,6 +53,7 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+from tests.component_tests.helpers import get_define_value
 from tests.component_tests.types import SetCoreConfigCallable
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -147,6 +151,8 @@ def test_border_router_codegen(
     defines = {define.name for define in CORE.defines}
     assert "USE_OPENTHREAD_BORDER_ROUTER" in defines
     assert "USE_OPENTHREAD_SRP" not in defines
+    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" not in defines
+    assert "USE_WIFI_CONNECT_STATE_LISTENERS" in defines
 
 
 def test_border_router_rcp_codegen(
@@ -299,7 +305,9 @@ def test_rcp_schema_rejects_bad_options(
         _RCP_SCHEMA(rcp_config)
 
 
-@pytest.mark.parametrize("variant", [VARIANT_ESP32C5, VARIANT_ESP32C6])
+@pytest.mark.parametrize(
+    "variant", [VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32S31]
+)
 def test_native_border_router_accepts_wifi_ieee802154_variants(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
@@ -318,3 +326,93 @@ def test_border_router_accepts_supported_config(
     _set_esp32_idf_core(set_core_config)
 
     _run_final_validation(otbr_config, full_config)
+
+
+def test_border_router_backbone_defaults_to_wifi() -> None:
+    assert _validate_border_router({})[CONF_BACKBONE] == "wifi"
+
+
+def test_border_router_backbone_rejects_unknown() -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_border_router({CONF_BACKBONE: "modem"})
+
+
+@pytest.fixture
+def ethernet_backbone(otbr_config: ConfigType, full_config: ConfigType) -> None:
+    otbr_config[CONF_BORDER_ROUTER] = {CONF_BACKBONE: "ethernet"}
+    full_config[CONF_ETHERNET] = {}
+
+
+@pytest.mark.usefixtures("ethernet_backbone")
+def test_ethernet_backbone_accepts_config_without_wifi(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
+    full_config.pop(CONF_WIFI)
+
+    _run_final_validation(otbr_config, full_config)
+
+
+@pytest.mark.usefixtures("ethernet_backbone")
+def test_ethernet_backbone_ignores_wifi_sta_rules(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
+    full_config[CONF_WIFI].update({CONF_NETWORKS: [], CONF_ENABLE_ON_BOOT: False})
+
+    _run_final_validation(otbr_config, full_config)
+
+
+@pytest.mark.usefixtures("ethernet_backbone")
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda config: config.pop(CONF_ETHERNET), "requires the 'ethernet' component"),
+        (
+            lambda config: config[CONF_WIFI].update({CONF_AP: {}}),
+            "does not support Wi-Fi AP",
+        ),
+    ],
+)
+def test_ethernet_backbone_rejects_incompatible_config(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+    mutate: Any,
+    message: str,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
+    mutate(full_config)
+
+    with pytest.raises(cv.Invalid, match=message):
+        _run_final_validation(otbr_config, full_config)
+
+
+def test_border_router_ethernet_codegen(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main(CONFIG_DIR / "border_router_ethernet.yaml")
+
+    defines = {define.name for define in CORE.defines}
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "USE_OPENTHREAD_BORDER_ROUTER" in defines
+    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" in defines
+    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == "1"
+    assert "USE_WIFI_CONNECT_STATE_LISTENERS" not in defines
+    assert sdkconfig["CONFIG_OPENTHREAD_RADIO_NATIVE"] is True
+    assert sdkconfig["CONFIG_OPENTHREAD_BORDER_ROUTER"] is True
+    assert sdkconfig["CONFIG_ESP_COEX_SW_COEXIST_ENABLE"] is True
+
+
+def test_border_router_ethernet_without_wifi_skips_coexistence(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main(CONFIG_DIR / "border_router_ethernet_no_wifi.yaml")
+
+    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" in {d.name for d in CORE.defines}
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is not True
