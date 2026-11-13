@@ -244,8 +244,8 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
-// Scans forward from min_length to find a frame boundary by CRC match for unknown-length function codes.
-// Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
+// Matches the longest frame of at least min_length bytes with a valid CRC within the available buffer (at most
+// MAX_FRAME_SIZE bytes). Returns its length, or 0 if there is none.
 uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
@@ -256,14 +256,13 @@ uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
   // so we seed once over the first min_length bytes and extend one byte at a time instead of
   // recomputing the whole prefix for every candidate length.
   uint16_t crc = crc16(raw, min_length);
-  if (crc == 0)
-    return min_length;
+  uint16_t last_match = crc == 0 ? min_length : 0;
   for (uint16_t len = min_length; len < max_len; len++) {
     crc = crc16(&raw[len], 1, crc);
     if (crc == 0)
-      return len + 1;
+      last_match = len + 1;
   }
-  return 0;
+  return last_match;
 }
 
 bool Modbus::parse_modbus_server_frame_() {
