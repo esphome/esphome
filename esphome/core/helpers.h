@@ -25,6 +25,7 @@
 #include <strings.h>
 
 #include "esphome/core/optional.h"
+#include "esphome/core/parse_float.h"
 #include "esphome/core/time_conversion.h"
 
 #ifdef USE_ESP8266
@@ -1569,15 +1570,8 @@ template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T
 optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str());
 }
-/// Parse a decimal floating-point number; plain decimals skip the full parser.
+/// Parse a decimal floating-point number; the whole string must be the number.
 optional<float> parse_float(const char *str);
-/** strtof without libc's strtod: the same value and end as newlib's strtof in the C locale for every input.
- *
- * Use it instead of strtof, or (float) strtod or atof, which link about 6.5 KB of libc on ESP8266.
- * @param str String to parse.
- * @param end If not null, set to the first character not parsed, or to \p str when nothing was.
- */
-float parse_float_prefix(const char *str, char **end);
 /// Parse a decimal floating-point number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
   return parse_float(str);

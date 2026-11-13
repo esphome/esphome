@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include "esphome/core/defines.h"
+#include "esphome/core/parse_float.h"
 
 #ifdef USE_JSON
 #include "esphome/components/json/json_util.h"
@@ -291,9 +292,6 @@ inline bool operator!=(const StringRef &lhs, const ProgmemStringRef &rhs) { retu
 inline bool operator==(const std::string &lhs, const ProgmemStringRef &rhs) { return rhs.equals(StringRef(lhs)); }
 inline bool operator!=(const std::string &lhs, const ProgmemStringRef &rhs) { return !rhs.equals(StringRef(lhs)); }
 #endif
-
-// helpers.h: strtof without libc's strtod
-float parse_float_prefix(const char *str, char **end);
 
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
 // Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
