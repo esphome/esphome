@@ -46,3 +46,8 @@ script:
       - deep_sleep.enter:
           until: "06:30:00"
           time_id: sntp_time
+  - id: allow_and_sleep
+    then:
+      - deep_sleep.allow: deepsleep
+      - deep_sleep.enter: deepsleep
+      - deep_sleep.prevent: deepsleep
