@@ -1,4 +1,5 @@
 #include "smt100.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::smt100 {
@@ -24,19 +25,19 @@ void SMT100Component::loop() {
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float permittivity = (float) strtod(token, nullptr);
+      float permittivity = parse_float_prefix(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float moisture = (float) strtod(token, nullptr);
+      float moisture = parse_float_prefix(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float temperature = (float) strtod(token, nullptr);
+      float temperature = parse_float_prefix(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
         return;
-      float voltage = (float) strtod(token, nullptr);
+      float voltage = parse_float_prefix(token, nullptr);
 
       PUBLISH_STATE(this->counts_sensor_, counts);
 
