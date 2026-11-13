@@ -28,6 +28,8 @@ class LinkState {
   }
   /// Whether a notification of handle carries GENIbus bytes.
   bool accepts(uint16_t handle) const { return this->up_ && this->is_ours(handle); }
+  /// Whether a connection is being set up or is up: from the service discovery until down().
+  bool is_active() const { return this->handle_ != 0 || this->settling_ || this->up_; }
   /// Whether the link may come up with up(): it has settled and the connection is encrypted.
   bool is_ready() const { return this->settling_ && this->settled_ && this->encrypted_; }
 

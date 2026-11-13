@@ -57,8 +57,13 @@ void GenibusBLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t g
         this->link_fault_(LOG_STR("Notify registration failed"));
         break;
       }
-      this->set_timeout(SETUP_TIMEOUT_ID, SETUP_TIMEOUT_MS,
-                        [this]() { this->link_fault_(LOG_STR("Connection setup timed out")); });
+      this->set_timeout(SETUP_TIMEOUT_ID, SETUP_TIMEOUT_MS, [this]() {
+        if (this->node_connected_()) {
+          this->link_fault_(LOG_STR("Connection setup timed out"));
+        } else {
+          this->link_down_();
+        }
+      });
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -125,9 +130,8 @@ void GenibusBLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_
 }
 
 void GenibusBLE::loop() {
-  // GenibusBus and BLEClientNode both declare loop(), so the component loop and ble_client both call this one.
-  // ble_client calls its nodes also when the BLE stack goes down or a disconnect times out, both without CLOSE.
-  if (this->link_.is_up() && this->node_state != espbt::ClientState::ESTABLISHED)
+  // Called by the component loop and by ble_client, which also runs it when the client went idle without CLOSE
+  if (this->link_.is_active() && !this->node_connected_())
     this->link_down_();
   if (this->is_in_loop_state())
     GenibusBus::loop();
@@ -154,7 +158,7 @@ bool GenibusBLE::write_frame(std::span<const uint8_t> frame) {
 }
 
 void GenibusBLE::link_up_() {
-  if (!this->link_.is_ready())
+  if (!this->link_.is_ready() || this->node_state != espbt::ClientState::ESTABLISHED)
     return;
   this->cancel_timeout(SETUP_TIMEOUT_ID);
   if (this->link_.up())
