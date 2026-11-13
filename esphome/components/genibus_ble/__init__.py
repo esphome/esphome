@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import ble_client, genibus
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["genibus"]
@@ -20,6 +21,26 @@ CONFIG_SCHEMA = (
     .extend({cv.GenerateID(): cv.declare_id(GenibusBLE)})
     .extend(ble_client.BLE_CLIENT_SCHEMA)
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Two buses on one connection would both take every reply of the pump
+    client_id = config[ble_client.CONF_BLE_CLIENT_ID]
+    users = [
+        conf
+        for conf in fv.full_config.get().get(DOMAIN, [])
+        if conf[ble_client.CONF_BLE_CLIENT_ID] == client_id
+    ]
+    if len(users) > 1:
+        raise cv.Invalid(
+            f"BLE client '{client_id}' is used by more than one {DOMAIN}; "
+            "give each pump its own ble_client",
+            path=[ble_client.CONF_BLE_CLIENT_ID],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
