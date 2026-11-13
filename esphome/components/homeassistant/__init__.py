@@ -31,18 +31,16 @@ def validate_entity_domain(
     return validator
 
 
-HOME_ASSISTANT_IMPORT_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ENTITY_ID): cv.entity_id,
-        cv.Optional(CONF_ATTRIBUTE): cv.string,
-        cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
-    }
-)
-
 HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENTITY_ID): cv.entity_id,
         cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
+    }
+)
+
+HOME_ASSISTANT_IMPORT_SCHEMA = HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ATTRIBUTE): cv.string,
     }
 )
 
@@ -82,8 +80,14 @@ async def _emit_state_subscription_count_define() -> None:
 
 
 def setup_home_assistant_entity(
-    var: MockObj, config: ConfigType, state_subscription_count: int = 1
+    var: MockObj,
+    config: ConfigType,
+    state_subscription_count: int = 1,
+    services: bool = False,
 ) -> None:
+    """Set up an imported entity; services for one that sends actions."""
+    if services:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     # A wizard input has no entity_id; the api wizard sets it
     cg.add_optional(var.set_entity_id, config.get(CONF_ENTITY_ID))
     cg.add_optional(var.set_attribute, config.get(CONF_ATTRIBUTE))

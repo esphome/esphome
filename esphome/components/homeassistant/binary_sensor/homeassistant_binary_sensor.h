@@ -16,7 +16,6 @@ class HomeassistantBinarySensor final : public binary_sensor::BinarySensor, publ
  protected:
   const char *entity_id_{nullptr};
   const char *attribute_{nullptr};
-  bool initial_{true};
 };
 
 }  // namespace esphome::homeassistant

@@ -72,10 +72,9 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await light.new_light(config)
     await cg.register_component(var, config)
     cg.add(var.set_report_timeout(config[CONF_REPORT_TIMEOUT].total_seconds))
     # 1 state + supported_color_modes, min/max_color_temp_kelvin, color_mode, brightness,
     # color_temp_kelvin and rgb_color in HomeassistantLight::setup()
-    setup_home_assistant_entity(var, config, state_subscription_count=8)
+    setup_home_assistant_entity(var, config, state_subscription_count=8, services=True)

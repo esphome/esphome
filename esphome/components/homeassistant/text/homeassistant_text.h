@@ -2,6 +2,7 @@
 
 #include "esphome/components/text/text.h"
 #include "esphome/core/component.h"
+#include "esphome/core/optional.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
@@ -16,8 +17,7 @@ class HomeassistantText final : public text::Text, public Component {
 
  protected:
   void state_changed_(StringRef state);
-  void min_retrieved_(StringRef min);
-  void max_retrieved_(StringRef max);
+  optional<int> parse_length_(const char *name, StringRef value);
   void mode_retrieved_(StringRef mode);
 
   void control(const std::string &value) override;

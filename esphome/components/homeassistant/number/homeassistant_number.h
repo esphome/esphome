@@ -2,6 +2,7 @@
 
 #include "esphome/components/number/number.h"
 #include "esphome/core/component.h"
+#include "esphome/core/optional.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
@@ -16,9 +17,7 @@ class HomeassistantNumber final : public number::Number, public Component {
 
  protected:
   void state_changed_(StringRef state);
-  void min_retrieved_(StringRef min);
-  void max_retrieved_(StringRef max);
-  void step_retrieved_(StringRef step);
+  optional<float> parse_attribute_(const char *name, StringRef value);
 
   void control(float value) override;
 

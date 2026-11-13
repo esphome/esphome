@@ -2,14 +2,39 @@
 
 #include <cctype>
 
+#include "esphome/core/defines.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+#include "esphome/components/api/api_pb2.h"
+#endif
 
 namespace esphome::homeassistant {
 
 /// True for what Home Assistant reports when there is no value: "None" for an attribute that is not
 /// set, "unavailable" and "unknown" for the state of an entity that is not ready
 bool is_unset(StringRef value);
+
+/// True if entity_id is an input helper; input_service must start with "input_"
+inline bool is_input_helper(const char *entity_id, const char *input_service) {
+  return ESPHOME_strncmp_P(entity_id, input_service, sizeof("input_") - 1) == 0;
+}
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+/// Logs and returns false when no API client is connected or no entity is linked yet
+bool can_send_action(const char *tag, const char *entity_id, EntityBase *entity);
+
+/// Adds the entity_id entry to an action's data
+inline void add_entity_id(api::HomeassistantActionRequest &resp, const char *entity_id) {
+  static constexpr char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  auto &entry = resp.data.emplace_back();
+  entry.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entry.value = ProgmemStringRef(StringRef(entity_id));
+}
+#endif
 
 /// Emit the UTF-8 encoding of a code point. Rejects NUL, which would end the item early.
 template<typename C> bool emit_utf8(uint32_t code_point, C &on_char) {

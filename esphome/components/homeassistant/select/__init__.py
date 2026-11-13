@@ -47,7 +47,6 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await select.new_select(
         config,
         cg.static_buffer(config[CONF_ID], cg.char, config[CONF_OPTIONS_BUFFER_SIZE]),
@@ -56,4 +55,4 @@ async def to_code(config: ConfigType) -> None:
     )
     await cg.register_component(var, config)
     # 1 state + options fetch in HomeassistantSelect::setup()
-    setup_home_assistant_entity(var, config, state_subscription_count=2)
+    setup_home_assistant_entity(var, config, state_subscription_count=2, services=True)
