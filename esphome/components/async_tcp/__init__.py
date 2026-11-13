@@ -36,6 +36,9 @@ async def to_code(config: ConfigType) -> None:
     elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.5.0")
+        # AsyncTCP 3.5.0 logs xPortGetCoreID() at framework loglevel debug, which LibreTiny (single core) lacks;
+        # the call becomes int(), 0 (a function-like -D does not survive PlatformIO's build flags)
+        cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
