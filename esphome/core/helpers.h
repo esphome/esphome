@@ -1571,6 +1571,13 @@ optional<T> parse_number(const std::string &str) {
 }
 /// Parse a decimal floating-point number; plain decimals skip the libc parser.
 optional<float> parse_float(const char *str);
+/** strtof without libc's strtod: the same value and end as newlib's strtof in the C locale for every input.
+ *
+ * Use it instead of strtof, or (float) strtod or atof, which link about 6.5 KB of libc on ESP8266.
+ * @param str String to parse.
+ * @param end If not null, set to the first character not parsed, or to \p str when nothing was.
+ */
+float parse_float_prefix(const char *str, char **end);
 /// Parse a decimal floating-point number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
   return parse_float(str);
