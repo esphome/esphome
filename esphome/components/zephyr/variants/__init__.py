@@ -85,6 +85,16 @@ MAINLINE: ZephyrSDK = ZephyrSDK(
 )
 
 
+# The nRF Connect SDK as nrf52 installs it
+NRF_CONNECT_SDK: FrameworkSource = FrameworkSource(
+    name="nRF Connect SDK",
+    url="https://github.com/nrfconnect/sdk-nrf",
+    optional=(".*",),
+    # Projects every build needs; components add others with include_west_project()
+    required=frozenset({"cmsis", "hal_nordic", "nrfxlib", "zephyr"}),
+)
+
+
 def resolve_sdk(
     variant: ZephyrVariant, framework_type: str | None
 ) -> tuple[str, ZephyrSDK]:

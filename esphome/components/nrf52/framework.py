@@ -10,7 +10,6 @@ from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 from esphome.components.zephyr.framework_helpers import (
-    FrameworkSource,
     ensure_venv,
     ensure_zephyr_requirements,
     fetch_missing_west_projects,
@@ -26,6 +25,7 @@ from esphome.components.zephyr.sdk_install import (
     get_sdk_host_info,
     sdk_toolchain_path,
 )
+from esphome.components.zephyr.variants import NRF_CONNECT_SDK
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -346,14 +346,6 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
             uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
         )
 
-
-NRF_CONNECT_SDK: FrameworkSource = FrameworkSource(
-    name="nRF Connect SDK",
-    url="https://github.com/nrfconnect/sdk-nrf",
-    optional=(".*",),
-    # Projects every build needs; components add others with include_west_project()
-    required=frozenset({"cmsis", "hal_nordic", "nrfxlib", "zephyr"}),
-)
 
 _KEY_NRF52 = "nrf52"
 

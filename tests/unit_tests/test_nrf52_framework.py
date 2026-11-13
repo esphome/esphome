@@ -16,7 +16,6 @@ from esphome.components.nrf52 import _resolve_toolchain, framework
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
-    NRF_CONNECT_SDK,
     TOOLCHAIN_VERSION,
     _get_penv_site_packages,
     _get_platformio_penv_path,
@@ -29,6 +28,7 @@ from esphome.components.nrf52.framework import (
     wanted_west_projects,
 )
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
+from esphome.components.zephyr.variants import NRF_CONNECT_SDK
 import esphome.config_validation as cv
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
