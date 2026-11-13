@@ -29,6 +29,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   interrupt handler; `Software Watchdog` with `pm_send_nullfunc` means the loop was busy too long. Code that takes
   interrupt locks needs a load run to show either (`scripts/esp8266_lock_load/`, see recipes/one_wire.md).
 - `GPI` bits 16 to 31 are strapping bits (mask with 0xFFFF). GPIO16 has no interrupt; read `GP16O` for an output.
+- Cover positions and other restored entity state live in RTC memory by default, so they survive `erase_flash`
+  and a dev build's state carries into the next build's first boot. Set `esp8266: restore_from_flash: true` on A/B
+  configs that erase between builds.
+- Software serial byte checks: the worst case for an unlock after a trailing run of high bits is a frame of bytes
+  all below 0x80; a mixed frame hides it. Under Wi-Fi load, check the load counters too: a run where most HTTP
+  requests failed was not loaded.
 
 ## ESP32 classic devkit
 
@@ -50,6 +56,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - An ESP32 whose bootloader has no app rollback is protected only by `safe_mode` after a bad OTA. Before sending a
   change to such a device that nobody can reach by hand, boot the same code on a devkit first and keep a fallback
   image of the merge base built.
+- On modules where GPIO16 and GPIO17 are taken by the module itself (PSRAM on WROVER modules, for example), a
+  `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22.
 
 ## ESP32-S3, C3, C6, H2 with native USB
 
@@ -72,6 +80,19 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A board left in the ROM bootloader after an upload (BOOT held, or the USB JTAG reset landing in download mode
   again) starts its app without a replug through `esptool --port <port> --after watchdog-reset chip-id`; flash a
   minimal Wi-Fi plus API image first when recovering from a crash-looping one.
+- Power lock check for a light sleep issue: `power_management: esp32_power_management` with `profiling: true` and
+  an `interval` lambda that calls `esp_pm_dump_locks(stdout);` prints the lock and mode tables on the USB console
+  (not through the ESPHome logger). Compare lock lists between builds: `usb_serial_jtag` holds `NO_LIGHT_SLEEP` by
+  itself. For a soak that the USB console must not keep awake, set `logger: hardware_uart: UART0`, dump the locks
+  into `open_memstream()` and log the SLEEP, CPU_MAX and light sleep count lines, read over the API.
+- The Waveshare ESP32-P4-WIFI6 needs `engineering_sample: true`. Its Wi-Fi is an ESP32-C6 over SDIO through
+  `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
+
+## ESP32-C2 (ESP8684, 26 MHz crystal)
+
+- Boards with a 26 MHz crystal print the ROM banner (`ESP-ROM:esp8684`) at 74880 baud; at 115200 it is garbage.
+- ESP-IDF builds need `esp32: framework: sdkconfig_options: {CONFIG_XTAL_FREQ_26: y}`, or the app console runs at
+  the wrong baud rate (the upload log warns `Crystal frequency mismatch`).
 
 ## RP2040 / RP2350 (Pico W, Pico 2 W)
 
@@ -99,6 +120,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   each RD_REQ with one byte from a 256-byte register file, so any read length works (used for BME280/BMP280 in
   esphome#22236). The ESP32-S3 I2C slave v2 driver is not usable for register emulation: answering from a task or
   straight from the interrupt both gave shifted multi-byte reads.
+- USB CDC sends nothing until the host asserts DTR; a client that opens with DTR low (`improvcli.py` without
+  `--keep-dtr`) sees silence.
+- Powering a breakout from the Pico: use 3V3(OUT), pin 36. Pin 37 is 3V3_EN, which switches the Pico off when pulled
+  low.
 
 ## BW15 kit (RTL8720CF, LibreTiny rtl87xx)
 
@@ -140,6 +165,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Wrong-MD5 OTA test without changing firmware: monkeypatch `espota2.hashlib.md5` so only the image checksum (data
   over 64 KB) returns a wrong hexdigest. Give each build its own `name:` and read `device_info().name` after a
   restart to see which image booted.
+- Logger UART: `DEFAULT` is UART2 (the kit's USB serial). `hardware_uart: UART1` hangs after the boot banner and
+  never joins Wi-Fi, on dev too. `UART0` moves both ESPHome and `lt_log` output off the kit's port. LibreTiny's own
+  `LT_I` lines need `framework: loglevel: info` (the default is warn).
+- A config with no Wi-Fi network and no `ap:` resets about 10 s into setup when it has `web_server:` (dev too):
+  `web_server` setup blocks with no interface up, and no crash record is left. VERBOSE logs show the last
+  `Setup <component>` line.
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -265,6 +296,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   partition even when the upgrade state is still `UPG_STATE_DOWNLOAD_ING` (esphome#22111).
 - Without serial access to recover, never send a corrupted image; wrong-MD5 and cut-upload tests with valid
   images are safe.
+- On the WL2H-U `logger: hardware_uart: DEFAULT` resolves to UART1, LibreTiny's log port for that board.
 
 ## nRF52840
 
@@ -426,3 +458,24 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - LED0 P1.22, LED1 P1.25; BUTTON0 P1.26, BUTTON1 P1.09, BUTTON2 P1.08, BUTTON3 P0.05 (active low, pull-up). GPIO
   P1 registers at 0x500D8200 (IN +0x00C, PIN_CNF +0x080), P0 at 0x5010A200.
 - Binary sensor state changes are not logged at DEBUG; log the states or count `on_press` to see button presses.
+- The nrf52 logger defaults to USB_CDC (the chip's own USB); set `logger: hardware_uart: UART0` to get the log on the
+  J-Link VCOM port.
+- I2C (#22642): TWIM21 only takes pins on P1 or P3; P0 pins are rejected at config. BUTTON1 (P1.09) and BUTTON2
+  (P1.08) pads work as SDA and SCL. A bus with no pull-ups times out (-116) on every scan address, so setup takes
+  about 56 s. The JLinkExe `st` command reads VTref to check the I/O voltage.
+
+## Seeed XIAO nRF54LM20A
+
+- CMSIS-DAP probe (`2886:0068`) with one serial port that carries the console (uart20 on P1.11 and P1.10, #22599).
+  It ships with a Seeed demo.
+- Flash with `esphome run` (pyOCD, MCUboot plus the signed app). A plain `esphome upload` flashed only the bare app
+  on #22599, and the board stayed dark.
+- Reset: `<sdk-nrf python> -m pyocd reset -t nrf54lm20a -u <probe id>`.
+
+## I2C and SPI breakouts
+
+- GPIO switches on an I2C expander (XL9535 and others) write `value_or(false)` at setup even with
+  `restore_mode: DISABLED`, so test pin retention on a pin no switch uses.
+- ADS1015: `sample_rate: 8` maps to 128 SPS at `12_BITS`.
+- A bus held low (`Performing bus recovery`, no devices found) on a new breakout can be a bad header joint; reflow
+  it before blaming the driver.

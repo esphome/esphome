@@ -1,0 +1,14 @@
+# Classic ESP32 devkit with Improv over serial (UART0, shared with the log) and BLE. Copy it per build with its own
+# name; run.sh wants the file name to match name.
+substitutions:
+  name: improv32
+packages:
+  common: !include common.yaml
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: UART0
+esp32_improv:
+  authorizer: none

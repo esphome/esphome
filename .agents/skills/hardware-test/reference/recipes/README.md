@@ -83,3 +83,4 @@ One file per component, named after it:
 - [`heap_alloc.md`](heap_alloc.md): operator new counting, and a ring of allocation callers decoded with addr2line to tell the first run after boot from repeats
 - [`wled.md`](wled.md): WLED realtime sender on a board's own access point
 - [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
+- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes
