@@ -24,6 +24,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   row in the PR.
 - AsyncMqttClient drops inbound topics over 128 characters; topics of 255 or more wrap a counter and
   stall the link until the broker drops TCP.
+- `Arduino.h` already declares `_heap_start`; a lambda can use `&_heap_start` directly, and a second `extern` fails.
+- `Hardware Watchdog` with `wDev_ProcessFiq` in the stack means interrupts were held off too long for the Wi-Fi
+  interrupt handler; `Software Watchdog` with `pm_send_nullfunc` means the loop was busy too long. Code that takes
+  interrupt locks needs a load run to show either (`scripts/esp8266_lock_load/`, see recipes/one_wire.md).
+- `GPI` bits 16 to 31 are strapping bits (mask with 0xFFFF). GPIO16 has no interrupt; read `GP16O` for an output.
 
 ## ESP32 classic devkit
 
@@ -40,7 +45,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Signed OTA testing: build with `esp32.framework.advanced.signed_ota_verification.verification_keys`
   under a different name, sign with `python -m espsecure sign_data --version 2 --keyfile
   tests/components/esp32/dummy_signing_key.pem`, upload with `esphome upload --file`. The verifier
-  refuses unsigned images afterwards, so restore with a signed plain build.
+  refuses unsigned images afterwards, so restore with a signed plain build. The full accept and reject case set
+  (several keys, CRC-only edits) is in `recipes/ota.md`.
 - An ESP32 whose bootloader has no app rollback is protected only by `safe_mode` after a bad OTA. Before sending a
   change to such a device that nobody can reach by hand, boot the same code on a devkit first and keep a fallback
   image of the merge base built.
@@ -52,6 +58,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `Disabling RNG early entropy source`, then 0 bytes, esptool reports `No serial data received`). Only a
   USB replug fixes it. Fallback: `esphome logs --device <name>.local` (API log stream, which drops lines
   while Wi-Fi is off).
+- The USB console drops a line now and then even when it stays up; do not count events by log lines alone.
 - The ESP32-P4 before silicon revision 3 is bricked by rev3-only firmware (boot loop at bootloader entry). The
   Waveshare ESP32-P4-WIFI6 rev1.3 board is such pre-rev3 silicon.
 - S3, C3 and C6 all enumerate as `303a:1001`; confirm the chip with `esptool --port <port> chip_id` before flashing.
@@ -147,6 +154,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   assuming either.
 - `flash_bk72xx.py` misses the link now and then (`Timed out attempting to link with chip`); retry up to 3
   times before suspecting the board.
+- Both flash wrappers pass ltchiptool `-L` with the newest installed LibreTiny platform (`scripts/lt_platform.py`):
+  its default `~/.platformio/platforms/libretiny` can be an older copy that rejects BK7238 UF2s as unsupported.
 - Crashes: `__builtin_trap()` and a call into unmapped memory both end as an undefined-instruction trap
   (`bk_misc_get_start_type()` 6, `lt_get_reboot_reason()` Crash); reads, unaligned loads and stores to
   unmapped addresses never fault on the ARM968. Without Wi-Fi the SDK trap handler spins with interrupts off
@@ -226,6 +235,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A 4-way handshake that never finishes after association is reported as `RTW_WRONG_PASSWORD` on AmebaZ
   even with the right password; AmebaZ2 reports a real wrong password as a 4-way handshake timeout.
 - The driver also posts a SCAN_DONE (number 0) inside every join, on AmebaZ2 too.
+- RTL8710B GPIO interrupts fire on one edge only, and LibreTiny maps CHANGE to rising. The Arduino `digitalRead` called
+  from an ISR switches the pin back to GPIO and frees its interrupt (esphome#22400, #22403).
+- The FreeRTOS tick is 1/1024 s, so `millis()` on the tick ran 2.4 % fast (esphome#22404).
 
 ## BW16 kit (RTL8720DN, AmebaD)
 

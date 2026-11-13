@@ -1,0 +1,15 @@
+power_supply:
+  - id: string_power
+    pin: ${power_pin}
+    keep_on_time: 0s
+
+light:
+  - platform: brizlabs_led_string
+    id: brizlabs_light
+    name: BrizLabs String
+    pin: ${data_pin}
+    power_supply: string_power
+    num_zones: 6
+    effects:
+      - addressable_rainbow:
+      - addressable_color_wipe:

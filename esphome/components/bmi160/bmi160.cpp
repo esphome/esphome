@@ -80,7 +80,7 @@ enum class GyroBandwidth : uint8_t {
   OSR2 = 0x10,
   NORMAL = 0x20,
 };
-enum class GyroOuputDataRate : uint8_t {
+enum class GyroOutputDataRate : uint8_t {
   HZ_25 = 0x06,
   HZ_50 = 0x07,
   HZ_100 = 0x08,
@@ -151,7 +151,7 @@ bool BMI160Component::setup_stage_(int stage) {
 
     case 2: {
       ESP_LOGV(TAG, "  Setting up Gyro Config");
-      uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
+      uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOutputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
       if (!this->write_byte(BMI160_REGISTER_GYRO_CONFIG, gyro_config)) {
         return false;
@@ -207,10 +207,8 @@ void BMI160Component::update() {
 
   ESP_LOGV(TAG, "    Updating BMI160");
   int16_t data[6];
-  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes_16_le(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6)))
     return;
-  }
 
   float gyro_x = (float) data[0] / (float) INT16_MAX * 2000.f;
   float gyro_y = (float) data[1] / (float) INT16_MAX * 2000.f;
@@ -220,10 +218,8 @@ void BMI160Component::update() {
   float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
 
   int16_t raw_temperature;
-  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)))
     return;
-  }
   float temperature = (float) raw_temperature / (float) INT16_MAX * 64.5f + 23.f;
 
   ESP_LOGD(TAG,
@@ -240,8 +236,6 @@ void BMI160Component::update() {
   PUBLISH_STATE(this->gyro_x_sensor_, gyro_x);
   PUBLISH_STATE(this->gyro_y_sensor_, gyro_y);
   PUBLISH_STATE(this->gyro_z_sensor_, gyro_z);
-
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::bmi160
