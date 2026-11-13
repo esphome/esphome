@@ -16,11 +16,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-#include "esp_err.h"
-#include "esp_openthread_border_router.h"
-#endif
-
 ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
