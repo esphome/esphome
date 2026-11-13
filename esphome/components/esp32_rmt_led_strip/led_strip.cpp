@@ -117,10 +117,21 @@ void ESP32RMTLEDStripLightOutput::setup() {
     return;
 #endif
 
-  if (!this->setup_check(rmt_enable(this->channel_) == ESP_OK, LOG_STR("Enabling channel failed")))
-    return;
-
   this->accessor_ = &this->internal_accessor_;
+}
+
+void ESP32RMTLEDStripLightOutput::loop() {
+  if (this->channel_enabled_) {
+    // Ask only once the frame time is over: the driver logs an error when the frame is still being sent
+    if (micros() - this->last_refresh_ < this->frame_time_us_ || rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK)
+      return;
+    // Release the channel's power management lock so the chip can light sleep; retry if the done interrupt is not
+    // finished yet
+    if (rmt_disable(this->channel_) != ESP_OK)
+      return;
+    this->channel_enabled_ = false;
+  }
+  this->disable_loop();
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
@@ -149,8 +160,16 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   if (this->throttle_show_(micros(), this->last_refresh_, std::max(this->frame_time_us_, this->max_refresh_rate_)))
     return;
 
-  // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
-  if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+  if (!this->channel_enabled_) {
+    if (!this->status_comm_check(rmt_enable(this->channel_) == ESP_OK)) {
+      ESP_LOGE(TAG, "Enabling channel failed");
+      this->schedule_show();
+      return;
+    }
+    this->channel_enabled_ = true;
+    this->enable_loop();
+  } else if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+    // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
     ESP_LOGE(TAG, "RMT TX still busy");
     this->status_set_warning();
     this->schedule_show();

@@ -35,6 +35,7 @@ struct LedParams {
 class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
+  void loop() override;
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override;
 
@@ -72,6 +73,8 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   uint8_t pin_;
   bool use_dma_{false};
   bool invert_out_{false};
+  // An enabled channel holds a power management lock, so it is only enabled while a frame is sent
+  bool channel_enabled_{false};
   light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
