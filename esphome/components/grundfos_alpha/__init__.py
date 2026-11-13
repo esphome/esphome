@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import genibus
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_UPDATE_INTERVAL
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["genibus"]
@@ -34,5 +34,4 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await genibus.register_genibus_device(var, config)
+    await genibus.new_genibus_device(config)
