@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -18,28 +19,28 @@ def main_cpp(
 
 
 def test_dim_relative_without_transition_or_limits(main_cpp: str) -> None:
-    """No transition length and no limits: the defaults apply."""
+    """No transition length and no limits: the helper's default limits apply."""
     assert (
-        "new(light_dimrelativeaction_id) light::DimRelativeAction<false>(dim_light);\n"
-        "light_dimrelativeaction_id->set_relative_brightness([]() -> float {\n"
-        "    return 0.1f;\n"
-        "});\n"
-        "new(automation_id) Automation<>(dim_plain);\n"
+        "static void esphome__applyaction_id__fn() {\n"
+        "  auto esphome__call = ::dim_light->make_call();\n"
+        "  if (light::dim_relative(::dim_light, esphome__call, 0.1f)) {\n"
+        "    esphome__call.perform();\n"
+        "  }\n"
+        "}\n"
     ) in main_cpp
 
 
 def test_dim_relative_with_transition_and_limits(main_cpp: str) -> None:
-    """A transition length, brightness limits and limit mode are all set."""
+    """The transition length is only set once the limits allow the call."""
     assert (
-        "new(light_dimrelativeaction_id_2) light::DimRelativeAction<true>(dim_light);\n"
-        "light_dimrelativeaction_id_2->set_relative_brightness([]() -> float {\n"
-        "    return -0.05f;\n"
-        "});\n"
-        "light_dimrelativeaction_id_2->set_transition_length([]() -> uint32_t {\n"
-        "    return 250;\n"
-        "});\n"
-        "light_dimrelativeaction_id_2->set_min_max_brightness(0.2f, 0.9f);\n"
-        "light_dimrelativeaction_id_2->set_limit_mode(light::LimitMode::DO_NOTHING);\n"
+        "static void esphome__applyaction_id_2__fn() {\n"
+        "  auto esphome__call = ::dim_light->make_call();\n"
+        "  if (light::dim_relative(::dim_light, esphome__call, -0.05f, 0.2f, 0.9f, "
+        "light::LimitMode::DO_NOTHING)) {\n"
+        "    esphome__call.set_transition_length(250);\n"
+        "    esphome__call.perform();\n"
+        "  }\n"
+        "}\n"
     ) in main_cpp
 
 
@@ -50,20 +51,47 @@ def test_dim_relative_with_transition_and_limits(main_cpp: str) -> None:
 def test_dim_relative_lambdas_take_args_by_value(
     main_cpp: str, return_type: str, body: str
 ) -> None:
-    """The user's lambdas get the script parameter by value, so they may modify it."""
+    """The user's lambdas get the script parameter by value, so they may modify it.
+
+    They are called rather than reduced, so even a single return modifies only its own copy.
+    """
+    assert (
+        "static void esphome__applyaction_id_3__fn(const std::remove_cvref_t<float> & step) {"
+        in main_cpp
+    )
     head = f"[](float step) -> {return_type} {{\n"
     start = main_cpp.index(head)
-    assert f"    {body}\n" in main_cpp[start : main_cpp.index("});", start)]
+    assert f"      {body}\n" in main_cpp[start : main_cpp.index("}(step)", start)]
 
 
 def test_effect_cycle(main_cpp: str) -> None:
-    """The direction is a template argument and include_none is always set."""
+    """Both actions call the shared helper, merged into one function."""
     assert (
-        "new(light_lighteffectcycleaction_id) light::LightEffectCycleAction<true>(dim_light);\n"
-        "light_lighteffectcycleaction_id->set_include_none(false);\n"
-        "new(light_lighteffectcycleaction_id_2) light::LightEffectCycleAction<false>(dim_light);\n"
-        "light_lighteffectcycleaction_id_2->set_include_none(true);\n"
+        "  {\n"
+        "  light::cycle_effect(::dim_light, true, false);\n"
+        "  }\n"
+        "  if (!esphome__running)\n"
+        "    return;\n"
+        "  {\n"
+        "  light::cycle_effect(::dim_light, false, true);\n"
+        "  }\n"
     ) in main_cpp
+
+
+def test_dim_relative_limit_does_not_skip_merged_actions(main_cpp: str) -> None:
+    """The limit check is an if block, so an action merged after it still runs."""
+    fn = re.search(
+        r"Automation<>\(dim_skip_then_dim\);\nnew\(\w+\) ApplyRunAction<(\w+)>",
+        main_cpp,
+    )
+    assert fn is not None
+    start = main_cpp.index(
+        f"static void {fn.group(1)}(const int & esphome__running) {{"
+    )
+    body = main_cpp[start : main_cpp.index("\n}\n", start)]
+    assert body.count("light::dim_relative(") == 2
+    # The only return is the stop check between the two actions
+    assert body.count("return;") == 1
 
 
 @pytest.mark.parametrize("action", ["light.effect.next", "light.effect.previous"])

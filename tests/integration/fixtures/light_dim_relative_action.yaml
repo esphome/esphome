@@ -29,7 +29,7 @@ button:
           id: test_light
           brightness: 50%
 
-  # Test 1: dim_relative without transition_length (HasTransitionLength=false)
+  # Test 1: dim_relative without transition_length
   - platform: template
     id: btn_dim_up
     name: "Dim Up"
@@ -38,7 +38,7 @@ button:
           id: test_light
           relative_brightness: 25%
 
-  # Test 2: dim_relative with transition_length (HasTransitionLength=true)
+  # Test 2: dim_relative with transition_length
   - platform: template
     id: btn_dim_down
     name: "Dim Down"
