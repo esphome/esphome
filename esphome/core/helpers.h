@@ -1034,6 +1034,27 @@ inline float pow10_int(int8_t exp) {
   return result;
 }
 
+/// 10^n by squaring. Exact for integer types while it fits, for float up to 10^10 and for double up to 10^22;
+/// parse_float_prefix's error bound counts the roundings of this order of multiplications beyond those.
+template<typename T> constexpr T pow10(uint32_t n) {
+  T result = 1;
+  T base = 10;
+  for (;;) {
+    if ((n & 1) != 0)
+      result *= base;
+    n >>= 1;
+    if (n == 0)
+      return result;
+    base *= base;
+  }
+}
+
+/// Whether c is '0' to '9' (C locale, no ctype table).
+constexpr bool is_digit(char c) { return static_cast<uint8_t>(c - '0') <= 9; }
+
+/// Whether c is C-locale white space: ' ', '\t', '\n', '\v', '\f' or '\r' (no ctype table, unlike isspace).
+constexpr bool is_space_c(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
+
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;

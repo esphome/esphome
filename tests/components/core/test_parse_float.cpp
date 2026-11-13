@@ -36,8 +36,9 @@ static void expect_matches_strtof(const char *str) {
   EXPECT_EQ(bits(parsed.value()), bits(expected)) << str;
 }
 
-// The same bits and end as the reference, within max_steps exact comparison rounds (the parser caps them at 3)
-static void expect_prefix_matches_newlib(const char *str, uint32_t max_steps = 3) {
+// The same bits and end as the reference, within max_steps exact comparison rounds: the guess is within one float,
+// so at most two (the parser caps them at 3)
+static void expect_prefix_matches_newlib(const char *str, uint32_t max_steps = 2) {
   char *expected_end = nullptr;
   const float expected = newlib_strtof(str, &expected_end);
   char *end = nullptr;
@@ -118,6 +119,12 @@ TEST(ParseFloat, RejectsInvalidInput) {
 TEST(ParseFloat, FullPathRoundsLikeNewlib) {
   EXPECT_EQ(bits(parse_number<float>("1.0000000596046448").value()), 0x3F800000u);
   EXPECT_EQ(bits(parse_number<float>("-1.0000000596046448").value()), 0xBF800000u);
+}
+
+// newlib stops after "nan" unless the parentheses hold only hex digits, so parse_number<float> rejects the rest
+TEST(ParseFloat, NanForms) {
+  EXPECT_TRUE(std::isnan(parse_number<float>("nan(12)").value()));
+  EXPECT_FALSE(parse_number<float>("nan(xyz)").has_value());
 }
 
 // The callers' overflow check: a positive overflow is HUGE_VALF and rejected, a negative one is -inf and accepted
@@ -228,12 +235,16 @@ TEST(ParseFloatPrefix, MatchesNewlibWhereLibcsDiffer) {
 // itself, so a flushing conversion cannot leak into the result: every denormal, and every midpoint between two,
 // converts by its own value.
 TEST(ParseFloatPrefix, DenormalConversionDoesNotFlush) {
-  for (uint32_t k = 0; k <= 0x800000; k += 7) {
-    const double value = std::ldexp(static_cast<double>(k), -149);
-    EXPECT_EQ(internal::double_to_float_bits(value), k);
+  const auto check = [](uint32_t k) {
+    EXPECT_EQ(internal::double_to_float_bits(std::ldexp(static_cast<double>(k), -149)), k);
     // Halfway to the next one goes to the even one
     EXPECT_EQ(internal::double_to_float_bits(std::ldexp(k + 0.5, -149)), (k & 1) != 0 ? k + 1 : k);
-  }
+  };
+  for (uint32_t k = 0; k <= 0x800000; k += 7)
+    check(k);
+  // The largest denormal and FLT_MIN, where rounding carries into the exponent
+  for (uint32_t k : {0x7FFFFEu, 0x7FFFFFu, 0x800000u})
+    check(k);
 }
 
 // RP2350 bench: libc returned 0 and the first parser stalled stepping up from a flushed guess; #22677 bench
@@ -290,6 +301,26 @@ TEST(ParseFloatPrefix, FloatFastPathBoundaries) {
       expect_prefix_matches_newlib(str.c_str());
     }
   }
+}
+
+// One double operation is exact up to 2^53 and 10^22; review
+TEST(ParseFloatPrefix, DoubleFastPathBoundaries) {
+  for (const char *top : {"9007199254740991", "9007199254740992", "9007199254740993"}) {
+    for (const char *exp : {"e22", "e-22", "e23", "e-23"}) {
+      const std::string str = std::string(top) + exp;
+      expect_prefix_matches_newlib(str.c_str());
+    }
+  }
+}
+
+// The midpoint between FLT_MAX and 2^128 rounds to infinity; review
+TEST(ParseFloatPrefix, OverflowMidpoint) {
+  for (const char *str :
+       {"340282356779733661637539395458142568448", "340282356779733661637539395458142568447.9",
+        "340282356779733661637539395458142568448.1", "3.4028235677973366e38", "3.4028235677973365e38"}) {
+    expect_prefix_matches_newlib(str);
+  }
+  EXPECT_EQ(bits(parse_float_prefix("0x1.ffffffp127", nullptr)), 0x7F800000u);
 }
 
 // Exponents newlib caps at 19999, and one with more digits than any integer holds
