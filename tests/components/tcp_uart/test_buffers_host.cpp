@@ -159,6 +159,7 @@ class TcpUartServer : public ::testing::Test {
     this->uart_.set_server(true);
     this->uart_.set_port(this->port_);
     this->uart_.set_reconnect_interval(0);
+    this->uart_.set_idle_timeout(this->idle_timeout_);
     this->uart_.setup();
     this->pass();
   }
@@ -205,6 +206,8 @@ class TcpUartServer : public ::testing::Test {
   uint16_t port_{0};
   int peer_fd_{-1};
   uint32_t now_{0};
+  // 0 leaves a quiet client connected.
+  uint32_t idle_timeout_{0};
 };
 
 TEST_F(TcpUartServer, NextAcceptedClientStartsWithAnEmptyBuffer) {
@@ -226,6 +229,58 @@ TEST_F(TcpUartServer, NextAcceptedClientStartsWithAnEmptyBuffer) {
   uint8_t got[3];
   ASSERT_TRUE(this->uart_.read_array(got, sizeof(got)));
   EXPECT_EQ(std::memcmp(got, "NEW", sizeof(got)), 0);
+}
+
+// The one-connection server above with a 100 ms idle timeout. Each pass is 16 ms.
+class TcpUartServerIdleTimeout : public TcpUartServer {
+ protected:
+  TcpUartServerIdleTimeout() { this->idle_timeout_ = 100; }
+};
+
+TEST_F(TcpUartServerIdleTimeout, HeldTurnKeepsTheOnlyClientOpen) {
+  // The client asks, and the consumer holds the turn until its reply is ready.
+  this->connect_peer();
+  this->send("ping", 4);
+  this->pass_until_available(4);
+  uint8_t got[4];
+  ASSERT_TRUE(this->uart_.read_array(got, sizeof(got)));
+  this->uart_.hold_turn();
+  // The reply takes 20 passes: 320 ms without a byte, longer than the timeout.
+  for (int i = 0; i < 20; i++) {
+    this->pass();
+  }
+  ASSERT_TRUE(this->uart_.is_connected());
+  this->uart_.write_array(reinterpret_cast<const uint8_t *>("pong"), 4);
+  this->uart_.release_turn();
+  this->pass();
+  ASSERT_EQ(::recv(this->peer_fd_, got, sizeof(got), MSG_WAITALL), 4);
+  EXPECT_EQ(std::memcmp(got, "pong", sizeof(got)), 0);
+
+  // Once answered, the client is quiet like any other: 7 passes (112 ms) later it is closed.
+  for (int i = 0; i < 7; i++) {
+    this->pass();
+  }
+  EXPECT_FALSE(this->uart_.is_connected());
+}
+
+TEST_F(TcpUartServerIdleTimeout, HoldEndsWithItsSession) {
+  // The first client asks and leaves while the turn is held. Its turn is never released.
+  this->connect_peer();
+  this->send("ping", 4);
+  this->pass_until_available(4);
+  this->uart_.hold_turn();
+  this->close_peer();
+  for (int i = 0; i < 50 && this->uart_.is_connected(); i++) {
+    this->pass();
+  }
+  ASSERT_FALSE(this->uart_.is_connected());
+
+  // The next client sends nothing: the old hold does not count for it, so it is closed 7 passes (112 ms) later.
+  this->connect_peer();
+  for (int i = 0; i < 7; i++) {
+    this->pass();
+  }
+  EXPECT_FALSE(this->uart_.is_connected());
 }
 #endif
 
