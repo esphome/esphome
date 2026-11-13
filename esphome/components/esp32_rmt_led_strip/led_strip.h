@@ -73,7 +73,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   uint8_t pin_;
   bool use_dma_{false};
   bool invert_out_{false};
-  // An enabled channel holds a power management lock, so it is only enabled while a frame is sent
+  // An enabled channel holds a power management lock, so it is disabled while the strip is idle
   bool channel_enabled_{false};
   light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
   rmt_channel_handle_t channel_{nullptr};
