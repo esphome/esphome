@@ -2626,6 +2626,19 @@ def test_percentage_int_invalid(value: float | str) -> None:
         cv.percentage_int(value)
 
 
+@pytest.mark.parametrize("value", [True, False])
+def test_percentage_int_rejects_booleans(value: bool) -> None:
+    # bool is an int subclass, so a stray `min_humidity: true` would otherwise
+    # silently mean 100% (or 0%) instead of pointing at the config mistake
+    with pytest.raises(Invalid):
+        cv.percentage_int(value)
+
+
+def test_percentage_rejects_boolean() -> None:
+    with pytest.raises(Invalid):
+        cv.percentage(True)
+
+
 def test_invalid_always_raises() -> None:
     with pytest.raises(Invalid, match="my message"):
         cv.invalid("my message")("anything")

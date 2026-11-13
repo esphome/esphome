@@ -1961,6 +1961,10 @@ def _parse_percentage(value: object) -> float:
     Values without a percent sign above 1.0 or below -1.0 are rejected
     to prevent user mistakes (e.g. writing 50 instead of 50%).
     """
+    # bool is an int subclass: a stray `min_humidity: true` would otherwise
+    # silently mean 100% or 0% instead of pointing at the config mistake
+    if isinstance(value, bool):
+        raise Invalid("Expected percentage or float")
     has_percent_sign: bool = False
     if isinstance(value, str):
         try:
@@ -1983,6 +1987,9 @@ def _parse_percentage(value: object) -> float:
 
 
 def percentage_int(value: object) -> int:
+    # bool is an int subclass: a stray `true` would otherwise pass as 1 or 0
+    if isinstance(value, bool):
+        raise Invalid("Expected integer, got boolean")
     if isinstance(value, str):
         return int_(value.strip().removesuffix("%"))
     return int_(value)
