@@ -13,7 +13,6 @@ CST226Touchscreen = cst226_ns.class_(
     i2c.I2CDevice,
 )
 
-CST226ButtonListener = cst226_ns.class_("CST226ButtonListener")
 CONFIG_SCHEMA = (
     touchscreen.touchscreen_schema("100ms")
     .extend(

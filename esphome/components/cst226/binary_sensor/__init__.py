@@ -3,31 +3,22 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import cst226_ns
-from ..touchscreen import CST226ButtonListener, CST226Touchscreen
+from ..touchscreen import CST226Touchscreen
 
 CONF_CST226_ID = "cst226_id"
 
-CST226Button = cst226_ns.class_(
-    "CST226Button",
-    binary_sensor.BinarySensor,
-    cg.Component,
-    CST226ButtonListener,
-    cg.Parented.template(CST226Touchscreen),
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
+    {
+        cv.GenerateID(CONF_CST226_ID): cv.use_id(CST226Touchscreen),
+    }
 )
 
-CONFIG_SCHEMA = (
-    binary_sensor.binary_sensor_schema(CST226Button)
-    .extend(
-        {
-            cv.GenerateID(CONF_CST226_ID): cv.use_id(CST226Touchscreen),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-)
+# Each touchscreen keeps its buttons in a fixed size list; the define is the largest count any one needs
+_request_button_slot = cg.slot_counter("CST226_BUTTON_COUNT")
 
 
 async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_CST226_ID])
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_CST226_ID])
+    _request_button_slot(str(hub))
+    cg.add(hub.add_button_binary_sensor(var))

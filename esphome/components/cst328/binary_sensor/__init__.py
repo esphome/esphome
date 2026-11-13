@@ -3,27 +3,22 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import cst328_ns
-from ..touchscreen import CST328ButtonListener, CST328Touchscreen
+from ..touchscreen import CST328Touchscreen
 
 CONF_CST328_ID = "cst328_id"
 
-CST328Button = cst328_ns.class_(
-    "CST328Button",
-    binary_sensor.BinarySensor,
-    cg.Component,
-    CST328ButtonListener,
-    cg.Parented.template(CST328Touchscreen),
-)
-
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(CST328Button).extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
         cv.GenerateID(CONF_CST328_ID): cv.use_id(CST328Touchscreen),
     }
 )
 
+# Each touchscreen keeps its buttons in a fixed size list; the define is the largest count any one needs
+_request_button_slot = cg.slot_counter("CST328_BUTTON_COUNT")
+
 
 async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_CST328_ID])
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_CST328_ID])
+    _request_button_slot(str(hub))
+    cg.add(hub.add_button_binary_sensor(var))

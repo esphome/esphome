@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <utility>
 #include <vector>
 
-#include "esphome/components/gt911/binary_sensor/gt911_button.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/gt911/touchscreen/gt911_touchscreen.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -24,16 +26,15 @@ class GT911ButtonTest : public ::testing::Test {
     new (&App) Application();
   }
 
-  void add_button_(GT911Button &button, uint8_t index) {
-    button.set_parent(&this->hub_);
-    button.set_index(index);
-    this->buttons_.push_back(&button);
-  }
+  void add_button_(binary_sensor::BinarySensor &button, uint8_t index) { this->buttons_.emplace_back(&button, index); }
 
+  // Adds the buttons sorted by index, stable within one, as code generation does
   void setup_() {
+    std::stable_sort(this->buttons_.begin(), this->buttons_.end(),
+                     [](const auto &a, const auto &b) { return a.second < b.second; });
+    for (auto &[button, index] : this->buttons_)
+      this->hub_.add_button_binary_sensor(button, index);
     this->hub_.setup();
-    for (auto *button : this->buttons_)
-      button->setup();
   }
 
   void keys_(uint8_t keys) {
@@ -53,11 +54,11 @@ class GT911ButtonTest : public ::testing::Test {
 
   RegisterBus bus_;
   GT911Touchscreen hub_;
-  std::vector<GT911Button *> buttons_;
+  std::vector<std::pair<binary_sensor::BinarySensor *, uint8_t>> buttons_;
 };
 
 TEST_F(GT911ButtonTest, SetupPublishesOff) {
-  GT911Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button, 0);
   std::vector<optional<bool>> published;
   button.add_full_state_callback([&published](optional<bool>, optional<bool> state) { published.push_back(state); });
@@ -71,7 +72,7 @@ TEST_F(GT911ButtonTest, SetupPublishesOff) {
 TEST_F(GT911ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   FakePin reset;
   this->hub_.set_reset_pin(&reset);
-  GT911Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button, 0);
   this->setup_();
   ASSERT_TRUE(button.has_state());
@@ -85,7 +86,7 @@ TEST_F(GT911ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
 
 TEST_F(GT911ButtonTest, SetupPublishesOffWhenTheHubFails) {
   this->bus_.fail = true;
-  GT911Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button, 0);
   this->setup_();
   EXPECT_TRUE(this->hub_.is_failed());
@@ -94,9 +95,9 @@ TEST_F(GT911ButtonTest, SetupPublishesOffWhenTheHubFails) {
 }
 
 TEST_F(GT911ButtonTest, EachButtonFollowsItsKeyBit) {
-  GT911Button key0;
-  GT911Button key2;
-  GT911Button key3;
+  binary_sensor::BinarySensor key0;
+  binary_sensor::BinarySensor key2;
+  binary_sensor::BinarySensor key3;
   this->add_button_(key0, 0);
   this->add_button_(key2, 2);
   this->add_button_(key3, 3);
@@ -121,9 +122,9 @@ TEST_F(GT911ButtonTest, EachButtonFollowsItsKeyBit) {
 }
 
 TEST_F(GT911ButtonTest, KeysPublishInIndexOrder) {
-  GT911Button key3;
-  GT911Button key0;
-  GT911Button key0_again;
+  binary_sensor::BinarySensor key3;
+  binary_sensor::BinarySensor key0;
+  binary_sensor::BinarySensor key0_again;
   this->add_button_(key3, 3);
   this->add_button_(key0, 0);
   this->add_button_(key0_again, 0);
@@ -138,8 +139,8 @@ TEST_F(GT911ButtonTest, KeysPublishInIndexOrder) {
 }
 
 TEST_F(GT911ButtonTest, ButtonsSharingAnIndexBothFollowIt) {
-  GT911Button first;
-  GT911Button second;
+  binary_sensor::BinarySensor first;
+  binary_sensor::BinarySensor second;
   this->add_button_(first, 1);
   this->add_button_(second, 1);
   this->setup_();
