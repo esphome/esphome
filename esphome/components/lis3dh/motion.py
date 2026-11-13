@@ -7,6 +7,7 @@ from esphome.components.const import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
     CONF_ACTIVE_HIGH,
+    CONF_OPERATING_MODE,
 )
 from esphome.components.motion import (
     ACCELERATION_G,
@@ -24,7 +25,6 @@ from . import LIS3DHComponent, lis3dh_ns
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_OPERATING_MODE = "operating_mode"
 CONF_LATCHED = "latched"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
