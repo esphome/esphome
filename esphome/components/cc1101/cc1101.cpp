@@ -14,6 +14,8 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
+// PKTCTRL0 for async serial TX; begin_tx() puts only the chip in this mode, state_ keeps the configured one
+static constexpr uint8_t PKTCTRL0_ASYNC_SERIAL = 0x32;
 // The crystal takes about 150 us to start after CSn goes low
 static constexpr uint32_t WAKEUP_DELAY_US = 200;
 
@@ -131,12 +133,7 @@ void CC1101Component::setup() {
   // Defer pin mode setup until after all components have completed setup()
   // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
   if (this->gdo0_pin_ != nullptr) {
-    this->defer([this]() {
-      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
-      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
-        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
-      }
-    });
+    this->defer([this]() { this->gdo0_to_input_(); });
   }
 }
 
@@ -277,11 +274,8 @@ void CC1101Component::dump_config() {
 void CC1101Component::begin_tx() {
   this->wake_up();
   const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
-  // Async serial on the chip only; state_ keeps the configured mode for begin_rx() to restore
-  // On the stack, not constexpr: SPI DMA cannot read flash or unaligned bytes
-  alignas(4) const uint8_t pktctrl0_async_serial = 0x32;
-  this->write_(Register::PKTCTRL0, &pktctrl0_async_serial, 1);
   this->transmitting_ = true;
+  this->write_(Register::PKTCTRL0);
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
     // setup() only attaches the interrupt in packet mode. In async serial mode the pin may be
@@ -301,7 +295,8 @@ void CC1101Component::begin_tx() {
 
 void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Beginning RX sequence");
-  this->end_tx_();
+  if (this->transmitting_)
+    this->end_tx_();
   // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
   this->enter_idle_();
   if (!this->enter_rx_()) {
@@ -310,20 +305,23 @@ void CC1101Component::begin_rx() {
 }
 
 void CC1101Component::reset() {
-  this->strobe_(Command::RES);
-  this->configure();
+  // Before configure() so it writes the configured PKTCTRL0
   if (this->transmitting_)
     this->end_tx_();
+  this->strobe_(Command::RES);
+  this->configure();
 }
 
 void CC1101Component::end_tx_() {
   this->transmitting_ = false;
-  // begin_tx() put only the chip in async serial mode; state_ still holds the configured value
   this->write_(Register::PKTCTRL0);
-  if (this->gdo0_pin_ == nullptr)
-    return;
+  if (this->gdo0_pin_ != nullptr)
+    this->gdo0_to_input_();
+}
+
+void CC1101Component::gdo0_to_input_() {
   this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
-  // begin_tx() detaches the interrupt in packet mode
+  // The interrupt is only used in packet mode; begin_tx() detaches it
   if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO))
     this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
 }
@@ -429,9 +427,12 @@ void CC1101Component::write_(Register reg) {
     return;  // wake_up() writes state_ to the chip
   }
   uint8_t index = static_cast<uint8_t>(reg);
+  uint8_t value = this->state_.regs()[index];
+  if (this->transmitting_ && reg == Register::PKTCTRL0)
+    value = PKTCTRL0_ASYNC_SERIAL;
   this->enable();
   this->write_byte(index);
-  this->write_array(&this->state_.regs()[index], 1);
+  this->write_byte(value);
   this->disable();
 }
 
@@ -482,7 +483,7 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
 
   // Write packet
   this->enter_idle_();
-  // Undo the async serial mode of an earlier begin_tx(); the packet ends back in RX
+  // The packet ends back in RX
   if (this->transmitting_)
     this->end_tx_();
   this->strobe_(Command::FTX);

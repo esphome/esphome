@@ -103,7 +103,7 @@ class CC1101Component final : public Component,
   bool initialized_{false};
   bool sleeping_{false};
   bool registers_dirty_{false};
-  bool transmitting_{false};  // begin_tx() until begin_rx() or reset()
+  bool transmitting_{false};  // begin_tx() until begin_rx(), reset() or transmit_packet()
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
@@ -135,6 +135,7 @@ class CC1101Component final : public Component,
   bool enter_calibrated_(State target_state, Command cmd);
   void enter_idle_();
   void end_tx_();
+  void gdo0_to_input_();
   bool enter_rx_();
   bool enter_tx_();
 };
