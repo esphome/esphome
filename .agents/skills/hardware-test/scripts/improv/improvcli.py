@@ -1,12 +1,14 @@
 """Improv serial client that reads frames out of the log stream on the same port.
 usage: improvcli.py PORT OUT --secrets FILE [--baud N] [--keep-dtr] [--settle S] [--skip-bad]
 Runs: 300 stray bytes, state, info, network state, scan, provision with a bad password, provision with the real one,
-state and network state again. Prints parsed frames; the raw stream goes to OUT. Credentials come from the secrets
+state and network state again. Prints parsed frames; the raw stream goes to OUT.
+Exit 1 when a provisioning reply is missing or a frame fails its checksum. Credentials come from the secrets
 file (wifi_ssid, wifi_password) and are never printed; the SSID is masked in scan results."""
 
 import argparse
 import pathlib
 import random
+import sys
 import time
 
 import serial
@@ -58,6 +60,7 @@ class Dev:
         self.t0 = time.time()
         self.events: list[tuple[float, int, bytes, bool]] = []
         self.loglines = 0
+        self.reopens = 0
         self.ssid = ssid
 
     def reopen(self) -> None:
@@ -78,6 +81,12 @@ class Dev:
             try:
                 d = self.ser.read(4096)
             except serial.SerialException:
+                # A dropped native USB port usually means the board reset; make that visible.
+                self.reopens += 1
+                print(
+                    f"{time.time() - self.t0:7.2f} PORT RESET (reopen {self.reopens})",
+                    flush=True,
+                )
                 self.reopen()
                 continue
             if d:
@@ -126,8 +135,7 @@ class Dev:
         self.ser.flush()
         self.pump(wait)
 
-    def wait_for(self, pred, timeout: float) -> tuple | None:
-        start = len(self.events)
+    def wait_for(self, pred, timeout: float, start: int) -> tuple | None:
         end = time.time() + timeout
         while time.time() < end:
             self.pump(0.2)
@@ -137,12 +145,15 @@ class Dev:
         return None
 
 
-def provision(d: Dev, ssid: str, pw: str, pred, label: str) -> None:
-    p = bytes([len(ssid)]) + ssid.encode() + bytes([len(pw)]) + pw.encode()
+def provision(d: Dev, ssid: str, pw: str, pred, label: str) -> bool:
+    s, w = ssid.encode(), pw.encode()
+    p = bytes([len(s)]) + s + bytes([len(w)]) + w
+    start = len(d.events)  # before sending, so an immediate reply counts
     t = time.time()
-    d.send(1, p, wait=0.5)
-    e = d.wait_for(pred, 60)
+    d.send(1, p, wait=0)
+    e = d.wait_for(pred, 60, start)
     print(f"{label} after {time.time() - t:.1f}s" if e else f"NO {label} within 60s")
+    return e is not None
 
 
 def main() -> None:
@@ -162,7 +173,7 @@ def main() -> None:
     with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
         sec = yaml.safe_load(f)
     ssid, pw = sec["wifi_ssid"], sec["wifi_password"]
-    print(f"password length {len(pw)}")
+    print(f"password length {len(pw.encode())} bytes")
     d = Dev(o.port, o.baud, o.out, o.keep_dtr, ssid)
     d.pump(o.settle)
     before = d.loglines
@@ -183,12 +194,25 @@ def main() -> None:
     d.send(4, wait=6)
     seen = any(e[1] == 4 and e[2][0] == 4 and ssid.encode() in e[2] for e in d.events)
     print(f"target network in scan: {seen}")
+    ok = True
     if not o.skip_bad:
         print("== provision bad password")
-        provision(d, ssid, "wrong-password-0123456789", lambda e: e[1] == 2, "error")
+        ok &= provision(
+            d,
+            ssid,
+            "wrong-password-0123456789",
+            lambda e: e[1] == 2 and e[2][0] == 3 and e[3],
+            "unable_to_connect",
+        )
         d.pump(2)
     print("== provision good")
-    provision(d, ssid, pw, lambda e: e[1] == 4 and e[2][0] == 1, "provisioned response")
+    ok &= provision(
+        d,
+        ssid,
+        pw,
+        lambda e: e[1] == 4 and e[2][0] == 1 and e[3],
+        "provisioned response",
+    )
     d.pump(3)
     print("== state")
     d.send(2, wait=1.5)
@@ -197,8 +221,11 @@ def main() -> None:
     d.pump(2)
     bad = sum(1 for e in d.events if not e[3])
     print(
-        f"frames={len(d.events)} badchecksum={bad} loglines={d.loglines} (before stray {before})"
+        f"frames={len(d.events)} badchecksum={bad} reopens={d.reopens} loglines={d.loglines} "
+        f"(before stray {before})"
     )
+    print("PASS" if ok and not bad else "FAIL")
+    sys.exit(0 if ok and not bad else 1)
 
 
 if __name__ == "__main__":

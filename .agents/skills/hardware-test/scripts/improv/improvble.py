@@ -24,11 +24,11 @@ async def main(name: str, secrets: str) -> None:
     ssid, pw = sec["wifi_ssid"].encode(), sec["wifi_password"].encode()
     dev = await BleakScanner.find_device_by_name(name, timeout=30)
     if dev is None:
-        print("device not found")
-        return
+        sys.exit("device not found")
     loop = asyncio.get_running_loop()
     t0 = loop.time()
     done = asyncio.Event()
+    errors: list[int] = []
     async with BleakClient(dev) as c:
 
         def on_state(_, d: bytearray) -> None:
@@ -36,6 +36,7 @@ async def main(name: str, secrets: str) -> None:
 
         def on_error(_, d: bytearray) -> None:
             if d[0]:
+                errors.append(d[0])
                 print(f"{loop.time() - t0:6.2f} ERROR {d[0]}", flush=True)
 
         def on_result(_, d: bytearray) -> None:
@@ -44,7 +45,8 @@ async def main(name: str, secrets: str) -> None:
                 strs.append(p[1 : 1 + p[0]].decode(errors="replace"))
                 p = p[1 + p[0] :]
             print(f"{loop.time() - t0:6.2f} RESULT cmd={d[0]} {strs}", flush=True)
-            done.set()
+            if d[0] == 1:  # the WIFI_SETTINGS reply
+                done.set()
 
         await c.start_notify(STATE, on_state)
         await c.start_notify(ERROR, on_error)
@@ -58,6 +60,9 @@ async def main(name: str, secrets: str) -> None:
         except TimeoutError:
             print("no result within 45 s")
         await asyncio.sleep(1)
+    if not done.is_set() or errors:
+        sys.exit(f"FAIL (errors {errors})")
+    print("PASS")
 
 
 asyncio.run(main(sys.argv[1], sys.argv[2]))

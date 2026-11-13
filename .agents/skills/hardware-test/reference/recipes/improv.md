@@ -13,6 +13,8 @@
 - `common.yaml`: package with Wi-Fi and no network, `web_server`, `improv_serial` with a `next_url` (so the
   provisioned reply carries URLs) and an ALIVE line every 5 s. `example-esp32.yaml` uses it on a classic ESP32.
 - `run.sh NAME [improvcli args]` (env `TREE`, `PORT`, `SECRETS`, `PY`): compile, erase, flash and run the client.
+  It erases with esptool, so ESP chips only; on LibreTiny or RP2040 erase and flash with that platform's tools and
+  run `improvcli.py` directly. Both clients end with PASS or FAIL and exit non-zero on FAIL.
 
 Per board:
 
