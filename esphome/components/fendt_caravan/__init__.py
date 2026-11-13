@@ -4,9 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["binary_sensor", "sensor", "switch", "text_sensor"]
 CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
-PLATFORMS = ["esp32"]
 DOMAIN = "fendt_caravan"
 
 MULTI_CONF = True
