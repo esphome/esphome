@@ -152,8 +152,8 @@ def _validate_pins_in_bus_domain(config: ConfigType) -> None:
 
     if (bus := VARIANT_I2C.get(get_nrf52_variant())) is None:
         return
-    for key in (CONF_SDA, CONF_SCL):
-        port, pin = divmod(config[key], 32)
+    port_pins = {key: divmod(config[key], 32) for key in (CONF_SDA, CONF_SCL)}
+    for key, (port, pin) in port_pins.items():
         if port not in bus.ports:
             ports = " or ".join(f"P{p}" for p in bus.ports)
             raise cv.Invalid(
@@ -161,8 +161,7 @@ def _validate_pins_in_bus_domain(config: ConfigType) -> None:
                 f"use a pin on {ports}",
                 [key],
             )
-    sda_port, sda_pin = divmod(config[CONF_SDA], 32)
-    scl_port, scl_pin = divmod(config[CONF_SCL], 32)
+    (sda_port, sda_pin), (scl_port, scl_pin) = port_pins.values()
     if sda_port != scl_port:
         raise cv.Invalid(
             f"SDA P{sda_port}.{sda_pin:02d} and SCL P{scl_port}.{scl_pin:02d} must be on the same GPIO port",
