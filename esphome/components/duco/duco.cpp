@@ -178,16 +178,17 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
-static const LogString *node_type_name(uint8_t type) {
-  switch (type) {
+const LogString *node_type_name(uint8_t type) {
+  const bool bs = (type & NODE_TYPE_BS) != 0;
+  switch (type & ~NODE_TYPE_BS) {
     case 8:
       return LOG_STR("UCBAT");
     case 9:
       return LOG_STR("UC");
     case 10:
-      return LOG_STR("UCRH");
+      return bs ? LOG_STR("BSRH") : LOG_STR("UCRH");
     case 12:
-      return LOG_STR("UCCO2");
+      return bs ? LOG_STR("BSCO2") : LOG_STR("UCCO2");
     case 13:
       return LOG_STR("VLV");
     case 17:
@@ -227,11 +228,12 @@ void DucoDiscovery::update() {
 
 void DucoDiscovery::receive_response(const DucoMessage &message) {
   // Only the latest attempt is open, so a late answer to an earlier one never arrives here
-  if (message.size >= 1 && this->next_node_ < NODE_COUNT) {
+  if (message.size >= 2 && this->next_node_ < NODE_COUNT) {
     if (message.data[0] != 0) {
       ESP_LOGV(TAG, "Found node %u: type %u", this->next_node_, message.data[0]);
+      this->node_types_[this->next_node_] = node_type_byte(message.data[0], message.data[1]);
     }
-    this->node_types_[this->next_node_++] = message.data[0];
+    this->next_node_++;
     this->attempts_ = 0;
   }
 }
@@ -241,7 +243,7 @@ void DucoDiscovery::dump_config() {
   for (uint8_t node = 0; node < NODE_COUNT; node++) {
     const uint8_t type = this->node_types_[node];
     if (type != 0) {
-      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type, LOG_STR_ARG(node_type_name(type)));
+      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type & ~NODE_TYPE_BS, LOG_STR_ARG(node_type_name(type)));
     }
   }
   if (this->next_node_ < NODE_COUNT) {
