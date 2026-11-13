@@ -27,6 +27,7 @@ static constexpr uint16_t RTP_JPEG_MAX_DIMENSION = 255 * 8;
 // A frame whose packets make no write progress for this long is dropped, so a stalled client cannot hold
 // the camera image (esp32_camera captures nothing while any copy is held).
 static constexpr uint32_t FRAME_STALL_MS = 500;
+static constexpr size_t FILL_LEN = 64;  // padding is written in chunks of this size
 // Interleaved channels (RFC 2326 section 10.12), fixed per track.
 static constexpr uint8_t VIDEO_RTP_CHANNEL = 0;
 static constexpr uint8_t VIDEO_RTCP_CHANNEL = 1;
@@ -64,13 +65,16 @@ struct AudioTrack {
   uint16_t payload_len{0};
   uint16_t samples_per_packet{0};
   uint8_t payload_type{0};
-  uint8_t silence{0};  // the encoded value of a zero sample
+  const uint8_t *filler{nullptr};  // FILL_LEN bytes of the codec's silence
 };
 
 /// The codec's encoding name, as in the SDP rtpmap.
 const LogString *audio_codec_name(AudioCodec codec);
 /// Writes the SDP body with the audio media section; returns its length, or 0 if it does not fit.
 size_t format_audio_sdp(char *buf, size_t size, AudioCodec codec, uint8_t payload_type, uint32_t sample_rate);
+/// FILL_LEN bytes of the codec's silence, to pad a packet cut loose from its slot (zeros decode as loud clicks
+/// in G.711).
+const uint8_t *silence_fill(AudioCodec codec);
 uint8_t encode_ulaw(int16_t sample);
 uint8_t encode_alaw(int16_t sample);
 #endif

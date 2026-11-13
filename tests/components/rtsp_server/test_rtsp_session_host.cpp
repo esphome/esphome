@@ -378,6 +378,7 @@ class RTSPAudioSessionTest : public RTSPSessionTest {
     this->track_.payload_len = PAYLOAD_LEN;
     this->track_.samples_per_packet = SAMPLES;
     this->track_.payload_type = 96;
+    this->track_.filler = silence_fill(AudioCodec::AUDIO_CODEC_L16);
     this->session_.set_audio_track(&this->track_);
   }
   // Writes one packet the way the server does: each byte of its payload is the packet index.
@@ -661,7 +662,7 @@ TEST_F(RTSPAudioSessionTest, ReusedSlotInFlightIsPaddedWithZeros) {
 }
 
 TEST_F(RTSPAudioSessionTest, ReusedG711SlotIsPaddedWithSilence) {
-  this->track_.silence = 0xD5;  // PCMA; zeros would decode as a loud click
+  this->track_.filler = silence_fill(AudioCodec::AUDIO_CODEC_PCMA);  // zeros would decode as a loud click
   this->reopen_over_tcp();
   this->session_.set_audio_track(&this->track_);
   this->play(false, true);
@@ -762,6 +763,12 @@ static int16_t decode_alaw(uint8_t code) {
     value = (value + 0x108) << (segment - 1);
   }
   return static_cast<int16_t>((code & 0x80) ? value : -value);
+}
+
+TEST(RTSPG711, SilenceFillIsTheEncodedZero) {
+  EXPECT_EQ(silence_fill(AudioCodec::AUDIO_CODEC_PCMU)[FILL_LEN - 1], encode_ulaw(0));
+  EXPECT_EQ(silence_fill(AudioCodec::AUDIO_CODEC_PCMA)[0], encode_alaw(0));
+  EXPECT_EQ(silence_fill(AudioCodec::AUDIO_CODEC_L16)[0], 0);
 }
 
 TEST(RTSPG711, KnownCodes) {

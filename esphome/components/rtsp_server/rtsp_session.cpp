@@ -23,7 +23,6 @@ static constexpr uint32_t RTP_CLOCK_RATE = 90000;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 60000;
 static constexpr char REQUEST_END[] = "\r\n\r\n";
 static constexpr size_t REQUEST_END_LEN = sizeof(REQUEST_END) - 1;
-static constexpr size_t FILL_LEN = 64;
 static constexpr uint8_t ZERO_FILL[FILL_LEN]{};
 static constexpr char SDP_BODY[] = "v=0\r\n"
                                    "o=- 0 0 IN IP4 0.0.0.0\r\n"
@@ -42,7 +41,7 @@ static constexpr std::array<uint8_t, FILL_LEN> make_fill(uint8_t value) {
     byte = value;
   return fill;
 }
-// G.711 silence (encode_ulaw(0) and encode_alaw(0)); zeros would decode as loud clicks.
+// G.711 silence: encode_ulaw(0) and encode_alaw(0).
 static constexpr std::array<uint8_t, FILL_LEN> ULAW_SILENCE_FILL = make_fill(0xFF);
 static constexpr std::array<uint8_t, FILL_LEN> ALAW_SILENCE_FILL = make_fill(0xD5);
 #endif
@@ -133,6 +132,17 @@ PROGMEM_STRING_TABLE(AudioCodecNames, "L16", "PCMU", "PCMA");
 
 const LogString *audio_codec_name(AudioCodec codec) {
   return AudioCodecNames::get_log_str(static_cast<uint8_t>(codec), 0);
+}
+
+const uint8_t *silence_fill(AudioCodec codec) {
+  switch (codec) {
+    case AudioCodec::AUDIO_CODEC_PCMU:
+      return ULAW_SILENCE_FILL.data();
+    case AudioCodec::AUDIO_CODEC_PCMA:
+      return ALAW_SILENCE_FILL.data();
+    default:
+      return ZERO_FILL;
+  }
 }
 
 size_t format_audio_sdp(char *buf, size_t size, AudioCodec codec, uint8_t payload_type, uint32_t sample_rate) {
@@ -729,11 +739,8 @@ void RTSPSession::drop_frame_() {
 void RTSPSession::detach_payload_() {
   this->filler_ = ZERO_FILL;
 #ifdef USE_RTSP_SERVER_AUDIO
-  if (this->output_ == Output::OUTPUT_AUDIO && this->audio_track_->silence == ULAW_SILENCE_FILL[0]) {
-    this->filler_ = ULAW_SILENCE_FILL.data();
-  } else if (this->output_ == Output::OUTPUT_AUDIO && this->audio_track_->silence == ALAW_SILENCE_FILL[0]) {
-    this->filler_ = ALAW_SILENCE_FILL.data();
-  }
+  if (this->output_ == Output::OUTPUT_AUDIO)
+    this->filler_ = this->audio_track_->filler;
 #endif
   this->output_ = Output::OUTPUT_CONTROL;
   if (this->iov_pos_ >= this->iov_count_)

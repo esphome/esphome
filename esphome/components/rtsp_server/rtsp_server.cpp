@@ -107,9 +107,7 @@ void RTSPServer::setup_audio_() {
   this->audio_track_.payload_len = payload_len;
   this->audio_track_.samples_per_packet = samples;
   this->audio_track_.payload_type = payload_type;
-  this->audio_track_.silence = this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMU   ? encode_ulaw(0)
-                               : this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMA ? encode_alaw(0)
-                                                                                    : 0;
+  this->audio_track_.filler = silence_fill(this->audio_codec_);
   for (auto &session : this->sessions_)
     session.set_audio_track(&this->audio_track_);
 
@@ -173,12 +171,12 @@ void RTSPServer::read_audio_() {
       for (size_t i = 0; i + 1 < input_len; i += 2)
         std::swap(slot[i], slot[i + 1]);  // L16 is big endian (RFC 3551 section 4.5.11)
     } else {
-      std::array<int16_t, G711_SAMPLES_PER_PACKET> samples;
-      if (this->ring_buffer_->read(samples.data(), input_len) != input_len)
+      std::array<int16_t, G711_SAMPLES_PER_PACKET> pcm;
+      if (this->ring_buffer_->read(pcm.data(), input_len) != input_len)
         return;
       const bool ulaw = this->audio_codec_ == AudioCodec::AUDIO_CODEC_PCMU;
-      for (size_t i = 0; i < samples.size(); i++)
-        slot[i] = ulaw ? encode_ulaw(samples[i]) : encode_alaw(samples[i]);
+      for (size_t i = 0; i < pcm.size(); i++)
+        slot[i] = ulaw ? encode_ulaw(pcm[i]) : encode_alaw(pcm[i]);
     }
     // Measured from the latest chunk, so the microphone's clock cannot drift away from esp_timer.
     const auto offset = static_cast<int32_t>(this->next_sample_ - anchor_sample);
