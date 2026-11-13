@@ -11,23 +11,19 @@ namespace esphome::tlc5947 {
 
 class TLC5947 final : public Component {
  public:
+  // Must match CHANNELS_PER_CHIP in __init__.py, which validates the channel range
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
 
-  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
-  explicit TLC5947(std::span<uint16_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
+  /// @param pwm_amounts N_CHANNELS_PER_CHIP duty values per chip, a static buffer from code generation.
+  TLC5947(GPIOPin *data_pin, GPIOPin *clock_pin, GPIOPin *lat_pin, std::span<uint16_t> pwm_amounts)
+      : data_pin_(data_pin), clock_pin_(clock_pin), lat_pin_(lat_pin), pwm_amounts_(pwm_amounts) {}
 
-  void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
-  void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_lat_pin(GPIOPin *lat_pin) { lat_pin_ = lat_pin; }
-  void set_outenable_pin(GPIOPin *outenable_pin) { outenable_pin_ = outenable_pin; }
+  void set_outenable_pin(GPIOPin *outenable_pin) { this->outenable_pin_ = outenable_pin; }
 
   void setup() override;
-
   void dump_config() override;
-
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-
-  /// Send new values if they were updated.
+  /// Send the new duty values, then sleep until set_channel_value() changes one.
   void loop() override;
 
   void set_channel_value(uint16_t channel, uint16_t value);
@@ -37,12 +33,11 @@ class TLC5947 final : public Component {
   }
 
  protected:
-  GPIOPin *data_pin_;
-  GPIOPin *clock_pin_;
-  GPIOPin *lat_pin_;
+  GPIOPin *const data_pin_;
+  GPIOPin *const clock_pin_;
+  GPIOPin *const lat_pin_;
   GPIOPin *outenable_pin_{nullptr};
-  std::span<uint16_t> pwm_amounts_;
-  bool update_{true};
+  const std::span<uint16_t> pwm_amounts_;
 };
 
 }  // namespace esphome::tlc5947

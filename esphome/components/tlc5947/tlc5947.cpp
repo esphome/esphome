@@ -29,9 +29,7 @@ void TLC5947::dump_config() {
 }
 
 void TLC5947::loop() {
-  if (!this->update_)
-    return;
-
+  this->disable_loop();
   this->lat_pin_->digital_write(false);
 
   // push the data out, MSB first, 12 bit word per channel, 24 channels per chip
@@ -53,17 +51,15 @@ void TLC5947::loop() {
   this->lat_pin_->digital_write(true);
   delayMicroseconds(1);  // TWH1 > 30ns
   this->lat_pin_->digital_write(false);
-
-  this->update_ = false;
 }
 
 void TLC5947::set_channel_value(uint16_t channel, uint16_t value) {
   if (channel >= this->pwm_amounts_.size())
     return;
   if (this->pwm_amounts_[channel] != value) {
-    this->update_ = true;
+    this->pwm_amounts_[channel] = value;
+    this->enable_loop();
   }
-  this->pwm_amounts_[channel] = value;
 }
 
 }  // namespace esphome::tlc5947

@@ -14,6 +14,8 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CONF_LAT_PIN = "lat_pin"
+# Must match N_CHANNELS_PER_CHIP in tlc5947.h, for the output channel range check
+CHANNELS_PER_CHIP = 24
 
 CODEOWNERS = ["@rnauber"]
 DOMAIN = "tlc5947"
@@ -40,10 +42,12 @@ async def to_code(config: ConfigType) -> None:
         cg.uint16,
         config[CONF_NUM_CHIPS] * TLC5947.static_("N_CHANNELS_PER_CHIP"),
     )
-    var = cg.new_Pvariable(config[CONF_ID], pwm_amounts)
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+        await cg.gpio_pin_expression(config[CONF_LAT_PIN]),
+        pwm_amounts,
+    )
     await cg.register_component(var, config)
-
-    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
-    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
-    await cg.add_pin(var.set_lat_pin, config[CONF_LAT_PIN])
     await cg.add_pin(var.set_outenable_pin, config.get(CONF_OE_PIN))
