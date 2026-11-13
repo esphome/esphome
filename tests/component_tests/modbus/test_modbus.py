@@ -7,6 +7,7 @@ from esphome.components import modbus
 from esphome.components.modbus import (
     _HUB_TIME_PERIOD,
     CONF_MODBUS_ID,
+    _validate_response_address,
     _validate_server_address,
 )
 from esphome.const import CONF_ADDRESS
@@ -27,6 +28,13 @@ def test_server_address_zero_rejected() -> None:
     # Address 0 is the Modbus broadcast address and cannot identify a server device.
     with pytest.raises(cv.Invalid, match="broadcast address"):
         _validate_server_address(0)
+
+
+def test_response_address_zero_says_a_broadcast_is_never_answered() -> None:
+    # modbus.send_response cannot answer address 0: nobody answers a broadcast.
+    with pytest.raises(cv.Invalid, match="A broadcast is never answered"):
+        _validate_response_address(0)
+    assert _validate_response_address(5) == 5
 
 
 def test_server_schema_rejects_address_zero() -> None:
