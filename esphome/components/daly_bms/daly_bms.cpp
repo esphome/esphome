@@ -20,16 +20,13 @@ static const uint8_t DALY_REQUEST_STATUS = 0x94;
 static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
-// The requests of one cycle, in the order they are sent.
-static const uint8_t DALY_REQUESTS[] = {
-    DALY_REQUEST_BATTERY_LEVEL, DALY_REQUEST_MIN_MAX_VOLTAGE, DALY_REQUEST_MIN_MAX_TEMPERATURE, DALY_REQUEST_MOS,
-    DALY_REQUEST_STATUS,        DALY_REQUEST_CELL_VOLTAGE,    DALY_REQUEST_TEMPERATURE};
-static const uint8_t DALY_REQUEST_COUNT = sizeof(DALY_REQUESTS);
+// One cycle sends the requests from DALY_REQUEST_BATTERY_LEVEL to DALY_REQUEST_TEMPERATURE in order.
+static constexpr uint8_t DALY_REQUEST_COUNT = DALY_REQUEST_TEMPERATURE - DALY_REQUEST_BATTERY_LEVEL + 1;
 // A response can span several frames (three cell voltages per frame). Once a frame is complete and the line
 // stays quiet this long, the response is over and the next request can go out.
-static const uint32_t DALY_RESPONSE_GAP_MS = 50;
+static constexpr uint32_t DALY_RESPONSE_GAP_MS = 50;
 // Without a response, the next request goes out after this time.
-static const uint32_t DALY_RESPONSE_TIMEOUT_MS = 250;
+static constexpr uint32_t DALY_RESPONSE_TIMEOUT_MS = 250;
 
 void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
@@ -101,7 +98,7 @@ void DalyBmsComponent::loop() {
   }
   // the response timeout counts from the request
   this->last_transmission_ = now;
-  this->last_request_ = DALY_REQUESTS[this->next_request_++];
+  this->last_request_ = DALY_REQUEST_BATTERY_LEVEL + this->next_request_++;
   this->request_data_(this->last_request_);
 }
 
