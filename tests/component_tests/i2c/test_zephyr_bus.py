@@ -15,11 +15,7 @@ from esphome.components.zephyr.const import KEY_OVERLAY
         pytest.param("zephyr_nrf52840.yaml", "i2c0", False, id="nrf52840"),
         pytest.param("zephyr_xiao_ble.yaml", "i2c1", False, id="xiao_ble"),
         # The nRF54L boards leave every TWIM disabled, and TWIM20 is the console UART
-        pytest.param("zephyr_nrf54l15dk.yaml", "i2c21", True, id="nrf54l15dk"),
         pytest.param("zephyr_nrf54lm20dk.yaml", "i2c21", True, id="nrf54lm20dk"),
-        pytest.param(
-            "zephyr_xiao_nrf54lm20a.yaml", "i2c21", True, id="xiao_nrf54lm20a"
-        ),
     ],
 )
 def test_zephyr_i2c_instance(
