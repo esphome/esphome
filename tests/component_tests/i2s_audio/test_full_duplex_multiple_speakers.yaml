@@ -11,6 +11,7 @@ i2s_audio:
     i2s_bclk_pin: GPIO5
     i2s_lrclk_pin: GPIO4
     full_duplex: true
+    keep_tx_active: true
 
 microphone:
   - platform: i2s_audio

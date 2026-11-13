@@ -1,0 +1,12 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2s_audio:
+  i2s_bclk_pin: GPIO5
+  i2s_lrclk_pin: GPIO4
+  keep_tx_active: true

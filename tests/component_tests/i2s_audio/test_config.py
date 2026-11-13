@@ -34,3 +34,12 @@ def test_keep_alive_rejected(
     CORE.config_path = component_config_path(config_file)
     assert read_config({}) is None
     assert message in capsys.readouterr().out
+
+
+def test_keep_tx_active_requires_full_duplex(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = component_config_path("keep_tx_active_without_duplex.yaml")
+    assert read_config({}) is None
+    assert "'keep_tx_active' requires 'full_duplex'" in capsys.readouterr().out
