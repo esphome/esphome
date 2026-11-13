@@ -53,30 +53,21 @@ TEST(I2CScan, MarksUnknownErrorsInBitSeven) {
   EXPECT_EQ(bus.results(), (std::vector<uint8_t>{0x88, 0x20, 0xC0, 0x77}));
 }
 
-TEST(I2CScan, MoreThanTheInlineCapacityKeepsEveryAddress) {
-  ScanBus bus;
-  bus.present = {0x10, 0x20, 0x30, 0x40, 0x50};
-  bus.scan();
-  EXPECT_EQ(bus.results(), (std::vector<uint8_t>{0x10, 0x20, 0x30, 0x40, 0x50}));
-}
-
 TEST(I2CScan, StuckBusKeepsAllAddresses) {
   ScanBus bus;
   for (uint8_t address = 0x08; address < 0x78; address++)
     bus.present.insert(address);
   bus.scan();
-  std::vector<uint8_t> results = bus.results();
-  ASSERT_EQ(results.size(), 112u);
-  EXPECT_EQ(results.front(), 0x08);
-  EXPECT_EQ(results.back(), 0x77);
+  ASSERT_EQ(bus.probed.size(), 112u);
+  EXPECT_EQ(bus.results(), bus.probed);
 }
 
 TEST(I2CScan, RescanReplacesTheResults) {
   ScanBus bus;
   bus.present = {0x10, 0x20, 0x30, 0x40, 0x50};
   bus.scan();
+  EXPECT_EQ(bus.results(), (std::vector<uint8_t>{0x10, 0x20, 0x30, 0x40, 0x50}));
   bus.present = {0x60};
-  bus.probed.clear();
   bus.scan();
   EXPECT_EQ(bus.results(), (std::vector<uint8_t>{0x60}));
 }
