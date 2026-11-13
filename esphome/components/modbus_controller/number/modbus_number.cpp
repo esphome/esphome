@@ -98,6 +98,6 @@ void ModbusNumber::control(float value) {
   }
   this->publish_state(value);
 }
-void ModbusNumber::dump_config() { LOG_NUMBER(TAG, "Modbus Number", this); }
+void ModbusNumber::dump_child_config() { LOG_NUMBER(TAG, "Modbus Number", this); }
 
 }  // namespace esphome::modbus_controller

@@ -72,6 +72,8 @@ class SensorItem {
   /// response buffer and is only valid for the duration of the call. Read the sensor's data from
   /// `offset` within it.
   virtual void parse_and_publish(std::span<const uint8_t> data) = 0;
+  /// Called from the hub's dump_config(); not dump_config() so Component items don't print twice.
+  virtual void dump_child_config() {}
 
   /// Coils and discrete inputs address individual bits; every other type addresses 16-bit registers.
   bool addresses_bits() const { return modbus::helpers::is_entity_type_binary(this->register_type); }
