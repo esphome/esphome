@@ -293,9 +293,9 @@ def _ip_request(
     return validator
 
 
-def require_ipv4(name: str) -> Callable[[ConfigType], ConfigType]:
-    """Return a validator declaring that component `name` needs IPv4."""
-    return _ip_request(lambda data: data.require_ipv4.add(name))
+def require_ipv4(*path: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator declaring that the component or option at `path` needs IPv4."""
+    return _ip_request(lambda data: data.require_ipv4.add(": ".join(path)))
 
 
 def require_ipv6(name: str) -> Callable[[ConfigType], ConfigType]:
@@ -456,7 +456,10 @@ def _final_validate(config: ConfigType) -> None:
         CONF_ENABLE_IPV4,
         "IPv4",
         data.require_ipv4,
-        default=not data.request_ipv4_off,
+        # Wi-Fi and Ethernet keep IPv4 unless the config turns it off explicitly
+        default=not data.request_ipv4_off
+        or CONF_WIFI in full_config
+        or CONF_ETHERNET in full_config,
     )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
@@ -662,9 +665,11 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
     if enable_ipv6:
-        cg.add_define(
-            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-        )
+        # Without IPv4 an IPv6 address is the connection, so wait for at least one
+        min_count = config[CONF_MIN_IPV6_ADDR_COUNT]
+        if not enable_ipv4:
+            min_count = max(min_count, 1)
+        cg.add_define("USE_NETWORK_MIN_IPV6_ADDR_COUNT", min_count)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
@@ -681,6 +686,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
+        # DNS over RDNSS or stateless DHCPv6 is for IPv6-only Wi-Fi and Ethernet; leave
+        # other IPv4-less builds (OpenThread) on the sdkconfig they already build with.
+        if not enable_ipv4 and CORE.has_at_least_one_component(
+            CONF_WIFI, CONF_ETHERNET
+        ):
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
 
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
