@@ -1222,6 +1222,11 @@ def time_period_str_colon(value):
     else:
         raise Invalid(TIME_PERIOD_ERROR.format(value))
 
+    # hours may exceed 23 (a duration), but a 99th minute or second would
+    # silently carry into the next unit ("0:99" was 1h39)
+    if minute > 59 or second > 59:
+        raise Invalid(f"Minutes and seconds must be between 0 and 59, got {value}")
+
     return TimePeriod(hours=hour, minutes=minute, seconds=second)
 
 
