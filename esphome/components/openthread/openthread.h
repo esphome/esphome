@@ -5,7 +5,11 @@
 #include "esphome/components/mdns/mdns_component.h"
 #include "esphome/components/network/ip_address.h"
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#else
 #include "esphome/components/wifi/wifi_component.h"
+#endif
 #endif
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
@@ -30,6 +34,17 @@ enum class TeardownStage : uint8_t {
 };
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
+// The link border routing runs over, for log messages
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+static constexpr const char *const BACKBONE_NAME = "Ethernet";
+#else
+static constexpr const char *const BACKBONE_NAME = "Wi-Fi";
+#endif
+#endif
+
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && defined(USE_OPENTHREAD_BACKBONE_ETHERNET)
+class OpenThreadComponent final : public Component, public ethernet::EthernetConnectStateListener {
+#elif defined(USE_OPENTHREAD_BORDER_ROUTER)
 class OpenThreadComponent final : public Component, public wifi::WiFiConnectStateListener {
 #else
 class OpenThreadComponent final : public Component {
@@ -44,8 +59,12 @@ class OpenThreadComponent final : public Component {
   void setup() override;
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   void loop() override;
-  /// Border routing follows the Wi-Fi backbone; loop() does the work and sleeps in between
+  /// Border routing follows the backbone; loop() does the work and sleeps in between
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+  void on_ethernet_connect_state(bool connected) override { this->enable_loop(); }
+#else
   void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override { this->enable_loop(); }
+#endif
 #endif
   bool teardown() override;
   float get_setup_priority() const override {

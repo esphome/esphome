@@ -70,9 +70,11 @@ void OpenThreadComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Radio: Native 802.15.4");
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  ESP_LOGCONFIG(TAG, "  Border Router: ENABLED\n"
-                     "  Backbone: Wi-Fi STA\n"
-                     "  Experimental: YES");
+  ESP_LOGCONFIG(TAG,
+                "  Border Router: ENABLED\n"
+                "  Backbone: %s\n"
+                "  Experimental: YES",
+                BACKBONE_NAME);
 #endif
 }
 

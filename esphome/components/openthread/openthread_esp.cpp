@@ -10,8 +10,12 @@
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 #include "esp_openthread_border_router.h"
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#else
 #include "esphome/components/wifi/wifi_component.h"
-#ifndef USE_OPENTHREAD_RCP_UART
+#endif
+#if !defined(USE_OPENTHREAD_RCP_UART) && defined(USE_WIFI)
 #include "esp_coexist.h"
 #endif
 #endif
@@ -45,15 +49,23 @@ namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+  esp_netif_t *backbone_netif = ethernet::global_eth_component->get_esp_netif();
+#else
   esp_netif_t *backbone_netif = wifi::global_wifi_component->get_esp_netif_sta();
+#endif
   if (backbone_netif == nullptr) {
-    ESP_LOGE(TAG, "Wi-Fi STA backbone netif is not initialized");
+    ESP_LOGE(TAG, "%s backbone netif is not initialized", BACKBONE_NAME);
     this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
     this->mark_failed();
     return;
   }
   esp_openthread_set_backbone_netif(backbone_netif);
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+  ethernet::global_eth_component->add_connect_state_listener(this);
+#else
   wifi::global_wifi_component->add_connect_state_listener(this);
+#endif
 #endif
 
   // Used eventfds: netif, ot task queue, radio driver, and one more for a border router on the
@@ -161,9 +173,10 @@ void OpenThreadComponent::ot_main_() {
 
   otInstance *instance = esp_openthread_get_instance();
   bool launch_mainloop = true;
-#if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART) && defined(USE_WIFI)
   // The native 802.15.4 radio shares the RF frontend with Wi-Fi. Coexistence has to be on before
-  // the Thread network starts below, or Wi-Fi scanning and association can fail outright.
+  // the Thread network starts below, or Wi-Fi scanning and association can fail outright. Without
+  // Wi-Fi there is nothing to coexist with.
   if (const esp_err_t err = esp_coex_wifi_i154_enable(); err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to enable Wi-Fi/802.15.4 coexistence: %s", esp_err_to_name(err));
     this->mark_task_failed_(LOG_STR("Coexistence could not be enabled"));
@@ -361,14 +374,19 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 static constexpr uint32_t BORDER_ROUTER_RETRY_MS = 10000;
 
 void OpenThreadComponent::loop() {
-  // Thread starts on its own. Border routing starts once the Wi-Fi backbone has an address. When the
-  // backbone goes away the stack is told so it pauses routing on that interface; when it comes back
-  // the border router is created afresh, since the port's infra interface keeps the socket and the
-  // addresses of the backbone as it was. The Wi-Fi listener enables the loop on every link change
+  // Thread starts on its own. Border routing starts once the backbone (Wi-Fi or Ethernet) has an
+  // address. When the backbone goes away the stack is told so it pauses routing on that interface;
+  // when it comes back the border router is created afresh, since the port's infra interface keeps
+  // the socket and the addresses of the backbone as it was. The backbone's connect state listener
+  // enables the loop on every link change
   if (!this->mainloop_running_) {
     return;
   }
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+  const bool backbone_up = ethernet::global_eth_component->is_connected();
+#else
   const bool backbone_up = wifi::global_wifi_component->is_connected();
+#endif
   if (backbone_up == this->backbone_up_) {
     this->disable_loop();
     return;
@@ -385,12 +403,12 @@ void OpenThreadComponent::loop() {
   };
   if (!backbone_up) {
     if (this->border_router_started_) {
-      ESP_LOGI(TAG, "Wi-Fi backbone lost, border routing pauses");
+      ESP_LOGI(TAG, "%s backbone lost, border routing pauses", BACKBONE_NAME);
       esp_netif_t *backbone = esp_openthread_get_backbone_netif();
       // A refused report is not retried: the border router is created afresh when the backbone returns
       if (otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), false) !=
           OT_ERROR_NONE) {
-        ESP_LOGW(TAG, "Stack did not take the backbone loss, routes stay until Wi-Fi returns");
+        ESP_LOGW(TAG, "Stack did not take the backbone loss, routes stay until the %s backbone returns", BACKBONE_NAME);
       }
     }
     this->backbone_up_ = false;
@@ -398,7 +416,7 @@ void OpenThreadComponent::loop() {
     return;
   }
   if (this->border_router_started_) {
-    ESP_LOGI(TAG, "Wi-Fi backbone back, border routing restarts");
+    ESP_LOGI(TAG, "%s backbone back, border routing restarts", BACKBONE_NAME);
     // The old router stays marked as started until it is gone, so a retry tears it down first
     if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
