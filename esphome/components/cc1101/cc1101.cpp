@@ -218,6 +218,7 @@ void CC1101Component::arm_length_(uint16_t length) {
 void CC1101Component::reset_long_packet_rx_() {
   this->packet_.clear();
   this->packet_last_byte_ms_ = 0;
+  this->high_freq_.stop();
   this->arm_length_(this->packet_length_func_ != nullptr ? 0 : this->packet_length_);
 }
 
@@ -251,13 +252,16 @@ void CC1101Component::finish_long_packet_() {
   const float freq_offset = freq_offset_hz(this->state_.FREQEST);
   const uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   // No CRC check: crc_enable is rejected for long packets, CRC_OK is only set after the last payload byte.
-  // Restart RX before dispatching so a callback may change settings; swapping back keeps the reserved capacity.
+  // Restart RX before dispatching so a callback may change settings; swapping back keeps the reserved capacity
+  // unless a callback reserved a larger buffer.
   std::vector<uint8_t> packet;
   packet.swap(this->packet_);
   this->restart_long_packet_rx_();
   this->call_listeners_(packet, freq_offset, rssi_dbm(this->long_packet_rssi_), lqi);
-  packet.clear();
-  this->packet_.swap(packet);
+  if (packet.capacity() > this->packet_.capacity()) {
+    packet.clear();
+    this->packet_.swap(packet);
+  }
 }
 
 void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
@@ -291,6 +295,8 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
     // The RSSI register follows the live signal; sample it while the packet is still on air
     this->read_(Register::RSSI);
     this->long_packet_rssi_ = this->state_.RSSI;
+    // The FIFO threshold signal does not fire for the bytes after the last threshold crossing; poll until done
+    this->high_freq_.start();
   }
   // Read through an aligned buffer: for an unaligned target the ESP32 SPI driver allocates a bounce buffer
   alignas(4) uint8_t staged[RX_FIFO_SIZE];
@@ -344,24 +350,29 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
 }
 
 void CC1101Component::loop_long_packet_() {
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr) {
+  if (this->sleeping_ || this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) ||
+      this->gdo0_pin_ == nullptr) {
+    this->high_freq_.stop();
     this->disable_loop();
     return;
   }
-  // RXBYTES can be misread while bytes arrive, so read until two reads agree (datasheet section 20); the count
-  // only grows, so the smaller of two disagreeing reads is a safe lower bound
+  // RXBYTES can be misread while bytes arrive (TI SWRZ020), so only trust two consecutive reads that agree;
+  // otherwise try again on the next loop pass
   this->read_(Register::RXBYTES);
-  uint8_t previous = 0;
-  uint8_t current = this->state_.NUM_RXBYTES;
+  uint8_t rx_bytes = this->state_.RXBYTES;
   bool stable = false;
   for (uint8_t retries = RXBYTES_STABLE_RETRIES; retries > 0 && !stable; retries--) {
-    previous = current;
+    const uint8_t previous = rx_bytes;
     this->read_(Register::RXBYTES);
-    current = this->state_.NUM_RXBYTES;
-    stable = current == previous;
+    rx_bytes = this->state_.RXBYTES;
+    stable = rx_bytes == previous;
   }
-  const uint8_t rx_bytes = stable ? current : std::min(previous, current);
-  if (this->state_.RXFIFO_OVERFLOW) {
+  if (!stable) {
+    return;
+  }
+  rx_bytes = this->state_.NUM_RXBYTES;
+  // More than the FIFO holds can only be a misread; the staged drain buffer is FIFO sized
+  if (this->state_.RXFIFO_OVERFLOW || rx_bytes > RX_FIFO_SIZE) {
     ESP_LOGW(TAG, "RX FIFO overflow, discarding packet: received=%u expected=%u fifo=%u",
              static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
     this->restart_long_packet_rx_();
@@ -1107,7 +1118,15 @@ void CC1101Component::configure_packet_mode_() {
 
 void CC1101Component::set_packet_mode(bool value) {
   this->packet_mode_ = value;
-  this->configure_packet_mode_();
+#ifdef USE_CC1101_LONG_PACKET
+  // Long packet RX must drop the FIFO along with a partial packet, so go through IDLE and restart RX
+  if (this->initialized_ && this->is_long_packet_mode_()) {
+    this->reconfigure_packet_length_();
+  } else
+#endif
+  {
+    this->configure_packet_mode_();
+  }
   if (this->initialized_) {
     if (this->gdo0_pin_ != nullptr) {
       if (value) {
@@ -1126,6 +1145,8 @@ void CC1101Component::set_packet_length(uint16_t value) {
              static_cast<unsigned>(RX_FIFO_SIZE));
     return;
   }
+#else
+  this->packet_length_func_ = nullptr;
 #endif
   this->packet_length_ = value;
   this->reconfigure_packet_length_();

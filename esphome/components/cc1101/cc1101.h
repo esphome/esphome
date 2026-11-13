@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "cc1101defs.h"
@@ -147,6 +148,7 @@ class CC1101Component final : public Component,
 #ifdef USE_CC1101_LONG_PACKET
   uint16_t packet_expected_length_{0};
   int8_t long_packet_rssi_{0};  // raw RSSI register
+  HighFrequencyLoopRequester high_freq_;
 #endif
 
   // Low-level Helpers
