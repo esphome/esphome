@@ -66,7 +66,11 @@ class Dev:
             self.ser.rts = False
         self.reopen(setup=True)
         self.buf = bytearray()
-        self.log = pathlib.Path(out).open("wb")  # noqa: SIM115
+        try:
+            self.log = pathlib.Path(out).open("wb")  # noqa: SIM115
+        except OSError as exc:
+            print(f"cannot open output file: {exc}", file=sys.stderr)
+            sys.exit(2)
         self.t0 = time.time()
         self.events: list[tuple[float, int, bytes, bool]] = []
         self.loglines = 0
