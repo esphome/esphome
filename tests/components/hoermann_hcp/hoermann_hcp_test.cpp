@@ -751,4 +751,16 @@ TEST(HoermannHcpDoorCommands, VentDoorWithoutABusControllerSendsNothing) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
+// A poll whose read length the component does not model must still echo the polled counter: the controller
+// validates the counter before the payload, so 0x0000 there books a strike instead of being ignored.
+TEST(HoermannHcpReadWrite, UnknownReadLengthStillEchoesTheCounter) {
+  HoermannHcp door;
+  ASSERT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x3503, 0x0000})).has_value());
+  RegisterValues response;
+  auto status = door.on_read_holding_registers(STATE_REG, 3, response);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(response.size(), 3u);
+  EXPECT_EQ(response[0], 0x3500);  // the polled counter, not zero
+}
+
 }  // namespace esphome::hoermann_hcp::testing

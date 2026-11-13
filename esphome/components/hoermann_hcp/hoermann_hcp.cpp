@@ -255,7 +255,13 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       break;
     default:
       ESP_LOGW(TAG, "Unknown read request (read %u registers)", number_of_registers);
-      push_zeros(registers, number_of_registers);
+      // Answer it anyway, echoing the polled counter. The controller validates the counter before the payload, so a
+      // zero there is a booked strike rather than an ignored frame. This drive asks for 2, 5 and 8 registers only
+      // (~35 000 captured requests), so the branch is defensive; the reference clamps the payload but echoes the
+      // previous counter, which is rejected just the same.
+      registers.push_back(counter);
+      if (number_of_registers > 1)
+        push_zeros(registers, number_of_registers - 1);
       break;
   }
 
