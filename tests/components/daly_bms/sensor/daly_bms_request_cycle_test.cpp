@@ -116,16 +116,17 @@ TEST_F(DalyBmsRequestCycleTest, MultiFrameResponseIsReadToTheEnd) {
 // Bytes that reached the buffer while the loop was held up are part of the response, even if the line
 // looked quiet long enough: they are read first, the next request waits for the gap after them.
 TEST_F(DalyBmsRequestCycleTest, BufferedBytesHoldTheNextRequest) {
-  this->advance_to_cell_voltages_(6);
-  receive(this->uart_, response_frame(0x95));
-  loop_at(this->bms_, this->now_ + 10);
-  receive(this->uart_, response_frame(0x95));
-  loop_at(this->bms_, this->now_ + 70);
-  EXPECT_EQ(last_request(this->uart_), 0x95);
-  loop_at(this->bms_, this->now_ + 110);
-  EXPECT_EQ(last_request(this->uart_), 0x95);
-  loop_at(this->bms_, this->now_ + 120);
-  EXPECT_EQ(last_request(this->uart_), 0x96);
+  // the battery level response is complete after one frame, so only the buffered bytes hold the next request
+  receive(this->uart_, response_frame(0x90));
+  loop_at(this->bms_, 1010);
+  receive(this->uart_, response_frame(0x90));
+  loop_at(this->bms_, 1070);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1110);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1120);
+  ASSERT_EQ(request_count(this->uart_), 2u);
+  EXPECT_EQ(last_request(this->uart_), 0x91);
 }
 
 // A BMS may leave more than the quiet gap between its cell voltage frames: the next request waits until
