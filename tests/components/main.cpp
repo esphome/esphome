@@ -34,9 +34,10 @@ class ResetAppListener : public ::testing::EmptyTestEventListener {
 
   // Fail only the test that left the fast loop on, so a leak points at its culprit
   void OnTestEnd(const ::testing::TestInfo &info) override {
-    if (!this->high_frequency_at_start_ && esphome::HighFrequencyLoopRequester::is_high_frequency())
+    if (!this->high_frequency_at_start_ && esphome::HighFrequencyLoopRequester::is_high_frequency()) {
       ADD_FAILURE() << info.test_suite_name() << "." << info.name()
                     << " left a HighFrequencyLoopRequester started; stop it before the test ends";
+    }
   }
 
   bool high_frequency_at_start_{false};
