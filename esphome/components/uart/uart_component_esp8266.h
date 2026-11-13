@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "software_serial_rx_decoder.h"
+#include "software_serial_tx_frame.h"
 #include "uart_component.h"
 
 namespace esphome::uart {
