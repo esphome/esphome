@@ -20,5 +20,8 @@ def test_cards_publish_through_hub_function(
         "}"
     ) in main_cpp
     assert "reader->set_cards_publisher(esphome__reader__cards_fn);" in main_cpp
+    # Cards start OFF, as before; they only pulse ON when their tag is read
+    for card in ("card_a", "card_b"):
+        assert f"new({card}) binary_sensor::BinarySensorInitiallyOff();" in main_cpp
     # A reader without cards keeps a null publisher
     assert "idle_reader->set_cards_publisher" not in main_cpp
