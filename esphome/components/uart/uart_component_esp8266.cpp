@@ -421,10 +421,8 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   for (uint32_t pos = 0; pos <= high_from; pos++) {
     if (pos != 0)
       this->write_bit_((line >> pos) & 1, &wait, start, bit_time);
-    if ((unlock_at >> pos) & 1) {
-      frame_lock.reset();
-      frame_lock.emplace();
-    }
+    if ((unlock_at >> pos) & 1)
+      frame_lock.emplace();  // drops the held lock first, so pending interrupts run
   }
   this->write_bit_(true, &wait, start, bit_time);
   // Hold that high run with interrupts on: one that runs past it only delays the next start bit, and back-to-back
