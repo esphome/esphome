@@ -3,7 +3,7 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.tuya import CONF_FORCE_TIME_SYNC, CONFIG_SCHEMA
+from esphome.components.tuya import AUTO_LOAD, CONF_FORCE_TIME_SYNC, CONFIG_SCHEMA
 from esphome.const import CONF_TIME_ID
 
 
@@ -21,3 +21,8 @@ def test_force_time_sync_accepts_time_id() -> None:
 def test_force_time_sync_requires_time_id() -> None:
     with pytest.raises(cv.Invalid, match="force_time_sync requires time_id"):
         CONFIG_SCHEMA({CONF_FORCE_TIME_SYNC: True})
+
+
+def test_auto_load_requests_uart_for_probe_and_config() -> None:
+    assert AUTO_LOAD(None) == ["uart"]
+    assert AUTO_LOAD({"id": "x"}) == ["uart"]
