@@ -137,11 +137,6 @@ def _validate_alert(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_adc_time(value: Any) -> int:
-    value = cv.positive_time_period_microseconds(value).total_microseconds
-    return cv.enum(ADC_TIMES, int=True)(value)
-
-
 def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
     """One value for both channels, or one each; always returns the per-channel dict."""
     return cv.Any(
@@ -189,8 +184,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
                 cv.current, cv.Range(min=0.0, min_included=False)
             ),
-            cv.Optional(CONF_ADC_TIME, default="1100 us"): _per_channel(
-                validate_adc_time
+            cv.Optional(CONF_ADC_TIME, default="1100us"): _per_channel(
+                cv.time_period_enum(ADC_TIMES, unit="us")
             ),
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True

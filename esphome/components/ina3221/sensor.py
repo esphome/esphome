@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
@@ -78,11 +76,6 @@ POWER_SCHEMA = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 CURRENT_LIMIT_SCHEMA = cv.All(cv.current, cv.Range(min=0.0, min_included=False))
-
-
-def validate_adc_time(value: Any) -> int:
-    value = cv.positive_time_period_microseconds(value).total_microseconds
-    return cv.one_of(*ADC_TIMES_US, int=True)(value)
 
 
 def validate_alert_limits(config: ConfigType) -> ConfigType:
@@ -173,11 +166,15 @@ CONFIG_SCHEMA = cv.All(
                 *ADC_AVERAGING, int=True
             ),
             cv.Optional(CONF_ADC_TIME, default="8244us"): cv.Any(
-                validate_adc_time,
+                cv.time_period_enum(ADC_TIMES_US, unit="us"),
                 cv.Schema(
                     {
-                        cv.Required(CONF_BUS_VOLTAGE): validate_adc_time,
-                        cv.Required(CONF_SHUNT_VOLTAGE): validate_adc_time,
+                        cv.Required(CONF_BUS_VOLTAGE): cv.time_period_enum(
+                            ADC_TIMES_US, unit="us"
+                        ),
+                        cv.Required(CONF_SHUNT_VOLTAGE): cv.time_period_enum(
+                            ADC_TIMES_US, unit="us"
+                        ),
                     }
                 ),
             ),
