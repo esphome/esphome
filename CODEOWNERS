@@ -247,6 +247,7 @@ esphome/components/ft63x6/* @gpambrozio
 esphome/components/fusb302b/* @remcom
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
+esphome/components/genibus/* @tomwellnitz
 esphome/components/gl_r01_i2c/* @pkejval
 esphome/components/globals/* @esphome/core
 esphome/components/gp2y1010au0f/* @zry98
