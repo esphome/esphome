@@ -67,7 +67,7 @@ bool UFireECComponent::set_solution_(float solution, float temperature) {
 
 void UFireECComponent::set_compensation_(float temperature) { this->write_data_(REGISTER_COMPENSATION, temperature); }
 
-void UFireECComponent::set_coefficient_(float coefficient) { this->write_data_(REGISTER_COEFFICENT, coefficient); }
+void UFireECComponent::set_coefficient_(float coefficient) { this->write_data_(REGISTER_COEFFICIENT, coefficient); }
 
 void UFireECComponent::set_temperature_(float temperature) { this->write_data_(REGISTER_TEMP, temperature); }
 
