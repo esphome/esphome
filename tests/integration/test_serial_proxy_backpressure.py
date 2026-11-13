@@ -12,6 +12,8 @@ its log line before proceeding.
 
 from __future__ import annotations
 
+import sys
+
 from aioesphomeapi import api_pb2
 import pytest
 
@@ -39,6 +41,10 @@ assert STREAM_BYTES % STREAM_CHUNK == 0
 assert STREAM_FILLER >= STREAM_MODULUS
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="other kernels grow loopback buffers past the pinned size, so the pipe never fills",
+)
 @pytest.mark.asyncio
 async def test_serial_proxy_backpressure(
     yaml_config: str,
