@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "esphome/core/helpers.h"
+
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 
 namespace esphome::web_server_base {
@@ -61,9 +63,10 @@ bool GuardMiddlewareHandler::check_auth_(AsyncWebServerRequest *request) {
   // Checked here, not with the library's authenticate()/requestAuthentication(): those also link its
   // Digest code, since the scheme is only known at run time there
   const String &challenge = request->authChallenge();
-  const bool success = request->authType() == AsyncAuthType::AUTH_BASIC &&
-                       basic_auth_matches(challenge.c_str(), challenge.length(), credentials.basic_auth_hash,
-                                          strlen(credentials.basic_auth_hash));
+  const size_t hash_len = strlen(credentials.basic_auth_hash);
+  const bool success = request->authType() == AsyncAuthType::AUTH_BASIC && challenge.length() == hash_len &&
+                       constant_time_equals(reinterpret_cast<const uint8_t *>(challenge.c_str()),
+                                            reinterpret_cast<const uint8_t *>(credentials.basic_auth_hash), hash_len);
   if (!success) {
     // The challenge the library sent, with the strings kept in flash on ESP8266
     AsyncWebServerResponse *response = request->beginResponse(401);

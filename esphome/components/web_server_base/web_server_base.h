@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "esphome/core/progmem.h"
-#include "basic_auth.h"
 #include "origin.h"
 
 #if USE_ESP32
