@@ -6,6 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
@@ -75,6 +76,11 @@ class SX1509Component final : public Component,
 #endif
   void setup_led_driver(uint8_t pin);
   void set_led_driver_frequency(LedDriverFrequency frequency) { this->led_driver_frequency_ = frequency; }
+#ifdef SX1509_LED_CHANNEL_COUNT
+  /// setup() turns `pin` into an LED driver output and writes `initial_duty`, in registration order.
+  void register_led_channel(uint8_t pin, uint8_t initial_duty) { this->led_channels_.push_back({pin, initial_duty}); }
+  void write_led(uint8_t pin, float state) { this->set_pin_value(pin, static_cast<uint8_t>(roundf(state * 255))); }
+#endif
 
  protected:
   // Virtual methods from CachedGpioExpander — names come from base class
@@ -102,6 +108,14 @@ class SX1509Component final : public Component,
 
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
+
+#ifdef SX1509_LED_CHANNEL_COUNT
+  struct LedChannel {
+    uint8_t pin;
+    uint8_t initial_duty;
+  };
+  StaticVector<LedChannel, SX1509_LED_CHANNEL_COUNT> led_channels_;
+#endif
 
   /// 16-bit update_register() for the B/A register pairs
   bool update_register_16_(uint8_t a_register, uint16_t mask, uint16_t value);
