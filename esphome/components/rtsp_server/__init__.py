@@ -129,4 +129,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_RTSP_SERVER_AUDIO")
         mic_source = await microphone.microphone_source_to_code(mic)
         cg.add(var.set_microphone_source(mic_source))
-        cg.add(var.set_audio_codec(AUDIO_CODECS[config.get(CONF_AUDIO_CODEC, "L16")]))
+        cg.add_optional(var.set_audio_codec, config.get(CONF_AUDIO_CODEC))

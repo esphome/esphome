@@ -587,6 +587,10 @@ void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
 
 bool RTSPSession::queue_next_packet_(uint32_t now) {
 #ifdef USE_RTSP_SERVER_AUDIO
+  // A frame whose last packet is written is released first, so it is not held behind audio or a report;
+  // this runs only once the previous packet is written.
+  if (this->frame_ != nullptr && this->frame_sent_ >= this->jpeg_.scan_len)
+    this->frame_.reset();
   if (this->queue_sender_reports_(now))
     return true;
   // Audio and video packets alternate while both are waiting: audio is not delayed behind a whole frame, and a

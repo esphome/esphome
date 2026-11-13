@@ -2,6 +2,7 @@
 
 #ifdef USE_CAMERA
 
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
 #include <utility>
@@ -27,6 +28,9 @@ static constexpr uint8_t RTP_PAYLOAD_TYPE_PCMA = 8;
 static constexpr uint8_t RTP_PAYLOAD_TYPE_L16 = 96;  // dynamic, described by the SDP
 static constexpr uint32_t G711_SAMPLE_RATE = 8000;
 static constexpr size_t G711_SAMPLES_PER_PACKET = G711_SAMPLE_RATE * AUDIO_PACKET_MS / 1000;
+// The microphone's capture times may run this far ahead of its sample count before the difference counts as
+// audio it lost (a source that stopped and resumed, such as a USB microphone that reconnected).
+static constexpr int64_t CAPTURE_JUMP_US = 50000;
 #endif
 
 void RTSPServer::socket_failed_(const char *what) {
@@ -120,26 +124,51 @@ void RTSPServer::on_audio_(const microphone::AudioCapture &capture) {
   const audio::AudioStreamInfo &info = capture.stream_info;
   const auto samples = static_cast<uint32_t>(info.bytes_to_samples(capture.data.size()));
   // The esp_timer time of the chunk's first sample; without one, it ended about now.
-  const int64_t first_us = capture.capture_time_us != 0
-                               ? capture.capture_time_us
-                               : esp_timer_get_time() - static_cast<int64_t>(samples) * 1000000 /
-                                                            static_cast<int64_t>(info.get_sample_rate());
+  const int64_t rate = info.get_sample_rate();
+  const int64_t duration_us = static_cast<int64_t>(samples) * 1000000 / rate;
+  const bool timed = capture.capture_time_us != 0;
+  const int64_t first_us = timed ? capture.capture_time_us : esp_timer_get_time() - duration_us;
   {
     LockGuard guard(this->capture_lock_);
-    // A full ring buffer drops the new audio, so what it holds stays contiguous and the gap has one position.
+    // A callback that was already running when capture stopped can deliver its chunk after the restart.
+    if (timed && first_us + duration_us <= this->restart_us_)
+      return;
+    // Only real capture times show an outage; delivery times also move with task scheduling.
+    if (timed && this->anchored_) {
+      const int64_t expected_us =
+          this->anchor_us_ + static_cast<int64_t>(this->captured_ - this->anchor_sample_) * 1000000 / rate;
+      if (first_us - expected_us > CAPTURE_JUMP_US) {
+        const auto lost = static_cast<uint32_t>((first_us - expected_us) * rate / 1000000);
+        this->add_gap_(this->captured_, lost);
+        this->captured_ += lost;
+      }
+    }
+    // A full ring buffer drops the new audio, so what it holds stays contiguous and each loss has one position.
     const size_t written = this->ring_buffer_->write_without_replacement(capture.data.data(), capture.data.size());
     const auto kept = static_cast<uint32_t>(info.bytes_to_samples(written));
-    if (kept < samples) {
-      if (this->gap_len_ == 0)
-        this->gap_at_ = this->captured_ + kept;
-      this->gap_len_ += samples - kept;
-    }
+    if (kept < samples)
+      this->add_gap_(this->captured_ + kept, samples - kept);
     this->anchor_us_ = first_us;
     this->anchor_sample_ = this->captured_;
     this->captured_ += samples;
+    this->anchored_ |= timed;
   }
   // Drain it promptly even with a long loop_interval; the ring buffer holds only 160 ms.
   App.wake_loop_threadsafe();
+}
+
+void RTSPServer::add_gap_(uint32_t at, uint32_t len) {
+  if (this->gap_count_ > 0) {
+    CaptureGap &last = this->gaps_[this->gap_count_ - 1];
+    // A loss that follows the last one directly, or one with no room left, extends it; the audio between two
+    // merged losses is then placed early by the later one, which only a main loop stalled several times over
+    // before it drains the buffer can cause.
+    if (last.at + last.len == at || this->gap_count_ == this->gaps_.size()) {
+      last.len += len;
+      return;
+    }
+  }
+  this->gaps_[this->gap_count_++] = {at, len};
 }
 
 void RTSPServer::read_audio_() {
@@ -152,11 +181,12 @@ void RTSPServer::read_audio_() {
     uint32_t anchor_sample;
     {
       LockGuard guard(this->capture_lock_);
-      // A gap that starts within this packet is placed before it, at most a packet early.
-      if (this->gap_len_ != 0 &&
-          static_cast<int32_t>(this->gap_at_ - this->next_sample_) < static_cast<int32_t>(samples)) {
-        this->next_sample_ += this->gap_len_;
-        this->gap_len_ = 0;
+      // A loss that starts within this packet is placed before it, at most a packet early.
+      while (this->gap_count_ > 0 &&
+             static_cast<int32_t>(this->gaps_[0].at - this->next_sample_) < static_cast<int32_t>(samples)) {
+        this->next_sample_ += this->gaps_[0].len;
+        std::copy(this->gaps_.begin() + 1, this->gaps_.begin() + this->gap_count_, this->gaps_.begin());
+        this->gap_count_--;
       }
       anchor_us = this->anchor_us_;
       anchor_sample = this->anchor_sample_;
@@ -222,13 +252,16 @@ void RTSPServer::loop() {
   if (audio != this->capturing_) {
     this->capturing_ = audio;
     if (audio) {
-      // The source ignores the microphone until start(), so nothing writes while the buffer is reset.
-      this->ring_buffer_->reset();
       {
+        // Under the lock, so a callback still running from before the stop cannot write in between; one that
+        // runs after this is dropped by its capture time.
         LockGuard guard(this->capture_lock_);
+        this->ring_buffer_->reset();
         this->captured_ = this->next_sample_;
         this->anchor_sample_ = this->next_sample_;
-        this->gap_len_ = 0;
+        this->gap_count_ = 0;
+        this->anchored_ = false;
+        this->restart_us_ = esp_timer_get_time();
       }
       this->microphone_source_->start();
     } else {

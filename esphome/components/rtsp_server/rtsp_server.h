@@ -23,6 +23,7 @@
 #endif
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "rtsp_session.h"
 
 namespace esphome::rtsp_server {
@@ -53,6 +54,8 @@ class RTSPServer : public Component, public camera::CameraListener {
   void setup_audio_();
   /// Runs on the microphone's task: buffers the audio and records what is needed to time it.
   void on_audio_(const microphone::AudioCapture &capture);
+  /// Records `len` lost samples at stream position `at`; called with capture_lock_ held.
+  void add_gap_(uint32_t at, uint32_t len);
   /// Moves whole packets of captured audio from the ring buffer into the track's slots.
   void read_audio_();
 #endif
@@ -69,11 +72,18 @@ class RTSPServer : public Component, public camera::CameraListener {
   // Guards the capture bookkeeping below, shared between the microphone's task and the main loop. Positions count
   // samples of the whole captured stream, including any the full ring buffer dropped.
   Mutex capture_lock_;
+  struct CaptureGap {
+    uint32_t at;   // position of the first lost sample
+    uint32_t len;  // samples lost
+  };
   int64_t anchor_us_{0};       // capture time (esp_timer) of the sample at anchor_sample_
+  int64_t restart_us_{0};      // when capture last started; older chunks are from before it
   uint32_t anchor_sample_{0};  // position of the latest chunk's first sample
-  uint32_t captured_{0};       // samples received from the microphone
-  uint32_t gap_at_{0};         // position of the first sample dropped since the main loop last took the gap
-  uint32_t gap_len_{0};        // samples dropped since then
+  uint32_t captured_{0};       // samples received from the microphone, plus those it lost
+  // Losses the main loop has not reached yet, oldest first.
+  std::array<CaptureGap, 4> gaps_{};
+  uint8_t gap_count_{0};
+  bool anchored_{false};  // a chunk with a capture time arrived since the restart
   // Main loop only: position of the next sample read from the ring buffer.
   uint32_t next_sample_{0};
   AudioTrack audio_track_;

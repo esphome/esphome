@@ -36,6 +36,11 @@ class RTSPSessionUnderTest : public RTSPSession {
   bool audio_in_flight() const { return this->output_ == Output::OUTPUT_AUDIO && this->iov_pos_ < this->iov_count_; }
   uint32_t audio_in_flight_index() const { return this->audio_in_flight_; }
   uint16_t filler_len() const { return this->filler_len_; }
+  // The frame's last packet is written, yet the frame is kept while something else is queued.
+  bool holds_sent_frame() const {
+    return this->frame_ != nullptr && this->frame_sent_ >= this->jpeg_.scan_len &&
+           this->output_ != Output::OUTPUT_FRAME;
+  }
 };
 
 class RTSPSessionTest : public ::testing::Test {
@@ -413,6 +418,8 @@ class RTSPAudioSessionTest : public RTSPSessionTest {
     ASSERT_TRUE(this->session_.is_playing());
   }
 
+  void check_g711_padding(AudioCodec codec, char silence);
+
   std::vector<uint8_t> slots_;
   AudioTrack track_;
   char sdp_[256];
@@ -661,8 +668,8 @@ TEST_F(RTSPAudioSessionTest, ReusedSlotInFlightIsPaddedWithZeros) {
   EXPECT_EQ(static_cast<uint8_t>(packets.back().data[RTP_HEADER_LEN]), static_cast<uint8_t>(this->track_.produced - 1));
 }
 
-TEST_F(RTSPAudioSessionTest, ReusedG711SlotIsPaddedWithSilence) {
-  this->track_.filler = silence_fill(AudioCodec::AUDIO_CODEC_PCMA);  // zeros would decode as a loud click
+void RTSPAudioSessionTest::check_g711_padding(AudioCodec codec, char silence) {
+  this->track_.filler = silence_fill(codec);  // zeros would decode as a loud click
   this->reopen_over_tcp();
   this->session_.set_audio_track(&this->track_);
   this->play(false, true);
@@ -687,10 +694,18 @@ TEST_F(RTSPAudioSessionTest, ReusedG711SlotIsPaddedWithSilence) {
   bool padded = false;
   for (const auto &packet : on_channel(all, AUDIO_RTP_CHANNEL)) {
     const size_t data_end = packet.data.find_first_not_of(static_cast<char>(in_flight), RTP_HEADER_LEN);
-    if (data_end != std::string::npos && packet.data.find_first_not_of('\xD5', data_end) == std::string::npos)
+    if (data_end != std::string::npos && packet.data.find_first_not_of(silence, data_end) == std::string::npos)
       padded = true;
   }
   EXPECT_TRUE(padded);
+}
+
+TEST_F(RTSPAudioSessionTest, ReusedPcmaSlotIsPaddedWithSilence) {
+  this->check_g711_padding(AudioCodec::AUDIO_CODEC_PCMA, '\xD5');
+}
+
+TEST_F(RTSPAudioSessionTest, ReusedPcmuSlotIsPaddedWithSilence) {
+  this->check_g711_padding(AudioCodec::AUDIO_CODEC_PCMU, '\xFF');
 }
 
 TEST_F(RTSPAudioSessionTest, SlowReaderStillGetsVideo) {
@@ -711,6 +726,7 @@ TEST_F(RTSPAudioSessionTest, SlowReaderStillGetsVideo) {
   // kept the frame from counting as stalled.
   std::string stream;
   size_t throttled_from = 0;
+  size_t held = 0;
   for (int i = 0; i < 1500; i++) {
     if (i == 300)
       throttled_from = stream.size();  // the socket has long been backed up
@@ -723,7 +739,9 @@ TEST_F(RTSPAudioSessionTest, SlowReaderStillGetsVideo) {
     ssize_t n = ::recv(this->peer_fd_, buf, sizeof(buf), MSG_DONTWAIT);
     if (n > 0)
       stream.append(buf, static_cast<size_t>(n));
+    held += this->session_.holds_sent_frame();
   }
+  EXPECT_EQ(held, 0u) << "a sent frame was held behind audio";
   const size_t throttled_to = stream.size();
   for (int i = 0; i < 3000 && image.use_count() > 1; i++) {
     stream += this->receive();
