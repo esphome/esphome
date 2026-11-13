@@ -1035,7 +1035,7 @@ inline float pow10_int(int8_t exp) {
 }
 
 /// 10^n by squaring. Exact for integer types while it fits, for float up to 10^10 and for double up to 10^22;
-/// parse_float_prefix's error bound counts the roundings of this order of multiplications beyond those.
+/// str_to_float's error bound counts the roundings of this order of multiplications beyond those.
 template<typename T> constexpr T pow10(uint32_t n) {
   T result = 1;
   T base = 10;

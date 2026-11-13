@@ -335,7 +335,7 @@ inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
   return internal::parse_number<long>(str, pos, base, std::strtol);
 }
 inline float stof(const StringRef &str, size_t *pos = nullptr) {
-  return internal::parse_number<float>(str, pos, parse_float_prefix);
+  return internal::parse_number<float>(str, pos, str_to_float);
 }
 inline double stod(const StringRef &str, size_t *pos = nullptr) {
   return internal::parse_number<double>(str, pos, std::strtod);
