@@ -66,6 +66,8 @@ class TcpClientLink {
   /// Restart the idle clock. A consumer that cannot take more bytes calls this,
   /// so a full buffer is not treated as a quiet peer.
   void note_io() { this->last_io_ms_ = App.get_loop_component_start_time(); }
+  /// When a byte last moved, or note_io() last ran.
+  uint32_t last_io() const { return this->last_io_ms_; }
   /// Close when no byte has moved for idle_timeout(). Inline: the close runs only once that time has passed.
   void check_idle() {
     if (this->idle_timeout_ms_ != 0 && this->connected_ &&
