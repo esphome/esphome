@@ -103,6 +103,7 @@ class CC1101Component final : public Component,
   bool initialized_{false};
   bool sleeping_{false};
   bool registers_dirty_{false};
+  bool transmitting_{false};  // begin_tx() until begin_rx(), reset() or transmit_packet()
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
@@ -133,6 +134,12 @@ class CC1101Component final : public Component,
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
   bool enter_calibrated_(State target_state, Command cmd);
   void enter_idle_();
+  /// Leaves async TX started by begin_tx(); does nothing otherwise
+  void end_tx_();
+  void attach_gdo0_interrupt_();
+  bool is_packet_mode_() const {
+    return this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
+  }
   bool enter_rx_();
   bool enter_tx_();
 };
