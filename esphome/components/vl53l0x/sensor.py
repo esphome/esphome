@@ -9,8 +9,6 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_TIMEOUT,
     ICON_ARROW_EXPAND_VERTICAL,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
 )
 from esphome.core import TimePeriodMicroseconds
 from esphome.types import ConfigType
@@ -45,11 +43,7 @@ def check_timeout(value: Any) -> TimePeriodMicroseconds:
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        VL53L0XSensor,
-        unit_of_measurement=UNIT_METER,
-        icon=ICON_ARROW_EXPAND_VERTICAL,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
+        VL53L0XSensor, kind=sensor.LENGTH_M, icon=ICON_ARROW_EXPAND_VERTICAL
     )
     .extend(
         {

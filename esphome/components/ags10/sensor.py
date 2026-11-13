@@ -13,7 +13,6 @@ from esphome.const import (
     ICON_RADIATOR,
     ICON_RESTART,
     STATE_CLASS_MEASUREMENT,
-    UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
 )
 from esphome.types import ConfigType
@@ -41,10 +40,8 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_RESISTANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
+                kind=sensor.RESISTANCE,
                 icon=ICON_RESTART,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }

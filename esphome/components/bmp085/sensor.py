@@ -1,15 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PRESSURE,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-)
+from esphome.const import CONF_PRESSURE, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -24,17 +16,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BMP085Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE),
         }
     )
     .extend(cv.polling_component_schema("60s"))

@@ -9,16 +9,6 @@ from esphome.const import (
     CONF_POWER_FACTOR,
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -32,33 +22,19 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(HLW8032Component),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_APPARENT_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.APPARENT_POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER_FACTOR,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER_FACTOR, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
             cv.Optional(CONF_VOLTAGE_DIVIDER, default=1.720): cv.positive_float,

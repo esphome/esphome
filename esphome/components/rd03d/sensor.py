@@ -9,11 +9,8 @@ from esphome.const import (
     CONF_SPEED,
     CONF_X,
     CONF_Y,
-    DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
-    UNIT_MILLIMETER,
 )
 from esphome.types import ConfigType
 
@@ -27,40 +24,18 @@ UNIT_MILLIMETER_PER_SECOND = "mm/s"
 
 TARGET_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_X): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Y): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_X): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
+        cv.Optional(CONF_Y): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
         cv.Optional(CONF_SPEED): sensor.sensor_schema(
             unit_of_measurement=UNIT_MILLIMETER_PER_SECOND,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_SPEED,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_RESOLUTION): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_DISTANCE): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
+        cv.Optional(CONF_RESOLUTION): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
         cv.Optional(CONF_ANGLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            accuracy_decimals=1,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ANGLE, accuracy_decimals=1
         ),
     }
 )

@@ -5,14 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -57,18 +51,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SHT4XComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

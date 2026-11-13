@@ -5,11 +5,9 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TVOC,
-    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
 )
 from esphome.types import ConfigType
 
@@ -24,12 +22,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(iAQCore),
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(kind=sensor.CARBON_DIOXIDE),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 accuracy_decimals=0,
