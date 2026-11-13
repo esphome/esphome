@@ -102,10 +102,9 @@ class RTL87xxBLETracker : public Component,
     return {.active_scan = true, .merges_scan_response = true, .gatt = false, .scan_mode_switch = true};
   }
   void get_adapter_mac(uint8_t out[MAC_ADDRESS_SIZE]);
-  bool scan_running() { return this->scan_running_; }
-  /// True while a controller-refused stop is being retried; the running flag
-  /// stays set then, so actions must not treat the scan as simply running.
-  bool stop_pending() const { return this->stop_pending_; }
+  /// False while a controller-refused stop is being retried: the scan is ending,
+  /// so a start_scan action falls through to start_scan(), which latches the request.
+  bool scan_running() { return this->scan_running_ && !this->stop_pending_; }
   bool scan_active() { return this->scan_active_; }
   bool request_scan_mode(bool active);
 
