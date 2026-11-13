@@ -22,8 +22,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+    )
     await cg.register_component(var, config)
-
-    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
-    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])

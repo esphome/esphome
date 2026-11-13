@@ -95,7 +95,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #if defined(USE_ESP8266) || \
     (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
     defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
-  void await_target_time_();
+  void await_target_time_(int32_t lead_us = 0);
   uint32_t target_time_{0};
 #endif
 #if defined(USE_ESP8266) || \
@@ -106,6 +106,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
 
   void space_(uint32_t usec);
+  void write_at_target_(bool value);
 #endif
 #ifdef USE_RTL87XX
   // Carrier frequency the PWM is currently configured for; 0 = not yet configured

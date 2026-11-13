@@ -15,6 +15,8 @@ button:
     restart:
       name: LD2450 Restart
       entity_category: config
+    xy_unfiltered:
+      name: LD2450 XY Unfiltered
 
 sensor:
   - platform: ld2450

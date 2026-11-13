@@ -1,0 +1,39 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+switch:
+  - platform: template
+    id: valve_switch
+    optimistic: true
+
+sprinkler:
+  - id: ctrl
+    main_switch: Sprinklers
+    auto_advance_switch: Sprinklers Auto Advance
+    valves:
+      - valve_switch: Valve 0
+        run_duration: 10s
+        valve_switch_id: valve_switch
+      - valve_switch: Valve 1
+        run_duration: 10s
+        valve_switch_id: valve_switch
+
+script:
+  - id: valve_only
+    then:
+      - sprinkler.start_single_valve:
+          id: ctrl
+          valve_number: 1
+  - id: valve_and_duration
+    then:
+      - sprinkler.start_single_valve:
+          id: ctrl
+          valve_number: 0
+          run_duration: 600s
+  - id: shutdown_and_resume
+    then:
+      - sprinkler.shutdown: ctrl
+      - sprinkler.resume_or_start_full_cycle: ctrl
