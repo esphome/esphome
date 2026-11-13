@@ -23,6 +23,7 @@ from esphome.components.esp32 import (
 from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zigbee import DOMAIN as ZIGBEE_DOMAIN
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPENTHREAD
 from esphome.core import CORE
@@ -32,6 +33,10 @@ from esphome.types import ConfigType
 from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"tick_overflow_guard.cpp": "USE_ESP32_PM_TICK_OVERFLOW_GUARD"}
+)
 
 CODEOWNERS = ["@rwrozelle"]
 DEPENDENCIES = ["esp32"]
