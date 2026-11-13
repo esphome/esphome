@@ -143,6 +143,48 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 }
 #endif  // USE_ESP8266
 
+// Kept apart from the inlined copy in log_message_to_buffer_and_send_(), which stays as it was for formatted lines
+void HOT Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf) {
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  if (!this->boot_log_done_)
+    this->boot_log_capture_(level, tag, buf);
+#endif
+  this->notify_listeners_(level, tag, buf);
+  if (this->baud_rate_ > 0)
+    this->write_to_console_(buf);
+}
+
+bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *msg) {
+  if (level > this->level_for(tag))
+    return true;
+  bool &recursion_guard = this->main_loop_recursion_guard_();
+  if (recursion_guard || !this->is_main_task_())
+    return false;
+  const size_t len = strlen(msg);
+  if (memchr(msg, '%', len) != nullptr)
+    return false;
+  RecursionGuard guard(recursion_guard);
+  LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+  buf.write_header(level, tag, line, nullptr);
+  buf.write_unformatted_body(msg, len);
+  this->send_unformatted_line_(level, tag, buf);
+  return true;
+}
+
+#ifdef USE_ESP8266
+bool Logger::log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg) {
+  if (level > this->level_for(tag) || global_recursion_guard_)
+    return true;
+  RecursionGuard guard(global_recursion_guard_);
+  LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+  buf.write_header(level, tag, line, nullptr);
+  if (!buf.write_unformatted_body_p(reinterpret_cast<PGM_P>(msg)))
+    return false;
+  this->send_unformatted_line_(level, tag, buf);
+  return true;
+}
+#endif  // USE_ESP8266
+
 #if defined(USE_LOGGER_RUNTIME_TAG_LEVELS) || defined(USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS)
 // Level for tag from a per-tag map, or fallback when the tag has none; tags may live in flash
 static inline uint8_t tag_level(const std::map<const char *, uint8_t, CStrCompare> &levels, const char *tag,
