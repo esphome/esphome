@@ -1,4 +1,5 @@
 #include "daly_bms.h"
+#include <algorithm>
 #include <vector>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -108,10 +109,15 @@ void DalyBmsComponent::loop() {
 }
 
 bool DalyBmsComponent::response_complete_() const {
-  if (this->last_request_ != DALY_REQUEST_CELL_VOLTAGE)
-    return this->frames_received_ != 0;
-  // until the status response gave the cell count, the cell voltages wait for the timeout
-  return this->cell_frames_ != 0 && this->frames_received_ >= this->cell_frames_;
+  switch (this->last_request_) {
+    case DALY_REQUEST_CELL_VOLTAGE:
+      // until the status response gave the cell count, the cell voltages wait for the timeout
+      return this->cell_frames_ != 0 && this->frames_received_ >= this->cell_frames_;
+    case DALY_REQUEST_TEMPERATURE:
+      return this->frames_received_ >= this->temperature_frames_;
+    default:
+      return this->frames_received_ != 0;
+  }
 }
 
 void DalyBmsComponent::request_data_(uint8_t data_id) {
@@ -148,8 +154,10 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
         // only a valid frame answering the last request counts; an echoed request or a late answer does not
         if (it[2] == this->last_request_)
           this->frames_received_++;
-        if (it[2] == DALY_REQUEST_STATUS)
+        if (it[2] == DALY_REQUEST_STATUS) {
           this->cell_frames_ = (it[4] + 2) / 3;  // three cells per cell voltage frame
+          this->temperature_frames_ = std::max((it[5] + 6) / 7, 1);
+        }
         switch (it[2]) {
 #ifdef USE_SENSOR
           case DALY_REQUEST_BATTERY_LEVEL:

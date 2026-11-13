@@ -23,9 +23,9 @@ void loop_at(DalyBmsComponent &bms, uint32_t now) {
   bms.loop();
 }
 
-// A frame with the given address and first payload byte, and a valid checksum.
-std::vector<uint8_t> frame(uint8_t address, uint8_t data_id, uint8_t first = 0) {
-  std::vector<uint8_t> frame{0xA5, address, data_id, 0x08, first, 0, 0, 0, 0, 0, 0, 0};
+// A frame with the given address and first two payload bytes, and a valid checksum.
+std::vector<uint8_t> frame(uint8_t address, uint8_t data_id, uint8_t first = 0, uint8_t second = 0) {
+  std::vector<uint8_t> frame{0xA5, address, data_id, 0x08, first, second, 0, 0, 0, 0, 0, 0};
   frame.push_back(sum_bytes(frame.data(), frame.size()));
   return frame;
 }
@@ -127,6 +127,35 @@ TEST_F(DalyBmsRequestCycleTest, BufferedBytesHoldTheNextRequest) {
   loop_at(this->bms_, 1120);
   ASSERT_EQ(request_count(this->uart_), 2u);
   EXPECT_EQ(last_request(this->uart_), 0x91);
+}
+
+// A partly received frame holds the next request, even after the quiet gap, until the receive reset drops it.
+TEST_F(DalyBmsRequestCycleTest, PartialFrameHoldsTheNextRequest) {
+  receive(this->uart_, response_frame(0x90));
+  loop_at(this->bms_, 1010);
+  receive(this->uart_, {0xA5, 0x01, 0x90, 0x08, 0x00});
+  loop_at(this->bms_, 1020);
+  loop_at(this->bms_, 1080);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1220);
+  ASSERT_EQ(request_count(this->uart_), 2u);
+  EXPECT_EQ(last_request(this->uart_), 0x91);
+}
+
+// More than seven probes take more than one temperature frame: the next cycle waits for all of them.
+TEST_F(DalyBmsRequestCycleTest, TemperaturesWaitForEveryFrame) {
+  this->advance_to_(0x94);
+  receive(this->uart_, frame(0x01, 0x94, 16, 8));
+  this->advance_to_(0x96);
+  this->bms_.update();
+  receive(this->uart_, response_frame(0x96));
+  for (uint32_t t = 10; t <= 80; t += 10)
+    loop_at(this->bms_, this->now_ + t);
+  EXPECT_EQ(last_request(this->uart_), 0x96);
+  receive(this->uart_, response_frame(0x96));
+  loop_at(this->bms_, this->now_ + 90);
+  loop_at(this->bms_, this->now_ + 150);
+  EXPECT_EQ(last_request(this->uart_), 0x90);
 }
 
 // A BMS may leave more than the quiet gap between its cell voltage frames: the next request waits until

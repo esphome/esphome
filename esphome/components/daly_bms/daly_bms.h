@@ -93,6 +93,8 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   uint8_t frames_received_{0};
   // frames of a cell voltage response, from the cell count in the status response; 0 until it is known
   uint8_t cell_frames_{0};
+  // frames of a temperature response, seven probes per frame
+  uint8_t temperature_frames_{1};
   uint8_t last_request_{0};
   // index of the next request of the cycle
   uint8_t next_request_{0};
