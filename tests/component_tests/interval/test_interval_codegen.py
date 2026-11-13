@@ -6,6 +6,8 @@ import re
 
 import pytest
 
+from tests.component_tests.helpers import constructed, delayed_automation
+
 CONFIG = "interval_codegen.yaml"
 
 
@@ -17,43 +19,47 @@ def main_cpp(
     return generate_main(component_config_path(CONFIG))
 
 
-def _constructed(main_cpp: str, var: str) -> str:
-    match = re.search(rf"new\({var}\) ([^;]+);", main_cpp)
-    assert match is not None, var
-    return match.group(1)
+def _callback(var: str, startup_delay: int = 0) -> str:
+    if startup_delay:
+        return (
+            f"interval::DelayedIntervalCallback<esphome__{var}__fn, {startup_delay}>()"
+        )
+    return f"interval::IntervalCallback<esphome__{var}__fn>()"
 
 
 @pytest.mark.parametrize(
     ("var", "expected", "update_interval"),
     [
-        ("interval_intervaltrigger_id", "interval::IntervalTrigger()", 1000),
+        ("interval_intervaltrigger_id", _callback("interval_intervaltrigger_id"), 1000),
         (
             "interval_intervaltrigger_id_2",
-            "interval::DelayedIntervalTrigger(5000)",
+            _callback("interval_intervaltrigger_id_2", 5000),
             2000,
         ),
-        ("interval_intervaltrigger_id_3", "interval::IntervalTrigger()", 3000),
+        (
+            "interval_intervaltrigger_id_3",
+            _callback("interval_intervaltrigger_id_3"),
+            3000,
+        ),
         ("named_interval", "interval::DelayedIntervalTrigger(3000)", 4000),
-        ("interval_intervaltrigger_id_4", "interval::IntervalTrigger()", 5000),
+        (
+            "interval_intervaltrigger_id_4",
+            _callback("interval_intervaltrigger_id_4"),
+            5000,
+        ),
     ],
 )
 def test_interval_constructed(
     main_cpp: str, var: str, expected: str, update_interval: int
 ) -> None:
     """Each interval is built with its startup delay, if any, and gets its update interval."""
-    assert _constructed(main_cpp, var) == expected
+    assert constructed(main_cpp, var) == expected
     assert f"{var}->set_update_interval({update_interval});" in main_cpp
 
 
-def test_interval_delay_keeps_automation(main_cpp: str) -> None:
-    """A delay needs the Automation of separate actions."""
-    automation = re.search(
-        r"new\((\w+)\) Automation<>\(interval_intervaltrigger_id_3\);", main_cpp
-    )
-    assert automation is not None
-    assert re.search(
-        rf"{automation.group(1)}->add_action\(delayaction_id\w*\);", main_cpp
-    )
+def test_interval_delay_triggers_automation(main_cpp: str) -> None:
+    """A delay keeps the Automation of separate actions, which the function triggers."""
+    delayed_automation(main_cpp, "esphome__interval_intervaltrigger_id_3__fn")
 
 
 def test_interval_registration_order(main_cpp: str) -> None:
