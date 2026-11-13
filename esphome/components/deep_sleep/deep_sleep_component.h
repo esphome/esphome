@@ -145,9 +145,9 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
+  SLOT_LIST_REQUIRES(DEEP_SLEEP_WAKEUP_PIN_COUNT)
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
-    this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
+    this->wakeup_pins_.push_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
 #endif  // USE_BK72XX
 
@@ -204,10 +204,6 @@ class DeepSleepComponent final : public Component {
 
   optional<uint64_t> sleep_duration_;
 
-#ifdef USE_BK72XX
-  FixedVector<WakeUpPinItem> wakeup_pins_;
-#endif  // USE_BK72XX
-
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
@@ -224,6 +220,10 @@ class DeepSleepComponent final : public Component {
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
+#ifdef USE_BK72XX
+  // Last, so the inline storage does not push the other members past short load offsets
+  [[no_unique_address]] SlotList<WakeUpPinItem, DEEP_SLEEP_WAKEUP_PIN_COUNT> wakeup_pins_;
+#endif
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
