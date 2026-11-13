@@ -325,12 +325,6 @@ def run_cases() -> None:
         401,
     )
     case("swapped case base64", build("GET", "/", "Basic " + swapcase_b64(HASH)), 401)
-    case(
-        "hash NUL garbage",
-        build("GET", "/", GOOD.encode() + b"\x00garbage"),
-        "reject",
-        "informational",
-    )
     # Spacing and case
     case("lowercase basic", build("GET", "/", "basic " + HASH), 200)
     case("uppercase BASIC", build("GET", "/", "BASIC " + HASH), 200)
@@ -378,6 +372,18 @@ def run_cases() -> None:
         "reject",
         "informational",
     )
+    # Last: a NUL byte in a header takes ESPAsyncWebServer's abort path, which can reboot the board
+    # (seen on dev and on the PR, ESP8266 and RP2350); the case before it must not be lost to that
+    case(
+        "hash NUL garbage",
+        build("GET", "/", GOOD.encode() + b"\x00garbage"),
+        "reject",
+        "informational: a reboot here is the library's NUL abort path",
+    )
+    for _ in range(30):
+        if uptime() is not None:
+            break
+        time.sleep(2)
 
 
 def heavy() -> None:
@@ -654,7 +660,7 @@ def main() -> None:
     ap.add_argument("--ota", default="")
     ap.add_argument("--skip-heavy", action="store_true")
     A = ap.parse_args()
-    configure(A.host, USER, PASSWORD, A.out)
+    configure(A.host, A.user, A.password, A.out)
     only = set(filter(None, A.only.split(",")))
     if not only or "cases" in only:
         run_cases()
