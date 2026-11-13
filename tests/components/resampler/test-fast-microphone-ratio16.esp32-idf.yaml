@@ -1,0 +1,23 @@
+substitutions:
+  din_pin: GPIO16
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+
+microphone:
+  - platform: i2s_audio
+    id: raw_mic
+    i2s_audio_id: i2s_audio_bus
+    adc_type: external
+    i2s_din_pin: ${din_pin}
+    sample_rate: 128000
+    bits_per_sample: 16bit
+    channel: stereo
+  - platform: resampler
+    id: fast_mic
+    microphone:
+      microphone: raw_mic
+      channels: 0
+      bits_per_sample: 16
+    sample_rate: 8000
+    fast_decimation: true
