@@ -143,6 +143,7 @@ struct ColorModeBitPolicy {
     const auto value = static_cast<uint8_t>(mode);
     unsigned bit = value;
     if (value > 1) {
+      // COLOR_TEMPERATURE is checked before WHITE because RGB_COLOR_TEMPERATURE has both
       const unsigned white = (mode & ColorCapability::COLD_WARM_WHITE)     ? 3
                              : (mode & ColorCapability::COLOR_TEMPERATURE) ? 2
                              : (mode & ColorCapability::WHITE)             ? 1
@@ -156,6 +157,16 @@ struct ColorModeBitPolicy {
     return (bit < MAX_BITS) ? color_mode_at(bit) : ColorMode::UNKNOWN;
   }
 };
+
+// to_bit() computes the position instead of searching COLOR_MODE_LOOKUP, so check it against the table
+constexpr bool to_bit_matches_lookup() {
+  for (int bit = 0; bit < ColorModeBitPolicy::MAX_BITS; bit++) {
+    if (ColorModeBitPolicy::to_bit(color_mode_at(bit)) != static_cast<unsigned>(bit))
+      return false;
+  }
+  return true;
+}
+static_assert(to_bit_matches_lookup(), "ColorModeBitPolicy::to_bit() does not match COLOR_MODE_LOOKUP");
 
 // Type alias for ColorMode bitmask using policy-based design
 using ColorModeMask = FiniteSetMask<ColorMode, ColorModeBitPolicy>;
