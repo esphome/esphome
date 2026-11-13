@@ -157,6 +157,8 @@ void ESP32Camera::dump_config() {
     return;
   }
   auto st = s->status;
+  // The sensor's quality is only used for JPEG output; converted frames use the configured one
+  const uint8_t quality = conf.pixel_format == PIXFORMAT_JPEG ? st.quality : conf.jpeg_quality;
   ESP_LOGCONFIG(TAG,
                 "  JPEG Quality: %u\n"
                 "  Framebuffer Count: %u\n"
@@ -168,9 +170,8 @@ void ESP32Camera::dump_config() {
                 "  Horizontal Mirror: %s\n"
                 "  Special Effect: %u\n"
                 "  White Balance Mode: %u",
-                st.quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM",
-                st.contrast, st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect,
-                st.wb_mode);
+                quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM", st.contrast,
+                st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect, st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
   ESP_LOGCONFIG(TAG,
@@ -211,7 +212,8 @@ void ESP32Camera::loop() {
   if (this->can_return_image_()) {
     // return image
 #ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
-    if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
+    // Must match the check that made the image; jpeg_quality can change in between, the format cannot
+    if (this->config_.pixel_format != PIXFORMAT_JPEG) {
       // for non-JPEG format, we need to free the data and raw buffer
       auto *jpg_buf = this->current_image_->get_data_buffer();
       free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
@@ -265,7 +267,7 @@ void ESP32Camera::loop() {
 #endif
 
 #ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
-  if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
+  if (this->config_.pixel_format != PIXFORMAT_JPEG) {
     // for non-JPEG format, we need to convert the frame to JPEG
     uint8_t *jpg_buf;
     size_t jpg_buf_len;
@@ -503,6 +505,9 @@ void ESP32Camera::update_camera_parameters() {
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
   s->set_special_effect(s, (int) this->special_effect_);  // 0 to 6
+  // Other formats are converted in loop(), which reads the quality for every frame
+  if (this->config_.pixel_format == PIXFORMAT_JPEG)
+    s->set_quality(s, this->config_.jpeg_quality);
   /* update exposure */
   s->set_exposure_ctrl(s, (bool) this->aec_mode_);
   s->set_aec2(s, this->aec2_);            // 0 = disable , 1 = enable
