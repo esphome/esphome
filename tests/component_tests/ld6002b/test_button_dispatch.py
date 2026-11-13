@@ -12,17 +12,9 @@ import re
 
 import pytest
 
+from tests.component_tests.helpers import static_function_body
+
 YAML = Path(__file__).parent / "button_dispatch.yaml"
-
-
-def _fn_body(main_cpp: str, fn: str) -> str:
-    match = re.search(
-        rf"static void {fn}\(button::Button \* entity\) \{{\n(.*?)\n\}}",
-        main_cpp,
-        re.DOTALL,
-    )
-    assert match is not None, f"{fn} not defined"
-    return match.group(1)
 
 
 @pytest.mark.parametrize(
@@ -58,7 +50,7 @@ def test_dispatch_function(
     main_cpp = generate_main(YAML)
 
     assert main_cpp.count(f"static void {fn}(button::Button * entity) {{") == 1
-    assert _fn_body(main_cpp, fn) == (
+    assert static_function_body(main_cpp, fn) == (
         f"  const auto type = {type_expr};\n  ::{hub}->press_button(type);"
     )
 

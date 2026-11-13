@@ -646,7 +646,8 @@ def parent_ref(var: MockObj) -> MockObj:
     return MockObj(f"::{var}", "->")
 
 
-async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+async def apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+    """The object ``config[id_key]`` names, as ``parent_ref`` spells it."""
     return str(parent_ref(await cg.get_variable(config[id_key])))
 
 
@@ -868,7 +869,7 @@ def apply_action_builder(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
         for spec in statements_spec:
@@ -1014,7 +1015,7 @@ def register_apply_condition(
     ) -> MockObj:
         if defaults:
             config = {**defaults, **config}
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         values = _apply_values(config, members)
         check = await _render_call(
             name, call.target, members, values, config, parent, args, compare=True
