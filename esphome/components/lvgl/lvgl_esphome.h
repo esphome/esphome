@@ -20,6 +20,7 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/component.h"
 
+#include <initializer_list>
 #include <list>
 #include <lvgl.h>
 #include <map>
@@ -54,6 +55,9 @@ extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(lv_event_t *event);
 
 lv_obj_t *lv_container_create(lv_obj_t *parent);
+
+// Resolves a widget-child-ref path by walking lv_obj_get_child() one step at a time.
+lv_obj_t *lv_obj_get_child_by_path(lv_obj_t *obj, std::initializer_list<int32_t> path);
 #ifdef USE_LVGL_SCALE
 void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);

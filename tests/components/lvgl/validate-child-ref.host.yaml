@@ -1,0 +1,54 @@
+esphome:
+  name: lvgl-child-ref-validate
+
+host:
+
+logger:
+
+display:
+  - platform: sdl
+    id: sdl0
+    dimensions:
+      width: 320
+      height: 240
+
+lvgl:
+  displays: sdl0
+  widgets:
+    - button:
+        id: ref_button
+        align: center
+        widgets:
+          - label:
+              text: "Label"
+          - label:
+              text: "Untagged label"
+    - label:
+        id: plain_label
+        text: "Plain"
+    - obj:
+        id: ref_container
+        widgets:
+          - label:
+              text: "Nested"
+  on_boot:
+    # Bare dict directly under id:, not list-wrapped.
+    - lvgl.label.update:
+        id:
+          parent: ref_button
+          path: [1]
+        text: "Updated"
+    # Mixed id: list -- one plain id, one widget-child-ref, in the same action.
+    - lvgl.label.update:
+        id:
+          - plain_label
+          - parent: ref_container
+            path: [0]
+        text: "Updated both"
+    # Templated (lambda) path element.
+    - lvgl.label.update:
+        id:
+          parent: ref_button
+          path:
+            - !lambda return 1;
+        text: "Updated via lambda index"

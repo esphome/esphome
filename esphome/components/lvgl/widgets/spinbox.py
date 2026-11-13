@@ -134,6 +134,10 @@ class SpinboxType(WidgetType):
     def get_step(self, config: dict):
         return 10 ** config[CONF_SELECTED_DIGIT]
 
+    def supports_child_ref(self) -> bool:
+        # get_scale()/get_max()/get_min()/get_step() need creation-time config.
+        return False
+
 
 spinbox_spec = SpinboxType()
 
