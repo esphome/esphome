@@ -25,9 +25,9 @@ CONF_NODE_ID = "node_id"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SUBINDEX = "subindex"
 
-# CANopenNode upstream + library.json + the ESPHome target header CO_driver_target.h (branch esphome), pinned to a
-# commit
-CANOPENNODE_SOURCE = "https://github.com/mrk-its/CANopenNode.git#30a669c94678595c4cac7fe9d9c5e3fb75166e18"
+# CANopenNode upstream + library.json + SDO server block size option + the ESPHome target header CO_driver_target.h
+# (branch esphome), pinned to a commit
+CANOPENNODE_SOURCE = "https://github.com/esphome-libs/CANopenNode.git#eef8ab960b854c06f30d2f72df2288a2f2bb0d97"
 
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
