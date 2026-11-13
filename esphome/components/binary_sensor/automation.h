@@ -24,54 +24,25 @@ static_assert(std::is_same_v<decltype(MultiClickTriggerEvent::state), uint32_t> 
 
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length);
 
-class ClickTrigger final : public Trigger<> {
+/// Times the presses of one on_click automation.
+class ClickDetector {
  public:
-  explicit ClickTrigger(BinarySensor *parent, uint32_t min_length, uint32_t max_length)
-      : min_length_(min_length), max_length_(max_length) {
-    parent->add_on_state_callback([this](bool state) {
-      if (state) {
-        this->start_time_ = millis();
-      } else {
-        const uint32_t length = millis() - this->start_time_;
-        if (match_interval(this->min_length_, this->max_length_, length))
-          this->trigger();
-      }
-    });
-  }
+  /// Whether `state` ends a press of min_length to max_length ms; a max_length of 0 means no maximum.
+  bool check(bool state, uint32_t min_length, uint32_t max_length);
 
  protected:
-  uint32_t start_time_{0};  /// The millis() time when the click started.
-  uint32_t min_length_;     /// Minimum length of click. 0 means no minimum.
-  uint32_t max_length_;     /// Maximum length of click. 0 means no maximum.
+  uint32_t start_time_{0};  ///< The millis() time when the press started.
 };
 
-class DoubleClickTrigger final : public Trigger<> {
+/// Times the presses of one on_double_click automation.
+class DoubleClickDetector {
  public:
-  explicit DoubleClickTrigger(BinarySensor *parent, uint32_t min_length, uint32_t max_length)
-      : min_length_(min_length), max_length_(max_length) {
-    parent->add_on_state_callback([this](bool state) {
-      const uint32_t now = millis();
-
-      if (state && this->start_time_ != 0 && this->end_time_ != 0) {
-        if (match_interval(this->min_length_, this->max_length_, this->end_time_ - this->start_time_) &&
-            match_interval(this->min_length_, this->max_length_, now - this->end_time_)) {
-          this->trigger();
-          this->start_time_ = 0;
-          this->end_time_ = 0;
-          return;
-        }
-      }
-
-      this->start_time_ = this->end_time_;
-      this->end_time_ = now;
-    });
-  }
+  /// Whether `state` is the second press, with the first press and the gap both in the window.
+  bool check(bool state, uint32_t min_length, uint32_t max_length);
 
  protected:
-  uint32_t start_time_{0};
-  uint32_t end_time_{0};
-  uint32_t min_length_;  /// Minimum length of click. 0 means no minimum.
-  uint32_t max_length_;  /// Maximum length of click. 0 means no maximum.
+  uint32_t start_time_{0};  ///< The millis() time of the edge before the last one.
+  uint32_t end_time_{0};    ///< The millis() time of the last edge.
 };
 
 class MultiClickTrigger final : public Trigger<>, public Component {
