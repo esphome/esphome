@@ -1,4 +1,7 @@
 #include "web_server_base.h"
+
+#include <cstring>
+
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 
 namespace esphome::web_server_base {
@@ -47,18 +50,27 @@ bool GuardMiddlewareHandler::check_auth_(AsyncWebServerRequest *request) {
   // compiled out. On ESP32 our own server picks the scheme internally.
 #if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
   bool success = request->authenticate(credentials.username, credentials.password);
-#else
-  bool success = request->authenticate(credentials.basic_auth_hash);
-#endif
   if (!success) {
 #if USE_ESP32
     request->requestAuthentication();
-#elif defined(USE_WEBSERVER_AUTH_DIGEST)
-    request->requestAuthentication(nullptr, true);
 #else
-    request->requestAuthentication(nullptr, false);
+    request->requestAuthentication(nullptr, true);
 #endif
   }
+#else
+  // Checked here, not with the library's authenticate()/requestAuthentication(): those also link its
+  // Digest code, since the scheme is only known at run time there
+  const String &challenge = request->authChallenge();
+  const bool success = request->authType() == AsyncAuthType::AUTH_BASIC &&
+                       basic_auth_matches(challenge.c_str(), challenge.length(), credentials.basic_auth_hash,
+                                          strlen(credentials.basic_auth_hash));
+  if (!success) {
+    // The challenge the library sent, with the strings kept in flash on ESP8266
+    AsyncWebServerResponse *response = request->beginResponse(401);
+    response->addHeader(String(F("WWW-Authenticate")), String(F("Basic realm=\"Login Required\"")));
+    request->send(response);
+  }
+#endif
   return success;
 #else
   return true;
