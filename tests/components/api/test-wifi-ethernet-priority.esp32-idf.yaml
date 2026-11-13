@@ -1,0 +1,15 @@
+# Compiles api with both wifi and ethernet under a wifi-first network: priority:, to exercise
+# the USE_NETWORK_PRIMARY_INTERFACE_WIFI branch of network::get_network_type() that the
+# wifi-only and ethernet-only test files don't reach on their own.
+packages:
+  api: !include common.yaml
+  ethernet: !include ../../components/ethernet/common-lan8720.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+network:
+  priority:
+    - wifi
+    - ethernet
