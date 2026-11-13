@@ -86,7 +86,9 @@ class CC1101Component final : public Component,
   // Packet mode settings
   void set_packet_mode(bool value);
   void set_packet_length(uint16_t value);
+#ifdef USE_CC1101_LONG_PACKET
   void set_packet_length_lambda(packet_length_func_t func);
+#endif
   void set_crc_enable(bool value);
   void set_whitening(bool value);
 
@@ -101,6 +103,7 @@ class CC1101Component final : public Component,
  protected:
   uint16_t chip_id_{0};
   bool initialized_{false};
+  bool packet_mode_{false};
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
@@ -117,27 +120,30 @@ class CC1101Component final : public Component,
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
   void configure_packet_mode_();
+  void reconfigure_packet_length_();
+  float symbol_rate_() const;
+#ifdef USE_CC1101_LONG_PACKET
   bool is_long_packet_mode_() const;
+  void arm_length_(uint16_t length);
   void reset_long_packet_rx_();
   void restart_long_packet_rx_();
   void loop_long_packet_();
   void handle_long_packet_(uint8_t rx_bytes);
   void finish_long_packet_();
   void maybe_switch_long_packet_to_fixed_();
-  void reconfigure_packet_length_();
-  void set_long_packet_pktlen_(uint16_t length);
-  uint32_t compute_packet_idle_timeout_ms_() const;
+#endif
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
+#ifdef USE_CC1101_LONG_PACKET
   packet_length_func_t packet_length_func_{nullptr};
-  uint16_t packet_length_{0};
-  uint16_t packet_expected_length_{0};
   uint32_t packet_last_byte_ms_{0};
-  uint32_t packet_idle_timeout_ms_{0};
-  float long_packet_rssi_{0.0f};
-  bool packet_mode_{false};
-  bool packet_fixed_mode_armed_{false};
+#endif
+  uint16_t packet_length_{0};
+#ifdef USE_CC1101_LONG_PACKET
+  uint16_t packet_expected_length_{0};
+  int8_t long_packet_rssi_{0};  // raw RSSI register
+#endif
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);

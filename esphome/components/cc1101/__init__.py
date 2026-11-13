@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -23,6 +25,8 @@ MULTI_CONF = True
 ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 CC1101Listener = ns.class_("CC1101Listener")
+PACKET_TYPE = cg.std_vector.template(cg.uint8)
+RX_FIFO_SIZE = 64
 
 # Config keys
 CONF_RX_ATTENUATION = "rx_attenuation"
@@ -247,19 +251,26 @@ CONFIG_MAP = {
 }
 
 
+def _is_long_packet(packet_length: Any) -> bool:
+    """A packet_length that does not fit the RX FIFO, or is a lambda."""
+    return cg.is_template(packet_length) or (packet_length or 0) > RX_FIFO_SIZE
+
+
 def _validate_packet_mode(config: ConfigType) -> ConfigType:
-    packet_length_is_lambda = cg.is_template(config.get(CONF_PACKET_LENGTH))
-    if config.get(CONF_PACKET_MODE, False):
+    packet_mode = config.get(CONF_PACKET_MODE, False)
+    packet_length = config.get(CONF_PACKET_LENGTH)
+    if packet_mode:
         if CONF_GDO0_PIN not in config:
             raise cv.Invalid("gdo0_pin is required when packet_mode is enabled")
-        if CONF_PACKET_LENGTH not in config:
+        if packet_length is None:
             raise cv.Invalid("packet_length is required when packet_mode is enabled")
-    if packet_length_is_lambda and not config.get(CONF_PACKET_MODE, False):
+    elif cg.is_template(packet_length):
         raise cv.Invalid("packet_mode is required when packet_length is a lambda")
-    is_long_packet = config.get(CONF_PACKET_MODE, False) and (
-        packet_length_is_lambda or config.get(CONF_PACKET_LENGTH, 0) > 64
-    )
-    if is_long_packet and config.get(CONF_CRC_ENABLE, False):
+    if (
+        packet_mode
+        and _is_long_packet(packet_length)
+        and config.get(CONF_CRC_ENABLE, False)
+    ):
         raise cv.Invalid(
             "crc_enable is not supported with packet_length > 64 or a lambda"
         )
@@ -294,17 +305,13 @@ async def to_code(config):
 
     await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
     if (packet_length := config.get(CONF_PACKET_LENGTH)) is not None:
+        # packet_mode can also be switched on at run time, so this does not check it
+        if _is_long_packet(packet_length):
+            cg.add_define("USE_CC1101_LONG_PACKET")
         if cg.is_template(packet_length):
             lambda_ = await cg.process_lambda(
                 packet_length,
-                [
-                    (
-                        cg.std_vector.template(cg.uint8)
-                        .operator("ref")
-                        .operator("const"),
-                        "x",
-                    )
-                ],
+                [(PACKET_TYPE.operator("ref").operator("const"), "x")],
                 return_type=cg.int32,
             )
             cg.add(var.set_packet_length_lambda(lambda_))
@@ -314,7 +321,7 @@ async def to_code(config):
         await automation.build_automation(
             var.get_packet_trigger(),
             [
-                (cg.std_vector.template(cg.uint8), "x"),
+                (PACKET_TYPE, "x"),
                 (cg.float_, "freq_offset"),
                 (cg.float_, "rssi"),
                 (cg.uint8, "lqi"),
