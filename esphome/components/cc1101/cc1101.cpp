@@ -278,8 +278,9 @@ void CC1101Component::begin_tx() {
   this->wake_up();
   const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
   // Async serial on the chip only; state_ keeps the configured mode for begin_rx() to restore
-  static constexpr uint8_t PKTCTRL0_ASYNC_SERIAL = 0x32;
-  this->write_(Register::PKTCTRL0, &PKTCTRL0_ASYNC_SERIAL, 1);
+  // On the stack, not constexpr: SPI DMA cannot read flash or unaligned bytes
+  alignas(4) const uint8_t pktctrl0_async_serial = 0x32;
+  this->write_(Register::PKTCTRL0, &pktctrl0_async_serial, 1);
   this->transmitting_ = true;
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
