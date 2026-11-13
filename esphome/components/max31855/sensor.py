@@ -44,6 +44,9 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
-    cg.add(var.set_linearize(config[CONF_LINEARIZE]))
+    if config[CONF_LINEARIZE]:
+        # Compile the NIST tables in only when a sensor asks for them.
+        cg.add_define("USE_MAX31855_LINEARIZE")
+        cg.add(var.set_linearize(True))
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_REFERENCE_TEMPERATURE, var.set_reference_sensor)
