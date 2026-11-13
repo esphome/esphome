@@ -3,3 +3,4 @@
 *.png binary
 *.gif binary
 *.apng binary
+esphome/components/web_server/server_index_v*.html whitespace=-trailing-space,-blank-at-eof

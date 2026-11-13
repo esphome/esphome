@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import gzip
 import logging
+from pathlib import Path
 import re
-from typing import Any
+from typing import Any, Literal
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -416,6 +417,11 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "web_server will act as a captive portal while the %saccess point is active.",
             "" if ap_only else "fallback ",
         )
+    if local and custom_frontend(config):
+        _LOGGER.warning(
+            "web_server local mode embeds the built-in interface and ignores custom "
+            "css_url/js_url values; use css_include/js_include to add local assets."
+        )
     # An embedded interface on an AP (AP only, or a fallback with local: true) that is not
     # on port 80 cannot be a captive portal; say so, unless captive_portal has that role.
     if (
@@ -493,13 +499,42 @@ def build_index_html(config: ConfigType) -> str:
     return html
 
 
+def build_local_index_html(version: int, config: ConfigType) -> str:
+    """Add the custom module before the embedded interface is initialized."""
+    source = (
+        Path(__file__)
+        .with_name(f"server_index_v{version}.html")
+        .read_text(encoding="utf-8")
+    )
+    injection_point = "<!-- ESPHOME_JS_INCLUDE -->"
+    if source.count(injection_point) != 1:
+        raise ValueError("Embedded web interface JavaScript injection point not found")
+    includes = []
+    if config.get(CONF_CSS_INCLUDE):
+        includes.append("<link rel=stylesheet href=/0.css>")
+    if config.get(CONF_JS_INCLUDE):
+        includes.append("<script type=module src=/0.js></script>")
+    return source.replace(injection_point, "".join(includes), 1)
+
+
 def add_resource_as_progmem(
-    resource_name: str, content: str, compress: bool = True
+    resource_name: str,
+    content: str,
+    compression: Literal["gzip", "br"] | None = "gzip",
 ) -> None:
     """Add a resource to progmem."""
     content_encoded = content.encode("utf-8")
-    if compress:
-        content_encoded = gzip.compress(content_encoded)
+    if compression == "br":
+        try:
+            import brotlicffi as brotli
+        except ImportError:
+            import brotli
+
+        content_encoded = brotli.compress(content_encoded)
+    elif compression == "gzip":
+        content_encoded = gzip.compress(content_encoded, mtime=0)
+    elif compression is not None:
+        raise ValueError(f"Unsupported compression: {compression}")
     cg.extern_progmem_array(
         f"ESPHOME_WEBSERVER_{resource_name}", cg.uint8, list(content_encoded)
     )
@@ -520,6 +555,7 @@ async def to_code(config: ConfigType) -> None:
     CORE.register_controller(var)
 
     version = config[CONF_VERSION]
+    local = serve_local(config, CORE.config.get(CONF_WIFI))
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_PORT).
     if (port := config[CONF_PORT]) != DEFAULT_PORT:
@@ -531,8 +567,17 @@ async def to_code(config: ConfigType) -> None:
         enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
-        # Don't compress the index HTML as the data sizes are almost the same.
-        add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
+        if local and (CONF_JS_INCLUDE in config or CONF_CSS_INCLUDE in config):
+            add_resource_as_progmem(
+                "INDEX_HTML",
+                build_local_index_html(version, config),
+                compression=config[CONF_COMPRESSION],
+            )
+        else:
+            # Don't compress the index HTML as the data sizes are almost the same.
+            add_resource_as_progmem(
+                "INDEX_HTML", build_index_html(config), compression=None
+            )
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
@@ -599,7 +644,7 @@ async def to_code(config: ConfigType) -> None:
     # include_internal_ is false in C++; only emit the setter to turn it on.
     if config[CONF_INCLUDE_INTERNAL]:
         cg.add(var.set_include_internal(True))
-    if serve_local(config, CORE.config.get(CONF_WIFI)):
+    if local:
         cg.add_define("USE_WEBSERVER_LOCAL")
     if serve_captive(config, CORE.config):
         # AP mode: DNS server plus redirect of unknown URLs so phones open the interface
