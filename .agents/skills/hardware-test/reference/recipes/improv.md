@@ -5,9 +5,11 @@
 - `improvcli.py PORT OUT --secrets FILE`: Improv serial client. It shares the console with the logs and parses
   frames out of the log stream. The flow: 300 stray bytes with no `I` in them, state, info, network state, scan, a
   bad password (expect `unable_to_connect` after about 30 s), the real password, then state and network state
-  again. It ends with a count of frames, bad checksums and log lines. Credentials come from the secrets file and
-  are never printed, and the SSID is masked in scan results. It reopens a native USB port that re-enumerates.
-  Every request must get its reply; a missing reply, an unexpected error, a bad checksum or a port reset fails the
+  again. It ends with a count of frames, bad frames, port resets and log lines. Credentials come from the secrets
+  file and are never printed, and the SSID is masked in scan results. It reopens a native USB port that
+  re-enumerates. A board behind a USB-UART bridge can reboot without a port reset; check the capture for a boot
+  banner.
+  Every request must get its reply; a missing reply, an unexpected error, a bad frame or a port reset fails the
   run. `--skip-bad` leaves out the bad password case, `--keep-dtr` leaves DTR asserted, `--allow-reset` accepts a
   reboot.
 - `improvble.py NAME SECRETS`: Improv BLE client (bleak). Finds the device by name, sends WIFI_SETTINGS and prints

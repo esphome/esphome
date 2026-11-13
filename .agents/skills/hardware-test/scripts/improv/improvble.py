@@ -33,11 +33,16 @@ async def main(name: str, secrets: str) -> None:
     async with BleakClient(dev) as c:
 
         def on_state(_, d: bytearray) -> None:
+            if not d:
+                errors.append("empty state")
+                return
             states.append(d[0])
             print(f"{loop.time() - t0:6.2f} STATE {STATES.get(d[0], d[0])}", flush=True)
 
         def on_error(_, d: bytearray) -> None:
-            if d[0]:
+            if not d:
+                errors.append("empty error")
+            elif d[0]:
                 errors.append(d[0])
                 print(f"{loop.time() - t0:6.2f} ERROR {d[0]}", flush=True)
 
@@ -60,7 +65,7 @@ async def main(name: str, secrets: str) -> None:
         await c.start_notify(ERROR, on_error)
         await c.start_notify(RESULT, on_result)
         s = await c.read_gatt_char(STATE)
-        print(f"initial state {STATES.get(s[0], s[0])}")
+        print(f"initial state {STATES.get(s[0], s[0]) if s else 'empty'}")
         payload = bytes([len(ssid)]) + ssid + bytes([len(pw)]) + pw
         await c.write_gatt_char(RPC, pkt(1, payload), response=True)
         try:
@@ -68,7 +73,8 @@ async def main(name: str, secrets: str) -> None:
         except TimeoutError:
             print("no result within 45 s")
         await asyncio.sleep(1)
-        states.append((await c.read_gatt_char(STATE))[0])
+        last = await c.read_gatt_char(STATE)
+        states.append(last[0] if last else 0)
     if not done.is_set() or errors or states[-1] != 4:
         sys.exit(
             f"FAIL (errors {errors}, last state {STATES.get(states[-1], states[-1])})"
