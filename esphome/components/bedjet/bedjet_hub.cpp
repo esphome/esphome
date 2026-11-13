@@ -547,11 +547,6 @@ void BedJetHub::dispatch_status_() {
   }
 }
 
-void BedJetHub::register_child(BedJetClient *obj) {
-  this->children_.push_back(obj);
-  obj->set_parent(this);
-}
-
 }  // namespace esphome::bedjet
 
 #endif

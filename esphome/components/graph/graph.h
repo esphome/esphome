@@ -4,6 +4,7 @@
 #include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
 
@@ -157,7 +158,7 @@ class Graph final : public Component {
   void set_grid_x(float val) { this->gridspacing_x_ = val; }
   void set_grid_y(float val) { this->gridspacing_y_ = val; }
   void set_border(bool val) { this->border_ = val; }
-  void add_trace(GraphTrace *trace) { traces_.push_back(trace); }
+  SLOT_LIST(GraphTrace, traces_, add_trace, GRAPH_TRACE_COUNT)
   void add_legend(GraphLegend *legend) {
     this->legend_ = legend;
     legend->init(this);
@@ -181,7 +182,6 @@ class Graph final : public Component {
   float gridspacing_x_{NAN};
   float gridspacing_y_{NAN};
   bool border_{true};
-  std::vector<GraphTrace *> traces_;
   GraphLegend *legend_{nullptr};
 
   friend GraphLegend;
