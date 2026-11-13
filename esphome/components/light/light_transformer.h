@@ -20,7 +20,7 @@ class LightTransformer {
   }
 
   /// Indicates whether this transformation is finished.
-  virtual bool is_finished() { return this->get_progress_() >= 1.0f; }
+  virtual bool is_finished() { return reached_end(esphome::millis() - this->start_time_, this->length_); }
 
   /// This will be called before the transition is started.
   virtual void start() {}
@@ -42,13 +42,17 @@ class LightTransformer {
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
 
   /// The progress of this transition, on a scale of 0 to 1.
-  float get_progress_() {
-    uint32_t now = esphome::millis();
-    uint32_t elapsed = now - this->start_time_;
-    if (elapsed >= this->length_)
-      return 1.0f;
+  float get_progress_() { return progress(esphome::millis() - this->start_time_, this->length_); }
 
-    return clamp(elapsed / float(this->length_), 0.0f, 1.0f);
+  static float progress(uint32_t elapsed, uint32_t length) {
+    if (elapsed >= length)
+      return 1.0f;
+    return clamp(elapsed / float(length), 0.0f, 1.0f);
+  }
+
+  /// progress() >= 1.0f without the software float divide: x / y rounds to 1 or more exactly when x >= y
+  static bool reached_end(uint32_t elapsed, uint32_t length) {
+    return static_cast<float>(elapsed) >= static_cast<float>(length);
   }
 
   uint32_t start_time_;
