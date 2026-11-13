@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from esphome.components.spi import CONF_SPI_ID
-from esphome.components.trf7962a import _validate_no_shared_ethernet
+from esphome.components.trf7962a import (
+    FINAL_VALIDATE_SCHEMA,
+    _validate_no_shared_ethernet,
+)
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 
@@ -20,3 +23,9 @@ def test_spi_bus_shared_with_ethernet_is_rejected() -> None:
 def test_spi_bus_not_shared_with_ethernet_is_accepted(full_config: dict) -> None:
     fv.full_config.set(full_config)
     _validate_no_shared_ethernet({CONF_SPI_ID: "bus"})
+
+
+def test_final_validation_rejects_a_bus_shared_with_ethernet() -> None:
+    fv.full_config.set({"ethernet": {CONF_SPI_ID: "bus"}})
+    with pytest.raises(cv.Invalid, match="SPI Ethernet"):
+        FINAL_VALIDATE_SCHEMA({CONF_SPI_ID: "bus"})

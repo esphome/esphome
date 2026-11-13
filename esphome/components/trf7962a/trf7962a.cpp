@@ -145,9 +145,9 @@ void TRF7962A::loop() {
         if ((status & IRQ_RX) && !(status & IRQ_RX_ERRORS) && this->read_response_(rx)) {
           this->finish_scan_(rx);
         } else if (status & IRQ_COLLISION) {
-          // Several tags answered; the present one is still there, so this is not a miss
+          // Several tags answered, so the present one is not confirmed; it counts as a miss
           ESP_LOGD(TAG, "Collision, more than one tag in the field");
-          this->end_scan_();
+          this->finish_scan_(nullptr);
         } else if (status & (IRQ_RX_ERRORS | IRQ_NO_RESPONSE)) {
           this->finish_scan_(nullptr);
         }

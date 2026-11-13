@@ -66,9 +66,10 @@ def _validate_no_shared_ethernet(config: ConfigType) -> ConfigType:
     return config
 
 
+# The Ethernet check runs first: the SPI validator replaces spi_id with the bus configuration
 FINAL_VALIDATE_SCHEMA = cv.All(
-    spi.final_validate_device_schema("trf7962a", require_miso=True, require_mosi=True),
     _validate_no_shared_ethernet,
+    spi.final_validate_device_schema("trf7962a", require_miso=True, require_mosi=True),
 )
 
 

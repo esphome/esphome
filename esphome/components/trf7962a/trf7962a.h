@@ -39,6 +39,7 @@ class TRF7962A final : public PollingComponent,
   enum class State : uint8_t { STATE_IDLE, STATE_FIELD_SETTLE, STATE_WAIT_RESPONSE };
 
   void select_(bool selected);
+  void write_frame_(const uint8_t *data, size_t len);
   void direct_command_(uint8_t command);
   void write_register_(uint8_t reg, uint8_t value);
   void read_registers_(uint8_t reg, uint8_t *data, size_t len);
@@ -64,9 +65,6 @@ class TRF7962A final : public PollingComponent,
   State state_{State::STATE_IDLE};
   uint8_t base_chip_status_;
   uint8_t miss_count_{0};
-
- private:
-  void write_frame_(const uint8_t *data, size_t len);
 };
 
 }  // namespace esphome::trf7962a
