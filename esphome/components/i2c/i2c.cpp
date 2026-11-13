@@ -9,17 +9,25 @@ namespace esphome::i2c {
 
 ESPHOME_LOG_TAG(TAG, "i2c");
 
+// Addresses 0x08 to 0x77; the others are reserved
+static constexpr uint8_t SCAN_FIRST_ADDRESS = 0x08;
+static constexpr uint8_t SCAN_END_ADDRESS = 0x78;
+static constexpr uint8_t SCAN_RESULT_ERROR = 0x80;
+
 void I2CBus::i2c_scan_() {
-  for (uint8_t address = 8; address != 120; address++) {
+  uint8_t results[SCAN_END_ADDRESS - SCAN_FIRST_ADDRESS];
+  size_t count = 0;
+  for (uint8_t address = SCAN_FIRST_ADDRESS; address != SCAN_END_ADDRESS; address++) {
     auto err = write_readv(address, nullptr, 0, nullptr, 0);
     if (err == ERROR_OK) {
-      scan_results_.emplace_back(address, true);
+      results[count++] = address;
     } else if (err == ERROR_UNKNOWN) {
-      scan_results_.emplace_back(address, false);
+      results[count++] = address | SCAN_RESULT_ERROR;
     }
     // it takes 16sec to scan on nrf52. It prevents board reset.
     arch_feed_wdt();
   }
+  this->scan_results_.set(results, count);
 }
 
 void I2CBus::dump_scan_results_() {
@@ -30,11 +38,11 @@ void I2CBus::dump_scan_results_() {
     ESP_LOGCONFIG(TAG, "Found no devices");
     return;
   }
-  for (const auto &s : this->scan_results_) {
-    if (s.second) {
-      ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
+  for (uint8_t result : std::span<const uint8_t>(this->scan_results_)) {
+    if (result & SCAN_RESULT_ERROR) {
+      ESP_LOGE(TAG, "Unknown error at address 0x%02X", result & ~SCAN_RESULT_ERROR);
     } else {
-      ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+      ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", result);
     }
   }
 }
