@@ -605,7 +605,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_SELECTS]:
-        var = await select.new_select(conf, options=conf[CONF_OPTIONS])
+        var = await select.new_select(
+            conf, options=conf[CONF_OPTIONS], fixed_options=True
+        )
         await cg.register_component(var, conf)
 
     for conf in config[CONF_SENSORS]:

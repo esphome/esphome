@@ -1,0 +1,62 @@
+esphome:
+  name: select-set-constant
+
+host:
+api:
+logger:
+
+globals:
+  - id: next_option
+    type: std::string
+    initial_value: '"low"'
+
+select:
+  - platform: template
+    name: "Fan"
+    id: fan
+    optimistic: true
+    options: [low, medium, high]
+    initial_option: low
+  - platform: template
+    name: "Picked"
+    id: picked
+    options: [low, medium, high]
+    update_interval: never
+    lambda: return id(next_option);
+    set_action:
+      - lambda: id(next_option) = std::string(x.c_str(), x.size());
+
+button:
+  - platform: template
+    name: "Set High"
+    on_press:
+      - select.set:
+          id: fan
+          option: high
+  - platform: template
+    name: "Set Medium"
+    on_press:
+      - select.set:
+          id: fan
+          option: medium
+  - platform: template
+    name: "Set Invalid"
+    on_press:
+      - select.set:
+          id: fan
+          option: turbo
+  - platform: template
+    name: "Pick High"
+    on_press:
+      - lambda: id(next_option) = "high";
+      - component.update: picked
+  - platform: template
+    name: "Pick Invalid"
+    on_press:
+      - lambda: id(next_option) = "turbo";
+      - component.update: picked
+  - platform: template
+    name: "Pick Medium"
+    on_press:
+      - lambda: id(next_option) = "medium";
+      - component.update: picked
