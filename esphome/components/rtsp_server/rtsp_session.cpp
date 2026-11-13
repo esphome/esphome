@@ -190,7 +190,7 @@ void RTSPSession::loop(uint32_t now, uint16_t port) {
 void RTSPSession::service_(uint32_t now, uint16_t port) {
   if (this->frame_ != nullptr && now - this->frame_progress_ms_ > FRAME_STALL_MS) {
     ESP_LOGV(TAG, "Session %s stalled, dropping frame", this->session_id_);
-    this->drop_frame_();
+    this->drop_frame();
   }
   if (!this->flush_(now))
     return;
@@ -409,6 +409,7 @@ bool RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
   this->frame_ = image;
   this->jpeg_ = jpeg;
   this->frame_sent_ = 0;
+  this->frame_finished_ = false;
   this->frame_progress_ms_ = now;
 
   uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : now - this->last_frame_ms_;
@@ -422,6 +423,7 @@ bool RTSPSession::queue_next_packet_() {
     return false;
   if (this->frame_sent_ >= this->jpeg_.scan_len) {
     this->frame_.reset();  // its last packet is written
+    this->frame_finished_ = true;
     return false;
   }
 
@@ -487,7 +489,7 @@ bool RTSPSession::queue_next_packet_() {
   return true;
 }
 
-void RTSPSession::drop_frame_() {
+void RTSPSession::drop_frame() {
   this->frame_.reset();
   if (!this->sending_packet_ || this->iov_pos_ >= this->iov_count_)
     return;

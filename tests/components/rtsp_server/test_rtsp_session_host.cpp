@@ -29,8 +29,6 @@ class StubImage : public camera::CameraImage {
   std::vector<uint8_t> data_;
 };
 
-using RTSPSessionUnderTest = RTSPSession;
-
 class RTSPSessionTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -113,7 +111,7 @@ class RTSPSessionTest : public ::testing::Test {
     ASSERT_TRUE(this->session_.is_playing());
   }
 
-  RTSPSessionUnderTest session_;
+  RTSPSession session_;
   int peer_fd_{-1};
   uint32_t now_{1000};
 };
@@ -325,35 +323,65 @@ TEST_F(RTSPSessionTest, NewFrameReportsWhetherTaken) {
   EXPECT_FALSE(this->session_.on_new_frame(image, stub_jpeg(*image), this->now_)) << "busy with the first";
   this->session_.drop_frame();
   EXPECT_FALSE(this->session_.has_frame());
+  EXPECT_FALSE(this->session_.finished_frame()) << "dropped, not sent";
+}
+
+TEST_F(RTSPSessionTest, FrameSentInFullIsFinished) {
+  this->start_playing();
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 5000);
+  ASSERT_TRUE(this->session_.on_new_frame(image, stub_jpeg(*image), this->now_));
+  EXPECT_FALSE(this->session_.finished_frame());
+  for (int i = 0; i < 20 && this->session_.has_frame(); i++) {
+    this->receive();
+    this->loops(1);
+  }
+  EXPECT_FALSE(this->session_.has_frame());
+  EXPECT_TRUE(this->session_.finished_frame());
+  // Taking the next frame clears it.
+  auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 5000);
+  ASSERT_TRUE(this->session_.on_new_frame(next, stub_jpeg(*next), this->now_));
+  EXPECT_FALSE(this->session_.finished_frame());
 }
 
 TEST(RTSPFrameLaggards, SingleSessionIsNeverCutShort) {
   FrameLaggards laggards;
   laggards.start(0b01);
-  EXPECT_EQ(laggards.update(0b01, 1000), 0);
-  EXPECT_EQ(laggards.update(0b01, 60000), 0);
-  EXPECT_EQ(laggards.update(0b00, 60001), 0);
+  EXPECT_EQ(laggards.update(0b01, 0b00, 1000), 0);
+  EXPECT_EQ(laggards.update(0b01, 0b00, 60000), 0);
+  EXPECT_EQ(laggards.update(0b00, 0b01, 60001), 0);
 }
 
 TEST(RTSPFrameLaggards, SlowSessionDropsAfterTheOthersFinish) {
   FrameLaggards laggards;
   laggards.start(0b111);
-  EXPECT_EQ(laggards.update(0b111, 1000), 0);
-  EXPECT_EQ(laggards.update(0b110, 1100), 0);  // session 0 finished
-  EXPECT_EQ(laggards.update(0b100, 1100 + FRAME_LAGGARD_MS), 0);
-  EXPECT_EQ(laggards.update(0b100, 1101 + FRAME_LAGGARD_MS), 0b100);
-  EXPECT_EQ(laggards.update(0b100, 1200 + FRAME_LAGGARD_MS), 0) << "reported once";
+  EXPECT_EQ(laggards.update(0b111, 0b000, 1000), 0);
+  EXPECT_EQ(laggards.update(0b110, 0b001, 1100), 0);  // session 0 finished
+  EXPECT_EQ(laggards.update(0b100, 0b011, 1100 + FRAME_LAGGARD_MS), 0);
+  EXPECT_EQ(laggards.update(0b100, 0b011, 1101 + FRAME_LAGGARD_MS), 0b100);
+  EXPECT_EQ(laggards.update(0b100, 0b011, 1200 + FRAME_LAGGARD_MS), 0) << "reported once";
 }
 
 TEST(RTSPFrameLaggards, OnlyTheSessionsThatTookTheFrameCount) {
   FrameLaggards laggards;
   laggards.start(0b01);
   // Session 1 holds an older frame it did not take now; it is not compared with session 0.
-  EXPECT_EQ(laggards.update(0b11, 1000), 0);
-  EXPECT_EQ(laggards.update(0b11, 5000), 0);
+  EXPECT_EQ(laggards.update(0b11, 0b00, 1000), 0);
+  EXPECT_EQ(laggards.update(0b11, 0b00, 5000), 0);
   laggards.start(0b11);  // the next frame restarts the count
-  EXPECT_EQ(laggards.update(0b01, 6000), 0);
-  EXPECT_EQ(laggards.update(0b01, 6001 + FRAME_LAGGARD_MS), 0b01);
+  EXPECT_EQ(laggards.update(0b01, 0b10, 6000), 0);
+  EXPECT_EQ(laggards.update(0b01, 0b10, 6001 + FRAME_LAGGARD_MS), 0b01);
+}
+
+TEST(RTSPFrameLaggards, SessionThatStopsWithoutFinishingIsNoFinisher) {
+  FrameLaggards laggards;
+  laggards.start(0b111);
+  // Session 0 closed, paused or stalled part way: the others are not cut short by it.
+  EXPECT_EQ(laggards.update(0b110, 0b000, 1000), 0);
+  EXPECT_EQ(laggards.update(0b110, 0b000, 60000), 0);
+  // Once session 1 sends the whole frame, session 2 has FRAME_LAGGARD_MS from then.
+  EXPECT_EQ(laggards.update(0b100, 0b010, 61000), 0);
+  EXPECT_EQ(laggards.update(0b100, 0b010, 61000 + FRAME_LAGGARD_MS), 0);
+  EXPECT_EQ(laggards.update(0b100, 0b010, 61001 + FRAME_LAGGARD_MS), 0b100);
 }
 
 // Minimal JPEG: SOI, DQT (two tables), optional DRI, SOF0, SOS, scan byte, EOI.

@@ -59,14 +59,17 @@ void RTSPServer::loop() {
 
   bool playing = false;
   uint8_t sending = 0;
+  uint8_t finished = 0;
   for (size_t i = 0; i < this->sessions_.size(); i++) {
     RTSPSession &session = this->sessions_[i];
     session.loop(now, this->port_);
     playing |= session.is_playing();
     if (session.has_frame())
       sending |= 1 << i;
+    if (session.finished_frame())
+      finished |= 1 << i;
   }
-  const uint8_t laggards = this->laggards_.update(sending, now);
+  const uint8_t laggards = this->laggards_.update(sending, finished, now);
   for (size_t i = 0; i < this->sessions_.size(); i++) {
     if (laggards & (1 << i)) {
       ESP_LOGV(TAG, "Session %u is %" PRIu32 " ms behind the others, dropping frame", static_cast<unsigned>(i),
