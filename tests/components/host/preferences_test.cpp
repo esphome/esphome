@@ -169,6 +169,138 @@ TEST_F(HostPreferencesTest, LoadNonExistentKeyReturnsFalse) {
   EXPECT_FALSE(prefs.load(0x9999, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
 }
 
+TEST_F(HostPreferencesTest, ObjectSyncWritesToFile) {
+  ScopedEnvVar prefdir_guard("ESPHOME_PREFDIR");
+
+  auto prefdir = this->temp_dir_ / "objectsync";
+  setenv("ESPHOME_PREFDIR", prefdir.c_str(), 1);
+
+  HostPreferences *saved = host_preferences;
+  {
+    HostPreferences prefs;
+    host_preferences = &prefs;
+    HostPreferenceBackend backend(0x5A5A);
+    ESPPreferenceObject pref(&backend);
+    uint32_t value = 0xCAFEF00D;
+    EXPECT_TRUE(pref.save(&value));
+    EXPECT_TRUE(pref.sync());
+  }
+  host_preferences = saved;
+
+  HostPreferences prefs;
+  uint32_t loaded = 0;
+  EXPECT_TRUE(prefs.load(0x5A5A, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+  EXPECT_EQ(loaded, 0xCAFEF00Du);
+}
+
+TEST_F(HostPreferencesTest, ObjectSyncLeavesOtherSavesPending) {
+  ScopedEnvVar prefdir_guard("ESPHOME_PREFDIR");
+
+  auto prefdir = this->temp_dir_ / "objectsyncpending";
+  setenv("ESPHOME_PREFDIR", prefdir.c_str(), 1);
+
+  HostPreferences *saved = host_preferences;
+  {
+    HostPreferences prefs;
+    host_preferences = &prefs;
+    HostPreferenceBackend synced_backend(0x1111);
+    HostPreferenceBackend pending_backend(0x2222);
+    ESPPreferenceObject synced(&synced_backend);
+    ESPPreferenceObject pending(&pending_backend);
+    uint32_t value = 1;
+    EXPECT_TRUE(pending.save(&value));
+    value = 2;
+    EXPECT_TRUE(synced.save(&value));
+    EXPECT_TRUE(synced.sync());
+  }
+  host_preferences = saved;
+
+  HostPreferences prefs;
+  uint32_t loaded = 0;
+  EXPECT_TRUE(prefs.load(0x1111, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+  EXPECT_EQ(loaded, 2u);
+  EXPECT_FALSE(prefs.load(0x2222, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+}
+
+TEST_F(HostPreferencesTest, SyncKeyWithoutPendingSaveSucceeds) {
+  ScopedEnvVar prefdir_guard("ESPHOME_PREFDIR");
+
+  auto prefdir = this->temp_dir_ / "nopending";
+  setenv("ESPHOME_PREFDIR", prefdir.c_str(), 1);
+
+  HostPreferences prefs;
+  EXPECT_TRUE(prefs.sync_key(0x3333));
+}
+
+TEST_F(HostPreferencesTest, SyncKeyWithoutFileFails) {
+  ScopedEnvVar home_guard("HOME");
+  ScopedEnvVar prefdir_guard("ESPHOME_PREFDIR");
+  unsetenv("HOME");
+  unsetenv("ESPHOME_PREFDIR");
+
+  HostPreferences prefs;
+  uint32_t value = 7;
+  EXPECT_TRUE(prefs.save(0x4444, reinterpret_cast<const uint8_t *>(&value), sizeof(value)));
+  EXPECT_FALSE(prefs.sync_key(0x4444));
+}
+
+TEST_F(HostPreferencesTest, SyncKeyKeepsStoredKeysAndLeavesRestForGlobalSync) {
+  ScopedEnvVar prefdir_guard("ESPHOME_PREFDIR");
+
+  auto prefdir = this->temp_dir_ / "synckeykeeps";
+  setenv("ESPHOME_PREFDIR", prefdir.c_str(), 1);
+
+  uint32_t value = 1;
+  {
+    HostPreferences prefs;
+    EXPECT_TRUE(prefs.save(0x0001, reinterpret_cast<const uint8_t *>(&value), sizeof(value)));
+    EXPECT_TRUE(prefs.sync());
+  }
+
+  HostPreferences prefs;
+  value = 2;
+  EXPECT_TRUE(prefs.save(0x1111, reinterpret_cast<const uint8_t *>(&value), sizeof(value)));
+  value = 3;
+  EXPECT_TRUE(prefs.save(0x2222, reinterpret_cast<const uint8_t *>(&value), sizeof(value)));
+  EXPECT_TRUE(prefs.sync_key(0x1111));
+
+  uint32_t loaded = 0;
+  {
+    HostPreferences reloaded;
+    EXPECT_TRUE(reloaded.load(0x0001, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+    EXPECT_EQ(loaded, 1u);
+    EXPECT_TRUE(reloaded.load(0x1111, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+    EXPECT_EQ(loaded, 2u);
+    EXPECT_FALSE(reloaded.load(0x2222, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+  }
+
+  EXPECT_TRUE(prefs.sync());
+  HostPreferences reloaded;
+  EXPECT_TRUE(reloaded.load(0x2222, reinterpret_cast<uint8_t *>(&loaded), sizeof(loaded)));
+  EXPECT_EQ(loaded, 3u);
+}
+
+TEST_F(HostPreferencesTest, SyncKeySkipsUnchangedValue) {
+  ScopedEnvVar prefdir_guard("ESPHOME_PREFDIR");
+
+  auto prefdir = this->temp_dir_ / "synckeyunchanged";
+  setenv("ESPHOME_PREFDIR", prefdir.c_str(), 1);
+
+  HostPreferences prefs;
+  uint32_t value = 5;
+  EXPECT_TRUE(prefs.save(0x5555, reinterpret_cast<const uint8_t *>(&value), sizeof(value)));
+  EXPECT_TRUE(prefs.sync_key(0x5555));
+
+  // Without its folder a write would fail, so success means nothing was written
+  fs::remove_all(prefdir);
+  EXPECT_TRUE(prefs.sync_key(0x5555));
+}
+
+TEST_F(HostPreferencesTest, ObjectSyncWithoutBackendFails) {
+  ESPPreferenceObject pref;
+  EXPECT_FALSE(pref.sync());
+}
+
 }  // namespace esphome::host::testing
 
 #endif
