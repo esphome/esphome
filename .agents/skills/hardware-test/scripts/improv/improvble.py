@@ -28,10 +28,12 @@ async def main(name: str, secrets: str) -> None:
     loop = asyncio.get_running_loop()
     t0 = loop.time()
     done = asyncio.Event()
-    errors: list[int] = []
+    errors: list = []
+    states: list[int] = []
     async with BleakClient(dev) as c:
 
         def on_state(_, d: bytearray) -> None:
+            states.append(d[0])
             print(f"{loop.time() - t0:6.2f} STATE {STATES.get(d[0], d[0])}", flush=True)
 
         def on_error(_, d: bytearray) -> None:
@@ -40,6 +42,12 @@ async def main(name: str, secrets: str) -> None:
                 print(f"{loop.time() - t0:6.2f} ERROR {d[0]}", flush=True)
 
         def on_result(_, d: bytearray) -> None:
+            if len(d) < 3 or d[1] != len(d) - 3 or sum(d[:-1]) & 0xFF != d[-1]:
+                errors.append("bad result frame")
+                print(
+                    f"{loop.time() - t0:6.2f} BAD RESULT {bytes(d).hex()}", flush=True
+                )
+                return
             p, strs = bytes(d[2:-1]), []
             while p:
                 strs.append(p[1 : 1 + p[0]].decode(errors="replace"))
@@ -60,8 +68,11 @@ async def main(name: str, secrets: str) -> None:
         except TimeoutError:
             print("no result within 45 s")
         await asyncio.sleep(1)
-    if not done.is_set() or errors:
-        sys.exit(f"FAIL (errors {errors})")
+        states.append((await c.read_gatt_char(STATE))[0])
+    if not done.is_set() or errors or states[-1] != 4:
+        sys.exit(
+            f"FAIL (errors {errors}, last state {STATES.get(states[-1], states[-1])})"
+        )
     print("PASS")
 
 

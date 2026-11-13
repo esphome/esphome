@@ -1,9 +1,10 @@
 """Improv serial client that reads frames out of the log stream on the same port.
-usage: improvcli.py PORT OUT --secrets FILE [--baud N] [--keep-dtr] [--settle S] [--skip-bad]
+usage: improvcli.py PORT OUT --secrets FILE [--baud N] [--keep-dtr] [--settle S] [--skip-bad] [--allow-reset]
 Runs: 300 stray bytes, state, info, network state, scan, provision with a bad password, provision with the real one,
 state and network state again. Prints parsed frames; the raw stream goes to OUT.
-Exit 1 when a provisioning reply is missing or a frame fails its checksum. Credentials come from the secrets
-file (wifi_ssid, wifi_password) and are never printed; the SSID is masked in scan results."""
+Exit 1 when any request goes unanswered, an unexpected error or a bad checksum arrives, or the port resets
+(unless --allow-reset). Credentials come from the secrets file (wifi_ssid, wifi_password) and are never printed;
+the SSID is masked in scan results."""
 
 import argparse
 import pathlib
@@ -107,6 +108,9 @@ class Dev:
             del self.buf[:i]
             if len(self.buf) < 9:
                 return
+            if self.buf[6] != 1:  # not a version 1 header: "IMPROV" in log text
+                del self.buf[:6]
+                continue
             ln = self.buf[8]
             if len(self.buf) < 10 + ln:
                 return
@@ -145,15 +149,32 @@ class Dev:
         return None
 
 
-def provision(d: Dev, ssid: str, pw: str, pred, label: str) -> bool:
-    s, w = ssid.encode(), pw.encode()
-    p = bytes([len(s)]) + s + bytes([len(w)]) + w
+def ask(
+    d: Dev, label: str, cmd: int, pred, timeout: float = 1.5, payload: bytes = b""
+) -> bool:
+    """Send one request and require a reply matching pred; any other nonzero ERROR frame fails it."""
+    print(f"== {label}")
     start = len(d.events)  # before sending, so an immediate reply counts
     t = time.time()
-    d.send(1, p, wait=0)
-    e = d.wait_for(pred, 60, start)
-    print(f"{label} after {time.time() - t:.1f}s" if e else f"NO {label} within 60s")
-    return e is not None
+    d.send(cmd, payload, wait=0)
+    e = d.wait_for(pred, timeout, start)
+    print(
+        f"reply after {time.time() - t:.1f}s"
+        if e
+        else f"NO reply within {timeout:.0f}s"
+    )
+    errs = [x for x in d.events[start:] if x[1] == 2 and x[2][0] and not pred(x)]
+    if errs:
+        print(f"unexpected errors: {[ERRORS.get(x[2][0], x[2][0]) for x in errs]}")
+    return e is not None and not errs
+
+
+def rpc(cmd: int):
+    return lambda e: e[1] == 4 and e[2][0] == cmd and e[3]
+
+
+def state(e: tuple) -> bool:
+    return e[1] == 1 and e[3]
 
 
 def main() -> None:
@@ -169,57 +190,59 @@ def main() -> None:
     a.add_argument("--secrets", required=True)
     a.add_argument("--settle", type=float, default=3)
     a.add_argument("--skip-bad", action="store_true")
+    a.add_argument(
+        "--allow-reset",
+        action="store_true",
+        help="a port reset (board reboot) does not fail the run",
+    )
     o = a.parse_args()
     with pathlib.Path(o.secrets).open(encoding="utf-8") as f:
         sec = yaml.safe_load(f)
     ssid, pw = sec["wifi_ssid"], sec["wifi_password"]
-    print(f"password length {len(pw.encode())} bytes")
+    s, w = ssid.encode(), pw.encode()
+    print(f"password length {len(w)} bytes")
     d = Dev(o.port, o.baud, o.out, o.keep_dtr, ssid)
     d.pump(o.settle)
     before = d.loglines
     print("== stray bytes")
+    j = len(d.events)
     junk = bytes(
         random.choice([b for b in range(256) if b != 0x49]) for _ in range(300)
     )
     d.ser.write(junk)
     d.ser.flush()
     d.pump(1.0)
-    print("== state")
-    d.send(2, wait=1.5)
-    print("== info")
-    d.send(3, wait=1.5)
-    print("== netstate")
-    d.send(7, wait=1.5)
-    print("== scan")
-    d.send(4, wait=6)
-    seen = any(e[1] == 4 and e[2][0] == 4 and ssid.encode() in e[2] for e in d.events)
+    # Stray bytes must be ignored silently; the state reply below shows the parser recovered.
+    ok = not any(e[1] == 2 and e[2][0] for e in d.events[j:])
+    ok &= ask(d, "state", 2, state)
+    ok &= ask(d, "info", 3, rpc(3))
+    ok &= ask(d, "netstate", 7, rpc(7))
+    # The scan sends one reply per network and ends with an empty one.
+    ok &= ask(d, "scan", 4, lambda e: rpc(4)(e) and e[2][1] == 0, timeout=10)
+    seen = any(e[1] == 4 and e[2][0] == 4 and s in e[2] for e in d.events)
     print(f"target network in scan: {seen}")
-    ok = True
+    creds = bytes([len(s)]) + s
     if not o.skip_bad:
-        print("== provision bad password")
-        ok &= provision(
+        bad_pw = b"wrong-password-0123456789"
+        ok &= ask(
             d,
-            ssid,
-            "wrong-password-0123456789",
+            "provision bad password",
+            1,
             lambda e: e[1] == 2 and e[2][0] == 3 and e[3],
-            "unable_to_connect",
+            timeout=60,
+            payload=creds + bytes([len(bad_pw)]) + bad_pw,
         )
         d.pump(2)
-    print("== provision good")
-    ok &= provision(
-        d,
-        ssid,
-        pw,
-        lambda e: e[1] == 4 and e[2][0] == 1 and e[3],
-        "provisioned response",
+    ok &= ask(
+        d, "provision good", 1, rpc(1), timeout=60, payload=creds + bytes([len(w)]) + w
     )
     d.pump(3)
-    print("== state")
-    d.send(2, wait=1.5)
-    print("== netstate")
-    d.send(7, wait=1.5)
+    ok &= ask(d, "state is provisioned", 2, lambda e: state(e) and e[2][0] == 4)
+    ok &= ask(d, "netstate", 7, rpc(7))
     d.pump(2)
     bad = sum(1 for e in d.events if not e[3])
+    if d.reopens and not o.allow_reset:
+        ok = False
     print(
         f"frames={len(d.events)} badchecksum={bad} reopens={d.reopens} loglines={d.loglines} "
         f"(before stray {before})"

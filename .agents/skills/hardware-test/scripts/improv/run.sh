@@ -9,7 +9,8 @@ D=$(cd "$(dirname "$0")" && pwd); N=${1:?name}; shift
 W=${TREE:?set TREE}; PORT=${PORT:?set PORT}; S=${SECRETS:?set SECRETS}; PY=${PY:-$W/venv/bin/python}
 Y=$N; [ -f "$Y" ] || Y=$D/$N.yaml; Y=$(cd "$(dirname "$Y")" && pwd)/$(basename "$Y"); N=$(basename "$Y" .yaml)
 O=$D/out-$N; mkdir -p "$O"
-echo "== $N $(git -C "$W" rev-parse --short=10 HEAD)"
+REV=$(git -C "$W" rev-parse --short=10 HEAD) || { echo "TREE is not a git checkout: $W"; exit 2; }
+echo "== $N $REV"
 (cd "$W" && PYTHONPATH=$W PYTHONUNBUFFERED=1 $PY -m esphome compile "$Y") > "$O/compile.log" 2>&1 \
   || { echo "$N compile failed"; tail -20 "$O/compile.log"; exit 2; }
 grep -E "^(RAM|Flash):" "$O/compile.log"
