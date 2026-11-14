@@ -1,6 +1,6 @@
 # Optional nRF52 Zigbee endpoints and generic attributes
 
-Endpoint numbering implementation checkpoint. Advanced attributes remain a design proposal.
+Endpoint numbering implementation status, 2026-11-15. Advanced attributes remain deferred.
 Upstream source base: `904f0df92034ee70233f6f225c65a5784fb2a6a8`.
 Implementation/test baseline: `3a5267b7cafe505ce448d8d3509c2c38b7ac5cee`
 (the source base plus the reviewed design document).
@@ -13,16 +13,71 @@ remain limited to eight. Time uses its resolved implicit ID. The runtime callbac
 table performs bounded lookup by wire ID and rejects zero, reserved IDs, duplicate
 registrations and capacity overflow. Simple YAML still needs no cluster declarations.
 
-Validation: the pre-change core baseline passed 134 tests. The first new explicit-17
-test failed at the ESP32-only schema gate before implementation, then passed. The
-final targeted Python run passed 168 tests, with one host C++ test skipped on the
-authoring worker because it has no compiler. The existing nine core coroutine
-warnings were also present in the baseline. Full generated C++ matches the base for
-legacy nRF and default/explicit ESP32 fixtures after build-time normalization. The
-language schema builds successfully; neutral build YAML validates. An independent
-read-only review found no correctness defect. External isolated host execution of
-the callback test with ASan/UBSan was reported successful; final target compilation
-is a separate validation step and is not claimed here.
+Validated implementation commit: `ea05a9190ee9b5cc6e92fbb1eea31b4820288c27`.
+The pre-change core baseline passed 134 tests. The first new explicit-17 test failed
+at the ESP32-only schema gate before implementation, then passed. Full generated
+C++ matches the base for legacy nRF and default/explicit ESP32 fixtures after
+build-time normalization. Language schema extraction succeeds, and an independent
+read-only review found no correctness defect.
+
+An independent validation runner reported the following results for the exact
+published implementation commit, with retrieved source bytes verified against the
+authoring checkout. These are external execution results, not additional runs on
+the authoring worker:
+
+- In an isolated nonroot Docker environment based on the official ESPHome 2026.10.2
+  image, the fork was installed in a separate virtual environment as 2026.12.0-dev.
+  The targeted suite passed **169 tests with zero skips** and nine pre-existing
+  warnings. This includes the production callback-table host test compiled with
+  g++ and AddressSanitizer/UndefinedBehaviorSanitizer.
+- The neutral public endpoint fixture compiled successfully with nRF SDK 2.9.2
+  (exit 0). Generated endpoint IDs were **17, 2, 239, 1, 3**. The only fixture
+  adjustment was an explicit SDK version pin in an isolated copy.
+- An additional eight-endpoint legacy configuration compiled successfully after
+  adapting an external consumer of undocumented allocation helpers. Its endpoint
+  descriptors, device context and wrappers matched its baseline numbering 1..8.
+  This is not evidence of unchanged compatibility for direct helper consumers.
+- Generated UF2 formats were verified. Builds used isolated dependencies and no
+  production bind mounts; production sources and running services were unchanged.
+
+The eight-endpoint SDK capacity remains unchanged. Compilation and host tests do
+not establish hardware or radio acceptance. No upload, flashing, physical-device
+test, pairing, over-the-air read/write or reporting test was performed.
+
+### Reproducing validation
+
+From the exact implementation checkout, using a prepared isolated virtual environment:
+
+```sh
+.venv/bin/python -m pytest -o addopts='' -q \
+  tests/component_tests/zigbee \
+  tests/unit_tests/components/zigbee \
+  tests/unit_tests/core/test_entity_helpers.py
+```
+
+The host test requires g++ or clang++ and working ASan/UBSan runtimes. A compiler
+absence skips that test; such a run does not reproduce the zero-skip result above.
+
+For target compilation, copy
+`tests/components/zigbee/test-endpoints.nrf52-xiao-ble.yaml` into the isolated build
+workspace as `endpoint-sdk292.yaml`. Preserve its endpoint/entity definitions and
+set the explicit SDK pin under its existing `nrf52` section:
+
+```yaml
+nrf52:
+  board: xiao_ble
+  framework:
+    version: "2.9.2"
+```
+
+Then run from that prepared environment, with the copy at the indicated path:
+
+```sh
+.venv/bin/python -m esphome compile endpoint-sdk292.yaml
+```
+
+Keep build output and SDK downloads in the isolated workspace. This command compiles
+only; uploading and hardware/radio validation are separate steps outside this checkpoint.
 
 Compatibility guarantees apply to public YAML. Internal allocation/codegen helpers
 now distinguish compact slots from wire IDs; external code that calls those helpers
