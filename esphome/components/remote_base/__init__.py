@@ -639,7 +639,6 @@ async def build_dumpers(config):
 
 
 # Beo4
-Beo4Data, Beo4BinarySensor, Beo4Trigger, _, Beo4Dumper = declare_protocol("Beo4")
 BEO4_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SOURCE): cv.hex_uint8_t,
@@ -647,33 +646,7 @@ BEO4_SCHEMA = cv.Schema(
         cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.uint8_t,
     }
 )
-
-
-@register_binary_sensor("beo4", Beo4BinarySensor, BEO4_SCHEMA)
-def beo4_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                Beo4Data,
-                ("source", config[CONF_SOURCE]),
-                ("command", config[CONF_COMMAND]),
-                ("repeats", config[CONF_COMMAND_REPEATS]),
-            )
-        )
-    )
-
-
-@register_trigger("beo4", Beo4Trigger, Beo4Data)
-def beo4_trigger(var, config):
-    pass
-
-
-@register_dumper("beo4", Beo4Dumper)
-def beo4_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+Beo4Data, Beo4BinarySensor, Beo4Trigger, _, Beo4Dumper = register_simple_protocol(
     "beo4",
     "Beo4",
     BEO4_SCHEMA,

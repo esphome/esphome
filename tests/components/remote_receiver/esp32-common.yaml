@@ -43,6 +43,16 @@ binary_sensor:
     samsung:
       data: 0xE0E040BF
   - platform: remote_receiver
+    name: Beo4 Remote Input
+    beo4:
+      source: 0x01
+      command: 0x0C
+  - platform: remote_receiver
+    name: Beo4 Remote Input
+    beo4:
+      source: 0x01
+      command: 0x0C
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b
