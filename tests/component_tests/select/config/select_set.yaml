@@ -1,0 +1,39 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+button:
+  # Declared before the selects, so the action is generated before them
+  - platform: template
+    id: early
+    name: Early
+    on_press:
+      - select.set:
+          id: fan
+          option: high
+      - select.set:
+          id: fan
+          option: turbo
+      - select.set:
+          id: fan
+          option: !lambda return "low";
+      - select.set:
+          id: fan_copy
+          option: medium
+
+select:
+  - platform: template
+    id: fan
+    name: Fan
+    optimistic: true
+    options: [low, medium, high]
+    on_value:
+      - select.set:
+          id: fan
+          option: medium
+  - platform: copy
+    id: fan_copy
+    name: Fan Copy
+    source_id: fan

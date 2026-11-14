@@ -117,7 +117,7 @@ async def to_code(config):
         options = list(options_map.values())
         mappings = list(options_map.keys())
 
-    var = await select.new_select(config, options=options)
+    var = await select.new_select(config, options=options, fixed_options=True)
     await cg.register_component(var, config)
     if mappings:
         cg.add(var.set_select_mappings(mappings))

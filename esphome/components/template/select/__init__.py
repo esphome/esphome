@@ -113,7 +113,7 @@ async def to_code(config):
             milliseconds=SCHEDULER_DONT_RUN
         )
     await cg.register_component(var, component_config)
-    await select.register_select(var, config, options=options)
+    await select.register_select(var, config, options=options, fixed_options=True)
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

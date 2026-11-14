@@ -41,5 +41,5 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await select.new_select(config, options=DUCO_MODE_OPTIONS)
+    var = await select.new_select(config, options=DUCO_MODE_OPTIONS, fixed_options=True)
     await register_duco_device(var, config, config[CONF_DUCO_ID])
