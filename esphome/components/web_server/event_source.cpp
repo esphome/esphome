@@ -154,7 +154,9 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   // allocation; nothing retries the greeting, so close and let the client reconnect.
   auto message = ws->get_config_json();
   if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
-    ESP_LOGW(TAG, "Config not sent to stream %d", this->log_id());
+    // A stream already closing (its head did not go out whole) is not a failed greeting
+    if (!this->is_closing())
+      ESP_LOGW(TAG, "Config not sent to stream %d", this->log_id());
     this->close();
     return;
   }
