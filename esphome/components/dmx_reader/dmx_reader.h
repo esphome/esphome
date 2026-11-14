@@ -5,7 +5,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/number/number.h"
+
+#if __has_include(<esp_dmx.h>)
 #include <esp_dmx.h>
+#else
+// Stubs for clang-tidy / non-ESP32 analysis environments where the
+// PlatformIO library is not on the include path.
+using dmx_port_t = int;
+static constexpr size_t DMX_PACKET_SIZE = 513;
+#endif
 
 #ifndef DMX_READER_STATIC_SENSOR_COUNT
 static constexpr size_t DMX_READER_STATIC_SENSOR_COUNT = 0;
