@@ -1043,7 +1043,7 @@ void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, mess
 AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(ws, server) {
+    : server_(server), web_server_(ws), entities_iterator_(ws, this) {
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
   this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }

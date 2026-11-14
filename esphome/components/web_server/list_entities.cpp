@@ -8,14 +8,8 @@
 
 namespace esphome::web_server {
 
-#ifdef USE_ESP32
-ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
-#elif USE_ARDUINO
-ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es)
-    : web_server_(ws), events_(es) {}
-#endif
 void ListEntitiesIterator::send_all_(void *source, message_generator_t *generator) {
-  this->events_->deferrable_send_state(source, true, generator);
+  this->session_->deferrable_send_state(source, true, generator);
 }
 
 #ifdef USE_BINARY_SENSOR

@@ -8,26 +8,26 @@ namespace esphome::json {
 class JsonBuilder;
 }  // namespace esphome::json
 
-namespace esphome::web_server_idf {
 #ifdef USE_ESP32
-class AsyncEventSource;
-#endif
+namespace esphome::web_server_idf {
+class AsyncEventSourceResponse;
 }  // namespace esphome::web_server_idf
+#endif
 
 namespace esphome::web_server {
 
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
+// The /events session the iterator lists entities to
+#ifdef USE_ESP32
+using EventSession = web_server_idf::AsyncEventSourceResponse;
+#elif defined(USE_ARDUINO)
 class DeferredUpdateEventSource;
+using EventSession = DeferredUpdateEventSource;
 #endif
 class WebServer;
 
 class ListEntitiesIterator final : public ComponentIterator {
  public:
-#ifdef USE_ESP32
-  ListEntitiesIterator(const WebServer *ws, esphome::web_server_idf::AsyncEventSource *es);
-#elif defined(USE_ARDUINO)
-  ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es);
-#endif
+  ListEntitiesIterator(const WebServer *ws, EventSession *session) : web_server_(ws), session_(session) {}
 
 // Entity overrides (generated from entity_types.h).
 // Implementations live in list_entities.cpp.
@@ -45,11 +45,7 @@ class ListEntitiesIterator final : public ComponentIterator {
   void send_all_(void *source, void (*generator)(WebServer *, void *, json::JsonBuilder &));
 
   const WebServer *web_server_;
-#ifdef USE_ESP32
-  esphome::web_server_idf::AsyncEventSource *events_;
-#elif USE_ARDUINO
-  DeferredUpdateEventSource *events_;
-#endif
+  EventSession *session_;
 };
 
 }  // namespace esphome::web_server
