@@ -7,6 +7,24 @@ ESPHOME_LOG_TAG(TAG, "zhlt01.climate");
 
 static constexpr uint8_t ZHLT01_MESSAGE_LENGTH = 12;
 
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// The first entry of each table is the fallback, except that a received fan code not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_AUTO, AC1_MODE_AUTO},    {climate::CLIMATE_MODE_COOL, AC1_MODE_COOL},
+    {climate::CLIMATE_MODE_HEAT, AC1_MODE_HEAT},    {climate::CLIMATE_MODE_DRY, AC1_MODE_DRY},
+    {climate::CLIMATE_MODE_FAN_ONLY, AC1_MODE_FAN},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, AC1_FAN_AUTO},
+    {climate::CLIMATE_FAN_LOW, AC1_FAN1},
+    {climate::CLIMATE_FAN_MEDIUM, AC1_FAN2},
+    {climate::CLIMATE_FAN_HIGH, AC1_FAN3},
+};
+
 void ZHLT01Climate::transmit_state() {
   uint8_t ir_message[ZHLT01_MESSAGE_LENGTH] = {0};
 
@@ -52,46 +70,12 @@ void ZHLT01Climate::transmit_state() {
       ir_message[7] |= AC1_FAN_SILENT;
       break;
     default:
-      switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-        case climate::CLIMATE_FAN_LOW:
-          ir_message[7] |= AC1_FAN1;
-          break;
-        case climate::CLIMATE_FAN_MEDIUM:
-          ir_message[7] |= AC1_FAN2;
-          break;
-        case climate::CLIMATE_FAN_HIGH:
-          ir_message[7] |= AC1_FAN3;
-          break;
-        case climate::CLIMATE_FAN_AUTO:
-          ir_message[7] |= AC1_FAN_AUTO;
-          break;
-        default:
-          break;
-      }
+      ir_message[7] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
   }
 
   // Byte 9 : AC Mode | Temperature
   // -- AC Mode
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      ir_message[9] = AC1_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      ir_message[9] = AC1_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      ir_message[9] = AC1_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      ir_message[9] = AC1_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      ir_message[9] = AC1_MODE_FAN;
-      break;
-    default:
-      break;
-  }
+  ir_message[9] = to_ir_code(MODES, this->mode);
 
   // -- Temperature
   ir_message[9] |= (uint8_t) (this->target_temperature - 16.0f);
@@ -185,28 +169,12 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
     } else if ((ir_message[7] & 0xE1) == AC1_FAN_SILENT) {
       this->preset = climate::CLIMATE_PRESET_SLEEP;
       this->fan_mode = climate::CLIMATE_FAN_LOW;
-    } else if ((ir_message[7] & 0xE1) == AC1_FAN_AUTO) {
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    } else if ((ir_message[7] & 0xE1) == AC1_FAN1) {
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-    } else if ((ir_message[7] & 0xE1) == AC1_FAN2) {
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    } else if ((ir_message[7] & 0xE1) == AC1_FAN3) {
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    } else if (const auto entry = find_ir_code(FANS, ir_message[7] & 0xE1, true)) {
+      this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
     }
 
     // AC Mode
-    if ((ir_message[9] & 0xE0) == AC1_MODE_COOL) {
-      this->mode = climate::CLIMATE_MODE_COOL;
-    } else if ((ir_message[9] & 0xE0) == AC1_MODE_HEAT) {
-      this->mode = climate::CLIMATE_MODE_HEAT;
-    } else if ((ir_message[9] & 0xE0) == AC1_MODE_DRY) {
-      this->mode = climate::CLIMATE_MODE_DRY;
-    } else if ((ir_message[9] & 0xE0) == AC1_MODE_FAN) {
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-    } else {
-      this->mode = climate::CLIMATE_MODE_AUTO;
-    }
+    this->mode = from_ir_code<climate::ClimateMode>(MODES, ir_message[9] & 0xE0);
 
     // Target Temperature
     this->target_temperature = (ir_message[9] & 0x1F) + 16.0f;
