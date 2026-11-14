@@ -1,0 +1,26 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+cc1101:
+  # Above 255 bytes: infinite length mode, then fixed for the remainder
+  - id: transceiver_long_fixed
+    cs_pin: GPIO5
+    gdo0_pin: GPIO4
+    packet_mode: true
+    packet_length: 1024
+    on_packet:
+      then:
+        - lambda: 'ESP_LOGD("cc1101", "long packet %u bytes", x.size());'
+
+  # Length taken from the packet header
+  - id: transceiver_long_lambda
+    cs_pin: GPIO15
+    gdo0_pin: GPIO2
+    packet_mode: true
+    packet_length: !lambda |-
+      if (x.size() < 3) return 0;
+      if (x[0] != 0x54) return -1;
+      return x[2] + 12;
+    on_packet:
+      then:
+        - lambda: 'ESP_LOGD("cc1101", "lambda packet %u bytes rssi %.1f", x.size(), rssi);'
