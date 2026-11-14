@@ -5,6 +5,7 @@
 // The long lived stream response the /events layer writes to, for the platform's web server
 #ifdef USE_ESP32
 #include "esphome/components/web_server_idf/web_server_idf.h"
+#include "esphome/core/helpers.h"
 
 #include <sys/socket.h>
 

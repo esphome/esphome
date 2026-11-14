@@ -94,11 +94,9 @@ void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
       },
       this);
   this->client_ = client;
-  if (!head_sent) {
-    // A partly queued head must not be continued by later writes. The disconnect callback runs now and marks the
-    // stream for the main loop to free, client included; never delete the client here, inside its own callback.
-    close_now(client);
-  }
+  // A partly queued head must not be continued by later writes. Closing here, inside the client's receive callback,
+  // could free the pcb the library still uses after it, so the main loop closes it once the callback has returned.
+  this->close_requested_ = !head_sent;
 }
 
 AsyncStreamResponse::~AsyncStreamResponse() {

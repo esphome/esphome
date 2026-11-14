@@ -295,6 +295,22 @@ TEST(StallClock, AcrossMillisWraparound) {
   EXPECT_EQ(clock.elapsed(start + TIMEOUT), TIMEOUT);
 }
 
+TEST(StallClock, StartOrExpiredStartsOnceAndExpiresAtTheTimeout) {
+  StallClock clock;
+  EXPECT_FALSE(clock.start_or_expired(1000, TIMEOUT));  // first call starts the clock
+  EXPECT_TRUE(clock.is_running());
+  EXPECT_FALSE(clock.start_or_expired(1000 + TIMEOUT - 1, TIMEOUT));  // a later call keeps the start
+  EXPECT_TRUE(clock.start_or_expired(1000 + TIMEOUT, TIMEOUT));
+  EXPECT_EQ(clock.elapsed(1000 + TIMEOUT), TIMEOUT);
+}
+
+TEST(IovecsTotal, SumsEveryElementIncludingEmptyOnes) {
+  char a[3], b[5];
+  struct iovec iov[] = {{a, sizeof(a)}, {nullptr, 0}, {b, sizeof(b)}};
+  EXPECT_EQ(iovecs_total(iov, 3), 8U);
+  EXPECT_EQ(iovecs_total(iov, 0), 0U);
+}
+
 }  // namespace esphome::web_server::testing
 
 #endif  // USE_HOST
