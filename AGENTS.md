@@ -317,16 +317,17 @@ file does, and it is the authority when they disagree. The most useful starting 
         sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
         `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
         value is cast from bus data).
-    *   **Member layout:** order fields from largest to smallest, store small codes as `uint8_t`, declare
-        `enum class X : uint8_t`, and pack flags into one byte, so no padding is spent per instance.
+    *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
+        as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
         factors, thresholds, checksums) is done in `to_code` and passed as a plain value, not done in C++ at
         boot.
     *   **One table for both directions:** a value that is encoded and decoded through the same mapping uses one
         `static constexpr` (`PROGMEM` on ESP8266) table of `{value, code}` pairs, not two `switch` ladders.
-    *   **Logging:** a reading is logged with `ESP_LOGV`, not `ESP_LOGD` on every update, and `setup()` logs no
-        "Setting up" or "initialized" line (core logs setup). `dump_config()` prints a block with one
-        `ESP_LOGCONFIG` call and a multi-line format string, not one call per line.
+    *   **Logging:** follow https://developers.esphome.io/architecture/logging/ for log levels and `dump_config()`.
+        In short: a reading is logged with `ESP_LOGV`, not `ESP_LOGD` on every update; `setup()` logs no
+        "Setting up" or "initialized" line (core logs setup); `dump_config()` combines related lines into one
+        `ESP_LOGCONFIG` call, within the 512-byte log buffer.
     *   **Leaf classes are `final`:** a component or entity class nothing derives from is declared `final`.
     *   **No copies within the PR:** two functions, branches or platform files that differ in a constant or two
         become one helper, loop or table; helpers, includes and imports nothing uses are deleted.

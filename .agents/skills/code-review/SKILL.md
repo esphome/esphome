@@ -146,7 +146,7 @@ detail.
   checks the schema already enforces, `default:` in a `switch` over every value of an `enum class` the
   component sets itself (not one cast from bus data), calls that set a member to its default
   (`set_cs_pin(nullptr)`).
-- **Member layout:** fields not ordered largest first, `int`/`uint32_t` for values that fit a `uint8_t`,
+- **Member layout:** field order that leaves padding, `int`/`uint32_t` for values that fit a `uint8_t`,
   an `enum class` without `: uint8_t`, several `bool` members that could share a byte. Each costs RAM per
   instance.
 - **C++ work that belongs in codegen:** scaling, clamping, checksums or register bytes computed at boot
@@ -159,9 +159,10 @@ detail.
   when the config uses it, with the runtime check inside the `#ifdef`.
 - **Failure handling:** `mark_failed()` outside `setup()` (runtime failures set a warning that the next
   success clears), an error enum that only picks a log message.
-- **Log noise:** `ESP_LOGD` on every reading, "Setting up" or "initialized" lines in `setup()`, a
-  `dump_config()` made of many single-line `ESP_LOGCONFIG` calls instead of one multi-line call, a
-  name helper that returns `const char *` instead of `const LogString *`.
+- **Logging** that does not follow https://developers.esphome.io/architecture/logging/: `ESP_LOGD` on every
+  reading, "Setting up" or "initialized" lines in `setup()`, a `dump_config()` made of single-line
+  `ESP_LOGCONFIG` calls where related lines fit one call, a name helper that returns `const char *` instead
+  of `const LogString *`.
 - **Leaf classes** that are not `final`.
 - **Unused helpers, includes and imports** left behind; lint does not catch most of them.
 - **Comments that restate the code** or tell its history: a block comment that walks through the next
