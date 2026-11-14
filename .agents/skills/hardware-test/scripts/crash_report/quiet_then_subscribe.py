@@ -2,8 +2,10 @@
 subscribe replays and clears it), then stay connected without a log subscription for QUIET_BOOTS reboots, then
 subscribe on the next boot and record the log (including a crash record replayed on subscribe) until a line with
 REBOOT. The drain connection is dropped and replaced by one without a subscription before boot 1 reboots, so a crash
-that needs a log subscriber is not recorded as a quiet one. Exits 1 when that line never comes or a quiet boot does not reboot within QUIET_REBOOT_WAIT seconds
-(default 900). Every lost connection counts as a reboot, so run it on a stable link.
+that needs a log subscriber is not recorded as a quiet one; a reboot during the drain, or a reconnect slow enough to
+hide one, fails the run instead of shifting the boot count. Exits 1 when that line never comes or a quiet boot does
+not reboot within QUIET_REBOOT_WAIT seconds (default 900). Every lost connection counts as a reboot, so run it on a
+stable link.
 env: API_KEY (unset for a plaintext API), QUIET_REBOOT_WAIT."""
 
 import asyncio
@@ -20,6 +22,8 @@ from apiconn import connect, log_text, stop_event  # noqa: E402
 
 # how long a quiet boot may run before its reboot; QUIET_REBOOT_WAIT in the env overrides it
 REBOOT_WAIT = float(os.environ.get("QUIET_REBOOT_WAIT", "900"))
+# a reconnect slower than this may have waited out a reboot (connect() retries once a second)
+RECONNECT_MAX_S = 5.0
 
 
 async def main(host: str, port: int, outf: str, quiet: int) -> None:
@@ -67,12 +71,21 @@ async def main(host: str, port: int, outf: str, quiet: int) -> None:
                     dump_config=False,
                 )
                 await asyncio.sleep(3)
+                if lost.is_set():
+                    w("=== boot 1 rebooted during the drain")
+                    sys.exit("FAIL: boot 1 rebooted with the drain subscriber attached")
                 with contextlib.suppress(Exception):
                     await cli.disconnect()
                 lost, on_stop = stop_event()
+                t = time.monotonic()
                 cli = await connect(
                     host, tries=300, timeout=5, port=port, on_stop=on_stop
                 )
+                if (dt := time.monotonic() - t) > RECONNECT_MAX_S:
+                    w(f"=== boot 1 reconnect took {dt:.1f} s")
+                    sys.exit(
+                        f"FAIL: the reconnect after the drain took {dt:.1f} s, boot 1 may have rebooted"
+                    )
                 w("=== boot 1 reconnected without a log subscription")
             # quiet: wait for the device to drop the connection (its reboot)
             try:
