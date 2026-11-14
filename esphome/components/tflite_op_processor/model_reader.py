@@ -146,6 +146,10 @@ class _FlatBuffer:
         self._require(elements, count * element_size)
         return elements, count
 
+    def vector_length(self, table: int, field_id: int, element_size: int) -> int:
+        """Element count of a vector field, 0 when the field is absent."""
+        return self._vector(table, field_id, element_size)[1]
+
     def i32_vector(self, table: int, field_id: int) -> list[int]:
         """Elements of an int vector field, empty when the field is absent."""
         elements, count = self._vector(table, field_id, 4)
@@ -247,8 +251,9 @@ def read_model_input(model_path: str | Path) -> ModelInput:
 
 
 def _buffers_with_data(buffer: _FlatBuffer) -> list[bool]:
+    """Whether each model buffer holds the constant bytes of a tensor."""
     return [
-        buffer._vector(table, _BUFFER_DATA, 1)[1] > 0
+        buffer.vector_length(table, _BUFFER_DATA, 1) > 0
         for table in buffer.table_vector(buffer.root(), _MODEL_BUFFERS)
     ]
 
