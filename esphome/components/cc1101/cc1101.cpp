@@ -17,6 +17,8 @@ namespace esphome::cc1101 {
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
 static constexpr size_t RX_FIFO_SIZE = 64;
+// RX FIFO threshold for FIFO_THR = 7 in long packet mode
+static constexpr uint8_t RX_FIFO_THRESHOLD = 32;
 // The crystal takes about 150 us to start after CSn goes low
 static constexpr uint32_t WAKEUP_DELAY_US = 200;
 
@@ -356,8 +358,25 @@ void CC1101Component::loop_long_packet_() {
     this->disable_loop();
     return;
   }
-  // RXBYTES can be misread while bytes arrive (TI SWRZ020), so only trust two consecutive reads that agree;
-  // otherwise try again on the next loop pass
+  // While GDO0 (RX FIFO threshold) is high, the FIFO holds at least RX_FIFO_THRESHOLD bytes, so drain without
+  // reading RXBYTES. At high data rates RXBYTES changes between two reads, so waiting for two reads that agree
+  // and retrying on the next loop pass lets the FIFO overflow. MARCSTATE does not change during RX.
+  for (uint8_t i = 0; i < RX_FIFO_SIZE / RX_FIFO_THRESHOLD + 2 && this->gdo0_pin_->digital_read(); i++) {
+    this->read_(Register::MARCSTATE);
+    if (static_cast<State>(this->state_.MARC_STATE) == State::RXFIFO_OVERFLOW) {
+      ESP_LOGW(TAG, "RX FIFO overflow, discarding packet: received=%u expected=%u",
+               static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_);
+      this->restart_long_packet_rx_();
+      return;
+    }
+    this->handle_long_packet_(RX_FIFO_THRESHOLD);
+    if (this->packet_.empty()) {
+      return;  // finished or discarded
+    }
+  }
+  // Below the threshold the next crossing raises GDO0 again, and after the packet the count no longer changes,
+  // so retrying on the next loop pass is safe here. RXBYTES can be misread while bytes arrive (TI SWRZ020), so
+  // only trust two consecutive reads that agree.
   this->read_(Register::RXBYTES);
   uint8_t rx_bytes = this->state_.RXBYTES;
   bool stable = false;
