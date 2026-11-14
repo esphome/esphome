@@ -869,13 +869,6 @@ LGData, LGBinarySensor, LGTrigger, _, LGDumper = register_simple_protocol(
 
 
 # MagiQuest
-(
-    MagiQuestData,
-    MagiQuestBinarySensor,
-    MagiQuestTrigger,
-    _,
-    MagiQuestDumper,
-) = declare_protocol("MagiQuest")
 
 MAGIQUEST_SCHEMA = cv.Schema(
     {
@@ -891,35 +884,15 @@ MAGIQUEST_BINARY_SENSOR_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAGNITUDE): cv.hex_uint16_t,
     }
 )
-
-
-@register_binary_sensor(
-    "magiquest", MagiQuestBinarySensor, MAGIQUEST_BINARY_SENSOR_SCHEMA
-)
-def magiquest_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(MagiQuestData, ("wand_id", config[CONF_WAND_ID]))
-        )
+MagiQuestData, MagiQuestBinarySensor, MagiQuestTrigger, _, MagiQuestDumper = (
+    register_simple_protocol(
+        "magiquest",
+        "MagiQuest",
+        MAGIQUEST_SCHEMA,
+        (CONF_MAGNITUDE, "magnitude", cg.uint16),
+        (CONF_WAND_ID, "wand_id", cg.uint32),
+        binary_sensor_schema=MAGIQUEST_BINARY_SENSOR_SCHEMA,
     )
-
-
-@register_trigger("magiquest", MagiQuestTrigger, MagiQuestData)
-def magiquest_trigger(var, config):
-    pass
-
-
-@register_dumper("magiquest", MagiQuestDumper)
-def magiquest_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "magiquest",
-    "MagiQuest",
-    MAGIQUEST_SCHEMA,
-    (CONF_WAND_ID, "wand_id", cg.uint32),
-    (CONF_MAGNITUDE, "magnitude", cg.uint16),
 )
 
 
