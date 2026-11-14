@@ -27,19 +27,14 @@ static void close_now(AsyncClient *client) {
 #endif
 }
 
-// Hands the connection to the stream once the head is queued. The library runs _respond() in the network context
+// Writes the head, then creates the stream with the connection. The library runs _respond() in the network context
 // right after the handler returns; clientRelease() then unhooks the request, which frees itself and this response.
+// A request that ends before _respond() never creates a stream, so nothing is left to free.
 class StreamHandoffResponse final : public AsyncWebServerResponse {
  public:
-  StreamHandoffResponse(AsyncStreamResponse *stream, const char *status, const char *content_type,
-                        std::span<const HttpHeader> headers, const char *body)
-      : stream_(stream), status_(status), content_type_(content_type), headers_(headers), body_(body) {}
-  // A request that ends before _respond() never hands over; the stream must still be freed
-  ~StreamHandoffResponse() override {
-    if (this->stream_ != nullptr) {
-      this->stream_->disconnected_.store(true, std::memory_order_release);
-    }
-  }
+  StreamHandoffResponse(const char *status, const char *content_type, std::span<const HttpHeader> headers,
+                        const char *body, const StreamAcceptor &acceptor)
+      : status_(status), content_type_(content_type), headers_(headers), body_(body), acceptor_(acceptor) {}
 
   void _respond(AsyncWebServerRequest *request) override {
     AsyncClient *client = request->client();
@@ -59,24 +54,25 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
         },
         this->status_, this->content_type_, this->headers_, std::span<const HttpHeader>(defaults, default_count),
         this->body_);
-    AsyncStreamResponse *stream = this->stream_;
-    this->stream_ = nullptr;
+    AsyncStreamResponse *stream = this->acceptor_.create(this->acceptor_.ctx);
     stream->attach_(request->clientRelease(), head_sent);
+    this->acceptor_.publish(this->acceptor_.owner, stream);
   }
   bool _sourceValid() const override { return true; }
 
  protected:
-  AsyncStreamResponse *stream_;
   const char *status_;
   const char *content_type_;
   std::span<const HttpHeader> headers_;
   const char *body_;
+  StreamAcceptor acceptor_;
 };
 
-void AsyncStreamResponse::begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
-                                std::span<const HttpHeader> headers, const char *body) {
+void AsyncStreamResponse::accept(AsyncWebServerRequest *request, const char *status, const char *content_type,
+                                 std::span<const HttpHeader> headers, const char *body,
+                                 const StreamAcceptor &acceptor) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) the request owns and frees its response
-  request->send(new StreamHandoffResponse(this, status, content_type, headers, body));
+  request->send(new StreamHandoffResponse(status, content_type, headers, body, acceptor));
 }
 
 void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
@@ -97,15 +93,16 @@ void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
         static_cast<AsyncStreamResponse *>(arg)->ack_timed_out_.store(true, std::memory_order_release);
       },
       this);
+  this->client_ = client;
   if (!head_sent) {
-    // A partly queued head must not be continued by later writes; the disconnect callback frees the stream
+    // A partly queued head must not be continued by later writes. The disconnect callback runs now and marks the
+    // stream for the main loop to free, client included; never delete the client here, inside its own callback.
     close_now(client);
   }
-  this->client_.store(client, std::memory_order_release);
 }
 
 AsyncStreamResponse::~AsyncStreamResponse() {
-  AsyncClient *client = this->client_.load(std::memory_order_acquire);
+  AsyncClient *client = this->client_;
   if (client == nullptr) {
     return;
   }
@@ -129,15 +126,14 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     return -1;
   }
   size_t sent = 0;
-  AsyncClient *client = this->client_.load(std::memory_order_acquire);
   const uint32_t now = App.get_loop_component_start_time();
-  if (client != nullptr && (!this->stall_.is_running() || now - this->last_try_ms_ >= STALL_RETRY_MS)) {
+  if (!this->stall_.is_running() || now - this->last_try_ms_ >= STALL_RETRY_MS) {
     this->last_try_ms_ = now;
     // RP2: the network IRQ may free the pcb between the check and the use, so hold it out across both
     LwIPLock lock;
     if (this->is_connected()) {
       char scratch[ADD_SCRATCH_SIZE];
-      sent = add_iovecs(*client, iov, iovcnt, scratch, sizeof(scratch));
+      sent = add_iovecs(*this->client_, iov, iovcnt, scratch, sizeof(scratch));
     }
   }
   if (sent > 0) {
@@ -169,14 +165,13 @@ void AsyncStreamResponse::close() {
 }
 
 void AsyncStreamResponse::close_client_() {
-  // Before the handoff there is no client yet; loop() closes it once attached
-  if (this->close_sent_ || !this->is_attached() || !this->is_connected()) {
+  if (this->close_sent_ || !this->is_connected()) {
     return;
   }
   this->close_sent_ = true;
   LwIPLock lock;
   if (this->is_connected()) {
-    close_now(this->client_.load(std::memory_order_relaxed));
+    close_now(this->client_);
   }
 }
 

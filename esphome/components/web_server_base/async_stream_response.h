@@ -22,9 +22,20 @@ struct StreamIovec {
   size_t iov_len;
 };
 
-/// A long lived response the main loop writes to without blocking, on ESPAsyncWebServer. The connection is taken
-/// from the request once the head is queued; the network callbacks only set flags, and the main loop owns and frees
-/// the AsyncClient. Same API as web_server_idf's AsyncStreamResponse.
+class AsyncStreamResponse;
+
+/// Who makes and takes the stream accept() creates: create(ctx) allocates it, publish(owner, stream) hands the
+/// attached stream to the main loop. Both run in the network context.
+struct StreamAcceptor {
+  AsyncStreamResponse *(*create)(void *ctx);
+  void (*publish)(void *owner, AsyncStreamResponse *stream);
+  void *owner;
+  void *ctx;
+};
+
+/// A long lived response the main loop writes to without blocking, on ESPAsyncWebServer. It exists only once the
+/// head is queued and the connection taken from the request; the network callbacks only set flags, and the main
+/// loop owns and frees the AsyncClient. Writes like web_server_idf's AsyncStreamResponse.
 class AsyncStreamResponse {
  public:
   AsyncStreamResponse() = default;
@@ -33,11 +44,11 @@ class AsyncStreamResponse {
   /// Main loop, once safe_to_delete(): frees the connection
   ~AsyncStreamResponse();
 
-  /// Network context, once. Queues the status line, Content-Type, headers, the default headers and body (a C string or
-  /// null) and takes the connection from the request. A chunked response passes {"Transfer-Encoding", "chunked"} as
-  /// its first header and frames each chunk itself.
-  void begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
-             std::span<const HttpHeader> headers, const char *body = nullptr);
+  /// Network context, from a request handler. Queues the status line, Content-Type, headers, the default headers and
+  /// body (a C string or null), then has the acceptor create the stream, attach the connection and publish it. A
+  /// chunked response passes {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself.
+  static void accept(AsyncWebServerRequest *request, const char *status, const char *content_type,
+                     std::span<const HttpHeader> headers, const char *body, const StreamAcceptor &acceptor);
 
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
   /// keeps the rest and continues from there. 0 means the send buffer is full or the connection is not ours yet; -1
@@ -49,10 +60,8 @@ class AsyncStreamResponse {
   /// Main loop, every pass. Closes a stream whose last send went unacknowledged for SEND_STALL_TIMEOUT_MS.
   void loop();
 
-  /// The connection has been taken from the request and the head is queued.
-  bool is_attached() const { return this->client_.load(std::memory_order_acquire) != nullptr; }
-  /// Main loop: true once a stream has waited ATTACH_TIMEOUT_MS for its connection, which then never comes
-  bool attach_timed_out(uint32_t now) { return this->stall_.start_or_expired(now, ATTACH_TIMEOUT_MS); }
+  /// Always true: a stream is published only once it has its connection.
+  bool is_attached() const { return true; }
   /// The client is still connected.
   bool is_connected() const { return !this->disconnected_.load(std::memory_order_acquire); }
   bool is_closing() const { return this->close_requested_; }
@@ -62,7 +71,6 @@ class AsyncStreamResponse {
   bool safe_to_delete() const { return this->disconnected_.load(std::memory_order_acquire); }
 
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
-  static constexpr uint32_t ATTACH_TIMEOUT_MS = 10000;
   // While stalled, retry at most this often: on RP2 each try releases the lwIP lock, which postpones a polled
   // Ethernet chip's 20 ms receive poll
   static constexpr uint32_t STALL_RETRY_MS = 100;
@@ -70,15 +78,15 @@ class AsyncStreamResponse {
  protected:
   friend class StreamHandoffResponse;
 
-  // Network context: take the connection once the head is queued; a head not queued whole closes it first
+  // Network context, before publishing: take the connection; a head not queued whole closes it
   void attach_(AsyncClient *client, bool head_sent);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and closes. True when it closed.
   bool stall_or_close_(const LogString *reason);
   void close_client_();
 
-  // Published by the network context once attached; then the main loop owns it and frees it once disconnected_
-  std::atomic<AsyncClient *> client_{nullptr};
-  // Runs while sends make no progress (or, before attaching, while waiting for the connection)
+  // Set before publishing; the main loop owns it and frees it once disconnected_
+  AsyncClient *client_{nullptr};
+  // Runs while sends make no progress
   StallClock stall_;
   uint32_t last_try_ms_{0};
   // Set from the network callbacks with plain stores (no read-modify-write: RP2040 has none)

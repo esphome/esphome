@@ -60,7 +60,7 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   void loop();
 
  protected:
-  AsyncEventSourceResponse(AsyncWebServerRequest *request, WebServer *ws);
+  explicit AsyncEventSourceResponse(WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
   void start_session_main_loop_();
@@ -154,6 +154,13 @@ class AsyncEventSource {
  protected:
   // Cold path: move sessions from the pending list into sessions_ and greet each one.
   void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+  // Network context: queue a new session for the main loop
+  void push_pending_(AsyncEventSourceResponse *rsp);
+#ifndef USE_ESP32
+  // web_server_base::StreamAcceptor callbacks, network context
+  static web_server_base::AsyncStreamResponse *create_session_(void *ws);
+  static void publish_session_(void *source, web_server_base::AsyncStreamResponse *stream);
+#endif
 
   // Main-loop only; intrusive list through AsyncEventSourceResponse::next_
   AsyncEventSourceResponse *sessions_{nullptr};

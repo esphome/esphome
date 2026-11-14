@@ -33,15 +33,38 @@ AsyncEventSource::~AsyncEventSource() {
 
 void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer *ws) {
   // Network context: start the stream and park the session; the main loop does the rest.
+#ifdef USE_ESP32
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
-  auto *rsp = new AsyncEventSourceResponse(request, ws);
+  auto *rsp = new AsyncEventSourceResponse(ws);
+  rsp->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
+  this->push_pending_(rsp);
+#else
+  // The session is created only once the head is queued and the connection is ours
+  web_server_base::AsyncStreamResponse::accept(
+      request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK,
+      {&AsyncEventSource::create_session_, &AsyncEventSource::publish_session_, this, ws});
+#endif
+}
+
+void AsyncEventSource::push_pending_(AsyncEventSourceResponse *rsp) {
   {
     web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
     rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
     this->pending_sessions_.store(rsp, std::memory_order_release);
   }
-  ws->enable_loop_soon_any_context();
+  rsp->web_server_->enable_loop_soon_any_context();
 }
+
+#ifndef USE_ESP32
+web_server_base::AsyncStreamResponse *AsyncEventSource::create_session_(void *ws) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
+  return new AsyncEventSourceResponse(static_cast<WebServer *>(ws));
+}
+
+void AsyncEventSource::publish_session_(void *source, web_server_base::AsyncStreamResponse *stream) {
+  static_cast<AsyncEventSource *>(source)->push_pending_(static_cast<AsyncEventSourceResponse *>(stream));
+}
+#endif
 
 // clang-analyzer traces a false-positive leak path from loop() through
 // adopt_pending_sessions_main_loop_() into start_session_main_loop_() and
@@ -84,14 +107,9 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
-    // The transport takes the connection only after the creating handler returns, so stay pending until then;
-    // one that never gets it (a lost hand-off) is dropped instead of keeping the loop busy
+    // httpd commits a stream after the creating handler returns (or destroys it), so it stays pending until then;
+    // on ESPAsyncWebServer a session is published already attached
     if (!rsp->is_attached()) {
-      if (rsp->attach_timed_out(App.get_loop_component_start_time())) {
-        ESP_LOGW(TAG, "Dropping stream %d that never connected", rsp->log_id());
-        delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
-        continue;
-      }
       web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
       rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
       this->pending_sessions_.store(rsp, std::memory_order_release);
@@ -121,11 +139,8 @@ void AsyncEventSource::deferrable_send_state(void *source, message_generator_t *
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, WebServer *ws)
-    : web_server_(ws), entities_iterator_(ws, this) {
-  // Network context only. start_session_main_loop_() sends the greeting and starts the iterator.
-  this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
-}
+// Network context only. start_session_main_loop_() sends the greeting and starts the iterator.
+AsyncEventSourceResponse::AsyncEventSourceResponse(WebServer *ws) : web_server_(ws), entities_iterator_(ws, this) {}
 static_assert(web_server_base::stream_head_iov_count(SSE_HEADERS_COUNT + WEB_SERVER_DEFAULT_HEADERS_COUNT) <=
                   web_server_base::STREAM_HEAD_MAX_IOV,
               "the event stream head must go out in one write");
@@ -133,8 +148,6 @@ static_assert(web_server_base::stream_head_iov_count(SSE_HEADERS_COUNT + WEB_SER
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
-  // The wait for the connection is over; the clock now times sends
-  this->stall_.clear();
 
   // The tcp send buffer is empty on connect. A refusal is a closing session or a failed tail
   // allocation; nothing retries the greeting, so close and let the client reconnect.
