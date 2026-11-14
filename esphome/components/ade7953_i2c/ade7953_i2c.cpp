@@ -11,12 +11,7 @@ void AdE7953I2c::dump_config() {
   LOG_I2C_DEVICE(this);
   ade7953_base::ADE7953::dump_config();
 }
-bool AdE7953I2c::ade_write_8(uint16_t reg, uint8_t value) {
-  uint8_t data[3];
-  put_be16(data, reg);
-  data[2] = value;
-  return this->write(data, 3) != i2c::ERROR_OK;
-}
+bool AdE7953I2c::ade_write_8(uint16_t reg, uint8_t value) { return !this->write_byte_reg16(reg, value); }
 bool AdE7953I2c::ade_write_16(uint16_t reg, uint16_t value) {
   uint8_t data[4];
   put_be16(data, reg);

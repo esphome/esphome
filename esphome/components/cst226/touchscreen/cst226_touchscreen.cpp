@@ -62,9 +62,7 @@ void CST226Touchscreen::continue_setup_() {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  buffer[0] = 0xD1;
-  if (!this->setup_check(this->write_register16(0xD1, buffer, 1) == i2c::ERROR_OK,
-                         LOG_STR("Write byte to 0xD1 failed")))
+  if (!this->setup_check(this->write_byte_reg16(0xD1, 0xD1), LOG_STR("Write byte to 0xD1 failed")))
     return;
   delay(10);
   if (this->read16_(0xD204, buffer, 4)) {

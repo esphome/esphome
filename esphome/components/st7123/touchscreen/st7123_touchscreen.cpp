@@ -23,7 +23,7 @@ void ST7123Touchscreen::update() {
       return;
 
     uint8_t status;
-    if (this->read_register16(ST7123_REG_STATUS, &status, 1) != i2c::ERROR_OK) {
+    if (!this->read_byte_reg16(ST7123_REG_STATUS, &status)) {
       this->mark_failed(LOG_STR("Failed to read status register"));  // will stop updates
       return;
     }
@@ -40,8 +40,7 @@ void ST7123Touchscreen::update() {
     ESP_LOGD(TAG, "Status is %X", status);
 
     uint8_t data;
-    if (this->read_register16(ST7123_REG_MAX_TOUCHES, &data, 1) == i2c::ERROR_OK && data != 0 &&
-        data <= ST7123_MAX_TOUCHES) {
+    if (this->read_byte_reg16(ST7123_REG_MAX_TOUCHES, &data) && data != 0 && data <= ST7123_MAX_TOUCHES) {
       this->max_touches_ = data;
     }
 
