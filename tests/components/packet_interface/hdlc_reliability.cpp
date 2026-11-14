@@ -270,6 +270,18 @@ TEST_F(HdlcReliabilityTest, OversizedPacketRejected) {
   EXPECT_FALSE(a.send(Frame(a.hdlc->get_max_packet_size() + 1)));
 }
 
+// Frames are sent again without the caller's metadata, so a chosen destination is refused, not quietly dropped
+TEST_F(HdlcReliabilityTest, ChosenDestinationRefused) {
+  Peer a, b;
+  pump(a, b);
+  Frame packet{0x10};
+  PacketMetaData meta_data;
+  meta_data.destination_address = 3;
+  EXPECT_FALSE(a.hdlc->send_to_interface(PacketBuffer(packet), meta_data));
+  pump(a, b);
+  EXPECT_TRUE(b.received.empty());
+}
+
 TEST_F(HdlcReliabilityTest, CrcErrorDropped) {
   Peer a, b;
   pump(a, b);
