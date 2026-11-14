@@ -270,7 +270,8 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (!data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP))
         return false;
     }
-    if (i == WHIRLPOOL_SECOND_DIVIDER && !data.is_valid()) {
+    // The Hitachi remote always sends all 21 bytes; byte 18 holds its power state
+    if (i == WHIRLPOOL_SECOND_DIVIDER && !data.is_valid() && !this->is_hitachi_hcra31newh_()) {
       // Remote control only sent 14 bytes, nothing more to read, not even the footer
       ESP_LOGV(TAG, "Remote control only sent %d bytes", i);
       skip_footer = true;

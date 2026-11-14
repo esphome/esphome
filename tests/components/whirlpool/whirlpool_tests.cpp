@@ -467,4 +467,14 @@ TEST(WhirlpoolDG11J13A, TargetIsClampedAndRoundedToWhatWasSent) {
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 24);
 }
 
+TEST(WhirlpoolHitachiHCRA31NEWH, ReceiveRejectsShortFrame) {
+  Fixture f(MODEL_HITACHI_HCRA31NEWH);
+  remote_base::RawTimings raw = waveform(hitachi_cool_frame());
+  // Cut after the second divider: 14 bytes, no footer
+  raw.resize(2 + 14 * 16 + 2 * 2);
+  remote_base::RemoteReceiveData data(raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+  EXPECT_FALSE(static_cast<remote_base::RemoteReceiverListener &>(f.climate).on_receive(data));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
+}
+
 }  // namespace esphome::whirlpool::testing
