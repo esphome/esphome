@@ -30,7 +30,7 @@ void EPaperJD79660::fill(Color color) {
 
   // We store 4 pixels per byte
   this->buffer_.fill(pixel_color | (pixel_color << 2) | (pixel_color << 4) | (pixel_color << 6));
-  this->drawn_since_hash_ = true;
+  this->mark_all_drawn_();
 }
 
 void HOT EPaperJD79660::draw_pixel_at(int x, int y, Color color) {
