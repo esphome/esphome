@@ -103,11 +103,11 @@ bool I2CDevice::update_register(uint8_t a_register, uint8_t mask, uint8_t value)
 
 bool I2CDevice::update_register16(uint16_t a_register, uint8_t mask, uint8_t value) {
   uint8_t data;
-  if (!this->read_byte16(a_register, &data))
+  if (!this->read_byte_reg16(a_register, &data))
     return false;
   const uint8_t updated = (data & ~mask) | (value & mask);
   ESP_LOGV(TAG, "Register 0x%04X: 0x%02X -> 0x%02X", a_register, data, updated);
-  return this->write_byte16(a_register, updated);
+  return this->write_byte_reg16(a_register, updated);
 }
 
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {

@@ -32,7 +32,7 @@ void ICNT86Touchscreen::setup() {
 void ICNT86Touchscreen::update_touches() {
   uint8_t buf[MAX_TOUCHES * POINT_SIZE] = {0};
 
-  if (!this->read_byte16(REG_TOUCH_NUM, buf)) {
+  if (!this->read_byte_reg16(REG_TOUCH_NUM, buf)) {
     this->status_set_warning();
     this->skip_update_ = true;
     ESP_LOGW(TAG, "Failed to read touch count");
@@ -50,7 +50,7 @@ void ICNT86Touchscreen::update_touches() {
     ESP_LOGW(TAG, "Failed to read touch points");
     return;
   }
-  this->write_byte16(REG_TOUCH_NUM, 0x00);
+  this->write_byte_reg16(REG_TOUCH_NUM, 0x00);
   ESP_LOGV(TAG, "Touch count: %d", touch_count);
   this->status_clear_warning();
 

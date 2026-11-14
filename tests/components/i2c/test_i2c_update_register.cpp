@@ -124,25 +124,25 @@ class Register16Test : public ::testing::Test {
 TEST_F(Register16Test, ReadByte16) {
   this->bus_.regs[REG16] = 0x5A;
   uint8_t data = 0;
-  EXPECT_TRUE(this->device_.read_byte16(REG16, &data));
+  EXPECT_TRUE(this->device_.read_byte_reg16(REG16, &data));
   EXPECT_EQ(data, 0x5A);
 }
 
 TEST_F(Register16Test, ReadByte16Failure) {
   this->bus_.fail_read = true;
   uint8_t data = 0;
-  EXPECT_FALSE(this->device_.read_byte16(REG16, &data));
+  EXPECT_FALSE(this->device_.read_byte_reg16(REG16, &data));
 }
 
 TEST_F(Register16Test, WriteByte16) {
-  EXPECT_TRUE(this->device_.write_byte16(REG16, 0xA5));
+  EXPECT_TRUE(this->device_.write_byte_reg16(REG16, 0xA5));
   EXPECT_EQ(this->bus_.regs[REG16], 0xA5);
   EXPECT_EQ(this->bus_.writes, std::vector<uint16_t>{REG16});
 }
 
 TEST_F(Register16Test, WriteByte16Failure) {
   this->bus_.fail_write = true;
-  EXPECT_FALSE(this->device_.write_byte16(REG16, 0xA5));
+  EXPECT_FALSE(this->device_.write_byte_reg16(REG16, 0xA5));
 }
 
 TEST_F(Register16Test, UpdateReplacesOnlyMaskedBits) {

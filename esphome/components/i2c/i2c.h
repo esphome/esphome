@@ -322,12 +322,12 @@ class I2CDevice {
   bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
 
   /// Read one byte from a register with a 16-bit register address.
-  bool read_byte16(uint16_t a_register, uint8_t *data) {
+  bool read_byte_reg16(uint16_t a_register, uint8_t *data) {
     return this->read_register16(a_register, data, 1) == ERROR_OK;
   }
 
   /// Write one byte to a register with a 16-bit register address.
-  bool write_byte16(uint16_t a_register, uint8_t data) const {
+  bool write_byte_reg16(uint16_t a_register, uint8_t data) const {
     return this->write_register16(a_register, &data, 1) == ERROR_OK;
   }
 
