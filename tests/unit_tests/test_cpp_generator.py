@@ -483,12 +483,45 @@ class TestStatements:
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
                 'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
+            (
+                cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar", align=16),
+                'alignas(16) static constexpr uint16_t foo[] PROGMEM = "bar"',
+            ),
+            (
+                cg.ProgmemAssignmentExpression(
+                    ct.uint16, "foo", "bar", constexpr=False, align=4
+                ),
+                'alignas(4) ESPHOME_FLASH_CONSTINIT static uint16_t const foo[] PROGMEM = "bar"',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Statement, expected: str):
         actual = str(target)
 
         assert actual == expected
+
+
+class TestProgmemArray:
+    def test_align_is_emitted(self) -> None:
+        """``align`` prefixes the declaration with ``alignas``."""
+        CORE.main_statements = []
+        cg.progmem_array(
+            ID("model_data", is_declaration=True, type=ct.uint8), [1, 2], align=16
+        )
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {1, 2};"
+        )
+
+    def test_no_align_by_default(self) -> None:
+        CORE.main_statements = []
+        cg.progmem_array(ID("table", is_declaration=True, type=ct.uint8), [1, 2])
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "static constexpr uint8_t table[] PROGMEM = {1, 2};"
+        )
 
 
 # TODO: This method has side effects in CORE

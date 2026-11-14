@@ -333,7 +333,7 @@ void Scheduler::full_cleanup_removed_items_() {
   }
   this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
-  std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
+  std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::Cmp{});
   this->to_remove_clear_locked_();
 }
 
@@ -460,7 +460,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       LockGuard guard{this->lock_};
       this->items_ = std::move(old_items);
       // Rebuild heap after moving items back
-      std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
+      std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::Cmp{});
     }
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
@@ -560,7 +560,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // This avoids the to_add_ detour and the overhead of
       // process_to_add_slow_path_() (lock acquisition, vector iteration, clear).
       this->items_.push_back(executed_item);
-      std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
+      std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::Cmp{});
     } else {
       // Timeout completed - recycle it
       this->recycle_item_main_loop_(executed_item);
@@ -602,7 +602,7 @@ void HOT Scheduler::process_to_add_slow_path_() {
     }
 
     this->items_.push_back(it);
-    std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
+    std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::Cmp{});
   }
   this->to_add_.clear();
   this->to_add_count_clear_locked_();
@@ -627,7 +627,7 @@ bool HOT Scheduler::cleanup_slow_path_() {
   return !this->items_.empty();
 }
 Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
-  std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
+  std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::Cmp{});
 
   SchedulerItem *item = this->items_.back();
   this->items_.pop_back();
@@ -730,13 +730,6 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
                                                                hash_or_id, type, find_first);
 
   return total_cancelled > 0;
-}
-
-bool HOT Scheduler::SchedulerItem::cmp(SchedulerItem *a, SchedulerItem *b) {
-  // High bits are almost always equal (change only on 32-bit rollover ~49 days)
-  // Optimize for common case: check low bits first when high bits are equal
-  return (a->next_execution_high_ == b->next_execution_high_) ? (a->next_execution_low_ > b->next_execution_low_)
-                                                              : (a->next_execution_high_ > b->next_execution_high_);
 }
 
 // Recycle a SchedulerItem back to the freelist for reuse.
