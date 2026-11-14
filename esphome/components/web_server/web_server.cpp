@@ -334,7 +334,8 @@ void DeferredUpdateEventSource::send_initial_() {
 // ESP32, so library calls from the main loop hold LwIPLock (empty on ESP8266 and LibreTiny).
 bool DeferredUpdateEventSourceList::loop() {
   // Lock only with work: each RP2 release re-arms the 20 ms Ethernet poll, so locking every pass starves a polled
-  // NIC. Walking unlocked is safe as the lwIP context only appends, and runs to completion.
+  // NIC. The unlocked walk is safe on RP2 because the lwIP context only appends (add_new_client) and runs to
+  // completion, and only this loop erases; not on LibreTiny, whose callbacks run in their own task.
   bool work = false;
   for (DeferredUpdateEventSource *dues : *this) {
     if (dues->has_work_()) {
@@ -379,6 +380,7 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t
   }
 }
 
+// Runs in the lwIP context on RP2: append only, loop() is the sole eraser
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
