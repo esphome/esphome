@@ -6,12 +6,12 @@
 
 namespace esphome::aranet {
 
-class Aranet final : public Component, public ble_device_base::ESPBTDeviceListener {
+class Aranet final : public ble_device_base::ESPBTDeviceListener {
  public:
   explicit Aranet(uint64_t address) : address_(address) {}
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   static constexpr uint8_t WARNED_INVALID_LENGTH = 1 << 0;

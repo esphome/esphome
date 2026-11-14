@@ -16,7 +16,7 @@
 // guard.
 namespace esphome::ble_scanner {
 
-class BLEScanner final : public text_sensor::TextSensor, public ble_device_base::ESPBTDeviceListener, public Component {
+class BLEScanner final : public text_sensor::TextSensor, public ble_device_base::ESPBTDeviceListener {
  public:
   bool parse_device(const ble_device_base::ESPBTDevice &device) override {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -31,7 +31,7 @@ class BLEScanner final : public text_sensor::TextSensor, public ble_device_base:
     this->publish_state(buf);
     return true;
   }
-  void dump_config() override;
+  void dump_child_config() override;
 };
 
 }  // namespace esphome::ble_scanner

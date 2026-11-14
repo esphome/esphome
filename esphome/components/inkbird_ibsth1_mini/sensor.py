@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_EXTERNAL_TEMPERATURE,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -22,7 +23,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace("inkbird_ibsth1_mini")
 InkbirdIbstH1Mini = inkbird_ibsth1_mini_ns.class_(
-    "InkbirdIbstH1Mini", ble_device_base.ESPBTDeviceListener, cg.Component
+    "InkbirdIbstH1Mini", ble_device_base.ESPBTDeviceListener
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -57,14 +58,13 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 

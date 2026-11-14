@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ACCELERATION_Z,
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_MEASUREMENT_SEQUENCE_NUMBER,
     CONF_MOVEMENT_COUNTER,
@@ -38,9 +39,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ble_device_base", "ruuvi_ble"]
 
 ruuvitag_ns = cg.esphome_ns.namespace("ruuvitag")
-RuuviTag = ruuvitag_ns.class_(
-    "RuuviTag", ble_device_base.ESPBTDeviceListener, cg.Component
-)
+RuuviTag = ruuvitag_ns.class_("RuuviTag", ble_device_base.ESPBTDeviceListener)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("ruuvitag"),
@@ -115,14 +114,13 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 

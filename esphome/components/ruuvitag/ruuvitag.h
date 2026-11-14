@@ -7,7 +7,7 @@
 
 namespace esphome::ruuvitag {
 
-class RuuviTag final : public Component, public ble_device_base::ESPBTDeviceListener {
+class RuuviTag final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(humidity)
   SUB_SENSOR(temperature)
   SUB_SENSOR(pressure)
@@ -45,7 +45,7 @@ class RuuviTag final : public Component, public ble_device_base::ESPBTDeviceList
     return true;
   }
 
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   uint64_t address_;

@@ -25,7 +25,7 @@ enum SensorType {
 // measurement may be inaccurate.
 enum SensorReadQuality { QUALITY_HIGH = 0x3, QUALITY_MED = 0x2, QUALITY_LOW = 0x1, QUALITY_ZERO = 0x0 };
 
-class MopekaProCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
+class MopekaProCheck final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(level)
   SUB_SENSOR(temperature)
   SUB_SENSOR(battery_level)
@@ -37,7 +37,7 @@ class MopekaProCheck final : public Component, public ble_device_base::ESPBTDevi
   void set_address(uint64_t address) { address_ = address; };
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-  void dump_config() override;
+  void dump_child_config() override;
   void set_min_signal_quality(SensorReadQuality min) { this->min_signal_quality_ = min; };
 
   void set_tank_full(float full) { full_mm_ = full; };

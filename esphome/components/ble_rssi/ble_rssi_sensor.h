@@ -10,7 +10,7 @@
 // guard.
 namespace esphome::ble_rssi {
 
-class BLERSSISensor final : public sensor::Sensor, public ble_device_base::ESPBTDeviceListener, public Component {
+class BLERSSISensor final : public sensor::Sensor, public ble_device_base::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) {
     this->match_by_ = MATCH_BY_MAC_ADDRESS;
@@ -100,7 +100,7 @@ class BLERSSISensor final : public sensor::Sensor, public ble_device_base::ESPBT
     }
     return false;
   }
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_IRK, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };

@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_EXTERNAL_TEMPERATURE,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
@@ -26,7 +27,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 thermopro_ble_ns = cg.esphome_ns.namespace("thermopro_ble")
 ThermoProBLE = thermopro_ble_ns.class_(
-    "ThermoProBLE", ble_device_base.ESPBTDeviceListener, cg.Component
+    "ThermoProBLE", ble_device_base.ESPBTDeviceListener
 )
 
 
@@ -68,16 +69,13 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(
-        config, config[CONF_MAC_ADDRESS].as_hex
-    )
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_MAC_ADDRESS].as_hex)
+    await ble_device_base.register_ble_device(var, config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

@@ -6,7 +6,7 @@
 
 namespace esphome::b_parasite {
 
-class BParasite final : public Component, public ble_device_base::ESPBTDeviceListener {
+class BParasite final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(battery_voltage)
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
@@ -18,7 +18,7 @@ class BParasite final : public Component, public ble_device_base::ESPBTDeviceLis
   void set_bindkey(const std::string &bindkey);
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   // The received advertisement packet contains an unsigned 4 bits wrap-around counter

@@ -17,7 +17,7 @@ namespace testing {
 class ReplayClockAccess;
 }  // namespace testing
 
-class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, public Component {
+class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
   SUB_SENSOR(battery_level)
@@ -31,7 +31,7 @@ class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, p
   void set_replay_protection(bool replay_protection) { this->replay_protection_ = replay_protection; }
 #endif
 
-  void dump_config() override;
+  void dump_child_config() override;
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 
  protected:

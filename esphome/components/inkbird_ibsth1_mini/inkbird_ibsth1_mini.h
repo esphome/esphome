@@ -6,7 +6,7 @@
 
 namespace esphome::inkbird_ibsth1_mini {
 
-class InkbirdIbstH1Mini final : public Component, public ble_device_base::ESPBTDeviceListener {
+class InkbirdIbstH1Mini final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(temperature)
   SUB_SENSOR(external_temperature)
   SUB_SENSOR(humidity)
@@ -17,7 +17,7 @@ class InkbirdIbstH1Mini final : public Component, public ble_device_base::ESPBTD
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   uint64_t address_;
