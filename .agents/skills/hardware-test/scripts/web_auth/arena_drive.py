@@ -78,6 +78,7 @@ def stream(stop: threading.Event) -> None:
             )
             stats["stream_opens"] += 1
             s.settimeout(1)
+            first = True
             while not stop.is_set():
                 try:
                     d = s.recv(8192)
@@ -86,6 +87,12 @@ def stream(stop: threading.Event) -> None:
                 if not d:
                     stats["sse_closes"] += 1
                     break
+                # a refused stream (401, 503) is an error, not load
+                if first and not d.startswith(b"HTTP/1.1 200"):
+                    stats["stream_errors"] += 1
+                    time.sleep(1)
+                    break
+                first = False
                 stats["sse_bytes"] += len(d)
             s.close()
         except OSError:
@@ -179,7 +186,7 @@ def phase(name: str, workers: list) -> bool:
             stream in workers
             and (
                 stats["sse_bytes"] == 0
-                or stats["stream_errors"] > stats["stream_opens"]
+                or stats["stream_errors"] * 2 > stats["stream_opens"]
             )
         )
         or (connector in workers and stats["connect_errors"] >= stats["connects"])
