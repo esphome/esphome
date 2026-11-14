@@ -1043,39 +1043,14 @@ NECData, NECBinarySensor, NECTrigger, _, NECDumper = register_simple_protocol(
 
 
 # Onkyo RI
-OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, _, OnkyoRIDumper = declare_protocol(
-    "OnkyoRI"
-)
 ONKYORI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_int_range(0, 0xFFF)})
-
-
-@register_binary_sensor("onkyori", OnkyoRIBinarySensor, ONKYORI_SCHEMA)
-def onkyori_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                OnkyoRIData,
-                ("data", config[CONF_DATA]),
-            )
-        )
+OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, _, OnkyoRIDumper = (
+    register_simple_protocol(
+        "onkyori",
+        "OnkyoRI",
+        ONKYORI_SCHEMA,
+        (CONF_DATA, "data", cg.uint16),
     )
-
-
-@register_trigger("onkyori", OnkyoRITrigger, OnkyoRIData)
-def onkyori_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("onkyori", OnkyoRIDumper)
-def onkyori_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
-register_protocol_action(
-    "onkyori",
-    "OnkyoRI",
-    ONKYORI_SCHEMA,
-    (CONF_DATA, "data", cg.uint16),
 )
 
 
