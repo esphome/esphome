@@ -1,10 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <utility>
 #include <vector>
 
 #ifdef USE_ESP32
@@ -35,10 +37,18 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
     this->has_data_to_value_ = true;
   }
   void set_enable_notify(bool notify) { this->notify_ = notify; }
+#ifdef USE_BLE_SENSOR_ON_NOTIFY
+  template<typename F> void add_on_notify_callback(F &&callback) {
+    this->notify_callback_.add(std::forward<F>(callback));
+  }
+#endif
   uint16_t handle;
 
  protected:
   float parse_data_(uint8_t *value, uint16_t value_len);
+#ifdef USE_BLE_SENSOR_ON_NOTIFY
+  LazyCallbackManager<void(float)> notify_callback_;
+#endif
   bool has_data_to_value_{false};
   float (*data_to_value_func_)(const std::vector<uint8_t> &){};
   bool notify_;

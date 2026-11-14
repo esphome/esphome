@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+sendspin:
+
+media_source:
+  - platform: sendspin
+    bits_per_sample: 24

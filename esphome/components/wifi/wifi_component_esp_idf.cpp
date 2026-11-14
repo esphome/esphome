@@ -41,11 +41,13 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
-#ifdef USE_WIFI_LEASE_CACHE
+#if USE_NETWORK_IPV6 || defined(USE_WIFI_LEASE_CACHE)
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
-#include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
-#include "lwip/dhcp.h"
 #include "lwip/netif.h"
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+#include <esp_rtc_time.h>  // esp_rtc_get_time_us() -- RTC-domain clock for lease age
+#include "lwip/dhcp.h"
 #endif
 
 #include "esphome/core/application.h"
@@ -819,7 +821,7 @@ void WiFiComponent::save_lease_settings_() {
     return;
 
 #ifdef USE_WIFI_MANUAL_IP
-  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value())
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip())
     return;
 #endif
 
@@ -1098,8 +1100,23 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = true;
 #if USE_NETWORK_IPV6
     // Start SLAAC on association, not after a DHCPv4 lease that may never arrive.
-    if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
+    // Not esp_netif_create_ip6_linklocal(): it returns ESP_FAIL while the netif is down, and this queued event
+    // can be handled before esp-netif's own STA_CONNECTED handler brings the netif up. lwIP accepts the
+    // address on a down netif and starts DAD and router solicitation once it comes up.
+    if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
+      if (esp_err_t err = esp_netif_tcpip_exec(
+              [](void *ctx) -> esp_err_t {
+                netif_create_ip6_linklocal_address(static_cast<struct netif *>(ctx), 1);
+                return ESP_OK;
+              },
+              netif);
+          err != ESP_OK) {
+        ESP_LOGW(TAG, "IPv6 link-local not created: %s", esp_err_to_name(err));
+      } else {
+        ESP_LOGD(TAG, "IPv6 link-local address created");
+      }
+    } else {
+      ESP_LOGW(TAG, "No lwIP netif, IPv6 link-local not created");
     }
 #endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
@@ -1125,7 +1142,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     bool static_ip = false;
 #ifdef USE_WIFI_MANUAL_IP
     const WiFiAP *config = this->get_selected_sta_();
-    static_ip = config && config->get_manual_ip().has_value();
+    static_ip = config && config->has_manual_ip();
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
     static_ip = static_ip || this->applied_cached_lease_;

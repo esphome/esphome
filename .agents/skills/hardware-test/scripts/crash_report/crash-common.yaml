@@ -1,0 +1,26 @@
+# Crash buttons for the crash report flow (#21596, #22288). A package: the per-run file supplies the board and name.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+logger:
+  level: DEBUG
+button:
+  - platform: template
+    name: crash abort
+    on_press:
+      - lambda: abort();
+  - platform: template
+    name: crash null store
+    on_press:
+      - lambda: '*(volatile uint32_t *) nullptr = 1;'
+  - platform: template
+    name: crash div zero
+    on_press:
+      - lambda: |-
+          volatile int z = 0;
+          volatile int r = 10 / z;
+          ESP_LOGI("hwt", "r=%d", r);

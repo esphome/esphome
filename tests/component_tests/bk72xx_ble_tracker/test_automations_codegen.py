@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 
 from esphome.components import ble_device_base
-from tests.component_tests.helpers import get_define_value
+from tests.component_tests.helpers import ble_adv_matches, get_define_value
 
 
 def test_trigger_codegen(
@@ -27,28 +27,25 @@ def test_trigger_codegen(
         "{0xAC3743775F4CULL, 0x112233445566ULL, 0};" in main_cpp
     )
     assert "set_addresses(ble_mac_filter)" in main_cpp
-    # 128-bit service uuid goes out reversed (BLE wire order); single-mac filter
+    # Service/manufacturer data triggers come from the shared ble_device_base
+    # codegen (full matrix in the esp32_ble_tracker test); check it ran here.
+    assert len(ble_adv_matches(main_cpp)) == 5
+    # scan-control actions: start_scan calls ble_device_base::start_scan and stop_scan
+    # goes straight to the tracker, with no action class.
+    # A set continuous passes as is; the bare start_scan passes the configured mode,
+    # pinning the restore-configured-mode divergence from esp32 against a future default=.
     assert (
-        "set_service_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
-        "0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB})" in main_cpp
+        main_cpp.count(
+            "ble_device_base::start_scan(::bk72xx_ble_tracker_bk72xxbletracker_id, true);"
+        )
+        == 1
     )
-    assert "set_address(0xAC3743775F4CULL)" in main_cpp
-    # 32-bit middle branch of the width dispatch
-    assert "set_service_uuid32(0xABCDABCDULL)" in main_cpp
-    # All three manufacturer widths: getattr() builds these names as strings,
-    # so a misspelling only ever fails here.
-    assert "set_manufacturer_uuid16(0xABCDULL)" in main_cpp
-    assert "set_manufacturer_uuid32(0xABCDABCDULL)" in main_cpp
     assert (
-        "set_manufacturer_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
-        "0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB})" in main_cpp
+        main_cpp.count(
+            "::bk72xx_ble_tracker_bk72xxbletracker_id->configured_continuous());"
+        )
+        == 1
     )
-    # scan-control actions: templatable continuous lambda + stop_scan forwarded
-    # straight to the tracker (register_apply_action, no action class).
-    # Exactly one set_continuous: the bare start_scan emits none, pinning the
-    # restore-configured-mode divergence from esp32 against a future default=.
-    assert main_cpp.count("->set_continuous(") == 1
-    assert "startscanaction_id->set_continuous(" in main_cpp
     assert main_cpp.count("->stop_scan();") == 1
     # scan_parameters continuous: false reaches the YAML-mode setter, not the
     # runtime override.

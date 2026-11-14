@@ -1,9 +1,13 @@
-"""Validation tests for the sendspin media_source platform.
+"""Validation and code generation tests for the sendspin media_source platform.
 
 These cover the codec preference list, whose rejection branches a compile test
-cannot reach: a `test*.yaml` can only assert that a configuration is accepted.
+cannot reach, and the advertised audio formats, which a compile test cannot
+check: a `test*.yaml` can only assert that a configuration is accepted.
 """
 
+from collections.abc import Callable
+from pathlib import Path
+import re
 from typing import Any
 
 import pytest
@@ -14,6 +18,13 @@ from esphome.components.sendspin.media_source import CONFIG_SCHEMA
 from esphome.const import PlatformFramework
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
+
+AUDIO_FORMAT_RE = re.compile(
+    r"\.codec = sendspin::SendspinCodecFormat::(\w+),\s*"
+    r"\.channels = (\d+),\s*"
+    r"\.sample_rate = \d+,\s*"
+    r"\.bit_depth = (\d+)"
+)
 
 
 def _media_source_config(**overrides: Any) -> ConfigType:
@@ -98,3 +109,33 @@ def test_opus_only_codec_list_rejected(
 
     with pytest.raises(cv.Invalid, match="must include 'flac' or 'pcm'"):
         CONFIG_SCHEMA(_media_source_config(codecs=["opus"]))
+
+
+@pytest.mark.parametrize(
+    ("config_file", "bits_per_sample"),
+    [
+        ("media_source_defaults.yaml", 16),
+        ("media_source_bits_per_sample_24.yaml", 24),
+    ],
+)
+def test_advertised_bit_depths(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    bits_per_sample: int,
+) -> None:
+    """FLAC and PCM use the configured depth; Opus is only decoded to 16 bits."""
+    main_cpp = generate_main(component_config_path(config_file))
+
+    formats = [
+        (codec, int(channels), int(bit_depth))
+        for codec, channels, bit_depth in AUDIO_FORMAT_RE.findall(main_cpp)
+    ]
+    assert formats == [
+        ("FLAC", 2, bits_per_sample),
+        ("FLAC", 1, bits_per_sample),
+        ("OPUS", 2, 16),
+        ("OPUS", 1, 16),
+        ("PCM", 2, bits_per_sample),
+        ("PCM", 1, bits_per_sample),
+    ]

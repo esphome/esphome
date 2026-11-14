@@ -32,6 +32,8 @@ class CC1101Component final : public Component,
   void begin_rx();
   void reset();
   void set_idle();
+  void power_down();
+  void wake_up();
 
   // GDO Pin Configuration
   void set_gdo0_pin(InternalGPIOPin *pin) { this->gdo0_pin_ = pin; }
@@ -99,6 +101,8 @@ class CC1101Component final : public Component,
  protected:
   uint16_t chip_id_{0};
   bool initialized_{false};
+  bool sleeping_{false};
+  bool registers_dirty_{false};
 
   float output_power_requested_{10.0f};
   float output_power_effective_{10.0f};
@@ -118,6 +122,7 @@ class CC1101Component final : public Component,
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);
+  void write_registers_();
   void write_(Register reg);
   void write_(Register reg, uint8_t value);
   void write_(Register reg, const uint8_t *buffer, size_t length);
