@@ -6,12 +6,32 @@ namespace esphome::delonghi {
 
 ESPHOME_LOG_TAG(TAG, "delonghi.climate");
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// The first entry of each table is the fallback when sending; a received code that is not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, DELONGHI_MODE_OFF},
+    {climate::CLIMATE_MODE_COOL, DELONGHI_MODE_ON | DELONGHI_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, DELONGHI_MODE_ON | DELONGHI_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, DELONGHI_MODE_ON | DELONGHI_MODE_HEAT},
+    {climate::CLIMATE_MODE_HEAT_COOL, DELONGHI_MODE_ON | DELONGHI_MODE_AUTO},
+    {climate::CLIMATE_MODE_FAN_ONLY, DELONGHI_MODE_ON | DELONGHI_MODE_FAN},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, DELONGHI_FAN_AUTO},
+    {climate::CLIMATE_FAN_LOW, DELONGHI_FAN_LOW},
+    {climate::CLIMATE_FAN_MEDIUM, DELONGHI_FAN_MEDIUM},
+    {climate::CLIMATE_FAN_HIGH, DELONGHI_FAN_HIGH},
+};
+
 void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
   remote_state[0] = DELONGHI_ADDRESS;
   remote_state[1] = this->temperature_();
-  remote_state[1] |= (this->fan_speed_()) << 5;
-  remote_state[2] = this->operation_mode_();
+  remote_state[1] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 5;
+  remote_state[2] = to_ir_code(MODES, this->mode);
   // Calculate checksum
   for (int i = 0; i < DELONGHI_STATE_FRAME_SIZE - 1; i++) {
     remote_state[DELONGHI_STATE_FRAME_SIZE - 1] += remote_state[i];
@@ -28,51 +48,6 @@ void DelonghiClimate::transmit_state() {
   data->space(0);
 
   transmit.perform();
-}
-
-uint8_t DelonghiClimate::operation_mode_() {
-  uint8_t operating_mode = DELONGHI_MODE_ON;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      operating_mode |= DELONGHI_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      operating_mode |= DELONGHI_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      operating_mode |= DELONGHI_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      operating_mode |= DELONGHI_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      operating_mode |= DELONGHI_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      operating_mode = DELONGHI_MODE_OFF;
-      break;
-  }
-  return operating_mode;
-}
-
-uint16_t DelonghiClimate::fan_speed_() {
-  uint16_t fan_speed;
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      fan_speed = DELONGHI_FAN_LOW;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DELONGHI_FAN_MEDIUM;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      fan_speed = DELONGHI_FAN_HIGH;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      fan_speed = DELONGHI_FAN_AUTO;
-  }
-  return fan_speed;
 }
 
 uint8_t DelonghiClimate::temperature_() {
@@ -102,26 +77,10 @@ bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
     return false;
   }
   uint8_t mode = frame[2] & 0x0F;
-  if (mode & DELONGHI_MODE_ON) {
-    switch (mode & 0x0E) {
-      case DELONGHI_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case DELONGHI_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case DELONGHI_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case DELONGHI_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case DELONGHI_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-    }
-  } else {
+  if (!(mode & DELONGHI_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (const auto entry = find_ir_code(MODES, mode, true)) {
+    this->mode = static_cast<climate::ClimateMode>(entry->value);
   }
   uint8_t temperature = frame[1] & 0x0F;
   if (this->mode == climate::CLIMATE_MODE_HEAT) {
@@ -129,23 +88,8 @@ bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
   } else {
     this->target_temperature = temperature + DELONGHI_TEMP_OFFSET_COOL;
   }
-  uint8_t fan_mode = frame[1] >> 5;
-  switch (fan_mode) {
-    case DELONGHI_FAN_LOW:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case DELONGHI_FAN_MEDIUM:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case DELONGHI_FAN_HIGH:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case DELONGHI_FAN_AUTO:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-    default:
-      break;
-  }
+  if (const auto entry = find_ir_code(FANS, frame[1] >> 5, true))
+    this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
   this->publish_state();
   return true;
 }
