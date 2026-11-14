@@ -56,7 +56,6 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -4033,6 +4032,9 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    # Imported here: sbom loads git and urllib helpers that config validation does not need
+    from esphome.espidf import sbom
+
     sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in
