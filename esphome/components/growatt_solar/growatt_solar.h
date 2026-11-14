@@ -74,15 +74,15 @@ class GrowattSolar final : public PollingComponent, public modbus::ModbusClientD
 
   void set_protocol_version(GrowattProtocolVersion protocol_version) { this->protocol_version_ = protocol_version; }
 
-  void set_inverter_status_sensor(sensor::Sensor *sensor) { this->inverter_status_ = sensor; }
+  SUB_SENSOR(inverter_status)
 
-  void set_grid_frequency_sensor(sensor::Sensor *sensor) { this->grid_frequency_sensor_ = sensor; }
-  void set_grid_active_power_sensor(sensor::Sensor *sensor) { this->grid_active_power_sensor_ = sensor; }
-  void set_pv_active_power_sensor(sensor::Sensor *sensor) { this->pv_active_power_sensor_ = sensor; }
+  SUB_SENSOR(grid_frequency)
+  SUB_SENSOR(grid_active_power)
+  SUB_SENSOR(pv_active_power)
 
-  void set_today_production_sensor(sensor::Sensor *sensor) { this->today_production_ = sensor; }
-  void set_total_energy_production_sensor(sensor::Sensor *sensor) { this->total_energy_production_ = sensor; }
-  void set_inverter_module_temp_sensor(sensor::Sensor *sensor) { this->inverter_module_temp_ = sensor; }
+  SUB_SENSOR(today_production)
+  SUB_SENSOR(total_energy_production)
+  SUB_SENSOR(inverter_module_temp)
 
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
     this->phases_[phase].voltage_sensor_ = voltage_sensor;
@@ -115,16 +115,6 @@ class GrowattSolar final : public PollingComponent, public modbus::ModbusClientD
     sensor::Sensor *active_power_sensor_{nullptr};
   } pvs_[2];
 
-  sensor::Sensor *inverter_status_{nullptr};
-
-  sensor::Sensor *grid_frequency_sensor_{nullptr};
-  sensor::Sensor *grid_active_power_sensor_{nullptr};
-
-  sensor::Sensor *pv_active_power_sensor_{nullptr};
-
-  sensor::Sensor *today_production_{nullptr};
-  sensor::Sensor *total_energy_production_{nullptr};
-  sensor::Sensor *inverter_module_temp_{nullptr};
   GrowattProtocolVersion protocol_version_;
 };
 

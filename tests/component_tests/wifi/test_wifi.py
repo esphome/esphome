@@ -52,3 +52,13 @@ def test_hidden_without_ssid_rejected(set_core_config: SetCoreConfigCallable) ->
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     with pytest.raises(Invalid, match="'hidden' requires 'ssid'"):
         CONFIG_SCHEMA({CONF_HIDDEN: True})
+
+
+@pytest.mark.parametrize("key", ["on_ap_start", "on_ap_stop"])
+def test_ap_trigger_without_ap_rejected(
+    set_core_config: SetCoreConfigCallable, key: str
+) -> None:
+    """An AP trigger without an AP could never fire and is rejected."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(Invalid, match=f"'{key}' requires 'ap'"):
+        CONFIG_SCHEMA({CONF_NETWORKS: [{CONF_SSID: "test"}], key: []})

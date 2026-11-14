@@ -50,19 +50,18 @@ enum State {
 };
 
 class Sim800LComponent final : public uart::UARTDevice, public PollingComponent {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(registered)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(rssi)
+#endif
+
  public:
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
   void loop() override;
   void dump_config() override;
-#ifdef USE_BINARY_SENSOR
-  void set_registered_binary_sensor(binary_sensor::BinarySensor *registered_binary_sensor) {
-    registered_binary_sensor_ = registered_binary_sensor;
-  }
-#endif
-#ifdef USE_SENSOR
-  void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
-#endif
   template<typename F> void add_on_sms_received_callback(F &&callback) {
     this->sms_received_callback_.add(std::forward<F>(callback));
   }
@@ -94,13 +93,6 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   void parse_cmd_(std::string message);
   void set_registered_(bool registered);
 
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *registered_binary_sensor_{nullptr};
-#endif
-
-#ifdef USE_SENSOR
-  sensor::Sensor *rssi_sensor_{nullptr};
-#endif
   std::string sender_;
   std::string message_;
   LineReader<SIM800L_READ_BUFFER_LENGTH> line_reader_;
@@ -122,12 +114,12 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   bool dtmf_ready_{false};
   uint8_t call_state_{6};
 
-  CallbackManager<void(std::string, std::string)> sms_received_callback_;
-  CallbackManager<void(std::string)> incoming_call_callback_;
+  CallbackManager<void(const std::string &, const std::string &)> sms_received_callback_;
+  CallbackManager<void(const std::string &)> incoming_call_callback_;
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
-  CallbackManager<void(std::string)> ussd_received_callback_;
-  CallbackManager<void(std::string)> dtmf_received_callback_;
+  CallbackManager<void(const std::string &)> ussd_received_callback_;
+  CallbackManager<void(const std::string &)> dtmf_received_callback_;
 };
 
 }  // namespace esphome::sim800l

@@ -24,6 +24,7 @@ enum SX127xReg : uint8_t {
   REG_RX_CONFIG = 0x0D,
   REG_RSSI_THRESH = 0x10,
   REG_RX_BW = 0x12,
+  REG_AFC_BW = 0x13,
   REG_OOK_PEAK = 0x14,
   REG_OOK_FIX = 0x15,
   REG_OOK_AVG = 0x16,
@@ -280,7 +281,7 @@ enum SX127xModemCfg1 : uint8_t {
 
 enum SX127xModemCfg2 : uint8_t {
   SPREADING_FACTOR_SHIFT = 4,
-  TX_CONTINOUS_MODE = 0x08,
+  TX_CONTINUOUS_MODE = 0x08,
   RX_PAYLOAD_CRC_ON = 0x04,
   RX_PAYLOAD_CRC_OFF = 0x00,
 };

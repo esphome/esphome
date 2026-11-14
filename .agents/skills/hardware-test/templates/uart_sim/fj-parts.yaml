@@ -1,0 +1,63 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: sim::loopback(id(u_j));
+
+uart:
+  - id: u_j
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 9600
+
+sensor:
+  - platform: jsn_sr04t
+    name: JSN Distance
+    uart_id: u_j
+    update_interval: 15s
+    accuracy_decimals: 3
+    filters: []
+
+button:
+  - platform: template
+    name: JSN Good
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Good", sim::ds1603l(3001));
+  - platform: template
+    name: JSN Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Bad Checksum", sim::ds1603l(3002, true));
+  - platform: template
+    name: JSN Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Garbage Then Frame", sim::cat({0x12, 0x34}, sim::ds1603l(3003)));
+  - platform: template
+    name: JSN Repeated Header
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Repeated Header", sim::cat({0xFF}, sim::ds1603l(3004)));
+  - platform: template
+    name: JSN Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Cut Then Frame", sim::cat({0xFF, 0x01}, sim::ds1603l(3005)));
+  - platform: template
+    name: JSN Too Close
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Too Close", sim::ds1603l(100));
+  - platform: template
+    name: JSN Split
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Split head", sim::part(sim::ds1603l(3006), 0, 2));
+      - delay: 300ms
+      - lambda: sim::send(id(u_j), "JSN Split rest", sim::part(sim::ds1603l(3006), 2, 4));
+  - platform: template
+    name: JSN Two Frames
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Two Frames", sim::cat(sim::ds1603l(3007), sim::ds1603l(3008)));
+  - platform: template
+    name: JSN Bad Then Good
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Bad Then Good", sim::cat(sim::ds1603l(3009, true), sim::ds1603l(3010)));
+  - platform: template
+    name: JSN Good After
+    on_press:
+      - lambda: sim::send(id(u_j), "JSN Good After", sim::ds1603l(3011));

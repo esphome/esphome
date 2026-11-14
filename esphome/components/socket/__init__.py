@@ -8,7 +8,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import CONF_TIMEOUT
 from esphome.core import CORE, ID
+from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,6 +59,8 @@ def consume_sockets(
     value: int, consumer: str, socket_type: SocketType = SocketType.TCP
 ) -> Callable[[MutableMapping], MutableMapping]:
     """Register socket usage for a component.
+
+    On nRF52 the TCP stack is only built when a component registers a TCP socket.
 
     Args:
         value: Number of sockets needed by the component
@@ -124,6 +128,28 @@ def get_socket_counts() -> SocketCounts:
     )
     return SocketCounts(
         tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    )
+
+
+def needs_tcp() -> bool:
+    """True when a component registered a TCP or listening socket, or loads async_tcp.
+
+    async_tcp is TCP only but leaves socket registration to its users.
+    Valid from code generation on, once every component has validated.
+    """
+    return bool(
+        CORE.data.get(KEY_SOCKET_CONSUMERS_TCP)
+        or CORE.data.get(KEY_SOCKET_CONSUMERS_TCP_LISTEN)
+        or "async_tcp" in CORE.loaded_integrations
+    )
+
+
+def zephyr_poll_max(counts: SocketCounts) -> int:
+    """Zephyr poll table size: the socket budget with the usual minimums."""
+    return (
+        max(counts.tcp, MIN_TCP_SOCKETS)
+        + max(counts.udp, MIN_UDP_SOCKETS)
+        + max(counts.tcp_listen, MIN_TCP_LISTEN_SOCKETS)
     )
 
 
@@ -210,9 +236,12 @@ def require_tcp_listener() -> None:
     cg.add_define("USE_SOCKET_TCP_LISTENER")
 
 
-def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
+def consume_role_sockets(
+    component: str, connections_key: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
     """Socket accounting for a role keyed client or server schema.
 
+    A server holds as many connections as its connections_key says, otherwise 1.
     Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
     """
 
@@ -220,11 +249,29 @@ def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
         from esphome.components import network
 
         network.require_ipv4(component)(config)
-        if config[CONF_ROLE] == "server":
+        server = config[CONF_ROLE] == "server"
+        if server:
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
-        return consume_sockets(1, component)(config)
+        count = config[connections_key] if server and connections_key else 1
+        return consume_sockets(count, component)(config)
 
     return validator
+
+
+def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
+    """A link timeout of 0s is off; any other value lasts at least one loop pass."""
+    timeout = config[CONF_TIMEOUT]
+    if timeout.total_milliseconds == 0:
+        return config
+    loop_interval = get_loop_interval()
+    if timeout.total_milliseconds < loop_interval.total_milliseconds:
+        raise cv.Invalid(
+            f"{CONF_TIMEOUT} of {timeout} must be at least one main loop pass "
+            f"({CONF_LOOP_INTERVAL} of {loop_interval}). Use 0s to turn the "
+            "timeout off.",
+            path=[CONF_TIMEOUT],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -263,6 +310,11 @@ async def to_code(config: ConfigType) -> None:
 
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
+            # Zephyr's default of 3 poll entries is too few once API, OTA, mDNS and UDP
+            # run together
+            zephyr_add_prj_conf(
+                "NET_SOCKETS_POLL_MAX", zephyr_poll_max(get_socket_counts())
+            )
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.

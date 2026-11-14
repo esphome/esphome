@@ -49,32 +49,25 @@ void SM300D2Sensor::update() {
   const float humidity = response[14] + (response[15] * 0.1f);
 
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(co2);
+  PUBLISH_STATE(this->co2_sensor_, co2);
 
   ESP_LOGD(TAG, "Received Formaldehyde: %u µg/m³", formaldehyde);
-  if (this->formaldehyde_sensor_ != nullptr)
-    this->formaldehyde_sensor_->publish_state(formaldehyde);
+  PUBLISH_STATE(this->formaldehyde_sensor_, formaldehyde);
 
   ESP_LOGD(TAG, "Received TVOC: %u µg/m³", tvoc);
-  if (this->tvoc_sensor_ != nullptr)
-    this->tvoc_sensor_->publish_state(tvoc);
+  PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
   ESP_LOGD(TAG, "Received PM2.5: %u µg/m³", pm_2_5);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
 
   ESP_LOGD(TAG, "Received PM10: %u µg/m³", pm_10_0);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
 
   ESP_LOGD(TAG, "Received Temperature: %.2f °C", temperature);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
   ESP_LOGD(TAG, "Received Humidity: %.2f percent", humidity);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
 }
 
 void SM300D2Sensor::dump_config() {

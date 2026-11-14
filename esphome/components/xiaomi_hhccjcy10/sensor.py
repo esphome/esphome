@@ -79,8 +79,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_MOISTURE, var.set_moisture)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
-    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

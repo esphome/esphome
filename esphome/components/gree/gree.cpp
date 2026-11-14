@@ -532,9 +532,7 @@ void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *
 }
 
 void GreeClimate::publish_feature_state_(GreeFeature feature) {
-  auto *feature_switch = this->feature_switches_[static_cast<uint8_t>(feature)];
-  if (feature_switch != nullptr)
-    feature_switch->publish_state(this->get_feature_state(feature));
+  PUBLISH_STATE(this->feature_switches_[static_cast<uint8_t>(feature)], this->get_feature_state(feature));
 }
 
 #ifdef USE_GREE_RECEIVER
@@ -591,9 +589,8 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   auto decoded = GreeClimateCodec::decode(this->model_, *state);
   if (!decoded.has_value()) {
-    ESP_LOGD(TAG, "GREE frame rejected for model %u: %02X %02X %02X %02X %02X %02X %02X %02X",
-             static_cast<unsigned>(this->model_), (*state)[0], (*state)[1], (*state)[2], (*state)[3], (*state)[4],
-             (*state)[5], (*state)[6], (*state)[7]);
+    ESP_LOGD_HEX(TAG, state->data(), state->size(), GREE_STATE_FRAME_SIZE, "GREE frame rejected for model %u: %s",
+                 static_cast<unsigned>(this->model_));
     return false;
   }
 

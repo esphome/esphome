@@ -1,0 +1,28 @@
+# IPv6 boot and reconnect probe (#22364): logs milestones per phase, then disables Wi-Fi for 3 s, measures the
+# reconnect and reboots. Substitutions: name (run.sh passes it), min_count (network min_ipv6_addr_count), cap_ms (phase time limit).
+esphome:
+  name: ${name}
+  includes:
+    - v6probe.hpp
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: 'ESP_LOGI("v6probe", "BOOTMARK reason=%d", (int) esp_reset_reason());'
+
+logger:
+  level: VERBOSE
+  hardware_uart: USB_SERIAL_JTAG
+
+network:
+  enable_ipv6: true
+  min_ipv6_addr_count: ${min_count}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: "v6probe::tick(${cap_ms});"

@@ -106,6 +106,10 @@ extern const ChipInfo TCS3448_CHIP;
 #endif
 
 class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
+#ifdef USE_AS734X_RGB
+  SUB_TEXT_SENSOR(rgb_hex)
+#endif
+
  public:
   // Channel correction is multiplicative, so it starts at unity rather than zero in case no
   // calibration is configured.
@@ -140,10 +144,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(irradiance_par)
   SUB_SENSOR(ppfd)
   SUB_SENSOR(color_temperature)
-
-#ifdef USE_AS734X_RGB
-  void set_rgb_hex_sensor(text_sensor::TextSensor *sensor) { this->rgb_hex_sensor_ = sensor; }
-#endif
 
  protected:
   bool select_bank_(uint8_t reg);
@@ -186,9 +186,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t atime_{0};
   uint8_t step_{0};
   bool bank_low_{true};  // unknown until setup() writes CFG0
-#ifdef USE_AS734X_RGB
-  text_sensor::TextSensor *rgb_hex_sensor_{nullptr};
-#endif
 };
 
 }  // namespace esphome::as734x

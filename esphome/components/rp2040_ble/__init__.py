@@ -79,9 +79,9 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-# Once per registered scan listener; sizes the controller's StaticVector
-# listener storage.
-request_scan_listener_slot = cg.slot_counter("RP2040_BLE_SCAN_LISTENER_COUNT")
+register_scan_listener = cg.slot_list(
+    "RP2040_BLE_SCAN_LISTENER_COUNT", "register_scan_listener", DOMAIN
+)
 
 # The four btstack_memory accessors whose static pools are baked into the
 # prebuilt liblwip-bt.a; every internal use crosses an object boundary in the

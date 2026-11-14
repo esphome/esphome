@@ -28,22 +28,19 @@ static uint16_t frame_crc(uint8_t control, const uint8_t *payload, size_t length
   return crc16(payload, length, crc);
 }
 
-HdlcReliability::HdlcReliability(PacketInterface *lower)
-    : PacketInterface(remaining_packet_size(lower->get_max_packet_size(), FRAME_OVERHEAD)), lower_(lower) {
+HdlcReliability::HdlcReliability(PacketInterface *lower, uint8_t *tx_slots, uint8_t max_queue_length)
+    : PacketInterface(packet_size(lower->get_max_packet_size())),
+      lower_(lower),
+      tx_slots_(tx_slots),
+      max_queue_length_(max_queue_length) {
   this->stack_on_(lower, CAPABILITY_RELIABILITY);
 }
 
 void HdlcReliability::setup() {
-  if (this->max_packet_size_ == 0) {
-    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+  if (!this->setup_check(this->max_packet_size_ != 0, LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  }
-  RAMAllocator<uint8_t> allocator;
-  this->tx_slots_ = allocator.allocate(size_t{this->max_queue_length_} * this->max_packet_size_);
-  if (this->tx_slots_ == nullptr) {
-    this->mark_failed(LOG_STR("Not enough memory for the send queue"));
+  if (!this->setup_check(this->tx_slots_ != nullptr, LOG_STR("Not enough memory for the send queue")))
     return;
-  }
   this->lower_->add_packet_interface_listener(
       [this](const PacketBuffer &data, const PacketMetaData &meta_data) { this->receive_(data, meta_data); });
 }
@@ -102,8 +99,17 @@ void HdlcReliability::ack_sent_() {
 void HdlcReliability::request_loop_() { this->enable_loop(); }
 
 bool HdlcReliability::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
-  if (this->tx_slots_ == nullptr)
+  if (!this->has_queue_())
     return false;
+  // A frame is sent again later without the caller's metadata, so a chosen destination would be lost
+  if (meta_data.destination_address != 0) {
+    if (!this->destination_warned_) {
+      this->destination_warned_ = true;
+      ESP_LOGW(TAG, "%s: Packet for 0x%04X refused; this layer only sends to its one peer", this->name_,
+               meta_data.destination_address);
+    }
+    return false;
+  }
   size_t size = data.size();
   if (size > this->max_packet_size_) {
     ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than %zu", this->name_, size, this->max_packet_size_);

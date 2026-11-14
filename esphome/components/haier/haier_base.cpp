@@ -247,13 +247,13 @@ void HaierClimateBase::loop() {
       (this->reset_protocol_request_ && (!this->haier_protocol_.is_waiting_for_answer()))) {
     this->last_valid_status_timestamp_ = now;
     if (this->protocol_phase_ >= ProtocolPhases::IDLE) {
-      // No status too long, reseting protocol
+      // No status too long, resetting protocol
       // No need to reset protocol if we didn't pass initialization phase
       if (this->reset_protocol_request_) {
         this->reset_protocol_request_ = false;
         ESP_LOGW(TAG, "Protocol reset requested");
       } else {
-        ESP_LOGW(TAG, "Communication timeout, reseting protocol");
+        ESP_LOGW(TAG, "Communication timeout, resetting protocol");
       }
       this->process_protocol_reset();
       return;
@@ -343,12 +343,8 @@ void HaierClimateBase::initialization() {
   this->display_status_ = recovered.display_state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
   this->health_mode_ = recovered.health_mode ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
 #ifdef USE_SWITCH
-  if (this->display_switch_ != nullptr) {
-    this->display_switch_->publish_state(this->get_display_state());
-  }
-  if (this->health_mode_switch_ != nullptr) {
-    this->health_mode_switch_->publish_state(this->get_health_mode());
-  }
+  PUBLISH_STATE(this->display_switch_, this->get_display_state());
+  PUBLISH_STATE(this->health_mode_switch_, this->get_health_mode());
 #endif
 }
 
@@ -356,7 +352,7 @@ void HaierClimateBase::control(const ClimateCall &call) {
   ESP_LOGD("Control", "Control call");
   if (!this->valid_connection()) {
     ESP_LOGW(TAG, "Can't send control packet, first poll answer not received");
-    return;  // cancel the control, we cant do it without a poll answer.
+    return;  // cancel the control, we can't do it without a poll answer.
   }
   if (this->current_hvac_settings_.valid) {
     ESP_LOGW(TAG, "New settings come faster then processed!");

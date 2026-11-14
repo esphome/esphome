@@ -144,14 +144,10 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
         this->has_target_binary_sensor_->publish_state(has_target_int);
 #ifdef USE_SENSOR
         if (has_target_int == 0) {
-          if (this->breath_rate_sensor_ != nullptr)
-            this->breath_rate_sensor_->publish_state(0.0);
-          if (this->heart_rate_sensor_ != nullptr)
-            this->heart_rate_sensor_->publish_state(0.0);
-          if (this->distance_sensor_ != nullptr)
-            this->distance_sensor_->publish_state(0.0);
-          if (this->num_targets_sensor_ != nullptr)
-            this->num_targets_sensor_->publish_state(0);
+          PUBLISH_STATE(this->breath_rate_sensor_, 0.0);
+          PUBLISH_STATE(this->heart_rate_sensor_, 0.0);
+          PUBLISH_STATE(this->distance_sensor_, 0.0);
+          PUBLISH_STATE(this->num_targets_sensor_, 0);
         }
 #endif
       }

@@ -1,0 +1,13 @@
+sensor:
+  - platform: gy39
+    i2c_id: i2c_bus
+    illuminance:
+      name: GY39 Illuminance
+    temperature:
+      name: GY39 Temperature
+    pressure:
+      name: GY39 Pressure
+    humidity:
+      name: GY39 Humidity
+    altitude:
+      name: GY39 Altitude

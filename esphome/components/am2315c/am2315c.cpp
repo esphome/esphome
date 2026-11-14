@@ -72,10 +72,8 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
 void AM2315C::setup() {
   // get status
   uint8_t status = 0;
-  if (this->read(&status, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read(&status, 1) == i2c::ERROR_OK))
     return;
-  }
 
   // reset registers if required, according to the datasheet
   // this can be required after power on, although this was
@@ -138,12 +136,8 @@ void AM2315C::update() {
     float temperature = 0.0;
     float humidity = 0.0;
     if (this->convert_(data, humidity, temperature)) {
-      if (this->temperature_sensor_ != nullptr) {
-        this->temperature_sensor_->publish_state(temperature);
-      }
-      if (this->humidity_sensor_ != nullptr) {
-        this->humidity_sensor_->publish_state(humidity);
-      }
+      PUBLISH_STATE(this->temperature_sensor_, temperature);
+      PUBLISH_STATE(this->humidity_sensor_, humidity);
       this->status_clear_warning();
     } else {
       ESP_LOGW(TAG, "CRC failed!");

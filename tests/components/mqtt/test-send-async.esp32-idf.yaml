@@ -1,0 +1,5 @@
+packages:
+  common: !include common.yaml
+
+mqtt:
+  idf_send_async: true

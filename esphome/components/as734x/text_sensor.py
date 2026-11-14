@@ -25,4 +25,4 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_AS734X_ID])
     cg.add_define("USE_AS734X_RGB")
     sens = await text_sensor.new_text_sensor(conf)
-    cg.add(hub.set_rgb_hex_sensor(sens))
+    cg.add(hub.set_rgb_hex_text_sensor(sens))

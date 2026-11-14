@@ -29,25 +29,23 @@ class DebugComponent final : public PollingComponent {
   void dump_config() override;
 
 #ifdef USE_TEXT_SENSOR
-  void set_device_info_sensor(text_sensor::TextSensor *device_info) { device_info_ = device_info; }
-  void set_reset_reason_sensor(text_sensor::TextSensor *reset_reason) { reset_reason_ = reset_reason; }
+  SUB_TEXT_SENSOR(device_info)
+  SUB_TEXT_SENSOR(reset_reason)
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
-  void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
-  void set_block_sensor(sensor::Sensor *block_sensor) { block_sensor_ = block_sensor; }
+  SUB_SENSOR(free)
+  SUB_SENSOR(block)
 #if defined(USE_ESP8266) || defined(USE_ESP32)
-  void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
+  SUB_SENSOR(fragmentation)
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  void set_min_free_sensor(sensor::Sensor *min_free_sensor) { min_free_sensor_ = min_free_sensor; }
+  SUB_SENSOR(min_free)
 #endif
-  void set_loop_time_sensor(sensor::Sensor *loop_time_sensor) { loop_time_sensor_ = loop_time_sensor; }
+  SUB_SENSOR(loop_time)
 #ifdef USE_ESP32
-  void set_psram_sensor(sensor::Sensor *psram_sensor) { this->psram_sensor_ = psram_sensor; }
+  SUB_SENSOR(psram)
 #endif  // USE_ESP32
-  void set_cpu_frequency_sensor(sensor::Sensor *cpu_frequency_sensor) {
-    this->cpu_frequency_sensor_ = cpu_frequency_sensor;
-  }
+  SUB_SENSOR(cpu_frequency)
 #endif  // USE_SENSOR
 #ifdef USE_ESP32
   void on_shutdown() override;
@@ -58,20 +56,6 @@ class DebugComponent final : public PollingComponent {
 #ifdef USE_SENSOR
   uint32_t last_loop_timetag_{0};
   uint32_t max_loop_time_{0};
-
-  sensor::Sensor *free_sensor_{nullptr};
-  sensor::Sensor *block_sensor_{nullptr};
-#if defined(USE_ESP8266) || defined(USE_ESP32)
-  sensor::Sensor *fragmentation_sensor_{nullptr};
-#endif
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  sensor::Sensor *min_free_sensor_{nullptr};
-#endif
-  sensor::Sensor *loop_time_sensor_{nullptr};
-#ifdef USE_ESP32
-  sensor::Sensor *psram_sensor_{nullptr};
-#endif  // USE_ESP32
-  sensor::Sensor *cpu_frequency_sensor_{nullptr};
 #endif  // USE_SENSOR
 
 #if defined(USE_ESP32) || defined(USE_ZEPHYR)
@@ -87,11 +71,6 @@ class DebugComponent final : public PollingComponent {
    */
   void log_partition_info_();
 #endif
-
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *device_info_{nullptr};
-  text_sensor::TextSensor *reset_reason_{nullptr};
-#endif  // USE_TEXT_SENSOR
 
   const char *get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer);
   const char *get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer);

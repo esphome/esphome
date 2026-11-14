@@ -9,17 +9,18 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.components.ld6002b import validate_unique_settings
-from esphome.components.ld6002b.button import (
-    CONFIG_SCHEMA as BUTTON_CONFIG_SCHEMA,
-    FINAL_VALIDATE_SCHEMA as BUTTON_FINAL_VALIDATE_SCHEMA,
-)
-from esphome.components.ld6002b.const import (
+from esphome.components.ld600x.const import (
     CONF_AREA_CONFIG,
     CONF_HOLD_DELAY,
     CONF_Z_MAX,
     CONF_Z_MIN,
 )
+from esphome.components.ld600x.entities import unique_settings_final_validate
+from esphome.components.ld6002b.button import (
+    CONFIG_SCHEMA as BUTTON_CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA as BUTTON_FINAL_VALIDATE_SCHEMA,
+)
+from esphome.components.ld6002b.const import CONF_LD6002B_ID
 from esphome.components.ld6002b.number import (
     CONFIG_SCHEMA as NUMBER_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as NUMBER_FINAL_VALIDATE_SCHEMA,
@@ -268,8 +269,9 @@ def test_setting_in_two_blocks_of_one_hub(
         full_config=_full_config(_hub(wakeup_pin=False), numbers=blocks),
     )
 
+    validate = unique_settings_final_validate("number", CONF_LD6002B_ID, "ld6002b")
     if error is None:
-        validate_unique_settings("number", blocks[1])
+        validate(blocks[1])
         return
     with pytest.raises(cv.Invalid, match=error):
-        validate_unique_settings("number", blocks[1])
+        validate(blocks[1])
