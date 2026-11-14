@@ -220,6 +220,27 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
+// BEGIN ESPAsyncWebServer 3.12.1 workaround: remove once a release containing upstream commit
+// 880c97068abb0f0e63f803cd3c0cac84fa5cd7bb is out and we bump to it (also restore es->handleRequest(request) below).
+// 3.12.1 writes the /events head outside the client's queue and counts its ACK against the first queued message,
+// dropping the config ping unsent; queue the head through the client instead.
+class QueuedHeadEventSourceResponse final : public AsyncEventSourceResponse {
+ public:
+  explicit QueuedHeadEventSourceResponse(AsyncEventSource *server)
+      : AsyncEventSourceResponse(server), server_(server) {}
+  void _respond(AsyncWebServerRequest *request) override {
+    auto head = std::make_shared<String>();
+    this->_assembleHead(*head, request->version());
+    // The client adopts the connection and adds itself to the server (onConnect only defers)
+    auto *client = new AsyncEventSourceClient(request->clientRelease(), this->server_);  // NOLINT
+    client->write(std::move(head));
+  }
+
+ protected:
+  AsyncEventSource *server_;
+};
+// END ESPAsyncWebServer 3.12.1 workaround
+
 // helper for allowing only unique entries in the queue
 void __attribute__((flatten)) DeferredUpdateEventSource::deq_push_back_with_dedup_(
     void *source, message_generator_t *message_generator) {
@@ -336,7 +357,8 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 
   es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
 
-  es->handleRequest(request);
+  // ESPAsyncWebServer 3.12.1 workaround (see QueuedHeadEventSourceResponse): es->handleRequest(request) once removed
+  request->send(new QueuedHeadEventSourceResponse(es));  // NOLINT
   ws->enable_loop_soon_any_context();
 }
 
