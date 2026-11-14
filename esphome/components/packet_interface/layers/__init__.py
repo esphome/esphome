@@ -16,7 +16,13 @@ from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ENCRYPTION, CONF_FRAGMENTATION, CONF_KEY, CONF_TYPE
+from esphome.const import (
+    CONF_COMPRESSION,
+    CONF_ENCRYPTION,
+    CONF_FRAGMENTATION,
+    CONF_KEY,
+    CONF_TYPE,
+)
 from esphome.cpp_generator import Expression, MockObj
 from esphome.types import ConfigType
 
@@ -166,9 +172,11 @@ ADDRESSING = LayerKind(CONF_ADDRESSING, "basic")
 ENCRYPTION = LayerKind(CONF_ENCRYPTION, "xxtea", shorthand=CONF_KEY)
 RELIABILITY = LayerKind(CONF_RELIABILITY, "hdlc")
 FRAGMENTATION = LayerKind(CONF_FRAGMENTATION, "basic")
+COMPRESSION = LayerKind(CONF_COMPRESSION, "lzss")
 SESSION = LayerKind(CONF_SESSION, "basic")
-# The kinds stacked above the link, or above each port of an addressing layer, from the bottom up
-STACK_ORDER = (ENCRYPTION, RELIABILITY, FRAGMENTATION, SESSION)
+# The kinds stacked above the link, or above each port of an addressing layer, from the bottom up. Compression is
+# above encryption, as encrypted data does not compress, and above fragmentation, so a whole packet is compressed.
+STACK_ORDER = (ENCRYPTION, RELIABILITY, FRAGMENTATION, COMPRESSION, SESSION)
 
 
 def stack_schema() -> dict:

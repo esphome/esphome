@@ -9,6 +9,7 @@ from esphome import config_validation as cv
 from esphome.components import packet_interface
 from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
 from esphome.components.packet_interface.layers import (
+    COMPRESSION,
     CONF_ADDRESSING,
     CONF_FRAGMENTATION,
     CONF_RELIABILITY,
@@ -23,9 +24,14 @@ from esphome.components.packet_interface.layers.basic_session import CONF_KEEP_A
 from esphome.components.packet_interface.layers.hdlc_reliability import (
     CONF_MAX_QUEUE_LENGTH,
 )
+from esphome.components.packet_interface.layers.lzss_compression import (
+    CONF_DICTIONARY,
+    DEFAULT_DICTIONARY,
+    dictionary_check,
+)
 from esphome.components.uart import packet_interface as uart_packet_interface
 from esphome.components.udp import packet_interface as udp_packet_interface
-from esphome.const import CONF_ENCRYPTION
+from esphome.const import CONF_COMPRESSION, CONF_ENCRYPTION
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 
@@ -104,6 +110,7 @@ def test_layer_types_registered() -> None:
         CONF_ENCRYPTION: {"xxtea"},
         CONF_RELIABILITY: {"hdlc"},
         CONF_FRAGMENTATION: {"basic"},
+        CONF_COMPRESSION: {"lzss"},
         CONF_SESSION: {"basic"},
     }
 
@@ -416,6 +423,56 @@ def test_application_needs_peer_id_with_peers(setup_core) -> None:
         assert validator({"packet_interface": ID("a")})
     finally:
         fv.full_config.reset(token)
+
+
+def test_compression_defaults(setup_core) -> None:
+    """An empty compression key uses LZSS with the built in JSON dictionary."""
+    compression = uart_packet_interface.CONFIG_SCHEMA({CONF_COMPRESSION: None})[
+        CONF_COMPRESSION
+    ]
+    assert compression["type"] == "lzss"
+    assert compression[CONF_DICTIONARY] == DEFAULT_DICTIONARY
+    assert CONF_MAX_PACKET_SIZE not in compression
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_COMPRESSION: {CONF_DICTIONARY: "x" * 1025}}
+        )
+    # The limit is on the bytes stored, not the characters
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_COMPRESSION: {CONF_DICTIONARY: "\u00e9" * 513}}
+        )
+
+
+@pytest.mark.parametrize(
+    ("compression", "lower", "size"),
+    [
+        ({}, 508, 507),
+        ({CONF_MAX_PACKET_SIZE: 2000}, 508, 2000),
+        ({}, 1, 0),
+    ],
+)
+def test_compression_packet_size(
+    compression: dict, lower: int, size: int, setup_core
+) -> None:
+    """The layer takes what the layer below takes less the header, or its own max_packet_size."""
+    config = uart_packet_interface.CONFIG_SCHEMA({CONF_COMPRESSION: compression})[
+        CONF_COMPRESSION
+    ]
+    assert COMPRESSION.get_type(config).packet_size(config, lower) == size
+
+
+def test_compression_above_fragmentation(setup_core) -> None:
+    """Compression sits above fragmentation and encryption, so whole packets are compressed before either."""
+    order = [kind.key for kind in STACK_ORDER]
+    assert order.index(CONF_COMPRESSION) > order.index(CONF_FRAGMENTATION)
+    assert order.index(CONF_COMPRESSION) > order.index(CONF_ENCRYPTION)
+    assert order[-1] == CONF_SESSION
+
+
+def test_dictionary_check_differs() -> None:
+    assert dictionary_check(b"") != dictionary_check(DEFAULT_DICTIONARY.encode())
+    assert 0 <= dictionary_check(b"abc") <= 0x7F
 
 
 def test_peers_with_rolling_code_need_own_keys(setup_core) -> None:
