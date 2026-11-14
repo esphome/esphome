@@ -261,7 +261,6 @@ void WebServer::setup() {
   }
 #endif
 
-  this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
 #ifdef USE_WEBSERVER_CAPTIVE
   // Not-found fallback (outside the auth middleware): the OS captive portal probes hit
@@ -2082,6 +2081,8 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
   if (url == ESPHOME_F("/"))
     return true;
+  if (url == ESPHOME_F("/events"))
+    return method == HTTP_GET;
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (url == ESPHOME_F("/0.css"))
     return true;
@@ -2222,6 +2223,10 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Handle static routes first
   if (url == ESPHOME_F("/")) {
     this->handle_index_request(request);
+    return;
+  }
+  if (url == ESPHOME_F("/events")) {
+    this->events_.handle_request(request, this);
     return;
   }
 

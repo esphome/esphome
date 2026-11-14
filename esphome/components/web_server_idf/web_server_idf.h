@@ -318,7 +318,7 @@ class AsyncStreamResponse {
   bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
   static void destroy(void *p);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and closes. True when it closed.
-  bool stall_or_close_(const char *reason);
+  bool stall_or_close_(const LogString *reason);
 
   httpd_handle_t hd_{};
   std::atomic<int> fd_{};

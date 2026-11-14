@@ -83,10 +83,7 @@ void AsyncStreamResponse::attach_(AsyncClient *client) {
   // A send with no ACK for this long closes the stream, the same timeout as a full send buffer
   client->setAckTimeout(SEND_STALL_TIMEOUT_MS);
   client->setNoDelay(true);
-  client->onData(nullptr, nullptr);
-  client->onAck(nullptr, nullptr);
-  client->onPoll(nullptr, nullptr);
-  client->onError(nullptr, nullptr);
+  // clientRelease() already cleared the request's data, ack, poll and error handlers
   // Network context: store a flag and nothing else; the main loop frees the client
   client->onDisconnect(
       [](void *arg, AsyncClient *) {
@@ -142,7 +139,7 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     return static_cast<ssize_t>(sent);
   }
   // Send buffer full, try again later; a buffer that stays full past the stall timeout is closed
-  return this->stall_or_close_("without send progress") ? -1 : 0;
+  return this->stall_or_close_(LOG_STR("without send progress")) ? -1 : 0;
 }
 
 ssize_t AsyncStreamResponse::write(const void *data, size_t len) {
@@ -150,13 +147,13 @@ ssize_t AsyncStreamResponse::write(const void *data, size_t len) {
   return this->write(&iov, 1);
 }
 
-bool AsyncStreamResponse::stall_or_close_(const char *reason) {
+bool AsyncStreamResponse::stall_or_close_(const LogString *reason) {
   const uint32_t now = App.get_loop_component_start_time();
   this->stall_.start(now);
   if (!this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
     return false;
   }
-  ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), reason);
+  ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), LOG_STR_ARG(reason));
   this->close();
   return true;
 }

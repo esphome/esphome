@@ -11,6 +11,7 @@
 #include <span>
 #include <sys/types.h>
 
+#include "esphome/core/log.h"
 #include "stream_head.h"
 
 namespace esphome::web_server_base {
@@ -68,7 +69,7 @@ class AsyncStreamResponse {
   // Network context: take the connection once the head is queued
   void attach_(AsyncClient *client);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and closes. True when it closed.
-  bool stall_or_close_(const char *reason);
+  bool stall_or_close_(const LogString *reason);
   void close_client_();
 
   // Main loop owns it; freed once disconnected_

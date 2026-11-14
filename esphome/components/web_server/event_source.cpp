@@ -22,23 +22,25 @@ ESPHOME_LOG_TAG(TAG, "web_server");
 
 AsyncEventSource::~AsyncEventSource() {
   web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
-  for (auto *vec : {&this->sessions_, &this->pending_sessions_}) {
-    for (auto *ses : *vec) {
+  for (auto *ses : {this->sessions_, this->pending_sessions_.load(std::memory_order_relaxed)}) {
+    while (ses != nullptr) {
+      auto *next = ses->next_;
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+      ses = next;
     }
   }
 }
 
-void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
+void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer *ws) {
   // Network context: start the stream and park the session; the main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
-  auto *rsp = new AsyncEventSourceResponse(request, this->web_server_);
+  auto *rsp = new AsyncEventSourceResponse(request, ws);
   {
     web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
-    this->pending_sessions_.push_back(rsp);
-    this->has_pending_sessions_.store(true, std::memory_order_release);
+    rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
+    this->pending_sessions_.store(rsp, std::memory_order_release);
   }
-  this->web_server_->enable_loop_soon_any_context();
+  ws->enable_loop_soon_any_context();
 }
 
 // clang-analyzer traces a false-positive leak path from loop() through
@@ -47,35 +49,36 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
 bool AsyncEventSource::loop() {
   // Fast path: one atomic load per tick. Slow path is out-of-line on connect.
-  if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
+  if (this->pending_sessions_.load(std::memory_order_acquire) != nullptr) {
     this->adopt_pending_sessions_main_loop_();
   }
 
   // The network side only marks a session dead; the main loop frees it, so nothing races the free
-  for (size_t i = 0; i < this->sessions_.size();) {
-    auto *ses = this->sessions_[i];
+  for (AsyncEventSourceResponse **link = &this->sessions_; *link != nullptr;) {
+    auto *ses = *link;
     if (ses->safe_to_delete()) {
+      *link = ses->next_;
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
-      // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
-      this->sessions_[i] = this->sessions_.back();
-      this->sessions_.pop_back();
     } else {
       ses->loop();
-      ++i;
+      link = &ses->next_;
     }
   }
   // A session still waiting for its connection keeps the loop alive too
-  return !this->sessions_.empty() || this->has_pending_sessions_.load(std::memory_order_acquire);
+  return this->sessions_ != nullptr || this->pending_sessions_.load(std::memory_order_acquire) != nullptr;
 }
 
 void AsyncEventSource::adopt_pending_sessions_main_loop_() {
-  std::vector<AsyncEventSourceResponse *> incoming;
+  AsyncEventSourceResponse *incoming;
   {
     web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
-    incoming.swap(this->pending_sessions_);
-    this->has_pending_sessions_.store(false, std::memory_order_relaxed);
+    // Plain load and store under the guard: RP2040 has no atomic read-modify-write
+    incoming = this->pending_sessions_.load(std::memory_order_acquire);
+    this->pending_sessions_.store(nullptr, std::memory_order_relaxed);
   }
-  for (auto *rsp : incoming) {
+  while (incoming != nullptr) {
+    auto *rsp = incoming;
+    incoming = rsp->next_;
     // Already disconnected? Drop it; skip session start on a dead session.
     if (rsp->safe_to_delete()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -84,11 +87,12 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     // The transport takes the connection only after the creating handler returns, so stay pending until then
     if (!rsp->is_attached()) {
       web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
-      this->pending_sessions_.push_back(rsp);
-      this->has_pending_sessions_.store(true, std::memory_order_release);
+      rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
+      this->pending_sessions_.store(rsp, std::memory_order_release);
       continue;
     }
-    this->sessions_.push_back(rsp);
+    rsp->next_ = this->sessions_;
+    this->sessions_ = rsp;
     rsp->start_session_main_loop_();
   }
 }
@@ -96,7 +100,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
 
 void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                         uint32_t reconnect) {
-  for (auto *ses : this->sessions_) {
+  for (auto *ses = this->sessions_; ses != nullptr; ses = ses->next_) {
     if (ses->is_connected()) {
       ses->try_send_nodefer(message, message_len, event, id, reconnect);
     }
@@ -104,10 +108,7 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
 }
 
 void AsyncEventSource::deferrable_send_state(void *source, message_generator_t *message_generator) {
-  // Skip if no connected clients to avoid unnecessary processing
-  if (this->empty())
-    return;
-  for (auto *ses : this->sessions_) {
+  for (auto *ses = this->sessions_; ses != nullptr; ses = ses->next_) {
     if (ses->is_connected()) {
       ses->deferrable_send_state(source, false, message_generator);
     }
@@ -119,7 +120,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *reques
   // Network context only. start_session_main_loop_() sends the greeting and starts the iterator.
   this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }
-static_assert(web_server_base::stream_head_iov_count(std::size(SSE_HEADERS) + WEB_SERVER_DEFAULT_HEADERS_COUNT) <=
+static_assert(web_server_base::stream_head_iov_count(SSE_HEADERS_COUNT + WEB_SERVER_DEFAULT_HEADERS_COUNT) <=
                   web_server_base::STREAM_HEAD_MAX_IOV,
               "the event stream head must go out in one write");
 
@@ -257,7 +258,7 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
       message, message_len,
       [](void *ctx, const char *piece, size_t len) {
         auto &out = *static_cast<uint8_t **>(ctx);
-        std::memcpy(out, piece, len);
+        progmem_memcpy(out, piece, len);
         out += len;
       },
       &dst);
@@ -331,7 +332,7 @@ AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_js
   write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
   uint8_t *dst = this->tail_.get();
   std::memcpy(dst, prefix, prefix_len);
-  std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
+  progmem_memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
   this->tail_len_ = total;
   this->tail_sent_ = 0;
   return JsonPrepareResult::JSON_PREPARE_RESULT_TAIL;
@@ -378,7 +379,7 @@ void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
     this->no_memory_logged_ = true;
     ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
   }
-  this->stall_or_close_("without memory");
+  this->stall_or_close_(LOG_STR("without memory"));
 }
 
 bool AsyncEventSourceResponse::ready_to_send_() {

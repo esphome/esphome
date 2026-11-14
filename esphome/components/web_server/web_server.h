@@ -512,7 +512,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   }
 
   web_server_base::WebServerBase *base_;
-  AsyncEventSource events_{StringRef::from_lit("/events"), this};
+  AsyncEventSource events_;
 #ifdef USE_WEBSERVER_CAPTIVE
   void handle_not_found_(AsyncWebServerRequest *request);
   web_server_base::CaptiveDNS dns_;

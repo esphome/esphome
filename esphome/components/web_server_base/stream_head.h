@@ -8,10 +8,29 @@
 
 #include <strings.h>
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 // Pure helpers of AsyncStreamResponse, kept free of httpd and lwIP so they build on the host.
 // The iovec type is a template parameter: lwIP defines its own on the device, POSIX on the host.
 
 namespace esphome::web_server_base {
+
+// The stream helpers take strings and pieces that may sit in flash on ESP8266: only word reads
+// work there, so copies and string scans go through the _P functions (which also read RAM)
+#ifdef USE_ESP8266
+#define STREAM_PSTR(s) PSTR(s)
+inline size_t stream_strlen(const char *s) { return strlen_P(s); }
+inline int stream_strcasecmp(const char *ram, const char *any) { return strcasecmp_P(ram, any); }
+inline void stream_memcpy(void *dst, const void *src, size_t len) { memcpy_P(dst, src, len); }
+#else
+#define STREAM_PSTR(s) (s)
+inline size_t stream_strlen(const char *s) { return strlen(s); }
+inline int stream_strcasecmp(const char *ram, const char *any) { return strcasecmp(ram, any); }
+inline void stream_memcpy(void *dst, const void *src, size_t len) { std::memcpy(dst, src, len); }
+#endif
 
 struct HttpHeader {
   const char *name;
@@ -41,7 +60,7 @@ static constexpr int STREAM_HEAD_MAX_IOV = 24;
 /// True if headers holds a header named name, compared case insensitively
 inline bool has_header(std::span<const HttpHeader> headers, const char *name) {
   for (const auto &header : headers) {
-    if (strcasecmp(header.name, name) == 0) {
+    if (stream_strcasecmp(name, header.name) == 0) {
       return true;
     }
   }
@@ -73,18 +92,18 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
       }
       this->iov[this->count++] = {const_cast<char *>(buf), len};
     }
-    void add(const char *str) { this->add(str, strlen(str)); }
+    void add(const char *str) { this->add(str, stream_strlen(str)); }
     void add_header(const HttpHeader &header) {
-      this->add("\r\n", 2);
+      this->add(STREAM_PSTR("\r\n"), 2);
       this->add(header.name);
-      this->add(": ", 2);
+      this->add(STREAM_PSTR(": "), 2);
       this->add(header.value);
     }
   } batch{send};
 
-  batch.add("HTTP/1.1 ", 9);
+  batch.add(STREAM_PSTR("HTTP/1.1 "), 9);
   batch.add(status);
-  batch.add("\r\nContent-Type: ", 16);
+  batch.add(STREAM_PSTR("\r\nContent-Type: "), 16);
   batch.add(content_type);
   for (const auto &header : headers) {
     batch.add_header(header);
@@ -94,7 +113,7 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
       batch.add_header(header);
     }
   }
-  batch.add("\r\n\r\n", 4);
+  batch.add(STREAM_PSTR("\r\n\r\n"), 4);
   if (body != nullptr) {
     batch.add(body);
   }
@@ -117,7 +136,7 @@ size_t add_iovecs(Client &client, const Iovec *iov, int count, char *scratch, si
   size_t offset = 0;  // bytes of iov[i] already copied
   while (i < count) {
     const size_t piece = std::min(iov[i].iov_len - offset, scratch_size - fill);
-    std::memcpy(scratch + fill, static_cast<const char *>(iov[i].iov_base) + offset, piece);
+    stream_memcpy(scratch + fill, static_cast<const char *>(iov[i].iov_base) + offset, piece);
     fill += piece;
     offset += piece;
     if (offset == iov[i].iov_len) {

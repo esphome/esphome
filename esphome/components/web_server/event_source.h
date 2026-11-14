@@ -103,6 +103,8 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
 
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
+  // Next session in AsyncEventSource's sessions or pending list
+  AsyncEventSourceResponse *next_{nullptr};
   ListEntitiesIterator entities_iterator_;
   // One chunk the socket did not take whole, allocated on the first stall; the only heap use
   // on the send path
@@ -134,46 +136,30 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
 };
 
-class AsyncEventSource : public AsyncWebHandler {
+// Not an AsyncWebHandler: WebServer routes /events here, which keeps the handler base and its guard out of RAM
+class AsyncEventSource {
  public:
-  AsyncEventSource(StringRef url, WebServer *ws) : url_(url), web_server_(ws) {}
-  ~AsyncEventSource() override;
+  AsyncEventSource() = default;
+  ~AsyncEventSource();
 
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  bool canHandle(AsyncWebServerRequest *request) const override {
-    if (request->method() != HTTP_GET)
-      return false;
-#ifdef USE_ESP32
-    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
-    return request->url_to(url_buf) == this->url_;
-#else
-    return this->url_ == request->url().c_str();
-#endif
-  }
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void handleRequest(AsyncWebServerRequest *request) override;
+  void handle_request(AsyncWebServerRequest *request, WebServer *ws);
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
   // State events to every session; each session's own listing sends the detail_all events
   void deferrable_send_state(void *source, message_generator_t *message_generator);
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();
-  bool empty() { return this->count() == 0; }
-
-  size_t count() const { return this->sessions_.size(); }
+  bool empty() const { return this->sessions_ == nullptr; }
 
  protected:
-  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
+  // Cold path: move sessions from the pending list into sessions_ and greet each one.
   void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
 
-  StringRef url_;  // Must outlive this object (string literal)
-  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
-  std::vector<AsyncEventSourceResponse *> sessions_;
-  // Network-context intake; guarded by StreamIntakeGuard on pending_mutex_, gated by has_pending_sessions_.
-  std::vector<AsyncEventSourceResponse *> pending_sessions_;
-  Mutex pending_mutex_;
-  WebServer *web_server_;
-  std::atomic<bool> has_pending_sessions_{false};
+  // Main-loop only; intrusive list through AsyncEventSourceResponse::next_
+  AsyncEventSourceResponse *sessions_{nullptr};
+  // Network-context intake; pushed under StreamIntakeGuard on pending_mutex_, non-null means work to adopt
+  std::atomic<AsyncEventSourceResponse *> pending_sessions_{nullptr};
+  [[no_unique_address]] Mutex pending_mutex_;
 };
 
 }  // namespace esphome::web_server
