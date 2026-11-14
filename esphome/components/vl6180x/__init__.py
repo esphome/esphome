@@ -1,3 +1,5 @@
+CODEOWNERS = ["@NonaSuomy"]
+
 """ESPHome external component configuration schema for VL6180X / VL6180."""
 
 from esphome import pins
