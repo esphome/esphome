@@ -44,6 +44,17 @@ static constexpr uint8_t HISENSE_ARG_POWER_TOGGLE = 0x01;   // byte 15
 static constexpr uint8_t HISENSE_ARG_SETTINGS_ONLY = 0x02;  // byte 15
 static constexpr uint8_t HISENSE_ARG_FIXED_TEMP_STEP = 7;   // auto and fan-only send 23 C
 
+// Hitachi HCRA31NEWH model: its own remote ID, power as a state in every frame
+static constexpr uint8_t WHIRLPOOL_ID_0 = 0x83;
+static constexpr uint8_t WHIRLPOOL_ID_1 = 0x06;
+static constexpr uint8_t HITACHI_ID_0 = 0xA9;
+static constexpr uint8_t HITACHI_ID_1 = 0x59;
+static constexpr uint8_t HITACHI_BYTE18_ON = 0x38;
+static constexpr uint8_t HITACHI_BYTE18_OFF = 0x28;
+
+// Header, 21 bytes of 8 bits, two dividers and the footer mark
+static constexpr uint32_t WHIRLPOOL_FRAME_TIMINGS = 2 + WHIRLPOOL_STATE_LENGTH * 16 + 2 * 2 + 1;
+
 WhirlpoolClimate::WhirlpoolClimate()
     : climate_ir::ClimateIR(
           WHIRLPOOL_DG11J1_3A_TEMP_MIN, WHIRLPOOL_DG11J1_3A_TEMP_MAX, 1.0f, true, true,
@@ -55,8 +66,8 @@ void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
   uint8_t remote_state[WHIRLPOOL_STATE_LENGTH];
   memset(remote_state, 0, sizeof(remote_state));
-  remote_state[0] = 0x83;
-  remote_state[1] = 0x06;
+  remote_state[0] = WHIRLPOOL_ID_0;
+  remote_state[1] = WHIRLPOOL_ID_1;
   remote_state[6] = 0x80;
   remote_state[18] = 0x08;  // the same on every supported model
 
@@ -102,6 +113,7 @@ void WhirlpoolClimate::transmit_state() {
   // Temperature
   auto temp = (uint8_t) roundf(clamp(this->target_temperature, this->temperature_min_(), this->temperature_max_()));
   const auto temp_step = (uint8_t) (temp - this->temperature_min_());
+  this->target_temperature = temp;  // publish what the unit was sent
   if (hisense_arg && this->fixed_temp_mode_()) {
     remote_state[3] |= HISENSE_ARG_FIXED_TEMP_STEP << 4;
   } else {
@@ -139,6 +151,9 @@ void WhirlpoolClimate::transmit_state() {
     }
   }
 
+  if (this->is_hitachi_hcra31newh_())
+    this->encode_hitachi_hcra31newh_(remote_state);
+
   // Checksum
   remote_state[13] = xor_bytes(&remote_state[2], 11, remote_state[13]);
   remote_state[20] = xor_bytes(&remote_state[14], 6, remote_state[20]);
@@ -148,6 +163,7 @@ void WhirlpoolClimate::transmit_state() {
   // Send code
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
+  data->reserve(WHIRLPOOL_FRAME_TIMINGS);
 
   data->set_carrier_frequency(38000);
 
@@ -212,6 +228,31 @@ void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_tog
 #endif
 }
 
+void WhirlpoolClimate::encode_hitachi_hcra31newh_(uint8_t *remote_state) const {
+#ifdef USE_WHIRLPOOL_HITACHI_HCRA31NEWH
+  remote_state[0] = HITACHI_ID_0;
+  remote_state[1] = HITACHI_ID_1;
+  remote_state[10] = 0x20;
+  remote_state[18] = HITACHI_BYTE18_ON;
+  remote_state[19] = 0x08;
+  // The unit takes the whole state from every frame: only the off frame carries the power bit
+  remote_state[2] &= ~WHIRLPOOL_POWER;
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_COOL:
+      remote_state[15] = 0x02;
+      break;
+    case climate::CLIMATE_MODE_OFF:
+      remote_state[2] |= WHIRLPOOL_POWER;
+      remote_state[3] = (remote_state[3] & 0xF0) | WHIRLPOOL_COOL;
+      remote_state[15] = 0x01;
+      remote_state[18] = HITACHI_BYTE18_OFF;
+      break;
+    default:
+      break;
+  }
+#endif
+}
+
 bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Check if the esp isn't currently transmitting.
   if (millis() - this->last_transmit_time_ < 500) {
@@ -261,13 +302,20 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGV_HEX(TAG, remote_state, WHIRLPOOL_STATE_LENGTH, WHIRLPOOL_STATE_LENGTH, "Received: %s");
 
   // verify header remote code
-  if (remote_state[0] != 0x83 || remote_state[1] != 0x06)
+  const bool hitachi = this->is_hitachi_hcra31newh_();
+  if (remote_state[0] != (hitachi ? HITACHI_ID_0 : WHIRLPOOL_ID_0) ||
+      remote_state[1] != (hitachi ? HITACHI_ID_1 : WHIRLPOOL_ID_1))
     return false;
 
   // powr on/off button
   ESP_LOGV(TAG, "Power: %02X", (remote_state[2] & WHIRLPOOL_POWER));
 
-  if ((remote_state[2] & WHIRLPOOL_POWER) == WHIRLPOOL_POWER) {
+  if (hitachi) {
+    // Power is a state: byte 18 says whether the unit is off
+    this->powered_on_assumed = remote_state[18] != HITACHI_BYTE18_OFF;
+    if (!this->powered_on_assumed)
+      this->mode = climate::CLIMATE_MODE_OFF;
+  } else if ((remote_state[2] & WHIRLPOOL_POWER) == WHIRLPOOL_POWER) {
     auto powered_on = this->mode != climate::CLIMATE_MODE_OFF;
 
     if (powered_on) {
@@ -309,7 +357,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     int temp = remote_state[3] & 0xF0;
     ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
     temp = (uint8_t) temp >> 4;
-    temp += static_cast<int>(this->temperature_min_());
+    temp = std::min(temp + static_cast<int>(this->temperature_min_()), static_cast<int>(this->temperature_max_()));
     ESP_LOGVV(TAG, "Temperature Climate: %u", temp);
     this->target_temperature = temp;
   }
