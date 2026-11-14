@@ -827,39 +827,13 @@ DooyaData, DooyaBinarySensor, DooyaTrigger, _, DooyaDumper = register_simple_pro
 
 
 # Dyson
-DysonData, DysonBinarySensor, DysonTrigger, _, DysonDumper = declare_protocol("Dyson")
 DYSON_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.hex_uint16_t,
         cv.Optional(CONF_INDEX, default=0xFF): cv.hex_uint8_t,
     }
 )
-
-
-@register_binary_sensor("dyson", DysonBinarySensor, DYSON_SCHEMA)
-def dyson_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                DysonData,
-                ("code", config[CONF_CODE]),
-                ("index", config[CONF_INDEX]),
-            )
-        )
-    )
-
-
-@register_trigger("dyson", DysonTrigger, DysonData)
-def dyson_trigger(var, config):
-    pass
-
-
-@register_dumper("dyson", DysonDumper)
-def dyson_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+DysonData, DysonBinarySensor, DysonTrigger, _, DysonDumper = register_simple_protocol(
     "dyson",
     "Dyson",
     DYSON_SCHEMA,
