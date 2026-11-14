@@ -922,14 +922,18 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
     return -1;
   }
   // Socket buffer full, try again later; a socket that stays full past the stall timeout is closed
+  return this->stall_or_close_("without send progress") ? -1 : 0;
+}
+
+bool AsyncStreamResponse::stall_or_close_(const char *reason) {
   const uint32_t now = App.get_loop_component_start_time();
   this->stall_.start(now);
-  if (this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
-    ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without send progress", this->stall_.elapsed(now));
-    this->close();
-    return -1;
+  if (!this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+    return false;
   }
-  return 0;
+  ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), reason);
+  this->close();
+  return true;
 }
 
 ssize_t AsyncStreamResponse::write(const void *data, size_t len) {
