@@ -77,6 +77,7 @@ _SENSITIVE_KEYS = frozenset(
     {"password", "new_password", "private_key", "peer_preshared_key"}
     | {"client_certificate_key", "network_key", "old_key", "pin_code", "pskc", "tlv"}
     | {"static_pairing_code", "encryption", "bindkey", "decryption_key", "auth_key"}
+    | {"manufacturer_key"}
 )
 # Keys under these name declared arguments, not values (`variables: {password: string}`).
 _DECLARATIONS = frozenset({"variables", "parameters"})

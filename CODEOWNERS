@@ -116,6 +116,7 @@ esphome/components/bq25820/* @beforeyouknowit
 esphome/components/bq27220/* @rggammon
 esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
+esphome/components/brizlabs_led_string/* @TFenby
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
@@ -638,6 +639,7 @@ esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
 esphome/components/stcc4/* @j9brown
+esphome/components/stm32/* @rwrozelle
 esphome/components/store_yaml/* @bdraco
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core

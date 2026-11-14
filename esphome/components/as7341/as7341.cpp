@@ -115,9 +115,9 @@ bool AS7341Component::read_channels(uint16_t *data) {
   this->set_smux_low_channels(false);
   this->enable_spectral_measurement(true);
   this->wait_for_data();
-  bool high_sucess = this->read_bytes_16_le(AS7341_CH0_DATA_L, &data[6], 6);
+  bool high_success = this->read_bytes_16_le(AS7341_CH0_DATA_L, &data[6], 6);
 
-  return low_success && high_sucess;
+  return low_success && high_success;
 }
 
 void AS7341Component::set_smux_low_channels(bool enable) {

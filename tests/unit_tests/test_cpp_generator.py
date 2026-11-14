@@ -2,10 +2,16 @@ from collections.abc import Iterator
 import io
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from esphome import config_validation as cv, cpp_generator as cg, cpp_types as ct
+from esphome import (
+    config as esphome_config,
+    config_validation as cv,
+    cpp_generator as cg,
+    cpp_types as ct,
+)
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -477,12 +483,45 @@ class TestStatements:
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
                 'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
+            (
+                cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar", align=16),
+                'alignas(16) static constexpr uint16_t foo[] PROGMEM = "bar"',
+            ),
+            (
+                cg.ProgmemAssignmentExpression(
+                    ct.uint16, "foo", "bar", constexpr=False, align=4
+                ),
+                'alignas(4) ESPHOME_FLASH_CONSTINIT static uint16_t const foo[] PROGMEM = "bar"',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Statement, expected: str):
         actual = str(target)
 
         assert actual == expected
+
+
+class TestProgmemArray:
+    def test_align_is_emitted(self) -> None:
+        """``align`` prefixes the declaration with ``alignas``."""
+        CORE.main_statements = []
+        cg.progmem_array(
+            ID("model_data", is_declaration=True, type=ct.uint8), [1, 2], align=16
+        )
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {1, 2};"
+        )
+
+    def test_no_align_by_default(self) -> None:
+        CORE.main_statements = []
+        cg.progmem_array(ID("table", is_declaration=True, type=ct.uint8), [1, 2])
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "static constexpr uint8_t table[] PROGMEM = {1, 2};"
+        )
 
 
 # TODO: This method has side effects in CORE
@@ -949,14 +988,32 @@ class TestSharedProgmemArray:
 
     def test_name_avoids_config_ids(self) -> None:
         CORE.config = {"sensor": [{"id": ID("table", is_declaration=True)}]}
-        array = cg.shared_progmem_array("table", ct.uint8, [1])
-        assert str(array) == "table_2"
+        with patch.object(
+            esphome_config, "iter_ids", wraps=esphome_config.iter_ids
+        ) as walk:
+            first = cg.shared_progmem_array("table", ct.uint8, [1])
+            second = cg.shared_progmem_array("table", ct.uint8, [2])
+        assert [str(first), str(second)] == ["table_2", "table_3"]
+        assert walk.call_count == 1
 
     def test_name_avoids_registered_variables(self) -> None:
         CORE.config = {}
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+    def test_name_avoids_reserved_ids(self) -> None:
+        CORE.config = {}
+        array = cg.shared_progmem_array("alarm", ct.uint8, [1])
+        assert str(array) == "alarm_2"
+
+    def test_name_avoids_integrations_loaded_after_the_first_name(self) -> None:
+        # Only the config ids are collected once; integrations are checked on every call
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1])
+        CORE.loaded_integrations.add("late_hub")
+        array = cg.shared_progmem_array("late_hub", ct.uint8, [2])
+        assert str(array) == "late_hub_2"
 
 
 class TestStaticBuffer:
