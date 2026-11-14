@@ -36,6 +36,7 @@ template<size_t N> uint8_t to_ir_code(const IRCode (&table)[N], uint8_t value) {
 }
 /// The value for code, or the first entry's value when the table has no such code.
 template<typename T, size_t N> T from_ir_code(const IRCode (&table)[N], uint8_t code) {
+  static_assert(sizeof(T) == sizeof(uint8_t), "IRCode values are one byte");
   const int index = find_ir_code_index(table, N, code, true);
   return static_cast<T>(progmem_read_byte(&table[index < 0 ? 0 : index].value));
 }
