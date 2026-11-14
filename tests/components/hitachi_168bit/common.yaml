@@ -1,0 +1,9 @@
+climate:
+  - platform: hitachi_168bit
+    name: Hitachi 168bit Climate
+    transmitter_id: xmitr
+  - platform: hitachi_168bit
+    name: Hitachi 168bit Climate With Receiver
+    model: HCRA31NEWH
+    transmitter_id: xmitr
+    receiver_id: rcvr
