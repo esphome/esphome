@@ -1,5 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_RTS_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -9,8 +10,7 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
-from esphome.components.const import CONF_RTS_PIN
-from esphome.core import CORE
+from esphome.core import CORE as CORE
 import esphome.final_validate as fv
 
 AUTO_LOAD = ["sensor", "number"]
