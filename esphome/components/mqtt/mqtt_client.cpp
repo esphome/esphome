@@ -884,9 +884,7 @@ void MQTTClientComponent::disable_log_message() { this->log_message_.topic = "";
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
-void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -918,8 +916,6 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
   this->birth_message_ = std::move(message);
   this->recalculate_availability_();
 }
-
-void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,

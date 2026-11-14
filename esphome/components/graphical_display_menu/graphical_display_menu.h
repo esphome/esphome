@@ -41,8 +41,8 @@ class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponen
   void set_display(display::Display *display) { this->display_ = display; }
   void set_font(display::BaseFont *font) { this->font_ = font; }
   template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
-  void set_foreground_color(Color foreground_color);
-  void set_background_color(Color background_color);
+  void set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
+  void set_background_color(Color background_color) { this->background_color_ = background_color; }
 
   template<typename F> void add_on_redraw_callback(F &&cb) { this->on_redraw_callbacks_.add(std::forward<F>(cb)); }
 

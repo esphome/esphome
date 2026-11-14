@@ -14,6 +14,7 @@ from esphome.automation import (
     CONF_CHOOSE,
     IN_RANGE_CHECK,
     IN_RANGE_DEFAULTS,
+    WHOLE_CONFIG,
     Action,
     AndCondition,
     ApplyAction,
@@ -21,6 +22,7 @@ from esphome.automation import (
     ApplyCall,
     ApplyCondition,
     ApplyField,
+    ApplyFilterDomain,
     Automation,
     AutomationList,
     CallbackAutomation,
@@ -42,6 +44,7 @@ from esphome.automation import (
     _shadow_iteration,
     apply_action_builder,
     apply_statements_action,
+    apply_static_function,
     build_action,
     build_action_list,
     build_automation_lists,
@@ -51,6 +54,7 @@ from esphome.automation import (
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
+    call_user_lambda,
     choose_action_to_code,
     has_non_synchronous_actions,
     if_action_to_code,
@@ -58,6 +62,7 @@ from esphome.automation import (
     maybe_simple_id,
     new_automation,
     new_lambda_pvariable,
+    new_value_range_trigger,
     owning_args,
     parent_ref,
     progmem_bytes,
@@ -3391,7 +3396,7 @@ async def test_trigger_callback_all_inline_is_direct() -> None:
 
 @pytest.fixture
 def statements_action() -> Generator[None]:
-    """Register ``my.statements``, a builder that generates its own statements."""
+    """Register ``my.statements`` and ``my.lambda_statements``, builders that generate their own statements."""
 
     @register_action("my.statements", ApplyAction, {}, synchronous=True)
     async def statements_to_code(
@@ -3403,6 +3408,17 @@ def statements_action() -> Generator[None]:
         return apply_statements_action(
             action_id, template_arg, args, ["auto esphome__v = x;", "use(esphome__v);"]
         )
+
+    @register_action("my.lambda_statements", ApplyAction, {}, synchronous=True)
+    async def lambda_statements_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        value = await call_user_lambda(config["value"], args, cg.int32)
+        text = str(cg.statement(cg.MockObj("use")(value)))
+        return apply_statements_action(action_id, template_arg, args, [text])
 
     yield
 
@@ -3438,6 +3454,284 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
     assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
     text = CORE.cpp_global_section
     assert text.index("use(esphome__v);") < text.index("::comp->do_a();")
+
+
+def _lambda_statements(body: str) -> ConfigType:
+    """``my.lambda_statements`` with ``body`` as its value lambda."""
+    config = _action("my.lambda_statements", "act_l")
+    config["my.lambda_statements"]["value"] = Lambda(body)
+    return config
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_call_user_lambda_naming_no_arg_is_reduced() -> None:
+    """In a builder's own statements, a lambda that names no arg is its bare expression."""
+    config = [_lambda_statements("return 42;")]
+
+    await build_action_list(
+        config, cg.TemplateArguments(cg.std_string), [(cg.std_string, "x")]
+    )
+
+    text = CORE.cpp_global_section
+    assert "use(static_cast<int32_t>(42));" in text
+    assert "std::string x)" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_call_user_lambda_copies_a_named_value_arg() -> None:
+    """A lambda that names a value arg gets its own copy, so it may modify it."""
+    config = [_lambda_statements('x += "!";\nreturn x.size();')]
+
+    await build_action_list(
+        config, cg.TemplateArguments(cg.std_string), [(cg.std_string, "x")]
+    )
+
+    text = _squash(CORE.cpp_global_section)
+    assert "esphome__act_l__fn(const std::remove_cvref_t<std::string> & x)" in text
+    assert "use([](std::string x) -> int32_t {" in text
+    assert "}(x));" in text
+
+
+FILTER_CLASS = cg.esphome_ns.namespace("domain").class_("ApplyFilter")
+
+
+def _filter_domain(registry: Registry) -> ApplyFilterDomain:
+    return ApplyFilterDomain(
+        registry, FILTER_CLASS, cg.optional.template(cg.float_), ((cg.float_, "x"),)
+    )
+
+
+def test_filter_without_statements_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one statement"):
+        _filter_domain(Registry()).register("my.filter", cv.float_)
+
+
+@pytest.mark.asyncio
+async def test_build_without_statements_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one statement"):
+        await _filter_domain(Registry()).build(
+            "my.filter", 1.5, ID("filt_1"), schema=cv.float_
+        )
+
+
+async def _run_apply_filter(
+    schema: object,
+    statements: tuple[str | ApplyCall, ...],
+    config: object,
+    filter_id: str = "filt_1",
+) -> RegistryEntry:
+    """Register an apply filter in a fresh registry and run its builder with ``config``."""
+    registry = Registry()
+    _filter_domain(registry).register("my.filter", schema, *statements)
+    entry = registry["my.filter"]
+    await entry.fun(config, ID(filter_id))
+    return entry
+
+
+def _filter_pvariable(mock_cg: MockCodegen) -> tuple[ID, str]:
+    filter_id, template_arg = mock_cg.new_pvariable.call_args.args
+    return filter_id, str(template_arg)
+
+
+OFFSET = ApplyCall("return x + {};", ((WHOLE_CONFIG, cg.float_),))
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_whole_config_constant(mock_cg: MockCodegen) -> None:
+    """``WHOLE_CONFIG`` is the whole config; the filter is the class templated on its function."""
+    entry = await _run_apply_filter(cv.templatable(cv.float_), (OFFSET,), 2.5)
+    assert entry.type_id is FILTER_CLASS
+    filter_id, template_arg = _filter_pvariable(mock_cg)
+    assert filter_id.id == "filt_1"
+    assert filter_id.type is FILTER_CLASS
+    assert template_arg == "<esphome__filt_1__fn>"
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static std::optional<float> esphome__filt_1__fn(float x);"
+    )
+    assert _apply_definition(mock_cg) == (
+        "static std::optional<float> esphome__filt_1__fn(float x) {\n  return x + 2.5f;\n}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_shares_constant_functions(mock_cg: MockCodegen) -> None:
+    """A constant filter's function goes through ``cg.shared_static_function``."""
+    await _run_apply_filter(cv.templatable(cv.float_), (OFFSET,), 2.5, "filt_1")
+    await _run_apply_filter(cv.templatable(cv.float_), (OFFSET,), 2.5, "filt_2")
+    assert mock_cg.add_global.call_count == 1
+    template_args = [str(c.args[1]) for c in mock_cg.new_pvariable.call_args_list]
+    assert template_args == ["<esphome__filt_1__fn>", "<esphome__filt_1__fn>"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("type_", [cg.float_, "float"])
+async def test_apply_filter_lambda_values(mock_cg: MockCodegen, type_: object) -> None:
+    """A value lambda is its own function without parameters, so an id named like the
+    filter's ``x`` keeps meaning that id; such a filter is never shared. The type may be
+    raw C++ text."""
+    statement = ApplyCall("return x * {};", ((WHOLE_CONFIG, type_),))
+    body = Lambda("static float a = x->state;\nreturn a;")
+    for filter_id in ("filt_1", "filt_2"):
+        await _run_apply_filter(
+            cv.templatable(cv.float_), (statement,), body, filter_id
+        )
+    definitions = [
+        str(c.args[0]) for c in mock_cg.add_global_after_includes.call_args_list
+    ]
+    assert definitions == [
+        (
+            "static float esphome__filt_1__value0() {\n"
+            "  static float a = x->state;\n"
+            "  return a;\n"
+            "}"
+        ),
+        (
+            "static std::optional<float> esphome__filt_1__fn(float x) {\n"
+            "  return x * esphome__filt_1__value0();\n"
+            "}"
+        ),
+        (
+            "static float esphome__filt_2__value0() {\n"
+            "  static float a = x->state;\n"
+            "  return a;\n"
+            "}"
+        ),
+        (
+            "static std::optional<float> esphome__filt_2__fn(float x) {\n"
+            "  return x * esphome__filt_2__value0();\n"
+            "}"
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_keys_and_skipped_statements(mock_cg: MockCodegen) -> None:
+    """Statements take keys, a statement whose keys are all absent is skipped, order is kept."""
+    schema = cv.Schema({cv.Optional("low"): cv.float_, cv.Optional("high"): cv.float_})
+    statements = (
+        ApplyCall("if (!(x >= {})) return {{}};", (("low", cg.float_),)),
+        ApplyCall("if (!(x <= {})) return {{}};", (("high", cg.float_),)),
+        "return x;",
+    )
+    await _run_apply_filter(schema, statements, {"high": 10.0})
+    assert _apply_definition(mock_cg) == (
+        "static std::optional<float> esphome__filt_1__fn(float x) {\n"
+        "  if (!(x <= 10.0f)) return {};\n"
+        "  return x;\n"
+        "}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_build_picks_statements(mock_cg: MockCodegen) -> None:
+    """A builder can pick the statements by the shape of its config."""
+    domain = _filter_domain(Registry())
+    await domain.build(
+        "my.filter", 1.5, ID("filt_1"), OFFSET, schema=cv.templatable(cv.float_)
+    )
+    assert "return x + 1.5f;" in _apply_definition(mock_cg)
+    low = ApplyCall("return x + {};", (("low", cg.float_),))
+    schema = cv.Schema({cv.Optional("low"): cv.float_})
+    await domain.build("my.filter", {"low": 2.5}, ID("filt_2"), low, schema=schema)
+    assert "return x + 2.5f;" in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_build_rejects_skipped_last_statement(
+    mock_cg: MockCodegen,
+) -> None:
+    """A skipped last statement would leave the non-void function without a return."""
+    low = ApplyCall("return x + {};", (("low", cg.float_),))
+    with pytest.raises(ValueError, match="last statement is skipped"):
+        await _filter_domain(Registry()).build(
+            "my.filter",
+            {},
+            ID("filt_1"),
+            low,
+            schema=cv.Schema({cv.Optional("low"): cv.float_}),
+        )
+    mock_cg.new_pvariable.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_build_checks_schema_keys(mock_cg: MockCodegen) -> None:
+    """``build`` rejects a misspelled key instead of skipping its statement, and builds valid keys."""
+    schema = cv.Schema({cv.Optional("low"): cv.float_})
+    lwo = ApplyCall("if (x < {}) return {{}};", (("lwo", cg.float_),))
+    with pytest.raises(ValueError, match="'lwo' is not in the schema"):
+        await _filter_domain(Registry()).build(
+            "my.filter", {"low": 1.0}, ID("filt_1"), lwo, "return x;", schema=schema
+        )
+    mock_cg.new_pvariable.assert_not_called()
+    low = ApplyCall("if (x < {}) return {{}};", (("low", cg.float_),))
+    await _filter_domain(Registry()).build(
+        "my.filter", {"low": 1.0}, ID("filt_2"), low, "return x;", schema=schema
+    )
+    mock_cg.new_pvariable.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_apply_filter_rejects_unknown_key(mock_cg: MockCodegen) -> None:
+    schema = cv.Schema({cv.Optional("low"): cv.float_})
+    lwo = ApplyCall("return {};", (("lwo", cg.float_),))
+    with pytest.raises(ValueError, match="'lwo' is not in the schema"):
+        await _run_apply_filter(schema, (lwo,), {"low": 1.0})
+
+
+def test_apply_static_function_share() -> None:
+    """share=True reuses an identical function; the default emits one per id."""
+    CORE.config = {}
+    body = ["return x > 1;"]
+    params = [(cg.float_, "x")]
+    a = apply_static_function(ID("a"), cg.bool_, params, body, share=True)
+    b = apply_static_function(ID("b"), cg.bool_, params, body, share=True)
+    c = apply_static_function(ID("c"), cg.bool_, params, body)
+    assert [str(a), str(b), str(c)] == [
+        "esphome__a__fn",
+        "esphome__a__fn",
+        "esphome__c__fn",
+    ]
+    assert len(CORE.global_statements_after_includes) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"above": 10.0}, "return ValueRange{10.0f, NAN};"),
+        ({"below": 90.0}, "return ValueRange{NAN, 90.0f};"),
+        ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
+        (
+            {"below": Lambda("return x * 2.0f;")},
+            "return ValueRange{NAN, [](float x) -> float {\n    return x * 2.0f;\n  }(x)};",
+        ),
+    ],
+)
+async def test_new_value_range_trigger(
+    mock_cg: MockCodegen, config: dict, expected: str
+) -> None:
+    """Unset bounds are NaN, a lambda bound naming x gets its own copy, and the trigger comes first."""
+    trigger_id = ID("range_trigger", is_declaration=True)
+    assert await new_value_range_trigger(trigger_id, PARENT_OBJ, config) is NEW_OBJ
+    new_id, parent, function = mock_cg.new_pvariable.call_args.args
+    assert (new_id, parent, str(function)) == (
+        trigger_id,
+        PARENT_OBJ,
+        "esphome__range_trigger__fn",
+    )
+    # Declared before the bounds are rendered, so a bound lambda can use the trigger's own id
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "new_pvariable",
+        "add_global",
+        "add_global_after_includes",
+    ]
+    # A const x is a backstop: each bound naming x already gets its own copy
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static ValueRange esphome__range_trigger__fn(const float x);"
+    )
+    assert expected in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,24 @@
+s3a s3 s:def s:def
+s3b s3 s:96 s:96
+s3c s3 s:def t:def
+s3d s3 s:48 s:144
+s3e s3 s:50 s:144
+s3f s3 s:49
+s3g s3 s:384
+s3h s3 s:432
+s3i s3 s:def r:def t:def
+s3j s3 s:96 s:48 s:48 t:48
+s3k s3 s:96 s:48 s:48 s:48 t:48
+c6a c6 s:def s:def r:def
+c6b c6 s:def s:def s:def
+c6c c6 s:96 s:48
+c6d c6 r:192
+c6e c6 r:96 r:48
+c6f c6 t:def s:def
+s3cfix s3 s:96 t:def
+s3ifix s3 s:96 r:def t:def
+s3jfix s3 s:48 s:48 s:48 t:48
+c6afix c6 s:48 s:48 r:def
+c6cfix c6 s:48 s:48
+c6efix c6 r:48 r:48
+c6ffix c6 t:def s:48
