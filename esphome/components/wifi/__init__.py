@@ -1019,6 +1019,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+        if not has_eap:
+            # Use the boot ROM's AES-128 key expansion instead of the SDK copy; the
+            # Enterprise TLS client needs AES-256, so EAP builds keep the SDK copy.
+            cg.add_build_flag("-Wl,--wrap=rijndaelKeySetupEnc")
         if CONF_PHY_MODE in config:
             cg.add_define("USE_WIFI_PHY_MODE")
             cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
