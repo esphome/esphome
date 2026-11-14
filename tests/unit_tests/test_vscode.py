@@ -24,8 +24,8 @@ def _run_repl_test(input_data, *, ace=False):
         full_output = "".join(
             call[0][0] for call in mock_stdout.write.call_args_list
         ).strip()
-        splitted_output = full_output.split("\n")
-        return splitted_output[1:]  # remove first entry with version info
+        split_output = full_output.split("\n")
+        return split_output[1:]  # remove first entry with version info
 
 
 def _validate(file_path: str):

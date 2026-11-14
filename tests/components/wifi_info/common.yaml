@@ -20,3 +20,8 @@ text_sensor:
       name: DNS Address
     power_save_mode:
       name: "WiFi Power Save Mode"
+
+sensor:
+  - platform: wifi_info
+    channel:
+      name: Channel

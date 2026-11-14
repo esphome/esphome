@@ -723,7 +723,7 @@ async def test_add_looping_components_handles_empty_entries() -> None:
     constexpr_lines = [
         str(s)
         for s in CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
     ]
     assert len(constexpr_lines) == 1
     text = constexpr_lines[0]
@@ -733,6 +733,11 @@ async def test_add_looping_components_handles_empty_entries() -> None:
     assert "0" in rhs
     assert rhs.strip().rstrip(";").strip(), (
         f"constexpr right-hand side must not be empty, got: {text!r}"
+    )
+    assert any(
+        "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];"
+        in str(s)
+        for s in CORE.global_statements
     )
 
 
@@ -750,7 +755,7 @@ async def test_add_looping_components_with_entries() -> None:
     constexpr_lines = [
         str(s)
         for s in CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
     ]
     assert len(constexpr_lines) == 1
     text = constexpr_lines[0]

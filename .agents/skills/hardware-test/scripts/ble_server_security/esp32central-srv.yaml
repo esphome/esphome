@@ -1,0 +1,78 @@
+# Secure GATT server (ESP32-S3, #17562): plain, encrypted, MITM read+write and an encrypted notify characteristic.
+# Numeric comparison is accepted automatically. Substitution: name.
+esphome:
+  name: ${name}
+  includes: [bonds.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - delay: 2s
+      - lambda: 'log_bonds("server");'
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+esp32_ble:
+  name: ${name}
+  io_capability: display_yes_no
+  auth_req_mode: sc_mitm_bond
+
+esp32_ble_server:
+  id: srv
+  on_connect:
+    - logger.log: {format: "SRV connected", level: INFO}
+  on_disconnect:
+    - logger.log: {format: "SRV disconnected", level: INFO}
+  on_numeric_comparison_request:
+    - logger.log: {format: "SRV numeric comparison %06u", args: ["(unsigned) passkey"], level: INFO}
+    - ble_server.numeric_comparison_reply:
+        id: srv
+        address: !lambda return address;
+        accept: true
+  on_passkey_request:
+    - logger.log: {format: "SRV passkey request", level: INFO}
+  services:
+    - uuid: 5ec00000-0000-1000-8000-00805f9b34fb
+      advertise: true
+      characteristics:
+        - uuid: 5ec00001-0000-1000-8000-00805f9b34fb
+          read: true
+          value: "plain"
+        - uuid: 5ec00002-0000-1000-8000-00805f9b34fb
+          read: true
+          read_encrypt: true
+          value: "encrypted"
+        - uuid: 5ec00003-0000-1000-8000-00805f9b34fb
+          read: true
+          read_encrypt_mitm: true
+          write: true
+          write_encrypt_mitm: true
+          value: "mitm"
+          on_write:
+            - logger.log: {format: "SRV mitm write %s", args: ['format_hex_pretty(x.data(), x.size()).c_str()'], level: INFO}
+        - id: notify_char
+          uuid: 5ec00004-0000-1000-8000-00805f9b34fb
+          read: false
+          notify: true
+          read_encrypt: true
+          value: "n0"
+
+globals:
+  - {id: cnt, type: int, initial_value: "0"}
+interval:
+  - interval: 5s
+    then:
+      - lambda: 'id(cnt)++;'
+      - ble_server.characteristic.set_value:
+          id: notify_char
+          value: !lambda 'auto s = "n" + std::to_string(id(cnt)); return std::vector<uint8_t>(s.begin(), s.end());'
+      - ble_server.characteristic.notify:
+          id: notify_char

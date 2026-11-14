@@ -16,6 +16,7 @@ uptime_ns = cg.esphome_ns.namespace("uptime")
 UptimeTextSensor = uptime_ns.class_(
     "UptimeTextSensor", text_sensor.TextSensor, cg.PollingComponent
 )
+UptimeFormat = uptime_ns.struct("UptimeFormat")
 
 CONF_SEPARATOR = "separator"
 CONF_DAYS = "days"
@@ -46,15 +47,18 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    format = config[CONF_FORMAT]
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        format[CONF_DAYS],
-        format[CONF_HOURS],
-        format[CONF_MINUTES],
-        format[CONF_SECONDS],
-        format[CONF_SEPARATOR],
-        format[CONF_EXPAND],
+    fmt = config[CONF_FORMAT]
+    labels = [
+        (key, cg.shared_progmem_string(fmt[key]))
+        for key in (CONF_DAYS, CONF_HOURS, CONF_MINUTES, CONF_SECONDS, CONF_SEPARATOR)
+    ]
+    format_table = cg.shared_progmem_array(
+        "uptime_format",
+        UptimeFormat,
+        cg.ArrayInitializer(
+            cg.StructInitializer(UptimeFormat, *labels, (CONF_EXPAND, fmt[CONF_EXPAND]))
+        ),
     )
+    var = cg.new_Pvariable(config[CONF_ID], format_table)
     await text_sensor.register_text_sensor(var, config)
     await cg.register_component(var, config)

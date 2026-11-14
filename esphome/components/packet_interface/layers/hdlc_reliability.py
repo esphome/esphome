@@ -6,11 +6,21 @@ from esphome.const import CONF_ID, CONF_TIMEOUT
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import RELIABILITY, PacketInterface, packet_interface_ns
+from . import (
+    RELIABILITY,
+    Layer,
+    PacketInterface,
+    PacketSize,
+    packet_interface_ns,
+    remaining_packet_size,
+)
 
 CONF_ACK_DELAY = "ack_delay"
 CONF_MAX_QUEUE_LENGTH = "max_queue_length"
 CONF_MAX_RETRIES = "max_retries"
+
+# The control byte and the CRC-16
+FRAME_OVERHEAD = 3
 
 HdlcReliability = packet_interface_ns.class_("HdlcReliability", PacketInterface)
 
@@ -47,13 +57,27 @@ HDLC_SCHEMA = cv.All(
 )
 
 
-@RELIABILITY.register("hdlc", schema=HDLC_SCHEMA)
-async def build_hdlc(config: ConfigType, lower: MockObj) -> MockObj:
+@RELIABILITY.register(
+    "hdlc",
+    schema=HDLC_SCHEMA,
+    single_peer=lambda config: True,
+    packet_size=lambda config, size: remaining_packet_size(size, FRAME_OVERHEAD),
+    send_capacity=lambda config: config[CONF_MAX_QUEUE_LENGTH],
+)
+async def build_hdlc(
+    config: ConfigType, lower: MockObj, lower_size: PacketSize
+) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_HDLC")
-    var = cg.new_Pvariable(config[CONF_ID], lower)
+    queue_length = config[CONF_MAX_QUEUE_LENGTH]
+    tx_slots = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint8,
+        HdlcReliability.static_("send_queue_size")(lower_size, queue_length),
+        psram=True,
+    )
+    var = cg.new_Pvariable(config[CONF_ID], lower, tx_slots, queue_length)
     cg.add(var.set_ack_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_ack_delay(config[CONF_ACK_DELAY]))
-    cg.add(var.set_max_queue_length(config[CONF_MAX_QUEUE_LENGTH]))
     cg.add(var.set_max_retries(config[CONF_MAX_RETRIES]))
     await cg.register_component(var, config)
-    return var
+    return var, HdlcReliability.static_("packet_size")(lower_size)

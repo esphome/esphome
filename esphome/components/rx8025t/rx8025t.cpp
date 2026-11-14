@@ -15,10 +15,8 @@ ESPHOME_LOG_TAG(TAG, "rx8025t");
 
 void RX8025TComponent::setup() {
   uint8_t flags;
-  if (!this->read_flags_(&flags)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_flags_(&flags)))
     return;
-  }
 
   if (flags & RX8025T_FLAG_VLF) {
     ESP_LOGW(TAG, "VLF flag is set - Loss of oscillator detected. Time may be invalid.");

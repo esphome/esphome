@@ -18,6 +18,11 @@ static constexpr uint32_t RESET_CONVERSATION_TIMEOUT_ID = 0;
 static constexpr uint32_t PLAYBACK_TIMEOUT_ID = 1;
 static constexpr uint32_t SPEAKER_IDLE_TIMEOUT_ID = 2;
 static constexpr uint32_t TIMER_TICK_INTERVAL_ID = 3;
+static constexpr uint32_t WAKE_WORD_VERDICT_TIMEOUT_ID = 4;
+static constexpr uint32_t RUN_END_TIMEOUT_ID = 5;
+
+// Fallback for a run whose RUN_END never arrives
+static constexpr uint32_t RUN_END_TIMEOUT_MS = 2000;
 
 #ifdef SAMPLE_RATE_HZ
 #undef SAMPLE_RATE_HZ
@@ -30,12 +35,41 @@ static const size_t RING_BUFFER_SIZE = RING_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t SEND_BUFFER_SAMPLES = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
 static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
+// Stall watchdog, re-armed from loop() while playback runs. Waiting for playback
+// to start uses tts_playback_start_timeout_ instead (home-assistant-voice-pe#621).
+static constexpr uint32_t PLAYBACK_STALL_TIMEOUT_MS = 2000;
+
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
 // If one microphone channel keeps producing audio while another configured channel produces none for this
 // long, treat the silent channel as failed and stop the stream. A working microphone exposes a chunk every
 // SEND_BUFFER_SAMPLES (32 ms), so this is far longer than any legitimate gap between chunks.
 static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+// Room for live audio while the buffered audio is sent
+static constexpr uint32_t WAKE_WORD_AUDIO_HEADROOM_MS = 1000;
+static constexpr uint32_t WAKE_WORD_DETECTION_MAX_AGE_MS = 1000;
+
+static size_t trim_audio_source(audio::RingBufferAudioSource *source,
+                                const std::weak_ptr<ring_buffer::RingBuffer> &weak_ring_buffer, size_t target_bytes) {
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer = weak_ring_buffer.lock();
+  if ((source == nullptr) || (ring_buffer == nullptr)) {
+    return 0;
+  }
+  while (true) {
+    source->fill(0);
+    const size_t exposed = source->available();
+    const size_t buffered = exposed + ring_buffer->available();
+    // Whole samples only
+    const size_t excess = (buffered > target_bytes) ? ((buffered - target_bytes) & ~(sizeof(int16_t) - 1)) : 0;
+    if ((excess == 0) || (exposed == 0)) {
+      return buffered;
+    }
+    source->consume(std::min(exposed, excess));
+  }
+}
+#endif
 
 VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
@@ -56,6 +90,16 @@ void VoiceAssistant::setup() {
       }
     });
   }
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->micro_wake_word_->add_on_wake_word_detected_callback([this](const micro_wake_word::DetectionEvent &event) {
+    constexpr float uint8_to_float_divisor = 255.0f;
+    this->detection_.id = (event.id != nullptr) ? *event.id : "";
+    this->detection_.probability = event.average_probability / uint8_to_float_divisor;
+    this->detection_.probability_cutoff = event.probability_cutoff / uint8_to_float_divisor;
+    this->detection_.detected_at = millis();
+  });
+#endif
 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
@@ -141,7 +185,8 @@ bool VoiceAssistant::allocate_buffers_() {
 #endif
 
   if (this->audio_source_ == nullptr) {
-    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer =
+        ring_buffer::RingBuffer::create(this->ring_buffer_size_());
     if (temp_ring_buffer == nullptr) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
@@ -157,7 +202,8 @@ bool VoiceAssistant::allocate_buffers_() {
 
   // Second microphone channel
   if ((this->mic_source2_ != nullptr) && (this->audio_source2_ == nullptr)) {
-    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer =
+        ring_buffer::RingBuffer::create(this->ring_buffer_size_());
     if (temp_ring_buffer == nullptr) {
       ESP_LOGE(TAG, "Could not allocate second ring buffer");
       return false;
@@ -173,13 +219,23 @@ bool VoiceAssistant::allocate_buffers_() {
   return true;
 }
 
-void VoiceAssistant::clear_buffers_() {
-  if (this->audio_source_ != nullptr) {
+size_t VoiceAssistant::ring_buffer_size_() const {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->is_wake_word_audio_active()) {
+    return (this->wake_word_audio_buffer_duration_ + WAKE_WORD_AUDIO_HEADROOM_MS) * SAMPLE_RATE_HZ / 1000 *
+           sizeof(int16_t);
+  }
+#endif
+  return RING_BUFFER_SIZE;
+}
+
+void VoiceAssistant::clear_buffers_(bool clear_microphone_audio) {
+  if (clear_microphone_audio && (this->audio_source_ != nullptr)) {
     this->audio_source_->clear_buffered_data();
   }
 
   // Second microphone channel
-  if (this->audio_source2_ != nullptr) {
+  if (clear_microphone_audio && (this->audio_source2_ != nullptr)) {
     this->audio_source2_->clear_buffered_data();
   }
 
@@ -309,13 +365,43 @@ void VoiceAssistant::loop() {
     this->continuous_ = false;
     this->signal_stop_();
     this->clear_buffers_();
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    this->clear_wake_word_verdict_();
+#endif
     return;
   }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->update_wake_word_audio_();
+#endif
   switch (this->state_) {
     case State::IDLE: {
       if (this->continuous_ && this->desired_state_ == State::IDLE) {
         this->idle_trigger_.trigger();
         this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      } else if (this->wake_word_audio_buffering_) {
+        // Only microWakeWord detections use the buffered audio, so the microphone idles while it is stopped
+        // (a software mute, say); the buffers stay allocated for when it runs again.
+        if (this->micro_wake_word_->is_running()) {
+          // Until the microphone runs again, drop what it buffered before it stopped, so a clip never joins audio
+          // from before a mute to audio after it
+          if (!this->mic_source_->is_running() && (this->audio_source_ != nullptr)) {
+            this->audio_source_->clear_buffered_data();
+            if (this->audio_source2_ != nullptr) {
+              this->audio_source2_->clear_buffered_data();
+            }
+          }
+          this->mic_source_->start();
+          if (this->mic_source2_) {
+            this->mic_source2_->start();
+          }
+        } else {
+          this->mic_source_->stop();
+          if (this->mic_source2_) {
+            this->mic_source2_->stop();
+          }
+        }
+#endif
       } else {
         this->deallocate_buffers_();
       }
@@ -330,7 +416,11 @@ void VoiceAssistant::loop() {
       if (this->status_has_error()) {
         this->status_clear_error();
       }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_buffers_(!this->wake_word_audio_buffering_);
+#else
       this->clear_buffers_();
+#endif
 
       this->mic_source_->start();
       if (this->mic_source2_) {
@@ -363,6 +453,30 @@ void VoiceAssistant::loop() {
       msg.flags = flags;
       msg.audio_settings = std::move(audio_settings);
       msg.wake_word_phrase = StringRef(this->wake_word_);
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      if (this->wake_word_audio_buffering_) {
+        const size_t bytes_per_ms = SAMPLE_RATE_HZ / 1000 * sizeof(int16_t);
+        // Audio from after the detection belongs to the command, not the wake word
+        const size_t command_bytes =
+            this->start_with_detection_ ? (millis() - this->detection_.detected_at) * bytes_per_ms : 0;
+        const size_t target_bytes =
+            this->start_with_detection_ ? (this->wake_word_audio_buffer_duration_ * bytes_per_ms) + command_bytes : 0;
+        const size_t buffered = trim_audio_source(this->audio_source_.get(), this->ring_buffer_, target_bytes);
+        const size_t buffered2 = trim_audio_source(this->audio_source2_.get(), this->ring_buffer2_, target_bytes);
+        if (this->start_with_detection_) {
+          const size_t wake_word_bytes = buffered - std::min(buffered, command_bytes);
+          const size_t wake_word_bytes2 = buffered2 - std::min(buffered2, command_bytes);
+          msg.wake_word_id = StringRef(this->detection_.id);
+          msg.wake_word_audio_bytes = wake_word_bytes;
+          msg.wake_word_audio_bytes2 = wake_word_bytes2;
+          msg.wake_word_probability = this->detection_.probability;
+          msg.wake_word_probability_cutoff = this->detection_.probability_cutoff;
+          ESP_LOGD(TAG, "Sending %zu/%zu bytes of wake word audio for %s", wake_word_bytes, wake_word_bytes2,
+                   this->detection_.id.c_str());
+        }
+      }
+      this->detection_.detected_at = 0;
+#endif
 
       // Reset media player state tracking
 #ifdef USE_MEDIA_PLAYER
@@ -371,6 +485,9 @@ void VoiceAssistant::loop() {
       }
 #endif
 
+      // No client: on_client_connected re-arms instead. A start during the RUN_END wait shares one on_end.
+      this->end_pending_ = this->api_client_ != nullptr;
+      this->end_run_();
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_.trigger("not-connected", "Could not request start");
@@ -378,9 +495,26 @@ void VoiceAssistant::loop() {
         this->set_state_(State::IDLE, State::IDLE);
         break;
       }
-      this->set_state_(State::STARTING_PIPELINE);
       this->set_timeout(RESET_CONVERSATION_TIMEOUT_ID, this->conversation_timeout_,
                         [this]() { this->reset_conversation_id(); });
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->streaming_before_response_ = this->start_with_detection_;
+      if (this->start_with_detection_) {
+        this->start_with_detection_ = false;
+        // Waiting for the response would let live audio overwrite the buffered audio
+        ESP_LOGD(TAG, "Streaming microphone");
+        this->audio_mode_ = AUDIO_MODE_API;
+        this->set_state_(State::STREAMING_MICROPHONE, State::STREAMING_MICROPHONE);
+        this->set_timeout(WAKE_WORD_VERDICT_TIMEOUT_ID, this->wake_word_audio_timeout_, [this]() {
+          ESP_LOGW(TAG, "Wake word was not accepted or rejected in time");
+          this->request_stop();
+          this->error_trigger_.trigger("wake-word-verification-timeout",
+                                       "Wake word was not accepted or rejected in time");
+        });
+        break;
+      }
+#endif
+      this->set_state_(State::STARTING_PIPELINE);
       break;
     }
     case State::STARTING_PIPELINE: {
@@ -412,6 +546,12 @@ void VoiceAssistant::loop() {
       break;
     }
     case State::STOP_MICROPHONE: {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      if (this->wake_word_audio_buffering_) {
+        this->set_state_(this->desired_state_);
+        break;
+      }
+#endif
       // Check both microphone channels
       bool is_running = this->mic_source_->is_running();
       bool is_running2 = false;
@@ -499,7 +639,8 @@ void VoiceAssistant::loop() {
       }
 #endif
       if (playing) {
-        this->start_playback_timeout_();
+        // Playback is running: short watchdog against a stalled player.
+        this->start_playback_timeout_(PLAYBACK_STALL_TIMEOUT_MS);
       }
       break;
     }
@@ -524,6 +665,23 @@ void VoiceAssistant::loop() {
         this->stream_ended_ = false;
 
         this->tts_stream_end_trigger_.trigger();
+      }
+#endif
+#ifdef USE_MEDIA_PLAYER
+      // Counterpart to the speaker checks above: while the media player is
+      // still announcing our response, the microphone must stay shut, otherwise
+      // the device records its own response and answers it. Only our own
+      // response counts; an unrelated announcement does not hold this state.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        break;
+      }
+      // The start timeout fired before playback began: skip the follow-up turn, so a late start
+      // cannot play into an open microphone.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT)) {
+        this->set_state_(State::IDLE, State::IDLE);
+        break;
       }
 #endif
       if (this->continue_conversation_) {
@@ -557,13 +715,19 @@ void VoiceAssistant::write_speaker_() {
 }
 #endif
 
-void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscribe) {
+void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscribe, uint32_t flags) {
   if (!subscribe) {
     if (this->api_client_ == nullptr || client != this->api_client_) {
       ESP_LOGE(TAG, "Client attempting to unsubscribe that is not the current API Client");
       return;
     }
     this->api_client_ = nullptr;
+    // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
+    this->end_pending_ = false;
+    this->end_run_();
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    this->wake_word_audio_requested_ = false;
+#endif
     this->client_disconnected_trigger_.trigger();
     return;
   }
@@ -581,6 +745,13 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   }
 
   this->api_client_ = client;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->wake_word_audio_requested_ = (flags & api::enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO) != 0;
+  ESP_LOGD(TAG, "Wake word audio %s",
+           this->wake_word_audio_requested_ ? LOG_STR_LITERAL("requested") : LOG_STR_LITERAL("not requested"));
+  // So is_wake_word_audio_active() reflects a failed allocation in on_client_connected
+  this->update_wake_word_audio_();
+#endif
   this->client_connected_trigger_.trigger();
 }
 
@@ -617,11 +788,48 @@ static const LogString *voice_assistant_state_to_string(State state) {
   }
 };
 
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+static bool is_microphone_streaming_state(State state) {
+  return (state == State::START_PIPELINE) || (state == State::STARTING_PIPELINE) ||
+         (state == State::STREAMING_MICROPHONE);
+}
+#endif
+
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
   ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
            LOG_STR_ARG(voice_assistant_state_to_string(state)));
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->wake_word_audio_buffering_ && is_microphone_streaming_state(old_state) &&
+      !is_microphone_streaming_state(state)) {
+    this->end_wake_word_audio_stream_();
+  }
+#endif
+  // Fire on_end now, or once RUN_END or its timeout arrives if Home Assistant's run is still open
+  if (state == State::IDLE && this->end_pending_) {
+    if (this->run_active_) {
+      this->set_timeout(RUN_END_TIMEOUT_ID, RUN_END_TIMEOUT_MS, [this]() { this->end_session_(); });
+    } else {
+      this->end_session_();
+    }
+  }
+}
+
+void VoiceAssistant::end_run_() {
+  this->run_active_ = false;
+  this->cancel_timeout(RUN_END_TIMEOUT_ID);
+}
+
+void VoiceAssistant::end_session_() {
+  if (!this->end_pending_)
+    return;
+  this->end_pending_ = false;
+  // The client can unsubscribe before the deferred trigger runs
+  this->defer([this]() {
+    if (this->api_client_ != nullptr)
+      this->end_trigger_.trigger();
+  });
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
@@ -647,6 +855,12 @@ void VoiceAssistant::failed_to_start() {
 }
 
 void VoiceAssistant::start_streaming() {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->streaming_before_response_) {
+    this->streaming_before_response_ = false;
+    return;
+  }
+#endif
   if (this->state_ != State::STARTING_PIPELINE) {
     this->signal_stop_();
     return;
@@ -711,6 +925,13 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
   if (this->state_ == State::IDLE) {
     this->continuous_ = continuous;
     this->silence_detection_ = silence_detection;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    this->start_with_detection_ = this->wake_word_audio_buffering_ && (this->detection_.detected_at != 0) &&
+                                  ((millis() - this->detection_.detected_at) <= WAKE_WORD_DETECTION_MAX_AGE_MS);
+    if (!this->start_with_detection_) {
+      this->detection_.detected_at = 0;
+    }
+#endif
 
     this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
   }
@@ -719,6 +940,11 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
 void VoiceAssistant::request_stop() {
   this->continuous_ = false;
   this->continue_conversation_ = false;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->start_with_detection_ = false;
+  this->detection_.detected_at = 0;
+  this->clear_wake_word_verdict_();
+#endif
 
   switch (this->state_) {
     case State::IDLE:
@@ -753,6 +979,14 @@ void VoiceAssistant::request_stop() {
       this->cancel_response_();
       break;
     case State::RESPONSE_FINISHED:
+#ifdef USE_MEDIA_PLAYER
+      // loop() holds this state while our response is still being announced;
+      // stop it the same way STREAMING_RESPONSE does.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        this->cancel_response_();
+      }
+#endif
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
 }
@@ -786,8 +1020,8 @@ void VoiceAssistant::signal_stop_() {
   }
 }
 
-void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
+void VoiceAssistant::start_playback_timeout_(uint32_t timeout_ms) {
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, timeout_ms, [this]() {
     this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
@@ -806,6 +1040,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
+      // Home Assistant sends RUN_END only for a run it sent RUN_START for. A local abort before RUN_START
+      // fires on_end at once, so a late RUN_START/RUN_END can still end a pipeline that on_end starts.
+      this->run_active_ = true;
 #ifdef USE_MEDIA_PLAYER
       this->started_streaming_tts_ = false;
       for (const auto &arg : msg.data) {
@@ -820,9 +1057,23 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_END: {
       ESP_LOGD(TAG, "Wake word detected");
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_wake_word_verdict_();
+#endif
       this->defer([this]() { this->wake_word_detected_trigger_.trigger(); });
       break;
     }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    case api::enums::VOICE_ASSISTANT_WAKE_WORD_REJECTED: {
+      ESP_LOGD(TAG, "Wake word rejected");
+      this->clear_wake_word_verdict_();
+      if ((this->state_ == State::STARTING_PIPELINE) || (this->state_ == State::STREAMING_MICROPHONE)) {
+        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      }
+      this->defer([this]() { this->wake_word_rejected_trigger_.trigger(); });
+      break;
+    }
+#endif
     case api::enums::VOICE_ASSISTANT_STT_START:
       ESP_LOGD(TAG, "STT started");
       this->defer([this]() { this->listening_trigger_.trigger(); });
@@ -866,7 +1117,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
             this->media_player_->make_call().set_media_url(this->tts_response_url_).set_announcement(true).perform();
 
             this->started_streaming_tts_ = true;
-            this->start_playback_timeout_();
+            this->start_playback_timeout_(this->tts_playback_start_timeout_);
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
@@ -934,7 +1185,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
           this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
 
-          this->start_playback_timeout_();
+          this->start_playback_timeout_(this->tts_playback_start_timeout_);
         }
         this->started_streaming_tts_ = false;  // Helps indicate reaching the TTS_END stage
 #endif
@@ -946,6 +1197,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
+      this->end_run_();
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_wake_word_verdict_();
+#endif
       if ((this->state_ == State::START_PIPELINE) || (this->state_ == State::STARTING_PIPELINE) ||
           (this->state_ == State::STREAMING_MICROPHONE)) {
         // Microphone is running, stop it
@@ -957,7 +1212,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         // No TTS start event while the microphone is still stopping
         this->set_state_after_mic_stop_(State::IDLE);
       }
-      this->defer([this]() { this->end_trigger_.trigger(); });
+      this->end_session_();
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
@@ -982,6 +1237,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_wake_word_verdict_();
+#endif
       if (this->state_ != State::IDLE) {
         this->signal_stop_();
         this->set_state_(State::STOP_MICROPHONE, State::IDLE);
@@ -1117,7 +1375,8 @@ void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) 
         .perform();
     this->continue_conversation_ = msg.start_conversation;
 
-    this->start_playback_timeout_();
+    // Waiting for playback to start here too, not for it to finish.
+    this->start_playback_timeout_(this->tts_playback_start_timeout_);
 
     if (this->continuous_) {
       this->set_state_(State::STOP_MICROPHONE, State::STREAMING_RESPONSE);
@@ -1183,6 +1442,60 @@ const Configuration &VoiceAssistant::get_configuration() {
 
   return this->config_;
 };
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+void VoiceAssistant::update_wake_word_audio_() {
+  const bool active = this->is_wake_word_audio_active();
+  if (active == this->wake_word_audio_buffering_) {
+    return;
+  }
+
+  if (active) {
+    if (this->state_ != State::IDLE) {
+      // Retried every loop, so the buffers are resized once the run ends
+      return;
+    }
+    // Buffers left over from a run without wake word audio are too small
+    this->deallocate_buffers_();
+    if (!this->allocate_buffers_()) {
+      // Detect wake words without verification rather than retry large allocations every loop
+      ESP_LOGE(TAG, "Not enough memory for wake word audio");
+      this->wake_word_audio_requested_ = false;
+      return;
+    }
+    // The IDLE branch of loop() starts the microphone while microWakeWord runs
+    ESP_LOGD(TAG, "Buffering wake word audio");
+  } else {
+    this->clear_wake_word_verdict_();
+    if (this->state_ == State::IDLE) {
+      this->mic_source_->stop();
+      if (this->mic_source2_) {
+        this->mic_source2_->stop();
+      }
+    }
+    ESP_LOGD(TAG, "Stopped buffering wake word audio");
+  }
+  this->wake_word_audio_buffering_ = active;
+
+#ifdef USE_MICRO_WAKE_WORD_VAD
+  // The VAD model blocks true detections at the lower cutoffs
+  this->micro_wake_word_->set_vad_enabled(!active);
+#endif
+}
+
+void VoiceAssistant::clear_wake_word_verdict_() { this->cancel_timeout(WAKE_WORD_VERDICT_TIMEOUT_ID); }
+
+void VoiceAssistant::end_wake_word_audio_stream_() {
+  // A chunk still held by an audio source stops its ring buffer from replacing old audio
+  if (this->audio_source_ != nullptr) {
+    this->audio_source_->clear_buffered_data();
+  }
+  if (this->audio_source2_ != nullptr) {
+    this->audio_source2_->clear_buffered_data();
+  }
+  this->clear_wake_word_verdict_();
+}
+#endif
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

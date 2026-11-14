@@ -18,3 +18,13 @@ from a real peer on demand. `scripts/ble_event_inject` feeds made up events stra
   queued event reaches only the shared handler. Do not use 0xFF (`ESP_GATT_IF_NONE`), which every client accepts.
 - The fake peers (`C0:FF:EE:00:00:0n`) are never connected, so a live proxy keeps serving its real connections;
   put it back on its own config afterwards.
+
+## ThermoPro advertisements as scan results (#22047, #22054)
+
+`scripts/ble_event_inject/tpinject.hpp` holds the advertisement records from the `thermopro_ble` unit tests (TP357,
+TP357S, TP393, TP960R, TP970R, TP972S, TP25, plus invalid and 13 byte probe frames) and `tpinject::inject_all()`
+feeds each one to `global_esp32_ble_tracker->gap_scan_event_handler()` with the device name and the manufacturer
+data, the way `scripts/xiaomi_ble` does. Frame N comes from `A4:C1:38:00:10:0N` (up to `:10`), so give each
+`thermopro_ble` sensor that MAC, include the header and call `tpinject::inject_all();` from an `interval:` or a
+template button. Compare the published states (or the sensor DEBUG lines) on the PR and on dev; no ThermoPro
+device is needed.

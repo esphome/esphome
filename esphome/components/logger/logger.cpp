@@ -343,6 +343,9 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+#ifdef USE_BOOTLOADER_ADAFRUIT
+  this->dump_bootloader_();
+#endif
   if (!device_is_ready(this->uart_dev_)) {
     ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
   }

@@ -1,5 +1,4 @@
 #include "spi.h"
-#include <vector>
 
 namespace esphome::spi {
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
@@ -57,39 +56,32 @@ class SPIDelegateHw : public SPIDelegate {
   SPIInterface channel_{};
 };
 
-class SPIBusHw : public SPIBus {
- public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
+bool SPIComponent::setup_hw_bus_() {
+  SPIInterface channel = this->interface_;
+  const int clk = Utility::get_pin_no(this->clk_pin_);
+  const int sdi = Utility::get_pin_no(this->sdi_pin_);
+  const int sdo = Utility::get_pin_no(this->sdo_pin_);
 #ifdef USE_ESP8266
-    channel->pins(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
-    channel->begin();
+  channel->pins(clk, sdi, sdo, -1);
+  channel->begin();
 #endif  // USE_ESP8266
 #ifdef USE_ESP32
-    channel->begin(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
+  channel->begin(clk, sdi, sdo, -1);
 #endif
 #ifdef USE_RP2
-    if (Utility::get_pin_no(sdi) != -1)
-      channel->setRX(Utility::get_pin_no(sdi));
-    if (Utility::get_pin_no(sdo) != -1)
-      channel->setTX(Utility::get_pin_no(sdo));
-    channel->setSCK(Utility::get_pin_no(clk));
-    channel->begin();
+  if (sdi != -1)
+    channel->setRX(sdi);
+  if (sdo != -1)
+    channel->setTX(sdo);
+  channel->setSCK(clk);
+  channel->begin();
 #endif
-  }
+  return true;
+}
 
-  SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                            bool release_device, bool write_only) override {
-    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin);
-  }
-
- protected:
-  SPIInterface channel_{};
-  bool is_hw() override { return true; }
-};
-
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                              const std::vector<uint8_t> &data_pins) {
-  return new SPIBusHw(clk, sdo, sdi, interface);
+SPIDelegate *SPIComponent::new_hw_delegate_(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                            bool release_device, bool write_only) {
+  return new SPIDelegateHw(this->interface_, data_rate, bit_order, mode, cs_pin);  // NOLINT
 }
 
 #endif  // USE_ARDUINO && !USE_ESP32

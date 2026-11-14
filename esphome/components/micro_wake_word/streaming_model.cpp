@@ -374,8 +374,10 @@ void WakeWordModel::disable() {
 DetectionEvent WakeWordModel::determine_detected() {
   DetectionEvent detection_event;
   detection_event.wake_word = &this->wake_word_;
+  detection_event.id = &this->id_;
   detection_event.max_probability = 0;
   detection_event.average_probability = 0;
+  detection_event.probability_cutoff = this->probability_cutoff_;
 
   if ((this->ignore_windows_ < 0) || !this->enabled_) {
     detection_event.detected = false;

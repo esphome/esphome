@@ -84,8 +84,9 @@ void MatrixKeypad::loop() {
   if (this->keys_ != nullptr) {
     uint8_t keycode = progmem_read_byte(&this->keys_[key]);
     ESP_LOGD(TAG, "key '%c' pressed", keycode);
-    for (auto &trigger : this->key_triggers_)
-      trigger->trigger(keycode);
+#ifdef MATRIX_KEYPAD_ON_KEY_COUNT
+    this->key_automations_.trigger(keycode);
+#endif
     for (auto &listener : this->listeners_)
       listener->key_pressed(keycode);
     this->send_key_(keycode);
@@ -106,7 +107,5 @@ void MatrixKeypad::dump_config() {
 }
 
 void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->listeners_.push_back(listener); }
-
-void MatrixKeypad::register_key_trigger(MatrixKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
 
 }  // namespace esphome::matrix_keypad
