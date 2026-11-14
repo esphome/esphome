@@ -526,8 +526,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", port)
-    if CORE.is_esp32:
-        # The event source builds state documents in a stack arena; too large for the ESP8266 loop stack
+    if CORE.is_esp32 or CORE.is_libretiny:
+        # The event source builds state documents in a 2 KB stack arena; LibreTiny's main task has 8 KB,
+        # ESP8266 and RP2040 only 4 KB
         enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
