@@ -14,8 +14,18 @@ namespace esphome::udp {
 static const size_t MAX_PACKET_SIZE = 508;
 class UDPComponent final : public Component {
  public:
-  /// nullptr-terminated table of addresses; must outlive the component.
-  void set_addresses(const char *const *addresses) { this->addresses_ = addresses; }
+  union SockaddrEntry {
+    sockaddr sa;
+#ifdef USE_UDP_IPV6_SEND
+    sockaddr_in6 in6;  // sizes the storage for IPv6 destinations
+#endif
+  };
+
+  /// nullptr-terminated table of addresses, and one entry of storage per address; both must outlive the component.
+  void set_addresses(const char *const *addresses, std::span<SockaddrEntry> storage) {
+    this->addresses_ = addresses;
+    this->sockaddrs_.init(storage);
+  }
   /// Multicast group literal; must outlive the component.
   void set_listen_address(const char *listen_addr) { this->listen_address_ = listen_addr; }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
@@ -54,13 +64,6 @@ class UDPComponent final : public Component {
     POLL_SEND_HELD = 16,  // only in poll_failed_: the held IPv6 sends were logged
   };
 
-  union SockaddrEntry {
-    sockaddr sa;
-#ifdef USE_UDP_IPV6_SEND
-    sockaddr_in6 in6;  // sizes the storage for IPv6 destinations
-#endif
-  };
-
   /// One pass of the network poll; true once nothing is left to do.
   bool network_poll_();
   /// err is the errno of the failed call, or 0 when no call failed.
@@ -72,7 +75,7 @@ class UDPComponent final : public Component {
 #ifdef USE_UDP_IPV6_SEND
   std::unique_ptr<socket::UDPSendSocket> send_socket_v6_ = nullptr;
 #endif
-  FixedVector<SockaddrEntry> sockaddrs_{};
+  StaticFixedVector<SockaddrEntry> sockaddrs_;
   const char *const *addresses_{nullptr};
   const char *listen_address_{nullptr};
 #ifdef USE_SOCKET_IPV6

@@ -61,10 +61,8 @@ void CST816Touchscreen::setup() {
 
 void CST816Touchscreen::update_touches() {
   uint8_t data[13];
-  if (!this->read_bytes(REG_STATUS, data, sizeof data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(REG_STATUS, data, sizeof data)))
     return;
-  }
   uint8_t num_of_touches = data[REG_TOUCH_NUM] & 3;
   if (num_of_touches == 0) {
     return;

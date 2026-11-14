@@ -27,19 +27,7 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   }
 }
 
-struct ISRPinArg {
-  uint32_t mask;
-  uint8_t pin;
-  bool inverted;
-};
-
-ISRInternalGPIOPin RP2GPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = this->pin_;
-  arg->inverted = this->inverted_;
-  arg->mask = 1 << this->pin_;
-  return ISRInternalGPIOPin((void *) arg);
-}
+ISRInternalGPIOPin RP2GPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void RP2GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = LOW;
@@ -82,32 +70,31 @@ void RP2GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 using namespace rp2;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
-  return bool(sio_hw->gpio_in & arg->mask) != arg->inverted;
+  auto *pin = static_cast<RP2GPIOPin *>(this->arg_);
+  return bool(sio_hw->gpio_in & (1u << pin->get_pin())) != pin->is_inverted();
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
-  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
-  if (value != arg->inverted) {
-    sio_hw->gpio_set = arg->mask;
+  auto *pin = static_cast<RP2GPIOPin *>(this->arg_);
+  const uint32_t mask = 1u << pin->get_pin();
+  if (value != pin->is_inverted()) {
+    sio_hw->gpio_set = mask;
   } else {
-    sio_hw->gpio_clr = arg->mask;
+    sio_hw->gpio_clr = mask;
   }
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   // TODO: implement
-  // auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  // GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
+  const uint8_t num = static_cast<RP2GPIOPin *>(this->arg_)->get_pin();
   if (flags & gpio::FLAG_OUTPUT) {
-    sio_hw->gpio_oe_set = arg->mask;
+    sio_hw->gpio_oe_set = 1u << num;
   } else if (flags & gpio::FLAG_INPUT) {
-    sio_hw->gpio_oe_clr = arg->mask;
-    hw_write_masked(&pads_bank0_hw->io[arg->pin],
+    sio_hw->gpio_oe_clr = 1u << num;
+    hw_write_masked(&pads_bank0_hw->io[num],
                     (bool_to_bit(flags & gpio::FLAG_PULLUP) << PADS_BANK0_GPIO0_PUE_LSB) |
                         (bool_to_bit(flags & gpio::FLAG_PULLDOWN) << PADS_BANK0_GPIO0_PDE_LSB),
                     PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS);

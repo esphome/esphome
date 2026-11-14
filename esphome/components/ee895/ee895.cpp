@@ -23,10 +23,8 @@ void EE895Component::setup() {
   this->read(serial_number, 20);
 
   crc16_check = (serial_number[19] << 8) + serial_number[18];
-  if (crc16_check != calc_crc16_(serial_number, 18)) {
-    this->mark_failed(LOG_STR("CRC check failed"));
+  if (!this->setup_check(crc16_check == calc_crc16_(serial_number, 18), LOG_STR("CRC check failed")))
     return;
-  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char serial_hex[format_hex_size(EE895_SERIAL_NUMBER_SIZE)];
 #endif
@@ -62,15 +60,10 @@ void EE895Component::update() {
 
 void EE895Component::write_command_(uint16_t addr, uint16_t reg_cnt) {
   uint8_t address[7];
-  uint16_t crc16 = 0;
   address[0] = FUNCTION_CODE_READ;
-  address[1] = (addr >> 8) & 0xFF;
-  address[2] = addr & 0xFF;
-  address[3] = (reg_cnt >> 8) & 0xFF;
-  address[4] = reg_cnt & 0xFF;
-  crc16 = calc_crc16_(address, 5);
-  address[5] = crc16 & 0xFF;
-  address[6] = (crc16 >> 8) & 0xFF;
+  put_be16(address + 1, addr);
+  put_be16(address + 3, reg_cnt);
+  put_le16(address + 5, calc_crc16_(address, 5));
   this->write(address, 7);
 }
 

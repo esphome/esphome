@@ -203,11 +203,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   auto apply_crc = [&crc_remainder](uint8_t next) {
     crc_remainder ^= next;
     for (uint8_t bit = 8; bit > 0; --bit) {
-      if (crc_remainder & 0x8000) {
-        crc_remainder = (crc_remainder << 1) ^ 0x3000;
-      } else {
-        crc_remainder = (crc_remainder << 1);
-      }
+      crc_remainder = crc_remainder & 0x8000 ? (crc_remainder << 1) ^ 0x3000 : (crc_remainder << 1);
     }
   };
 

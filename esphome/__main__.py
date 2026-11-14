@@ -333,7 +333,7 @@ def choose_upload_log_host(
                 # Logs can stream over a network transport via the native API
                 # or the web_server HTTP SSE feed.
                 network_logging = has_api() or has_web_server_logging()
-                # ensure IP adresses are used first
+                # ensure IP addresses are used first
                 if is_ip_address(CORE.address) and (
                     (purpose == Purpose.LOGGING and network_logging)
                     or (purpose == Purpose.UPLOADING and has_ota())
@@ -812,6 +812,7 @@ def write_cpp(config: ConfigType) -> int:
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
     from esphome.config import iter_component_configs
+    from esphome.cpp_helpers import emit_empty_slot_lists
 
     _LOGGER.info("Generating C++ source...")
 
@@ -819,6 +820,8 @@ def generate_cpp_contents(config: ConfigType) -> None:
         if component.to_code is not None:
             coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
+    # after every to_code, so it sees each slot request
+    CORE.add_job(emit_empty_slot_lists)
 
     CORE.flush_tasks()
 
@@ -1804,6 +1807,7 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
 ENV_OTA_PASSWORD = "ESPHOME_OTA_PASSWORD"
+ENV_API_KEY = "ESPHOME_API_KEY"
 OTA_KEY_PLATFORM_ERROR = (
     f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
     "platform; to flash by serial instead, name the port with --device"
@@ -1878,6 +1882,10 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
     return exit_code
 
 
+def _is_network_device(device: str) -> bool:
+    return device not in ("OTA", "SERIAL") and get_port_type(device) == PortType.NETWORK
+
+
 def command_upload_without_config(args: ArgsProtocol) -> int:
     """Send a prebuilt image to a device over the esphome OTA platform."""
     from esphome import espota2
@@ -1889,9 +1897,7 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
             "prebuilt image without one"
         )
     if unsupported := [
-        device
-        for device in args.device
-        if device in ("OTA", "SERIAL") or get_port_type(device) != PortType.NETWORK
+        device for device in args.device if not _is_network_device(device)
     ]:
         raise EsphomeError(
             f"Without a configuration, --device must be an IP address or a "
@@ -2068,6 +2074,46 @@ def command_clean_all(args: ArgsProtocol) -> int | None:
 
 def command_version(args: ArgsProtocol) -> int | None:
     safe_print(f"Version: {const.__version__}")
+    return 0
+
+
+def command_recover_yaml(args: ArgsProtocol) -> int:
+    """Download the YAML that store_yaml put on a device into a new folder."""
+    import asyncio
+
+    from esphome.api_client import async_recover_yaml
+    from esphome.components.store_yaml import (
+        SECRETS_SKELETON_HEADER,
+        UNCAPTURED_NOTE_PATH,
+        decode_stored_yaml,
+        write_recovered_files,
+    )
+
+    device = args.device
+    if not _is_network_device(device):
+        raise EsphomeError("--device must be an IP address or a hostname")
+    out_dir = Path(args.output or f"{device}-recovered")
+    if out_dir.exists() and (not out_dir.is_dir() or any(out_dir.iterdir())):
+        raise EsphomeError(
+            f"'{out_dir}' is not an empty folder; choose a new folder with --output"
+        )
+    key = args.env_api_key
+    if key is None:
+        key = read_secret_line("API encryption key (empty if the device has none): ")
+    addresses: list[str] = []
+    _add_network_device(device, addresses)
+    blob = asyncio.run(async_recover_yaml(addresses, args.api_port, key or None))
+    files = decode_stored_yaml(blob)
+    written = write_recovered_files(files, out_dir)
+    safe_print(f"Recovered {len(written)} files into {out_dir}:")
+    for path in written:
+        safe_print(f"  {path}")
+    safe_print(f"The main configuration is {written[0]}.")
+    for path, content in zip(written, files.values(), strict=True):
+        if content.startswith(SECRETS_SKELETON_HEADER.encode()):
+            safe_print(f"Fill in the values in {path} before you install it.")
+    if UNCAPTURED_NOTE_PATH in files:
+        safe_print(f"{UNCAPTURED_NOTE_PATH} lists files that were not stored.")
     return 0
 
 
@@ -2360,6 +2406,7 @@ PRE_CONFIG_ACTIONS = {
     "vscode": command_vscode,
     "update-all": command_update_all,
     "clean-all": command_clean_all,
+    "recover-yaml": command_recover_yaml,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -2738,6 +2785,25 @@ def parse_args(argv):
 
     subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 
+    parser_recover_yaml = subparsers.add_parser(
+        "recover-yaml",
+        help="Download the YAML configuration stored on a device by store_yaml. "
+        f"The API encryption key is read from {ENV_API_KEY} or asked for.",
+    )
+    parser_recover_yaml.add_argument(
+        "--device", required=True, help="The device's IP address or hostname."
+    )
+    parser_recover_yaml.add_argument(
+        "--output",
+        help="New folder for the files. Defaults to <device>-recovered.",
+    )
+    parser_recover_yaml.add_argument(
+        "--api-port",
+        type=int,
+        default=6053,
+        help="The device's API port. Default: %(default)s.",
+    )
+
     parser_clean = subparsers.add_parser(
         "clean", help="Delete all temporary build files."
     )
@@ -2949,6 +3015,11 @@ def run_esphome(argv):
     # tool inherits a key a calling program handed over
     args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
     args.env_ota_password = os.environ.pop(ENV_OTA_PASSWORD, None)
+    args.env_api_key = os.environ.pop(ENV_API_KEY, None)
+    if args.env_api_key is not None and args.command != "recover-yaml":
+        _LOGGER.warning(
+            "%s is set but the %s command does not use it", ENV_API_KEY, args.command
+        )
     if args.env_ota_password is not None:
         if args.command != "upload":
             _LOGGER.warning(

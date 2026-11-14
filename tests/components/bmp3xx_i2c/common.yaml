@@ -10,3 +10,16 @@ sensor:
       id: bmp3xx_i2c_pressure
       name: BMP Pressure
     iir_filter: 2X
+  - platform: bmp3xx_i2c
+    i2c_id: i2c_bus
+    address: 0x76
+    temperature:
+      id: bmp3xx_i2c_normal_temperature
+      name: BMP Normal Mode Temperature
+    pressure:
+      id: bmp3xx_i2c_normal_pressure
+      name: BMP Normal Mode Pressure
+      oversampling: 32x
+    iir_filter: 16X
+    data_rate: 12.5Hz
+    update_interval: 1s

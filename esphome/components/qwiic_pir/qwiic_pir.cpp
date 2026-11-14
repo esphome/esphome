@@ -9,18 +9,16 @@ void QwiicPIRComponent::setup() {
   if (!this->check_chip_id(this, QWIIC_PIR_CHIP_ID, QWIIC_PIR_DEVICE_ID))
     return;
 
-  if (!this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_)) {
-    this->mark_failed(LOG_STR("Failed to configure debounce time"));
+  if (!this->setup_check(this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_),
+                         LOG_STR("Failed to configure debounce time")))
     return;
-  }
 
   if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
     // Publish the starting raw state of the PIR sensor
     // If NATIVE mode, the binary_sensor state would be unknown until a motion event
-    if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-      this->mark_failed(LOG_STR("Failed to read initial state"));
+    if (!this->setup_check(this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg),
+                           LOG_STR("Failed to read initial state")))
       return;
-    }
 
     this->publish_state(this->event_register_.raw_reading);
   }

@@ -54,6 +54,11 @@ voice_assistant:
       channels: 0
   speaker: va_speaker_id
   micro_wake_word: mww_id
+  wake_word_audio:
+    buffer_duration: 1500ms
+    timeout: 2s
+  on_wake_word_rejected:
+    - logger.log: "Wake word rejected"
   conversation_timeout: 60s
   tts_playback_start_timeout: 10s
   on_listening:

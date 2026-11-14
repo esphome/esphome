@@ -5,7 +5,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 import contextvars
 import copy
-import functools
 import heapq
 import logging
 import re
@@ -234,27 +233,6 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
     config.update(rewritten)
 
 
-@functools.total_ordering
-class _ValidationStepTask:
-    def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
-        self.priority = priority
-        self.id_number = id_number
-        self.step = step
-
-    @property
-    def _cmp_tuple(self) -> tuple[float, int]:
-        return (-self.priority, self.id_number)
-
-    def __eq__(self, other):
-        return self._cmp_tuple == other._cmp_tuple
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __lt__(self, other):
-        return self._cmp_tuple < other._cmp_tuple
-
-
 class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
@@ -272,8 +250,9 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         # --no-defaults` to emit only the user-supplied keys.
         self.user_config: ConfigType | None = None
         self._data = {}
-        # Store pending validation tasks (in heap order)
-        self._validation_tasks: list[_ValidationStepTask] = []
+        # Pending validation steps in heap order, as (-priority, id, step); the
+        # unique id breaks ties, so steps themselves are never compared.
+        self._validation_tasks: list[tuple[float, int, ConfigValidationStep]] = []
         # ID to ensure stable order for keys with equal priority
         self._validation_tasks_id = 0
 
@@ -294,14 +273,12 @@ class Config(OrderedDict, fv.FinalValidateConfig):
     def add_validation_step(self, step: ConfigValidationStep):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
-        heapq.heappush(
-            self._validation_tasks, _ValidationStepTask(step.priority, id_num, step)
-        )
+        heapq.heappush(self._validation_tasks, (-step.priority, id_num, step))
 
     def run_validation_steps(self):
         while self._validation_tasks and not self.errors:
-            task = heapq.heappop(self._validation_tasks)
-            task.step.run(self)
+            _, _, step = heapq.heappop(self._validation_tasks)
+            step.run(self)
 
     @contextmanager
     def catch_error(self, path=None):
@@ -411,23 +388,33 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
 
 def iter_ids(config, path=None):
-    path = path or []
+    # Walk with one shared path and copy it only for the IDs found; copying it at
+    # every level made the walk cost grow with the depth of each value.
+    yield from _iter_ids(config, list(path or []))
+
+
+def _iter_ids(config: Any, path: list) -> Iterator[tuple[core.ID, ConfigPath]]:
     if isinstance(config, core.ID):
-        yield config, path
+        yield config, path.copy()
     elif isinstance(config, core.Lambda):
         for id in config.requires_ids:
-            yield id, path
+            yield id, path.copy()
     elif isinstance(config, list):
         for i, item in enumerate(config):
-            yield from iter_ids(item, path + [i])
+            path.append(i)
+            yield from _iter_ids(item, path)
+            path.pop()
     elif isinstance(config, dict):
+        top_level = not path
         for key, value in config.items():
-            if len(path) == 0 and key == CONF_SUBSTITUTIONS:
+            if top_level and key == CONF_SUBSTITUTIONS:
                 # Ignore IDs in substitution definitions.
                 continue
             if isinstance(key, core.ID):
-                yield key, path
-            yield from iter_ids(value, path + [key])
+                yield key, path.copy()
+            path.append(key)
+            yield from _iter_ids(value, path)
+            path.pop()
 
 
 def check_replaceme(value):
@@ -858,7 +845,7 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
 class MetadataValidationStep(ConfigValidationStep):
     """Validate component metadata
 
-    Responsibilties:
+    Responsibilities:
      - Config transformation (nullable, multi conf)
      - Check dependencies
      - Check conflicts
@@ -1060,36 +1047,44 @@ class IDPassValidationStep(ConfigValidationStep):
             return
 
         searching_ids: list[tuple[core.ID, ConfigPath]] = []
+        # First declaration of each manual ID name, so lookups don't scan the list
+        manual_decls: dict[str, tuple[core.ID, ConfigPath]] = {
+            v[0].id: v for v in reversed(result.declare_ids) if v[0].id is not None
+        }
         for id, path in iter_ids(result):
             if id.is_declaration:
                 if id.id is not None:
                     # Look for duplicate definitions
-                    match = next(
-                        (v for v in result.declare_ids if v[0].id == id.id), None
-                    )
+                    match = manual_decls.get(id.id)
                     if match is not None:
                         opath = "->".join(str(v) for v in match[1])
                         result.add_str_error(
                             f"ID {id.id} redefined! Check {opath}", path
                         )
                         continue
+                    manual_decls[id.id] = (id, path)
                 result.declare_ids.append((id, path))
             else:
                 searching_ids.append((id, path))
 
         # Resolve default ids after manual IDs
+        used_ids = {v[0].id for v in result.declare_ids}
         for id, _ in result.declare_ids:
-            id.resolve([v[0].id for v in result.declare_ids])
+            if id.id is None:
+                used_ids.add(id.resolve(used_ids))
             if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
                 CORE.component_ids.add(id.id)
+
+        # Every declared ID by name, first declaration first, as the scan found it
+        declared_by_name: dict[str, core.ID] = {}
+        for v in result.declare_ids:
+            declared_by_name.setdefault(v[0].id, v[0])
 
         # Check searched IDs
         for id, path in searching_ids:
             if id.id is not None:
                 # manually declared
-                match = next(
-                    (v[0] for v in result.declare_ids if v[0].id == id.id), None
-                )
+                match = declared_by_name.get(id.id)
                 if match is None or not match.is_manual:
                     # No declared ID with this name
                     import difflib

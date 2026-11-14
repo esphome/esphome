@@ -6,49 +6,9 @@
 
 namespace esphome::fan {
 
-template<typename... Ts> class CycleSpeedAction final : public Action<Ts...> {
- public:
-  explicit CycleSpeedAction(Fan *state) : state_(state) {}
-
-  TEMPLATABLE_VALUE(bool, no_off_cycle)
-
-  void play(const Ts &...x) override {
-    // check to see if fan supports speeds and is on
-    if (this->state_->get_traits().supported_speed_count()) {
-      if (this->state_->state) {
-        int speed = this->state_->speed + 1;
-        int supported_speed_count = this->state_->get_traits().supported_speed_count();
-        bool off_speed_cycle = no_off_cycle_.value(x...);
-        if (speed > supported_speed_count && off_speed_cycle) {
-          // was running at max speed, off speed cycle enabled, so turn off
-          speed = 1;
-          auto call = this->state_->turn_off();
-          call.set_speed(speed);
-          call.perform();
-        } else if (speed > supported_speed_count && !off_speed_cycle) {
-          // was running at max speed, off speed cycle disabled, so set to lowest speed
-          auto call = this->state_->turn_on();
-          call.set_speed(1);
-          call.perform();
-        } else {
-          auto call = this->state_->turn_on();
-          call.set_speed(speed);
-          call.perform();
-        }
-      } else {
-        // fan was off, so set speed to 1
-        auto call = this->state_->turn_on();
-        call.set_speed(1);
-        call.perform();
-      }
-    } else {
-      // fan doesn't support speed counts, so toggle
-      this->state_->toggle().perform();
-    }
-  }
-
-  Fan *state_;
-};
+/// Codegen use only: step `fan` to its next speed. Past the top speed it turns off when `off_speed_cycle` is set,
+/// otherwise it goes back to speed 1. A fan without speeds is toggled.
+void cycle_speed(Fan *fan, bool off_speed_cycle);
 
 class FanTurnOnTrigger final : public Trigger<> {
  public:
