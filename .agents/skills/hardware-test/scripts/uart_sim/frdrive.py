@@ -1,6 +1,6 @@
 """Drive the FrameReader simulation builds over the API: press buttons, set selects/numbers, print states.
 usage: frdrive.py HOST LOGFILE OP [OP ...]
-  OP: list | press:NAME | sel:NAME=OPTION | num:NAME=VALUE | wait:SECONDS
+  OP: list | press:NAME | sel:NAME=OPTION | num:NAME=VALUE | wait:SECONDS | @FILE (the ops in FILE, one per line)
 """
 
 import asyncio
@@ -21,7 +21,16 @@ from aioesphomeapi import (
 )
 
 HOST, LOGFILE = sys.argv[1], sys.argv[2]
-OPS = sys.argv[3:]
+OPS = [
+    op
+    for arg in sys.argv[3:]
+    for op in (
+        pathlib.Path(arg[1:]).read_text(encoding="utf-8").splitlines()
+        if arg.startswith("@")
+        else [arg]
+    )
+    if op.strip()
+]
 T0 = time.time()
 SKIP = {"Heap Free", "Loop Time"}
 

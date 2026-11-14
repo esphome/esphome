@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 #include "esphome/core/helpers.h"
 
@@ -132,6 +133,76 @@ TEST(FixedRingBufferBulk, WrapsAtTheIndexTypeLimit) {
   EXPECT_EQ(buf.pop(out.data(), out.size()), 255u);
   EXPECT_EQ(out, data);
   EXPECT_TRUE(buf.empty());
+}
+
+template<typename B> static std::vector<int> iterate(B &buf) {
+  std::vector<int> seen;
+  for (auto &v : buf)
+    seen.push_back(v);
+  return seen;
+}
+
+// Every capacity up to 6, every head position and every fill level: iteration visits the elements oldest first,
+// both through a mutable and a const buffer
+TEST(FixedRingBufferIterate, VisitsElementsOldestFirst) {
+  for (uint8_t capacity = 1; capacity <= 6; capacity++) {
+    for (uint8_t head = 0; head < capacity; head++) {
+      for (uint8_t count = 0; count <= capacity; count++) {
+        FixedRingBuffer<int, 255> buf;
+        buf.init(capacity);
+        for (uint8_t i = 0; i < head; i++) {
+          buf.push(-1);
+          buf.pop();
+        }
+        std::vector<int> expected;
+        for (int i = 0; i < count; i++) {
+          buf.push(100 + i);
+          expected.push_back(100 + i);
+        }
+        EXPECT_EQ(iterate(buf), expected) << "capacity " << +capacity << " head " << +head << " count " << +count;
+        const auto &cbuf = buf;
+        EXPECT_EQ(iterate(cbuf), expected) << "capacity " << +capacity << " head " << +head << " count " << +count;
+      }
+    }
+  }
+}
+
+TEST(FixedRingBufferIterate, VisitsElementsAfterOverwriting) {
+  FixedRingBuffer<int> buf;
+  buf.init(3);
+  for (int i = 1; i <= 7; i++)
+    buf.push_overwrite(i);
+  EXPECT_EQ(iterate(buf), (std::vector<int>{5, 6, 7}));
+}
+
+TEST(FixedRingBufferIterate, WritesThroughTheIterator) {
+  FixedRingBuffer<int> buf;
+  buf.init(3);
+  for (int i = 1; i <= 4; i++)
+    buf.push_overwrite(i);
+  for (int &v : buf)
+    v *= 10;
+  EXPECT_EQ(iterate(buf), (std::vector<int>{20, 30, 40}));
+  EXPECT_EQ(buf.front(), 20);
+}
+
+TEST(FixedRingBufferIterate, UninitialisedVisitsNothing) {
+  FixedRingBuffer<int> buf;
+  EXPECT_TRUE(iterate(buf).empty());
+  const auto &cbuf = buf;
+  EXPECT_TRUE(iterate(cbuf).empty());
+}
+
+// A full uint8_t-indexed buffer of 255 elements whose head is not at the start
+TEST(FixedRingBufferIterate, VisitsAllAtTheIndexTypeLimit) {
+  FixedRingBuffer<uint8_t, 255> buf;
+  buf.init(255);
+  for (int i = 0; i < 255 + 100; i++)
+    buf.push_overwrite(static_cast<uint8_t>(i));
+  std::vector<int> expected;
+  for (int i = 100; i < 255 + 100; i++)
+    expected.push_back(static_cast<uint8_t>(i));
+  EXPECT_EQ(iterate(buf), expected);
 }
 
 }  // namespace esphome::core::testing
