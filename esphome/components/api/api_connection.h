@@ -48,10 +48,11 @@ void log_dropped_message(const char *tag, int line, const LogString *what);
 #endif
 
 // Keepalive timeout in milliseconds (configurable via api: keepalive:)
-#ifndef API_KEEPALIVE_TIMEOUT_MS
-#define API_KEEPALIVE_TIMEOUT_MS 60000
-#endif
+#ifdef API_KEEPALIVE_TIMEOUT_MS
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = API_KEEPALIVE_TIMEOUT_MS;
+#else
+static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
+#endif
 static_assert(KEEPALIVE_TIMEOUT_MS >= 10000, "API keepalive must be at least 10s");
 // Deferred batch size cap during initial state/info sync
 static constexpr size_t MAX_INITIAL_BATCH_SIZE = 34;

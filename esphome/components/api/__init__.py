@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
+    CONF_KEEPALIVE,
     CONF_KEY,
     CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
@@ -145,7 +146,6 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_OUTGOING_CONNECTION = "outgoing_connection"
-CONF_KEEPALIVE = "keepalive"
 DEFAULT_KEEPALIVE = "60s"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
