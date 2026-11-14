@@ -1,8 +1,10 @@
 """Through a bluetooth_proxy: connect to the ble_notify GATT server (server.yaml), read both characteristics, enable
 notify on both (writing the CCCD like Home Assistant), hold for HOLD seconds re-reading every 3 s, then disconnect.
-usage: gatthold.py PROXY PEER_MAC HOLD   env: API_KEY. Prints counts; exits 1 on a lost link or failed read."""
+usage: gatthold.py PROXY PEER_MAC HOLD   env: API_KEY, ALLOW_UUID_REMAP=1 (accept the pre-#22679 short UUIDs).
+Prints counts; exits 1 on a lost link, a failed read or a short UUID reported in place of the real one."""
 
 import asyncio
+import os
 import pathlib
 import sys
 import time
@@ -35,8 +37,10 @@ async def main(host: str, peer: str, hold: float) -> None:
     print("uuids", sorted(chars), flush=True)
     print(f"services {len(svcs.services)} characteristics {len(chars)}", flush=True)
     # before #22679 the rp2 proxy reported a 32-bit base UUID as its low 16 bits (5ec10001 -> 00000001)
+    remapped = 0
     for u in (NUM, TXT):
         if u not in chars and "0000" + u[4:] in chars:
+            remapped += 1
             print(f"UUID {u[:8]} reported as {'0000' + u[4:8]}", flush=True)
             chars[u] = chars["0000" + u[4:]]
     got = {NUM: 0, TXT: 0}
@@ -63,7 +67,7 @@ async def main(host: str, peer: str, hold: float) -> None:
         await asyncio.sleep(3)
     print(
         f"held {hold:.0f}s: notifications num={got[NUM]} txt={got[TXT]} reads ok={reads} failed={fails} "
-        f"link losses={len(lost)} empty reads={empty} samples={samples}",
+        f"link losses={len(lost)} empty reads={empty} uuid_remapped={remapped} samples={samples}",
         flush=True,
     )
     closing = True
@@ -73,6 +77,10 @@ async def main(host: str, peer: str, hold: float) -> None:
     await cli.disconnect()
     # server.yaml empties both values on every 5th 2 s round, so about one read in five is legitimately empty; the
     # client cannot tell which round it hit, so only a majority of empty reads counts as a proxy returning no data
+    if remapped and os.environ.get("ALLOW_UUID_REMAP") != "1":
+        sys.exit(
+            f"FAIL: {remapped} UUIDs reported in short form (ALLOW_UUID_REMAP=1 accepts them)"
+        )
     if lost or fails or not got[NUM] or not got[TXT] or empty * 2 > reads:
         sys.exit("FAIL")
     print("PASS", flush=True)
