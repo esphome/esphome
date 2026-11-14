@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
+from esphome.components.const import CONF_RTS_PIN
 import esphome.final_validate as fv
 
 AUTO_LOAD = ["sensor", "number"]
