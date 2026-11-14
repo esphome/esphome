@@ -117,7 +117,6 @@ class AirtonClimate : public climate_ir::ClimateIR {
 
   void transmit_state() override;
   uint8_t operation_mode_();
-  uint8_t fan_speed_();
   uint8_t temperature_();
   uint8_t operation_settings_();
 

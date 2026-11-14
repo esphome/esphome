@@ -9,6 +9,26 @@ ESPHOME_LOG_TAG(TAG, "airton.climate");
 // Distinct from the climate's own RESTORE_STATE_VERSION, which shares the entity's preference key
 static constexpr uint32_t RESTORE_SETTINGS_VERSION = 0x2E86A1F3UL;
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+static constexpr uint8_t AIRTON_POWER_ON = 0b1000;
+// A received code that is not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_COOL, AIRTON_POWER_ON | AIRTON_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, AIRTON_POWER_ON | AIRTON_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, AIRTON_POWER_ON | AIRTON_MODE_HEAT},
+    {climate::CLIMATE_MODE_HEAT_COOL, AIRTON_POWER_ON | AIRTON_MODE_AUTO},
+    {climate::CLIMATE_MODE_FAN_ONLY, AIRTON_POWER_ON | AIRTON_MODE_FAN},
+};
+// The first entry is the fallback when sending; fan speeds 2 and 4 are only received
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, AIRTON_FAN_AUTO}, {climate::CLIMATE_FAN_LOW, AIRTON_FAN_1},
+    {climate::CLIMATE_FAN_MEDIUM, AIRTON_FAN_3},  {climate::CLIMATE_FAN_HIGH, AIRTON_FAN_5},
+    {climate::CLIMATE_FAN_LOW, AIRTON_FAN_2},     {climate::CLIMATE_FAN_HIGH, AIRTON_FAN_4},
+};
+
 // From IRutils.h of IRremoteESP8266 library
 static uint8_t checksum(const uint8_t *frame) {
   return static_cast<uint8_t>(0x7F - sum_bytes(frame, AIRTON_STATE_FRAME_SIZE - 1)) ^ 0x2C;
@@ -114,7 +134,8 @@ void AirtonClimate::transmit_state() {
   uint8_t remote_state[AIRTON_STATE_FRAME_SIZE] = {
       AIRTON_HEADER_BYTE0,
       AIRTON_HEADER_BYTE1,
-      static_cast<uint8_t>(this->operation_mode_() | (this->fan_speed_() << 4)),
+      static_cast<uint8_t>(this->operation_mode_() |
+                           (to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 4)),
       this->temperature_(),
       static_cast<uint8_t>(this->settings_.vertical_direction),
       this->operation_settings_(),
@@ -139,48 +160,10 @@ void AirtonClimate::transmit_state() {
 }
 
 uint8_t AirtonClimate::operation_mode_() {
-  uint8_t operating_mode = 0b1000;  // First bit is for power state
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      operating_mode |= AIRTON_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      operating_mode |= AIRTON_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      operating_mode |= AIRTON_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      operating_mode |= AIRTON_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      operating_mode |= AIRTON_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      operating_mode = 0b0111 & this->previous_mode_;  // Set previous mode with power state bit off
-  }
-  this->previous_mode_ = operating_mode;
-  return operating_mode;
-}
-
-uint8_t AirtonClimate::fan_speed_() {
-  uint8_t fan_speed;
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
-    case climate::CLIMATE_FAN_LOW:
-      fan_speed = AIRTON_FAN_1;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = AIRTON_FAN_3;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      fan_speed = AIRTON_FAN_5;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      fan_speed = AIRTON_FAN_AUTO;
-  }
-  return fan_speed;
+  const auto entry = find_ir_code(MODES, this->mode, false);
+  // Off, or a mode not listed, repeats the previous mode with the power bit clear
+  this->previous_mode_ = entry.has_value() ? entry->code : this->previous_mode_ & 0b0111;
+  return this->previous_mode_;
 }
 
 uint8_t AirtonClimate::temperature_() {
@@ -217,47 +200,13 @@ void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
   uint8_t mode = frame[2];
   // A later "off" repeats the mode the remote last sent, as the remote itself does
   this->previous_mode_ = mode & 0b00001111;
-  if (mode & 0b00001000) {  // The power bit
-    switch (mode & 0b00000111) {
-      case AIRTON_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case AIRTON_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case AIRTON_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case AIRTON_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case AIRTON_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-    }
-  } else {
+  if (!(mode & AIRTON_POWER_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (const auto entry = find_ir_code(MODES, mode & 0b00001111, true)) {
+    this->mode = static_cast<climate::ClimateMode>(entry->value);
   }
-  uint8_t fan_mode = (frame[2] & 0b01110000) >> 4;
-
-  switch (fan_mode) {
-    case AIRTON_FAN_1:
-    case AIRTON_FAN_2:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case AIRTON_FAN_3:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case AIRTON_FAN_4:
-    case AIRTON_FAN_5:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case AIRTON_FAN_AUTO:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-    default:
-      break;
-  }
+  if (const auto entry = find_ir_code(FANS, (frame[2] & 0b01110000) >> 4, true))
+    this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
 
   this->target_temperature = (frame[3] & 0b00001111) + AIRTON_TEMP_MIN;
 
