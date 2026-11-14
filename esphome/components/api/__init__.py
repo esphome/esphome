@@ -613,12 +613,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
-    if (keepalive := config[CONF_KEEPALIVE]) != cv.time_period(DEFAULT_KEEPALIVE):
-        # Whole seconds: the interval is advertised to clients in seconds
-        cg.add_define(
-            "API_KEEPALIVE_TIMEOUT_MS",
-            (keepalive.total_milliseconds // 1000) * 1000,
-        )
+    # Whole seconds: the interval is advertised to clients in seconds
+    keepalive_ms = (config[CONF_KEEPALIVE].total_milliseconds // 1000) * 1000
+    if keepalive_ms != cv.time_period(DEFAULT_KEEPALIVE).total_milliseconds:
+        cg.add_define("USE_API_KEEPALIVE_INTERVAL")
+        cg.add_define("API_KEEPALIVE_TIMEOUT_MS", keepalive_ms)
 
     actions = config.get(CONF_ACTIONS, [])
     has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]

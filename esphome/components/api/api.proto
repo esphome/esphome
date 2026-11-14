@@ -154,7 +154,7 @@ message HelloResponse {
   // Clients should not ping more often than this and should scale their pong
   // timeout to it. Lets sleepy devices (e.g. Thread MTD/SED with a long
   // poll_period) avoid being woken by pings and dropped as unresponsive.
-  uint32 keepalive_interval = 5;
+  uint32 keepalive_interval = 5 [(field_ifdef) = "USE_API_KEEPALIVE_INTERVAL"];
 }
 
 // DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.

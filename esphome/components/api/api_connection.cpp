@@ -76,7 +76,14 @@ namespace esphome::api {
 static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 10;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+// Grace period for the ping answer: 1.5x keepalive (150 s total by default), capped at 5 min so a long
+// keepalive does not hold the slot of a vanished client for hours.
+static constexpr uint32_t KEEPALIVE_PONG_GRACE_MS = 300000;
+static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
+    KEEPALIVE_TIMEOUT_MS + ((KEEPALIVE_TIMEOUT_MS * 3) / 2 < KEEPALIVE_PONG_GRACE_MS ? (KEEPALIVE_TIMEOUT_MS * 3) / 2
+                                                                                     : KEEPALIVE_PONG_GRACE_MS);
+static_assert(DEFAULT_KEEPALIVE_TIMEOUT_MS + (DEFAULT_KEEPALIVE_TIMEOUT_MS * 3) / 2 == 150000,
+              "default disconnect timeout must stay 150 s");
 // Timeout for completing the handshake (Noise transport + HelloRequest).
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
@@ -379,7 +386,7 @@ void APIConnection::loop() {
 void APIConnection::check_keepalive_(uint32_t now) {
   // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
   if (this->flags_.sent_ping) {
-    // Disconnect if not responded within 2.5*keepalive
+    // Disconnect if not responded within KEEPALIVE_DISCONNECT_TIMEOUT
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
@@ -1974,10 +1981,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
-  // Only advertise non-default intervals so default devices keep an unchanged HelloResponse
-  if constexpr (KEEPALIVE_TIMEOUT_MS != 60000) {
-    resp.keepalive_interval = KEEPALIVE_TIMEOUT_MS / 1000;
-  }
+#ifdef USE_API_KEEPALIVE_INTERVAL
+  resp.keepalive_interval = KEEPALIVE_TIMEOUT_MS / 1000;
+#endif
 
 #ifdef USE_PROVISIONING
   if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
