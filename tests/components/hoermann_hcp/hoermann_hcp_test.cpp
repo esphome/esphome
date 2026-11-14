@@ -7,19 +7,34 @@
 
 namespace esphome::hoermann_hcp::testing {
 
-// An empty poll (write 2 / read 2) answers with the fixed status word 0x0004.
-TEST(HoermannHcpReadWrite, EmptyPollReturnsStatusWord) {
+// A teach frame (write 2 / read 2 with the transfer command) echoes the counter and NAKs the command with 0xFE,
+// which is how the reference accessory answers it.
+TEST(HoermannHcpReadWrite, TeachFrameNaksTheCommand) {
   HoermannHcp door;
-  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0404, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 2, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 2u);
-  EXPECT_EQ(response[0], 0x0004);
-  EXPECT_EQ(response[1], 0x0000);
+  EXPECT_EQ(response[0], 0x0400);  // counter, no marker in the low byte
+  EXPECT_EQ(response[1], 0x04FE);  // transfer command, NAKed
 }
 
-// A bus scan (write 3 / read 5) answers with the fixed device identification block.
+// Any other empty command keeps the status word it has always carried: only teach frames are NAKed, because a
+// routine poll answered with a NAK would be a change nothing backs.
+TEST(HoermannHcpReadWrite, EmptyPollKeepsTheStatusWord) {
+  HoermannHcp door;
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0500, 0x0000})).has_value());
+  RegisterValues response;
+  auto status = door.on_read_holding_registers(STATE_REG, 2, response);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(response.size(), 2u);
+  EXPECT_EQ(response[0], 0x0500);  // counter, no marker in the low byte
+  EXPECT_EQ(response[1], 0x0004);  // the status word
+}
+
+// A bus scan (write 3 / read 5) answers with the connect-accept code and the fixed
+// device identification block (official HCP2 IoT gateways also answer with 0x2e).
 TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000, 0x0000})).has_value());
@@ -27,10 +42,10 @@ TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   auto status = door.on_read_holding_registers(STATE_REG, 5, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 5u);
-  EXPECT_EQ(response[1], 0x0005);
-  EXPECT_EQ(response[2], 0x0430);
-  EXPECT_EQ(response[3], 0x10ff);
-  EXPECT_EQ(response[4], 0xa845);
+  EXPECT_EQ(response[1], 0x002e);
+  EXPECT_EQ(response[2], 0x0520);
+  EXPECT_EQ(response[3], 0x0800);
+  EXPECT_EQ(response[4], 0x0000);
 }
 
 // Without a queued command, the command poll (write 2 / read 8) reports idle and no command.
@@ -60,12 +75,43 @@ TEST(HoermannHcpReadWrite, QueuedCommandIsInjectedIntoPoll) {
   EXPECT_EQ(response[3], 0x0000);
 }
 
-// A read of any other block is an addressing error rather than a successful all-zero reply.
-TEST(HoermannHcpReadWrite, UnknownAddressIsRejected) {
+// A block we do not serve is still answered in the HCP2 shape, echoing the polled counter and the status code: the
+// controller has no exception handling, and an answer it cannot use costs it a rejection. Writes to an unknown
+// register keep the Modbus behaviour, since the controller only ever writes COMMAND_REG and the broadcast block.
+TEST(HoermannHcpReadWrite, UnknownAddressIsAnsweredInStatusShape) {
   HoermannHcp door;
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0503, 0x0003})).has_value());
   RegisterValues response;
-  EXPECT_EQ(door.on_read_holding_registers(0x1234, 2, response), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_FALSE(door.on_read_holding_registers(0x1234, 4, response).has_value());
+  ASSERT_EQ(response.size(), 4u);
+  EXPECT_EQ(response[0], 0x0500);  // the counter the controller wrote
+  EXPECT_EQ(response[1], 0x0301);  // command 0x03 with the ordinary status code
+  EXPECT_EQ(response[2], 0x0000);
+  EXPECT_EQ(response[3], 0x0000);
   EXPECT_EQ(door.on_write_registers(0x1234, make_registers({0x0000})), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
+// A read length we do not model answers in the same shape rather than with zeros: a code byte of 0 makes the
+// controller ignore the frame, which is a booked rejection, and the payload is never the thing that fails first.
+// A read length we do not model answers in the status shape: the polled counter, then the command with a code the
+// controller accepts. A code byte of 0 makes it ignore the frame outright, which is a rejection, and a zero counter
+// is one too — the payload is never the thing that fails first.
+TEST(HoermannHcpReadWrite, UnknownReadLengthKeepsTheCounterAndTheStatusWord) {
+  HoermannHcp door;
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0703, 0x0003})).has_value());
+  RegisterValues response;
+  EXPECT_FALSE(door.on_read_holding_registers(STATE_REG, 4, response).has_value());
+  ASSERT_EQ(response.size(), 4u);
+  EXPECT_EQ(response[0], 0x0700);  // counter echoed, not zero
+  EXPECT_EQ(response[1], 0x0301);  // command echoed with a code the controller accepts
+  EXPECT_EQ(response[2], 0x0000);
+  EXPECT_EQ(response[3], 0x0000);
+
+  // A one-register read can only carry the counter.
+  RegisterValues single;
+  EXPECT_FALSE(door.on_read_holding_registers(STATE_REG, 1, single).has_value());
+  ASSERT_EQ(single.size(), 1u);
+  EXPECT_EQ(single[0], 0x0700);
 }
 
 // A door command goes out in one answer and frees the slot at once.
@@ -514,14 +560,14 @@ TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
   RegisterValues empty_poll;
   door.on_read_holding_registers(STATE_REG, 2, empty_poll);
   ASSERT_EQ(empty_poll.size(), 2u);
-  EXPECT_EQ(empty_poll[0], 0x3404);  // status 0x04 shares the register with the counter here
-  EXPECT_EQ(empty_poll[1], 0x0700);  // command alone
+  EXPECT_EQ(empty_poll[0], 0x3400);  // counter alone
+  EXPECT_EQ(empty_poll[1], 0x0704);  // command alone, with the status word every non-teach command keeps
 
   RegisterValues scan;
   door.on_read_holding_registers(STATE_REG, 5, scan);
   ASSERT_EQ(scan.size(), 5u);
   EXPECT_EQ(scan[0], 0x3400);
-  EXPECT_EQ(scan[1], 0x0705);
+  EXPECT_EQ(scan[1], 0x072e);
 }
 
 // A status broadcast (function code 0x10 to 0x9D31) updates the decoded door state and position.

@@ -198,11 +198,29 @@ void HoermannHcp::dump_config() {
 #endif
 }
 
+void HoermannHcp::push_status_shape_(modbus::RegisterValues &registers, uint16_t counter, uint16_t command,
+                                     uint16_t number_of_registers) {
+  registers.push_back(counter);
+  if (number_of_registers > 1) {
+    // The ordinary status code, so the controller accepts the answer whatever block it asked for.
+    registers.push_back(static_cast<uint16_t>(0x0001 | command));
+    push_zeros(registers, number_of_registers - 2);
+  }
+}
+
 modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
                                                               modbus::RegisterValues &registers) {
+  // STATE_REG is read back right after COMMAND_REG was written, so the controller's message counter (high byte)
+  // and command (low byte) are the ones it last wrote.
+  const uint16_t counter = this->command_reg_value_ & 0xFF00;
+  const uint16_t command = static_cast<uint16_t>((this->command_reg_value_ & 0x00FF) << 8);
+
   if (start_address != STATE_REG) {
-    ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
-    return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
+    // A block we do not serve still has to be answered in the HCP2 shape. The controller has no exception
+    // handling, and an answer it cannot accept is worse than none at all.
+    ESP_LOGW(TAG, "Unknown read address 0x%04X, answering with the status shape", start_address);
+    this->push_status_shape_(registers, counter, command, number_of_registers);
+    return {};
   }
 
   this->record_response_();
@@ -216,11 +234,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
   }
 #endif
 
-  // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
-  // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
-  const uint16_t counter = this->command_reg_value_ & 0xFF00;
-  const uint16_t command = static_cast<uint16_t>((this->command_reg_value_ & 0x00FF) << 8);
-
+  // The read length identifies which internal block is requested.
   switch (number_of_registers) {
     case 8:
       // Command request: return the internal state, injecting any pending command.
@@ -236,23 +250,36 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       this->add_identity_request_(registers, command);
 #endif
       break;
-    case 2:
-      // Empty command request.
-      registers.push_back(static_cast<uint16_t>(0x0004 | counter));
-      registers.push_back(command);
+    case 2: {
+      // An empty command request: the counter is echoed and the low byte carries the answer code. The teach frames
+      // the controller sends at boot carry the transfer command and are NAKed, as the reference accessory does.
+      // Every other command keeps the status word it has always had, because NAKing a routine poll is a change
+      // nothing backs.
+      const uint16_t code = static_cast<uint8_t>(this->command_reg_value_) == TRANSFER_COMMAND ? 0x00FE : 0x0004;
+      registers.push_back(counter);
+      registers.push_back(static_cast<uint16_t>(code | command));
       break;
+    }
     case 5:
       // Bus scan (the bus controller discovering us, typically at startup).
+      // Answer with the connect-accept code 0x2E and the descriptor words 0520 0800 0000, as an official HCP2
+      // accessory does. Code 0x05 with the words 0430 10FF A845 is another HCP2 module's answer; do not mix them.
       ESP_LOGD(TAG, "Bus scan received from bus controller");
       registers.push_back(counter);
-      registers.push_back(static_cast<uint16_t>(0x0005 | command));
-      registers.push_back(0x0430);
-      registers.push_back(0x10FF);
-      registers.push_back(0xA845);
+      registers.push_back(static_cast<uint16_t>(0x002E | command));
+      // Capability block, byte for byte from an official gateway's scan answer: the low byte of each register is
+      // the capability word. What the high bytes 0x05 and 0x08 encode is not known, so they are copied verbatim —
+      // do not tidy them, and do not guess at them when the capability bits get documented.
+      registers.push_back(0x0520);  // reg 2: 0x20 = drive commands
+      registers.push_back(0x0800);  // reg 3: 0x08 = accessory
+      registers.push_back(0x0000);
       break;
     default:
       ESP_LOGW(TAG, "Unknown read request (read %u registers)", number_of_registers);
-      push_zeros(registers, number_of_registers);
+      // Answer it anyway, in the status shape. The controller checks the echoed counter and the code byte before
+      // the payload: a zero counter is a rejection, and a code below 1 makes it ignore the frame outright. This
+      // drive asks for 2, 5 and 8 registers only (~35 000 captured requests), so the branch is defensive.
+      this->push_status_shape_(registers, counter, command, number_of_registers);
       break;
   }
 
