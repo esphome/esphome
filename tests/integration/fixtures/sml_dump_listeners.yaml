@@ -1,0 +1,28 @@
+esphome:
+  name: sml-dump-listeners
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+sml:
+
+sensor:
+  - platform: sml
+    name: Total Energy
+    server_id: 0123456789abcdef
+    obis_code: "1-0:1.8.0"
+  - platform: sml
+    name: Active Power
+    obis_code: "1-0:16.7.0"
+
+text_sensor:
+  - platform: sml
+    name: Manufacturer
+    obis_code: "129-129:199.130.3"
+    format: text

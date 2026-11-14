@@ -41,7 +41,7 @@ from .. import CONF_TAG_NAME, CONF_TELEINFO_ID, TELEINFO_LISTENER_SCHEMA, telein
 
 _LOGGER = logging.getLogger(__name__)
 
-TeleInfoSensor = teleinfo_ns.class_("TeleInfoSensor", sensor.Sensor, cg.Component)
+TeleInfoSensor = teleinfo_ns.class_("TeleInfoSensor", sensor.Sensor)
 
 
 def _preset(unit: str, device_class: str, state_class: str) -> dict[str, str]:
@@ -201,7 +201,6 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG_NAME])
-    await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
     teleinfo = await cg.get_variable(config[CONF_TELEINFO_ID])
