@@ -1,4 +1,6 @@
-"""Compare two authfuzz.py runs (dev vs PR). usage: compare.py DEV_PREFIX PR_PREFIX"""
+"""Compare two authfuzz.py runs (dev vs PR). usage: compare.py DEV_PREFIX PR_PREFIX
+
+Exits 1 when any case differs or exists on one side only."""
 
 import json
 import pathlib
@@ -17,16 +19,18 @@ b = {
     )
 }
 print(f"{'case':45} {'dev':>12} {'pr':>12}")
+diffs = 0
 for k in list(dict.fromkeys(list(a) + list(b))):
     ra, rb = a.get(k, {}), b.get(k, {})
     fa = f"{ra.get('status')}/{'ok' if ra.get('pass') else 'FAIL'}" if ra else "-"
     fb = f"{rb.get('status')}/{'ok' if rb.get('pass') else 'FAIL'}" if rb else "-"
-    mark = (
-        "  <== differs"
-        if (ra.get("status"), ra.get("pass")) != (rb.get("status"), rb.get("pass"))
-        else ""
-    )
+    # A case on one side only differs too: the missing side is (None, None)
+    differs = (ra.get("status"), ra.get("pass")) != (rb.get("status"), rb.get("pass"))
+    diffs += differs
+    mark = "  <== differs" if differs else ""
     print(f"{k:45} {fa:>12} {fb:>12}{mark}")
 na, nb = a.get("noauth GET /", {}), b.get("noauth GET /", {})
 print("\n401 head dev:\n" + na.get("head", "") + "\nbody:", repr(na.get("body_head")))
 print("\n401 head pr:\n" + nb.get("head", "") + "\nbody:", repr(nb.get("body_head")))
+print(f"\n{diffs} case(s) differ")
+sys.exit(1 if diffs else 0)

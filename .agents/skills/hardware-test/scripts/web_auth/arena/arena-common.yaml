@@ -1,10 +1,10 @@
 # JSON stack arena check (#22699) on LibreTiny: VERY_VERBOSE logs over /events, a select with 40 long options, the main
-# task stack high-water mark (stackmin.h) and free heap every 5 s as a log line and sensors, web_server v3 with Basic
+# task stack high-water mark (stackmin.hpp) and free heap every 5 s as a log line and sensors, web_server v3 with Basic
 # auth. Substitutions: name, web_user, web_pass (arena.sh passes them from ../configs/creds-*.yaml).
 esphome:
   name: ${name}
   includes:
-    - stackmin.h
+    - stackmin.hpp
 logger:
   level: VERY_VERBOSE
 ota:

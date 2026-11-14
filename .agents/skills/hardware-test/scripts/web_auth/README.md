@@ -9,7 +9,8 @@
   It is importable: `configure()` sets the host and credentials for `raw()`, `build()` and `uptime()`.
 - `isolate.py HOST USER PASS [ROUNDS] [CASE,...]`: one hostile request at a time with the uptime before and after,
   to tie a reboot to one request.
-- `compare.py DEV_PREFIX PR_PREFIX` lines the two runs up and prints both raw 401 heads.
+- `compare.py DEV_PREFIX PR_PREFIX` lines the two runs up and prints both raw 401 heads;
+  it exits 1 when any case differs or exists on one side only.
 - `configs/`: `wba-common.yaml` (web_server v3, Basic auth, web OTA, switch and light on top of
   `templates/diagnostics.yaml`), `creds-short.yaml` and `creds-long.yaml`, `d1.yaml` (D1 mini on the station
   network), `d1-ap.yaml` (captive portal DUT on `templates/dut-fallback-ap.yaml`), `ap-client.yaml` with
@@ -22,7 +23,7 @@
   within 2 KB of idle, and whether the uptime went backwards. `configs/msl.sh NAME bw15.yaml PORT` runs it with the
   big header cases on a BW15 (`configs/bw15.yaml` reads the heap every 1 s).
 - `arena_drive.py HOST USER PASS [PHASE_S]` with `arena/`: the main task stack high-water mark under web_server load.
-  `arena/stackmin.h` counts the untouched FreeRTOS fill bytes from the current task's stack base (0xA5 on the
+  `arena/stackmin.hpp` counts the untouched FreeRTOS fill bytes from the current task's stack base (0xA5 on the
   RTL8720C, 0x5A on BK7231), because LibreTiny compiles out `uxTaskGetStackHighWaterMark` and `vTaskGetInfo` on
   AmebaZ2; it finds `pxStack` either as the second TCB member (ARMv8-M with V8M_STKOVF) or right before
   `pcTaskName`. `arena/arena-common.yaml` exposes it and the heap as sensors; `arena_drive.py` runs idle, two

@@ -42,10 +42,14 @@ if [ -n "$CAP" ]; then
   kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended early"; RC=1; }
   kill $CAP 2>/dev/null; wait $CAP 2>/dev/null
 fi
+if [ -n "$NOCAP" ]; then
+  echo "== $N serial: not captured (NOCAP), no reset, fault or stack check"
+  exit $RC
+fi
 RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); FL=$(grep -a -c -i -E 'fault|crash|assert|abort|stack overflow' "$L")
 echo "== $N serial: resets $RS, port losses $(grep -a -c 'port lost' "$L"), faults $FL"
 # Opening the capture can reset the chip once (BK7238), so one boot is expected
-[ -n "$CAP" ] && { [ "$FL" -gt 0 ] || [ "$RS" -gt 1 ]; } && { echo "FAIL: faults $FL, resets $RS"; RC=1; }
+{ [ "$FL" -gt 0 ] || [ "$RS" -gt 1 ]; } && { echo "FAIL: faults $FL, resets $RS"; RC=1; }
 grep -a "\[hwm" "$L" | sed -n '1p;$p'
 # -1 is an unknown stack base, not a reading
 grep -a "\[hwm" "$L" | sed -n 's/.*stack min \([0-9][0-9]*\) B.*/\1/p' | sort -n | head -1 | sed 's/^/serial lowest stack min: /'

@@ -29,3 +29,4 @@ echo "serial: crash lines $CRASH, boots $BOOTS"
 [ "$CRASH" = 0 ] || { echo "FAIL: $CRASH crash lines"; FAILS=$((FAILS + 1)); }
 [ "$BOOTS" -le 1 ] || { echo "FAIL: $((BOOTS - 1)) resets after the first boot"; FAILS=$((FAILS + 1)); }
 [ $FAILS = 0 ] || { echo "FAIL: $FAILS checks not ok"; exit 1; }
+echo "PASS: every mode ok, no crash or extra boot"
