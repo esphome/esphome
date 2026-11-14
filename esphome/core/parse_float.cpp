@@ -1,7 +1,6 @@
-// strtof without libc's strtod (_strtod_l, __gethex and their helpers): picolibc's strtof (1.8.10, the one in
-// ESP-IDF 6), bit for bit and with its end pointer, on every platform. A decimal is rounded to 9 significant
-// digits (ties to even) and those are converted to the nearest float; hex is rounded to the nearest float. No
-// double arithmetic, and float bits are built with integer operations only.
+// strtof without libc's strtod (_strtod_l, __gethex and helpers): picolibc 1.8.10's strtof (ESP-IDF 6), bit for bit
+// and with its end pointer, on every platform. A decimal is rounded to 9 significant digits (ties to even), then to
+// the nearest float; hex is rounded to the nearest float. No double arithmetic; float bits are built from integers.
 
 #include "esphome/core/parse_float.h"
 #include "esphome/core/hal.h"
@@ -14,18 +13,13 @@ namespace esphome {
 
 namespace {
 
-constexpr uint32_t FLOAT_SIGN_BIT = 0x80000000;
-constexpr uint32_t FLOAT_INF_BITS = 0x7F800000;
+constexpr uint32_t FLOAT_SIGN_BIT = 0x80000000, FLOAT_INF_BITS = 0x7F800000;
 constexpr uint32_t FLOAT_NAN_BITS = 0x7FC00000;  // nanf(""), which strtof returns for every NaN
 
-// Digits kept before the rest only round: 9 decimal digits, 8 hex digits
-constexpr uint32_t DECIMAL_DIGITS = 9;
-constexpr uint32_t HEX_DIGITS = 8;
-// picolibc stops adding exponent digits once the exponent reaches this
-constexpr int32_t EXPONENT_CAP = 224;
+constexpr uint32_t DECIMAL_DIGITS = 9, HEX_DIGITS = 8;  // digits kept before the rest only round
+constexpr int32_t EXPONENT_CAP = 224;  // picolibc stops adding exponent digits once the exponent reaches this
 // 0.<digits> * 10^exp10 is zero when exp10 <= MIN_EXP10 and infinity when exp10 >= MAX_EXP10, as picolibc decides
-constexpr int32_t MIN_EXP10 = -46;
-constexpr int32_t MAX_EXP10 = 40;
+constexpr int32_t MIN_EXP10 = -46, MAX_EXP10 = 40;
 // A plain-decimal mantissa above this could pass 2^24 with one more digit, so the float would no longer be exact
 constexpr uint32_t PLAIN_MANTISSA_LIMIT = 1677720;
 
@@ -56,12 +50,10 @@ uint32_t round_to_float_bits(uint64_t m, int32_t e, bool sticky) {
 }
 
 // The decimal exponents that reach decimal_to_float_bits: 1 to 9 digits and MIN_EXP10 < digits + e10 < MAX_EXP10
-constexpr int32_t MIN_E10 = MIN_EXP10 + 1 - static_cast<int32_t>(DECIMAL_DIGITS);
-constexpr int32_t MAX_E10 = MAX_EXP10 - 2;
+constexpr int32_t MIN_E10 = MIN_EXP10 + 1 - static_cast<int32_t>(DECIMAL_DIGITS), MAX_E10 = MAX_EXP10 - 2;
 // 10^(8k) for k = POW10_BY_8_FIRST..POW10_BY_8_LAST as the top 64 bits of its binary expansion (rounded down):
 // 10^(8k) = POW10_BY_8[k - POW10_BY_8_FIRST] * 2^(floor_log2_pow10(8k) - 63), exact for k = 0..3
-constexpr int32_t POW10_BY_8_FIRST = MIN_E10 >> 3;
-constexpr int32_t POW10_BY_8_LAST = MAX_E10 >> 3;
+constexpr int32_t POW10_BY_8_FIRST = MIN_E10 >> 3, POW10_BY_8_LAST = MAX_E10 >> 3;
 constexpr uint64_t POW10_BY_8[] PROGMEM = {
     0xFB158592BE068D2E, 0xBB127C53B17EC159, 0x8B61313BBABCE2C6, 0xCFB11EAD453994BA,
     0x9ABE14CD44753B52, 0xE69594BEC44DE15B, 0xABCC77118461CEFC, 0x8000000000000000,
@@ -76,12 +68,9 @@ constexpr int32_t floor_log2_pow10(int32_t q) { return (q * 217706) >> 16; }
 
 // The top 64 bits of a * b, rounded down
 uint64_t mul_high(uint64_t a, uint64_t b) {
-  const uint64_t a_lo = static_cast<uint32_t>(a);
-  const uint64_t a_hi = a >> 32;
-  const uint64_t b_lo = static_cast<uint32_t>(b);
-  const uint64_t b_hi = b >> 32;
-  const uint64_t hi_lo = a_hi * b_lo;
-  const uint64_t lo_hi = a_lo * b_hi;
+  const uint64_t a_lo = static_cast<uint32_t>(a), a_hi = a >> 32;
+  const uint64_t b_lo = static_cast<uint32_t>(b), b_hi = b >> 32;
+  const uint64_t hi_lo = a_hi * b_lo, lo_hi = a_lo * b_hi;
   const uint64_t middle = ((a_lo * b_lo) >> 32) + static_cast<uint32_t>(hi_lo) + static_cast<uint32_t>(lo_hi);
   return a_hi * b_hi + (hi_lo >> 32) + (lo_hi >> 32) + (middle >> 32);
 }
@@ -109,8 +98,7 @@ uint32_t decimal_to_float_bits(uint32_t m10, int32_t e10) {
   const uint32_t power = e10 < 0 ? -e10 : e10;
   if (m10 < (1u << 24) && power <= 10) {
     const auto value = static_cast<float>(m10);
-    // 10^10 is an exact float but not a uint32_t
-    const float factor = power == 10 ? 1e10f : static_cast<float>(pow10<uint32_t>(power));
+    const float factor = power == 10 ? 1e10f : static_cast<float>(pow10<uint32_t>(power));  // 10^10 overflows uint32_t
     return bit_cast<uint32_t>(e10 < 0 ? value / factor : value * factor);
   }
   const int32_t k8 = e10 >> 3;  // rounds down
@@ -165,9 +153,7 @@ const char *read_inf_nan(const char *p) {
   if (lower(*p) != 'i')
     return p;
   // Past "infi", only "infinity" is a number
-  if (lower(p[1]) != 'n' || lower(p[2]) != 'i' || lower(p[3]) != 't' || lower(p[4]) != 'y')
-    return nullptr;
-  return p + 5;
+  return lower(p[1]) == 'n' && lower(p[2]) == 'i' && lower(p[3]) == 't' && lower(p[4]) == 'y' ? p + 5 : nullptr;
 }
 
 // Reads a binary exponent "p" or decimal exponent "e" at p into *exp; returns the end of the number
@@ -191,8 +177,7 @@ const char *read_exponent(const char *p, char letter, int32_t *exp) {
 
 // Hex digits after the "x" at p, with the point and decimal exponent read so far (no non-zero digit yet)
 __attribute__((noinline, cold)) uint32_t read_hex(const char *p, bool dot, int32_t exp, const char **end) {
-  uint32_t m = 0;
-  uint32_t kept = 0;  // digits in m from its first non-zero one
+  uint32_t m = 0, kept = 0;  // kept: digits in m from its first non-zero one
   bool sticky = false;
   for (;; p++) {
     const char lower = static_cast<char>(*p | 0x20);
@@ -223,11 +208,9 @@ __attribute__((noinline, cold)) uint32_t read_hex(const char *p, bool dot, int32
 
 // picolibc's conv_flt for a float from the first digit or point at p: returns the bits; *end is str for no number
 __attribute__((noinline)) uint32_t read_decimal(const char *str, const char *p, const char **end) {
-  uint32_t m = 0;     // the first (up to 9) significant digits
-  uint32_t kept = 0;  // digits in m from its first non-zero one
-  int32_t exp = 0;    // the value is m * 10^exp
-  bool dot = false;
-  bool any = false;
+  uint32_t m = 0, kept = 0;  // the first (up to 9) significant digits, and how many from the first non-zero one
+  int32_t exp = 0;           // the value is m * 10^exp
+  bool dot = false, any = false;
   uint32_t overflow = 0;  // digits past the kept ones: 0 none, 1 below half, 2 half, 3 above half
   bool full = false;      // a digit past the kept ones was read
   for (;; p++) {
@@ -334,16 +317,6 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
   return p;
 }
 
-// Returns the bits without the sign, which goes in *negative
-ESPHOME_ALWAYS_INLINE inline uint32_t parse_float_bits(const char *str, const char **end, bool *negative) {
-  uint32_t plain;
-  if (const char *stop = parse_plain_decimal(str, &plain, negative)) {
-    *end = stop;
-    return plain;
-  }
-  return parse_float_full(str, end, negative);
-}
-
 }  // namespace
 
 optional<float> parse_float(const char *str) {
@@ -371,9 +344,7 @@ optional<float> parse_float(const char *str) {
   }
   const uint32_t fraction = point != nullptr ? p - point - 1 : 0;
   if (*p == '\0' && p - digits > (point != nullptr ? 1 : 0) && fraction <= 9) {
-    float value = static_cast<float>(mantissa);
-    if (negative)
-      value = -value;
+    float value = negative ? -static_cast<float>(mantissa) : static_cast<float>(mantissa);
     if (fraction != 0)
       value /= static_cast<float>(pow10<uint32_t>(fraction));
     return value;
@@ -390,7 +361,12 @@ optional<float> parse_float(const char *str) {
 float str_to_float(const char *str, char **end) {
   const char *stop;
   bool negative;
-  const uint32_t bits = parse_float_bits(str, &stop, &negative);
+  uint32_t bits;
+  if (const char *plain_end = parse_plain_decimal(str, &bits, &negative)) {
+    stop = plain_end;
+  } else {
+    bits = parse_float_full(str, &stop, &negative);
+  }
   if (end != nullptr)
     *end = const_cast<char *>(stop);  // strtof's signature
   return bit_cast<float>(negative ? bits | FLOAT_SIGN_BIT : bits);
