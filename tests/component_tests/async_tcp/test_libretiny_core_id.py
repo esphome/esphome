@@ -29,10 +29,10 @@ _FLAG = "-DxPortGetCoreID=int"
 def test_core_id_flag_only_at_debug_loglevels(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
-    framework: str | None,
+    framework: str,
     expected: bool,
 ) -> None:
-    framework = f"\n  framework:\n    {framework}" if framework else ""
+    framework = f"\n  framework:\n    {framework}"
     config = tmp_path / "test.yaml"
     config.write_text(
         "esphome:\n  name: test\n\n"

@@ -189,8 +189,8 @@ _LT_DEBUG_LOGLEVELS = frozenset(
 )
 
 
-def get_lt_loglevel(core_obj: EsphomeCore | None = None) -> str:
-    """The LT_LOGLEVEL the build uses; framework options override loglevel, as component_to_code applies them last."""
+def get_libretiny_loglevel(core_obj: EsphomeCore | None = None) -> str:
+    """LT_LOGLEVEL the build uses; framework options override loglevel."""
     core = core_obj or CORE
     framework = core.config[core.target_platform][CONF_FRAMEWORK]
     return (
@@ -200,9 +200,9 @@ def get_lt_loglevel(core_obj: EsphomeCore | None = None) -> str:
     )
 
 
-def lt_logs_debug(core_obj: EsphomeCore | None = None) -> bool:
+def libretiny_logs_debug(core_obj: EsphomeCore | None = None) -> bool:
     """Whether LibreTiny compiles its log_d calls in."""
-    return get_lt_loglevel(core_obj) in _LT_DEBUG_LOGLEVELS
+    return get_libretiny_loglevel(core_obj) in _LT_DEBUG_LOGLEVELS
 
 
 def get_board_pins() -> dict[str, int]:

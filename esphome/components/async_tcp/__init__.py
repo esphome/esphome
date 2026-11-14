@@ -1,5 +1,6 @@
 # Async TCP client support for all platforms
 import esphome.codegen as cg
+from esphome.components.libretiny import libretiny_logs_debug
 import esphome.config_validation as cv
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
@@ -36,11 +37,9 @@ async def to_code(config: ConfigType) -> None:
     elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.5.0")
-        from esphome.components.libretiny import lt_logs_debug
-
         # AsyncTCP 3.5.0 logs xPortGetCoreID(), which LibreTiny (single core) lacks, when LibreTiny's log_d is
         # compiled in; the call becomes int(), 0 (a function-like -D does not survive PlatformIO's build flags)
-        if lt_logs_debug():
+        if libretiny_logs_debug():
             cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
