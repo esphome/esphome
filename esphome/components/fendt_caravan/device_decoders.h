@@ -17,7 +17,7 @@ class DeviceDecoders {
            strcmp(decoded, "on") == 0;
   }
 
-  /// NAN when the value is empty or not a number; accepts ',' as the decimal separator
+  /// NAN when the value is empty or not a number; accepts ',' as the decimal separator and a trailing "^C"/"°C"
   static float decode_float(const char *data);
   /// False, leaving `out` unchanged, when the value is empty or not a whole number
   static bool decode_int(const char *value, int &out);

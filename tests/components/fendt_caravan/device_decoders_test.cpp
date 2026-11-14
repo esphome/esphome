@@ -13,6 +13,19 @@ TEST(FendtDecodeFloat, ReadsNumbers) {
   EXPECT_FLOAT_EQ(DeviceDecoders::decode_float("0"), 0.0f);
 }
 
+TEST(FendtDecodeFloat, StripsCelsiusUnit) {
+  EXPECT_FLOAT_EQ(DeviceDecoders::decode_float(" 20,0^C"), 20.0f);
+  EXPECT_FLOAT_EQ(DeviceDecoders::decode_float("-1,5 ^C"), -1.5f);
+  EXPECT_FLOAT_EQ(DeviceDecoders::decode_float("21,5\xC2\xB0"
+                                               "C"),
+                  21.5f);
+  EXPECT_FLOAT_EQ(DeviceDecoders::decode_float("21,5\xB0"
+                                               "C"),
+                  21.5f);
+  EXPECT_TRUE(std::isnan(DeviceDecoders::decode_float("^C")));
+  EXPECT_TRUE(std::isnan(DeviceDecoders::decode_float("12C")));
+}
+
 TEST(FendtDecodeFloat, InvalidIsNan) {
   EXPECT_TRUE(std::isnan(DeviceDecoders::decode_float("")));
   EXPECT_TRUE(std::isnan(DeviceDecoders::decode_float("  ")));

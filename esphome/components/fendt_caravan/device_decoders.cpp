@@ -21,12 +21,29 @@ static bool copy_trimmed(const char *value, char *buffer, size_t size) {
   return true;
 }
 
+// Removes a trailing Celsius unit: the panel sends "20,0^C"; '°' may also come as UTF-8 or Latin-1
+static void strip_celsius_unit(char *buffer) {
+  size_t len = strlen(buffer);
+  if (len < 2 || buffer[len - 1] != 'C')
+    return;
+  len--;
+  if (buffer[len - 1] != '^' && buffer[len - 1] != '\xB0')
+    return;
+  len--;
+  if (len > 0 && buffer[len - 1] == '\xC2')
+    len--;
+  while (len > 0 && std::isspace(static_cast<unsigned char>(buffer[len - 1])))
+    len--;
+  buffer[len] = '\0';
+}
+
 float DeviceDecoders::decode_float(const char *data) {
   char buffer[32];
   if (!copy_trimmed(data, buffer, sizeof(buffer))) {
     ESP_LOGW(TAG, "Value too long for a number: '%s'", data);
     return NAN;
   }
+  strip_celsius_unit(buffer);
   for (char *p = buffer; *p != '\0'; p++) {
     if (*p == ',')
       *p = '.';
