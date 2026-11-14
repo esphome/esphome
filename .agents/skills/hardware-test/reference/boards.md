@@ -131,10 +131,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `networks:` and a fresh `name:` per build instead.
 - WIZnet W5100S-EVB-Pico (RP2040, `rp2: board: wiznet_5100s_evb_pico`): W5100S on SPI with CLK 18, MOSI 19, MISO 16,
   CS 17, INT 21, RST 20 (`ethernet: type: W5100`). ESPHome firmware gives it no USB CDC port; reach it over Ethernet,
-  OTA by address, and flash it over USB only through BOOTSEL and the UF2 drive. Keep `interrupt_pin` in every build:
-  without it OTA starves and never completes (`recipes/arduino_pico.md`), which strands the board until a USB flash.
-  The W5100S answers ICMP in hardware, so a ping reply says nothing about the RP2040; probe TCP instead (OTA port
-  2040, API 6053, HTTP 80). In safe mode only 2040 answers.
+  OTA by address.
 - Through a Pico W `bluetooth_proxy`, about 1 to 2 in 5 BLE connects fail with 0x3E (`connect err=62` in the
   client) on every build; retry.
 - arduino-pico framework bumps and the RPAsyncTCP SSE stall: see `recipes/arduino_pico.md`.
@@ -315,9 +312,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Without serial access to recover, never send a corrupted image; wrong-MD5 and cut-upload tests with valid
   images are safe.
 - On the WL2H-U `logger: hardware_uart: DEFAULT` resolves to UART1, LibreTiny's log port for that board.
-- Over a poor link (about 60 ms ping and 5 % loss) an ESPHome OTA takes anywhere from 50 to 445 s and a web `/update`
-  of a UF2 can abort early while ESPHome OTA still works. Treat such a board's results as crash or no crash only, and
-  settle questions about rates, heap after streams or OTA aborts on a BK7238 (same LibreTiny AsyncTCP).
 
 ## nRF52840
 
@@ -509,12 +503,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Flash with `esphome run` (pyOCD, MCUboot plus the signed app). A plain `esphome upload` flashed only the bare app
   on #22599, and the board stayed dark.
 - Reset: `<sdk-nrf python> -m pyocd reset -t nrf54lm20a -u <probe id>`.
-- nPM1300 PMIC at 0x6B on P1.18 (SDA) and P1.17 (SCL) (#22661; `i2c:` builds on i2c21 at 100 kHz). Per the upstream
-  Zephyr board files, BUCK2 supplies VSYS_3V3, the nRF54 and the SAMD11 USB debugger: never switch it off (there is no
-  way back without a power cycle, and the probe dies with it). LDO1 feeds the IMU and microphone (3.3 V, LDO mode) and
-  is safe to toggle. BUCK1 and LDO2 are not described anywhere; leave them alone.
-- nPM1300 power-on state: BUCK2 on at 3.3 V, BUCK1 off, LDO1 and LDO2 off in load switch mode (enabling one as is
-  passes VINLDO straight through), charger off, VBUS limit 100 mA, NTC select 10 k. Flows: `recipes/npm1300.md`.
 
 ## I2C and SPI breakouts
 

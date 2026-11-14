@@ -1,9 +1,0 @@
-# BW15 (RTL8720CF) on the station network (name and credentials set by arena.sh).
-rtl87xx:
-  board: bw15
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  power_save_mode: none
-packages:
-  common: !include arena-common.yaml

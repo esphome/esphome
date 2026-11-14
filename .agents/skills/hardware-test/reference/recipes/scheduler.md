@@ -27,13 +27,3 @@ captures 40 s from boot and runs `ivsum.py`, which prints the run count, first r
 10 s after setup the scheduler frees its item pool and shrinks its `to_add_` and `items_` vectors
 (`SCHEDULER_FREELIST_TRIM_DELAY_MS` in `application.cpp`). The first burst of timers after that allocates new
 items and regrows the vectors once, so heap or timing measurements should skip the first run after boot.
-
-## RP2 scheduler lock under IRQ and lwIP load (#22688)
-
-`scripts/rp2_sched_lock/` (README there). The `irq_sched_stress` external component calls `defer()` and `set_timeout()`
-from a 300 us pico-sdk repeating timer while the main loop does the same; the removed item race integration fixture
-runs on the board as an API action. `flow.sh` runs the actions, API connect churn (`../api/connstress.py`), REST POST
-churn and both together, then the actions again, and fails on a failed action, a failed connstress 500x2 or a reboot.
-Judge by counts, not order: RP2 is `ESPHOME_THREAD_SINGLE`, so `defer()` order is not FIFO on any build. Keep
-`debug_scheduler` off, it logs from the IRQ. Dev before #22688 failed the defer count on the Pico W; the PR passed.
-`looptime.sh` compares the 16 ms interval gaps with the API and page loads running between two builds.
