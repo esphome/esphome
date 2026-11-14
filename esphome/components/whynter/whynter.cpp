@@ -39,48 +39,38 @@ const uint32_t UNIT_MASK = 1 << UNIT_SHIFT;
 const uint32_t TEMP_MASK = 0xFF;
 const uint32_t TEMP_OFFSET_C = 16;
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Codes are stored shifted down to one byte. A mode not listed is sent as power off, and ignored when received.
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_FAN_ONLY, MODE_FAN >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_DRY, MODE_DRY >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_HEAT, MODE_HEAT >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_COOL, MODE_COOL >> MODE_SHIFT},
+};
+// The first entry is the fallback when sending; a received code that is not listed is ignored
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_HIGH, FAN_HIGH >> FAN_SHIFT},
+    {climate::CLIMATE_FAN_LOW, FAN_LOW >> FAN_SHIFT},
+    {climate::CLIMATE_FAN_MEDIUM, FAN_MED >> FAN_SHIFT},
+};
+
 void Whynter::transmit_state() {
   uint32_t remote_state = COMMAND_CODE;
   if (this->mode == climate::CLIMATE_MODE_HEAT_COOL)
     this->mode = climate::CLIMATE_MODE_COOL;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state |= POWER_MASK;
-      remote_state |= MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      remote_state |= POWER_MASK;
-      remote_state |= MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state |= POWER_MASK;
-      remote_state |= MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      remote_state |= POWER_MASK;
-      remote_state |= MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-      remote_state |= POWER_OFF;
-      break;
-    default:
-      remote_state |= POWER_OFF;
+  if (const auto entry = find_ir_code(MODES, this->mode, false)) {
+    remote_state |= POWER_MASK;
+    remote_state |= static_cast<uint32_t>(entry->code) << MODE_SHIFT;
+  } else {
+    remote_state |= POWER_OFF;
   }
   mode_before_ = this->mode;
 
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      remote_state |= FAN_LOW;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      remote_state |= FAN_MED;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      remote_state |= FAN_HIGH;
-      break;
-    default:
-      remote_state |= FAN_HIGH;
-  }
+  remote_state |= static_cast<uint32_t>(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_HIGH)))
+                  << FAN_SHIFT;
 
   if (fahrenheit_) {
     remote_state |= UNIT_MASK;
@@ -123,15 +113,8 @@ bool Whynter::on_receive(remote_base::RemoteReceiveData data) {
   if ((remote_state & POWER_MASK) != POWER_MASK) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    if ((remote_state & MODE_MASK) == MODE_FAN) {
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-    } else if ((remote_state & MODE_MASK) == MODE_DRY) {
-      this->mode = climate::CLIMATE_MODE_DRY;
-    } else if ((remote_state & MODE_MASK) == MODE_HEAT) {
-      this->mode = climate::CLIMATE_MODE_HEAT;
-    } else if ((remote_state & MODE_MASK) == MODE_COOL) {
-      this->mode = climate::CLIMATE_MODE_COOL;
-    }
+    if (const auto entry = find_ir_code(MODES, (remote_state & MODE_MASK) >> MODE_SHIFT, true))
+      this->mode = static_cast<climate::ClimateMode>(entry->value);
 
     // Temperature
     if ((remote_state & UNIT_MASK) == UNIT_MASK) {  // Fahrenheit
@@ -141,13 +124,8 @@ bool Whynter::on_receive(remote_base::RemoteReceiveData data) {
     }
 
     // Fan Speed
-    if ((remote_state & FAN_MASK) == FAN_LOW) {
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-    } else if ((remote_state & FAN_MASK) == FAN_MED) {
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    } else if ((remote_state & FAN_MASK) == FAN_HIGH) {
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-    }
+    if (const auto entry = find_ir_code(FANS, (remote_state & FAN_MASK) >> FAN_SHIFT, true))
+      this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
   }
   this->publish_state();
 
