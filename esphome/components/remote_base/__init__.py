@@ -538,11 +538,8 @@ def _no_options(var: MockObj, config: ConfigType) -> None:
     """A trigger or dumper with no options beyond the automation."""
 
 
-def register_receive(name: str, protocol: str) -> tuple[MockObj, ...]:
-    """Declare ``protocol`` and register its ``on_<name>`` trigger and ``<name>`` dumper.
-
-    Returns the ``declare_protocol`` classes.
-    """
+def _register_receive(name: str, protocol: str) -> tuple[MockObj, ...]:
+    """Declare a protocol and register its trigger and dumper."""
     data, _, trigger, _, dumper = classes = declare_protocol(protocol)
     register_trigger(name, trigger, data)(_no_options)
     register_dumper(name, dumper)(_no_options)
@@ -556,13 +553,8 @@ def register_simple_protocol(
     *fields: tuple[str, str, SafeExpType],
     binary_sensor_schema: cv.Schema | None = None,
 ) -> tuple[MockObj, ...]:
-    """Register the binary sensor, trigger, dumper and transmit action of a plain protocol.
-
-    Each ``(conf_key, member, type_)`` field maps a config key to a ``<protocol>Data`` member;
-    list them in the struct's declaration order. The binary sensor sets the fields its config
-    has, from ``binary_sensor_schema`` (default ``schema``). Returns the ``declare_protocol`` classes.
-    """
-    data, binary_sensor_, _, _, _ = classes = register_receive(name, protocol)
+    """Register a plain protocol; list fields in the struct's declaration order."""
+    data, binary_sensor_, _, _, _ = classes = _register_receive(name, protocol)
 
     @register_binary_sensor(name, binary_sensor_, binary_sensor_schema or schema)
     def _binary_sensor(var: MockObj, config: ConfigType) -> None:
