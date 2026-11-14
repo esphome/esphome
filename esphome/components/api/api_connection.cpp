@@ -15,6 +15,7 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <new>
@@ -365,6 +366,13 @@ void APIConnection::loop() {
   // Process camera last - state updates are higher priority
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
+#endif
+
+#ifdef USE_STORE_YAML
+  // Guard inline so the idle hot path pays a compare, not a function call.
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE) {
+    this->try_send_store_yaml_();
+  }
 #endif
 }
 
@@ -1222,6 +1230,36 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 }
 #endif
 
+#ifdef USE_STORE_YAML
+void APIConnection::on_get_yaml_request() {
+  // A re-request while a transfer is in flight is ignored (see api.proto)
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE)
+    return;
+  this->store_yaml_pos_ = 0;
+  this->try_send_store_yaml_();
+}
+
+void APIConnection::try_send_store_yaml_() {
+  // Advance only after a successful send, so a full TX buffer retries the same chunk from loop()
+  while (this->helper_->can_write_without_blocking()) {
+    const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);
+    GetYamlResponse resp;
+    resp.data = STORE_YAML_DATA + this->store_yaml_pos_;
+    resp.data_len = to_send;
+    if (this->store_yaml_pos_ == 0)
+      resp.total_size = STORE_YAML_DATA_SIZE;
+    resp.done = this->store_yaml_pos_ + to_send == STORE_YAML_DATA_SIZE;
+    if (!this->send_message(resp))
+      return;
+    if (resp.done) {
+      this->store_yaml_pos_ = STORE_YAML_IDLE;
+      return;
+    }
+    this->store_yaml_pos_ += to_send;
+  }
+}
+#endif
+
 #ifdef USE_HOMEASSISTANT_TIME
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1316,7 +1354,7 @@ bool APIConnection::check_voice_assistant_api_connection_() const {
 
 void APIConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
-    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe, msg.flags);
   }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
@@ -1932,7 +1970,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 19;
+  resp.api_version_minor = 20;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
@@ -2124,6 +2162,14 @@ bool APIConnection::send_device_capabilities_response_() {
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
   resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
+#ifdef USE_STORE_YAML
+  resp.store_yaml.supported = true;
+#endif
+#ifdef USE_CRASH_REPORT
+  CrashReport report;
+  if (crash_report_get(report))
+    resp.crash_report.flags = report.flags;
+#endif
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
@@ -2152,6 +2198,34 @@ void APIConnection::on_device_capabilities_request() {
     this->on_fatal_error();
   }
 }
+#ifdef USE_CRASH_REPORT
+void APIConnection::on_crash_report_request() {
+  CrashReport report;
+  CrashReportResponse resp;
+  if (crash_report_get(report)) {
+    resp.flags = report.flags;
+    resp.reason = static_cast<uint32_t>(report.reason);
+    resp.pc = report.pc;
+    resp.cause = report.cause;
+    resp.fault_address = report.fault_address;
+    resp.build_time = report.build_time;
+    resp.crashed_core = report.crashed_core;
+    for (uint8_t i = 0; i < report.core_count; i++) {
+      auto &core = resp.cores[i];
+      core.core = report.cores[i].core;
+      core.backtrace = report.cores[i].addresses;
+      core.backtrace_len = report.cores[i].count;
+    }
+    resp.cores_len = report.core_count;
+  }
+  if (!this->send_message(resp)) {
+    this->on_fatal_error();
+    return;
+  }
+  if (resp.flags & CRASH_REPORT_FLAG_PRESENT)
+    crash_report_clear();
+}
+#endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
@@ -2170,7 +2244,9 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
-    if (msg.entity_id != it.entity_id) {
+    // The stored length rejects most entries without reading the entity id
+    if (msg.entity_id.size() != it.entity_id_len ||
+        memcmp(msg.entity_id.c_str(), it.entity_id, it.entity_id_len) != 0) {
       continue;
     }
 
@@ -2365,10 +2441,14 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
 bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
+  // Skip dump for log messages (recursive logging risk), camera frames (high-frequency noise)
+  // and YAML chunks (may contain secrets)
   if (message_type != SubscribeLogsResponse::MESSAGE_TYPE
 #ifdef USE_CAMERA
       && message_type != CameraImageResponse::MESSAGE_TYPE
+#endif
+#ifdef USE_STORE_YAML
+      && message_type != GetYamlResponse::MESSAGE_TYPE
 #endif
   ) {
     auto *proto_msg = static_cast<const ProtoMessage *>(msg);

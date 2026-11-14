@@ -1,0 +1,35 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+
+button:
+  # frame_type + payload is 1 byte. rs485_frame drops received frames under 2 bytes (before
+  # the CRC), so it does not send them either. Must be rejected.
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Too Short"
+    frame_type: []
+    payload: [0x01]

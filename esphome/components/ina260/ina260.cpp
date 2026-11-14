@@ -35,10 +35,9 @@ static const uint8_t INA260_REGISTER_DEVICE_ID = 0xFF;
 
 void INA260Component::setup() {
   // Reset device on setup
-  if (!this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000)) {
-    this->mark_failed(LOG_STR("Device reset failed - Is the device connected?"));
+  if (!this->setup_check(this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000),
+                         LOG_STR("Device reset failed - Is the device connected?")))
     return;
-  }
 
   delay(2);
 
@@ -50,10 +49,9 @@ void INA260Component::setup() {
     return;
   }
 
-  if (!this->write_byte_16(INA260_REGISTER_CONFIG, (uint16_t) 0b0000001100000111)) {
-    this->mark_failed(LOG_STR("Failed to update device configuration"));
+  if (!this->setup_check(this->write_byte_16(INA260_REGISTER_CONFIG, (uint16_t) 0b0000001100000111),
+                         LOG_STR("Failed to update device configuration")))
     return;
-  }
 }
 
 void INA260Component::dump_config() {
@@ -72,30 +70,24 @@ void INA260Component::dump_config() {
 void INA260Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
-    if (!this->read_byte_16(INA260_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA260_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)))
       return;
-    }
     float bus_voltage_v = int16_t(raw_bus_voltage) * 0.00125f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
 
   if (this->current_sensor_ != nullptr) {
     uint16_t raw_current;
-    if (!this->read_byte_16(INA260_REGISTER_CURRENT, &raw_current)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA260_REGISTER_CURRENT, &raw_current)))
       return;
-    }
     float current_a = int16_t(raw_current) * 0.00125f;
     this->current_sensor_->publish_state(current_a);
   }
 
   if (this->power_sensor_ != nullptr) {
     uint16_t raw_power;
-    if (!this->read_byte_16(INA260_REGISTER_POWER, &raw_power)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA260_REGISTER_POWER, &raw_power)))
       return;
-    }
     float power_w = ((int16_t(raw_power) * 10.0f) / 1000.0f);
     this->power_sensor_->publish_state(power_w);
   }

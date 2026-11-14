@@ -30,13 +30,7 @@ from esphome.const import (
     CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_MANUFACTURER_ID,
-    CONF_ON_BLE_ADVERTISE,
-    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
-    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
-    CONF_SERVICE_UUID,
 )
-from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
@@ -52,12 +46,6 @@ bk72xx_ble_tracker_ns = cg.esphome_ns.namespace("bk72xx_ble_tracker")
 BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
     "BK72xxBLETracker", ble_device_base.BLEHub, cg.Component
 )
-
-StartScanAction = bk72xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
-
-ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
-BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
-BLEManufacturerDataAdvertiseTrigger = ble_automation.BLEManufacturerDataAdvertiseTrigger
 BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
@@ -71,21 +59,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BK72xxBLETracker),
         cv.GenerateID(CONF_BK72XX_BLE_ID): cv.use_id(bk72xx_ble.BK72xxBLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
-        cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
-            ESPBTAdvertiseTrigger
-        ),
-        cv.Optional(
-            CONF_ON_BLE_SERVICE_DATA_ADVERTISE
-        ): ble_automation.uuid_trigger_schema(
-            BLEServiceDataAdvertiseTrigger,
-            {cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid},
-        ),
-        cv.Optional(
-            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
-        ): ble_automation.uuid_trigger_schema(
-            BLEManufacturerDataAdvertiseTrigger,
-            {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
-        ),
+        **ble_automation.ADVERTISE_TRIGGERS_SCHEMA,
         cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
             BLEEndOfScanTrigger
         ),
@@ -93,32 +67,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-@automation.register_action(
-    "bk72xx_ble_tracker.start_scan",
-    StartScanAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(BK72xxBLETracker),
-            # Optional with no default, unlike esp32_ble_tracker: omitting it
-            # keeps whatever scan_parameters.continuous configured, instead of
-            # silently forcing one-shot.
-            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
-        }
-    ),
-    synchronous=True,
+ble_automation.register_start_scan_action(
+    "bk72xx_ble_tracker.start_scan", BK72xxBLETracker
 )
-async def start_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
-        template_ = await cg.templatable(continuous, args, cg.bool_)
-        cg.add(var.set_continuous(template_))
-    return var
 
 
 automation.register_apply_action(
@@ -144,10 +95,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    await cg.register_parented(var, config[CONF_BK72XX_BLE_ID])
-    # The tracker registers itself as a controller scan listener in setup();
-    # request the codegen-sized StaticVector slot for it.
-    bk72xx_ble.request_scan_listener_slot()
+    parent = await cg.get_variable(config[CONF_BK72XX_BLE_ID])
+    await cg.register_parented(var, parent)
+    cg.add(bk72xx_ble.register_scan_listener(parent, var))
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
@@ -159,21 +109,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
     cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
 
-    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
-        await ble_automation.advertise_trigger_to_code(conf, var)
-
-    for trigger_key, uuid_key, setter_prefix in (
-        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
-        (
-            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
-            CONF_MANUFACTURER_ID,
-            "set_manufacturer_uuid",
-        ),
-    ):
-        for conf in config.get(trigger_key, []):
-            await ble_automation.uuid_trigger_to_code(
-                conf, var, uuid_key, setter_prefix
-            )
+    await ble_automation.advertise_triggers_to_code(config, var)
 
     for conf in config.get(CONF_ON_SCAN_END, []):
         await ble_automation.scan_end_trigger_to_code(conf, var)

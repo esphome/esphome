@@ -2,6 +2,7 @@
 
 #include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
 /*
@@ -28,7 +29,18 @@ class ResetAppListener : public ::testing::EmptyTestEventListener {
     // Entities of the same kind share preference keys, so a value an earlier test saved would be restored
     if (esphome::global_preferences != nullptr)
       esphome::global_preferences->reset();
+    this->high_frequency_at_start_ = esphome::HighFrequencyLoopRequester::is_high_frequency();
   }
+
+  // Fail only the test that left the fast loop on, so a leak points at its culprit
+  void OnTestEnd(const ::testing::TestInfo &info) override {
+    if (!this->high_frequency_at_start_ && esphome::HighFrequencyLoopRequester::is_high_frequency()) {
+      ADD_FAILURE() << info.test_suite_name() << "." << info.name()
+                    << " left a HighFrequencyLoopRequester started; stop it before the test ends";
+    }
+  }
+
+  bool high_frequency_at_start_{false};
 };
 
 void setup() {

@@ -10,10 +10,8 @@ ESPHOME_LOG_TAG(TAG, "tmp117");
 
 void TMP117Component::update() {
   int16_t data;
-  if (!this->read_data_(&data)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_data_(&data)))
     return;
-  }
   if ((uint16_t) data != 0x8000) {
     float temperature = data * 0.0078125f;
 
@@ -24,16 +22,12 @@ void TMP117Component::update() {
   }
 }
 void TMP117Component::setup() {
-  if (!this->write_config_(this->config_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_config_(this->config_)))
     return;
-  }
 
   int16_t data;
-  if (!this->read_data_(&data)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_data_(&data)))
     return;
-  }
 }
 void TMP117Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TMP117:");

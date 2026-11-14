@@ -107,7 +107,7 @@ constexpr uint8_t WKREG_GPDAT = 0x31;
 
 /// @defgroup cr_p0 Channel registers when SPAGE=0
 /// @brief Definition of the register linked to a particular channel when SPAGE=0
-/// @details The channel registers are further splitted into two groups.
+/// @details The channel registers are further split into two groups.
 /// This first group is defined when the Global register WKREG_SPAGE is 0
 /// @{
 
@@ -264,7 +264,7 @@ constexpr uint8_t WKREG_FDAT = 0x0D;
 /// @}
 /// @defgroup cr_p1 Channel registers for SPAGE=1
 /// @brief Definition of the register linked to a particular channel when SPAGE=1
-/// @details The channel registers are further splitted into two groups.
+/// @details The channel registers are further split into two groups.
 /// This second group is defined when the Global register WKREG_SPAGE is 1
 /// @{
 
