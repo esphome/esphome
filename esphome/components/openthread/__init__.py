@@ -148,6 +148,14 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
+# Set at run time from poll_period on an MTD, which would replace a core_options value.
+MTD_POLL_PERIOD_OPTIONS: frozenset[str] = frozenset(
+    {
+        "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT",
+        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT",
+        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL",
+    }
+)
 
 
 def _validate_txpower(value: Any) -> int | float:
@@ -331,6 +339,14 @@ def _validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
+    if device_type == "MTD":
+        for name in config.get(CONF_CORE_OPTIONS, {}):
+            if name in MTD_POLL_PERIOD_OPTIONS:
+                raise cv.Invalid(
+                    f"'{name}' cannot be set with {CONF_DEVICE_TYPE}: MTD; "
+                    f"it is derived from {CONF_POLL_PERIOD}",
+                    path=[CONF_CORE_OPTIONS, name],
+                )
     if CONF_BORDER_ROUTER in config and device_type != "FTD":
         raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
@@ -422,6 +438,12 @@ def _validate_tlv_hex(value: Any) -> str:
     return s
 
 
+# The child timeout is 4 * poll_period, and OpenThread limits it to 8 hours.
+_POLL_PERIOD = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=TimePeriodMilliseconds(seconds=7200)),
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -441,7 +463,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): _POLL_PERIOD,
             cv.Optional(CONF_CORE_OPTIONS): cv.All(
                 cv.only_on_esp32,
                 {cv.string_strict: _validate_core_option_value},
@@ -600,9 +622,7 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OpenThreadComponent),
-            cv.Required(CONF_POLL_PERIOD): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(_POLL_PERIOD),
         }
     ),
 )
