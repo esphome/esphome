@@ -2400,7 +2400,8 @@ class LwIPLock {
   ~LwIPLock();
 #ifdef USE_ESP32
  private:
-  bool locked_{false};  // Only the instance that took the core lock releases it
+  // Only the instance that took the core lock releases it; unused without CONFIG_LWIP_TCPIP_CORE_LOCKING
+  [[maybe_unused]] bool locked_{false};
 #endif
 #else
   // No lwIP core locking — inline no-ops (empty bodies instead of = default
