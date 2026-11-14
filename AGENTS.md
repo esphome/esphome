@@ -430,6 +430,14 @@ file does, and it is the authority when they disagree. The most useful starting 
     (`ESPDEPRECATED` in C++, `cv.rename_key(..., removed_in=...)` for config keys) and document the migration
     path in the PR description. The `breaking-changes` skill has the full policy, checklist and patterns.
 
+*   **The YAML language is frozen** until ESPHome configurations move to yaml.rocks
+    ([esphome/backlog#201](https://github.com/esphome/backlog/issues/201)). Do not add YAML tags beyond the existing
+    `!include`, `!include_dir_*`, `!secret`, `!env_var`, `!lambda`, `!literal`, `!extend` and `!remove`, new
+    `packages:` or `substitutions:` behaviour (including new Jinja globals or filters), or new ways to merge,
+    override or remove parts of a configuration.
+    Bug fixes to the existing features are still accepted. A component's own configuration options are not part of
+    this freeze.
+
 ## 9. English Language
 
 The project uses English for non-code content. When drafting documentation, code comments, commit messages,

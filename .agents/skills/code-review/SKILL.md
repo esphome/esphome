@@ -40,6 +40,14 @@ Not shared code: the component's own platform files (`esphome/components/<c>/sen
 `text_sensor/__init__.py`, ...), its new `USE_*` lines in `esphome/core/defines.h`,
 and its `CODEOWNERS` entry.
 
+## YAML language freeze
+
+Until configurations move to yaml.rocks (esphome/backlog#201), flag any PR that adds to the YAML language: a new tag
+in `esphome/yaml_util.py`, new behaviour in the `packages` or `substitutions` components (a new entry in the Jinja
+`SAFE_GLOBALS` in `substitutions/jinja.py`, or a custom Jinja filter, counts), or new merge, override or remove
+semantics (`esphome/config_helpers.py`, `!extend`, `!remove`). Bug fixes to the existing features are fine. This
+covers how YAML files are read, included and combined, not a component's own configuration options.
+
 ## Memory and embedded constraints (highest value)
 
 Heap allocation after `setup()` is treated as a reliability bug, not a
