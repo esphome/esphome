@@ -12,6 +12,25 @@ static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE2 = 0x17;
 static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE3 = 0x18;
 static constexpr uint8_t DAIKIN_BRC_FRAME_TYPE_STATE = 0x00;
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// The first entry of each table is the fallback when sending; a received code that is not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, DAIKIN_BRC_MODE_OFF},
+    {climate::CLIMATE_MODE_COOL, DAIKIN_BRC_MODE_ON | DAIKIN_BRC_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, DAIKIN_BRC_MODE_ON | DAIKIN_BRC_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, DAIKIN_BRC_MODE_ON | DAIKIN_BRC_MODE_HEAT},
+    {climate::CLIMATE_MODE_HEAT_COOL, DAIKIN_BRC_MODE_ON | DAIKIN_BRC_MODE_AUTO},
+    {climate::CLIMATE_MODE_FAN_ONLY, DAIKIN_BRC_MODE_ON | DAIKIN_BRC_MODE_FAN},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_LOW, DAIKIN_BRC_FAN_1},
+    {climate::CLIMATE_FAN_MEDIUM, DAIKIN_BRC_FAN_2},
+    {climate::CLIMATE_FAN_HIGH, DAIKIN_BRC_FAN_3},
+};
+
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;
   if (call.get_mode().has_value()) {
@@ -33,7 +52,7 @@ void DaikinBrcClimate::transmit_state() {
 
   remote_state[12] = this->alt_mode_();
   remote_state[13] = this->mode_button_;
-  remote_state[14] = this->operation_mode_();
+  remote_state[14] = to_ir_code(MODES, this->mode);
   remote_state[17] = this->temperature_();
   remote_state[18] = this->fan_speed_swing_();
 
@@ -82,48 +101,8 @@ uint8_t DaikinBrcClimate::alt_mode_() {
   return alt_mode;
 }
 
-uint8_t DaikinBrcClimate::operation_mode_() {
-  uint8_t operating_mode = DAIKIN_BRC_MODE_ON;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      operating_mode |= DAIKIN_BRC_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      operating_mode |= DAIKIN_BRC_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      operating_mode |= DAIKIN_BRC_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      operating_mode |= DAIKIN_BRC_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      operating_mode |= DAIKIN_BRC_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      operating_mode = DAIKIN_BRC_MODE_OFF;
-      break;
-  }
-
-  return operating_mode;
-}
-
 uint8_t DaikinBrcClimate::fan_speed_swing_() {
-  uint16_t fan_speed;
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      fan_speed = DAIKIN_BRC_FAN_1;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DAIKIN_BRC_FAN_2;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      fan_speed = DAIKIN_BRC_FAN_3;
-      break;
-    default:
-      fan_speed = DAIKIN_BRC_FAN_1;
-  }
+  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_LOW));
 
   // If swing is enabled switch first 4 bits to 1111
   switch (this->swing_mode) {
@@ -168,26 +147,10 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
   }
 
   uint8_t mode = frame[7];
-  if (mode & DAIKIN_BRC_MODE_ON) {
-    switch (mode & 0xF0) {
-      case DAIKIN_BRC_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case DAIKIN_BRC_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case DAIKIN_BRC_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case DAIKIN_BRC_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case DAIKIN_BRC_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-    }
-  } else {
+  if (!(mode & DAIKIN_BRC_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (const auto entry = find_ir_code(MODES, mode & (0xF0 | DAIKIN_BRC_MODE_ON), true)) {
+    this->mode = static_cast<climate::ClimateMode>(entry->value);
   }
 
   uint8_t temperature = frame[10];
@@ -211,17 +174,8 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
       break;
   }
 
-  switch (fan_mode & 0xF0) {
-    case DAIKIN_BRC_FAN_1:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case DAIKIN_BRC_FAN_2:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case DAIKIN_BRC_FAN_3:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-  }
+  if (const auto entry = find_ir_code(FANS, fan_mode & 0xF0, true))
+    this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
   this->publish_state();
   return true;
 }
