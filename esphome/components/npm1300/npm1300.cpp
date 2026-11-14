@@ -53,6 +53,7 @@ static constexpr uint16_t REG_SHIP_TASK_SHIP_MODE = 0x0B02;
 
 // VBUSINSTATUS
 static constexpr uint8_t VBUS_PRESENT = 0x01;
+static constexpr uint8_t VBUS_CURRENT_LIMIT_ACTIVE = 0x02;
 // BCHGCHARGESTATUS
 static constexpr uint8_t CHARGE_STATUS_BATTERY_DETECTED = 0x01;
 static constexpr uint8_t CHARGE_STATUS_COMPLETED = 0x02;
@@ -262,6 +263,14 @@ void NPM1300Component::update() {
 #endif
 
 #ifdef USE_SENSOR
+  if (this->vbus_current_limit_sensor_ != nullptr) {
+    uint8_t code;
+    if (!this->status_comm_check(this->read_reg_(REG_VBUSIN_ILIM0, &code)))
+      return;
+    // Code 0 (the reset value) is 500 mA, codes 1 to 4 are 100 mA, then 100 mA per step of the code
+    const uint16_t milliamps = code == 0 ? 500 : (code < 5 ? 100 : code * 100);
+    this->vbus_current_limit_sensor_->publish_state(milliamps / 1000.0f);
+  }
   // Start the battery voltage (followed by the battery current), NTC, die temperature and system voltage
   // conversions, then the VBUS one
   static constexpr uint8_t START[4] = {1, 1, 1, 1};
@@ -278,11 +287,13 @@ void NPM1300Component::publish_status_(uint8_t vbus_status, uint8_t charge_statu
   const bool vbus_present = (vbus_status & VBUS_PRESENT) != 0;
   if (error_reason != this->last_error_reason_) {
     this->last_error_reason_ = error_reason;
-    if (error_reason != 0)
+    if (error_reason != 0) {
       ESP_LOGW(TAG, "Charger error, BCHGERRREASON 0x%02X", error_reason);
+    }
   }
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->vbus_present_binary_sensor_, vbus_present);
+  PUBLISH_STATE(this->vbus_current_limit_active_binary_sensor_, (vbus_status & VBUS_CURRENT_LIMIT_ACTIVE) != 0);
   PUBLISH_STATE(this->charging_binary_sensor_, (charge_status & CHARGE_STATUS_CHARGING) != 0);
   PUBLISH_STATE(this->charge_complete_binary_sensor_, (charge_status & CHARGE_STATUS_COMPLETED) != 0);
   PUBLISH_STATE(this->battery_detected_binary_sensor_, (charge_status & CHARGE_STATUS_BATTERY_DETECTED) != 0);
@@ -408,9 +419,11 @@ void NPM1300Component::dump_config() {
   LOG_SENSOR("  ", "Die Temperature", this->die_temperature_sensor_);
   LOG_SENSOR("  ", "System Voltage", this->system_voltage_sensor_);
   LOG_SENSOR("  ", "VBUS Voltage", this->vbus_voltage_sensor_);
+  LOG_SENSOR("  ", "VBUS Current Limit", this->vbus_current_limit_sensor_);
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "VBUS Present", this->vbus_present_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "VBUS Current Limit Active", this->vbus_current_limit_active_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Charging", this->charging_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Charge Complete", this->charge_complete_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Battery Detected", this->battery_detected_binary_sensor_);

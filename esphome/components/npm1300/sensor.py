@@ -15,7 +15,12 @@ from esphome.const import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import CONF_NPM1300_ID, CONF_THERMISTOR_RESISTANCE, NPM1300_CHILD_SCHEMA
+from . import (
+    CONF_NPM1300_ID,
+    CONF_THERMISTOR_RESISTANCE,
+    CONF_VBUS_CURRENT_LIMIT,
+    NPM1300_CHILD_SCHEMA,
+)
 
 DEPENDENCIES = ["npm1300"]
 
@@ -63,6 +68,12 @@ CONFIG_SCHEMA = NPM1300_CHILD_SCHEMA.extend(
         ),
         cv.Optional(CONF_SYSTEM_VOLTAGE): _voltage_schema(),
         cv.Optional(CONF_VBUS_VOLTAGE): _voltage_schema(),
+        cv.Optional(CONF_VBUS_CURRENT_LIMIT): sensor.sensor_schema(
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_CURRENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
     }
 )
 
@@ -91,3 +102,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_DIE_TEMPERATURE, hub.set_die_temperature_sensor)
     await sensors(CONF_SYSTEM_VOLTAGE, hub.set_system_voltage_sensor)
     await sensors(CONF_VBUS_VOLTAGE, hub.set_vbus_voltage_sensor)
+    await sensors(CONF_VBUS_CURRENT_LIMIT, hub.set_vbus_current_limit_sensor)

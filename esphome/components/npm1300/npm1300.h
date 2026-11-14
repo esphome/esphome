@@ -59,9 +59,11 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(die_temperature)
   SUB_SENSOR(system_voltage)
   SUB_SENSOR(vbus_voltage)
+  SUB_SENSOR(vbus_current_limit)
 #endif
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(vbus_present)
+  SUB_BINARY_SENSOR(vbus_current_limit_active)
   SUB_BINARY_SENSOR(charging)
   SUB_BINARY_SENSOR(charge_complete)
   SUB_BINARY_SENSOR(battery_detected)

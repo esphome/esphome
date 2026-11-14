@@ -36,11 +36,15 @@ sensor:
       name: System Voltage
     vbus_voltage:
       name: VBUS Voltage
+    vbus_current_limit:
+      name: VBUS Current Limit
 
 binary_sensor:
   - platform: npm1300
     vbus_present:
       name: VBUS Present
+    vbus_current_limit_active:
+      name: VBUS Current Limit Active
     charging:
       name: Charging
     charge_complete:
