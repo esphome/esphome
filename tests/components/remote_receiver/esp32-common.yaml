@@ -48,11 +48,6 @@ binary_sensor:
       source: 0x01
       command: 0x0C
   - platform: remote_receiver
-    name: Beo4 Remote Input
-    beo4:
-      source: 0x01
-      command: 0x0C
-  - platform: remote_receiver
     name: Brennenstuhl Remote Input
     brennenstuhl:
       code: 0x123456
