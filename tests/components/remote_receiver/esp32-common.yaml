@@ -57,6 +57,10 @@ binary_sensor:
     brennenstuhl:
       code: 0x123456
   - platform: remote_receiver
+    name: ByronSX Remote Input
+    byronsx:
+      address: 0x12
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b

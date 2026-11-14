@@ -678,13 +678,6 @@ BRENNENSTUHL_SCHEMA = cv.Schema(
 
 
 # ByronSX
-(
-    ByronSXData,
-    ByronSXBinarySensor,
-    ByronSXTrigger,
-    _,
-    ByronSXDumper,
-) = declare_protocol("ByronSX")
 BYRONSX_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
@@ -693,37 +686,14 @@ BYRONSX_SCHEMA = cv.Schema(
         ),
     }
 )
-
-
-@register_binary_sensor("byronsx", ByronSXBinarySensor, BYRONSX_SCHEMA)
-def byronsx_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                ByronSXData,
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
+ByronSXData, ByronSXBinarySensor, ByronSXTrigger, _, ByronSXDumper = (
+    register_simple_protocol(
+        "byronsx",
+        "ByronSX",
+        BYRONSX_SCHEMA,
+        (CONF_ADDRESS, "address", cg.uint8),
+        (CONF_COMMAND, "command", cg.uint8),
     )
-
-
-@register_trigger("byronsx", ByronSXTrigger, ByronSXData)
-def byronsx_trigger(var, config):
-    pass
-
-
-@register_dumper("byronsx", ByronSXDumper)
-def byronsx_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "byronsx",
-    "ByronSX",
-    BYRONSX_SCHEMA,
-    (CONF_ADDRESS, "address", cg.uint8),
-    (CONF_COMMAND, "command", cg.uint8),
 )
 
 
