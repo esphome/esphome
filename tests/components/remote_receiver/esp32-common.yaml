@@ -83,6 +83,10 @@ binary_sensor:
     gobox:
       code: 0xAA55
   - platform: remote_receiver
+    name: JVC Remote Input
+    jvc:
+      data: 0x5583
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b

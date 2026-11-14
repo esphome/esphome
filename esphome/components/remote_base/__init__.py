@@ -843,33 +843,8 @@ DysonData, DysonBinarySensor, DysonTrigger, _, DysonDumper = register_simple_pro
 
 
 # JVC
-JVCData, JVCBinarySensor, JVCTrigger, _, JVCDumper = declare_protocol("JVC")
 JVC_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
-
-
-@register_binary_sensor("jvc", JVCBinarySensor, JVC_SCHEMA)
-def jvc_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                JVCData,
-                ("data", config[CONF_DATA]),
-            )
-        )
-    )
-
-
-@register_trigger("jvc", JVCTrigger, JVCData)
-def jvc_trigger(var, config):
-    pass
-
-
-@register_dumper("jvc", JVCDumper)
-def jvc_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+JVCData, JVCBinarySensor, JVCTrigger, _, JVCDumper = register_simple_protocol(
     "jvc",
     "JVC",
     JVC_SCHEMA,
