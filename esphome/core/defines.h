@@ -65,6 +65,7 @@
 #define USE_BQ25186_STATUS_PUBLISHER
 #define USE_BQ25820_SENSOR
 #define USE_BQ25820_STATUS_PUBLISHER
+#define BRIZLABS_LED_STRING_ZONE_COUNT 6
 #define USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
 #define USE_BUTTON
 #define USE_CAMERA
@@ -819,7 +820,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 1)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 3, 2)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
