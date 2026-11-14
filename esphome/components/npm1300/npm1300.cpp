@@ -116,7 +116,7 @@ static const uint8_t CHARGER_STATUS_BITS[] PROGMEM = {CHARGE_STATUS_DIE_TEMP_HIG
 static uint8_t charger_status_index(uint8_t vbus_status, uint8_t charge_status, uint8_t error_reason) {
   if (error_reason != 0)
     return 0;
-  for (uint8_t i = 0; i < sizeof(CHARGER_STATUS_BITS); i++) {
+  for (size_t i = 0; i < sizeof(CHARGER_STATUS_BITS); i++) {
     if ((charge_status & progmem_read_byte(&CHARGER_STATUS_BITS[i])) != 0)
       return i + 1;
   }
