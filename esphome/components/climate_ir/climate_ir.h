@@ -6,8 +6,39 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/optional.h"
 
 namespace esphome::climate_ir {
+
+/// One entry of a PROGMEM table that maps a climate enum value to the unit's code.
+struct IRCode {
+  uint8_t value;  // a climate enum; they are all uint8_t
+  uint8_t code;
+};
+
+/// Index of the entry whose value (or, with match_code, code) is key, or -1. Reads the table from PROGMEM.
+int find_ir_code_index(const IRCode *table, size_t count, uint8_t key, bool match_code);
+
+/// The entry whose value (or, with match_code, code) is key, copied out of PROGMEM.
+template<size_t N> optional<IRCode> find_ir_code(const IRCode (&table)[N], uint8_t key, bool match_code) {
+  const int index = find_ir_code_index(table, N, key, match_code);
+  if (index < 0)
+    return {};
+  IRCode entry;
+  progmem_memcpy(&entry, &table[index], sizeof(entry));
+  return entry;
+}
+/// The code for value, or the first entry's code when the table has no such value.
+template<size_t N> uint8_t to_ir_code(const IRCode (&table)[N], uint8_t value) {
+  const int index = find_ir_code_index(table, N, value, false);
+  return progmem_read_byte(&table[index < 0 ? 0 : index].code);
+}
+/// The value for code, or the first entry's value when the table has no such code.
+template<typename T, size_t N> T from_ir_code(const IRCode (&table)[N], uint8_t code) {
+  const int index = find_ir_code_index(table, N, code, true);
+  return static_cast<T>(progmem_read_byte(&table[index < 0 ? 0 : index].value));
+}
 
 /* A base for climate which works by sending (and receiving) IR codes
 

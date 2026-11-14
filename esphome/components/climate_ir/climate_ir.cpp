@@ -95,4 +95,12 @@ void ClimateIR::dump_config() {
                 YESNO(this->modes_.count(climate::CLIMATE_MODE_HEAT_COOL)));
 }
 
+int find_ir_code_index(const IRCode *table, size_t count, uint8_t key, bool match_code) {
+  for (size_t i = 0; i < count; i++) {
+    if (progmem_read_byte(match_code ? &table[i].code : &table[i].value) == key)
+      return static_cast<int>(i);
+  }
+  return -1;
+}
+
 }  // namespace esphome::climate_ir
