@@ -1,26 +1,12 @@
 # Async TCP client support for all platforms
 import esphome.codegen as cg
-from esphome.components.libretiny.const import CONF_LOGLEVEL
 import esphome.config_validation as cv
-from esphome.const import CONF_FRAMEWORK, CONF_OPTIONS
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 DOMAIN = "async_tcp"
-
-# LT_LOGLEVEL values that compile LibreTiny's log_d in (lt_config.h: VERBOSE is TRACE 0, DEBUG 1)
-_LT_DEBUG_LOGLEVELS = {"LT_LEVEL_VERBOSE", "LT_LEVEL_TRACE", "LT_LEVEL_DEBUG", "0", "1"}
-
-
-def _libretiny_logs_debug() -> bool:
-    """Whether LibreTiny compiles log_d in; framework options override loglevel."""
-    framework = CORE.config[CORE.target_platform][CONF_FRAMEWORK]
-    level = framework[CONF_OPTIONS].get(
-        "LT_LOGLEVEL", f"LT_LEVEL_{framework[CONF_LOGLEVEL]}"
-    )
-    return level.strip() in _LT_DEBUG_LOGLEVELS
 
 
 def AUTO_LOAD() -> list[str]:
@@ -50,9 +36,11 @@ async def to_code(config: ConfigType) -> None:
     elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.5.0")
+        from esphome.components.libretiny import lt_logs_debug
+
         # AsyncTCP 3.5.0 logs xPortGetCoreID(), which LibreTiny (single core) lacks, when LibreTiny's log_d is
         # compiled in; the call becomes int(), 0 (a function-like -D does not survive PlatformIO's build flags)
-        if _libretiny_logs_debug():
+        if lt_logs_debug():
             cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
