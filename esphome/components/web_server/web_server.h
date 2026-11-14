@@ -174,9 +174,12 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
+  friend class HeadAckedEventSourceResponse;  // ESPAsyncWebServer 3.12.1 workaround, remove with it
+
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
+  void add_client_(WebServer *ws, AsyncClient *client);  // ESPAsyncWebServer 3.12.1 workaround, remove with it
 
  public:
   /// Returns true if there are event sources remaining (including pending cleanup).
@@ -526,7 +529,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
-  std::map<EntityBase *, SortingComponents> sorting_entitys_;
+  std::map<EntityBase *, SortingComponents> sorting_entities_;
   std::map<uint64_t, SortingGroup> sorting_groups_;
 #endif
 

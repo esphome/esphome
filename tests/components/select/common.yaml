@@ -116,3 +116,16 @@ button:
           auto &options = id(select_test_select).traits.get_options();
           for (size_t i = 0; i < options.size(); i++)
             ESP_LOGD("test", "%u: %s", (unsigned) i, options.at(i));
+
+script:
+  - id: select_is_with_args
+    parameters:
+      wanted: string
+    then:
+      - if:
+          condition:
+            select.is:
+              id: select_test_select
+              lambda: return current == wanted;
+          then:
+            - select.first: select_test_select
