@@ -64,7 +64,6 @@ class DaikinArcClimate final : public climate_ir::ClimateIR {
   void transmit_query_();
   void transmit_state() override;
   climate::ClimateTraits traits() override;
-  uint8_t operation_mode_();
   uint16_t fan_speed_();
   uint8_t temperature_();
   uint8_t humidity_();
