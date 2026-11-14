@@ -51,7 +51,7 @@ using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry of each table is the fallback in both directions
+// Codes not listed fall back to auto (mode and fan) and to swing off
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, 0}, {climate::CLIMATE_MODE_COOL, 1}, {climate::CLIMATE_MODE_DRY, 2},
     {climate::CLIMATE_MODE_FAN_ONLY, 3},  {climate::CLIMATE_MODE_HEAT, 4},
@@ -105,13 +105,13 @@ void SamsungClimate::transmit_state() {
 
   if (on) {
     progmem_memcpy(state, RESET_STATE, SAMSUNG_AC_STATE_LENGTH);
-    set_field(state, MODE, to_ir_code(MODES, this->mode));
+    set_field(state, MODE, to_ir_code(MODES, this->mode, 0));
   }  // else keep the last mode so the power off frame still carries a valid state
 
   const uint8_t temp = clamp<uint8_t>(this->target_temperature, SAMSUNG_AC_TEMP_MIN, SAMSUNG_AC_TEMP_MAX);
   set_field(state, TEMP, temp - SAMSUNG_AC_TEMP_MIN);
-  set_field(state, SWING, to_ir_code(SWINGS, this->swing_mode));
-  set_field(state, FAN, to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)));
+  set_field(state, SWING, to_ir_code(SWINGS, this->swing_mode, 0b111));
+  set_field(state, FAN, to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), 0));
   set_field(state, POWER_1, on ? POWER_ON : 0);
   set_field(state, POWER_2, on ? POWER_ON : 0);
 
@@ -194,10 +194,10 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   memcpy(state, frame, SAMSUNG_AC_SECTION_LENGTH);
   memcpy(state + SAMSUNG_AC_SECTION_LENGTH, frame + length - SAMSUNG_AC_SECTION_LENGTH, SAMSUNG_AC_SECTION_LENGTH);
 
-  this->swing_mode = from_ir_code<climate::ClimateSwingMode>(SWINGS, get_field(state, SWING));
+  this->swing_mode = from_ir_code(SWINGS, get_field(state, SWING), climate::CLIMATE_SWING_OFF);
   this->target_temperature = get_field(state, TEMP) + SAMSUNG_AC_TEMP_MIN;
-  this->fan_mode = from_ir_code<climate::ClimateFanMode>(FANS, get_field(state, FAN));
-  this->mode = is_powered_on(state) ? from_ir_code<climate::ClimateMode>(MODES, get_field(state, MODE))
+  this->fan_mode = from_ir_code(FANS, get_field(state, FAN), climate::CLIMATE_FAN_AUTO);
+  this->mode = is_powered_on(state) ? from_ir_code(MODES, get_field(state, MODE), climate::CLIMATE_MODE_HEAT_COOL)
                                     : climate::CLIMATE_MODE_OFF;
 
   ESP_LOGD(TAG, "Received %u byte frame, power %s", length, ONOFF(is_powered_on(state)));

@@ -55,7 +55,7 @@ using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry of each table is the fallback; a received mode that is not listed is ignored instead
+// A received mode that is not listed is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, BYTE7_MODE_AUTO},
     {climate::CLIMATE_MODE_COOL, 0x80},
@@ -145,8 +145,8 @@ void FriedrichClimate::transmit_state() {
   uint8_t frame[STATE_MESSAGE_LENGTH];
   progmem_memcpy(frame, STATE_TEMPLATE, sizeof(frame));
   frame[6] |= reverse_nibble((temperature - TEMP_MIN) / TEMP_STEP);
-  frame[7] = to_ir_code(MODES, this->mode);
-  frame[8] = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
+  frame[7] = to_ir_code(MODES, this->mode, BYTE7_MODE_AUTO);
+  frame[8] = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), BYTE8_FAN_AUTO);
   if (this->swing_mode != climate::CLIMATE_SWING_OFF)
     frame[8] |= BYTE8_FAN_SWING;
   frame[STATE_MESSAGE_LENGTH - 1] = checksum_state(frame);
@@ -212,7 +212,7 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
     this->target_temperature = TEMP_MIN + temp_index * TEMP_STEP;
 
   this->swing_mode = (d[8] & BYTE8_FAN_SWING) ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
-  this->fan_mode = from_ir_code<climate::ClimateFanMode>(FANS, d[8] & ~BYTE8_FAN_SWING);
+  this->fan_mode = from_ir_code(FANS, d[8] & ~BYTE8_FAN_SWING, climate::CLIMATE_FAN_AUTO);
 
   this->publish_state();
   return true;

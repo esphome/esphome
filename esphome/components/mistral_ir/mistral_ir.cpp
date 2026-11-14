@@ -21,7 +21,7 @@ constexpr uint8_t MISTRAL_POWER_ON = 0x20;
 constexpr uint8_t MISTRAL_TEMP_OFFSET = 0x9F;
 constexpr uint8_t MISTRAL_MODE_AUTO = 0x10;
 
-// The first entry is also sent for OFF, which only clears the power byte
+// OFF sends the auto mode code and only clears the power byte
 static constexpr climate_ir::IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, MISTRAL_MODE_AUTO},
     {climate::CLIMATE_MODE_COOL, 0xC0},
@@ -84,7 +84,7 @@ void MistralIR::transmit_state() {
   progmem_memcpy(frame, FRAME_TEMPLATE, sizeof(frame));
   frame[1] = fan.byte1;
   frame[3] = this->mode == climate::CLIMATE_MODE_OFF ? MISTRAL_POWER_OFF : MISTRAL_POWER_ON;
-  frame[4] = climate_ir::to_ir_code(MODES, this->mode);
+  frame[4] = climate_ir::to_ir_code(MODES, this->mode, MISTRAL_MODE_AUTO);
   frame[5] = reverse_bits(static_cast<uint8_t>(MISTRAL_TEMP_OFFSET - temp));
   frame[6] = fan.byte6;
   frame[11] = compute_checksum(frame);
