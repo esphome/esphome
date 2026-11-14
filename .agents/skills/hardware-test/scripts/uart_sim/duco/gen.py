@@ -222,3 +222,5 @@ if kind == "pr":
     with pathlib.Path("expected.txt").open("w", encoding="utf-8") as f:
         for _, i, _, e in PR_TEXT:
             f.write(f"{i}\t{e}\n")
+        # the box serial answer in ducosim.hpp: "SN1234" padded with zeros
+        f.write("serial_number\tSN1234\n")

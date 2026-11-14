@@ -36,6 +36,10 @@ def chars(d: dict) -> list[dict]:
 problems = []
 rc, oc = chars(rd), chars(od)
 for i, (a, b) in enumerate(zip(rc, oc, strict=False)):
+    if a["props"] != b["props"]:
+        problems.append(
+            f"props {i} {b['uuid']} 0x{b['props']:02X} != ref 0x{a['props']:02X}"
+        )
     rv, ov = rd["reads"].get(a["uuid"]), od["reads"].get(b["uuid"])
     if str(ov).startswith("FAILED"):
         problems.append(f"read {i} {b['uuid']} {ov}")

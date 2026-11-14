@@ -32,7 +32,8 @@ grep -a -E "connected, ip|save status|posting" $CL | sed -E 's/ip [0-9.]+/ip <ip
 grep -a -q "AP clients [1-9]" $L || fail "the DUT never counted a client on its AP"
 grep -a -q "real save status 200" $CL || fail "the real save did not return 200"
 grep -a -q "Disabling AP" $L || fail "the DUT never disabled its AP"
-grep -a -q "IP Address" $L || fail "the DUT never got a station address"
+# the fallback AP logs its own 192.168.4.x address too, so only another address shows the station side
+grep -a "IP Address" $L | grep -v -q "192\.168\.4\." || fail "the DUT never got a station address"
 CRASH=$(grep -a -c -E "CRASH|panic|HardFault" $L); [ "$CRASH" = 0 ] || fail "$CRASH crash lines"
 [ $FAILS = 0 ] || exit 1
 echo PASS

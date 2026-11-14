@@ -70,7 +70,9 @@ async def main(host: str, peer: str, hold: float) -> None:
     await asyncio.sleep(2)
     cancel()
     await cli.disconnect()
-    if lost or fails or not got[NUM] or not got[TXT]:
+    # server.yaml empties both values on every 5th 2 s round, so about one read in five is legitimately empty; the
+    # client cannot tell which round it hit, so only a majority of empty reads counts as a proxy returning no data
+    if lost or fails or not got[NUM] or not got[TXT] or empty * 2 > reads:
         sys.exit("FAIL")
     print("PASS", flush=True)
 

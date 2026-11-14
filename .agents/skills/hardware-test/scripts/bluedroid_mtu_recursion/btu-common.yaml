@@ -52,8 +52,8 @@ ble_client:
             return;
           }
           vTaskSuspend(btu);
-          esp_ble_gap_disconnect(id(srv)->get_remote_bda());
-          esp_err_t err = ESP_OK;
+          // a rejected disconnect leaves the link up, so the queued calls never take the failing send path
+          esp_err_t err = esp_ble_gap_disconnect(id(srv)->get_remote_bda());
           for (int i = 0; i < 4; i++) {
             esp_err_t e = esp_ble_gattc_read_char(gattc_if, conn_id, handle, ESP_GATT_AUTH_REQ_NONE);
             if (e != ESP_OK)
