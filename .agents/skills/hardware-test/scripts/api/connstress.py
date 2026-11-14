@@ -2,12 +2,13 @@
 Rapid native API connect/disconnect stress test (from esphome#14687 and esphome#14706).
 
 usage: connstress.py HOST [ITERATIONS] [CONCURRENCY]   (default 500 iterations, 4 at a time)
-env:   API_KEY (base64 noise key, omit for plaintext), API_PORT (default 6053), API_PASSWORD
+env:   API_KEY (base64 noise key; unset, empty or - for plaintext), API_PORT (default 6053), API_PASSWORD
 Each attempt connects with login, disconnects and counts a failure on any error or a 10 s timeout.
 Exits 1 when any attempt failed. Watch the serial log for crashes: the client only sees resets.
 """
 
 import asyncio
+import contextlib
 import os
 import sys
 import time
@@ -17,7 +18,9 @@ from aioesphomeapi import APIClient
 HOST = sys.argv[1] if len(sys.argv) > 1 else sys.exit(__doc__)
 PORT = int(os.environ.get("API_PORT", "6053"))
 PASSWORD = os.environ.get("API_PASSWORD", "")
-NOISE_PSK = os.environ.get("API_KEY") or None
+NOISE_PSK = (
+    None if os.environ.get("API_KEY") in (None, "", "-") else os.environ["API_KEY"]
+)
 
 
 async def connect_disconnect(client_id: int, iteration: int) -> tuple[int, bool, str]:
@@ -33,7 +36,8 @@ async def connect_disconnect(client_id: int, iteration: int) -> tuple[int, bool,
             f"client{client_id} iter{iteration}: {type(e).__name__}: {e}",
         )
     finally:
-        await cli.disconnect(force=True)
+        with contextlib.suppress(Exception):
+            await cli.disconnect(force=True)
 
 
 async def main() -> None:

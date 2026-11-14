@@ -399,6 +399,9 @@ def run_cases() -> None:
         if uptime() is not None:
             break
         time.sleep(2)
+    else:
+        ROWS.append({"case": "device back after NUL case", "pass": False})
+        p("FAIL device back after NUL case: no answer within 60 s")
 
 
 def heavy() -> None:
