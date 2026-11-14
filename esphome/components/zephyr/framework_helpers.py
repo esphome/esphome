@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import configparser
+from dataclasses import dataclass
 import hashlib
 import logging
 import os
@@ -161,3 +163,249 @@ def ensure_venv(python_env_path: Path, requirements: Path, label: str) -> bool:
         )
     sentinel.write_text(requirements_hash, encoding="utf-8")
     return True
+
+
+@dataclass(frozen=True)
+class FrameworkSource:
+    """Where a framework comes from, and which of its projects a workspace fetches."""
+
+    # The framework's name in messages
+    name: str
+    # The repository it is cloned from
+    url: str
+    # Projects (patterns) fetched only when a build needs them
+    optional: tuple[str, ...]
+    # Projects every build fetches
+    required: frozenset[str]
+
+
+# The projects a finished install fetched
+_WEST_PROJECTS_FILE: str = ".west_projects"
+
+
+def _set_project_filter(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    projects: set[str],
+) -> bool:
+    project_filter = ",".join(
+        [*(f"-{p}" for p in source.optional), *(f"+{p}" for p in sorted(projects))]
+    )
+    # "--" keeps west from reading the leading "-" as an option
+    cmd = [str(env_python_path), "-m", "west", "config", "manifest.project-filter"]
+    return run_command_ok([*cmd, "--", project_filter], cwd=framework_path)
+
+
+def _check_west_projects(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+    projects: set[str],
+) -> None:
+    """Raise when the manifest lacks one of ``projects``.
+
+    west update quietly skips an unknown name in the filter, west list fails on it.
+    Needs the workspace updated once, since a manifest may import others.
+    """
+    names = sorted(projects)
+    cmd = [str(env_python_path), "-m", "west", "list", "-f", "{name}", *names]
+    if not run_command_ok(cmd, cwd=framework_path):
+        raise EsphomeError(
+            f"west list failed for the requested {source.name} {version} projects "
+            f"({', '.join(names)}); a project the manifest does not have is the "
+            "usual cause, see west's output above"
+        )
+
+
+def _west_update(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+    projects: set[str],
+    *,
+    only: set[str] | None = None,
+) -> bool:
+    """Fetch ``projects``, or just ``only`` of them; False when the fetch fails.
+
+    ``only`` is for a finished workspace, whose names are checked already.
+    """
+    if not _set_project_filter(env_python_path, framework_path, source, projects):
+        return False
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "west",
+        "update",
+        "--narrow",
+        "--fetch-opt=--depth=1",
+        *sorted(only or ()),
+    ]
+    # Streamed so the clone's progress reaches the log
+    if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
+        return False
+    if only is None:
+        _check_west_projects(env_python_path, framework_path, source, version, projects)
+    (framework_path / _WEST_PROJECTS_FILE).write_text(
+        "\n".join(sorted(projects)), encoding="utf-8"
+    )
+    return True
+
+
+def _installed_west_projects(framework_path: Path) -> set[str] | None:
+    """The projects a finished install fetched; None when it has every project."""
+    try:
+        stamp = (framework_path / _WEST_PROJECTS_FILE).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        pass
+    else:
+        return set(stamp.split())
+    # No stamp: an install from before the filter has every project, a filtered
+    # one that lost its stamp fetches again
+    config = configparser.ConfigParser()
+    if not config.read(framework_path / ".west" / "config", encoding="utf-8"):
+        return set()
+    if config.has_option("manifest", "project-filter"):
+        return set()
+    return None
+
+
+def _restore_project_filter(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+    installed: set[str],
+) -> None:
+    """Put the filter back to the stamp's projects; the required ones always stay in."""
+    projects = installed | source.required
+    if not _set_project_filter(env_python_path, framework_path, source, projects):
+        _LOGGER.warning(
+            "Couldn't put the %s %s project filter back; "
+            "the next build that fetches a project sets it again",
+            source.name,
+            version,
+        )
+
+
+def fetch_missing_west_projects(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+    projects: set[str],
+) -> None:
+    """Fetch the wanted projects a finished install lacks; it only ever gains.
+
+    Only the missing projects are updated, so a build running from the others
+    is left alone. Call under the workspace's install lock.
+    """
+    if projects <= source.required:
+        return
+    installed = _installed_west_projects(framework_path)
+    # Before the fetch, so an unknown name costs nothing on any install
+    _check_west_projects(env_python_path, framework_path, source, version, projects)
+    if installed is None or not (missing := projects - installed):
+        return
+    _LOGGER.info(
+        "Fetching %s %s projects: %s",
+        source.name,
+        version,
+        ", ".join(sorted(missing)),
+    )
+    if not _west_update(
+        env_python_path,
+        framework_path,
+        source,
+        version,
+        installed | projects,
+        only=missing,
+    ):
+        _restore_project_filter(
+            env_python_path, framework_path, source, version, installed
+        )
+        raise EsphomeError(f"Can't update {source.name} {version}")
+
+
+def install_framework(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+    projects: set[str],
+) -> None:
+    """Clone the SDK into ``framework_path`` with west, fetching ``projects``.
+
+    A download cut short after ``west init`` leaves the workspace behind;
+    rerunning ``west update`` there only fetches what is missing, so it resumes
+    instead of cloning again. A resume that fails keeps what was fetched (a
+    flaky network is the likely cause) and is retried on the next build; only
+    a second failure in a row starts over clean. Call under the workspace's
+    install lock.
+    """
+    name = source.name
+    resume_failed = framework_path / ".resume_failed"
+    # Resume only a workspace whose ``west init`` finished (it writes the
+    # config last). ``.ready`` with missing requirements is a damaged install,
+    # not an interrupted one, so it goes the clean way.
+    initialized = (framework_path / ".west" / "config").is_file()
+    if initialized and not (framework_path / ".ready").exists():
+        _LOGGER.info("Resuming the %s %s download ...", name, version)
+        if _west_update(env_python_path, framework_path, source, version, projects):
+            resume_failed.unlink(missing_ok=True)
+            return
+        if not resume_failed.exists():
+            resume_failed.touch()
+            raise EsphomeError(
+                f"Can't resume the {name} {version} download; the next build retries it"
+            )
+        _LOGGER.warning("Resuming failed again; downloading %s %s anew", name, version)
+    rmdir(framework_path, msg=f"Clean up {version} framework environment")
+    _LOGGER.info("Initializing %s %s ...", name, version)
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "west",
+        "init",
+        "-m",
+        source.url,
+        "-o=--depth=1",
+        "--mr",
+        version,
+        str(framework_path),
+    ]
+    if not run_command_ok(cmd, stream_output=True):
+        raise EsphomeError(f"Can't initialize {name} {version}")
+    _LOGGER.info("Updating %s %s (this may take a while) ...", name, version)
+    if not _west_update(env_python_path, framework_path, source, version, projects):
+        raise EsphomeError(f"Can't update {name} {version}")
+
+
+def ensure_zephyr_requirements(
+    python_env_path: Path,
+    framework_path: Path,
+    venv_rebuilt: bool,
+    label: str,
+    marker_name: str,
+) -> None:
+    """Install the workspace's Zephyr Python requirements into the penv unless current.
+
+    ``marker_name`` is the file in the penv that records the install, so a venv
+    rebuild removes it.
+    """
+    zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
+    sentinel = python_env_path / marker_name
+    if (
+        not venv_rebuilt
+        and sentinel.exists()
+        and zephyr_reqs.stat().st_mtime <= sentinel.stat().st_mtime
+    ):
+        return
+    _LOGGER.info("Installing Zephyr requirements ...")
+    env_python_path = get_python_env_executable_path(python_env_path, "python")
+    cmd = [str(env_python_path), "-m", "pip", "install", "-r", str(zephyr_reqs)]
+    if not run_command_ok(cmd):
+        raise EsphomeError(f"Install Zephyr requirements for {label} failure")
+    sentinel.touch()

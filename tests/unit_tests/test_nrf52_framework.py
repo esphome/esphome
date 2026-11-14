@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import ANY, call, patch
+from unittest.mock import patch
 
 import platformdirs
 import pytest
@@ -16,7 +16,6 @@ from esphome.components.nrf52 import _resolve_toolchain, framework
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
-    DEFAULT_WEST_PROJECTS,
     TOOLCHAIN_VERSION,
     _get_penv_site_packages,
     _get_platformio_penv_path,
@@ -29,6 +28,7 @@ from esphome.components.nrf52.framework import (
     wanted_west_projects,
 )
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
+from esphome.components.zephyr.variants import NRF_CONNECT_SDK
 import esphome.config_validation as cv
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -56,8 +56,6 @@ def _isolate_sdk_nrf_install_path(
 # ---------------------------------------------------------------------------
 
 _TEST_SDK_VERSION = "2.9.0"
-# The filter that keeps only DEFAULT_WEST_PROJECTS
-_DEFAULTS_FILTER = "-.*,+cmsis,+hal_nordic,+nrfxlib,+zephyr"
 
 
 @pytest.fixture
@@ -120,12 +118,6 @@ def mock_nrf52_ops():
 # ---------------------------------------------------------------------------
 # check_and_install tests
 # ---------------------------------------------------------------------------
-
-
-def _mark_west_initialized(framework: Path) -> None:
-    """What a finished ``west init`` leaves behind."""
-    (framework / ".west").mkdir()
-    (framework / ".west" / "config").touch()
 
 
 def _touch_penv_python(penv: Path) -> None:
@@ -267,115 +259,6 @@ class TestCheckAndInstall:
         assert mock_nrf52_ops.download_from_mirrors.call_count == 2
         assert mock_nrf52_ops.archive_extract_all.call_count == 2
 
-    def test_framework_clone_is_shallow(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """Both the manifest repository and every project are fetched at depth 1."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-
-        check_and_install()
-
-        init, _, update = mock_nrf52_ops.run_command_ok.call_args_list[:3]
-        assert "-o=--depth=1" in init.args[0]
-        assert "--fetch-opt=--depth=1" in update.args[0]
-        # Streamed, so the long clone's progress reaches the log
-        assert init.kwargs["stream_output"] is True
-        assert update.kwargs["stream_output"] is True
-
-    def test_interrupted_download_resumes(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A workspace left by a cut-short download is updated in place, not
-        wiped and cloned again."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        _mark_west_initialized(nrf52_dirs.framework)
-
-        # A marker left by an earlier failed resume
-        (nrf52_dirs.framework / ".resume_failed").touch()
-
-        check_and_install()
-
-        assert (
-            call(nrf52_dirs.framework, msg=ANY)
-            not in mock_nrf52_ops.rmdir.call_args_list
-        )
-        assert not (nrf52_dirs.framework / ".resume_failed").exists()
-        # west update in the workspace (no init), then pip install zephyr reqs
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "config",
-            "update",
-            "list",
-            "install",
-        ]
-        update = mock_nrf52_ops.run_command_ok.call_args_list[1]
-        assert update.kwargs["cwd"] == nrf52_dirs.framework
-        assert (nrf52_dirs.framework / ".ready").exists()
-
-    def test_failed_resume_keeps_the_download_once(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A first failed resume keeps what was fetched (the network likely
-        dropped again) and is retried on the next build."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        _mark_west_initialized(nrf52_dirs.framework)
-        # config succeeds, the resumed update fails
-        mock_nrf52_ops.run_command_ok.side_effect = [True, False]
-
-        with pytest.raises(EsphomeError, match="Can't resume"):
-            check_and_install()
-
-        assert (
-            call(nrf52_dirs.framework, msg=ANY)
-            not in mock_nrf52_ops.rmdir.call_args_list
-        )
-        assert (nrf52_dirs.framework / ".resume_failed").exists()
-
-    def test_cut_short_init_starts_over(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A ``.west`` without its config (init cut short) clones clean."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".west").mkdir()
-
-        check_and_install()
-
-        mock_nrf52_ops.rmdir.assert_any_call(nrf52_dirs.framework, msg=ANY)
-        first = mock_nrf52_ops.run_command_ok.call_args_list[0]
-        assert "init" in first.args[0]
-
-    def test_second_failed_resume_starts_over(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A resume failing twice in a row wipes the workspace and clones clean."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        _mark_west_initialized(nrf52_dirs.framework)
-        (nrf52_dirs.framework / ".resume_failed").touch()
-        # resumed update fails; the clean clone and zephyr reqs succeed
-        mock_nrf52_ops.run_command_ok.side_effect = [True, False, *[True] * 5]
-
-        check_and_install()
-
-        mock_nrf52_ops.rmdir.assert_any_call(nrf52_dirs.framework, msg=ANY)
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "config",
-            "update",
-            "init",
-            "config",
-            "update",
-            "list",
-            "install",
-        ]
-
     def test_requirements_install_failure_raises(
         self,
         nrf52_dirs: SimpleNamespace,
@@ -387,37 +270,12 @@ class TestCheckAndInstall:
         with pytest.raises(EsphomeError, match="Install requirements"):
             check_and_install()
 
-    def test_framework_init_failure_raises(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """Failing west init raises EsphomeError."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        mock_nrf52_ops.run_command_ok.return_value = False
-
-        with pytest.raises(EsphomeError, match="Can't initialize"):
-            check_and_install()
-
-    def test_framework_update_failure_raises(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """Failing west update raises EsphomeError."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        # init and config succeed, update fails
-        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False]
-
-        with pytest.raises(EsphomeError, match="Can't update"):
-            check_and_install()
-
     def test_fresh_install_fetches_only_default_projects(
         self,
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """A fresh clone leaves every west project out except the defaults."""
+        """A fresh clone leaves every west project out except the required ones."""
         _mark_venv_ready(nrf52_dirs.python_env)
 
         check_and_install()
@@ -427,7 +285,7 @@ class TestCheckAndInstall:
         )
         stamp = nrf52_dirs.framework / ".west_projects"
         assert stamp.read_text(encoding="utf-8").split() == sorted(
-            DEFAULT_WEST_PROJECTS
+            NRF_CONNECT_SDK.required
         )
 
     def test_included_project_joins_the_filter(
@@ -435,7 +293,7 @@ class TestCheckAndInstall:
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """A project a component includes is fetched with the defaults."""
+        """A project a component includes is fetched with the required ones."""
         _mark_venv_ready(nrf52_dirs.python_env)
         include_west_project("oberon-psa-crypto")
 
@@ -451,7 +309,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """A finished install gains a project another config left out, keeping
-        what it already has."""
+        what it already has; only the new project is updated."""
         _mark_installed(nrf52_dirs)
         (nrf52_dirs.framework / ".west_projects").write_text(
             "cmsis\nhal_nordic\nnrfxlib\ntinycrypt\nzephyr", encoding="utf-8"
@@ -468,38 +326,9 @@ class TestCheckAndInstall:
         ]
         wanted = "-.*,+cmsis,+hal_nordic,+nrfxlib,+openthread,+tinycrypt,+zephyr"
         assert _project_filter(mock_nrf52_ops.run_command_ok) == wanted
+        update = mock_nrf52_ops.run_command_ok.call_args_list[2].args[0]
+        assert update[-1] == "openthread"
         mock_nrf52_ops.rmdir.assert_not_called()
-
-    @pytest.mark.parametrize(
-        "stamp",
-        [
-            pytest.param(None, id="install_from_before_the_filter"),
-            pytest.param(
-                "cmsis\nhal_nordic\nnrfxlib\nopenthread\nzephyr",
-                id="project_already_fetched",
-            ),
-        ],
-    )
-    def test_installed_sdk_with_the_project_fetches_nothing(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-        stamp: str | None,
-    ) -> None:
-        """No fetch when the install already has every wanted project; an
-        install without the stamp (west config, no filter) has them all. The
-        names are still checked, which only reads the manifest."""
-        _mark_installed(nrf52_dirs)
-        _mark_west_initialized(nrf52_dirs.framework)
-        if stamp is not None:
-            (nrf52_dirs.framework / ".west_projects").write_text(
-                stamp, encoding="utf-8"
-            )
-        include_west_project("openthread")
-
-        check_and_install()
-
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == ["list"]
 
     def test_sysbuild_fetches_mcuboot(
         self,
@@ -526,109 +355,6 @@ class TestCheckAndInstall:
 
         assert ("cmsis_6" in wanted_west_projects()) is has_cmsis_6
 
-    def test_default_projects_never_read_the_stamp(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A build wanting only the defaults has them on any install; an
-        unreadable stamp shows the check never looked."""
-        _mark_installed(nrf52_dirs)
-        (nrf52_dirs.framework / ".west_projects").mkdir()
-
-        check_and_install()
-
-        mock_nrf52_ops.run_command_ok.assert_not_called()
-
-    def test_failed_project_fetch_raises(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A failed fetch of a newly needed project raises, keeps the stamp and
-        puts the workspace filter back to the stamp's projects and the defaults."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".ready").touch()
-        stamp = nrf52_dirs.framework / ".west_projects"
-        stamp.write_text("zephyr", encoding="utf-8")
-        include_west_project("openthread")
-        # list and config succeed, update fails, the restoring config succeeds
-        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, True]
-
-        with pytest.raises(EsphomeError, match="Can't update"):
-            check_and_install()
-
-        assert stamp.read_text(encoding="utf-8") == "zephyr"
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "list",
-            "config",
-            "update",
-            "config",
-        ]
-        # The defaults always stay in the restored filter
-        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
-
-    def test_failed_fetch_with_a_lost_stamp_keeps_the_defaults_active(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """An unknown installed set must not leave a filter with every module off."""
-        _mark_installed(nrf52_dirs)
-        _mark_west_initialized(nrf52_dirs.framework)
-        (nrf52_dirs.framework / ".west" / "config").write_text(
-            "[manifest]\nproject-filter = -.*,+zephyr\n", encoding="utf-8"
-        )
-        include_west_project("openthread")
-        # list and config succeed, update fails, the restoring config succeeds
-        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, True]
-
-        with pytest.raises(EsphomeError, match="Can't update"):
-            check_and_install()
-
-        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
-
-    def test_failed_filter_restore_is_logged(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """When the filter can't be put back after a failed fetch, the user is told."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".ready").touch()
-        (nrf52_dirs.framework / ".west_projects").write_text("zephyr", encoding="utf-8")
-        include_west_project("openthread")
-        # list and config succeed, update fails, the restoring config fails too
-        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, False]
-
-        with pytest.raises(EsphomeError, match="Can't update"):
-            check_and_install()
-
-        assert "Couldn't put the nRF Connect SDK" in caplog.text
-
-    def test_lost_stamp_on_a_filtered_install_fetches_again(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A workspace with a project filter but no stamp is a filtered install
-        whose record was lost, so the wanted projects are fetched, not assumed."""
-        _mark_installed(nrf52_dirs)
-        _mark_west_initialized(nrf52_dirs.framework)
-        (nrf52_dirs.framework / ".west" / "config").write_text(
-            "[manifest]\nproject-filter = -.*,+zephyr\n", encoding="utf-8"
-        )
-        include_west_project("openthread")
-
-        check_and_install()
-
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "list",
-            "config",
-            "update",
-        ]
-
     def test_install_waits_for_another_build_holding_the_lock(
         self,
         nrf52_dirs: SimpleNamespace,
@@ -651,27 +377,6 @@ class TestCheckAndInstall:
         assert file_lock.return_value.acquire.call_count == 2
         assert "Waiting for another build" in caplog.text
         assert "continuing without a lock" not in caplog.text
-
-    def test_install_from_before_the_filter_still_checks_the_names(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """An install with every project fetches nothing, but an unknown name
-        is still rejected so a mistake shows on every install alike."""
-        _mark_installed(nrf52_dirs)
-        _mark_west_initialized(nrf52_dirs.framework)
-        include_west_project("openthread")
-
-        check_and_install()
-
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == ["list"]
-
-        mock_nrf52_ops.run_command_ok.reset_mock()
-        mock_nrf52_ops.run_command_ok.return_value = False
-        include_west_project("no_such_project")
-        with pytest.raises(EsphomeError, match="west list failed"):
-            check_and_install()
 
     def test_install_lock_is_per_sdk_version(
         self,
@@ -706,71 +411,6 @@ class TestCheckAndInstall:
 
         assert file_lock.call_args.kwargs == {"fallback_to_soft": False}
         assert "continuing without a lock" in caplog.text
-
-    def test_unknown_project_raises_before_anything_is_written(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """A filter naming a project the manifest lacks fetches nothing, so
-        the names are checked once the update resolved the manifest, and an
-        unknown one is never recorded as installed."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        include_west_project("no_such_project")
-        # init, config and update succeed, list fails
-        mock_nrf52_ops.run_command_ok.side_effect = [True, True, True, False]
-
-        with pytest.raises(EsphomeError, match="west list failed .*no_such_project"):
-            check_and_install()
-
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "init",
-            "config",
-            "update",
-            "list",
-        ]
-        assert "no_such_project" in mock_nrf52_ops.run_command_ok.call_args.args[0]
-        assert not (nrf52_dirs.framework / ".west_projects").exists()
-
-    def test_unknown_project_on_an_installed_sdk_fetches_nothing(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """On a finished install the names are checked first, so an unknown one
-        costs no fetch and leaves the workspace as it was."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".ready").touch()
-        (nrf52_dirs.framework / ".west_projects").write_text("zephyr", encoding="utf-8")
-        include_west_project("no_such_project")
-        # list fails before anything is fetched or changed
-        mock_nrf52_ops.run_command_ok.side_effect = [False]
-
-        with pytest.raises(EsphomeError, match="west list failed"):
-            check_and_install()
-
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == ["list"]
-        assert (nrf52_dirs.framework / ".west_projects").read_text(
-            encoding="utf-8"
-        ) == "zephyr"
-
-    def test_missing_stamp_and_west_config_fetches_again(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """With neither the stamp nor .west/config left, nothing says what the
-        install has, so the wanted projects are fetched rather than assumed."""
-        _mark_installed(nrf52_dirs)
-        include_west_project("openthread")
-
-        check_and_install()
-
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "list",
-            "config",
-            "update",
-        ]
 
     def test_toolchain_download_passes_platform_substitutions(
         self,
