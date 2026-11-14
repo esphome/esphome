@@ -35,8 +35,10 @@ static constexpr uint8_t LP_V3_SLEEP_REQUEST = 0x02;
 static constexpr uint8_t LP_V3_BUSY_NETWORK = 0x02;
 static constexpr uint8_t LP_V3_BUSY_UPGRADE = 0x04;
 
-// Interval id shared with the standard heartbeat slot in tuya.cpp; a hub runs one protocol only.
+// Scheduler ids continue those in tuya.cpp. The network status shares the Wi-Fi status slot
+// there, because a hub runs one protocol only.
 static constexpr uint32_t LP_NETWORK_STATUS_INTERVAL_ID = 1;
+static constexpr uint32_t LP_PREPROBE_WAKE_TIMEOUT_ID = 4;
 
 void Tuya::setup_low_power_() {
   this->init_state_ = TuyaInitState::INIT_PRODUCT;
@@ -348,7 +350,7 @@ void Tuya::send_low_power_product_query_(bool direct_probe) {
   // The GPIO configuration supports inverted pins for active-low wiring.
   if (this->mcu_wake_pin_ != nullptr) {
     this->mcu_wake_pin_->digital_write(true);
-    this->set_timeout("tuya_mcu_preprobe_wake", this->lp_product_.mcu_wake_pulse_ms, [this, direct_probe]() {
+    this->set_timeout(LP_PREPROBE_WAKE_TIMEOUT_ID, this->lp_product_.mcu_wake_pulse_ms, [this, direct_probe]() {
       this->mcu_wake_pin_->digital_write(false);
       if (direct_probe) {
         this->send_low_power_direct_(0x01, {});
@@ -381,7 +383,7 @@ void Tuya::poll_low_power_autobaud_() {
     ESP_LOGE(LP_TAG, "Unable to configure MCU UART for %u baud", static_cast<unsigned>(baud));
     this->lp_autobaud_.stop();
     this->init_failed_ = true;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("MCU UART baud rate"));
     return;
   }
   this->rx_message_.clear();  // Drop a partial frame from the previous rate.
@@ -425,8 +427,7 @@ void Tuya::poll_low_power_product_recovery_() {
       this->init_failed_ = true;
       this->lp_mode_requery_pending_ = false;
       this->lp_session_.command_timeout();
-      ESP_LOGE(LP_TAG, "Malformed MCU product info: bounded 500ms CMD01 recovery exhausted");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Malformed MCU product info"));
       this->lp_product_retry_.success();
       return;
     }
@@ -1165,7 +1166,7 @@ void Tuya::handle_low_power_command_(uint8_t command, uint8_t version, const uin
         this->product_invalid_ = true;
         this->init_failed_ = true;
         this->lp_sleep_window_.invalidate_product();
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Wrong MCU product ID"));
         return;
       }
       // parse() limits len to 512, so the raw descriptor fits our fixed
