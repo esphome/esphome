@@ -26,6 +26,8 @@ constexpr int32_t EXPONENT_CAP = 224;
 // 0.<digits> * 10^exp10 is zero when exp10 <= MIN_EXP10 and infinity when exp10 >= MAX_EXP10, as picolibc decides
 constexpr int32_t MIN_EXP10 = -46;
 constexpr int32_t MAX_EXP10 = 40;
+// A plain-decimal mantissa above this could pass 2^24 with one more digit, so the float would no longer be exact
+constexpr uint32_t PLAIN_MANTISSA_LIMIT = 1677720;
 
 // The float nearest to (m, plus something below 1 when sticky) * 2^e, ties to even, as bits; m > 0, and sticky only
 // when bits are dropped. Integer operations only: some chips flush float denormals in their own conversion.
@@ -107,8 +109,8 @@ uint32_t decimal_to_float_bits(uint32_t m10, int32_t e10) {
   const uint32_t power = e10 < 0 ? -e10 : e10;
   if (m10 < (1u << 24) && power <= 10) {
     const auto value = static_cast<float>(m10);
-    // 10^9 and 10^10 are exact floats
-    const float factor = static_cast<float>(pow10<uint32_t>(power < 9 ? power : 9)) * (power == 10 ? 10.0f : 1.0f);
+    // 10^10 is an exact float but not a uint32_t
+    const float factor = power == 10 ? 1e10f : static_cast<float>(pow10<uint32_t>(power));
     return bit_cast<uint32_t>(e10 < 0 ? value / factor : value * factor);
   }
   const int32_t k8 = e10 >> 3;  // rounds down
@@ -317,7 +319,7 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
       }
       break;
     }
-    if (mantissa > 1677720)  // the next digit could pass 2^24
+    if (mantissa > PLAIN_MANTISSA_LIMIT)
       return nullptr;
     mantissa = mantissa * 10 + d;
   }
@@ -345,7 +347,7 @@ ESPHOME_ALWAYS_INLINE inline uint32_t parse_float_bits(const char *str, const ch
 }  // namespace
 
 optional<float> parse_float(const char *str) {
-  // Its own loop for the whole string as a plain decimal (up to 7 digits and 9 after the point): sharing
+  // Its own loop for the whole string as a plain decimal (below 2^24 and up to 9 digits after the point): sharing
   // parse_plain_decimal costs 12 to 18% more instructions on plain decimals, the most common input here
   const char *p = str;
   const bool negative = *p == '-';
@@ -363,7 +365,7 @@ optional<float> parse_float(const char *str) {
       }
       break;
     }
-    if (mantissa >= 1000000)  // one more digit stays below 2^24
+    if (mantissa > PLAIN_MANTISSA_LIMIT)
       break;
     mantissa = mantissa * 10 + d;
   }
