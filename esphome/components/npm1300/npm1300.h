@@ -5,11 +5,9 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -32,45 +30,51 @@ static constexpr uint8_t NPM1300_OUTPUT_COUNT = 4;
 /// A configuration field the YAML leaves out, so the chip keeps its own value
 static constexpr uint8_t NPM1300_UNSET = 0xFF;
 
-/// Register codes for one regulator, packed by code generation
+/// Register codes for one regulator, NPM1300_UNSET where the YAML leaves the field out
 struct NPM1300OutputConfig {
-  uint8_t voltage{NPM1300_UNSET};   // VOUT: (millivolts - 1000) / 100
-  uint8_t ldo_mode{NPM1300_UNSET};  // LDSWxLDOSEL, LDO1 and LDO2 only: 1 LDO, 0 load switch
-  uint8_t enabled{NPM1300_UNSET};   // turned on (1) or off (0) at boot
+  uint8_t voltage;   // VOUT: (millivolts - 1000) / 100
+  uint8_t ldo_mode;  // LDSWxLDOSEL, LDO1 and LDO2 only: 1 LDO, 0 load switch
+  uint8_t enabled;   // turned on (1) or off (0) at boot
 };
 
-/// Register codes for the battery charger, packed by code generation
+/// Register codes for the battery charger
 struct NPM1300ChargerConfig {
-  uint16_t current{16};                 // BCHGISET: milliamperes / 2
-  uint16_t discharge_limit{415};        // BCHGISETDISCHARGE: 84 for 200 mA, 415 for 1000 mA
-  uint8_t termination_voltage{2};       // BCHGVTERM
-  uint8_t warm_termination_voltage{2};  // BCHGVTERMR
-  uint8_t trickle_voltage{0};           // BCHGVTRICKLESEL: 0 for 2.9 V, 1 for 2.5 V
-  uint8_t termination_current{0};       // BCHGITERMSEL: 0 for 10 %, 1 for 20 %
-  bool recharge{true};
-  bool enabled{true};
+  uint16_t current;                  // BCHGISET: milliamperes / 2
+  uint16_t discharge_limit;          // BCHGISETDISCHARGE: 84 for 200 mA, 415 for 1000 mA
+  uint8_t termination_voltage;       // BCHGVTERM
+  uint8_t warm_termination_voltage;  // BCHGVTERMR
+  uint8_t trickle_voltage;           // BCHGVTRICKLESEL: 0 for 2.9 V, 1 for 2.5 V
+  uint8_t termination_current;       // BCHGITERMSEL: 0 for 10 %, 1 for 20 %
+  bool recharge;
+  bool enabled;
 };
+
+/// The settings applied in setup(), built by code generation into a PROGMEM table
+struct NPM1300Config {
+  NPM1300OutputConfig outputs[NPM1300_OUTPUT_COUNT];
+  NPM1300ChargerConfig charger;  // only applied when charger_configured
+  uint16_t thermistor_beta;
+  uint8_t thermistor;  // ADCNTCRSEL code: 1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm, or NPM1300_UNSET
+  bool charger_configured;
+};
+
+#ifdef USE_NPM1300_DATA_PUBLISHER
+/// The 10-bit ADC result whose high 8 bits are adc[msb] and low 2 bits are at `shift` in adc[lsbs]
+inline uint16_t adc_code(const uint8_t *adc, uint8_t msb, uint8_t lsbs, uint8_t shift) {
+  return (adc[msb] << 2) | ((adc[lsbs] >> shift) & 0x03);
+}
+/// Battery temperature in degrees Celsius from the NTC code and 1 / B constant of the thermistor
+float ntc_temperature(uint16_t code, float inv_beta);
+#endif
+#ifdef USE_TEXT_SENSOR
+/// Publish the charger status text, only when it differs from `last`
+void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t vbus_status, uint8_t charge_status,
+                            uint8_t error_reason);
+#endif
 
 class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
-  SUB_SENSOR(battery_voltage)
-  SUB_SENSOR(battery_current)
-  SUB_SENSOR(battery_temperature)
-  SUB_SENSOR(die_temperature)
-  SUB_SENSOR(system_voltage)
-  SUB_SENSOR(vbus_voltage)
   SUB_SENSOR(vbus_current_limit)
-#endif
-#ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(vbus_present)
-  SUB_BINARY_SENSOR(vbus_current_limit_active)
-  SUB_BINARY_SENSOR(charging)
-  SUB_BINARY_SENSOR(charge_complete)
-  SUB_BINARY_SENSOR(battery_detected)
-  SUB_BINARY_SENSOR(charger_error)
-#endif
-#ifdef USE_TEXT_SENSOR
-  SUB_TEXT_SENSOR(charger_status)
 #endif
 #ifdef USE_SWITCH
   SUB_SWITCH(charger)
@@ -81,24 +85,25 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
 #endif
 
  public:
+  /// `config` points into PROGMEM
+  explicit NPM1300Component(const NPM1300Config *config) : config_(config) {}
+
   void setup() override;
   void update() override;
   void dump_config() override;
 
+#ifdef USE_NPM1300_STATUS_PUBLISHER
+  HUB_PUBLISHER(status, uint8_t, uint8_t, uint8_t)
+#endif
+#ifdef USE_NPM1300_DATA_PUBLISHER
+  HUB_PUBLISHER(data, const uint8_t *, float)
+#endif
+#if defined(USE_NPM1300_STATUS_PUBLISHER) || defined(USE_NPM1300_DATA_PUBLISHER)
+  HUB_PUBLISHER(dump, const char *)
+#endif
+
   /// VBUSINILIM0 code: 1 for 100 mA, 5 to 15 for 500 mA to 1500 mA
   void set_vbus_current_limit(uint8_t code) { this->vbus_current_limit_ = code; }
-  void set_charger_config(const NPM1300ChargerConfig &config) {
-    this->charger_ = config;
-    this->charger_configured_ = true;
-  }
-  void set_output_config(NPM1300Output output, const NPM1300OutputConfig &config) {
-    this->outputs_[static_cast<uint8_t>(output)] = config;
-  }
-  /// ADCNTCRSEL code (1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm) and the B constant of the battery thermistor
-  void set_thermistor(uint8_t resistance, uint16_t beta) {
-    this->thermistor_ = resistance;
-    this->thermistor_beta_ = beta;
-  }
 
   /// Turn the battery charger on or off; turning it on also clears a charger error
   bool set_charger_enabled(bool enabled);
@@ -115,27 +120,28 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   bool read_reg_(uint16_t reg, uint8_t *data, size_t len = 1) {
     return this->read_register16(reg, data, len) == i2c::ERROR_OK;
   }
+  NPM1300Config load_config_() const;
   bool update_register16_(uint16_t reg, uint8_t mask, uint8_t value);
   bool apply_vbus_current_limit_();
-  bool configure_charger_();
+  bool configure_charger_(const NPM1300Config &config);
   bool configure_output_(uint8_t index, const NPM1300OutputConfig &config);
+#ifdef USE_NPM1300_DATA_PUBLISHER
   bool read_charge_currents_();
   void read_measurements_();
-  void publish_status_(uint8_t vbus_status, uint8_t charge_status, uint8_t error_reason);
+#endif
 #ifdef USE_SWITCH
   void publish_switches_();
 #endif
 
-  NPM1300OutputConfig outputs_[NPM1300_OUTPUT_COUNT]{};
-  NPM1300ChargerConfig charger_{};
-  // Full scale of the battery current measurement in milliamperes, from the charge and discharge limits
-  float charge_full_scale_ma_{NAN};
-  float discharge_full_scale_ma_{NAN};
-  uint16_t thermistor_beta_{0};
+  const NPM1300Config *config_;
+#ifdef USE_NPM1300_DATA_PUBLISHER
+  // BCHGISET code and discharge limit, for the full scale of the battery current measurement
+  uint16_t charge_code_{0};
+  bool discharge_limit_high_{false};
+#endif
   uint8_t vbus_current_limit_{NPM1300_UNSET};
-  uint8_t thermistor_{NPM1300_UNSET};
   uint8_t last_error_reason_{0};
-  bool charger_configured_{false};
+  bool vbus_present_{false};
 };
 
 }  // namespace esphome::npm1300

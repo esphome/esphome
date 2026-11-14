@@ -12,6 +12,7 @@ from . import (
     CONF_LDO2,
     CONF_NPM1300_ID,
     NPM1300_CHILD_SCHEMA,
+    OUTPUTS,
 )
 
 DEPENDENCIES = ["npm1300"]
@@ -37,8 +38,8 @@ CONFIG_SCHEMA = NPM1300_CHILD_SCHEMA.extend(
 )
 
 
-def _output_apply(name: str) -> str:
-    return f"set_output_enabled(npm1300::NPM1300Output::NPM1300_OUTPUT_{name}, state)"
+def _output_apply(key: str) -> str:
+    return f"set_output_enabled({OUTPUTS[key]}, state)"
 
 
 async def to_code(config: ConfigType) -> None:
@@ -53,24 +54,24 @@ async def to_code(config: ConfigType) -> None:
     await switches(
         CONF_BUCK1,
         hub.set_buck1_switch,
-        apply=_output_apply("BUCK1"),
+        apply=_output_apply(CONF_BUCK1),
         publish="on_success",
     )
     await switches(
         CONF_BUCK2,
         hub.set_buck2_switch,
-        apply=_output_apply("BUCK2"),
+        apply=_output_apply(CONF_BUCK2),
         publish="on_success",
     )
     await switches(
         CONF_LDO1,
         hub.set_ldo1_switch,
-        apply=_output_apply("LDO1"),
+        apply=_output_apply(CONF_LDO1),
         publish="on_success",
     )
     await switches(
         CONF_LDO2,
         hub.set_ldo2_switch,
-        apply=_output_apply("LDO2"),
+        apply=_output_apply(CONF_LDO2),
         publish="on_success",
     )
