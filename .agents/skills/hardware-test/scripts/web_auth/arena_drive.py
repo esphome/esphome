@@ -82,6 +82,7 @@ def stream(stop: threading.Event) -> None:
             stats["stream_opens"] += 1
             s.settimeout(1)
             first = True
+            tail = b""
             while not stop.is_set():
                 try:
                     d = s.recv(8192)
@@ -95,8 +96,14 @@ def stream(stop: threading.Event) -> None:
                     stats["stream_errors"] += 1
                     time.sleep(1)
                     break
+                if first:
+                    d = d.partition(b"\r\n\r\n")[2]
                 first = False
                 stats["sse_bytes"] += len(d)
+                # keep the tail so an event line split across two reads is still counted
+                buf = tail + d
+                stats["sse_states"] += buf.count(b"event: state")
+                tail = buf[-11:]
             s.close()
         except OSError:
             stats["stream_errors"] += 1
@@ -155,6 +162,7 @@ def selector(stop: threading.Event) -> None:
 def phase(name: str, workers: list) -> bool:
     stats.update(
         sse_bytes=0,
+        sse_states=0,
         sse_closes=0,
         stream_opens=0,
         stream_errors=0,
@@ -194,7 +202,7 @@ def phase(name: str, workers: list) -> bool:
         (
             stream in workers
             and (
-                stats["sse_bytes"] == 0
+                stats["sse_states"] == 0
                 or stats["stream_errors"] * 2 > stats["stream_opens"]
             )
         )
@@ -211,7 +219,7 @@ def phase(name: str, workers: list) -> bool:
         time.strftime("[%H:%M:%S]"),
         f"PHASE {name}{'' if loaded else ' NOT LOADED'}: stack min {min(stacks) if stacks else None} B, heap "
         f"{min(heaps) if heaps else None}..{max(heaps) if heaps else None}, uptime {ups[:1]}..{ups[-1:]}, resets {resets}; "
-        f"sse bytes {stats['sse_bytes']}, sse closes {stats['sse_closes']}, stream opens {stats['stream_opens']} "
+        f"sse bytes {stats['sse_bytes']} states {stats['sse_states']}, sse closes {stats['sse_closes']}, stream opens {stats['stream_opens']} "
         f"errors {stats['stream_errors']}, connects {stats['connects']} errors {stats['connect_errors']} "
         f"(listing {min(lb) if lb else 0}..{max(lb) if lb else 0} B), select ok {stats['select_ok']} fail "
         f"{stats['select_fail']}, detail {stats['detail_bytes']} B ok {stats['detail_ok']} fail {stats['detail_fail']}",

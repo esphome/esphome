@@ -47,6 +47,7 @@ class Reader(threading.Thread):
         self.end = "deadline"
         self.t_end = None
         self.raw = b""
+        self.tail = b""
         self.sock = None
 
     def connect(self):
@@ -98,7 +99,10 @@ class Reader(threading.Thread):
             last = now
             if len(self.raw) < 200000:
                 self.raw += d
-            self.states += d.count(b"event: state")
+            # keep the tail so an event line split across two reads is still counted
+            buf = self.tail + d
+            self.states += buf.count(b"event: state")
+            self.tail = buf[-11:]
         s.close()
 
 

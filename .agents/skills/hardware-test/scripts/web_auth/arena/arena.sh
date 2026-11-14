@@ -55,5 +55,7 @@ grep -a "\[hwm" "$L" | sed -n '1p;$p'
 # -1 is an unknown stack base, not a reading; 0 is a stack used to its end
 LOW=$(grep -a "\[hwm" "$L" | sed -n 's/.*stack min \([0-9][0-9]*\) B.*/\1/p' | sort -n | head -1)
 echo "serial lowest stack min: $LOW"
+# no [hwm line means the capture never saw the running firmware, so the serial checks above prove nothing
+[ -n "$LOW" ] || { echo "FAIL: no stack min reading in $L"; RC=1; }
 [ "$LOW" = 0 ] && { echo "FAIL: the main task stack was used to its end"; RC=1; }
 exit $RC

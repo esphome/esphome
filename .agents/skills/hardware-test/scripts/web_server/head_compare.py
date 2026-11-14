@@ -2,7 +2,7 @@
 
 usage: head_compare.py A.bin B.bin NAME_A NAME_B [CHUNKS]
 Prints the first CHUNKS (default 6) masked chunks of each side and whether they are identical. Exits 1 when they
-differ, or when a file has no HTTP head or no event chunk (an empty or truncated capture).
+differ, or when a file has no HTTP head or no SSE event (an empty or truncated capture).
 """
 
 import pathlib
@@ -33,8 +33,9 @@ def chunks(path: str, name: str) -> list[str]:
 
 ca, cb = chunks(a, na), chunks(b, nb)
 for path, c in ((a, ca), (b, cb)):
-    if not c[0].startswith("HTTP/") or len(c) < 2:
-        sys.exit(f"FAIL: {path} has no HTTP head or no event chunk")
+    # the first chunk can be a bare blank line, so look for a real event line
+    if not c[0].startswith("HTTP/") or not any("event:" in x for x in c[1:]):
+        sys.exit(f"FAIL: {path} has no HTTP head or no SSE event")
 for i, (x, y) in enumerate(zip(ca, cb, strict=False)):
     print(f"--- chunk {i} {'same' if x == y else 'DIFFERENT'}")
     print(repr(x)[:400])
