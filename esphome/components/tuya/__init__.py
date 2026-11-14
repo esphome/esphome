@@ -17,7 +17,6 @@ CONF_ON_MCU_READY = "on_mcu_ready"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
 CONF_FORCE_TIME_SYNC = "force_time_sync"
-CONF_AUTO_BAUD = "auto_baud"
 CONF_MCU_WAKE_PIN = "mcu_wake_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
@@ -75,11 +74,6 @@ def _validate_time_options(config: ConfigType) -> ConfigType:
             f"{CONF_MCU_WAKE_PIN} requires protocol: low_power",
             path=[CONF_MCU_WAKE_PIN],
         )
-    if config[CONF_AUTO_BAUD] and config[CONF_PROTOCOL] != PROTOCOL_LOW_POWER:
-        raise cv.Invalid(
-            "auto_baud is only supported with protocol: low_power",
-            path=[CONF_AUTO_BAUD],
-        )
     return config
 
 
@@ -90,7 +84,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROTOCOL, default="standard"): cv.one_of(
                 "standard", PROTOCOL_LOW_POWER, lower=True
             ),
-            cv.Optional(CONF_AUTO_BAUD, default=False): cv.boolean,
             cv.Optional(CONF_MCU_WAKE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Optional(CONF_FORCE_TIME_SYNC, default=False): cv.boolean,
@@ -121,7 +114,6 @@ async def to_code(config):
         # Standard Tuya builds must not carry the low-power driver code or state.
         cg.add_define("USE_TUYA_LOW_POWER")
         cg.add(var.set_protocol(TuyaProtocol.TUYA_PROTOCOL_LOW_POWER))
-        cg.add(var.set_auto_baud(config[CONF_AUTO_BAUD]))
         await cg.add_pin(var.set_mcu_wake_pin, config.get(CONF_MCU_WAKE_PIN))
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         await cg.add_variable(var.set_time_id, time_id)

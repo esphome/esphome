@@ -69,18 +69,7 @@ void Tuya::loop() {
     return;
   }
 #endif
-  this->read_available([this](uint8_t b) {
-#ifdef USE_TUYA_LOW_POWER
-    // The UART may discover an RX overflow while filling its ring. Drop
-    // this read chunk rather than accepting a partial/incorrect MCU frame.
-    if (this->is_low_power_() && this->check_low_power_uart_rx_errors_()) {
-      this->discard_available();
-      return false;
-    }
-#endif
-    this->handle_char_(b);
-    return true;
-  });
+  this->read_available([this](uint8_t b) { this->handle_char_(b); });
 #ifdef USE_TUYA_LOW_POWER
   if (this->is_low_power_()) {
     this->loop_low_power_();
@@ -93,7 +82,9 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
 #ifdef USE_TUYA_LOW_POWER
-  this->dump_low_power_config_();
+  if (this->is_low_power_()) {
+    ESP_LOGCONFIG(TAG, "  Protocol: low_power");
+  }
 #endif
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
     if (this->init_failed_) {
@@ -169,10 +160,9 @@ bool Tuya::validate_message_() {
   }
 
   uint16_t length = encode_uint16(data[4], data[5]);
-  // Keep the low-power MCU parser bounded. Corrupted length bytes on a
-  // sleeping UART must not accumulate a 64-KiB heap buffer.
 #ifdef USE_TUYA_LOW_POWER
-  // The HC32 firmware 1.3.1 sends version 0; other TRV16 MCU firmware sends version 3 like standard Tuya MCUs.
+  // Low-power MCUs frame with version 0 or 3. A bounded length keeps noise on the line of a sleeping MCU from
+  // growing the receive buffer.
   if (this->is_low_power_() && (length > 512 || (version != 0 && version != 3))) {
     ESP_LOGW(TAG, "Invalid low-power MCU frame length/version: %u/%u", length, version);
     return false;
@@ -188,10 +178,6 @@ bool Tuya::validate_message_() {
   const uint8_t calc_checksum = sum_bytes(data, 6 + length);
 
   if (rx_checksum != calc_checksum) {
-#ifdef USE_TUYA_LOW_POWER
-    if (this->is_low_power_() && this->lp_standby_.requested())
-      this->cancel_low_power_standby_();
-#endif
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
     return false;
   }
@@ -210,10 +196,6 @@ bool Tuya::validate_message_() {
 }
 
 void Tuya::handle_char_(uint8_t c) {
-#ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_())
-    this->on_low_power_rx_byte_();
-#endif
   this->rx_message_.push_back(c);
   if (!this->validate_message_()) {
     this->rx_message_.clear();
@@ -627,10 +609,6 @@ void Tuya::process_command_queue_() {
 }
 
 void Tuya::send_command_(const TuyaCommand &command) {
-#ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_())
-    this->preempt_low_power_sleep_();
-#endif
   command_queue_.push_back(command);
   process_command_queue_();
 }

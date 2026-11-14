@@ -9,7 +9,6 @@ time:
 tuya:
   id: tuya_mcu
   protocol: low_power
-  auto_baud: true
   time_id: tuya_time
   mcu_wake_pin:
     number: ${mcu_wake_pin}

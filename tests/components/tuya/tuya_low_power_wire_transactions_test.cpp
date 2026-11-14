@@ -38,7 +38,7 @@ TEST(TuyaLowPowerWireTransactions, QueuedTransactions) {
   EXPECT_TRUE(t.faulted() && !t.active());
   EXPECT_FALSE(t.begin(0x09, 5000));  // new write cannot consume late old ACK
   EXPECT_FALSE(t.complete(0x09, 0));
-  t.recovered();  // caller must validate MCU product AND 17-DP state separately
+  t.recovered();  // The caller asks for the full status separately.
   EXPECT_TRUE(t.begin(0x09, 6000));
   t.transport_fault();
   EXPECT_FALSE(t.begin(0x02, 7000));

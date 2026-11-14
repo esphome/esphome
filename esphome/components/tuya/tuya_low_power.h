@@ -1,189 +1,114 @@
 #pragma once
 
 // MCU transaction bookkeeping, testable on the host without ESPHome or a platform.
-// Command 09 ACK and command 05 state reports are distinct events.
-#include <array>
-#include <cstddef>
 #include <cstdint>
-#include <vector>
 
 namespace esphome::tuya {
 
+/// Tracks whether the MCU's state is known and whether it can take a write.
+///
+/// A version-0 MCU reports its state as a series of CMD05 frames, after the module said it is online and after
+/// a write. The series has no end marker, so it counts as complete once the MCU has been quiet for QUIET_MS.
+/// A version-3 MCU sends its state in one CMD07 report; mark_synchronized() is called for it.
 class TuyaLowPowerSession {
  public:
-  static constexpr std::array<uint8_t, 17> FULL_STATUS_DPS = {
-      1, 3, 4, 2, 17, 16, 10, 11, 7, 19, 20, 108, 101, 102, 104, 105, 107,
-  };
-  static constexpr std::array<uint8_t, 8> REFRESH_DPS = {1, 3, 4, 2, 17, 16, 19, 20};
+  static constexpr uint32_t QUIET_MS = 500;
   static constexpr uint32_t REPORT_TIMEOUT_MS = 12000;
 
-  enum class WriteResult : uint8_t { NONE, CONFIRMED, TIMED_OUT };
+  enum class Event : uint8_t { EVENT_NONE, EVENT_SYNCHRONIZED, EVENT_TIMED_OUT };
 
-  void product_received() { product_ = true; }
-  bool has_product() const { return product_; }
-  bool synchronized() const { return synced_; }
-  bool faulted() const { return fault_; }
-  bool write_pending() const { return write_pending_; }
-  bool awaiting_ack() const { return write_pending_ && !write_acked_; }
-  bool refresh_pending() const { return write_pending_ && write_refresh_; }
-  WriteResult last_write_result() const { return last_result_; }
+  void product_received() { this->product_ = true; }
+  bool has_product() const { return this->product_; }
+  bool synchronized() const { return this->synced_; }
+  bool faulted() const { return this->fault_; }
+  bool busy() const { return this->status_pending_ || this->write_pending_; }
+  bool ready() const { return this->product_ && this->synced_ && !this->fault_ && !this->busy(); }
 
-  // MCU or network epoch changed: all previous state is now suspect.
+  /// The MCU or the network changed: the known state is no longer current.
   void reset_status() {
-    synced_ = false;
-    status_mask_ = 0;
-    full_status_active_ = false;
-    write_pending_ = false;
-    write_acked_ = false;
-    write_seen_ = false;
-    write_refresh_ = false;
-    refresh_mask_ = 0;
-    last_result_ = WriteResult::NONE;
+    this->synced_ = false;
+    this->status_pending_ = false;
+    this->write_pending_ = false;
   }
 
+  /// The module asked for the full state (network online); its CMD05 series follows.
   void begin_full_status(uint32_t now) {
-    status_mask_ = (1u << FULL_STATUS_DPS.size()) - 1u;
-    synced_ = false;
-    full_status_active_ = true;
-    status_started_ms_ = now;
+    this->synced_ = false;
+    this->status_pending_ = true;
+    this->reported_ = false;
+    this->started_ms_ = now;
   }
 
-  void begin_write(uint8_t id, uint8_t type, const uint8_t *value, size_t len, uint32_t now) {
-    write_pending_ = true;
-    write_acked_ = false;
-    write_seen_ = false;
-    write_refresh_ = (id == 106 && type == 1 && len == 1 && value != nullptr && value[0] == 1);
-    refresh_mask_ = write_refresh_ ? ((1u << REFRESH_DPS.size()) - 1u) : 0;
-    last_result_ = WriteResult::NONE;
-    write_id_ = id;
-    write_type_ = type;
-    expected_.clear();
-    if (len != 0 && value != nullptr)
-      expected_.assign(value, value + len);
-    write_started_ms_ = now;
+  /// A write (CMD09) was sent. It ends after the MCU's ACK and the reports that follow it.
+  void begin_write(uint32_t now) {
+    this->write_pending_ = true;
+    this->acked_ = false;
+    this->started_ms_ = now;
   }
 
-  void write_ack() {
-    if (!write_pending_)
+  void write_ack(uint32_t now) {
+    if (!this->write_pending_)
       return;
-    write_acked_ = true;
-    finish_write_();
+    this->acked_ = true;
+    this->last_report_ms_ = now;
   }
 
-  void observe_dp(uint8_t id, uint8_t type, const uint8_t *value, size_t len) {
-    for (size_t i = 0; i < FULL_STATUS_DPS.size(); ++i) {
-      if (status_mask_ && FULL_STATUS_DPS[i] == id) {
-        status_mask_ &= ~(1u << i);
-      }
-    }
-    if (status_started_() && status_mask_ == 0) {
-      full_status_active_ = false;
-      synced_ = true;
-      fault_ = false;
-    }
-
-    if (!write_pending_) {
-      return;
-    }
-    if (write_refresh_) {
-      for (size_t i = 0; i < REFRESH_DPS.size(); ++i) {
-        if (REFRESH_DPS[i] == id) {
-          refresh_mask_ &= ~(1u << i);
-        }
-      }
-      if (refresh_mask_ == 0) {
-        write_seen_ = true;
-      }
-    } else if (id == write_id_ && type == write_type_ && len == expected_.size()) {
-      bool equal = true;
-      for (size_t i = 0; i < len; ++i) {
-        if (expected_[i] != value[i]) {
-          equal = false;
-        }
-      }
-      // Mismatched/clamped MCU reports are published as *actual* state by
-      // Tuya, but are not mistaken for confirmation of the requested value.
-      if (equal) {
-        write_seen_ = true;
-      }
-    }
-    finish_write_();
+  /// A datapoint report (CMD05) arrived.
+  void observe_report(uint32_t now) {
+    this->reported_ = true;
+    this->last_report_ms_ = now;
   }
 
-  bool expire(uint32_t now, uint32_t max_age_ms = REPORT_TIMEOUT_MS) {
-    bool expired = false;
-    if (full_status_active_ && static_cast<uint32_t>(now - status_started_ms_) >= max_age_ms) {
-      status_mask_ = 0;
-      full_status_active_ = false;
-      synced_ = false;
-      expired = true;
+  /// Ends a status series or write after QUIET_MS without reports, or with a fault after REPORT_TIMEOUT_MS.
+  Event update(uint32_t now) {
+    if (this->status_pending_) {
+      if (this->reported_ && now - this->last_report_ms_ >= QUIET_MS) {
+        this->status_pending_ = false;
+        this->synced_ = true;
+        this->fault_ = false;
+        return Event::EVENT_SYNCHRONIZED;
+      }
+      if (now - this->started_ms_ >= REPORT_TIMEOUT_MS) {
+        this->command_timeout();
+        return Event::EVENT_TIMED_OUT;
+      }
     }
-    if (write_pending_ && static_cast<uint32_t>(now - write_started_ms_) >= max_age_ms) {
-      write_pending_ = false;
-      write_refresh_ = false;
-      refresh_mask_ = 0;
-      last_result_ = WriteResult::TIMED_OUT;
-      expired = true;
+    if (this->write_pending_) {
+      if (this->acked_ && now - this->last_report_ms_ >= QUIET_MS) {
+        this->write_pending_ = false;
+      } else if (now - this->started_ms_ >= REPORT_TIMEOUT_MS) {
+        this->command_timeout();
+        return Event::EVENT_TIMED_OUT;
+      }
     }
-    if (expired) {
-      synced_ = false;
-      fault_ = true;
-    }
-    return expired;
+    return Event::EVENT_NONE;
   }
 
+  /// No answer to a command: the state is unknown until the next full status.
   void command_timeout() {
-    synced_ = false;
-    fault_ = true;
-    if (write_pending_) {
-      write_pending_ = false;
-      write_refresh_ = false;
-      refresh_mask_ = 0;
-      last_result_ = WriteResult::TIMED_OUT;
-    }
-    status_mask_ = 0;
-    full_status_active_ = false;
+    this->synced_ = false;
+    this->fault_ = true;
+    this->status_pending_ = false;
+    this->write_pending_ = false;
   }
 
-  // MCUs that frame with version 3 report their status (CMD07) in one go after CMD08 and have no
-  // fixed DP list to wait for: their first complete report synchronizes the session.
+  /// A version-3 MCU sent its complete state in one report.
   void mark_synchronized() {
-    status_mask_ = 0;
-    full_status_active_ = false;
-    synced_ = true;
-    fault_ = false;
+    this->status_pending_ = false;
+    this->synced_ = true;
+    this->fault_ = false;
   }
 
-  bool busy() const { return full_status_active_ || write_pending_; }
-  bool ready() const { return product_ && synced_ && !fault_ && !busy(); }
-
- private:
-  bool status_started_() const { return full_status_active_; }
-  void finish_write_() {
-    if (!write_pending_ || !write_acked_ || !write_seen_)
-      return;
-    write_pending_ = false;
-    write_refresh_ = false;
-    refresh_mask_ = 0;
-    last_result_ = WriteResult::CONFIRMED;
-  }
-
+ protected:
+  uint32_t started_ms_{0};
+  uint32_t last_report_ms_{0};
   bool product_{false};
   bool synced_{false};
   bool fault_{false};
-  uint32_t status_mask_{0};
-  uint32_t status_started_ms_{0};
-  bool full_status_active_{false};
-  uint32_t write_started_ms_{0};
+  bool status_pending_{false};
+  bool reported_{false};
   bool write_pending_{false};
-  bool write_acked_{false};
-  bool write_seen_{false};
-  bool write_refresh_{false};
-  uint32_t refresh_mask_{0};
-  uint8_t write_id_{0};
-  uint8_t write_type_{0};
-  std::vector<uint8_t> expected_{};
-  WriteResult last_result_{WriteResult::NONE};
+  bool acked_{false};
 };
 
 }  // namespace esphome::tuya
