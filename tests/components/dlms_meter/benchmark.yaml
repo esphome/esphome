@@ -1,0 +1,14 @@
+# Declaring the sensor domain makes the C++ unit test build define USE_SENSOR.
+# Loaded with plain yaml.safe_load, so no ESPHome tags here.
+sensor:
+
+# One instance, so dlms_meter's to_code adds the dlms_parser library; the test builds its own.
+# A list, so the uart entries of other test directories are joined to it.
+uart:
+  - id: dlms_meter_uart_bus
+    port: /dev/null
+    baud_rate: 9600
+
+dlms_meter:
+  - id: dlms_meter_bench
+    uart_id: dlms_meter_uart_bus

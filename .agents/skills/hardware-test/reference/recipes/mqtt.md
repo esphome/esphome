@@ -79,3 +79,63 @@ Retest at c9cf3c2813 (shutdown message sent at QoS 1, teardown waits for the bro
 boards and 3/3 deep sleeps, against 1/10, 3/10 and 0/3 on base. An earlier 100 ms hold gave 3/10, 6/10 and 2/3, so
 judge a delivery fix by counts over 10 or more restarts, never one or two presses.
 Results: https://github.com/esphome/esphome/pull/21566#issuecomment-6382076613
+
+## MQTT discovery against a throwaway Home Assistant (#21956)
+
+Run a Home Assistant dev install with its own config directory (`hass -c <scratch>/ha`) holding `http:
+server_port: 8129`, `api:`, `config:`, `onboarding:` and MQTT debug logging, plus a local mosquitto on 1883. In
+`scripts/mqtt/ha_discovery/`, `onboard.py DIR` creates a generated test user (the credentials stay in DIR) and a
+token, `flow.py TOKENFILE` adds the MQTT entry (the `protocol` and `other_settings: {set_client_cert: false,
+set_ca_cert: "off", transport: tcp}` fields are required), and `hadrive.py TOKENFILE NAME` reads the device's time,
+date and datetime entities, calls `set_value` on each and reads again; it exits 1 on a missing entity, a failed
+call or a state that does not read back the value that was set. The three share the REST calls in `ha_rest.py`. `dt-common.yaml` is the device side (classic ESP32, three
+template datetime entities, `${broker}`).
+
+- The HA dev branch keeps a YAML port change as a pending HTTP config and reverts it after 5 minutes. Before
+  starting HA again, set `data.stable.server_port` to 8129 and `data.pending` to null in `.storage/http`.
+- ESPHome MQTT unique ids are name based: clear the previous build's retained discovery (`mosquitto_pub -r -n` on
+  each config topic) and expect the entity ids of the first build.
+
+## mqtt.disable and broker drops on ESP-IDF (#22230)
+
+`scripts/mqtt/disable/disable-common.yaml` disables MQTT for 30 s every 60 s (every third cycle starts with fast
+toggles, a disable while connecting), publishes a tick every 2 s and logs `EV CONNECT`, `EV DISCONNECT` and
+`EV MSG`. `run.sh LABEL outage|drop SECONDS` (env `TREE`, `PORT`, `SC`, `PY`, `BROKER`, `BROKER_PORT`) starts a
+private mosquitto so it can stop and start it, flashes and captures:
+- `outage` publishes to `md<LABEL>/in` every second and stops the broker inside a disabled window; `analyze.py`
+  prints per window the device connects, inbound messages, broker connects, ticks that reached the broker and the
+  time from enable to connect, and fails the run on a device connect or an inbound message inside a window.
+- `drop` stops the broker 6 s after every enable for 15 s. This is the case that found a watchdog reset: calling
+  `esp_mqtt_client_stop()` while the esp-mqtt task sleeps in WAIT_RECONNECT blocks the caller for up to
+  reconnect_timeout/2 (5 s), 6 of 6 task watchdog resets on an S3 and a C6.
+
+Both modes also fail when the device never connects or the broker was never stopped, and `outage` when no inbound
+message arrived.
+
+Use the host's current address for `BROKER`: a stale one gives `esp-tls select() timeout`. Before #22230 the client
+reconnects on its own during disable (14 of 16 windows). Results:
+https://github.com/esphome/esphome/pull/22230#issuecomment-6614854671
+
+## Retained message burst at connect (#22200)
+
+`scripts/mqtt/retained_burst/`: `burst-topics.yaml` (a package) subscribes 25 `on_message` topics plus 15 switch
+command topics, `burst-common.yaml` logs the counts 15 s after the connect, and `seed.sh BROKER_PORT` leaves all 40 retained on a local mosquitto (`seed.sh BROKER_PORT clear` removes them).
+`run.sh LABEL BOOTS` (env `TREE`, `PORT`, `SC`, `PY`, `BROKER`, `BROKER_PORT`, default board an ESP32-C3) resets the
+board BOOTS times and prints `RESULT got=x/25 switches_on=y/15` and any `Dropped` lines per boot; it passes only with
+40 of 40 on every boot. Before #22200 the C3 dropped exactly 49 events (80 events minus 31 slots): the main loop
+drains nothing during the burst.
+
+## Forced reconnect mid-burst (#22248)
+
+`scripts/mqtt/reconnect/`: `kick-common.yaml` includes the same `burst-topics.yaml` and counts per connection with
+a `mode: restart` script on `on_connect`, logging `RESULT` 6 s after each connect. It and `run.sh` use files from
+`../retained_burst/`, so copy the whole `mqtt/` directory to the scratch directory. `kick.py BROKER_LOG BROKER_PORT
+PREFIX CYCLES` tails the broker log and takes over the device's client id 0 to 400 ms after every other connect
+(mosquitto drops it with "session taken over"), then leaves the next connection alone for 8 s and ends it. It
+starts by kicking the connection that is already up and skips its own connections (from 127.0.0.1 with the same id).
+`run.sh LABEL CYCLES` (env as above plus `BROKER_LOG`) seeds, flashes, waits for the first connect and runs the
+kicker. The device counts its first connection as CONN 1, so the kicked ones are the even CONN numbers and the
+left-alone ones the odd numbers from 3 up; kick.py prints each left-alone connection with its time and CONN number,
+and `judge.py` pairs those with the RESULT lines by time and passes when every one has `got=25/25`. A reset after
+the first connect fails the run. Retained switch commands fire `on_turn_on` only on the first connection, so
+`switches_on` is not judged.

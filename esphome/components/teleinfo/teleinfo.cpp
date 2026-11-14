@@ -119,7 +119,7 @@ void TeleInfo::loop() {
        */
       while ((buf_finger = static_cast<uint8_t *>(memchr(buf_finger, (int) 0xa, buf_end - buf_finger)))) {
         /*
-         * Make sure timesamp is nullified between each tag as some tags don't
+         * Make sure timestamp is nullified between each tag as some tags don't
          * have a timestamp
          */
         timestamp_[0] = '\0';

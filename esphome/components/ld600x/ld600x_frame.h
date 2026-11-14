@@ -29,6 +29,7 @@ class FrameParser final {
   uint16_t length() const { return this->data_len_; }
   const uint8_t *data() const { return this->data_len_ == 0 ? nullptr : this->data_buf_; }
   uint16_t capacity() const { return this->max_data_len_; }
+  bool has_buffer() const { return this->data_buf_ != nullptr; }
   void reset() { this->parse_state_ = ParseState::PARSE_STATE_SOF; }
 
  protected:

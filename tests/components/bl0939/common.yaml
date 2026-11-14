@@ -18,3 +18,12 @@ sensor:
       name: BL0939 Total energy
     internal_temperature:
       name: BL0939 Internal Temperature
+  - platform: bl0939
+    anti_creep_threshold: 0
+    current_1:
+      name: BL0939 Current Without Anti-Creep
+  - platform: bl0939
+    mode: current_transformer
+    anti_creep_threshold: 255
+    current_2:
+      name: BL0939 Current With Maximum Anti-Creep

@@ -1,0 +1,32 @@
+# Peripheral (ESP32-S3): a 6-characteristic service 0xFFF0, then an FTMS-like 0x1826 service. Substitution: name.
+esphome:
+  name: ${name}
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+esp32_ble:
+  name: ${name}
+esp32_ble_server:
+  manufacturer: ESPHome
+  model: g22518
+  services:
+    - uuid: FFF0
+      advertise: true
+      characteristics:
+        - {uuid: FFF1, read: true, value: [1]}
+        - {uuid: FFF2, read: true, value: [2]}
+        - {uuid: FFF3, read: true, value: [3]}
+        - {uuid: FFF4, read: true, value: [4]}
+        - {uuid: FFF5, read: true, value: [5]}
+        - {uuid: FFF6, read: true, value: [6]}
+    - uuid: "1826"
+      characteristics:
+        - {uuid: 2ACC, read: true, value: [0, 0, 0, 0]}
+        - {uuid: 2ACD, read: true, notify: true, value: [0, 0]}
+  on_connect:
+    - logger.log: {format: "SRV connected", level: INFO}
+  on_disconnect:
+    - logger.log: {format: "SRV disconnected", level: INFO}

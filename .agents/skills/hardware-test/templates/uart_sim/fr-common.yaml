@@ -6,6 +6,7 @@ esp32:
 esphome:
   includes:
     - sim.hpp
+    - pmsim.hpp
 
 logger:
   level: VERBOSE

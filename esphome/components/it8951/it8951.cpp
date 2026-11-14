@@ -1043,11 +1043,7 @@ void IT8951Display::set_mono_pixel_(uint16_t x, uint16_t y, bool value) const {
 void IT8951Display::set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const {
   const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
   uint8_t buf = this->buffer_[index];
-  if (x & 0x1) {
-    buf = (buf & 0xF0) | nibble;
-  } else {
-    buf = (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
-  }
+  buf = x & 0x1 ? (buf & 0xF0) | nibble : (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
   this->buffer_[index] = buf;
 }
 
