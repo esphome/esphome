@@ -15,10 +15,16 @@ def test_children_register_before_setup_and_dump_from_hub(
         assert text in main_cpp, text
         return main_cpp.index(text)
 
-    hub_listener = at("tuya_hub->register_listener(1,")
+    hub_listener = max(
+        at("tuya_hub->register_listener(1,"), at("tuya_hub->register_listener(2,")
+    )
     for var, setter in (
         ("tuya_sensor", "set_sensor_id(1)"),
         ("tuya_select", "set_select_id(42,"),
+        ("tuya_binary_sensor", "set_sensor_id(5)"),
+        ("tuya_text_sensor", "set_sensor_id(6)"),
+        ("tuya_switch", "set_switch_id(7)"),
+        ("tuya_water_heater", "set_current_temperature_id(9)"),
     ):
         register = at(f"{var}->register_listeners();")
         assert hub_listener < register
