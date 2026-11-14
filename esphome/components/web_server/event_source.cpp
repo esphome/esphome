@@ -170,10 +170,9 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
 
-    // a (very) large number of these should be able to be queued initially without defer
-    // since the only thing in the send buffer at this point is the initial ping/config.
-    // A refusal means the socket is full or closing; the remaining groups are not sent. The
-    // session stays up on purpose: partial grouping beats a reconnect loop on a slow link.
+    // Groups the socket does not take yet queue in the tail behind the ping. A refusal means the
+    // tail is full or the stream is closing; the remaining groups are not sent. The session stays
+    // up on purpose: partial grouping beats a reconnect loop on a slow link.
     if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
       // A stream closing mid-greeting is not a failed send
       if (!this->is_closing()) {
@@ -263,6 +262,20 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
   return this->tail_cap_ != 0;
 }
 
+// Copy a chunk's prefix and its framed message pieces to dst
+static void copy_chunk(uint8_t *dst, const char *prefix, size_t prefix_len, const char *message, size_t message_len) {
+  std::memcpy(dst, prefix, prefix_len);
+  dst += prefix_len;
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) {
+        auto &out = *static_cast<uint8_t **>(ctx);
+        progmem_memcpy(out, piece, len);
+        out += len;
+      },
+      &dst);
+}
+
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   // A log event of nothing but line breaks is the largest chunk; reserve_tail_() must never
@@ -279,19 +292,35 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
     }
     return false;
   }
-  uint8_t *dst = this->tail_.get();
-  std::memcpy(dst, prefix, prefix_len);
-  dst += prefix_len;
-  for_each_chunk_piece(
-      message, message_len,
-      [](void *ctx, const char *piece, size_t len) {
-        auto &out = *static_cast<uint8_t **>(ctx);
-        progmem_memcpy(out, piece, len);
-        out += len;
-      },
-      &dst);
+  copy_chunk(this->tail_.get(), prefix, prefix_len, message, message_len);
   this->tail_len_ = total;
   this->tail_sent_ = sent;
+  return true;
+}
+
+bool AsyncEventSourceResponse::append_chunk_(const char *prefix, size_t prefix_len, const char *message,
+                                             size_t message_len, size_t total) {
+  const size_t pending = this->tail_len_ - this->tail_sent_;
+  const size_t need = pending + total;
+  if (need > TAIL_QUEUE_SIZE) {
+    return false;
+  }
+  if (need > this->tail_cap_) {
+    // Half the queue first, then all of it; kept, so a burst does not allocate per event
+    const size_t cap = need <= TAIL_QUEUE_SIZE / 2 ? TAIL_QUEUE_SIZE / 2 : TAIL_QUEUE_SIZE;
+    auto grown = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(cap);
+    if (!grown) {
+      return false;
+    }
+    std::memcpy(grown.get(), this->tail_.get() + this->tail_sent_, pending);
+    this->tail_ = std::move(grown);
+    this->tail_cap_ = cap;
+  } else if (this->tail_sent_ != 0) {
+    std::memmove(this->tail_.get(), this->tail_.get() + this->tail_sent_, pending);
+  }
+  copy_chunk(this->tail_.get() + pending, prefix, prefix_len, message, message_len);
+  this->tail_len_ = need;
+  this->tail_sent_ = 0;
   return true;
 }
 
@@ -370,7 +399,7 @@ AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_js
 #endif
 
 bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
-  if (!this->ready_to_send_()) {
+  if (!this->drain_if_idle_() || this->tail_len_ != 0) {
     return false;
   }
   char buffer[JSON_BUF_SIZE];
@@ -410,17 +439,17 @@ void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   this->stall_or_close_(LOG_STR("without memory"));
 }
 
-bool AsyncEventSourceResponse::ready_to_send_() {
+bool AsyncEventSourceResponse::drain_if_idle_() {
   if (this->sending_ || !this->is_connected() || this->is_closing()) {
     return false;
   }
   drain_tail_();
-  return !this->is_closing() && this->tail_len_ == 0;
+  return !this->is_closing();
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  if (!this->ready_to_send_()) {
+  if (!this->drain_if_idle_()) {
     return false;
   }
   SendGuard guard{*this};
@@ -464,6 +493,10 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   write_chunk_header(prefix, g.total - CHUNK_HDR_LEN - CHUNK_END_LEN);
   g.iov[0] = {prefix, prefix_len};
 
+  if (this->tail_len_ != 0) {
+    // Behind an unsent chunk (on ESP8266, one waiting for its ACK): queue it rather than drop it
+    return this->append_chunk_(prefix, prefix_len, message, message_len, g.total);
+  }
   // A message with more lines than the list holds skips straight to the tail
   const ssize_t sent = g.fits ? this->write(g.iov, g.iovcnt) : 0;
   if (sent < 0) {
