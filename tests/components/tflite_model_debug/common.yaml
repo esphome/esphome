@@ -1,0 +1,19 @@
+# tflite_model_debug extends the model handler, so the loader chain is
+# configured as well.
+tflite_output_processor:
+
+tflite_op_processor:
+
+tflite_memory_handler:
+
+tflite_model_loader:
+
+tflite_model_debug:
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // Tensor type names are used by the debug dumps; keeps the helper
+        // (and therefore this component's header) compiled in the test build.
+        using esphome::tflite_model_debug::debug_utils::tflite_type_to_string;
+        ESP_LOGI("tflite_model_debug", "output tensor type = %s", tflite_type_to_string(kTfLiteFloat32));
