@@ -34,41 +34,35 @@ void QMI8658Component::setup() {
     return;
 
   // 2. Soft reset
-  if (!this->write_byte(QMI8658_REG_RESET, QMI8658_RESET_CMD)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMI8658_REG_RESET, QMI8658_RESET_CMD)))
     return;
-  }
   delay(15);  // spec: wait for reset to complete
 
   // 3. Serial interface: enable register address auto-increment
-  if (!this->write_byte(QMI8658_REG_CTRL1, QMI8658_CTRL1_VALUE)) {
-    this->mark_failed(LOG_STR("Failed to write REG_CTRL1"));
+  if (!this->setup_check(this->write_byte(QMI8658_REG_CTRL1, QMI8658_CTRL1_VALUE),
+                         LOG_STR("Failed to write REG_CTRL1")))
     return;
-  }
 
   // 4. Configure accelerometer (CTRL2 = range | ODR)
-  if (!this->write_byte(QMI8658_REG_CTRL2, (uint8_t) (this->accel_range_) | (uint8_t) (this->accel_odr_))) {
-    this->mark_failed(LOG_STR("Failed to write REG_CTRL2"));
+  if (!this->setup_check(
+          this->write_byte(QMI8658_REG_CTRL2, (uint8_t) (this->accel_range_) | (uint8_t) (this->accel_odr_)),
+          LOG_STR("Failed to write REG_CTRL2")))
     return;
-  }
 
   // 5. Configure gyroscope (CTRL3 = range | ODR)
-  if (!this->write_byte(QMI8658_REG_CTRL3, (uint8_t) (this->gyro_range_) | (uint8_t) (this->gyro_odr_))) {
-    this->mark_failed(LOG_STR("Failed to write REG_CTRL3"));
+  if (!this->setup_check(
+          this->write_byte(QMI8658_REG_CTRL3, (uint8_t) (this->gyro_range_) | (uint8_t) (this->gyro_odr_)),
+          LOG_STR("Failed to write REG_CTRL3")))
     return;
-  }
 
   // 6. Disable the built-in low-pass filters (leave raw data to the motion pipeline)
-  if (!this->write_byte(QMI8658_REG_CTRL5, 0x00)) {
-    this->mark_failed(LOG_STR("Failed to write REG_CTRL5"));
+  if (!this->setup_check(this->write_byte(QMI8658_REG_CTRL5, 0x00), LOG_STR("Failed to write REG_CTRL5")))
     return;
-  }
 
   // 7. Enable accelerometer and gyroscope
-  if (!this->write_byte(QMI8658_REG_CTRL7, QMI8658_CTRL7_ACC_EN | QMI8658_CTRL7_GYR_EN)) {
-    this->mark_failed(LOG_STR("Failed to write REG_CTRL7"));
+  if (!this->setup_check(this->write_byte(QMI8658_REG_CTRL7, QMI8658_CTRL7_ACC_EN | QMI8658_CTRL7_GYR_EN),
+                         LOG_STR("Failed to write REG_CTRL7")))
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "QMI8658 initialised successfully");
 }

@@ -8,15 +8,13 @@ from esphome.components.spi import TYPE_QUAD
 from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 # fmt: off
-DriverChip(
-    "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+SPD2010 = DriverChip(
+    "SPD2010",
     width=412,
     height=412,
     bus_mode=TYPE_QUAD,
     spi_mode="MODE0",
     data_rate="40MHz",
-    cs_pin=21,
-    reset_pin={"pca9554": None, "number": 1},
     color_order=MODE_RGB,
     draw_rounding=4,
     transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
@@ -415,3 +413,15 @@ DriverChip(
     ),
 )
 # fmt: on
+
+SPD2010.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+    cs_pin=21,
+    reset_pin={"pca9554": None, "number": 1},
+)
+
+# The panel reset is wired to the chip reset, so only the software reset is available.
+SPD2010.extend(
+    "SEEED-SENSECAP-WATCHER",
+    cs_pin={"number": 45, "ignore_strapping_warning": True},
+)

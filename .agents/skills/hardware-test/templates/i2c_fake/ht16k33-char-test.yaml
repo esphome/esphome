@@ -1,0 +1,201 @@
+esphome:
+  name: htpr
+  includes:
+    - htfake.hpp
+  on_boot:
+    - priority: 900
+      then:
+        - lambda: |-
+            id(d1)->set_i2c_bus(&htfake::bus);
+            id(d2)->set_i2c_bus(&htfake::bus);
+            id(d3)->set_i2c_bus(&htfake::bus);
+            id(d4)->set_i2c_bus(&htfake::bus);
+    - priority: -100
+      then:
+        - delay: 4s
+        - lambda: |-
+            using namespace htfake;
+            auto *d = id(d1);
+            // setup sequence per chip: oscillator, cleared frame, display on, dimming
+            check("setup 0x70", bus.chips[0].log, "21 D 81 EA ");
+            check("setup 0x71", bus.chips[1].log, "21 D 81 EA ");
+            check("setup 0x72", bus.chips[2].log, "21 D 81 EA ");
+            check("setup 0x73", bus.chips[3].log.substr(0, 12), "21 D 81 EF D");
+            check("setup render", r3(), "    |    |    ");
+            check("d1 ready", d->is_ready(), 1);
+            check("d3 nack primary failed", id(d3)->is_failed(), 1);
+            check("d4 nack secondary failed", id(d4)->is_failed(), 1);
+            check("d4 primary trace", bus.chips[5].log, "21 ");
+            check("d3 d4 setup hit the nacking chips", bus.chips[4].nacked > 0 && bus.chips[6].nacked > 0, 1);
+            id(nack_mark) = bus.chips[4].nacked + bus.chips[6].nacked;
+            bus.clear_logs();
+
+            d->clear(); d->print("12:34"); d->update();
+            check("colon", r3(), "12:34|    |    ");
+            check("one frame per chip", bus.chips[0].log + bus.chips[1].log + bus.chips[2].log, "D D D ");
+            d->clear(); d->print("1234.5678.9"); d->update();
+            check("dp across chips", r3(), "1234.|5678.|9   ");
+            d->clear(); d->print(".1.2."); d->update();
+            check("leading dot", r3(), "1.2.  |    |    ");
+            d->clear(); d->print("1..2"); d->update();
+            check("double dot", r3(), "1.2  |    |    ");
+            d->clear(); d->print("1:234"); d->update();
+            check("colon at wrong place", r3(), "1234|    |    ");
+            d->clear(); d->print("12:34:56"); d->update();
+            check("second colon", r3(), "12:34|56  |    ");
+            d->clear(); d->printf("%d°C", 21); d->update();
+            check("degree override", r3(), "21*C|    |    ");
+            d->clear(); d->print("YAY"); d->update();
+            check("Y overridden to blank", r3(), " A  |    |    ");
+            d->clear(); d->print("K~éx8"); d->update();
+            check("unknown chars blank", r3(), "    |8   |    ");
+            d->clear(); d->print("HELLO-Pb"); d->update();
+            check("letters", r3(), "HELL|0-Pb|    ");
+            d->clear(); check("pad ret", d->print(5, "7"), 1); d->update();
+            check("pad", r3(), "    | 7  |    ");
+            d->clear();
+            check("trunc ret", d->print("0123456789012345678901234567890"), 24);
+            d->update();
+            check("trunc only 12 digits shown", r3(), "0123|4567|8901");
+            d->clear(); check("utf8 cut at capacity", d->print(23, "°"), 0);
+            check("pos past capacity", d->print(24, "1"), 0);
+            d->clear(); check("printf ret", d->printf(4, "%04d", 42), 4); d->update();
+            check("printf pos", r3(), "    |0042|    ");
+            d->clear(); d->print("1111"); d->print(2, "22"); d->update();
+            check("overwrite", r3(), "1122|    |    ");
+            d->clear(); d->strftime("%H%M", ESPTime::from_epoch_utc(1699952700)); d->update();
+            check("strftime", r3(), "0905|    |    ");
+            d->clear(); d->strftime(4, "%d.%m", ESPTime::from_epoch_utc(1699952700)); d->update();
+            check("strftime pos", r3(), "    |14.11|    ");
+            d->clear(); d->clock_display(0, false, false, ESPTime::from_epoch_utc(1699952700)); d->update();
+            check("clock no lead", r3(), " 9:05|    |    ");
+            d->clear(); d->clock_display(0, true, false, ESPTime::from_epoch_utc(1699952700)); d->update();
+            check("clock lead", r3(), "09:05|    |    ");
+            d->clear(); d->clock_display(0, false, true, ESPTime::from_epoch_utc(1699995900)); d->update();
+            check("clock ampm 21:05", r3(), " 9:05|    |    ");
+            d->clear(); d->clock_display(0, false, false, ESPTime::from_epoch_utc(1699995900)); d->update();
+            check("clock 24h 21:05", r3(), "21:05|    |    ");
+            d->clear(); d->clock_display(0, true, true, ESPTime::from_epoch_utc(1699920420)); d->update();
+            check("clock ampm 00:07", r3(), "12:07|    |    ");
+            d->clear(); d->clock_display(4, false, false, ESPTime::from_epoch_utc(1699952700)); d->update();
+            check("clock on 2nd chip", r3(), "    | 9:05|    ");
+            d->clear(); check("long printf ret", d->printf("%s", "this text is longer than sixty four bytes so vsnprintf truncates it ok"), 24); d->update();
+            check("long printf", r3(), "th  | t  |t   ");
+
+            bus.clear_logs();
+            d->set_intensity(20);
+            check("intensity clamp", bus.chips[0].log + bus.chips[1].log + bus.chips[2].log, "EF EF EF ");
+            bus.clear_logs(); d->set_intensity(0);
+            check("intensity 0", bus.chips[0].log, "E0 ");
+            bus.clear_logs(); d->set_intensity(7);
+            check("intensity 7", bus.chips[2].log, "E7 ");
+            bus.clear_logs();
+            d->set_blink(1); d->set_blink(2); d->set_blink(3); d->set_blink(9);
+            check("blink", bus.chips[0].log, "83 85 87 81 ");
+            bus.clear_logs();
+            d->set_blink(2); d->display_off(true); d->display_off(false); d->set_blink(0);
+            check("off keeps blink", bus.chips[1].log, "85 84 85 81 ");
+            bus.clear_logs();
+            d->display_standby(true);
+            check("standby", bus.chips[0].log + bus.chips[2].log, "20 20 ");
+            check("osc off", bus.chips[1].osc, 0);
+            d->display_standby(false);
+            check("resume", bus.chips[1].log, "20 21 ");
+            check("osc on", bus.chips[1].osc, 1);
+            d->clear(); d->print("8.8.:8.8."); d->update();
+            check("all on", r3(), "8.8.:8.8.|    |    ");
+            d->blank();
+            check("blank", r3(), "    |    |    ");
+            d->update();
+            check("redraw after blank", r3(), "8.8.:8.8.|    |    ");
+
+            // runtime NACK on the middle chip: other chips still drawn, warning set then cleared
+            d->clear(); d->print("111122223333");
+            bus.chips[1].nack = true; d->update();
+            check("nack warning", d->status_has_warning(), 1);
+            check("nack others drawn", r3(), "1111|    |3333");
+            check("nack not failed", d->is_failed(), 0);
+            bus.chips[1].nack = false; d->update();
+            check("nack recovered", d->status_has_warning(), 0);
+            check("recovered draw", r3(), "1111|2222|3333");
+            bus.chips[0].nack = true; d->set_intensity(3);
+            check("cmd nack warning", d->status_has_warning(), 1);
+            bus.chips[0].nack = false; d->set_intensity(15);
+            check("cmd recovered", d->status_has_warning(), 0);
+            int bad = 0; for (auto &c : bus.chips) bad += c.bad;
+            check("malformed transfers", bad, 0);
+            check("unknown address", bus.unknown, 0);
+            ESP_LOGI("htfake", "D1 DONE pass=%u fail=%u %s", (unsigned) pass_n, (unsigned) fail_n,
+                     pass_n && !fail_n ? "PASS" : "FAIL");
+        - delay: 3500ms
+        - lambda: |-
+            using namespace htfake;
+            // d2 redraws from its lambda every second; buffer is emptied before each call
+            std::string d2 = bus.render(0x73);
+            check("d2 lambda", d2.substr(0, 1) == " " && d2.substr(3, 1) != " ", 1);
+            ESP_LOGI("htfake", "d2 now [%s] frames=%u cnt=%d", d2.c_str(), (unsigned) bus.chips[3].frames, id(cnt));
+            check("d2 frames", bus.chips[3].frames >= 4, 1);
+            check("d3 d4 no transfers after setup", bus.chips[4].nacked + bus.chips[6].nacked, id(nack_mark));
+            check("d4 no frames", bus.chips[5].frames, 0);
+            ESP_LOGI("htfake", "ALL DONE pass=%u fail=%u %s", (unsigned) pass_n, (unsigned) fail_n,
+                     pass_n && !fail_n ? "PASS" : "FAIL");
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: UART0
+  level: DEBUG
+
+globals:
+  - id: cnt
+    type: int
+    initial_value: "0"
+  - id: nack_mark
+    type: uint32_t
+    initial_value: "0"
+
+i2c:
+  sda: GPIO17
+  scl: GPIO18
+  scan: false
+
+display:
+  - platform: ht16k33_char
+    id: d1
+    device: ADAFRUIT_7_SEG_.56IN
+    address: 0x70
+    intensity: 10
+    max_buffer_length: 24
+    update_interval: never
+    secondary_displays:
+      - address: 0x71
+      - address: 0x72
+    add_characters:
+      "°": 0x63
+      "Y": 0
+  - platform: ht16k33_char
+    id: d2
+    device: ADAFRUIT_7_SEG_.56IN
+    address: 0x73
+    update_interval: 1s
+    add_characters:
+      "°": 0x63
+    lambda: |-
+      it.printf("%4d", ++id(cnt));
+  - platform: ht16k33_char
+    id: d3
+    device: ADAFRUIT_7_SEG_.56IN
+    address: 0x74
+    update_interval: never
+  - platform: ht16k33_char
+    id: d4
+    device: ADAFRUIT_7_SEG_.56IN
+    address: 0x75
+    update_interval: never
+    secondary_displays:
+      - address: 0x76

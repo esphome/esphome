@@ -1,0 +1,39 @@
+# remote_transmitter and remote_receiver on the same pin (GPIO12), no jumper: one NEC frame every 250 ms, each one
+# checked by the receiver's edge interrupt. Substitutions: name, board.
+substitutions:
+  board: d1_mini
+packages:
+  base: !include base.yaml
+globals:
+  - {id: sent, type: uint32_t, initial_value: "0"}
+  - {id: rx_ok, type: uint32_t, initial_value: "0"}
+  - {id: rx_bad, type: uint32_t, initial_value: "0"}
+remote_transmitter:
+  id: irtx
+  pin:
+    number: GPIO12
+    allow_other_uses: true
+  carrier_duty_percent: 100%
+remote_receiver:
+  pin:
+    number: GPIO12
+    allow_other_uses: true
+  on_nec:
+    then:
+      - lambda: |-
+          if (x.address == 0x1234 && x.command == (uint16_t) (0x7800 | (id(sent) & 0xFF))) id(rx_ok)++; else id(rx_bad)++;
+interval:
+  - interval: 250ms
+    then:
+      # The receiver's setup leaves the shared pin as an input; drive it again before each frame
+      - lambda: |-
+          pinMode(12, OUTPUT);
+          id(sent)++;
+      - remote_transmitter.transmit_nec:
+          address: 0x1234
+          command: !lambda return (uint16_t) (0x7800 | (id(sent) & 0xFF));
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("lock", "ALIVE up=%u sent=%u rx_ok=%u rx_bad=%u heap=%u", (unsigned) (millis() / 1000),
+                   (unsigned) id(sent), (unsigned) id(rx_ok), (unsigned) id(rx_bad), (unsigned) ESP.getFreeHeap());

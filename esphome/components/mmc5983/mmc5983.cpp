@@ -55,15 +55,9 @@ void MMC5983Component::update() {
   //   data[4]: Zout[17:10]
   //   data[5]: Zout[9:2]
   //   data[6]: { Xout[1], Xout[0], Yout[1], Yout[0], Zout[1], Zout[0], 0, 0 }
-  if (this->x_sensor_) {
-    this->x_sensor_->publish_state(convert_data_to_millitesla(data[0], data[1], (data[6] & 0b11000000) >> 6));
-  }
-  if (this->y_sensor_) {
-    this->y_sensor_->publish_state(convert_data_to_millitesla(data[2], data[3], (data[6] & 0b00110000) >> 4));
-  }
-  if (this->z_sensor_) {
-    this->z_sensor_->publish_state(convert_data_to_millitesla(data[4], data[5], (data[6] & 0b00001100) >> 2));
-  }
+  PUBLISH_STATE(this->x_sensor_, convert_data_to_millitesla(data[0], data[1], (data[6] & 0b11000000) >> 6));
+  PUBLISH_STATE(this->y_sensor_, convert_data_to_millitesla(data[2], data[3], (data[6] & 0b00110000) >> 4));
+  PUBLISH_STATE(this->z_sensor_, convert_data_to_millitesla(data[4], data[5], (data[6] & 0b00001100) >> 2));
 }
 
 void MMC5983Component::setup() {

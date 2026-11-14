@@ -10,6 +10,7 @@ interval_ns = cg.esphome_ns.namespace("interval")
 IntervalTrigger = interval_ns.class_(
     "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
 )
+DelayedIntervalTrigger = interval_ns.class_("DelayedIntervalTrigger", IntervalTrigger)
 
 CONFIG_SCHEMA = automation.validate_automation(
     cv.Schema(
@@ -26,9 +27,12 @@ CONFIG_SCHEMA = automation.validate_automation(
 
 async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds:
+            conf[CONF_ID].type = DelayedIntervalTrigger
+            var = cg.new_Pvariable(conf[CONF_ID], startup_delay)
+        else:
+            var = cg.new_Pvariable(conf[CONF_ID])
         await cg.register_component(var, conf)
         await automation.build_automation(var, [], conf)
 
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))
-        cg.add(var.set_startup_delay(conf[CONF_STARTUP_DELAY]))

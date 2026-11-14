@@ -15,16 +15,17 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(co2)
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
+  // Input sensors for compensation
+  SUB_SENSOR(temperature_source)
+  SUB_SENSOR(humidity_source)
+  SUB_SENSOR(ambient_pressure_source)
 
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
 
-  void set_temperature_source(sensor::Sensor *temperature) { this->temperature_source_ = temperature; }
-  void set_humidity_source(sensor::Sensor *humidity) { this->humidity_source_ = humidity; }
   void set_ambient_pressure_compensation(float pressure_in_hpa);
-  void set_ambient_pressure_source(sensor::Sensor *pressure) { this->ambient_pressure_source_ = pressure; }
   void set_measurement_mode(MeasurementMode mode) { this->measurement_mode_ = mode; }
 
  protected:
@@ -36,10 +37,6 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
   void update_ambient_pressure_compensation_from_source_();
   bool write_rht_compensation_(uint16_t temperature_in_ticks, uint16_t humidity_in_ticks);
   bool write_ambient_pressure_compensation_(uint16_t pressure_in_pa_2);
-
-  sensor::Sensor *temperature_source_{nullptr};
-  sensor::Sensor *humidity_source_{nullptr};
-  sensor::Sensor *ambient_pressure_source_{nullptr};
 
   MeasurementMode measurement_mode_{MeasurementMode::CONTINUOUS};
 

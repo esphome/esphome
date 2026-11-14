@@ -21,6 +21,10 @@ static const std::vector<uint8_t> PLAIN_FRAME = {0x50, 0x20, 0xAA, 0x01, 0x05, 0
 static const std::vector<uint8_t> ENCRYPTED_FRAME = {0x58, 0x58, 0x5B, 0x05, 0x07, 0x11, 0x22, 0x33,
                                                      0x44, 0x55, 0x66, 0x19, 0x5F, 0x86, 0x6A, 0x56,
                                                      0x01, 0x02, 0x03, 0xA4, 0x77, 0xE8, 0x30};
+// LYWSD02MMC hardware revision F3_A1 (product ID 0x16E4), no MAC, frame count 9,
+// temperature 23.5 °C, encrypted with BINDKEY for MAC
+static const std::vector<uint8_t> LYWSD02MMC_16E4_FRAME = {0x48, 0x58, 0xE4, 0x16, 0x09, 0x43, 0xCD, 0x6D, 0x59, 0x95,
+                                                           0x4F, 0x60, 0x01, 0x02, 0x03, 0xD9, 0xE1, 0x32, 0xDF};
 static constexpr std::initializer_list<uint8_t> BINDKEY = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
                                                            0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
 static constexpr std::initializer_list<uint8_t> WRONG_BINDKEY = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
@@ -109,6 +113,17 @@ TEST(XiaomiDevice, FailedDecryptionDoesNotAdvanceFrameCount) {
   EXPECT_FALSE(sensor.parse_device(device));
   sensor.set_bindkey(BINDKEY);
   EXPECT_TRUE(sensor.parse_device(device));
+}
+
+TEST(XiaomiDevice, DecryptsLywsd02mmcAlternateProductId) {
+  auto device = device_from(MAC, LYWSD02MMC_16E4_FRAME);
+  RecordingEncryptedDevice sensor;
+  sensor.set_address(device.address_uint64());
+  sensor.set_bindkey(BINDKEY);
+  EXPECT_TRUE(sensor.parse_device(device));
+  ASSERT_EQ(sensor.results.size(), 1u);
+  EXPECT_EQ(sensor.results[0].type, XiaomiParseResult::TYPE_LYWSD02MMC);
+  EXPECT_FLOAT_EQ(sensor.results[0].temperature.value_or(NAN), 23.5f);
 }
 
 }  // namespace esphome::xiaomi_ble::testing

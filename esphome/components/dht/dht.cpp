@@ -162,7 +162,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
             BYTE_TO_BINARY(data[0]), BYTE_TO_BINARY(data[1]), BYTE_TO_BINARY(data[2]), BYTE_TO_BINARY(data[3]),
             BYTE_TO_BINARY(data[4]));
 
-  uint8_t checksum_a = data[0] + data[1] + data[2] + data[3];
+  uint8_t checksum_a = sum_bytes(data, 4);
   // On the DHT11, two algorithms for the checksum seem to be used, either the one from the DHT22,
   // or just using bytes 0 and 2
   uint8_t checksum_b = this->model_ == DHT_MODEL_DHT11 ? (data[0] + data[2]) : checksum_a;
@@ -195,14 +195,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     }
   } else {
     uint16_t raw_humidity = encode_uint16(data[0], data[1]);
-    uint16_t raw_temperature = encode_uint16(data[2], data[3]);
-
-    if (raw_temperature & 0x8000) {
-      if (!(raw_temperature & 0x4000))
-        raw_temperature = ~(raw_temperature & 0x7FFF);
-    } else if (raw_temperature & 0x800) {
-      raw_temperature |= 0xf000;
-    }
+    const int16_t raw_temperature = decode_dht22_temperature(encode_uint16(data[2], data[3]));
 
     if (raw_temperature == 1 && raw_humidity == 10) {
       if (report_errors) {
@@ -214,7 +207,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     *humidity = static_cast<float>(raw_humidity) * 0.1f;
     if (*humidity > 100.0f)
       *humidity = NAN;
-    *temperature = static_cast<int16_t>(raw_temperature) * 0.1f;
+    *temperature = raw_temperature * 0.1f;
   }
 
   if (*temperature == 0.0f && (*humidity == 1.0f || *humidity == 2.0f)) {
