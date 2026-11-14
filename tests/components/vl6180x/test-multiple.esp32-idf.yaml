@@ -1,0 +1,22 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+vl6180x:
+  - id: vl6180x_near
+    i2c_id: i2c_bus
+    address: 0x30
+    enable_pin: GPIO4
+    interrupt_pin: GPIO18
+    update_interval: 60s
+    range:
+      name: Near Distance
+      scaler: 3
+  - id: vl6180x_far
+    i2c_id: i2c_bus
+    address: 0x31
+    enable_pin: GPIO13
+    interrupt_pin: GPIO19
+    update_interval: 60s
+    range:
+      name: Far Distance
+      scaler: 2
