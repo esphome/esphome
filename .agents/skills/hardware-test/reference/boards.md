@@ -25,6 +25,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - AsyncMqttClient drops inbound topics over 128 characters; topics of 255 or more wrap a counter and
   stall the link until the broker drops TCP.
 - `Arduino.h` already declares `_heap_start`; a lambda can use `&_heap_start` directly, and a second `extern` fails.
+- `Hardware Watchdog` with `wDev_ProcessFiq` in the stack means interrupts were held off too long for the Wi-Fi
+  interrupt handler; `Software Watchdog` with `pm_send_nullfunc` means the loop was busy too long. Code that takes
+  interrupt locks needs a load run to show either (`scripts/esp8266_lock_load/`, see recipes/one_wire.md).
 - `GPI` bits 16 to 31 are strapping bits (mask with 0xFFFF). GPIO16 has no interrupt; read `GP16O` for an output.
 
 ## ESP32 classic devkit

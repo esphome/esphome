@@ -26,7 +26,9 @@ def test_gpio_binary_sensor_basic_setup(
     assert "App.register_binary_sensor" in main_cpp
     # set_use_interrupt(true) should NOT be generated (uses C++ default)
     assert "bs_gpio->set_use_interrupt(true);" not in main_cpp
-    assert "bs_gpio->set_interrupt_type(gpio::INTERRUPT_ANY_EDGE);" in main_cpp
+    # ANY is the C++ default, so no setter call
+    assert "bs_gpio->set_interrupt_type(" not in main_cpp
+    assert "bs_rising->set_interrupt_type(gpio::INTERRUPT_RISING_EDGE);" in main_cpp
 
 
 def test_gpio_binary_sensor_esp8266_gpio16_disables_interrupt(
@@ -60,7 +62,7 @@ def test_gpio_binary_sensor_esp8266_other_pins_use_interrupt(
 
     # GPIO5 should still use interrupts (default, so no setter call)
     assert "bs_gpio5->set_use_interrupt(true);" not in main_cpp
-    assert "bs_gpio5->set_interrupt_type(gpio::INTERRUPT_ANY_EDGE);" in main_cpp
+    assert "bs_gpio5->set_interrupt_type(" not in main_cpp
 
 
 def test_gpio_binary_sensor_explicit_polling_mode(
@@ -133,3 +135,18 @@ def test_gpio_binary_sensor_expander_pin_omits_define(
     assert "bs_expander->set_use_interrupt(false);" in main_cpp
     assert INTERRUPT_DEFINE not in {d.name for d in CORE.defines}
     assert "falling back to polling mode" in caplog.text
+
+
+def test_gpio_binary_sensor_shared_pin_modes(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """
+    A pin shared only with the deep_sleep wakeup pin keeps interrupts, a pin
+    shared with any other component falls back to polling
+    """
+    main_cpp = generate_main(
+        "tests/component_tests/gpio/test_gpio_binary_sensor_shared.yaml"
+    )
+
+    assert "bs_deep_sleep->set_use_interrupt" not in main_cpp
+    assert "bs_shared->set_use_interrupt(false);" in main_cpp
