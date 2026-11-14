@@ -49,8 +49,6 @@ binary_sensor:
       name: Charging
     charge_complete:
       name: Charge Complete
-    battery_detected:
-      name: Battery Detected
     charger_error:
       name: Charger Error
 

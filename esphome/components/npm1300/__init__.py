@@ -136,6 +136,7 @@ def _stepped(
 
 
 OUTPUT_VOLTAGE = _stepped(cv.voltage, 1000, 3300, 100, "V")
+VBUS_CURRENT_LIMIT = _one_of_units(cv.current, [100, *range(500, 1501, 100)], "A")
 
 BUCK_SCHEMA = cv.Schema(
     {
@@ -177,9 +178,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(NPM1300Component),
-            cv.Optional(CONF_VBUS_CURRENT_LIMIT): _one_of_units(
-                cv.current, [100, *range(500, 1501, 100)], "A"
-            ),
+            cv.Optional(CONF_VBUS_CURRENT_LIMIT): VBUS_CURRENT_LIMIT,
             cv.Optional(CONF_THERMISTOR_RESISTANCE): _one_of_units(
                 cv.resistance, list(THERMISTOR_RESISTANCES), "kOhm", scale=0.001
             ),
@@ -200,6 +199,11 @@ CONFIG_SCHEMA = (
 
 def _termination_voltage_code(volts: float) -> int:
     return TERMINATION_VOLTAGES.index(_millis(volts))
+
+
+def _vbus_current_limit_code(amps: float) -> int:
+    """VBUSINILIM0: 100 mA per step of the code."""
+    return _millis(amps) // 100
 
 
 def _charger_config(config: ConfigType) -> cg.StructInitializer:
@@ -268,7 +272,7 @@ async def to_code(config: ConfigType) -> None:
     )
     var = await i2c.new_i2c_component(config, table)
     if (limit := config.get(CONF_VBUS_CURRENT_LIMIT)) is not None:
-        cg.add(var.set_vbus_current_limit(_millis(limit) // 100))
+        cg.add(var.set_vbus_current_limit(_vbus_current_limit_code(limit)))
 
 
 automation.register_apply_action(

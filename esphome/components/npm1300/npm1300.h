@@ -91,6 +91,8 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void update() override;
   void dump_config() override;
+  // Right after the I2C bus: the regulators may power other peripherals
+  float get_setup_priority() const override { return setup_priority::BUS - 1.0f; }
 
 #ifdef USE_NPM1300_STATUS_PUBLISHER
   HUB_PUBLISHER(status, uint8_t, uint8_t, uint8_t)
@@ -102,7 +104,7 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   HUB_PUBLISHER(dump, const char *)
 #endif
 
-  /// VBUSINILIM0 code: 1 for 100 mA, 5 to 15 for 500 mA to 1500 mA
+  /// VBUSINILIM0 code: 100 mA per step of the code, codes 0 and 1 are both 100 mA
   void set_vbus_current_limit(uint8_t code) { this->vbus_current_limit_ = code; }
 
   /// Turn the battery charger on or off; turning it on also clears a charger error
@@ -130,7 +132,8 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   void read_measurements_();
 #endif
 #ifdef USE_SWITCH
-  void publish_switches_();
+  /// Returns false when a status read failed
+  bool publish_switches_();
 #endif
 
   const NPM1300Config *config_;

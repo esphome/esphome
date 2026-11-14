@@ -18,6 +18,7 @@ static constexpr uint16_t REG_VBUSIN_ILIM0 = 0x0201;
 static constexpr uint16_t REG_VBUSIN_ILIM_STARTUP = 0x0202;
 static constexpr uint16_t REG_VBUSIN_STATUS = 0x0207;
 static constexpr uint16_t REG_BCHG_TASK_RELEASE_ERR = 0x0300;
+static constexpr uint16_t REG_BCHG_TASK_CLEAR_CHG_ERR = 0x0301;
 static constexpr uint16_t REG_BCHG_ENABLE_SET = 0x0304;
 static constexpr uint16_t REG_BCHG_ENABLE_CLR = 0x0305;
 static constexpr uint16_t REG_BCHG_DISABLE_SET = 0x0306;
@@ -52,8 +53,7 @@ static constexpr uint16_t REG_SHIP_TASK_SHIP_MODE = 0x0B02;
 
 // VBUSINSTATUS
 static constexpr uint8_t VBUS_PRESENT = 0x01;
-// BCHGCHARGESTATUS
-static constexpr uint8_t CHARGE_STATUS_BATTERY_DETECTED = 0x01;
+// BCHGCHARGESTATUS; bit 0 (battery detected) is reserved since C00 silicon
 static constexpr uint8_t CHARGE_STATUS_COMPLETED = 0x02;
 static constexpr uint8_t CHARGE_STATUS_TRICKLE = 0x04;
 static constexpr uint8_t CHARGE_STATUS_CONSTANT_CURRENT = 0x08;
@@ -87,6 +87,7 @@ static uint16_t join_9bit(const uint8_t *in) { return (in[0] << 1) | (in[1] & 1)
 // ADCIBATMEASSTATUS
 static constexpr uint8_t IBAT_MEAS_INVALID = 0x10;
 static constexpr uint8_t IBAT_MODE_SHIFT = 2;
+static constexpr uint8_t IBAT_MODE_DISCHARGE = 0x01;
 static constexpr uint8_t IBAT_MODE_CHARGE = 0x03;
 // Full scale of the battery current measurement per milliampere of the charge and discharge limits
 static constexpr float CHARGE_FULL_SCALE_FACTOR = 1.25f;
@@ -107,7 +108,7 @@ float ntc_temperature(uint16_t code, float inv_beta) {
 
 #ifdef USE_TEXT_SENSOR
 PROGMEM_STRING_TABLE(ChargerStatusStrings, "Error", "Paused, Die Too Hot", "Charge Complete", "Trickle Charge",
-                     "Constant Current", "Constant Voltage", "Discharging", "No Battery", "Not Charging");
+                     "Constant Current", "Constant Voltage", "Discharging", "Not Charging");
 // BCHGCHARGESTATUS bits in order of priority; bit i is reported as string i + 1
 static const uint8_t CHARGER_STATUS_BITS[] PROGMEM = {CHARGE_STATUS_DIE_TEMP_HIGH, CHARGE_STATUS_COMPLETED,
                                                       CHARGE_STATUS_TRICKLE, CHARGE_STATUS_CONSTANT_CURRENT,
@@ -120,9 +121,7 @@ static uint8_t charger_status_index(uint8_t vbus_status, uint8_t charge_status, 
     if ((charge_status & progmem_read_byte(&CHARGER_STATUS_BITS[i])) != 0)
       return i + 1;
   }
-  if ((vbus_status & VBUS_PRESENT) == 0)
-    return 6;
-  return (charge_status & CHARGE_STATUS_BATTERY_DETECTED) != 0 ? 8 : 7;
+  return (vbus_status & VBUS_PRESENT) == 0 ? 6 : 7;
 }
 
 void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t vbus_status, uint8_t charge_status,
@@ -166,14 +165,16 @@ void NPM1300Component::setup() {
   }
 
 #ifdef USE_NPM1300_DATA_PUBLISHER
-  // The battery current is measured after every battery voltage measurement
-  if (!this->setup_check(this->write_reg_(REG_ADC_IBAT_MEAS_EN, 1)))
-    return;
-  if (config.charger_configured) {
-    this->charge_code_ = config.charger.current;
-    this->discharge_limit_high_ = discharge_limit_ma(config.charger.discharge_limit) == 1000;
-  } else if (!this->setup_check(this->read_charge_currents_())) {
-    return;
+  if (this->data_publisher_ != nullptr) {
+    // The battery current is measured after every battery voltage measurement
+    if (!this->setup_check(this->write_reg_(REG_ADC_IBAT_MEAS_EN, 1)))
+      return;
+    if (config.charger_configured) {
+      this->charge_code_ = config.charger.current;
+      this->discharge_limit_high_ = discharge_limit_ma(config.charger.discharge_limit) == 1000;
+    } else if (!this->setup_check(this->read_charge_currents_())) {
+      return;
+    }
   }
 #endif
 
@@ -250,13 +251,18 @@ bool NPM1300Component::read_charge_currents_() {
 #endif
 
 bool NPM1300Component::set_charger_enabled(bool enabled) {
+  if (this->is_failed())
+    return false;
   if (!enabled)
     return this->write_reg_(REG_BCHG_ENABLE_CLR, 1);
-  // A charger error stops the charger until it is released
-  return this->write_reg_(REG_BCHG_TASK_RELEASE_ERR, 1) && this->write_reg_(REG_BCHG_ENABLE_SET, 1);
+  // A charger error stops the charger until the error is cleared and the charger released
+  return this->write_reg_(REG_BCHG_TASK_CLEAR_CHG_ERR, 1) && this->write_reg_(REG_BCHG_TASK_RELEASE_ERR, 1) &&
+         this->write_reg_(REG_BCHG_ENABLE_SET, 1);
 }
 
 bool NPM1300Component::set_output_enabled(NPM1300Output output, bool enabled) {
+  if (this->is_failed())
+    return false;
   const uint8_t index = static_cast<uint8_t>(output);
   // A pair of SET and CLR task registers per output
   const uint16_t base = index < 2 ? REG_BUCK1_ENA_SET : REG_LDSW1_TASK_SET;
@@ -317,7 +323,8 @@ void NPM1300Component::update() {
     this->status_publisher_(vbus_status, charge_status, error_reason);
 #endif
 #ifdef USE_SWITCH
-  this->publish_switches_();
+  if (!this->status_comm_check(this->publish_switches_()))
+    return;
 #endif
 
 #ifdef USE_SENSOR
@@ -325,39 +332,56 @@ void NPM1300Component::update() {
     uint8_t code;
     if (!this->status_comm_check(this->read_reg_(REG_VBUSIN_ILIM0, &code)))
       return;
-    // Code 0 (the reset value) is 500 mA, codes 1 to 4 are 100 mA, then 100 mA per step of the code
-    const uint16_t milliamps = code == 0 ? 500 : (code < 5 ? 100 : code * 100);
+    // Codes 0 and 1 are 100 mA, then 100 mA per step of the code
+    const uint16_t milliamps = code < 2 ? 100 : code * 100;
     this->vbus_current_limit_sensor_->publish_state(milliamps / 1000.0f);
   }
 #endif
 #ifdef USE_NPM1300_DATA_PUBLISHER
-  // Start the battery voltage (followed by the battery current), NTC, die temperature and system voltage
-  // conversions, then the VBUS one
-  static constexpr uint8_t START[4] = {1, 1, 1, 1};
-  if (!this->status_comm_check(this->write_register16(REG_ADC_TASK_VBAT, START, sizeof(START)) == i2c::ERROR_OK &&
-                               this->write_reg_(REG_ADC_TASK_VBUS, 1)))
+  if (this->data_publisher_ != nullptr) {
+    // Start the battery voltage (followed by the battery current), NTC, die temperature and system voltage
+    // conversions, then the VBUS one
+    static constexpr uint8_t START[4] = {1, 1, 1, 1};
+    if (!this->status_comm_check(this->write_register16(REG_ADC_TASK_VBAT, START, sizeof(START)) == i2c::ERROR_OK &&
+                                 this->write_reg_(REG_ADC_TASK_VBUS, 1)))
+      return;
+    this->set_timeout(READ_TIMEOUT_ID, CONVERSION_TIME_MS, [this]() { this->read_measurements_(); });
     return;
-  this->set_timeout(READ_TIMEOUT_ID, CONVERSION_TIME_MS, [this]() { this->read_measurements_(); });
-#else
-  this->status_comm_result(true);
+  }
 #endif
+  this->status_comm_result(true);
 }
 
 #ifdef USE_SWITCH
-void NPM1300Component::publish_switches_() {
+bool NPM1300Component::publish_switches_() {
   uint8_t value;
-  if (this->charger_switch_ != nullptr && this->read_reg_(REG_BCHG_ENABLE_SET, &value))
-    this->charger_switch_->publish_state((value & 1) != 0);
+  bool ok = true;
+  if (this->charger_switch_ != nullptr) {
+    if (this->read_reg_(REG_BCHG_ENABLE_SET, &value)) {
+      this->charger_switch_->publish_state((value & 1) != 0);
+    } else {
+      ok = false;
+    }
+  }
   switch_::Switch *const bucks[2] = {this->buck1_switch_, this->buck2_switch_};
-  if ((bucks[0] != nullptr || bucks[1] != nullptr) && this->read_reg_(REG_BUCK_STATUS, &value)) {
-    for (uint8_t i = 0; i < 2; i++)
-      PUBLISH_STATE(bucks[i], (value & BUCK_POWER_GOOD[i]) != 0);
+  if (bucks[0] != nullptr || bucks[1] != nullptr) {
+    if (this->read_reg_(REG_BUCK_STATUS, &value)) {
+      for (uint8_t i = 0; i < 2; i++)
+        PUBLISH_STATE(bucks[i], (value & BUCK_POWER_GOOD[i]) != 0);
+    } else {
+      ok = false;
+    }
   }
   switch_::Switch *const ldos[2] = {this->ldo1_switch_, this->ldo2_switch_};
-  if ((ldos[0] != nullptr || ldos[1] != nullptr) && this->read_reg_(REG_LDSW_STATUS, &value)) {
-    for (uint8_t i = 0; i < 2; i++)
-      PUBLISH_STATE(ldos[i], (value & LDSW_POWERED[i]) != 0);
+  if (ldos[0] != nullptr || ldos[1] != nullptr) {
+    if (this->read_reg_(REG_LDSW_STATUS, &value)) {
+      for (uint8_t i = 0; i < 2; i++)
+        PUBLISH_STATE(ldos[i], (value & LDSW_POWERED[i]) != 0);
+    } else {
+      ok = false;
+    }
   }
+  return ok;
 }
 #endif
 
@@ -370,11 +394,14 @@ void NPM1300Component::read_measurements_() {
     return;
   // Amperes per code of the battery current, positive while charging and negative while discharging
   float ibat_scale = NAN;
+  // Any other mode means the system runs from VBUS and the battery current is not measured
   const uint8_t mode = (adc[0] >> IBAT_MODE_SHIFT) & 0x03;
-  if ((adc[0] & IBAT_MEAS_INVALID) == 0 && mode != 0) {
-    ibat_scale = mode == IBAT_MODE_CHARGE ? this->charge_code_ * (2 * CHARGE_FULL_SCALE_FACTOR)
-                                          : -(this->discharge_limit_high_ ? 1000 : 200) * DISCHARGE_FULL_SCALE_FACTOR;
-    ibat_scale /= ADC_MAX_CODE * 1000.0f;
+  if ((adc[0] & IBAT_MEAS_INVALID) == 0) {
+    if (mode == IBAT_MODE_CHARGE) {
+      ibat_scale = this->charge_code_ * (2 * CHARGE_FULL_SCALE_FACTOR) / (ADC_MAX_CODE * 1000.0f);
+    } else if (mode == IBAT_MODE_DISCHARGE) {
+      ibat_scale = -(this->discharge_limit_high_ ? 1000 : 200) * DISCHARGE_FULL_SCALE_FACTOR / (ADC_MAX_CODE * 1000.0f);
+    }
   }
   if (this->data_publisher_ != nullptr)
     this->data_publisher_(adc, ibat_scale);

@@ -6,7 +6,6 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_BATTERY_CHARGING,
-    DEVICE_CLASS_CONNECTIVITY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -68,14 +67,6 @@ _FIELDS = (
         register=CHARGE_STATUS,
         mask=0x02,
         name="Charge Complete",
-    ),
-    _StatusBits(
-        key="battery_detected",
-        register=CHARGE_STATUS,
-        mask=0x01,
-        name="Battery Detected",
-        device_class=DEVICE_CLASS_CONNECTIVITY,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     _StatusBits(
         key="charger_error",
