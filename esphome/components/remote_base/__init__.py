@@ -1153,43 +1153,14 @@ GoboxData, GoboxBinarySensor, GoboxTrigger, _, GoboxDumper = register_simple_pro
 
 
 # Roomba
-(
-    RoombaData,
-    RoombaBinarySensor,
-    RoombaTrigger,
-    _,
-    RoombaDumper,
-) = declare_protocol("Roomba")
 ROOMBA_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint8_t})
-
-
-@register_binary_sensor("roomba", RoombaBinarySensor, ROOMBA_SCHEMA)
-def roomba_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                RoombaData,
-                ("data", config[CONF_DATA]),
-            )
-        )
+RoombaData, RoombaBinarySensor, RoombaTrigger, _, RoombaDumper = (
+    register_simple_protocol(
+        "roomba",
+        "Roomba",
+        ROOMBA_SCHEMA,
+        (CONF_DATA, "data", cg.uint8),
     )
-
-
-@register_trigger("roomba", RoombaTrigger, RoombaData)
-def roomba_trigger(var, config):
-    pass
-
-
-@register_dumper("roomba", RoombaDumper)
-def roomba_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "roomba",
-    "Roomba",
-    ROOMBA_SCHEMA,
-    (CONF_DATA, "data", cg.uint8),
 )
 
 
