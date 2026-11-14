@@ -35,7 +35,7 @@ CONF_VELOCITY = "velocity"
 ble_midi_ns = cg.esphome_ns.namespace("ble_midi")
 BLEMidi = ble_midi_ns.class_("BLEMidi", cg.Component, ble_client.BLEClientNode)
 # The message bytes as a view: data.size() and data[i] work, and nothing is copied
-ByteSpan = cg.std_span.template(cg.uint8.operator("const"))
+ByteSpan = cg.byte_span
 
 # MIDI data bytes are 7-bit and channels are 4-bit, matching what goes on the wire and what the triggers report.
 # Channel 0 is the channel that MIDI hardware usually labels "1".

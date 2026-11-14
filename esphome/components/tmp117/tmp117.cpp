@@ -10,10 +10,8 @@ ESPHOME_LOG_TAG(TAG, "tmp117");
 
 void TMP117Component::update() {
   int16_t data;
-  if (!this->read_data_(&data)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_data_(&data)))
     return;
-  }
   if ((uint16_t) data != 0x8000) {
     float temperature = data * 0.0078125f;
 

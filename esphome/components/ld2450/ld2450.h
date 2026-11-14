@@ -40,7 +40,7 @@ namespace esphome::ld2450 {
 using namespace ld24xx;
 
 // Constants
-static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
+static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presence status 5 sec.
 // Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
 // lands inside the buffer during footer-based resynchronization after losing sync.
 static constexpr uint8_t MAX_LINE_LENGTH = 45;
@@ -51,6 +51,9 @@ static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 static constexpr uint32_t LINK_GRACE_MS = 5000;
 // Caps the windows, so retried commands cannot hide a real loss
 static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
+static constexpr uint32_t XY_UNFILTERED_DURATION_MS = 10000;
+// Scheduler ids of the component
+static constexpr uint32_t XY_UNFILTERED_TIMEOUT_ID = 0;
 
 enum class LinkState : uint8_t {
   LINK_STATE_WAITING,  // no valid frame since boot
@@ -137,6 +140,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_BUTTON
   SUB_BUTTON(factory_reset)
   SUB_BUTTON(restart)
+#ifdef USE_LD2450_XY_UNFILTERED
+  SUB_BUTTON(xy_unfiltered)
+#endif
 #endif
 
  public:
@@ -150,6 +156,11 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
+#ifdef USE_LD2450_XY_UNFILTERED
+  // Makes the xy text sensors publish every position, as if they had no filters, for XY_UNFILTERED_DURATION_MS;
+  // calling it again starts that time over
+  void start_xy_unfiltered();
+#endif
   void set_baud_rate(const char *state);
   void set_baud_rate(BaudRate rate);
   void set_zone_type(const char *state);
@@ -216,6 +227,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   void update_target_xy_(uint8_t target, bool changed);
 #endif
+#ifdef USE_LD2450_XY_UNFILTERED
+  void bypass_xy_filters_(bool bypass);
+#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
@@ -262,6 +276,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
   std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
+#endif
+#ifdef USE_LD2450_XY_UNFILTERED
+  // Filter chains of the xy text sensors, held while they publish unfiltered
+  std::array<text_sensor::Filter *, MAX_TARGETS> xy_filters_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

@@ -27,4 +27,14 @@ TEST(StatusCommResult, SuccessWithoutWarningStaysClear) {
   EXPECT_FALSE(component.status_has_warning());
 }
 
+TEST(StatusCommCheck, FailureSetsWarningAndSuccessKeepsIt) {
+  Component component;
+  EXPECT_TRUE(component.status_comm_check(true));
+  EXPECT_FALSE(component.status_has_warning());
+  EXPECT_FALSE(component.status_comm_check(false));
+  EXPECT_TRUE(component.status_has_warning());
+  EXPECT_TRUE(component.status_comm_check(true));
+  EXPECT_TRUE(component.status_has_warning());
+}
+
 }  // namespace esphome

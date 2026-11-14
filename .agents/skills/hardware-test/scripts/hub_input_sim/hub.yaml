@@ -1,0 +1,176 @@
+# substitutions: name
+# matrix_keypad, wiegand and rdm6300 driven from the D1 mini itself; logs over the API (UART0 is looped back).
+esphome:
+  name: ${name}
+  includes:
+    - sim.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          USC0(0) |= (1 << UCLBE);
+          ESP_LOGI("sim", "UART0 loopback on");
+      - delay: 35s
+      - script.execute: run_all
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+logger:
+  baud_rate: 0
+  level: DEBUG
+
+uart:
+  id: rfid_uart
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+
+rdm6300:
+  uart_id: rfid_uart
+  on_tag:
+    - then:
+        - lambda: 'ESP_LOGI("ev", "rdm on_tag %u", (unsigned) x);'
+    - then:
+        - lambda: 'ESP_LOGI("ev", "rdm on_tag#2 %u", (unsigned) x);'
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: GPIO5
+  columns:
+    - pin:
+        number: GPIO4
+        mode: INPUT_PULLUP
+    - pin:
+        number: GPIO14
+        mode: INPUT_PULLUP
+    - pin:
+        number: GPIO12
+        mode: INPUT_PULLUP
+  keys: "12#"
+  on_key:
+    - then:
+        - lambda: 'ESP_LOGI("ev", "keypad on_key %c", x);'
+    - then:
+        - lambda: 'ESP_LOGI("ev", "keypad on_key#2 %c", x);'
+
+wiegand:
+  - id: wieg
+    d0:
+      number: GPIO13
+      mode: INPUT_PULLUP
+    d1: GPIO0
+    on_tag:
+      - then:
+          - lambda: 'ESP_LOGI("ev", "wiegand on_tag %s", x.c_str());'
+      - then:
+          - lambda: 'ESP_LOGI("ev", "wiegand on_tag#2 %s", x.c_str());'
+    on_key:
+      - then:
+          - lambda: 'ESP_LOGI("ev", "wiegand on_key %u", (unsigned) x);'
+      - then:
+          - lambda: 'ESP_LOGI("ev", "wiegand on_key#2 %u", (unsigned) x);'
+    on_raw:
+      - then:
+          - lambda: 'ESP_LOGI("ev", "wiegand on_raw %u %llx", (unsigned) bits, (unsigned long long) value);'
+      - then:
+          - lambda: 'ESP_LOGI("ev", "wiegand on_raw#2 %u %llx", (unsigned) bits, (unsigned long long) value);'
+
+key_collector:
+  - id: coll
+    source_id: [keypad, wieg]
+    min_length: 1
+    max_length: 4
+    end_keys: "#"
+    end_key_required: true
+    on_progress:
+      - lambda: 'ESP_LOGI("ev", "collector progress \"%s\" start %u", x.c_str(), (unsigned) start);'
+    on_result:
+      - lambda: 'ESP_LOGI("ev", "collector result \"%s\" start %u end %u", x.c_str(), (unsigned) start, (unsigned) end);'
+
+binary_sensor:
+  - platform: matrix_keypad
+    keypad_id: keypad
+    key: "1"
+    id: key1
+    on_state:
+      - lambda: 'ESP_LOGI("ev", "key1 binary %d", x);'
+  - platform: rdm6300
+    uid: 305419896
+    id: card_a
+    on_state:
+      - lambda: 'ESP_LOGI("ev", "card_a binary %d", x);'
+
+script:
+  - id: rdm_send
+    parameters:
+      frame: string
+    then:
+      - uart.write:
+          id: rfid_uart
+          data: !lambda |-
+            std::vector<uint8_t> v{0x02};
+            v.insert(v.end(), frame.begin(), frame.end());
+            v.push_back(0x03);
+            return v;
+  - id: key
+    parameters:
+      pin: int
+    then:
+      - lambda: sim::press(pin);
+      - delay: 300ms
+      - lambda: sim::release(pin);
+      - delay: 300ms
+  - id: run_all
+    then:
+      - lambda: 'ESP_LOGI("sim", "START");'
+      # rdm6300: card A twice, card B, card A, a bad checksum frame
+      - script.execute: {id: rdm_send, frame: "011234567809"}
+      - delay: 500ms
+      - script.execute: {id: rdm_send, frame: "011234567809"}
+      - delay: 500ms
+      - script.execute: {id: rdm_send, frame: "01000ABCDE69"}
+      - delay: 500ms
+      - script.execute: {id: rdm_send, frame: "011234567809"}
+      - delay: 500ms
+      - script.execute: {id: rdm_send, frame: "011234567808"}
+      - delay: 1s
+      # matrix keypad: 1 2 1 # (the collector ends on #)
+      - script.execute: {id: key, pin: 4}
+      - script.wait: key
+      - script.execute: {id: key, pin: 14}
+      - script.wait: key
+      - script.execute: {id: key, pin: 4}
+      - script.wait: key
+      - script.execute: {id: key, pin: 12}
+      - script.wait: key
+      - delay: 500ms
+      - lambda: sim::wiegand_arm();
+      - delay: 400ms
+      # wiegand: 26, 34, 37 bit tags, a 26 bit tag with bad parity, 4 bit key 5, 8 bit key 11, an unknown 10 bit frame
+      - lambda: 'sim::wiegand(0x3579bdfULL, 26);'
+      - delay: 400ms
+      - lambda: 'sim::wiegand(0x3bd5b7ddeULL, 34);'
+      - delay: 400ms
+      - lambda: 'sim::wiegand(0x1b4b4b4b4aULL, 37);'
+      - delay: 400ms
+      - lambda: 'sim::wiegand(0x3579bddULL, 26);'
+      - delay: 400ms
+      - lambda: 'sim::wiegand(0x5ULL, 4);'
+      - delay: 400ms
+      - lambda: 'sim::wiegand(0x4bULL, 8);'
+      - delay: 400ms
+      - lambda: 'sim::wiegand(0x2a5ULL, 10);'
+      - delay: 1s
+      - lambda: 'ESP_LOGI("sim", "DONE");'

@@ -28,6 +28,7 @@ esp32_rmt_led_strip_ns = cg.esphome_ns.namespace("esp32_rmt_led_strip")
 ESP32RMTLEDStripLightOutput = esp32_rmt_led_strip_ns.class_(
     "ESP32RMTLEDStripLightOutput", light.AddressableLight
 )
+RmtBuffer = esp32_rmt_led_strip_ns.class_("RmtBuffer")
 
 
 @dataclass
@@ -174,6 +175,19 @@ async def to_code(config: ConfigType) -> None:
     cg.add(
         var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
     )
-    cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
+    num_leds = config[CONF_NUM_LEDS]
+    psram = config[CONF_USE_PSRAM]
+    bytes_per_led = len(config[CONF_CHANNEL_COLORS])
+    led_data = light.static_led_buffer(
+        config[CONF_OUTPUT_ID], num_leds, bytes_per_led, psram=psram
+    )
+    color_bytes = num_leds * bytes_per_led
+    rmt_buf = cg.static_buffer(
+        config[CONF_OUTPUT_ID],
+        RmtBuffer,
+        esp32_rmt_led_strip_ns.rmt_buffer_size(color_bytes),
+        psram=psram,
+    )
+    cg.add(var.set_buffers(led_data, rmt_buf))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
     cg.add_optional(var.set_use_dma, config.get(CONF_USE_DMA))
