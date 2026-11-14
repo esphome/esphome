@@ -21,7 +21,7 @@ IMPORTS = (
 
 
 def _body(main_cpp: str, name: str) -> str:
-    match = re.search(rf"static void {name}\(\) \{{\n(.*?)\n\}}", main_cpp, re.S)
+    match = re.search(rf"static void {name}\(\) \{{\n(.*?)\n\}}", main_cpp, re.DOTALL)
     assert match, name
     return match.group(1)
 
