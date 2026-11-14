@@ -267,19 +267,19 @@ def test_install_clones_the_manifest_with_the_filter(
     # Streamed, so the long clone's progress reaches the log
     assert init.kwargs["stream_output"] is True
     # Required projects are never checked by name
-    assert _west_call(west, "list").args[0][-1:] == ["hal_a"]
+    assert _west_call(west, "list").args[0][-2:] == ["hal_a", "zephyr"]
     assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == [
         "hal_a",
         "zephyr",
     ]
 
 
-def test_install_of_only_required_projects_checks_no_names(
+def test_install_of_only_required_projects_checks_them(
     workspace: Path, west: MagicMock
 ) -> None:
     _install(workspace, {"zephyr"})
 
-    assert _subcommands(west) == ["init", "config", "update"]
+    assert _subcommands(west) == ["init", "config", "update", "list"]
 
 
 def test_interrupted_download_resumes(workspace: Path, west: MagicMock) -> None:
@@ -290,7 +290,7 @@ def test_interrupted_download_resumes(workspace: Path, west: MagicMock) -> None:
     _install(workspace, {"zephyr"})
 
     west.rmdir.assert_not_called()
-    assert _subcommands(west) == ["config", "update"]
+    assert _subcommands(west) == ["config", "update", "list"]
     assert not (workspace / ".resume_failed").exists()
 
 
@@ -319,7 +319,14 @@ def test_second_failed_resume_starts_over(workspace: Path, west: MagicMock) -> N
     _install(workspace, {"zephyr"})
 
     west.rmdir.assert_called_once_with(workspace, msg=ANY)
-    assert _subcommands(west) == ["config", "update", "init", "config", "update"]
+    assert _subcommands(west) == [
+        "config",
+        "update",
+        "init",
+        "config",
+        "update",
+        "list",
+    ]
 
 
 def test_cut_short_init_starts_over(workspace: Path, west: MagicMock) -> None:
@@ -382,7 +389,7 @@ def test_fetch_gains_only_the_missing_project(workspace: Path, west: MagicMock) 
     _fetch(workspace, {"zephyr", "hal_b"})
 
     assert _subcommands(west) == ["list", "config", "update"]
-    assert _west_call(west, "list").args[0][-1:] == ["hal_b"]
+    assert _west_call(west, "list").args[0][-2:] == ["hal_b", "zephyr"]
     assert _project_filter(west) == "-hal_.*,+hal_a,+hal_b,+zephyr"
     assert _west_call(west, "update").args[0][-1] == "hal_b"
     assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == [
@@ -424,28 +431,26 @@ def test_fetch_with_the_project_only_checks_the_names(
 def test_fetch_without_a_record_fetches_again(
     workspace: Path, west: MagicMock, lose_config: bool
 ) -> None:
-    """Nothing says what the install has, so the wanted projects are fetched with a
-    full update, which skips a required project the manifest lacks."""
+    """Nothing says what the install has, so every wanted project is fetched."""
     _mark_finished(workspace, None)
     if lose_config:
         (workspace / ".west" / "config").unlink()
 
     _fetch(workspace, {"zephyr", "hal_a"})
 
-    assert _subcommands(west) == ["list", "config", "update", "list"]
-    assert _west_call(west, "update").args[0][-1] == "--fetch-opt=--depth=1"
+    assert _subcommands(west) == ["list", "config", "update"]
+    assert _west_call(west, "update").args[0][-2:] == ["hal_a", "zephyr"]
 
 
-def test_fetch_of_a_new_required_project_updates_in_full(
+def test_fetch_of_a_new_required_project_fetches_it(
     workspace: Path, west: MagicMock
 ) -> None:
-    """A stamp from before a project became required: west update by name would
-    fail on a version whose manifest lacks it."""
+    """A stamp from before a project became required."""
     _mark_finished(workspace, "hal_a")
 
     _fetch(workspace, {"zephyr", "hal_b"})
 
-    assert _west_call(west, "update").args[0][-1] == "--fetch-opt=--depth=1"
+    assert _west_call(west, "update").args[0][-2:] == ["hal_b", "zephyr"]
     assert _project_filter(west) == "-hal_.*,+hal_a,+hal_b,+zephyr"
 
 

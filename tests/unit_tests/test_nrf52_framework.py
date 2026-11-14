@@ -209,6 +209,7 @@ class TestCheckAndInstall:
             "init",
             "config",
             "update",
+            "list",
             "install",  # zephyr requirements
         ]
         # minimal SDK + per-arch toolchain
@@ -234,6 +235,7 @@ class TestCheckAndInstall:
             "init",
             "config",
             "update",
+            "list",
             "install",
         ]
         # minimal SDK + per-arch toolchain

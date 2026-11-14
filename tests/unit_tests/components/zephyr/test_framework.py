@@ -134,18 +134,17 @@ def test_fresh_install_fetches_only_the_wanted_hals(
     )
 
 
-def test_installed_workspace_only_checks_the_hals(
+def test_installed_workspace_checks_the_hals(
     zephyr_tools: Path, workspace: Path, mock_west: MagicMock
 ) -> None:
-    """Every build checks the names, so an unknown HAL fails on any workspace; a
-    required HAL a later Zephyr dropped must not, so those are left out."""
+    """Every build checks the names, so an unknown HAL fails on any workspace."""
     _mark_installed(workspace)
     (zephyr_tools / "penvs" / VERSION / f".zephyr_reqs_ready-zephyr-{VERSION}").touch()
 
     _check_and_install()
 
     assert _subcommands(mock_west) == ["list"]
-    assert _west_call(mock_west, "list")[-1:] == sorted(HALS)
+    assert set(_west_call(mock_west, "list")) >= HALS
 
 
 def test_unknown_hal_fails_first(workspace: Path, mock_west: MagicMock) -> None:

@@ -204,14 +204,12 @@ def _check_west_projects(
     version: str,
     projects: set[str],
 ) -> None:
-    """Raise when the manifest lacks one of ``projects`` beyond the required ones.
+    """Raise when the manifest lacks one of ``projects``.
 
     west update quietly skips an unknown name in the filter, west list fails on it.
-    Needs the workspace updated once, since a manifest may import others. A required
-    project a later version dropped only leaves its filter entry unused.
+    Needs the workspace updated once, since a manifest may import others.
     """
-    if not (names := sorted(projects - source.required)):
-        return
+    names = sorted(projects)
     cmd = [str(env_python_path), "-m", "west", "list", "-f", "{name}", *names]
     if not run_command_ok(cmd, cwd=framework_path):
         raise EsphomeError(
@@ -323,8 +321,7 @@ def fetch_missing_west_projects(
         source,
         version,
         installed | projects,
-        # west update fails on a name the manifest lacks; a full update skips it
-        only=None if missing & source.required else missing,
+        only=missing,
     ):
         _restore_project_filter(
             env_python_path, framework_path, source, version, installed
