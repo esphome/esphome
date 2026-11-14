@@ -67,8 +67,8 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  // A new chunk may go out: not re-entered from a log line, session alive, tail empty
-  bool ready_to_send_();
+  // Not re-entered from a log line and the session is alive after pushing the tail
+  bool drain_if_idle_();
   // Push what is left of the chunk in tail_ to the socket
   void drain_tail_();
   // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
@@ -76,6 +76,8 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
   bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
                     size_t sent);
+  // Queue a whole chunk behind the unsent part of the tail; false when it does not fit TAIL_QUEUE_SIZE or OOM
+  bool append_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total);
   // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
   bool send_json_(void *source, message_generator_t *generator);
   enum class JsonPrepareResult : uint8_t {
@@ -106,8 +108,8 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   // Next session in AsyncEventSource's sessions or pending list
   AsyncEventSourceResponse *next_{nullptr};
   ListEntitiesIterator entities_iterator_;
-  // One chunk the socket did not take whole, allocated on the first stall; the only heap use
-  // on the send path
+  // Chunks the socket did not take yet, allocated on the first stall; the only heap use on the
+  // send path
   RAMUniquePtr<uint8_t[]> tail_;
   uint16_t tail_cap_{0};
   uint16_t tail_len_{0};  // Zero means nothing pending
@@ -132,6 +134,8 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
   // document is dropped before anything is on the wire
   static constexpr size_t JSON_MAX_SIZE = 5120;
+  // Most an unsent chunk and the events queued behind it may hold: about one TCP segment
+  static constexpr size_t TAIL_QUEUE_SIZE = 1460;
   // Most RAM a stalled session keeps: the largest state document plus any accepted framing
   static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
 };
