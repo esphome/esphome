@@ -50,7 +50,7 @@ class VL6180XComponentTest : public ::testing::Test {
   static bool range_pending(const VL6180XComponent &component) { return component.range_pending_; }
   static void finish_lux_wait(VL6180XComponent &component) { component.do_als_wait_(); }
   static MeasurementState state(const VL6180XComponent &component) { return component.state_; }
-  static void initialize_all() { VL6180XComponent::run_init_sequence_(); }
+  static void initialize_all() { VL6180XComponent::run_init_sequence(); }
   static void retry(VL6180XComponent &component) {
     component.reinit_due_at_ = component.now_();
     component.do_recovery_wait_();

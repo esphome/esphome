@@ -9,8 +9,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace vl6180x {
+namespace esphome::vl6180x {
 
 #ifndef VL6180X_INSTANCE_COUNT
 // Code generation supplies this macro for firmware builds. Static analysis and
@@ -36,9 +35,9 @@ class VL6180XComponentTest;
 // set and RANGE_WAIT chains to ALS_START after publishing the range result.
 //
 // When consecutive_failures_ reaches failure_threshold_, the sensor enters
-// RECOVERY_WAIT. The instance at all_instances_()[0] is the designated reinit
+// RECOVERY_WAIT. The instance at all_instances()[0] is the designated reinit
 // initiator; it waits for all active measurements to finish, then calls
-// run_init_sequence_() which performs a full Option-1 reinit of every sensor.
+// run_init_sequence() which performs a full Option-1 reinit of every sensor.
 // Non-initiator instances in RECOVERY_WAIT simply wait for the initiator to
 // complete, then reset themselves to IDLE.
 //
@@ -83,7 +82,7 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void set_retry_interval(uint32_t ms) { this->retry_interval_ms_ = ms; }
   void set_max_retries(uint8_t n) { this->max_retries_ = n; }
 
-  static void register_instance(VL6180XComponent *inst) { all_instances_().push_back(inst); }
+  static void register_instance(VL6180XComponent *inst) { all_instances().push_back(inst); }
 
   void setup() override;
   void loop() override;
@@ -109,7 +108,7 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
 
   // Full Option-1 reinit of all sensors — shared by setup() and reinit path.
   // Resets all instances to IDLE, runs the full XSHUT sequence, restores state.
-  static void run_init_sequence_();
+  static void run_init_sequence();
 
   // State machine steps
   void do_range_start_();
@@ -162,11 +161,10 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   uint32_t reinit_due_at_{0};
 
   // ── Static instance registry ─────────────────────────────────────────────
-  static SlotList<VL6180XComponent *, VL6180X_INSTANCE_COUNT> &all_instances_() {
+  static SlotList<VL6180XComponent *, VL6180X_INSTANCE_COUNT> &all_instances() {
     static SlotList<VL6180XComponent *, VL6180X_INSTANCE_COUNT> instances;
     return instances;
   }
 };
 
-}  // namespace vl6180x
-}  // namespace esphome
+}  // namespace esphome::vl6180x

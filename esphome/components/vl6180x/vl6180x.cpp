@@ -5,8 +5,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace vl6180x {
+namespace esphome::vl6180x {
 
 ESPHOME_LOG_TAG(TAG, "vl6180x");
 static constexpr uint32_t LUX_INTERVAL_ID = 0;
@@ -240,15 +239,15 @@ bool VL6180XComponent::init_sensor_() {
 }
 
 // ---------------------------------------------------------------------------
-// run_init_sequence_ (static)
+// run_init_sequence (static)
 //
 // Full Option-1 reinitialisation of every sensor. Called by both setup() and
 // the recovery path. Resets all instance state machines to IDLE before
 // touching the hardware so no stale state is left after completion.
 // ---------------------------------------------------------------------------
 
-void VL6180XComponent::run_init_sequence_() {
-  auto &all = all_instances_();
+void VL6180XComponent::run_init_sequence() {
+  auto &all = all_instances();
 
   // Reset all state machines — any in-progress measurement is abandoned.
   // Publish NAN / "Recovering" so HA reflects the outage immediately.
@@ -352,7 +351,7 @@ void VL6180XComponent::record_failure_() {
     this->reinit_due_at_ = this->now_() + this->retry_interval_ms_;
     this->initialized_ = false;
     this->state_ = MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT;
-    auto &all = all_instances_();
+    auto &all = all_instances();
     if (!all.empty() && all[0] != this && all[0]->state_ != MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT) {
       all[0]->reinit_attempts_ = 0;
       all[0]->reinit_due_at_ = this->now_() + all[0]->retry_interval_ms_;
@@ -477,10 +476,11 @@ void VL6180XComponent::publish_range_(uint8_t raw, uint8_t error_code) {
     if (this->range_status_sensor_ != nullptr)
       this->range_status_sensor_->publish_state(status);
 
-    if (is_sensor_failure)
+    if (is_sensor_failure) {
       this->record_failure_();
-    else
+    } else {
       this->record_success_();
+    }
     return;
   }
 
@@ -733,14 +733,14 @@ void VL6180XComponent::do_als_wait_() {
 // State machine — recovery wait
 //
 // All sensors that hit the failure threshold enter this state. Only the
-// instance at all_instances_()[0] (the designated initiator) drives the
+// instance at all_instances()[0] (the designated initiator) drives the
 // actual reinit. Non-initiators simply wait here until the initiator has
 // completed reinit (detected via initialized_ being restored to true),
 // then return to IDLE.
 // ---------------------------------------------------------------------------
 
 void VL6180XComponent::do_recovery_wait_() {
-  auto &all = all_instances_();
+  auto &all = all_instances();
 
   // ── Non-initiator path ───────────────────────────────────────────────────
   // If the initiator has already completed reinit and restored our
@@ -776,7 +776,7 @@ void VL6180XComponent::do_recovery_wait_() {
   // All sensors are idle or in recovery — safe to reinit
   const uint16_t attempt_number = static_cast<uint16_t>(this->reinit_attempts_) + 1;
   ESP_LOGI(TAG, "VL6180X: reinit attempt %u/%d", static_cast<unsigned>(attempt_number), (int) this->max_retries_);
-  run_init_sequence_();
+  run_init_sequence();
 
   const bool all_initialized =
       std::all_of(all.begin(), all.end(), [](const VL6180XComponent *inst) { return inst->initialized_; });
@@ -833,7 +833,7 @@ void VL6180XComponent::lux_start_() {
 // ---------------------------------------------------------------------------
 
 void VL6180XComponent::setup() {
-  auto &all = all_instances_();
+  auto &all = all_instances();
 
   if (this->lux_sensor_ != nullptr) {
     const uint32_t lux_ms =
@@ -851,7 +851,7 @@ void VL6180XComponent::setup() {
 
   ESP_LOGI(TAG, "VL6180X: initialising %d sensor(s)", (int) all.size());
 
-  // GPIO setup — must happen before run_init_sequence_ drives the pins
+  // GPIO setup — must happen before run_init_sequence drives the pins
   for (auto *inst : all) {
     if (inst->enable_pin_ != nullptr)
       inst->enable_pin_->setup();
@@ -859,7 +859,7 @@ void VL6180XComponent::setup() {
       inst->interrupt_pin_->setup();
   }
 
-  run_init_sequence_();
+  run_init_sequence();
 
   // Sensors that failed initial boot enter RECOVERY_WAIT immediately so
   // they'll be retried automatically without manual intervention.
@@ -959,5 +959,4 @@ void VL6180XComponent::dump_config() {
   }
 }
 
-}  // namespace vl6180x
-}  // namespace esphome
+}  // namespace esphome::vl6180x
