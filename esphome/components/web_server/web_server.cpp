@@ -221,23 +221,30 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
 // BEGIN ESPAsyncWebServer 3.12.1 workaround: remove once a release containing upstream commit
-// 880c97068abb0f0e63f803cd3c0cac84fa5cd7bb is out and we bump to it (also restore es->handleRequest(request) below).
-// 3.12.1 writes the /events head outside the client's queue and counts its ACK against the first queued message,
-// dropping the config ping unsent; queue the head through the client instead.
-class QueuedHeadEventSourceResponse final : public AsyncEventSourceResponse {
+// 880c97068abb0f0e63f803cd3c0cac84fa5cd7bb is out and we bump to it.
+// 3.12.1 creates the SSE client before the head is ACKed and credits the head's ACK to its first queued messages,
+// dropping or truncating them. Create the client once the head is ACKed instead, as 3.9.6 did.
+class HeadAckedEventSourceResponse final : public AsyncEventSourceResponse {
  public:
-  explicit QueuedHeadEventSourceResponse(AsyncEventSource *server)
-      : AsyncEventSourceResponse(server), server_(server) {}
+  HeadAckedEventSourceResponse(DeferredUpdateEventSourceList *list, WebServer *ws)
+      : AsyncEventSourceResponse(nullptr), list_(list), ws_(ws) {}
   void _respond(AsyncWebServerRequest *request) override {
-    auto head = std::make_shared<String>();
-    this->_assembleHead(*head, request->version());
-    // The client adopts the connection and adds itself to the server (onConnect only defers)
-    auto *client = new AsyncEventSourceClient(request->clientRelease(), this->server_);  // NOLINT
-    client->write(std::move(head));
+    String head;
+    this->_assembleHead(head, request->version());
+    request->client()->write(head.c_str(), this->_headLength);
+  }
+  // Every ACK until clientRelease() is the head's, and clientRelease() unhooks this. _state must stay
+  // RESPONSE_SETUP: past RESPONSE_WAIT_ACK the request would close its released (null) client after this returns.
+  size_t _ack(AsyncWebServerRequest *request, size_t len, uint32_t time) override {
+    this->_ackedLength += len;
+    if (this->_ackedLength >= this->_headLength)
+      this->list_->add_client_(this->ws_, request->clientRelease());
+    return 0;
   }
 
- protected:
-  AsyncEventSource *server_;
+ private:
+  DeferredUpdateEventSourceList *list_;
+  WebServer *ws_;
 };
 // END ESPAsyncWebServer 3.12.1 workaround
 
@@ -349,7 +356,13 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t
   }
 }
 
+// BEGIN ESPAsyncWebServer 3.12.1 workaround (see HeadAckedEventSourceResponse): once removed, add_new_client creates
+// the source as add_client_ does and ends with es->handleRequest(request); add_client_ goes away.
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
+  request->send(new HeadAckedEventSourceResponse(this, ws));  // NOLINT
+}
+
+void DeferredUpdateEventSourceList::add_client_(WebServer *ws, AsyncClient *client) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
@@ -357,10 +370,10 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 
   es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
 
-  // ESPAsyncWebServer 3.12.1 workaround (see QueuedHeadEventSourceResponse): es->handleRequest(request) once removed
-  request->send(new QueuedHeadEventSourceResponse(es));  // NOLINT
+  new AsyncEventSourceClient(client, es);  // NOLINT: owned by es
   ws->enable_loop_soon_any_context();
 }
+// END ESPAsyncWebServer 3.12.1 workaround
 
 void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
   WebServer *ws = source->web_server_;
