@@ -6,7 +6,7 @@ namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_weact_3c");
 
-void EPaperWeAct3C::set_window_() {
+void EPaperWeAct3C::set_window() {
   // For full screen refresh, we always start from (0,0)
   // The y_low_/y_high_ values track the dirty region for optimization,
   // but for display refresh we need to write from the beginning
@@ -39,7 +39,7 @@ bool HOT EPaperWeAct3C::transfer_data() {
   // A push only yields after sending some data, so it never stops at exactly 0 or half_buffer.
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "transfer_data: sending RED buffer (0x26)");
-    this->set_window_();  // Reset RAM X/Y counters to start position
+    this->set_window();  // Reset RAM X/Y counters to start position
     this->command(0x26);
     this->current_data_index_ = half_buffer;
   }
