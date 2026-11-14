@@ -1448,37 +1448,10 @@ RC5Data, RC5BinarySensor, RC5Trigger, _, RC5Dumper = register_simple_protocol(
 
 
 # RC5X (aka RC5 Marantz)
-RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
 RC5X_SCHEMA = RC5_SCHEMA.extend(
     {cv.Required(CONF_EXTENSION): cv.hex_int_range(min=0, max=0x3F)}
 )
-
-
-@register_binary_sensor("rc5x", RC5XBinarySensor, RC5X_SCHEMA)
-def rc5x_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                RC5XData,
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-                ("extension", config[CONF_EXTENSION]),
-            )
-        )
-    )
-
-
-@register_trigger("rc5x", RC5XTrigger, RC5XData)
-def rc5x_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("rc5x", RC5XDumper)
-def rc5x_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
-register_protocol_action(
+RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = register_simple_protocol(
     "rc5x",
     "RC5X",
     RC5X_SCHEMA,
