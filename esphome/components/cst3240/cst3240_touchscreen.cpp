@@ -16,7 +16,6 @@ void CST3240Touchscreen::reset_() {
 }
 
 void CST3240Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "setup()");
   // optional, our display shares it
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
@@ -26,6 +25,7 @@ void CST3240Touchscreen::setup() {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
     this->stop_poller();
+    this->polling_ = false;
   }
   if (!this->check_init_())
     return;
@@ -124,8 +124,6 @@ void CST3240Touchscreen::update_touches() {
   // this write could be skipped, but keep it (standby related?)
   this->write_reg16_(0xD000, 0xAB);
 
-  uint8_t fingers = 0;
-
   for (uint8_t i = 0; i < MAX_TOUCH_POINTS; i++) {
     uint8_t offset = i * 7;
     touchscreen::TouchPoint tp;
@@ -141,21 +139,18 @@ void CST3240Touchscreen::update_touches() {
     if (data[offset] & 0x04) {
       // will set is_touched_
       this->add_raw_touch_position_(tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
-      fingers++;
-      ESP_LOGD(TAG, "%d: event at %d/%d z=%d", tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
+      ESP_LOGVV(TAG, "%d: event at %d/%d z=%d", tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
     } else {
-      last_tp = tp;
       this->is_touched_ = false;
       ESP_LOGD(TAG, "%d: click at %d/%d z=%d", tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
       // Clear CST3240 points buffer to avoid loops in Polling mode (without INT)
-      if (this->interrupt_pin_ == nullptr) {
+      if (this->polling_) {
         this->clear_reg16_(0xD000);
         break;
       }
     }
   }
-  if (fingers)
-    this->send_touches_();
+
 }  // update_touches
 
 }  // namespace esphome::cst3240
