@@ -1509,6 +1509,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
   buf[pos] = '\0';
   return pos;
 }
+/// Append a string that is in PROGMEM on ESP8266; on other platforms flash is readable like RAM.
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, const char *str) {
+  return buf_append_str(buf, size, pos, str);
+}
 #endif
 
 /// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
