@@ -1,0 +1,39 @@
+npm1300:
+  id: pmic
+  i2c_id: i2c_bus
+  thermistor_resistance: 10kOhm
+  thermistor_beta: 3380
+
+sensor:
+  - platform: npm1300
+    battery_voltage:
+      name: Battery Voltage
+    battery_current:
+      name: Battery Current
+    battery_temperature:
+      name: Battery Temperature
+    die_temperature:
+      name: PMIC Temperature
+    system_voltage:
+      name: System Voltage
+    vbus_voltage:
+      name: VBUS Voltage
+  - platform: npm1300
+    vbus_current_limit:
+      name: VBUS Current Limit
+
+binary_sensor:
+  - platform: npm1300
+    vbus_present:
+      name: VBUS Present
+    charging:
+      name: Charging
+    charge_complete:
+      name: Charge Complete
+    battery_detected:
+      name: Battery Detected
+    charger_error:
+      name: Charger Error
+  - platform: npm1300
+    vbus_current_limit_active:
+      name: VBUS Current Limit Active
