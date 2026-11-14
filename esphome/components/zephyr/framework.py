@@ -78,8 +78,13 @@ def _check_and_install(
     patch_west_build_source_dir_relpath(framework_path)
 
     with install_lock(get_zephyr_tools_path(), f"penv-{version}"):
+        # One marker per workspace, since workspaces share the penv
         ensure_zephyr_requirements(
-            python_env_path, framework_path, install_venv, version
+            python_env_path,
+            framework_path,
+            install_venv,
+            version,
+            f".zephyr_reqs_ready-{framework_path.name}",
         )
 
 

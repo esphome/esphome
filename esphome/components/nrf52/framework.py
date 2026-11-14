@@ -437,7 +437,9 @@ def _check_and_install(version: str) -> None:
     patch_gen_defines_dts_path(framework_path)
     patch_west_build_source_dir_relpath(framework_path)
 
-    ensure_zephyr_requirements(python_env_path, framework_path, install_venv, version)
+    ensure_zephyr_requirements(
+        python_env_path, framework_path, install_venv, version, ".zephyr_reqs_ready"
+    )
     _patch_pyocd_nrf54lm20a_flash_algo(python_env_path)
 
     _install_toolchain()

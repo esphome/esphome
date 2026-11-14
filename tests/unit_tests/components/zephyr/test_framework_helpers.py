@@ -513,7 +513,9 @@ def zephyr_reqs(tmp_path: Path) -> Path:
 
 
 def _ensure_zephyr_requirements(tmp_path: Path, venv_rebuilt: bool = False) -> None:
-    ensure_zephyr_requirements(tmp_path / "penv", tmp_path / "sdk", venv_rebuilt, "v1")
+    ensure_zephyr_requirements(
+        tmp_path / "penv", tmp_path / "sdk", venv_rebuilt, "v1", ".marker"
+    )
 
 
 @pytest.mark.parametrize(
@@ -534,7 +536,7 @@ def test_ensure_zephyr_requirements(
 ) -> None:
     """Installed when the venv was rebuilt, the marker is missing, or the
     workspace's requirements are newer than the marker."""
-    marker = tmp_path / "penv" / ".zephyr_reqs_ready-sdk"
+    marker = tmp_path / "penv" / ".marker"
     if marker_age is not None:
         marker.touch()
         reqs_time = marker.stat().st_mtime - marker_age
@@ -558,19 +560,4 @@ def test_ensure_zephyr_requirements_raises_when_pip_fails(
     ):
         _ensure_zephyr_requirements(tmp_path)
 
-    assert not (tmp_path / "penv" / ".zephyr_reqs_ready-sdk").exists()
-
-
-def test_each_workspace_sharing_the_penv_installs_its_requirements(
-    tmp_path: Path, zephyr_reqs: Path
-) -> None:
-    """Another workspace's newer marker does not stand for this one's install."""
-    marker = tmp_path / "penv" / ".zephyr_reqs_ready-other-sdk"
-    marker.touch()
-    reqs_time = marker.stat().st_mtime - 10
-    os.utime(zephyr_reqs, (reqs_time, reqs_time))
-
-    with patch.object(framework_helpers, "run_command_ok", return_value=True) as pip:
-        _ensure_zephyr_requirements(tmp_path)
-
-    assert pip.called
+    assert not (tmp_path / "penv" / ".marker").exists()

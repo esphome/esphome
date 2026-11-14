@@ -387,12 +387,19 @@ def install_framework(
 
 
 def ensure_zephyr_requirements(
-    python_env_path: Path, framework_path: Path, venv_rebuilt: bool, label: str
+    python_env_path: Path,
+    framework_path: Path,
+    venv_rebuilt: bool,
+    label: str,
+    marker_name: str,
 ) -> None:
-    """Install the workspace's Zephyr Python requirements into the penv unless current."""
+    """Install the workspace's Zephyr Python requirements into the penv unless current.
+
+    ``marker_name`` is the file in the penv that records the install, so a venv
+    rebuild removes it.
+    """
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    # Inside the penv, so a rebuild removes it; one per workspace sharing the penv
-    sentinel = python_env_path / f".zephyr_reqs_ready-{framework_path.name}"
+    sentinel = python_env_path / marker_name
     if (
         not venv_rebuilt
         and sentinel.exists()
