@@ -35,6 +35,7 @@ uint8_t *HelloResponse::encode_msg(const void *self, uint8_t *__restrict__ pos P
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.api_version_minor);
   pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.server_info);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, msg.name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.keepalive_interval);
   return pos;
 }
 uint32_t HelloResponse::calc_size_msg(const void *self) {
@@ -44,6 +45,7 @@ uint32_t HelloResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.api_version_minor);
   size += 2 + msg.server_info.size();
   size += 2 + msg.name.size();
+  size += ProtoSize::calc_uint32(1, msg.keepalive_interval);
   return size;
 }
 void DisconnectRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {

@@ -1974,6 +1974,10 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
+  // Only advertise non-default intervals so default devices keep an unchanged HelloResponse
+  if constexpr (KEEPALIVE_TIMEOUT_MS != 60000) {
+    resp.keepalive_interval = KEEPALIVE_TIMEOUT_MS / 1000;
+  }
 
 #ifdef USE_PROVISIONING
   if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {

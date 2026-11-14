@@ -986,6 +986,7 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
   dump_progmem_string_field(out, ESPHOME_PSTR("server_info"), this->server_info);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("keepalive_interval"), this->keepalive_interval);
   return out.c_str();
 }
 const char *DisconnectRequest::dump_to(DumpBuffer &out) const {

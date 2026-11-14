@@ -145,6 +145,8 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_OUTGOING_CONNECTION = "outgoing_connection"
+CONF_KEEPALIVE = "keepalive"
+DEFAULT_KEEPALIVE = "60s"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 # Schema defaults that also match the C++ initializers in api_server.h; codegen
@@ -440,6 +442,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(wizard.CONF_WIZARD): wizard.WIZARD_SCHEMA,
             cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
+            # Keepalive (ping) interval; the client is told via HelloResponse.
+            # Raise it for sleepy devices, e.g. a Thread MTD with a long poll_period.
+            cv.Optional(CONF_KEEPALIVE, default=DEFAULT_KEEPALIVE): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(seconds=10), max=cv.TimePeriod(hours=1)),
+            ),
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -605,6 +613,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
+    if (keepalive := config[CONF_KEEPALIVE]) != cv.time_period(DEFAULT_KEEPALIVE):
+        # Whole seconds: the interval is advertised to clients in seconds
+        cg.add_define(
+            "API_KEEPALIVE_TIMEOUT_MS",
+            (keepalive.total_milliseconds // 1000) * 1000,
+        )
 
     actions = config.get(CONF_ACTIONS, [])
     has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]
