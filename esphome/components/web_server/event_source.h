@@ -71,7 +71,7 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   bool ready_to_send_();
   // Push what is left of the chunk in tail_ to the socket
   void drain_tail_();
-  // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
+  // Grow tail_ to hold len bytes, kept at its high-water mark (freed once drained on ESP8266). False on OOM.
   bool reserve_tail_(size_t len);
   // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
   bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
