@@ -12,11 +12,11 @@ with warnings.catch_warnings():
     warnings.filterwarnings(
         "ignore", category=UserWarning, message=".*Protobuf gencode version.*"
     )
-    from aioesphomeapi import APIClient, parse_log_message
+    from aioesphomeapi import APIClient, APIConnectionError, parse_log_message
     from aioesphomeapi.log_runner import async_run
 
 from esphome.const import CONF_ENCRYPTION, CONF_KEY, CONF_PORT, __version__
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.stacktrace import LogLineProcessor
 from esphome.util import safe_print
 
@@ -194,3 +194,31 @@ def run_logs(
                 mqtt_resolver=mqtt_resolver,
             )
         )
+
+
+async def async_recover_yaml(
+    addresses: list[str], port: int, noise_psk: str | None
+) -> bytes:
+    """Fetch the compressed YAML that store_yaml put on the device."""
+    cli = APIClient(
+        addresses[0],
+        port,
+        "",
+        client_info=f"ESPHome recover-yaml {__version__}",
+        noise_psk=noise_psk,
+        addresses=addresses,
+    )
+    try:
+        await cli.connect(login=True)
+        if not (await cli.device_capabilities()).store_yaml.supported:
+            raise EsphomeError(
+                f"store_yaml is not enabled on {cli.log_name}; there is no YAML "
+                "to recover"
+            )
+        return await cli.get_yaml()
+    except APIConnectionError as err:
+        raise EsphomeError(
+            f"Could not fetch the YAML from {' or '.join(addresses)}: {err}"
+        ) from err
+    finally:
+        await cli.disconnect()

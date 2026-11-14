@@ -25,7 +25,7 @@ size_t TaskLogBuffer::available_contiguous_space_() const {
     // head is ahead of or equal to tail
     // Available space is from head to end, plus from start to tail
     // But for contiguous, just from head to end (minus 1 to avoid head==tail ambiguity)
-    size_t space_to_end = ESPHOME_TASK_LOG_BUFFER_SIZE - this->head_;
+    size_t space_to_end = CAPACITY - this->head_;
     if (this->tail_ == 0) {
       // Can't use the last byte or head would equal tail
       return space_to_end > 0 ? space_to_end - 1 : 0;
@@ -54,19 +54,15 @@ bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &tex
     return false;
   }
 
-  // Read message header from tail
-  LogMessage *msg = reinterpret_cast<LogMessage *>(this->storage_ + this->tail_);
-
-  // Check for padding marker (indicates wrap-around)
-  // We check the level field since valid levels are 0-7, and 0xFF indicates padding
-  if (msg->level == PADDING_MARKER_LEVEL) {
-    // Skip to start of buffer and re-read
+  // Less than a header before the end means the writer wrapped without a marker
+  if (CAPACITY - this->tail_ < sizeof(LogMessage) ||
+      reinterpret_cast<LogMessage *>(this->storage_ + this->tail_)->level == PADDING_MARKER_LEVEL) {
     this->tail_ = 0;
-    msg = reinterpret_cast<LogMessage *>(this->storage_);
   }
+  LogMessage *msg = reinterpret_cast<LogMessage *>(this->storage_ + this->tail_);
   message = msg;
-  text_length = msg->text_length;
   this->current_message_size_ = message_total_size(msg->text_length);
+  text_length = msg->text_length;
 
   // Keep mutex held until release_message_main_loop()
   return true;
@@ -77,7 +73,7 @@ void TaskLogBuffer::release_message_main_loop() {
   this->tail_ += this->current_message_size_;
 
   // Handle wrap-around if we've reached the end
-  if (this->tail_ >= ESPHOME_TASK_LOG_BUFFER_SIZE) {
+  if (this->tail_ >= CAPACITY) {
     this->tail_ = 0;
   }
 
@@ -116,34 +112,22 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     return false;  // Mutex busy, fall back to direct output
   }
 
-  // Check if we have enough contiguous space
-  size_t contiguous = this->available_contiguous_space_();
-
-  if (contiguous < total_size) {
-    // Not enough contiguous space at end
-    // Check if we can wrap around
-    size_t space_at_start = (this->head_ >= this->tail_) ? this->tail_ : 0;
-    if (space_at_start > 0) {
-      space_at_start--;  // Leave 1 byte gap to distinguish full from empty
-    }
-
-    // Need at least enough space to safely write padding marker (level field is at end of struct)
-    constexpr size_t padding_marker_min_space = offsetof(LogMessage, level) + 1;
-
-    if (space_at_start >= total_size && this->head_ > 0 && contiguous >= padding_marker_min_space) {
-      // Add padding marker (set level field to indicate this is padding, not a real message)
-      LogMessage *padding = reinterpret_cast<LogMessage *>(this->storage_ + this->head_);
-      padding->level = PADDING_MARKER_LEVEL;
-      this->head_ = 0;
-    } else {
-      // Not enough space anywhere, or can't safely write padding marker
+  size_t write_pos = this->head_;
+  if (this->available_contiguous_space_() < total_size) {
+    // Wrap only if the start has room; head == tail would mean empty
+    if (this->head_ < this->tail_ || this->head_ == 0 || this->tail_ <= total_size) {
       xSemaphoreGive(this->mutex_);
       return false;
     }
+    // Mark the skipped end when a header fits there
+    if (CAPACITY - this->head_ >= sizeof(LogMessage)) {
+      reinterpret_cast<LogMessage *>(this->storage_ + this->head_)->level = PADDING_MARKER_LEVEL;
+    }
+    write_pos = 0;
   }
 
   // Write message header
-  LogMessage *msg = reinterpret_cast<LogMessage *>(this->storage_ + this->head_);
+  LogMessage *msg = reinterpret_cast<LogMessage *>(this->storage_ + write_pos);
   msg->level = level;
   msg->tag = tag;
   msg->line = line;
@@ -165,18 +149,15 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     return false;
   }
 
-  // Remove trailing newlines
+  // Trim before storing so the next message reuses the freed bytes
   while (text_length > 0 && text_area[text_length - 1] == '\n') {
     text_length--;
   }
-
+  text_area[text_length] = '\0';
   msg->text_length = text_length;
 
-  // Advance head
-  this->head_ += total_size;
-
-  // Handle wrap-around (shouldn't happen due to contiguous space check, but be safe)
-  if (this->head_ >= ESPHOME_TASK_LOG_BUFFER_SIZE) {
+  this->head_ = write_pos + message_total_size(text_length);
+  if (this->head_ >= CAPACITY) {
     this->head_ = 0;
   }
 

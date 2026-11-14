@@ -216,7 +216,7 @@ if mask != 0x01 or match != 0b10:  # 0b10: a one-bit field that is on when set
     value = (cg.MockObj(f"{match:#06b}") >> value) & 1
 STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(value))
 ```
-Store a field description per entity (a struct in a `StaticVector` sized by `cg.slot_counter`) only when the
+Store a field description per entity (a struct in a `SlotList` sized by `cg.slot_list`) only when the
 field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
 Never a template per bit or a virtual listener base (a second vptr per entity).
 
@@ -229,6 +229,15 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
 - `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`, `spi.new_spi_component`,
   `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`) constructs, registers and
   attaches in one call.
+- A fixed buffer sized from the config is a file-scope static (BSS, not heap):
+  `buf = cg.static_buffer(config[CONF_ID], cg.uint8, size)`, named after its owner so `esphome analyze-memory`
+  counts it there; pass `buf` to the constructor.
+  A buffer that may live in PSRAM takes `psram=True`: PSRAM builds get a zeroed `psram_buffer<T>(size)` allocation
+  instead, so pass `buf` once and mark the component failed in `setup()` if it is nullptr. `align=4` emits
+  `alignas(4)`, so a word-aligned byte buffer stays `uint8`. `size` may be an expression such as `MyClass.static_("buffer_size")(n)`, which renders
+  `ns::MyClass::buffer_size(n)`.
+- `cg.static_storage(config[CONF_ID], T, count)` is raw aligned storage for `count` objects as a `std::span<T>`,
+  for `StaticFixedVector::init()` when codegen knows the count.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.
 - `button.restart_button_schema(cls)` (and `factory_reset_`, `query_`) are button presets.

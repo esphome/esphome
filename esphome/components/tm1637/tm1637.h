@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -23,7 +25,7 @@ using tm1637_writer_t = display::DisplayWriter<TM1637Display>;
 
 class TM1637Display final : public PollingComponent {
  public:
-  void set_writer(tm1637_writer_t &&writer) { this->writer_ = writer; }
+  void set_writer(tm1637_writer_t &&writer) { this->writer_ = std::move(writer); }
 
   void setup() override;
 

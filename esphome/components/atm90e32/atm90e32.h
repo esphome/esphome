@@ -52,7 +52,7 @@ class ATM90E32Component final : public PollingComponent,
   static const uint8_t PHASEB = 1;
   static const uint8_t PHASEC = 2;
   const char *phase_labels[3] = {"A", "B", "C"};
-  // these registers are not sucessive, so we can't just do 'base + phase'
+  // these registers are not successive, so we can't just do 'base + phase'
   const uint16_t voltage_gain_registers[3] = {ATM90E32_REGISTER_UGAINA, ATM90E32_REGISTER_UGAINB,
                                               ATM90E32_REGISTER_UGAINC};
   const uint16_t current_gain_registers[3] = {ATM90E32_REGISTER_IGAINA, ATM90E32_REGISTER_IGAINB,

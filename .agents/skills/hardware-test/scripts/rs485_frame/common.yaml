@@ -1,0 +1,75 @@
+packages:
+  base: !include rs-base.yaml
+  buttons: !include buttons.yaml
+
+rs485_frame:
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  on_frame:
+    - frame_type: [0x01, 0x02]
+      then:
+        - lambda: 'ESP_LOGI("hwt", "MATCH 0102 case %02X", payload.size() > 2 ? payload[2] : 0);'
+
+script:
+  - id: cases
+    then:
+      - delay: 2s
+      - lambda: 'simrs::send("C1 good with a stuffed 0x10", simrs::frame({0x01, 0x02, 0xC1, 0x10, 0x55}));'
+      - delay: 300ms
+      - lambda: 'simrs::send("C2 bad crc", simrs::frame({0x01, 0x02, 0xC2, 0x00}, true));'
+      - delay: 300ms
+      - lambda: 'simrs::send("C3 garbage then good", simrs::cat({0x55, 0x10, 0x99, 0x03, 0x10}, simrs::frame({0x01, 0x02, 0xC3})));'
+      - delay: 300ms
+      - lambda: |-
+          auto f = simrs::frame({0x01, 0x02, 0xC4, 0x11, 0x22, 0x33});
+          simrs::send("C4 first half", std::vector<uint8_t>(f.begin(), f.begin() + 5));
+      - delay: 25ms
+      - lambda: |-
+          auto f = simrs::frame({0x01, 0x02, 0xC4, 0x11, 0x22, 0x33});
+          simrs::send("C4 second half after 25 ms", std::vector<uint8_t>(f.begin() + 5, f.end()));
+      - delay: 300ms
+      - lambda: |-
+          auto f = simrs::frame({0x01, 0x02, 0xC5, 0x11, 0x22, 0x33});
+          simrs::send("C5 first half", std::vector<uint8_t>(f.begin(), f.begin() + 5));
+      - delay: 150ms
+      - lambda: |-
+          auto f = simrs::frame({0x01, 0x02, 0xC5, 0x11, 0x22, 0x33});
+          simrs::send("C5 second half after 150 ms", std::vector<uint8_t>(f.begin() + 5, f.end()));
+      - delay: 300ms
+      - lambda: 'simrs::send("C6 overlong 150 B", simrs::frame(simrs::filled({0x01, 0x02, 0xC6}, 150, 0x5A)));'
+      - delay: 600ms
+      - lambda: 'simrs::send("C7 two frames in one write", simrs::cat(simrs::frame({0x01, 0x02, 0xC7, 0x0A}), simrs::frame({0x01, 0x02, 0xC7, 0x0B})));'
+      - delay: 300ms
+      - lambda: 'simrs::send("C8 cut frame then a new DLE STX", simrs::cat({0x10, 0x02, 0x01, 0x02, 0x77}, simrs::frame({0x01, 0x02, 0xC8})));'
+      - delay: 300ms
+      - lambda: 'simrs::send("C9 DLE followed by junk inside a frame", {0x10, 0x02, 0x01, 0x02, 0xC9, 0x10, 0x44, 0x00, 0x00, 0x10, 0x03});'
+      - delay: 300ms
+      - lambda: 'simrs::send("C10 max length 128 B payload", simrs::frame(simrs::filled({0x01, 0x02, 0xCA}, 128, 0x10)));'
+      - delay: 800ms
+      - logger.log: "T1 press cmd a, then nothing for 1 s (frame_trigger must hold it)"
+      - button.press: cmd_a
+      - delay: 1s
+      - lambda: 'simrs::send("T1 gate frame 01 01", simrs::frame({0x01, 0x01}));'
+      - delay: 500ms
+      - logger.log: "T2 press cmd a then cmd b before the gate (replace_latest keeps b)"
+      - button.press: cmd_a
+      - button.press: cmd_b
+      - delay: 300ms
+      - lambda: 'simrs::send("T2 gate frame 01 01", simrs::frame({0x01, 0x01}));'
+      - delay: 500ms
+      - lambda: 'simrs::send("T3 gate frame with nothing queued", simrs::frame({0x01, 0x01}));'
+      - delay: 500ms
+      - lambda: |-
+          auto a = simrs::frame({0x00, 0x83, 0x01, 0x10, 0xA1});
+          auto b = simrs::frame({0x00, 0x83, 0x01, 0x10, 0xB2});
+          char ha[80], hb[80];
+          format_hex_to(ha, sizeof(ha), a.data(), a.size());
+          format_hex_to(hb, sizeof(hb), b.data(), b.size());
+          ESP_LOGI("hwt", "EXPECT cmd a %s", ha);
+          ESP_LOGI("hwt", "EXPECT cmd b %s", hb);
+          ESP_LOGI("hwt", "DONE");

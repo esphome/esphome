@@ -26,7 +26,7 @@ void MR24HPC1Component::dump_config() {
   LOG_TEXT_SENSOR(" ", "Product Model Text Sensor", this->product_model_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Product ID Text Sensor", this->product_id_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Hardware Model Text Sensor", this->hardware_model_text_sensor_);
-  LOG_TEXT_SENSOR(" ", "Firware Verison Text Sensor", this->firware_version_text_sensor_);
+  LOG_TEXT_SENSOR(" ", "Firmware Version Text Sensor", this->firmware_version_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Keep Away Text Sensor", this->keep_away_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Motion Status Text Sensor", this->motion_status_text_sensor_);
   LOG_TEXT_SENSOR(" ", "Custom Mode End Text Sensor", this->custom_mode_end_text_sensor_);
@@ -113,7 +113,7 @@ void MR24HPC1Component::update_() {
 void MR24HPC1Component::loop() {
   this->read_available([this](uint8_t b) { this->r24_split_data_frame_(b); });
 
-  if ((this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) &&
+  if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) &&
       (this->sg_start_query_data_ > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) && (!this->check_dev_inf_sign_)) {
     this->sg_start_query_data_ = STANDARD_FUNCTION_QUERY_SCENE_MODE;
   } else if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_ON) &&
@@ -211,7 +211,7 @@ void MR24HPC1Component::loop() {
       case CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED:
         this->get_custom_unman_time();
         this->sg_start_query_data_++;
-        if (this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) {
+        if (this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) {
           this->poll_time_base_func_check_ = false;  // Avoiding high-speed polling that can cause the device to jam
         }
         break;
@@ -331,7 +331,7 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
         if (get_frame_check_status(this->sg_frame_prase_buf_, this->sg_frame_len_)) {
           this->r24_parse_data_frame_(this->sg_frame_prase_buf_, this->sg_frame_len_);
         } else {
-          ESP_LOGD(TAG, "frame check failer!");
+          ESP_LOGD(TAG, "frame check failure!");
         }
       } else {
         ESP_LOGD(TAG, "FRAME_TAIL2 ERROR value:%x", value);
@@ -377,10 +377,10 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
       ESP_LOGD(TAG, "Reply: get hardwareModel error!");
     }
   } else if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_FIRMWARE_VERSION) {
-    if ((this->firware_version_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
+    if ((this->firmware_version_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_firmware_version_, 0, PRODUCT_BUF_MAX_SIZE);
       memcpy(this->c_firmware_version_, &data[FRAME_DATA_INDEX], product_len);
-      this->firware_version_text_sensor_->publish_state(this->c_firmware_version_);
+      this->firmware_version_text_sensor_->publish_state(this->c_firmware_version_);
     } else {
       ESP_LOGD(TAG, "Reply: get firmwareVersion error!");
     }
@@ -396,7 +396,7 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
 #ifdef USE_SWITCH
       PUBLISH_STATE(this->underlying_open_function_switch_, data[FRAME_DATA_INDEX]);
 #endif
-      this->s_output_info_switch_flag_ = data[FRAME_DATA_INDEX] ? OUTPUT_SWITCH_ON : OUTPUT_SWTICH_OFF;
+      this->s_output_info_switch_flag_ = data[FRAME_DATA_INDEX] ? OUTPUT_SWITCH_ON : OUTPUT_SWITCH_OFF;
       break;
 #ifdef USE_SENSOR
     case 0x01:

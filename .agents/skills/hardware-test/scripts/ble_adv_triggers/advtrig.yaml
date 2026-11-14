@@ -1,0 +1,41 @@
+# Advertiser for the service and manufacturer data trigger test: any ESP32 with BLE. Every 250 ms it switches to
+# the next of six raw non-connectable advertisements in adv_frames.hpp (addresses C4:C1:38:00:00:21 to 26).
+esphome:
+  name: advtrig
+  includes:
+    - adv_frames.hpp
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+esp32_ble:
+
+globals:
+  - id: idx
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          af::send(id(idx));
+          id(idx) = (id(idx) + 1) % af::COUNT;
+  - interval: 30s
+    then:
+      - lambda: ESP_LOGI("af", "sent %u, failed %u", (unsigned) af::sent, (unsigned) af::failed);

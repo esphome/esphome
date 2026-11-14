@@ -26,20 +26,26 @@ class HdlcReliability : public PacketInterface {
   /// Control byte plus CRC-16.
   static constexpr size_t FRAME_OVERHEAD = 3;
 
-  explicit HdlcReliability(PacketInterface *lower);
+  static constexpr size_t packet_size(size_t lower_size) { return remaining_packet_size(lower_size, FRAME_OVERHEAD); }
+  static constexpr size_t send_queue_size(size_t lower_size, uint8_t queue_length) {
+    return size_t{queue_length} * packet_size(lower_size);
+  }
+
+  /// @param tx_slots send_queue_size() bytes for the send queue; setup() fails if it is nullptr
+  /// @param max_queue_length the queue_length the send queue was sized for
+  HdlcReliability(PacketInterface *lower, uint8_t *tx_slots, uint8_t max_queue_length);
 
   void setup() override;
   void loop() override;
   void dump_config() override;
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
-  /// No room while the layer has no send queue: before setup(), or when setup() failed.
+  /// No room without a send queue, or when the layer below leaves none for a packet.
   size_t get_send_capacity() const override {
-    return this->tx_slots_ == nullptr ? 0 : this->max_queue_length_ - this->outstanding_();
+    return this->has_queue_() ? this->max_queue_length_ - this->outstanding_() : 0;
   }
 
   void set_ack_timeout(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
   void set_ack_delay(uint32_t ack_delay_ms) { this->ack_delay_ms_ = ack_delay_ms; }
-  void set_max_queue_length(uint8_t length) { this->max_queue_length_ = length; }
   void set_max_retries(uint8_t retries) { this->max_retries_ = retries; }
 
   bool is_connected() const { return this->state_ == LinkState::LINK_STATE_CONNECTED; }
@@ -67,18 +73,18 @@ class HdlcReliability : public PacketInterface {
   void link_up_();
   void start_timer_();
   void request_loop_();
+  bool has_queue_() const { return this->tx_slots_ != nullptr && this->max_packet_size_ != 0; }
   uint8_t outstanding_() const { return (this->vs_ - this->va_) & 7; }
   uint8_t slot_index_(uint8_t seq) const { return (this->head_ + ((seq - this->va_) & 7)) % this->max_queue_length_; }
   uint8_t *slot_(uint8_t seq) { return this->tx_slots_ + this->slot_index_(seq) * this->max_packet_size_; }
 
   PacketInterface *lower_;
-  // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_; allocated in
-  // setup() and never freed
-  uint8_t *tx_slots_{nullptr};
+  // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_
+  uint8_t *tx_slots_;                              // null if the PSRAM allocation failed
   std::array<uint16_t, MAX_WINDOW> tx_lengths_{};  // indexed like the slots
   uint32_t timeout_ms_{200};
   uint32_t ack_delay_ms_{0};
-  uint8_t max_queue_length_{4};
+  const uint8_t max_queue_length_;
   uint8_t max_retries_{5};
   uint8_t retries_{0};
   uint8_t head_{0};
@@ -87,12 +93,13 @@ class HdlcReliability : public PacketInterface {
   uint8_t va_{0};  // oldest unacknowledged frame
   uint8_t vr_{0};  // next frame expected from the peer
   LinkState state_{LinkState::LINK_STATE_RESET_PENDING};
-  bool ack_pending_{false};  // an RR is owed
-  bool ack_due_{false};      // and should be sent now
-  bool rej_sent_{false};
-  bool peer_frame_seen_{false};  // a numbered frame has arrived since the link came up
-  bool oversize_warned_{false};
-  bool reset_wait_logged_{false};  // the queue filled while waiting for this reset to be answered
+  bool ack_pending_ : 1 {false};  // an RR is owed
+  bool ack_due_ : 1 {false};      // and should be sent now
+  bool rej_sent_ : 1 {false};
+  bool peer_frame_seen_ : 1 {false};  // a numbered frame has arrived since the link came up
+  bool oversize_warned_ : 1 {false};
+  bool reset_wait_logged_ : 1 {false};  // the queue filled while waiting for this reset to be answered
+  bool destination_warned_ : 1 {false};
 };
 
 }  // namespace esphome::packet_interface

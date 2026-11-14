@@ -1,0 +1,72 @@
+# ble_client (classic ESP32): a sensor and a text sensor with notify, two on_notify each, link cycle every 60 s.
+# Substitutions: name, server (the server's BLE MAC from its esp32_ble dump).
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+
+ble_client:
+  - mac_address: ${server}
+    id: srv
+    on_connect:
+      - logger.log: {format: "CLI connected", level: INFO}
+    on_disconnect:
+      - logger.log: {format: "CLI disconnected", level: INFO}
+
+sensor:
+  - platform: ble_client
+    type: characteristic
+    ble_client_id: srv
+    id: num
+    name: num
+    service_uuid: 5ec10000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec10001-0000-1000-8000-00805f9b34fb
+    notify: true
+    update_interval: never
+    lambda: |-
+      if (x.empty()) return -1.0f;
+      if (x.size() == 1) return x[0] * 10.0f;
+      return (float) ((x[1] << 8) | x[2]) * 10.0f;
+    on_value:
+      - logger.log: {format: "CLI num value %.1f", args: [x], level: INFO}
+    on_notify:
+      - then:
+          - logger.log: {format: "CLI num notify A %.1f", args: [x], level: INFO}
+      - then:
+          - logger.log: {format: "CLI num notify B %.1f", args: [x], level: INFO}
+
+text_sensor:
+  - platform: ble_client
+    ble_client_id: srv
+    id: txt
+    name: txt
+    service_uuid: 5ec10000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec10002-0000-1000-8000-00805f9b34fb
+    notify: true
+    update_interval: never
+    on_value:
+      - logger.log: {format: "CLI txt value '%s'", args: [x.c_str()], level: INFO}
+    on_notify:
+      - then:
+          - logger.log: {format: "CLI txt notify A '%s' len=%u", args: [x.c_str(), (unsigned) x.size()], level: INFO}
+      - then:
+          - delay: 1s
+          - logger.log: {format: "CLI txt notify B '%s' len=%u", args: [x.c_str(), (unsigned) x.size()], level: INFO}
+
+interval:
+  - interval: 60s
+    then:
+      - logger.log: {format: "CLI cycle link", level: INFO}
+      - ble_client.disconnect: srv
+      - delay: 3s
+      - ble_client.connect: srv

@@ -299,6 +299,7 @@ bool Component::status_comm_result(bool ok, const LogString *message) {
   }
   return ok;
 }
+void Component::status_comm_check_slow_path_() { this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const LogString *message) {
   if (this->set_error_flag_(message) && message != nullptr) {

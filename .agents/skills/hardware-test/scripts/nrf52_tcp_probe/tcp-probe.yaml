@@ -1,0 +1,40 @@
+# nRF52840 on a test Thread network with no TCP user: an interval opens a TCP and a UDP socket twice and logs whether
+# each opened. Build with `-s name NAME` per tree. Without a component that registers a TCP socket, a build that
+# leaves Zephyr's TCP stack out gets a null TCP socket and logs its "TCP stack not built" error once; a build with the
+# stack opens both. Add `api:` to see the stack come back. secrets.yaml holds thread_tlv (force_dataset replaces a
+# dataset stored on the device). Read the log on the USB CDC port (Zephyr app, second port on some boards).
+substitutions:
+  name: tcpprobe
+
+esphome:
+  name: ${name}
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  dfu: true
+
+logger:
+  level: WARN
+
+network:
+  enable_ipv6: true
+
+openthread:
+  force_dataset: true
+  tlv: !secret thread_tlv
+
+socket:
+
+interval:
+  - interval: 15s
+    then:
+      - lambda: |-
+          static int n = 0;
+          if (++n > 2)
+            return;
+          auto t = socket::socket(AF_INET6, SOCK_STREAM, 0);
+          auto u = socket::socket(AF_INET6, SOCK_DGRAM, 0);
+          ESP_LOGW("tcptest", "try %d: tcp %s udp %s", n, t ? "ok" : "null", u ? "ok" : "null");
+  - interval: 10s
+    then:
+      - lambda: 'ESP_LOGW("alive", "up %u s", (unsigned) (millis() / 1000));'

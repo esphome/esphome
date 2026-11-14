@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
 from esphome.const import CONF_AUDIO_DAC, CONF_DATA, CONF_ID, CONF_VOLUME
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
@@ -15,10 +15,6 @@ IS_PLATFORM_COMPONENT = True
 speaker_ns = cg.esphome_ns.namespace("speaker")
 
 Speaker = speaker_ns.class_("Speaker")
-
-PlayAction = speaker_ns.class_(
-    "PlayAction", automation.Action, cg.Parented.template(Speaker)
-)
 
 
 def get_audio_dac_ids(config):
@@ -75,9 +71,8 @@ SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "speaker.play",
-    PlayAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Speaker),
@@ -85,22 +80,8 @@ SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "play({})"),
 )
-async def speaker_play_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
-    return var
 
 
 for _name, _call in (

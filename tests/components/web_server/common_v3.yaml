@@ -9,7 +9,7 @@ web_server:
     - https://app.esphome.io
   sorting_groups:
     - id: sorting_group_1
-      name: "Group 1 Diplayed Last"
+      name: "Group 1 Displayed Last"
       sorting_weight: 40
     - id: sorting_group_2
       name: "Group 2 Displayed Third"

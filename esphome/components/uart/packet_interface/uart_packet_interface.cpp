@@ -47,7 +47,13 @@ void UartPacketInterface::handle_rx_byte_(uint8_t byte) {
   this->rx_buffer_[this->rx_length_++] = byte;
 }
 
+// A frame is written in pieces, and a UART debug automation run by one piece could send another frame into it; that
+// includes a send from another addressing peer, whose layers are not this one's
 bool UartPacketInterface::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  return this->send_exclusive_([&] { return this->send_(data); });
+}
+
+bool UartPacketInterface::send_(const PacketBuffer &data) {
   size_t size = data.size();
   if (size == 0)
     return true;

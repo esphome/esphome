@@ -1,0 +1,25 @@
+# Runs hex_bench() twice after boot. Needs a tree with esp32_ble/bluedroid_hex.h (#22081).
+# Substitutions: name, board (default esp32dev).
+substitutions:
+  board: esp32dev
+
+esphome:
+  name: ${name}
+  includes: [hexbench.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - delay: 3s
+      - lambda: "hex_bench();"
+      - delay: 1s
+      - lambda: "hex_bench();"
+
+esp32:
+  board: ${board}
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+esp32_ble:
