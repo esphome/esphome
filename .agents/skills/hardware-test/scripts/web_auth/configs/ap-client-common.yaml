@@ -1,6 +1,7 @@
 # Captive portal client: the client-wifisave package (one bogus save, then the real credentials 20 s later) plus
 # probes of portal and web_server routes while it is on the device's AP. Lines: "probe <what> status N",
-# "bogus save status N", "real save status N". Substitutions: name, ap_ssid, web_user, web_pass (creds-*.yaml).
+# "bogus save status N", "real save status N". Judge the probes with ../approbe_check.py CLIENT_LOG.
+# Substitutions: name, ap_ssid, web_user, web_pass (creds-*.yaml).
 substitutions:
   ap_ssid: wbacp
   real_ssid: !secret wifi_ssid

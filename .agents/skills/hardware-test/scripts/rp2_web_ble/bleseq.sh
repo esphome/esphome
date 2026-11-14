@@ -1,6 +1,7 @@
 #!/bin/zsh
 # bleseq.sh NAME: 180 s GATT hold through the Pico W proxy NAME (built by staflow.sh), then 4 short holds 10 s apart,
-# with the serial log captured. PASS needs every hold to pass, no crash line and a capture that lasted the run.
+# with the serial log captured. PASS needs every hold to pass, no crash line, boot or port loss and a capture that
+# lasted the run.
 # env: TREE, PY, PICO_SN, PEER_MAC (the ble_notify server); apikey.txt here
 D=${0:A:h}; N=$1; S=$D/..; T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; H=$(cat $D/$N-host.txt)
 FAILS=0; fail() { echo "FAIL: $*"; FAILS=$((FAILS + 1)); }
@@ -25,5 +26,8 @@ CRASH=$(grep -a -c -i -E 'CRASH|panic|HardFault|assert' $L)
 echo "serial: crash/assert $CRASH boots $(grep -a -c 'ESPHome version' $L) notify-response warnings $(grep -a -c 'Failed to send notify' $L) connects $(grep -a -c 'Connecting v3' $L)"
 grep -a -E "Disconnected, reason|Connection failed|status" $L | cut -c1-120 | sort | uniq -c | sort -rn | head -5
 [ "$CRASH" = 0 ] || fail "$CRASH crash lines"
+# the capture opens on a running proxy, so any boot or USB drop is a reboot the next hold's retry would hide
+BOOTS=$(grep -a -c 'ESPHome version' $L); LOSSES=$(grep -a -c 'port lost' $L)
+[ "$BOOTS" = 0 ] && [ "$LOSSES" = 0 ] || fail "$BOOTS boots and $LOSSES port losses during the holds"
 [ $FAILS = 0 ] || exit 1
 echo PASS

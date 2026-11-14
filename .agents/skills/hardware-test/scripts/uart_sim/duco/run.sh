@@ -1,6 +1,7 @@
 #!/bin/bash
 # run.sh NAME KIND SECONDS: generate NAME.yaml with gen.py (KIND pr|dev), build it from TREE, flash the board and
-# capture its log to NAME-log.txt; a pr build ends with check.py against expected.txt (exit 1 on a mismatch).
+# capture its log to NAME-log.txt; exit 1 on a crash line or a second boot in the log, and a pr build ends with
+# check.py against expected.txt (exit 1 on a mismatch).
 # Run it from a scratch directory that holds a copy of ducosim.hpp and secrets.yaml.
 # env: TREE, PY, DUCO_PORT (the board), BUILD_LOCK (optional, see ../../pio_build.sh)
 D=$PWD; S=$(cd "$(dirname "$0")/../.." && pwd); N=${1:?name}; K=${2:?pr|dev}; SECS=${3:?seconds}
@@ -14,6 +15,10 @@ $PY "$S/serial_capture.py" "$P" "$SECS" "$D/$N-log.txt" --reset || { echo "FAIL:
 # the box must have answered: an empty control row from a dead hub or a miswired UART is no control
 REQ=$(grep -a -o "ALIVE requests [0-9]*" "$D/$N-log.txt" | tail -1 | grep -o "[0-9]*$")
 [ "${REQ:-0}" -gt 0 ] || { echo "FAIL: the box model answered no requests"; exit 1; }
+# the capture resets the board once; a crash or another boot after it is a failure on either build
+CRASH=$(grep -a -c -E 'Guru Meditation|panic|abort\(|Backtrace' "$D/$N-log.txt")
+BOOTS=$(grep -a -c 'Running through setup()' "$D/$N-log.txt")
+[ "$CRASH" = 0 ] && [ "$BOOTS" -le 1 ] || { echo "FAIL: crash lines $CRASH, boots $BOOTS"; exit 1; }
 # the dev build is the control and has no expected states; a PR build must match expected.txt
 [ "$K" = pr ] || { echo "$N done ($REQ requests, no state verdict for dev)"; exit 0; }
 $PY "$(dirname "$0")/check.py" "$D/$N-log.txt" "$D/expected.txt"

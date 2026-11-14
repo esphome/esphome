@@ -15,8 +15,9 @@
   `templates/diagnostics.yaml`), `creds-short.yaml` and `creds-long.yaml`, `d1.yaml` (D1 mini on the station
   network), `d1-ap.yaml` (captive portal DUT on `templates/dut-fallback-ap.yaml`), `ap-client.yaml` with
   `ap-client-common.yaml` (`templates/client-wifisave.yaml` plus probes of `/`, `/config.json` and a POST without
-  and with credentials while on the AP), and `run.sh NAME CONFIG KIND PORT MODE` (build with the chosen
-  credentials through `../pio_build.sh`, flash, capture, authfuzz, crash counts).
+  and with credentials while on the AP; `approbe_check.py CLIENT_LOG` fails unless the POST without credentials
+  got 401, the one with credentials 200 and every probe answered), and `run.sh NAME CONFIG KIND PORT MODE` (build
+  with the chosen credentials through `../pio_build.sh`, flash, capture, authfuzz, crash counts).
 - `heap_churn.py HOST USER PASS [N] [RATE] [SAMPLE_S] [AFTER_S]`: free heap (the "Heap free" sensor over REST) while N
   wrong-credential requests run at a fixed RATE per second and for AFTER_S seconds after, sampled every 1 s for the
   first 20 s after the load; prints the idle heap, the lowest heap under load, how long the heap takes to come back
