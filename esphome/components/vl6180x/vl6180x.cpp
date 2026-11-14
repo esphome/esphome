@@ -924,7 +924,10 @@ void VL6180XComponent::update() {
     return;
 
   if (this->state_ != MeasurementState::MEASUREMENT_STATE_IDLE) {
-    this->range_pending_ = true;
+    if (this->state_ == MeasurementState::MEASUREMENT_STATE_ALS_START ||
+        this->state_ == MeasurementState::MEASUREMENT_STATE_ALS_WAIT) {
+      this->range_pending_ = true;
+    }
     return;
   }
 
