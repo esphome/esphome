@@ -359,7 +359,9 @@ void APIConnection::loop() {
   // Keepalive: only call into the cold path when enough time has elapsed.
   // When sent_ping is true, last_traffic_ hasn't been updated so this
   // condition is already satisfied — covers both send-ping and disconnect cases.
-  if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
+  // Unauthenticated connections are covered by HANDSHAKE_TIMEOUT_MS above, so a short
+  // keepalive cannot cut a slow (e.g. Noise) handshake short.
+  if (this->is_authenticated() && now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
     this->check_keepalive_(now);
   }
 
