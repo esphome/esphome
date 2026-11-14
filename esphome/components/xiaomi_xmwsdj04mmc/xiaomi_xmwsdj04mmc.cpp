@@ -16,13 +16,11 @@ void XiaomiXMWSDJ04MMC::dump_config() {
 }
 
 void XiaomiXMWSDJ04MMC::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  if (res.temperature.has_value() && this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(*res.temperature);
+  publish_optional(this->temperature_sensor_, res.temperature);
   // see https://github.com/custom-components/sensor.mitemp_bt/issues/7#issuecomment-595948254
   if (res.humidity.has_value() && this->humidity_sensor_ != nullptr)
     this->humidity_sensor_->publish_state(truncf(*res.humidity));
-  if (res.battery_level.has_value() && this->battery_level_sensor_ != nullptr)
-    this->battery_level_sensor_->publish_state(*res.battery_level);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 }
 
 }  // namespace esphome::xiaomi_xmwsdj04mmc

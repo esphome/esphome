@@ -261,8 +261,12 @@ void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
   }
   this->set_warning_(config.warning, BootFailureNames::get_log_str(feature, BootFailureNames::LAST_INDEX));
   if (attempts < RX8111_BOOT_MAX_ATTEMPTS) {
-    this->set_timeout(config.retry_id, this->boot_retry_delay_ms_,
-                      [this, configure = config.configure]() { (this->*configure)(); });
+    // Capture the feature, not the 8-byte member pointer, so the callback fits std::function's inline buffer
+    this->set_timeout(config.retry_id, this->boot_retry_delay_ms_, [this, feature]() {
+      BootConfig retry;
+      progmem_memcpy(&retry, &CONFIGS[feature], sizeof(retry));
+      (this->*retry.configure)();
+    });
   }
 }
 

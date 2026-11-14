@@ -1,6 +1,7 @@
 #include "atm90e26.h"
 #include "atm90e26_reg.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::atm90e26 {
 
@@ -40,7 +41,7 @@ void ATM90E26Component::setup() {
     return;
   }
   // TODO: 100 * <nominal voltage, e.g. 230> * sqrt(2) * <fraction of nominal, e.g. 0.9> / (4 * gain_voltage/32768)
-  this->write16_(ATM90E26_REGISTER_SAGTH, 0x17DD);  // Voltage sag threshhold 0x1F2F
+  this->write16_(ATM90E26_REGISTER_SAGTH, 0x17DD);  // Voltage sag threshold 0x1F2F
 
   // Set metering calibration values
   this->write16_(ATM90E26_REGISTER_CALSTART, 0x5678);  // CAL Metering calibration startup command
@@ -138,7 +139,7 @@ uint16_t ATM90E26Component::read16_(uint8_t a_register) {
   this->read_array(data, 2);
   this->disable();
 
-  output = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
+  output = encode_uint16(data[0], data[1]);
   ESP_LOGVV(TAG, "read16_ 0x%04X output 0x%04X", a_register, output);
   return output;
 }

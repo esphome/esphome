@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -69,44 +71,58 @@ class Sun final {
   double elevation();
   double azimuth();
 
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  /// Triggers `automation` when the elevation rises past `elevation`.
+  void add_sunrise_automation(Automation<> *automation, float elevation) {
+    this->sunrise_automations_[this->sunrise_count_++] = {automation, elevation};
+  }
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  /// Triggers `automation` when the elevation sets past `elevation`.
+  void add_sunset_automation(Automation<> *automation, float elevation) {
+    this->sunset_automations_[this->sunset_count_++] = {automation, elevation};
+  }
+#endif
+#ifdef USE_SUN_ELEVATION_POLL
+  void start_elevation_poll();
+  /// One poll; start_elevation_poll() runs it every 60 s.
+  void poll_elevation();
+#endif
+
  protected:
   internal::HorizontalCoordinate calc_coords_();
   optional<ESPTime> calc_event_(bool rising, double zenith);
   optional<ESPTime> calc_event_(ESPTime date, bool rising, double zenith);
 
   time::RealTimeClock *time_;
+  // The fill counts sit in the padding before location_.
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  uint8_t sunrise_count_{0};
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  uint8_t sunset_count_{0};
+#endif
   internal::GeoLocation location_;
-};
-
-class SunTrigger final : public Trigger<>, public PollingComponent, public Parented<Sun> {
- public:
-  SunTrigger() : PollingComponent(60000) {}
-
-  void set_sunrise(bool sunrise) { sunrise_ = sunrise; }
-  void set_elevation(double elevation) { elevation_ = elevation; }
-
-  void update() override {
-    double current = this->parent_->elevation();
-    if (std::isnan(current))
-      return;
-
-    bool crossed;
-    if (this->sunrise_) {
-      crossed = this->last_elevation_ <= this->elevation_ && this->elevation_ < current;
-    } else {
-      crossed = this->last_elevation_ >= this->elevation_ && this->elevation_ > current;
-    }
-
-    if (crossed && !std::isnan(this->last_elevation_)) {
-      this->trigger();
-    }
-    this->last_elevation_ = current;
-  }
-
- protected:
-  bool sunrise_;
+#ifdef USE_SUN_ELEVATION_POLL
+  struct ElevationAutomation {
+    Automation<> *automation;
+    float elevation;
+  };
   double last_elevation_{NAN};
-  double elevation_;
+#endif
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  std::array<ElevationAutomation, SUN_SUNRISE_AUTOMATION_COUNT> sunrise_automations_;
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  std::array<ElevationAutomation, SUN_SUNSET_AUTOMATION_COUNT> sunset_automations_;
+#endif
 };
+
+/// on_sunrise filter: the elevation was at or below `elevation` on the previous poll and is above it now.
+inline bool rose_past(double last, double current, double elevation) {
+  return last <= elevation && elevation < current;
+}
+/// on_sunset filter: the elevation was at or above `elevation` on the previous poll and is below it now.
+inline bool set_past(double last, double current, double elevation) { return last >= elevation && elevation > current; }
 
 }  // namespace esphome::sun

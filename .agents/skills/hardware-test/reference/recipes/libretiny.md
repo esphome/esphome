@@ -160,3 +160,21 @@ auth frames.
 Known LibreTiny behaviour seen here: after a join with a BSSID and channel, LibreTiny's partial-scan reset leaves
 the next SSID-only join with nothing to scan (`RTW_NONE_NETWORK` in about 18 ms). That is a firmware bug, not
 the board; passing channel 0 avoids it.
+
+## Pulse counting and edge interrupts on LibreTiny (esphome#22391, #22400, #22403, #22404, 2026-11-06 to 11-07)
+
+`scripts/libretiny_edges/`:
+- `pulse-bk.yaml` + `pulsegen.hpp` (BK7238, generator pins `GEN_PIN_A`/`GEN_PIN_B` jumpered to the counted pins) and
+  `pulse-rtl.yaml` + the same header (BW15, mbed `pwmout` on `GEN_PIN_NAME`): one pulse shape per 35 s stage, from
+  BL0937-like 38 µs pulses at 1 kHz up to 50 ms, counted by `pulse_counter` with `inverted` and filters as
+  substitutions; `meas` lines give count per stage. Found: Beken counted half of BL0937 pulses (readings halve, so a
+  calibration note was needed), RTL8720C counted none, RTL8710B none with inverted pins, LN882H counted correctly.
+- `bw12-base.yaml` with two pin layouts (`common-bw12.yaml`, `common-bw12-b.yaml`) + `bwdbg.hpp` (BW12, RTL8710B): edges
+  without wiring by toggling the pad pull on floating pins (`PAD_PullCtrl`), `-Wl,--wrap=digitalRead` to count ISR
+  versus task reads, and a pin/IRQ register dump; `summ.py` summarizes. A jumper IO12 to IO13 on the jig gave a real
+  driven edge.
+- `common-bw12-time.yaml`: `millis()`/`micros()` every 5 s against host time, a DWT cycle bench per call (also under
+  `InterruptLock`), and a mask ROM dump of `SYSTIMER_TickGet`.
+Results: #22400 https://github.com/esphome/esphome/pull/22400#issuecomment-6712520146, #22403
+https://github.com/esphome/esphome/pull/22403#issuecomment-6712901242, #22404
+https://github.com/esphome/esphome/pull/22404#issuecomment-6713095035.

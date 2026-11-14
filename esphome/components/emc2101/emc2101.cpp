@@ -3,6 +3,7 @@
 //  - Official Datasheet: https://ww1.microchip.com/downloads/en/DeviceDoc/2101.pdf
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "emc2101.h"
 
 namespace esphome::emc2101 {
@@ -15,7 +16,7 @@ static const uint8_t EMC2101_ALT_CHIP_ID = 0x28;  // EMC2101 alternate device id
 // EMC2101 registers from the datasheet. We only define what we use.
 static const uint8_t EMC2101_REGISTER_INTERNAL_TEMP = 0x00;      // The internal temperature register
 static const uint8_t EMC2101_REGISTER_EXTERNAL_TEMP_MSB = 0x01;  // high byte for the external temperature reading
-static const uint8_t EMC2101_REGISTER_DAC_CONV_RATE = 0x04;      // DAC convesion rate config
+static const uint8_t EMC2101_REGISTER_DAC_CONV_RATE = 0x04;      // DAC conversion rate config
 static const uint8_t EMC2101_REGISTER_EXTERNAL_TEMP_LSB = 0x10;  // low byte for the external temperature reading
 static const uint8_t EMC2101_REGISTER_CONFIG = 0x03;             // configuration register
 static const uint8_t EMC2101_REGISTER_TACH_LSB = 0x46;           // Tach RPM data low byte
@@ -143,7 +144,7 @@ float Emc2101Component::get_external_temperature() {
   }
 
   // join msb and lsb (5 least significant bits are not used); msb is signed, so read as int16_t
-  int16_t raw = static_cast<int16_t>((msb << 8) | lsb) >> 5;
+  int16_t raw = static_cast<int16_t>(encode_uint16(msb, lsb)) >> 5;
   return raw * 0.125f;
 }
 
@@ -157,7 +158,7 @@ float Emc2101Component::get_speed() {
   }
 
   // calculate RPMs
-  uint16_t tach = msb << 8 | lsb;
+  uint16_t tach = encode_uint16(msb, lsb);
   return tach == 0xFFFF ? 0.0f : 5400000.0f / tach;
 }
 

@@ -73,7 +73,10 @@ void MotionComponent::update() {
     return;
   this->map_axes_(motion_data.acceleration, raw_data.acceleration);
   this->map_axes_(motion_data.angular_rate, raw_data.angular_rate);
-  this->motion_data_callback_.call(motion_data);
+#ifdef USE_MOTION_DATA_PUBLISHER
+  if (this->data_publisher_ != nullptr)
+    this->data_publisher_(motion_data);
+#endif
 
   ESP_LOGV(TAG, "Accel: [%.3f, %.3f, %.3f] g; Gyro: [%.3f, %.3f, %.3f] °/s", motion_data.acceleration[X_AXIS],
            motion_data.acceleration[Y_AXIS], motion_data.acceleration[Z_AXIS], motion_data.angular_rate[X_AXIS],
@@ -193,5 +196,56 @@ bool MotionComponent::calibrate_heading() {
   log_matrix(this->matrix_);
   return true;
 }
+
+#ifdef USE_MOTION_TAP
+void MotionComponent::set_tap_threshold(float threshold_g) {
+  ESP_LOGW(TAG, "Tap threshold not supported by this platform");
+}
+
+void MotionComponent::resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, uint8_t &axis, bool &negative) const {
+  // The base matrix, so level calibration does not move it
+  axis = 0;
+  float weight = 0.0f;
+  for (uint8_t i = 0; i < 3; i++) {
+    const float w = this->base_matrix_[i * 3 + chip_axis];
+    if (std::fabs(w) > std::fabs(weight)) {
+      weight = w;
+      axis = i;
+    }
+  }
+  negative = chip_negative != (weight < 0.0f);
+}
+
+void MotionComponent::report_tap_(uint8_t chip_axis, bool chip_negative) {
+  uint8_t axis;
+  bool negative;
+  this->resolve_tap_axis_(chip_axis, chip_negative, axis, negative);
+  this->tap_callback_.call(axis, negative);
+}
+
+void MotionComponent::report_double_tap_(uint8_t chip_axis, bool chip_negative) {
+  this->tap_held_ = false;
+  uint8_t axis;
+  bool negative;
+  this->resolve_tap_axis_(chip_axis, chip_negative, axis, negative);
+  this->double_tap_callback_.call(axis, negative);
+}
+
+void MotionComponent::hold_tap_(uint8_t chip_axis, bool chip_negative, uint32_t now) {
+  if (this->tap_held_)
+    return;
+  this->tap_held_axis_ = chip_axis;
+  this->tap_held_negative_ = chip_negative;
+  this->tap_held_since_ = now;
+  this->tap_held_ = true;
+}
+
+void MotionComponent::release_held_tap_(uint32_t now) {
+  if (this->tap_held_ && now - this->tap_held_since_ >= this->tap_hold_ms_) {
+    this->tap_held_ = false;
+    this->report_tap_(this->tap_held_axis_, this->tap_held_negative_);
+  }
+}
+#endif
 
 }  // namespace esphome::motion

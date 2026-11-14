@@ -1,0 +1,39 @@
+# Receiver on a BK72xx board (bk72xx_ble_tracker). substitutions: name, board
+# Wi-Fi must be configured: without it the BK7238 tracker logs "Scan started" and never receives anything.
+esphome:
+  name: ${name}
+  includes:
+    - rx.hpp
+
+bk72xx:
+  board: ${board}
+
+logger:
+  hardware_uart: UART1
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+bk72xx_ble:
+  enable_on_boot: true
+
+bk72xx_ble_tracker:
+  scan_parameters:
+    interval: 100ms
+    window: 30ms
+    continuous: true
+  <<: !include triggers.yaml
+  on_ble_advertise:
+    - then:
+        - lambda: |-
+            rx::all++;
+            if ((x.address_uint64() >> 8) == 0xC4C1380000ULL) rx::ours++;
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          rx::report("count");
+          ESP_LOGI("rx", "adverts %u, from the advertiser %u", (unsigned) rx::all, (unsigned) rx::ours);

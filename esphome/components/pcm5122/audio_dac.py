@@ -2,6 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
+from esphome.components.const import CONF_VOLUME_MAX_DB, CONF_VOLUME_MIN_DB
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -19,8 +20,6 @@ DEPENDENCIES = ["i2c"]
 
 CONF_ANALOG_GAIN = "analog_gain"
 CONF_CHANNEL_MIX = "channel_mix"
-CONF_VOLUME_MIN_DB = "volume_min_db"
-CONF_VOLUME_MAX_DB = "volume_max_db"
 
 pcm5122_ns = cg.esphome_ns.namespace("pcm5122")
 PCM5122 = pcm5122_ns.class_("PCM5122", AudioDac, cg.Component, i2c.I2CDevice)

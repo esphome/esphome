@@ -254,6 +254,10 @@ async def to_code(config):
         )
 
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
+    effect_data = cg.static_buffer(
+        config[CONF_OUTPUT_ID], cg.uint8, config[CONF_NUM_LEDS]
+    )
+    cg.add(var.set_effect_data(effect_data))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
     # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions

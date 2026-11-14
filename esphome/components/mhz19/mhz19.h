@@ -6,13 +6,13 @@
 
 namespace esphome::mhz19 {
 
-enum MHZ19ABCLogic {
+enum MHZ19ABCLogic : uint8_t {
   MHZ19_ABC_NONE = 0,
   MHZ19_ABC_ENABLED,
   MHZ19_ABC_DISABLED,
 };
 
-enum MHZ19DetectionRange {
+enum MHZ19DetectionRange : uint8_t {
   MHZ19_DETECTION_RANGE_DEFAULT = 0,
   MHZ19_DETECTION_RANGE_0_2000PPM,
   MHZ19_DETECTION_RANGE_0_5000PPM,
@@ -40,11 +40,10 @@ class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
  protected:
   bool mhz19_write_command_(const uint8_t *command, uint8_t *response);
 
-  MHZ19ABCLogic abc_boot_logic_{MHZ19_ABC_NONE};
-
   uint32_t warmup_seconds_;
-
+  MHZ19ABCLogic abc_boot_logic_{MHZ19_ABC_NONE};
   MHZ19DetectionRange detection_range_{MHZ19_DETECTION_RANGE_DEFAULT};
+  bool warmup_complete_{false};
 };
 
 }  // namespace esphome::mhz19

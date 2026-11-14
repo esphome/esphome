@@ -1,0 +1,35 @@
+# Pico 2 W: claims DMA channels 0 to 11 at on_boot priority 900, then probes one PIO LED strip.
+substitutions:
+  name: pc
+
+packages:
+  common: !include pio-common.yaml
+
+esphome:
+  on_boot:
+    - priority: 900
+      then:
+        - lambda: |-
+            for (uint i = 0; i < 12; i++) dma_channel_claim(i);
+            ESP_LOGI("hwt", "claimed DMA channels 0 to 11");
+    - priority: -100
+      then:
+        - delay: 6s
+        - lambda: |-
+            uint32_t m = 0;
+            for (uint i = 0; i < NUM_DMA_CHANNELS; i++) if (dma_channel_is_claimed(i)) m |= 1u << i;
+            ESP_LOGI("hwt", "DMA claimed mask 0x%04x of %u channels", (unsigned) m, (unsigned) NUM_DMA_CHANNELS);
+        - repeat:
+            count: 3
+            then:
+              - script.execute: probe_all
+              - delay: 2s
+        - lambda: 'ESP_LOGI("hwt", "DONE");'
+
+script:
+  - id: probe_all
+    then:
+      - light.turn_on: {id: s_ws_p0, brightness: 100%, red: 100%, green: 100%, blue: 100%}
+      - delay: 500ms
+      - lambda: |-
+          pioscope::probe("s_ws_p0", id(s_ws_p0), 2, esphome::Color(0xA5, 0x3C, 0x0F));

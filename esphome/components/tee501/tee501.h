@@ -12,9 +12,6 @@ class TEE501Component final : public sensor::Sensor, public PollingComponent, pu
   void setup() override;
   void dump_config() override;
   void update() override;
-
- protected:
-  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
 };
 
 }  // namespace esphome::tee501

@@ -40,22 +40,18 @@ CONFIG_SCHEMA = (
 
 
 _CALLBACK_AUTOMATIONS = (
-    automation.CallbackAutomation(
-        CONF_ON_CUSTOM, "add_custom_callback", [(cg.std_string, "x")]
-    ),
     automation.CallbackAutomation(CONF_ON_LED, "add_led_state_callback", [(bool, "x")]),
-    automation.CallbackAutomation(
-        CONF_ON_DEVICE_INFORMATION,
-        "add_device_infomation_callback",
-        [(cg.std_string, "x")],
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_SLOPE, "add_slope_callback", [(cg.std_string, "x")]
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_CALIBRATION, "add_calibration_callback", [(cg.std_string, "x")]
-    ),
-    automation.CallbackAutomation(CONF_ON_T, "add_t_callback", [(cg.std_string, "x")]),
+)
+# The reply text lives only while the callback runs
+_STRING_CALLBACK_AUTOMATIONS = tuple(
+    automation.CallbackAutomation(conf_key, callback_method, [(cg.StringRef, "x")])
+    for conf_key, callback_method in (
+        (CONF_ON_CUSTOM, "add_custom_callback"),
+        (CONF_ON_DEVICE_INFORMATION, "add_device_information_callback"),
+        (CONF_ON_SLOPE, "add_slope_callback"),
+        (CONF_ON_CALIBRATION, "add_calibration_callback"),
+        (CONF_ON_T, "add_t_callback"),
+    )
 )
 
 
@@ -66,3 +62,11 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    for entry in _STRING_CALLBACK_AUTOMATIONS:
+        for conf in config.get(entry.conf_key, []):
+            await automation.build_callback_automation(
+                var,
+                entry.callback_method,
+                automation.owning_args(entry.args, conf),
+                conf,
+            )
