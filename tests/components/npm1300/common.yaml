@@ -1,0 +1,84 @@
+npm1300:
+  id: pmic
+  i2c_id: i2c_bus
+  vbus_current_limit: 500mA
+  thermistor_resistance: 10kOhm
+  thermistor_beta: 3380
+  charger:
+    charge_current: 150mA
+    termination_voltage: 4.2V
+    warm_termination_voltage: 4.0V
+    termination_current: 20%
+    trickle_voltage: 2.5V
+    discharge_current_limit: 1000mA
+    recharge: true
+  buck2:
+    voltage: 3.3V
+  ldo1:
+    voltage: 3.3V
+    mode: ldo
+    enabled: true
+  ldo2:
+    mode: load_switch
+    enabled: false
+
+sensor:
+  - platform: npm1300
+    battery_voltage:
+      name: Battery Voltage
+    battery_current:
+      name: Battery Current
+    battery_temperature:
+      name: Battery Temperature
+    die_temperature:
+      name: PMIC Temperature
+    system_voltage:
+      name: System Voltage
+    vbus_voltage:
+      name: VBUS Voltage
+    vbus_current_limit:
+      name: VBUS Current Limit
+
+binary_sensor:
+  - platform: npm1300
+    vbus_present:
+      name: VBUS Present
+    vbus_current_limit_active:
+      name: VBUS Current Limit Active
+    charging:
+      name: Charging
+    charge_complete:
+      name: Charge Complete
+    charger_error:
+      name: Charger Error
+
+text_sensor:
+  - platform: npm1300
+    charger_status:
+      name: Charger Status
+
+switch:
+  - platform: npm1300
+    charger:
+      name: Charger
+    buck1:
+      name: BUCK1
+    ldo1:
+      name: LDO1
+    ldo2:
+      name: LDO2
+
+button:
+  - platform: template
+    name: Ship Mode
+    on_press:
+      - npm1300.enter_ship_mode: pmic
+  - platform: template
+    name: Hibernate
+    on_press:
+      - npm1300.hibernate:
+          id: pmic
+          duration: 1h
+      - npm1300.hibernate:
+          id: pmic
+          duration: !lambda return 60000;
