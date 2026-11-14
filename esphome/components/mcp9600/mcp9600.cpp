@@ -71,20 +71,16 @@ void MCP9600Component::dump_config() {
 void MCP9600Component::update() {
   if (this->hot_junction_sensor_ != nullptr) {
     uint16_t raw_hot_junction_temperature;
-    if (!this->read_byte_16(MCP9600_REGISTER_HOT_JUNCTION, &raw_hot_junction_temperature)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(MCP9600_REGISTER_HOT_JUNCTION, &raw_hot_junction_temperature)))
       return;
-    }
     float hot_junction_temperature = int16_t(raw_hot_junction_temperature) * 0.0625;
     this->hot_junction_sensor_->publish_state(hot_junction_temperature);
   }
 
   if (this->cold_junction_sensor_ != nullptr) {
     uint16_t raw_cold_junction_temperature;
-    if (!this->read_byte_16(MCP9600_REGISTER_COLD_JUNTION, &raw_cold_junction_temperature)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(MCP9600_REGISTER_COLD_JUNTION, &raw_cold_junction_temperature)))
       return;
-    }
     float cold_junction_temperature = int16_t(raw_cold_junction_temperature) * 0.0625;
     this->cold_junction_sensor_->publish_state(cold_junction_temperature);
   }

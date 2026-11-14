@@ -217,7 +217,6 @@ uint8_t MAX7219Component::printf(const char *format, ...) {
     return this->print(buffer);
   return 0;
 }
-void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) {
   intensity &= 0xF;
   if (intensity != this->intensity_) {

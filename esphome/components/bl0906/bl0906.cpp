@@ -92,7 +92,7 @@ void BL0906::advance_stage_() {
 
 void BL0906::setup() {
   this->discard_available();
-  this->write_array(USR_WRPROT_WITABLE, sizeof(USR_WRPROT_WITABLE));
+  this->write_array(USR_WRPROT_WRITABLE, sizeof(USR_WRPROT_WRITABLE));
   // Calibration (1: register address; 2: value before calibration; 3: value after calibration)
   this->bias_correction_(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
   this->bias_correction_(BL0906_RMSOS_2, 0.01500, 0);

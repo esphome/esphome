@@ -38,7 +38,7 @@ TEST(PacketTransportTest, SetPingPongEnable) {
 TEST(PacketTransportTest, SetPingPongRecycleTime) {
   TestablePacketTransport transport;
   transport.set_ping_pong_recycle_time(600);
-  EXPECT_EQ(transport.ping_pong_recyle_time_, 600u);
+  EXPECT_EQ(transport.ping_pong_recycle_time_, 600u);
 }
 
 // --- Provider management ---

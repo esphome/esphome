@@ -24,7 +24,7 @@ Example output:
 from __future__ import annotations
 
 import argparse
-from functools import lru_cache
+from functools import cache, lru_cache
 import json
 from pathlib import Path
 import re
@@ -34,7 +34,7 @@ from typing import Any
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
+from helpers import BASE_BUS_COMPONENTS, BENCHMARK_YAML_FILENAME, is_validate_only_file
 
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
@@ -107,6 +107,7 @@ ISOLATED_COMPONENTS = {
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "brizlabs_led_string": "Takes SPI2_HOST for itself, which the shared spi: test bus also uses",
 }
 
 
@@ -307,6 +308,10 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
         # disqualify the whole component from being grouped).
         if is_validate_only_file(yaml_file):
             continue
+        # benchmark.yaml only feeds the C++ unit test build (script/cpp_unit_test.py);
+        # its buses never reach the grouped build test.
+        if yaml_file.name == BENCHMARK_YAML_FILENAME:
+            continue
 
         analysis = analyze_yaml_file(yaml_file)
 
@@ -329,6 +334,27 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
             )
 
     return platform_buses, has_extend_remove, has_direct_bus_config
+
+
+def _is_non_groupable(
+    component_name: str, has_extend_remove: bool, has_direct_bus_config: bool
+) -> bool:
+    """Isolated, base bus, !extend/!remove, or a bus defined directly."""
+    return (
+        component_name in ISOLATED_COMPONENTS
+        or component_name in BASE_BUS_COMPONENTS
+        or has_extend_remove
+        or has_direct_bus_config
+    )
+
+
+@cache
+def is_groupable(component_dir: Path) -> bool:
+    """Whether CI merges this component's tests with other components'."""
+    _, has_extend_remove, has_direct_bus_config = analyze_component(component_dir)
+    return not _is_non_groupable(
+        component_dir.name, has_extend_remove, has_direct_bus_config
+    )
 
 
 def analyze_all_components(
@@ -371,29 +397,11 @@ def analyze_all_components(
         # Note: Components using $component_dir are now groupable because the merge
         # script rewrites these to absolute paths with component-specific substitutions
 
-        # Check if component is explicitly isolated
-        # These have known issues that prevent grouping with other components
-        if component_name in ISOLATED_COMPONENTS:
+        if _is_non_groupable(component_name, has_extend_remove, has_direct_bus_config):
             non_groupable.add(component_name)
 
-        # Check if component is a base bus component
-        # These ARE the bus platform implementations and define buses directly for testing
-        # They cannot be grouped with components that use bus packages (causes ID conflicts)
-        if component_name in BASE_BUS_COMPONENTS:
-            non_groupable.add(component_name)
-
-        # Check if component uses !extend or !remove directives
-        # These rely on specific config structure and cannot be merged with other components
-        # The directives work within a component's own package hierarchy but break when
-        # merging independent components together
-        if has_extend_remove:
-            non_groupable.add(component_name)
-
-        # Check if component defines buses directly in test files
-        # These create unique bus IDs and cause conflicts when merged
         # Exclude base bus components (i2c, spi, uart, etc.) since they ARE the platform
         if has_direct_bus_config and component_name not in BASE_BUS_COMPONENTS:
-            non_groupable.add(component_name)
             direct_bus_components.add(component_name)
 
     return components, non_groupable, direct_bus_components
@@ -640,12 +648,9 @@ def main() -> None:
             if platform_buses:
                 components[comp] = platform_buses
             # Note: Components using $component_dir are now groupable
-            if comp in ISOLATED_COMPONENTS:
-                non_groupable.add(comp)
-            if comp in BASE_BUS_COMPONENTS:
+            if _is_non_groupable(comp, has_extend_remove, has_direct_bus_config):
                 non_groupable.add(comp)
             if has_direct_bus_config and comp not in BASE_BUS_COMPONENTS:
-                non_groupable.add(comp)
                 direct_bus_components.add(comp)
     else:
         # Analyze all components

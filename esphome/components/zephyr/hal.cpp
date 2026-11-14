@@ -40,10 +40,8 @@ void arch_init() {
 #endif
     wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
     if (wdt_channel_id >= 0) {
-      uint8_t options = 0;
-#ifdef USE_DEBUG
-      options |= WDT_OPT_PAUSE_HALTED_BY_DBG;
-#endif
+      // Paused while a debugger halts the CPU, so flashing over SWD is not cut off by a reset
+      uint8_t options = WDT_OPT_PAUSE_HALTED_BY_DBG;
 #ifdef USE_DEEP_SLEEP
       options |= WDT_OPT_PAUSE_IN_SLEEP;
 #endif
