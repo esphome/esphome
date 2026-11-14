@@ -31,7 +31,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERVAL,
 )
-from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
@@ -47,9 +46,6 @@ bk72xx_ble_tracker_ns = cg.esphome_ns.namespace("bk72xx_ble_tracker")
 BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
     "BK72xxBLETracker", ble_device_base.BLEHub, cg.Component
 )
-
-StartScanAction = bk72xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
-
 BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
@@ -71,32 +67,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-@automation.register_action(
-    "bk72xx_ble_tracker.start_scan",
-    StartScanAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(BK72xxBLETracker),
-            # Optional with no default, unlike esp32_ble_tracker: omitting it
-            # keeps whatever scan_parameters.continuous configured, instead of
-            # silently forcing one-shot.
-            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
-        }
-    ),
-    synchronous=True,
+ble_automation.register_start_scan_action(
+    "bk72xx_ble_tracker.start_scan", BK72xxBLETracker
 )
-async def start_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
-        template_ = await cg.templatable(continuous, args, cg.bool_)
-        cg.add(var.set_continuous(template_))
-    return var
 
 
 automation.register_apply_action(
