@@ -1,0 +1,14 @@
+# Wi-Fi from secrets.yaml, switched off and on every 120 s so the responder restarts.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+interval:
+  - interval: 120s
+    then:
+      - logger.log: {format: "EV wifi off", level: INFO}
+      - wifi.disable:
+      - delay: 5s
+      - logger.log: {format: "EV wifi on", level: INFO}
+      - wifi.enable:

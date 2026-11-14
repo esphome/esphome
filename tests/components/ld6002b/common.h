@@ -169,6 +169,7 @@ class LD6002BTest : public ::testing::Test {
     test_hub() = &this->sut_;
 
     this->sut_.set_uart_parent(&this->uart_);
+    this->sut_.set_frame_buffer(this->frame_buffer_, sizeof(this->frame_buffer_));
     this->sut_.set_target_count_sensor(&this->target_count_);
     this->sut_.set_point_count_sensor(&this->point_count_);
     for (uint8_t i = 0; i < MAX_TARGETS; i++) {
@@ -270,6 +271,7 @@ class LD6002BTest : public ::testing::Test {
   host::HostPreferences prefs_;
   std::filesystem::path temp_dir_;
   MockUARTComponent uart_;
+  uint8_t frame_buffer_[ld600x::DEFAULT_MAX_DATA_LEN_POINT_CLOUD]{};
   LD6002BComponent sut_;
 
   sensor::Sensor target_count_;

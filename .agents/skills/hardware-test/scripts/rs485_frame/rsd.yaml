@@ -1,0 +1,36 @@
+esphome:
+  name: rsd
+
+packages:
+  base: !include rs-base.yaml
+
+rs485_frame:
+  sniffer_only: true
+  framing:
+    escape:
+      mode: double
+
+script:
+  - id: cases
+    then:
+      - lambda: simrs::double_mode = true;
+      - delay: 1s
+      - lambda: 'simrs::send("D1 good with a literal 0x10", simrs::frame({0x01, 0x02, 0xD1, 0x10, 0x55}));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D2 bad crc", simrs::frame({0x01, 0x02, 0xD2, 0x00}, true));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D3 DLE followed by junk inside a frame", {0x10, 0x02, 0x01, 0x02, 0xD3, 0x10, 0x44, 0x00, 0x00, 0x10, 0x03});'
+      - delay: 600ms
+      - lambda: 'simrs::send("D4 two frames in one write", simrs::cat(simrs::frame({0x01, 0x02, 0xD4, 0x0A}), simrs::frame({0x01, 0x02, 0xD4, 0x0B})));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D5 cut frame then a new DLE STX", simrs::cat({0x10, 0x02, 0x01, 0x02, 0x77}, simrs::frame({0x01, 0x02, 0xD5})));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D6 overlong 150 B", simrs::frame(simrs::filled({0x01, 0x02, 0xD6}, 150, 0x5A)));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D7 max length 128 B of 0x10", simrs::frame(simrs::filled({0x01, 0x02, 0xD7}, 128, 0x10)));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D8 DLE DLE DLE STX: literal DLE then a new frame", simrs::cat({0x10, 0x02, 0x01, 0x02, 0x10, 0x10}, simrs::frame({0x01, 0x02, 0xD8})));'
+      - delay: 600ms
+      - lambda: 'simrs::send("D9 garbage DLE DLE before a frame", simrs::cat({0x55, 0x10, 0x10, 0x10, 0x99}, simrs::frame({0x01, 0x02, 0xD9})));'
+      - delay: 600ms
+      - lambda: 'ESP_LOGI("hwt", "DONE");'

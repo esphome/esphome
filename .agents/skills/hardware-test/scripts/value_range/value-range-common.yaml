@@ -1,0 +1,139 @@
+# on_value_range A/B: a fixed value sequence through sensor and number triggers, then a reboot to check the restored
+# in-range state. substitutions: tag (unique per build so the phase restarts after a reflash)
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - delay: 3s
+      - lambda: |-
+          if (id(tag_g) != ${tag}) { id(tag_g) = ${tag}; id(phase) = 0; }
+          ESP_LOGI("seq", "boot phase %d", (int) id(phase));
+      - if:
+          condition:
+            lambda: return id(phase) == 0;
+          then:
+            # Prime every trigger into a known state: stored in-range flags from earlier runs differ.
+            - lambda: |-
+                id(step) = -1;
+                id(bound).publish_state(0);
+                id(s1).publish_state(-500);
+                auto call = id(n1).make_call();
+                call.set_value(-500);
+                call.perform();
+            - delay: 200ms
+            - lambda: |-
+                id(bound).publish_state(NAN);
+                ESP_LOGI("seq", "primed");
+                id(step) = 0;
+            - repeat:
+                count: 30
+                then:
+                  - lambda: |-
+                      static const float SEQ[] = {0, 15, 15, 50, 55, 89.9f, 90, 90.0001f, 95, NAN, 95, 10, 9.99f,
+                                                  INFINITY, -INFINITY, 20, 20.0001f, 5, NAN, 60, 85, 75, 100,
+                                                  35, 45, 65, 72, 30, 25, 50};
+                      int k = id(step);
+                      if (k == 22) { id(bound).publish_state(40); ESP_LOGI("seq", "bound 40"); }
+                      if (k == 26) { id(bound).publish_state(70); ESP_LOGI("seq", "bound 70"); }
+                      float v = SEQ[k];
+                      ESP_LOGI("seq", "step %d value %f", k, v);
+                      id(s1).publish_state(v);
+                      auto call = id(n1).make_call();
+                      call.set_value(v);
+                      call.perform();
+                      id(step) = k + 1;
+                  - delay: 200ms
+            - lambda: |-
+                id(phase) = 1;
+                global_preferences->sync();
+                ESP_LOGI("seq", "phase 1 done, restarting");
+            - delay: 500ms
+            - lambda: App.safe_reboot();
+      - if:
+          condition:
+            lambda: return id(phase) == 1;
+          then:
+            - lambda: id(step) = 100;
+            - repeat:
+                count: 3
+                then:
+                  - lambda: |-
+                      static const float SEQ2[] = {50, 95, 50};
+                      int k = id(step) - 100;
+                      ESP_LOGI("seq", "step %d value %f", id(step), SEQ2[k]);
+                      id(s1).publish_state(SEQ2[k]);
+                      auto call = id(n1).make_call();
+                      call.set_value(SEQ2[k]);
+                      call.perform();
+                      id(step) = id(step) + 1;
+                  - delay: 200ms
+            - lambda: 'id(phase) = 2; global_preferences->sync(); ESP_LOGI("seq", "DONE");'
+
+logger:
+  level: DEBUG
+  logs:
+    sensor: INFO
+    number: INFO
+
+globals:
+  - id: tag_g
+    type: uint32_t
+    restore_value: true
+  - id: phase
+    type: int
+    restore_value: true
+  - id: step
+    type: int
+
+sensor:
+  - platform: template
+    id: bound
+    update_interval: never
+  - platform: template
+    id: s1
+    update_interval: never
+    on_value_range:
+      - above: 10
+        below: 90
+        then:
+          - lambda: 'ESP_LOGI("fire", "S1 [10,90] step %d x %f", id(step), x);'
+      - above: 50
+        then:
+          - lambda: 'ESP_LOGI("fire", "S2 >=50 step %d x %f", id(step), x);'
+      - below: 20
+        then:
+          - lambda: 'ESP_LOGI("fire", "S3 <=20 step %d x %f", id(step), x);'
+      - above: !lambda 'return x > 70 ? 80.0f : 30.0f;'
+        below: 95
+        then:
+          - lambda: 'ESP_LOGI("fire", "S4 lambda min step %d x %f", id(step), x);'
+      - above: !lambda 'return id(bound).state;'
+        then:
+          - lambda: 'ESP_LOGI("fire", "S5 >=bound step %d x %f", id(step), x);'
+      - above: !lambda 'return NAN;'
+        below: !lambda 'return NAN;'
+        then:
+          - lambda: 'ESP_LOGI("fire", "S6 both NaN step %d x %f", id(step), x);'
+      - above: 10
+        below: 90
+        then:
+          - lambda: 'ESP_LOGI("fire", "S7 [10,90] twin step %d x %f", id(step), x);'
+
+number:
+  - platform: template
+    id: n1
+    min_value: -1000
+    max_value: 1000
+    step: 0.0001
+    optimistic: true
+    on_value_range:
+      - above: 10
+        below: 90
+        then:
+          - lambda: 'ESP_LOGI("fire", "N1 [10,90] step %d x %f", id(step), x);'
+      - above: 50
+        then:
+          - lambda: 'ESP_LOGI("fire", "N2 >=50 step %d x %f", id(step), x);'
+      - below: !lambda 'return id(bound).state;'
+        then:
+          - lambda: 'ESP_LOGI("fire", "N3 <=bound step %d x %f", id(step), x);'

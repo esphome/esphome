@@ -42,10 +42,8 @@ void MCP9808Sensor::dump_config() {
 }
 void MCP9808Sensor::update() {
   uint16_t raw_temp;
-  if (!this->read_byte_16(MCP9808_REG_AMBIENT_TEMP, &raw_temp)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_byte_16(MCP9808_REG_AMBIENT_TEMP, &raw_temp)))
     return;
-  }
   if (raw_temp == 0xFFFF) {
     this->status_set_warning();
     return;

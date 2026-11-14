@@ -607,7 +607,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 
   void add_collect_header(const char *value) { this->lower_case_collect_headers_.emplace_back(value); }
 
-  void init_json(size_t count) { this->json_.init(count); }
+  using JsonEntry = std::pair<const char *, TemplatableValue<std::string, Ts...>>;
+  void set_json_storage(std::span<JsonEntry> storage) { this->json_.init(storage); }
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }
 
   void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
@@ -727,7 +728,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   HttpRequestComponent *parent_;
   ConstVector<RequestHeader<Ts...>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
-  FixedVector<std::pair<const char *, TemplatableValue<std::string, Ts...>>> json_{};
+  StaticFixedVector<JsonEntry> json_;
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
 #ifdef USE_HTTP_REQUEST_RESPONSE
   Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> success_trigger_with_response_;

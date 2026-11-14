@@ -300,15 +300,17 @@ optional<ESPTime> Sun::calc_event_(ESPTime date, bool rising, double zenith) {
   today.hour = today.minute = today.second = 0;
   today.recalc_timestamp_utc();
 
-  auto it = sun.event(rising, today, zenith);
-  if (it.has_value() && it->timestamp < date.timestamp) {
-    // We're calculating *next* sunrise/sunset, but calculated event
-    // is today, so try again tomorrow
-    time_t new_timestamp = today.timestamp + 24 * 60 * 60;
-    today = ESPTime::from_epoch_utc(new_timestamp);
-    it = sun.event(rising, today, zenith);
+  // The event of a UTC date can fall up to half a day before it or one and a half days after it,
+  // depending on the longitude, so walk the dates in order and take the first event that has
+  // not passed yet.
+  static constexpr time_t DAY = 24 * 60 * 60;
+  for (int offset = -1; offset <= 2; offset++) {
+    auto day = ESPTime::from_epoch_utc(today.timestamp + offset * DAY);
+    auto it = sun.event(rising, day, zenith);
+    if (it.has_value() && it->timestamp >= date.timestamp)
+      return it;
   }
-  return it;
+  return {};
 }
 optional<ESPTime> Sun::calc_event_(bool rising, double zenith) {
   auto it = Sun::calc_event_(this->time_->utcnow(), rising, zenith);

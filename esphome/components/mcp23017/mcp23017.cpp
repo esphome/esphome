@@ -7,10 +7,13 @@ ESPHOME_LOG_TAG(TAG, "mcp23017");
 
 static constexpr uint8_t IOCON_MIRROR = 0x40;  // Mirror INTA/INTB pins
 static constexpr uint8_t IOCON_ODR = 0x04;     // Open-drain output for INT pin
+static constexpr uint8_t IOCON_MASK = IOCON_ODR | IOCON_MIRROR;
 
 void MCP23017::setup() {
-  uint8_t iocon;
-  if (!this->setup_check(this->read_reg(mcp23x17_base::MCP23X17_IOCONA, &iocon)))
+  // Mirror INTA/INTB so either pin fires for changes on any port
+  const uint8_t iocon = (this->open_drain_ints_ ? IOCON_ODR : 0) | (this->interrupt_pin_ != nullptr ? IOCON_MIRROR : 0);
+  // In BANK=0 IOCONB is the same register as IOCONA
+  if (!this->setup_check(this->update_register(mcp23x17_base::MCP23X17_IOCONA, IOCON_MASK, iocon)))
     return;
 
   // Read current output register state
@@ -20,19 +23,6 @@ void MCP23017::setup() {
   // Reset IPOL to 0x00: ESPHome handles 'inverted' in software.
   this->write_reg(mcp23x17_base::MCP23X17_IPOLA, 0x00);
   this->write_reg(mcp23x17_base::MCP23X17_IPOLB, 0x00);
-
-  uint8_t iocon_flags = 0;
-  if (this->open_drain_ints_) {
-    iocon_flags |= IOCON_ODR;
-  }
-  if (this->interrupt_pin_ != nullptr) {
-    // Mirror INTA/INTB so either pin fires for changes on any port
-    iocon_flags |= IOCON_MIRROR;
-  }
-  if (iocon_flags != 0) {
-    this->write_reg(mcp23x17_base::MCP23X17_IOCONA, iocon | iocon_flags);
-    this->write_reg(mcp23x17_base::MCP23X17_IOCONB, iocon | iocon_flags);
-  }
 
   this->setup_interrupt_pin_();
 }

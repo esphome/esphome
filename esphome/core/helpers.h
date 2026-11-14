@@ -29,6 +29,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <core_esp8266_features.h>  // xt_rsil, xt_wsr_ps
 #include <pgmspace.h>
 #endif
 
@@ -39,6 +40,12 @@
 #ifdef USE_ESP32
 #include <esp_system.h>
 #include <esp_heap_caps.h>
+#include <esp_rom_crc.h>
+#endif
+
+#ifdef USE_LIBRETINY
+// From FlashDB, which LibreTiny always links; the full flashdb.h pulls in its storage layer
+extern "C" uint32_t fdb_calc_crc32(uint32_t crc, const void *buf, size_t size);
 #endif
 
 #if defined(USE_ESP32)
@@ -542,35 +549,34 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
       std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
 
  public:
-  class Iterator {
+  /// Walks the elements oldest first. It keeps a pointer to the current element and wraps it only when it runs
+  /// past the end of the storage, so reading an element does not reload the buffer's fields.
+  template<typename B, typename V> class IteratorImpl {
    public:
-    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    T &operator*() { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
-    Iterator &operator++() {
-      ++pos_;
+    ESPHOME_ALWAYS_INLINE IteratorImpl(B *buf, index_type pos)
+        : ptr_(buf->data_ + buf->wrap_(static_cast<size_t>(buf->head_) + pos)),
+          data_(buf->data_),
+          data_end_(buf->data_ + buf->capacity_),
+          pos_(pos) {}
+    ESPHOME_ALWAYS_INLINE V &operator*() const { return *this->ptr_; }
+    ESPHOME_ALWAYS_INLINE IteratorImpl &operator++() {
+      ++this->pos_;
+      if (++this->ptr_ == this->data_end_)
+        this->ptr_ = this->data_;
       return *this;
     }
-    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+    // Compares positions, not pointers: when the buffer is full, begin() and end() point at the same element
+    ESPHOME_ALWAYS_INLINE bool operator!=(const IteratorImpl &other) const { return this->pos_ != other.pos_; }
 
    private:
-    FixedRingBuffer *buf_;
+    V *ptr_;
+    V *data_;
+    V *data_end_;
     index_type pos_;
   };
 
-  class ConstIterator {
-   public:
-    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
-    ConstIterator &operator++() {
-      ++pos_;
-      return *this;
-    }
-    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
-
-   private:
-    const FixedRingBuffer *buf_;
-    index_type pos_;
-  };
+  using Iterator = IteratorImpl<FixedRingBuffer, T>;
+  using ConstIterator = IteratorImpl<const FixedRingBuffer, const T>;
 
   FixedRingBuffer() = default;
   ~FixedRingBuffer() {
@@ -670,10 +676,10 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     this->count_ = 0;
   }
 
-  Iterator begin() { return Iterator(this, 0); }
-  Iterator end() { return Iterator(this, this->count_); }
-  ConstIterator begin() const { return ConstIterator(this, 0); }
-  ConstIterator end() const { return ConstIterator(this, this->count_); }
+  ESPHOME_ALWAYS_INLINE Iterator begin() { return Iterator(this, 0); }
+  ESPHOME_ALWAYS_INLINE Iterator end() { return Iterator(this, this->count_); }
+  ESPHOME_ALWAYS_INLINE ConstIterator begin() const { return ConstIterator(this, 0); }
+  ESPHOME_ALWAYS_INLINE ConstIterator end() const { return ConstIterator(this, this->count_); }
 
   /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
   const T &operator[](index_type pos) const { return this->data_[this->wrap_(static_cast<size_t>(this->head_) + pos)]; }
@@ -916,6 +922,53 @@ template<typename T> class FixedVector {
   const T *end() const { return data_ + size_; }
 };
 
+/// FixedVector over caller-owned raw storage (cg.static_storage): elements are destroyed, the storage is never freed.
+template<typename T> class StaticFixedVector {
+ public:
+  StaticFixedVector() = default;
+  ~StaticFixedVector() { this->clear(); }
+  StaticFixedVector(const StaticFixedVector &) = delete;
+  StaticFixedVector &operator=(const StaticFixedVector &) = delete;
+
+  /// Called once by code generation, on an empty vector
+  void init(std::span<T> storage) {
+    this->data_ = storage.data();
+    this->capacity_ = static_cast<uint16_t>(storage.size());
+  }
+  void clear() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      for (T &item : *this)
+        item.~T();
+    }
+    this->size_ = 0;
+  }
+
+  /// Ignores pushes beyond the storage
+  void push_back(const T &value) { this->emplace_back(value); }
+  void push_back(T &&value) { this->emplace_back(std::move(value)); }
+  /// The new element, or nullptr when full
+  template<typename... Args> T *emplace_back(Args &&...args) {
+    if (this->size_ >= this->capacity_)
+      return nullptr;
+    return new (&this->data_[this->size_++]) T(std::forward<Args>(args)...);
+  }
+
+  size_t size() const { return this->size_; }
+  bool empty() const { return this->size_ == 0; }
+  size_t capacity() const { return this->capacity_; }
+  T &operator[](size_t i) { return this->data_[i]; }
+  const T &operator[](size_t i) const { return this->data_[i]; }
+  T *begin() { return this->data_; }
+  T *end() { return this->data_ + this->size_; }
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size_; }
+
+ private:
+  T *data_{nullptr};
+  uint16_t capacity_{0};
+  uint16_t size_{0};
+};
+
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
@@ -1010,6 +1063,17 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_
                bool refin = false, bool refout = false);
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t poly = 0x1021, bool refin = false,
                  bool refout = false);
+
+/// Calculate the standard reflected CRC-32 (as zlib, polynomial 0xEDB88320) of \p data with size \p len.
+/// Seed with 0, or with a previous result to continue across chunks.
+#if defined(USE_ESP32)
+// The lookup table and loop live in the mask ROM, so callers call it directly
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) { return esp_rom_crc32_le(crc, data, len); }
+#elif defined(USE_LIBRETINY)
+inline uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) { return fdb_calc_crc32(crc, data, len); }
+#else
+uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len);
+#endif
 
 /// Calculate a FNV-1 hash of \p str.
 /// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
@@ -1444,6 +1508,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
   pos += len;
   buf[pos] = '\0';
   return pos;
+}
+/// Append a string that is in PROGMEM on ESP8266; on other platforms flash is readable like RAM.
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, const char *str) {
+  return buf_append_str(buf, size, pos, str);
 }
 #endif
 
@@ -2302,8 +2370,14 @@ class LockGuard {
  */
 class InterruptLock {
  public:
+#ifdef USE_ESP8266
+  // Inline: saves two calls per lock, and the lock sits on bit-banged timing paths
+  ESPHOME_ALWAYS_INLINE InterruptLock() : state_(xt_rsil(15)) {}
+  ESPHOME_ALWAYS_INLINE ~InterruptLock() { xt_wsr_ps(this->state_); }
+#else
   InterruptLock();
   ~InterruptLock();
+#endif
 
  protected:
 #if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
@@ -2583,6 +2657,15 @@ template<class T> class RAMAllocator {
 
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
+
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().make_unique_array_for_overwrite(count).release();
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
+  return buffer;
+}
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
