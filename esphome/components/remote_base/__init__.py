@@ -791,39 +791,13 @@ def coolix_dumper(var, config):
 
 
 # Dish
-DishData, DishBinarySensor, DishTrigger, _, DishDumper = declare_protocol("Dish")
 DISH_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=16),
         cv.Required(CONF_COMMAND): cv.int_range(min=0, max=63),
     }
 )
-
-
-@register_binary_sensor("dish", DishBinarySensor, DISH_SCHEMA)
-def dish_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                DishData,
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
-    )
-
-
-@register_trigger("dish", DishTrigger, DishData)
-def dish_trigger(var, config):
-    pass
-
-
-@register_dumper("dish", DishDumper)
-def dish_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+DishData, DishBinarySensor, DishTrigger, _, DishDumper = register_simple_protocol(
     "dish",
     "Dish",
     DISH_SCHEMA,
