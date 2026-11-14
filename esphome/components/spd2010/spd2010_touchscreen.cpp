@@ -84,10 +84,9 @@ void SPD2010Touchscreen::setup() {
 
 void SPD2010Touchscreen::initialize_() {
   uint8_t version[18];
-  if (!this->read_register_(REG_VERSION, version, sizeof(version))) {
-    this->mark_failed(LOG_STR("Failed to read firmware version"));
+  if (!this->setup_check(this->read_register_(REG_VERSION, version, sizeof(version)),
+                         LOG_STR("Failed to read firmware version")))
     return;
-  }
   ESP_LOGD(TAG, "Firmware version: 0x%04X", encode_value_le<uint16_t>(&version[4]));
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();

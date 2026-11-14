@@ -145,7 +145,7 @@ void MicroNova::send_current_command_() {
     write_len = 4;
     write_data[2] = this->current_command_.data;
     // calculate checksum
-    write_data[3] = write_data[0] + write_data[1] + write_data[2];
+    write_data[3] = sum_bytes(write_data, 3);
     ESP_LOGV_HEX(TAG, write_data, sizeof(write_data), sizeof(write_data), "Sending write request [%s]");
   } else {
     write_len = 2;

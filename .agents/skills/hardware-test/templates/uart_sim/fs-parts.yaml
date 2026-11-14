@@ -1,0 +1,76 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: sim::loopback(id(u_s));
+
+uart:
+  - id: u_s
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 9600
+
+sensor:
+  - platform: sds011
+    id: sds
+    uart_id: u_s
+    pm_2_5:
+      name: S PM25
+      filters: []
+    pm_10_0:
+      name: S PM10
+      filters: []
+
+button:
+  - platform: template
+    name: S Wake
+    on_press:
+      - lambda: id(sds).set_working_state(true);
+  - platform: template
+    name: S Good
+    on_press:
+      - lambda: sim::send(id(u_s), "S Good", sim::sds011(101, 601));
+  - platform: template
+    name: S Repeated Header
+    on_press:
+      - lambda: sim::send(id(u_s), "S Repeated Header", sim::cat({0xAA}, sim::sds011(102, 602)));
+  - platform: template
+    name: S Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_s), "S Bad Checksum", sim::sds011(103, 603, true));
+  - platform: template
+    name: S Bad Tail
+    on_press:
+      - lambda: sim::send(id(u_s), "S Bad Tail", sim::sds011(104, 604, false, true));
+  - platform: template
+    name: S Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_s), "S Cut Then Frame", sim::cat(sim::part(sim::sds011(190, 690), 0, 5), sim::sds011(105, 605)));
+  - platform: template
+    name: S Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_s), "S Garbage Then Frame", sim::cat({0xC0, 0xAB, 0x01}, sim::sds011(106, 606)));
+  - platform: template
+    name: S Split 300
+    on_press:
+      - lambda: sim::send(id(u_s), "S Split 300 head", sim::part(sim::sds011(107, 607), 0, 4));
+      - delay: 300ms
+      - lambda: sim::send(id(u_s), "S Split 300 rest", sim::part(sim::sds011(107, 607), 4, 10));
+  - platform: template
+    name: S Split 700
+    on_press:
+      - lambda: sim::send(id(u_s), "S Split 700 head", sim::part(sim::sds011(108, 608), 0, 4));
+      - delay: 700ms
+      - lambda: sim::send(id(u_s), "S Split 700 rest", sim::part(sim::sds011(108, 608), 4, 10));
+  - platform: template
+    name: S Zero
+    on_press:
+      - lambda: sim::send(id(u_s), "S Zero", sim::sds011(0, 0));
+  - platform: template
+    name: S Two Frames
+    on_press:
+      - lambda: sim::send(id(u_s), "S Two Frames", sim::cat(sim::sds011(109, 609), sim::sds011(110, 610)));
+  - platform: template
+    name: S Good After
+    on_press:
+      - lambda: sim::send(id(u_s), "S Good After", sim::sds011(111, 611));

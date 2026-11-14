@@ -15,9 +15,6 @@ static constexpr float STILL_ACCEL_TOLERANCE = 0.12f;  // max deviation of |acce
 static constexpr float STILL_GYRO_THRESHOLD = 15.0f;   // max angular rate magnitude, in °/s
 static constexpr float GYRO_THRESHOLD_SCALE = 50.0f;   // arbitrary gyro threshold scale, in °/s per g of acceleration
 
-MotionBinarySensor::MotionBinarySensor(MotionComponent *parent, MotionBinarySensorType type)
-    : parent_(parent), type_(type) {}
-
 bool MotionBinarySensor::is_stationary(const MotionData &data) {
   float ax = data.acceleration[X_AXIS];
   float ay = data.acceleration[Y_AXIS];
@@ -44,7 +41,6 @@ bool MotionBinarySensor::is_stationary(const MotionData &data) {
 }
 
 void MotionBinarySensor::setup() {
-  this->parent_->add_listener([this](MotionData const &data) { this->process_motion_data_(data); });
   this->publish_state(false);  // default to false until the first update
 }
 
@@ -61,7 +57,7 @@ void MotionBinarySensor::dump_config() {
       this->threshold_, this->duration_);
 }
 
-void MotionBinarySensor::process_motion_data_(const MotionData &data) {
+void MotionBinarySensor::process_motion_data(const MotionData &data) {
   uint32_t now = App.get_loop_component_start_time();
 
   switch (this->type_) {

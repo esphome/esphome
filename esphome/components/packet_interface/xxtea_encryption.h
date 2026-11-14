@@ -26,7 +26,22 @@ namespace esphome::packet_interface {
  */
 class XxteaEncryption : public PacketInterface {
  public:
-  XxteaEncryption(PacketInterface *lower, bool rolling_code);
+  /// The check bytes and the padding count.
+  static constexpr size_t CHECK_SIZE = 4;
+  /// Boot number, counter, and the echo of the receiver's boot number.
+  static constexpr size_t ROLLING_SIZE = 12;
+
+  static constexpr size_t trailer_size(bool rolling_code) {
+    return rolling_code ? ROLLING_SIZE + CHECK_SIZE : CHECK_SIZE;
+  }
+  // XXTEA works on whole 32-bit words
+  static constexpr size_t packet_size(size_t lower_size, bool rolling_code) {
+    return remaining_packet_size(lower_size & ~size_t{3}, trailer_size(rolling_code));
+  }
+  static constexpr size_t buffer_words(size_t lower_size) { return lower_size / 4 * 2; }
+
+  /// @param buffers buffer_words() words for the send and receive buffers; setup() fails if it is nullptr
+  XxteaEncryption(PacketInterface *lower, bool rolling_code, uint32_t *buffers);
 
   void setup() override;
   void dump_config() override;
@@ -35,17 +50,17 @@ class XxteaEncryption : public PacketInterface {
   void set_key(std::initializer_list<uint32_t> key);
 
  protected:
+  bool send_(const PacketBuffer &data, const PacketMetaData &meta_data);
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);
   bool accept_counter_(uint32_t boot, uint32_t counter);
   void next_boot_();
 
   PacketInterface *lower_;
-  const size_t trailer_size_;
   std::array<uint32_t, 8> key_{};
-  // Separate buffers, as a layer above may send a reply while a received packet is being passed up; both are in one
-  // block allocated in setup(), and tx_buffer_ stays null if that fails
+  // Separate buffers, as a layer above may send a reply while a received packet is being passed up; tx_buffer_ is set
+  // only once setup() succeeds
   uint32_t *tx_buffer_{nullptr};
-  uint32_t *rx_buffer_{nullptr};
+  uint32_t *rx_buffer_;
   ESPPreferenceObject pref_;
   uint32_t boot_{0};
   uint32_t counter_{0};

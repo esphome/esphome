@@ -1,0 +1,11 @@
+# No interrupt_pin on the hub (polling); mcptest counts INTA edges itself
+substitutions:
+  isr_inta: "true"
+
+packages:
+  common: !include common.yaml
+
+mcp23017:
+  - id: mcp
+    address: 0x27
+    open_drain_interrupt: false
