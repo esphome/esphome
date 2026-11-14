@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome::whirlpool {
 
 ESPHOME_LOG_TAG(TAG, "whirlpool.climate");
