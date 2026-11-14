@@ -1,0 +1,182 @@
+"""Drive the web_server event source while sampling the main task stack minimum and free heap (esphome#22699).
+
+usage: arena_drive.py HOST USER PASS [PHASE_S]
+Needs the "Stack min" and "Heap free" template sensors and the "Big select" select of arena/arena-common.yaml,
+with the logger at VERY_VERBOSE (logs flood the /events streams).
+Phases: idle, two /events streams, plus a new /events client every 3 s (greeting and full listing), plus select
+changes every 0.5 s with a detail=all read of the select (a state over 1 KB), then all at once.
+Prints per phase: lowest stack minimum, heap range, uptime (resets), SSE bytes.
+"""
+
+import base64
+import json
+import socket
+import sys
+import threading
+import time
+import urllib.parse
+
+HOST, U, P = sys.argv[1:4]
+PHASE = float(sys.argv[4]) if len(sys.argv) > 4 else 60
+H = base64.b64encode(f"{U}:{P}".encode()).decode()
+stop_all = threading.Event()
+stats = {
+    "sse_bytes": 0,
+    "sse_closes": 0,
+    "connects": 0,
+    "listing_bytes": [],
+    "select_ok": 0,
+    "select_fail": 0,
+    "detail_bytes": 0,
+}
+OPTS = [
+    f"Option {i:02d} with a deliberately long label to grow the listing"
+    for i in range(40)
+]
+
+
+def req(method: str, path: str, timeout: float = 5) -> tuple[int | None, bytes]:
+    try:
+        s = socket.create_connection((HOST, 80), timeout=timeout)
+        s.sendall(
+            f"{method} {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n"
+            f"Content-Length: 0\r\n\r\n".encode()
+        )
+        buf = b""
+        while True:
+            try:
+                d = s.recv(4096)
+            except TimeoutError:
+                break
+            if not d:
+                break
+            buf += d
+            if b"\r\n\r\n" in buf:
+                hd, bd = buf.split(b"\r\n\r\n", 1)
+                cl = [
+                    ln
+                    for ln in hd.split(b"\r\n")
+                    if ln.lower().startswith(b"content-length:")
+                ]
+                if cl and len(bd) >= int(cl[0].split(b":")[1]):
+                    break
+        s.close()
+        st = int(buf.split(b" ", 2)[1]) if buf.startswith(b"HTTP") else None
+        return st, buf.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in buf else b""
+    except OSError:
+        return None, b""
+
+
+def val(name: str) -> float | None:
+    st, body = req("GET", "/sensor/" + urllib.parse.quote(name))
+    try:
+        return float(json.loads(body)["value"]) if st == 200 else None
+    except (ValueError, KeyError):
+        return None
+
+
+def stream(stop: threading.Event) -> None:
+    while not stop.is_set():
+        try:
+            s = socket.create_connection((HOST, 80), timeout=10)
+            s.sendall(
+                f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
+            )
+            s.settimeout(1)
+            while not stop.is_set():
+                try:
+                    d = s.recv(8192)
+                except TimeoutError:
+                    continue
+                if not d:
+                    stats["sse_closes"] += 1
+                    break
+                stats["sse_bytes"] += len(d)
+            s.close()
+        except OSError:
+            time.sleep(1)
+
+
+def connector(stop: threading.Event) -> None:
+    while not stop.is_set():
+        try:
+            s = socket.create_connection((HOST, 80), timeout=10)
+            s.sendall(
+                f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
+            )
+            s.settimeout(0.5)
+            n = 0
+            end = time.monotonic() + 2.5
+            while time.monotonic() < end:
+                try:
+                    d = s.recv(8192)
+                except TimeoutError:
+                    continue
+                if not d:
+                    break
+                n += len(d)
+            s.close()
+            stats["connects"] += 1
+            stats["listing_bytes"].append(n)
+        except OSError:
+            pass
+        stop.wait(0.5)
+
+
+def selector(stop: threading.Event) -> None:
+    i = 0
+    while not stop.is_set():
+        st, _ = req(
+            "POST",
+            "/select/Big%20select/set?option=" + urllib.parse.quote(OPTS[i % 40]),
+        )
+        stats["select_ok" if st == 200 else "select_fail"] += 1
+        if i % 4 == 0:
+            st, body = req("GET", "/select/Big%20select?detail=all")
+            stats["detail_bytes"] = max(stats["detail_bytes"], len(body))
+        i += 1
+        stop.wait(0.5)
+
+
+def phase(name: str, workers: list) -> None:
+    stop = threading.Event()
+    ts = [threading.Thread(target=w, args=(stop,)) for w in workers]
+    for t in ts:
+        t.start()
+    stacks, heaps, ups = [], [], []
+    end = time.monotonic() + PHASE
+    while time.monotonic() < end:
+        time.sleep(5)
+        s, h, u = val("Stack min"), val("Heap free"), val("Uptime")
+        if s is not None:
+            stacks.append(s)
+        if h is not None:
+            heaps.append(h)
+        if u is not None:
+            ups.append(u)
+    stop.set()
+    for t in ts:
+        t.join()
+    resets = sum(1 for a, b in zip(ups, ups[1:], strict=False) if b < a)
+    lb = stats["listing_bytes"]
+    print(
+        time.strftime("[%H:%M:%S]"),
+        f"PHASE {name}: stack min {min(stacks) if stacks else None} B, heap "
+        f"{min(heaps) if heaps else None}..{max(heaps) if heaps else None}, uptime {ups[:1]}..{ups[-1:]}, resets {resets}; "
+        f"sse bytes {stats['sse_bytes']}, sse closes {stats['sse_closes']}, connects {stats['connects']} "
+        f"(listing {min(lb) if lb else 0}..{max(lb) if lb else 0} B), select ok {stats['select_ok']} fail "
+        f"{stats['select_fail']}, detail {stats['detail_bytes']} B",
+        flush=True,
+    )
+
+
+print(
+    time.strftime("[%H:%M:%S]"),
+    f"start: stack min {val('Stack min')} heap {val('Heap free')} uptime {val('Uptime')}",
+    flush=True,
+)
+phase("idle", [])
+phase("two streams", [stream, stream])
+phase("two streams + new clients", [stream, stream, connector])
+phase("two streams + select over 1 KB", [stream, stream, selector])
+phase("all", [stream, stream, connector, selector])
