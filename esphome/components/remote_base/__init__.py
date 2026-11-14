@@ -657,44 +657,19 @@ Beo4Data, Beo4BinarySensor, Beo4Trigger, _, Beo4Dumper = register_simple_protoco
 
 
 # Brennenstuhl
-(
-    BrennenstuhlData,
-    BrennenstuhlBinarySensor,
-    BrennenstuhlTrigger,
-    _,
-    BrennenstuhlDumper,
-) = declare_protocol("Brennenstuhl")
 
 BRENNENSTUHL_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.hex_uint32_t,
     }
 )
-
-
-@register_binary_sensor("brennenstuhl", BrennenstuhlBinarySensor, BRENNENSTUHL_SCHEMA)
-def brennenstuhl_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                BrennenstuhlData,
-                ("code", config[CONF_CODE]),
-            )
-        )
-    )
-
-
-@register_trigger("brennenstuhl", BrennenstuhlTrigger, BrennenstuhlData)
-def brennenstuhl_trigger(var, config):
-    pass
-
-
-@register_dumper("brennenstuhl", BrennenstuhlDumper)
-def brennenstuhl_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+(
+    BrennenstuhlData,
+    BrennenstuhlBinarySensor,
+    BrennenstuhlTrigger,
+    _,
+    BrennenstuhlDumper,
+) = register_simple_protocol(
     "brennenstuhl",
     "Brennenstuhl",
     BRENNENSTUHL_SCHEMA,
