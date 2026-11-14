@@ -9,10 +9,28 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
+#if defined(USE_RP2) && (defined(USE_WIFI) || defined(USE_ETHERNET))
+#include <hardware/sync.h>
+#endif
 
 namespace esphome {
 
 ESPHOME_LOG_TAG(TAG, "scheduler");
+
+#if defined(USE_RP2) && (defined(USE_WIFI) || defined(USE_ETHERNET))
+// lwIP callbacks add and cancel items from a low-priority IRQ on RP2, where lock_ is an empty Mutex: hold interrupts
+// off instead. Not the lwIP lock: each release re-arms arduino-pico's 20 ms Ethernet poll, starving reception.
+class SchedulerLockGuard {
+ public:
+  explicit SchedulerLockGuard(Mutex & /*mutex*/) : state_(save_and_disable_interrupts()) {}
+  ~SchedulerLockGuard() { restore_interrupts(this->state_); }
+
+ private:
+  uint32_t state_;
+};
+#else
+using SchedulerLockGuard = LockGuard;
+#endif
 
 // Maximum number of logically deleted (cancelled) items before forcing cleanup.
 // Empirically chosen to balance cleanup overhead against tombstone accumulation in items_.
@@ -118,7 +136,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
-      LockGuard guard{this->lock_};
+      SchedulerLockGuard guard{this->lock_};
       this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
     }
     return;
@@ -140,7 +158,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   uint32_t offset = 0;
   // Take lock early to protect scheduler_item_pool_head_ access
   {
-    LockGuard guard{this->lock_};
+    SchedulerLockGuard guard{this->lock_};
 
     // Create and populate the scheduler item
     SchedulerItem *item = this->get_item_from_pool_locked_();
@@ -317,7 +335,7 @@ void Scheduler::full_cleanup_removed_items_() {
   // 2. Other threads must see either the old state or the new state, not intermediate states
   // 3. The operation is already expensive (O(n)), so lock overhead is negligible
   // 4. No operations inside can block or take other locks, so no deadlock risk
-  LockGuard guard{this->lock_};
+  SchedulerLockGuard guard{this->lock_};
 
   // Compact in-place: move valid items forward, recycle removed ones
   size_t write = 0;
@@ -440,7 +458,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     while (!this->items_.empty()) {
       SchedulerItem *item;
       {
-        LockGuard guard{this->lock_};
+        SchedulerLockGuard guard{this->lock_};
         item = this->pop_raw_locked_();
       }
 
@@ -457,7 +475,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     ESP_LOGD(TAG, "\n");
 
     {
-      LockGuard guard{this->lock_};
+      SchedulerLockGuard guard{this->lock_};
       this->items_ = std::move(old_items);
       // Rebuild heap after moving items back
       std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::Cmp{});
@@ -494,7 +512,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 #ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
     // Multi-threaded platforms without atomics: must take lock to safely read remove flag
     {
-      LockGuard guard{this->lock_};
+      SchedulerLockGuard guard{this->lock_};
       if (is_item_removed_locked_(item)) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
         this->to_remove_decrement_locked_();
@@ -504,7 +522,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 #else
     // Single-threaded or multi-threaded with atomics: can check without lock
     if (is_item_removed_(item)) {
-      LockGuard guard{this->lock_};
+      SchedulerLockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
       this->to_remove_decrement_locked_();
       continue;
@@ -513,7 +531,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 
     // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
     if (this->is_item_failed_(item)) {
-      LockGuard guard{this->lock_};
+      SchedulerLockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
       continue;
     }
@@ -533,7 +551,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     //  - timeouts/intervals get cancelled
     now = this->execute_item_(item, now);
 
-    LockGuard guard{this->lock_};
+    SchedulerLockGuard guard{this->lock_};
 
     // Only pop after function call, this ensures we were reachable
     // during the function call and know if we were cancelled.
@@ -583,7 +601,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   //   every item has been returned to a container (items_, to_add_, or pool).
   // Lock needed to get a consistent snapshot of all containers.
   {
-    LockGuard guard{this->lock_};
+    SchedulerLockGuard guard{this->lock_};
     this->debug_verify_no_leak_();
   }
 #endif
@@ -592,7 +610,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   return now;
 }
 void HOT Scheduler::process_to_add_slow_path_() {
-  LockGuard guard{this->lock_};
+  SchedulerLockGuard guard{this->lock_};
   for (auto *&it : this->to_add_) {
     if (is_item_removed_locked_(it)) {
       // Recycle cancelled items
@@ -616,7 +634,7 @@ bool HOT Scheduler::cleanup_slow_path_() {
   // 4. We need a consistent view of items_ and to_remove_ throughout the operation
   // Without the lock, we could access items_ while another thread is reading it,
   // leading to race conditions
-  LockGuard guard{this->lock_};
+  SchedulerLockGuard guard{this->lock_};
   while (!this->items_.empty()) {
     SchedulerItem *item = this->items_[0];
     if (!this->is_item_removed_locked_(item))
@@ -664,7 +682,7 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
 // Common implementation for cancel operations - handles locking
 bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                                  SchedulerItem::Type type) {
-  LockGuard guard{this->lock_};
+  SchedulerLockGuard guard{this->lock_};
   // Public cancel path uses default find_first=false to cancel ALL matches because
   // DelayAction parallel mode (skip_cancel=true) can create multiple items with the same key.
   return this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
@@ -766,7 +784,7 @@ void __attribute__((noinline)) Scheduler::shrink_scheduler_vector_(std::vector<S
 }
 
 void Scheduler::trim_freelist() {
-  LockGuard guard{this->lock_};
+  SchedulerLockGuard guard{this->lock_};
   SchedulerItem *item = this->scheduler_item_pool_head_;
   size_t freed = 0;
   while (item != nullptr) {
