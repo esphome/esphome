@@ -104,7 +104,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
             ),
             cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(
-                min=16000, max=96000
+                min=16000, max=192000
             ),
             cv.Optional(CONF_BITS_PER_SAMPLE, default=16): cv.one_of(16, 24, int=True),
             cv.Optional(CONF_DECODE_MEMORY): cv.one_of(*MEMORY_LOCATIONS, lower=True),
