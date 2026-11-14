@@ -1,0 +1,23 @@
+# Soft AP only (no station network) with captive_portal and bluetooth_proxy, as in #22534. Substitutions: name,
+# board, logger_uart (USB_SERIAL_JTAG on native USB chips, UART0 on a classic devkit), ap_ssid.
+substitutions:
+  board: esp32dev
+  logger_uart: UART0
+  ap_ssid: bleaptest
+esphome:
+  name: ${name}
+esp32:
+  board: ${board}
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: ${logger_uart}
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+wifi:
+  ap:
+    ssid: ${ap_ssid}
+captive_portal:
+bluetooth_proxy:

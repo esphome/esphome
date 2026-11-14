@@ -7,6 +7,8 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CONTINUOUS,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_MANUFACTURER_ID,
     CONF_ON_BLE_ADVERTISE,
@@ -15,7 +17,8 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
 from esphome.types import ConfigType
 
 from . import LISTENER_COUNT_DEFINE, ble_device_base_ns, bt_uuid, uuid_constant
@@ -156,3 +159,39 @@ async def advertise_triggers_to_code(config: ConfigType, var: cg.MockObj) -> Non
     for trigger_key, uuid_key, manufacturer in _UUID_TRIGGERS:
         for conf in config.get(trigger_key, []):
             await _uuid_trigger_to_code(conf, var, uuid_key, manufacturer)
+
+
+def register_start_scan_action(name: str, tracker_class: MockObjClass) -> None:
+    """Register ``<tracker>.start_scan`` as an inline call of ``ble_device_base::start_scan``.
+
+    ``continuous`` has no default, unlike esp32_ble_tracker: omitting it keeps the configured
+    scan_parameters.continuous, which a stop_scan does not change.
+    """
+
+    @automation.register_action(
+        name,
+        automation.ApplyAction,
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(tracker_class),
+                cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
+            }
+        ),
+        synchronous=True,
+    )
+    async def start_scan_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: TemplateArgsType,
+    ) -> MockObj:
+        tracker = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+        if (continuous := config.get(CONF_CONTINUOUS)) is None:
+            mode = tracker.configured_continuous()
+        elif cg.is_template(continuous):
+            lambda_ = await cg.process_lambda(continuous, args, return_type=cg.bool_)
+            mode = automation.immediate_lambda_call(lambda_)
+        else:
+            mode = continuous
+        text = str(cg.statement(ble_device_base_ns.start_scan(tracker, mode)))
+        return automation.apply_statements_action(action_id, template_arg, args, [text])

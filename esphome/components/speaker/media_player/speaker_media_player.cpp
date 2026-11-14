@@ -30,8 +30,8 @@ namespace esphome::speaker {
 //    - The pipelines internal state needs to be processed by regularly calling ``process_state``.
 //  - Generic media player commands are received by the ``control`` function. The commands are added to the
 //    ``media_control_command_queue_`` to be processed in the component's loop
-//    - Local file play back is initiatied with ``play_file`` and adds it to the ``media_control_command_queue_``
-//    - Starting a stream intializes the appropriate pipeline or stops it if it is already running
+//    - Local file play back is initiated with ``play_file`` and adds it to the ``media_control_command_queue_``
+//    - Starting a stream initializes the appropriate pipeline or stops it if it is already running
 //    - Volume and mute commands are achieved by the ``mute``, ``unmute``, ``set_volume`` functions.
 //      - Volume commands are ignored if the media control queue is full to avoid crashing with rapid volume
 //        increases/decreases.
