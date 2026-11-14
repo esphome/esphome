@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/application.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -35,19 +36,21 @@ namespace vl6180x {
 // does minimal I2C work and returns immediately — no blocking of the main loop.
 // ---------------------------------------------------------------------------
 enum class MeasurementState : uint8_t {
-  IDLE,
-  RANGE_START,
-  RANGE_WAIT,
-  ALS_START,
-  ALS_WAIT,
-  RECOVERY_WAIT,  // failure threshold reached; waiting to reinitialise
+  MEASUREMENT_STATE_IDLE,
+  MEASUREMENT_STATE_RANGE_START,
+  MEASUREMENT_STATE_RANGE_WAIT,
+  MEASUREMENT_STATE_ALS_START,
+  MEASUREMENT_STATE_ALS_WAIT,
+  MEASUREMENT_STATE_RECOVERY_WAIT,
 };
 
 // Returns true if state represents an active measurement (not idle/recovery)
 inline bool is_measuring(MeasurementState s) {
-  return s == MeasurementState::RANGE_START || s == MeasurementState::RANGE_WAIT || s == MeasurementState::ALS_START ||
-         s == MeasurementState::ALS_WAIT;
+  return s == MeasurementState::MEASUREMENT_STATE_RANGE_START || s == MeasurementState::MEASUREMENT_STATE_RANGE_WAIT ||
+         s == MeasurementState::MEASUREMENT_STATE_ALS_START || s == MeasurementState::MEASUREMENT_STATE_ALS_WAIT;
 }
+
+inline bool deadline_reached(uint32_t now, uint32_t deadline) { return static_cast<int32_t>(now - deadline) >= 0; }
 
 class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -56,7 +59,10 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_range_sensor(sensor::Sensor *s) { this->range_sensor_ = s; }
   void set_scaling(uint8_t scaling) { this->scaling_ = scaling; }
-  void set_als_gain(uint8_t gain) { this->als_gain_ = gain; }
+  void set_als_gain(uint8_t gain, float factor) {
+    this->als_gain_ = gain;
+    this->als_gain_factor_ = factor;
+  }
   void set_range_status_sensor(text_sensor::TextSensor *s) { this->range_status_sensor_ = s; }
   void set_lux_sensor(sensor::Sensor *s) { this->lux_sensor_ = s; }
   void set_lux_update_interval(uint32_t ms) { this->lux_update_interval_ms_ = ms; }
@@ -75,6 +81,8 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
+  uint32_t now_() const { return App.get_loop_component_start_time(); }
+
   // Low-level I2C
   bool write_reg8(uint16_t reg, uint8_t value);
   bool write_reg16(uint16_t reg, uint16_t value);
@@ -106,6 +114,8 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void record_failure_();
   // Called on any successful publish — resets the consecutive failure counter
   void record_success_();
+  void fail_range_measurement_(const char *status);
+  void fail_lux_measurement_();
 
   // Publish helpers
   void publish_range_(uint8_t raw, uint8_t error_code);
@@ -122,13 +132,14 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   const char *name_str_{"vl6180x"};
   uint8_t scaling_{1};
   uint8_t als_gain_{6};
+  float als_gain_factor_{1.0f};
   int8_t ptp_offset_{0};
 
   // ── Operational state ────────────────────────────────────────────────────
   bool initialized_{false};
-  MeasurementState state_{MeasurementState::IDLE};
-  uint32_t state_deadline_{0};  // millis() timeout for current wait state
-  bool lux_pending_{false};     // lux timer fired while range was in progress
+  MeasurementState state_{MeasurementState::MEASUREMENT_STATE_IDLE};
+  uint32_t state_deadline_{0};
+  bool lux_pending_{false};  // lux timer fired while range was in progress
 
   // ── Health monitoring ────────────────────────────────────────────────────
   uint8_t failure_threshold_{3};       // consecutive failures before recovery
@@ -136,7 +147,7 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   uint8_t max_retries_{10};            // give up after this many failed reinits
   uint8_t consecutive_failures_{0};    // reset on any successful measurement
   uint8_t reinit_attempts_{0};         // attempts made in current recovery episode
-  uint32_t reinit_due_at_{0};          // millis() when next reinit attempt is due
+  uint32_t reinit_due_at_{0};
 
   // ── Static instance registry ─────────────────────────────────────────────
   static SlotList<VL6180XComponent *, VL6180X_INSTANCE_COUNT> &all_instances_() {

@@ -8,8 +8,14 @@ from esphome.components import i2c, sensor, text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_ENABLE_PIN,
+    CONF_GAIN,
     CONF_ID,
+    CONF_INTERRUPT_PIN,
+    CONF_INVERTED,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_RANGE,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
@@ -31,13 +37,9 @@ VL6180XComponent = vl6180x_ns.class_(
 )
 _request_instance_slot = cg.slot_counter("VL6180X_INSTANCE_COUNT")
 
-CONF_ENABLE_PIN = "enable_pin"
-CONF_INTERRUPT_PIN = "interrupt_pin"
-CONF_RANGE = "range"
 CONF_SCALER = "scaler"
 CONF_RANGE_STATUS = "range_status"
 CONF_LUX = "lux"
-CONF_GAIN = "gain"
 CONF_RECOVERY = "recovery"
 CONF_FAILURE_THRESHOLD = "failure_threshold"
 CONF_RETRY_INTERVAL = "retry_interval"
@@ -61,12 +63,7 @@ ALS_GAINS = {
     "20x": 0,
     "40x": 7,
 }
-
-
-def _coerce_pin(value: str | ConfigType) -> ConfigType:
-    if isinstance(value, str):
-        value = {CONF_NUMBER: value}
-    return pins.gpio_output_pin_schema(value)
+ALS_GAIN_FACTORS = {6: 1.0, 5: 1.25, 4: 1.67, 3: 2.5, 2: 5.0, 1: 10.0, 0: 20.0, 7: 40.0}
 
 
 RANGE_SENSOR_SCHEMA = sensor.sensor_schema(
@@ -112,7 +109,7 @@ _ENTRY_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VL6180XComponent),
-            cv.Optional(CONF_ENABLE_PIN): _coerce_pin,
+            cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_RANGE): RANGE_SENSOR_SCHEMA,
             cv.Optional(CONF_RANGE_STATUS): RANGE_STATUS_SCHEMA,
@@ -143,16 +140,24 @@ def _validate(configs: list[ConfigType]) -> list[ConfigType]:
                     f"sensor is configured (missing on entry {i})",
                     path=[i, CONF_ENABLE_PIN],
                 )
-            pin_number = str(entry[CONF_ENABLE_PIN][CONF_NUMBER])
-            if pin_number in enable_pins:
+            pin_config = entry[CONF_ENABLE_PIN]
+            pin_number = pin_config[CONF_NUMBER]
+            pin_provider = repr(
+                {
+                    key: value
+                    for key, value in pin_config.items()
+                    if key not in (CONF_NUMBER, CONF_MODE, CONF_INVERTED)
+                }
+            )
+            pin_identity = (pin_provider, pin_number)
+            if pin_identity in enable_pins:
                 raise cv.Invalid(
                     f"enable_pin GPIO{pin_number} is shared by entries "
-                    f"{enable_pins[pin_number]} and {i}; each sensor needs its "
+                    f"{enable_pins[pin_identity]} and {i}; each sensor needs its "
                     f"own XSHUT/CE pin so addresses can be assigned one at a time",
                     path=[i, CONF_ENABLE_PIN],
                 )
-            enable_pins[pin_number] = i
-
+            enable_pins[pin_identity] = i
     addrs = [entry[CONF_ADDRESS] for entry in configs]
     if len(addrs) != len(set(addrs)):
         seen = set()
@@ -203,7 +208,9 @@ async def to_code(config: list[ConfigType]) -> None:
             lux_conf = entry[CONF_LUX]
             sens = await sensor.new_sensor(lux_conf)
             cg.add(var.set_lux_sensor(sens))
-            cg.add(var.set_als_gain(lux_conf[CONF_GAIN]))
+            gain = lux_conf[CONF_GAIN]
+            gain_code = gain.enum_value
+            cg.add(var.set_als_gain(gain_code, ALS_GAIN_FACTORS[gain_code]))
             if CONF_UPDATE_INTERVAL in lux_conf:
                 cg.add(var.set_lux_update_interval(lux_conf[CONF_UPDATE_INTERVAL]))
 

@@ -1,0 +1,17 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+vl6180x:
+  - id: vl6180x_gain_1x
+    i2c_id: i2c_bus
+    enable_pin: GPIO4
+    lux:
+      name: VL6180X Lux 1x
+      gain: 1
+  - id: vl6180x_gain_20x
+    i2c_id: i2c_bus
+    enable_pin: GPIO13
+    address: 0x30
+    lux:
+      name: VL6180X Lux 20x
+      gain: 20
