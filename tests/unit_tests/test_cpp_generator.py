@@ -2,10 +2,16 @@ from collections.abc import Iterator
 import io
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from esphome import config_validation as cv, cpp_generator as cg, cpp_types as ct
+from esphome import (
+    config as esphome_config,
+    config_validation as cv,
+    cpp_generator as cg,
+    cpp_types as ct,
+)
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -13,6 +19,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, ID, LINE_DIRECTIVE_RESET, DocumentLocation, EsphomeError
+from esphome.types import ConfigType
 from esphome.yaml_util import parse_yaml
 
 
@@ -161,6 +168,23 @@ class TestParameterListExpression:
 
 
 class TestLambdaExpression:
+    def test_body_lines(self) -> None:
+        """The body as function statements: the #line mark before it and the reset after."""
+        plain = cg.LambdaExpression(("return x;",), ((float, "x"),), "")
+        assert plain.body_lines == ["return x;"]
+
+        source = DocumentLocation("cfg.yaml", 4, 0)
+        marked = cg.LambdaExpression(("return x;",), ((float, "x"),), "", source=source)
+        assert marked.body_lines == [
+            source.as_line_directive,
+            "return x;",
+            LINE_DIRECTIVE_RESET,
+        ]
+        assert str(marked) == (
+            f"[](float x) {{\n  {source.as_line_directive}\n  return x;\n"
+            f"  {LINE_DIRECTIVE_RESET}\n}}"
+        )
+
     def test_str__no_return(self):
         target = cg.LambdaExpression(
             (
@@ -459,12 +483,45 @@ class TestStatements:
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
                 'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
+            (
+                cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar", align=16),
+                'alignas(16) static constexpr uint16_t foo[] PROGMEM = "bar"',
+            ),
+            (
+                cg.ProgmemAssignmentExpression(
+                    ct.uint16, "foo", "bar", constexpr=False, align=4
+                ),
+                'alignas(4) ESPHOME_FLASH_CONSTINIT static uint16_t const foo[] PROGMEM = "bar"',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Statement, expected: str):
         actual = str(target)
 
         assert actual == expected
+
+
+class TestProgmemArray:
+    def test_align_is_emitted(self) -> None:
+        """``align`` prefixes the declaration with ``alignas``."""
+        CORE.main_statements = []
+        cg.progmem_array(
+            ID("model_data", is_declaration=True, type=ct.uint8), [1, 2], align=16
+        )
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {1, 2};"
+        )
+
+    def test_no_align_by_default(self) -> None:
+        CORE.main_statements = []
+        cg.progmem_array(ID("table", is_declaration=True, type=ct.uint8), [1, 2])
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "static constexpr uint8_t table[] PROGMEM = {1, 2};"
+        )
 
 
 # TODO: This method has side effects in CORE
@@ -931,14 +988,144 @@ class TestSharedProgmemArray:
 
     def test_name_avoids_config_ids(self) -> None:
         CORE.config = {"sensor": [{"id": ID("table", is_declaration=True)}]}
-        array = cg.shared_progmem_array("table", ct.uint8, [1])
-        assert str(array) == "table_2"
+        with patch.object(
+            esphome_config, "iter_ids", wraps=esphome_config.iter_ids
+        ) as walk:
+            first = cg.shared_progmem_array("table", ct.uint8, [1])
+            second = cg.shared_progmem_array("table", ct.uint8, [2])
+        assert [str(first), str(second)] == ["table_2", "table_3"]
+        assert walk.call_count == 1
 
     def test_name_avoids_registered_variables(self) -> None:
         CORE.config = {}
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+    def test_name_avoids_reserved_ids(self) -> None:
+        CORE.config = {}
+        array = cg.shared_progmem_array("alarm", ct.uint8, [1])
+        assert str(array) == "alarm_2"
+
+    def test_name_avoids_integrations_loaded_after_the_first_name(self) -> None:
+        # Only the config ids are collected once; integrations are checked on every call
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1])
+        CORE.loaded_integrations.add("late_hub")
+        array = cg.shared_progmem_array("late_hub", ct.uint8, [2])
+        assert str(array) == "late_hub_2"
+
+
+class TestStaticBuffer:
+    def test_is_named_after_its_owner_and_unique(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {"sensor": [{"id": ID("hub_buffer", is_declaration=True)}]}
+        cg.static_buffer(hub, ct.uint8, 64)
+        b = cg.static_buffer(hub, ct.uint8, 8)
+        assert [str(st) for st in CORE.global_statements] == [
+            "static uint8_t uart__hub_buffer_2__pstorage[64];",
+            "static uint8_t uart__hub_buffer_3__pstorage[8];",
+        ]
+        assert str(b) == "uart__hub_buffer_3__pstorage"
+
+    @pytest.mark.parametrize(
+        ("config", "expected"),
+        [
+            ({}, "uart__hub_buffer__pstorage"),
+            ({"psram": {"disabled": True}}, "uart__hub_buffer__pstorage"),
+            ({"psram": {"disabled": False}}, "psram_buffer<uint8_t>(8)"),
+        ],
+    )
+    def test_psram_builds_allocate(self, config: ConfigType, expected: str) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = config
+        assert str(cg.static_buffer(hub, ct.uint8, 8, psram=True)) == expected
+        assert len(CORE.global_statements) == (0 if "psram_buffer" in expected else 1)
+
+    def test_align_and_expression_size(self) -> None:
+        hub_class = ct.esphome_ns.namespace("uart").class_("Hub")
+        hub = ID("hub", is_declaration=True, type=hub_class)
+        CORE.config = {}
+        cg.static_buffer(hub, ct.uint8, hub_class.static_("size")(4, True), align=4)
+        assert str(CORE.global_statements[0]) == (
+            "alignas(4) static uint8_t uart__hub_buffer__pstorage"
+            "[uart::Hub::size(4, true)];"
+        )
+
+    def test_psram_rejects_over_alignment(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {}
+        with pytest.raises(EsphomeError, match="aligned to 4 bytes"):
+            cg.static_buffer(hub, ct.uint8, 8, psram=True, align=32)
+        cg.static_buffer(hub, ct.uint8, 8, psram=True, align=4)
+
+    def test_owner_must_be_an_id(self) -> None:
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_buffer("hub", ct.uint8, 8)
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_buffer(ID("hub"), ct.uint8, 8)
+
+
+class TestStaticStorage:
+    def test_is_aligned_raw_storage_passed_as_a_span(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {}
+        item = ct.esphome_ns.namespace("uart").class_("Item")
+        cg.static_storage(hub, item, 3)
+        span = cg.static_storage(hub, item, "N + 1")
+        decl = "alignas(uart::Item) static unsigned char uart__hub_storage"
+        assert [str(st) for st in CORE.global_statements] == [
+            f"{decl}__pstorage[sizeof(uart::Item) * (3)];",
+            f"{decl}_2__pstorage[sizeof(uart::Item) * (N + 1)];",
+        ]
+        assert str(span) == (
+            "std::span<uart::Item>(reinterpret_cast<uart::Item *>"
+            "(uart__hub_storage_2__pstorage), N + 1)"
+        )
+
+    def test_zero_count_is_an_empty_span_without_storage(self) -> None:
+        hub = ID("hub", is_declaration=True, type=ct.esphome_ns.class_("Hub"))
+        CORE.config = {}
+        assert str(cg.static_storage(hub, ct.uint8, 0)) == "std::span<uint8_t>()"
+        assert not CORE.global_statements
+
+    def test_expression_count_gets_storage(self) -> None:
+        hub = ID("hub", is_declaration=True, type=ct.esphome_ns.class_("Hub"))
+        CORE.config = {}
+        count = ct.esphome_ns.class_("Hub").static_("COUNT")
+        span = cg.static_storage(hub, ct.uint8, count)
+        assert str(span) == (
+            "std::span<uint8_t>(reinterpret_cast<uint8_t *>"
+            "(esphome__hub_storage__pstorage), Hub::COUNT)"
+        )
+        assert len(CORE.global_statements) == 1
+
+    def test_owner_must_be_an_id(self) -> None:
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_storage(ID("hub"), ct.uint8, 8)
+
+
+def test_static_member() -> None:
+    cls = ct.esphome_ns.namespace("hdlc").class_("HdlcReliability")
+    assert str(cls.static_("packet_size")) == "hdlc::HdlcReliability::packet_size"
+    call = cls.static_("packet_size")(8, False)
+    assert str(call) == "hdlc::HdlcReliability::packet_size(8, false)"
 
 
 class TestProgmemString:
@@ -984,6 +1171,91 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     assert [str(st) for st in CORE.global_statements_after_includes] == [
         "static void esphome__act__fn(int32_t x) {\n  return;\n}"
     ]
+
+
+def test_static_function_accepts_statements() -> None:
+    call = cg.MockObj("foo")(cg.MockObj("x") >> 2)
+    cg.static_function(
+        "esphome__st__fn", ct.void, [(ct.int32, "x")], [cg.statement(call), "return;"]
+    )
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__st__fn(int32_t x) {\n  foo((x >> 2));\n  return;\n}"
+    ]
+
+
+def test_const_ref_renders_const_reference() -> None:
+    regs = cg.MockObj("hub", "::").class_("Regs")
+    assert str(regs.const_ref()) == "const hub::Regs &"
+
+
+class TestSharedStaticFunction:
+    @pytest.fixture(autouse=True)
+    def _config(self) -> None:
+        CORE.config = {}
+
+    def test_identical_functions_share_one(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        b = cg.shared_static_function(
+            "fn_b", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        c = cg.shared_static_function(
+            "fn_c", ct.bool_, [(ct.float_, "x")], ["return x > 2;"]
+        )
+        assert a is b
+        assert str(a) == "fn_a"
+        assert str(c) == "fn_c"
+        assert [str(st) for st in CORE.global_statements] == [
+            "static bool fn_a(float x);",
+            "static bool fn_c(float x);",
+        ]
+        assert len(CORE.global_statements_after_includes) == 2
+
+    @pytest.mark.parametrize(
+        ("return_type", "params"),
+        (
+            (ct.bool_, [(ct.float_, "y")]),
+            (ct.bool_, [(ct.int32, "x")]),
+            (ct.bool_, [(ct.float_, "x"), (ct.float_, "y")]),
+            (ct.int32, [(ct.float_, "x")]),
+        ),
+    )
+    def test_different_signatures_are_separate(
+        self, return_type: cg.MockObjClass, params: list[tuple[cg.MockObjClass, str]]
+    ) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return 1;"]
+        )
+        b = cg.shared_static_function("fn_b", return_type, params, ["return 1;"])
+        assert str(a) == "fn_a"
+        assert str(b) == "fn_b"
+        assert len(CORE.global_statements_after_includes) == 2
+
+    def test_statement_body_shares_with_its_text(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.int32, [], [cg.RawStatement("return 1;")]
+        )
+        b = cg.shared_static_function("fn_b", ct.int32, [], ["return 1;"])
+        assert a is b
+
+    def test_share_false_always_emits_a_new_function(self) -> None:
+        body = ["static int n = 0;", "return ++n;"]
+        a = cg.shared_static_function("fn_a", ct.int32, [], body)
+        b = cg.shared_static_function("fn_b", ct.int32, [], body, share=False)
+        c = cg.shared_static_function("fn_c", ct.int32, [], body, share=False)
+        d = cg.shared_static_function("fn_d", ct.int32, [], body)
+        assert [str(f) for f in (a, b, c, d)] == ["fn_a", "fn_b", "fn_c", "fn_a"]
+        assert len(CORE.global_statements_after_includes) == 3
+
+    def test_one_name_different_bodies_gets_unique_names(self) -> None:
+        a = cg.shared_static_function("fn", ct.int32, [], ["return 1;"])
+        b = cg.shared_static_function("fn", ct.int32, [], ["return 2;"])
+        assert [str(a), str(b)] == ["fn", "fn_2"]
+        assert [str(st) for st in CORE.global_statements] == [
+            "static int32_t fn();",
+            "static int32_t fn_2();",
+        ]
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:

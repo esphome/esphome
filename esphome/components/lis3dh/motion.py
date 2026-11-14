@@ -10,6 +10,7 @@ from esphome.components.const import (
     CONF_ACTIVE_HIGH,
     CONF_ON_DOUBLE_TAP,
     CONF_ON_TAP,
+    CONF_OPERATING_MODE,
     CONF_TAP,
     CONF_WINDOW,
 )
@@ -38,7 +39,6 @@ from . import LIS3DHComponent, lis3dh_ns
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_OPERATING_MODE = "operating_mode"
 CONF_LATCHED = "latched"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 CONF_TIME_LIMIT = "time_limit"

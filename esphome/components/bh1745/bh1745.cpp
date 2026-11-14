@@ -71,10 +71,8 @@ void BH1745Component::setup() {
     this->mark_failed(LOG_STR("Wrong part ID"));
     return;
   }
-  if (!this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)))
     return;
-  }
 
   // Light lost behind glass is scaled back up, as the other light sensors do
   this->lux_scale_ = 160.0f * this->glass_attenuation_factor_ /
@@ -85,10 +83,8 @@ void BH1745Component::setup() {
       // High threshold 0 and low threshold 0xFFFF (low byte first) make the interrupt condition always
       // true, so the INT pin simply follows the enable bit, which drives the breakout's LEDs.
       static constexpr uint8_t THRESHOLDS[4] = {0x00, 0x00, 0xFF, 0xFF};
-      if (!this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))) {
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->setup_check(this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))))
         return;
-      }
     }
     // RGBC_EN makes the chip measure continuously; update() reads the latest result.
     if (!this->write_byte(REG_MODE_CONTROL1, static_cast<uint8_t>(this->measurement_time_)) ||
@@ -126,10 +122,8 @@ void BH1745Component::update() {
 
   // Reading MODE_CONTROL2 clears VALID, so read it only once per poll.
   uint8_t mode_control2;
-  if (!this->read_byte(REG_MODE_CONTROL2, &mode_control2)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->read_byte(REG_MODE_CONTROL2, &mode_control2)))
     return;
-  }
   if ((mode_control2 & MODE_CONTROL2_VALID) == 0)
     return;
 
@@ -157,9 +151,7 @@ void BH1745Component::update() {
 void BH1745Component::set_interrupt_state(bool on) {
   if (this->is_failed())
     return;
-  if (!this->write_byte(REG_INTERRUPT, on ? INTERRUPT_ENABLE : 0x00)) {
-    this->status_set_warning();
-  }
+  this->status_comm_check(this->write_byte(REG_INTERRUPT, on ? INTERRUPT_ENABLE : 0x00));
 }
 
 }  // namespace esphome::bh1745

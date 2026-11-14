@@ -232,9 +232,9 @@ class OpenTherm {
   bool initialize();
 
   /**
-   * Start listening for Opentherm data packet comming from line connected to given pin.
+   * Start listening for Opentherm data packet coming from line connected to given pin.
    * If data packet is received then has_message() function returns true and data packet can be retrieved by calling
-   * get_message() function. If timeout > 0 then this function waits for incomming data package for timeout millis and
+   * get_message() function. If timeout > 0 then this function waits for incoming data package for timeout millis and
    * if no data packet is recevived, error state is indicated by is_error() function. If either data packet is received
    * or timeout is reached listening is stopped.
    */
@@ -248,7 +248,7 @@ class OpenTherm {
   bool has_message() { return mode_ == OperationMode::RECEIVED; }
 
   /**
-   * Use this to retrive data packed captured by listen() function. Data packet is ready when has_message() function
+   * Use this to retrieve data packed captured by listen() function. Data packet is ready when has_message() function
    * returns true. This function can be called multiple times until stop() is called.
    *
    * @param data reference to data structure to which fill the data packet data.
@@ -272,9 +272,9 @@ class OpenTherm {
   void stop();
 
   /**
-   * Get protocol error details in case a protocol error occured.
+   * Get protocol error details in case a protocol error occurred.
    * @param error reference to data structure to which fill the error details
-   * @return true if protocol error occured during last conversation, false otherwise.
+   * @return true if protocol error occurred during last conversation, false otherwise.
    */
   bool get_protocol_error(OpenThermError &error);
 

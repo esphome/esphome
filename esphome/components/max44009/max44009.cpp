@@ -115,20 +115,12 @@ bool MAX44009Sensor::set_low_power_mode() {
 
 uint8_t MAX44009Sensor::read_(uint8_t reg) {
   uint8_t data = 0;
-  if (!this->read_byte(reg, &data)) {
-    this->error_ = MAX44009_ERROR_WIRE_REQUEST;
-  } else {
-    this->error_ = MAX44009_OK;
-  }
+  this->error_ = this->read_byte(reg, &data) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
   return data;
 }
 
 void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
-  if (!this->write_byte(reg, value)) {
-    this->error_ = MAX44009_ERROR_WIRE_REQUEST;
-  } else {
-    this->error_ = MAX44009_OK;
-  }
+  this->error_ = this->write_byte(reg, value) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
 }
 
 }  // namespace esphome::max44009

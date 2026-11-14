@@ -37,6 +37,7 @@ template<typename T> class WorkModeTest : public ::testing::Test {
     global_preferences = &this->prefs_;
 
     this->sut_.set_uart_parent(&this->uart_);
+    this->sut_.set_frame_buffer(this->frame_buffer_, sizeof(this->frame_buffer_));
     this->sut_.set_work_mode_text_sensor(&this->work_mode_);
     this->sut_.setup();
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
@@ -57,6 +58,7 @@ template<typename T> class WorkModeTest : public ::testing::Test {
   host::HostPreferences prefs_;
   std::filesystem::path temp_dir_;
   MockUARTComponent uart_;
+  uint8_t frame_buffer_[ld600x::DEFAULT_MAX_DATA_LEN]{};
   T sut_;
   text_sensor::TextSensor work_mode_;
 };

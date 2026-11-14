@@ -1,3 +1,12 @@
+# Scan-only tracker with a wifi AP: also builds the short scan window path
+# without any BLE clients.
+wifi:
+  ssid: MySSID
+  password: password1
+  ap:
+
 esp32_ble_tracker:
+  scan_parameters:
+    connection_scan_window: 30ms
   on_scan_end:
     - logger.log: "Scan ended!"

@@ -437,10 +437,13 @@ UART_DEVICE_SCHEMA = cv.Schema(
 )
 
 KEY_UART_DEVICES = "uart_devices"
+KEY_UART_EXCLUSIVE = "uart_exclusive"
 
 
 @dataclass
 class UARTData:
+    # (UART, the UART whose settings it runs with), in the order they were declared.
+    settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
     # UARTs whose received bytes do not keep the timing of a serial line.
     unclocked: list[ID] = field(default_factory=list)
 
@@ -449,6 +452,25 @@ def _get_data() -> UARTData:
     if DOMAIN not in CORE.data:
         CORE.data[DOMAIN] = UARTData()
     return CORE.data[DOMAIN]
+
+
+def inherit_settings(uart_id: ID, source_id: ID) -> None:
+    """Check the devices on a UART against the baud rate, data bits, parity and stop bits of another one.
+
+    For a UART without settings of its own that passes on the bytes of source_id. Call it from
+    CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
+    """
+    _get_data().settings_sources.append((uart_id, source_id))
+
+
+def _settings_source(uart_id: ID) -> ID | None:
+    """Return the UART whose settings uart_id runs with, following every hop, or None."""
+    sources = {str(uart): source for uart, source in _get_data().settings_sources}
+    found = None
+    # pop() ends the walk on a loop.
+    while (source := sources.pop(str(uart_id), None)) is not None:
+        found = uart_id = source
+    return found
 
 
 def mark_unclocked(uart_id: ID) -> ID:
@@ -521,6 +543,7 @@ def final_validate_device_schema(
 
     def validate_hub(hub_config):
         hub_schema = {}
+        settings_schema = {}
         uart_id = hub_config[CONF_ID]
         uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
@@ -541,13 +564,28 @@ def final_validate_device_schema(
                 )
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
-            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+            settings_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
         if data_bits is not None:
-            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
+            settings_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
         if parity is not None:
-            hub_schema[cv.Required(CONF_PARITY)] = validate_parity
+            settings_schema[cv.Required(CONF_PARITY)] = validate_parity
         if stop_bits is not None:
-            hub_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+            settings_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+        if (source_id := _settings_source(uart_id)) is None:
+            hub_schema.update(settings_schema)
+        elif settings_schema:
+            try:
+                fv.id_declaration_match_schema(settings_schema)(source_id)
+            except cv.MultipleInvalid as err:
+                # Each error keeps its path at the source UART; a missing key keeps ESPHome's wording.
+                raise cv.MultipleInvalid(
+                    [
+                        e
+                        if isinstance(e, cv.RequiredFieldInvalid)
+                        else cv.Invalid(f"{e.msg} (via {uart_id})", e.path)
+                        for e in err.errors
+                    ]
+                ) from err
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
@@ -556,23 +594,66 @@ def final_validate_device_schema(
     )
 
 
-def subtree_references_uart(
-    node: object, uart_id: str, conf_key: str = CONF_UART_ID
-) -> bool:
-    """Return True if any dict in the subtree has a conf_key entry naming this bus.
+def subtree_references_uart(node: object, uart_id: str, *conf_keys: str) -> bool:
+    """Return True if any dict in the subtree has a conf_keys entry (uart_id by default) naming this bus.
 
     For the final validation of a component that needs a UART for itself. Bare
     `id:` references (a uart.write action) and lambdas are not found.
     """
+    conf_keys = conf_keys or (CONF_UART_ID,)
     if isinstance(node, dict):
         return any(
-            (key == conf_key and str(value) == uart_id)
-            or subtree_references_uart(value, uart_id, conf_key)
+            (key in conf_keys and str(value) == uart_id)
+            or subtree_references_uart(value, uart_id, *conf_keys)
             for key, value in node.items()
         )
     if isinstance(node, list):
-        return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
+        return any(subtree_references_uart(item, uart_id, *conf_keys) for item in node)
     return False
+
+
+def claim_exclusive(
+    config: ConfigType, owner: str, conf_key: str = CONF_UART_ID
+) -> None:
+    """Claim the UART in config[conf_key] for owner alone; call it from final validation.
+
+    Fails on a second owner entry for that UART, on another domain that names it by
+    uart_id or conf_key (skipped in testing mode) and on a dummy_receiver in its debug.
+    owner must be the caller's top-level config key: the scan skips that domain.
+    """
+    full_config = fv.full_config.get()
+    uart_id = str(config[conf_key])
+    # Per owner, not per key: one UART named under two of the owner's keys is two readers
+    used = full_config.data.setdefault(KEY_UART_EXCLUSIVE, {}).setdefault(owner, set())
+    if uart_id in used:
+        raise cv.Invalid(
+            f"The UART '{uart_id}' is already used by another '{owner}' entry. "
+            f"Each {owner} needs its own UART.",
+            [conf_key],
+        )
+    used.add(uart_id)
+    # Grouped CI builds share buses, like final_validate_device_schema()'s pin check.
+    if not CORE.testing_mode:
+        for domain, domain_conf in full_config.items():
+            if domain != owner and subtree_references_uart(
+                domain_conf, uart_id, CONF_UART_ID, conf_key
+            ):
+                raise cv.Invalid(
+                    f"The UART '{uart_id}' is also used by '{domain}'. "
+                    f"{owner} requires exclusive use of that UART.",
+                    [conf_key],
+                )
+
+    def reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
+        debug = uart_conf.get(CONF_DEBUG)
+        if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
+            raise cv.Invalid(
+                f"dummy_receiver reads this UART and drops the bytes {owner} should forward.",
+                [CONF_DEBUG, CONF_DUMMY_RECEIVER],
+            )
+        return uart_conf
+
+    fv.id_declaration_match_schema(reject_dummy_receiver)(config[conf_key])
 
 
 async def register_uart_device(var, config):
@@ -612,7 +693,7 @@ automation.register_apply_action(
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+    if CORE.is_esp32 or CORE.is_esp8266:
         # Wake-on-RX is essentially free (just an ISR function pointer
         # registration on ESP32, an inline flag set on ESP8266 software
         # serial) — enable by default to reduce RX buffer overflow risk by

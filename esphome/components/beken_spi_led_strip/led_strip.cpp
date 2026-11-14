@@ -159,20 +159,7 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  RAMAllocator<uint8_t> allocator;
-  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
-    return;
-  }
-
-  const size_t dma_buffer_size = (this->get_buffer_size_() * 8) + (2 * 64);
-  this->dma_buf_ = allocator.allocate(dma_buffer_size);
-  if (this->dma_buf_ == nullptr) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
-    return;
-  }
-
-  memset(this->dma_buf_, 0, dma_buffer_size);
+  const size_t dma_buffer_size = dma_buffer_bytes(this->get_buffer_size_());
 
   uint32_t value = PCLK_POSI_SPI;
   sddev_control(ICU_DEV_NAME, CMD_CONF_PCLK_26M, &value);
@@ -180,22 +167,16 @@ void BekenSPILEDStripLightOutput::setup() {
   value = PWD_SPI_CLK_BIT;
   sddev_control(ICU_DEV_NAME, CMD_CLK_PWR_UP, &value);
 
-  if (spi_data != nullptr) {
-    this->mark_failed(LOG_STR("SPI already initialized"));
+  if (!this->setup_check(spi_data == nullptr, LOG_STR("SPI already initialized")))
     return;
-  }
 
   spi_data = (SpiData *) calloc(1, sizeof(SpiData));  // NOLINT(cppcoreguidelines-no-malloc)
-  if (spi_data == nullptr) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(spi_data != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
   spi_data->dma_tx_semaphore = xSemaphoreCreateBinary();
-  if (spi_data->dma_tx_semaphore == nullptr) {
-    this->mark_failed(LOG_STR("TX semaphore init failed"));
+  if (!this->setup_check(spi_data->dma_tx_semaphore != nullptr, LOG_STR("TX semaphore init failed")))
     return;
-  }
 
   spi_data->first_run = true;
 
