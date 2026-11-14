@@ -11,11 +11,11 @@ read -r U W < <($PY -c 'import sys, yaml; s = yaml.safe_load(open(sys.argv[1]))[
   { echo "cannot read $CR"; exit 1; }
 "$S/pio_build.sh" compile "$N" "$D/$C" -s web_user "$U" -s web_pass "$W" || exit 1
 B=$D/.esphome/build/$N/.pioenvs/$N
-LTPY=$D/pio/penv/.libretiny/bin/python; LTL=$(ls -d "$D"/pio/platforms/libretiny* 2>/dev/null | head -1)
+PC=${PIO_CORE:-$D/pio}; LTPY=$PC/penv/.libretiny/bin/python; LTL=$(ls -d "$PC"/platforms/libretiny* 2>/dev/null | head -1)
 OPT=""
 case $K in
   esp|pico) IMG=$B/firmware.bin ;;
-  bk) IMG=$B/firmware.uf2 ;;
+  bk) IMG=$B/firmware.uf2; OPT="--reset" ;;
   bw) IMG=$B/firmware.uf2; OPT="--released" ;;
   *) echo "unknown kind $K"; exit 1 ;;
 esac
@@ -44,6 +44,8 @@ AF=$?
 sleep 5
 # a capture that died early watched nothing, so its empty log must not count as a clean run
 CAPOK=1; kill -0 $CAP 2>/dev/null || { CAPOK=0; echo "the capture ended before the run did (see $D/$N-cap.err)"; }
+# a live capture that only retried a missing port watched nothing either
+[ "$(grep -a -c -v '^\[[0-9:.]*\]\[capture\]' "$L")" -gt 0 ] || { CAPOK=0; echo "no firmware lines in $L"; }
 kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; trap - EXIT
 CRASH=$(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")
 echo "SERIAL crash lines $CRASH," \

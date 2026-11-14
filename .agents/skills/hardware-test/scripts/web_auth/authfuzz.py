@@ -712,8 +712,10 @@ def main() -> None:
         help="largest heap drop a heavy phase may leave",
     )
     A = ap.parse_args()
-    configure(A.host, A.user, A.password, A.out)
     only = set(filter(None, A.only.split(",")))
+    if unknown := only - {"cases", "heavy", "timing"}:
+        ap.error(f"unknown --only phases {sorted(unknown)}")
+    configure(A.host, A.user, A.password, A.out)
     try:
         if not only or "cases" in only:
             run_cases()
@@ -734,7 +736,7 @@ def main() -> None:
     if infos:
         p(f"informational, not counted: {infos}")
     p(f"TOTAL {len(ROWS)} rows, fails {len(fails)}: {fails}")
-    sys.exit(1 if fails else 0)
+    sys.exit(1 if fails or not ROWS else 0)
 
 
 if __name__ == "__main__":
