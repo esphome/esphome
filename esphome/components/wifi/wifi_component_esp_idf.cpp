@@ -1641,7 +1641,9 @@ void WiFiComponent::on_powerdown() {
   // (32 copies with protected management frames), which some APs handle badly.
   // Upstream bug: https://github.com/espressif/esp-idf/issues/19443 - remove this once it is fixed
   // in the ESP-IDF versions we support.
-  if (!s_sta_connected)
+  // Ask the driver: s_sta_connected lags until the main loop has handled the connect event.
+  wifi_ap_record_t ap_info;
+  if (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK)
     return;
   ESP_LOGD(TAG, "Disconnecting before powerdown");
   esp_wifi_disconnect();
