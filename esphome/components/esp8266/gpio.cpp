@@ -107,11 +107,7 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
       GPOC = 1 << num;
     }
   } else {
-    if (value != pin->is_inverted()) {
-      GP16O = GP16O | 1;
-    } else {
-      GP16O = GP16O & ~1;
-    }
+    GP16O = value != pin->is_inverted() ? GP16O | 1 : GP16O & ~1;
   }
 }
 
@@ -141,16 +137,8 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
       isr_gpf(num) = isr_gpf(num) & ~(1 << GPFPU);
     }
   } else {
-    if (flags & gpio::FLAG_OUTPUT) {
-      GP16E = GP16E | 1;
-    } else {
-      GP16E = GP16E & ~1;
-    }
-    if (flags & gpio::FLAG_PULLDOWN) {
-      GPF16 = GPF16 | (1 << GP16FPD);
-    } else {
-      GPF16 = GPF16 & ~(1 << GP16FPD);
-    }
+    GP16E = flags & gpio::FLAG_OUTPUT ? GP16E | 1 : GP16E & ~1;
+    GPF16 = flags & gpio::FLAG_PULLDOWN ? GPF16 | (1 << GP16FPD) : GPF16 & ~(1 << GP16FPD);
   }
 }
 

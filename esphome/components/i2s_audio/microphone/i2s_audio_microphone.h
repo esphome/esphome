@@ -45,8 +45,8 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   /// @brief Builds the standard (non-PDM) mode configuration from the configured settings.
   void build_std_config_(i2s_std_config_t &std_cfg) const;
 
-  /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
-  /// @return True if succesful, false otherwise
+  /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current settings.
+  /// @return True if successful, false otherwise
   bool start_driver_();
 
   /// @brief Stops the I2S driver.

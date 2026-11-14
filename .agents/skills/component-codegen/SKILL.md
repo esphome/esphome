@@ -236,6 +236,8 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
   instead, so pass `buf` once and mark the component failed in `setup()` if it is nullptr. `align=4` emits
   `alignas(4)`, so a word-aligned byte buffer stays `uint8`. `size` may be an expression such as `MyClass.static_("buffer_size")(n)`, which renders
   `ns::MyClass::buffer_size(n)`.
+- `cg.static_storage(config[CONF_ID], T, count)` is raw aligned storage for `count` objects as a `std::span<T>`,
+  for `StaticFixedVector::init()` when codegen knows the count.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.
 - `button.restart_button_schema(cls)` (and `factory_reset_`, `query_`) are button presets.

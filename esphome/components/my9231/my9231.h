@@ -9,21 +9,15 @@ namespace esphome::my9231 {
 /// MY9231 float output component.
 class MY9231OutputComponent final : public Component {
  public:
-  /// One value per channel, a static array from code generation.
-  explicit MY9231OutputComponent(std::span<uint16_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
+  /// @param pwm_amounts one duty value per channel, a static buffer from code generation.
+  MY9231OutputComponent(GPIOPin *pin_di, GPIOPin *pin_dcki, std::span<uint16_t> pwm_amounts, uint8_t num_chips,
+                        uint8_t bit_depth)
+      : pin_di_(pin_di), pin_dcki_(pin_dcki), pwm_amounts_(pwm_amounts), num_chips_(num_chips), bit_depth_(bit_depth) {}
 
-  void set_pin_di(GPIOPin *pin_di) { pin_di_ = pin_di; }
-  void set_pin_dcki(GPIOPin *pin_dcki) { pin_dcki_ = pin_dcki; }
-
-  void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
-  void set_bit_depth(uint8_t bit_depth) { this->bit_depth_ = bit_depth; }
-
-  /// Setup the MY9231.
   void setup() override;
   void dump_config() override;
-  /// HARDWARE setup_priority
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  /// Send new values if they were updated.
+  /// Send the new duty values, then sleep until write_channel() changes one.
   void loop() override;
 
   void write_channel(uint16_t channel, float state);
@@ -36,12 +30,11 @@ class MY9231OutputComponent final : public Component {
   void send_di_pulses_(uint8_t count);
   void send_dcki_pulses_(uint8_t count);
 
-  GPIOPin *pin_di_;
-  GPIOPin *pin_dcki_;
-  uint8_t bit_depth_;
-  uint8_t num_chips_;
-  std::span<uint16_t> pwm_amounts_;
-  bool update_{true};
+  GPIOPin *const pin_di_;
+  GPIOPin *const pin_dcki_;
+  const std::span<uint16_t> pwm_amounts_;
+  const uint8_t num_chips_;
+  const uint8_t bit_depth_;
 };
 
 }  // namespace esphome::my9231

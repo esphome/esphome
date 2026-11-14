@@ -1,5 +1,9 @@
 #include "spi.h"
 
+#ifdef USE_ESP32
+#include <esp_err.h>
+#include <esp_private/spi_common_internal.h>  // spi_bus_get_attr()
+#endif
 #ifdef USE_SPI_PSRAM_DMA
 #include <esp_memory_utils.h>
 #endif
@@ -283,8 +287,12 @@ bool SPIComponent::setup_hw_bus_() {
   }
   buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
   auto err = spi_bus_initialize(this->interface_, &buscfg, SPI_DMA_CH_AUTO);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Bus init failed - err %X", err);
+  // INVALID_STATE also means another driver claimed the peripheral; only an existing master bus can take devices
+  if (err == ESP_ERR_INVALID_STATE && spi_bus_get_attr(this->interface_) != nullptr) {
+    ESP_LOGW(TAG, "Bus already initialized by another driver, configured pins ignored");
+  } else if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Bus init failed: %s", esp_err_to_name(err));
+    return false;
   }
   return true;
 }

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import alarm_control_panel, binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_BINARY_SENSORS, CONF_INPUT, CONF_RESTORE_MODE
+from esphome.const import CONF_BINARY_SENSORS, CONF_ID, CONF_INPUT, CONF_RESTORE_MODE
 
 from .. import template_ns
 
@@ -142,8 +142,10 @@ async def to_code(config):
         supports_arm_night = True
 
     if sensors := config.get(CONF_BINARY_SENSORS, []):
-        # Initialize FixedVector with the exact number of sensors
-        cg.add(var.init_sensors(len(sensors)))
+        storage = cg.static_storage(
+            config[CONF_ID], template_ns.struct("AlarmSensor"), len(sensors)
+        )
+        cg.add(var.set_sensor_storage(storage))
 
     for sensor in sensors:
         bs = await cg.get_variable(sensor[CONF_INPUT])

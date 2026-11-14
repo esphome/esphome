@@ -246,7 +246,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
-        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; in `setup()`,
+        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
+        poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
@@ -264,7 +265,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         (`cg.add_define("USE_SELEC_METER_EM4M")`), so the other models' builds leave it out; the runtime model check
         stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
-        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+        sets `status_set_warning()` and the next success of the last step clears it; writes skip work when
+        `is_failed()`.
     *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
         `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
         passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
@@ -427,6 +429,14 @@ file does, and it is the authority when they disagree. The most useful starting 
     members of `esphome/core/` and base classes are public API. Aim for a 6-month deprecation window
     (`ESPDEPRECATED` in C++, `cv.rename_key(..., removed_in=...)` for config keys) and document the migration
     path in the PR description. The `breaking-changes` skill has the full policy, checklist and patterns.
+
+*   **The YAML language is frozen** until ESPHome configurations move to yaml.rocks
+    ([esphome/backlog#201](https://github.com/esphome/backlog/issues/201)). Do not add YAML tags beyond the existing
+    `!include`, `!include_dir_*`, `!secret`, `!env_var`, `!lambda`, `!literal`, `!extend` and `!remove`, new
+    `packages:` or `substitutions:` behaviour (including new Jinja globals or filters), or new ways to merge,
+    override or remove parts of a configuration.
+    Bug fixes to the existing features are still accepted. A component's own configuration options are not part of
+    this freeze.
 
 ## 9. English Language
 

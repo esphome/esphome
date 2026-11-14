@@ -135,20 +135,20 @@ class ESP32Camera final : public camera::Camera {
   /* setters */
   /* -- pin assignment */
   void set_data_pins(std::array<uint8_t, 8> pins);
-  void set_vsync_pin(uint8_t pin);
-  void set_href_pin(uint8_t pin);
-  void set_pixel_clock_pin(uint8_t pin);
+  void set_vsync_pin(uint8_t pin) { this->config_.pin_vsync = pin; }
+  void set_href_pin(uint8_t pin) { this->config_.pin_href = pin; }
+  void set_pixel_clock_pin(uint8_t pin) { this->config_.pin_pclk = pin; }
   void set_external_clock(uint8_t pin, uint32_t frequency);
   void set_i2c_pins(uint8_t sda, uint8_t scl);
 #ifdef USE_I2C
   void set_i2c_id(i2c::InternalI2CBus *i2c_bus);
 #endif  // USE_I2C
-  void set_reset_pin(uint8_t pin);
-  void set_power_down_pin(uint8_t pin);
+  void set_reset_pin(uint8_t pin) { this->config_.pin_reset = pin; }
+  void set_power_down_pin(uint8_t pin) { this->config_.pin_pwdn = pin; }
   /* -- image */
   void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
-  void set_jpeg_quality(uint8_t quality);
+  void set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
   void set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
   void set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
   void set_contrast(int contrast) { this->contrast_ = contrast; }
@@ -169,12 +169,12 @@ class ESP32Camera final : public camera::Camera {
   /* -- test */
   void set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
   /* -- framerates */
-  void set_max_update_interval(uint32_t max_update_interval);
-  void set_idle_update_interval(uint32_t idle_update_interval);
+  void set_max_update_interval(uint32_t max_update_interval) { this->max_update_interval_ = max_update_interval; }
+  void set_idle_update_interval(uint32_t idle_update_interval) { this->idle_update_interval_ = idle_update_interval; }
   /* -- frame buffer */
-  void set_frame_buffer_mode(camera_grab_mode_t mode);
+  void set_frame_buffer_mode(camera_grab_mode_t mode) { this->config_.grab_mode = mode; }
   void set_frame_buffer_count(uint8_t fb_count);
-  void set_frame_buffer_location(camera_fb_location_t fb_location);
+  void set_frame_buffer_location(camera_fb_location_t fb_location) { this->config_.fb_location = fb_location; }
 #ifdef USE_ESP32_CAMERA_CAPTURE
   /* -- single image capture */
   void set_capture_delay(uint16_t capture_delay) { this->capture_delay_ = capture_delay; }

@@ -21,3 +21,9 @@ captures 40 s from boot and runs `ivsum.py`, which prints the run count, first r
   runs), so do not compare those offsets between builds.
 - `main.cpp` shows the class each interval gets (`IntervalTrigger` or `DelayedIntervalTrigger` on #21799).
 - Results: https://github.com/esphome/esphome/pull/21799#issuecomment-6516798398
+
+## Freelist trim after boot (ratgdo/esphome-ratgdo#705)
+
+10 s after setup the scheduler frees its item pool and shrinks its `to_add_` and `items_` vectors
+(`SCHEDULER_FREELIST_TRIM_DELAY_MS` in `application.cpp`). The first burst of timers after that allocates new
+items and regrows the vectors once, so heap or timing measurements should skip the first run after boot.
