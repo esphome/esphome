@@ -129,6 +129,11 @@ binary_sensor:
     toshiba_ac:
       rc_code_1: 0xB24DBF4040BF
   - platform: remote_receiver
+    name: Symphony Remote Input
+    symphony:
+      data: 0xD82
+      nbits: 12
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b

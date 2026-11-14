@@ -1154,9 +1154,6 @@ SonyData, SonyBinarySensor, SonyTrigger, _, SonyDumper = register_simple_protoco
 
 
 # Symphony
-SymphonyData, SymphonyBinarySensor, SymphonyTrigger, _, SymphonyDumper = (
-    declare_protocol("Symphony")
-)
 SYMPHONY_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.hex_uint32_t,
@@ -1164,38 +1161,15 @@ SYMPHONY_SCHEMA = cv.Schema(
         cv.Optional(CONF_COMMAND_REPEATS, default=2): cv.uint8_t,
     }
 )
-
-
-@register_binary_sensor("symphony", SymphonyBinarySensor, SYMPHONY_SCHEMA)
-def symphony_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                SymphonyData,
-                ("data", config[CONF_DATA]),
-                ("nbits", config[CONF_NBITS]),
-            )
-        )
+SymphonyData, SymphonyBinarySensor, SymphonyTrigger, _, SymphonyDumper = (
+    register_simple_protocol(
+        "symphony",
+        "Symphony",
+        SYMPHONY_SCHEMA,
+        (CONF_DATA, "data", cg.uint32),
+        (CONF_NBITS, "nbits", cg.uint8),
+        (CONF_COMMAND_REPEATS, "repeats", cg.uint8),
     )
-
-
-@register_trigger("symphony", SymphonyTrigger, SymphonyData)
-def symphony_trigger(var, config):
-    pass
-
-
-@register_dumper("symphony", SymphonyDumper)
-def symphony_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "symphony",
-    "Symphony",
-    SYMPHONY_SCHEMA,
-    (CONF_DATA, "data", cg.uint32),
-    (CONF_NBITS, "nbits", cg.uint8),
-    (CONF_COMMAND_REPEATS, "repeats", cg.uint8),
 )
 
 
