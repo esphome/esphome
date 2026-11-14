@@ -79,6 +79,8 @@ class VL6180XComponentTest : public ::testing::Test {
     this->component_.set_range_sensor(&this->range_sensor_);
   }
 
+  void TearDown() override { VL6180XComponentTest::clear_instances(); }
+
   RegisterBus bus_;
   VL6180XComponent component_;
   sensor::Sensor lux_sensor_;
@@ -137,8 +139,7 @@ TEST_F(VL6180XComponentTest, QueuesRangeUpdateBehindActiveLuxMeasurement) {
   EXPECT_FALSE(VL6180XComponentTest::range_pending(this->component_));
 }
 
-TEST(VL6180XRecoveryTest, SecondarySensorRetriesAfterBootFailure) {
-  VL6180XComponentTest::clear_instances();
+TEST_F(VL6180XComponentTest, SecondarySensorRetriesAfterBootFailure) {
   RegisterBus primary_bus;
   RegisterBus secondary_bus;
   VL6180XComponent primary;
@@ -173,7 +174,6 @@ TEST(VL6180XRecoveryTest, SecondarySensorRetriesAfterBootFailure) {
   VL6180XComponentTest::retry(secondary);
   ASSERT_TRUE(VL6180XComponentTest::initialized(secondary));
   EXPECT_EQ(VL6180XComponentTest::state(secondary), MeasurementState::MEASUREMENT_STATE_IDLE);
-  VL6180XComponentTest::clear_instances();
 }
 
 }  // namespace esphome::vl6180x::testing
