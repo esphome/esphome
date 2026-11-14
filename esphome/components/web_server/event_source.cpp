@@ -5,7 +5,6 @@
 #include <cstring>
 #include <iterator>
 
-#include <sys/socket.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -121,7 +120,7 @@ void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, mess
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request, AsyncEventSource *server,
+AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server,
                                                    WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, this) {
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
@@ -139,7 +138,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   // allocation; nothing retries the greeting, so close and let the client reconnect.
   auto message = ws->get_config_json();
   if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
-    ESP_LOGW(TAG, "Config not sent to fd %d", this->fd_.load());
+    ESP_LOGW(TAG, "Config not sent to fd %d", this->log_id());
     this->close();
     return;
   }
@@ -157,7 +156,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
     // A refusal means the socket is full or closing; the remaining groups are not sent. The
     // session stays up on purpose: partial grouping beats a reconnect loop on a slow link.
     if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
-      ESP_LOGW(TAG, "Sorting groups not sent to fd %d", this->fd_.load());
+      ESP_LOGW(TAG, "Sorting groups not sent to fd %d", this->log_id());
       break;
     }
   }
@@ -422,7 +421,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
 
   // Gather list: the prefix, then the data lines and their separators from the message
   struct Gather {
-    struct iovec iov[MAX_SEND_IOV];  // left uninitialized on purpose
+    web_server_base::StreamIovec iov[MAX_SEND_IOV];  // left uninitialized on purpose
     int iovcnt{1};
     size_t total{0};
     bool fits{true};

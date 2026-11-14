@@ -276,7 +276,7 @@ class AsyncStreamResponse {
   /// Httpd task, once. Sends the status line (for example HTTPD_200), Content-Type, headers, the default headers
   /// and body (a C string or null, sent as is), then makes this object the session context. A chunked response
   /// passes {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself.
-  void begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
+  void begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
              std::span<const HttpHeader> headers, const char *body = nullptr);
 
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
@@ -296,6 +296,8 @@ class AsyncStreamResponse {
   /// The client is still connected; httpd has not freed the session.
   bool is_connected() const { return this->fd_.load() != 0; }
   bool is_closing() const { return this->close_requested_; }
+  /// The socket fd, for log lines only
+  int log_id() const { return this->fd_.load(); }
   /// Sends are making no progress; after write() returns -1 this tells a send timeout from a send error.
   bool is_stalled() const { return this->stall_.is_running(); }
   /// The session is gone and no queued httpd work still references this object.

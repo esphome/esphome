@@ -14,8 +14,6 @@
 #include <cstdint>
 #include <vector>
 
-struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
-
 namespace esphome::web_server {
 
 class WebServer;
@@ -62,7 +60,7 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   void loop();
 
  protected:
-  AsyncEventSourceResponse(const AsyncWebServerRequest *request, AsyncEventSource *server, WebServer *ws);
+  AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server, WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
   void start_session_main_loop_();
@@ -131,8 +129,6 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   // Most RAM a stalled session keeps: the largest state document plus any accepted framing
   static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
 };
-
-using AsyncEventSourceClient = AsyncEventSourceResponse;
 
 class AsyncEventSource : public AsyncWebHandler {
   friend class AsyncEventSourceResponse;

@@ -55,7 +55,7 @@ using web_server_base::write_stream_head;
 
 ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
-// Every frame in this file is capped below one JSON arena (the /events JSON frame is in web_server/event_source.cpp).
+// Every frame in this file is capped below one JSON arena.
 // Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic error "-Wstack-usage=2048"
@@ -733,7 +733,7 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
   this->print(str);
 }
 
-void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
+void AsyncStreamResponse::begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
                                 std::span<const HttpHeader> headers, const char *body) {
   httpd_req_t *req = *request;
   // Same head httpd_resp_send_chunk() writes, without its first chunk. Blocking sends: the session's non-blocking

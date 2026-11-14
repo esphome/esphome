@@ -7,8 +7,6 @@
 
 namespace esphome::web_server {
 
-using web_server_base::HttpHeader;
-
 // Wire framing of one Server-Sent-Events event inside the chunked /events response:
 //   "%08x\r\n" + fields + "data: " line ["\r\ndata: " line]... "\r\n" + "\r\n" + "\r\n"
 // The chunk header and the final CRLF (the chunk terminator) do not count toward the
@@ -29,7 +27,7 @@ constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
 // Status, Content-Type and headers of the /events response head
 constexpr char SSE_STATUS[] = "200 OK";
 constexpr char SSE_CONTENT_TYPE[] = "text/event-stream";
-constexpr HttpHeader SSE_HEADERS[] = {
+constexpr web_server_base::HttpHeader SSE_HEADERS[] = {
     {"Transfer-Encoding", "chunked"},
     {"Cache-Control", "no-cache"},
     {"Connection", "keep-alive"},
