@@ -1,0 +1,9 @@
+esphome:
+  name: i2czephyr
+
+nrf52:
+  board: nrf54lm20dk
+
+i2c:
+  sda: P3.01
+  scl: P0.04

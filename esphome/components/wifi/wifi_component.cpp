@@ -809,6 +809,11 @@ void WiFiComponent::start() {
   if (!this->has_sta() && this->is_dpp_active_() && this->wifi_mode_(true, {}))
     this->start_dpp_listen_(millis());
 #endif
+#ifdef USE_RTL87XX
+  // Realtek starts lwIP on the first mode change; web_server's listener blocks forever until then
+  if (!this->has_sta() && !this->has_ap())
+    this->wifi_mode_(true, {});
+#endif
 #ifdef USE_IMPROV_BLE
   if (!this->has_sta() && improv_ble::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
