@@ -315,7 +315,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         `pending = this->cancel_timeout(ID)`, an unset value of `NAN` or an out-of-range sentinel.
     *   **No dead guards:** do not check what the caller or core already guarantees: a member that codegen always
         sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
-        `default:` in a `switch` that covers every value of an `enum class`.
+        `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
+        value is cast from bus data).
     *   **Member layout:** order fields from largest to smallest, store small codes as `uint8_t`, declare
         `enum class X : uint8_t`, and pack flags into one byte, so no padding is spent per instance.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale

@@ -143,8 +143,9 @@ detail.
   `cancel_timeout(ID)`), a `has_x_` bool beside `x_` (use `NAN` or a sentinel), an enum that can be worked
   out from stored fields.
 - **Dead guards:** null checks on members codegen always sets, `is_failed()` checks in `loop()`, range
-  checks the schema already enforces, `default:` in a `switch` over every `enum class` value, calls that
-  set a member to its default (`set_cs_pin(nullptr)`).
+  checks the schema already enforces, `default:` in a `switch` over every value of an `enum class` the
+  component sets itself (not one cast from bus data), calls that set a member to its default
+  (`set_cs_pin(nullptr)`).
 - **Member layout:** fields not ordered largest first, `int`/`uint32_t` for values that fit a `uint8_t`,
   an `enum class` without `: uint8_t`, several `bool` members that could share a byte. Each costs RAM per
   instance.
@@ -157,7 +158,7 @@ detail.
 - **Code for one model or feature compiled into every build:** ask for a `cg.add_define()` emitted only
   when the config uses it, with the runtime check inside the `#ifdef`.
 - **Failure handling:** `mark_failed()` outside `setup()` (runtime failures set a warning that the next
-  success clears), an error enum that only picks a log message, `ESP_LOGE` before `mark_failed()`.
+  success clears), an error enum that only picks a log message.
 - **Log noise:** `ESP_LOGD` on every reading, "Setting up" or "initialized" lines in `setup()`, a
   `dump_config()` made of many single-line `ESP_LOGCONFIG` calls instead of one multi-line call, a
   name helper that returns `const char *` instead of `const LogString *`.
