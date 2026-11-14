@@ -443,7 +443,31 @@ void WebServer::setup() {
     this->events_.try_send_nodefer(buf, len, "ping", millis(), 30000);
   });
 }
+#ifdef USE_RP2
+// Runs in lwIP's async_context with its lock held; loop() takes the same lock to take the queue
+void WebServer::defer_action_(std::function<void()> &&f) {
+  this->deferred_actions_.push_back(std::move(f));
+  this->enable_loop_soon_any_context();
+}
+
+void WebServer::run_deferred_actions_() {
+  // Unlocked check: a push that races it re-enables loop(), so it runs on the next pass
+  if (this->deferred_actions_.empty())
+    return;
+  std::vector<std::function<void()>> actions;
+  {
+    LwIPLock lock;
+    actions.swap(this->deferred_actions_);
+  }
+  for (auto &action : actions)
+    action();
+}
+#endif
+
 void WebServer::loop() {
+#ifdef USE_RP2
+  this->run_deferred_actions_();
+#endif
   bool keep_looping = this->events_.loop();
 #ifdef USE_WEBSERVER_CAPTIVE
   this->dns_.loop();
@@ -454,7 +478,7 @@ void WebServer::loop() {
   // - set_interval/set_timeout/defer run via the Scheduler, independent of loop()
   // - deferrable_send_state early-outs when no clients are connected
   // - try_send_nodefer (log, ping) iterates sessions which are empty
-  // - REST API handlers use defer() which runs via the Scheduler
+  // - REST API handlers use defer_action_(): the Scheduler, or on RP2 a queue that re-enables loop()
   if (!keep_looping)
     this->disable_loop();
 }
@@ -788,7 +812,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     }
 
     if (action != SWITCH_ACTION_NONE) {
-      this->defer([obj, action]() { execute_switch_action(obj, action); });
+      this->defer_action_([obj, action]() { execute_switch_action(obj, action); });
       request->send(200);
     } else {
       request->send(404);
@@ -1668,7 +1692,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     }
 
     if (action != LOCK_ACTION_NONE) {
-      this->defer([obj, action]() { execute_lock_action(obj, action); });
+      this->defer_action_([obj, action]() { execute_lock_action(obj, action); });
       request->send(200);
     } else {
       request->send(404);
@@ -1996,7 +2020,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
     // must remain valid until perform() completes.
     // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
-    this->defer([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
+    this->defer_action_([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
       call.set_raw_timings_base64url(encoded);
       call.perform();
     });
@@ -2084,7 +2108,7 @@ void WebServer::handle_radio_frequency_request(AsyncWebServerRequest *request, c
     // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
     // must remain valid until perform() completes.
     // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
-    this->defer([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
+    this->defer_action_([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
       call.set_raw_timings_base64url(encoded);
       call.perform();
     });

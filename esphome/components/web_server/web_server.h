@@ -50,7 +50,7 @@ using ParamNameType = ProgmemStr;
 // ESP8266 needs this because ESPAsyncWebServer callbacks run in "sys" context
 // (SDK system context), not "cont" context (continuation/main loop). Calling
 // yield() from sys context causes a panic in the Arduino core.
-#define DEFER_ACTION(capture, action) this->defer([capture]() mutable { action; })
+#define DEFER_ACTION(capture, action) this->defer_action_([capture]() mutable { action; })
 
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
@@ -532,6 +532,16 @@ class WebServer final : public Component, public AsyncWebHandler {
  protected:
   // Declared here so it packs into the padding after include_internal_
   bool expose_log_{true};
+
+  // Runs a REST action on the main loop. On RP2 requests run in lwIP's async_context, which can interrupt the
+  // main loop while it is inside the scheduler (unlocked there), so the action is queued here instead.
+#ifdef USE_RP2
+  void defer_action_(std::function<void()> &&f);
+  void run_deferred_actions_();
+  std::vector<std::function<void()>> deferred_actions_;
+#else
+  void defer_action_(std::function<void()> &&f) { this->defer(std::move(f)); }
+#endif
 
   // Out of line so the per-domain update callbacks stay small
   // source stays the concrete entity pointer, since the generators cast it back to that type
