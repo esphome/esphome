@@ -269,6 +269,7 @@ CONF_MAX_KEY_SIZE = "max_key_size"
 CONF_MIN_KEY_SIZE = "min_key_size"
 CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
+CONF_ADVERTISE_SERVICES = "advertise_services"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
@@ -373,6 +374,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ADVERTISE_SERVICES, default=True): cv.boolean,
         cv.Optional(CONF_DISABLE_BT_LOGS, default=True): cv.boolean,
         cv.Optional(CONF_CONNECTION_TIMEOUT, default="20s"): cv.All(
             cv.positive_time_period_seconds,
@@ -493,6 +495,21 @@ def final_validation(config: ConfigType) -> None:
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
 
+    if not config[CONF_ADVERTISE_SERVICES]:
+        # Without a beacon there is no raw advertisement to rotate to, and the
+        # setter only exists when USE_ESP32_BLE_ADVERTISING is defined.
+        if "esp32_ble_beacon" not in full_config:
+            raise cv.Invalid(
+                f"'{CONF_ADVERTISE_SERVICES}: false' requires 'esp32_ble_beacon'; "
+                "otherwise there is nothing left to advertise"
+            )
+        if "esp32_ble_server" in full_config:
+            _LOGGER.warning(
+                "'%s: false' stops the GATT server (and Improv) from being "
+                "advertised, so clients can no longer discover or connect to it",
+                CONF_ADVERTISE_SERVICES,
+            )
+
     # Validate connection slots usage
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     validate_connection_slots(max_connections)
@@ -558,6 +575,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
+    if not config[CONF_ADVERTISE_SERVICES]:
+        cg.add(var.set_advertise_services(False))
     cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 

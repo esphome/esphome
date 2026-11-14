@@ -1,1 +1,4 @@
+esp32_ble:
+  advertise_services: false
+
 <<: !include common.yaml

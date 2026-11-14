@@ -269,6 +269,7 @@ void ESP32BLE::advertising_init_() {
   this->advertising_ = new BLEAdvertising(this->advertising_cycle_time_);  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_appearance(this->appearance_);
+  this->advertising_->set_advertise_services(this->advertise_services_);
 }
 #endif
 
