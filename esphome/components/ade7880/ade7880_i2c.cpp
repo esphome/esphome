@@ -24,7 +24,7 @@ namespace esphome::ade7880 {
 // signed 32-bit (int32_t)
 
 uint8_t ADE7880::read_u8_register16_(uint16_t a_register) {
-  uint8_t in;
+  uint8_t in{0};
   this->read_byte_reg16(a_register, &in);
   return in;
 }
