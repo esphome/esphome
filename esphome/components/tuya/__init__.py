@@ -4,7 +4,6 @@ from esphome.components import time, uart
 from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import CONF_PROTOCOL, CONF_SENSOR_DATAPOINT, CONF_TIME_ID
-from esphome.core import CORE as CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
