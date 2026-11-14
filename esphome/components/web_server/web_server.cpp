@@ -8,6 +8,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -334,6 +335,9 @@ void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
+  // Sessions are main-loop state; RP2 logs from its network IRQ arrive here directly, so drop those
+  if (!is_main_loop_thread())
+    return;
   this->events_.try_send_nodefer(message, std::min(message_len, LOG_EVENT_MAX_LEN), "log", millis());
 }
 #endif

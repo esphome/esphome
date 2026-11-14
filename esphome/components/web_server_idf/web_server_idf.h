@@ -3,6 +3,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include <esp_http_server.h>
 
