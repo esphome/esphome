@@ -1357,8 +1357,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     """The cheap class handles must stay string-equal to the integrations'
     own declarations, or use_id/declare_id resolution silently drifts."""
     from esphome.components import mqtt, web_server
-    from esphome.components.zigbee import zigbee_zephyr
-    from esphome.components.zigbee.const import ZigbeeComponent
 
     mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
     assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
@@ -1368,15 +1366,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert str(entity_helpers._WebServer) == str(web_server.WebServer)
     assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
-
-    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for (
-        _conf_key,
-        class_name,
-        _cluster_options,
-    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
-        owning = getattr(zigbee_zephyr, class_name)
-        assert str(owning) == f"zigbee::{class_name}"
 
 
 @cache

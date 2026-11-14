@@ -44,16 +44,24 @@ from .const import (  # noqa: F401
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     CONF_WIPE_ON_BOOT,
+    CONF_ZIGBEE_BINARY_SENSOR,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
+    CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     REPORT,
+    ZigbeeBinarySensor,
     ZigbeeComponent,
+    ZigbeeNumber,
+    ZigbeeSensor,
+    ZigbeeSwitch,
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
     MAX_EP_NUMBER_ZEPHYR,
 )
@@ -251,8 +259,6 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_binary_sensor
     else:
         from .zigbee_esp32 import add_component as add_binary_sensor
@@ -263,8 +269,6 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_sensor
     else:
         from .zigbee_esp32 import add_component as add_sensor
@@ -275,8 +279,6 @@ async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_switch
     else:
         from .zigbee_esp32 import add_component as add_switch
@@ -293,8 +295,6 @@ async def setup_number(
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import zephyr_setup_number
 
         await zephyr_setup_number(entity, config, min_value, max_value, step)
@@ -305,8 +305,8 @@ async def setup_number(
 
 
 def consume_endpoint(config: ConfigType) -> ConfigType:
-    if not config.get(CONF_ZIGBEE_ID):
-        return config
+    if CONF_ZIGBEE_ID not in config:
+        config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
             "Spaces in '%s' requires ZHA or at least Zigbee2MQTT 2.8.0. For older version of Zigbee2MQTT use '%s'",
@@ -324,6 +324,8 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_binary_sensor_esp32(config)
+
+    config[CONF_ZIGBEE_BINARY_SENSOR] = cv.declare_id(ZigbeeBinarySensor)(None)
     return consume_endpoint(config)
 
 
@@ -332,6 +334,8 @@ def validate_sensor(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_sensor_esp32(config)
+
+    config[CONF_ZIGBEE_SENSOR] = cv.declare_id(ZigbeeSensor)(None)
     return consume_endpoint(config)
 
 
@@ -340,6 +344,8 @@ def validate_switch(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_switch_esp32(config)
+
+    config[CONF_ZIGBEE_SWITCH] = cv.declare_id(ZigbeeSwitch)(None)
     return consume_endpoint(config)
 
 
@@ -348,6 +354,8 @@ def validate_number(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_number_esp32(config)
+
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
     return consume_endpoint(config)
 
 
