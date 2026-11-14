@@ -37,6 +37,15 @@ struct HttpHeader {
   const char *value;
 };
 
+/// Bytes in a gather list
+template<typename Iovec> size_t iovecs_total(const Iovec *iov, int count) {
+  size_t total = 0;
+  for (int i = 0; i < count; i++) {
+    total += iov[i].iov_len;
+  }
+  return total;
+}
+
 /// Drops the first sent bytes from a gather list after a write; a short write resumes inside the
 /// element it stopped in. count reaches 0 once everything went out.
 template<typename Iovec> void advance_iovecs(Iovec *&iov, int &count, size_t sent) {
@@ -177,6 +186,11 @@ class StallClock {
     return this->started_ms_ != 0 && static_cast<int32_t>(now - (this->started_ms_ + timeout_ms)) >= 0;
   }
   uint32_t elapsed(uint32_t now) const { return now - this->started_ms_; }
+  /// Starts the clock if needed; true once it has run for timeout_ms
+  bool start_or_expired(uint32_t now, uint32_t timeout_ms) {
+    this->start(now);
+    return this->is_expired(now, timeout_ms);
+  }
 
  protected:
   uint32_t started_ms_{0};

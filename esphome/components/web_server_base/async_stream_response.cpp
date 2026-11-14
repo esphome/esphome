@@ -17,6 +17,16 @@ static_assert(STREAM_ADD_FLAG_COPY == ASYNC_WRITE_FLAG_COPY && STREAM_ADD_FLAG_M
 // Bytes coalesced into one AsyncClient::add(); on the loop stack, so kept small
 static constexpr size_t ADD_SCRATCH_SIZE = 256;
 
+// Closes now and runs the disconnect callback. AsyncTCP (LibreTiny) deprecates close(bool); ESPAsyncTCP and
+// RPAsyncTCP need it, as their close() waits for the next poll. Never abort(): it skips the disconnect callback.
+static void close_now(AsyncClient *client) {
+#ifdef USE_LIBRETINY
+  client->close();
+#else
+  client->close(true);
+#endif
+}
+
 // Hands the connection to the stream once the head is queued. The library runs _respond() in the network context
 // right after the handler returns; clientRelease() then unhooks the request, which frees itself and this response.
 class StreamHandoffResponse final : public AsyncWebServerResponse {
@@ -45,21 +55,13 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
     char scratch[ADD_SCRATCH_SIZE];
     const bool head_sent = write_stream_head<StreamIovec>(
         [client, &scratch](StreamIovec *iov, int count) {
-          size_t total = 0;
-          for (int i = 0; i < count; i++) {
-            total += iov[i].iov_len;
-          }
-          return add_iovecs(*client, iov, count, scratch, sizeof(scratch)) == total;
+          return add_iovecs(*client, iov, count, scratch, sizeof(scratch)) == iovecs_total(iov, count);
         },
         this->status_, this->content_type_, this->headers_, std::span<const HttpHeader>(defaults, default_count),
         this->body_);
     AsyncStreamResponse *stream = this->stream_;
     this->stream_ = nullptr;
-    stream->attach_(request->clientRelease());
-    if (!head_sent) {
-      // A partly queued head must not be continued by later writes; the disconnect frees the stream
-      stream->client_->close(true);
-    }
+    stream->attach_(request->clientRelease(), head_sent);
   }
   bool _sourceValid() const override { return true; }
 
@@ -77,14 +79,14 @@ void AsyncStreamResponse::begin(AsyncWebServerRequest *request, const char *stat
   request->send(new StreamHandoffResponse(this, status, content_type, headers, body));
 }
 
-void AsyncStreamResponse::attach_(AsyncClient *client) {
-  this->client_ = client;
+void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
   client->setRxTimeout(0);
   // A send with no ACK for this long closes the stream, the same timeout as a full send buffer
   client->setAckTimeout(SEND_STALL_TIMEOUT_MS);
   client->setNoDelay(true);
   // clientRelease() already cleared the request's data, ack, poll and error handlers
-  // Network context: store a flag and nothing else; the main loop frees the client
+  // Network context: store a flag and nothing else; the main loop frees the client. On LibreTiny async_tcp runs above
+  // the loop task and touches nothing after this callback, so the loop cannot free the client under it.
   client->onDisconnect(
       [](void *arg, AsyncClient *) {
         static_cast<AsyncStreamResponse *>(arg)->disconnected_.store(true, std::memory_order_release);
@@ -95,18 +97,23 @@ void AsyncStreamResponse::attach_(AsyncClient *client) {
         static_cast<AsyncStreamResponse *>(arg)->ack_timed_out_.store(true, std::memory_order_release);
       },
       this);
-  this->attached_.store(true, std::memory_order_release);
+  if (!head_sent) {
+    // A partly queued head must not be continued by later writes; the disconnect callback frees the stream
+    close_now(client);
+  }
+  this->client_.store(client, std::memory_order_release);
 }
 
 AsyncStreamResponse::~AsyncStreamResponse() {
-  if (this->client_ == nullptr) {
+  AsyncClient *client = this->client_.load(std::memory_order_acquire);
+  if (client == nullptr) {
     return;
   }
   // Held so the RP2 network IRQ cannot run while the client goes away
   LwIPLock lock;
-  this->client_->onDisconnect(nullptr, nullptr);
-  this->client_->onTimeout(nullptr, nullptr);
-  delete this->client_;  // NOLINT(cppcoreguidelines-owning-memory)
+  client->onDisconnect(nullptr, nullptr);
+  client->onTimeout(nullptr, nullptr);
+  delete client;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
@@ -114,11 +121,7 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     return -1;
   }
   // Nothing to send is not a stall
-  size_t total = 0;
-  for (int i = 0; i < iovcnt; i++) {
-    total += iov[i].iov_len;
-  }
-  if (total == 0) {
+  if (iovecs_total(iov, iovcnt) == 0) {
     return 0;
   }
   if (!this->is_connected()) {
@@ -126,12 +129,15 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     return -1;
   }
   size_t sent = 0;
-  if (this->is_attached()) {
+  AsyncClient *client = this->client_.load(std::memory_order_acquire);
+  const uint32_t now = App.get_loop_component_start_time();
+  if (client != nullptr && (!this->stall_.is_running() || now - this->last_try_ms_ >= STALL_RETRY_MS)) {
+    this->last_try_ms_ = now;
     // RP2: the network IRQ may free the pcb between the check and the use, so hold it out across both
     LwIPLock lock;
     if (this->is_connected()) {
       char scratch[ADD_SCRATCH_SIZE];
-      sent = add_iovecs(*this->client_, iov, iovcnt, scratch, sizeof(scratch));
+      sent = add_iovecs(*client, iov, iovcnt, scratch, sizeof(scratch));
     }
   }
   if (sent > 0) {
@@ -149,8 +155,7 @@ ssize_t AsyncStreamResponse::write(const void *data, size_t len) {
 
 bool AsyncStreamResponse::stall_or_close_(const LogString *reason) {
   const uint32_t now = App.get_loop_component_start_time();
-  this->stall_.start(now);
-  if (!this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+  if (!this->stall_.start_or_expired(now, SEND_STALL_TIMEOUT_MS)) {
     return false;
   }
   ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), LOG_STR_ARG(reason));
@@ -171,7 +176,7 @@ void AsyncStreamResponse::close_client_() {
   this->close_sent_ = true;
   LwIPLock lock;
   if (this->is_connected()) {
-    this->client_->close(true);
+    close_now(this->client_.load(std::memory_order_relaxed));
   }
 }
 

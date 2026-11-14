@@ -40,8 +40,8 @@ class AsyncStreamResponse {
              std::span<const HttpHeader> headers, const char *body = nullptr);
 
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
-  /// keeps the rest and continues from there. 0 means the send buffer is full; -1 means the stream is closing.
-  /// Refused writes for SEND_STALL_TIMEOUT_MS in a row also close it.
+  /// keeps the rest and continues from there. 0 means the send buffer is full or the connection is not ours yet; -1
+  /// means the stream is closing. Refused writes for SEND_STALL_TIMEOUT_MS in a row also close it.
   ssize_t write(StreamIovec *iov, int iovcnt);
   ssize_t write(const void *data, size_t len);
   /// Main loop. Closes the connection; safe to call more than once.
@@ -50,34 +50,38 @@ class AsyncStreamResponse {
   void loop();
 
   /// The connection has been taken from the request and the head is queued.
-  bool is_attached() const { return this->attached_.load(std::memory_order_acquire); }
+  bool is_attached() const { return this->client_.load(std::memory_order_acquire) != nullptr; }
+  /// Main loop: true once a stream has waited ATTACH_TIMEOUT_MS for its connection, which then never comes
+  bool attach_timed_out(uint32_t now) { return this->stall_.start_or_expired(now, ATTACH_TIMEOUT_MS); }
   /// The client is still connected.
   bool is_connected() const { return !this->disconnected_.load(std::memory_order_acquire); }
   bool is_closing() const { return this->close_requested_; }
   /// An id for log lines only
   int log_id() const { return static_cast<int>(reinterpret_cast<uintptr_t>(this) & 0xFFFF); }
-  /// Sends are making no progress; after write() returns -1 this tells a send timeout from a send error.
-  bool is_stalled() const { return this->stall_.is_running(); }
   /// The connection is gone; no network callback still references this object.
   bool safe_to_delete() const { return this->disconnected_.load(std::memory_order_acquire); }
 
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
+  static constexpr uint32_t ATTACH_TIMEOUT_MS = 10000;
+  // While stalled, retry at most this often: on RP2 each try releases the lwIP lock, which postpones a polled
+  // Ethernet chip's 20 ms receive poll
+  static constexpr uint32_t STALL_RETRY_MS = 100;
 
  protected:
   friend class StreamHandoffResponse;
 
-  // Network context: take the connection once the head is queued
-  void attach_(AsyncClient *client);
+  // Network context: take the connection once the head is queued; a head not queued whole closes it first
+  void attach_(AsyncClient *client, bool head_sent);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and closes. True when it closed.
   bool stall_or_close_(const LogString *reason);
   void close_client_();
 
-  // Main loop owns it; freed once disconnected_
-  AsyncClient *client_{nullptr};
-  // Runs while sends make no progress; a running clock keeps its start time
+  // Published by the network context once attached; then the main loop owns it and frees it once disconnected_
+  std::atomic<AsyncClient *> client_{nullptr};
+  // Runs while sends make no progress (or, before attaching, while waiting for the connection)
   StallClock stall_;
+  uint32_t last_try_ms_{0};
   // Set from the network callbacks with plain stores (no read-modify-write: RP2040 has none)
-  std::atomic<bool> attached_{false};
   std::atomic<bool> disconnected_{false};
   std::atomic<bool> ack_timed_out_{false};
   // Main loop only

@@ -157,7 +157,7 @@ class AsyncEventSource {
 
   // Main-loop only; intrusive list through AsyncEventSourceResponse::next_
   AsyncEventSourceResponse *sessions_{nullptr};
-  // Network-context intake; pushed under StreamIntakeGuard on pending_mutex_, non-null means work to adopt
+  // Network-context intake, guarded by pending_mutex_; non-null means work to adopt
   std::atomic<AsyncEventSourceResponse *> pending_sessions_{nullptr};
   [[no_unique_address]] Mutex pending_mutex_;
 };

@@ -12,7 +12,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-
 #include <cstdlib>
 
 #ifdef USE_LIGHT

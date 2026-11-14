@@ -21,26 +21,15 @@ using StreamIntakeGuard = LockGuard;
 #include "esphome/core/helpers.h"
 
 namespace esphome::web_server_base {
-// Guards the hand-off of new streams from the network context to the main loop. RP2's network callbacks run in an
-// IRQ that holds the lwIP lock, and ESPHome's Mutex is a no-op there; ESP8266's never preempt the loop.
+// Guards the hand-off of new streams from the network context to the main loop: the lwIP lock keeps RP2's network
+// IRQ out, the mutex LibreTiny's async_tcp task; each is a no-op where it is not needed (both on ESP8266)
 class StreamIntakeGuard {
  public:
-  explicit StreamIntakeGuard(Mutex &mutex)
-#ifndef USE_RP2
-      : guard_(mutex)
-#endif
-  {
-#ifdef USE_RP2
-    (void) mutex;
-#endif
-  }
+  explicit StreamIntakeGuard(Mutex &mutex) : guard_(mutex) {}
 
  protected:
-#ifdef USE_RP2
   LwIPLock lock_;
-#else
   LockGuard guard_;
-#endif
 };
 }  // namespace esphome::web_server_base
 #endif

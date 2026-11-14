@@ -12,12 +12,11 @@ namespace esphome::web_server {
 
 // The /events session the iterator lists entities to
 class AsyncEventSourceResponse;
-using EventSession = AsyncEventSourceResponse;
 class WebServer;
 
 class ListEntitiesIterator final : public ComponentIterator {
  public:
-  ListEntitiesIterator(const WebServer *ws, EventSession *session) : web_server_(ws), session_(session) {}
+  ListEntitiesIterator(const WebServer *ws, AsyncEventSourceResponse *session) : web_server_(ws), session_(session) {}
 
 // Entity overrides (generated from entity_types.h).
 // Implementations live in list_entities.cpp.
@@ -35,7 +34,7 @@ class ListEntitiesIterator final : public ComponentIterator {
   void send_all_(void *source, void (*generator)(WebServer *, void *, json::JsonBuilder &));
 
   const WebServer *web_server_;
-  EventSession *session_;
+  AsyncEventSourceResponse *session_;
 };
 
 }  // namespace esphome::web_server

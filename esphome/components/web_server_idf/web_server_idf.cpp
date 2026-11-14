@@ -887,11 +887,7 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
     return -1;
   }
   // Nothing to send is not a stall
-  size_t total = 0;
-  for (int i = 0; i < iovcnt; i++) {
-    total += iov[i].iov_len;
-  }
-  if (total == 0) {
+  if (web_server_base::iovecs_total(iov, iovcnt) == 0) {
     return 0;
   }
   // httpd closes the socket before it clears the session, so the fd number may already be a new client's.
@@ -927,8 +923,7 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
 
 bool AsyncStreamResponse::stall_or_close_(const LogString *reason) {
   const uint32_t now = App.get_loop_component_start_time();
-  this->stall_.start(now);
-  if (!this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+  if (!this->stall_.start_or_expired(now, SEND_STALL_TIMEOUT_MS)) {
     return false;
   }
   ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), LOG_STR_ARG(reason));

@@ -84,8 +84,14 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
-    // The transport takes the connection only after the creating handler returns, so stay pending until then
+    // The transport takes the connection only after the creating handler returns, so stay pending until then;
+    // one that never gets it (a lost hand-off) is dropped instead of keeping the loop busy
     if (!rsp->is_attached()) {
+      if (rsp->attach_timed_out(App.get_loop_component_start_time())) {
+        ESP_LOGW(TAG, "Dropping stream %d that never connected", rsp->log_id());
+        delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+        continue;
+      }
       web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
       rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
       this->pending_sessions_.store(rsp, std::memory_order_release);
@@ -127,6 +133,8 @@ static_assert(web_server_base::stream_head_iov_count(SSE_HEADERS_COUNT + WEB_SER
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
+  // The wait for the connection is over; the clock now times sends
+  this->stall_.clear();
 
   // The tcp send buffer is empty on connect. A refusal is a closing session or a failed tail
   // allocation; nothing retries the greeting, so close and let the client reconnect.
