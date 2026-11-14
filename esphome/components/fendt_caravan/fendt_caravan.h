@@ -5,7 +5,6 @@
 #include <cstring>
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_client/ble_characteristic.h"
-#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -55,7 +54,6 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   bool write_in_flight_ = false;
   uint16_t char_handle_ = 0;
   StaticRingBuffer<Chunk, QUEUE_SIZE> commands_;
-  uint32_t last_command_time_ = 0;
   FrameAssembler<REPORT_MAX> rx_;
 
   FendtCaravanHubBase *mcu_hub_{nullptr};

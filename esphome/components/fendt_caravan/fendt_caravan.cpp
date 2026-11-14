@@ -6,8 +6,6 @@ namespace esphome::fendt_caravan {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-// Gap between two chunk writes
-static constexpr uint32_t WAIT_COMMAND_MS = 200;
 ESPHOME_LOG_TAG(TAG, "fendt_caravan");
 static const char *const SERVICE_UUID = "C7841029-FE7C-4894-8532-F97908EF1AE4";
 static constexpr uint16_t CHARACTERISTIC_UUID = 0x0001;
@@ -16,10 +14,6 @@ static constexpr char BT_VARS_COMMAND[] = "net-BT_VARS";
 void FendtCaravan::loop() {
   if (this->parent()->state() != espbt::ClientState::ESTABLISHED || this->commands_.empty() || this->wait_handshake_ ||
       this->write_in_flight_)
-    return;
-
-  uint32_t time_stamp = App.get_loop_component_start_time();
-  if (this->commands_.empty() || this->wait_handshake_)
     return;
 
   Chunk &chunk = this->commands_.front();
