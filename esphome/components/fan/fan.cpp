@@ -1,4 +1,5 @@
 #include "fan.h"
+#include "automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
@@ -309,6 +310,21 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
     for (const char *s : traits.supported_preset_modes()) {
       ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
     }
+  }
+}
+
+void cycle_speed(Fan *fan, bool off_speed_cycle) {
+  const int supported_speed_count = fan->get_traits().supported_speed_count();
+  if (supported_speed_count == 0) {
+    fan->toggle().perform();
+    return;
+  }
+  const int speed = fan->state ? fan->speed + 1 : 1;
+  if (speed > supported_speed_count && off_speed_cycle) {
+    // Past the top speed: turn off, and resume at speed 1 when turned on
+    fan->turn_off().set_speed(1).perform();
+  } else {
+    fan->turn_on().set_speed(speed > supported_speed_count ? 1 : speed).perform();
   }
 }
 

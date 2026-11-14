@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_PATTERN, CONF_PRIORITY, CONF_RECEIVE_TIMEOUT
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
+from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
@@ -154,3 +155,11 @@ async def to_code(config: ConfigType) -> None:
         esp32.add_idf_component(name="esphome/dlms_parser", ref=DLMS_PARSER_VERSION)
     else:
         cg.add_library("esphome/dlms_parser", DLMS_PARSER_VERSION)
+
+    # On the host the AES-GCM backend comes from the system mbedtls
+    if CORE.is_host:
+        if IS_MACOS:
+            # macOS needs special handling for Homebrew mbedtls
+            cg.add_build_flag("-I/opt/homebrew/opt/mbedtls/include")
+            cg.add_build_flag("-L/opt/homebrew/opt/mbedtls/lib")
+        cg.add_build_flag("-lmbedcrypto")

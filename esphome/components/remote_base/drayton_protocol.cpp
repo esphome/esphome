@@ -30,9 +30,9 @@ The number of these bits seen at the receiver varies depending on the state
 of the bias when the packet transmission starts. The receiver algoritmn takes
 account of this.
 
-The packet is Manchester coded, with a '10' tranmitted pair representing
+The packet is Manchester coded, with a '10' transmitted pair representing
 a '1' bit and a '01' pair representing a '0' bit. Each packet is begun
-with a '1100' syncronisation symbol which breaks this rule. Following
+with a '1100' synchronisation symbol which breaks this rule. Following
 the sync are 28 '01' or '10' pairs.
 
 --------------------
@@ -154,7 +154,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       src.advance(1);
     }
 
-    // Look for sync pulse, after. If sucessful index points to space of sync symbol
+    // Look for sync pulse, after. If successful index points to space of sync symbol
     while (src.size() - src.get_index() >= MIN_RX_SRC) {
       ESP_LOGVV(TAG, "sync search %" PRIu32 ", %" PRId32 " %" PRId32, src.size() - src.get_index(), src.peek(),
                 src.peek(1));

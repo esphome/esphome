@@ -239,7 +239,16 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(SchedulerItem *a, SchedulerItem *b);
+    // Heap order for items_: the item due first is on top. A function object rather than a function, so the
+    // heap algorithms call it directly and can inline it.
+    struct Cmp {
+      bool operator()(const SchedulerItem *a, const SchedulerItem *b) const {
+        // High bits are almost always equal (change only on 32-bit rollover ~49 days)
+        return (a->next_execution_high_ == b->next_execution_high_)
+                   ? (a->next_execution_low_ > b->next_execution_low_)
+                   : (a->next_execution_high_ > b->next_execution_high_);
+      }
+    };
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
@@ -518,7 +527,8 @@ class Scheduler {
                                                                             uint32_t hash_or_id,
                                                                             SchedulerItem::Type type, bool find_first);
 
-  // Empty on single-threaded platforms (ESP8266, RP2), so it takes no space there
+  // Empty on single-threaded platforms (ESP8266, RP2), so it takes no space there; RP2 with networking locks by
+  // holding interrupts off (SchedulerLockGuard in scheduler.cpp)
   [[no_unique_address]] Mutex lock_;
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;

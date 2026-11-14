@@ -47,23 +47,11 @@ void SHT4XComponent::setup() {
     ESP_LOGD(TAG, "Heater interval: %" PRIu32, this->heater_interval_);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
-      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-        this->heater_command_ = 0x39;
-      } else {
-        this->heater_command_ = 0x32;
-      }
+      this->heater_command_ = this->heater_time_ == SHT4X_HEATERTIME_LONG ? 0x39 : 0x32;
     } else if (this->heater_power_ == SHT4X_HEATERPOWER_MED) {
-      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-        this->heater_command_ = 0x2F;
-      } else {
-        this->heater_command_ = 0x24;
-      }
+      this->heater_command_ = this->heater_time_ == SHT4X_HEATERTIME_LONG ? 0x2F : 0x24;
     } else {
-      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-        this->heater_command_ = 0x1E;
-      } else {
-        this->heater_command_ = 0x15;
-      }
+      this->heater_command_ = this->heater_time_ == SHT4X_HEATERTIME_LONG ? 0x1E : 0x15;
     }
     ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
   }

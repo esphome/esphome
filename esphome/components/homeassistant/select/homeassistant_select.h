@@ -2,7 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <span>
 
 #include "esphome/components/select/select.h"
 #include "esphome/core/component.h"
@@ -13,13 +13,16 @@ namespace esphome::homeassistant {
 /** Mirrors a Home Assistant `select` or `input_select` entity.
  *
  * The options are read from the entity's `options` attribute at runtime. They are stored in a buffer of
- * `options_buffer_size` bytes and a list of at most `max_options` entries, both reserved in setup(), so a
- * change of options never allocates.
+ * `options_buffer_size` bytes and a list of at most `max_options` entries, both static arrays from code
+ * generation, so options never allocate.
  */
 class HomeassistantSelect final : public select::Select, public Component {
  public:
-  HomeassistantSelect(uint8_t max_options, uint16_t options_buffer_size)
-      : options_buffer_size_(options_buffer_size), max_options_(max_options) {}
+  HomeassistantSelect(std::span<char> options_buffer, std::span<const char *> option_list)
+      : options_buffer_(options_buffer.data()),
+        option_list_(option_list.data()),
+        options_buffer_size_(options_buffer.size()),
+        max_options_(option_list.size()) {}
 
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
 
@@ -36,10 +39,9 @@ class HomeassistantSelect final : public select::Select, public Component {
   const char *entity_id_{nullptr};
 
  private:
-  // The traits point at option_list_, whose entries point into options_buffer_; both are sized once in
-  // setup() and must match options_buffer_size_ and max_options_
-  std::unique_ptr<char[]> options_buffer_;
-  std::unique_ptr<const char *[]> option_list_;
+  // The traits point at option_list_, whose entries point into options_buffer_
+  char *const options_buffer_;
+  const char **const option_list_;
   uint16_t options_buffer_size_;
   uint8_t max_options_;
 };

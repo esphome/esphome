@@ -144,7 +144,7 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    # Triggers secton
+    # Triggers section
 
     if CONF_ON_ORIENTATION in config:
         await automation.build_automation(

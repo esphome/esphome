@@ -84,13 +84,8 @@ async def _emit_state_subscription_count_define() -> None:
 def setup_home_assistant_entity(
     var: MockObj, config: ConfigType, state_subscription_count: int = 1
 ) -> None:
-    from esphome.components.api import wizard
-
-    if (buffer := wizard.wizard_input_buffer(config[CONF_ID])) is not None:
-        # The entity ID is chosen in the wizard and lives in a buffer the API owns
-        cg.add(var.set_entity_id(cg.RawExpression(buffer)))
-    else:
-        cg.add(var.set_entity_id(config[CONF_ENTITY_ID]))
+    # A wizard input has no entity_id; the api wizard sets it
+    cg.add_optional(var.set_entity_id, config.get(CONF_ENTITY_ID))
     cg.add_optional(var.set_attribute, config.get(CONF_ATTRIBUTE))
     cg.add_define("USE_API_HOMEASSISTANT_STATES")
     if state_subscription_count > 0:

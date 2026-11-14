@@ -1,0 +1,49 @@
+# CLASSIC with a forced internal loopback window: the first force triggers the driver's recovery, the second lands
+# inside the next 5 s check interval, long enough for a 48-frame burst and the RTR check; then a chip reset
+substitutions:
+  name: canlb-classic
+  classic: "true"
+
+packages:
+  common: !include common-can.yaml
+
+canbus:
+  - platform: mcp251xfd
+    id: can0
+    cs_pin: GPIO32
+    interrupt_pin: GPIO33
+    can_id: 0x7FF
+    mode: CLASSIC
+    clock: 20MHZ
+    bit_rate: 1000KBPS
+
+script:
+  - id: phases
+    then:
+      - delay: 20s
+      - lambda: canlb::phase = canlb::PAUSED;
+      - lambda: canlb::force_via_config(2, "lb1");
+      - wait_until:
+          condition:
+            lambda: return canlb::opmod() == 6;
+          timeout: 8s
+      - lambda: 'ESP_LOGI("canlb", "RECOVERY1 ok=%d", canlb::opmod() == 6);'
+      - lambda: canlb::regs("after-lb1");
+      - lambda: canlb::force_via_config(2, "lb2");
+      - lambda: canlb::burst(48, "classic48");
+      - delay: 300ms
+      - lambda: canlb::queue_report("classic48");
+      - lambda: canlb::rtr_test();
+      - delay: 300ms
+      - lambda: canlb::queue_report("rtr-classic");
+      - lambda: canlb::phase = canlb::PAUSED;
+      - delay: 8s
+      - lambda: canlb::regs("after-window");
+      - lambda: canlb::timing("pre-reset");
+      - lambda: canlb::chip_reset();
+      - lambda: canlb::watch_start(6);
+      - delay: 10s
+      - lambda: canlb::timing("reset+10s");
+      - lambda: canlb::regs("reset+10s");
+      - lambda: canlb::report();
+      - lambda: ESP_LOGI("canlb", "PHASES DONE");

@@ -76,7 +76,7 @@ CONF_WRITE_NO_RESPONSE = "write_no_response"
 # Internal configuration keys
 CONF_CHAR_VALUE_ACTION_ID_ = "char_value_action_id_"
 
-# BLE reserverd UUIDs
+# BLE reserved UUIDs
 CCCD_DESCRIPTOR_UUID = 0x2902
 CUD_DESCRIPTOR_UUID = 0x2901
 DEVICE_INFORMATION_SERVICE_UUID = 0x180A
@@ -130,7 +130,6 @@ BLEServer = esp32_ble_server_ns.class_(
 esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
     "esp32_ble_server_automations"
 )
-BLETriggers_ns = esp32_ble_server_automations_ns.namespace("BLETriggers")
 BLEDescriptor = esp32_ble_server_ns.class_("BLEDescriptor")
 BLECharacteristic = esp32_ble_server_ns.class_("BLECharacteristic")
 BLEService = esp32_ble_server_ns.class_("BLEService")
@@ -682,6 +681,21 @@ def calculate_num_handles(service_config):
     return total
 
 
+async def _build_on_write_automation(var: MockObj, config: ConfigType) -> None:
+    """Run an on_write automation with the written bytes as a vector, as its lambdas expect."""
+    await automation.build_callback_automation(
+        var,
+        "on_write",
+        [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
+        config,
+        params=[
+            (cg.std_span.template(cg.uint8.operator("const")), "data"),
+            (cg.uint16, "id"),
+        ],
+        forward=["std::vector<uint8_t>(data.begin(), data.end())", "id"],
+    )
+
+
 async def to_code_descriptor(descriptor_conf, char_conf, char_var):
     value = await parse_value(descriptor_conf[CONF_VALUE], {})
     desc_var = cg.new_Pvariable(
@@ -692,14 +706,8 @@ async def to_code_descriptor(descriptor_conf, char_conf, char_var):
     )
     cg.add(char_var.add_descriptor(desc_var))
     cg.add(desc_var.set_value(value))
-    if CONF_ON_WRITE in descriptor_conf:
-        on_write_conf = descriptor_conf[CONF_ON_WRITE]
-        cg.add_define("USE_ESP32_BLE_SERVER_DESCRIPTOR_ON_WRITE")
-        await automation.build_automation(
-            BLETriggers_ns.create_descriptor_on_write_trigger(desc_var),
-            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
-            on_write_conf,
-        )
+    if (on_write_conf := descriptor_conf.get(CONF_ON_WRITE)) is not None:
+        await _build_on_write_automation(desc_var, on_write_conf)
 
 
 async def to_code_characteristic(service_var, char_conf):
@@ -711,14 +719,8 @@ async def to_code_characteristic(service_var, char_conf):
             characteristic_permissions(char_conf),
         ),
     )
-    if CONF_ON_WRITE in char_conf:
-        on_write_conf = char_conf[CONF_ON_WRITE]
-        cg.add_define("USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE")
-        await automation.build_automation(
-            BLETriggers_ns.create_characteristic_on_write_trigger(char_var),
-            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint16, "id")],
-            on_write_conf,
-        )
+    if (on_write_conf := char_conf.get(CONF_ON_WRITE)) is not None:
+        await _build_on_write_automation(char_var, on_write_conf)
     if CONF_VALUE in char_conf:
         # Check if the value is templated (Lambda)
         value_data = char_conf[CONF_VALUE][CONF_DATA]
@@ -836,18 +838,12 @@ async def to_code(config):
         else:
             cg.add(var.enqueue_start_service(service_var))
     if CONF_ON_CONNECT in config:
-        cg.add_define("USE_ESP32_BLE_SERVER_ON_CONNECT")
-        await automation.build_automation(
-            BLETriggers_ns.create_server_on_connect_trigger(var),
-            [(cg.uint16, "id")],
-            config[CONF_ON_CONNECT],
+        await automation.build_callback_automation(
+            var, "on_connect", [(cg.uint16, "id")], config[CONF_ON_CONNECT]
         )
     if CONF_ON_DISCONNECT in config:
-        cg.add_define("USE_ESP32_BLE_SERVER_ON_DISCONNECT")
-        await automation.build_automation(
-            BLETriggers_ns.create_server_on_disconnect_trigger(var),
-            [(cg.uint16, "id")],
-            config[CONF_ON_DISCONNECT],
+        await automation.build_callback_automation(
+            var, "on_disconnect", [(cg.uint16, "id")], config[CONF_ON_DISCONNECT]
         )
     for entry in _CALLBACK_AUTOMATIONS:
         if config.get(entry.conf_key):

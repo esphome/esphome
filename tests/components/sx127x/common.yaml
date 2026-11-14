@@ -8,6 +8,7 @@ sx127x:
   bitsync: true
   bitrate: 4800
   bandwidth: 50_0kHz
+  afc_bandwidth: 100_0kHz
   frequency: 433920000
   modulation: FSK
   deviation: 5000

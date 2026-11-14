@@ -365,6 +365,41 @@ def test_mono_ssd1677_accepts_any_width(
 # --- extend(class_name=...) --------------------------------------------------
 
 
+def test_extend_keeps_the_class_name(temp_model: Callable[..., EpaperModel]) -> None:
+    """A model extended from one with an explicit class_name drives the same class."""
+    base = temp_model("class-name-base")
+    extended = base.extend("class-name-extended")
+    MODELS.pop(extended.name, None)
+
+    assert extended.class_name == "EPaperMono"
+
+
+def test_extend_can_change_the_class_name(
+    temp_model: Callable[..., EpaperModel],
+) -> None:
+    """class_name passed to extend() overrides the one it is extended from."""
+    base = temp_model("class-name-base")
+    extended = base.extend("class-name-override", class_name="EPaperSSD1683")
+    MODELS.pop(extended.name, None)
+
+    assert extended.class_name == "EPaperSSD1683"
+    assert base.class_name == "EPaperMono"
+
+
+def test_subclass_class_name_is_inherited_by_extended_models() -> None:
+    """A subclass names its driver once; every model made from it, directly or by extend(), uses it."""
+    assert MODELS["SSD1681"].class_name == "EPaperSSD1681"
+    assert MODELS["WAVESHARE-1.54IN-V2"].class_name == "EPaperSSD1681"
+    assert MODELS["SSD1683"].class_name == "EPaperSSD1683"
+
+
+def test_model_without_a_class_name_is_rejected() -> None:
+    """The base class has no driver of its own."""
+    with pytest.raises(ValueError, match="no class_name"):
+        EpaperModel("no-class-name")
+    assert "NO-CLASS-NAME" not in MODELS
+
+
 def test_gray4_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

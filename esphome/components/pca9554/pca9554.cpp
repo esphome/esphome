@@ -67,15 +67,7 @@ void PCA9554Component::dump_config() {
   LOG_I2C_DEVICE(this)
 }
 
-bool PCA9554Component::digital_read_hw(uint8_t pin) {
-  // Read all pins from hardware into input_mask_
-  return this->read_inputs_();  // Return true if I2C read succeeded, false on error
-}
-
-bool PCA9554Component::digital_read_cache(uint8_t pin) {
-  // Return the cached pin state from input_mask_
-  return this->input_mask_ & (1 << pin);
-}
+bool PCA9554Component::digital_read_hw(uint8_t pin) { return this->read_inputs_(); }
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   assign_bits(this->output_mask_, 1 << pin, value);
@@ -113,7 +105,7 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 }
 
 bool PCA9554Component::read_inputs_() {
-  uint8_t inputs[2];
+  uint8_t inputs[2]{};  // the second byte stays 0 on the 8-pin parts
 
   if (this->is_failed()) {
     ESP_LOGD(TAG, "Device marked failed");
@@ -125,10 +117,7 @@ bool PCA9554Component::read_inputs_() {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) err);
     return false;
   }
-  this->input_mask_ = inputs[0];
-  if (this->reg_width_ == 2) {
-    this->input_mask_ |= inputs[1] << 8;
-  }
+  this->input_[0] = encode_value_le<uint16_t>(inputs);
 #ifdef USE_PCA9554_PCAL
   // The bus answers again, so retry the settings a failed write left off the chip
   this->retry_pcal_shadows_();
