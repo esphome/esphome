@@ -315,12 +315,13 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
 
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
 
-Sprinkler::Sprinkler() : Sprinkler("") {}
 // The `name` is stored for dump_config logging; the scheduler keys each timer by its SprinklerTimerIndex
-Sprinkler::Sprinkler(const char *name)
+Sprinkler::Sprinkler(const char *name, std::span<SprinklerValve> valves)
     : name_(name),
       timer_{{{false, 0, 0, [this]() { this->sm_timer_callback_(); }},
-              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {}
+              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {
+  this->valve_.init(valves);
+}
 
 void Sprinkler::setup() {
   this->all_valves_off_(true);
@@ -344,8 +345,9 @@ void Sprinkler::loop() {
 
 void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw) {
   auto new_valve_number = this->number_of_valves();
-  this->valve_.resize(new_valve_number + 1);
-  SprinklerValve *new_valve = &this->valve_[new_valve_number];
+  SprinklerValve *new_valve = this->valve_.emplace_back();
+  if (new_valve == nullptr)
+    return;
 
   new_valve->controller_switch = valve_sw;
   new_valve->controller_switch->set_state_lambda([this, new_valve_number]() -> optional<bool> {

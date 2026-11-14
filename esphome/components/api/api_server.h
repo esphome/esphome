@@ -241,6 +241,9 @@ class APIServer final : public Component
     const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
     std::function<void(StringRef)> callback;
     bool once;
+    // strlen(entity_id), so a state is matched without measuring every entry; fits in the padding after once.
+    // Home Assistant entity ids are at most 255 bytes.
+    uint16_t entity_id_len;
 
     // Dynamic storage for external components using std::string API (custom_api_device.h)
     // These are only allocated when using the std::string overload (nullptr for const char* overload)
@@ -265,6 +268,10 @@ class APIServer final : public Component
                                 std::function<void(const std::string &)> &&f);
 
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Measure again the subscriptions whose entity id is this buffer, after the wizard wrote a new id into it.
+  void update_state_subscription_entity_id(const char *entity_id);
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }

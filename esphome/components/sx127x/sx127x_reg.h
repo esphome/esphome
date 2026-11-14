@@ -281,7 +281,7 @@ enum SX127xModemCfg1 : uint8_t {
 
 enum SX127xModemCfg2 : uint8_t {
   SPREADING_FACTOR_SHIFT = 4,
-  TX_CONTINOUS_MODE = 0x08,
+  TX_CONTINUOUS_MODE = 0x08,
   RX_PAYLOAD_CRC_ON = 0x04,
   RX_PAYLOAD_CRC_OFF = 0x00,
 };

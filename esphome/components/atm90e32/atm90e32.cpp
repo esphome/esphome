@@ -420,7 +420,7 @@ void ATM90E32Component::dump_config() {
 
 float ATM90E32Component::get_setup_priority() const { return setup_priority::IO; }
 
-// R/C registers can conly be cleared after the LastSPIData register is updated (register 78H)
+// R/C registers can only be cleared after the LastSPIData register is updated (register 78H)
 // Peakdetect period: 05H. Bit 15:8 are PeakDet_period in ms. 7:0 are Sag_period
 // Default is 143FH (20ms, 63ms)
 uint16_t ATM90E32Component::read16_(uint16_t a_register) {
