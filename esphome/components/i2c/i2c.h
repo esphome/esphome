@@ -321,6 +321,19 @@ class I2CDevice {
   /// @return false if the read or the write failed (nothing is written after a failed read)
   bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
 
+  /// Read one byte from a register with a 16-bit register address.
+  bool read_byte_reg16(uint16_t a_register, uint8_t *data) {
+    return this->read_register16(a_register, data, 1) == ERROR_OK;
+  }
+
+  /// Write one byte to a register with a 16-bit register address.
+  bool write_byte_reg16(uint16_t a_register, uint8_t data) const {
+    return this->write_register16(a_register, &data, 1) == ERROR_OK;
+  }
+
+  /// update_register() for a register with a 16-bit register address.
+  bool update_register16(uint16_t a_register, uint8_t mask, uint8_t value);
+
  protected:
   I2CBus *bus_{nullptr};  ///< pointer to I2CBus instance
   // Last so a derived class can place its byte-sized members in the padding after it
