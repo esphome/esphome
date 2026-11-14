@@ -213,8 +213,7 @@ void VEML7700Component::loop() {
       default:
         break;
     }
-    if (err != i2c::ERROR_OK)
-      this->status_set_warning();
+    this->status_comm_check(err == i2c::ERROR_OK);
   }
 }
 

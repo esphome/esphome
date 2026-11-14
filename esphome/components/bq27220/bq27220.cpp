@@ -27,16 +27,14 @@ static constexpr uint16_t TIME_TO_EMPTY_NOT_APPLICABLE = 0xFFFF;
 
 void BQ27220Component::setup() {
   const uint8_t device_number_cmd[2] = {0x01, 0x00};  // DEVICE_NUMBER subcommand, little-endian
-  if (this->write_register(REG_CONTROL, device_number_cmd, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Failed to communicate with BQ27220"));
+  if (!this->setup_check(this->write_register(REG_CONTROL, device_number_cmd, 2) == i2c::ERROR_OK,
+                         LOG_STR("Failed to communicate with BQ27220")))
     return;
-  }
   delay(2);  // SLUUBD4A §5.3: the subcommand result needs a moment before it can be read
   uint16_t device_number = 0;
-  if (!this->read_byte_16_le(REG_MAC_DATA, &device_number)) {
-    this->mark_failed(LOG_STR("Failed to read device number from BQ27220"));
+  if (!this->setup_check(this->read_byte_16_le(REG_MAC_DATA, &device_number),
+                         LOG_STR("Failed to read device number from BQ27220")))
     return;
-  }
   if (device_number != DEVICE_NUMBER) {
     ESP_LOGE(TAG, "Unexpected device number 0x%04X (expected 0x%04X)", device_number, DEVICE_NUMBER);
     this->mark_failed(LOG_STR("Unexpected device number"));

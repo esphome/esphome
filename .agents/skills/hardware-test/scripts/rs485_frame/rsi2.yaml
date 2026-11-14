@@ -1,0 +1,60 @@
+esphome:
+  name: rsi2
+
+packages:
+  base: !include rs-base.yaml
+  buttons: !include buttons.yaml
+
+rs485_frame:
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  tx:
+    gate:
+      mode: idle_gap
+      min_silence: 50ms
+    queue_policy: fifo
+    max_queue_size: 4
+  max_frame_length: 200
+
+script:
+  - id: cases
+    then:
+      - logger.log: "I0 quiet bus since boot, press cmd a"
+      - lambda: 'ESP_LOGI("hwt", "PRESS I0 t=%u", (unsigned) millis());'
+      - button.press: cmd_a
+      - delay: 1s
+      - lambda: 'simrs::send("I0 one garbage byte", {0x55});'
+      - delay: 1s
+      - logger.log: "I1 garbage byte every 20 ms for 600 ms, press cmd b after 100 ms"
+      - repeat:
+          count: 30
+          then:
+            - lambda: |-
+                static int i = 0;
+                simrs::send("I1 stream", {0x55});
+                if (++i == 5) { ESP_LOGI("hwt", "PRESS I1 t=%u", (unsigned) millis()); id(cmd_b).press(); }
+            - delay: 20ms
+      - delay: 1s
+      - logger.log: "I2 three 100 B frames queued at once"
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x00, 0x84]
+          payload: !lambda 'return simrs::filled({0x01, 0xE1}, 100, 0x5A);'
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x00, 0x84]
+          payload: !lambda 'return simrs::filled({0x01, 0xE2}, 100, 0x5A);'
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x00, 0x84]
+          payload: !lambda 'return simrs::filled({0x01, 0xE3}, 100, 0x5A);'
+      - delay: 2s
+      - logger.log: "I3 cmd a queued, then a 40 B bus frame arrives"
+      - lambda: 'simrs::send("I3 bus frame", simrs::frame(simrs::filled({0x01, 0x02, 0xD3}, 40, 0x33)));'
+      - delay: 20ms
+      - lambda: 'ESP_LOGI("hwt", "PRESS I3 t=%u", (unsigned) millis());'
+      - button.press: cmd_a
+      - delay: 1s
+      - lambda: 'ESP_LOGI("hwt", "DONE");'
