@@ -54,9 +54,9 @@ CONFIG_SCHEMA = cv.All(
             ).extend(
                 {
                     cv.Optional(CONF_GAIN, default=1): cv.enum(ALS_GAINS),
-                    cv.Optional(
-                        CONF_INTEGRATION_TIME, default=100
-                    ): cv.int_range(min=1, max=512),
+                    cv.Optional(CONF_INTEGRATION_TIME, default=100): cv.int_range(
+                        min=1, max=512
+                    ),
                     cv.Optional(
                         CONF_UPDATE_INTERVAL
                     ): cv.positive_time_period_milliseconds,

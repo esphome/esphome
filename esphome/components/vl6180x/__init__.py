@@ -134,7 +134,6 @@ def _final_validate(_config: list[ConfigType]) -> None:
                     "once on this I2C bus",
                     path=[index, CONF_ADDRESS],
                 )
-    return None
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
