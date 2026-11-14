@@ -149,12 +149,20 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
   uint16_t consecutive_send_failures_{0};
+  // Set by the network callbacks; handled on the main loop
+  volatile bool connected_{false};
+  volatile bool disconnected_{false};
   static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 
   // helper for allowing only unique entries in the queue
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
 
   void process_deferred_queue_();
+  void send_initial_();
+  bool has_work_() const {
+    return this->connected_ || this->disconnected_ || !this->deferred_queue_.empty() ||
+           !this->entities_iterator_.completed();
+  }
 
  public:
   DeferredUpdateEventSource(WebServer *ws, const String &url)
@@ -171,10 +179,6 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
- protected:
-  void on_client_connect_(DeferredUpdateEventSource *source);
-  void on_client_disconnect_(DeferredUpdateEventSource *source);
-
  public:
   /// Returns true if there are event sources remaining (including pending cleanup).
   bool loop();
@@ -200,7 +204,7 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
  */
 class WebServer final : public Component, public AsyncWebHandler {
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  friend class DeferredUpdateEventSourceList;
+  friend class DeferredUpdateEventSource;
 #endif
 
  public:

@@ -263,6 +263,10 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
 }
 
 void DeferredUpdateEventSource::loop() {
+  if (this->connected_) {
+    this->connected_ = false;
+    this->send_initial_();
+  }
   process_deferred_queue_();
   // One step per loop; refusals retry next pass
   this->entities_iterator_.try_advance(1);
@@ -304,9 +308,53 @@ void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t mes
   this->send(message, event, id, reconnect);
 }
 
+void DeferredUpdateEventSource::send_initial_() {
+  WebServer *ws = this->web_server_;
+  // this should always go through since the AsyncEventSourceClient event queue is empty on connect
+  auto message = ws->get_config_json();
+  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
+
+#ifdef USE_WEBSERVER_SORTING
+  for (auto &group : ws->sorting_groups_) {
+    json::JsonBuilder builder;
+    JsonObject root = builder.root();
+    root[ESPHOME_F("name")] = linked(group.second.name);
+    root[ESPHOME_F("sorting_weight")] = group.second.weight;
+    auto group_msg = builder.serialize();
+
+    // up to 31 groups should be able to be queued initially without defer
+    this->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
+  }
+#endif
+
+  this->entities_iterator_.begin(ws->include_internal_);
+}
+
+// RP2: RPAsyncTCP adds and frees clients from lwIP's async context and the library locks its client list only on
+// ESP32, so library calls from the main loop hold LwIPLock (empty on ESP8266 and LibreTiny).
 bool DeferredUpdateEventSourceList::loop() {
+  // Lock only with work: each RP2 release re-arms the 20 ms Ethernet poll, so locking every pass starves a polled
+  // NIC. The unlocked walk is safe on RP2 because the lwIP context only appends (add_new_client) and runs to
+  // completion, and only this loop erases; not on LibreTiny, whose callbacks run in their own task.
+  bool work = false;
   for (DeferredUpdateEventSource *dues : *this) {
+    if (dues->has_work_()) {
+      work = true;
+      break;
+    }
+  }
+  if (!work)
+    return !this->empty();
+  LwIPLock lock;
+  for (auto it = this->begin(); it != this->end();) {
+    DeferredUpdateEventSource *dues = *it;
+    if (dues->disconnected_) {
+      it = this->erase(it);
+      delete dues;  // NOLINT
+      continue;
+    }
     dues->loop();
+    ++it;
   }
   return !this->empty();
 }
@@ -316,6 +364,7 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, bool det
   // Skip if no event sources (no connected clients) to avoid unnecessary iteration
   if (this->empty())
     return;
+  LwIPLock lock;
   for (DeferredUpdateEventSource *dues : *this) {
     dues->deferrable_send_state(source, detail_all, message_generator);
   }
@@ -323,56 +372,26 @@ void DeferredUpdateEventSourceList::deferrable_send_state(void *source, bool det
 
 void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
                                                      uint32_t id, uint32_t reconnect) {
+  if (this->empty())
+    return;
+  LwIPLock lock;
   for (DeferredUpdateEventSource *dues : *this) {
     dues->try_send_nodefer(message, message_len, event, id, reconnect);
   }
 }
 
+// Runs in the lwIP context on RP2: append only, loop() is the sole eraser
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
-  es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
-
-  es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
+  es->onConnect([es](AsyncEventSourceClient *) { es->connected_ = true; });
+  es->onDisconnect([es](AsyncEventSourceClient *) { es->disconnected_ = true; });
 
   es->handleRequest(request);
   ws->enable_loop_soon_any_context();
 }
 
-void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
-  WebServer *ws = source->web_server_;
-  ws->defer([ws, source]() {
-    // Configure reconnect timeout and send config
-    // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-    auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
-
-#ifdef USE_WEBSERVER_SORTING
-    for (auto &group : ws->sorting_groups_) {
-      json::JsonBuilder builder;
-      JsonObject root = builder.root();
-      root[ESPHOME_F("name")] = linked(group.second.name);
-      root[ESPHOME_F("sorting_weight")] = group.second.weight;
-      auto group_msg = builder.serialize();
-
-      // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
-    }
-#endif
-
-    source->entities_iterator_.begin(ws->include_internal_);
-  });
-}
-
-void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
-  source->web_server_->defer([this, source]() {
-    // This method was called via WebServer->defer() and is no longer executing in the
-    // context of the network callback. The object is now dead and can be safely deleted.
-    this->remove(source);
-    delete source;  // NOLINT
-  });
-}
 #endif
 
 #ifdef USE_WEBSERVER_CAPTIVE
