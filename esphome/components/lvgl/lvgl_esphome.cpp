@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "lvgl_esphome.h"
+#include "lvgl_rotate.h"
 
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
@@ -384,11 +385,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
     {
       switch (this->rotation_) {
         case display::DISPLAY_ROTATION_90_DEGREES:
-          for (lv_coord_t x = height; x-- != 0;) {
-            for (lv_coord_t y = 0; y != width; y++) {
-              dst[y * height_rounded + x] = *ptr++;
-            }
-          }
+          rotate_90_tiled(ptr, dst, width, height, height_rounded);
           break;
 
         case display::DISPLAY_ROTATION_180_DEGREES:
@@ -400,11 +397,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
           break;
 
         case display::DISPLAY_ROTATION_270_DEGREES:
-          for (lv_coord_t x = 0; x != height; x++) {
-            for (lv_coord_t y = width; y-- != 0;) {
-              dst[y * height_rounded + x] = *ptr++;
-            }
-          }
+          rotate_270_tiled(ptr, dst, width, height, height_rounded);
           break;
 
         default:
