@@ -111,7 +111,9 @@ while True:
 th.join()
 load_heaps = [h for _, ph, h, _ in samples if ph == "load" and h is not None]
 ups = [u for *_, u in samples if u is not None]
-reboot = bool(u_start is not None and ups and min(ups) < u_start)
+# any drop between successive readings, so a reboot that ends above the first reading still counts
+chain = ([u_start] if u_start is not None else []) + ups
+reboot = any(b < a for a, b in zip(chain, chain[1:], strict=False))
 print(
     f"SUMMARY requests {N} at {RATE}/s: {codes}; idle {idle_heap}, lowest during load {min(load_heaps) if load_heaps else None}, "
     f"last during load {load_heaps[-1] if load_heaps else None}, back within 2 KB of idle "

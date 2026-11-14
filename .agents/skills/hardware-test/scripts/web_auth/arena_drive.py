@@ -6,8 +6,9 @@ with the logger at VERY_VERBOSE (logs flood the /events streams).
 Phases: idle, two /events streams, plus a new /events client every 3 s (greeting and full listing), plus select
 changes every 0.5 s with a detail=all read of the select (a state over 1 KB), then all at once.
 Prints per phase (the load counters cover that phase only): lowest stack minimum, heap range, uptime (resets), SSE
-bytes and the connect, stream and select errors. Exits 1 when a phase had a reset, no stack reading, or a load that
-mostly failed to reach the device (marked NOT LOADED).
+bytes and the connect, stream, select and detail errors. Exits 1 when a phase had a reset (uptime compared across
+phases), no stack reading, a stack minimum of 0 (used to its end), or a load that mostly failed to reach the device
+(marked NOT LOADED).
 """
 
 import base64
@@ -22,6 +23,7 @@ HOST, U, P = sys.argv[1:4]
 PHASE = float(sys.argv[4]) if len(sys.argv) > 4 else 60
 H = base64.b64encode(f"{U}:{P}".encode()).decode()
 stats: dict = {}
+last_up: list[float | None] = [None]  # the last uptime reading, carried across phases
 OPTS = [
     f"Option {i:02d} with a deliberately long label to grow the listing"
     for i in range(40)
@@ -145,6 +147,7 @@ def selector(stop: threading.Event) -> None:
         if i % 4 == 0:
             st, body = req("GET", "/select/Big%20select?detail=all")
             stats["detail_bytes"] = max(stats["detail_bytes"], len(body))
+            stats["detail_ok" if st == 200 and len(body) > 1024 else "detail_fail"] += 1
         i += 1
         stop.wait(0.5)
 
@@ -161,6 +164,8 @@ def phase(name: str, workers: list) -> bool:
         select_ok=0,
         select_fail=0,
         detail_bytes=0,
+        detail_ok=0,
+        detail_fail=0,
     )
     stop = threading.Event()
     ts = [threading.Thread(target=w, args=(stop,)) for w in workers]
@@ -180,7 +185,10 @@ def phase(name: str, workers: list) -> bool:
     stop.set()
     for t in ts:
         t.join()
-    resets = sum(1 for a, b in zip(ups, ups[1:], strict=False) if b < a)
+    chain = ([last_up[0]] if last_up[0] is not None else []) + ups
+    resets = sum(1 for a, b in zip(chain, chain[1:], strict=False) if b < a)
+    if ups:
+        last_up[0] = ups[-1]
     lb = stats["listing_bytes"]
     loaded = not (
         (
@@ -191,7 +199,13 @@ def phase(name: str, workers: list) -> bool:
             )
         )
         or (connector in workers and stats["connect_errors"] >= stats["connects"])
-        or (selector in workers and stats["select_fail"] >= stats["select_ok"])
+        or (
+            selector in workers
+            and (
+                stats["select_fail"] >= stats["select_ok"]
+                or stats["detail_fail"] >= stats["detail_ok"]
+            )
+        )
     )
     print(
         time.strftime("[%H:%M:%S]"),
@@ -200,16 +214,19 @@ def phase(name: str, workers: list) -> bool:
         f"sse bytes {stats['sse_bytes']}, sse closes {stats['sse_closes']}, stream opens {stats['stream_opens']} "
         f"errors {stats['stream_errors']}, connects {stats['connects']} errors {stats['connect_errors']} "
         f"(listing {min(lb) if lb else 0}..{max(lb) if lb else 0} B), select ok {stats['select_ok']} fail "
-        f"{stats['select_fail']}, detail {stats['detail_bytes']} B",
+        f"{stats['select_fail']}, detail {stats['detail_bytes']} B ok {stats['detail_ok']} fail {stats['detail_fail']}",
         flush=True,
     )
-    # fewer than two uptime readings cannot rule out a reset
-    return loaded and bool(stacks) and len(ups) >= 2 and resets == 0
+    # fewer than two uptime readings cannot rule out a reset; a minimum of 0 is a stack used to its end
+    return (
+        loaded and bool(stacks) and min(stacks) > 0 and len(chain) >= 2 and resets == 0
+    )
 
 
+last_up[0] = val("Uptime")
 print(
     time.strftime("[%H:%M:%S]"),
-    f"start: stack min {val('Stack min')} heap {val('Heap free')} uptime {val('Uptime')}",
+    f"start: stack min {val('Stack min')} heap {val('Heap free')} uptime {last_up[0]}",
     flush=True,
 )
 ok = [
@@ -222,7 +239,7 @@ ok = [
 print(
     "PASS"
     if all(ok)
-    else f"FAIL: {ok.count(False)} phases with a reset, no stack reading or NOT LOADED",
+    else f"FAIL: {ok.count(False)} phases with a reset, no or a 0 stack reading, or NOT LOADED",
     flush=True,
 )
 sys.exit(0 if all(ok) else 1)

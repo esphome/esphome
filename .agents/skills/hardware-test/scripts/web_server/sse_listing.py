@@ -1,10 +1,11 @@
 """Check that a new /events client's entity listing goes only to that client (esphome#22691).
 
-usage: sse_listing.py HOST [--rounds N] [--window S] [--out events.jsonl]
+usage: sse_listing.py HOST [--rounds N] [--window S] [--groups 3] [--entities 19] [--out events.jsonl]
 Each round opens streams 1 and 2, waits until both finished their initial listing (no `state` event with
 `domain`, the detail_all marker, for 2 s after the first bare state), connects stream 3 and counts for WINDOW
 seconds per stream: greeting pings (config JSON), uptime pings, sorting_group events, detail_all states and bare
-states. Stream 3 must show ping, then sorting groups, then every detail_all entry before its first bare state.
+states. Stream 3 must show ping, then GROUPS sorting groups, then the ENTITIES detail_all entries in stream 1's
+order before its first bare state, and stay open through the window (defaults match sse-listing.yaml).
 Exit 0 when every round has no new detail_all on streams 1 and 2 and an ordered complete listing on stream 3.
 """
 
@@ -20,6 +21,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("host")
 ap.add_argument("--rounds", type=int, default=3)
 ap.add_argument("--window", type=float, default=10.0)
+ap.add_argument("--groups", type=int, default=3)
+ap.add_argument("--entities", type=int, default=19)
 ap.add_argument("--out")
 args = ap.parse_args()
 
@@ -146,10 +149,10 @@ for rnd in range(1, args.rounds + 1):
     deadline = time.monotonic() + 30
     while not (listing_done(s1) and listing_done(s2)) and time.monotonic() < deadline:
         time.sleep(0.2)
-    if not (listing_done(s1) and listing_done(s2)):
+    ok = listing_done(s1) and listing_done(s2)
+    if not ok:
         print(f"round {rnd}: streams 1/2 never finished their listing", flush=True)
-        failed += 1
-    expected = {i for _, k, i in s1.events if k == "detail_all"}
+    expected = [i for _, k, i in s1.events if k == "detail_all"]
     s3 = Stream(rnd, 3)
     t0 = time.monotonic()
     s3.start()
@@ -159,7 +162,6 @@ for rnd in range(1, args.rounds + 1):
         st.stop = True
     for st in (s1, s2, s3):
         st.join(3)
-    ok = True
     for st in (s1, s2, s3):
         win = [e for e in st.events if t0 <= e[0] <= t1]
         print(f"round {rnd} stream {st.idx}: {counts(win)} end={st.end}", flush=True)
@@ -183,12 +185,14 @@ for rnd in range(1, args.rounds + 1):
     first_bare = kinds.index("state") if "state" in kinds else len(kinds)
     last_detail = max((i for i, k in enumerate(kinds) if k == "detail_all"), default=-1)
     groups = [i for i, k in enumerate(kinds) if k == "sorting_group"]
-    got = {i for _, k, i in s3.events if k == "detail_all"}
+    got = [i for _, k, i in s3.events if k == "detail_all"]
     order_ok = (
         kinds[:1] == ["ping_greeting"]
-        and groups == list(range(1, 1 + len(groups)))
-        and last_detail < first_bare
+        and groups == list(range(1, 1 + args.groups))
+        and len(set(expected)) == args.entities
         and got == expected
+        and last_detail < first_bare < len(kinds)
+        and s3.end == "stopped"
     )
     if s3.t_conn and s3.t_first:
         print(
@@ -198,7 +202,7 @@ for rnd in range(1, args.rounds + 1):
         )
     print(
         f"  stream 3: first={kinds[:1]} groups={len(groups)} detail_all={len(got)}/{len(expected)} "
-        f"last_detail_idx={last_detail} first_bare_idx={first_bare} order_ok={order_ok}",
+        f"last_detail_idx={last_detail} first_bare_idx={first_bare} end={s3.end} order_ok={order_ok}",
         flush=True,
     )
     ok &= order_ok

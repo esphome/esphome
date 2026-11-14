@@ -16,19 +16,20 @@ DEFS=$A/.esphome/build/$N/src/esphome/core/defines.h
 [ -f "$DEFS" ] || { echo "$N: USE_JSON_ARENA unknown, no $DEFS"; exit 1; }
 grep -q USE_JSON_ARENA "$DEFS" && echo "$N: USE_JSON_ARENA on" || echo "$N: USE_JSON_ARENA off"
 IMG=$A/.esphome/build/$N/.pioenvs/$N/firmware.uf2
-LTPY=$A/pio/penv/.libretiny/bin/python; LTL=$(ls -d "$A"/pio/platforms/libretiny* 2>/dev/null | head -1)
+PC=${PIO_CORE:-$A/pio}; LTPY=$PC/penv/.libretiny/bin/python; LTL=$(ls -d "$PC"/platforms/libretiny* 2>/dev/null | head -1)
 OPT=""
 if [ -z "$NOFLASH" ]; then
   case $K in
     bw) OPT=--released
       timeout 600 "$LTPY" "$S/flash_rtl87xx_kit.py" -L "$LTL" flash write -d "$P" "$IMG" > "$A/$N-upload.log" 2>&1 ||
         { echo "$N flash failed (see $A/$N-upload.log)"; exit 1; } ;;
-    bk) FRC=1; for _ in 1 2 3; do timeout 400 "$LTPY" "$S/flash_bk72xx.py" -L "$LTL" flash write -d "$P" "$IMG" > "$A/$N-upload.log" 2>&1 && { FRC=0; break; }; done
+    bk) OPT=--reset; FRC=1; for _ in 1 2 3; do timeout 400 "$LTPY" "$S/flash_bk72xx.py" -L "$LTL" flash write -d "$P" "$IMG" > "$A/$N-upload.log" 2>&1 && { FRC=0; break; }; done
       [ $FRC = 0 ] || { echo "$N flash failed (see $A/$N-upload.log)"; exit 1; } ;;
     *) echo "unknown kind $K"; exit 1 ;;
   esac
 else
   [ "$K" = bw ] && OPT=--released
+  [ "$K" = bk ] && OPT=--reset
 fi
 pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$A/$N-serial.log; : > "$L"
@@ -46,11 +47,13 @@ if [ -n "$NOCAP" ]; then
   echo "== $N serial: not captured (NOCAP), no reset, fault or stack check"
   exit $RC
 fi
-RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); FL=$(grep -a -c -i -E 'fault|crash|assert|abort|stack overflow' "$L")
+RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); FL=$(grep -a -c -i -E '(^|[^[:alpha:]])fault|hardfault|crash|assert|abort|stack overflow' "$L")
 echo "== $N serial: resets $RS, port losses $(grep -a -c 'port lost' "$L"), faults $FL"
 # Opening the capture can reset the chip once (BK7238), so one boot is expected
 { [ "$FL" -gt 0 ] || [ "$RS" -gt 1 ]; } && { echo "FAIL: faults $FL, resets $RS"; RC=1; }
 grep -a "\[hwm" "$L" | sed -n '1p;$p'
-# -1 is an unknown stack base, not a reading
-grep -a "\[hwm" "$L" | sed -n 's/.*stack min \([0-9][0-9]*\) B.*/\1/p' | sort -n | head -1 | sed 's/^/serial lowest stack min: /'
+# -1 is an unknown stack base, not a reading; 0 is a stack used to its end
+LOW=$(grep -a "\[hwm" "$L" | sed -n 's/.*stack min \([0-9][0-9]*\) B.*/\1/p' | sort -n | head -1)
+echo "serial lowest stack min: $LOW"
+[ "$LOW" = 0 ] && { echo "FAIL: the main task stack was used to its end"; RC=1; }
 exit $RC

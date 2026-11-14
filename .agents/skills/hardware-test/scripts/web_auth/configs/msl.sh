@@ -12,7 +12,7 @@ read -r U PW < <($PY -c 'import sys, yaml; s = yaml.safe_load(open(sys.argv[1]))
   { echo "cannot read $CR"; exit 1; }
 "$S/pio_build.sh" compile "$N" "$D/$C" -s web_user "$U" -s web_pass "$PW" || exit 1
 if [ "$4" != noflash ]; then
-  LTPY=$D/pio/penv/.libretiny/bin/python; LTL=$(ls -d "$D"/pio/platforms/libretiny* 2>/dev/null | head -1)
+  PC=${PIO_CORE:-$D/pio}; LTPY=$PC/penv/.libretiny/bin/python; LTL=$(ls -d "$PC"/platforms/libretiny* 2>/dev/null | head -1)
   timeout 600 "$LTPY" "$S/flash_rtl87xx_kit.py" -L "$LTL" flash write -d "$P" "$D/.esphome/build/$N/.pioenvs/$N/firmware.uf2" \
     > "$D/$N-upload.log" 2>&1 || { echo "$N flash failed (see $D/$N-upload.log)"; exit 1; }
 fi
@@ -31,7 +31,8 @@ $PY -I "$W/isolate.py" "$H" "$U" "$PW" 1 garbage_32k,nonl_64k,control || { echo 
 sleep 3
 kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended early (see $D/$N-cap.err)"; RC=1; }
 kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; trap - EXIT
-RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); FL=$(grep -a -c -i -E 'fault|crash|assert|abort|stack overflow' "$L")
+RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); # fault only as a word start, so the light's "Default Transition Length" line does not count
+FL=$(grep -a -c -i -E '(^|[^[:alpha:]])fault|hardfault|crash|assert|abort|stack overflow' "$L")
 echo "== $N serial resets: $RS, port losses: $(grep -a -c 'port lost' "$L"), faults: $FL"
 # Opening the capture can reset the chip once, so one boot is expected
 { [ "$FL" -gt 0 ] || [ "$RS" -gt 1 ]; } && { echo "FAIL: faults $FL, resets $RS"; RC=1; }

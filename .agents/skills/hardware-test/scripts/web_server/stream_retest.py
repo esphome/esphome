@@ -14,7 +14,6 @@ Each mode prints a `MODE ... ok=True/False` summary line; exits 1 when any summa
 """
 
 import argparse
-import contextlib
 import pathlib
 import socket
 import struct
@@ -28,6 +27,8 @@ ap.add_argument("mode", choices=["head", "multi", "stall", "wifidrop", "churn"])
 ap.add_argument("--out")
 ap.add_argument("--runs", type=int, default=1)
 args = ap.parse_args()
+if args.mode == "head" and not args.out:
+    ap.error("head needs --out")
 H = args.host
 REQ = (
     b"GET /events HTTP/1.1\r\nHost: %s\r\nAccept: text/event-stream\r\n\r\n"
@@ -77,6 +78,8 @@ class Reader(threading.Thread):
             try:
                 d = s.recv(65536)
             except TimeoutError:
+                # a stream that stops delivering must show up as a gap, not leave max_gap at 0
+                self.max_gap = max(self.max_gap, time.monotonic() - last)
                 if (
                     self.idle_reconnect
                     and time.monotonic() - last > self.idle_reconnect
@@ -144,9 +147,21 @@ elif args.mode == "stall":
         s.sendall(REQ)
         s.settimeout(0.5)
         t_end = time.monotonic() + 3
+        got, early = b"", None
         while time.monotonic() < t_end:
-            with contextlib.suppress(TimeoutError):
-                s.recv(4096)
+            try:
+                d = s.recv(4096)
+            except TimeoutError:
+                continue
+            except OSError as e:
+                early = e.__class__.__name__
+                break
+            if not d:
+                early = "eof"
+                break
+            got += d
+        # a stream refused or closed before the stall would make the later EOF a false pass
+        live = early is None and got.startswith(b"HTTP/1.1 200") and b"event:" in got
         t_stop = time.time()
         print(
             f"stall run {run + 1}: stopped reading at {time.strftime('%H:%M:%S', time.localtime(t_stop))}",
@@ -167,11 +182,11 @@ elif args.mode == "stall":
             closed = True
         s.close()
         reader.join()
-        ok = closed and reader.end == "deadline" and reader.max_gap < 5
+        ok = live and closed and reader.end == "deadline" and reader.max_gap < 5
         summary(
             "stall",
             ok,
-            f"run {run + 1}: stalled closed={closed}, reader {reader.states} ev "
+            f"run {run + 1}: stalled live={live} (early end {early}) closed={closed}, reader {reader.states} ev "
             f"gap {reader.max_gap:.1f}s end={reader.end}",
         )
         time.sleep(3)
