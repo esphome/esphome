@@ -9,13 +9,12 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
-from esphome.components.const import CONF_RTS_PIN
-from esphome.core import CORE
 import esphome.final_validate as fv
 
 AUTO_LOAD = ["sensor", "number"]
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
+DEPENDENCIES = ["esp32"]
 DOMAIN = "dmx_reader"
 
 # Hardware UART names used by the logger component

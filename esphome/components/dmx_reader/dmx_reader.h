@@ -8,10 +8,10 @@
 #include <esp_dmx.h>
 
 #ifndef DMX_READER_STATIC_SENSOR_COUNT
-#define DMX_READER_STATIC_SENSOR_COUNT 0
+static constexpr size_t DMX_READER_STATIC_SENSOR_COUNT = 0;
 #endif
 #ifndef DMX_READER_DYNAMIC_SENSOR_COUNT
-#define DMX_READER_DYNAMIC_SENSOR_COUNT 0
+static constexpr size_t DMX_READER_DYNAMIC_SENSOR_COUNT = 0;
 #endif
 
 namespace esphome::dmx_reader {
