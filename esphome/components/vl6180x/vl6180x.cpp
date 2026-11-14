@@ -928,8 +928,8 @@ void VL6180XComponent::setup() {
       }) != all.end())
     return;
 
-  const auto sensor_count = static_cast<size_t>(std::count_if(
-      all.begin(), all.end(), [this](const auto *inst) { return inst->bus_ == this->bus_; }));
+  const auto sensor_count = static_cast<size_t>(
+      std::count_if(all.begin(), all.end(), [this](const auto *inst) { return inst->bus_ == this->bus_; }));
   ESP_LOGI(TAG, "VL6180X: initialising %u sensor(s) on this I2C bus", static_cast<unsigned>(sensor_count));
 
   // GPIO setup — must happen before run_init_sequence drives the pins
