@@ -853,39 +853,13 @@ JVCData, JVCBinarySensor, JVCTrigger, _, JVCDumper = register_simple_protocol(
 
 
 # LG
-LGData, LGBinarySensor, LGTrigger, _, LGDumper = declare_protocol("LG")
 LG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.hex_uint32_t,
         cv.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
     }
 )
-
-
-@register_binary_sensor("lg", LGBinarySensor, LG_SCHEMA)
-def lg_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                LGData,
-                ("data", config[CONF_DATA]),
-                ("nbits", config[CONF_NBITS]),
-            )
-        )
-    )
-
-
-@register_trigger("lg", LGTrigger, LGData)
-def lg_trigger(var, config):
-    pass
-
-
-@register_dumper("lg", LGDumper)
-def lg_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+LGData, LGBinarySensor, LGTrigger, _, LGDumper = register_simple_protocol(
     "lg",
     "LG",
     LG_SCHEMA,
