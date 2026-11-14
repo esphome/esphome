@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -99,6 +100,45 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
   }
   batch.flush();
   return batch.ok;
+}
+
+/// AsyncClient::add() flags; the three TCP libraries use the same values (checked where they are included)
+static constexpr uint8_t STREAM_ADD_FLAG_COPY = 0x01;
+static constexpr uint8_t STREAM_ADD_FLAG_MORE = 0x02;
+
+/// Queues a gather list on an AsyncClient-like client through scratch, so each add() carries up to scratch_size bytes
+/// (on LibreTiny every add() is a round trip into the tcpip thread). Stops at the first add() that takes less than
+/// offered, calls send() once if anything was taken, and returns the bytes taken.
+template<typename Client, typename Iovec>
+size_t add_iovecs(Client &client, const Iovec *iov, int count, char *scratch, size_t scratch_size) {
+  size_t taken = 0;
+  size_t fill = 0;
+  int i = 0;
+  size_t offset = 0;  // bytes of iov[i] already copied
+  while (i < count) {
+    const size_t piece = std::min(iov[i].iov_len - offset, scratch_size - fill);
+    std::memcpy(scratch + fill, static_cast<const char *>(iov[i].iov_base) + offset, piece);
+    fill += piece;
+    offset += piece;
+    if (offset == iov[i].iov_len) {
+      ++i;
+      offset = 0;
+    }
+    if (fill < scratch_size && i < count) {
+      continue;
+    }
+    const uint8_t flags = STREAM_ADD_FLAG_COPY | (i < count ? STREAM_ADD_FLAG_MORE : 0);
+    const size_t added = client.add(scratch, fill, flags);
+    taken += added;
+    if (added < fill) {
+      break;
+    }
+    fill = 0;
+  }
+  if (taken != 0) {
+    client.send();
+  }
+  return taken;
 }
 
 /// How long sends have made no progress. Zero means not running, so a start at millis() == 0 records 1.
