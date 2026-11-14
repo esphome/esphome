@@ -1,4 +1,4 @@
-"""LibreTiny gets the xPortGetCoreID stand-in only at framework loglevels that compile log_d in."""
+"""LibreTiny gets the xPortGetCoreID stand-in only when its effective LT_LOGLEVEL compiles log_d in."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -11,23 +11,31 @@ _FLAG = "-DxPortGetCoreID=int"
 
 
 @pytest.mark.parametrize(
-    ("loglevel", "expected"),
+    ("framework", "expected"),
     [
-        ("verbose", True),
-        ("trace", True),
-        ("debug", True),
-        ("info", False),
-        ("warn", False),
+        ("loglevel: verbose", True),
+        ("loglevel: trace", True),
+        ("loglevel: debug", True),
+        ("loglevel: info", False),
+        ("loglevel: warn", False),
         (None, False),
+        # framework options override loglevel, as LibreTiny applies them last
+        ("options:\n      LT_LOGLEVEL: LT_LEVEL_DEBUG", True),
+        ("options:\n      LT_LOGLEVEL: 1", True),
+        ("options:\n      LT_LOGLEVEL: 0", True),
+        ("options:\n      LT_LOGLEVEL: LT_LEVEL_INFO", False),
+        ("options:\n      LT_LOGLEVEL: 3", False),
+        ("loglevel: debug\n    options:\n      LT_LOGLEVEL: LT_LEVEL_WARN", False),
+        ("loglevel: warn\n    options:\n      LT_LOGLEVEL: LT_LEVEL_DEBUG", True),
     ],
 )
 def test_core_id_flag_only_at_debug_loglevels(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
-    loglevel: str | None,
+    framework: str | None,
     expected: bool,
 ) -> None:
-    framework = f"\n  framework:\n    loglevel: {loglevel}" if loglevel else ""
+    framework = f"\n  framework:\n    {framework}" if framework else ""
     config = tmp_path / "test.yaml"
     config.write_text(
         "esphome:\n  name: test\n\n"

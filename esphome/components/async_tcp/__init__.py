@@ -2,7 +2,7 @@
 import esphome.codegen as cg
 from esphome.components.libretiny.const import CONF_LOGLEVEL, LT_LOGLEVELS
 import esphome.config_validation as cv
-from esphome.const import CONF_FRAMEWORK
+from esphome.const import CONF_FRAMEWORK, CONF_OPTIONS
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -10,8 +10,22 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 DOMAIN = "async_tcp"
 
-# LibreTiny framework loglevels at which its log_d is compiled in (LT_LOGLEVELS runs from most verbose)
-_LT_DEBUG_LOGLEVELS = LT_LOGLEVELS[: LT_LOGLEVELS.index("DEBUG") + 1]
+# LT_LOGLEVEL values that compile LibreTiny's log_d in (LT_LOGLEVELS runs from most verbose), including the
+# numeric forms from lt_config.h (LT_LEVEL_TRACE 0, LT_LEVEL_DEBUG 1)
+_LT_DEBUG_LOGLEVELS = {
+    *(f"LT_LEVEL_{level}" for level in LT_LOGLEVELS[: LT_LOGLEVELS.index("DEBUG") + 1]),
+    "0",
+    "1",
+}
+
+
+def _libretiny_logs_debug() -> bool:
+    """Whether LibreTiny's log_d is compiled in; framework options override loglevel, as libretiny applies them last."""
+    framework = CORE.config[CORE.target_platform][CONF_FRAMEWORK]
+    level = framework[CONF_OPTIONS].get(
+        "LT_LOGLEVEL", f"LT_LEVEL_{framework[CONF_LOGLEVEL]}"
+    )
+    return str(level).strip() in _LT_DEBUG_LOGLEVELS
 
 
 def AUTO_LOAD() -> list[str]:
@@ -43,10 +57,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_library("ESP32Async/AsyncTCP", "3.5.0")
         # AsyncTCP 3.5.0 logs xPortGetCoreID(), which LibreTiny (single core) lacks, when LibreTiny's log_d is
         # compiled in; the call becomes int(), 0 (a function-like -D does not survive PlatformIO's build flags)
-        if (
-            CORE.config[CORE.target_platform][CONF_FRAMEWORK][CONF_LOGLEVEL]
-            in _LT_DEBUG_LOGLEVELS
-        ):
+        if _libretiny_logs_debug():
             cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
