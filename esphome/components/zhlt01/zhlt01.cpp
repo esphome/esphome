@@ -12,12 +12,12 @@ using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry of each table is the fallback, except that a received fan code not listed is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_AUTO, AC1_MODE_AUTO},    {climate::CLIMATE_MODE_COOL, AC1_MODE_COOL},
     {climate::CLIMATE_MODE_HEAT, AC1_MODE_HEAT},    {climate::CLIMATE_MODE_DRY, AC1_MODE_DRY},
     {climate::CLIMATE_MODE_FAN_ONLY, AC1_MODE_FAN},
 };
+// A received fan code that is not listed is ignored
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, AC1_FAN_AUTO},
     {climate::CLIMATE_FAN_LOW, AC1_FAN1},
@@ -70,12 +70,12 @@ void ZHLT01Climate::transmit_state() {
       ir_message[7] |= AC1_FAN_SILENT;
       break;
     default:
-      ir_message[7] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
+      ir_message[7] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), AC1_FAN_AUTO);
   }
 
   // Byte 9 : AC Mode | Temperature
   // -- AC Mode
-  ir_message[9] = to_ir_code(MODES, this->mode);
+  ir_message[9] = to_ir_code(MODES, this->mode, AC1_MODE_AUTO);
 
   // -- Temperature
   ir_message[9] |= (uint8_t) (this->target_temperature - 16.0f);
@@ -174,7 +174,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
     }
 
     // AC Mode
-    this->mode = from_ir_code<climate::ClimateMode>(MODES, ir_message[9] & 0xE0);
+    this->mode = from_ir_code(MODES, ir_message[9] & 0xE0, climate::CLIMATE_MODE_AUTO);
 
     // Target Temperature
     this->target_temperature = (ir_message[9] & 0x1F) + 16.0f;

@@ -21,7 +21,7 @@ using climate_ir::find_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry of each table is the fallback when sending; a received code that is not listed is ignored
+// A received code that is not listed is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_OFF, DAIKIN_MODE_OFF},
     {climate::CLIMATE_MODE_COOL, DAIKIN_MODE_ON | DAIKIN_MODE_COOL},
@@ -56,7 +56,7 @@ void DaikinClimate::transmit_state() {
                               0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
   this->set_presets_(remote_state);
-  remote_state[21] = to_ir_code(MODES, this->mode);
+  remote_state[21] = to_ir_code(MODES, this->mode, DAIKIN_MODE_OFF);
   remote_state[22] = this->temperature_();
   put_be16(remote_state + 24, this->fan_speed_());
 
@@ -89,7 +89,7 @@ void DaikinClimate::transmit_state() {
 }
 
 uint16_t DaikinClimate::fan_speed_() const {
-  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 8;
+  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), DAIKIN_FAN_AUTO) << 8;
 
   // If swing is enabled switch first 4 bits to 1111
   switch (this->swing_mode) {

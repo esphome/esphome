@@ -17,7 +17,7 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, HITACHI_AC424_MODE_AUTO},
     {climate::CLIMATE_MODE_FAN_ONLY, HITACHI_AC424_MODE_FAN},
 };
-// The first entry is the fallback when sending; the min and max speeds are only received
+// The min and max speeds are only received
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, HITACHI_AC424_FAN_AUTO},     {climate::CLIMATE_FAN_LOW, HITACHI_AC424_FAN_LOW},
     {climate::CLIMATE_FAN_MEDIUM, HITACHI_AC424_FAN_MEDIUM}, {climate::CLIMATE_FAN_HIGH, HITACHI_AC424_FAN_HIGH},
@@ -171,7 +171,7 @@ void HitachiClimate::transmit_state() {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  set_fan_(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)));
+  set_fan_(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), HITACHI_AC424_FAN_AUTO));
 
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
@@ -222,8 +222,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
   ESP_LOGV(TAG, "Mode: %02X %02X", remote_state[HITACHI_AC424_MODE_BYTE], mode);
   if (power != HITACHI_AC424_POWER_ON) {
     this->mode = climate::CLIMATE_MODE_OFF;
-  } else if (const auto entry = find_ir_code(MODES, mode, true)) {
-    this->mode = static_cast<climate::ClimateMode>(entry->value);
+  } else {
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
   return true;
 }

@@ -19,7 +19,7 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, HITACHI_AC344_MODE_AUTO},
     {climate::CLIMATE_MODE_FAN_ONLY, HITACHI_AC344_MODE_FAN},
 };
-// The first entry is the fallback when sending; the max speed is only received
+// The max speed is only received
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, HITACHI_AC344_FAN_AUTO}, {climate::CLIMATE_FAN_QUIET, HITACHI_AC344_FAN_MIN},
     {climate::CLIMATE_FAN_LOW, HITACHI_AC344_FAN_LOW},   {climate::CLIMATE_FAN_MEDIUM, HITACHI_AC344_FAN_MEDIUM},
@@ -195,7 +195,7 @@ void HitachiClimate::transmit_state_(uint8_t button) {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  set_fan_(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)));
+  set_fan_(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), HITACHI_AC344_FAN_AUTO));
 
   const bool swing_v = swing_vertical(this->swing_mode);
   const bool swing_h =
@@ -243,8 +243,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
   ESP_LOGV(TAG, "Mode: %02X %02X", remote_state[HITACHI_AC344_MODE_BYTE], mode);
   if (power != HITACHI_AC344_POWER_ON) {
     this->mode = climate::CLIMATE_MODE_OFF;
-  } else if (const auto entry = find_ir_code(MODES, mode, true)) {
-    this->mode = static_cast<climate::ClimateMode>(entry->value);
+  } else {
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
   return true;
 }

@@ -40,7 +40,6 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_DRY, IR_NOBLEX_MODE_DRY},        {climate::CLIMATE_MODE_FAN_ONLY, IR_NOBLEX_MODE_FAN},
     {climate::CLIMATE_MODE_HEAT, IR_NOBLEX_MODE_HEAT},
 };
-// The first entry is the fallback
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, IR_NOBLEX_FAN_AUTO},
     {climate::CLIMATE_FAN_LOW, IR_NOBLEX_FAN_LOW},
@@ -74,7 +73,7 @@ void NoblexClimate::transmit_state() {
     remote_state[2] = 0x00;
   }
 
-  remote_state[0] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 2;
+  remote_state[0] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), IR_NOBLEX_FAN_AUTO) << 2;
 
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
@@ -226,8 +225,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (powered_on_assumed) {
     auto mode = (this->remote_state_[0] & 0xE0) >> 5;
     ESP_LOGV(TAG, "Mode: %02X", mode);
-    if (const auto entry = find_ir_code(MODES, mode, true))
-      this->mode = static_cast<climate::ClimateMode>(entry->value);
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
 
   // Set received temp
@@ -242,7 +240,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Set received fan speed
   auto fan = (this->remote_state_[0] & 0x0C) >> 2;
   ESP_LOGV(TAG, "Fan: %02X", fan);
-  this->fan_mode = from_ir_code<climate::ClimateFanMode>(FANS, fan);
+  this->fan_mode = from_ir_code(FANS, fan, climate::CLIMATE_FAN_AUTO);
 
   // Set received swing status
   if (this->remote_state_[0] & 0x02) {

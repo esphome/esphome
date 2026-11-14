@@ -127,7 +127,7 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, COMMAND_AI >> MODE_SHIFT},
     {climate::CLIMATE_MODE_HEAT, COMMAND_HEAT >> MODE_SHIFT},
 };
-// The first entry is the fallback when sending; F2 and F4 are only received
+// F2 and F4 are only received
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, FAN_AUTO}, {climate::CLIMATE_FAN_HIGH, FAN_MAX}, {climate::CLIMATE_FAN_MEDIUM, FAN_MED},
     {climate::CLIMATE_FAN_LOW, FAN_MIN},   {climate::CLIMATE_FAN_LOW, FAN_F2},   {climate::CLIMATE_FAN_MEDIUM, FAN_F4},
@@ -182,7 +182,7 @@ void LgIrClimate::transmit_state() {
   // Set fan speed
   if (this->mode !=
       climate::CLIMATE_MODE_OFF) {  // https://github.com/esphome/esphome/pull/10875#issuecomment-5042765948
-    remote_state |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
+    remote_state |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), FAN_AUTO);
   }
 
   uint8_t temp;

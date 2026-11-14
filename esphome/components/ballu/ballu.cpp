@@ -31,13 +31,11 @@ const uint8_t BALLU_SWING_VER = 0x07;
 const uint8_t BALLU_SWING_HOR = 0xe0;
 const uint8_t BALLU_POWER = 0x20;
 
-using climate_ir::find_ir_code;
 using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry is the fallback for a mode sent and a fan speed received.
-// A fan mode not listed sends no fan bits and a received mode not listed is ignored.
+// A fan mode not listed sends no fan bits and a received mode not listed is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_AUTO, BALLU_AUTO},    {climate::CLIMATE_MODE_HEAT, BALLU_HEAT},
     {climate::CLIMATE_MODE_COOL, BALLU_COOL},    {climate::CLIMATE_MODE_DRY, BALLU_DRY},
@@ -65,9 +63,8 @@ void BalluClimate::transmit_state() {
   remote_state[9] = (this->mode == climate::CLIMATE_MODE_OFF) ? 0 : BALLU_POWER;
   remote_state[11] = 0x1e;
 
-  if (const auto fan = find_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_ON), false))
-    remote_state[4] = fan->code;
-  remote_state[6] = to_ir_code(MODES, this->mode);
+  remote_state[4] = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_ON), 0);
+  remote_state[6] = to_ir_code(MODES, this->mode, BALLU_AUTO);
 
   // Checksum
   for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
@@ -131,8 +128,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else {
     auto mode = remote_state[6] & 0xe0;
     ESP_LOGV(TAG, "Mode: %02X", mode);
-    if (const auto entry = find_ir_code(MODES, mode, true))
-      this->mode = static_cast<climate::ClimateMode>(entry->value);
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
 
   // Set received temp
@@ -145,7 +141,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Set received fan speed
   auto fan = remote_state[4] & 0xe0;
   ESP_LOGVV(TAG, "Fan: %02X", fan);
-  this->fan_mode = from_ir_code<climate::ClimateFanMode>(FANS, fan);
+  this->fan_mode = from_ir_code(FANS, fan, climate::CLIMATE_FAN_AUTO);
 
   // Set received swing status
   ESP_LOGVV(TAG, "Swing status: %02X %02X", remote_state[1] & BALLU_SWING_VER, remote_state[2] & BALLU_SWING_HOR);

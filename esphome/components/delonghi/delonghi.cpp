@@ -10,7 +10,7 @@ using climate_ir::find_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry of each table is the fallback when sending; a received code that is not listed is ignored
+// A received code that is not listed is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_OFF, DELONGHI_MODE_OFF},
     {climate::CLIMATE_MODE_COOL, DELONGHI_MODE_ON | DELONGHI_MODE_COOL},
@@ -30,8 +30,8 @@ void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
   remote_state[0] = DELONGHI_ADDRESS;
   remote_state[1] = this->temperature_();
-  remote_state[1] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 5;
-  remote_state[2] = to_ir_code(MODES, this->mode);
+  remote_state[1] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), DELONGHI_FAN_AUTO) << 5;
+  remote_state[2] = to_ir_code(MODES, this->mode, DELONGHI_MODE_OFF);
   // Calculate checksum
   for (int i = 0; i < DELONGHI_STATE_FRAME_SIZE - 1; i++) {
     remote_state[DELONGHI_STATE_FRAME_SIZE - 1] += remote_state[i];
@@ -79,8 +79,8 @@ bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
   uint8_t mode = frame[2] & 0x0F;
   if (!(mode & DELONGHI_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
-  } else if (const auto entry = find_ir_code(MODES, mode, true)) {
-    this->mode = static_cast<climate::ClimateMode>(entry->value);
+  } else {
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
   uint8_t temperature = frame[1] & 0x0F;
   if (this->mode == climate::CLIMATE_MODE_HEAT) {

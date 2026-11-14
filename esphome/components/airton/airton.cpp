@@ -22,7 +22,7 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, AIRTON_POWER_ON | AIRTON_MODE_AUTO},
     {climate::CLIMATE_MODE_FAN_ONLY, AIRTON_POWER_ON | AIRTON_MODE_FAN},
 };
-// The first entry is the fallback when sending; fan speeds 2 and 4 are only received
+// Fan speeds 2 and 4 are only received
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, AIRTON_FAN_AUTO}, {climate::CLIMATE_FAN_LOW, AIRTON_FAN_1},
     {climate::CLIMATE_FAN_MEDIUM, AIRTON_FAN_3},  {climate::CLIMATE_FAN_HIGH, AIRTON_FAN_5},
@@ -134,8 +134,9 @@ void AirtonClimate::transmit_state() {
   uint8_t remote_state[AIRTON_STATE_FRAME_SIZE] = {
       AIRTON_HEADER_BYTE0,
       AIRTON_HEADER_BYTE1,
-      static_cast<uint8_t>(this->operation_mode_() |
-                           (to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 4)),
+      static_cast<uint8_t>(
+          this->operation_mode_() |
+          (to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), AIRTON_FAN_AUTO) << 4)),
       this->temperature_(),
       static_cast<uint8_t>(this->settings_.vertical_direction),
       this->operation_settings_(),
@@ -160,9 +161,8 @@ void AirtonClimate::transmit_state() {
 }
 
 uint8_t AirtonClimate::operation_mode_() {
-  const auto entry = find_ir_code(MODES, this->mode, false);
   // Off, or a mode not listed, repeats the previous mode with the power bit clear
-  this->previous_mode_ = entry.has_value() ? entry->code : this->previous_mode_ & 0b0111;
+  this->previous_mode_ = to_ir_code(MODES, this->mode, this->previous_mode_ & 0b0111);
   return this->previous_mode_;
 }
 
@@ -202,8 +202,8 @@ void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
   this->previous_mode_ = mode & 0b00001111;
   if (!(mode & AIRTON_POWER_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
-  } else if (const auto entry = find_ir_code(MODES, mode & 0b00001111, true)) {
-    this->mode = static_cast<climate::ClimateMode>(entry->value);
+  } else {
+    this->mode = from_ir_code(MODES, mode & 0b00001111, this->mode);
   }
   if (const auto entry = find_ir_code(FANS, (frame[2] & 0b01110000) >> 4, true))
     this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);

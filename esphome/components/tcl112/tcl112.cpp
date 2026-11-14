@@ -43,7 +43,6 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT, TCL112_HEAT},      {climate::CLIMATE_MODE_DRY, TCL112_DRY},
     {climate::CLIMATE_MODE_FAN_ONLY, TCL112_FAN},
 };
-// The first entry is the fallback
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, TCL112_FAN_AUTO},
     {climate::CLIMATE_FAN_HIGH, TCL112_FAN_HIGH},
@@ -87,7 +86,7 @@ void Tcl112Climate::transmit_state() {
   remote_state[7] |= ((uint8_t) TCL112_TEMP_MAX - half_degrees / 2);
 
   // Set fan
-  remote_state[8] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
+  remote_state[8] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), TCL112_FAN_AUTO);
 
   // Set swing
   if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
@@ -153,14 +152,13 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   if ((remote_state[5] & TCL112_POWER_MASK) == 0) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    if (const auto entry = find_ir_code(MODES, remote_state[6] & 0x0F, true))
-      this->mode = static_cast<climate::ClimateMode>(entry->value);
+    this->mode = from_ir_code(MODES, remote_state[6] & 0x0F, this->mode);
   }
   auto temp = TCL112_TEMP_MAX - remote_state[7];
   if (remote_state[12] & TCL112_HALF_DEGREE)
     temp += .5f;
   this->target_temperature = temp;
-  this->fan_mode = from_ir_code<climate::ClimateFanMode>(FANS, remote_state[8] & 0x7);
+  this->fan_mode = from_ir_code(FANS, remote_state[8] & 0x7, climate::CLIMATE_FAN_AUTO);
   if ((remote_state[8] & TCL112_VSWING_MASK) == TCL112_VSWING_MASK) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
   } else {

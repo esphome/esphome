@@ -16,7 +16,7 @@ using climate_ir::find_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// The first entry of each table is the fallback when sending; a received code that is not listed is ignored
+// A received code that is not listed is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_OFF, DAIKIN_BRC_MODE_OFF},
     {climate::CLIMATE_MODE_COOL, DAIKIN_BRC_MODE_ON | DAIKIN_BRC_MODE_COOL},
@@ -52,7 +52,7 @@ void DaikinBrcClimate::transmit_state() {
 
   remote_state[12] = this->alt_mode_();
   remote_state[13] = this->mode_button_;
-  remote_state[14] = to_ir_code(MODES, this->mode);
+  remote_state[14] = to_ir_code(MODES, this->mode, DAIKIN_BRC_MODE_OFF);
   remote_state[17] = this->temperature_();
   remote_state[18] = this->fan_speed_swing_();
 
@@ -102,7 +102,7 @@ uint8_t DaikinBrcClimate::alt_mode_() {
 }
 
 uint8_t DaikinBrcClimate::fan_speed_swing_() {
-  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_LOW));
+  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_LOW), DAIKIN_BRC_FAN_1);
 
   // If swing is enabled switch first 4 bits to 1111
   switch (this->swing_mode) {
@@ -149,8 +149,8 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
   uint8_t mode = frame[7];
   if (!(mode & DAIKIN_BRC_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
-  } else if (const auto entry = find_ir_code(MODES, mode & (0xF0 | DAIKIN_BRC_MODE_ON), true)) {
-    this->mode = static_cast<climate::ClimateMode>(entry->value);
+  } else {
+    this->mode = from_ir_code(MODES, mode & (0xF0 | DAIKIN_BRC_MODE_ON), this->mode);
   }
 
   uint8_t temperature = frame[10];

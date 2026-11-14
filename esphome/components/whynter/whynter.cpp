@@ -50,7 +50,7 @@ static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT, MODE_HEAT >> MODE_SHIFT},
     {climate::CLIMATE_MODE_COOL, MODE_COOL >> MODE_SHIFT},
 };
-// The first entry is the fallback when sending; a received code that is not listed is ignored
+// A received code that is not listed is ignored
 static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_HIGH, FAN_HIGH >> FAN_SHIFT},
     {climate::CLIMATE_FAN_LOW, FAN_LOW >> FAN_SHIFT},
@@ -69,8 +69,9 @@ void Whynter::transmit_state() {
   }
   mode_before_ = this->mode;
 
-  remote_state |= static_cast<uint32_t>(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_HIGH)))
-                  << FAN_SHIFT;
+  remote_state |=
+      static_cast<uint32_t>(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_HIGH), FAN_HIGH >> FAN_SHIFT))
+      << FAN_SHIFT;
 
   if (fahrenheit_) {
     remote_state |= UNIT_MASK;
@@ -113,8 +114,7 @@ bool Whynter::on_receive(remote_base::RemoteReceiveData data) {
   if ((remote_state & POWER_MASK) != POWER_MASK) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    if (const auto entry = find_ir_code(MODES, (remote_state & MODE_MASK) >> MODE_SHIFT, true))
-      this->mode = static_cast<climate::ClimateMode>(entry->value);
+    this->mode = from_ir_code(MODES, (remote_state & MODE_MASK) >> MODE_SHIFT, this->mode);
 
     // Temperature
     if ((remote_state & UNIT_MASK) == UNIT_MASK) {  // Fahrenheit
