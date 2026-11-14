@@ -2,12 +2,29 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/number/number.h"
 #include <esp_dmx.h>
-#include <vector>
+
+#ifndef DMX_READER_STATIC_SENSOR_COUNT
+#define DMX_READER_STATIC_SENSOR_COUNT 0
+#endif
+#ifndef DMX_READER_DYNAMIC_SENSOR_COUNT
+#define DMX_READER_DYNAMIC_SENSOR_COUNT 0
+#endif
 
 namespace esphome::dmx_reader {
+
+struct StaticChannelSensor {
+  uint16_t channel;
+  sensor::Sensor *sensor;
+};
+
+struct DynamicChannelSensor {
+  number::Number *channel_number;
+  sensor::Sensor *sensor;
+};
 
 class DMXReader : public Component {
  public:
@@ -23,11 +40,17 @@ class DMXReader : public Component {
 
   uint8_t get_channel(uint16_t channel) const;
 
-  // fixed channel
-  void register_channel_sensor(uint16_t channel, sensor::Sensor *sens);
+  // fixed channel — only compiled when count > 0
+  SLOT_LIST_REQUIRES(DMX_READER_STATIC_SENSOR_COUNT)
+  void register_channel_sensor(uint16_t channel, sensor::Sensor *sens) {
+    this->static_sensors_.push_back({channel, sens});
+  }
 
-  // Dynamic channel via Number-entity
-  void register_dynamic_channel_sensor(number::Number *channel_number, sensor::Sensor *sens);
+  // Dynamic channel via Number-entity — only compiled when count > 0
+  SLOT_LIST_REQUIRES(DMX_READER_DYNAMIC_SENSOR_COUNT)
+  void register_dynamic_channel_sensor(number::Number *channel_number, sensor::Sensor *sens) {
+    this->dynamic_sensors_.push_back({channel_number, sens});
+  }
 
  protected:
   InternalGPIOPin *tx_pin_{nullptr};
@@ -38,17 +61,8 @@ class DMXReader : public Component {
   dmx_port_t dmx_port_;
   uint8_t data_[DMX_PACKET_SIZE]{};
 
-  struct StaticChannelSensor {
-    uint16_t channel;
-    sensor::Sensor *sensor;
-  };
-  std::vector<StaticChannelSensor> static_sensors_;
-
-  struct DynamicChannelSensor {
-    number::Number *channel_number;
-    sensor::Sensor *sensor;
-  };
-  std::vector<DynamicChannelSensor> dynamic_sensors_;
+  [[no_unique_address]] SlotList<StaticChannelSensor, DMX_READER_STATIC_SENSOR_COUNT> static_sensors_;
+  [[no_unique_address]] SlotList<DynamicChannelSensor, DMX_READER_DYNAMIC_SENSOR_COUNT> dynamic_sensors_;
 };
 
 }  // namespace esphome::dmx_reader

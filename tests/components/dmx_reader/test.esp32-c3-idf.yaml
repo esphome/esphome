@@ -1,0 +1,7 @@
+substitutions:
+  dmx_uart_num: "1"
+  dmx_tx_pin: GPIO21
+  dmx_rx_pin: GPIO20
+
+packages:
+  common: !include common.yaml
