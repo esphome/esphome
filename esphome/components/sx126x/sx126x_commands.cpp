@@ -1,6 +1,8 @@
 #include "sx126x_commands.h"
 #include "esphome/core/hal.h"
 
+#include <cmath>
+
 namespace esphome::sx126x {
 static constexpr uint16_t RAMP[8] PROGMEM = {10, 20, 40, 80, 200, 800, 1700, 3400};
 // Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
@@ -339,7 +341,8 @@ void Sx126xCommands::read_packet(uint8_t modulation, std::vector<uint8_t> &packe
   uint8_t data[3]{};
   this->read_opcode_(RADIO_GET_PACKETSTATUS, data, 3);
   rssi = (modulation == PACKET_TYPE_LORA ? data[0] : data[2]) / -2.0f;
-  snr = modulation == PACKET_TYPE_LORA ? static_cast<int8_t>(data[1]) / 4.0f : 0;
+  // FSK packets report no SNR
+  snr = modulation == PACKET_TYPE_LORA ? static_cast<int8_t>(data[1]) / 4.0f : NAN;
   this->read_opcode_(RADIO_GET_RXBUFFERSTATUS, data, 2);
   if (!this->spi_device_.ok()) {
     return;  // The length and offset were not read.

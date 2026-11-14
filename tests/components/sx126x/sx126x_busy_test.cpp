@@ -1,4 +1,5 @@
 #include "sx126x_test_helpers.h"
+#include <cmath>
 #include "esphome/core/application.h"
 #include <tuple>
 #include <type_traits>
@@ -232,7 +233,11 @@ TEST_P(SX126xBusyReceive, KeepsAPacketWhoseReadFailedAndRetries) {
     ASSERT_EQ(listener.packets.size(), 1u);
     EXPECT_EQ(listener.packets[0], hardware.packet);
     EXPECT_FLOAT_EQ(listener.rssi, lora ? -40 : -42);
-    EXPECT_FLOAT_EQ(listener.snr, lora ? 10 : 0);
+    if (lora) {
+      EXPECT_FLOAT_EQ(listener.snr, 10);
+    } else {
+      EXPECT_TRUE(std::isnan(listener.snr));
+    }
     EXPECT_FALSE(hardware.radio.status_has_warning());
   }
 }
