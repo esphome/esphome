@@ -39,6 +39,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
+from esphome.helpers import IS_WINDOWS
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
@@ -296,18 +297,27 @@ __all__ = [
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
-# Give bluedroid_hex_wraps.cpp Bluedroid's private headers so its ESP-IDF drift
-# checks compile; the bt target's include dirs are read at generate time. Only
-# the native ESP-IDF toolchain generates src/CMakeLists.txt.
-BLUEDROID_HEADERS_CMAKE = """\
+
+def _wrap_bluedroid_symbols(*symbols: str) -> None:
+    """Link calls to each Bluedroid symbol to its ``__wrap_`` replacement."""
+    for symbol in symbols:
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+        # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
+        cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+
+
+def bluedroid_headers_cmake(source: str) -> str:
+    """Give one esp32_ble source Bluedroid's private include dirs (native ESP-IDF toolchain only)."""
+    return f"""\
 idf_component_get_property(esphome_bt_lib bt COMPONENT_LIB)
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/esphome/components/esp32_ble/bluedroid_hex_wraps.cpp"
+    "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/components/esp32_ble/{source}"
     PROPERTIES
-        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${esphome_bt_lib},INCLUDE_DIRECTORIES>"
+        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${{esphome_bt_lib}},INCLUDE_DIRECTORIES>"
         COMPILE_DEFINITIONS USE_ESP32_BLE_BLUEDROID_HEADERS
 )
 """
+
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
@@ -496,9 +506,7 @@ def final_validation(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
-    has_ble_client = (
-        "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
-    )
+    has_ble_client = _has_gatt_client(full_config)
 
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
@@ -567,11 +575,26 @@ async def to_code(config: ConfigType) -> None:
         and get_esp32_variant() not in ROM_SSCANF_VARIANTS
     ):
         cg.add_define("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS")
-        for symbol in ("btc_config_get_bin", "string_to_bdaddr"):
-            cg.add_build_flag(f"-Wl,--wrap={symbol}")
-            # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
-            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
-        add_src_cmake(BLUEDROID_HEADERS_CMAKE)
+        _wrap_bluedroid_symbols("btc_config_get_bin", "string_to_bdaddr")
+        # The headers only feed bluedroid_hex_wraps.cpp's ESP-IDF drift checks
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_hex_wraps.cpp"))
+
+    # ESP-IDF 5.5.6 drops bond keys on re-encryption (see bluedroid_bond_keys.c). Needs the
+    # native toolchain for Bluedroid's private headers; Windows response files lose them.
+    if (
+        CORE.using_toolchain_esp_idf
+        and not IS_WINDOWS
+        and cv.Version(5, 5, 6) <= idf_version() < cv.Version(6, 0, 0)
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_BOND_KEYS")
+        _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
+
+    # ESP-IDF 5.5.6 and 6.0.3 end GATT discovery on a response listing handles out of order
+    # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
+    if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
+        cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
+        _wrap_bluedroid_symbols("gatt_client_handle_server_rsp")
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
@@ -639,11 +662,25 @@ for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
     )
 
 
+def _has_gatt_client(config: ConfigType) -> bool:
+    """Whether Bluedroid's GATT client is built: the tracker (and bluetooth_proxy) or esp32_ble_client."""
+    return "esp32_ble_tracker" in config or "esp32_ble_client" in config
+
+
+def _has_strict_handle_order(version: cv.Version) -> bool:
+    """Whether this ESP-IDF rejects discovery responses whose handles are out of order."""
+    return cv.Version(5, 5, 6) <= version < cv.Version(
+        6, 0, 0
+    ) or version >= cv.Version(6, 0, 3)
+
+
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
 # when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
         "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
+        "bluedroid_bond_keys.c": "USE_ESP32_BLE_BLUEDROID_BOND_KEYS",
+        "bluedroid_gattc_order.cpp": "USE_ESP32_BLE_GATTC_HANDLE_ORDER",
     }
 )

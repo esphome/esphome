@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <array>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
@@ -64,7 +64,7 @@ class SM2135 final : public Component {
   SM2135Current cw_current_;
   bool separate_modes_;
   uint8_t update_channel_{0};
-  std::vector<uint8_t> pwm_amounts_;
+  std::array<uint8_t, 5> pwm_amounts_{};
   bool update_{true};
 };
 

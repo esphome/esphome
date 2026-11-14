@@ -12,13 +12,19 @@ height of them; offset_height (under dimensions) is a property of the panel.
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA_RATE, CONF_DIMENSIONS, CONF_OFFSET_HEIGHT
+from esphome.const import (
+    CONF_DATA_RATE,
+    CONF_DIMENSIONS,
+    CONF_HEIGHT,
+    CONF_OFFSET_HEIGHT,
+)
 from esphome.types import ConfigType
 
 from . import EpaperModel, ultrachip_resolution
 
 
 class UC8279(EpaperModel):
+    class_name = "EPaperUC8279"
     source_files = (
         "epaper_spi_ultrachip.cpp",
         "epaper_spi_uc8279.cpp",
@@ -27,7 +33,7 @@ class UC8279(EpaperModel):
     def __init__(
         self,
         name: str,
-        class_name: str = "EPaperUC8279",
+        class_name: str | None = None,
         data_rate: str = "10MHz",
         **defaults: Any,
     ) -> None:
@@ -39,10 +45,11 @@ class UC8279(EpaperModel):
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         _width, height = self.get_dimensions(config)
+        # The models' defaults fit, so this fails only with explicit dimensions, which always have a height
         if self.get_offset_height(config) + height > 0xFFFF:
             raise cv.Invalid(
                 f"{CONF_OFFSET_HEIGHT} plus the panel height must not exceed {0xFFFF} gates",
-                path=[CONF_DIMENSIONS, CONF_OFFSET_HEIGHT],
+                path=[CONF_DIMENSIONS, CONF_HEIGHT],
             )
         return config
 

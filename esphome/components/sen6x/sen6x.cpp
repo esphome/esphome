@@ -49,6 +49,7 @@ static constexpr uint32_t POLL_INTERVAL = 50;   // 50 ms between poll attempts
 static constexpr uint32_t TIMEOUT_POLL = 1;
 static constexpr uint32_t TIMEOUT_SETUP_STEP = 2;
 static constexpr uint32_t TIMEOUT_STARTUP = 3;
+static constexpr uint32_t TIMEOUT_CO2_RECALIBRATION = 4;
 // Post-command wait times from the datasheet: start execution (4.8.1), stop execution (4.8.2),
 // fan cleaning (4.8.22), SHT heater (4.8.23), CO2 conditioning after start on SEN63C/SEN69C (4.8.1)
 static constexpr uint32_t START_MEASUREMENT_DELAY = 50;
@@ -56,6 +57,13 @@ static constexpr uint32_t STOP_MEASUREMENT_DELAY = 1400;
 static constexpr uint32_t FAN_CLEANING_DELAY = 10000;
 static constexpr uint32_t SHT_HEATER_DELAY = 20000;
 static constexpr uint32_t CO2_CONDITIONING_DELAY = 24000;
+// Forced CO2 recalibration runs for about 500 ms before its correction can be read
+static constexpr uint32_t CO2_FORCED_RECALIBRATION_DELAY = 500;
+// Correction read back after a forced recalibration: 0xFFFF on failure, otherwise ppm offset by 0x8000
+static constexpr uint16_t CO2_FORCED_RECALIBRATION_FAILED = 0xFFFF;
+static constexpr uint16_t CO2_FORCED_RECALIBRATION_OFFSET = 0x8000;
+// Highest accepted reference: the sensor's 40000 ppm range, the same limit the schema applies to constants
+static constexpr float CO2_FORCED_RECALIBRATION_MAX_PPM = 40000.0f;
 // Accepted range of a runtime pressure source, the same as the schema's ambient_pressure_compensation
 static constexpr float AMBIENT_PRESSURE_MIN_HPA = 700.0f;
 static constexpr float AMBIENT_PRESSURE_MAX_HPA = 1200.0f;
@@ -85,6 +93,7 @@ static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
 static constexpr uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
 static constexpr uint16_t SEN6X_CMD_TEMPERATURE_ACCELERATION = 0x6100;
 static constexpr uint16_t SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL = 0x6711;
+static constexpr uint16_t SEN6X_CMD_CO2_FORCED_RECALIBRATION = 0x6707;
 static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
 
@@ -811,6 +820,56 @@ void SEN6XComponent::activate_sht_heater() {
     return;
   }
   this->set_command_wait_(SHT_HEATER_DELAY);
+}
+
+void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
+  if (!this->initialized_)
+    return;
+  if (this->co2_sensor_ == nullptr) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration requires a CO2 sensor");
+    return;
+  }
+  // The schema only range-checks constants; a templated value is checked here, as the device keeps the result
+  if (std::isnan(target_co2_ppm) || target_co2_ppm < 0.0f || target_co2_ppm > CO2_FORCED_RECALIBRATION_MAX_PPM) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration value out of range: %.0f ppm", target_co2_ppm);
+    return;
+  }
+  // The device only accepts this command in idle mode, at least 600 ms after a stop; the stop's
+  // command wait already covers that
+  if (this->measuring_) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration requires idle mode; stop the measurement first");
+    return;
+  }
+  if (this->command_blocked_()) {
+    ESP_LOGW(TAG, "Device busy");
+    return;
+  }
+  const auto target = static_cast<uint16_t>(lroundf(target_co2_ppm));
+  // Keep other commands out from the write until the result has been read, however late the timeout runs;
+  // a log callback can run an action in the middle of either transfer
+  this->set_command_wait_(UINT32_MAX);
+  if (!this->write_command(SEN6X_CMD_CO2_FORCED_RECALIBRATION, target)) {
+    this->set_command_wait_(0);
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Forced CO2 recalibration failed (%d)", this->last_error_);
+    return;
+  }
+  this->set_timeout(TIMEOUT_CO2_RECALIBRATION, CO2_FORCED_RECALIBRATION_DELAY, [this, target]() {
+    uint16_t correction;
+    const bool read_ok = this->read_data(correction);
+    this->set_command_wait_(0);
+    if (!this->status_comm_result(read_ok)) {
+      ESP_LOGW(TAG, "Reading the forced CO2 recalibration result failed (%d)", this->last_error_);
+      return;
+    }
+    if (correction == CO2_FORCED_RECALIBRATION_FAILED) {
+      this->status_set_warning();
+      ESP_LOGW(TAG, "Forced CO2 recalibration to %u ppm rejected by the sensor", target);
+      return;
+    }
+    const int correction_ppm = static_cast<int>(correction) - CO2_FORCED_RECALIBRATION_OFFSET;
+    ESP_LOGI(TAG, "Forced CO2 recalibration to %u ppm done, correction %d ppm", target, correction_ppm);
+  });
 }
 
 }  // namespace esphome::sen6x

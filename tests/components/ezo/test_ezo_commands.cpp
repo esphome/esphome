@@ -96,6 +96,36 @@ TEST_F(EzoCommandTest, WireTextOfEachCommand) {
                                       "Name,?", "R"}));
 }
 
+TEST_F(EzoCommandTest, RepliesReachTheirCallbacks) {
+  std::vector<std::string> got;
+  // Lambdas log c_str() with %s, so the text must end at size()
+  auto record = [&got](const char *prefix, StringRef x) {
+    EXPECT_EQ(std::strlen(x.c_str()), x.size());
+    got.push_back(std::string(prefix) + x.c_str());
+  };
+  this->ezo_.add_device_information_callback([&record](StringRef x) { record("info ", x); });
+  this->ezo_.add_slope_callback([&record](StringRef x) { record("slope ", x); });
+  this->ezo_.add_calibration_callback([&record](StringRef x) { record("cal ", x); });
+  this->ezo_.add_t_callback([&record](StringRef x) { record("t ", x); });
+  this->ezo_.add_led_state_callback([&got](bool on) { got.emplace_back(on ? "led on" : "led off"); });
+  this->ezo_.add_custom_callback([&record](StringRef x) { record("custom ", x); });
+  this->bus_.replies = {
+      {"i", "?I,pH,2.16"}, {"Slope,?", "?Slope,99.7,100.3,-0.89"}, {"Cal,?", "?Cal,2"}, {"T,?", "?T,19.5"},
+      {"L,?", "?L,1"},     {"Status", "?Status,P,5.038"},          {"R", "7.25,1.5"}};
+  this->ezo_.get_device_information();
+  this->ezo_.get_slope();
+  this->ezo_.get_calibration();
+  this->ezo_.get_t();
+  this->ezo_.get_led_state();
+  this->ezo_.send_custom("Status");
+  this->ezo_.get_state();
+  this->run_until_written_(7);
+  EXPECT_EQ(got, (std::vector<std::string>{"info pH,2.16", "slope 99.7,100.3,-0.89", "cal 2", "t 19.5", "led on",
+                                           "custom ?Status,P,5.038"}));
+  // A read publishes the first of several values.
+  EXPECT_FLOAT_EQ(this->ezo_.state, 7.25f);
+}
+
 TEST_F(EzoCommandTest, AddressChangeAppliesToLaterCommands) {
   this->ezo_.set_address(100);
   this->ezo_.get_led_state();

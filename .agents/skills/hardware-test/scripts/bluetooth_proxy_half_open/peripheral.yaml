@@ -1,0 +1,38 @@
+# Single client BLE peripheral: advertises only while nobody is connected.
+esphome:
+  name: btperi
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+  hardware_uart: UART0
+
+esp32_ble:
+  name: btperi
+
+esp32_ble_server:
+  manufacturer_data: [0xFF, 0xFF, 0x21, 0x56]
+  on_connect:
+    - logger.log: {format: "PERI connected", level: INFO}
+  on_disconnect:
+    - logger.log: {format: "PERI disconnected", level: INFO}
+  services:
+    - uuid: 2a7b0000-0000-1000-8000-00805f9b34fb
+      advertise: true
+      characteristics:
+        - uuid: 2a7b0001-0000-1000-8000-00805f9b34fb
+          read: true
+          notify: true
+          value: "hello"
+
+interval:
+  - interval: 30s
+    then:
+      - logger.log: {format: "PERI alive", level: INFO}
