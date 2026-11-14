@@ -15,7 +15,15 @@ static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 // Highest AXI QoS priority (4 bits); all masters start at 0
 static constexpr uint32_t DSI_DMA_READ_PRIORITY = 15;
 
-static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+// With CONFIG_LCD_DSI_ISR_CACHE_SAFE the DPI driver only accepts callbacks in IRAM
+#if CONFIG_LCD_DSI_ISR_CACHE_SAFE
+#define MIPI_DSI_ISR_ATTR IRAM_ATTR
+#else
+#define MIPI_DSI_ISR_ATTR
+#endif
+
+static bool MIPI_DSI_ISR_ATTR notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
+                                                   void *user_ctx) {
   SemaphoreHandle_t sem = static_cast<SemaphoreHandle_t>(user_ctx);
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);

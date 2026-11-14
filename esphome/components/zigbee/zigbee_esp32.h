@@ -90,6 +90,9 @@ class ZigbeeComponent final : public Component {
   ezb_nwk_device_type_t device_role_ = EZB_NWK_DEVICE_TYPE_ROUTER;
 #endif
   void update_basic_cluster_(ezb_af_ep_desc_t ep_desc);
+  void on_parent_link_failure_();
+  void end_parent_link_failures_(uint8_t seq);
+  void reset_parent_link_failures_();
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  T *value_p);
@@ -115,6 +118,12 @@ class ZigbeeComponent final : public Component {
   std::atomic<bool> joined_ = false;
   std::atomic<bool> join_pending_ = false;
   std::atomic<bool> factory_new_ = false;
+  // Current series of parent link failures, only used with the Zigbee stack lock held
+  uint32_t first_link_failure_ms_{0};
+  uint32_t last_link_failure_ms_{0};
+  uint32_t saved_keep_alive_{0};
+  uint8_t link_failures_{0};
+  uint8_t link_failure_seq_{0};
 };
 
 template<typename T>

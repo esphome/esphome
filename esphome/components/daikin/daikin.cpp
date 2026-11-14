@@ -186,7 +186,7 @@ void DaikinClimate::cancel_boost_mode_() {
 bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
   uint8_t mode = frame[5];
-  // Temperature is given in degrees celcius * 2
+  // Temperature is given in degrees celsius * 2
   // only update for states that use the temperature
   uint8_t temperature = frame[6];
   if (mode & DAIKIN_MODE_ON) {

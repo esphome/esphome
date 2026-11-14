@@ -61,7 +61,7 @@ AudioReader::~AudioReader() { this->cleanup_connection_(); }
 
 esp_err_t AudioReader::add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer) {
   if (current_audio_file_ != nullptr) {
-    // A transfer buffer isn't ncessary for a local file
+    // A transfer buffer isn't necessary for a local file
     this->file_ring_buffer_ = output_ring_buffer.lock();
     if (this->file_ring_buffer_ == nullptr) {
       return ESP_ERR_INVALID_STATE;
@@ -278,7 +278,7 @@ AudioReaderState AudioReader::http_read_() {
     } else if (received_len <= 0) {
       // HTTP read error
       if (received_len == -1) {
-        // A true connection error occured, no chance at recovery
+        // A true connection error occurred, no chance at recovery
         this->cleanup_connection_();
         return AudioReaderState::FAILED;
       }

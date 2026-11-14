@@ -1,0 +1,37 @@
+# Proxy (classic ESP32): bluetooth_proxy without service cache, encrypted API, the reorder wrapper.
+# Substitutions: name, idf.
+# Keep the per-build file in this directory: attswap.hpp and components/ are found relative to it.
+esphome:
+  name: ${name}
+  includes: [attswap.hpp]
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: ${idf}
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+api:
+  reboot_timeout: 0s
+  # a plaintext proxy can be taken over by any Home Assistant on the network mid-test
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+external_components:
+  - source: {type: local, path: components}
+    components: [attswap]
+attswap:
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+bluetooth_proxy:
+  active: true
+  cache_services: false
+interval:
+  - interval: 5s
+    then:
+      - lambda: 'ESP_LOGI("swap", "attswap swaps=%u", (unsigned) attswap_count);'

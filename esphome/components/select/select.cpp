@@ -35,6 +35,9 @@ void Select::publish_state(size_t index) {
 optional<size_t> Select::index_of(const char *option, size_t len) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
+    // Skip most other options on their first byte; `option` need not be terminated, so only read it when len > 0
+    if (len != 0 && options[i][0] != option[0])
+      continue;
     if (strncmp(options[i], option, len) == 0 && options[i][len] == '\0') {
       return i;
     }

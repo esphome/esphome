@@ -467,7 +467,8 @@ message DeviceWizardRequest {
 //
 //   {"version": 1,
 //    "pages": [{"title": "...", "description": "...",
-//      "entities": [{"key": 123, "device_id": 456, "description": "...", "role": "..."}],
+//      "entities": [{"key": 123, "platform": "sensor", "device_id": 456,
+//                    "description": "...", "role": "..."}],
 //      "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
 //        "entity_filters": [{"integration": "...", "domain": ["..."],
 //                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -480,6 +481,10 @@ message DeviceWizardRequest {
 // An entity is an entity of this device that the page shows to the user (for example to
 // turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
 // device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+// Its platform is the platform of the entity (sensor, switch and so on; date, time or
+// datetime for a datetime entity). A key is only unique within its platform and device, so
+// a client matches an entity by platform, device_id and key together. A client that does
+// not know platform ignores it, so the version stays 1.
 // Its role, when set, is a stable name that the device's firmware gives the entity
 // (always <component>.<name>), so a client can recognise it. The user cannot change it,
 // and no two entities of a wizard share one.
