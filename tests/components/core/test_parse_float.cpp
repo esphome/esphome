@@ -86,6 +86,14 @@ TEST(ParseFloat, SweepOfTwoDecimalValuesMatchesStrtof) {
   }
 }
 
+// Eight-digit mantissas below 2^24 stay on the one-division path; the next digit past the limit falls back
+TEST(ParseFloat, EightDigitPlainDecimalsMatchStrtof) {
+  for (const char *str : {"12345678", "-12345678", "1234.5678", "0.12345678", "16777209", "1677720.9", "0.16777209",
+                          "16777210", "16777215", "1677721.5", "99999999", "9999999.9", "16777209."}) {
+    expect_matches_strtof(str);
+  }
+}
+
 // A fraction longer than the fast path accepts must fall back, however long it is.
 TEST(ParseFloat, LongFractionsMatchStrtof) {
   std::string str = "0.";
