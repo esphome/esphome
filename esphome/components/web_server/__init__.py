@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components import web_server_base
+from esphome.components import web_server_base, web_server_idf
 from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import (
@@ -234,6 +234,8 @@ def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     # (browser opens connections for page resources, SSE event stream, and POST
     # requests for entity control which may linger before closing)
     web_server_base.add_httpd_clients(5, DOMAIN)
+    # Event streams send from the main loop straight to the socket, which would bypass TLS.
+    web_server_idf.require_plain_http(DOMAIN)
     return config
 
 
