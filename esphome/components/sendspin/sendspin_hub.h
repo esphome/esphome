@@ -25,6 +25,9 @@
 #ifdef USE_SENDSPIN_ARTWORK
 #include <sendspin/artwork_role.h>
 #endif
+#ifdef USE_SENDSPIN_COLOR
+#include <sendspin/color_role.h>
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -38,6 +41,9 @@
 #include "esphome/components/microphone/microphone_source.h"
 
 #include <sendspin/source_role.h>
+#endif
+#ifdef USE_SENDSPIN_VISUALIZER
+#include <sendspin/visualizer_role.h>
 #endif
 
 #include <array>
@@ -80,9 +86,9 @@ enum SendspinFeature : uint32_t {
 /// The hub owns a SendspinClient instance and bridges its listener/provider interfaces to ESPHome's CallbackManager for
 /// fan-out to child components.
 ///  - Provides persistence via ESPPreferenceObject and WiFi power management integration.
-///  - Handles Sendspin roles that apply to multiple child components (artwork, controller, metadata) so their events
-///    can be fanned out. Roles specific to a single component (player) are configured by the hub but owned by the
-///    child thereafter, since no fan-out is needed.
+///  - Handles Sendspin roles that apply to multiple child components (artwork, color, controller, metadata) so their
+///    events can be fanned out. Roles specific to a single component (player, visualizer) are configured by the hub
+///    but owned by the child thereafter, since no fan-out is needed.
 ///  - The source role streams a microphone. Its data callback runs on the microphone's task.
 ///
 /// The sendspin-cpp library follows this design:
@@ -94,6 +100,9 @@ enum SendspinFeature : uint32_t {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_ARTWORK
                           public sendspin::ArtworkRoleListener,
+#endif
+#ifdef USE_SENDSPIN_COLOR
+                          public sendspin::ColorRoleListener,
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
@@ -262,6 +271,15 @@ class SendspinHub final : public Component,
   }
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  /// @brief Registers a callback that fires when the server sends a palette update.
+  ///
+  /// Also fires when the connection is lost or the server deactivates the color role, with an all-empty palette (every
+  /// color nullopt, timestamp 0) meaning the cached palette was dropped. Subscribers must treat an absent color as
+  /// cleared, not as no update.
+  template<typename F> void add_color_callback(F &&callback) { this->color_callbacks_.add(std::forward<F>(callback)); }
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
@@ -321,6 +339,19 @@ class SendspinHub final : public Component,
   /// @brief Registers a callback that fires when the source stream closes.
   template<typename F> void add_on_source_streaming_stopped_callback(F &&callback) {
     this->source_streaming_stopped_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  /// @brief Sets the single consumer of the visualizer role's data and the config the role is registered with.
+  ///
+  /// The library delivers each datum (loudness, beats, spectrum, ...) from its own drain thread at the datum's
+  /// playback time, so the listener's data callbacks must be thread-safe; its stream lifecycle callbacks fire on the
+  /// main loop. The listener and config must outlive the hub. The role is only registered once this is called, since
+  /// the library refuses to start with the default config (zero buffer_capacity).
+  void set_visualizer(sendspin::VisualizerRoleListener *listener, const sendspin::VisualizerRoleConfig *config) {
+    this->visualizer_listener_ = listener;
+    this->visualizer_config_ = config;
   }
 #endif
 
@@ -393,6 +424,15 @@ class SendspinHub final : public Component,
   CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  void on_color(const sendspin::ServerColorStateObject &color) override;
+
+  void on_color_clear() override;
+
+  // Callback fan-out to child components; they filter as needed
+  CallbackManager<void(const sendspin::ServerColorStateObject &)> color_callbacks_{};
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   sendspin::ControllerRole *controller_role_{nullptr};
 
@@ -436,6 +476,11 @@ class SendspinHub final : public Component,
   // Lazy: each is fed by an optional YAML automation.
   LazyCallbackManager<void()> source_streaming_started_callbacks_{};
   LazyCallbackManager<void()> source_streaming_stopped_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  sendspin::VisualizerRoleListener *visualizer_listener_{nullptr};
+  const sendspin::VisualizerRoleConfig *visualizer_config_{nullptr};
 #endif
 
   // --- Core member variables ---
