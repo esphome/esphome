@@ -531,7 +531,7 @@ class Scheduler {
   // lwIP callbacks (web_server, captive portal, web OTA) add and cancel items from the async_context on RP2
   [[no_unique_address]] LwIPMutex lock_;
 #else
-  // Empty on single-threaded platforms (ESP8266, RP2), so it takes no space there
+  // Empty on single-threaded platforms (ESP8266, RP2 without networking), so it takes no space there
   [[no_unique_address]] Mutex lock_;
 #endif
   std::vector<SchedulerItem *> items_;
