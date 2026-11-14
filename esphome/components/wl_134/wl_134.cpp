@@ -37,7 +37,7 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
   }
 
   if (packet[RFID134_PACKET_END_CODE] != 0x03) {
-    return RFID134_ERROR_PACKET_END_CODE_MISSMATCH;
+    return RFID134_ERROR_PACKET_END_CODE_MISMATCH;
   }
 
   // calculate checksum
