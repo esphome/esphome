@@ -82,4 +82,38 @@ void write_chunk_header(char *buf, size_t chunk_len) {
   buf[9] = '\n';
 }
 
+size_t copy_chunk(uint8_t *dst, const char *prefix, size_t prefix_len, const char *message, size_t message_len) {
+  uint8_t *const start = dst;
+  std::memcpy(dst, prefix, prefix_len);
+  dst += prefix_len;
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) {
+        auto &out = *static_cast<uint8_t **>(ctx);
+        progmem_memcpy(out, piece, len);
+        out += len;
+      },
+      &dst);
+  return dst - start;
+}
+
+size_t tail_queue_cap(size_t need, size_t cap, size_t max) {
+  if (need > max) {
+    return 0;
+  }
+  if (need <= cap) {
+    return cap;
+  }
+  return need <= max / 2 ? max / 2 : max;
+}
+
+size_t queue_chunk(uint8_t *dst, const uint8_t *src, size_t len, size_t sent, const char *prefix, size_t prefix_len,
+                   const char *message, size_t message_len) {
+  const size_t pending = len - sent;
+  if (dst != src || sent != 0) {
+    std::memmove(dst, src + sent, pending);
+  }
+  return pending + copy_chunk(dst + pending, prefix, prefix_len, message, message_len);
+}
+
 }  // namespace esphome::web_server

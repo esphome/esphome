@@ -262,20 +262,6 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
   return this->tail_cap_ != 0;
 }
 
-// Copy a chunk's prefix and its framed message pieces to dst
-static void copy_chunk(uint8_t *dst, const char *prefix, size_t prefix_len, const char *message, size_t message_len) {
-  std::memcpy(dst, prefix, prefix_len);
-  dst += prefix_len;
-  for_each_chunk_piece(
-      message, message_len,
-      [](void *ctx, const char *piece, size_t len) {
-        auto &out = *static_cast<uint8_t **>(ctx);
-        progmem_memcpy(out, piece, len);
-        out += len;
-      },
-      &dst);
-}
-
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   // A log event of nothing but line breaks is the largest chunk; reserve_tail_() must never
@@ -300,27 +286,26 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
 
 bool AsyncEventSourceResponse::append_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                              size_t message_len, size_t total) {
-  const size_t pending = this->tail_len_ - this->tail_sent_;
-  const size_t need = pending + total;
-  if (need > TAIL_QUEUE_SIZE) {
+  const size_t cap = tail_queue_cap(this->tail_len_ - this->tail_sent_ + total, this->tail_cap_, TAIL_QUEUE_SIZE);
+  if (cap == 0) {
     return false;
   }
-  if (need > this->tail_cap_) {
-    // Half the queue first, then all of it; kept, so a burst does not allocate per event
-    const size_t cap = need <= TAIL_QUEUE_SIZE / 2 ? TAIL_QUEUE_SIZE / 2 : TAIL_QUEUE_SIZE;
-    auto grown = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(cap);
+  uint8_t *src = this->tail_.get();
+  RAMUniquePtr<uint8_t[]> grown;
+  if (cap != this->tail_cap_) {
+    // Kept once grown, so a burst does not allocate per event
+    grown = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(cap);
     if (!grown) {
       return false;
     }
-    std::memcpy(grown.get(), this->tail_.get() + this->tail_sent_, pending);
+  }
+  uint8_t *dst = grown ? grown.get() : src;
+  this->tail_len_ = queue_chunk(dst, src, this->tail_len_, this->tail_sent_, prefix, prefix_len, message, message_len);
+  this->tail_sent_ = 0;
+  if (grown) {
     this->tail_ = std::move(grown);
     this->tail_cap_ = cap;
-  } else if (this->tail_sent_ != 0) {
-    std::memmove(this->tail_.get(), this->tail_.get() + this->tail_sent_, pending);
   }
-  copy_chunk(this->tail_.get() + pending, prefix, prefix_len, message, message_len);
-  this->tail_len_ = need;
-  this->tail_sent_ = 0;
   return true;
 }
 
