@@ -87,7 +87,7 @@ bool CST3240Touchscreen::write_reg16_(uint16_t reg, uint8_t byte) {
 }
 
 bool CST3240Touchscreen::clear_reg16_(uint16_t reg) {
-  uint8_t data[(MAX_TOUCH_POINTS * 7) + 2] = {0};
+  uint8_t data[4 + (MAX_TOUCH_POINTS * 5)] = {0};
   data[0] = uint8_t(reg >> 8);
   data[1] = uint8_t(reg & 0xFF);
   return (this->write(data, sizeof(data)) == i2c::ERROR_OK);
@@ -114,42 +114,55 @@ void CST3240Touchscreen::update_touches() {
     return;
   }
 
-  uint8_t data[(MAX_TOUCH_POINTS * 7)] = {0};
+  uint8_t data[2 + (MAX_TOUCH_POINTS * 5)] = {0};
 
   if (!this->read_reg16_(0xD000, data, sizeof(data))) {
     this->skip_update_ = true;
     ESP_LOGW(TAG, "I2C read error");
     return;
   }
-  // this write could be skipped, but keep it (standby related?)
-  this->write_reg16_(0xD000, 0xAB);
 
-  for (uint8_t i = 0; i < MAX_TOUCH_POINTS; i++) {
-    uint8_t offset = i * 7;
+  // 2 extra bytes between first and extra fingers records
+  // hw key report & finger count + constant 0xAB
+  uint8_t fingers = data[5] & 0x0F;
+  if (data[6] != 0xAB) {
+    this->skip_update_ = true;
+    this->clear_reg16_(0xD000);
+    return;
+  }
+
+  if (fingers > MAX_TOUCH_POINTS)
+    fingers = MAX_TOUCH_POINTS;
+
+  uint8_t offset = 0;
+  for (uint8_t i = 0; i < fingers; i++) {
     touchscreen::TouchPoint tp;
-    tp.id = data[offset + 5] & 0x0F;
-    if (tp.id > MAX_TOUCH_POINTS || tp.id == 0)
+    tp.id = ((data[offset]) >> 4) + 1;
+    if (tp.id > fingers)
       break;
 
-    tp.x_raw = (data[offset + 1] << 4) | ((data[offset + 3] >> 4) & 0x0F);
+    tp.x_raw = (data[offset + 1] << 4) | (data[offset + 3] >> 4);
     tp.y_raw = (data[offset + 2] << 4) | (data[offset + 3] & 0x0F);
     tp.z_raw = (data[offset + 4]);
 
     // bit 0x04 EVT_PRESS (else EVT_RELEASE)
-    if (data[offset] & 0x04) {
+    if (data[offset] & 0x06) {
       // will set is_touched_
       this->add_raw_touch_position_(tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
       ESP_LOGVV(TAG, "%d: event at %d/%d z=%d", tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
     } else {
-      this->is_touched_ = false;
-      ESP_LOGD(TAG, "%d: click at %d/%d z=%d", tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
-      // Clear CST3240 points buffer to avoid loops in Polling mode (without INT)
-      if (this->polling_) {
-        this->clear_reg16_(0xD000);
-        break;
-      }
+      ESP_LOGV(TAG, "%d: click at %d/%d z=%d", tp.id, tp.x_raw, tp.y_raw, tp.z_raw);
     }
+
+    if (i == 0)
+      offset += 2;
+    offset += 5;
   }
+  // once all read, clear data or ACK
+  if (this->polling_)
+    this->clear_reg16_(0xD000);
+  else
+    this->write_reg16_(0xD000, 0xAB);
 
 }  // update_touches
 
