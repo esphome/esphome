@@ -158,8 +158,8 @@ class AsyncEventSource {
   void push_pending_(AsyncEventSourceResponse *rsp);
 #ifndef USE_ESP32
   // web_server_base::StreamAcceptor callbacks, network context
-  static web_server_base::AsyncStreamResponse *create_session_(void *ws);
-  static void publish_session_(void *source, web_server_base::AsyncStreamResponse *stream);
+  static web_server_base::AsyncStreamResponse *create_session(void *ws);
+  static void publish_session(void *source, web_server_base::AsyncStreamResponse *stream);
 #endif
 
   // Main-loop only; intrusive list through AsyncEventSourceResponse::next_

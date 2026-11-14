@@ -42,7 +42,7 @@ void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer 
   // The session is created only once the head is queued and the connection is ours
   web_server_base::AsyncStreamResponse::accept(
       request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK,
-      {&AsyncEventSource::create_session_, &AsyncEventSource::publish_session_, this, ws});
+      {&AsyncEventSource::create_session, &AsyncEventSource::publish_session, this, ws});
 #endif
 }
 
@@ -56,12 +56,12 @@ void AsyncEventSource::push_pending_(AsyncEventSourceResponse *rsp) {
 }
 
 #ifndef USE_ESP32
-web_server_base::AsyncStreamResponse *AsyncEventSource::create_session_(void *ws) {
+web_server_base::AsyncStreamResponse *AsyncEventSource::create_session(void *ws) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   return new AsyncEventSourceResponse(static_cast<WebServer *>(ws));
 }
 
-void AsyncEventSource::publish_session_(void *source, web_server_base::AsyncStreamResponse *stream) {
+void AsyncEventSource::publish_session(void *source, web_server_base::AsyncStreamResponse *stream) {
   static_cast<AsyncEventSource *>(source)->push_pending_(static_cast<AsyncEventSourceResponse *>(stream));
 }
 #endif
