@@ -8,8 +8,9 @@ of the same file never share a build directory: `picow.yaml` (Pico W with an act
 git-ignored.
 
 The runners read `TREE` and `PY` from the environment, plus `PICO_SN` (the Pico's USB serial number), `PEER_MAC` (the
-`ble_notify/server.yaml` GATT server) and `CLIENT_PORT`/`CLIENT_TREE` where noted. Each ends with PASS or FAIL and
-exits 1 on FAIL.
+`ble_notify/server.yaml` GATT server) and `CLIENT_PORT`/`CLIENT_TREE` where noted. `staflow.sh`, `bleseq.sh`,
+`apflow.sh` and `churn.sh` end with PASS or FAIL and exit 1 on FAIL; `sseabc.sh` and `sserun.sh` are diagnostic and
+only print counts.
 
 - `staflow.sh NAME CONFIG BLE`: USB flash, API soak with page loads, 30 s SSE, OTA, restart, short soak, and with
   BLE=1 a 180 s GATT hold.

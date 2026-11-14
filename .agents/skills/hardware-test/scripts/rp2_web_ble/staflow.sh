@@ -1,9 +1,9 @@
 #!/bin/zsh
 # staflow.sh NAME CONFIG BLE(0/1): USB flash CONFIG (picow.yaml, pico2w.yaml) as NAME, then over Wi-Fi: API soak with
 # page loads, SSE alone, OTA, restart, a short soak and (BLE=1) a GATT hold through the proxy. Serial captured
-# throughout. PASS needs both soaks to pass, every page load to return 200, state events on the SSE stream, the device
-# back after the OTA and the restart, the GATT hold (BLE=1), no crash or assert line and a capture that lasted the
-# run; exits 1 otherwise.
+# throughout. PASS needs both soaks to pass, every page load to return 200, state events on the SSE stream, a reboot
+# (lower Uptime over REST) after the OTA and after the restart, the GATT hold (BLE=1), no crash or assert line and a
+# capture that lasted the run; exits 1 otherwise.
 # env: TREE, PY, PICO_SN (the Pico's USB serial number), PEER_MAC (the ble_notify server, for BLE=1); apikey.txt here
 D=${0:A:h}; N=$1; C=$2; BLE=${3:-0}; S=$D/..
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; SN=${PICO_SN:?set PICO_SN}
@@ -26,11 +26,15 @@ echo "web: $(sort $D/$N-web.txt | uniq -c | tr '\n' ' ')"
 timeout 30 curl -s -N http://$H/events > $D/$N-sse.txt
 SSE=$(grep -c 'event: state' $D/$N-sse.txt); echo "sse 30s alone: states $SSE pings $(grep -c 'event: ping' $D/$N-sse.txt)"
 [ "$SSE" -gt 0 ] || fail "no state events on the SSE stream"
-up() { for _ in $(seq 1 60); do curl -s -o /dev/null -m 3 http://$H/ && return 0; sleep 2; done; return 1; }
+# the Uptime sensor over REST (web_server entity URLs use the entity name); empty when there is no answer
+upt() { curl -s -m 5 http://$H/sensor/Uptime | $PY -c 'import json, sys; print(int(json.load(sys.stdin)["value"]))' 2>/dev/null; }
+# wait up to 120 s for the device to answer with an uptime lower than U0 (it rebooted)
+rebooted() { local u; for _ in $(seq 1 60); do u=$(upt); [ -n "$1" ] && [ -n "$u" ] && [ "$u" -lt "$1" ] && return 0; sleep 2; done; return 1; }
+U0=$(upt); [ -n "$U0" ] || fail "no Uptime reading over REST"
 $S/pio_build.sh upload $N $D/$C $H || fail "the OTA"
-sleep 5; up || fail "no answer within 120 s after the OTA"
-$PY -I $S/api_button.py $H "$API_KEY" press Restart > /dev/null || fail "pressing Restart"
-sleep 5; up || fail "no answer within 120 s after the restart"
+rebooted $U0 || fail "no reboot seen within 120 s after the OTA"
+U0=$(upt); $PY -I $S/api_button.py $H "$API_KEY" press Restart > /dev/null || fail "pressing Restart"
+rebooted $U0 || fail "no reboot seen within 120 s after the restart"
 $PY -I $D/soak.py $H 30 $D/$N-after.log || fail "the soak after OTA and restart"
 if [ $BLE = 1 ]; then
   echo "--- ble"; timeout 400 $PY -I $D/gatthold.py $H ${PEER_MAC:?set PEER_MAC} 180 || fail "the GATT hold"

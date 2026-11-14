@@ -157,6 +157,20 @@ def heap() -> object:
     return None
 
 
+def heap_ok(h0: object, h1: object) -> bool:
+    """Both heap readings present and the heap after a phase at most --heap-margin bytes lower than before.
+
+    Sockets in TIME_WAIT hold heap for a while after a flood, so a small drop right after a phase is normal;
+    leak.py measures a leak properly.
+    """
+    margin = getattr(A, "heap_margin", 8192)
+    return (
+        isinstance(h0, (int, float))
+        and isinstance(h1, (int, float))
+        and h0 - h1 <= margin
+    )
+
+
 def uptime() -> object:
     r = raw(build("GET", "/sensor/Uptime", GOOD))
     try:
@@ -444,7 +458,7 @@ def heavy() -> None:
             "before": h0,
             "after": h1,
             "uptime": [u0, u1],
-            "pass": h1 is not None and u1 is not None and u0 is not None and u1 > u0,
+            "pass": heap_ok(h0, h1) and u1 is not None and u0 is not None and u1 > u0,
         }
     )
 
@@ -467,7 +481,13 @@ def heavy() -> None:
     dt = time.monotonic() - t
     time.sleep(3)
     h1, u1 = heap(), uptime()
-    bf_ok = set(codes) <= {401} and u1 is not None and u0 is not None and u1 > u0
+    bf_ok = (
+        set(codes) <= {401}
+        and heap_ok(h0, h1)
+        and u1 is not None
+        and u0 is not None
+        and u1 > u0
+    )
     p(
         f"{'PASS' if bf_ok else 'FAIL'} brute {A.brute} in {dt:.1f}s ({A.brute / dt:.1f}/s): {codes}; heap {h0}->{h1}"
         f" uptime {u0}->{u1}"
@@ -548,6 +568,7 @@ def heavy() -> None:
     c_ok = (
         set(stats["bad"]) <= {"401"}
         and stats["sse_states"] > A.conc * 2
+        and heap_ok(h0, h1)
         and u1 is not None
         and u0 is not None
         and u1 > u0
@@ -659,6 +680,12 @@ def main() -> None:
     ap.add_argument("--conc-threads", type=int, default=4)
     ap.add_argument("--ota", default="")
     ap.add_argument("--skip-heavy", action="store_true")
+    ap.add_argument(
+        "--heap-margin",
+        type=int,
+        default=8192,
+        help="largest heap drop a heavy phase may leave",
+    )
     A = ap.parse_args()
     configure(A.host, A.user, A.password, A.out)
     only = set(filter(None, A.only.split(",")))

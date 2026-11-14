@@ -41,10 +41,13 @@ case $M in
   *) $PY -I "$S/web_auth/authfuzz.py" "$HOST" "$U" "$W" "$D/$N" --only cases ;;
 esac
 AF=$?
-sleep 5; kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; trap - EXIT
+sleep 5
+# a capture that died early watched nothing, so its empty log must not count as a clean run
+CAPOK=1; kill -0 $CAP 2>/dev/null || { CAPOK=0; echo "the capture ended before the run did (see $D/$N-cap.err)"; }
+kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; trap - EXIT
 CRASH=$(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")
 echo "SERIAL crash lines $CRASH," \
   "boots $(grep -a -c -E 'Log initialized|Reset reason' "$L"), port losses $(grep -a -c 'port lost' "$L"), lines $(wc -l < "$L")" | tee "$D/$N-serialsum.txt"
 grep -a "Heap free" "$L" | sed -n '1p;$p' | tee -a "$D/$N-serialsum.txt"
-[ "$AF" = 0 ] && [ "$CRASH" = 0 ] || { echo "FAIL (authfuzz exit $AF, crash lines $CRASH)"; exit 1; }
+[ "$AF" = 0 ] && [ "$CRASH" = 0 ] && [ $CAPOK = 1 ] || { echo "FAIL (authfuzz exit $AF, crash lines $CRASH, capture ok $CAPOK)"; exit 1; }
 echo PASS

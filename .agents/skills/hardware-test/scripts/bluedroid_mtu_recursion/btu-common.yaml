@@ -53,15 +53,23 @@ ble_client:
           }
           vTaskSuspend(btu);
           esp_ble_gap_disconnect(id(srv)->get_remote_bda());
-          for (int i = 0; i < 4; i++)
-            esp_ble_gattc_read_char(gattc_if, conn_id, handle, ESP_GATT_AUTH_REQ_NONE);
-          if (${exec_write}) {
-            esp_ble_gattc_execute_write(gattc_if, conn_id, true);
-          } else {
-            esp_ble_gattc_send_mtu_req(gattc_if, conn_id);
+          esp_err_t err = ESP_OK;
+          for (int i = 0; i < 4; i++) {
+            esp_err_t e = esp_ble_gattc_read_char(gattc_if, conn_id, handle, ESP_GATT_AUTH_REQ_NONE);
+            if (e != ESP_OK)
+              err = e;
           }
+          esp_err_t e = ${exec_write} ? esp_ble_gattc_execute_write(gattc_if, conn_id, true)
+                                      : esp_ble_gattc_send_mtu_req(gattc_if, conn_id);
+          if (e != ESP_OK)
+            err = e;
           delay(30);
           vTaskResume(btu);
-          ESP_LOGI("btu", "ROUND %d fired", n);
+          // a round whose calls were rejected never reached the BTU queue, so it tests nothing
+          if (err != ESP_OK) {
+            ESP_LOGW("btu", "ROUND %d not queued: %s", n, esp_err_to_name(err));
+          } else {
+            ESP_LOGI("btu", "ROUND %d fired", n);
+          }
     on_disconnect:
       - logger.log: {format: "CLI disconnected", level: INFO}

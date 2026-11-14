@@ -11,6 +11,9 @@ $PY "$(dirname "$0")/gen.py" "$N" "$K" || exit 1
 pkill -f "[s]erial_capture.py $P "
 "$S/pio_build.sh" upload "$N" "$D/$N.yaml" "$P" || exit 1
 $PY "$S/serial_capture.py" "$P" "$SECS" "$D/$N-log.txt" --reset || { echo "FAIL: $N capture failed"; exit 1; }
+# the box must have answered: an empty control row from a dead hub or a miswired UART is no control
+REQ=$(grep -a -o "ALIVE requests [0-9]*" "$D/$N-log.txt" | tail -1 | grep -o "[0-9]*$")
+[ "${REQ:-0}" -gt 0 ] || { echo "FAIL: the box model answered no requests"; exit 1; }
 # the dev build is the control and has no expected states; a PR build must match expected.txt
-[ "$K" = pr ] || { echo "$N done (no verdict for dev)"; exit 0; }
+[ "$K" = pr ] || { echo "$N done ($REQ requests, no state verdict for dev)"; exit 0; }
 $PY "$(dirname "$0")/check.py" "$D/$N-log.txt" "$D/expected.txt"

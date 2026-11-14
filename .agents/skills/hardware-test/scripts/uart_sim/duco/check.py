@@ -1,5 +1,6 @@
 """check.py LOG [EXPECTED]: match the last 'STATE id = ...' line per text sensor in LOG against EXPECTED (expected.txt
-from gen.py ... pr: id, tab, value; None means the sensor must never publish). Exits 1 on any mismatch."""
+from gen.py ... pr: id, tab, value; None means the sensor must never publish). Also fails on a request the box model
+flagged (bad CRC, or no model answer). Exits 1 on any mismatch."""
 
 import pathlib
 import re
@@ -17,6 +18,12 @@ for line in exp.splitlines():
     ok = got is None if want == "None" else got == want
     bad += not ok
     print(f"{'ok  ' if ok else 'FAIL'} {sid}: got {got!r} want {want!r}")
+flagged = re.findall(
+    r"RX request (?:with a bad CRC|fn \S+ sub \S+ has no model answer)", log
+)
+for f in flagged[:5]:
+    print(f"FAIL box model flagged: {f}")
+bad += len(flagged)
 if bad:
     sys.exit(f"FAIL: {bad} mismatches")
 print("PASS")

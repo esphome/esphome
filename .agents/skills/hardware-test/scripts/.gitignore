@@ -31,3 +31,4 @@ gatt_uuid/*.txt
 web_auth/configs/*.log
 web_auth/configs/*.txt
 web_auth/configs/*.json
+improv/*.log

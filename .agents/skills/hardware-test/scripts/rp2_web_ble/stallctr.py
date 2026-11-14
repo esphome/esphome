@@ -34,6 +34,12 @@ def main(pcap: str, dev: str, logf: str) -> None:
                 best = (lt, s)
         return best
 
+    events = sum(1 for c in conns.values() if c["ev"] and c["last"] is not None)
+    print(f"{events} /events connections with data, {len(logs)} atcp counter lines")
+    if not events or not logs:
+        sys.exit(
+            "FAIL: nothing to line up (no /events connection in the pcap or no [atcp line in the API log)"
+        )
     for p, c in conns.items():
         if not c["ev"] or c["last"] is None:
             continue

@@ -83,3 +83,5 @@ delegates on one register, FIFO and IRQ model; the IRQ pad is switched to input/
 model. `trfpr.yaml` runs the tag scenarios (none, present, slow, flaky, swap, collision, CRC, error flag, bad MSB,
 TX only, stuck IRQ) and prints per-phase counters (CS, field timing, TX payload). The same FakeBus approach works for
 any SPI chip whose reply depends on the address byte inside one CS window, which the ESP32 SPI slave cannot fake.
+The header targets the SPI API of the #22188 branch (`SPIBus` and `SPIComponent::spi_bus_`); dev has since dropped
+`SPIBus`, so on a newer tree the bus hook has to move to the new delegate creation before it builds.
