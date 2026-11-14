@@ -1,18 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/log.h"
 
 namespace esphome::reboot_hook_recorder {
-
-static const char *const TAG = "reboot_hook_recorder";
 
 /// Logs every shutdown lifecycle hook it receives, so a test can check their order.
 class RebootHookRecorder : public Component {
  public:
   void set_name(const char *name) { this->name_ = name; }
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void on_safe_shutdown() override { this->record_("on_safe_shutdown"); }
   void on_shutdown() override { this->record_("on_shutdown"); }
@@ -29,7 +24,7 @@ class RebootHookRecorder : public Component {
   void on_powerdown() override { this->record_("on_powerdown"); }
 
  protected:
-  void record_(const char *hook) { ESP_LOGI(TAG, "HOOK %s %s", this->name_, hook); }
+  void record_(const char *hook);
 
   const char *name_{""};
   uint8_t teardown_calls_{0};
