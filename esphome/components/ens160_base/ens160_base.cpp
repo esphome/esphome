@@ -64,10 +64,8 @@ void ENS160Component::setup() {
   uint16_t part_id;
   if (!this->setup_check(this->read_bytes(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2)))
     return;
-  if (part_id != ENS160_PART_ID) {
-    this->mark_failed(LOG_STR("Sensor reported an invalid ID. Is this a ENS160?"));
+  if (!this->setup_check(part_id == ENS160_PART_ID, LOG_STR("Sensor reported an invalid ID. Is this a ENS160?")))
     return;
-  }
 
   // set mode to reset
   if (!this->setup_check(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET)))
@@ -80,10 +78,8 @@ void ENS160Component::setup() {
     return;
   this->validity_flag_ = static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
 
-  if (this->validity_flag_ == INVALID_OUTPUT) {
-    this->mark_failed(LOG_STR("Invalid Device Status - No valid output"));
+  if (!this->setup_check(this->validity_flag_ != INVALID_OUTPUT, LOG_STR("Invalid Device Status - No valid output")))
     return;
-  }
 
   // set mode to idle
   if (!this->setup_check(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE)))
@@ -110,20 +106,15 @@ void ENS160Component::setup() {
   this->firmware_ver_build_ = version_data[2];
 
   // set mode to standard
-  if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)))
     return;
-  }
 
   // read opmode and check standard mode is achieved before finishing Setup
   uint8_t op_mode;
-  if (!this->read_byte(ENS160_REG_OPMODE, &op_mode)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(ENS160_REG_OPMODE, &op_mode)))
     return;
-  }
 
-  if (!this->setup_check(op_mode == ENS160_OPMODE_STD, LOG_STR("Device failed to achieve Standard Operating Mode")))
-    return;
+  this->setup_check(op_mode == ENS160_OPMODE_STD, LOG_STR("Device failed to achieve Standard Operating Mode"));
 }
 
 void ENS160Component::update() {
@@ -217,22 +208,16 @@ void ENS160Component::send_env_data_() {
   if (this->temperature_sensor_ == nullptr && this->humidity_sensor_ == nullptr)
     return;
 
-  float temperature = NAN;
-  if (this->temperature_sensor_ != nullptr)
-    temperature = this->temperature_sensor_->state;
-
-  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  const float temperature = sensor::source_value(this->temperature_sensor_, -40.0f, 85.0f);
+  if (std::isnan(temperature)) {
     ESP_LOGW(TAG, "Invalid external temperature - compensation values not updated");
     return;
   } else {
     ESP_LOGV(TAG, "External temperature compensation: %.1f°C", temperature);
   }
 
-  float humidity = NAN;
-  if (this->humidity_sensor_ != nullptr)
-    humidity = this->humidity_sensor_->state;
-
-  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  const float humidity = sensor::source_value(this->humidity_sensor_, 0.0f, 100.0f);
+  if (std::isnan(humidity)) {
     ESP_LOGW(TAG, "Invalid external humidity - compensation values not updated");
     return;
   } else {

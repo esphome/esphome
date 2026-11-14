@@ -1,0 +1,11 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+# No wifi, ethernet or openthread
+uart:
+  rx_pin: GPIO16
+  baud_rate: 9600

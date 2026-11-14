@@ -107,10 +107,8 @@ void SGP4xComponent::setup() {
 
 void SGP4xComponent::self_test_() {
   ESP_LOGD(TAG, "Starting self-test");
-  if (!this->write_command(SGP4X_CMD_SELF_TEST)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_command(SGP4X_CMD_SELF_TEST)))
     return;
-  }
 
   this->set_timeout(SGP4X_SELF_TEST_TIME, [this]() {
     uint16_t reply = 0;
@@ -161,24 +159,17 @@ void SGP4xComponent::update_gas_indices_() {
 }
 
 void SGP4xComponent::measure_raw_() {
-  float humidity = NAN;
-
   if (!this->self_test_complete_) {
     ESP_LOGW(TAG, "Self-test incomplete");
     return;
   }
-  if (this->humidity_sensor_ != nullptr) {
-    humidity = this->humidity_sensor_->state;
-  }
-  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  float humidity = sensor::source_value(this->humidity_sensor_, 0.0f, 100.0f);
+  if (std::isnan(humidity)) {
     humidity = 50;
   }
 
-  float temperature = NAN;
-  if (this->temperature_sensor_ != nullptr) {
-    temperature = float(this->temperature_sensor_->state);
-  }
-  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  float temperature = sensor::source_value(this->temperature_sensor_, -40.0f, 85.0f);
+  if (std::isnan(temperature)) {
     temperature = 25;
   }
 

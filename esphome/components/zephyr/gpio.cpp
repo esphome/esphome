@@ -10,18 +10,14 @@ namespace zephyr {
 
 ESPHOME_LOG_TAG(TAG, "zephyr");
 
-static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
+// Without a GPIO_OUTPUT_INIT_* bit, Zephyr leaves the output level as it is.
+static gpio_flags_t flags_to_mode(gpio::Flags flags) {
   gpio_flags_t ret = 0;
   if (flags & gpio::FLAG_INPUT) {
     ret |= GPIO_INPUT;
   }
   if (flags & gpio::FLAG_OUTPUT) {
     ret |= GPIO_OUTPUT;
-    if (value != inverted) {
-      ret |= GPIO_OUTPUT_INIT_HIGH;
-    } else {
-      ret |= GPIO_OUTPUT_INIT_LOW;
-    }
   }
   if (flags & gpio::FLAG_PULLUP) {
     ret |= GPIO_PULL_UP;
@@ -64,21 +60,7 @@ static void gpio_interrupt_handler(const device * /*dev*/, gpio_callback *cb, ui
   }
 }
 
-struct ISRPinArg {
-  const device *gpio;
-  uint8_t pin;
-  uint8_t gpio_size;
-  bool inverted;
-};
-
-ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->gpio = this->gpio_;
-  arg->pin = this->pin_;
-  arg->gpio_size = this->gpio_size_;
-  arg->inverted = this->inverted_;
-  return ISRInternalGPIOPin((void *) arg);
-}
+ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ZephyrGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   if (!device_is_ready(this->gpio_)) {
@@ -123,8 +105,11 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
   if (nullptr == this->gpio_) {
     return;
   }
-  auto ret = gpio_pin_configure(this->gpio_, this->pin_ % this->gpio_size_,
-                                flags_to_mode(flags, this->inverted_, this->value_));
+  gpio_flags_t mode = flags_to_mode(flags);
+  if (flags & gpio::FLAG_OUTPUT) {
+    mode |= this->value_ != this->inverted_ ? GPIO_OUTPUT_INIT_HIGH : GPIO_OUTPUT_INIT_LOW;
+  }
+  auto ret = gpio_pin_configure(this->gpio_, this->pin_ % this->gpio_size_, mode);
   if (ret != 0) {
     ESP_LOGE(TAG, "gpio %u cannot be configured %d.", this->pin_, ret);
   }
@@ -167,19 +152,24 @@ void ZephyrGPIOPin::detach_interrupt() const {
 }  // namespace zephyr
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
-  auto *arg = (zephyr::ISRPinArg *) this->arg_;
-  if (arg == nullptr || arg->gpio == nullptr) {
+  auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
+  if (pin == nullptr || pin->gpio_ == nullptr)
     return false;
-  }
-  return bool(gpio_pin_get(arg->gpio, arg->pin % arg->gpio_size) != arg->inverted);
+  return bool(gpio_pin_get(pin->gpio_, pin->pin_ % pin->gpio_size_) != pin->inverted_);
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
-  auto *arg = (zephyr::ISRPinArg *) this->arg_;
-  if (arg == nullptr || arg->gpio == nullptr) {
+  auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
+  if (pin == nullptr || pin->gpio_ == nullptr)
     return;
-  }
-  gpio_pin_set(arg->gpio, arg->pin % arg->gpio_size, value != arg->inverted ? 1 : 0);
+  gpio_pin_set(pin->gpio_, pin->pin_ % pin->gpio_size_, value != pin->inverted_ ? 1 : 0);
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
+  if (pin == nullptr || pin->gpio_ == nullptr)
+    return;
+  gpio_pin_configure(pin->gpio_, pin->pin_ % pin->gpio_size_, zephyr::flags_to_mode(flags));
 }
 
 }  // namespace esphome

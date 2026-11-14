@@ -67,11 +67,7 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
 #ifdef USE_BINARY_SENSOR
-  /** Initialize the sensors vector with the specified capacity.
-   *
-   * @param capacity The number of sensors to allocate space for.
-   */
-  void init_sensors(size_t capacity) { this->sensors_.init(capacity); }
+  void set_sensor_storage(std::span<AlarmSensor> storage) { this->sensors_.init(storage); }
 
   /** Add a binary_sensor to the alarm_panel.
    *
@@ -133,7 +129,7 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
 #ifdef USE_BINARY_SENSOR
   // List of binary sensors with their alarm-specific info
-  FixedVector<AlarmSensor> sensors_;
+  StaticFixedVector<AlarmSensor> sensors_;
 #endif
   TemplateAlarmControlPanelRestoreMode restore_mode_{};
 

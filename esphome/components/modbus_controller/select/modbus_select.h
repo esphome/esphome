@@ -28,7 +28,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
                                                        modbus::RegisterValues &);
 
   void set_parent(ModbusController *const parent) { this->set_controller_(parent); }
-  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
+  void set_use_write_multiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_template(transform_func_t f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
