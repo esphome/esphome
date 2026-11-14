@@ -1,5 +1,6 @@
 #include "tuya.h"
 #include <cstring>
+#include "esphome/core/application.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -17,6 +18,10 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
+#if defined(USE_TUYA_MCU_WATCHDOG_RESET) && defined(USE_LIBRETINY)
+#include "esphome/components/uart/uart_component_libretiny.h"
+#endif
+
 namespace esphome::tuya {
 
 ESPHOME_LOG_TAG(TAG, "tuya");
@@ -26,8 +31,11 @@ static constexpr uint32_t WIFI_STATUS_INTERVAL_ID = 1;
 static constexpr uint32_t DATAPOINT_DUMP_TIMEOUT_ID = 2;
 static constexpr uint32_t FORCE_TIME_SYNC_INTERVAL_ID = 3;
 static const int COMMAND_DELAY = 10;
-static const int RECEIVE_TIMEOUT = 300;
-static const int MAX_RETRIES = 5;
+// Timing of Tuya's module firmware
+static constexpr uint32_t INIT_HEARTBEAT_INTERVAL = 3000;
+static constexpr uint32_t HEARTBEAT_INTERVAL = 15000;
+static constexpr uint32_t RESPONSE_TIMEOUT = 1000;
+static constexpr uint32_t RX_FRAME_TIMEOUT = 400;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
 static constexpr uint32_t FORCE_TIME_SYNC_CHECK_INTERVAL = 1000;
@@ -41,7 +49,13 @@ static bool network_is_connected() {
 }
 
 void Tuya::setup() {
-  this->set_interval(HEARTBEAT_INTERVAL_ID, 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  if (this->heartbeat_) {
+    this->set_heartbeat_interval_(INIT_HEARTBEAT_INTERVAL);
+  } else {
+    // without a heartbeat the initialization starts at the product query
+    this->init_state_ = TuyaInitState::INIT_PRODUCT;
+    this->set_interval(HEARTBEAT_INTERVAL_ID, INIT_HEARTBEAT_INTERVAL, [this] { this->retry_init_(); });
+  }
 #ifdef USE_TIME
   if (this->force_time_sync_) {
     this->register_local_time_sync_callback_();
@@ -55,12 +69,72 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  if (this->tx_break_active_) {
+    if (millis() - this->tx_break_start_ < this->watchdog_reset_time_)
+      return;
+    this->end_tx_break_();
+  }
+#endif
   this->read_available([this](uint8_t b) { this->handle_char_(b); });
   process_command_queue_();
 }
 
+void Tuya::set_heartbeat_interval_(uint32_t interval) {
+  this->set_interval(HEARTBEAT_INTERVAL_ID, interval,
+                     [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+}
+
+void Tuya::retry_init_() {
+  // a query of the current step may still wait for its reply
+  if (!this->command_queue_.empty())
+    return;
+  switch (this->init_state_) {
+    case TuyaInitState::INIT_PRODUCT:
+      this->send_empty_command_(TuyaCommandType::PRODUCT_QUERY);
+      break;
+    case TuyaInitState::INIT_WIFI:
+      // sent again by the status interval
+      this->wifi_status_ = -1;
+      break;
+    case TuyaInitState::INIT_DATAPOINT:
+      this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+      break;
+    default:
+      break;
+  }
+}
+
+void Tuya::start_network_status_() {
+  if (this->status_pin_ != nullptr) {
+    this->init_state_ = TuyaInitState::INIT_DATAPOINT;
+    this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+    this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->set_status_pin_(); });
+  } else {
+    this->init_state_ = TuyaInitState::INIT_WIFI;
+    this->wifi_status_ = -1;
+    this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->send_wifi_status_(); });
+  }
+}
+
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
+  if (!this->heartbeat_ || this->datapoint_ack_) {
+    ESP_LOGCONFIG(TAG, "  Heartbeat: %s, Datapoint Ack: %s", YESNO(this->heartbeat_), YESNO(this->datapoint_ack_));
+  }
+#ifdef USE_TUYA_MCU_WATCHDOG
+  if (this->watchdog_missed_heartbeats_ != 0) {
+    ESP_LOGCONFIG(TAG, "  MCU Watchdog: %s after %u unanswered heartbeats",
+                  this->watchdog_reboot_() ? LOG_STR_LITERAL("reboot") : LOG_STR_LITERAL("reset"),
+                  this->watchdog_missed_heartbeats_);
+  }
+#endif
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  if (this->tx_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Reset Time: %" PRIu32 " ms, MCU Resets: %" PRIu32, this->watchdog_reset_time_,
+                  this->mcu_resets_);
+  }
+#endif
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
     if (this->init_failed_) {
       ESP_LOGCONFIG(TAG, "  Initialization failed. Current init_state: %u", static_cast<uint8_t>(this->init_state_));
@@ -177,16 +251,41 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
     this->expected_response_.reset();
     this->command_queue_.erase(command_queue_.begin());
-    this->init_retries_ = 0;
+    this->resent_ = false;
+#ifdef USE_TUYA_MCU_WATCHDOG
+    // an MCU that answers only now and then stays counted
+    if (command_type == TuyaCommandType::HEARTBEAT && this->heartbeat_answers_ < this->watchdog_missed_heartbeats_) {
+      this->heartbeat_answers_++;
+      if (this->heartbeat_answers_ == this->watchdog_missed_heartbeats_)
+        this->heartbeat_misses_ = 0;
+    }
+#endif
   }
 
   switch (command_type) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
       this->protocol_version_ = version;
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+      if (this->tx_break_unconfirmed_) {
+        this->tx_break_unconfirmed_ = false;
+        ESP_LOGI(TAG, "MCU answers heartbeats again after the reset");
+      }
+#endif
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
         this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
+        this->init_failure_logged_ = false;
+        if (this->working_mode_received_) {
+          this->working_mode_received_ = false;
+          this->set_heartbeat_interval_(INIT_HEARTBEAT_INTERVAL);
+        }
+      }
+      // a failed initialization starts again with the next heartbeat reply
+      if (this->init_failed_) {
+        this->init_failed_ = false;
+        if (this->init_state_ != TuyaInitState::INIT_DONE)
+          this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
       }
       if (this->init_state_ == TuyaInitState::INIT_HEARTBEAT) {
         this->init_state_ = TuyaInitState::INIT_PRODUCT;
@@ -210,8 +309,14 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       this->product_invalid_ = !valid;
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
-        this->init_state_ = TuyaInitState::INIT_CONF;
-        this->send_empty_command_(TuyaCommandType::CONF_QUERY);
+        if (this->heartbeat_) {
+          this->init_state_ = TuyaInitState::INIT_CONF;
+          this->send_empty_command_(TuyaCommandType::CONF_QUERY);
+        } else {
+          // no heartbeat reply to take the version from, and no working mode query
+          this->protocol_version_ = version;
+          this->start_network_status_();
+        }
       }
       break;
     }
@@ -219,6 +324,11 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       if (len >= 2) {
         this->status_pin_reported_ = buffer[0];
         this->reset_pin_reported_ = buffer[1];
+      }
+      // Tuya's module firmware goes to the normal heartbeat interval with this reply
+      if (!this->working_mode_received_) {
+        this->working_mode_received_ = true;
+        this->set_heartbeat_interval_(HEARTBEAT_INTERVAL);
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
         // If mcu returned status gpio, then we can omit sending wifi state
@@ -238,6 +348,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           }
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
+          // the status is sent again when the initialization starts over
+          this->wifi_status_ = -1;
           ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
           this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->send_wifi_status_(); });
         }
@@ -287,10 +399,16 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
+        this->init_failed_ = false;
+        this->init_failure_logged_ = false;
+        if (!this->heartbeat_)
+          this->cancel_interval(HEARTBEAT_INTERVAL_ID);
         this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_config(); });
         this->initialized_callback_.call();
       }
-      this->handle_datapoints_(buffer, len);
+      // a sync report has its own answer below
+      this->handle_datapoints_(buffer, len,
+                               this->datapoint_ack_ && command_type == TuyaCommandType::DATAPOINT_REPORT_ASYNC);
 
       if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
         this->send_command_(
@@ -347,6 +465,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     }
     case TuyaCommandType::EXTENDED_SERVICES: {
+      if (len == 0) {
+        ESP_LOGD(TAG, "Extended services request without a subcommand is not handled");
+        break;
+      }
       uint8_t subcommand = buffer[0];
       switch ((TuyaExtendedServicesCommandType) subcommand) {
         case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
@@ -375,7 +497,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
   }
 }
 
-void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
+void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len, bool ack) {
   while (len >= 4) {
     TuyaDatapoint datapoint{};
     datapoint.id = buffer[0];
@@ -454,6 +576,11 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     len -= data_size + 4;
     buffer = data + data_size;
 
+    if (ack) {
+      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ASYNC,
+                                      .payload = std::vector<uint8_t>{datapoint.id, 0x00}});
+    }
+
     // drop update if datapoint is in ignore_mcu_datapoint_update list
     bool skip = false;
     for (auto i : this->ignore_mcu_update_on_datapoints_) {
@@ -529,23 +656,40 @@ void Tuya::process_command_queue_() {
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
-  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+  if (now - this->last_rx_char_timestamp_ > RX_FRAME_TIMEOUT) {
     this->rx_message_.clear();
   }
 
-  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
+  if (this->expected_response_.has_value() && delay > RESPONSE_TIMEOUT) {
     this->expected_response_.reset();
-    if (init_state_ != TuyaInitState::INIT_DONE) {
-      if (++this->init_retries_ >= MAX_RETRIES) {
-        this->init_failed_ = true;
-        ESP_LOGE(TAG, "Initialization failed at init_state %u", static_cast<uint8_t>(this->init_state_));
-        this->command_queue_.erase(command_queue_.begin());
-        this->init_retries_ = 0;
-      }
+    if (!this->resent_) {
+      // stays at the front of the queue and is sent once more
+      this->resent_ = true;
     } else {
+      this->resent_ = false;
+#ifdef USE_TUYA_MCU_WATCHDOG
+      const bool heartbeat = this->command_queue_.front().cmd == TuyaCommandType::HEARTBEAT;
+#endif
       this->command_queue_.erase(command_queue_.begin());
+      if (this->init_state_ != TuyaInitState::INIT_DONE) {
+        // without a heartbeat the step is tried again by retry_init_
+        this->init_failed_ = this->heartbeat_;
+        if (!this->init_failure_logged_) {
+          this->init_failure_logged_ = true;
+          ESP_LOGE(TAG, "Initialization failed at init_state %u", static_cast<uint8_t>(this->init_state_));
+        }
+      }
+#ifdef USE_TUYA_MCU_WATCHDOG
+      if (heartbeat)
+        this->note_missed_heartbeat_();
+#endif
     }
   }
+
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  if (this->tx_break_active_)
+    return;
+#endif
 
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
@@ -555,6 +699,63 @@ void Tuya::process_command_queue_() {
       this->command_queue_.erase(command_queue_.begin());
   }
 }
+
+#ifdef USE_TUYA_MCU_WATCHDOG
+bool Tuya::watchdog_reboot_() const {
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  return this->tx_pin_ == nullptr;
+#else
+  return true;
+#endif
+}
+
+void Tuya::note_missed_heartbeat_() {
+  this->heartbeat_answers_ = 0;
+  if (this->watchdog_missed_heartbeats_ == 0 || ++this->heartbeat_misses_ < this->watchdog_missed_heartbeats_)
+    return;
+  this->heartbeat_misses_ = 0;
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  if (!this->watchdog_reboot_()) {
+    ESP_LOGW(TAG, "MCU left %u heartbeats unanswered, holding TX low", this->watchdog_missed_heartbeats_);
+    this->start_tx_break_();
+    return;
+  }
+#endif
+  // Tuya's module firmware does not reset itself before the working mode reply
+  if (!this->working_mode_received_)
+    return;
+  ESP_LOGE(TAG, "MCU left %u heartbeats unanswered, rebooting", this->watchdog_missed_heartbeats_);
+  App.safe_reboot();
+}
+
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+void Tuya::start_tx_break_() {
+  this->flush();
+#ifdef USE_LIBRETINY
+  static_cast<uart::LibreTinyUARTComponent *>(this->parent_)->get_hw_serial()->end();
+#endif
+  this->tx_pin_->setup();
+  this->tx_pin_->digital_write(false);
+  this->tx_break_start_ = millis();
+  this->tx_break_active_ = true;
+  this->tx_break_unconfirmed_ = true;
+  this->mcu_resets_++;
+}
+
+void Tuya::end_tx_break_() {
+  this->tx_break_active_ = false;
+  this->tx_pin_->digital_write(true);
+#ifdef USE_LIBRETINY
+  auto *bus = static_cast<uart::LibreTinyUARTComponent *>(this->parent_);
+  bus->get_hw_serial()->begin(bus->get_baud_rate(), bus->get_config());
+#elif defined(USE_ESP8266) || defined(USE_ESP32)
+  this->parent_->load_settings(false);
+#endif
+  this->rx_message_.clear();
+  this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+}
+#endif  // USE_TUYA_MCU_WATCHDOG_RESET
+#endif  // USE_TUYA_MCU_WATCHDOG
 
 void Tuya::send_command_(const TuyaCommand &command) {
   command_queue_.push_back(command);

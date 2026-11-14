@@ -1,0 +1,25 @@
+# action: reset, the tuya tx_pin repeats the TX pin of the UART bus
+uart:
+  - id: uart_tuya
+    tx_pin:
+      number: GPIO1
+      allow_other_uses: true
+    rx_pin: GPIO3
+    baud_rate: 9600
+
+tuya:
+  id: tuya_mcu
+  uart_id: uart_tuya
+  mcu_watchdog:
+    action: reset
+    tx_pin:
+      number: GPIO1
+      allow_other_uses: true
+    missed_heartbeats: 3
+    reset_time: 500ms
+
+sensor:
+  - platform: template
+    id: tuya_mcu_resets
+    lambda: return id(tuya_mcu).get_mcu_resets();
+    update_interval: 60s
