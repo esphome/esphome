@@ -33,7 +33,9 @@ rebooted() { local u; for _ in $(seq 1 60); do u=$(upt); [ -n "$1" ] && [ -n "$u
 U0=$(upt); [ -n "$U0" ] || fail "no Uptime reading over REST"
 $S/pio_build.sh upload $N $D/$C $H || fail "the OTA"
 rebooted $U0 || fail "no reboot seen within 120 s after the OTA"
-U0=$(upt); $PY -I $S/api_button.py $H "$API_KEY" press Restart > /dev/null || fail "pressing Restart"
+# let the uptime grow past 30 s first, so the first reading after the restart is clearly lower
+for _ in $(seq 1 30); do U0=$(upt); [ -n "$U0" ] && [ "$U0" -ge 30 ] && break; sleep 2; done
+$PY -I $S/api_button.py $H "$API_KEY" press Restart > /dev/null || fail "pressing Restart"
 rebooted $U0 || fail "no reboot seen within 120 s after the restart"
 $PY -I $D/soak.py $H 30 $D/$N-after.log || fail "the soak after OTA and restart"
 if [ $BLE = 1 ]; then

@@ -42,8 +42,10 @@ inline void handle(std::vector<uint8_t> frame) {
   const uint16_t crc = esphome::crc16(frame.data(), frame.size() - 2);
   if ((crc & 0xFF) != frame[frame.size() - 2] || (crc >> 8) != frame[frame.size() - 1])
     ESP_LOGW("box", "RX request with a bad CRC (answered anyway)");
+  // Requests differ in payload length, and the dispatch below compares bytes past a short payload, so pad
+  // (no warning: a short frame is normal here; a wrong one ends with "no model answer")
   if (frame.size() < 10)
-    frame.resize(10, 0);  // the handlers read up to five payload bytes
+    frame.resize(10, 0);
   const uint8_t function = frame[1];
   const uint8_t message_id = frame[2];
   const uint8_t *d = frame.data() + 3;

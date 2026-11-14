@@ -624,6 +624,20 @@ def timing() -> None:
             res[which].append(r["ttfb"] * 1000)
         else:
             bad += 1
+    # quantiles needs two samples per side and the z score some more; too few means the phase did not run
+    if min(len(res["first"]), len(res["last"])) < 10:
+        p(
+            f"FAIL timing: too few 401 samples (first {len(res['first'])}, last {len(res['last'])}); non-401 {bad}"
+        )
+        ROWS.append(
+            {
+                "case": "timing",
+                "n": {k: len(v) for k, v in res.items()},
+                "non401": bad,
+                "pass": False,
+            }
+        )
+        return
     out = {}
     for k, v in res.items():
         out[k] = {
@@ -634,13 +648,14 @@ def timing() -> None:
             "p90": statistics.quantiles(v, n=10)[-1],
         }
     u, z = mann_whitney(res["first"], res["last"])
+    # more than 5% of the requests without a 401 means the sample is not the request under test
+    ok = abs(z) < 1.96 and bad <= A.timing * 2 // 20
     p(
-        f"timing (ms to first byte of 401): first-byte-wrong {out['first']}; last-byte-wrong {out['last']}; "
-        f"Mann-Whitney U {u:.0f} z {z:.2f} (|z|<1.96: no difference at 5%); non-401 {bad}"
+        f"{'PASS' if ok else 'FAIL'} timing (ms to first byte of 401): first-byte-wrong {out['first']}; "
+        f"last-byte-wrong {out['last']}; Mann-Whitney U {u:.0f} z {z:.2f} (|z|<1.96: no difference at 5%); "
+        f"non-401 {bad}"
     )
-    ROWS.append(
-        {"case": "timing", **out, "u": u, "z": z, "non401": bad, "pass": abs(z) < 1.96}
-    )
+    ROWS.append({"case": "timing", **out, "u": u, "z": z, "non401": bad, "pass": ok})
 
 
 def ota(path: str) -> None:
@@ -689,17 +704,20 @@ def main() -> None:
     A = ap.parse_args()
     configure(A.host, A.user, A.password, A.out)
     only = set(filter(None, A.only.split(",")))
-    if not only or "cases" in only:
-        run_cases()
-    if (not only and not A.skip_heavy) or "heavy" in only:
-        heavy()
-    if (not only and not A.skip_heavy) or "timing" in only:
-        timing()
-    if A.ota:
-        ota(A.ota)
-    pathlib.Path(A.out + "-cases.json").write_text(
-        json.dumps(ROWS, indent=1, default=str), encoding="utf-8"
-    )
+    try:
+        if not only or "cases" in only:
+            run_cases()
+        if (not only and not A.skip_heavy) or "heavy" in only:
+            heavy()
+        if (not only and not A.skip_heavy) or "timing" in only:
+            timing()
+        if A.ota:
+            ota(A.ota)
+    finally:
+        # keep the rows of the phases that ran even when a later one raised
+        pathlib.Path(A.out + "-cases.json").write_text(
+            json.dumps(ROWS, indent=1, default=str), encoding="utf-8"
+        )
     fails = [r["case"] for r in ROWS if not r.get("pass")]
     p(f"TOTAL {len(ROWS)} rows, fails {len(fails)}: {fails}")
     sys.exit(1 if fails else 0)
