@@ -12,6 +12,16 @@
 namespace esphome {
 namespace vl6180x {
 
+#ifndef VL6180X_INSTANCE_COUNT
+// Code generation supplies this macro for firmware builds. Static analysis and
+// host unit tests use a representative capacity when component codegen is off.
+static constexpr uint8_t VL6180X_INSTANCE_COUNT = 2;
+#endif
+
+namespace testing {
+class VL6180XComponentTest;
+}
+
 // ---------------------------------------------------------------------------
 // Measurement state machine
 //
@@ -81,13 +91,14 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
+  friend class testing::VL6180XComponentTest;
   uint32_t now_() const { return App.get_loop_component_start_time(); }
 
   // Low-level I2C
-  bool write_reg8(uint16_t reg, uint8_t value);
-  bool write_reg16(uint16_t reg, uint16_t value);
-  bool read_reg8(uint16_t reg, uint8_t &value);
-  bool read_reg16(uint16_t reg, uint16_t &value);
+  bool write_reg8_(uint16_t reg, uint8_t value);
+  bool write_reg16_(uint16_t reg, uint16_t value);
+  bool read_reg8_(uint16_t reg, uint8_t &value);
+  bool read_reg16_(uint16_t reg, uint16_t &value);
 
   // Initialisation
   bool assign_address_(uint8_t new_addr);
@@ -139,7 +150,8 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   bool initialized_{false};
   MeasurementState state_{MeasurementState::MEASUREMENT_STATE_IDLE};
   uint32_t state_deadline_{0};
-  bool lux_pending_{false};  // lux timer fired while range was in progress
+  bool lux_pending_{false};    // lux timer fired while range was in progress
+  bool range_pending_{false};  // range timer fired while lux was in progress
 
   // ── Health monitoring ────────────────────────────────────────────────────
   uint8_t failure_threshold_{3};       // consecutive failures before recovery

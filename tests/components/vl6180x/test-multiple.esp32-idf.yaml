@@ -8,15 +8,21 @@ vl6180x:
     enable_pin: GPIO4
     interrupt_pin: GPIO18
     update_interval: 60s
-    range:
-      name: Near Distance
-      scaler: 3
   - id: vl6180x_far
     i2c_id: i2c_bus
     address: 0x31
     enable_pin: GPIO13
     interrupt_pin: GPIO19
     update_interval: 60s
+
+sensor:
+  - platform: vl6180x
+    vl6180x_id: vl6180x_near
+    range:
+      name: Near Distance
+      scaler: 3
+  - platform: vl6180x
+    vl6180x_id: vl6180x_far
     range:
       name: Far Distance
       scaler: 2

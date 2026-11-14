@@ -9,43 +9,44 @@ namespace esphome {
 namespace vl6180x {
 
 ESPHOME_LOG_TAG(TAG, "vl6180x");
-static constexpr const char *LUX_INTERVAL_ID = "lux";
+static constexpr uint32_t LUX_INTERVAL_ID = 0;
 
 // ---------------------------------------------------------------------------
 // Register map
 // ---------------------------------------------------------------------------
-static const uint16_t REG_IDENTIFICATION_MODEL_ID = 0x000;
-static const uint16_t REG_SYSTEM_MODE_GPIO1 = 0x011;
-static const uint16_t REG_SYSTEM_INTERRUPT_CONFIG = 0x014;
-static const uint16_t REG_SYSTEM_INTERRUPT_CLEAR = 0x015;
-static const uint16_t REG_SYSTEM_FRESH_OUT_OF_RESET = 0x016;
-static const uint16_t REG_SYSRANGE_START = 0x018;
-static const uint16_t REG_SYSALS_START = 0x038;
-static const uint16_t REG_SYSALS_ANALOGUE_GAIN = 0x03F;
-static const uint16_t REG_SYSALS_INTEGRATION_PERIOD_HI = 0x040;
-static const uint16_t REG_SYSALS_INTEGRATION_PERIOD_LO = 0x041;
-static const uint16_t REG_RESULT_ALS_VAL = 0x050;
-static const uint16_t REG_RESULT_RANGE_VAL = 0x062;
-static const uint16_t REG_RESULT_RANGE_STATUS = 0x04D;
-static const uint16_t REG_RESULT_INTERRUPT_STATUS_GPIO = 0x04F;
-static const uint16_t REG_SYSRANGE_CROSSTALK_VALID_HEIGHT = 0x021;
-static const uint16_t REG_SYSRANGE_PART_TO_PART_OFFSET = 0x024;
-static const uint16_t REG_SYSRANGE_RANGE_CHECK_ENABLES = 0x02D;
-static const uint16_t REG_RANGE_SCALING = 0x096;
-static const uint16_t REG_I2C_DEVICE_ADDRESS = 0x212;
-static const uint16_t RANGE_SCALING_VALUES[] = {0, 253, 127, 84};
+static constexpr uint16_t REG_IDENTIFICATION_MODEL_ID = 0x000;
+static constexpr uint16_t REG_SYSTEM_MODE_GPIO1 = 0x011;
+static constexpr uint16_t REG_SYSTEM_INTERRUPT_CONFIG = 0x014;
+static constexpr uint16_t REG_SYSTEM_INTERRUPT_CLEAR = 0x015;
+static constexpr uint16_t REG_SYSTEM_FRESH_OUT_OF_RESET = 0x016;
+static constexpr uint16_t REG_SYSRANGE_START = 0x018;
+static constexpr uint16_t REG_SYSALS_START = 0x038;
+static constexpr uint16_t REG_SYSALS_ANALOGUE_GAIN = 0x03F;
+static constexpr uint16_t REG_SYSALS_INTEGRATION_PERIOD_HI = 0x040;
+static constexpr uint16_t REG_SYSALS_INTEGRATION_PERIOD_LO = 0x041;
+static constexpr uint16_t REG_RESULT_ALS_VAL = 0x050;
+static constexpr uint16_t REG_RESULT_RANGE_VAL = 0x062;
+static constexpr uint16_t REG_RESULT_ALS_STATUS = 0x04E;
+static constexpr uint16_t REG_RESULT_RANGE_STATUS = 0x04D;
+static constexpr uint16_t REG_RESULT_INTERRUPT_STATUS_GPIO = 0x04F;
+static constexpr uint16_t REG_SYSRANGE_CROSSTALK_VALID_HEIGHT = 0x021;
+static constexpr uint16_t REG_SYSRANGE_PART_TO_PART_OFFSET = 0x024;
+static constexpr uint16_t REG_SYSRANGE_RANGE_CHECK_ENABLES = 0x02D;
+static constexpr uint16_t REG_RANGE_SCALING = 0x096;
+static constexpr uint16_t REG_I2C_DEVICE_ADDRESS = 0x212;
+static constexpr uint16_t RANGE_SCALING_VALUES[] PROGMEM = {0, 253, 127, 84};
 
 // Measurement timeouts (ms)
-static const uint32_t RANGE_READY_TIMEOUT_MS = 250;
-static const uint32_t RANGE_RESULT_TIMEOUT_MS = 200;
-static const uint32_t ALS_READY_TIMEOUT_MS = 100;
-static const uint32_t ALS_RESULT_TIMEOUT_MS = 500;  // 100ms integration + margin
+static constexpr uint32_t RANGE_READY_TIMEOUT_MS = 250;
+static constexpr uint32_t RANGE_RESULT_TIMEOUT_MS = 200;
+static constexpr uint32_t ALS_READY_TIMEOUT_MS = 100;
+static constexpr uint32_t ALS_RESULT_TIMEOUT_MS = 500;  // 100ms integration + margin
 
 // ---------------------------------------------------------------------------
 // Low-level I2C — 16-bit register addressing, MSB first
 // ---------------------------------------------------------------------------
 
-bool VL6180XComponent::write_reg8(uint16_t reg, uint8_t value) {
+bool VL6180XComponent::write_reg8_(uint16_t reg, uint8_t value) {
   uint8_t buf[3] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF), value};
   i2c::ErrorCode err = this->write(buf, 3);
   const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
@@ -55,7 +56,7 @@ bool VL6180XComponent::write_reg8(uint16_t reg, uint8_t value) {
   return ok;
 }
 
-bool VL6180XComponent::write_reg16(uint16_t reg, uint16_t value) {
+bool VL6180XComponent::write_reg16_(uint16_t reg, uint16_t value) {
   uint8_t buf[4] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF), (uint8_t) (value >> 8), (uint8_t) (value & 0xFF)};
   i2c::ErrorCode err = this->write(buf, 4);
   const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
@@ -65,7 +66,7 @@ bool VL6180XComponent::write_reg16(uint16_t reg, uint16_t value) {
   return ok;
 }
 
-bool VL6180XComponent::read_reg8(uint16_t reg, uint8_t &value) {
+bool VL6180XComponent::read_reg8_(uint16_t reg, uint8_t &value) {
   uint8_t addr[2] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF)};
   i2c::ErrorCode err = this->write_read(addr, 2, &value, 1);
   const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
@@ -75,7 +76,7 @@ bool VL6180XComponent::read_reg8(uint16_t reg, uint8_t &value) {
   return ok;
 }
 
-bool VL6180XComponent::read_reg16(uint16_t reg, uint16_t &value) {
+bool VL6180XComponent::read_reg16_(uint16_t reg, uint16_t &value) {
   uint8_t addr[2] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF)};
   uint8_t data[2];
   i2c::ErrorCode err = this->write_read(addr, 2, data, 2);
@@ -93,7 +94,7 @@ bool VL6180XComponent::read_reg16(uint16_t reg, uint16_t &value) {
 // ---------------------------------------------------------------------------
 
 bool VL6180XComponent::assign_address_(uint8_t new_addr) {
-  if (!this->write_reg8(REG_I2C_DEVICE_ADDRESS, new_addr))
+  if (!this->write_reg8_(REG_I2C_DEVICE_ADDRESS, new_addr))
     return false;
   this->set_i2c_address(new_addr);
   ESP_LOGD(TAG, "[%s] I2C address assigned to 0x%02X", this->name_str_, new_addr);
@@ -106,24 +107,26 @@ bool VL6180XComponent::assign_address_(uint8_t new_addr) {
 
 bool VL6180XComponent::load_mandatory_settings_() {
   uint8_t fresh = 0;
-  if (!this->read_reg8(REG_SYSTEM_FRESH_OUT_OF_RESET, fresh)) {
+  if (!this->read_reg8_(REG_SYSTEM_FRESH_OUT_OF_RESET, fresh)) {
     ESP_LOGE(TAG, "[%s] Failed to read FRESH_OUT_OF_RESET", this->name_str_);
     return false;
   }
   ESP_LOGD(TAG, "[%s] FRESH_OUT_OF_RESET=0x%02X", this->name_str_, fresh);
   uint8_t offset = 0;
-  if (!this->read_reg8(REG_SYSRANGE_PART_TO_PART_OFFSET, offset))
+  if (!this->read_reg8_(REG_SYSRANGE_PART_TO_PART_OFFSET, offset))
     return false;
   this->ptp_offset_ = static_cast<int8_t>(offset);
   if ((fresh & 0x01) == 0) {
     // The offset register is already scaled when the sensor survived an MCU
     // reboot. Restore its 1x value before applying the configured scaler.
     uint16_t current_scaling = 0;
-    if (!this->read_reg16(REG_RANGE_SCALING, current_scaling))
+    if (!this->read_reg16_(REG_RANGE_SCALING, current_scaling))
       return false;
-    uint8_t detected_scaling = current_scaling == RANGE_SCALING_VALUES[3]   ? 3
-                               : current_scaling == RANGE_SCALING_VALUES[2] ? 2
-                                                                            : 1;
+    uint16_t scale_2 = 0;
+    uint16_t scale_3 = 0;
+    progmem_memcpy(&scale_2, &RANGE_SCALING_VALUES[2], sizeof(scale_2));
+    progmem_memcpy(&scale_3, &RANGE_SCALING_VALUES[3], sizeof(scale_3));
+    uint8_t detected_scaling = current_scaling == scale_3 ? 3 : current_scaling == scale_2 ? 2 : 1;
     this->ptp_offset_ = static_cast<int8_t>(this->ptp_offset_ * detected_scaling);
     // ST's mandatory private register table is a one-time initialization and
     // must only be written after a hardware reset.
@@ -135,21 +138,23 @@ bool VL6180XComponent::load_mandatory_settings_() {
     uint16_t reg;
     uint8_t value;
   };
-  static constexpr RegisterValue initial_settings[] = {
+  static constexpr RegisterValue INITIAL_SETTINGS[] PROGMEM = {
       {0x0207, 0x01}, {0x0208, 0x01}, {0x0096, 0x00}, {0x0097, 0xFD}, {0x00E3, 0x00}, {0x00E4, 0x04},
       {0x00E5, 0x02}, {0x00E6, 0x01}, {0x00E7, 0x03}, {0x00F5, 0x02}, {0x00D9, 0x05}, {0x00DB, 0xCE},
       {0x00DC, 0x03}, {0x00DD, 0xF8}, {0x009F, 0x00}, {0x00A3, 0x3C}, {0x00B7, 0x00}, {0x00BB, 0x3C},
       {0x00B2, 0x09}, {0x00CA, 0x09}, {0x0198, 0x01}, {0x01B0, 0x17}, {0x01AD, 0x00}, {0x00FF, 0x05},
       {0x0100, 0x05}, {0x0199, 0x05}, {0x01A6, 0x1B}, {0x01AC, 0x3E}, {0x01A7, 0x1F}, {0x0030, 0x00},
   };
-  for (const auto &setting : initial_settings) {
-    if (!this->write_reg8(setting.reg, setting.value)) {
+  for (const auto &entry : INITIAL_SETTINGS) {
+    RegisterValue setting;
+    progmem_memcpy(&setting, &entry, sizeof(setting));
+    if (!this->write_reg8_(setting.reg, setting.value)) {
       ESP_LOGE(TAG, "[%s] Failed write 0x%04X", this->name_str_, setting.reg);
       return false;
     }
   }
 
-  if (!this->write_reg8(REG_SYSTEM_FRESH_OUT_OF_RESET, 0x00))
+  if (!this->write_reg8_(REG_SYSTEM_FRESH_OUT_OF_RESET, 0x00))
     return false;
   ESP_LOGD(TAG, "[%s] Mandatory registers done", this->name_str_);
   return true;
@@ -160,27 +165,27 @@ bool VL6180XComponent::load_mandatory_settings_() {
 // ---------------------------------------------------------------------------
 
 bool VL6180XComponent::configure_defaults_() {
-  if (!this->write_reg8(0x010A, 0x30))
+  if (!this->write_reg8_(0x010A, 0x30))
     return false;  // averaging sample period
-  if (!this->write_reg8(REG_SYSALS_ANALOGUE_GAIN, 0x40 | this->als_gain_))
+  if (!this->write_reg8_(REG_SYSALS_ANALOGUE_GAIN, 0x40 | this->als_gain_))
     return false;  // ALS gain 1.0x default
-  if (!this->write_reg8(0x001B, 0x09))
+  if (!this->write_reg8_(0x001B, 0x09))
     return false;  // VHV repeat rate
-  if (!this->write_reg8(REG_SYSALS_INTEGRATION_PERIOD_HI, 0x00))
+  if (!this->write_reg8_(REG_SYSALS_INTEGRATION_PERIOD_HI, 0x00))
     return false;
-  if (!this->write_reg8(REG_SYSALS_INTEGRATION_PERIOD_LO, 100))
+  if (!this->write_reg8_(REG_SYSALS_INTEGRATION_PERIOD_LO, 100))
     return false;  // 100ms integration
-  if (!this->write_reg8(0x001C, 0x32))
+  if (!this->write_reg8_(0x001C, 0x32))
     return false;  // max convergence time 50ms
-  if (!this->write_reg8(0x002D, 0x10))
+  if (!this->write_reg8_(0x002D, 0x10))
     return false;  // range check enables: SNR only (not 0xFF)
   // GPIO1 is optional. Configure active-low new-sample interrupts only when
   // an MCU interrupt input is supplied; otherwise leave the sensor pin Hi-Z.
-  if (!this->write_reg8(REG_SYSTEM_MODE_GPIO1, this->interrupt_pin_ != nullptr ? 0x10 : 0x20))
+  if (!this->write_reg8_(REG_SYSTEM_MODE_GPIO1, this->interrupt_pin_ != nullptr ? 0x10 : 0x20))
     return false;
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CONFIG, 0x00))
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CONFIG, 0x00))
     return false;
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CLEAR, 0x07))
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CLEAR, 0x07))
     return false;
   return this->apply_scaling_();
 }
@@ -189,18 +194,20 @@ bool VL6180XComponent::apply_scaling_() {
   const uint8_t scale = this->scaling_;
   if (scale < 1 || scale > 3)
     return false;
-  if (!this->write_reg16(REG_RANGE_SCALING, RANGE_SCALING_VALUES[scale]))
+  uint16_t scale_value = 0;
+  progmem_memcpy(&scale_value, &RANGE_SCALING_VALUES[scale], sizeof(scale_value));
+  if (!this->write_reg16_(REG_RANGE_SCALING, scale_value))
     return false;
-  if (!this->write_reg8(REG_SYSRANGE_PART_TO_PART_OFFSET, static_cast<uint8_t>(this->ptp_offset_ / scale)))
+  if (!this->write_reg8_(REG_SYSRANGE_PART_TO_PART_OFFSET, static_cast<uint8_t>(this->ptp_offset_ / scale)))
     return false;
-  if (!this->write_reg8(REG_SYSRANGE_CROSSTALK_VALID_HEIGHT, 20 / scale))
+  if (!this->write_reg8_(REG_SYSRANGE_CROSSTALK_VALID_HEIGHT, 20 / scale))
     return false;
 
   uint8_t range_check = 0;
-  if (!this->read_reg8(REG_SYSRANGE_RANGE_CHECK_ENABLES, range_check))
+  if (!this->read_reg8_(REG_SYSRANGE_RANGE_CHECK_ENABLES, range_check))
     return false;
   range_check = (range_check & 0xFE) | (scale == 1 ? 1 : 0);
-  if (!this->write_reg8(REG_SYSRANGE_RANGE_CHECK_ENABLES, range_check))
+  if (!this->write_reg8_(REG_SYSRANGE_RANGE_CHECK_ENABLES, range_check))
     return false;
   ESP_LOGD(TAG, "[%s] Range scaler set to %ux", this->name_str_, static_cast<unsigned>(scale));
   return true;
@@ -212,7 +219,7 @@ bool VL6180XComponent::apply_scaling_() {
 
 bool VL6180XComponent::init_sensor_() {
   uint8_t model_id = 0;
-  if (!this->read_reg8(REG_IDENTIFICATION_MODEL_ID, model_id)) {
+  if (!this->read_reg8_(REG_IDENTIFICATION_MODEL_ID, model_id)) {
     ESP_LOGE(TAG, "[%s] Failed to read model ID", this->name_str_);
     return false;
   }
@@ -222,7 +229,7 @@ bool VL6180XComponent::init_sensor_() {
   }
   ESP_LOGD(TAG, "[%s] Model ID 0xB4 OK", this->name_str_);
   uint8_t start_mode = 0, range_status = 0;
-  if (this->read_reg8(REG_SYSRANGE_START, start_mode) && this->read_reg8(REG_RESULT_RANGE_STATUS, range_status)) {
+  if (this->read_reg8_(REG_SYSRANGE_START, start_mode) && this->read_reg8_(REG_RESULT_RANGE_STATUS, range_status)) {
     ESP_LOGI(TAG, "[%s] pre-init SYSRANGE_START=0x%02X RANGE_STATUS=0x%02X", this->name_str_, start_mode, range_status);
   }
   if (!this->load_mandatory_settings_())
@@ -254,6 +261,7 @@ void VL6180XComponent::run_init_sequence_() {
     }
     inst->state_ = MeasurementState::MEASUREMENT_STATE_IDLE;
     inst->lux_pending_ = false;
+    inst->range_pending_ = false;
   }
 
   // Step 1: all XSHUT pins low
@@ -496,7 +504,7 @@ void VL6180XComponent::publish_range_error_(const char *status) {
 }
 
 void VL6180XComponent::publish_lux_(uint16_t raw) {
-  const float lux = 0.32f * static_cast<float>(raw) / this->als_gain_factor_;
+  const float lux = 0.32f * static_cast<float>(raw) * 100.0f / (this->als_gain_factor_ * 101.0f);
   ESP_LOGD(TAG, "[%s] Lux raw=%u → %.2f lx", this->name_str_, static_cast<unsigned>(raw), lux);
   if (this->lux_sensor_ != nullptr)
     this->lux_sensor_->publish_state(lux);
@@ -509,18 +517,18 @@ void VL6180XComponent::publish_lux_(uint16_t raw) {
 
 void VL6180XComponent::do_range_start_() {
   uint8_t icfg = 0;
-  if (!this->read_reg8(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
+  if (!this->read_reg8_(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
     this->fail_range_measurement_("Sensor Error");
     return;
   }
   icfg = (icfg & ~0x07) | 0x04;
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
     this->fail_range_measurement_("Sensor Error");
     return;
   }
 
   uint8_t status = 0;
-  if (!this->read_reg8(REG_RESULT_RANGE_STATUS, status)) {
+  if (!this->read_reg8_(REG_RESULT_ALS_STATUS, status)) {
     this->fail_range_measurement_("Sensor Error");
     return;
   }
@@ -532,11 +540,11 @@ void VL6180XComponent::do_range_start_() {
     return;
   }
 
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CLEAR, 0x07)) {
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CLEAR, 0x07)) {
     this->fail_range_measurement_("Sensor Error");
     return;
   }
-  if (!this->write_reg8(REG_SYSRANGE_START, 0x01)) {
+  if (!this->write_reg8_(REG_SYSRANGE_START, 0x01)) {
     this->fail_range_measurement_("Sensor Error");
     return;
   }
@@ -555,7 +563,7 @@ void VL6180XComponent::do_range_wait_() {
   if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     if (deadline_reached(this->now_(), this->state_deadline_)) {
       uint8_t irq = 0;
-      if (!this->read_reg8(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
+      if (!this->read_reg8_(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
         this->fail_range_measurement_("Sensor Error");
         return;
       }
@@ -566,7 +574,7 @@ void VL6180XComponent::do_range_wait_() {
   }
 
   uint8_t irq = 0;
-  if (!this->read_reg8(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
+  if (!this->read_reg8_(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
     this->fail_range_measurement_("Sensor Error");
     return;
   }
@@ -580,8 +588,8 @@ void VL6180XComponent::do_range_wait_() {
   }
 
   uint8_t raw = 0, range_status = 0;
-  bool ok = this->read_reg8(REG_RESULT_RANGE_VAL, raw) && this->read_reg8(REG_RESULT_RANGE_STATUS, range_status);
-  ok = this->write_reg8(REG_SYSTEM_INTERRUPT_CLEAR, 0x07) && ok;
+  bool ok = this->read_reg8_(REG_RESULT_RANGE_VAL, raw) && this->read_reg8_(REG_RESULT_RANGE_STATUS, range_status);
+  ok = this->write_reg8_(REG_SYSTEM_INTERRUPT_CLEAR, 0x07) && ok;
 
   if (!ok) {
     this->fail_range_measurement_("Sensor Error");
@@ -602,9 +610,12 @@ void VL6180XComponent::do_range_wait_() {
     this->lux_pending_ = false;
     this->state_deadline_ = this->now_() + ALS_READY_TIMEOUT_MS;
     this->state_ = MeasurementState::MEASUREMENT_STATE_ALS_START;
+  } else if (this->range_pending_) {
+    this->range_pending_ = false;
+    this->state_deadline_ = this->now_() + RANGE_READY_TIMEOUT_MS;
+    this->state_ = MeasurementState::MEASUREMENT_STATE_RANGE_START;
   } else {
-    if (this->state_ != MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT)
-      this->state_ = MeasurementState::MEASUREMENT_STATE_IDLE;
+    this->state_ = MeasurementState::MEASUREMENT_STATE_IDLE;
   }
 }
 
@@ -614,23 +625,23 @@ void VL6180XComponent::do_range_wait_() {
 
 void VL6180XComponent::do_als_start_() {
   uint8_t icfg = 0;
-  if (!this->read_reg8(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
+  if (!this->read_reg8_(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
     this->fail_lux_measurement_();
     return;
   }
   icfg = (icfg & ~0x38) | (0x04 << 3);
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CONFIG, icfg)) {
     this->fail_lux_measurement_();
     return;
   }
 
-  if (!this->write_reg8(REG_SYSALS_ANALOGUE_GAIN, 0x40 | this->als_gain_)) {
+  if (!this->write_reg8_(REG_SYSALS_ANALOGUE_GAIN, 0x40 | this->als_gain_)) {
     this->fail_lux_measurement_();
     return;
   }
 
   uint8_t status = 0;
-  if (!this->read_reg8(REG_RESULT_RANGE_STATUS, status)) {
+  if (!this->read_reg8_(REG_RESULT_RANGE_STATUS, status)) {
     this->fail_lux_measurement_();
     return;
   }
@@ -642,11 +653,11 @@ void VL6180XComponent::do_als_start_() {
     return;
   }
 
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CLEAR, 0x07)) {
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CLEAR, 0x07)) {
     this->fail_lux_measurement_();
     return;
   }
-  if (!this->write_reg8(REG_SYSALS_START, 0x01)) {
+  if (!this->write_reg8_(REG_SYSALS_START, 0x01)) {
     this->fail_lux_measurement_();
     return;
   }
@@ -663,7 +674,7 @@ void VL6180XComponent::do_als_wait_() {
   if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     if (deadline_reached(this->now_(), this->state_deadline_)) {
       uint8_t irq = 0;
-      if (!this->read_reg8(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
+      if (!this->read_reg8_(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
         this->fail_lux_measurement_();
         return;
       }
@@ -674,7 +685,7 @@ void VL6180XComponent::do_als_wait_() {
   }
 
   uint8_t irq = 0;
-  if (!this->read_reg8(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
+  if (!this->read_reg8_(REG_RESULT_INTERRUPT_STATUS_GPIO, irq)) {
     this->fail_lux_measurement_();
     return;
   }
@@ -688,16 +699,30 @@ void VL6180XComponent::do_als_wait_() {
   }
 
   uint16_t raw = 0;
-  if (!this->read_reg16(REG_RESULT_ALS_VAL, raw)) {
+  if (!this->read_reg16_(REG_RESULT_ALS_VAL, raw)) {
     this->fail_lux_measurement_();
     return;
   }
-  if (!this->write_reg8(REG_SYSTEM_INTERRUPT_CLEAR, 0x07)) {
+  if (!this->write_reg8_(REG_SYSTEM_INTERRUPT_CLEAR, 0x07)) {
     this->fail_lux_measurement_();
     return;
   }
 
   this->publish_lux_(raw);
+  if (this->state_ == MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT)
+    return;
+  if (this->lux_pending_) {
+    this->lux_pending_ = false;
+    this->state_deadline_ = this->now_() + ALS_READY_TIMEOUT_MS;
+    this->state_ = MeasurementState::MEASUREMENT_STATE_ALS_START;
+    return;
+  }
+  if (this->range_pending_) {
+    this->range_pending_ = false;
+    this->state_deadline_ = this->now_() + RANGE_READY_TIMEOUT_MS;
+    this->state_ = MeasurementState::MEASUREMENT_STATE_RANGE_START;
+    return;
+  }
   // publish_lux_ calls record_success_() — if that somehow triggered recovery
   // (it won't, but be defensive) don't overwrite the state
   if (this->state_ != MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT)
@@ -899,10 +924,7 @@ void VL6180XComponent::update() {
     return;
 
   if (this->state_ != MeasurementState::MEASUREMENT_STATE_IDLE) {
-    ESP_LOGW(TAG,
-             "[%s] update() fired but previous measurement not complete — "
-             "consider increasing update_interval",
-             this->name_str_);
+    this->range_pending_ = true;
     return;
   }
 

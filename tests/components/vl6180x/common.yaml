@@ -2,13 +2,21 @@ vl6180x:
   - id: vl6180x_sensor
     i2c_id: i2c_bus
     update_interval: 60s
+
+sensor:
+  - platform: vl6180x
+    vl6180x_id: vl6180x_sensor
     range:
       id: distance
       name: VL6180X Distance
       scaler: 1
-    range_status:
-      name: VL6180X Range Status
     lux:
       name: VL6180X Illuminance
       gain: 2.5
       update_interval: 5min
+
+text_sensor:
+  - platform: vl6180x
+    vl6180x_id: vl6180x_sensor
+    range_status:
+      name: VL6180X Range Status
