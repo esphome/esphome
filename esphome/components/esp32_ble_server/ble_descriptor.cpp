@@ -13,17 +13,16 @@ ESPHOME_LOG_TAG(TAG, "esp32_ble_server.descriptor");
 
 static RAMAllocator<uint8_t> descriptor_allocator{};  // NOLINT
 
-BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, bool read, bool write) {
-  this->uuid_ = uuid;
+BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, bool read, bool write)
+    : BLEDescriptor(uuid, max_len,
+                    static_cast<esp_gatt_perm_t>((read ? ESP_GATT_PERM_READ : 0) | (write ? ESP_GATT_PERM_WRITE : 0))) {
+}
+
+BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t permissions)
+    : uuid_(uuid), permissions_(permissions) {
   this->value_.attr_len = 0;
   this->value_.attr_max_len = max_len;
   this->value_.attr_value = descriptor_allocator.allocate(max_len);
-  if (read) {
-    this->permissions_ |= ESP_GATT_PERM_READ;
-  }
-  if (write) {
-    this->permissions_ |= ESP_GATT_PERM_WRITE;
-  }
 }
 
 BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }  // NOLINT

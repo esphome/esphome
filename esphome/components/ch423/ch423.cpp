@@ -24,10 +24,8 @@ void CH423Component::setup() {
   if (success && !(this->sys_params_ & CH423_SYS_IO_OE)) {
     success = this->read_inputs_();
   }
-  if (!success) {
-    this->mark_failed(LOG_STR("CH423 not detected"));
+  if (!this->setup_check(success, LOG_STR("CH423 not detected")))
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
                 this->status_has_error());

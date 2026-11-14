@@ -45,10 +45,8 @@ static const LogString *square_wave_to_string(SquareWaveFrequency frequency) {
 void IRAM_ATTR DS3231Component::interrupt_handler(DS3231Component *arg) { arg->enable_loop_soon_any_context(); }
 
 void DS3231Component::setup() {
-  if (!this->read_control_status_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_control_status_()))
     return;
-  }
 
   // Keep the oscillator running on battery. INT/SQW is the alarm interrupt line unless a square
   // wave is configured. The alarm interrupt enables (A1IE/A2IE) are kept as they are: the alarms
@@ -63,17 +61,13 @@ void DS3231Component::setup() {
     mask |= CONTROL_BBSQW;
     assign_bits(value, CONTROL_BBSQW, this->battery_backed_square_wave_ != 0);
   }
-  if (!this->update_control_(mask, value)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->update_control_(mask, value)))
     return;
-  }
 
   if (this->output_32khz_ >= 0) {
     assign_bits(this->status_reg_, STATUS_EN32KHZ, this->output_32khz_ != 0);
-    if (!this->write_status_(0)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->setup_check(this->write_status_(0)))
       return;
-    }
   }
 
   if (this->aging_offset_configured_ && !this->write_aging_offset_(this->aging_offset_)) {

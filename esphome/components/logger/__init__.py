@@ -217,8 +217,32 @@ def uart_selection(value: Any) -> str:
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
+        from esphome.components.nrf52.const import VARIANTS_WITHOUT_USB
+        from esphome.components.nrf52.framework import get_nrf52_variant
+
+        if get_nrf52_variant() in VARIANTS_WITHOUT_USB:
+            return cv.one_of(UART0, upper=True)(value)
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
+
+
+def _nrf52_board_default_uart(config: ConfigType) -> ConfigType:
+    """Default to UART0 on nRF52 boards whose USB port is a debugger's serial bridge."""
+    if CORE.is_nrf52 and CONF_HARDWARE_UART not in config:
+        from esphome.components.nrf52.boards import BOARDS_WITH_UART_CONSOLE
+        from esphome.components.nrf52.framework import get_nrf52_board
+
+        if get_nrf52_board() in BOARDS_WITH_UART_CONSOLE:
+            return {**config, CONF_HARDWARE_UART: UART0}
+    return config
+
+
+def _zephyr_uart0_label() -> str:
+    """The devicetree label of UART0."""
+    from esphome.components.nrf52.const import VARIANT_CONSOLE_UART
+    from esphome.components.nrf52.framework import get_nrf52_variant
+
+    return VARIANT_CONSOLE_UART.get(get_nrf52_variant(), "uart0")
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -316,6 +340,7 @@ LoggerMessageTrigger = logger_ns.class_(
 
 
 CONFIG_SCHEMA = cv.All(
+    _nrf52_board_default_uart,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Logger),
@@ -385,6 +410,10 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                nrf52_54lm20=USB_CDC,
+                # No USB device on the nRF52832 and the nRF54L15
+                nrf52_52832=UART0,
+                nrf52_54l15=UART0,
             ): cv.All(
                 cv.only_on(
                     [
@@ -442,6 +471,26 @@ def _final_validate(config: ConfigType) -> None:
         from esphome.components.zephyr import zephyr_claim_cdc_acm
 
         zephyr_claim_cdc_acm(0, "logger", write_only=True)
+    if CORE.is_libretiny and config[CONF_BAUD_RATE] != 0:
+        _validate_libretiny_uart_pins(config[CONF_HARDWARE_UART])
+
+
+def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
+    """Reject a port with pin choices but no default; opening it hangs at boot (BW15 UART1)."""
+    from esphome.components.libretiny import get_board_pins, get_libretiny_board
+
+    if not hardware_uart.startswith("UART"):
+        return
+    board = get_libretiny_board()
+    prefix = f"SERIAL{hardware_uart[-1]}_"
+    port_pins = [pin for pin in get_board_pins() if pin.startswith(prefix)]
+    # A port the board lacks falls back to the default one at boot
+    if port_pins and f"{prefix}TX" not in port_pins:
+        raise cv.Invalid(
+            f"Board {board} has no default pins for {hardware_uart}; "
+            "choose another hardware_uart",
+            path=[CONF_HARDWARE_UART],
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -618,6 +667,8 @@ async def _late_logger_init(config: ConfigType) -> None:
             cg.add_define("USE_ESP32_LOG_V2")
             # --wrap: a strong definition collides; see logger_esp32.cpp
             cg.add_build_flag("-Wl,--wrap=esp_log_format")
+    if CORE.is_rp2 and config[CONF_HARDWARE_UART] == USB_CDC:
+        cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
@@ -655,10 +706,15 @@ async def _late_logger_init(config: ConfigType) -> None:
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
+        cg.add_define(
+            "ESPHOME_LOGGER_UART0_NODE", cg.RawExpression(_zephyr_uart0_label())
+        )
         if has_serial_logging:
             zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
-                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+                zephyr_add_overlay(
+                    f"""&{_zephyr_uart0_label()} {{ status = "okay";}};"""
+                )
             if config[CONF_HARDWARE_UART] == UART1:
                 zephyr_add_overlay("""&uart1 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == USB_CDC:

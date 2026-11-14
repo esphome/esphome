@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 from .. import (
@@ -47,11 +48,10 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    # Options come from Home Assistant at runtime, into storage reserved during setup
     var = await select.new_select(
         config,
-        config[CONF_MAX_OPTIONS],
-        config[CONF_OPTIONS_BUFFER_SIZE],
+        cg.static_buffer(config[CONF_ID], cg.char, config[CONF_OPTIONS_BUFFER_SIZE]),
+        cg.static_buffer(config[CONF_ID], cg.const_char_ptr, config[CONF_MAX_OPTIONS]),
         options=[],
     )
     await cg.register_component(var, config)

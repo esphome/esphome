@@ -146,6 +146,69 @@ def test_git_output_oserror_is_empty(script_setup: ModuleType) -> None:
         assert script_setup.git_output("status") == ""
 
 
+def _make_python(script_setup: ModuleType, venv: Path) -> Path:
+    python = script_setup.venv_python(venv)
+    python.parent.mkdir(parents=True)
+    python.touch()
+    return python
+
+
+def test_environment_ready_false_without_interpreter(
+    script_setup: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    with (
+        patch.object(script_setup, "DEFAULT_VENV", tmp_path / "venv"),
+        patch.object(script_setup.subprocess, "run") as mock_run,
+    ):
+        assert script_setup.environment_ready() is False
+    mock_run.assert_not_called()
+
+
+@pytest.mark.parametrize(("returncode", "expected"), [(0, True), (1, False)])
+def test_environment_ready_checks_default_venv_import(
+    script_setup: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    expected: bool,
+) -> None:
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    python = _make_python(script_setup, tmp_path / "venv")
+    with (
+        patch.object(script_setup, "DEFAULT_VENV", tmp_path / "venv"),
+        patch.object(
+            script_setup.subprocess, "run", return_value=Mock(returncode=returncode)
+        ) as mock_run,
+    ):
+        assert script_setup.environment_ready() is expected
+    mock_run.assert_called_once_with(
+        [str(python), "-I", "-c", "import esphome"],
+        cwd=script_setup.ROOT,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_environment_ready_uses_active_virtual_env(
+    script_setup: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    active = tmp_path / "active-venv"
+    monkeypatch.setenv("VIRTUAL_ENV", str(active))
+    python = _make_python(script_setup, active)
+    with patch.object(
+        script_setup.subprocess, "run", return_value=Mock(returncode=0)
+    ) as mock_run:
+        assert script_setup.environment_ready() is True
+    assert mock_run.call_args.args[0][0] == str(python)
+
+
+def test_environment_ready_against_real_interpreter(script_setup: ModuleType) -> None:
+    """The import check runs for real: the test venv has ESPHome installed."""
+    with patch.dict(os.environ, {"VIRTUAL_ENV": sys.prefix}):
+        assert script_setup.environment_ready() is True
+
+
 # --- create_venv -----------------------------------------------------------
 
 
@@ -436,6 +499,47 @@ def test_install_git_hooks_skips_copy_when_hooks_dir_missing(
     assert not (common_dir / "hooks").exists()
 
 
+def test_install_vscode_settings_copies_defaults(
+    script_setup: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vscode = tmp_path / ".vscode"
+    vscode.mkdir()
+    defaults = vscode / "settings.default.json"
+    defaults.write_text('{"a": 1}')
+    settings = vscode / "settings.json"
+    with (
+        patch.object(script_setup, "ROOT", tmp_path),
+        patch.object(script_setup, "VSCODE_SETTINGS", settings),
+        patch.object(script_setup, "VSCODE_DEFAULT_SETTINGS", defaults),
+    ):
+        script_setup.install_vscode_settings()
+    assert settings.read_text() == '{"a": 1}'
+    assert "Created .vscode/settings.json" in capsys.readouterr().out
+
+
+def test_install_vscode_settings_keeps_existing(
+    script_setup: ModuleType, tmp_path: Path
+) -> None:
+    vscode = tmp_path / ".vscode"
+    vscode.mkdir()
+    defaults = vscode / "settings.default.json"
+    defaults.write_text('{"a": 1}')
+    settings = vscode / "settings.json"
+    settings.write_text('{"mine": true}')
+    with (
+        patch.object(script_setup, "ROOT", tmp_path),
+        patch.object(script_setup, "VSCODE_SETTINGS", settings),
+        patch.object(script_setup, "VSCODE_DEFAULT_SETTINGS", defaults),
+    ):
+        script_setup.install_vscode_settings()
+    assert settings.read_text() == '{"mine": true}'
+
+
+def test_vscode_default_settings_file_exists(script_setup: ModuleType) -> None:
+    """The template script/setup copies from is present in the repository."""
+    assert script_setup.VSCODE_DEFAULT_SETTINGS.is_file()
+
+
 # --- report ------------------------------------------------------------------
 
 
@@ -489,12 +593,14 @@ def test_main_uses_active_virtual_env(
         patch.object(script_setup, "create_venv") as mock_create_venv,
         patch.object(script_setup, "install_dependencies") as mock_install_deps,
         patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_vscode_settings") as mock_vscode,
         patch.object(script_setup, "report") as mock_report,
     ):
         script_setup.main()
     mock_create_venv.assert_not_called()
     mock_install_deps.assert_called_once()
     mock_install_hooks.assert_called_once()
+    mock_vscode.assert_called_once_with()
     mock_report.assert_called_once_with(script_setup.VENV_ACTIVE, active_venv)
     assert (tmp_path / ".temp").is_dir()
 
@@ -514,12 +620,14 @@ def test_main_reuses_existing_venv(
         patch.object(script_setup, "create_venv") as mock_create_venv,
         patch.object(script_setup, "install_dependencies") as mock_install_deps,
         patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_vscode_settings") as mock_vscode,
         patch.object(script_setup, "report") as mock_report,
     ):
         script_setup.main()
     mock_create_venv.assert_not_called()
     mock_install_deps.assert_called_once()
     mock_install_hooks.assert_called_once()
+    mock_vscode.assert_called_once_with()
     mock_report.assert_called_once_with(script_setup.VENV_REUSED, default_venv)
     assert (tmp_path / ".temp").is_dir()
 
@@ -536,12 +644,14 @@ def test_main_creates_new_venv(
         patch.object(script_setup, "create_venv") as mock_create_venv,
         patch.object(script_setup, "install_dependencies") as mock_install_deps,
         patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_vscode_settings") as mock_vscode,
         patch.object(script_setup, "report") as mock_report,
     ):
         script_setup.main()
     mock_create_venv.assert_called_once_with(default_venv)
     mock_install_deps.assert_called_once()
     mock_install_hooks.assert_called_once()
+    mock_vscode.assert_called_once_with()
     mock_report.assert_called_once_with(script_setup.VENV_CREATED, default_venv)
     assert (tmp_path / ".temp").is_dir()
 
@@ -553,10 +663,75 @@ def test_run_as_script_calls_main(tmp_path: Path) -> None:
         patch("subprocess.run", return_value=completed) as mock_run,
         patch("shutil.which", return_value="/usr/bin/uv"),
         patch("pathlib.Path.mkdir") as mock_mkdir,
+        patch("shutil.copyfile"),
         patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path / "env")}),
+        patch.object(sys, "argv", [str(_SCRIPT)]),
     ):
         runpy.run_path(str(_SCRIPT), run_name="__main__")
 
     # The dependency install ran, and git reported no hooks directory to touch.
     assert mock_run.called
     mock_mkdir.assert_called_once_with(exist_ok=True)
+
+
+def test_parse_args_defaults(script_setup: ModuleType) -> None:
+    assert script_setup.parse_args([]).if_needed is False
+    assert script_setup.parse_args(["--if-needed"]).if_needed is True
+
+
+def test_main_if_needed_skips_when_ready(
+    script_setup: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with (
+        patch.object(script_setup, "environment_ready", return_value=True),
+        patch.object(script_setup, "create_venv") as mock_create_venv,
+        patch.object(script_setup, "install_dependencies") as mock_install_deps,
+        patch.object(script_setup, "install_git_hooks") as mock_install_hooks,
+        patch.object(script_setup, "install_vscode_settings") as mock_vscode,
+        patch.object(script_setup, "report") as mock_report,
+    ):
+        script_setup.main(["--if-needed"])
+    mock_vscode.assert_called_once_with()
+    mock_create_venv.assert_not_called()
+    mock_install_deps.assert_not_called()
+    mock_install_hooks.assert_not_called()
+    mock_report.assert_not_called()
+    assert "already set up" in capsys.readouterr().out
+
+
+def test_main_if_needed_runs_setup_when_not_ready(
+    script_setup: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    default_venv = tmp_path / "venv"
+    with (
+        patch.object(script_setup, "ROOT", tmp_path),
+        patch.object(script_setup, "DEFAULT_VENV", default_venv),
+        patch.object(script_setup, "environment_ready", return_value=False),
+        patch.object(script_setup, "create_venv") as mock_create_venv,
+        patch.object(script_setup, "install_dependencies") as mock_install_deps,
+        patch.object(script_setup, "install_git_hooks"),
+        patch.object(script_setup, "install_vscode_settings"),
+        patch.object(script_setup, "report") as mock_report,
+    ):
+        script_setup.main(["--if-needed"])
+    mock_create_venv.assert_called_once_with(default_venv)
+    mock_install_deps.assert_called_once()
+    mock_report.assert_called_once_with(script_setup.VENV_CREATED, default_venv)
+
+
+def test_main_without_if_needed_does_not_check_readiness(
+    script_setup: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "env"))
+    with (
+        patch.object(script_setup, "ROOT", tmp_path),
+        patch.object(script_setup, "environment_ready") as mock_ready,
+        patch.object(script_setup, "install_dependencies") as mock_install_deps,
+        patch.object(script_setup, "install_git_hooks"),
+        patch.object(script_setup, "install_vscode_settings"),
+        patch.object(script_setup, "report"),
+    ):
+        script_setup.main([])
+    mock_ready.assert_not_called()
+    mock_install_deps.assert_called_once()

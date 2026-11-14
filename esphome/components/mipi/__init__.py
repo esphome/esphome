@@ -229,7 +229,7 @@ def map_sequence(value):
     The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
     from the length of the sequence and should not be explicit.
     A single integer can be provided where there are no data bytes, in which case it is treated as a command.
-    A delay can be inserted by specifying "- delay N" where N is in ms
+    A delay can be inserted by specifying "- delay Nms"; any time unit is accepted, from 1 to 255 ms
     """
     if isinstance(value, str) and value.lower().startswith("delay "):
         value = value.lower()[6:]
@@ -676,7 +676,7 @@ class DriverChip:
         sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
 
         if add_reset:
-            # Matches the 1-255ms range map_sequence() already allows for a "delay N" entry.
+            # Matches the 1-255ms range map_sequence() already allows for a "delay Nms" entry.
             reset_delay = self.get_default("reset_delay", 10)
             if reset_delay < 1 or reset_delay > 255:
                 raise ValueError("reset_delay must be between 1 and 255ms")

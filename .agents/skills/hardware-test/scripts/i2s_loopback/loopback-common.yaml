@@ -1,0 +1,73 @@
+# I2S microphone loopback on one ESP32-S3 (a package): dcgen.hpp drives I2S1 as master on GPIO4 BCLK, 5 WS, 6 DOUT;
+# jumper 4->15, 5->16, 6->17 to the i2s_audio microphone on I2S0 (secondary). Substitutions: sr, ch (mono/stereo...).
+esphome:
+  includes:
+    - dcgen.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          dcgen::start(${sr}, 4, 5, 6);
+          id(mic)->add_data_callback([](const microphone::AudioCapture &c) { dcgen::on_data(c); });
+      - delay: 4s
+      - microphone.capture: mic
+      - delay: 1s
+      - script.execute: seq
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+i2s_audio:
+  - id: bus_mic
+    i2s_bclk_pin: GPIO15
+    i2s_lrclk_pin: GPIO16
+
+microphone:
+  - platform: i2s_audio
+    id: mic
+    i2s_audio_id: bus_mic
+    i2s_din_pin: GPIO17
+    adc_type: external
+    pdm: false
+    i2s_mode: secondary
+    sample_rate: ${sr}
+    bits_per_sample: 16bit
+    channel: ${ch}
+    correct_dc_offset: true
+
+script:
+  - id: seq
+    then:
+      - repeat:
+          count: 3
+          then:
+            - lambda: dcgen::set_mode(0);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(1);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(0);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(2);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(0);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(3);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(4);
+            - delay: 1500ms
+            - lambda: dcgen::set_mode(5);
+            - delay: 1500ms
+      - lambda: dcgen::set_mode(0);
+      - delay: 1500ms
+      - lambda: dcgen::set_mode(0);
+      - logger.log: "SEQ DONE"
+
+interval:
+  - interval: 100ms
+    then:
+      - lambda: dcgen::report();

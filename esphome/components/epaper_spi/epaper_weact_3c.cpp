@@ -1,98 +1,10 @@
 #include "epaper_weact_3c.h"
+
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_weact_3c");
-
-enum class BwrState : uint8_t {
-  BWR_BLACK,
-  BWR_WHITE,
-  BWR_RED,
-};
-
-static BwrState color_to_bwr(Color color) {
-  if (color.r > color.g + color.b && color.r > 127) {
-    return BwrState::BWR_RED;
-  }
-  if (color.r + color.g + color.b >= 382) {
-    return BwrState::BWR_WHITE;
-  }
-  return BwrState::BWR_BLACK;
-}
-// SSD1680 3-color display notes:
-// - Buffer uses 1 bit per pixel, 8 pixels per byte
-// - Buffer first half (black_offset): Black/White plane (0=black, 1=white)
-// - Buffer second half (red_offset): Red plane (1=red, 0=no red)
-// - Total buffer: width * height / 4 bytes = 2 * (width * height / 8)
-// - For 128x296: 128*296/4 = 9472 bytes total (4736 per color)
-
-void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
-  if (!this->rotate_coordinates_(x, y))
-    return;
-
-  // Calculate position in the 1-bit buffer
-  const uint32_t pos = (x / 8) + (y * this->row_width_);
-  const uint8_t bit = 0x80 >> (x & 0x07);
-  const uint32_t red_offset = this->buffer_length_ / 2u;
-
-  // Use luminance threshold for B/W mapping
-  // Split at halfway point (382 = (255*3)/2)
-  auto bwr = color_to_bwr(color);
-
-  // Update black/white plane (first half of buffer)
-  if (bwr == BwrState::BWR_WHITE) {
-    // White pixel - set bit in black plane
-    this->buffer_[pos] |= bit;
-  } else {
-    // Black pixel - clear bit in black plane
-    this->buffer_[pos] &= ~bit;
-  }
-
-  // Update red plane (second half of buffer)
-  // Red if red component is dominant (r > g+b)
-  if (bwr == BwrState::BWR_RED) {
-    // Red pixel - set bit in red plane
-    this->buffer_[red_offset + pos] |= bit;
-  } else {
-    // Not red - clear bit in red plane
-    this->buffer_[red_offset + pos] &= ~bit;
-  }
-}
-
-void EPaperWeAct3C::fill(Color color) {
-  // For 3-color e-paper with 1-bit buffer format:
-  // - Black buffer: 1=black, 0=white
-  // - Red buffer: 1=red, 0=no red
-  // The buffer is stored as two halves: [black plane][red plane]
-  const size_t half_buffer = this->buffer_length_ / 2u;
-
-  // Use luminance threshold for B/W mapping
-  auto bits = color_to_bwr(color);
-
-  // Fill both planes
-  if (bits == BwrState::BWR_BLACK) {
-    // Black - both planes = 0x00
-    this->buffer_.fill(0x00);
-  } else if (bits == BwrState::BWR_RED) {
-    // Red - black plane = 0x00, red plane = 0xFF
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0x00;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0xFF;
-  } else {
-    // White - black plane = 0xFF, red plane = 0x00
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0xFF;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0x00;
-  }
-}
-
-void EPaperWeAct3C::clear() {
-  // Clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
-}
 
 void EPaperWeAct3C::set_window_() {
   // For full screen refresh, we always start from (0,0)
@@ -120,83 +32,27 @@ void EPaperWeAct3C::set_window_() {
 
 bool HOT EPaperWeAct3C::transfer_data() {
   const uint32_t start_time = millis();
-  const size_t buffer_length = this->buffer_length_;
-  const size_t half_buffer = buffer_length / 2u;
+  const size_t half_buffer = this->buffer_length_ / 2u;
 
-  ESP_LOGV(TAG, "transfer_data: buffer_length=%u, half_buffer=%u", buffer_length, half_buffer);
-
-  // Use a local buffer for SPI transfers
-  uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
-
-  // First, send the RED buffer (0x26 = WRITE_COLOR)
-  // The red plane is in the second half of our buffer
-  // NOTE: Must set RAM window first to reset address counters!
-  if (this->current_data_index_ < half_buffer) {
-    if (this->current_data_index_ == 0) {
-      ESP_LOGV(TAG, "transfer_data: sending RED buffer (0x26)");
-      this->set_window_();  // Reset RAM X/Y counters to start position
-      this->command(0x26);
-    }
-
-    this->start_data_();
-    size_t red_offset = half_buffer;
-    while (this->current_data_index_ < half_buffer) {
-      size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, half_buffer - this->current_data_index_);
-
-      for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->transform_red_byte(this->buffer_[red_offset + this->current_data_index_ + i]);
-      }
-
-      this->write_array(bytes_to_send, bytes_to_copy);
-
-      this->current_data_index_ += bytes_to_copy;
-
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        // Let the main loop run and come back next loop
-        this->disable();
-        return false;
-      }
-    }
-    this->disable();
+  // current_data_index_ is the position in buffer_: 0 before the push starts, then the red plane
+  // [half_buffer, buffer_length_), sent first, then the black/white plane (0, half_buffer).
+  // A push only yields after sending some data, so it never stops at exactly 0 or half_buffer.
+  if (this->current_data_index_ == 0) {
+    ESP_LOGV(TAG, "transfer_data: sending RED buffer (0x26)");
+    this->set_window_();  // Reset RAM X/Y counters to start position
+    this->command(0x26);
+    this->current_data_index_ = half_buffer;
   }
-
-  // Finished the red buffer, now send the BLACK buffer (0x24 = WRITE_BLACK)
-  // The black plane is in the first half of our buffer
-  if (this->current_data_index_ < buffer_length) {
-    if (this->current_data_index_ == half_buffer) {
-      ESP_LOGV(TAG, "transfer_data: finished red buffer, sending BLACK buffer (0x24)");
-
-      // Do NOT reset RAM counters here for WeAct displays (Reference implementation behavior)
-      // this->set_window();
-      this->command(0x24);
-      // Continue using current_data_index_, but we need to map it to the start of the buffer
-    }
-
-    this->start_data_();
-    while (this->current_data_index_ < buffer_length) {
-      size_t remaining = buffer_length - this->current_data_index_;
-      size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, remaining);
-
-      // Calculate offset into the BLACK buffer (which is at the start of this->buffer_)
-      // current_data_index_ goes from half_buffer to buffer_length
-      size_t buffer_offset = this->current_data_index_ - half_buffer;
-
-      for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[buffer_offset + i];
-      }
-
-      this->write_array(bytes_to_send, bytes_to_copy);
-
-      this->current_data_index_ += bytes_to_copy;
-
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        // Let the main loop run and come back next loop
-        this->disable();
-        return false;
-      }
-    }
-    this->disable();
+  if (this->current_data_index_ >= half_buffer) {
+    if (!this->send_buffer_range_(this->buffer_length_, this->invert_red_ ? 0xFF : 0x00, start_time))
+      return false;
+    ESP_LOGV(TAG, "transfer_data: finished red buffer, sending BLACK buffer (0x24)");
+    // Do NOT reset RAM counters here for WeAct displays (Reference implementation behavior)
+    this->command(0x24);
+    this->current_data_index_ = 0;
   }
+  if (!this->send_buffer_range_(half_buffer, 0xFF, start_time))  // the panel wants 1=white
+    return false;
 
   this->current_data_index_ = 0;
   ESP_LOGV(TAG, "transfer_data: completed (red=%u, black=%u bytes)", half_buffer, half_buffer);

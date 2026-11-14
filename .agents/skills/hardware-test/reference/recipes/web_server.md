@@ -12,13 +12,14 @@ on ESP32. Keep `power_save_mode: none`, and drive the device by address: mDNS na
 
 `scripts/web_server/sse.py HOST SECONDS [--clients N] [--stall] [--churn CYCLES]` opens raw TCP connections to
 `/events`, decodes the chunked body and parses every `state` event as JSON; `--stall` adds a connection with a 2 kB
-receive buffer that never reads (the device must log `Closing stuck EventSource connection` after the 20 s stall
-timeout), `--churn` opens and resets a connection CYCLES times. `sse_cases.sh HOST KEY LABEL CAPTURE` runs the
-set: 1 client 60 s, 4 clients 60 s, a reader plus a stalled client 45 s, a reader plus 10 abrupt closes, then two
-clients with the "Burst" button (50 sensor and 50 text publishes in one loop pass). Pass: 0 invalid JSON on every
-client, the oversize sensor dropped with its warning on every publish, the stalled session closed after about
-20 s, no reset. The loop task watermark is a minimum since boot, so compare the value after the first client, after
-four clients and after the burst between the builds (the SSE split in #21109 left 1280 B more on the ESP32 classic).
+receive buffer that never reads (the device must log `Closing stuck stream` on ESP-IDF and `Closing stuck
+EventSource connection` elsewhere, after the 20 s stall timeout), `--churn` opens and resets a connection CYCLES
+times. `sse_cases.sh HOST KEY LABEL CAPTURE` runs the set: 1 client 60 s, 4 clients 60 s, a reader plus a stalled
+client 45 s, a reader plus 10 abrupt closes, then two clients with the "Burst" button (50 sensor and 50 text
+publishes in one loop pass). Pass: 0 invalid JSON on every client, the oversize sensor dropped with its warning on
+every publish, the stalled session closed after about 20 s, no reset. The loop task watermark is a minimum since
+boot, so compare the value after the first client, after four clients and after the burst between the builds (the
+SSE split in #21109 left 1280 B more on the ESP32 classic).
 
 For the HTTPD task, `web_server: auth: type: digest` (the default `auth` is Basic) and
 `scripts/web_server/httpd_cases.sh HOST USER PASS LABEL CAPTURE`: `httpmix.sh` sends a `curl --anyauth` request
