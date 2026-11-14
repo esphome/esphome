@@ -32,7 +32,8 @@ static constexpr float SECONDS_PER_HOUR = 3600.0f;
 static constexpr Field ALPHA3_PROCESS_FIELDS[] = {
     {Reading::READING_FLOW, 0, SECONDS_PER_HOUR},
     {Reading::READING_HEAD, 4, 1.0f / PASCAL_PER_METER},
-    {Reading::READING_MEDIUM_TEMPERATURE, 16, 1.0f},  // °C, unlike the SI units of the other fields
+    // °C, unlike the SI units of the other fields. A real ALPHA3 sends exactly 0 for about a minute after power-up.
+    {Reading::READING_MEDIUM_TEMPERATURE, 16, 1.0f, true},
 };
 // 87/69, type 0x0100 v1: grid_voltage, dc_link_voltage, current, power_consumption, dc_power_consumption,
 // absolute_speed (rpm), three temperatures, pwm_type
@@ -178,7 +179,9 @@ void GrundfosAlpha::decode_(uint8_t index, const genibus::GenibusResponse &respo
     float value = NAN;
     if (ok && field.offset + 4u <= object.body.size()) {
       const auto *at = &object.body[field.offset];
-      value = bit_cast<float>(encode_uint32(at[0], at[1], at[2], at[3])) * field.factor;
+      const uint32_t raw = encode_uint32(at[0], at[1], at[2], at[3]);
+      if (raw != 0 || !field.zero_is_unknown)
+        value = bit_cast<float>(raw) * field.factor;
     }
     this->publish_(field.reading, value);
   }

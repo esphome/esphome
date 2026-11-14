@@ -104,6 +104,16 @@ TEST_F(GrundfosAlphaTest, UnexpectedVersionIsNotDecoded) {
   EXPECT_TRUE(std::isnan(this->speed_.state));
 }
 
+TEST_F(GrundfosAlphaTest, ZeroMediumTemperatureAfterPowerUpIsUnknown) {
+  this->pump_.update();
+  ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
+  this->reply_(REPLY_IDENTITY_ALPHA3);
+  ASSERT_EQ(this->next_request_(), FRAME_PROCESS);
+  this->reply_(REPLY_PROCESS_AFTER_POWER_UP);
+  EXPECT_TRUE(std::isnan(this->medium_temperature_.state));
+  EXPECT_NEAR(this->head_.state, 1400.447f / 9804.0f, 1e-6f);  // the other fields are published
+}
+
 TEST_F(GrundfosAlphaTest, ErrorAckGivesNanAndChainGoesOn) {
   this->pump_.update();
   ASSERT_EQ(this->next_request_(), FRAME_IDENTITY);
