@@ -7,6 +7,7 @@ namespace esphome::delonghi {
 ESPHOME_LOG_TAG(TAG, "delonghi.climate");
 
 using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 

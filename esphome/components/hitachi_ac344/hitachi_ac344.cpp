@@ -8,6 +8,7 @@ namespace esphome::hitachi_ac344 {
 ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
 
 using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 

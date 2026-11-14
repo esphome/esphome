@@ -10,6 +10,7 @@ ESPHOME_LOG_TAG(TAG, "airton.climate");
 static constexpr uint32_t RESTORE_SETTINGS_VERSION = 0x2E86A1F3UL;
 
 using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 

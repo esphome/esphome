@@ -11,10 +11,11 @@ namespace esphome::daikin_arc {
 ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
-// A received code that is not listed is ignored
+// Codes include the ON bit so the OFF entry never matches a running unit; an unlisted received code is ignored
 static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_OFF, DAIKIN_MODE_OFF},
     {climate::CLIMATE_MODE_COOL, DAIKIN_MODE_ON | DAIKIN_MODE_COOL},

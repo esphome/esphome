@@ -40,6 +40,7 @@ const uint32_t TEMP_MASK = 0xFF;
 const uint32_t TEMP_OFFSET_C = 16;
 
 using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
 using climate_ir::IRCode;
 using climate_ir::to_ir_code;
 
