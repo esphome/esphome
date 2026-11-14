@@ -12,6 +12,7 @@ namespace esphome::packet_interface {
 class RadioLinkBase : public PacketInterface {
  public:
   void set_max_busy(uint32_t max_busy_ms) { this->listen_before_talk_.set_max_busy(max_busy_ms); }
+  void set_turnaround(uint32_t turnaround_ms) { this->listen_before_talk_.set_turnaround(turnaround_ms); }
 
  protected:
   explicit RadioLinkBase(size_t max_packet_size) : PacketInterface(max_packet_size) {}
@@ -19,7 +20,8 @@ class RadioLinkBase : public PacketInterface {
   virtual uint32_t current_time_ms() const { return millis(); }
   /// False if a packet of this size is too large.
   bool check_size_(size_t size) const;
-  /// False if sending must wait, as the radio is busy; starts loop() to watch the radio.
+  /// False if sending must wait, as the radio is busy or the peer may be about to reply; starts loop() to watch a
+  /// busy radio.
   bool may_send_(bool busy);
   /**
    * Returns \p sent, after ending the busy period and warning if the packet was sent over a radio that seemed busy.
