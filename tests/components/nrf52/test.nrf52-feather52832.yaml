@@ -1,0 +1,3 @@
+# nRF52832: no USB, a single regulator labelled reg instead of reg1
+nrf52:
+  dcdc: true

@@ -1,0 +1,29 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+deep_sleep:
+  wakeup_pin:
+    number: 4
+    allow_other_uses: true
+
+output:
+  - platform: gpio
+    id: out_shared
+    pin:
+      number: 5
+      allow_other_uses: true
+
+binary_sensor:
+  - platform: gpio
+    id: bs_deep_sleep
+    pin:
+      number: 4
+      allow_other_uses: true
+  - platform: gpio
+    id: bs_shared
+    pin:
+      number: 5
+      allow_other_uses: true

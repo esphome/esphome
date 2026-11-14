@@ -4,8 +4,7 @@ esphome:
     then:
       - ln882h_ble_tracker.start_scan:
           continuous: true
-      # Bare form: restores the configured scan_parameters mode — no
-      # set_continuous emitted (asserted in the codegen test).
+      # Bare form: passes the configured scan_parameters mode (asserted in the codegen test).
       - ln882h_ble_tracker.start_scan:
       - ln882h_ble_tracker.stop_scan:
 

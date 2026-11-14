@@ -45,7 +45,7 @@ void Lc709203f::setup() {
   //  until a device reset.
   //
   //  This device can be picky about I2C communication and can error out occasionally. The
-  //  get/set register functions impelment retry logic to retry the I2C transactions. The
+  //  get/set register functions implement retry logic to retry the I2C transactions. The
   //  initialization code checks the return code from those functions. If they don't return
   //  NO_ERROR (0x00), that part of the initialization aborts and will be retried on the next
   //  call to update().
@@ -175,7 +175,7 @@ uint8_t Lc709203f::get_register_(uint8_t register_to_read, uint16_t *register_va
 
   for (uint8_t i = 0; i <= LC709203F_I2C_RETRY_COUNT; i++) {
     // Note: the read_register() function does not send a stop between the write and
-    //  the read portions of the I2C transation when you set the last variable to 'false'
+    //  the read portions of the I2C transaction when you set the last variable to 'false'
     //  as we do below. Some of the other I2C read functions such as the generic read()
     //  function will send a stop between the read and the write portion of the I2C
     //  transaction. This is bad in this case and will result in reading nothing but 0xFFFF
@@ -257,7 +257,7 @@ void Lc709203f::set_pack_size(uint16_t pack_size) {
       // If the pack size is between the current array element and the previous. Do a linear
       //  Curve fit to determine the APA value.
 
-      // Type casting is required here to avoid interger division
+      // Type casting is required here to avoid integer division
       slope = static_cast<float>(APA_ARRAY[i] - APA_ARRAY[i - 1]) /
               static_cast<float>(PACK_SIZE_ARRAY[i] - PACK_SIZE_ARRAY[i - 1]);
 
@@ -270,7 +270,7 @@ void Lc709203f::set_pack_size(uint16_t pack_size) {
   }
   // We should never get here. If we do, it means we never set the pack APA. This should
   //  not be possible because of the config validation. However, if it does happen, the
-  //  consequence is that the RSOC values will likley not be as accurate. However, it should
+  //  consequence is that the RSOC values will likely not be as accurate. However, it should
   //  not cause an error or crash, so I am not doing any additional checking here.
 }
 
