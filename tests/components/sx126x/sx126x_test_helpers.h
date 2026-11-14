@@ -103,7 +103,8 @@ class RadioHardware {
     this->spi.set_clk(&this->clk);
     this->spi.set_mosi(&this->mosi);
     this->spi.set_miso(&this->miso);
-    this->spi.setup();
+    // call() runs setup() and marks the bus set up, so it accepts devices
+    this->spi.call();
     this->radio.set_spi_parent(&this->spi);
     this->radio.set_cs_pin(&this->cs);
     this->radio.set_busy_pin(&this->busy);
