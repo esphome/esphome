@@ -39,7 +39,8 @@ struct AsyncClientPcb : AsyncClient {
 #endif
 
 // Sends a RST and frees the pcb now. A graceful close queues its FIN behind data a stalled reader never takes, so
-// it would hold the pcb until the peer leaves. True when the disconnect callback ran; otherwise the caller marks it.
+// it would hold the pcb until the peer leaves. False on ESP8266/RP2, where the caller marks the stream disconnected;
+// LibreTiny's callback runs here or later from a queued error event that may still name the client, so never mark it.
 static bool abort_now(AsyncClient *client) {
 #ifdef USE_LIBRETINY
   // AsyncTCP resets the pcb callbacks in the tcpip thread, aborts, then runs the disconnect callback here
@@ -199,14 +200,7 @@ bool AsyncStreamResponse::stall_or_close_(const LogString *reason) {
 
 void AsyncStreamResponse::abort_() {
   this->close_requested_ = true;
-  if (this->close_sent_ || !this->is_connected()) {
-    return;
-  }
-  this->close_sent_ = true;
-  LwIPLock lock;
-  if (this->is_connected() && !abort_now(this->client_)) {
-    this->disconnected_.store(true, std::memory_order_release);
-  }
+  this->close_client_(true);
 }
 
 void AsyncStreamResponse::close() {
@@ -214,14 +208,19 @@ void AsyncStreamResponse::close() {
   this->close_client_();
 }
 
-void AsyncStreamResponse::close_client_() {
+void AsyncStreamResponse::close_client_(bool abort) {
   if (this->close_sent_ || !this->is_connected()) {
     return;
   }
   this->close_sent_ = true;
   LwIPLock lock;
-  if (this->is_connected()) {
+  if (!this->is_connected()) {
+    return;
+  }
+  if (!abort) {
     close_now(this->client_);
+  } else if (!abort_now(this->client_)) {
+    this->disconnected_.store(true, std::memory_order_release);
   }
 }
 

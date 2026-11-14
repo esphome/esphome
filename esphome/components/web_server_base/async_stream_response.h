@@ -53,12 +53,12 @@ class AsyncStreamResponse {
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
   /// keeps the rest and continues from there. 0 means the send buffer is full or the connection is not ours yet; -1
   /// means the stream is closing. SEND_STALL_TIMEOUT_MS of refused writes, or of writes with no ACK in between,
-  /// also closes it.
+  /// also aborts it (RST).
   ssize_t write(StreamIovec *iov, int iovcnt);
   ssize_t write(const void *data, size_t len);
   /// Main loop. Closes the connection; safe to call more than once.
   void close();
-  /// Main loop, every pass. Closes a stream whose last send went unacknowledged for SEND_STALL_TIMEOUT_MS.
+  /// Main loop, every pass. Aborts (RST) a stream whose last send went unacknowledged for SEND_STALL_TIMEOUT_MS.
   void loop();
 
   /// Always true: a stream is published only once it has its connection.
@@ -83,8 +83,8 @@ class AsyncStreamResponse {
   void attach_(AsyncClient *client, bool head_sent);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and aborts. True when it did.
   bool stall_or_close_(const LogString *reason);
-  void close_client_();
-  // A stuck stream: RST and free the pcb now instead of a FIN queued behind data that cannot move
+  // Graceful FIN, or with abort a RST that frees the pcb now (a stuck stream's FIN would queue behind its data)
+  void close_client_(bool abort = false);
   void abort_();
 
   // Set before publishing; the main loop owns it and frees it once disconnected_
