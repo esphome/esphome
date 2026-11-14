@@ -1,0 +1,39 @@
+# Host build mirroring two Home Assistant scripts and the flag they set. Substitution: name.
+esphome:
+  name: ${name}
+host:
+logger:
+  level: DEBUG
+api:
+  reboot_timeout: 0s
+switch:
+  - platform: homeassistant
+    id: sw_long
+    name: "Long job mirror"
+    entity_id: script.long_job
+    on_turn_on:
+      - logger.log: "EV long ON"
+    on_turn_off:
+      - logger.log: "EV long OFF"
+  - platform: homeassistant
+    id: sw_quick
+    name: "Quick job mirror"
+    entity_id: script.quick_job
+  - platform: homeassistant
+    id: sw_bool
+    name: "Ran flag mirror"
+    entity_id: input_boolean.script_ran
+    on_turn_on:
+      - logger.log: "EV flag ON"
+    on_turn_off:
+      - logger.log: "EV flag OFF"
+button:
+  - platform: template
+    name: "Long on"
+    on_press: [switch.turn_on: sw_long]
+  - platform: template
+    name: "Long off"
+    on_press: [switch.turn_off: sw_long]
+  - platform: template
+    name: "Quick on"
+    on_press: [switch.turn_on: sw_quick]

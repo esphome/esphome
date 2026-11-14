@@ -10,12 +10,15 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
-#include <zephyr/usb/usb_device.h>
+#include <zephyr/version.h>
+#ifdef USE_LOGGER_USB_CDC
+#include "esphome/components/zephyr/usb_device.h"
+#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
 #ifdef USE_BOOTLOADER_ADAFRUIT
-#include <nrf.h>
+#include <hal/nrf_timer.h>
 #endif
 
 namespace esphome::logger {
@@ -74,17 +77,18 @@ void Logger::pre_setup() {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(ESPHOME_LOGGER_UART0_NODE));
         break;
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
-#ifdef CONFIG_USB_DEVICE_STACK
+#if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
         if (device_is_ready(uart_dev)) {
-          usb_enable(nullptr);
+          // Nothing can log this early, and the logger has no output without USB anyway
+          zephyr::usb_device_enable();
         }
 #endif
         break;

@@ -24,6 +24,7 @@ int16 = global_ns.namespace("int16_t")
 int32 = global_ns.namespace("int32_t")
 int64 = global_ns.namespace("int64_t")
 size_t = global_ns.namespace("size_t")
+byte_span = std_span.template(uint8.operator("const"))
 const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
