@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include "esphome/core/defines.h"
+#include "esphome/core/parse_float.h"
 
 #ifdef USE_JSON
 #include "esphome/components/json/json_util.h"
@@ -293,7 +294,7 @@ inline bool operator!=(const std::string &lhs, const ProgmemStringRef &rhs) { re
 #endif
 
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
-// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
+// Must be in esphome namespace for ADL to find them. Uses strtol, strtod and str_to_float to avoid heap allocation.
 namespace internal {
 // NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
@@ -334,7 +335,7 @@ inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
   return internal::parse_number<long>(str, pos, base, std::strtol);
 }
 inline float stof(const StringRef &str, size_t *pos = nullptr) {
-  return internal::parse_number<float>(str, pos, std::strtof);
+  return internal::parse_number<float>(str, pos, str_to_float);
 }
 inline double stod(const StringRef &str, size_t *pos = nullptr) {
   return internal::parse_number<double>(str, pos, std::strtod);

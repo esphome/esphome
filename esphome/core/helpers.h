@@ -25,6 +25,7 @@
 #include <strings.h>
 
 #include "esphome/core/optional.h"
+#include "esphome/core/parse_float.h"
 #include "esphome/core/time_conversion.h"
 
 #ifdef USE_ESP8266
@@ -1033,6 +1034,26 @@ inline float pow10_int(int8_t exp) {
   return result;
 }
 
+/// 10^n, exact while it fits in T.
+template<typename T> constexpr T pow10_exact(uint32_t n) {
+  T result = 1;
+  T base = 10;
+  for (;;) {
+    if ((n & 1) != 0)
+      result *= base;
+    n >>= 1;
+    if (n == 0)
+      return result;
+    base *= base;
+  }
+}
+
+/// Whether c is '0' to '9'.
+constexpr bool is_digit(char c) { return static_cast<uint8_t>(c - '0') <= 9; }
+
+/// Whether c is C-locale white space, without isspace's ctype table.
+constexpr bool is_space_c(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
+
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
@@ -1569,8 +1590,6 @@ template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T
 optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str());
 }
-/// Parse a decimal floating-point number; plain decimals skip the libc parser.
-optional<float> parse_float(const char *str);
 /// Parse a decimal floating-point number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
   return parse_float(str);
