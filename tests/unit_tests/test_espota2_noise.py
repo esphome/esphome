@@ -1367,13 +1367,20 @@ def test_probe_ota_key_stops_when_connect_used_the_budget() -> None:
 def test_probe_ota_key_never_waits_past_its_deadline() -> None:
     """Connect and handshake timeouts and the retry sleep are all capped by
     what is left of the budget."""
+    # A coarse real clock (Windows) makes (t0 + 0.5) - t0 slightly above 0.5
+    clock = [0.0]
+
+    def advance(seconds: float) -> None:
+        clock[0] += seconds
+
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
             return_value=RESOLVED,
         ),
         patch("socket.socket") as sock_cls,
-        patch("time.sleep") as sleep,
+        patch("time.sleep", side_effect=advance) as sleep,
+        patch("time.monotonic", side_effect=lambda: clock[0]),
     ):
         sock = sock_cls.return_value
         sock.connect.side_effect = OSError("refused")
