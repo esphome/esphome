@@ -1,10 +1,11 @@
 #!/bin/bash
 # stream_runall.sh NAME PORT: upload stream-dut.yaml as NAME over serial PORT, capture serial for 15 min, then run every
 # stream_retest.py mode (head saved to head-NAME.bin, multi, stall, churn, wifidrop) and print the stall closes, the
-# heap and any reset or crash lines. Run it for both builds and compare the heads with head_compare.py.
+# heap and any reset or crash lines. Run it for both builds and compare the heads with head_compare.py. Exits 1 when
+# any mode reports ok=False.
 # env: TREE, PY (secrets.yaml next to stream-dut.yaml)
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; P=${2:?serial port}
-T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; R="$PY -I $D/stream_retest.py"
+T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; FAILS=0; R="$PY -I $D/stream_retest.py"
 pkill -f "[s]erial_capture.py $P "; sleep 1
 "$S/pio_build.sh" upload "$N" "$D/stream-dut.yaml" "$P" || exit 1
 L=$D/cap-$N.txt
@@ -14,11 +15,12 @@ n=0; until grep -a -q "IP Address" "$L" 2>/dev/null || [ $n -gt 40 ]; do sleep 2
 IP=$(grep -a "IP Address" "$L" | head -1 | awk '{print $NF}')
 [ -n "$IP" ] || { echo "no IP Address line in $L"; exit 1; }
 sleep 5; grep -a heap "$L" | tail -1 | cut -c1-120
-$R "$IP" head --out "$D/head-$N.bin"
-$R "$IP" multi --runs 3
-$R "$IP" stall --runs 3
+$R "$IP" head --out "$D/head-$N.bin" || FAILS=$((FAILS + 1))
+$R "$IP" multi --runs 3 || FAILS=$((FAILS + 1))
+$R "$IP" stall --runs 3 || FAILS=$((FAILS + 1))
 grep -a "Closing stuck" "$L" | cut -c1-160
-$R "$IP" churn
-$R "$IP" wifidrop
+$R "$IP" churn || FAILS=$((FAILS + 1))
+$R "$IP" wifidrop || FAILS=$((FAILS + 1))
 sleep 5; grep -a heap "$L" | tail -1 | cut -c1-120
 grep -a -E "rst:|ESPHome version|Guru|abort|Backtrace|wifi drop|connection closed \(" "$L" | cut -c1-140 | tail -15
+[ $FAILS = 0 ] || { echo "FAIL: $FAILS modes not ok"; exit 1; }

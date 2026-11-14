@@ -95,7 +95,8 @@ class IrqSchedStress : public Component {
                ok ? "PASS" : "FAIL", (unsigned) this->irq_exec_, (unsigned) N, (unsigned) this->main_exec_,
                (unsigned) N, (unsigned) this->fifo_viol_, (unsigned) this->issue_ms_);
     } else {
-      bool ok = this->cancel_exec_ == 10;
+      // Without every set_timeout() issued from both sides the race never ran; 10 executions alone prove nothing.
+      bool ok = this->cancel_exec_ == 10 && this->irq_issued_ == NC && this->main_issued_ == NC;
       ESP_LOGI("irq_sched_stress", "CANCEL RESULT %s scheduled=%u executed=%u (expect 10) issued_in=%u ms",
                ok ? "PASS" : "FAIL", total, (unsigned) this->cancel_exec_, (unsigned) this->issue_ms_);
     }

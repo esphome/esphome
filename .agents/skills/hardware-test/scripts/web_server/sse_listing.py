@@ -173,6 +173,12 @@ for rnd in range(1, args.rounds + 1):
                 flush=True,
             )
             ok = False
+        if st.end != "stopped" or not any(k == "state" for _, k, _ in win):
+            print(
+                f"  stream {st.idx} was not alive through the window (end={st.end})",
+                flush=True,
+            )
+            ok = False
     kinds = [k for _, k, _ in s3.events if k != "ping_uptime"]
     first_bare = kinds.index("state") if "state" in kinds else len(kinds)
     last_detail = max((i for i, k in enumerate(kinds) if k == "detail_all"), default=-1)

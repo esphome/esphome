@@ -20,7 +20,8 @@ for r in $(seq 1 ${ROUNDS:-2}); do
   if ! nc -z -G 2 $H 6053 2>/dev/null; then
     sleep 15
     nc -z -G 2 $H 6053 2>/dev/null || { echo "$N: API port closed after round $r (safe mode?), uploading again"
-      $S/pio_build.sh upload $N $D/$C $H; ready; }
+      $S/pio_build.sh upload $N $D/$C $H && ready || { echo "$N: recovery after round $r failed, stopping"
+        FAILS=$((FAILS + 1)); break; }; }
   fi
 done
 [ $FAILS = 0 ] || { echo FAIL; exit 1; }

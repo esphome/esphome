@@ -10,7 +10,7 @@ usage: stream_retest.py HOST MODE [--out FILE] [--runs N]
             5 s without data like a browser EventSource; reports how the old stream ended and when a new one worked
   churn     40 connects (every second one reset with SO_LINGER 0 after the first state event, the others closed
             normally), then a fresh client for 10 s
-Each mode prints a `MODE ... ok=True/False` summary line.
+Each mode prints a `MODE ... ok=True/False` summary line; exits 1 when any summary is not ok.
 """
 
 import argparse
@@ -18,6 +18,7 @@ import contextlib
 import pathlib
 import socket
 import struct
+import sys
 import threading
 import time
 
@@ -91,7 +92,12 @@ class Reader(threading.Thread):
         s.close()
 
 
+failed = 0
+
+
 def summary(mode, ok, text):
+    global failed  # noqa: PLW0603
+    failed += not ok
     print(f"{mode} {text} ok={ok}", flush=True)
 
 
@@ -238,3 +244,5 @@ elif args.mode == "churn":
         f"{made}/40 got a state event, {resets} reset; after: {r.states} ev in 10 s gap {r.max_gap:.1f}s "
         f"end={r.end}",
     )
+
+sys.exit(1 if failed else 0)

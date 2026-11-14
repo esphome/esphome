@@ -1,6 +1,6 @@
 """svcrun.py HOST ACTION DONE_REGEX TIMEOUT: run a user defined API action, collect the logs until DONE_REGEX matches
 or TIMEOUT seconds pass, and print the result lines. env: API_KEY (unset for a plaintext API).
-Exits 1 on a timeout or when a result line says FAIL or FAILED."""
+Exits 1 on a timeout or when a result line says FAIL, FAILED or crash."""
 
 import asyncio
 import pathlib
@@ -48,7 +48,9 @@ async def main(host: str, action: str, done: str, timeout: float) -> int:
         print("  " + line)
     print(f"{action}: {status} after {time.monotonic() - t0:.1f} s")
     await cli.disconnect()
-    failed = any(re.search(r"\bFAIL(ED)?\b", line) for line in found)
+    failed = any(
+        re.search(r"\bFAIL(ED)?\b|crash", line, re.IGNORECASE) for line in found
+    )
     return 1 if status != "DONE" or failed else 0
 
 
