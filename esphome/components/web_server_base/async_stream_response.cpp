@@ -77,7 +77,7 @@ void AsyncStreamResponse::accept(AsyncWebServerRequest *request, const char *sta
 
 void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
   client->setRxTimeout(0);
-  // A send with no ACK for this long closes the stream, the same timeout as a full send buffer
+  // Backstop for data left unacked once writes stop; each send restarts it
   client->setAckTimeout(SEND_STALL_TIMEOUT_MS);
   client->setNoDelay(true);
   // clientRelease() already cleared the request's data, ack, poll and error handlers
@@ -130,12 +130,24 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     // RP2: the network IRQ may free the pcb between the check and the use, so hold it out across both
     LwIPLock lock;
     if (this->is_connected()) {
+      // Only an ACK grows the send buffer's free space (lwIP snd_buf). ESPAsyncTCP and RPAsyncTCP call onAck
+      // only once everything is acked, so it cannot measure this.
+      if (this->client_->space() > this->space_after_write_)
+        this->last_ack_ms_ = now;
       char scratch[ADD_SCRATCH_SIZE];
       sent = add_iovecs(*this->client_, iov, iovcnt, scratch, sizeof(scratch));
+      if (sent > 0)
+        this->space_after_write_ = this->client_->space();
     }
   }
   if (sent > 0) {
     this->stall_.clear();
+    // lwIP keeps queueing into a large buffer while the window is shut, so the buffer may never fill
+    if (now - this->last_ack_ms_ >= SEND_STALL_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without an ACK", now - this->last_ack_ms_);
+      this->close();
+      return -1;
+    }
     return static_cast<ssize_t>(sent);
   }
   // Send buffer full, try again later; a buffer that stays full past the stall timeout is closed
