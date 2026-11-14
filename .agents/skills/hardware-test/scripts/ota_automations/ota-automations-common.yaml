@@ -1,0 +1,51 @@
+# OTA automations on two OTA platforms (esphome and web_server). Every fire logs its platform tag, kind and argument.
+# secrets.yaml (wifi_ssid, wifi_password) goes next to this file. Keep web_server's OTA on: `ota: false` removes /update.
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+web_server:
+  port: 80
+
+ota:
+  - platform: esphome
+    on_begin:
+      - logger.log: "AUTO native begin"
+    on_progress:
+      - logger.log:
+          format: "AUTO native progress %.0f"
+          args: ["x"]
+    on_end:
+      - logger.log: "AUTO native end"
+    on_abort:
+      - logger.log: "AUTO native abort"
+    on_error:
+      - logger.log:
+          format: "AUTO native error %u"
+          args: ["x"]
+    on_state_change:
+      - logger.log:
+          format: "AUTO native state %d"
+          args: ["(int) state"]
+  - platform: web_server
+    on_begin:
+      - logger.log: "AUTO web begin"
+    on_progress:
+      - logger.log:
+          format: "AUTO web progress %.0f"
+          args: ["x"]
+    on_end:
+      - logger.log: "AUTO web end"
+    on_abort:
+      - logger.log: "AUTO web abort"
+    on_error:
+      - logger.log:
+          format: "AUTO web error %u"
+          args: ["x"]
+    on_state_change:
+      - logger.log:
+          format: "AUTO web state %d"
+          args: ["(int) state"]

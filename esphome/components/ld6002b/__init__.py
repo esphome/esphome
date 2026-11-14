@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.ld600x import (
     LD600XComponent,
+    add_frame_buffer,
     ld600x_hub_schema,
     request_model_sizes,
     uart_final_validate,
@@ -11,7 +12,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_WAKEUP_PIN
 from esphome.types import ConfigType
 
-from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
+from .const import CONF_AUTO_WAKE, CONF_LD6002B_ID, CONF_WAKEUP_PULSE
 
 AUTO_LOAD = ["ld600x"]
 CODEOWNERS = ["@hepter"]
@@ -60,6 +61,7 @@ FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6002b")
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
     request_model_sizes(var, area_kinds=2)
+    add_frame_buffer(var, config, CONF_LD6002B_ID)
 
     await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
 

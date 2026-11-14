@@ -102,9 +102,7 @@ void AHT10Component::read_data_() {
       ESP_LOGV(TAG, "Invalid humidity (reading not required)");
     } else {
       ESP_LOGD(TAG, "Invalid humidity, retrying");
-      if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      }
+      this->status_comm_check(this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) == i2c::ERROR_OK);
       this->restart_read_();
       return;
     }
@@ -130,10 +128,8 @@ void AHT10Component::update() {
   if (this->read_count_ != 0)
     return;
   this->start_time_ = millis();
-  if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) == i2c::ERROR_OK))
     return;
-  }
   this->restart_read_();
 }
 

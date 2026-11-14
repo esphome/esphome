@@ -1,0 +1,9 @@
+# Add to v6common.yaml: keeps the main loop busy, like a display or audio config
+esphome:
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: |-
+            static HighFrequencyLoopRequester hf;
+            hf.start();
+            ESP_LOGI("v6probe", "HF loop on");

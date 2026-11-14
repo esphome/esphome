@@ -1,0 +1,92 @@
+# Bonding GATT client (classic ESP32): connects to esp32central-srv.yaml, cycles the link every 40 s.
+# Substitutions: name, server (the server's BLE MAC from its esp32_ble dump).
+esphome:
+  name: ${name}
+  includes: [bonds.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - delay: 2s
+      - lambda: 'log_bonds("client");'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+esp32_ble:
+  io_capability: display_yes_no
+  auth_req_mode: sc_mitm_bond
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: ${server}
+    id: c
+    on_connect:
+      - logger.log: {format: "CLI connected", level: INFO}
+      # Start encryption like a phone does after an insufficient authentication reply
+      - lambda: |-
+          esp_err_t err = esp_ble_set_encryption(id(c).get_remote_bda(), ESP_BLE_SEC_ENCRYPT_MITM);
+          ESP_LOGI("main", "CLI set_encryption %d", (int) err);
+    on_disconnect:
+      - logger.log: {format: "CLI disconnected", level: INFO}
+    on_numeric_comparison_request:
+      - logger.log: {format: "CLI numeric comparison %06u", args: ["(unsigned) passkey"], level: INFO}
+      - ble_client.numeric_comparison_reply:
+          id: c
+          accept: true
+    on_passkey_request:
+      - logger.log: {format: "CLI passkey request", level: INFO}
+
+text_sensor:
+  - platform: ble_client
+    ble_client_id: c
+    name: plain
+    on_value:
+      - logger.log: {format: "CLI value plain %s", args: ['x.c_str()'], level: INFO}
+    service_uuid: 5ec00000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec00001-0000-1000-8000-00805f9b34fb
+    update_interval: 7s
+  - platform: ble_client
+    ble_client_id: c
+    name: encrypted
+    on_value:
+      - logger.log: {format: "CLI value encrypted %s", args: ['x.c_str()'], level: INFO}
+    service_uuid: 5ec00000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec00002-0000-1000-8000-00805f9b34fb
+    update_interval: 7s
+  - platform: ble_client
+    ble_client_id: c
+    name: mitm
+    on_value:
+      - logger.log: {format: "CLI value mitm %s", args: ['x.c_str()'], level: INFO}
+    service_uuid: 5ec00000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec00003-0000-1000-8000-00805f9b34fb
+    update_interval: 7s
+  - platform: ble_client
+    ble_client_id: c
+    name: notified
+    on_value:
+      - logger.log: {format: "CLI value notified %s", args: ['x.c_str()'], level: INFO}
+    service_uuid: 5ec00000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec00004-0000-1000-8000-00805f9b34fb
+    notify: true
+
+interval:
+  - interval: 40s
+    startup_delay: 40s
+    then:
+      - ble_client.ble_write:
+          id: c
+          service_uuid: 5ec00000-0000-1000-8000-00805f9b34fb
+          characteristic_uuid: 5ec00003-0000-1000-8000-00805f9b34fb
+          value: [0x01, 0x02, 0x03]
+      - delay: 2s
+      - logger.log: {format: "CLI cycling link", level: INFO}
+      - lambda: 'id(c).set_enabled(false);'
+      - delay: 3s
+      - lambda: 'id(c).set_enabled(true);'

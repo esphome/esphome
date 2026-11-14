@@ -121,7 +121,7 @@ def final_validate_microphone_source_schema(
         sample_rate (int, optional): The sample rate the component requesting mic audio requires
     """
 
-    def _validate_audio_compatability(config: ConfigType) -> ConfigType:
+    def _validate_audio_compatibility(config: ConfigType) -> ConfigType:
         if sample_rate is not cv.UNDEFINED:
             # Issues require changing the microphone configuration
             #  - Verifies sample rates match
@@ -143,7 +143,7 @@ def final_validate_microphone_source_schema(
 
         return config
 
-    return _validate_audio_compatability
+    return _validate_audio_compatibility
 
 
 async def microphone_source_to_code(

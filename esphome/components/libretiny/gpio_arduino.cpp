@@ -31,11 +31,35 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   }
 }
 
-// The ISR copy is the pin itself, so both share the stored mode and level. Pins are never freed.
-ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(
-      const_cast<ArduinoInternalGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+// The ISR copy is the pin itself, so both share the stored mode and level.
+ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
+
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+// RTL8710B GPIO interrupts on one edge only and LibreTiny maps CHANGE to rising, so flip the edge on every interrupt.
+// Mirrors LibreTiny 1.14.0 wiring_irq.c (PinData is the SDK handler id); drop once libretiny-eu/libretiny#155 is fixed.
+// Re-reads the level after each write; a pin still bouncing after four tries is corrected at its next edge.
+static void IRAM_ATTR rtl8710b_arm_next_edge(gpio_irq_t *irq) {
+  uint32_t level = GPIO_ReadDataBit(irq->pin);
+  for (int i = 0; i < 4; i++) {
+    // gpio_irq_set() without its flash wrapper, so the handler runs from RAM and mask ROM only
+    GPIO_INTMode(irq->pin, ENABLE, GPIO_INT_Trigger_EDGE,
+                 level ? GPIO_INT_POLARITY_ACTIVE_LOW : GPIO_INT_POLARITY_ACTIVE_HIGH, GPIO_INT_DEBOUNCE_ENABLE);
+    const uint32_t now = GPIO_ReadDataBit(irq->pin);
+    if (now == level)
+      return;
+    level = now;
+  }
 }
+
+static void IRAM_ATTR rtl8710b_change_handler(uint32_t id, gpio_irq_event event) {
+  auto *data = reinterpret_cast<PinData *>(id);  // NOLINT(performance-no-int-to-ptr)
+  // A later attach with another mode keeps this handler
+  if (data->irqMode == CHANGE)
+    rtl8710b_arm_next_edge(data->irq);
+  if (data->irqHandler != nullptr)
+    reinterpret_cast<void (*)(void *)>(data->irqHandler)(data->irqParam);
+}
+#endif
 
 void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = (PinStatus) 255;
@@ -58,6 +82,20 @@ void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, 
   }
 
   attachInterruptParam(pin_, func, arduino_mode, arg);
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+  if (arduino_mode == CHANGE) {
+    PinInfo *info = pinInfo(this->pin_);
+    PinData *data = info != nullptr ? info->data : nullptr;
+    if (data != nullptr && data->irq != nullptr) {
+      // The interrupt is already live: keep it from arming an edge between the level read and the write below
+      const uint32_t primask = __get_PRIMASK();
+      __disable_irq();
+      GPIO_UserRegIrq(data->irq->pin, reinterpret_cast<void *>(rtl8710b_change_handler), data);
+      rtl8710b_arm_next_edge(data->irq);
+      __set_PRIMASK(primask);
+    }
+  }
+#endif
 }
 
 #ifdef USE_BK72XX
@@ -120,6 +158,13 @@ size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
 }
 
 bool ArduinoInternalGPIOPin::digital_read() {
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+  // The Arduino read switches the pin back to GPIO and frees its interrupt, so read through the interrupt instead.
+  // Remove once LibreTiny's Arduino pin read handles this. The IRQ bit is only set once data->irq exists.
+  PinInfo *info = pinInfo(this->pin_);
+  if (info != nullptr && (info->enabled & PIN_IRQ))
+    return bool(gpio_irq_read(info->data->irq)) ^ this->inverted_;
+#endif
   return bool(digitalRead(this->pin_)) ^ this->inverted_;  // NOLINT
 }
 void ArduinoInternalGPIOPin::digital_write(bool value) {
