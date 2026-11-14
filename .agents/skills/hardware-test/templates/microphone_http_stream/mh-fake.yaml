@@ -1,0 +1,30 @@
+# microphone_http_stream (#21593) fed by the fake counter microphone in ext/fakemic.
+esphome:
+  name: mhf
+
+packages:
+  base: !include mh-base.yaml
+
+external_components:
+  - source:
+      type: local
+      path: ext
+    components: [fakemic]
+
+microphone:
+  - platform: fakemic
+    id: mic
+    sample_rate: 16000
+
+microphone_http_stream:
+  stream_id: fake
+  max_clients: 3
+  source:
+    microphone: mic
+    channels: [0]
+
+button:
+  - platform: template
+    name: Mic stall
+    on_press:
+      - lambda: id(mic).stall(6000);

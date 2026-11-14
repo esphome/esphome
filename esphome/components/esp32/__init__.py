@@ -236,15 +236,15 @@ COMPILER_OPTIMIZATIONS = {
 #
 # Note: excluding a component only removes it from the initial build set.
 # ESP-IDF's requirement expansion adds an excluded component back when any
-# component still in the build REQUIRES it (e.g. espressif/mdns pulls
-# "console" back in, esp_http_client pulls "tcp_transport" back in), so
+# component still in the build REQUIRES it (e.g. esp_http_client pulls
+# "tcp_transport" back in), so
 # exclusions here are safe for such components and simply become no-ops in
 # builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "app_trace",  # CPU trace/SystemView support - unused by ESPHome
     "bt",  # Bluetooth stack - re-included by request_bluetooth(); its REQUIRES pulls the WiFi stack back
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
-    "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
+    "console",  # Console REPL - unused by ESPHome; espressif/mdns needs it only for its CLI, which mdns disables
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp-tls",  # TLS wrapper - re-included by request_tls()
     "esp_adc",  # ADC driver - only needed by adc component
@@ -3003,6 +3003,7 @@ async def _finalize_arduino_aware_flags():
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 

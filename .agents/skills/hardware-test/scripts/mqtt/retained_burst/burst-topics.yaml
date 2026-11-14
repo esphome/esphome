@@ -1,0 +1,176 @@
+# The retained burst topics (a package shared by burst-common.yaml and ../reconnect/kick-common.yaml): 25 on_message
+# topics and 15 switches whose command topics seed.sh leaves retained, setting bits in got and sw_on.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+globals:
+  - id: got
+    type: uint32_t
+    initial_value: "0"
+  - id: sw_on
+    type: uint32_t
+    initial_value: "0"
+
+mqtt:
+  id: mq
+  broker: ${broker}
+  port: ${broker_port}
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+  topic_prefix: hwburst
+  on_message:
+    - topic: hwburst/in/0
+      then:
+        - lambda: id(got) |= 1u << 0;
+    - topic: hwburst/in/1
+      then:
+        - lambda: id(got) |= 1u << 1;
+    - topic: hwburst/in/2
+      then:
+        - lambda: id(got) |= 1u << 2;
+    - topic: hwburst/in/3
+      then:
+        - lambda: id(got) |= 1u << 3;
+    - topic: hwburst/in/4
+      then:
+        - lambda: id(got) |= 1u << 4;
+    - topic: hwburst/in/5
+      then:
+        - lambda: id(got) |= 1u << 5;
+    - topic: hwburst/in/6
+      then:
+        - lambda: id(got) |= 1u << 6;
+    - topic: hwburst/in/7
+      then:
+        - lambda: id(got) |= 1u << 7;
+    - topic: hwburst/in/8
+      then:
+        - lambda: id(got) |= 1u << 8;
+    - topic: hwburst/in/9
+      then:
+        - lambda: id(got) |= 1u << 9;
+    - topic: hwburst/in/10
+      then:
+        - lambda: id(got) |= 1u << 10;
+    - topic: hwburst/in/11
+      then:
+        - lambda: id(got) |= 1u << 11;
+    - topic: hwburst/in/12
+      then:
+        - lambda: id(got) |= 1u << 12;
+    - topic: hwburst/in/13
+      then:
+        - lambda: id(got) |= 1u << 13;
+    - topic: hwburst/in/14
+      then:
+        - lambda: id(got) |= 1u << 14;
+    - topic: hwburst/in/15
+      then:
+        - lambda: id(got) |= 1u << 15;
+    - topic: hwburst/in/16
+      then:
+        - lambda: id(got) |= 1u << 16;
+    - topic: hwburst/in/17
+      then:
+        - lambda: id(got) |= 1u << 17;
+    - topic: hwburst/in/18
+      then:
+        - lambda: id(got) |= 1u << 18;
+    - topic: hwburst/in/19
+      then:
+        - lambda: id(got) |= 1u << 19;
+    - topic: hwburst/in/20
+      then:
+        - lambda: id(got) |= 1u << 20;
+    - topic: hwburst/in/21
+      then:
+        - lambda: id(got) |= 1u << 21;
+    - topic: hwburst/in/22
+      then:
+        - lambda: id(got) |= 1u << 22;
+    - topic: hwburst/in/23
+      then:
+        - lambda: id(got) |= 1u << 23;
+    - topic: hwburst/in/24
+      then:
+        - lambda: id(got) |= 1u << 24;
+
+switch:
+  - platform: template
+    name: sw0
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 0;
+  - platform: template
+    name: sw1
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 1;
+  - platform: template
+    name: sw2
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 2;
+  - platform: template
+    name: sw3
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 3;
+  - platform: template
+    name: sw4
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 4;
+  - platform: template
+    name: sw5
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 5;
+  - platform: template
+    name: sw6
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 6;
+  - platform: template
+    name: sw7
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 7;
+  - platform: template
+    name: sw8
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 8;
+  - platform: template
+    name: sw9
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 9;
+  - platform: template
+    name: sw10
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 10;
+  - platform: template
+    name: sw11
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 11;
+  - platform: template
+    name: sw12
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 12;
+  - platform: template
+    name: sw13
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 13;
+  - platform: template
+    name: sw14
+    optimistic: true
+    on_turn_on:
+      - lambda: id(sw_on) |= 1u << 14;

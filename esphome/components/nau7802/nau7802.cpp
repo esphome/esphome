@@ -71,10 +71,8 @@ void NAU7802Sensor::setup() {
   pu_ctrl |= PU_CTRL_POWERUP_DIGITAL;
 
   delay(1);
-  if (!(pu_ctrl.get() & PU_CTRL_POWERUP_READY)) {
-    this->mark_failed(LOG_STR("Failed to reset sensor during setup()"));
+  if (!this->setup_check(pu_ctrl.get() & PU_CTRL_POWERUP_READY, LOG_STR("Failed to reset sensor during setup()")))
     return;
-  }
 
   uint32_t gcal = (uint32_t) (std::round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
   this->write_value_(OCAL1_B2_REG, 3, this->offset_calibration_);

@@ -25,7 +25,7 @@ class ModbusFloatOutput final : public output::FloatOutput, public SensorItem, p
 
   using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, modbus::RegisterValues &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
-  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
+  void set_use_write_multiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void write_state(float value) override;
@@ -52,7 +52,7 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public SensorItem,
 
   using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, modbus::helpers::PduBuffer &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
-  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
+  void set_use_write_multiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void write_state(bool state) override;
