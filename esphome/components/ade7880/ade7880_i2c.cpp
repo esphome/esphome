@@ -25,7 +25,7 @@ namespace esphome::ade7880 {
 
 uint8_t ADE7880::read_u8_register16_(uint16_t a_register) {
   uint8_t in;
-  this->read_register16(a_register, &in, sizeof(in));
+  this->read_byte16(a_register, &in);
   return in;
 }
 
@@ -60,9 +60,7 @@ uint32_t ADE7880::read_u32_register16_(uint16_t a_register) {
   return convert_big_endian(in);
 }
 
-void ADE7880::write_u8_register16_(uint16_t a_register, uint8_t value) {
-  this->write_register16(a_register, &value, sizeof(value));
-}
+void ADE7880::write_u8_register16_(uint16_t a_register, uint8_t value) { this->write_byte16(a_register, value); }
 
 void ADE7880::write_s10zp_register16_(uint16_t a_register, int16_t value) {
   int16_t out = convert_big_endian(value & 0x03FF);
