@@ -328,7 +328,7 @@ class LightState : public EntityBase, public Component {
   void write_if_pending_();
 #ifdef USE_LIGHT_WRITE_ON_SETUP
   /// The write of a loop() pass, without its effect and transition steps; setup() calls it with write_on_setup.
-  virtual void write_start_up_state_() { this->write_if_pending_(); }
+  virtual void write_start_up_state() { this->write_if_pending_(); }
 #endif  // USE_LIGHT_WRITE_ON_SETUP
   friend LightOutput;
   friend LightCall;

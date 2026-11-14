@@ -99,7 +99,7 @@ void LightState::setup() {
   // Otherwise the output is first written from loop(), which only runs once every component is set up. A restored
   // effect is first applied there, once whatever it uses is set up.
   if (this->write_on_setup_)
-    this->write_start_up_state_();
+    this->write_start_up_state();
 #endif  // USE_LIGHT_WRITE_ON_SETUP
 }
 void LightState::dump_config() {

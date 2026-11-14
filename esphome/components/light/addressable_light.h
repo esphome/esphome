@@ -33,7 +33,7 @@ class AddressableLightState final : public LightState {
 
  protected:
 #ifdef USE_LIGHT_WRITE_ON_SETUP
-  void write_start_up_state_() override { this->limit_and_write_(); }
+  void write_start_up_state() override { this->limit_and_write_(); }
 #endif
   void limit_and_write_();
 #endif
