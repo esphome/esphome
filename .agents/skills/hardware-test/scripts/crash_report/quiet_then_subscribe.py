@@ -1,7 +1,8 @@
 """quiet_then_subscribe.py HOST PORT OUT QUIET_BOOTS: on the first boot drain any crash record (the first log
 subscribe replays and clears it), then stay connected without a log subscription for QUIET_BOOTS reboots, then
 subscribe on the next boot and record the log (including a crash record replayed on subscribe) until a line with
-REBOOT. Exits 1 when that line never comes or a quiet boot does not reboot within QUIET_REBOOT_WAIT seconds
+REBOOT. The drain connection is dropped and replaced by one without a subscription before boot 1 reboots, so a crash
+that needs a log subscriber is not recorded as a quiet one. Exits 1 when that line never comes or a quiet boot does not reboot within QUIET_REBOOT_WAIT seconds
 (default 900). Every lost connection counts as a reboot, so run it on a stable link.
 env: API_KEY (unset for a plaintext API), QUIET_REBOOT_WAIT."""
 
@@ -66,6 +67,13 @@ async def main(host: str, port: int, outf: str, quiet: int) -> None:
                     dump_config=False,
                 )
                 await asyncio.sleep(3)
+                with contextlib.suppress(Exception):
+                    await cli.disconnect()
+                lost, on_stop = stop_event()
+                cli = await connect(
+                    host, tries=300, timeout=5, port=port, on_stop=on_stop
+                )
+                w("=== boot 1 reconnected without a log subscription")
             # quiet: wait for the device to drop the connection (its reboot)
             try:
                 await asyncio.wait_for(lost.wait(), REBOOT_WAIT)
