@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -161,19 +162,19 @@ TEST(SseChunk, QueueIntoEmptyBuffer) {
 }
 
 TEST(SseChunk, QueueBehindPartlySentChunkCompactsInPlace) {
-  const std::string first = build_chunk("{\"name\":\"ping\"}", 15, "ping", 0, 0);
-  const std::string second = build_chunk("{\"name\":\"group\"}", 16, "sorting_group", 0, 0);
+  const std::string first = build_chunk(R"({"name":"ping"})", 15, "ping", 0, 0);
+  const std::string second = build_chunk(R"({"name":"group"})", 16, "sorting_group", 0, 0);
   uint8_t buf[256];
-  std::memcpy(buf, first.data(), first.size());
+  std::copy(first.begin(), first.end(), buf);
   const size_t sent = 7;  // part of the first chunk is already on the wire
-  const size_t len = queue_event(buf, buf, first.size(), sent, "{\"name\":\"group\"}", "sorting_group");
+  const size_t len = queue_event(buf, buf, first.size(), sent, R"({"name":"group"})", "sorting_group");
   EXPECT_EQ(as_string(buf, len), first.substr(sent) + second);
 }
 
 TEST(SseChunk, QueueIntoGrownBufferKeepsOrder) {
   const std::string first = build_chunk("first", 5, "log", 0, 0);
   uint8_t old_buf[64];
-  std::memcpy(old_buf, first.data(), first.size());
+  std::copy(first.begin(), first.end(), old_buf);
   uint8_t grown[256];
   size_t len = queue_event(grown, old_buf, first.size(), 3, "second", "log");
   len = queue_event(grown, grown, len, 0, "third\nline", "log");
@@ -184,7 +185,7 @@ TEST(SseChunk, QueueIntoGrownBufferKeepsOrder) {
 TEST(SseChunk, QueueAfterFirstChunkFullySent) {
   const std::string first = build_chunk("x", 1, "log", 0, 0);
   uint8_t buf[128];
-  std::memcpy(buf, first.data(), first.size());
+  std::copy(first.begin(), first.end(), buf);
   const size_t len = queue_event(buf, buf, first.size(), first.size(), "y", "log");
   EXPECT_EQ(as_string(buf, len), build_chunk("y", 1, "log", 0, 0));
 }
