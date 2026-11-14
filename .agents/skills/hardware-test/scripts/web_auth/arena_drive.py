@@ -195,7 +195,8 @@ def phase(name: str, workers: list) -> bool:
         f"{stats['select_fail']}, detail {stats['detail_bytes']} B",
         flush=True,
     )
-    return loaded and bool(stacks) and resets == 0
+    # fewer than two uptime readings cannot rule out a reset
+    return loaded and bool(stacks) and len(ups) >= 2 and resets == 0
 
 
 print(

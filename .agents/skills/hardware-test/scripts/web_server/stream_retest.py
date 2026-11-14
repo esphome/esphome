@@ -174,6 +174,7 @@ elif args.mode == "wifidrop":
     r.start()
     time.sleep(3)
     pre = r.states
+    pressed = False
     try:
         b = socket.create_connection((H, 80), timeout=5)
         b.sendall(
@@ -182,7 +183,9 @@ elif args.mode == "wifidrop":
             + b"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
         )
         b.settimeout(3)
-        print("press reply:", b.recv(200).split(b"\r\n")[0], flush=True)
+        status = b.recv(200).split(b"\r\n")[0]
+        pressed = status.startswith(b"HTTP/1.1 200")
+        print("press reply:", status, flush=True)
         b.close()
     except OSError as e:
         print("press error", e, flush=True)
@@ -205,8 +208,8 @@ elif args.mode == "wifidrop":
         time.sleep(1)
     summary(
         "wifidrop",
-        t_new is not None and r.end != "deadline",
-        f"old end={r.end}, new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
+        pressed and t_new is not None and r.end != "deadline",
+        f"press {'ok' if pressed else 'FAILED'}, old end={r.end}, new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
         f"the press",
     )
 
