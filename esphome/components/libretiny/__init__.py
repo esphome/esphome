@@ -183,28 +183,6 @@ def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_BOARD]
 
 
-# LT_LOGLEVEL values that compile log_d in (lt_config.h: VERBOSE is TRACE 0, DEBUG 1)
-_LT_DEBUG_LOGLEVELS = frozenset(
-    {"LT_LEVEL_VERBOSE", "LT_LEVEL_TRACE", "LT_LEVEL_DEBUG", "0", "1"}
-)
-
-
-def get_libretiny_loglevel(core_obj: EsphomeCore | None = None) -> str:
-    """LT_LOGLEVEL the build uses; framework options override loglevel."""
-    core = core_obj or CORE
-    framework = core.config[core.target_platform][CONF_FRAMEWORK]
-    return (
-        framework[CONF_OPTIONS]
-        .get("LT_LOGLEVEL", f"LT_LEVEL_{framework[CONF_LOGLEVEL]}")
-        .strip()
-    )
-
-
-def libretiny_logs_debug(core_obj: EsphomeCore | None = None) -> bool:
-    """Whether LibreTiny compiles its log_d calls in."""
-    return get_libretiny_loglevel(core_obj) in _LT_DEBUG_LOGLEVELS
-
-
 def get_board_pins() -> dict[str, int]:
     """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
     return lookup_board_pins(get_libretiny_board())
