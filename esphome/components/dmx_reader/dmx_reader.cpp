@@ -4,10 +4,19 @@
 namespace esphome::dmx_reader {
 
 ESPHOME_LOG_TAG(TAG, "dmx_reader");
-static const char *const TAG = "dmx_reader";
 
 void DMXReader::setup() {
   this->dmx_port_ = static_cast<dmx_port_t>(this->uart_num_);
+
+  // Refuse to install if another driver already owns this peripheral
+  if (uart_is_driver_installed(this->dmx_port_)) {
+    ESP_LOGE(TAG,
+             "UART%d is already in use (logger or uart: component). "
+             "Choose a free uart_num for dmx_reader.",
+             this->uart_num_);
+    this->mark_failed();
+    return;
+  }
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
   dmx_personality_t personalities[] = {{1, "ESPHome DMX Reader"}};
@@ -54,8 +63,12 @@ void DMXReader::loop() {
     if (ds.channel_number == nullptr || !ds.channel_number->has_state())
       continue;
 
-    uint16_t channel = static_cast<uint16_t>(ds.channel_number->state);
-    if (channel < 1 || channel > 512)
+    const float channel_value = ds.channel_number->state;
+    if (!(channel_value >= 1.0f && channel_value <= 512.0f))
+      continue;
+
+    const uint16_t channel = static_cast<uint16_t>(channel_value);
+    if (channel != channel_value)
       continue;
 
     float value = static_cast<float>(this->data_[channel]);
@@ -69,14 +82,6 @@ uint8_t DMXReader::get_channel(uint16_t channel) const {
   if (channel < 1 || channel > 512)
     return 0;
   return this->data_[channel];
-}
-
-void DMXReader::register_channel_sensor(uint16_t channel, sensor::Sensor *sens) {
-  this->static_sensors_.push_back({channel, sens});
-}
-
-void DMXReader::register_dynamic_channel_sensor(number::Number *channel_number, sensor::Sensor *sens) {
-  this->dynamic_sensors_.push_back({channel_number, sens});
 }
 
 void DMXReader::dump_config() {
