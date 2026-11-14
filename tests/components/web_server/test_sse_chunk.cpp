@@ -128,4 +128,77 @@ TEST(SseChunk, MatchesReferenceOnRandomMessages) {
   }
 }
 
+// Queues one event behind the unsent bytes of src as append_chunk_() does; returns the new length
+static size_t queue_event(uint8_t *dst, const uint8_t *src, size_t len, size_t sent, const std::string &message,
+                          const char *event) {
+  char prefix[128];
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), event, 0, 0, true);
+  size_t total = prefix_len;
+  for_each_chunk_piece(
+      message.data(), message.size(), [](void *ctx, const char *, size_t n) { *static_cast<size_t *>(ctx) += n; },
+      &total);
+  write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
+  return queue_chunk(dst, src, len, sent, prefix, prefix_len, message.data(), message.size());
+}
+
+static std::string as_string(const uint8_t *buf, size_t len) { return {reinterpret_cast<const char *>(buf), len}; }
+
+TEST(SseChunk, CopyChunkMatchesBuiltChunk) {
+  const std::string want = build_chunk("a\nb", 3, "log", 0, 0);
+  char prefix[128];
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "log", 0, 0, true);
+  std::memcpy(prefix, want.data(), CHUNK_HDR_LEN);  // the header build_chunk() filled in
+  uint8_t buf[128];
+  EXPECT_EQ(copy_chunk(buf, prefix, prefix_len, "a\nb", 3), want.size());
+  EXPECT_EQ(as_string(buf, want.size()), want);
+}
+
+TEST(SseChunk, QueueIntoEmptyBuffer) {
+  const std::string want = build_chunk("a\nb", 3, "log", 0, 0);
+  uint8_t buf[128];
+  EXPECT_EQ(queue_event(buf, buf, 0, 0, "a\nb", "log"), want.size());
+  EXPECT_EQ(as_string(buf, want.size()), want);
+}
+
+TEST(SseChunk, QueueBehindPartlySentChunkCompactsInPlace) {
+  const std::string first = build_chunk("{\"name\":\"ping\"}", 15, "ping", 0, 0);
+  const std::string second = build_chunk("{\"name\":\"group\"}", 16, "sorting_group", 0, 0);
+  uint8_t buf[256];
+  std::memcpy(buf, first.data(), first.size());
+  const size_t sent = 7;  // part of the first chunk is already on the wire
+  const size_t len = queue_event(buf, buf, first.size(), sent, "{\"name\":\"group\"}", "sorting_group");
+  EXPECT_EQ(as_string(buf, len), first.substr(sent) + second);
+}
+
+TEST(SseChunk, QueueIntoGrownBufferKeepsOrder) {
+  const std::string first = build_chunk("first", 5, "log", 0, 0);
+  uint8_t old_buf[64];
+  std::memcpy(old_buf, first.data(), first.size());
+  uint8_t grown[256];
+  size_t len = queue_event(grown, old_buf, first.size(), 3, "second", "log");
+  len = queue_event(grown, grown, len, 0, "third\nline", "log");
+  EXPECT_EQ(as_string(grown, len),
+            first.substr(3) + build_chunk("second", 6, "log", 0, 0) + build_chunk("third\nline", 10, "log", 0, 0));
+}
+
+TEST(SseChunk, QueueAfterFirstChunkFullySent) {
+  const std::string first = build_chunk("x", 1, "log", 0, 0);
+  uint8_t buf[128];
+  std::memcpy(buf, first.data(), first.size());
+  const size_t len = queue_event(buf, buf, first.size(), first.size(), "y", "log");
+  EXPECT_EQ(as_string(buf, len), build_chunk("y", 1, "log", 0, 0));
+}
+
+TEST(SseChunk, TailQueueCap) {
+  constexpr size_t max = 1460;
+  EXPECT_EQ(tail_queue_cap(max + 1, 5000, max), 0u);  // refused even when a large state grew the tail
+  EXPECT_EQ(tail_queue_cap(100, 300, max), 300u);     // fits in place
+  EXPECT_EQ(tail_queue_cap(300, 300, max), 300u);
+  EXPECT_EQ(tail_queue_cap(301, 300, max), max / 2);  // first growth: half
+  EXPECT_EQ(tail_queue_cap(max / 2, 0, max), max / 2);
+  EXPECT_EQ(tail_queue_cap(max / 2 + 1, max / 2, max), max);  // then all of it
+  EXPECT_EQ(tail_queue_cap(max, max / 2, max), max);
+  EXPECT_EQ(tail_queue_cap(max, 2048, max), 2048u);  // a larger tail is used as is
+}
+
 }  // namespace esphome::web_server::testing

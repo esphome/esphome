@@ -48,4 +48,15 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
 // Fills the header placeholder at the start of buf once the chunk length is known
 void write_chunk_header(char *buf, size_t chunk_len);
 
+// Copies the prefix and the message's pieces to dst; returns the bytes written
+size_t copy_chunk(uint8_t *dst, const char *prefix, size_t prefix_len, const char *message, size_t message_len);
+
+// Tail capacity for need bytes: cap when they fit, else max / 2, then max; 0 when need > max
+size_t tail_queue_cap(size_t need, size_t cap, size_t max);
+
+// Moves the unsent bytes [sent, len) of src to the front of dst (dst may be src) and copies the chunk after them.
+// Returns the new length.
+size_t queue_chunk(uint8_t *dst, const uint8_t *src, size_t len, size_t sent, const char *prefix, size_t prefix_len,
+                   const char *message, size_t message_len);
+
 }  // namespace esphome::web_server
