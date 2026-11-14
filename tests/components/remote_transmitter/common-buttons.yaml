@@ -319,6 +319,11 @@ button:
     name: Toto
     on_press:
       - remote_transmitter.transmit_toto:
+          code: 0x37BB
+  - platform: template
+    name: Toto legacy fields
+    on_press:
+      - remote_transmitter.transmit_toto:
           command: 0xEC
           rc_code_1: 0x0D
           rc_code_2: 0x0D
@@ -427,9 +432,7 @@ button:
     name: Toto with repeat
     on_press:
       remote_transmitter.transmit_toto:
-        command: 0xEC
-        rc_code_1: 0x0D
-        rc_code_2: 0x0D
+        code: 0x37BB
         repeat:
           times: 2
           wait_time: 20ms
@@ -1053,6 +1056,8 @@ button:
           rc_code_1: !lambda return 0xB24DBF4050AF;
           rc_code_2: !lambda return 0xD5660001003C;
       - remote_transmitter.transmit_toto:
+          code: !lambda return 0x37BB;
+      - remote_transmitter.transmit_toto:
           command: !lambda return 0xEC;
           rc_code_1: !lambda return 0x0D;
           rc_code_2: !lambda return 0x0D;
@@ -1094,3 +1099,13 @@ script:
           group: !lambda x *= 1; return std::string("a");
           device: !lambda return x *= 1;
           state: !lambda x *= 1; return true;
+  # Field lambdas take the script arguments by value, so they may modify them
+  - id: remote_transmitter_nec_lambda_args
+    parameters:
+      x: int
+    then:
+      - remote_transmitter.transmit_nec:
+          address: !lambda "x *= 2; return x;"
+          command: !lambda "return x *= 2;"
+          repeat:
+            times: !lambda "return x *= 2;"

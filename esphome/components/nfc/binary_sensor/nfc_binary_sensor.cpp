@@ -32,8 +32,6 @@ void NfcTagBinarySensor::set_tag_name(const char *str) {
   this->match_tag_name_ = true;
 }
 
-void NfcTagBinarySensor::set_uid(const NfcTagUid &uid) { this->uid_ = uid; }
-
 bool NfcTagBinarySensor::tag_match_ndef_string(const std::shared_ptr<NdefMessage> &msg) {
   for (const auto &record : msg->get_records()) {
     if (record->get_payload().find(this->match_string_.c_str(), 0, this->match_string_.size()) != std::string::npos) {

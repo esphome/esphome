@@ -660,6 +660,7 @@ async def to_code(config: ConfigType) -> None:
         # Presets live in shared PROGMEM tables; the thermostat keeps a pointer and a count.
         standard_presets: list[cg.StructInitializer] = []
         custom_presets: list[cg.StructInitializer] = []
+        custom_names: list[str] = []
         nan = float("nan")
         unset = cg.RawExpression("std::nullopt")
 
@@ -684,6 +685,7 @@ async def to_code(config: ConfigType) -> None:
                     )
                 )
             else:
+                custom_names.append(name)
                 custom_presets.append(
                     cg.StructInitializer(
                         ThermostatCustomPresetEntry,
@@ -702,6 +704,7 @@ async def to_code(config: ConfigType) -> None:
                 "thermostat_custom_presets", ThermostatCustomPresetEntry, custom_presets
             )
             cg.add(var.set_custom_preset_config(table, len(custom_presets)))
+            climate.set_custom_presets(var, custom_names)
 
     if (default_preset := config.get(CONF_DEFAULT_PRESET)) is not None:
         # a built in preset is passed as its enum value

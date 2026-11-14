@@ -193,7 +193,9 @@ def test_numeric_comparison_reply_uses_esp32_builder(
     main_cpp = generate_main(component_config_path("pairing.yaml"))
 
     # The esp32 schema and builder are used, not zephyr_ble_server's
-    assert "numeric_comparison_reply(static_cast<uint64_t>(address), true);" in main_cpp
+    # The lambda names address, so it gets its own copy and is called in place
+    assert "->numeric_comparison_reply([](uint64_t address," in main_cpp
+    assert "}(address, passkey), true);" in main_cpp
 
 
 def _permissions(char: dict[str, object]) -> tuple[str, dict[int, str]]:
