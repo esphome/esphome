@@ -1055,50 +1055,20 @@ OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, _, OnkyoRIDumper = (
 
 
 # Pioneer
-(
-    PioneerData,
-    PioneerBinarySensor,
-    PioneerTrigger,
-    _,
-    PioneerDumper,
-) = declare_protocol("Pioneer")
 PIONEER_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_RC_CODE_1): cv.hex_uint16_t,
         cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_uint16_t,
     }
 )
-
-
-@register_binary_sensor("pioneer", PioneerBinarySensor, PIONEER_SCHEMA)
-def pioneer_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                PioneerData,
-                ("rc_code_1", config[CONF_RC_CODE_1]),
-                ("rc_code_2", config[CONF_RC_CODE_2]),
-            )
-        )
+PioneerData, PioneerBinarySensor, PioneerTrigger, _, PioneerDumper = (
+    register_simple_protocol(
+        "pioneer",
+        "Pioneer",
+        PIONEER_SCHEMA,
+        (CONF_RC_CODE_1, "rc_code_1", cg.uint16),
+        (CONF_RC_CODE_2, "rc_code_2", cg.uint16),
     )
-
-
-@register_trigger("pioneer", PioneerTrigger, PioneerData)
-def pioneer_trigger(var, config):
-    pass
-
-
-@register_dumper("pioneer", PioneerDumper)
-def pioneer_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "pioneer",
-    "Pioneer",
-    PIONEER_SCHEMA,
-    (CONF_RC_CODE_1, "rc_code_1", cg.uint16),
-    (CONF_RC_CODE_2, "rc_code_2", cg.uint16),
 )
 
 

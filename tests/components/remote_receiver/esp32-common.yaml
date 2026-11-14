@@ -103,6 +103,10 @@ binary_sensor:
     onkyori:
       data: 0x123
   - platform: remote_receiver
+    name: Pioneer Remote Input
+    pioneer:
+      rc_code_1: 0xA556
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b
