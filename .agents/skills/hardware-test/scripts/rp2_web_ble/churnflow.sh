@@ -7,6 +7,8 @@ D=${0:A:h}; N=$1; C=$2; H=$3; S=$D/..; cd $D
 T=${TREE:?set TREE}; export PY=${PY:-$T/venv/bin/python}; FAILS=0
 val() { curl -s -m 4 "http://$H/sensor/$1" | grep -o '"value":[0-9]*' | cut -d: -f2; }
 loopchk() { local a b; a=$(val Fast%20counter); sleep 3; b=$(val Fast%20counter); [[ -n $a && -n $b && $b -gt $a ]]; }
+# Portable TCP check of the API port (nc -G is macOS only): apiopen TIMEOUT_S
+apiopen() { $PY -c 'import socket, sys; socket.create_connection((sys.argv[1], 6053), float(sys.argv[2])).close()' $H $1 2>/dev/null; }
 ready() { for _ in $(seq 1 40); do [ -n "$(val Uptime)" ] && return 0; sleep 3; done; return 1; }
 $S/pio_build.sh upload $N $D/$C ${DEVICE:-$H} || exit 1
 ready || { echo "FAIL: $N never answered"; exit 1; }
@@ -17,9 +19,9 @@ for r in $(seq 1 ${ROUNDS:-2}); do
   sleep 5; ha=$(val Heap%20free); sleep 30; hs=$(val Heap%20free)
   loopchk && lp="loop ok" || { lp="LOOP STUCK"; FAILS=$((FAILS + 1)); }
   echo "$N round $r: $(echo $res | tr '\n' ' ') | heap before $hb, after $ha, settled $hs | $lp"
-  if ! nc -z -G 2 $H 6053 2>/dev/null; then
+  if ! apiopen 2; then
     sleep 15
-    nc -z -G 2 $H 6053 2>/dev/null || { echo "$N: API port closed after round $r (safe mode?), uploading again"
+    apiopen 2 || { echo "$N: API port closed after round $r (safe mode?), uploading again"
       $S/pio_build.sh upload $N $D/$C $H && ready || { echo "$N: recovery after round $r failed, stopping"
         FAILS=$((FAILS + 1)); break; }; }
   fi

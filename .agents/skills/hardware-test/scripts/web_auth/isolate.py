@@ -1,6 +1,7 @@
 """Send one hostile request at a time and check uptime afterwards, to tie a reboot to a request.
 
 usage: isolate.py HOST USER PASS [ROUNDS] [CASE,...]   (one line per case: uptime before/after, rebooted yes/no)
+Exits 1 when any request was followed by a reboot or a device that stopped answering.
 Reuses authfuzz.py's raw socket sender and request builder.
 """
 
@@ -44,6 +45,7 @@ def main() -> None:
     }
     only = sys.argv[5].split(",") if len(sys.argv) > 5 else list(cases)
     u0 = uptime()
+    reboots = 0
     for r in range(rounds):
         for name in only:
             t = time.strftime("%H:%M:%S")
@@ -52,11 +54,17 @@ def main() -> None:
             time.sleep(4)
             u1 = uptime()
             rb = "REBOOT" if (u0 is None or u1 is None or u1 < u0) else "ok"
+            reboots += rb == "REBOOT"
             print(
                 f"[{t}] round {r} {name:22} -> {head[:40]:40} uptime {u0} -> {u1} {rb}",
                 flush=True,
             )
             u0 = u1
+    print(
+        "PASS" if not reboots else f"FAIL: {reboots} requests followed by a reboot",
+        flush=True,
+    )
+    sys.exit(1 if reboots else 0)
 
 
 if __name__ == "__main__":

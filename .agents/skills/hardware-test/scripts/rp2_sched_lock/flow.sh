@@ -18,7 +18,9 @@ restok() {
   read ok all < <(echo "$2" | tr ' ' '\n' | awk -F: 'NF == 2 {a += $2; if ($1 == 200) o = $2} END {print o+0, a+0}')
   [ "$all" -gt 0 ] && [ $((ok * 2)) -ge "$all" ] || fail "$1: $ok of $all POSTs answered 200"; }
 heap() { curl -s -m 4 "http://$H/sensor/Heap%20free" | grep -o '"value":[0-9]*' | cut -d: -f2; }
-up() { for _ in $(seq 1 60); do nc -z -G 1 $H 6053 2>/dev/null && return 0; sleep 2; done; return 1; }
+# Portable TCP check of the API port (nc -G is macOS only): apiopen TIMEOUT_S
+apiopen() { $PY -c 'import socket, sys; socket.create_connection((sys.argv[1], 6053), float(sys.argv[2])).close()' $H $1 2>/dev/null; }
+up() { for _ in $(seq 1 60); do apiopen 1 && return 0; sleep 2; done; return 1; }
 $S/pio_build.sh upload $N $D/$C ${DEVICE:-$H} || exit 1
 up || { echo "FAIL: API port never opened"; exit 1; }; sleep 8
 if [ -n "$SP" ]; then $PY $S/serial_capture.py $SP 3600 $D/$N-serial.log 2> $D/$N-cap.err & CAP=$!; sleep 3; fi

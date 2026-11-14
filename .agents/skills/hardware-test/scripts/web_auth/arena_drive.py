@@ -102,6 +102,7 @@ def connector(stop: threading.Event) -> None:
             )
             s.settimeout(0.5)
             n = 0
+            head = b""
             end = time.monotonic() + 2.5
             while time.monotonic() < end:
                 try:
@@ -110,10 +111,16 @@ def connector(stop: threading.Event) -> None:
                     continue
                 if not d:
                     break
+                if not head:
+                    head = d
                 n += len(d)
             s.close()
-            stats["connects"] += 1
-            stats["listing_bytes"].append(n)
+            # A refused or empty answer did not run the new client listing
+            if head.split(b" ", 2)[1:2] == [b"200"]:
+                stats["connects"] += 1
+                stats["listing_bytes"].append(n)
+            else:
+                stats["connect_errors"] += 1
         except OSError:
             stats["connect_errors"] += 1
         stop.wait(0.5)
