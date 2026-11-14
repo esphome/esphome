@@ -67,6 +67,14 @@ void esp_log_printf_(int level, const char *tag, int line, const char *format, .
 // NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
+// esp_log_printf_ for a line with no arguments: it is copied without formatting unless it contains '%'. The
+// ESP_LOGx macros pick it when they are given no arguments. It is variadic only so that the format is still checked.
+void esp_log_str_(int level, const char *tag, int line, const char *format, ...)  // NOLINT
+    __attribute__((format(printf, 4, 5)));
+#ifdef USE_ESP8266
+// NOLINTNEXTLINE(readability-identifier-naming)
+void esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
+#endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
@@ -78,9 +86,14 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ESPHOME_LOG_FORMAT(format) format
 #endif
 
+// esp_log_str_ when there are no arguments after the format, esp_log_printf_ otherwise
+#define ESPHOME_LOG_PICK_(first, second, name, ...) name
+#define ESPHOME_LOG_FN_(...) ESPHOME_LOG_PICK_(__VA_OPT__(, ) esp_log_str_, esp_log_printf_, esp_log_str_)
+#define ESPHOME_LOG_(level, tag, format, ...) \
+  ::esphome::ESPHOME_LOG_FN_(__VA_ARGS__)(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define esph_log_vv(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_vv(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, format, ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERY_VERBOSE
 #else
@@ -88,8 +101,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-#define esph_log_v(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_v(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERBOSE, tag, format, ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERBOSE
 #else
@@ -97,10 +109,8 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-#define esph_log_d(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
-#define esph_log_config(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_d(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_DEBUG, tag, format, ##__VA_ARGS__)
+#define esph_log_config(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_CONFIG, tag, format, ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_DEBUG
 #define ESPHOME_LOG_HAS_CONFIG
@@ -110,8 +120,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
-#define esph_log_i(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_i(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_INFO, tag, format, ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_INFO
 #else
@@ -119,8 +128,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-#define esph_log_w(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_w(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_WARN, tag, format, ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_WARN
 #else
@@ -128,8 +136,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-#define esph_log_e(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_e(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_ERROR, tag, format, ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_ERROR
 #else

@@ -114,6 +114,42 @@ struct LogBuffer {
     this->finalize_();
   }
 #endif
+  // Writes a message that needs no formatting, truncated and stripped of trailing newlines as format_body() does
+  void HOT write_unformatted_body(const char *text, size_t len) {
+    if (!this->full_()) {
+      const uint16_t limit = this->remaining_() - 1;  // vsnprintf() keeps the last byte for the null terminator
+      uint16_t copy_len = (len < limit) ? static_cast<uint16_t>(len) : limit;
+      while (copy_len > 0 && text[copy_len - 1] == '\n')
+        copy_len--;
+      memcpy(this->current_(), text, copy_len);
+      this->pos += copy_len;
+    }
+    this->finalize_();
+  }
+#ifdef USE_ESP8266
+  // write_unformatted_body() for a message in flash. Returns false without finishing the line if the message has a
+  // '%' in the part that fits, since it then needs formatting.
+  bool HOT write_unformatted_body_p(PGM_P text) {
+    if (!this->full_()) {
+      char *const start = this->current_();
+      const char *const end = start + this->remaining_() - 1;
+      char *p = start;
+      while (p < end) {
+        const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(text++)));
+        if (c == '\0')
+          break;
+        if (c == '%')
+          return false;
+        *p++ = c;
+      }
+      while (p > start && p[-1] == '\n')
+        p--;
+      this->pos = static_cast<uint16_t>(p - this->data);
+    }
+    this->finalize_();
+    return true;
+  }
+#endif
   static constexpr uint16_t ANSI_COLOR_LEN = 7;  // "\033[{bold};3{color}m" written by write_header for level != 0
   static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
   // Largest replay header: color plus "@4294967295ms "

@@ -220,6 +220,13 @@ class Logger final : public Component {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
+  // Logs a message that has no arguments without formatting it. Returns false when the caller must format it
+  // instead: it contains '%', or it comes from another thread or from inside the logger.
+  bool log_str_(uint8_t level, const char *tag, int line, const char *msg);  // NOLINT
+#ifdef USE_ESP8266
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg);
+#endif
 
  protected:
   // RAII guard for recursion flags - sets flag on construction, clears on destruction
@@ -313,6 +320,22 @@ class Logger final : public Component {
 #endif
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
+  }
+
+  // Sends a line written by log_str_() to the boot log, the listeners and the console
+  void send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf);
+
+  // True on the task that runs the main loop, and always on single-task platforms
+  inline bool HOT is_main_task_() const {
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+    return xTaskGetCurrentTaskHandle() == this->main_task_;
+#elif defined(USE_ZEPHYR)
+    return k_current_get() == this->main_task_;
+#elif defined(USE_HOST)
+    return pthread_equal(pthread_self(), this->main_thread_);
+#else
+    return true;
+#endif
   }
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
