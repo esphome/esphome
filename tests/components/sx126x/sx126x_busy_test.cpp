@@ -239,6 +239,33 @@ TEST_P(SX126xBusyReceive, KeepsAPacketWhoseReadFailedAndRetries) {
 
 INSTANTIATE_TEST_SUITE_P(LoRaAndFSK, SX126xBusyReceive, ::testing::Bool());
 
+// A packet whose flags were cleared before its read failed, then held by a send, survives a
+// second failed read
+TEST(SX126xBusy, HeldPacketSurvivesASecondFailedRead) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(true, true);
+  hw.radio.register_listener(&listener);
+  hw.clear_trace();
+  hw.irq = IRQ_RX_DONE;
+  hw.fail_at = 3;  // the first read after the flags were cleared
+  hw.radio.loop();
+  ASSERT_EQ(hw.irq, 0);
+  ASSERT_TRUE(listener.packets.empty());
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY);
+  hw.clear_trace();
+  hw.fail_at = 2;  // the held packet's read
+  LoopBlockingGuard first{nullptr, nullptr, App.get_loop_component_start_time() + 200};
+  hw.radio.loop();
+  ASSERT_TRUE(listener.packets.empty());
+  hw.clear_trace();
+  LoopBlockingGuard second{nullptr, nullptr, App.get_loop_component_start_time() + 200};
+  hw.radio.loop();
+  ASSERT_EQ(listener.packets.size(), 1u);
+  EXPECT_EQ(listener.packets[0], hw.packet);
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
+}
+
 TEST(SX126xBusy, KeepsPollingAnUnclearedInterruptAfterBusyTimeout) {
   RadioHardware hardware;
   PacketListener listener;

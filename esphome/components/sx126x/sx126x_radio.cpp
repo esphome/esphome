@@ -234,7 +234,7 @@ RadioEffects Sx126xRadio::receive_(bool holding, uint32_t now, std::vector<uint8
     this->commands_.read_packet(this->applied_.modulation, packet, rssi, snr);
   }
   const bool read = this->bus().ok();
-  this->pending_irq_ = read || holding ? 0 : status;
+  this->pending_irq_ = read ? 0 : status;
   // Do not spend a BUSY timeout on every loop while a read keeps failing.
   this->rx_retry_pending_ = !read;
   this->rx_retry_started_ms_ = now;
