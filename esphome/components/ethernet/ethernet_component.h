@@ -7,6 +7,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
+#include <atomic>
+
 #ifdef USE_ETHERNET
 
 #ifdef USE_ESP32
@@ -366,6 +368,9 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
+#ifdef USE_ESP32
+  std::atomic<uint8_t> ip_state_pending_{0};
+#endif
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
