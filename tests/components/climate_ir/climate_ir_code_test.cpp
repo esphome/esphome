@@ -29,13 +29,15 @@ TEST(ClimateIRCodeTest, FindMissing) {
 }
 
 TEST(ClimateIRCodeTest, ToCode) {
-  EXPECT_EQ(to_ir_code(FANS, climate::CLIMATE_FAN_HIGH), 0x30);
-  EXPECT_EQ(to_ir_code(FANS, climate::CLIMATE_FAN_MEDIUM), 0x10);
+  EXPECT_EQ(to_ir_code(FANS, climate::CLIMATE_FAN_HIGH, 0x00), 0x30);
+  EXPECT_EQ(to_ir_code(FANS, climate::CLIMATE_FAN_MEDIUM, 0x00), 0x00);
 }
 
 TEST(ClimateIRCodeTest, FromCode) {
-  EXPECT_EQ(from_ir_code<climate::ClimateFanMode>(FANS, 0x20), climate::CLIMATE_FAN_LOW);
-  EXPECT_EQ(from_ir_code<climate::ClimateFanMode>(FANS, 0x99), climate::CLIMATE_FAN_AUTO);
+  EXPECT_EQ(from_ir_code(FANS, 0x20, climate::CLIMATE_FAN_AUTO), climate::CLIMATE_FAN_LOW);
+  EXPECT_EQ(from_ir_code(FANS, 0x99, climate::CLIMATE_FAN_AUTO), climate::CLIMATE_FAN_AUTO);
+  // The current state as the fallback leaves it unchanged on an unknown code
+  EXPECT_EQ(from_ir_code(FANS, 0x99, climate::CLIMATE_FAN_MEDIUM), climate::CLIMATE_FAN_MEDIUM);
 }
 
 }  // namespace esphome::climate_ir::testing

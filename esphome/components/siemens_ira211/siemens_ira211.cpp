@@ -6,8 +6,8 @@ namespace esphome::siemens_ira211 {
 
 using namespace remote_base;
 
-// Presets map to IRA211Mode and fan modes to IRA211Fan. The first entry of each table is the fallback for values
-// the other side does not know.
+// Presets map to IRA211Mode and fan modes to IRA211Fan. Values the other side does not know fall back to comfort
+// and auto.
 static constexpr climate_ir::IRCode PRESETS[] PROGMEM = {
     {climate::CLIMATE_PRESET_COMFORT, static_cast<uint8_t>(IRA211Mode::IRA211_MODE_COMFORT)},
     {climate::CLIMATE_PRESET_ECO, static_cast<uint8_t>(IRA211Mode::IRA211_MODE_TIMER)},
@@ -20,16 +20,18 @@ static constexpr climate_ir::IRCode FANS[] PROGMEM = {
 };
 
 static IRA211Mode to_ira211_mode(climate::ClimatePreset preset) {
-  return static_cast<IRA211Mode>(climate_ir::to_ir_code(PRESETS, preset));
+  return static_cast<IRA211Mode>(
+      climate_ir::to_ir_code(PRESETS, preset, static_cast<uint8_t>(IRA211Mode::IRA211_MODE_COMFORT)));
 }
 static climate::ClimatePreset to_climate_preset(IRA211Mode mode) {
-  return climate_ir::from_ir_code<climate::ClimatePreset>(PRESETS, static_cast<uint8_t>(mode));
+  return climate_ir::from_ir_code(PRESETS, static_cast<uint8_t>(mode), climate::CLIMATE_PRESET_COMFORT);
 }
 static IRA211Fan to_ira211_fan(climate::ClimateFanMode fan_mode) {
-  return static_cast<IRA211Fan>(climate_ir::to_ir_code(FANS, fan_mode));
+  return static_cast<IRA211Fan>(
+      climate_ir::to_ir_code(FANS, fan_mode, static_cast<uint8_t>(IRA211Fan::IRA211_FAN_AUTO)));
 }
 static climate::ClimateFanMode to_climate_fan_mode(IRA211Fan fan) {
-  return climate_ir::from_ir_code<climate::ClimateFanMode>(FANS, static_cast<uint8_t>(fan));
+  return climate_ir::from_ir_code(FANS, static_cast<uint8_t>(fan), climate::CLIMATE_FAN_AUTO);
 }
 
 void SiemensIRA211Climate::setup() {

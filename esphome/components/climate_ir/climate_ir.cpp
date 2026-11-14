@@ -103,4 +103,11 @@ int find_ir_code_index(const IRCode *table, size_t count, uint8_t key, bool matc
   return -1;
 }
 
+uint8_t lookup_ir_code(const IRCode *table, size_t count, uint8_t key, bool match_code, uint8_t fallback) {
+  const int index = find_ir_code_index(table, count, key, match_code);
+  if (index < 0)
+    return fallback;
+  return progmem_read_byte(match_code ? &table[index].value : &table[index].code);
+}
+
 }  // namespace esphome::climate_ir
