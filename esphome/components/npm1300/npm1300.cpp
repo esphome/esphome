@@ -381,6 +381,22 @@ void NPM1300Component::read_measurements_() {
 }
 #endif
 
+// BCHGVTERM: 3.50 V to 3.65 V, then 4.00 V to 4.45 V, both in 50 mV steps
+static uint16_t termination_voltage_mv(uint8_t code) { return code < 4 ? 3500 + 50 * code : 4000 + 50 * (code - 4); }
+
+static const LogString *output_name(uint8_t index) {
+  switch (static_cast<NPM1300Output>(index)) {
+    case NPM1300Output::NPM1300_OUTPUT_BUCK1:
+      return LOG_STR("BUCK1");
+    case NPM1300Output::NPM1300_OUTPUT_BUCK2:
+      return LOG_STR("BUCK2");
+    case NPM1300Output::NPM1300_OUTPUT_LDO1:
+      return LOG_STR("LDO1");
+    default:
+      return LOG_STR("LDO2");
+  }
+}
+
 void NPM1300Component::dump_config() {
   ESP_LOGCONFIG(TAG, "nPM1300:");
   LOG_I2C_DEVICE(this);
@@ -396,10 +412,32 @@ void NPM1300Component::dump_config() {
                   "  Charger:\n"
                   "    Current: %u mA\n"
                   "    Discharge limit: %u mA\n"
+                  "    Termination voltage: %u mV\n"
+                  "    Warm termination voltage: %u mV\n"
+                  "    Termination current: %u%%\n"
+                  "    Trickle voltage: %u mV\n"
                   "    Enabled: %s\n"
                   "    Recharge: %s",
-                  charger.current * 2u, discharge_limit_ma(charger.discharge_limit), YESNO(charger.enabled),
-                  YESNO(charger.recharge));
+                  charger.current * 2u, discharge_limit_ma(charger.discharge_limit),
+                  termination_voltage_mv(charger.termination_voltage),
+                  termination_voltage_mv(charger.warm_termination_voltage), charger.termination_current ? 20u : 10u,
+                  charger.trickle_voltage ? 2500u : 2900u, YESNO(charger.enabled), YESNO(charger.recharge));
+  }
+  for (uint8_t i = 0; i < NPM1300_OUTPUT_COUNT; i++) {
+    const NPM1300OutputConfig &output = config.outputs[i];
+    if (output.voltage == NPM1300_UNSET && output.ldo_mode == NPM1300_UNSET && output.enabled == NPM1300_UNSET)
+      continue;
+    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(output_name(i)));
+    if (output.voltage != NPM1300_UNSET) {
+      ESP_LOGCONFIG(TAG, "    Voltage: %u mV", 1000u + output.voltage * 100u);
+    }
+    if (output.ldo_mode != NPM1300_UNSET) {
+      ESP_LOGCONFIG(TAG, "    Mode: %s",
+                    output.ldo_mode != 0 ? LOG_STR_LITERAL("LDO") : LOG_STR_LITERAL("load switch"));
+    }
+    if (output.enabled != NPM1300_UNSET) {
+      ESP_LOGCONFIG(TAG, "    Enabled at boot: %s", YESNO(output.enabled != 0));
+    }
   }
   if (config.thermistor != NPM1300_UNSET) {
     ESP_LOGCONFIG(TAG, "  Thermistor B constant: %u", config.thermistor_beta);
