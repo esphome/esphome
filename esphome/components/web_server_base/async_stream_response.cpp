@@ -7,6 +7,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifndef USE_LIBRETINY
+#include <lwip/tcp.h>
+#endif
+
 namespace esphome::web_server_base {
 
 ESPHOME_LOG_TAG(TAG, "web_server_base");
@@ -18,12 +22,36 @@ static_assert(STREAM_ADD_FLAG_COPY == ASYNC_WRITE_FLAG_COPY && STREAM_ADD_FLAG_M
 static constexpr size_t ADD_SCRATCH_SIZE = 256;
 
 // Closes now and runs the disconnect callback. AsyncTCP (LibreTiny) deprecates close(bool); ESPAsyncTCP and
-// RPAsyncTCP need it, as their close() waits for the next poll. Never abort(): it skips the disconnect callback.
+// RPAsyncTCP need it, as their close() waits for the next poll.
 static void close_now(AsyncClient *client) {
 #ifdef USE_LIBRETINY
   client->close();
 #else
   client->close(true);
+#endif
+}
+
+#ifndef USE_LIBRETINY
+// Reaches the library's protected pcb
+struct AsyncClientPcb : AsyncClient {
+  static tcp_pcb *of(AsyncClient *client) { return client->*(&AsyncClientPcb::_pcb); }
+};
+#endif
+
+// Sends a RST and frees the pcb now. A graceful close queues its FIN behind data a stalled reader never takes, so
+// it would hold the pcb until the peer leaves. True when the disconnect callback ran; otherwise the caller marks it.
+static bool abort_now(AsyncClient *client) {
+#ifdef USE_LIBRETINY
+  // AsyncTCP resets the pcb callbacks in the tcpip thread, aborts, then runs the disconnect callback here
+  client->abort();
+  return true;
+#else
+  // ESPAsyncTCP and RPAsyncTCP leave the pcb's error callback set, and RPAsyncTCP's would use the pcb lwIP freed
+  tcp_pcb *pcb = AsyncClientPcb::of(client);
+  if (pcb != nullptr)
+    tcp_err(pcb, nullptr);
+  client->abort();
+  return false;
 #endif
 }
 
@@ -145,7 +173,7 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     // lwIP keeps queueing into a large buffer while the window is shut, so the buffer may never fill
     if (now - this->last_ack_ms_ >= SEND_STALL_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without an ACK", now - this->last_ack_ms_);
-      this->close();
+      this->abort_();
       return -1;
     }
     return static_cast<ssize_t>(sent);
@@ -165,8 +193,20 @@ bool AsyncStreamResponse::stall_or_close_(const LogString *reason) {
     return false;
   }
   ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), LOG_STR_ARG(reason));
-  this->close();
+  this->abort_();
   return true;
+}
+
+void AsyncStreamResponse::abort_() {
+  this->close_requested_ = true;
+  if (this->close_sent_ || !this->is_connected()) {
+    return;
+  }
+  this->close_sent_ = true;
+  LwIPLock lock;
+  if (this->is_connected() && !abort_now(this->client_)) {
+    this->disconnected_.store(true, std::memory_order_release);
+  }
 }
 
 void AsyncStreamResponse::close() {
@@ -192,7 +232,7 @@ void AsyncStreamResponse::loop() {
   }
   if (this->ack_timed_out_.load(std::memory_order_acquire)) {
     ESP_LOGW(TAG, "Closing stream after %" PRIu32 " ms without an ACK", SEND_STALL_TIMEOUT_MS);
-    this->close();
+    this->abort_();
   }
 }
 

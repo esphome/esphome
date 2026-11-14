@@ -81,9 +81,11 @@ class AsyncStreamResponse {
 
   // Network context, before publishing: take the connection; a head not queued whole closes it
   void attach_(AsyncClient *client, bool head_sent);
-  // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and closes. True when it closed.
+  // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and aborts. True when it did.
   bool stall_or_close_(const LogString *reason);
   void close_client_();
+  // A stuck stream: RST and free the pcb now instead of a FIN queued behind data that cannot move
+  void abort_();
 
   // Set before publishing; the main loop owns it and frees it once disconnected_
   AsyncClient *client_{nullptr};
