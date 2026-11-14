@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::i2c::testing {
 
