@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_WEBSERVER
+#if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 namespace esphome::json {

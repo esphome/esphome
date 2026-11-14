@@ -614,12 +614,20 @@ async def to_code(config: ConfigType) -> None:
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out web_server_v1.cpp when version is not 1, and the event stream on the host."""
+    """Filter out web_server_v1.cpp when version is not 1, and the server on host."""
     files_to_filter: list[str] = []
 
-    # The host has no stream transport; it builds sse_chunk.cpp for its unit tests
+    # The host has no web server; it builds only sse_chunk.cpp, for its unit tests
     if CORE.is_host:
-        files_to_filter.append("event_source.cpp")
+        files_to_filter.extend(
+            (
+                "event_source.cpp",
+                "list_entities.cpp",
+                "web_server.cpp",
+                "web_server_v1.cpp",
+            )
+        )
+        return files_to_filter
 
     # web_server_v1.cpp is only needed when version is 1
     config = CORE.config.get(DOMAIN, {})
