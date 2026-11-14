@@ -1,0 +1,27 @@
+# Package for soak and load tests: DEBUG logs, esphome OTA, a 1 s uptime, the free heap and reset reason from
+# `debug:`, and a 200 ms template counter that keeps state traffic flowing. Substitution: name.
+esphome:
+  name: ${name}
+logger:
+  level: DEBUG
+ota:
+  - platform: esphome
+debug:
+  update_interval: 5s
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: Reset reason
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 1s
+  - platform: debug
+    free:
+      name: Heap free
+  - platform: template
+    name: Fast counter
+    update_interval: 200ms
+    lambda: |-
+      static uint32_t n = 0;
+      return n++;

@@ -1,0 +1,18 @@
+# Pico W that falls back to its AP; logs the AP client count when it changes (appeek.hpp). Set a fresh name per build
+# with -s name so no saved network carries over.
+substitutions:
+  ap_ssid: rp2webap
+rp2:
+  board: rpipicow
+esphome:
+  includes: [appeek.hpp]
+packages:
+  hwtest: !include ../../templates/dut-fallback-ap.yaml
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          static int last = -1;
+          int n = appeek::ap_clients();
+          if (n != last) ESP_LOGI("test", "AP clients %d", n);
+          last = n;

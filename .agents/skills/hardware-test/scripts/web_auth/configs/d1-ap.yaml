@@ -1,0 +1,10 @@
+# D1 mini that falls back to its AP and serves the captive portal next to the Basic auth web_server (name set with
+# -s name; use a fresh name per build so no saved network carries over).
+substitutions:
+  ap_ssid: wbacp
+esp8266:
+  board: d1_mini
+packages:
+  creds: !include creds-short.yaml
+  hwtest: !include ../../../templates/dut-fallback-ap.yaml
+  common: !include wba-common.yaml

@@ -1,0 +1,8 @@
+# Captive portal client on a classic ESP32 devkit (name set with -s name).
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+packages:
+  creds: !include creds-short.yaml
+  c: !include ap-client-common.yaml

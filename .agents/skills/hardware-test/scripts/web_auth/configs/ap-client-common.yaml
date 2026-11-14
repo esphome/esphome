@@ -1,0 +1,57 @@
+# Captive portal client: the client-wifisave package (one bogus save, then the real credentials 20 s later) plus
+# probes of portal and web_server routes while it is on the device's AP. Lines: "probe <what> status N",
+# "bogus save status N", "real save status N". Substitutions: name, ap_ssid, web_user, web_pass (creds-*.yaml).
+substitutions:
+  ap_ssid: wbacp
+  real_ssid: !secret wifi_ssid
+  real_psk: !secret wifi_password
+  bogus_saves: "1"
+  save_interval: 20s
+packages:
+  client: !include ../../../templates/client-wifisave.yaml
+wifi:
+  on_connect:
+    - if:
+        condition:
+          lambda: |-
+            char b[40];
+            return strncmp(id(wifi_id).get_ip_addresses()[0].str_to(b), "192.168.4.", 10) == 0;
+        then:
+          - script.execute: probe
+script:
+  - id: probe
+    mode: single
+    then:
+      - delay: 5s
+      - http_request.get:
+          url: "http://192.168.4.1/"
+          capture_response: true
+          on_response:
+            - lambda: ESP_LOGI("test", "probe portal_root status %d len %d", response->status_code, (int) body.size());
+          on_error:
+            - lambda: ESP_LOGW("test", "probe portal_root status -1");
+      - http_request.get:
+          url: "http://192.168.4.1/config.json"
+          capture_response: true
+          on_response:
+            - lambda: ESP_LOGI("test", "probe config_json status %d len %d", response->status_code, (int) body.size());
+          on_error:
+            - lambda: ESP_LOGW("test", "probe config_json status -1");
+      - http_request.post:
+          url: "http://192.168.4.1/switch/Test%20switch/toggle"
+          capture_response: true
+          on_response:
+            - lambda: ESP_LOGI("test", "probe post_noauth status %d", response->status_code);
+          on_error:
+            - lambda: ESP_LOGW("test", "probe post_noauth status -1");
+      - http_request.post:
+          url: "http://192.168.4.1/switch/Test%20switch/toggle"
+          request_headers:
+            Authorization: !lambda |-
+              static const char CREDS[] = "${web_user}:${web_pass}";
+              return "Basic " + esphome::base64_encode((const uint8_t *) CREDS, sizeof(CREDS) - 1);
+          capture_response: true
+          on_response:
+            - lambda: ESP_LOGI("test", "probe post_auth status %d", response->status_code);
+          on_error:
+            - lambda: ESP_LOGW("test", "probe post_auth status -1");

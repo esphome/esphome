@@ -4,7 +4,7 @@ Each flow names the pull requests it was used on, so their result tables show wh
 
 One file per component, named after it:
 
-- [`api.md`](api.md): noise handshake and OTA encryption on the ESP8266, outgoing connection wake timing on deep sleep and after a Wi-Fi drop, user defined action listing and execution with a raw plaintext client, store_yaml recovery over Noise or plaintext
+- [`api.md`](api.md): noise handshake and OTA encryption on the ESP8266, outgoing connection wake timing on deep sleep and after a Wi-Fi drop, user defined action listing and execution with a raw plaintext client, store_yaml recovery over Noise or plaintext, rapid connect/disconnect stress (`connstress.py`)
 - [`ble_midi.md`](ble_midi.md): BLE MIDI client against a fake ESP32 instrument, every packet shape and the send actions
 - [`captive_portal.md`](captive_portal.md): fallback AP and /wifisave hammer
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
@@ -37,7 +37,7 @@ One file per component, named after it:
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback
-- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs
+- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
 - [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
@@ -63,11 +63,11 @@ One file per component, named after it:
 - [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
 - [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
 - [`automation_trace.md`](automation_trace.md): automation codegen A/B, a marker trace of chains, conditions, loops and script modes over the API
-- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy
+- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy
 - [`crash_report.md`](crash_report.md): crash buttons, fetching the previous boot's crash report over the API, per-chip abort facts
 - [`https_idf.md`](https_idf.md): web_server_idf HTTPS test component, listener switch, stalled TLS clients, bad key
 - [`mdns.md`](mdns.md): legacy unicast mDNS dump, hammer and latency straight to the device
-- [`sim_buses.md`](sim_buses.md): PCF8574/HD44780, MAX7219, SPI spy, packet_interface and SN74HC165 simulators, status LED probe, fake Home Assistant, cg.static_buffer probes
+- [`sim_buses.md`](sim_buses.md): PCF8574/HD44780, MAX7219, SPI spy, packet_interface and SN74HC165 simulators, status LED probe, fake Home Assistant, cg.static_buffer probes, a TRF7962A NFC reader chip behind a fake SPI bus
 - [`sigma_delta.md`](sigma_delta.md): pulse density of the sigma_delta speaker pin read inside the ESP32-P4, rtttl note onset and release
 - [`microphone_http_stream.md`](microphone_http_stream.md): raw PCM over HTTP with a counter fake mic or a USB mic, multi-reader client
 - [`i2s_audio.md`](i2s_audio.md): I2S microphone fed by an I2S TX channel on the same S3 through three jumpers
@@ -83,3 +83,6 @@ One file per component, named after it:
 - [`heap_alloc.md`](heap_alloc.md): operator new counting, and a ring of allocation callers decoded with addr2line to tell the first run after boot from repeats
 - [`wled.md`](wled.md): WLED realtime sender on a board's own access point
 - [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
+- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes
+- [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls and `/events` churn crashes
+- [`bluedroid_gattc_queue.md`](bluedroid_gattc_queue.md): queued MTU request and execute write recursion that overflows BTU_TASK, ble_client central against an ESP32-S3 peer
