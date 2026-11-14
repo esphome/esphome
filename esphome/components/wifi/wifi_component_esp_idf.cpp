@@ -1635,6 +1635,17 @@ bool WiFiComponent::wifi_dpp_start_listen_() {
 void WiFiComponent::wifi_dpp_stop_listen_() { esp_supp_dpp_stop_listen(); }
 #endif
 
+void WiFiComponent::on_powerdown() {
+  // Leave the AP before esp_restart() or deep sleep stops Wi-Fi. esp_wifi_stop() while associated
+  // makes the ESP32 retransmit its Disassociation up to the retry limit although the AP ACKs it
+  // (32 copies with protected management frames), which some APs handle badly.
+  if (!s_sta_connected)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  esp_wifi_disconnect();
+  delay(100);  // NOLINT: once per reboot or deep sleep, lets the disassociation go out
+}
+
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
