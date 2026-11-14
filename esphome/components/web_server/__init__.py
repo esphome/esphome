@@ -614,8 +614,12 @@ async def to_code(config: ConfigType) -> None:
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out web_server_v1.cpp when version is not 1."""
+    """Filter out web_server_v1.cpp when version is not 1, and the ESP32 event stream elsewhere."""
     files_to_filter: list[str] = []
+
+    # The ESP32 /events implementation; the host builds sse_chunk.cpp for its unit tests
+    if not CORE.is_esp32 and not CORE.is_host:
+        files_to_filter.extend(["event_source.cpp", "sse_chunk.cpp"])
 
     # web_server_v1.cpp is only needed when version is 1
     config = CORE.config.get(DOMAIN, {})

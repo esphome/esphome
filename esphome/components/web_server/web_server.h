@@ -6,6 +6,9 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/components/web_server_base/captive_dns.h"
 #ifdef USE_WEBSERVER
+#ifdef USE_ESP32
+#include "event_source.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/entity_includes.h"

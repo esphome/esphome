@@ -3,9 +3,11 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "stream_head.h"
+#include "esphome/components/web_server_base/stream_head.h"
 
-namespace esphome::web_server_idf {
+namespace esphome::web_server {
+
+using web_server_base::HttpHeader;
 
 // Wire framing of one Server-Sent-Events event inside the chunked /events response:
 //   "%08x\r\n" + fields + "data: " line ["\r\ndata: " line]... "\r\n" + "\r\n" + "\r\n"
@@ -50,4 +52,4 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
 // Fills the header placeholder at the start of buf once the chunk length is known
 void write_chunk_header(char *buf, size_t chunk_len);
 
-}  // namespace esphome::web_server_idf
+}  // namespace esphome::web_server
