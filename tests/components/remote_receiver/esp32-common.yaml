@@ -61,11 +61,6 @@ binary_sensor:
       device: 0x25
       command: 0x02
   - platform: remote_receiver
-    name: CanalSatLD Remote Input
-    canalsatld:
-      device: 0x25
-      command: 0x02
-  - platform: remote_receiver
     name: Dish Remote Input
     dish:
       command: 0x10
