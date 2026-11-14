@@ -158,6 +158,12 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     this->last_try_ms_ = now;
     // RP2: the network IRQ may free the pcb between the check and the use, so hold it out across both
     LwIPLock lock;
+#ifdef USE_ESP8266
+    // Every segment holds a full MSS pbuf on the heap until acked (LWIP_NETIF_TX_SINGLE_PBUF), so write only once
+    // the last send is acked, like ESPAsyncWebServer. Not a stall: the library's ACK timeout covers a silent peer.
+    if (this->is_connected() && !this->client_->canSend())
+      return 0;
+#endif
     if (this->is_connected()) {
       // Only an ACK grows the send buffer's free space (lwIP snd_buf). ESPAsyncTCP and RPAsyncTCP call onAck
       // only once everything is acked, so it cannot measure this.

@@ -51,9 +51,9 @@ class AsyncStreamResponse {
                      std::span<const HttpHeader> headers, const char *body, const StreamAcceptor &acceptor);
 
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
-  /// keeps the rest and continues from there. 0 means the send buffer is full or the connection is not ours yet; -1
-  /// means the stream is closing. SEND_STALL_TIMEOUT_MS of refused writes, or of writes with no ACK in between,
-  /// also aborts it (RST).
+  /// keeps the rest and continues from there. 0 means the send buffer is full, the last send is not acked yet (ESP8266
+  /// only) or the connection is not ours yet; -1 means the stream is closing. SEND_STALL_TIMEOUT_MS of refused writes,
+  /// or of writes with no ACK in between, also aborts it (RST).
   ssize_t write(StreamIovec *iov, int iovcnt);
   ssize_t write(const void *data, size_t len);
   /// Main loop. Closes the connection; safe to call more than once.
