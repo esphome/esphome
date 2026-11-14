@@ -1432,39 +1432,13 @@ register_protocol_action(
 
 
 # RC5
-RC5Data, RC5BinarySensor, RC5Trigger, _, RC5Dumper = declare_protocol("RC5")
 RC5_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
         cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
     }
 )
-
-
-@register_binary_sensor("rc5", RC5BinarySensor, RC5_SCHEMA)
-def rc5_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                RC5Data,
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
-    )
-
-
-@register_trigger("rc5", RC5Trigger, RC5Data)
-def rc5_trigger(var, config):
-    pass
-
-
-@register_dumper("rc5", RC5Dumper)
-def rc5_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+RC5Data, RC5BinarySensor, RC5Trigger, _, RC5Dumper = register_simple_protocol(
     "rc5",
     "RC5",
     RC5_SCHEMA,

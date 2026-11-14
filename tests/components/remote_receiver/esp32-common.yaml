@@ -107,6 +107,11 @@ binary_sensor:
     pioneer:
       rc_code_1: 0xA556
   - platform: remote_receiver
+    name: RC5 Remote Input
+    rc5:
+      address: 0x10
+      command: 0x20
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b
