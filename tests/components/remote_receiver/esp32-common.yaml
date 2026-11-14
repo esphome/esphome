@@ -79,6 +79,10 @@ binary_sensor:
     dyson:
       code: 0x1200
   - platform: remote_receiver
+    name: Gobox Remote Input
+    gobox:
+      code: 0xAA55
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b

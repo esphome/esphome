@@ -1245,43 +1245,12 @@ register_protocol_action(
 
 
 # Gobox
-(
-    GoboxData,
-    GoboxBinarySensor,
-    GoboxTrigger,
-    _,
-    GoboxDumper,
-) = declare_protocol("Gobox")
 GOBOX_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.int_,
     }
 )
-
-
-@register_binary_sensor("gobox", GoboxBinarySensor, GOBOX_SCHEMA)
-def gobox_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                GoboxData,
-                ("code", config[CONF_CODE]),
-            )
-        )
-    )
-
-
-@register_trigger("gobox", GoboxTrigger, GoboxData)
-def gobox_trigger(var, config):
-    pass
-
-
-@register_dumper("gobox", GoboxDumper)
-def gobox_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+GoboxData, GoboxBinarySensor, GoboxTrigger, _, GoboxDumper = register_simple_protocol(
     "gobox",
     "Gobox",
     GOBOX_SCHEMA,
