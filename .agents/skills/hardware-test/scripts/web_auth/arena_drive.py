@@ -3,7 +3,8 @@
 usage: arena_drive.py HOST USER PASS [PHASE_S]
 Needs the "Stack min" and "Heap free" template sensors and the "Big select" select of arena/arena-common.yaml,
 with the logger at VERY_VERBOSE (logs flood the /events streams).
-Phases: idle, two /events streams, plus a new /events client every 3 s (greeting and full listing), plus select
+Phases: idle, two /events streams, plus a new /events client every 3 s (greeting and full listing; one that closes
+early or gets no detail_all state is a connect error), plus select
 changes every 0.5 s with a detail=all read of the select (a state over 1 KB), then all at once.
 Prints per phase (the load counters cover that phase only): lowest stack minimum, heap range, uptime (resets), SSE
 bytes and the connect, stream, select and detail errors. Exits 1 when a phase had a reset (uptime compared across
@@ -122,8 +123,8 @@ def connector(stop: threading.Event) -> None:
                 f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
             )
             s.settimeout(0.5)
-            n = 0
-            head = b""
+            buf = b""
+            closed = False
             end = time.monotonic() + 2.5
             while time.monotonic() < end:
                 try:
@@ -131,14 +132,19 @@ def connector(stop: threading.Event) -> None:
                 except TimeoutError:
                     continue
                 if not d:
+                    closed = True
                     break
-                # keep fragments until the status line is complete
-                if b"\r\n" not in head:
-                    head += d
-                n += len(d)
+                buf += d
             s.close()
-            # A refused or empty answer did not run the new client listing
-            if head.split(b" ", 2)[1:2] == [b"200"]:
+            n = len(buf)
+            # A refused, empty or early closed answer did not run the new client listing; the listing's detail_all
+            # states carry "domain", plain state updates do not
+            if (
+                buf.split(b" ", 2)[1:2] == [b"200"]
+                and not closed
+                and b"event: state" in buf
+                and b'"domain"' in buf
+            ):
                 stats["connects"] += 1
                 stats["listing_bytes"].append(n)
             else:

@@ -1,8 +1,9 @@
 #!/bin/zsh
 # churnflow.sh NAME CONFIG HOST: upload CONFIG as NAME to DEVICE (default HOST, an OTA), then ROUNDS (default 2) rounds
 # of `churn.sh` for 90 s with the free heap before, right after and after a 30 s settle, and a main loop check (the
-# Fast counter must advance). A board that fell into safe mode (API port closed) gets NAME again by OTA. PASS needs
-# every churn.sh round to pass and the loop to keep running; exits 1 otherwise. env: TREE, PY, DEVICE, ROUNDS, API_KEY
+# Fast counter must advance). A board that fell into safe mode (API port closed) gets NAME again by OTA and the round
+# fails. PASS needs every churn.sh round to pass, the loop to keep running and no safe mode; exits 1 otherwise.
+# env: TREE, PY, DEVICE, ROUNDS, API_KEY
 D=${0:A:h}; N=$1; C=$2; H=$3; S=$D/..; cd $D
 T=${TREE:?set TREE}; export PY=${PY:-$T/venv/bin/python}; FAILS=0
 val() { curl -s -m 4 "http://$H/sensor/$1" | grep -o '"value":[0-9]*' | cut -d: -f2; }
@@ -21,7 +22,7 @@ for r in $(seq 1 ${ROUNDS:-2}); do
   echo "$N round $r: $(echo $res | tr '\n' ' ') | heap before $hb, after $ha, settled $hs | $lp"
   if ! apiopen 2; then
     sleep 15
-    apiopen 2 || { echo "$N: API port closed after round $r (safe mode?), uploading again"
+    apiopen 2 || { echo "$N: API port closed after round $r (safe mode?), uploading again"; FAILS=$((FAILS + 1))
       $S/pio_build.sh upload $N $D/$C $H && ready || { echo "$N: recovery after round $r failed, stopping"
         FAILS=$((FAILS + 1)); break; }; }
   fi

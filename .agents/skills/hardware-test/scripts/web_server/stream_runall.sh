@@ -8,7 +8,7 @@ D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; P=${2:?serial
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; FAILS=0; R="$PY -I $D/stream_retest.py"
 pkill -f "[s]erial_capture.py $P "; sleep 1
 "$S/pio_build.sh" upload "$N" "$D/stream-dut.yaml" "$P" || exit 1
-L=$D/cap-$N.txt
+L=$D/cap-$N.txt; : > "$L"  # empty it now, so the wait below never reads the last run's IP Address
 $PY "$S/serial_capture.py" "$P" 900 "$L" --reset > /dev/null 2>&1 &
 CAP=$!; trap 'kill $CAP 2>/dev/null' EXIT
 n=0; until grep -a -q "IP Address" "$L" 2>/dev/null || [ $n -gt 40 ]; do sleep 2; n=$((n + 1)); done
