@@ -2259,45 +2259,19 @@ def rc_switch_dumper(var, config):
 
 
 # Samsung
-(
-    SamsungData,
-    SamsungBinarySensor,
-    SamsungTrigger,
-    _,
-    SamsungDumper,
-) = declare_protocol("Samsung")
 SAMSUNG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.hex_uint64_t,
         cv.Optional(CONF_NBITS, default=32): cv.int_range(32, 64),
     }
 )
-
-
-@register_binary_sensor("samsung", SamsungBinarySensor, SAMSUNG_SCHEMA)
-def samsung_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                SamsungData,
-                ("data", config[CONF_DATA]),
-                ("nbits", config[CONF_NBITS]),
-            )
-        )
-    )
-
-
-@register_trigger("samsung", SamsungTrigger, SamsungData)
-def samsung_trigger(var, config):
-    pass
-
-
-@register_dumper("samsung", SamsungDumper)
-def samsung_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+(
+    SamsungData,
+    SamsungBinarySensor,
+    SamsungTrigger,
+    _,
+    SamsungDumper,
+) = register_simple_protocol(
     "samsung",
     "Samsung",
     SAMSUNG_SCHEMA,
