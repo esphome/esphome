@@ -9,7 +9,7 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.switch");
 
-void HomeassistantSwitch::setup() {
+void HomeassistantSwitch::subscribe() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef state) {
     auto val = parse_on_off(state.c_str());
     if (val != PARSE_ON && val != PARSE_OFF) {
@@ -26,8 +26,6 @@ void HomeassistantSwitch::dump_config() {
   LOG_SWITCH("", "Homeassistant Switch", this);
   ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_);
 }
-
-float HomeassistantSwitch::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantSwitch::write_state(bool state) {
   if (!can_send_action(TAG, this->entity_id_, this))

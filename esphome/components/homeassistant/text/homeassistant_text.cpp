@@ -44,7 +44,7 @@ void HomeassistantText::mode_retrieved_(StringRef mode) {
   ESP_LOGD(TAG, "'%s': Mode retrieved: %s", this->entity_id_, mode.c_str());
 }
 
-void HomeassistantText::setup() {
+void HomeassistantText::subscribe() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
                                                          [this](StringRef state) { this->state_changed_(state); });
 
@@ -66,8 +66,6 @@ void HomeassistantText::dump_config() {
   LOG_TEXT("", "Homeassistant Text", this);
   ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_);
 }
-
-float HomeassistantText::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantText::control(const std::string &value) {
   if (!can_send_action(TAG, this->entity_id_, this))

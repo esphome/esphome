@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.types import ConfigType
@@ -7,6 +6,7 @@ from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
     final_validate_entity_id,
     homeassistant_ns,
+    register_home_assistant_import,
     setup_home_assistant_entity,
     validate_entity_domain,
 )
@@ -17,14 +17,12 @@ AUTO_LOAD = ["homeassistant"]
 
 SUPPORTED_DOMAINS = ["input_number", "number"]
 
-HomeassistantNumber = homeassistant_ns.class_(
-    "HomeassistantNumber", number.Number, cg.Component
-)
+HomeassistantNumber = homeassistant_ns.class_("HomeassistantNumber", number.Number)
 
 CONFIG_SCHEMA = cv.All(
-    number.number_schema(HomeassistantNumber)
-    .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
+    number.number_schema(HomeassistantNumber).extend(
+        HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA
+    ),
     validate_entity_domain("number", SUPPORTED_DOMAINS),
 )
 
@@ -38,6 +36,6 @@ async def to_code(config: ConfigType) -> None:
         max_value=0,
         step=0,
     )
-    await cg.register_component(var, config)
-    # 1 state + min/max/step fetches in HomeassistantNumber::setup()
+    # 1 state + min/max/step fetches in HomeassistantNumber::subscribe()
     setup_home_assistant_entity(var, config, state_subscription_count=4, services=True)
+    await register_home_assistant_import(var)
