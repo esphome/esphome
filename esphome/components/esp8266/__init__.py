@@ -525,6 +525,10 @@ async def to_code(config: ConfigType) -> None:
     # implementation in the Arduino ESP8266 core.
     cg.add_build_flag("-Wl,--wrap=millis")
 
+    # Use the boot ROM's AES key expansion instead of the SDK libcrypto copy that the
+    # always-linked SoftAP WPA2 code pulls in. See rom_aes.cpp.
+    cg.add_build_flag("-Wl,--wrap=rijndaelKeySetupEnc")
+
     # Unconditional: the native build generator reads the same option,
     # keeping one source of truth
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
