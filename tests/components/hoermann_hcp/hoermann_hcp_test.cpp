@@ -62,12 +62,40 @@ TEST(HoermannHcpReadWrite, QueuedCommandIsInjectedIntoPoll) {
   EXPECT_EQ(response[3], 0x0000);
 }
 
-// A read of any other block is an addressing error rather than a successful all-zero reply.
-TEST(HoermannHcpReadWrite, UnknownAddressIsRejected) {
+// A block we do not serve is still answered in the HCP2 shape, echoing the polled counter and the status code: the
+// controller has no exception handling, and an answer it cannot use costs it a rejection. Writes to an unknown
+// register keep the Modbus behaviour, since the controller only ever writes COMMAND_REG and the broadcast block.
+TEST(HoermannHcpReadWrite, UnknownAddressIsAnsweredInStatusShape) {
   HoermannHcp door;
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0503, 0x0003})).has_value());
   RegisterValues response;
-  EXPECT_EQ(door.on_read_holding_registers(0x1234, 2, response), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_FALSE(door.on_read_holding_registers(0x1234, 4, response).has_value());
+  ASSERT_EQ(response.size(), 4u);
+  EXPECT_EQ(response[0], 0x0500);  // the counter the controller wrote
+  EXPECT_EQ(response[1], 0x0301);  // command 0x03 with the ordinary status code
+  EXPECT_EQ(response[2], 0x0000);
+  EXPECT_EQ(response[3], 0x0000);
   EXPECT_EQ(door.on_write_registers(0x1234, make_registers({0x0000})), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
+// A read length we do not model answers in the same shape rather than with zeros: a code byte of 0 makes the
+// controller ignore the frame, which is a booked rejection, and the payload is never the thing that fails first.
+TEST(HoermannHcpReadWrite, UnmodelledReadLengthKeepsTheStatusCode) {
+  HoermannHcp door;
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0703, 0x0003})).has_value());
+  RegisterValues response;
+  EXPECT_FALSE(door.on_read_holding_registers(STATE_REG, 4, response).has_value());
+  ASSERT_EQ(response.size(), 4u);
+  EXPECT_EQ(response[0], 0x0700);  // counter echoed
+  EXPECT_EQ(response[1], 0x0301);  // command echoed with a code the controller accepts
+  EXPECT_EQ(response[2], 0x0000);
+  EXPECT_EQ(response[3], 0x0000);
+
+  // A one-register read can only carry the counter.
+  RegisterValues single;
+  EXPECT_FALSE(door.on_read_holding_registers(STATE_REG, 1, single).has_value());
+  ASSERT_EQ(single.size(), 1u);
+  EXPECT_EQ(single[0], 0x0700);
 }
 
 // A door command goes out in one answer and frees the slot at once.

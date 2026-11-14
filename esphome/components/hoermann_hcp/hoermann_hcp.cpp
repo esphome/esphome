@@ -198,11 +198,29 @@ void HoermannHcp::dump_config() {
 #endif
 }
 
+void HoermannHcp::push_status_shape_(modbus::RegisterValues &registers, uint16_t counter, uint16_t command,
+                                     uint16_t number_of_registers) {
+  registers.push_back(counter);
+  if (number_of_registers > 1) {
+    // The ordinary status code, so the controller accepts the answer whatever block it asked for.
+    registers.push_back(static_cast<uint16_t>(0x0001 | command));
+    push_zeros(registers, number_of_registers - 2);
+  }
+}
+
 modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
                                                               modbus::RegisterValues &registers) {
+  // STATE_REG is read back right after COMMAND_REG was written, so the controller's message counter (high byte)
+  // and command (low byte) are the ones it last wrote.
+  const uint16_t counter = this->command_reg_value_ & 0xFF00;
+  const uint16_t command = static_cast<uint16_t>((this->command_reg_value_ & 0x00FF) << 8);
+
   if (start_address != STATE_REG) {
-    ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
-    return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
+    // A block we do not serve still has to be answered in the HCP2 shape. The controller has no exception
+    // handling, and an answer it cannot accept is worse than none at all.
+    ESP_LOGW(TAG, "Unknown read address 0x%04X, answering with the status shape", start_address);
+    this->push_status_shape_(registers, counter, command, number_of_registers);
+    return {};
   }
 
   this->record_response_();
@@ -216,11 +234,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
   }
 #endif
 
-  // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
-  // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
-  const uint16_t counter = this->command_reg_value_ & 0xFF00;
-  const uint16_t command = static_cast<uint16_t>((this->command_reg_value_ & 0x00FF) << 8);
-
+  // The read length identifies which internal block is requested.
   switch (number_of_registers) {
     case 8:
       // Command request: return the internal state, injecting any pending command.
@@ -255,13 +269,10 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       break;
     default:
       ESP_LOGW(TAG, "Unknown read request (read %u registers)", number_of_registers);
-      // Answer it anyway, echoing the polled counter. The controller validates the counter before the payload, so a
-      // zero there is a booked strike rather than an ignored frame. This drive asks for 2, 5 and 8 registers only
-      // (~35 000 captured requests), so the branch is defensive; the reference clamps the payload but echoes the
-      // previous counter, which is rejected just the same.
-      registers.push_back(counter);
-      if (number_of_registers > 1)
-        push_zeros(registers, number_of_registers - 1);
+      // Answer it anyway, in the status shape. The controller checks the echoed counter and the code byte before
+      // the payload: a zero counter is a rejection, and a code below 1 makes it ignore the frame outright. This
+      // drive asks for 2, 5 and 8 registers only (~35 000 captured requests), so the branch is defensive.
+      this->push_status_shape_(registers, counter, command, number_of_registers);
       break;
   }
 
