@@ -6,7 +6,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "sx126x_reg.h"
-#include <utility>
 #include <vector>
 
 namespace esphome::sx126x {
@@ -33,6 +32,7 @@ class SX126x final : public Component {
 #ifdef USE_SPI_PSRAM_DMA
   void set_psram_dma(bool enable) { this->radio_.bus().set_psram_dma(enable); }
 #endif
+  // Releases the SPI bus, as SPIDevice::spi_teardown() did before SX126x stopped being one
   void spi_teardown() { this->radio_.bus().teardown(); }
   size_t get_max_packet_size();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

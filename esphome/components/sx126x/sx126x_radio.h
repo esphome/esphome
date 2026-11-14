@@ -27,9 +27,12 @@ class SX126xTransmitListener {
 // Who may use the radio between operations. This is driver state, not the chip's mode.
 enum class RadioState : uint8_t {
   // Startup, cold sleep, or a failed configuration, mode command or restoration. Only
-  // configure() is accepted; sends return NOT_READY and the loop sleeps.
+  // configure() is accepted; sends return NOT_READY and the loop sleeps. SX126x configures
+  // again every second after a failure, and on the next mode command after cold sleep.
   RADIO_STATE_NEEDS_CONFIGURATION,
-  // Available. The chip is receiving or sleeping, as configured.
+  // Available. The chip is receiving or sleeping, as configured, or after the TX mode command
+  // sending whatever the FIFO holds. That send is not tracked: a send or mode command may cut
+  // it short, and poll() clears its TX_DONE as a flag without a packet.
   RADIO_STATE_IDLE,
   // A send is on air. SPI is free between polls; only polling and cancellation are accepted.
   RADIO_STATE_TRANSMITTING,

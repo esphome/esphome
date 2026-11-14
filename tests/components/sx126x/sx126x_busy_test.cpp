@@ -532,6 +532,30 @@ TEST(SX126xBusy, ColdSleepIsNotReconfiguredWithoutBeingAsked) {
   EXPECT_TRUE(hw.transactions.empty());
 }
 
+TEST(SX126xBusy, ConfigureBeforeSetupDoesNothing) {
+  RadioHardware hw;
+  hw.radio.configure();
+  EXPECT_TRUE(hw.transactions.empty());
+  EXPECT_EQ(hw.rst.writes, 0u);
+  hw.configure(true, true);
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NONE);
+}
+
+// The TX mode command sends whatever the FIFO holds without tracking it; its TX_DONE is
+// cleared as a flag without a packet, and a send still works afterwards
+TEST(SX126xBusy, RawTxModeLeavesTheRadioUsable) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(true, true);
+  hw.radio.register_listener(&listener);
+  hw.radio.set_mode_tx();
+  ASSERT_EQ(hw.irq & IRQ_TX_DONE, IRQ_TX_DONE);
+  hw.radio.loop();
+  EXPECT_EQ(hw.irq, 0);
+  EXPECT_TRUE(listener.packets.empty());
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NONE);
+}
+
 TEST(SX126xBusy, PacketThatFailedItsCrcDoesNotHoldUpASend) {
   RadioHardware hw;
   hw.configure(true, true);

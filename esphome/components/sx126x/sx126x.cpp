@@ -71,7 +71,8 @@ void SX126x::apply_(const RadioEffects &effects) {
 }
 
 void SX126x::configure() {
-  if (this->is_failed()) {
+  // Before setup() the bus is not set up, and after a failed setup the radio stays unused
+  if (!this->is_ready()) {
     return;
   }
   if (!this->radio_.can_configure()) {

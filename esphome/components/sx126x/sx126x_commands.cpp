@@ -1,7 +1,9 @@
 #include "sx126x_commands.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace esphome::sx126x {
 static constexpr uint16_t RAMP[8] PROGMEM = {10, 20, 40, 80, 200, 800, 1700, 3400};
@@ -115,8 +117,7 @@ ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::
       uint8_t cfg[4] = {0x04, 0x00, 0x01, 0x01};
       this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4);
     }
-    pa_power = std::max(pa_power, (int8_t) -3);
-    pa_power = std::min(pa_power, (int8_t) 14);
+    pa_power = clamp(pa_power, (int8_t) -3, (int8_t) 14);
     buf[0] = OCP_80MA;
     this->write_register_(REG_OCP, buf, 1);
   } else {
@@ -124,8 +125,7 @@ ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::
     // in rev 2.1 of the datasheet
     uint8_t cfg[4] = {0x04, 0x07, 0x00, 0x01};
     this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4);
-    pa_power = std::max(pa_power, (int8_t) -3);
-    pa_power = std::min(pa_power, (int8_t) 22);
+    pa_power = clamp(pa_power, (int8_t) -3, (int8_t) 22);
     buf[0] = OCP_140MA;
     this->write_register_(REG_OCP, buf, 1);
   }
