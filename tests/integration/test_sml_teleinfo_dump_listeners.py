@@ -1,4 +1,4 @@
-"""The TeleInfo hub prints each listener's config dump."""
+"""The SML and TeleInfo hubs print each listener's config dump."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
 @pytest.mark.asyncio
-async def test_teleinfo_dump_listeners(
+async def test_sml_teleinfo_dump_listeners(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
@@ -22,7 +22,13 @@ async def test_teleinfo_dump_listeners(
     ):
         await client.device_info()
         await waiter.wait_for_each(
-            "TeleInfo:",
+            "SML 'Total Energy'",
+            "Server ID: 0123456789abcdef",
+            "OBIS Code: 1-0:1.8.0",
+            "SML 'Active Power'",
+            "OBIS Code: 1-0:16.7.0",
+            "SML 'Manufacturer'",
+            "OBIS Code: 129-129:199.130.3",
             "Teleinfo Sensor 'Energy Index'",
             "Teleinfo Sensor 'Current'",
             "Teleinfo Text Sensor 'Meter Address'",
