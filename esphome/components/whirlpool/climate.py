@@ -28,5 +28,3 @@ async def to_code(config: ConfigType) -> None:
     # cv.enum keeps the YAML key as a str subclass; the MockObj value cannot be compared
     if config[CONF_MODEL] == "HISENSE_ARG":
         cg.add_define("USE_WHIRLPOOL_HISENSE_ARG")
-    elif config[CONF_MODEL] == "HITACHI_HCRA31NEWH":
-        cg.add_define("USE_WHIRLPOOL_HITACHI_HCRA31NEWH")

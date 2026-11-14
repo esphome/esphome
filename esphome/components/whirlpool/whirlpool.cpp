@@ -230,7 +230,6 @@ void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_tog
 }
 
 void WhirlpoolClimate::encode_hitachi_hcra31newh_(uint8_t *remote_state) const {
-#ifdef USE_WHIRLPOOL_HITACHI_HCRA31NEWH
   remote_state[10] = HITACHI_BYTE10;
   remote_state[18] = HITACHI_BYTE18_ON;
   remote_state[19] = HITACHI_BYTE19;
@@ -247,7 +246,6 @@ void WhirlpoolClimate::encode_hitachi_hcra31newh_(uint8_t *remote_state) const {
     default:
       break;
   }
-#endif
 }
 
 bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {

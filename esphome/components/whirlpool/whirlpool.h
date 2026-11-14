@@ -58,14 +58,7 @@ class WhirlpoolClimate final : public climate_ir::ClimateIR {
     return false;
 #endif
   }
-  /// False when the model is compiled out, so the compiler drops the Hitachi branches.
-  bool is_hitachi_hcra31newh_() const {
-#ifdef USE_WHIRLPOOL_HITACHI_HCRA31NEWH
-    return this->model_ == MODEL_HITACHI_HCRA31NEWH;
-#else
-    return false;
-#endif
-  }
+  bool is_hitachi_hcra31newh_() const { return this->model_ == MODEL_HITACHI_HCRA31NEWH; }
   /// The remote ID sent in bytes 0 and 1.
   uint16_t remote_id_() const { return this->is_hitachi_hcra31newh_() ? 0xA959 : 0x8306; }
   /// Modes in which the Hisense ARG model sends a fixed temperature.
