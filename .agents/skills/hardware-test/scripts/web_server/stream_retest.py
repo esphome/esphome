@@ -44,6 +44,7 @@ class Reader(threading.Thread):
         self.states = 0
         self.max_gap = 0.0
         self.end = "deadline"
+        self.t_end = None
         self.raw = b""
         self.sock = None
 
@@ -59,6 +60,12 @@ class Reader(threading.Thread):
         return s
 
     def run(self):
+        try:
+            self._read()
+        finally:
+            self.t_end = time.monotonic()
+
+    def _read(self):
         try:
             s = self.connect()
         except OSError as e:
@@ -175,6 +182,7 @@ elif args.mode == "wifidrop":
     time.sleep(3)
     pre = r.states
     pressed = False
+    t_send = time.monotonic()
     try:
         b = socket.create_connection((H, 80), timeout=5)
         b.sendall(
@@ -192,9 +200,15 @@ elif args.mode == "wifidrop":
     t_press = time.monotonic()
     r.join()
     print(
-        f"old stream: {pre} events before the press, ended {r.end} after {time.monotonic() - t_press:.1f} s, "
+        f"old stream: {pre} events before the press, ended {r.end} {r.t_end - t_press:.1f} s after it, "
         f"{r.states} events total",
         flush=True,
+    )
+    # The old stream must have been live before the press and end because of the drop, not before it
+    dropped = (
+        pre > 0
+        and r.t_end >= t_send
+        and (r.end in ("eof", "idle") or r.end.startswith("error"))
     )
     t_new = None
     nr = None
@@ -208,8 +222,8 @@ elif args.mode == "wifidrop":
         time.sleep(1)
     summary(
         "wifidrop",
-        pressed and t_new is not None and r.end != "deadline",
-        f"press {'ok' if pressed else 'FAILED'}, old end={r.end}, new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
+        pressed and dropped and t_new is not None,
+        f"press {'ok' if pressed else 'FAILED'}, {pre} ev before it, old end={r.end}, new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
         f"the press",
     )
 

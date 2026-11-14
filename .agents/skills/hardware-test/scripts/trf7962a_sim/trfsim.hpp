@@ -36,7 +36,8 @@ struct Chip {
   uint32_t field_on_us{0};
   // scenario and stats
   Tag tag{NONE};
-  uint32_t polls{0}, cs_bad{0}, tx_field_off{0}, tx_early{0}, bad_tx{0}, bad_cmd{0}, max_field_ms{0}, flaky_n{0};
+  uint32_t polls{0}, cs_bad{0}, tx_field_off{0}, tx_early{0}, bad_tx{0}, bad_cmd{0}, bad_rd{0}, max_field_ms{0},
+      flaky_n{0};
   int irq_gpio{-1}, cs_gpio{-1};
 } C;
 
@@ -246,8 +247,10 @@ class FakeDelegate : public esphome::spi::SPIDelegate {
   uint8_t transfer(uint8_t d) override {
     tick();
     if (this->reader_) {
-      if (!C.have_addr || !C.rd)
+      if (!C.have_addr || !C.rd) {  // a read clocked without a read address byte first
+        C.bad_rd++;
         return 0xFF;
+      }
       uint8_t v = read_reg(C.addr);
       if (C.cont && C.addr != 0x1F && C.addr != 0x0C)
         C.addr++;
@@ -350,10 +353,10 @@ inline uint32_t start_phase(int i) {
 inline void stats(const char *phase) {
   ESP_LOGI(TAG,
            "STATS %s phase: polls=%u max_field_ms=%u | since boot: cs_bad=%u tx_field_off=%u tx_early=%u bad_tx=%u "
-           "bad_cmd=%u | reg01=%02X reg07=%02X reg09=%02X reg0D=%02X reg00=%02X",
+           "bad_cmd=%u bad_rd=%u | reg01=%02X reg07=%02X reg09=%02X reg0D=%02X reg00=%02X",
            phase, (unsigned) C.polls, (unsigned) C.max_field_ms, (unsigned) C.cs_bad, (unsigned) C.tx_field_off,
-           (unsigned) C.tx_early, (unsigned) C.bad_tx, (unsigned) C.bad_cmd, C.reg[1], C.reg[7], C.reg[9], C.reg[0x0D],
-           C.reg[0]);
+           (unsigned) C.tx_early, (unsigned) C.bad_tx, (unsigned) C.bad_cmd, (unsigned) C.bad_rd, C.reg[1], C.reg[7],
+           C.reg[9], C.reg[0x0D], C.reg[0]);
   C.polls = 0;
   C.max_field_ms = 0;
 }

@@ -56,7 +56,8 @@ def req(method: str, path: str, timeout: float = 5) -> tuple[int | None, bytes]:
         s.close()
         st = int(buf.split(b" ", 2)[1]) if buf.startswith(b"HTTP") else None
         return st, buf.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in buf else b""
-    except OSError:
+    # ValueError, IndexError: a truncated or malformed reply counts as a failed request, not a dead load thread
+    except (OSError, ValueError, IndexError):
         return None, b""
 
 

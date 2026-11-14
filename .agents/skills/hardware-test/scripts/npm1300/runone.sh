@@ -6,7 +6,7 @@
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; C=${2:?config}; P=${3:?port}; SECS=${4:-240}
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}
 export PLATFORMIO_CORE_DIR=${PIO_CORE:-$D/pio} PYTHONPATH=$T PYTHONUNBUFFERED=1
-$PY "$S/serial_capture.py" "$P" "$SECS" "$D/$N-cap.txt" > /dev/null 2>&1 &
+$PY "$S/serial_capture.py" "$P" "$SECS" "$D/$N-cap.txt" > /dev/null 2> "$D/$N-cap.err" &
 CAP=$!
 sleep 2
 if ! (cd "$T" && timeout 300 $PY -m esphome -s name "$N" run --no-logs "$D/$C" --device "$P") > "$D/$N-run.log" 2>&1
@@ -17,5 +17,5 @@ then
 fi
 tail -1 "$D/$N-run.log"
 # A capture that ended during the flash holds only the old firmware
-kill -0 $CAP 2>/dev/null || { echo "FAIL: the capture ended before the flash finished; raise SECS"; exit 1; }
+kill -0 $CAP 2>/dev/null || { echo "FAIL: the capture ended before the flash finished (see $D/$N-cap.err; if empty, raise SECS)"; exit 1; }
 wait $CAP
