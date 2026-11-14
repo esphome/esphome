@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "esphome/components/logger/log_buffer.h"
@@ -91,5 +92,19 @@ TEST_F(UnformattedLoggerTest, LevelIsStillFiltered) {
   ASSERT_EQ(this->lines_.size(), 1u);
   EXPECT_EQ(this->lines_[0].level, ESPHOME_LOG_LEVEL_WARN);
 }
+
+#ifdef USE_HOST
+TEST_F(UnformattedLoggerTest, WorkerThreadLineGoesThroughTaskBuffer) {
+  this->logger_.create_pthread_key();
+  std::thread worker([]() { esp_log_str_(ESPHOME_LOG_LEVEL_INFO, PLAIN_TAG, 7, "from a worker"); });
+  worker.join();
+  EXPECT_TRUE(this->lines_.empty());
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  this->logger_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_NE(this->lines_[0].message.find("from a worker"), std::string::npos) << this->lines_[0].message;
+#endif
+}
+#endif  // USE_HOST
 
 }  // namespace esphome::logger::testing

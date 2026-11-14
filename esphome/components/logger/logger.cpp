@@ -157,8 +157,11 @@ void HOT Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffe
 bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *msg) {
   if (level > this->level_for(tag))
     return true;
+  // Check the task first: the guard belongs to the main task and must not be read from other threads
+  if (!this->is_main_task_())
+    return false;
   bool &recursion_guard = this->main_loop_recursion_guard_();
-  if (recursion_guard || !this->is_main_task_())
+  if (recursion_guard)
     return false;
   if (strchr(msg, '%') != nullptr)
     return false;
@@ -172,9 +175,9 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
 
 #ifdef USE_ESP8266
 bool Logger::log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg) {
-  if (level > this->level_for(tag) || global_recursion_guard_)
+  if (level > this->level_for(tag) || this->global_recursion_guard_)
     return true;
-  RecursionGuard guard(global_recursion_guard_);
+  RecursionGuard guard(this->global_recursion_guard_);
   LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
   buf.write_header(level, tag, line, nullptr);
   if (!buf.write_unformatted_body_p(reinterpret_cast<PGM_P>(msg)))
