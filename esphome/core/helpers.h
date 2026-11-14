@@ -2335,15 +2335,14 @@ class Mutex {
  *
  * This behaves like std::lock_guard: as long as the object is alive, the mutex is held.
  */
-template<typename M> class BasicLockGuard {
+class LockGuard {
  public:
-  BasicLockGuard(M &mutex) : mutex_(mutex) { mutex_.lock(); }
-  ~BasicLockGuard() { mutex_.unlock(); }
+  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
+  ~LockGuard() { mutex_.unlock(); }
 
  private:
-  M &mutex_;
+  Mutex &mutex_;
 };
-using LockGuard = BasicLockGuard<Mutex>;
 
 /** Helper class to disable interrupts.
  *
@@ -2382,18 +2381,6 @@ class InterruptLock {
 #endif
 };
 
-#ifdef USE_RP2
-/** LwIPLock as a lock()/unlock() pair, for the scheduler's lock: keeps lwIP callbacks (the async_context) out while
- * held. Recursive, so a callback that already holds it can take it again. The outermost unlock() runs pending
- * lwIP/async_context work synchronously, so state must be consistent before unlocking. No-op without networking.
- */
-class LwIPMutex {
- public:
-  static void lock();
-  static void unlock();
-};
-#endif
-
 /** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
  *
  * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled,
@@ -2407,11 +2394,8 @@ class LwIPLock {
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
 
-#if defined(USE_RP2)
-  LwIPLock() { LwIPMutex::lock(); }
-  ~LwIPLock() { LwIPMutex::unlock(); }
-#elif defined(USE_ESP32)
-  // Out-of-line implementation in helpers.cpp
+#if defined(USE_ESP32) || defined(USE_RP2)
+  // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
 #else

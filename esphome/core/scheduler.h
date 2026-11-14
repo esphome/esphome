@@ -527,13 +527,9 @@ class Scheduler {
                                                                             uint32_t hash_or_id,
                                                                             SchedulerItem::Type type, bool find_first);
 
-#if defined(USE_RP2) && (defined(USE_WIFI) || defined(USE_ETHERNET))
-  // lwIP callbacks (web_server, captive portal, web OTA) add and cancel items from the async_context on RP2
-  [[no_unique_address]] LwIPMutex lock_;
-#else
-  // Empty on single-threaded platforms (ESP8266, RP2 without networking), so it takes no space there
+  // Empty on single-threaded platforms (ESP8266, RP2), so it takes no space there; RP2 with networking locks by
+  // holding interrupts off (SchedulerLockGuard in scheduler.cpp)
   [[no_unique_address]] Mutex lock_;
-#endif
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
 
