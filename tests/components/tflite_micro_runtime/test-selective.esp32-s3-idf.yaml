@@ -1,0 +1,12 @@
+# common.yaml configures an audio and an image model, so the selective build must
+# carry the kernels of both. This variant uses the image model alone, so codegen
+# emits the selective TFLM_OP_ENABLED_* defines for that model's operators only and
+# tflite_op_processor compiles in just those kernels.
+psram:
+  mode: quad
+
+tflite_micro_runtime:
+  - id: test_tflite_image
+    model_type: image
+    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/4ca8470aba1b226071bcc3258f3b95fab08895d6/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    debug: false
