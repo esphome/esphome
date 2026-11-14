@@ -181,7 +181,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void connect() final {
     this->requested_link_state_.store(
         LinkState::LINK_STATE_CONNECTED);  // before start/reconnect, so the MQTT task sees it
-    if (!is_initalized_) {
+    if (!is_initialized_) {
       if (initialize_()) {
         esp_mqtt_client_start(handler_.get());
       }
@@ -196,7 +196,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     // The MQTT task closes the socket 1 to 20 s later; report it down now so it is never reused
     this->is_connected_ = false;
 
-    if (is_initalized_)
+    if (is_initialized_)
       esp_mqtt_client_disconnect(handler_.get());
   }
 
@@ -288,7 +288,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   ClientHandler_ handler_;
 
   bool is_connected_{false};
-  bool is_initalized_{false};
+  bool is_initialized_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // Queued SUBSCRIBEs the task could not send
   std::atomic<uint16_t> subscribes_lost_{0};

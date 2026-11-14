@@ -13,9 +13,20 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import SESSION, Layer, PacketInterface, PacketSize, packet_interface_ns
+from . import (
+    SESSION,
+    Layer,
+    PacketInterface,
+    PacketSize,
+    packet_interface_ns,
+    remaining_packet_size,
+)
 
 CONF_KEEP_ALIVE = "keep_alive"
+
+# The packet type byte; a keep-alive is the type and a 4-byte boot id
+HEADER_SIZE = 1
+KEEP_ALIVE_SIZE = 5
 
 BasicSession = packet_interface_ns.class_("BasicSession", PacketInterface)
 
@@ -54,9 +65,20 @@ BASIC_SESSION_SCHEMA = cv.All(
 )
 
 
+def _check_lower(config: ConfigType, size: int, capacity: int | None) -> None:
+    if size < KEEP_ALIVE_SIZE:
+        raise cv.Invalid(
+            f"The layers below take packets of at most {size} bytes, too few for the {KEEP_ALIVE_SIZE} byte "
+            "keep-alive"
+        )
+
+
 @SESSION.register(
     "basic",
     schema=BASIC_SESSION_SCHEMA,
+    single_peer=lambda config: True,
+    packet_size=lambda config, size: remaining_packet_size(size, HEADER_SIZE),
+    check_lower=_check_lower,
     auto_load=lambda config: ["binary_sensor"] if CONF_BINARY_SENSOR in config else [],
 )
 async def build_basic_session(

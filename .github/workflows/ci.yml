@@ -227,6 +227,10 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v7.0.1
+        with:
+          # The parent of the pull request merge commit is the target branch, which
+          # ci-custom compares against to find constants new in this pull request.
+          fetch-depth: 2
       - name: Restore Python
         uses: $/.github/actions/restore-python
         with:
