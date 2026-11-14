@@ -1,5 +1,5 @@
 udp:
-  addresses: ["192.168.1.255"]
+  addresses: ["192.168.1.60"]
 
 packet_interface:
   - platform: udp
