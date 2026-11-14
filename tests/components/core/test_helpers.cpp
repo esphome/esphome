@@ -257,6 +257,20 @@ TEST(BufAppendSepStr, Truncation) {
   EXPECT_EQ(end - buf, 7);
 }
 
+// --- buf_append_str_p() ---
+
+TEST(BufAppendStrP, AppendsAndTruncates) {
+  static const char UNIT[] PROGMEM = "days";
+  char buf[8] = "";
+  size_t pos = buf_append_printf(buf, sizeof(buf), 0, "%u", 12u);
+  pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
+  EXPECT_STREQ(buf, "12days");
+  EXPECT_EQ(pos, 6u);
+  pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
+  EXPECT_STREQ(buf, "12daysd");
+  EXPECT_EQ(pos, 7u);
+}
+
 // --- base64 encode/decode ---
 
 static const char BASE64_ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -430,6 +444,36 @@ TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   EXPECT_EQ(v.size(), 1u);
 }
 
+// --- StaticFixedVector ---
+
+namespace {
+struct Counted {
+  static inline int live = 0;
+  int v;
+  explicit Counted(int v) : v(v) { live++; }
+  Counted(const Counted &other) : v(other.v) { live++; }
+  ~Counted() { live--; }
+};
+}  // namespace
+
+TEST(StaticFixedVector, UsesStorageAndDestroysWithoutFreeing) {
+  alignas(Counted) static unsigned char raw[sizeof(Counted) * 2];
+  {
+    StaticFixedVector<Counted> v;
+    v.init(std::span<Counted>(reinterpret_cast<Counted *>(raw), 2));
+    EXPECT_EQ(v.capacity(), 2u);
+    EXPECT_NE(v.emplace_back(1), nullptr);
+    v.push_back(Counted(2));
+    v.push_back(Counted(3));  // beyond capacity, ignored
+    EXPECT_EQ(v.emplace_back(4), nullptr);
+    EXPECT_EQ(v.size(), 2u);
+    EXPECT_EQ(static_cast<void *>(v.begin()), static_cast<void *>(raw));
+    EXPECT_EQ(v[1].v, 2);
+    EXPECT_EQ(Counted::live, 2);
+  }  // a free() of the static array would crash or trip ASan here
+  EXPECT_EQ(Counted::live, 0);
+}
+
 // --- RAMAllocator::make_unique() ---
 
 namespace {
@@ -466,6 +510,17 @@ TEST(RAMAllocatorMakeUnique, ValueInitializesLikeMakeUnique) {
   ASSERT_NE(p, nullptr);
   // Under ASan fresh blocks are filled with 0xbe, so this holds even when the dirtied block is not reused
   EXPECT_TRUE(std::all_of(std::begin(p->words), std::end(p->words), [](uint32_t w) { return w == 0; }));
+}
+
+TEST(PsramBuffer, ZeroedAndRejectsOverflow) {
+  uint32_t *buffer = psram_buffer<uint32_t>(4);
+  ASSERT_NE(buffer, nullptr);
+  for (size_t i = 0; i < 4; i++)
+    EXPECT_EQ(buffer[i], 0u);
+  buffer[3] = 0xFFFFFFFF;  // all four elements are in the allocation
+  RAMAllocator<uint32_t>().deallocate(buffer, 4);
+  EXPECT_EQ(psram_buffer<uint32_t>(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
+  EXPECT_EQ(psram_buffer<uint32_t>(0), nullptr);
 }
 
 TEST(RAMAllocatorMakeUnique, ArrayFormRejectsOverflowAndZero) {

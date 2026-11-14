@@ -104,7 +104,7 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
   /// Calculate checksum for a state message
   uint8_t checksum_state_(uint8_t const *message);
 
-  /// Calculate cecksum for a util message
+  /// Calculate checksum for a util message
   uint8_t checksum_util_(uint8_t const *message);
 
   // true if currently on - fujitsus transmit an on flag on when the remote moves from off to on

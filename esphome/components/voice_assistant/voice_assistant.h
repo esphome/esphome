@@ -278,6 +278,10 @@ class VoiceAssistant final : public Component {
   void set_state_(State state, State desired_state);
   /// Move to state, or only make it the desired state while the microphone is still stopping
   void set_state_after_mic_stop_(State state);
+  /// Fire on_end once for the requested pipeline
+  void end_session_();
+  /// Mark Home Assistant's run as over and drop the RUN_END fallback timer
+  void end_run_();
   /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open
   void cancel_response_();
   bool start_udp_socket_();
@@ -398,6 +402,10 @@ class VoiceAssistant final : public Component {
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   bool continuous_{false};
+  // A pipeline was requested and on_end has not fired for it yet
+  bool end_pending_{false};
+  // Set on RUN_START; cleared by RUN_END, the next start or an unsubscribe
+  bool run_active_{false};
   bool silence_detection_;
   bool continue_conversation_{false};
   bool udp_socket_running_{false};

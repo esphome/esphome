@@ -1,0 +1,105 @@
+# substitutions: name, baseline; platform block comes from the board file
+esphome:
+  name: ${name}
+  includes:
+    - sf.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(x).publish_state(3.25f);
+          id(factor).publish_state(2.5f);
+
+logger:
+  level: DEBUG
+
+packages:
+  sensors: !include sensors.yaml
+
+globals:
+  - id: idx
+    type: int
+    initial_value: "-30"
+
+binary_sensor:
+  - platform: template
+    id: b1
+    filters:
+      - lambda: |-
+          if (x) return {};
+          return id(src).state > 1.0f;
+    on_state:
+      - lambda: sf::rec_bin(1, x);
+  - platform: template
+    id: b2
+    filters:
+      - lambda: return !x;
+    on_state:
+      - lambda: sf::rec_bin(2, x);
+
+text_sensor:
+  - platform: template
+    id: t1
+    update_interval: never
+    filters:
+      - lambda: return {x + "1"};
+    on_value:
+      - lambda: sf::rec_text(1, x);
+  - platform: template
+    id: t2
+    update_interval: never
+    filters:
+      - lambda: |-
+          if (x.empty()) return {};
+          return x.substr(0, 2);
+    on_value:
+      - lambda: sf::rec_text(2, x);
+
+interval:
+  - interval: 200ms
+    then:
+      - lambda: |-
+          int i = id(idx)++;
+          if (i < 0 || i > sf::COUNT)
+            return;
+          if (i == sf::COUNT) {
+            ESP_LOGI("sf", "DONE");
+            return;
+          }
+          float v = sf::INPUTS[i];
+          sf::clear();
+          id(src).publish_state(v);
+            id(flt1).publish_state(v);
+            id(flt2).publish_state(v);
+            id(flt3).publish_state(v);
+            id(flt4).publish_state(v);
+            id(flt5).publish_state(v);
+            id(flt6).publish_state(v);
+            id(flt7).publish_state(v);
+            id(flt8).publish_state(v);
+            id(flt9).publish_state(v);
+            id(flt10).publish_state(v);
+            id(flt11).publish_state(v);
+            id(flt12).publish_state(v);
+            id(flt13).publish_state(v);
+            id(flt14).publish_state(v);
+            id(flt15).publish_state(v);
+            id(flt16).publish_state(v);
+            id(flt17).publish_state(v);
+            id(flt18).publish_state(v);
+            id(flt19).publish_state(v);
+            id(flt20).publish_state(v);
+            id(flt21).publish_state(v);
+            id(flt22).publish_state(v);
+            id(flt23).publish_state(v);
+            id(flt24).publish_state(v);
+            id(flt25).publish_state(v);
+            id(flt26).publish_state(v);
+            id(flt27).publish_state(v);
+            id(flt28).publish_state(v);
+            id(flt29).publish_state(v);
+          id(b1).publish_state(i % 3 == 0);
+          id(b2).publish_state(i % 5 < 2);
+          id(t1).publish_state(i % 4 == 0 ? std::string() : "v" + std::to_string(i));
+          id(t2).publish_state(i % 4 == 0 ? std::string() : "w" + std::to_string(i));
+          sf::line(i, 29);

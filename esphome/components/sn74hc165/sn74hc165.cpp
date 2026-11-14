@@ -27,12 +27,12 @@ void SN74HC165Component::loop() { this->read_gpio_(); }
 void SN74HC165Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC165:"); }
 
 bool SN74HC165Component::digital_read_(uint16_t pin) {
-  if (pin >= this->sr_count_ * 8) {
-    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %u chips in series is %u", pin, this->sr_count_,
-             (this->sr_count_ * 8) - 1);
+  if (pin >= this->input_bytes_.size() * 8) {
+    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %zu chips in series is %zu", pin,
+             this->input_bytes_.size(), (this->input_bytes_.size() * 8) - 1);
     return false;
   }
-  return this->input_bits_[pin];
+  return (this->input_bytes_[pin / 8] >> (pin % 8)) & 1;
 }
 
 void SN74HC165Component::read_gpio_() {
@@ -44,9 +44,10 @@ void SN74HC165Component::read_gpio_() {
   if (this->clock_inhibit_pin_ != nullptr)
     this->clock_inhibit_pin_->digital_write(false);
 
-  for (uint8_t i = 0; i < this->sr_count_; i++) {
+  for (uint8_t &input_byte : this->input_bytes_) {
+    input_byte = 0;
     for (uint8_t j = 0; j < 8; j++) {
-      this->input_bits_[(i * 8) + (7 - j)] = this->data_pin_->digital_read();
+      input_byte = (input_byte << 1) | this->data_pin_->digital_read();
 
       this->clock_pin_->digital_write(true);
       delayMicroseconds(10);

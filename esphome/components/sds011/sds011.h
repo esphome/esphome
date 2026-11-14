@@ -21,7 +21,7 @@ class SDS011Component final : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 
-  void set_update_interval_min(uint8_t update_interval_min);
+  void set_update_interval_min(uint8_t update_interval_min) { this->update_interval_min_ = update_interval_min; }
   void set_working_state(bool working_state);
 
  protected:
