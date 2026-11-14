@@ -3,6 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
@@ -18,6 +19,19 @@ const uint8_t EXTERNAL_CLOCK = 1;
 const uint8_t SOFTWARE_RESET = 0;
 const uint8_t HARDWARE_RESET = 1;
 
+// LED driver clock (ClkX) divider, bits 6:4 of REG_MISC. It sets the PWM frequency of all output pins.
+// ClkX = fOSC / 2^(divider-1) and the PWM frequency is about ClkX / 255. The values below assume the
+// typical 2MHz internal oscillator (datasheet range: 1.3MHz to 2.6MHz), so real chips can differ.
+enum LedDriverFrequency : uint8_t {
+  LED_DRIVER_FREQ_7840HZ = 1,
+  LED_DRIVER_FREQ_3920HZ = 2,
+  LED_DRIVER_FREQ_1960HZ = 3,
+  LED_DRIVER_FREQ_980HZ = 4,
+  LED_DRIVER_FREQ_490HZ = 5,
+  LED_DRIVER_FREQ_245HZ = 6,
+  LED_DRIVER_FREQ_122HZ = 7,
+};
+
 const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                               REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
                               REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
@@ -27,8 +41,6 @@ class SX1509Processor {
  public:
   virtual void process(uint16_t data) {};
 };
-
-class SX1509KeyTrigger final : public Trigger<uint8_t> {};
 
 class SX1509Component final : public Component,
                               public i2c::I2CDevice,
@@ -45,7 +57,6 @@ class SX1509Component final : public Component,
   uint16_t read_key_data();
   void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  uint32_t get_clock() { return this->clk_x_; };
   void set_rows_cols(uint8_t rows, uint8_t cols) {
     this->rows_ = rows;
     this->cols_ = cols;
@@ -59,8 +70,11 @@ class SX1509Component final : public Component,
   void register_keypad_binary_sensor(SX1509Processor *binary_sensor) {
     this->keypad_binary_sensors_.push_back(binary_sensor);
   }
-  void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
+#ifdef SX1509_ON_KEY_COUNT
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.add(automation); }
+#endif
   void setup_led_driver(uint8_t pin);
+  void set_led_driver_frequency(LedDriverFrequency frequency) { this->led_driver_frequency_ = frequency; }
 
  protected:
   // Virtual methods from CachedGpioExpander — names come from base class
@@ -68,8 +82,6 @@ class SX1509Component final : public Component,
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
-  uint32_t clk_x_ = 2000000;
-  uint8_t frequency_ = 0;
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;  // Cache for input values (16-bit for all pins)
   uint16_t port_mask_ = 0x00;
@@ -77,17 +89,22 @@ class SX1509Component final : public Component,
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
+  LedDriverFrequency led_driver_frequency_{LED_DRIVER_FREQ_122HZ};
   const uint8_t *keys_{nullptr};
   uint16_t sleep_time_ = 128;
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
   uint8_t last_key_ = 0;
   std::vector<SX1509Processor *> keypad_binary_sensors_;
-  std::vector<SX1509KeyTrigger *> key_triggers_;
+#ifdef SX1509_ON_KEY_COUNT
+  AutomationList<SX1509_ON_KEY_COUNT, uint8_t> key_automations_;
+#endif
 
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
 
+  /// 16-bit update_register() for the B/A register pairs
+  bool update_register_16_(uint8_t a_register, uint16_t mask, uint16_t value);
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
   void set_debounce_time_(uint8_t time);

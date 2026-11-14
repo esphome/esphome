@@ -88,21 +88,6 @@ alignas(4) static const float INSTALL_HEIGHT[7] PROGMEM = {2.4f, 2.5f, 2.6f, 2.7
 alignas(4) static const float HEIGHT_THRESHOLD[7] PROGMEM = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
 alignas(4) static const float SENSITIVITY[3] PROGMEM = {3, 15, 30};
 
-/**
- * @brief Convert a 32-bit unsigned integer to a byte array.
- *
- * This function converts a 32-bit unsigned integer to a byte array.
- *
- * @param value The 32-bit unsigned integer to convert.
- * @param bytes The byte array to store the converted value.
- */
-static void int_to_bytes(uint32_t value, unsigned char *bytes) {
-  bytes[0] = value & 0xFF;
-  bytes[1] = (value >> 8) & 0xFF;
-  bytes[2] = (value >> 16) & 0xFF;
-  bytes[3] = (value >> 24) & 0xFF;
-}
-
 void MR60FDA2Component::split_frame_(uint8_t buffer) {
   switch (this->current_frame_locate_) {
     case LOCATE_FRAME_HEADER:  // starting buffer
@@ -319,7 +304,7 @@ void MR60FDA2Component::set_sensitivity(uint8_t index) {
     return;
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x0A, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-  int_to_bytes(SENSITIVITY[index], &send_data[8]);
+  put_le32(send_data + 8, static_cast<uint32_t>(SENSITIVITY[index]));
 
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);

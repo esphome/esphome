@@ -7,3 +7,13 @@ sensor:
     pressure:
       name: Differential pressure
       oversampling: 1024x
+  - platform: xgzp68xx
+    i2c_id: i2c_bus
+    variant: xgzp6899dc
+    pressure_min: -500
+    pressure_max: 500
+    temperature:
+      name: XGZP6899DC Temperature
+    pressure:
+      name: XGZP6899DC Differential pressure
+      oversampling: 8192x

@@ -17,8 +17,23 @@ enum DHTModel : uint8_t {
   DHT_MODEL_DHT22_TYPE2
 };
 
+/// Convert a DHT22-family temperature reading to tenths of a degree. Sensors encode negative values in one of three
+/// ways: sign and magnitude (bit 15 set, bit 14 clear), 16-bit two's complement, or 12-bit two's complement (bit 11).
+inline int16_t decode_dht22_temperature(uint16_t raw) {
+  if (raw & 0x8000) {
+    if (!(raw & 0x4000))
+      return static_cast<int16_t>(-static_cast<int16_t>(raw & 0x7FFF));
+  } else if (raw & 0x800) {
+    raw |= 0xF000;
+  }
+  return static_cast<int16_t>(raw);
+}
+
 /// Component for reading temperature/humidity measurements from DHT11/DHT22 sensors.
 class DHT final : public PollingComponent {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
   /** Manually select the DHT model.
    *
@@ -41,8 +56,6 @@ class DHT final : public PollingComponent {
     this->t_pin_ = pin;
     this->pin_ = pin->to_isr();
   }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
 
   /// Set up the pins and check connection.
   void setup() override;
@@ -53,8 +66,6 @@ class DHT final : public PollingComponent {
  protected:
   bool read_sensor_(float *temperature, float *humidity, bool report_errors);
 
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
   InternalGPIOPin *t_pin_;
   ISRInternalGPIOPin pin_;
   DHTModel model_{DHT_MODEL_AUTO_DETECT};

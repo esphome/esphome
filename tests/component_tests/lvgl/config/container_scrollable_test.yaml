@@ -1,0 +1,48 @@
+esphome:
+  name: test-container-scrollable
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+spi:
+  - id: spi_bus
+    clk_pin: GPIO18
+    mosi_pin: GPIO23
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+lvgl:
+  displays: tft_display
+  widgets:
+    - container:
+        id: cont_default
+    - container:
+        id: cont_scrollable
+        scrollable: true
+    - container:
+        id: cont_not_scrollable
+        scrollable: false
+    - container:
+        id: cont_scrollable_not_clickable
+        scrollable: true
+        clickable: false
+    - container:
+        id: cont_scrollable_lambda
+        scrollable: !lambda return true;
+    - obj:
+        id: obj_scrollable
+        scrollable: true

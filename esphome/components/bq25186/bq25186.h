@@ -7,6 +7,10 @@
 #ifdef USE_BQ25186_PG_GPO
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/progmem.h"
+#endif
 
 #include <array>
 
@@ -38,8 +42,21 @@ static constexpr uint8_t BQ25186_SYS_REG_PG_GPO_LEVEL = 0x10;
 using BQ25186ConfigRegisters = std::array<uint8_t, BQ25186_CONFIG_REGISTER_COUNT>;
 using BQ25186StatusRegisters = std::array<uint8_t, BQ25186_STATUS_REGISTER_COUNT>;
 
-class BQ25186BinarySensor;
-class BQ25186TextSensor;
+#ifdef USE_TEXT_SENSOR
+// STAT0[6:5] charge status, then STAT1[4:3] TS status
+PROGMEM_STRING_TABLE(BQ25186StatusStrings, "Not Charging", "Constant Current", "Constant Voltage",
+                     "Charge Done/Disabled", "Normal", "Hot/Cold (Charging Suspended)", "Cool (Current Reduced)",
+                     "Warm (Voltage Reduced)");
+
+/// Publish the two-bit field in the low bits of `value` as string `first + field`, only when it differs from `last`
+inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
+  value &= 0x03;
+  if (value == last)
+    return;
+  last = value;
+  sensor->publish_state(BQ25186StatusStrings::get_progmem_str(first + value, BQ25186StatusStrings::LAST_INDEX));
+}
+#endif
 
 class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -52,11 +69,8 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
     this->configure_on_boot_ = true;
   }
   bool apply_config(const BQ25186ConfigRegisters &regs);
-#ifdef BQ25186_BINARY_SENSOR_COUNT
-  void register_binary_sensor(BQ25186BinarySensor *sensor) { this->binary_sensors_.push_back(sensor); }
-#endif
-#ifdef BQ25186_TEXT_SENSOR_COUNT
-  void register_text_sensor(BQ25186TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
+#ifdef USE_BQ25186_STATUS_PUBLISHER
+  HUB_PUBLISHER(status, const BQ25186StatusRegisters &)
 #endif
 #ifdef USE_BQ25186_PG_GPO
   /// The /PG/GPO pin is put in general purpose output mode when a switch drives it
@@ -78,12 +92,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending);
 #endif
 
-#ifdef BQ25186_BINARY_SENSOR_COUNT
-  StaticVector<BQ25186BinarySensor *, BQ25186_BINARY_SENSOR_COUNT> binary_sensors_;
-#endif
-#ifdef BQ25186_TEXT_SENSOR_COUNT
-  StaticVector<BQ25186TextSensor *, BQ25186_TEXT_SENSOR_COUNT> text_sensors_;
-#endif
   BQ25186ConfigRegisters regs_{};  // the configuration last applied, written again after a chip reset
   bool configure_on_boot_{false};
   bool configured_{false};  // regs_ went to the chip at least once

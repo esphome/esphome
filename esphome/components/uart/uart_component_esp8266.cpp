@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 #include "uart_component_esp8266.h"
 #include <esp8266_peri.h>
+#include <optional>
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -18,9 +19,15 @@ namespace esphome::uart {
 ESPHOME_LOG_TAG(TAG, "uart");
 // Edge decoder up to this baud rate; at 38400 WiFi interrupt latency corrupts bytes.
 static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 19200;
+// TX locks interrupts per bit up to this baud rate and per byte above it. At 38400 byte locks still trip the Wi-Fi
+// watchdog when every byte is below 0x80, while an interrupt between bits leaves the bytes intact; at 115200 it
+// stretches bits enough to corrupt them.
+static constexpr uint32_t SW_SERIAL_TX_BIT_LOCK_MAX_BAUD = 38400;
 // Edge decoder time base: 1/16 us from the 1 MHz system timer, which keeps its rate during a
 // CpuFrequencyBoost; the cycle counter does not.
 static constexpr uint32_t RX_TICKS_PER_SECOND = 16000000;
+// Longest per-bit TX interrupt lock; the Wi-Fi interrupt handler asserts (hardware WDT) when held off about 1 ms
+static constexpr uint32_t MAX_TX_LOCK_CYCLES = F_CPU / 1000000 * 200;
 __attribute__((always_inline)) static inline uint32_t rx_now() { return micros() << 4; }
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -177,6 +184,13 @@ void ESP8266UartComponent::dump_config() {
                     this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
                                                                      : LOG_STR_LITERAL("start bit sampler"));
     }
+    if (this->tx_pin_ != nullptr && this->baud_rate_ <= SW_SERIAL_TX_BIT_LOCK_MAX_BAUD &&
+        this->sw_serial_->locks_whole_frame()) {
+      ESP_LOGW(TAG,
+               "  TX locks interrupts for whole bytes because a software UART receives above %u baud; Wi-Fi "
+               "watchdog resets are possible under load",
+               (unsigned) SW_SERIAL_EDGE_MODE_MAX_BAUD);
+    }
   }
   this->check_logger_conflict();
 }
@@ -210,11 +224,7 @@ void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
 bool ESP8266UartComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
-  if (this->hw_serial_ != nullptr) {
-    *data = this->hw_serial_->peek();
-  } else {
-    *data = this->sw_serial_->peek_byte();
-  }
+  *data = this->hw_serial_ != nullptr ? this->hw_serial_->peek() : this->sw_serial_->peek_byte();
   return true;
 }
 bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
@@ -261,10 +271,19 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   // load_settings() re-enters here
   if (this->gpio_rx_pin_ != nullptr)
     this->gpio_rx_pin_->detach_interrupt();
+  // This instance counted itself if its RX ran the whole-byte interrupt
+  if (this->blocking_rx_ && this->gpio_rx_pin_ != nullptr)
+    blocking_rx_count--;
+  // RX disabled: forget the old pin, so a later reload does not remove this instance from the count again
+  if (rx_pin == nullptr)
+    this->gpio_rx_pin_ = nullptr;
   this->bit_time_ = F_CPU / baud_rate;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
+  const bool edge_mode = baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD;
+  this->blocking_rx_ = !edge_mode;
+  this->lock_frame_ = baud_rate > SW_SERIAL_TX_BIT_LOCK_MAX_BAUD;
   // to_isr() allocates, so call it only for a new or changed pin
   if (tx_pin != nullptr) {
     if (tx_pin != this->gpio_tx_pin_)
@@ -286,10 +305,11 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     this->rx_.setup((RX_TICKS_PER_SECOND + baud_rate / 2) / baud_rate, data_bits, parity != UART_CONFIG_PARITY_NONE,
                     stop_bits, buffer, rx_buffer_size);
     this->rx_.reset(rx_now(), this->rx_pin_.digital_read());
-    if (baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
+    if (edge_mode) {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
     } else {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+      blocking_rx_count++;
     }
   }
 }
@@ -369,27 +389,37 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     need_parity_bit = false;
   }
 
+  // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
+  const uint32_t bit_time = this->bit_time_;
+  std::optional<InterruptLock> frame_lock;
+  if (this->locks_whole_frame())
+    frame_lock.emplace();
+  uint32_t start;
   {
-    // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
     InterruptLock lock;
-    const uint32_t bit_time = this->bit_time_;
-    uint32_t wait = bit_time;
-    const uint32_t start = arch_get_cpu_cycle_count();
     // Start bit
-    this->write_bit_(false, &wait, start, bit_time);
-    for (int i = 0; i < this->data_bits_; i++) {
-      bool bit = data & (1 << i);
-      this->write_bit_(bit, &wait, start, bit_time);
-      if (need_parity_bit)
-        parity_bit ^= bit;
-    }
-    if (need_parity_bit)
-      this->write_bit_(parity_bit, &wait, start, bit_time);
-    // Stop bit
-    this->write_bit_(true, &wait, start, bit_time);
-    if (this->stop_bits_ == 2)
-      this->wait_(&wait, start, bit_time);
+    this->tx_pin_.digital_write(false);
+    start = arch_get_cpu_cycle_count();
   }
+  // Data bits LSB first, then the parity bit
+  uint32_t frame = data & ((1u << this->data_bits_) - 1);
+  uint32_t num_bits = this->data_bits_;
+  if (need_parity_bit) {
+    parity_bit ^= __builtin_parity(frame);
+    frame |= uint32_t(parity_bit) << num_bits++;
+  }
+  // From the edge after the last 0 the line stays high through the stop bits
+  const uint32_t zeros = ~frame & ((1u << num_bits) - 1);
+  const uint32_t high_from = zeros == 0 ? 0 : 32 - __builtin_clz(zeros);
+  uint32_t wait = bit_time;
+  for (uint32_t i = 0; i < high_from; i++)
+    this->write_bit_((frame >> i) & 1, &wait, start, bit_time);
+  this->write_bit_(true, &wait, start, bit_time);
+  // Hold that high run with interrupts on: one that runs past it only delays the next start bit, and back-to-back
+  // byte locks with no gap between them trip the Wi-Fi watchdog
+  frame_lock.reset();
+  for (uint32_t i = high_from; i < num_bits + this->stop_bits_; i++)
+    this->wait_(&wait, start, bit_time);
 }
 void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   while (arch_get_cpu_cycle_count() - start < *wait)
@@ -400,9 +430,14 @@ bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &
   this->wait_(wait, start, bit_time);
   return this->rx_pin_.digital_read();
 }
+// Locks only from MAX_TX_LOCK_CYCLES before the edge to the edge, so a pending interrupt runs right after it; a bit
+// longer than that (below about 5000 baud) spins with interrupts on first. Nests inside a frame lock.
 void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
-  this->tx_pin_.digital_write(bit);
+  while (arch_get_cpu_cycle_count() - start + MAX_TX_LOCK_CYCLES < *wait)
+    ;
+  InterruptLock lock;
   this->wait_(wait, start, bit_time);
+  this->tx_pin_.digital_write(bit);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {
   this->rx_sync_();

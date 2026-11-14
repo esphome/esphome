@@ -105,57 +105,32 @@ ALARM_CONTROL_PANEL_CODE_ACTION_SCHEMA = maybe_simple_id(
 ALARM_CONTROL_PANEL_CONDITION_SCHEMA = ALARM_CONTROL_PANEL_ACTION_SCHEMA
 
 
+def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAutomation:
+    return automation.CallbackAutomation(
+        conf_key,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(state),
+        params=[(AlarmControlPanelState, "state")],
+        forward=[],
+        when=f"state == {state}",
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TRIGGERED,
+        CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_TRIGGERED
-        ),
+        forwarder=StateAnyForwarder,
+        params=[(AlarmControlPanelState, "state")],
+        forward=[],
     ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMING,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(AlarmControlPanelState.ACP_STATE_ARMING),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_PENDING,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_PENDING
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMED_HOME,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_ARMED_HOME
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMED_NIGHT,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_ARMED_NIGHT
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMED_AWAY,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_ARMED_AWAY
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_DISARMED,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_DISARMED
-        ),
-    ),
+    _on_state_enter(CONF_ON_TRIGGERED, AlarmControlPanelState.ACP_STATE_TRIGGERED),
+    _on_state_enter(CONF_ON_ARMING, AlarmControlPanelState.ACP_STATE_ARMING),
+    _on_state_enter(CONF_ON_PENDING, AlarmControlPanelState.ACP_STATE_PENDING),
+    _on_state_enter(CONF_ON_ARMED_HOME, AlarmControlPanelState.ACP_STATE_ARMED_HOME),
+    _on_state_enter(CONF_ON_ARMED_NIGHT, AlarmControlPanelState.ACP_STATE_ARMED_NIGHT),
+    _on_state_enter(CONF_ON_ARMED_AWAY, AlarmControlPanelState.ACP_STATE_ARMED_AWAY),
+    _on_state_enter(CONF_ON_DISARMED, AlarmControlPanelState.ACP_STATE_DISARMED),
     automation.CallbackAutomation(CONF_ON_CLEARED, "add_on_cleared_callback"),
     automation.CallbackAutomation(CONF_ON_CHIME, "add_on_chime_callback"),
     automation.CallbackAutomation(CONF_ON_READY, "add_on_ready_callback"),

@@ -33,7 +33,7 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_add_prj_conf_min
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -103,7 +103,7 @@ IDF_TO_OT_LOG_LEVEL = {
     "VERBOSE": "DEBG",
 }
 
-CONF_DEVICE_TYPES = [
+DEVICE_TYPES = [
     "FTD",
     "MTD",
 ]
@@ -430,7 +430,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
             cv.Optional(CONF_BORDER_ROUTER): _validate_border_router,
             cv.Optional(CONF_DEVICE_TYPE, default="FTD"): cv.one_of(
-                *CONF_DEVICE_TYPES, upper=True
+                *DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.sensitive(
@@ -591,7 +591,7 @@ async def to_code(config: ConfigType) -> None:
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+        zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 4096)
 
 
 # Actions
