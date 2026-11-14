@@ -1,5 +1,6 @@
 #include "hydreon_rgxx.h"
 #include "esphome/core/log.h"
+#include "esphome/core/parse_float.h"
 #include <cstring>
 
 namespace esphome::hydreon_rgxx {
@@ -235,7 +236,7 @@ void HydreonRGxxComponent::process_line_(StringRef line) {
     }
 
     // parse value, starting at str position n
-    float data = strtof(line.c_str() + n, nullptr);
+    float data = str_to_float(line.c_str() + n, nullptr);
     this->sensors_[i]->publish_state(data);
     ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
     this->sensors_received_ |= (1 << i);
