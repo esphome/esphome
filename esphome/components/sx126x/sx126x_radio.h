@@ -10,9 +10,9 @@
 namespace esphome::sx126x {
 
 enum class SX126xError {
-  NONE = 0,
-  TIMEOUT,
-  INVALID_PARAMS,
+  SX126X_ERROR_NONE = 0,
+  SX126X_ERROR_TIMEOUT,
+  SX126X_ERROR_INVALID_PARAMS,
   SX126X_ERROR_NOT_READY,
   SX126X_ERROR_BUSY_TIMEOUT,
   SX126X_ERROR_BUSY,
@@ -51,7 +51,7 @@ enum class ModeCommand : uint8_t {
 // What a radio operation leaves for its caller to do. The radio has already committed its
 // state; the caller reports status first, then calls the listener or delivers the packet.
 struct RadioEffects {
-  SX126xError result{SX126xError::NONE};
+  SX126xError result{SX126xError::SX126X_ERROR_NONE};
   // The completion to notify when finished is set; null for a blocking send.
   SX126xTransmitListener *listener{nullptr};
   // With report set: the warning to set, or null to clear it.
@@ -84,12 +84,12 @@ struct RadioEffects {
 //
 // A failed receive read keeps the packet and retries after RECEIVE_RETRY_INTERVAL_MS, so a
 // stuck BUSY line does not cost a 20 ms wait on every loop.
-class Sx126xRadio {
+class SX126xRadio {
  public:
-  Sx126xRadio() = default;
-  Sx126xRadio(const Sx126xRadio &) = delete;
-  Sx126xRadio &operator=(const Sx126xRadio &) = delete;
-  Sx126xSpiDevice &bus() { return this->commands_.bus(); }
+  SX126xRadio() = default;
+  SX126xRadio(const SX126xRadio &) = delete;
+  SX126xRadio &operator=(const SX126xRadio &) = delete;
+  SX126xSpiDevice &bus() { return this->commands_.bus(); }
   void set_dio1_pin(GPIOPin *pin) { this->dio1_pin_ = pin; }
   void set_rst_pin(GPIOPin *pin) { this->rst_pin_ = pin; }
   GPIOPin *get_dio1_pin() const { return this->dio1_pin_; }
@@ -106,7 +106,7 @@ class Sx126xRadio {
   RadioEffects configure(const RadioProfile &requested, std::span<char, 16> version);
   // Requires can_change_mode(). Cold sleep and failed commands need configuration afterwards.
   RadioEffects change_mode(ModeCommand command, uint8_t arg);
-  // Result NONE starts a send that finishes exactly once, through poll_transmit() or
+  // Result SX126X_ERROR_NONE starts a send that finishes exactly once, through poll_transmit() or
   // cancel_transmit(). Any other result owes no completion.
   RadioEffects start_transmit(SX126xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
   // Sets finished only when it ended the current send.
@@ -131,7 +131,7 @@ class Sx126xRadio {
   bool restore_();
   RadioEffects finish_transmit_(SX126xError result);
   RadioEffects receive_(bool holding, uint32_t now, std::vector<uint8_t> &packet);
-  Sx126xCommands commands_;
+  SX126xCommands commands_;
   AppliedProfile applied_;
   TxOperation tx_;
   uint32_t rx_retry_started_ms_{0};

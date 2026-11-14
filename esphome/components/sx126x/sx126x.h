@@ -83,7 +83,7 @@ class SX126x final : public Component {
   SX126xError transmit_packet(const std::vector<uint8_t> &packet) {
     return this->transmit_packet(packet.data(), packet.size());
   }
-  // Main-loop context only. NONE accepts one operation and promises one completion.
+  // Main-loop context only. SX126X_ERROR_NONE accepts one operation and promises one completion.
   // Data is copied into the chip FIFO before return; listener must outlive completion.
   // Pending RX rejects admission with BUSY and is delivered by a later loop().
   // Timeout: 1..262143 ms. SPI/BUSY waits are synchronous; airtime is asynchronous.
@@ -105,11 +105,11 @@ class SX126x final : public Component {
   static void IRAM_ATTR gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
   void change_mode_(ModeCommand command, uint8_t arg = 0);
   // The only place that runs user code for a radio operation: loop scheduling, then status,
-  // then the completion or packet listeners. Sx126xRadio has already committed its state.
+  // then the completion or packet listeners. SX126xRadio has already committed its state.
   void apply_(const RadioEffects &effects);
   void watch_configuration_();
   SX126xError start_transmit_(SX126xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
-  Sx126xRadio radio_;
+  SX126xRadio radio_;
   RadioProfile requested_profile_;
   char version_[16]{};
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;

@@ -10,14 +10,14 @@ static constexpr uint32_t RESET_DELAY_HIGH_US = 5000;
 static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
 static constexpr uint32_t RECEIVE_RETRY_INTERVAL_MS = 200;
 
-RadioEffects Sx126xRadio::comm_report(bool ok) {
+RadioEffects SX126xRadio::comm_report(bool ok) {
   RadioEffects effects;
   effects.report = true;
   effects.warning = ok ? nullptr : LOG_STR("Wait busy timeout");
   return effects;
 }
 
-RadioEffects Sx126xRadio::configure(const RadioProfile &requested, std::span<char, 16> version) {
+RadioEffects SX126xRadio::configure(const RadioProfile &requested, std::span<char, 16> version) {
   ESPHOME_DEBUG_ASSERT(this->can_configure());
   this->busy_ = true;
   this->rx_retry_pending_ = false;
@@ -30,7 +30,7 @@ RadioEffects Sx126xRadio::configure(const RadioProfile &requested, std::span<cha
   return effects;
 }
 
-const LogString *Sx126xRadio::apply_configuration_(const RadioProfile &requested, std::span<char, 16> version) {
+const LogString *SX126xRadio::apply_configuration_(const RadioProfile &requested, std::span<char, 16> version) {
   if (!requested.sync_valid) {
     return LOG_STR("Invalid sync value");
   }
@@ -53,7 +53,7 @@ const LogString *Sx126xRadio::apply_configuration_(const RadioProfile &requested
   }
 }
 
-RadioEffects Sx126xRadio::change_mode(ModeCommand command, uint8_t arg) {
+RadioEffects SX126xRadio::change_mode(ModeCommand command, uint8_t arg) {
   ESPHOME_DEBUG_ASSERT(this->can_change_mode());
   this->busy_ = true;
   this->bus().begin();
@@ -82,7 +82,7 @@ RadioEffects Sx126xRadio::change_mode(ModeCommand command, uint8_t arg) {
   return comm_report(ok);
 }
 
-RadioEffects Sx126xRadio::start_transmit(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
+RadioEffects SX126xRadio::start_transmit(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
                                          uint32_t timeout_ms) {
   RadioEffects effects;
   if (this->state_ == RadioState::RADIO_STATE_NEEDS_CONFIGURATION) {
@@ -95,7 +95,7 @@ RadioEffects Sx126xRadio::start_transmit(SX126xTransmitListener *listener, const
   }
   const uint8_t fixed_length = this->applied_.payload_length;
   if (data == nullptr || len == 0 || len > this->max_packet_size() || (fixed_length != 0 && len != fixed_length)) {
-    effects.result = SX126xError::INVALID_PARAMS;
+    effects.result = SX126xError::SX126X_ERROR_INVALID_PARAMS;
     return effects;
   }
   this->busy_ = true;
@@ -131,12 +131,12 @@ RadioEffects Sx126xRadio::start_transmit(SX126xTransmitListener *listener, const
   return effects;
 }
 
-RadioEffects Sx126xRadio::poll_transmit(uint32_t now) {
+RadioEffects SX126xRadio::poll_transmit(uint32_t now) {
   if (this->busy_ || !this->is_transmitting()) {
     return {};
   }
   bool done = false;
-  SX126xError outcome = SX126xError::NONE;
+  SX126xError outcome = SX126xError::SX126X_ERROR_NONE;
   if (this->dio1_pin_->digital_read()) {
     this->busy_ = true;
     this->bus().begin();
@@ -147,7 +147,7 @@ RadioEffects Sx126xRadio::poll_transmit(uint32_t now) {
       outcome = SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
       done = true;
     } else if (status & IRQ_RX_TX_TIMEOUT) {
-      outcome = SX126xError::TIMEOUT;
+      outcome = SX126xError::SX126X_ERROR_TIMEOUT;
       done = true;
     } else if (status & IRQ_TX_DONE) {
       done = true;
@@ -155,13 +155,13 @@ RadioEffects Sx126xRadio::poll_transmit(uint32_t now) {
   }
   // A cached loop tick can precede admission; signed subtraction also handles wraparound.
   if (!done && static_cast<int32_t>(now - this->tx_.started_ms) >= static_cast<int32_t>(this->tx_.timeout_ms)) {
-    outcome = SX126xError::TIMEOUT;
+    outcome = SX126xError::SX126X_ERROR_TIMEOUT;
     done = true;
   }
   return done ? this->finish_transmit_(outcome) : RadioEffects{};
 }
 
-RadioEffects Sx126xRadio::cancel_transmit(SX126xTransmitListener *listener) {
+RadioEffects SX126xRadio::cancel_transmit(SX126xTransmitListener *listener) {
   if (this->busy_ || !this->is_transmitting() || listener == nullptr || listener != this->tx_.listener) {
     return {};
   }
@@ -169,7 +169,7 @@ RadioEffects Sx126xRadio::cancel_transmit(SX126xTransmitListener *listener) {
 }
 
 // The only place a send ends.
-RadioEffects Sx126xRadio::finish_transmit_(SX126xError result) {
+RadioEffects SX126xRadio::finish_transmit_(SX126xError result) {
   this->busy_ = true;
   const bool restored = this->restore_();
   this->commit_(restored ? RadioState::RADIO_STATE_IDLE : RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
@@ -180,7 +180,7 @@ RadioEffects Sx126xRadio::finish_transmit_(SX126xError result) {
   return effects;
 }
 
-bool Sx126xRadio::restore_() {
+bool SX126xRadio::restore_() {
   this->bus().begin();
   this->commands_.standby(STDBY_XOSC);
   this->commands_.clear_irqs();
@@ -195,7 +195,7 @@ bool Sx126xRadio::restore_() {
   return this->bus().ok();
 }
 
-RadioEffects Sx126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {
+RadioEffects SX126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {
   if (this->busy_) {
     return {};
   }
@@ -218,7 +218,7 @@ RadioEffects Sx126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {
   return this->receive_(holding, now, packet);
 }
 
-RadioEffects Sx126xRadio::receive_(bool holding, uint32_t now, std::vector<uint8_t> &packet) {
+RadioEffects SX126xRadio::receive_(bool holding, uint32_t now, std::vector<uint8_t> &packet) {
   this->busy_ = true;
   this->bus().begin();
   // A packet whose read failed has had its flags cleared, so they are kept until it is read.

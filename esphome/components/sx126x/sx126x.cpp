@@ -126,7 +126,7 @@ size_t SX126x::get_max_packet_size() { return this->radio_.max_packet_size(); }
 
 SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
   SX126xError result = this->start_transmit_(nullptr, data, len, TRANSMIT_TIMEOUT_MS);
-  if (result == SX126xError::NONE) {
+  if (result == SX126xError::SX126X_ERROR_NONE) {
     // Wait for this send's own completion. A send without a listener cannot be cancelled,
     // and no user code runs between these polls, so the send cannot be replaced.
     result = SX126xError::SX126X_ERROR_NOT_READY;
@@ -140,7 +140,7 @@ SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
       App.feed_wdt();
     }
   }
-  if (result != SX126xError::NONE) {
+  if (result != SX126xError::SX126X_ERROR_NONE) {
     ESP_LOGW(
         TAG, "Packet send failed: %s",
         LOG_STR_ARG(SX126xErrorStrings::get_log_str(static_cast<uint8_t>(result), SX126xErrorStrings::LAST_INDEX)));
@@ -151,7 +151,7 @@ SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
 SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
                                          uint32_t timeout_ms) {
   if (listener == nullptr || timeout_ms == 0 || timeout_ms > MAX_TRANSMIT_TIMEOUT_MS) {
-    return SX126xError::INVALID_PARAMS;
+    return SX126xError::SX126X_ERROR_INVALID_PARAMS;
   }
   return this->start_transmit_(listener, data, len, timeout_ms);
 }
@@ -200,8 +200,8 @@ void SX126x::dump_config() {
                 "  CRC Enable: %s\n"
                 "  Rx Start: %s",
                 this->version_, this->requested_profile_.frequency,
-                Sx126xCommands::bandwidth_hz(this->requested_profile_.bandwidth), this->requested_profile_.pa_power,
-                Sx126xCommands::ramp_us(this->requested_profile_.pa_ramp), this->requested_profile_.payload_length,
+                SX126xCommands::bandwidth_hz(this->requested_profile_.bandwidth), this->requested_profile_.pa_power,
+                SX126xCommands::ramp_us(this->requested_profile_.pa_ramp), this->requested_profile_.payload_length,
                 TRUEFALSE(this->requested_profile_.crc_enable), TRUEFALSE(this->requested_profile_.rx_start));
   if (this->requested_profile_.modulation == PACKET_TYPE_GFSK) {
     const char *shaping = "NONE";

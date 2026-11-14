@@ -65,10 +65,10 @@ TEST(SX126xReentry, SuccessfulStartRunsNoUserCode) {
     if (message.find("cleared Warning flag") != std::string::npos) {
       callbacks++;
       EXPECT_FALSE(hw.radio.is_transmitting());  // Only the completion clears the warning.
-      EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::NONE);
+      EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::SX126X_ERROR_NONE);
     }
   });
-  ASSERT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::NONE);
+  ASSERT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::SX126X_ERROR_NONE);
   EXPECT_EQ(callbacks, 0u);
   EXPECT_TRUE(outer.results.empty());
   LoopBlockingGuard clock{nullptr, nullptr, millis()};
@@ -77,7 +77,7 @@ TEST(SX126xReentry, SuccessfulStartRunsNoUserCode) {
   hw.irq = IRQ_TX_DONE;
   hw.radio.loop();
   ASSERT_EQ(callbacks, 1u);
-  EXPECT_EQ(outer.results, (std::vector<SX126xError>{SX126xError::NONE}));
+  EXPECT_EQ(outer.results, (std::vector<SX126xError>{SX126xError::SX126X_ERROR_NONE}));
   EXPECT_TRUE(nested.results.empty());
   EXPECT_TRUE(hw.radio.is_transmitting());
   EXPECT_EQ(hw.sends, 2u);
@@ -108,7 +108,7 @@ TEST_P(SX126xStartReentry, WarningCallbackAfterFailedStartSeesReleasedRadio) {
       if (cold_sleep) {
         hw.radio.set_mode_sleep(true);
       } else {
-        EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::NONE);
+        EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::SX126X_ERROR_NONE);
       }
       commands_after_callback = hw.transactions.size();
     }
@@ -127,7 +127,7 @@ TEST_P(SX126xStartReentry, WarningCallbackAfterFailedStartSeesReleasedRadio) {
   EXPECT_EQ(hw.sends, 1u);
   hw.irq = IRQ_TX_DONE;
   hw.radio.loop();
-  EXPECT_EQ(nested.results, (std::vector<SX126xError>{SX126xError::NONE}));
+  EXPECT_EQ(nested.results, (std::vector<SX126xError>{SX126xError::SX126X_ERROR_NONE}));
   EXPECT_TRUE(outer.results.empty());
 }
 
@@ -143,7 +143,7 @@ TEST_P(SX126xPollingReentry, WarningCallbackCannotCancelOrDisturbAFinishedSend) 
   auto *replacement = reuse_listener ? &first : &second;
   hw.configure(true, true);
   hw.auto_complete = false;
-  ASSERT_EQ(hw.radio.start_transmit_async(&first, hw.packet), SX126xError::NONE);
+  ASSERT_EQ(hw.radio.start_transmit_async(&first, hw.packet), SX126xError::SX126X_ERROR_NONE);
   hw.clear_trace();
   hw.fail_at = failed_command;  // 0: success, 1: IRQ read fails, 2: IRQ clear fails.
   hw.irq = IRQ_TX_DONE;
@@ -155,7 +155,7 @@ TEST_P(SX126xPollingReentry, WarningCallbackCannotCancelOrDisturbAFinishedSend) 
       callbacks++;
       EXPECT_TRUE(first.results.empty());                    // Status is reported before the completion.
       EXPECT_FALSE(hw.radio.cancel_transmit_async(&first));  // Already finished: no second completion.
-      EXPECT_EQ(hw.radio.start_transmit_async(replacement, hw.packet), SX126xError::NONE);
+      EXPECT_EQ(hw.radio.start_transmit_async(replacement, hw.packet), SX126xError::SX126X_ERROR_NONE);
       commands_after_replacement = hw.transactions.size();
     }
   });
@@ -164,7 +164,7 @@ TEST_P(SX126xPollingReentry, WarningCallbackCannotCancelOrDisturbAFinishedSend) 
     hw.radio.loop();
   }
   ASSERT_EQ(callbacks, 1u);
-  const auto expected = failed_command == 0 ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+  const auto expected = failed_command == 0 ? SX126xError::SX126X_ERROR_NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
   EXPECT_EQ(first.results, (std::vector<SX126xError>{expected}));
   EXPECT_TRUE(second.results.empty());
   EXPECT_TRUE(hw.radio.is_transmitting());
@@ -172,7 +172,7 @@ TEST_P(SX126xPollingReentry, WarningCallbackCannotCancelOrDisturbAFinishedSend) 
   hw.irq = IRQ_TX_DONE;
   hw.radio.loop();
   ASSERT_EQ(replacement->results.size(), reuse_listener ? 2u : 1u);
-  EXPECT_EQ(replacement->results.back(), SX126xError::NONE);
+  EXPECT_EQ(replacement->results.back(), SX126xError::SX126X_ERROR_NONE);
   EXPECT_FALSE(hw.radio.is_transmitting());
 }
 

@@ -118,9 +118,9 @@ TEST(SX126xReceiveRetry, ReceiveBackoffDoesNotDelayTransmitCompletion) {
   EXPECT_TRUE(hw.radio.status_has_warning());
   hw.clear_trace();
   hw.irq = 0;
-  ASSERT_EQ(hw.radio.start_transmit_async(&tx, hw.packet), SX126xError::NONE);
+  ASSERT_EQ(hw.radio.start_transmit_async(&tx, hw.packet), SX126xError::SX126X_ERROR_NONE);
   hw.radio.loop();  // Same cached tick, before the RX retry gate opens.
-  EXPECT_EQ(tx.results, (std::vector<SX126xError>{SX126xError::NONE}));
+  EXPECT_EQ(tx.results, (std::vector<SX126xError>{SX126xError::SX126X_ERROR_NONE}));
   EXPECT_TRUE(hw.receiving);
 }
 

@@ -13,12 +13,12 @@ enum class ConfigurationResult {
 // Encodes chip commands. No ESPHome lifecycle, callbacks, or raw SPI access.
 // Commands record failure in the SPI device: callers start a sequence with begin()
 // and check ok() at its end, or before acting on a value that was read.
-class Sx126xCommands {
+class SX126xCommands {
  public:
-  Sx126xCommands() = default;
-  Sx126xCommands(const Sx126xCommands &) = delete;
-  Sx126xCommands &operator=(const Sx126xCommands &) = delete;
-  Sx126xSpiDevice &bus() { return this->spi_device_; }
+  SX126xCommands() = default;
+  SX126xCommands(const SX126xCommands &) = delete;
+  SX126xCommands &operator=(const SX126xCommands &) = delete;
+  SX126xSpiDevice &bus() { return this->spi_device_; }
   // Fills applied as it goes; only use it if the result is OK.
   [[nodiscard]] ConfigurationResult configure(const RadioProfile &profile, std::span<char, 16> version,
                                               AppliedProfile &applied);
@@ -44,6 +44,6 @@ class Sx126xCommands {
   void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void write_register_(uint16_t reg, const uint8_t *data, uint8_t size);
   static void encode_packet_params(const RadioProfile &profile, AppliedProfile &applied);
-  Sx126xSpiDevice spi_device_;
+  SX126xSpiDevice spi_device_;
 };
 }  // namespace esphome::sx126x

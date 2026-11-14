@@ -25,26 +25,26 @@ static constexpr uint8_t OCP_140MA = 0x38;  // 140 mA max current
 // LoRa low data rate optimization threshold
 static constexpr float LOW_DATA_RATE_OPTIMIZE_THRESHOLD = 16.38f;  // 16.38 ms
 
-void Sx126xCommands::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
+void SX126xCommands::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
   const uint8_t header[] = {opcode, 0};
   this->spi_device_.read(header, {data, size});
 }
 
-void Sx126xCommands::write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size) {
+void SX126xCommands::write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size) {
   this->spi_device_.write({&opcode, 1}, {data, size});
 }
 
-void Sx126xCommands::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
+void SX126xCommands::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
   const uint8_t header[] = {RADIO_READ_REGISTER, static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg), 0};
   this->spi_device_.read(header, {data, size});
 }
 
-void Sx126xCommands::write_register_(uint16_t reg, const uint8_t *data, uint8_t size) {
+void SX126xCommands::write_register_(uint16_t reg, const uint8_t *data, uint8_t size) {
   const uint8_t header[] = {RADIO_WRITE_REGISTER, static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg)};
   this->spi_device_.write(header, {data, size});
 }
 
-ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::span<char, 16> version,
+ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::span<char, 16> version,
                                               AppliedProfile &applied) {
   applied.frequency = profile.frequency;
   applied.payload_length = profile.payload_length;
@@ -199,7 +199,7 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
                                 : ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
 }
 
-void Sx126xCommands::encode_packet_params(const RadioProfile &profile, AppliedProfile &applied) {
+void SX126xCommands::encode_packet_params(const RadioProfile &profile, AppliedProfile &applied) {
   auto &buf = applied.packet_params;
   const uint8_t payload_length = profile.max_packet_size();
   if (profile.modulation == PACKET_TYPE_LORA) {
@@ -229,12 +229,12 @@ void Sx126xCommands::encode_packet_params(const RadioProfile &profile, AppliedPr
   }
 }
 
-void Sx126xCommands::set_packet_length(AppliedProfile &applied, uint8_t length) {
+void SX126xCommands::set_packet_length(AppliedProfile &applied, uint8_t length) {
   applied.packet_params[applied.modulation == PACKET_TYPE_LORA ? 3 : 6] = length;
   this->write_opcode_(RADIO_SET_PACKETPARAMS, applied.packet_params.data(), applied.packet_params_size);
 }
 
-void Sx126xCommands::calibrate_image(uint32_t frequency) {
+void SX126xCommands::calibrate_image(uint32_t frequency) {
   // the following values were taken from section 9.2.1 table 9-2
   // in rev 2.1 of the datasheet
   uint8_t buf[2] = {0, 0};
@@ -259,7 +259,7 @@ void Sx126xCommands::calibrate_image(uint32_t frequency) {
   }
 }
 
-void Sx126xCommands::receive() {
+void SX126xCommands::receive() {
   uint8_t buf[8];
 
   // configure irq params
@@ -285,7 +285,7 @@ void Sx126xCommands::receive() {
   this->write_opcode_(RADIO_SET_RX, buf, 3);
 }
 
-void Sx126xCommands::transmit(uint32_t timeout_ms) {
+void SX126xCommands::transmit(uint32_t timeout_ms) {
   uint8_t buf[8];
 
   // configure irq params
@@ -307,37 +307,37 @@ void Sx126xCommands::transmit(uint32_t timeout_ms) {
   this->write_opcode_(RADIO_SET_TX, buf, 3);
 }
 
-void Sx126xCommands::sleep(bool cold) {
+void SX126xCommands::sleep(bool cold) {
   // 0x04 = warm start (config retained), 0x00 = cold start (config lost, lowest power)
   const uint8_t mode = cold ? 0x00 : 0x04;
   this->write_opcode_(RADIO_SET_SLEEP, &mode, 1);
 }
 
-void Sx126xCommands::standby(SX126xStandbyMode mode) {
+void SX126xCommands::standby(SX126xStandbyMode mode) {
   const uint8_t value = mode;
   this->write_opcode_(RADIO_SET_STANDBY, &value, 1);
 }
 
-uint32_t Sx126xCommands::bandwidth_hz(SX126xBw bw) { return BW_HZ[bw]; }
-uint16_t Sx126xCommands::ramp_us(uint8_t ramp) { return progmem_read_uint16(&RAMP[ramp]); }
+uint32_t SX126xCommands::bandwidth_hz(SX126xBw bw) { return BW_HZ[bw]; }
+uint16_t SX126xCommands::ramp_us(uint8_t ramp) { return progmem_read_uint16(&RAMP[ramp]); }
 
-void Sx126xCommands::clear_irqs(uint16_t mask) {
+void SX126xCommands::clear_irqs(uint16_t mask) {
   const uint8_t data[] = {static_cast<uint8_t>(mask >> 8), static_cast<uint8_t>(mask)};
   this->write_opcode_(RADIO_CLR_IRQSTATUS, data, 2);
 }
 
-uint16_t Sx126xCommands::read_irq() {
+uint16_t SX126xCommands::read_irq() {
   uint8_t data[2]{};
   this->read_opcode_(RADIO_GET_IRQSTATUS, data, 2);
   return (uint16_t(data[0]) << 8) | data[1];
 }
 
-void Sx126xCommands::write_fifo(const uint8_t *data, size_t size) {
+void SX126xCommands::write_fifo(const uint8_t *data, size_t size) {
   const uint8_t header[] = {RADIO_WRITE_BUFFER, 0};
   this->spi_device_.write(header, {data, size});
 }
 
-void Sx126xCommands::read_packet(uint8_t modulation, std::vector<uint8_t> &packet, float &rssi, float &snr) {
+void SX126xCommands::read_packet(uint8_t modulation, std::vector<uint8_t> &packet, float &rssi, float &snr) {
   uint8_t data[3]{};
   this->read_opcode_(RADIO_GET_PACKETSTATUS, data, 3);
   rssi = (modulation == PACKET_TYPE_LORA ? data[0] : data[2]) / -2.0f;
