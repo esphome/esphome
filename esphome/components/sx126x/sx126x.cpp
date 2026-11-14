@@ -1,6 +1,8 @@
 #include "sx126x.h"
+#include <cmath>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sx126x {
@@ -383,7 +385,7 @@ void SX126x::loop() {
   uint16_t status;
   uint8_t buf[3];
   uint8_t rssi;
-  int8_t snr;
+  float snr;
   this->read_opcode_(RADIO_GET_IRQSTATUS, buf, 2);
   this->write_opcode_(RADIO_CLR_IRQSTATUS, buf, 2);
   status = (buf[0] << 8) | buf[1];
@@ -392,17 +394,27 @@ void SX126x::loop() {
       this->read_opcode_(RADIO_GET_PACKETSTATUS, buf, 3);
       if (this->modulation_ == PACKET_TYPE_LORA) {
         rssi = buf[0];
-        snr = buf[1];
+        snr = (float) (int8_t) buf[1] / 4.0f;
       } else {
         rssi = buf[2];
-        snr = 0;
+        // Only LoRa measures it
+        snr = NAN;
       }
       this->read_opcode_(RADIO_GET_RXBUFFERSTATUS, buf, 2);
       this->packet_.resize(buf[0]);
       this->read_fifo_(buf[1], this->packet_);
-      this->call_listeners_(this->packet_, (float) rssi / -2.0f, (float) snr / 4.0f);
+      this->call_listeners_(this->packet_, (float) rssi / -2.0f, snr);
     }
   }
+}
+
+bool SX126x::is_receiving() {
+  // DIO1 signals a received packet, which sending would overwrite in the radio's buffer
+  if (this->dio1_pin_->digital_read())
+    return true;
+  uint8_t buf[2];
+  this->read_opcode_(RADIO_GET_IRQSTATUS, buf, 2);
+  return (encode_uint16(buf[0], buf[1]) & (IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID)) != 0;
 }
 
 void SX126x::run_image_cal() {
@@ -433,10 +445,11 @@ void SX126x::run_image_cal() {
 void SX126x::set_mode_rx() {
   uint8_t buf[8];
 
-  // configure irq params
+  // configure irq params; a valid header or sync word is flagged for is_receiving(), but not signalled on DIO1
   uint16_t irq = IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR;
-  buf[0] = (irq >> 8) & 0xFF;
-  buf[1] = (irq >> 0) & 0xFF;
+  uint16_t flags = irq | IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID;
+  buf[0] = (flags >> 8) & 0xFF;
+  buf[1] = (flags >> 0) & 0xFF;
   buf[2] = (irq >> 8) & 0xFF;
   buf[3] = (irq >> 0) & 0xFF;
   buf[4] = (IRQ_RADIO_NONE >> 8) & 0xFF;
