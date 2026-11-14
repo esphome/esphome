@@ -294,7 +294,7 @@ inline bool operator!=(const std::string &lhs, const ProgmemStringRef &rhs) { re
 #endif
 
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
-// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
+// Must be in esphome namespace for ADL to find them. Uses strtol, strtod and str_to_float to avoid heap allocation.
 namespace internal {
 // NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
