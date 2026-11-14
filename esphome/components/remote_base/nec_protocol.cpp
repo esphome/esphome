@@ -6,15 +6,10 @@ namespace esphome::remote_base {
 
 ESPHOME_LOG_TAG(TAG, "remote.nec");
 
-static constexpr uint32_t HEADER_HIGH_US = 9000;
-static constexpr uint32_t HEADER_LOW_US = 4500;
-static constexpr uint32_t BIT_HIGH_US = 560;
-static constexpr uint32_t BIT_ONE_LOW_US = 1690;
-static constexpr uint32_t BIT_ZERO_LOW_US = 560;
-static constexpr uint32_t REPEAT_HEADER_LOW_US = HEADER_LOW_US / 2;
 // A held button repeats every 108 ms: the first gap depends on the frame's own length, later ones follow a repeat frame
 static constexpr uint32_t REPEAT_PERIOD_US = 108000;
-static constexpr uint32_t REPEAT_FRAME_US = HEADER_HIGH_US + REPEAT_HEADER_LOW_US + BIT_HIGH_US;
+static constexpr uint32_t REPEAT_FRAME_US =
+    NECProtocol::HEADER_HIGH_US + NECProtocol::REPEAT_HEADER_LOW_US + NECProtocol::BIT_HIGH_US;
 static constexpr uint32_t REPEAT_GAP_US = REPEAT_PERIOD_US - REPEAT_FRAME_US;
 // Transmitters without an RMT peripheral hold an interrupt lock for the whole send, about 108 ms per repeat
 static constexpr uint16_t MAX_COMMAND_REPEATS = 10;

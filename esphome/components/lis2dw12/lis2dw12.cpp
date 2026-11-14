@@ -83,10 +83,8 @@ static const LogString *filter_bandwidth_to_string(FilterBandwidth bw) {
 
 void LIS2DW12Component::setup() {
   uint8_t who_am_i{0};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i)))
     return;
-  }
   if (who_am_i != LIS2DW12_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "WHO_AM_I check failed. Got 0x%02X, expected 0x%02X", who_am_i, LIS2DW12_WHO_AM_I_VALUE);
     this->mark_failed(LOG_STR("Wrong chip ID"));
@@ -94,10 +92,8 @@ void LIS2DW12Component::setup() {
   }
 
   // Soft reset
-  if (!this->write_reg_(RegisterMap::CTRL2, 0x40)) {
-    this->mark_failed(LOG_STR("Soft reset failed"));
+  if (!this->setup_check(this->write_reg_(RegisterMap::CTRL2, 0x40), LOG_STR("Soft reset failed")))
     return;
-  }
   delay(1);  // NOLINT - wait for reset to complete
 
   uint8_t ctrl2{0};
@@ -106,10 +102,8 @@ void LIS2DW12Component::setup() {
     return;
   }
 
-  if (!this->configure_registers_()) {
-    this->mark_failed(LOG_STR("Register configuration failed"));
+  if (!this->setup_check(this->configure_registers_(), LOG_STR("Register configuration failed")))
     return;
-  }
 
   // 0.244 mg/LSB at ±2g (14-bit), doubling per range step; 12-bit LP1 is 4x coarser
   const bool lp1 = this->power_mode_ == PowerMode::LOW_POWER_1;

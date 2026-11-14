@@ -13,6 +13,7 @@ light:
     use_dma: "true"
   - platform: esp32_rmt_led_strip
     id: led_strip2
+    rmt_symbols: 144
     pin: ${pin2}
     num_leds: 60
     channel_colors: RGB

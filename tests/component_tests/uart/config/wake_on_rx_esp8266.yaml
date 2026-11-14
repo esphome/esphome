@@ -1,0 +1,11 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+# No wifi; GPIO5 is a software serial pin
+uart:
+  rx_pin: GPIO5
+  baud_rate: 9600

@@ -85,11 +85,9 @@ void ShellyDimmer::handle_firmware() {
 
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
-    if (!is_running_configured_version()) {
-      ESP_LOGE(TAG, "STM32 firmware upgrade already performed, but version is still incorrect");
-      this->mark_failed();
+    if (!this->setup_check(is_running_configured_version(),
+                           LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
       return;
-    }
 #else
     ESP_LOGW(TAG, "Firmware version mismatch, put 'update: true' in the yaml to flash an update.");
 #endif
@@ -308,9 +306,8 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   }
 
   // Calculate checksum for the payload.
-  const uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
-  data[pos++] = static_cast<uint8_t>(csum >> 8);
-  data[pos++] = static_cast<uint8_t>(csum & 0xff);
+  put_be16(data + pos, shelly_dimmer_checksum(data + 1, 3 + len));
+  pos += 2;
   data[pos++] = SHELLY_DIMMER_PROTO_END_BYTE;
   return pos;
 }

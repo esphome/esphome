@@ -19,10 +19,8 @@ const LogString *EPaperBase::epaper_state_to_string_() {
 }
 
 void EPaperBase::setup() {
-  if (!this->init_buffer_(this->buffer_length_)) {
-    this->mark_failed(LOG_STR("Failed to initialise buffer"));
+  if (!this->setup_check(this->init_buffer_(this->buffer_length_), LOG_STR("Failed to initialise buffer")))
     return;
-  }
   this->setup_pins_();
   this->spi_setup();
 }
@@ -434,11 +432,7 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   const uint8_t bit_position = x % 8;
   const uint8_t pixel_bit = 0x80u >> bit_position;
   const auto original = this->buffer_[byte_position];
-  if (color_to_mono(color) == 0) {
-    this->buffer_[byte_position] = original & ~pixel_bit;
-  } else {
-    this->buffer_[byte_position] = original | pixel_bit;
-  }
+  this->buffer_[byte_position] = color_to_mono(color) == 0 ? original & ~pixel_bit : original | pixel_bit;
 }
 
 namespace {

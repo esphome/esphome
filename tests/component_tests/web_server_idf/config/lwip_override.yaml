@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_LWIP_MAX_SOCKETS: "9"
+
+wifi:
+  ssid: MySSID
+  password: password1
+  ap:
+    ssid: Fallback
+
+web_server:
+
+captive_portal:

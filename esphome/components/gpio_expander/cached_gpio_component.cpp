@@ -5,18 +5,17 @@ namespace esphome::gpio_expander {
 // Not a member of the template: GCC 10 (ESP8266) ignores section attributes on template instantiations.
 static void IRAM_ATTR interrupt_pin_isr(Component *arg) { arg->enable_loop_soon_any_context(); }
 
-bool InterruptExpanderComponent::attach_interrupt_pin_() {
+void InterruptExpanderComponent::setup_interrupt_pin_() {
   // Polling mode enables the loop in pin_mode() for the first input; interrupt mode from the ISR.
   this->disable_loop();
   if (this->interrupt_pin_ == nullptr)
-    return false;
+    return;
   this->interrupt_pin_->setup();
   this->interrupt_pin_->attach_interrupt(&interrupt_pin_isr, static_cast<Component *>(this),
                                          gpio::INTERRUPT_FALLING_EDGE);
   // An INT line already low at attach gives no falling edge, so read the inputs now
   if (!this->interrupt_pin_->digital_read())
     this->enable_loop();
-  return true;
 }
 
 // Input changes that straddle the read leave INT asserted without a new falling edge, so keep looping

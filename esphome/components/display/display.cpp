@@ -15,7 +15,6 @@ ESPHOME_LOG_TAG(TAG, "display");
 
 void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }
-void Display::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 
 void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
@@ -304,11 +303,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
       // side parts
       int lhline_width = -(dxmax - dxmin) + 1;
       if (progress >= 50) {
-        if (float(dymax) < float(-dxmax) * tan_a) {
-          upd_dxmax = std::ceil(float(dymax) / tan_a);
-        } else {
-          upd_dxmax = -dxmax;
-        }
+        upd_dxmax = float(dymax) < float(-dxmax) * tan_a ? std::ceil(float(dymax) / tan_a) : -dxmax;
         this->horizontal_line(center_x + dxmax, center_y - dymax, lhline_width, color);  // left
         if (!dymax)
           this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border
@@ -319,11 +314,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
                                 rhline_width > lhline_width ? lhline_width : rhline_width, color);
         }
       } else {
-        if (float(dymin) > float(-dxmin) * tan_a) {
-          upd_dxmin = std::ceil(float(dymin) / tan_a);
-        } else {
-          upd_dxmin = -dxmin;
-        }
+        upd_dxmin = float(dymin) > float(-dxmin) * tan_a ? std::ceil(float(dymin) / tan_a) : -dxmin;
         lhline_width = -(dxmax + upd_dxmin) + 1;
         if (!dymax)
           this->horizontal_line(center_x - dxmin, center_y, lhline_width, color);  // right horizontal border
@@ -723,8 +714,6 @@ void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
   this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
-
-void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 
 void Display::set_pages(std::vector<DisplayPage *> pages) {
   if (pages.empty())
