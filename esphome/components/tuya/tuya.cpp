@@ -62,6 +62,13 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_() && this->init_failed_) {
+    // The MCU cannot be used: no valid product info, or that of another product. Act on none of its frames.
+    this->discard_available();
+    return;
+  }
+#endif
   this->read_available([this](uint8_t b) {
 #ifdef USE_TUYA_LOW_POWER
     // The UART may discover an RX overflow while filling its ring. Drop

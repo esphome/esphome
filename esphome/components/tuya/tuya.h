@@ -140,7 +140,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   /// must stay valid until the transfer ends. Restarts the module afterwards, so it detects the MCU anew.
   bool low_power_update_mcu(const uint8_t *image, size_t size);
   /// Firmware version from the MCU's product info ("v"), empty until it was reported.
-  const std::string &low_power_mcu_version() const { return this->lp_product_.version; }
+  const char *low_power_mcu_version() const { return this->lp_product_.version.data(); }
   // Called by the platform's power management bridge (not by CMD38 alone).
   bool notify_low_power_transition(bool sleeping);
   /// Standby steps, called by the platform's power management bridge.

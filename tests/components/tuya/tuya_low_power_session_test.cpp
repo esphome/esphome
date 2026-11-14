@@ -5,6 +5,7 @@
 #include "esphome/components/tuya/tuya_low_power_autobaud.h"
 #include "esphome/components/tuya/tuya_low_power_product.h"
 #include <vector>
+#include <cstring>
 #include <string>
 
 namespace esphome::tuya::testing {
@@ -157,6 +158,8 @@ TEST(TuyaLowPowerSession, FullStatusAndWrites) {
   EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(product_json.data()), product_json.size()));
   EXPECT_TRUE(info.matches("ihedujbuli6hsx9b"));
   EXPECT_TRUE(info.matches(""));
+  EXPECT_STREQ(info.pid.data(), "ihedujbuli6hsx9b");
+  EXPECT_STREQ(info.version.data(), "1.3.1");
   EXPECT_TRUE(info.wake_gpio == 20 && info.mcu_wake_gpio == 28 && info.sleep_mode == 1);
   EXPECT_EQ(info.mcu_wake_pulse_ms, 50u);  // TRV16 reports no mwkpt: the original WXU default
   const std::string pulse_json = R"({"p":"x","v":"1","wk":20,"mwk":28,"sm":1,"mwkpt":120})";
@@ -205,6 +208,13 @@ TEST(TuyaLowPowerSession, FullStatusAndWrites) {
   EXPECT_FALSE(info.parse(reinterpret_cast<const uint8_t *>(typed_p.data()), typed_p.size()));
   EXPECT_FALSE(info.parse(nullptr, 0));
   EXPECT_FALSE(info.parsed);
+  // A product field holds at most 48 characters.
+  const std::string max_p = R"({"p":")" + std::string(48, 'a') + R"(","v":"1"})";
+  const std::string long_p = R"({"p":")" + std::string(49, 'a') + R"(","v":"1"})";
+  EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(max_p.data()), max_p.size()));
+  EXPECT_EQ(std::strlen(info.pid.data()), 48u);
+  EXPECT_FALSE(info.parse(reinterpret_cast<const uint8_t *>(long_p.data()), long_p.size()));
+  EXPECT_STREQ(info.pid.data(), "");
 }
 
 TEST(TuyaLowPowerSession, Version3McuSynchronizesOnFirstReport) {
