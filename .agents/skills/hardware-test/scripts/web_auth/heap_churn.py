@@ -26,17 +26,16 @@ read_fails = [0]
 
 def val(path: str) -> float | None:
     try:
-        s = socket.create_connection((HOST, 80), timeout=4)
-        s.sendall(
-            f"GET {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n\r\n".encode()
-        )
-        buf = b""
-        while b"}" not in buf:
-            d = s.recv(512)
-            if not d:
-                break
-            buf += d
-        s.close()
+        with socket.create_connection((HOST, 80), timeout=4) as s:
+            s.sendall(
+                f"GET {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n\r\n".encode()
+            )
+            buf = b""
+            while b"}" not in buf:
+                d = s.recv(512)
+                if not d:
+                    break
+                buf += d
         return float(json.loads(buf.split(b"\r\n\r\n", 1)[1])["value"])
     except Exception:  # noqa: BLE001
         read_fails[0] += 1
@@ -45,12 +44,11 @@ def val(path: str) -> float | None:
 
 def bad_once() -> str:
     try:
-        s = socket.create_connection((HOST, 80), timeout=5)
-        s.sendall(
-            f"GET / HTTP/1.1\r\nHost: x\r\nAuthorization: {BAD}\r\nConnection: close\r\n\r\n".encode()
-        )
-        d = s.recv(64)
-        s.close()
+        with socket.create_connection((HOST, 80), timeout=5) as s:
+            s.sendall(
+                f"GET / HTTP/1.1\r\nHost: x\r\nAuthorization: {BAD}\r\nConnection: close\r\n\r\n".encode()
+            )
+            d = s.recv(64)
         return d.split(b" ", 2)[1].decode() if d.startswith(b"HTTP") else "closed"
     except Exception as e:  # noqa: BLE001
         return type(e).__name__

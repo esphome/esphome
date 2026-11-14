@@ -7,7 +7,9 @@ usage: stream_retest.py HOST MODE [--out FILE] [--runs N]
   stall     a reader plus a client with a 2 KB receive buffer that reads 3 s, stops 35 s, then drains and
             checks for EOF; the device log line gives the close time
   wifidrop  a client streams, POST /button/Wifi Drop/press (disable 8 s, enable), the client reconnects after
-            5 s without data like a browser EventSource; reports how the old stream ended and when a new one worked
+            5 s without data like a browser EventSource; reports how the old stream ended and when a new one worked.
+            The device's close of the old stream cannot reach the client while Wi-Fi is off, so the old stream
+            usually ends idle; stream_runall.sh checks the close in the serial log
   churn     40 connects (every second one reset with SO_LINGER 0 after the first state event, the others closed
             normally), then a fresh client for 10 s
 Each mode prints a `MODE ... ok=True/False` summary line; exits 1 when any summary is not ok.
@@ -73,6 +75,13 @@ class Reader(threading.Thread):
         except OSError as e:
             self.end = f"connect error {e}"
             return
+        # every exit closes the socket, so an abandoned stream does not stay open on the device
+        try:
+            self._loop(s)
+        finally:
+            s.close()
+
+    def _loop(self, s):
         deadline = time.monotonic() + self.seconds
         last = time.monotonic()
         while time.monotonic() < deadline:
@@ -103,7 +112,6 @@ class Reader(threading.Thread):
             buf = self.tail + d
             self.states += buf.count(b"event: state")
             self.tail = buf[-11:]
-        s.close()
 
 
 failed = 0
@@ -246,7 +254,8 @@ elif args.mode == "wifidrop":
     summary(
         "wifidrop",
         pressed and dropped and t_new is not None,
-        f"press {'ok' if pressed else 'FAILED'}, {pre} ev before it, old end={r.end}, new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
+        f"press {'ok' if pressed else 'FAILED'}, {pre} ev before it, old end={r.end} (client saw the close: "
+        f"{r.end != 'idle'}), new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
         f"the press",
     )
 

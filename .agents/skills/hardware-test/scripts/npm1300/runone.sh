@@ -21,8 +21,8 @@ kill -0 $CAP 2>/dev/null || { echo "FAIL: the capture ended before the flash fin
 wait $CAP
 # a flash that returned 0 but never booted the new image leaves only the old firmware in the capture, so look for
 # this build's own compile time, which every boot logs
-BI=$D/.esphome/build/$N/src/esphome/core/build_info_data.h
-BT=$(sed -n 's/.*ESPHOME_BUILD_TIME_STR\[\] = "\(.*\)";.*/\1/p' "$BI" 2>/dev/null)
+BI=$D/.esphome/build/$N/src/esphome/core/build_info_data.cpp
+BT=$(sed -n 's/.*ESPHOME_BUILD_TIME_STR\[\][^"]*"\(.*\)";.*/\1/p' "$BI" 2>/dev/null | head -1)
 [ -n "$BT" ] || { echo "FAIL: no build time in $BI"; exit 1; }
 grep -a -q -F "compiled on $BT" "$D/$N-cap.txt" ||
   { echo "FAIL: no boot of the build from $BT in $D/$N-cap.txt"; exit 1; }

@@ -33,30 +33,29 @@ OPTS = [
 
 def req(method: str, path: str, timeout: float = 5) -> tuple[int | None, bytes]:
     try:
-        s = socket.create_connection((HOST, 80), timeout=timeout)
-        s.sendall(
-            f"{method} {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n"
-            f"Content-Length: 0\r\n\r\n".encode()
-        )
-        buf = b""
-        while True:
-            try:
-                d = s.recv(4096)
-            except TimeoutError:
-                break
-            if not d:
-                break
-            buf += d
-            if b"\r\n\r\n" in buf:
-                hd, bd = buf.split(b"\r\n\r\n", 1)
-                cl = [
-                    ln
-                    for ln in hd.split(b"\r\n")
-                    if ln.lower().startswith(b"content-length:")
-                ]
-                if cl and len(bd) >= int(cl[0].split(b":")[1]):
+        with socket.create_connection((HOST, 80), timeout=timeout) as s:
+            s.sendall(
+                f"{method} {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n"
+                f"Content-Length: 0\r\n\r\n".encode()
+            )
+            buf = b""
+            while True:
+                try:
+                    d = s.recv(4096)
+                except TimeoutError:
                     break
-        s.close()
+                if not d:
+                    break
+                buf += d
+                if b"\r\n\r\n" in buf:
+                    hd, bd = buf.split(b"\r\n\r\n", 1)
+                    cl = [
+                        ln
+                        for ln in hd.split(b"\r\n")
+                        if ln.lower().startswith(b"content-length:")
+                    ]
+                    if cl and len(bd) >= int(cl[0].split(b":")[1]):
+                        break
         st = int(buf.split(b" ", 2)[1]) if buf.startswith(b"HTTP") else None
         return st, buf.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in buf else b""
     # ValueError, IndexError: a truncated or malformed reply counts as a failed request, not a dead load thread
