@@ -1034,7 +1034,7 @@ inline float pow10_int(int8_t exp) {
   return result;
 }
 
-/// 10^n by squaring. Exact for integer types while it fits, for float up to 10^10 and for double up to 10^22.
+/// 10^n, exact while it fits in T.
 template<typename T> constexpr T pow10_exact(uint32_t n) {
   T result = 1;
   T base = 10;
@@ -1048,10 +1048,10 @@ template<typename T> constexpr T pow10_exact(uint32_t n) {
   }
 }
 
-/// Whether c is '0' to '9' (C locale, no ctype table).
+/// Whether c is '0' to '9'.
 constexpr bool is_digit(char c) { return static_cast<uint8_t>(c - '0') <= 9; }
 
-/// Whether c is C-locale white space: ' ', '\t', '\n', '\v', '\f' or '\r' (no ctype table, unlike isspace).
+/// Whether c is C-locale white space, without isspace's ctype table.
 constexpr bool is_space_c(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).

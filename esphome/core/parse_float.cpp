@@ -1,6 +1,5 @@
-// strtof without libc's strtod (_strtod_l, __gethex and helpers): picolibc 1.8.10's strtof (ESP-IDF 6), bit for bit
-// and with its end pointer, on every platform. A decimal is rounded to 9 significant digits (ties to even), then to
-// the nearest float; hex is rounded to the nearest float. No double arithmetic; float bits are built from integers.
+// picolibc 1.8.10's strtof, bit for bit, without libc's strtod: decimals round to 9 digits, then to the nearest float.
+// Float bits are built from integers, so chips that flush denormals give the same result.
 
 #include "esphome/core/parse_float.h"
 #include "esphome/core/hal.h"
@@ -18,13 +17,12 @@ constexpr uint32_t FLOAT_NAN_BITS = 0x7FC00000;  // nanf(""), which strtof retur
 
 constexpr uint32_t DECIMAL_DIGITS = 9, HEX_DIGITS = 8;  // digits kept before the rest only round
 constexpr int32_t EXPONENT_CAP = 224;  // picolibc stops adding exponent digits once the exponent reaches this
-// 0.<digits> * 10^exp10 is zero when exp10 <= MIN_EXP10 and infinity when exp10 >= MAX_EXP10, as picolibc decides
+// 0.<digits> * 10^exp10 is zero at or below MIN_EXP10 and infinity at or above MAX_EXP10, as in picolibc
 constexpr int32_t MIN_EXP10 = -46, MAX_EXP10 = 40;
-// A plain-decimal mantissa above this could pass 2^24 with one more digit, so the float would no longer be exact
+// Past this, one more digit could pass 2^24
 constexpr uint32_t PLAIN_MANTISSA_LIMIT = 1677720;
 
-// The float nearest to (m, plus something below 1 when sticky) * 2^e, ties to even, as bits; m > 0, and sticky only
-// when bits are dropped. Integer operations only: some chips flush float denormals in their own conversion.
+// Bits of the float nearest to (m + sticky fraction) * 2^e, ties to even; m > 0
 uint32_t round_to_float_bits(uint64_t m, int32_t e, bool sticky) {
   const int32_t msb = e + static_cast<int32_t>(std::bit_width(m)) - 1;  // the value is in [2^msb, 2^(msb + 1))
   if (msb >= 128)
@@ -51,8 +49,7 @@ uint32_t round_to_float_bits(uint64_t m, int32_t e, bool sticky) {
 
 // The decimal exponents that reach decimal_to_float_bits: 1 to 9 digits and MIN_EXP10 < digits + e10 < MAX_EXP10
 constexpr int32_t MIN_E10 = MIN_EXP10 + 1 - static_cast<int32_t>(DECIMAL_DIGITS), MAX_E10 = MAX_EXP10 - 2;
-// 10^(8k) for k = POW10_BY_8_FIRST..POW10_BY_8_LAST as the top 64 bits of its binary expansion (rounded down):
-// 10^(8k) = POW10_BY_8[k - POW10_BY_8_FIRST] * 2^(floor_log2_pow10(8k) - 63), exact for k = 0..3
+// Top 64 bits of 10^(8k), rounded down: 10^(8k) = entry * 2^(floor_log2_pow10(8k) - 63), exact for k = 0..3
 constexpr int32_t POW10_BY_8_FIRST = MIN_E10 >> 3, POW10_BY_8_LAST = MAX_E10 >> 3;
 constexpr uint64_t POW10_BY_8[] PROGMEM = {
     0xFB158592BE068D2E, 0xBB127C53B17EC159, 0x8B61313BBABCE2C6, 0xCFB11EAD453994BA,
@@ -75,8 +72,7 @@ uint64_t mul_high(uint64_t a, uint64_t b) {
   return a_hi * b_hi + (hi_lo >> 32) + (lo_hi >> 32) + (middle >> 32);
 }
 
-// Out of line and cold: a decimal within 16 units of a float midpoint, which is an exact tie (one other, 6 units
-// above it, keeps its float). The value is (m10 * 5^e10) * 2^e10, or (m10 / 5^-e10) * 2^e10 when 5^-e10 divides m10.
+// Cold: a decimal within 16 units of a midpoint is an exact tie when m10 * 5^e10 is an integer
 __attribute__((noinline, cold)) uint32_t tie_float_bits(uint32_t m10, int32_t e10, uint32_t bits) {
   if (e10 >= 0) {
     if (e10 <= 14)  // m10 * 5^14 stays below 2^64
@@ -89,10 +85,8 @@ __attribute__((noinline, cold)) uint32_t tie_float_bits(uint32_t m10, int32_t e1
   return bits;
 }
 
-// The float nearest to m10 * 10^e10, for 0 < m10 <= 10^9 and MIN_E10 <= e10 <= MAX_E10, as picolibc's engine gives.
-// m10 * 10^(e10 mod 8) is exact in 64 bits, and one multiplication by POW10_BY_8 leaves the product less than 4 units
-// (of its top bit's 2^-63) below the decimal. All 85 billion (m10, e10) give picolibc's bits; outside the ties and
-// one non-tie, no product lies within 34 units of a float midpoint.
+// The float nearest to m10 * 10^e10 (0 < m10 <= 10^9). The product is under 4 units low; checked for all 85 billion
+// (m10, e10), only exact ties come within 34 units of a midpoint.
 uint32_t decimal_to_float_bits(uint32_t m10, int32_t e10) {
   // Both operands are exact floats, so the one float operation gives the nearest float
   const uint32_t power = e10 < 0 ? -e10 : e10;
@@ -285,7 +279,7 @@ __attribute__((noinline)) uint32_t parse_float_full(const char *str, const char 
   return bits;
 }
 
-// An optional sign, up to 24 bits of digits and 9 after the point, in one float operation; nullptr otherwise.
+// A plain decimal below 2^24 with up to 9 digits after the point, in one float operation; nullptr otherwise
 ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, uint32_t *bits, bool *negative) {
   const char *p = str;
   *negative = *p == '-';
@@ -321,8 +315,7 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
 }  // namespace
 
 optional<float> parse_float(const char *str) {
-  // Its own loop for the whole string as a plain decimal (below 2^24 and up to 9 digits after the point): sharing
-  // parse_plain_decimal costs 12 to 18% more instructions on plain decimals, the most common input here
+  // Own copy of the plain-decimal loop: sharing parse_plain_decimal costs 12 to 18% more instructions
   const char *p = str;
   const bool negative = *p == '-';
   if (negative || *p == '+')
