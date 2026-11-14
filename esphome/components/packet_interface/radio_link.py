@@ -46,6 +46,18 @@ MARGIN = 1.25
 TRANSMIT_TIMEOUT_MS = 4000
 # An acknowledgement, with room for the layers below the reliability layer, such as addressing and the rolling code
 ACK_PACKET_SIZE = 32
+# From the end of a packet to the start of the peer's reply: a loop pass to read the packet, one to answer it, and the
+# radio's start-up
+REPLY_START_MS = 50
+# A LoRa packet's explicit header is in its first 8 symbols
+LORA_HEADER_SYMBOLS = 8
+
+
+def _lora_symbol_s(radio: ConfigType) -> float:
+    bandwidth_hz = (
+        float(str(radio["bandwidth"]).removesuffix("kHz").replace("_", ".")) * 1000
+    )
+    return (1 << radio["spreading_factor"]) / bandwidth_hz
 
 
 def packet_airtime_ms(radio: ConfigType, size: int) -> float:
@@ -57,11 +69,8 @@ def packet_airtime_ms(radio: ConfigType, size: int) -> float:
     """
     if str(radio["modulation"]) == "LORA":
         spreading_factor = radio["spreading_factor"]
-        bandwidth_hz = (
-            float(str(radio["bandwidth"]).removesuffix("kHz").replace("_", ".")) * 1000
-        )
         coding_rate = int(str(radio["coding_rate"])[-1]) - 4
-        symbol_s = (1 << spreading_factor) / bandwidth_hz
+        symbol_s = _lora_symbol_s(radio)
         low_data_rate = 1 if symbol_s > 0.016 else 0
         crc = 16 if radio.get("crc_enable", False) else 0
         payload_symbols = 8 + max(
@@ -77,6 +86,19 @@ def packet_airtime_ms(radio: ConfigType, size: int) -> float:
         radio["preamble_size"] + len(radio.get("sync_value", [])) + 1 + size + 2
     )
     return bytes_sent * 8 / radio["bitrate"] * 1000
+
+
+def turnaround_ms(radio: ConfigType) -> int:
+    """How long, after sending, to wait for the peer's reply to start and for the radio to receive its header, so
+    the peer's reply is not sent over.
+    """
+    if str(radio["modulation"]) == "LORA":
+        symbols = radio["preamble_size"] + 4.25 + LORA_HEADER_SYMBOLS
+        header_ms = symbols * _lora_symbol_s(radio) * 1000
+    else:
+        header_bytes = radio["preamble_size"] + len(radio.get("sync_value", [])) + 1
+        header_ms = header_bytes * 8 / radio["bitrate"] * 1000
+    return math.ceil((header_ms + REPLY_START_MS) * MARGIN)
 
 
 def max_busy_ms(radio: ConfigType, max_packet_size: int) -> int:
@@ -279,3 +301,6 @@ async def new_radio_link(
     radio = await cg.get_variable(config[radio_id_key])
     var = await new_packet_interface(config, radio, config[CONF_MAX_PACKET_SIZE])
     cg.add(var.set_max_busy(max_busy_ms(radio_config, packet_size)))
+    # Taking turns only helps a link whose peer replies, and would hold up a run of one-way sends
+    if _two_way_layer(config) is not None:
+        cg.add(var.set_turnaround(turnaround_ms(radio_config)))
