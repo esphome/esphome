@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#if defined(USE_ESP32) && defined(USE_WEBSERVER)
+#if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/stream_response.h"
@@ -60,7 +60,7 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   void loop();
 
  protected:
-  AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server, WebServer *ws);
+  AsyncEventSourceResponse(AsyncWebServerRequest *request, WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
   void start_session_main_loop_();
@@ -101,7 +101,6 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   // Frees the tail and the queue's storage once the session is closing
   void release_buffers_();
 
-  AsyncEventSource *server_;
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
   ListEntitiesIterator entities_iterator_;
@@ -114,15 +113,20 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   bool sending_{false};
   // The no-memory warning went out during the current stall; cleared on send progress
   bool no_memory_logged_{false};
+#ifdef USE_ESP8266
+  // The 4 KB loop stack: smaller send frames, anything larger goes through the tail
+  static constexpr size_t MAX_SEND_LINES = 8;
+  static constexpr size_t JSON_BUF_SIZE = 512;
+#else
   // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
   // longer one goes through the tail
   static constexpr size_t MAX_SEND_LINES = 22;
+  // Stack buffer for a state event's JSON; a larger document is serialized into the tail
+  static constexpr size_t JSON_BUF_SIZE = 1024;
+#endif
   static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
-
-  // Stack buffer for a state event's JSON; a larger document is serialized into the tail
-  static constexpr size_t JSON_BUF_SIZE = 1024;
   // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
   // document is dropped before anything is on the wire
   static constexpr size_t JSON_MAX_SIZE = 5120;
@@ -131,8 +135,6 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
 };
 
 class AsyncEventSource : public AsyncWebHandler {
-  friend class AsyncEventSourceResponse;
-
  public:
   AsyncEventSource(StringRef url, WebServer *ws) : url_(url), web_server_(ws) {}
   ~AsyncEventSource() override;
@@ -141,16 +143,19 @@ class AsyncEventSource : public AsyncWebHandler {
   bool canHandle(AsyncWebServerRequest *request) const override {
     if (request->method() != HTTP_GET)
       return false;
+#ifdef USE_ESP32
     char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
     return request->url_to(url_buf) == this->url_;
+#else
+    return this->url_ == request->url().c_str();
+#endif
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
-  // The old event name argument would otherwise convert to true
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
+  // State events to every session; each session's own listing sends the detail_all events
+  void deferrable_send_state(void *source, message_generator_t *message_generator);
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();
   bool empty() { return this->count() == 0; }
@@ -164,7 +169,7 @@ class AsyncEventSource : public AsyncWebHandler {
   StringRef url_;  // Must outlive this object (string literal)
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
-  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
+  // Network-context intake; guarded by StreamIntakeGuard on pending_mutex_, gated by has_pending_sessions_.
   std::vector<AsyncEventSourceResponse *> pending_sessions_;
   Mutex pending_mutex_;
   WebServer *web_server_;
@@ -173,4 +178,4 @@ class AsyncEventSource : public AsyncWebHandler {
 
 }  // namespace esphome::web_server
 
-#endif  // USE_ESP32 && USE_WEBSERVER
+#endif  // USE_WEBSERVER && (USE_ESP32 || USE_ARDUINO)

@@ -44,9 +44,8 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
     len = buf_append_printf(buf, size, len, "id: %" PRIu32 "\r\n", id);
   }
   if (event && *event) {
-    len = buf_append_str(buf, size, len, "event: ");
-    len = buf_append_str(buf, size, len, event);
-    len = buf_append_str(buf, size, len, "\r\n");
+    // event is not a literal, so it cannot go through buf_append_str (a PSTR() wrapper on ESP8266)
+    len = buf_append_printf(buf, size, len, "event: %s\r\n", event);
   }
   if (with_data) {
     len = buf_append_str(buf, size, len, "data: ");

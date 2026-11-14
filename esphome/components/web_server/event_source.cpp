@@ -1,5 +1,5 @@
 #include "event_source.h"
-#if defined(USE_ESP32) && defined(USE_WEBSERVER)
+#if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
 
 #include <algorithm>
 #include <cstring>
@@ -12,7 +12,7 @@
 
 namespace esphome::web_server {
 
-ESPHOME_LOG_TAG(TAG, "web_server_idf");
+ESPHOME_LOG_TAG(TAG, "web_server");
 
 // Only prepare_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
@@ -21,7 +21,7 @@ ESPHOME_LOG_TAG(TAG, "web_server_idf");
 #endif
 
 AsyncEventSource::~AsyncEventSource() {
-  LockGuard guard{this->pending_mutex_};
+  web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
   for (auto *vec : {&this->sessions_, &this->pending_sessions_}) {
     for (auto *ses : *vec) {
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -30,11 +30,11 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
+  // Network context: start the stream and park the session; the main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
-  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
+  auto *rsp = new AsyncEventSourceResponse(request, this->web_server_);
   {
-    LockGuard guard{this->pending_mutex_};
+    web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
     this->pending_sessions_.push_back(rsp);
     this->has_pending_sessions_.store(true, std::memory_order_release);
   }
@@ -51,14 +51,10 @@ bool AsyncEventSource::loop() {
     this->adopt_pending_sessions_main_loop_();
   }
 
-  // Clean up dead sessions safely
-  // This follows the ESP-IDF pattern where free_ctx marks resources as dead
-  // and the main loop handles the actual cleanup to avoid race conditions
+  // The network side only marks a session dead; the main loop frees it, so nothing races the free
   for (size_t i = 0; i < this->sessions_.size();) {
     auto *ses = this->sessions_[i];
-    // If the session has a dead socket (marked by destroy callback)
     if (ses->safe_to_delete()) {
-      // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
       this->sessions_[i] = this->sessions_.back();
@@ -68,14 +64,14 @@ bool AsyncEventSource::loop() {
       ++i;
     }
   }
-  // A session still waiting for httpd to commit its context keeps the loop alive too
+  // A session still waiting for its connection keeps the loop alive too
   return !this->sessions_.empty() || this->has_pending_sessions_.load(std::memory_order_acquire);
 }
 
 void AsyncEventSource::adopt_pending_sessions_main_loop_() {
   std::vector<AsyncEventSourceResponse *> incoming;
   {
-    LockGuard guard{this->pending_mutex_};
+    web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
     incoming.swap(this->pending_sessions_);
     this->has_pending_sessions_.store(false, std::memory_order_relaxed);
   }
@@ -85,10 +81,9 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
-    // httpd commits the session context only after the creating handler returns, so stay
-    // pending until then; httpd_req_cleanup() always commits it or calls destroy()
+    // The transport takes the connection only after the creating handler returns, so stay pending until then
     if (!rsp->is_attached()) {
-      LockGuard guard{this->pending_mutex_};
+      web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
       this->pending_sessions_.push_back(rsp);
       this->has_pending_sessions_.store(true, std::memory_order_release);
       continue;
@@ -108,21 +103,20 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary processing
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
     if (ses->is_connected()) {
-      ses->deferrable_send_state(source, detail_all, message_generator);
+      ses->deferrable_send_state(source, false, message_generator);
     }
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server,
-                                                   WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(ws, this) {
-  // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
+AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, WebServer *ws)
+    : web_server_(ws), entities_iterator_(ws, this) {
+  // Network context only. start_session_main_loop_() sends the greeting and starts the iterator.
   this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }
 static_assert(web_server_base::stream_head_iov_count(std::size(SSE_HEADERS) + WEB_SERVER_DEFAULT_HEADERS_COUNT) <=
@@ -137,7 +131,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   // allocation; nothing retries the greeting, so close and let the client reconnect.
   auto message = ws->get_config_json();
   if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
-    ESP_LOGW(TAG, "Config not sent to fd %d", this->log_id());
+    ESP_LOGW(TAG, "Config not sent to stream %d", this->log_id());
     this->close();
     return;
   }
@@ -155,7 +149,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
     // A refusal means the socket is full or closing; the remaining groups are not sent. The
     // session stays up on purpose: partial grouping beats a reconnect loop on a slow link.
     if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
-      ESP_LOGW(TAG, "Sorting groups not sent to fd %d", this->log_id());
+      ESP_LOGW(TAG, "Sorting groups not sent to stream %d", this->log_id());
       break;
     }
   }
@@ -298,8 +292,12 @@ AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_js
   // Log lines emitted while the generator runs are dropped for this session: on the large path they would fill
   // tail_ before it is overwritten, and on the small path they would go out ahead of the event being built.
   SendGuard guard{*this};
+#ifdef USE_JSON_ARENA
   json::JsonArena<json::JSON_ARENA_SIZE> arena;
   json::JsonBuilder builder(&arena);
+#else
+  json::JsonBuilder builder;
+#endif
   generator(this->web_server_, source, builder);
   *size_out = builder.serialize_to(buffer, JSON_BUF_SIZE);
   if (*size_out < JSON_BUF_SIZE) {
@@ -380,15 +378,7 @@ void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
     this->no_memory_logged_ = true;
     ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
   }
-  const uint32_t now = App.get_loop_component_start_time();
-  if (!this->stall_.is_running()) {
-    this->stall_.start(now);
-    return;
-  }
-  if (this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
-    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory", this->stall_.elapsed(now));
-    this->close();
-  }
+  this->stall_or_close_("without memory");
 }
 
 bool AsyncEventSourceResponse::ready_to_send_() {
@@ -488,4 +478,4 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_a
 
 }  // namespace esphome::web_server
 
-#endif  // USE_ESP32 && USE_WEBSERVER
+#endif  // USE_WEBSERVER && (USE_ESP32 || USE_ARDUINO)

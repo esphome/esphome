@@ -11,13 +11,8 @@ class JsonBuilder;
 namespace esphome::web_server {
 
 // The /events session the iterator lists entities to
-#ifdef USE_ESP32
 class AsyncEventSourceResponse;
 using EventSession = AsyncEventSourceResponse;
-#elif defined(USE_ARDUINO)
-class DeferredUpdateEventSource;
-using EventSession = DeferredUpdateEventSource;
-#endif
 class WebServer;
 
 class ListEntitiesIterator final : public ComponentIterator {

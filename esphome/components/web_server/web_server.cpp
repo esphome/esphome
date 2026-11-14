@@ -12,9 +12,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-#include "StreamString.h"
-#endif
 
 #include <cstdlib>
 
@@ -219,197 +216,6 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   return result;
 }
 
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-// BEGIN ESPAsyncWebServer 3.12.1 workaround: remove once a release containing upstream commit
-// 880c97068abb0f0e63f803cd3c0cac84fa5cd7bb is out and we bump to it.
-// 3.12.1 creates the SSE client before the head is ACKed and credits the head's ACK to its first queued messages,
-// dropping or truncating them. Create the client once the head is ACKed instead, as 3.9.6 did.
-class HeadAckedEventSourceResponse final : public AsyncEventSourceResponse {
- public:
-  HeadAckedEventSourceResponse(DeferredUpdateEventSourceList *list, WebServer *ws)
-      : AsyncEventSourceResponse(nullptr), list_(list), ws_(ws) {}
-  void _respond(AsyncWebServerRequest *request) override {
-    String head;
-    this->_assembleHead(head, request->version());
-    request->client()->write(head.c_str(), this->_headLength);
-  }
-  // Every ACK until clientRelease() is the head's, and clientRelease() unhooks this. _state must stay
-  // RESPONSE_SETUP: past RESPONSE_WAIT_ACK the request would close its released (null) client after this returns.
-  size_t _ack(AsyncWebServerRequest *request, size_t len, uint32_t time) override {
-    this->_ackedLength += len;
-    if (this->_ackedLength >= this->_headLength)
-      this->list_->add_client_(this->ws_, request->clientRelease());
-    return 0;
-  }
-
- private:
-  DeferredUpdateEventSourceList *list_;
-  WebServer *ws_;
-};
-// END ESPAsyncWebServer 3.12.1 workaround
-
-// helper for allowing only unique entries in the queue
-void __attribute__((flatten)) DeferredUpdateEventSource::deq_push_back_with_dedup_(
-    void *source, message_generator_t *message_generator) {
-  DeferredEvent item(source, message_generator);
-
-  // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
-  for (auto &event : this->deferred_queue_) {
-    if (event == item) {
-      return;  // Already in queue, no need to update since items are equal
-    }
-  }
-  this->deferred_queue_.push_back(item);
-}
-
-void DeferredUpdateEventSource::process_deferred_queue_() {
-  while (!deferred_queue_.empty()) {
-    DeferredEvent &de = deferred_queue_.front();
-    json::JsonBuilder builder;
-    de.message_generator_(web_server_, de.source_, builder);
-    auto message = builder.serialize();
-    if (this->send(message.c_str(), "state") != DISCARDED) {
-      // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
-      deferred_queue_.erase(deferred_queue_.begin());
-      this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
-    } else {
-      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncStreamResponse::write().
-      // The close mechanisms are platform-specific (this path calls close() directly; the IDF path is time-based and
-      // closes through HTTPD to preserve session ownership), but both drop a client after roughly 20 seconds without
-      // send progress. Keep that stall policy in sync when changing either side.
-      this->consecutive_send_failures_++;
-      if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
-        // Too many failures, connection is likely dead
-        ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu16 " failed sends",
-                 this->consecutive_send_failures_);
-        this->close();
-        this->deferred_queue_.clear();
-      }
-      break;
-    }
-  }
-}
-
-void DeferredUpdateEventSource::loop() {
-  process_deferred_queue_();
-  // One step per loop; refusals retry next pass
-  this->entities_iterator_.try_advance(1);
-}
-
-void DeferredUpdateEventSource::deferrable_send_state(void *source, bool detail_all,
-                                                      message_generator_t *message_generator) {
-  // Skip if no connected clients to avoid unnecessary deferred queue processing
-  if (this->count() == 0)
-    return;
-
-  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
-  // initial connect sends less
-  if (!detail_all && !this->entities_iterator_.completed())
-    return;
-
-  if (!deferred_queue_.empty())
-    process_deferred_queue_();
-  if (!deferred_queue_.empty()) {
-    // deferred queue still not empty which means downstream event queue full, no point trying to send first
-    deq_push_back_with_dedup_(source, message_generator);
-  } else {
-    json::JsonBuilder builder;
-    message_generator(web_server_, source, builder);
-    auto message = builder.serialize();
-    if (this->send(message.c_str(), "state") == DISCARDED) {
-      deq_push_back_with_dedup_(source, message_generator);
-    } else {
-      this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
-    }
-  }
-}
-
-// used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event,
-                                                 uint32_t id, uint32_t reconnect) {
-  // ESPAsyncWebServer's send() only accepts null-terminated strings
-  (void) message_len;
-  this->send(message, event, id, reconnect);
-}
-
-bool DeferredUpdateEventSourceList::loop() {
-  for (DeferredUpdateEventSource *dues : *this) {
-    dues->loop();
-  }
-  return !this->empty();
-}
-
-void DeferredUpdateEventSourceList::deferrable_send_state(void *source, bool detail_all,
-                                                          message_generator_t *message_generator) {
-  // Skip if no event sources (no connected clients) to avoid unnecessary iteration
-  if (this->empty())
-    return;
-  for (DeferredUpdateEventSource *dues : *this) {
-    dues->deferrable_send_state(source, detail_all, message_generator);
-  }
-}
-
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
-                                                     uint32_t id, uint32_t reconnect) {
-  for (DeferredUpdateEventSource *dues : *this) {
-    dues->try_send_nodefer(message, message_len, event, id, reconnect);
-  }
-}
-
-// BEGIN ESPAsyncWebServer 3.12.1 workaround (see HeadAckedEventSourceResponse): once removed, add_new_client creates
-// the source as add_client_ does and ends with es->handleRequest(request); add_client_ goes away.
-void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
-  request->send(new HeadAckedEventSourceResponse(this, ws));  // NOLINT
-}
-
-void DeferredUpdateEventSourceList::add_client_(WebServer *ws, AsyncClient *client) {
-  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
-  this->push_back(es);
-
-  es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
-
-  es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
-
-  new AsyncEventSourceClient(client, es);  // NOLINT: owned by es
-  ws->enable_loop_soon_any_context();
-}
-// END ESPAsyncWebServer 3.12.1 workaround
-
-void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
-  WebServer *ws = source->web_server_;
-  ws->defer([ws, source]() {
-    // Configure reconnect timeout and send config
-    // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-    auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
-
-#ifdef USE_WEBSERVER_SORTING
-    for (auto &group : ws->sorting_groups_) {
-      json::JsonBuilder builder;
-      JsonObject root = builder.root();
-      root[ESPHOME_F("name")] = linked(group.second.name);
-      root[ESPHOME_F("sorting_weight")] = group.second.weight;
-      auto group_msg = builder.serialize();
-
-      // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
-    }
-#endif
-
-    source->entities_iterator_.begin(ws->include_internal_);
-  });
-}
-
-void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
-  source->web_server_->defer([this, source]() {
-    // This method was called via WebServer->defer() and is no longer executing in the
-    // context of the network callback. The object is now dead and can be safely deleted.
-    this->remove(source);
-    delete source;  // NOLINT
-  });
-}
-#endif
-
 #ifdef USE_WEBSERVER_CAPTIVE
 WebServer *global_web_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
@@ -455,9 +261,7 @@ void WebServer::setup() {
   }
 #endif
 
-#ifdef USE_ESP32
   this->base_->add_handler(&this->events_);
-#endif
   this->base_->add_handler(this);
 #ifdef USE_WEBSERVER_CAPTIVE
   // Not-found fallback (outside the auth middleware): the OS captive portal probes hit
@@ -693,7 +497,7 @@ static void set_json_icon_state_value(JsonObject root, EntityBase *obj, ProgmemS
 
 void WebServer::send_state_event_(void *source, const EntityBase *entity, message_generator_t *generator) {
   if (!entity->is_internal() || this->include_internal_)
-    this->events_.deferrable_send_state(source, false, generator);
+    this->events_.deferrable_send_state(source, generator);
 }
 
 #ifdef USE_SENSOR
@@ -2278,10 +2082,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
   if (url == ESPHOME_F("/"))
     return true;
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == ESPHOME_F("/events"))
-    return true;
-#endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (url == ESPHOME_F("/0.css"))
     return true;
@@ -2428,13 +2228,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
     this->handle_pna_cors_request(request);
-    return;
-  }
-#endif
-
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == ESPHOME_F("/events")) {
-    this->events_.add_new_client(this, request);
     return;
   }
 #endif
