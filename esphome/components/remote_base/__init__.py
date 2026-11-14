@@ -1858,50 +1858,20 @@ Samsung36Data, Samsung36BinarySensor, Samsung36Trigger, _, Samsung36Dumper = (
 
 
 # Toshiba AC
-(
-    ToshibaAcData,
-    ToshibaAcBinarySensor,
-    ToshibaAcTrigger,
-    _,
-    ToshibaAcDumper,
-) = declare_protocol("ToshibaAc")
 TOSHIBAAC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_RC_CODE_1): cv.hex_uint64_t,
         cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_uint64_t,
     }
 )
-
-
-@register_binary_sensor("toshiba_ac", ToshibaAcBinarySensor, TOSHIBAAC_SCHEMA)
-def toshibaac_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                ToshibaAcData,
-                ("rc_code_1", config[CONF_RC_CODE_1]),
-                ("rc_code_2", config[CONF_RC_CODE_2]),
-            )
-        )
+ToshibaAcData, ToshibaAcBinarySensor, ToshibaAcTrigger, _, ToshibaAcDumper = (
+    register_simple_protocol(
+        "toshiba_ac",
+        "ToshibaAc",
+        TOSHIBAAC_SCHEMA,
+        (CONF_RC_CODE_1, "rc_code_1", cg.uint64),
+        (CONF_RC_CODE_2, "rc_code_2", cg.uint64),
     )
-
-
-@register_trigger("toshiba_ac", ToshibaAcTrigger, ToshibaAcData)
-def toshibaac_trigger(var, config):
-    pass
-
-
-@register_dumper("toshiba_ac", ToshibaAcDumper)
-def toshibaac_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "toshiba_ac",
-    "ToshibaAc",
-    TOSHIBAAC_SCHEMA,
-    (CONF_RC_CODE_1, "rc_code_1", cg.uint64),
-    (CONF_RC_CODE_2, "rc_code_2", cg.uint64),
 )
 
 
