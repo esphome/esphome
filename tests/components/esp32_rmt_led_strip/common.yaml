@@ -1,12 +1,14 @@
 light:
   - platform: esp32_rmt_led_strip
     id: led_strip1
+    rmt_symbols: ${rmt_symbols}
     pin: ${pin1}
     num_leds: 60
     channel_colors: GRB
     chipset: ws2812
   - platform: esp32_rmt_led_strip
     id: led_strip2
+    rmt_symbols: ${rmt_symbols}
     pin: ${pin2}
     num_leds: 60
     channel_colors: RWGB

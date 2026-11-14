@@ -85,11 +85,9 @@ void ShellyDimmer::handle_firmware() {
 
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
-    if (!is_running_configured_version()) {
-      ESP_LOGE(TAG, "STM32 firmware upgrade already performed, but version is still incorrect");
-      this->mark_failed();
+    if (!this->setup_check(is_running_configured_version(),
+                           LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
       return;
-    }
 #else
     ESP_LOGW(TAG, "Firmware version mismatch, put 'update: true' in the yaml to flash an update.");
 #endif
@@ -308,9 +306,8 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   }
 
   // Calculate checksum for the payload.
-  const uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
-  data[pos++] = static_cast<uint8_t>(csum >> 8);
-  data[pos++] = static_cast<uint8_t>(csum & 0xff);
+  put_be16(data + pos, shelly_dimmer_checksum(data + 1, 3 + len));
+  pos += 2;
   data[pos++] = SHELLY_DIMMER_PROTO_END_BYTE;
   return pos;
 }
@@ -339,7 +336,7 @@ int ShellyDimmer::handle_byte_(uint8_t c) {
 
   if (pos == 4 + payload_len + 1) {
     // Verify checksum.
-    const uint16_t csum = (this->buffer_[pos - 1] << 8 | c);
+    const uint16_t csum = encode_uint16(this->buffer_[pos - 1], c);
     const uint16_t csum_verify = shelly_dimmer_checksum(&this->buffer_[1], 3 + payload_len);
     if (csum != csum_verify) {
       return -1;
@@ -443,15 +440,9 @@ bool ShellyDimmer::handle_frame_() {
                hw_version, brightness, fade_rate, power, voltage, current);
 
       // Update sensors.
-      if (this->power_sensor_ != nullptr) {
-        this->power_sensor_->publish_state(power);
-      }
-      if (this->voltage_sensor_ != nullptr) {
-        this->voltage_sensor_->publish_state(voltage);
-      }
-      if (this->current_sensor_ != nullptr) {
-        this->current_sensor_->publish_state(current);
-      }
+      PUBLISH_STATE(this->power_sensor_, power);
+      PUBLISH_STATE(this->voltage_sensor_, voltage);
+      PUBLISH_STATE(this->current_sensor_, current);
 
       return true;
     }

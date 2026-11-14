@@ -278,9 +278,16 @@ void EthernetComponent::ethernet_lazy_init_() {
 #endif
 
 #if defined(USE_ETHERNET_W5500)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  w5500_config.base.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  w5500_config.base.poll_period_ms = this->polling_interval_;
+#endif
+#else
   w5500_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
+#endif
 #endif
   // Install the custom SPI driver that offloads the bulk RX/TX frame transfers off the busy-wait
   // path. w5500_config (and the devcfg it references) outlives esp_eth_mac_new_w5500() below, which
@@ -763,9 +770,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       event_name = "ETH connected";
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
-      if (global_eth_component->manual_ip_.has_value()) {
-        global_eth_component->notify_ip_state_listeners_();
-      }
+      global_eth_component->notify_ip_state_listeners_();
 #endif
 #if USE_NETWORK_IPV6
       // Start SLAAC on link-up, not after the DHCPv4 lease. This also restores the
@@ -889,19 +894,13 @@ void EthernetComponent::start_connect_() {
     ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
 
-  esp_netif_ip_info_t info;
+  esp_netif_ip_info_t info{};
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    info.ip = this->manual_ip_->static_ip;
-    info.gw = this->manual_ip_->gateway;
-    info.netmask = this->manual_ip_->subnet;
-  } else
+  const ManualIP manual_ip = load_manual_ip();
+  info.ip = manual_ip.static_ip;
+  info.gw = manual_ip.gateway;
+  info.netmask = manual_ip.subnet;
 #endif
-  {
-    info.ip.addr = 0;
-    info.gw.addr = 0;
-    info.netmask.addr = 0;
-  }
 
   esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
 
@@ -919,35 +918,32 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    // Set DNS through esp_netif so the servers are stored in the netif's own
-    // dns[] array; raw dns_setserver() would be lost when the default-route
-    // arbitration re-applies the default netif's DNS.
-    // Log-only on failure: the link still has a working IP/gateway, so degraded
-    // name resolution does not justify marking the whole component failed.
-    esp_netif_dns_info_t dns{};
-    if (this->manual_ip_->dns1.is_set()) {
-      dns.ip = this->manual_ip_->dns1;
-      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
-      }
-    }
-    if (this->manual_ip_->dns2.is_set()) {
-      dns.ip = this->manual_ip_->dns2;
-      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
-      }
-    }
-  } else
-#endif
-  {
-    err = esp_netif_dhcpc_start(this->eth_netif_);
-    if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-      ESPHL_ERROR_CHECK(err, "DHCPC start error");
+  // Set DNS through esp_netif so the servers are stored in the netif's own
+  // dns[] array; raw dns_setserver() would be lost when the default-route
+  // arbitration re-applies the default netif's DNS.
+  // Log-only on failure: the link still has a working IP/gateway, so degraded
+  // name resolution does not justify marking the whole component failed.
+  esp_netif_dns_info_t dns{};
+  if (manual_ip.dns1.is_set()) {
+    dns.ip = manual_ip.dns1;
+    err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
     }
   }
+  if (manual_ip.dns2.is_set()) {
+    dns.ip = manual_ip.dns2;
+    err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
+    }
+  }
+#else
+  err = esp_netif_dhcpc_start(this->eth_netif_);
+  if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+    ESPHL_ERROR_CHECK(err, "DHCPC start error");
+  }
+#endif
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
   // We MUST attempt this here, not just in finish_connect_(), because with

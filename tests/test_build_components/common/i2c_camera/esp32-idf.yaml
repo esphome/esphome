@@ -8,6 +8,7 @@ i2c:
     frequency: 400kHz
 
 esp32_camera:
+  id: test_camera
   name: ESP32 Camera
   data_pins:
     - number: 17

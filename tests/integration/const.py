@@ -19,3 +19,4 @@ KEY_ACTIVATION_DELAY = 0.5  # seconds
 # Process shutdown timeouts
 SIGINT_TIMEOUT = 5.0  # seconds
 SIGTERM_TIMEOUT = 2.0  # seconds
+GDB_TIMEOUT = 60.0  # seconds, reading a crashed binary's core

@@ -277,7 +277,7 @@ void WeikaiChannel::reset_fifo_() {
 }
 
 void WeikaiChannel::set_line_param_() {
-  this->data_bits_ = 8;  // always equal to 8 for WeiKai (cant be changed)
+  this->data_bits_ = 8;  // always equal to 8 for WeiKai (can't be changed)
   uint8_t lcr = 0;
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;

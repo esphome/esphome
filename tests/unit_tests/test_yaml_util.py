@@ -413,6 +413,64 @@ all_sensors: !include_dir_named named_dir
     assert "sensor3" in actual["all_sensors"]
 
 
+def test_find_files_sorted(tmp_path: Path) -> None:
+    """Files come back in name order, each directory's files before its
+    subdirectories, whatever order the filesystem lists them in."""
+    tree = {
+        tmp_path: (["z_dir", "a_dir"], ["b.yaml", "a.yaml"]),
+        tmp_path / "a_dir": ([], ["c.yaml"]),
+        tmp_path / "z_dir": ([], ["d.yaml"]),
+    }
+
+    def fake_walk(top: Path) -> Generator[tuple[str, list[str], list[str]]]:
+        dirs, files = (list(x) for x in tree[Path(top)])
+        yield str(top), dirs, files
+        for d in dirs:
+            yield from fake_walk(Path(top) / d)
+
+    with patch("esphome.yaml_util.os.walk", fake_walk):
+        found = list(yaml_util.find_files(tmp_path, "*.yaml"))
+
+    assert found == [
+        tmp_path / "a.yaml",
+        tmp_path / "b.yaml",
+        tmp_path / "a_dir" / "c.yaml",
+        tmp_path / "z_dir" / "d.yaml",
+    ]
+
+
+def test_include_dir_list_is_sorted(
+    tmp_path: Path, yaml_util_module: ModuleType
+) -> None:
+    test_dir = tmp_path / "test_dir"
+    (test_dir / "sub").mkdir(parents=True)
+    for name in ("c", "a", "b"):
+        (test_dir / f"{name}.yaml").write_text(f"key: {name}")
+    (test_dir / "sub" / "d.yaml").write_text("key: d")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("test: !include_dir_list test_dir\n")
+
+    actual = yaml_util_module.load_yaml(test_yaml)
+
+    assert [entry["key"] for entry in actual["test"]] == ["a", "b", "c", "d"]
+
+
+def test_include_dir_named_duplicate_name_is_an_error(
+    tmp_path: Path, yaml_util_module: ModuleType
+) -> None:
+    """Two files with the same name in different subdirectories would map to
+    the same key, so one of them would be silently dropped."""
+    test_dir = tmp_path / "test_dir"
+    (test_dir / "sub").mkdir(parents=True)
+    (test_dir / "a.yaml").write_text("key: top")
+    (test_dir / "sub" / "a.yaml").write_text("key: sub")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("test: !include_dir_named test_dir\n")
+
+    with pytest.raises(EsphomeError, match="both use the key 'a'"):
+        yaml_util_module.load_yaml(test_yaml)
+
+
 def test_secret_values_tracking(
     fixture_path: Path, yaml_util_module: ModuleType
 ) -> None:

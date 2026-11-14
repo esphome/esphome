@@ -1,0 +1,30 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: testtest
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+sun:
+  latitude: 48.8584°
+  longitude: 2.2945°
+  on_sunrise:
+    - then:
+        - logger.log: Good morning
+    - elevation: 5°
+      then:
+        - logger.log: Good morning again
+  on_sunset:
+    - elevation: civil
+      then:
+        - logger.log: Good evening
+
+logger:

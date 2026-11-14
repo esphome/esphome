@@ -85,6 +85,21 @@ static constexpr uint8_t CMD_QUERY_MAC_ADDRESS = 0xA5;
 static constexpr uint8_t CMD_RESET = 0xA2;
 static constexpr uint8_t CMD_RESTART = 0xA3;
 static constexpr uint8_t CMD_BLUETOOTH = 0xA4;
+#ifdef USE_LD2410_BG_CORRECTION
+// Background noise correction (firmware V2.44+): 0x0B starts it, 0x1B polls it
+static constexpr uint8_t CMD_BG_CORRECTION_START = 0x0B;
+static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
+// Firmware V2.44 added the commands; older firmware ignores them without a NAK. version_[0] holds the minor in hex
+static constexpr uint8_t BG_CORRECTION_MIN_MAJOR = 2;
+static constexpr uint8_t BG_CORRECTION_MIN_MINOR = 0x44;
+static constexpr uint8_t BG_CORRECTION_IDLE = 0x00;
+static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
+static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
+// The module waits 10 s before it measures for the duration sent with 0x0B (serial protocol V1.07, 2.2.20), plus margin
+static constexpr uint32_t BG_CORRECTION_EXTRA_MS = 13000;
+static constexpr uint32_t BG_CORRECTION_POLL_ID = 0;
+static constexpr uint32_t BG_CORRECTION_DEADLINE_ID = 1;
+#endif
 // Commands values
 static constexpr uint8_t CMD_MAX_MOVE_VALUE = 0x00;
 static constexpr uint8_t CMD_MAX_STILL_VALUE = 0x01;
@@ -92,6 +107,15 @@ static constexpr uint8_t CMD_DURATION_VALUE = 0x02;
 // Bitmasks for target states
 static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
+// While correcting: 0x04 running, 0x05 success, 0x06 failure
+static constexpr uint8_t TARGET_STATE_CALIBRATING_MIN = 0x04;
+#ifdef USE_LD2410_BG_CORRECTION
+static constexpr uint8_t TARGET_STATE_BG_SUCCESS = 0x05;
+static constexpr uint8_t TARGET_STATE_BG_FAILED = 0x06;
+PROGMEM_STRING_TABLE(BgCorrectionResultStrings, "Success", "Failed", "Unconfirmed", "Refused", "Timed out", "Running");
+// An unknown result never reads as a pass
+static constexpr uint8_t UNCONFIRMED_INDEX = static_cast<uint8_t>(BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED);
+#endif
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
@@ -102,8 +126,6 @@ static constexpr uint8_t ENGINEERING_FRAME_MIN = OUT_PIN_SENSOR + 3 + HEADER_FOO
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
-// MAC address the module uses when Bluetooth is disabled
-static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
 void LD2410Component::dump_config() {
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -121,6 +143,7 @@ void LD2410Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "StillTarget", this->still_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "OutPinPresenceStatus", this->out_pin_presence_status_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Calibration", this->calibration_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
@@ -141,6 +164,7 @@ void LD2410Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Text Sensors:");
   LOG_TEXT_SENSOR("  ", "Mac", this->mac_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "CalibrationResult", this->calibration_result_text_sensor_);
 #endif
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Numbers:");
@@ -172,10 +196,16 @@ void LD2410Component::dump_config() {
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Query", this->query_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+  LOG_BUTTON("  ", "BackgroundCorrection", this->background_correction_button_);
 #endif
 }
 
-void LD2410Component::setup() { this->read_all_info(); }
+void LD2410Component::setup() {
+#ifdef USE_LD2410_BG_CORRECTION
+  this->publish_calibration_running_(false);
+#endif
+  this->read_all_info();
+}
 
 void LD2410Component::read_all_info() {
   this->set_config_mode_(true);
@@ -246,11 +276,8 @@ void LD2410Component::handle_periodic_data_() {
     return;  // too short to hold the values
   }
 #ifdef USE_SWITCH
-  if (this->engineering_mode_switch_ != nullptr) {
-    this->engineering_mode_switch_->publish_state(engineering_mode);
-  }
+  PUBLISH_STATE(this->engineering_mode_switch_, engineering_mode);
 #endif
-#ifdef USE_BINARY_SENSOR
   /*
     Target states: 9th
     0x00 = No target
@@ -258,15 +285,22 @@ void LD2410Component::handle_periodic_data_() {
     0x02 = Still targets
     0x03 = Moving+Still targets
   */
-  char target_state = this->buffer_data_[TARGET_STATES];
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->publish_state(target_state != 0x00);
+  const uint8_t target_state = this->buffer_data_[TARGET_STATES];
+#ifdef USE_LD2410_BG_CORRECTION
+  // Pass or fail comes only from these frames
+  if (this->bg_correction_running_) {
+    if (target_state == TARGET_STATE_BG_SUCCESS) {
+      this->bg_correction_result_ = BgCorrectionResult::BG_CORRECTION_RESULT_SUCCESS;
+    } else if (target_state == TARGET_STATE_BG_FAILED) {
+      this->bg_correction_result_ = BgCorrectionResult::BG_CORRECTION_RESULT_FAILED;
+    }
   }
-  if (this->moving_target_binary_sensor_ != nullptr) {
-    this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
-  }
-  if (this->still_target_binary_sensor_ != nullptr) {
-    this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
+#endif
+#ifdef USE_BINARY_SENSOR
+  if (target_state < TARGET_STATE_CALIBRATING_MIN) {
+    PUBLISH_STATE(this->target_binary_sensor_, target_state != 0x00);
+    PUBLISH_STATE(this->moving_target_binary_sensor_, target_state & MOVE_BITMASK);
+    PUBLISH_STATE(this->still_target_binary_sensor_, target_state & STILL_BITMASK);
   }
 #endif
   /*
@@ -316,10 +350,8 @@ void LD2410Component::handle_periodic_data_() {
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
-    this->out_pin_presence_status_binary_sensor_->publish_state(
-        engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
-  }
+  PUBLISH_STATE(this->out_pin_presence_status_binary_sensor_,
+                engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
 #endif
 }
 
@@ -339,6 +371,12 @@ void LD2410Component::handle_ack_data_() {
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
+#ifdef USE_LD2410_BG_CORRECTION
+    // Only a refused start ends the run; a refused poll waits for the next poll or the deadline
+    if (this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_START) {
+      this->finish_background_correction_(BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED);
+    }
+#endif
     return;
   }
 
@@ -370,9 +408,7 @@ void LD2410Component::handle_ack_data_() {
       ld24xx::format_version_str(this->version_, version_s);
       ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
-      if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version_s);
-      }
+      PUBLISH_STATE(this->version_text_sensor_, version_s);
 #endif
       break;
     }
@@ -389,9 +425,7 @@ void LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Distance resolution: %s",
                LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index, DistanceResolutionStrings::LAST_INDEX)));
 #ifdef USE_SELECT
-      if (this->distance_resolution_select_ != nullptr) {
-        this->distance_resolution_select_->publish_state(*index);
-      }
+      PUBLISH_STATE(this->distance_resolution_select_, *index);
 #endif
       break;
     }
@@ -406,17 +440,11 @@ void LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Light function: %u, threshold: %u, out pin level: %u", this->light_function_,
                this->light_threshold_, this->out_pin_level_);
 #ifdef USE_SELECT
-      if (this->light_function_select_ != nullptr) {
-        this->light_function_select_->publish_state(static_cast<size_t>(this->light_function_));
-      }
-      if (this->out_pin_level_select_ != nullptr) {
-        this->out_pin_level_select_->publish_state(static_cast<size_t>(this->out_pin_level_));
-      }
+      PUBLISH_STATE(this->light_function_select_, static_cast<size_t>(this->light_function_));
+      PUBLISH_STATE(this->out_pin_level_select_, static_cast<size_t>(this->out_pin_level_));
 #endif
 #ifdef USE_NUMBER
-      if (this->light_threshold_number_ != nullptr) {
-        this->light_threshold_number_->publish_state(static_cast<float>(this->light_threshold_));
-      }
+      PUBLISH_STATE(this->light_threshold_number_, static_cast<float>(this->light_threshold_));
 #endif
       break;
     }
@@ -425,23 +453,16 @@ void LD2410Component::handle_ack_data_() {
         break;  // too short to hold a MAC address
       }
 
-      this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
-      if (this->bluetooth_on_) {
-        std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
-      }
+      this->bluetooth_on_ = ld24xx::store_mac(&this->buffer_data_[10], this->mac_address_);
 
       char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
-      if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(mac_str);
-      }
+      PUBLISH_STATE(this->mac_text_sensor_, mac_str);
 #endif
 #ifdef USE_SWITCH
-      if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->bluetooth_on_);
-      }
+      PUBLISH_STATE(this->bluetooth_switch_, this->bluetooth_on_);
 #endif
       break;
     }
@@ -449,6 +470,24 @@ void LD2410Component::handle_ack_data_() {
     case CMD_GATE_SENS:
       ESP_LOGV(TAG, "Sensitivity");
       break;
+
+#ifdef USE_LD2410_BG_CORRECTION
+    case CMD_BG_CORRECTION_START:
+      ESP_LOGV(TAG, "Background correction started");
+      break;
+
+    case CMD_BG_CORRECTION_QUERY: {
+      const uint8_t status = this->buffer_data_[10];
+      ESP_LOGV(TAG, "Background correction status: %u", status);
+      // The module stops at idle after a fail frame; idle before the run starts is ignored
+      if (status == BG_CORRECTION_COMPLETED ||
+          (status == BG_CORRECTION_IDLE &&
+           this->bg_correction_result_ == BgCorrectionResult::BG_CORRECTION_RESULT_FAILED)) {
+        this->finish_background_correction_(this->bg_correction_result_);
+      }
+      break;
+    }
+#endif
 
     case CMD_BLUETOOTH:
       ESP_LOGV(TAG, "Bluetooth");
@@ -613,6 +652,73 @@ void LD2410Component::get_mac_() {
 void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
 
 void LD2410Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
+
+#ifdef USE_LD2410_BG_CORRECTION
+void LD2410Component::start_background_correction() {
+  if (this->bg_correction_running_) {
+    ESP_LOGW(TAG, "Background correction already running");
+    return;
+  }
+  const uint8_t major = this->version_[1];
+  const uint8_t minor = this->version_[0];
+  // A version not read yet (0.00) is tried anyway; the deadline still ends the run
+  if (major != 0 &&
+      (major < BG_CORRECTION_MIN_MAJOR || (major == BG_CORRECTION_MIN_MAJOR && minor < BG_CORRECTION_MIN_MINOR))) {
+    ESP_LOGW(TAG, "Background correction needs firmware V2.44 or later, module has V%u.%02X", major, minor);
+    this->publish_calibration_result_(BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED);
+    return;
+  }
+  ESP_LOGI(TAG, "Starting background correction (%u s); the room must be empty", this->bg_correction_duration_);
+  this->set_config_mode_(true);
+  const uint8_t value[2] = {this->bg_correction_duration_, 0x00};
+  this->send_command_(CMD_BG_CORRECTION_START, value, sizeof(value));
+  this->set_config_mode_(false);
+  this->bg_correction_result_ = BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED;
+  this->bg_correction_running_ = true;
+  this->publish_calibration_running_(true);
+  this->publish_calibration_result_(BgCorrectionResult::BG_CORRECTION_RESULT_RUNNING);
+  this->set_interval(BG_CORRECTION_POLL_ID, BG_CORRECTION_POLL_INTERVAL_MS, [this]() {
+    this->set_config_mode_(true);
+    this->send_command_(CMD_BG_CORRECTION_QUERY, nullptr, 0);
+    this->set_config_mode_(false);
+  });
+  // Firmware without 0x1B never reports completion
+  this->set_timeout(
+      BG_CORRECTION_DEADLINE_ID, this->bg_correction_duration_ * 1000U + BG_CORRECTION_EXTRA_MS,
+      [this]() { this->finish_background_correction_(BgCorrectionResult::BG_CORRECTION_RESULT_TIMED_OUT); });
+}
+
+void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
+  if (!this->bg_correction_running_) {
+    return;
+  }
+  this->cancel_interval(BG_CORRECTION_POLL_ID);
+  this->cancel_timeout(BG_CORRECTION_DEADLINE_ID);
+  ESP_LOGI(TAG, "Background correction: %s",
+           LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX)));
+  this->publish_calibration_result_(result);
+  // The module may have rewritten the gate thresholds
+  this->set_config_mode_(true);
+  this->query_parameters_();
+  this->set_config_mode_(false);
+  // Last, so only an automation on this state can start the next run
+  this->bg_correction_running_ = false;
+  this->publish_calibration_running_(false);
+}
+
+void LD2410Component::publish_calibration_running_(bool running) {
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->calibration_binary_sensor_, running);
+#endif
+}
+
+void LD2410Component::publish_calibration_result_(BgCorrectionResult result) {
+#ifdef USE_TEXT_SENSOR
+  PUBLISH_STATE(this->calibration_result_text_sensor_,
+                BgCorrectionResultStrings::get_progmem_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX));
+#endif
+}
+#endif
 
 #ifdef USE_NUMBER
 void LD2410Component::set_max_distances_timeout() {

@@ -9,21 +9,6 @@ namespace esphome::sendspin_ {
 
 ESPHOME_LOG_TAG(TAG, "sendspin.switch");
 
-// --- SendspinEnabledSwitch ---
-
-void SendspinEnabledSwitch::setup() {
-  // The hub waits for this request, so a restore mode without a state still has to answer.
-  this->restore(true);
-}
-
-void SendspinEnabledSwitch::dump_config() { LOG_SWITCH("", "Sendspin Enabled Switch", this); }
-
-// THREAD CONTEXT: Main loop
-void SendspinEnabledSwitch::write_state(bool state) {
-  this->parent_->set_enabled(state);
-  this->publish_state(state);
-}
-
 // --- SendspinUnpairedAccessSwitch ---
 
 void SendspinUnpairedAccessSwitch::setup() {

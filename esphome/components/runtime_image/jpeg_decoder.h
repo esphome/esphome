@@ -19,7 +19,6 @@ class JpegDecoder : public ImageDecoder {
    * @param image The RuntimeImage to decode the stream into.
    */
   JpegDecoder(RuntimeImage *image);
-  ~JpegDecoder() override;
 
   int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
@@ -28,7 +27,8 @@ class JpegDecoder : public ImageDecoder {
   /// The source is read as the decode needs it, through JPEGDEC's own 2 KB buffer
   bool supports_source() const override { return true; }
   int begin_source(DecodeSource *source) override;
-  /// Decodes one row of MCUs (8 or 16 pixel rows), or waits part way through one for more of the source
+  /// Decodes one row of MCUs (8 or 16 pixel rows), or waits part way through one for more of the source.
+  /// A progressive image is decoded one row of one scan per step, and drawn in the steps after its last scan.
   int HOT decode_step() override;
 
   /// JPEGDEC decodes the image at 1/get_scale() of its size: 1, 2, 4 or 8
@@ -47,8 +47,8 @@ class JpegDecoder : public ImageDecoder {
   static int32_t source_seek(JPEGFILE *file, int32_t position);
   static void source_close(void *handle) {}
 
-  /// About 18 KB of decoder state, allocated like pngle in PngDecoder: PSRAM first, nullptr if out of memory
-  JPEGDEC *jpeg_{nullptr};
+  /// About 18 KB of decoder state: PSRAM first, nullptr if out of memory
+  RAMUniquePtr<JPEGDEC> jpeg_;
   int scale_{1};                   // JPEGDEC decodes at 1/scale_ of the image size
   DecodeSource *source_{nullptr};  // Set while a begin_source() decode is in progress
   bool source_failed_{false};

@@ -18,18 +18,10 @@ void PylontechTextSensor::dump_config() {
 }
 
 void PylontechTextSensor::on_line_read(PylontechListener::LineContents *line) {
-  if (this->base_state_text_sensor_ != nullptr) {
-    this->base_state_text_sensor_->publish_state(line->base_st);
-  }
-  if (this->voltage_state_text_sensor_ != nullptr) {
-    this->voltage_state_text_sensor_->publish_state(line->volt_st);
-  }
-  if (this->current_state_text_sensor_ != nullptr) {
-    this->current_state_text_sensor_->publish_state(line->curr_st);
-  }
-  if (this->temperature_state_text_sensor_ != nullptr) {
-    this->temperature_state_text_sensor_->publish_state(line->temp_st);
-  }
+  PUBLISH_STATE(this->base_state_text_sensor_, line->base_st);
+  PUBLISH_STATE(this->voltage_state_text_sensor_, line->volt_st);
+  PUBLISH_STATE(this->current_state_text_sensor_, line->curr_st);
+  PUBLISH_STATE(this->temperature_state_text_sensor_, line->temp_st);
 }
 
 }  // namespace esphome::pylontech

@@ -401,6 +401,37 @@ api:
               root["items"][1] = "item2";
 
     # ==========================================================================
+    # Array args in actions that respond.  The default array args are
+    # non-copyable FixedVector views, so api.respond and the action that
+    # unregisters the call must read call_id without copying the other args.
+    # ==========================================================================
+    - action: test_respond_only_array
+      supports_response: only
+      variables:
+        float_arr: float[]
+        string_arr: string[]
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["floats"] = float_arr.size();
+              root["strings"] = string_arr.size();
+
+    - action: test_respond_status_array
+      variables:
+        int_arr: int[]
+      then:
+        - api.respond:
+            success: !lambda 'return !int_arr.empty();'
+
+    - action: test_respond_optional_array
+      variables:
+        bool_arr: bool[]
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["bools"] = bool_arr.size();
+
+    # ==========================================================================
     # supports_response: none (no api.respond action)
     # No call_id or return_response - just user variables
     # ==========================================================================

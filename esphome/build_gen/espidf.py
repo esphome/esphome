@@ -20,9 +20,11 @@ from esphome.const import KEY_ESP32
 from esphome.core import CORE
 from esphome.espidf import variant_to_idf_target
 from esphome.framework_helpers import (
-    get_project_compile_flags,
+    get_cmake_compile_flags,
+    get_cmake_link_flags,
     get_project_cxx_compile_flags,
-    get_project_link_flags,
+    lex_cmake_build_flags,
+    quote_cmake_args,
 )
 from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
 
@@ -294,18 +296,19 @@ def get_project_cmakelists(
     # esphome__micro-mp3) rather than just src/. Required so suppressions
     # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
     # third-party components we don't author.
-    project_compile_opts = get_project_compile_flags()
     extra_compile_options = "\n".join(
-        f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
-        for flag in project_compile_opts
+        f"idf_build_set_property(COMPILE_OPTIONS {flag} APPEND)"
+        for flag in quote_cmake_args(
+            get_cmake_compile_flags(lex_cmake_build_flags("ESP-IDF"))
+        )
     )
 
     # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
     # (not COMPILE_OPTIONS) because GCC warns when a C++-only flag such as
     # -Wno-volatile is passed on a C compile.
     cxx_compile_options = "\n".join(
-        f'idf_build_set_property(CXX_COMPILE_OPTIONS "{flag}" APPEND)'
-        for flag in get_project_cxx_compile_flags()
+        f"idf_build_set_property(CXX_COMPILE_OPTIONS {flag} APPEND)"
+        for flag in quote_cmake_args(get_project_cxx_compile_flags())
     )
 
     cpp_standard_options = (
@@ -461,7 +464,7 @@ def get_component_cmakelists() -> str:
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
-    link_opts = get_project_link_flags()
+    link_opts = quote_cmake_args(get_cmake_link_flags(lex_cmake_build_flags("ESP-IDF")))
     link_opts_str = "\n    ".join(link_opts) if link_opts else ""
     src_cmake = "\n".join(CORE.data[KEY_ESP32].get(KEY_SRC_CMAKE, []))
 

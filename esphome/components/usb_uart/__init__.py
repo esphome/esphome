@@ -47,13 +47,9 @@ def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     )
 
 
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-    "MARK": UARTParityOptions.UART_CONFIG_PARITY_MARK,
-    "SPACE": UARTParityOptions.UART_CONFIG_PARITY_SPACE,
-}
+UART_PARITY_OPTIONS = UARTParityOptions.options(
+    "NONE", "EVEN", "ODD", "MARK", "SPACE", prefix="UART_CONFIG_PARITY_"
+)
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
 UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(

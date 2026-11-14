@@ -28,12 +28,15 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_LOOP_INTERVAL,
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
+    DEFAULT_LOOP_INTERVAL,
     DEVICE_RELATIONS,
     SBOM_SCHEMA,
     SHARED_DEVICE_RELATION_DEFINES,
     Area,
+    get_loop_interval,
     make_app_name_cpp,
     preload_core_config,
     valid_include,
@@ -41,6 +44,7 @@ from esphome.core.config import (
     validate_area_config,
     validate_hostname,
 )
+import esphome.final_validate as fv
 
 from .common import load_config_from_fixture, load_config_from_yaml
 
@@ -204,6 +208,35 @@ async def test_app_is_default_initialized(
     assert "new (&App) Application()" not in raw_expressions
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("toolchain", "expected"),
+    [
+        (Toolchain.PLATFORMIO, True),
+        (Toolchain.ESP_IDF, False),
+        (Toolchain.SDK_NRF, False),
+    ],
+)
+async def test_no_exceptions_flag_skipped_on_native_cmake_builds(
+    yaml_file: Callable[[str], Path],
+    toolchain: Toolchain,
+    expected: bool,
+) -> None:
+    """Native ESP-IDF and Zephyr drop -fno-exceptions from build_flags and
+    set it themselves, so core does not add it there."""
+    result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
+    assert result is not None
+    CORE.toolchain = toolchain
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    flags = [c.args[0] for c in mock_cg.add_build_flag.call_args_list]
+    assert ("-fno-exceptions" in flags) is expected
+
+
 def test_config_load_without_area_clears_stale_core_area(
     yaml_file: Callable[[str], Path],
 ) -> None:
@@ -294,6 +327,22 @@ def test_loop_interval_warn_esp32(
         "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
         in caplog.text
     )
+
+
+@pytest.mark.parametrize(
+    ("esphome_config", "expected_ms"),
+    [
+        ({}, DEFAULT_LOOP_INTERVAL.total_milliseconds),
+        ({CONF_LOOP_INTERVAL: cv.positive_time_period_milliseconds("100ms")}, 100),
+    ],
+)
+def test_get_loop_interval(esphome_config: dict[str, Any], expected_ms: int) -> None:
+    """The configured loop_interval, or Application's default when none is set."""
+    token = fv.full_config.set({CONF_ESPHOME: esphome_config})
+    try:
+        assert get_loop_interval().total_milliseconds == expected_ms
+    finally:
+        fv.full_config.reset(token)
 
 
 @pytest.mark.parametrize(
@@ -674,7 +723,7 @@ async def test_add_looping_components_handles_empty_entries() -> None:
     constexpr_lines = [
         str(s)
         for s in CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
     ]
     assert len(constexpr_lines) == 1
     text = constexpr_lines[0]
@@ -684,6 +733,11 @@ async def test_add_looping_components_handles_empty_entries() -> None:
     assert "0" in rhs
     assert rhs.strip().rstrip(";").strip(), (
         f"constexpr right-hand side must not be empty, got: {text!r}"
+    )
+    assert any(
+        "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];"
+        in str(s)
+        for s in CORE.global_statements
     )
 
 
@@ -701,7 +755,7 @@ async def test_add_looping_components_with_entries() -> None:
     constexpr_lines = [
         str(s)
         for s in CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
     ]
     assert len(constexpr_lines) == 1
     text = constexpr_lines[0]
@@ -1691,6 +1745,36 @@ def test_add_library_str(
     assert libraries[0].name == name
     assert libraries[0].version == version
     assert libraries[0].repository == repository
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_sdk_nrf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """sdk-nrf is a native toolchain: build_flags/lib_deps/lib_ignore are
+    honored and everything else warns instead of going to platformio.ini."""
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "nrf52",
+        KEY_TARGET_FRAMEWORK: "zephyr",
+    }
+
+    await config._add_platformio_options(
+        {
+            "build_flags": ["-DSINGLE_FLAG"],
+            "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
+            "lib_ignore": "libsodium",
+            "board_build.f_flash": "80000000L",
+        }
+    )
+
+    assert "-DSINGLE_FLAG" in CORE.build_flags
+    assert "ArduinoJson" in CORE.platformio_libraries
+    assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
+    assert (
+        "esphome->platformio_options->board_build.f_flash is ignored when "
+        "building with the native 'sdk-nrf' toolchain" in caplog.text
+    )
 
 
 @pytest.mark.asyncio

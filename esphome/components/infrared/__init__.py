@@ -44,7 +44,7 @@ def infrared_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
         {
             cv.GenerateID(): cv.declare_id(class_),
         }
-    )
+    ).add_extra(ir_rf_base.duplicate_validator(DOMAIN))
 
 
 @setup_entity("infrared")

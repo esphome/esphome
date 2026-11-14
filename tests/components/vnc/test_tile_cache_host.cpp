@@ -183,7 +183,7 @@ TEST_F(VncTileCache, DropMidFrameRedrawsInTheNextSession) {
   EXPECT_EQ(d_.updates(), 2);
 }
 
-enum class SessionEnd { PEER_CLOSED, PROTOCOL_ERROR };
+enum class SessionEnd { PEER_CLOSED, PROTOCOL_ERROR, DISCONNECT };
 
 class VncTileCacheSessionEnd : public VncTileCache, public ::testing::WithParamInterface<SessionEnd> {};
 
@@ -198,6 +198,10 @@ TEST_P(VncTileCacheSessionEnd, PixelsNotYetShownAreDrawnAgain) {
     case SessionEnd::PROTOCOL_ERROR:
       s().deliver(Rfb().u8(7));
       break;
+    case SessionEnd::DISCONNECT:
+      s().client.disconnect();
+      s().client.connect();
+      break;
   }
   ASSERT_FALSE(s().client.is_connected());
   s().start(64, 48);
@@ -208,7 +212,8 @@ TEST_P(VncTileCacheSessionEnd, PixelsNotYetShownAreDrawnAgain) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Ends, VncTileCacheSessionEnd,
-                         ::testing::Values(SessionEnd::PEER_CLOSED, SessionEnd::PROTOCOL_ERROR));
+                         ::testing::Values(SessionEnd::PEER_CLOSED, SessionEnd::PROTOCOL_ERROR,
+                                           SessionEnd::DISCONNECT));
 
 // Bit 7 of every fourth byte only reached bit 31 of the old word-wise hash, so an even number of flips cancelled.
 TEST(VncTileCacheHash, Rgb332TilesDifferingInEveryFourthByteAreBothDrawn) {

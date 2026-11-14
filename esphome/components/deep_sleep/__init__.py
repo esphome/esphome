@@ -9,9 +9,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     get_esp32_variant,
 )
 from esphome.components.zephyr import zephyr_add_prj_conf
@@ -121,6 +124,35 @@ WAKEUP_PINS = {
 }
 
 
+# Variants where the C++ code enables ext0 or GPIO wakeup for 'wakeup_pin'
+WAKEUP_PIN_VARIANTS = [
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+]
+
+# Variants whose soc_caps.h defines SOC_PM_SUPPORT_EXT1_WAKEUP
+EXT1_WAKEUP_VARIANTS = [
+    VARIANT_ESP32,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+]
+
+
 def validate_pin_number_esp32(value: ConfigType) -> ConfigType:
     valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
@@ -145,6 +177,11 @@ def validate_wakeup_pin(
         processed_pins = list(value)
         if not processed_pins:
             raise cv.Invalid("'wakeup_pin' needs at least one entry")
+
+    if CORE.is_esp32:
+        esp32.only_on_variant(
+            supported=WAKEUP_PIN_VARIANTS, msg_prefix="Wakeup from 'wakeup_pin'"
+        )(value)
 
     for i, pin_config in enumerate(processed_pins):
         # now validate each item
@@ -313,7 +350,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,
                 esp32.only_on_variant(
-                    unsupported=[VARIANT_ESP32C2, VARIANT_ESP32C3],
+                    supported=EXT1_WAKEUP_VARIANTS,
                     msg_prefix="Wakeup from ext1",
                 ),
                 cv.Schema(
@@ -337,13 +374,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TOUCH_WAKEUP): cv.All(
                 cv.only_on_esp32,
                 esp32.only_on_variant(
-                    unsupported=[
-                        VARIANT_ESP32C2,
-                        VARIANT_ESP32C3,
-                        VARIANT_ESP32C5,
-                        VARIANT_ESP32C6,
-                        VARIANT_ESP32C61,
-                        VARIANT_ESP32H2,
+                    supported=[
+                        VARIANT_ESP32,
+                        VARIANT_ESP32P4,
+                        VARIANT_ESP32S2,
+                        VARIANT_ESP32S3,
                     ],
                     msg_prefix="Wakeup from touch",
                 ),

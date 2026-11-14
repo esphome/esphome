@@ -57,6 +57,7 @@ PLATFORM_BUILD_SECONDS = {
     "esp32-idf": 55,
     "esp32-p4-idf": 55,
     "ln882x-ard": 55,
+    "rtl8720c-ard": 55,
     "esp32-s3-idf": 60,
     "bk72xx-ard": 70,
     "bk7238-ard": 70,

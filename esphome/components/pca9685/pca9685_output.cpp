@@ -124,16 +124,12 @@ void PCA9685Output::loop() {
               phase_end);
 
     uint8_t data[4];
-    data[0] = phase_begin & 0xFF;
-    data[1] = (phase_begin >> 8) & 0xFF;
-    data[2] = phase_end & 0xFF;
-    data[3] = (phase_end >> 8) & 0xFF;
+    put_le16(data, phase_begin);
+    put_le16(data + 2, phase_end);
 
     uint8_t reg = PCA9685_REGISTER_LED0 + 4 * channel;
-    if (!this->write_bytes(reg, data, 4)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_bytes(reg, data, 4)))
       return;
-    }
   }
 
   this->status_clear_warning();

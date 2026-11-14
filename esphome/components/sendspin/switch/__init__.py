@@ -2,10 +2,11 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import switch
+from esphome.components.api import wizard
 from esphome.components.const import CONF_ENABLED
 from esphome.components.switch import DOMAIN as SWITCH_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_ID, CONF_TYPE, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -25,38 +26,37 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["sendspin"]
 
-SendspinEnabledSwitch = sendspin_ns.class_(
-    "SendspinEnabledSwitch", switch.Switch, cg.Component
-)
 SendspinUnpairedAccessSwitch = sendspin_ns.class_(
     "SendspinUnpairedAccessSwitch", switch.Switch, cg.Component
 )
 
 
 def _switch_schema(class_: cg.MockObjClass) -> cv.Schema:
-    return (
-        switch.switch_schema(
-            class_,
-            block_inverted=True,
-            default_restore_mode="RESTORE_DEFAULT_ON",
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        )
-        .extend({cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub)})
-        .extend(cv.COMPONENT_SCHEMA)
-    )
+    return switch.switch_schema(
+        class_,
+        block_inverted=True,
+        default_restore_mode="RESTORE_DEFAULT_ON",
+        entity_category=ENTITY_CATEGORY_CONFIG,
+    ).extend({cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub)})
 
 
 def _request_switch(config: ConfigType) -> ConfigType:
-    """Tell the hub to wait for this switch before the client's first start."""
+    """Tell the hub to wait for this switch before the client's first start.
+
+    Also give the switch the wizard role sendspin.<type>, which Home Assistant knows it by.
+    """
     request_switch(config[CONF_TYPE])
+    wizard.register_entity_role(config[CONF_ID], f"{DOMAIN}.{config[CONF_TYPE]}")
     return config
 
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            CONF_ENABLED: _switch_schema(SendspinEnabledSwitch),
-            CONF_UNPAIRED_ACCESS: _switch_schema(SendspinUnpairedAccessSwitch),
+            CONF_ENABLED: _switch_schema(switch.ApplySwitch),
+            CONF_UNPAIRED_ACCESS: _switch_schema(SendspinUnpairedAccessSwitch).extend(
+                cv.COMPONENT_SCHEMA
+            ),
         },
         key=CONF_TYPE,
     ),
@@ -98,6 +98,15 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
+    if config[CONF_TYPE] == CONF_ENABLED:
+        # The hub restores this switch in its setup() and logs it.
+        hub = await cg.get_variable(config[CONF_SENDSPIN_ID])
+        switches = switch.sub_switches(config, parent=hub)
+        await switches.create(
+            config, hub.set_enabled_switch, apply="set_enabled(state)", publish="after"
+        )
+        cg.add_define("USE_SENDSPIN_ENABLED_SWITCH", True)
+        return
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_SENDSPIN_ID])

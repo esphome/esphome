@@ -24,9 +24,9 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeCore
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
@@ -44,7 +44,9 @@ from .const import (
     FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
+    FAMILY_LN882H,
     FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -55,10 +57,21 @@ from .const import (
     LibreTinyComponent,
     LTComponent,
 )
+from .gpio import lookup_board_pins
 
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
 BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+# Timing functions RTL8710B builds replace (rtl8710b_micros.c)
+RTL8710B_TIME_WRAPS = ("millis", "micros", "delay", "delayMicroseconds")
+# Families with a crash handler; the Cortex-M ones install it at run time (no wraps).
+CRASH_HANDLER_FAMILIES = (
+    FAMILY_BK7231N,
+    FAMILY_BK7238,
+    FAMILY_LN882H,
+    FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
+)
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
@@ -148,12 +161,31 @@ def _update_core_data(config):
     return config
 
 
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Leave the RTL8710B timing wrappers out of every other family's build."""
+    if (data := CORE.data.get(KEY_LIBRETINY)) is None or data.get(KEY_FAMILY) in (
+        None,
+        FAMILY_RTL8710B,
+    ):
+        return []
+    return ["rtl8710b_micros.c"]
+
+
 def get_libretiny_component(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_COMPONENT]
 
 
 def get_libretiny_family(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
+
+
+def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
+    return (core_obj or CORE).data[KEY_LIBRETINY][KEY_BOARD]
+
+
+def get_board_pins() -> dict[str, int]:
+    """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
+    return lookup_board_pins(get_libretiny_board())
 
 
 def only_on_family(*, supported=None, unsupported=None):
@@ -365,6 +397,7 @@ def _configure_lwip(config: dict) -> None:
     MEMP_NUM_NETCONN          0       10     38       4*****   =sum     =sum
     MEMP_NUM_NETBUF           0       2      16       2*****   8        4
     MEMP_NUM_TCPIP_MSG_INPKT  4       8      16       8*****   12       8
+    TCP_MSL (ms)              60000†  60000  250      60000    60000    250
 
     * ESP8266/ESP32/LN882H use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
       ESP8266/ESP32 also use MEMP_MEM_MALLOC=1 (MEMP pools from heap, not static).
@@ -372,6 +405,8 @@ def _configure_lwip(config: dict) -> None:
     *** BK LT overlay: MAX_SOCKETS_UDP+2+1 = 25.
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
+    † ESP8266's lwIP also caps TIME_WAIT at 5 PCBs; LibreTiny's stock lwIP has no
+      cap once MEMP_MEM_MALLOC=1.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
@@ -448,6 +483,10 @@ def _configure_lwip(config: dict) -> None:
     #   both ship with MEMP_MEM_MALLOC=1.
     lwip_opts.append("MEM_LIBC_MALLOC=1")
     lwip_opts.append("MEMP_MEM_MALLOC=1")
+    # With MEMP_MEM_MALLOC=1, MEMP_NUM_TCP_PCB no longer limits PCBs, so every
+    # connection the device closes keeps its ~176 B PCB on the heap for TIME_WAIT
+    # (2 * TCP_MSL, 120 s by default). BK's lwIP port already uses 250.
+    lwip_opts.append("TCP_MSL=250")
 
     # BK72XX-specific: PBUF_POOL_SIZE override
     # BK SDK "reduced plan" sets this to only 3 — too few for multiple
@@ -519,6 +558,9 @@ async def component_to_code(config):
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
+        # millis(), micros() and delays on the system timer and CPU cycles (see rtl8710b_micros.c)
+        for func in RTL8710B_TIME_WRAPS:
+            cg.add_build_flag(f"-Wl,--wrap={func}")
 
     # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
     # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog
@@ -554,10 +596,13 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
-    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
-        # Crash handler (crash_handler.cpp, patch_noinit.py.script)
+    if config[CONF_FAMILY] in CRASH_HANDLER_FAMILIES:
+        # Crash handler (crash_handler.cpp)
         cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
+        cg.add_build_flag("-Wl,--wrap=abort")
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
         for trap in BK_TRAP_HANDLERS:
             cg.add_build_flag(f"-Wl,--wrap={trap}")
         cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])
@@ -654,6 +699,26 @@ async def component_to_code(config):
     _configure_lwip(config)
 
     await cg.register_component(var, config)
+
+
+# Called by the OTA upload through the platforms' ota_image hook
+def device_ota_image(firmware: Path) -> Path:
+    """The file to send for an app update: the UF2 without the images the
+    device skips, written next to the build output, or ``firmware`` itself
+    when there is nothing to drop."""
+    from .ota_uf2 import device_ota_uf2
+
+    data = firmware.read_bytes()
+    if (trimmed := device_ota_uf2(data)) is None:
+        return firmware
+    image = CORE.relative_pioenvs_path(CORE.name, "firmware.ota.uf2")
+    write_file(image, trimmed)
+    _LOGGER.info(
+        "Sending the images this device writes: %s of %s bytes",
+        len(trimmed),
+        len(data),
+    )
+    return image
 
 
 # Called by writer.py

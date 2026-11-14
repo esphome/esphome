@@ -67,12 +67,8 @@ void HONEYWELLABP2Sensor::loop() {
       this->cancel_timeout(MEASUREMENT_TIMEOUT_ID);
 
       this->read_sensor_data();
-      if (pressure_sensor_ != nullptr) {
-        this->pressure_sensor_->publish_state(this->get_pressure());
-      }
-      if (temperature_sensor_ != nullptr) {
-        this->temperature_sensor_->publish_state(this->get_temperature());
-      }
+      PUBLISH_STATE(this->pressure_sensor_, this->get_pressure());
+      PUBLISH_STATE(this->temperature_sensor_, this->get_temperature());
     }
   }
 }

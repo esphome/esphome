@@ -1,6 +1,7 @@
 #include "media_player.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -77,19 +78,12 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
 }
 
 void MediaPlayerTraits::set_supports_pause(bool supports_pause) {
-  if (supports_pause) {
-    this->feature_flags_ |= MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY;
-  } else {
-    this->feature_flags_ &= ~(MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY);
-  }
+  assign_bits(this->feature_flags_, MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY, supports_pause);
 }
 
 void MediaPlayerTraits::set_supports_turn_off_on(bool supports_turn_off_on) {
-  if (supports_turn_off_on) {
-    this->feature_flags_ |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
-  } else {
-    this->feature_flags_ &= ~(MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON);
-  }
+  assign_bits(this->feature_flags_, MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON,
+              supports_turn_off_on);
 }
 
 void MediaPlayerCall::validate_() {

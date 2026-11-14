@@ -2,6 +2,7 @@
 #include "cc1101pa.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cmath>
 #include <cstring>
 
@@ -13,6 +14,11 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
+// The crystal takes about 150 us to start after CSn goes low
+static constexpr uint32_t WAKEUP_DELAY_US = 200;
+
+// MDMCFG2 MOD_FORMAT values
+PROGMEM_STRING_TABLE(ModulationStrings, "2-FSK", "GFSK", "UNUSED", "ASK/OOK", "4-FSK", "UNUSED", "UNUSED", "MSK");
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
@@ -159,19 +165,25 @@ void CC1101Component::configure() {
   }
 
   this->initialized_ = true;
+  this->sleeping_ = false;
 
-  for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
-    if (i == static_cast<uint8_t>(Register::FSTEST) || i == static_cast<uint8_t>(Register::AGCTEST)) {
-      continue;
-    }
-    this->write_(static_cast<Register>(i));
-  }
+  this->write_registers_();
   this->set_output_power(this->output_power_requested_);
 
   if (!this->enter_rx_()) {
     this->mark_failed();
     return;
   }
+}
+
+void CC1101Component::write_registers_() {
+  for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
+    if (i == static_cast<uint8_t>(Register::FSTEST) || i == static_cast<uint8_t>(Register::AGCTEST)) {
+      continue;
+    }
+    this->write_(static_cast<Register>(i));
+  }
+  this->registers_dirty_ = false;
 }
 
 void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
@@ -183,8 +195,8 @@ void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float 
 
 void CC1101Component::loop() {
   this->disable_loop();
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
-      !this->gdo0_pin_->digital_read()) {
+  if (this->sleeping_ || this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) ||
+      this->gdo0_pin_ == nullptr || !this->gdo0_pin_->digital_read()) {
     return;
   }
 
@@ -230,6 +242,10 @@ void CC1101Component::loop() {
   if (this->state_.CRC_EN == 0 || crc_ok) {
     this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
   }
+  // A listener may have powered the radio down
+  if (this->sleeping_) {
+    return;
+  }
 
   // Return to rx
   this->enter_idle_();
@@ -238,8 +254,6 @@ void CC1101Component::loop() {
 }
 
 void CC1101Component::dump_config() {
-  static const char *const MODULATION_NAMES[] = {"2-FSK", "GFSK",   "UNUSED", "ASK/OOK",
-                                                 "4-FSK", "UNUSED", "UNUSED", "MSK"};
   int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
                  XTAL_FREQUENCY / (1 << 16);
   float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
@@ -253,12 +267,14 @@ void CC1101Component::dump_config() {
                 "  Symbol Rate: %.0f baud\n"
                 "  Filter Bandwidth: %.1f Hz\n"
                 "  Output Power: %.1f dBm",
-                this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
-                symbol_rate, bw, this->output_power_effective_);
+                this->chip_id_, freq, this->state_.CHANNR,
+                LOG_STR_ARG(ModulationStrings::get_log_str(this->state_.MOD_FORMAT & 0x07, 0)), symbol_rate, bw,
+                this->output_power_effective_);
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
 void CC1101Component::begin_tx() {
+  this->wake_up();
   // Read the mode before the PKTCTRL0 write below overwrites it in state_
   const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
   // Ensure Packet Format is 3 (Async Serial)
@@ -302,6 +318,38 @@ void CC1101Component::set_idle() {
   this->enter_idle_();
 }
 
+void CC1101Component::power_down() {
+  if (this->sleeping_) {
+    return;
+  }
+  this->enter_idle_();
+  ESP_LOGV(TAG, "Entering SLEEP state");
+  this->strobe_(Command::PWD);
+  this->sleeping_ = true;
+}
+
+void CC1101Component::wake_up() {
+  if (!this->sleeping_) {
+    return;
+  }
+  this->sleeping_ = false;
+  ESP_LOGV(TAG, "Waking up from SLEEP");
+  this->enable();
+  delayMicroseconds(WAKEUP_DELAY_US);
+  this->disable();
+  this->enter_idle_();
+  // sync register writes that were skipped while asleep
+  // TEST2 to TEST0 and PATABLE entries 1-7 are always lost
+  if (this->registers_dirty_) {
+    this->write_registers_();
+  } else {
+    this->write_(Register::TEST2);
+    this->write_(Register::TEST1);
+    this->write_(Register::TEST0);
+  }
+  this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
+}
+
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
   uint32_t start = millis();
   while (millis() - start < timeout_ms) {
@@ -334,8 +382,15 @@ bool CC1101Component::enter_calibrated_(State target_state, Command cmd) {
 }
 
 void CC1101Component::enter_idle_() {
+  if (this->sleeping_) {
+    // wake_up() ends in IDLE
+    this->wake_up();
+    return;
+  }
   this->strobe_(Command::IDLE);
-  this->wait_for_state_(State::IDLE);
+  if (!this->wait_for_state_(State::IDLE)) {
+    ESP_LOGW(TAG, "Failed to enter IDLE state");
+  }
 }
 
 bool CC1101Component::enter_rx_() { return this->enter_calibrated_(State::RX, Command::RX); }
@@ -354,6 +409,10 @@ uint8_t CC1101Component::strobe_(Command cmd) {
 }
 
 void CC1101Component::write_(Register reg) {
+  if (this->sleeping_) {
+    this->registers_dirty_ = true;
+    return;  // wake_up() writes state_ to the chip
+  }
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index);
@@ -368,6 +427,10 @@ void CC1101Component::write_(Register reg, uint8_t value) {
 }
 
 void CC1101Component::write_(Register reg, const uint8_t *buffer, size_t length) {
+  if (this->sleeping_) {
+    this->registers_dirty_ = true;
+    return;
+  }
   uint8_t index = static_cast<uint8_t>(reg);
   this->enable();
   this->write_byte(index | BUS_WRITE | BUS_BURST);
@@ -489,11 +552,15 @@ void CC1101Component::set_frequency(float value) {
   this->state_.FREQ1 = static_cast<uint8_t>(freq >> 8);
   this->state_.FREQ0 = static_cast<uint8_t>(freq);
   if (this->initialized_) {
-    this->enter_idle_();
+    // While asleep the writes wait for wake_up() and the radio stays asleep
+    const bool awake = !this->sleeping_;
+    if (awake)
+      this->enter_idle_();
     this->write_(Register::FREQ2);
     this->write_(Register::FREQ1);
     this->write_(Register::FREQ0);
-    this->enter_rx_();
+    if (awake)
+      this->enter_rx_();
   }
 }
 
@@ -518,9 +585,12 @@ void CC1101Component::set_filter_bandwidth(float value) {
 void CC1101Component::set_channel(uint8_t value) {
   this->state_.CHANNR = value;
   if (this->initialized_) {
-    this->enter_idle_();
+    const bool awake = !this->sleeping_;
+    if (awake)
+      this->enter_idle_();
     this->write_(Register::CHANNR);
-    this->enter_rx_();
+    if (awake)
+      this->enter_rx_();
   }
 }
 
@@ -585,11 +655,14 @@ void CC1101Component::set_modulation_type(Modulation value) {
   this->state_.MOD_FORMAT = static_cast<uint8_t>(value);
   this->state_.PA_POWER = value == Modulation::MODULATION_ASK_OOK ? 1 : 0;
   if (this->initialized_) {
-    this->enter_idle_();
+    const bool awake = !this->sleeping_;
+    if (awake)
+      this->enter_idle_();
     this->set_output_power(this->output_power_requested_);
     this->write_(Register::MDMCFG2);
     this->write_(Register::FREND0);
-    this->enter_rx_();
+    if (awake)
+      this->enter_rx_();
   }
 }
 

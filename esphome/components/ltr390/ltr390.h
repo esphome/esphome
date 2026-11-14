@@ -40,6 +40,11 @@ enum LTR390RESOLUTION : uint8_t {
 };
 
 class LTR390Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(light)
+  SUB_SENSOR(als)
+  SUB_SENSOR(uvi)
+  SUB_SENSOR(uv)
+
  public:
   void setup() override;
   void dump_config() override;
@@ -50,11 +55,6 @@ class LTR390Component final : public PollingComponent, public i2c::I2CDevice {
   void set_als_res_value(LTR390RESOLUTION res) { this->res_als_ = res; }
   void set_uv_res_value(LTR390RESOLUTION res) { this->res_uv_ = res; }
   void set_wfac_value(float wfac) { this->wfac_ = wfac; }
-
-  void set_light_sensor(sensor::Sensor *light_sensor) { this->light_sensor_ = light_sensor; }
-  void set_als_sensor(sensor::Sensor *als_sensor) { this->als_sensor_ = als_sensor; }
-  void set_uvi_sensor(sensor::Sensor *uvi_sensor) { this->uvi_sensor_ = uvi_sensor; }
-  void set_uv_sensor(sensor::Sensor *uv_sensor) { this->uv_sensor_ = uv_sensor; }
 
  protected:
   static constexpr uint8_t ENABLED_MODE_ALS = 1 << 0;
@@ -67,12 +67,6 @@ class LTR390Component final : public PollingComponent, public i2c::I2CDevice {
 
   void read_mode_(LTR390MODE mode);
   void standby_();
-
-  sensor::Sensor *light_sensor_{nullptr};
-  sensor::Sensor *als_sensor_{nullptr};
-
-  sensor::Sensor *uvi_sensor_{nullptr};
-  sensor::Sensor *uv_sensor_{nullptr};
 
   float wfac_;
 

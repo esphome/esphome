@@ -60,10 +60,8 @@ static constexpr i2c::I2CRegValue APDS9960_GESTURE_OFFSETS[] PROGMEM = {
 
 void APDS9960::setup() {
   uint8_t id;
-  if (!this->read_byte(0x92, &id)) {  // ID register
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(0x92, &id)))  // ID register
     return;
-  }
 
   if (id != 0xAB && id != 0x9C && id != 0xA8 && id != 0x9E) {  // APDS9960 all should have one of these IDs
     this->mark_failed(LOG_STR("APDS9960 has invalid id"));
@@ -166,14 +164,10 @@ void APDS9960::read_color_data_(uint8_t status) {
 
   ESP_LOGD(TAG, "Got clear=%.1f%% red=%.1f%% green=%.1f%% blue=%.1f%%", clear_perc, red_perc, green_perc, blue_perc);
 #ifdef USE_SENSOR
-  if (this->clear_sensor_ != nullptr)
-    this->clear_sensor_->publish_state(clear_perc);
-  if (this->red_sensor_ != nullptr)
-    this->red_sensor_->publish_state(red_perc);
-  if (this->green_sensor_ != nullptr)
-    this->green_sensor_->publish_state(green_perc);
-  if (this->blue_sensor_ != nullptr)
-    this->blue_sensor_->publish_state(blue_perc);
+  PUBLISH_STATE(this->clear_sensor_, clear_perc);
+  PUBLISH_STATE(this->red_sensor_, red_perc);
+  PUBLISH_STATE(this->green_sensor_, green_perc);
+  PUBLISH_STATE(this->blue_sensor_, blue_perc);
 #endif
 }
 void APDS9960::read_proximity_data_(uint8_t status) {

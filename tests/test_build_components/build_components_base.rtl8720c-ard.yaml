@@ -1,0 +1,15 @@
+esphome:
+  name: componenttestesprtl8720c
+  friendly_name: $component_name
+
+rtl87xx:
+  board: bw15
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

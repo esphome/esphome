@@ -111,7 +111,7 @@ bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
   if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_IO_INPUT_ADDR, &data, 1),
                                 LOG_STR("Failed to read input register")))
     return false;
-  this->input_mask_ = data;
+  this->input_[0] = data;
   return true;
 }
 
@@ -126,7 +126,6 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
                            LOG_STR("Failed to write output register"));
 }
 
-bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::IO; }
 
 }  // namespace esphome::waveshare_io_ch32v003

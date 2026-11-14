@@ -84,7 +84,7 @@ const uint32_t YASHIMA_CARRIER_FREQUENCY = 38000;
 
 climate::ClimateTraits YashimaClimate::traits() {
   auto traits = climate::ClimateTraits();
-  if (this->sensor_ != nullptr) {
+  if (this->temperature_sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
 
@@ -101,13 +101,13 @@ climate::ClimateTraits YashimaClimate::traits() {
 }
 
 void YashimaClimate::setup() {
-  if (this->sensor_) {
-    this->sensor_->add_on_state_callback([this](float state) {
+  if (this->temperature_sensor_) {
+    this->temperature_sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
       // current temperature changed, publish state
       this->publish_state();
     });
-    this->current_temperature = this->sensor_->state;
+    this->current_temperature = this->temperature_sensor_->state;
   } else {
     this->current_temperature = NAN;
   }

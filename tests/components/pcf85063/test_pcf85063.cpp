@@ -9,6 +9,9 @@
 namespace esphome::pcf85063::testing {
 
 static constexpr uint8_t ADDRESS = 0x51;
+static constexpr uint8_t CONTROL_1_REG = 0x00;
+static constexpr uint8_t CONTROL_1_12_24 = 0x02;  // Set for 12-hour mode
+static constexpr uint8_t HOURS_REG = 0x06;
 static constexpr uint8_t WEEKDAYS_REG = 0x08;
 static constexpr uint8_t CHIP_DAYS_PER_WEEK = 7;  // The chip counts weekdays 0-6, Sunday = 0
 
@@ -72,6 +75,40 @@ TEST_F(PCF85063Test, WeekdayRoundTripsThroughSundayAndSaturday) {
     this->rtc_.read_time();
     EXPECT_EQ(this->syncs_, syncs_before + 1) << "chip weekday " << unsigned(weekday);
   }
+}
+
+// The hours register in 12-hour mode: bit 5 PM, bit 4 the tens, hours 1-12.
+static uint8_t twelve_hour_register(uint8_t hour) {
+  const uint8_t hour12 = hour % 12 == 0 ? 12 : hour % 12;
+  return (hour >= 12 ? 0x20 : 0x00) | (hour12 / 10) << 4 | hour12 % 10;
+}
+
+TEST(PCF85063Hour, DecodesEveryHourInBothModes) {
+  for (uint8_t hour = 0; hour < 24; hour++) {
+    EXPECT_EQ(decode_hour(hour % 10, hour / 10, false), hour);
+    const uint8_t reg = twelve_hour_register(hour);
+    EXPECT_EQ(decode_hour(reg & 0x0F, reg >> 4, true), hour) << "register " << unsigned(reg);
+  }
+}
+
+TEST(PCF85063Hour, RejectsTwelveHourValuesOutOfRange) {
+  EXPECT_GE(decode_hour(0, 0, true), 24);  // 0 AM
+  EXPECT_GE(decode_hour(3, 1, true), 24);  // 13 AM
+  EXPECT_GE(decode_hour(3, 3, true), 24);  // 13 PM
+}
+
+// The next write puts a chip left in 12-hour mode back in 24-hour mode. The read loads the 12-hour bit that the
+// write has to clear; DecodesEveryHourInBothModes covers the decoding.
+TEST_F(PCF85063Test, TwelveHourModeIsClearedByTheNextWrite) {
+  this->rtc_.write_time();
+  // The same time in 12-hour mode, so reading it back never changes the host clock
+  uint8_t &hours = this->bus_.registers[HOURS_REG];
+  hours = twelve_hour_register((hours & 0x0F) + 10 * (hours >> 4));
+  this->bus_.registers[CONTROL_1_REG] |= CONTROL_1_12_24;
+  this->rtc_.read_time();
+
+  this->rtc_.write_time();
+  EXPECT_EQ(this->bus_.registers[CONTROL_1_REG] & CONTROL_1_12_24, 0);
 }
 
 }  // namespace esphome::pcf85063::testing

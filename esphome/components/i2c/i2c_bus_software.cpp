@@ -51,20 +51,7 @@ void SoftwareI2CBus::dump_config() {
   if (this->recovered_) {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
   }
-  if (this->scan_) {
-    ESP_LOGI(TAG, "Results from bus scan:");
-    if (this->scan_results_.empty()) {
-      ESP_LOGI(TAG, "Found no devices");
-    } else {
-      for (const auto &s : this->scan_results_) {
-        if (s.second) {
-          ESP_LOGI(TAG, "Found device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
 // Half of one clock period in microseconds, rounded up. The frequency is validated to be non-zero.

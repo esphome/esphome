@@ -1,6 +1,7 @@
 import logging
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_NUMERIC_COMPARISON_REQUEST
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT
 from esphome.components.ota import (
     BASE_OTA_SCHEMA,
@@ -12,10 +13,7 @@ from esphome.components.ota import (
 )
 from esphome.components.zephyr import zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
-from esphome.components.zephyr_ble_server import (
-    CONF_ON_NUMERIC_COMPARISON_REQUEST,
-    DOMAIN as ZEPHYR_BLE_SERVER_DOMAIN,
-)
+from esphome.components.zephyr_ble_server import DOMAIN as ZEPHYR_BLE_SERVER_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_ERROR, Framework
 from esphome.core import CoroPriority, coroutine_with_priority

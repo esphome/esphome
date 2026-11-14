@@ -1,0 +1,13 @@
+climate:
+  - platform: panasonic_ir
+    id: panasonic_climate
+    name: Panasonic Climate
+    transmitter_id: xmitr
+    receiver_id: rcvr
+    model: PKE
+
+select:
+  - platform: panasonic_ir
+    panasonic_ir_id: panasonic_climate
+    vane_position:
+      name: Panasonic Vane Position

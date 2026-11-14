@@ -94,6 +94,22 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     return result.stdout.strip()
 
 
+def test_main_module_does_not_query_the_os_version() -> None:
+    """``import esphome.__main__`` must not call ``platform.uname()`` (or ``system()``, which uses it).
+
+    On Windows they query WMI and fall back to running ``ver`` (importing
+    subprocess) when that fails, so the stdlib leak check below went flaky.
+    """
+    check = (
+        "import platform\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('platform queried at import time')\n"
+        "platform.uname = fail\n"
+        "import esphome.__main__"
+    )
+    subprocess.run([sys.executable, "-c", check], check=True)
+
+
 def test_main_module_does_not_import_heavy_modules() -> None:
     """A bare ``import esphome.__main__`` must not drag in validation/codegen.
 
@@ -222,15 +238,9 @@ def test_api_client_does_not_import_heavy_modules() -> None:
 
 # Packages a domain needs for its own schema; cheap and never an integration
 _ENTITY_COMPONENT_DEPENDENCIES = {
+    "infrared": ("esphome.components.ir_rf_base",),
     "light": ("esphome.components.power_supply", "esphome.components.const.css_colors"),
-}
-
-
-# Entity domains that still import integrations at top level
-_ENTITY_COMPONENT_KNOWN_LEAKS = {
-    "infrared": "imports remote_base and api at top level",
-    "media_player": "audio pulls in the esp32 chain",
-    "radio_frequency": "imports remote_base and api at top level",
+    "radio_frequency": ("esphome.components.ir_rf_base",),
 }
 
 
@@ -248,26 +258,11 @@ def _entity_components() -> list[str]:
 def test_entity_component_tables_match_discovery() -> None:
     """Catch stale table entries and a discovery that silently finds nothing."""
     found = set(_entity_components())
-    stale = (
-        _ENTITY_COMPONENT_KNOWN_LEAKS.keys() | _ENTITY_COMPONENT_DEPENDENCIES.keys()
-    ) - found
+    stale = _ENTITY_COMPONENT_DEPENDENCIES.keys() - found
     assert not stale, f"not discovered as entity components: {sorted(stale)}"
 
 
-@pytest.mark.parametrize(
-    "component",
-    [
-        pytest.param(
-            c,
-            marks=pytest.mark.xfail(
-                reason=_ENTITY_COMPONENT_KNOWN_LEAKS[c], strict=True
-            ),
-        )
-        if c in _ENTITY_COMPONENT_KNOWN_LEAKS
-        else c
-        for c in _entity_components()
-    ],
-)
+@pytest.mark.parametrize("component", _entity_components())
 def test_entity_component_does_not_import_integrations(component: str) -> None:
     """An entity component must not drag in its optional integrations.
 
