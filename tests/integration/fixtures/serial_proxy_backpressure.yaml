@@ -1,0 +1,59 @@
+esphome:
+  name: serial-proxy-backpressure
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [sndbuf_pin_component, uart_mock]
+
+# Pins the device's socket send buffers for deterministic TCP backpressure
+sndbuf_pin_component:
+  buffer_size: SERVER_SNDBUF
+
+# Dummy uart entry to satisfy serial_proxy's dependency on uart;
+# the bus the proxy reads is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+
+serial_proxy:
+  - id: proxy
+    uart_id: mock_uart
+    name: Mock Port
+    port_type: TTL
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          // A serial device that keeps sending, from the moment a client subscribes. It sends filler
+          // until the client's connection is blocked, then the numbered bytes the test checks
+          static uint32_t sent = 0;
+          static bool blocked = false;
+          auto *client = id(proxy).get_api_connection();
+          if (client == nullptr || sent >= STREAM_BYTES)
+            return;
+          uint8_t chunk[STREAM_CHUNK];
+          if (!blocked && client->try_to_clear_buffer(false)) {
+            memset(chunk, STREAM_FILLER, sizeof(chunk));
+            id(mock_uart).inject_to_rx_buffer(chunk, sizeof(chunk));
+            return;
+          }
+          blocked = true;
+          for (auto &b : chunk)
+            b = sent++ % STREAM_MODULUS;
+          id(mock_uart).inject_to_rx_buffer(chunk, sizeof(chunk));
+          if (sent >= STREAM_BYTES)
+            ESP_LOGI("stream", "stream complete");
