@@ -274,7 +274,8 @@ void NPM1300Component::enter_ship_mode() {
 }
 
 void NPM1300Component::hibernate(uint32_t duration_ms) {
-  const uint32_t ticks = std::min(duration_ms / TIMER_TICK_MS, TIMER_MAX_TICKS);
+  // A zero period would never wake the chip
+  const uint32_t ticks = std::clamp<uint32_t>(duration_ms / TIMER_TICK_MS, 1, TIMER_MAX_TICKS);
   uint8_t timer[3];
   put_be24(timer, ticks);
   ESP_LOGI(TAG, "Hibernating for %" PRIu32 " ms", ticks * TIMER_TICK_MS);

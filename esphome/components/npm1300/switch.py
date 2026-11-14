@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import (
@@ -11,6 +12,7 @@ from . import (
     CONF_LDO1,
     CONF_LDO2,
     CONF_NPM1300_ID,
+    CONF_THERMISTOR_RESISTANCE,
     NPM1300_CHILD_SCHEMA,
     OUTPUTS,
 )
@@ -36,6 +38,22 @@ CONFIG_SCHEMA = NPM1300_CHILD_SCHEMA.extend(
         cv.Optional(CONF_LDO2): _switch_schema(),
     }
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CONF_CHARGER not in config:
+        return
+    hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
+    # Only the charger block turns off the NTC check, without which the charger never starts
+    if CONF_CHARGER not in hub and CONF_THERMISTOR_RESISTANCE not in hub:
+        raise cv.Invalid(
+            f"The '{CONF_CHARGER}' switch needs a '{CONF_CHARGER}' block or "
+            f"'{CONF_THERMISTOR_RESISTANCE}' on the npm1300 component",
+            path=[CONF_CHARGER],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _output_apply(key: str) -> str:
