@@ -1263,7 +1263,7 @@ class ScanResultsLock {
   ScanResultsLock(WiFiComponent *parent) : guard_(parent->scan_result_lock_) {}
 
  private:
-  LockGuard guard_;
+  LockGuard<> guard_;
 #else
   ScanResultsLock(WiFiComponent *) {}
 #endif

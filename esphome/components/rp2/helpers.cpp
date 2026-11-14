@@ -59,14 +59,14 @@ IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 // When neither WiFi nor Ethernet is configured, this is a no-op since
 // there's no network stack and no lwip callbacks to race with.
 #if defined(USE_WIFI)
-LwIPLock::LwIPLock() { cyw43_arch_lwip_begin(); }
-LwIPLock::~LwIPLock() { cyw43_arch_lwip_end(); }
+void LwIPMutex::lock() { cyw43_arch_lwip_begin(); }
+void LwIPMutex::unlock() { cyw43_arch_lwip_end(); }
 #elif defined(USE_ETHERNET)
-LwIPLock::LwIPLock() {
+void LwIPMutex::lock() {
   __inLWIP++;
   ethernet_arch_lwip_begin();
 }
-LwIPLock::~LwIPLock() {
+void LwIPMutex::unlock() {
   ethernet_arch_lwip_end();
   __inLWIP--;
   if (__needsIRQEN && !__inLWIP) {
@@ -74,6 +74,10 @@ LwIPLock::~LwIPLock() {
     ethernet_arch_lwip_gpio_unmask();
   }
 }
+#endif
+#if defined(USE_WIFI) || defined(USE_ETHERNET)
+LwIPLock::LwIPLock() { LwIPMutex::lock(); }
+LwIPLock::~LwIPLock() { LwIPMutex::unlock(); }
 #else
 LwIPLock::LwIPLock() {}
 LwIPLock::~LwIPLock() {}

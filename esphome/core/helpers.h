@@ -2335,13 +2335,13 @@ class Mutex {
  *
  * This behaves like std::lock_guard: as long as the object is alive, the mutex is held.
  */
-class LockGuard {
+template<typename M = Mutex> class LockGuard {
  public:
-  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
+  LockGuard(M &mutex) : mutex_(mutex) { mutex_.lock(); }
   ~LockGuard() { mutex_.unlock(); }
 
  private:
-  Mutex &mutex_;
+  M &mutex_;
 };
 
 /** Helper class to disable interrupts.
@@ -2405,6 +2405,16 @@ class LwIPLock {
   ~LwIPLock() {}
 #endif
 };
+
+#if defined(USE_RP2) && (defined(USE_WIFI) || defined(USE_ETHERNET))
+/// LwIPLock as a lock()/unlock() pair, for a member that LockGuard locks: keeps lwIP callbacks (the async_context)
+/// out while held. Recursive, so a callback that already holds it can take it again.
+class LwIPMutex {
+ public:
+  static void lock();
+  static void unlock();
+};
+#endif
 
 #if defined(USE_ESP8266) && F_CPU != 160000000L
 // Forward decl from <user_interface.h>
