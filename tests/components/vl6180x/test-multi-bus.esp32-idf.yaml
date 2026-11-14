@@ -1,0 +1,25 @@
+packages:
+  i2c:
+    i2c:
+      - id: i2c_bus_a
+        sda: GPIO17
+        scl: GPIO16
+      - id: i2c_bus_b
+        sda: GPIO21
+        scl: GPIO22
+
+vl6180x:
+  - id: vl6180x_bus_a
+    i2c_id: i2c_bus_a
+  - id: vl6180x_bus_b
+    i2c_id: i2c_bus_b
+
+sensor:
+  - platform: vl6180x
+    vl6180x_id: vl6180x_bus_a
+    range:
+      name: Distance on bus A
+  - platform: vl6180x
+    vl6180x_id: vl6180x_bus_b
+    range:
+      name: Distance on bus B
