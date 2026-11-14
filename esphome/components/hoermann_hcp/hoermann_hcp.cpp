@@ -250,12 +250,16 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       this->add_identity_request_(registers, command);
 #endif
       break;
-    case 2:
-      // A command with nothing attached: the counter is echoed with a zero low byte and the command is NAKed with
-      // 0xFE. The controller's teach frames at boot have exactly this shape.
+    case 2: {
+      // An empty command request: the counter is echoed and the low byte carries the answer code. The teach frames
+      // the controller sends at boot carry the transfer command and are NAKed, as the reference accessory does.
+      // Every other command keeps the status word it has always had, because NAKing a routine poll is a change
+      // nothing backs.
+      const uint16_t code = static_cast<uint8_t>(this->command_reg_value_) == TRANSFER_COMMAND ? 0x00FE : 0x0004;
       registers.push_back(counter);
-      registers.push_back(static_cast<uint16_t>(0x00FE | command));
+      registers.push_back(static_cast<uint16_t>(code | command));
       break;
+    }
     case 5:
       // Bus scan (the bus controller discovering us, typically at startup).
       // Answer with the connect-accept code 0x2E and the descriptor words 0520 0800 0000, as an official HCP2
@@ -263,8 +267,11 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       ESP_LOGD(TAG, "Bus scan received from bus controller");
       registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x002E | command));
-      registers.push_back(0x0520);  // buf[3] 0x20: drive commands
-      registers.push_back(0x0800);  // buf[4] 0x08 (accessory)
+      // Capability block, byte for byte from an official gateway's scan answer: the low byte of each register is
+      // the capability word. What the high bytes 0x05 and 0x08 encode is not known, so they are copied verbatim —
+      // do not tidy them, and do not guess at them when the capability bits get documented.
+      registers.push_back(0x0520);  // reg 2: 0x20 = drive commands
+      registers.push_back(0x0800);  // reg 3: 0x08 = accessory
       registers.push_back(0x0000);
       break;
     default:

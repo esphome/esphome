@@ -7,17 +7,30 @@
 
 namespace esphome::hoermann_hcp::testing {
 
-// A command with nothing attached (write 2 / read 2) echoes the counter and NAKs the command with 0xFE, which is
-// how the controller's teach frames are answered.
-TEST(HoermannHcpReadWrite, EmptyPollNaksTheCommand) {
+// A teach frame (write 2 / read 2 with the transfer command) echoes the counter and NAKs the command with 0xFE,
+// which is how the reference accessory answers it.
+TEST(HoermannHcpReadWrite, TeachFrameNaksTheCommand) {
   HoermannHcp door;
-  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0404, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 2, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 2u);
-  EXPECT_EQ(response[0], 0x0000);  // counter, no marker in the low byte
-  EXPECT_EQ(response[1], 0x00FE);  // no command, NAKed
+  EXPECT_EQ(response[0], 0x0400);  // counter, no marker in the low byte
+  EXPECT_EQ(response[1], 0x04FE);  // transfer command, NAKed
+}
+
+// Any other empty command keeps the status word it has always carried: only teach frames are NAKed, because a
+// routine poll answered with a NAK would be a change nothing backs.
+TEST(HoermannHcpReadWrite, EmptyPollKeepsTheStatusWord) {
+  HoermannHcp door;
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0500, 0x0000})).has_value());
+  RegisterValues response;
+  auto status = door.on_read_holding_registers(STATE_REG, 2, response);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(response.size(), 2u);
+  EXPECT_EQ(response[0], 0x0500);  // counter, no marker in the low byte
+  EXPECT_EQ(response[1], 0x0004);  // the status word
 }
 
 // A bus scan (write 3 / read 5) answers with the connect-accept code and the fixed
@@ -80,13 +93,16 @@ TEST(HoermannHcpReadWrite, UnknownAddressIsAnsweredInStatusShape) {
 
 // A read length we do not model answers in the same shape rather than with zeros: a code byte of 0 makes the
 // controller ignore the frame, which is a booked rejection, and the payload is never the thing that fails first.
-TEST(HoermannHcpReadWrite, UnmodelledReadLengthKeepsTheStatusCode) {
+// A read length we do not model answers in the status shape: the polled counter, then the command with a code the
+// controller accepts. A code byte of 0 makes it ignore the frame outright, which is a rejection, and a zero counter
+// is one too — the payload is never the thing that fails first.
+TEST(HoermannHcpReadWrite, UnknownReadLengthKeepsTheCounterAndTheStatusWord) {
   HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0703, 0x0003})).has_value());
   RegisterValues response;
   EXPECT_FALSE(door.on_read_holding_registers(STATE_REG, 4, response).has_value());
   ASSERT_EQ(response.size(), 4u);
-  EXPECT_EQ(response[0], 0x0700);  // counter echoed
+  EXPECT_EQ(response[0], 0x0700);  // counter echoed, not zero
   EXPECT_EQ(response[1], 0x0301);  // command echoed with a code the controller accepts
   EXPECT_EQ(response[2], 0x0000);
   EXPECT_EQ(response[3], 0x0000);
@@ -545,7 +561,7 @@ TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
   door.on_read_holding_registers(STATE_REG, 2, empty_poll);
   ASSERT_EQ(empty_poll.size(), 2u);
   EXPECT_EQ(empty_poll[0], 0x3400);  // counter alone
-  EXPECT_EQ(empty_poll[1], 0x07FE);  // command alone, NAKed
+  EXPECT_EQ(empty_poll[1], 0x0704);  // command alone, with the status word every non-teach command keeps
 
   RegisterValues scan;
   door.on_read_holding_registers(STATE_REG, 5, scan);
@@ -777,18 +793,6 @@ TEST(HoermannHcpDoorCommands, VentDoorWithoutABusControllerSendsNothing) {
   door.vent_door();
 
   EXPECT_EQ(poll_command(door).first, 0x0000);
-}
-
-// A poll whose read length the component does not model must still echo the polled counter: the controller
-// validates the counter before the payload, so 0x0000 there books a strike instead of being ignored.
-TEST(HoermannHcpReadWrite, UnknownReadLengthStillEchoesTheCounter) {
-  HoermannHcp door;
-  ASSERT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x3503, 0x0000})).has_value());
-  RegisterValues response;
-  auto status = door.on_read_holding_registers(STATE_REG, 3, response);
-  EXPECT_FALSE(status.has_value());
-  ASSERT_EQ(response.size(), 3u);
-  EXPECT_EQ(response[0], 0x3500);  // the polled counter, not zero
 }
 
 }  // namespace esphome::hoermann_hcp::testing
