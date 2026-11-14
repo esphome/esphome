@@ -89,7 +89,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
     cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
-    cg.add_library("esphome/dsmr_parser", "1.10.0")
+    cg.add_library("esphome/dsmr_parser", "1.11.0")
 
     # On the host the AES-GCM backend comes from the system mbedtls
     if CORE.is_host:

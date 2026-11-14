@@ -66,7 +66,6 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   SUB_BINARY_SENSOR(discharging_mos_enabled)
 #endif
 
-  void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
@@ -75,16 +74,30 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
 
  protected:
   void request_data_(uint8_t data_id);
+  // all frames of the response to the last request are in
+  bool response_complete_() const;
   void decode_data_(std::vector<uint8_t> data);
 
   uint8_t addr_;
 
   std::vector<uint8_t> data_;
   bool receiving_{false};
-  uint8_t data_count_;
+  uint8_t data_count_{0};
   uint32_t last_transmission_{0};
-  bool trigger_next_;
-  uint8_t next_request_;
+  bool trigger_next_{false};
+  // update() asked for a request cycle; it starts once no cycle is running. The first one runs at boot.
+  bool cycle_requested_{true};
+  // a cycle is running until the response to its last request is in or has timed out
+  bool cycle_running_{false};
+  // valid frames answering the last request
+  uint8_t frames_received_{0};
+  // frames of a cell voltage response, from the cell count in the status response; 0 until it is known
+  uint8_t cell_frames_{0};
+  // frames of a temperature response, seven probes per frame
+  uint8_t temperature_frames_{1};
+  uint8_t last_request_{0};
+  // index of the next request of the cycle
+  uint8_t next_request_{0};
 };
 
 }  // namespace esphome::daly_bms

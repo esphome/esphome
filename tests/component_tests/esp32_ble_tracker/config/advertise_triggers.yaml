@@ -13,6 +13,9 @@ esp32_ble_tracker:
     - service_uuid: ABCD
       then:
         - logger.log: s16
+    - service_uuid: ABCD
+      then:
+        - logger.log: s16 again
     - service_uuid: ABCDABCD
       mac_address: AC:37:43:77:5F:4C
       then:

@@ -42,6 +42,7 @@ comparison accepted automatically) and a classic ESP32 devkit runs `esp32central
   phase B reads the MITM characteristic with no numeric comparison and no `Deleting unpaired device` line.
 - On ESP-IDF 5.5.6 every other reconnect pairs again (`Deleting unpaired device` on the disconnect after a bonded
   reconnect), the regression #22081 describes.
+  #22559 fixes it: the bond survived 15 reconnects and a reset of both boards with no new pairing.
 
 ## Bluedroid hex parsing bench (#22081)
 

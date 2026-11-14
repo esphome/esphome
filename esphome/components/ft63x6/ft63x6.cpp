@@ -22,7 +22,7 @@ static const uint8_t FT63X6_ADDR_TOUCH1_ID = 0x05;
 static const uint8_t FT63X6_ADDR_TOUCH1_Y = 0x05;
 static const uint8_t FT63X6_ADDR_TOUCH1_WEIGHT = 0x07;
 static const uint8_t FT63X6_ADDR_TOUCH1_MISC = 0x08;
-static const uint8_t FT6X36_ADDR_THRESHHOLD = 0x80;
+static const uint8_t FT6X36_ADDR_THRESHOLD = 0x80;
 static const uint8_t FT6X36_ADDR_TOUCHRATE_ACTIVE = 0x88;
 static const uint8_t FT63X6_ADDR_CHIP_ID = 0xA3;
 
@@ -51,7 +51,7 @@ void FT63X6Touchscreen::setup() {
     ESP_LOGE(TAG, "FT6336U touch driver failed to start");
   }
   this->write_byte(FT6X36_ADDR_DEVICE_MODE, 0x00);
-  this->write_byte(FT6X36_ADDR_THRESHHOLD, this->threshold_);
+  this->write_byte(FT6X36_ADDR_THRESHOLD, this->threshold_);
   this->write_byte(FT6X36_ADDR_TOUCHRATE_ACTIVE, 0x0E);
 }
 
