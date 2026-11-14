@@ -14,24 +14,16 @@ static constexpr uint32_t PREF_HASH = fnv1a_hash("packet_interface.xxtea");
 // Different for each mode, so devices set up differently drop each other's packets
 static constexpr uint8_t CHECK_BYTES[3] = {0x58, 0x54, 0x45};
 static constexpr uint8_t ROLLING_CHECK_BYTES[3] = {0x58, 0x54, 0x52};
-static constexpr size_t CHECK_SIZE = 4;
-// Boot number, counter, and the echo of the receiver's boot number
-static constexpr size_t ROLLING_SIZE = 12;
 // XXTEA needs at least two words
 static constexpr size_t MIN_LENGTH = 8;
 static constexpr size_t MAX_PADDING = 4;
 
 static uint32_t get_uint32(const uint8_t *buf) { return encode_uint32(buf[3], buf[2], buf[1], buf[0]); }
 
-static constexpr size_t trailer_size(bool rolling_code) {
-  return rolling_code ? ROLLING_SIZE + CHECK_SIZE : CHECK_SIZE;
-}
-
-XxteaEncryption::XxteaEncryption(PacketInterface *lower, bool rolling_code)
-    // XXTEA works on whole 32-bit words
-    : PacketInterface(remaining_packet_size(lower->get_max_packet_size() & ~size_t{3}, trailer_size(rolling_code))),
+XxteaEncryption::XxteaEncryption(PacketInterface *lower, bool rolling_code, uint32_t *buffers)
+    : PacketInterface(packet_size(lower->get_max_packet_size(), rolling_code)),
       lower_(lower),
-      trailer_size_(trailer_size(rolling_code)),
+      rx_buffer_(buffers),
       rolling_code_(rolling_code) {
   this->stack_on_(lower, CAPABILITY_ENCRYPTION);
 }
@@ -43,12 +35,9 @@ void XxteaEncryption::set_key(std::initializer_list<uint32_t> key) {
 void XxteaEncryption::setup() {
   if (!this->setup_check(this->max_packet_size_ != 0, LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  size_t words = this->lower_->get_max_packet_size() / 4;
-  RAMAllocator<uint32_t> allocator;
-  this->tx_buffer_ = allocator.allocate(words * 2);
-  if (!this->setup_check(this->tx_buffer_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
+  if (!this->setup_check(this->rx_buffer_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
     return;
-  this->rx_buffer_ = this->tx_buffer_ + words;
+  this->tx_buffer_ = this->rx_buffer_ + this->lower_->get_max_packet_size() / 4;
   if (this->rolling_code_) {
     this->pref_ = global_preferences->make_preference<uint32_t>(fnv1a_hash_extend(PREF_HASH, this->name_), true);
     this->pref_.load(&this->boot_);
@@ -79,6 +68,10 @@ void XxteaEncryption::next_boot_() {
 }
 
 bool XxteaEncryption::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  return this->send_exclusive_([&] { return this->send_(data, meta_data); });
+}
+
+bool XxteaEncryption::send_(const PacketBuffer &data, const PacketMetaData &meta_data) {
   if (this->tx_buffer_ == nullptr)
     return false;
   size_t size = data.size();
@@ -86,10 +79,11 @@ bool XxteaEncryption::send_to_interface(const PacketBuffer &data, const PacketMe
     ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than %zu", this->name_, size, this->max_packet_size_);
     return false;
   }
-  size_t padding = (4 - (size + this->trailer_size_) % 4) % 4;
-  if (size + padding + this->trailer_size_ < MIN_LENGTH)
+  const size_t trailer = trailer_size(this->rolling_code_);
+  size_t padding = (4 - (size + trailer) % 4) % 4;
+  if (size + padding + trailer < MIN_LENGTH)
     padding += 4;
-  size_t length = size + padding + this->trailer_size_;
+  size_t length = size + padding + trailer;
   auto *buf = reinterpret_cast<uint8_t *>(this->tx_buffer_);
   data.copy_to(buf, size);
   memset(buf + size, 0, padding);
@@ -120,8 +114,8 @@ bool XxteaEncryption::accept_counter_(uint32_t boot, uint32_t counter) {
 
 void XxteaEncryption::receive_(const PacketBuffer &data, const PacketMetaData &meta_data) {
   size_t length = data.size();
-  if (length % 4 != 0 || length < std::max(MIN_LENGTH, this->trailer_size_) ||
-      length > this->lower_->get_max_packet_size()) {
+  const size_t trailer = trailer_size(this->rolling_code_);
+  if (length % 4 != 0 || length < std::max(MIN_LENGTH, trailer) || length > this->lower_->get_max_packet_size()) {
     ESP_LOGV(TAG, "%s: Packet of %zu bytes dropped", this->name_, length);
     this->note_received_(false);
     return;
@@ -132,8 +126,7 @@ void XxteaEncryption::receive_(const PacketBuffer &data, const PacketMetaData &m
   const uint8_t *check = buf + length - CHECK_SIZE;
   const uint8_t *expected = this->rolling_code_ ? ROLLING_CHECK_BYTES : CHECK_BYTES;
   size_t padding = check[CHECK_SIZE - 1];
-  if (memcmp(check, expected, sizeof(CHECK_BYTES)) != 0 || padding > MAX_PADDING ||
-      padding > length - this->trailer_size_) {
+  if (memcmp(check, expected, sizeof(CHECK_BYTES)) != 0 || padding > MAX_PADDING || padding > length - trailer) {
     ESP_LOGV(TAG, "%s: Packet failed authentication", this->name_);
     this->note_received_(false);
     return;
@@ -164,7 +157,7 @@ void XxteaEncryption::receive_(const PacketBuffer &data, const PacketMetaData &m
       return;
     }
   }
-  this->on_receive_from_interface_(PacketBuffer(buf, length - this->trailer_size_ - padding), meta_data);
+  this->on_receive_from_interface_(PacketBuffer(buf, length - trailer - padding), meta_data);
 }
 
 }  // namespace esphome::packet_interface

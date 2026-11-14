@@ -24,11 +24,7 @@ void ArduinoI2CBus::setup() {
   // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
   // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
   // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
-  if ((this->sda_pin_ / 2) % 2 == 0) {
-    this->wire_ = &Wire;
-  } else {
-    this->wire_ = &Wire1;
-  }
+  this->wire_ = (this->sda_pin_ / 2) % 2 == 0 ? &Wire : &Wire1;
 #endif
 
   this->set_pins_and_clock_();
