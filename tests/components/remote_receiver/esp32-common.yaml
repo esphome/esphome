@@ -61,6 +61,11 @@ binary_sensor:
     byronsx:
       address: 0x12
   - platform: remote_receiver
+    name: CanalSat Remote Input
+    canalsat:
+      device: 0x25
+      command: 0x02
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b

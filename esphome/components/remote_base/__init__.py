@@ -698,13 +698,6 @@ ByronSXData, ByronSXBinarySensor, ByronSXTrigger, _, ByronSXDumper = (
 
 
 # CanalSat
-(
-    CanalSatData,
-    CanalSatBinarySensor,
-    CanalSatTrigger,
-    _,
-    CanalSatDumper,
-) = declare_protocol("CanalSat")
 CANALSAT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DEVICE): cv.hex_uint8_t,
@@ -712,39 +705,15 @@ CANALSAT_SCHEMA = cv.Schema(
         cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
-
-
-@register_binary_sensor("canalsat", CanalSatBinarySensor, CANALSAT_SCHEMA)
-def canalsat_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                CanalSatData,
-                ("device", config[CONF_DEVICE]),
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
+CanalSatData, CanalSatBinarySensor, CanalSatTrigger, _, CanalSatDumper = (
+    register_simple_protocol(
+        "canalsat",
+        "CanalSat",
+        CANALSAT_SCHEMA,
+        (CONF_DEVICE, "device", cg.uint8),
+        (CONF_ADDRESS, "address", cg.uint8),
+        (CONF_COMMAND, "command", cg.uint8),
     )
-
-
-@register_trigger("canalsat", CanalSatTrigger, CanalSatData)
-def canalsat_trigger(var, config):
-    pass
-
-
-@register_dumper("canalsat", CanalSatDumper)
-def canalsat_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "canalsat",
-    "CanalSat",
-    CANALSAT_SCHEMA,
-    (CONF_DEVICE, "device", cg.uint8),
-    (CONF_ADDRESS, "address", cg.uint8),
-    (CONF_COMMAND, "command", cg.uint8),
 )
 
 
