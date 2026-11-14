@@ -1,17 +1,16 @@
 #pragma once
 
+#include "esphome/core/component.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/fan/fan.h"
 
 namespace esphome::tuya {
 
-class TuyaFan final : public fan::Fan {
+class TuyaFan final : public Component, public fan::Fan {
  public:
   TuyaFan(Tuya *parent, int speed_count) : parent_(parent), speed_count_(speed_count) {}
-  // Called from generated code before setup, after the datapoint setters
-  void register_listeners();
-  // Called from the hub's dump_config()
-  void dump_child_config();
+  void setup() override;
+  void dump_config() override;
   void set_speed_id(uint8_t speed_id) { this->speed_id_ = speed_id; }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
   void set_oscillation_id(uint8_t oscillation_id) { this->oscillation_id_ = oscillation_id; }

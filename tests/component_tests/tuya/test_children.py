@@ -19,11 +19,12 @@ def test_children_register_before_setup_and_dump_from_hub(
     for var, setter in (
         ("tuya_sensor", "set_sensor_id(1)"),
         ("tuya_select", "set_select_id(42,"),
-        ("tuya_fan", "set_switch_id(3)"),
     ):
         register = at(f"{var}->register_listeners();")
         assert hub_listener < register
         assert at(f"{var}->{setter}") < register
-        assert f"App.register_component({var})" not in main_cpp
+        assert f"App.register_component_({var}" not in main_cpp
         assert f"::{var}->dump_child_config();" in main_cpp
     assert "tuya_hub->set_dump_publisher(esphome__tuya_hub__dump_fn);" in main_cpp
+    # The fan restores its state, so it stays a component
+    assert "App.register_component_(tuya_fan" in main_cpp

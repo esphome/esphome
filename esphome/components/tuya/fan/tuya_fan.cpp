@@ -6,7 +6,7 @@ namespace esphome::tuya {
 
 ESPHOME_LOG_TAG(TAG, "tuya.fan");
 
-void TuyaFan::register_listeners() {
+void TuyaFan::setup() {
   auto speed_id = this->speed_id_;
   if (speed_id.has_value()) {
     this->parent_->register_listener(*speed_id, [this](const TuyaDatapoint &datapoint) {
@@ -76,7 +76,7 @@ void TuyaFan::register_listeners() {
   });
 }
 
-void TuyaFan::dump_child_config() {
+void TuyaFan::dump_config() {
   LOG_FAN("", "Tuya Fan", this);
   auto speed_dp_id = this->speed_id_;
   if (speed_dp_id.has_value()) {
