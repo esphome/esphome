@@ -717,13 +717,6 @@ CanalSatData, CanalSatBinarySensor, CanalSatTrigger, _, CanalSatDumper = (
 )
 
 
-(
-    CanalSatLDData,
-    CanalSatLDBinarySensor,
-    CanalSatLDTrigger,
-    _,
-    CanalSatLDDumper,
-) = declare_protocol("CanalSatLD")
 CANALSATLD_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DEVICE): cv.hex_uint8_t,
@@ -731,39 +724,15 @@ CANALSATLD_SCHEMA = cv.Schema(
         cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
-
-
-@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSATLD_SCHEMA)
-def canalsatld_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                CanalSatLDData,
-                ("device", config[CONF_DEVICE]),
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
+CanalSatLDData, CanalSatLDBinarySensor, CanalSatLDTrigger, _, CanalSatLDDumper = (
+    register_simple_protocol(
+        "canalsatld",
+        "CanalSatLD",
+        CANALSATLD_SCHEMA,
+        (CONF_DEVICE, "device", cg.uint8),
+        (CONF_ADDRESS, "address", cg.uint8),
+        (CONF_COMMAND, "command", cg.uint8),
     )
-
-
-@register_trigger("canalsatld", CanalSatLDTrigger, CanalSatLDData)
-def canalsatld_trigger(var, config):
-    pass
-
-
-@register_dumper("canalsatld", CanalSatLDDumper)
-def canalsatld_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "canalsatld",
-    "CanalSatLD",
-    CANALSATLD_SCHEMA,
-    (CONF_DEVICE, "device", cg.uint8),
-    (CONF_ADDRESS, "address", cg.uint8),
-    (CONF_COMMAND, "command", cg.uint8),
 )
 
 

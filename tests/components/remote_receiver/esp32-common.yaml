@@ -66,6 +66,11 @@ binary_sensor:
       device: 0x25
       command: 0x02
   - platform: remote_receiver
+    name: CanalSatLD Remote Input
+    canalsatld:
+      device: 0x25
+      command: 0x02
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b
