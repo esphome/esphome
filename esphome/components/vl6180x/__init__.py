@@ -6,6 +6,7 @@ from esphome.components import i2c
 from esphome.components.i2c import CONF_I2C_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ENABLE_PIN, CONF_ID, CONF_INTERRUPT_PIN
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["sensor", "text_sensor"]
@@ -25,7 +26,7 @@ CONF_VL6180X_ID = "vl6180x_id"
 CONF_RECOVERY = "recovery"
 CONF_FAILURE_THRESHOLD = "failure_threshold"
 CONF_RETRY_INTERVAL = "retry_interval"
-CONF_MAX_RETRIES = "max_retries"
+CONF_INTEGRATION_TIME = "integration_time"
 
 ALS_GAINS = {
     1: 6,
@@ -46,6 +47,7 @@ ALS_GAINS = {
     "40x": 7,
 }
 ALS_GAIN_FACTORS = {6: 1.0, 5: 1.25, 4: 1.67, 3: 2.5, 2: 5.0, 1: 10.0, 0: 20.0, 7: 40.0}
+_ENABLE_PIN_IGNORED_KEYS = (CONF_ID, "number", "mode", "inverted", "allow_other_uses")
 
 
 RECOVERY_SCHEMA = cv.Schema(
@@ -54,7 +56,6 @@ RECOVERY_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RETRY_INTERVAL, default="30s"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MAX_RETRIES, default=10): cv.int_range(min=1, max=255),
     }
 )
 
@@ -75,7 +76,13 @@ _ENTRY_SCHEMA = (
 CONFIG_SCHEMA = cv.ensure_list(_ENTRY_SCHEMA)
 
 
-def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
+def _final_validate(_config: list[ConfigType]) -> None:
+    configured = fv.full_config.get().get(DOMAIN, [])
+    configs = [
+        entry
+        for section in configured
+        for entry in (section if isinstance(section, list) else [section])
+    ]
     for index, config in enumerate(configs):
         siblings = [
             entry for entry in configs if entry[CONF_I2C_ID] == config[CONF_I2C_ID]
@@ -98,7 +105,7 @@ def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
             {
                 key: value
                 for key, value in pin_config.items()
-                if key not in ("number", "mode", "inverted")
+                if key not in _ENABLE_PIN_IGNORED_KEYS
             }
         )
         for sibling_index, sibling in enumerate(configs):
@@ -110,7 +117,7 @@ def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
                     {
                         key: value
                         for key, value in sibling_pin.items()
-                        if key not in ("number", "mode", "inverted")
+                        if key not in _ENABLE_PIN_IGNORED_KEYS
                     }
                 )
                 if (
@@ -123,10 +130,11 @@ def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
                     )
             if sibling[CONF_ADDRESS] == config[CONF_ADDRESS]:
                 raise cv.Invalid(
-                    f"Address 0x{config[CONF_ADDRESS]:02X} is used more than once on this I2C bus",
+                    f"Address 0x{config[CONF_ADDRESS]:02X} is used more than "
+                    "once on this I2C bus",
                     path=[index, CONF_ADDRESS],
                 )
-    return configs
+    return None
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -134,9 +142,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: list[ConfigType]) -> None:
     for entry in config:
-        var = cg.new_Pvariable(entry[CONF_ID])
-        await cg.register_component(var, entry)
-        await i2c.register_i2c_device(var, entry)
+        var = await i2c.new_i2c_component(entry)
+        await cg.add_variable(var.set_bus_identity, entry[CONF_I2C_ID])
 
         cg.add(var.set_name_str(entry[CONF_ID].id))
 
@@ -155,4 +162,3 @@ async def to_code(config: list[ConfigType]) -> None:
             rec = entry[CONF_RECOVERY]
             cg.add(var.set_failure_threshold(rec[CONF_FAILURE_THRESHOLD]))
             cg.add(var.set_retry_interval(rec[CONF_RETRY_INTERVAL]))
-            cg.add(var.set_max_retries(rec[CONF_MAX_RETRIES]))

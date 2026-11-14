@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 from . import (
     ALS_GAIN_FACTORS,
     ALS_GAINS,
+    CONF_INTEGRATION_TIME,
     CONF_SCALER,
     CONF_VL6180X_ID,
     DOMAIN,
@@ -54,6 +55,9 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Optional(CONF_GAIN, default=1): cv.enum(ALS_GAINS),
                     cv.Optional(
+                        CONF_INTEGRATION_TIME, default=100
+                    ): cv.int_range(min=1, max=512),
+                    cv.Optional(
                         CONF_UPDATE_INTERVAL
                     ): cv.positive_time_period_milliseconds,
                 }
@@ -81,6 +85,7 @@ async def to_code(config: ConfigType) -> None:
         await sensors(CONF_LUX, hub.set_lux_sensor)
         gain_code = lux_config[CONF_GAIN].enum_value
         cg.add(hub.set_als_gain(gain_code, ALS_GAIN_FACTORS[gain_code]))
+        cg.add(hub.set_als_integration_time(lux_config[CONF_INTEGRATION_TIME]))
         cg.add_optional(
             hub.set_lux_update_interval, lux_config.get(CONF_UPDATE_INTERVAL)
         )

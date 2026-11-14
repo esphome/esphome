@@ -9,13 +9,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome::vl6180x {
-
-#ifndef VL6180X_INSTANCE_COUNT
-// Code generation supplies this macro for firmware builds. Static analysis and
-// host unit tests use a representative capacity when component codegen is off.
-static constexpr uint8_t VL6180X_INSTANCE_COUNT = 2;
+// The production code generator defines this from the configured hub count.
+// Host unit tests construct two hubs directly and do not run component codegen.
+#if defined(ESPHOME_DEBUG) && !defined(VL6180X_INSTANCE_COUNT)
+#define VL6180X_INSTANCE_COUNT 2
 #endif
+
+namespace esphome::vl6180x {
 
 namespace testing {
 class VL6180XComponentTest;
@@ -34,12 +34,8 @@ class VL6180XComponentTest;
 // If lux_start_() fires while a range cycle is in progress, lux_pending_ is
 // set and RANGE_WAIT chains to ALS_START after publishing the range result.
 //
-// When consecutive_failures_ reaches failure_threshold_, the sensor enters
-// RECOVERY_WAIT. The instance at all_instances()[0] is the designated reinit
-// initiator; it waits for all active measurements to finish, then calls
-// run_init_sequence() which performs a full Option-1 reinit of every sensor.
-// Non-initiator instances in RECOVERY_WAIT simply wait for the initiator to
-// complete, then reset themselves to IDLE.
+// A sensor that reaches its failure threshold enters RECOVERY_WAIT and retries
+// itself. A failed sensor does not pause healthy sensors or other I2C buses.
 //
 // loop() advances the active state on every main-loop iteration. Each state
 // does minimal I2C work and returns immediately — no blocking of the main loop.
@@ -51,6 +47,17 @@ enum class MeasurementState : uint8_t {
   MEASUREMENT_STATE_ALS_START,
   MEASUREMENT_STATE_ALS_WAIT,
   MEASUREMENT_STATE_RECOVERY_WAIT,
+};
+
+enum class RangeStatus : uint8_t {
+  RANGE_STATUS_OK,
+  RANGE_STATUS_HARDWARE_FAULT,
+  RANGE_STATUS_TARGET_TOO_CLOSE,
+  RANGE_STATUS_NO_TARGET,
+  RANGE_STATUS_OUT_OF_RANGE,
+  RANGE_STATUS_SENSOR_ERROR,
+  RANGE_STATUS_TIMEOUT,
+  RANGE_STATUS_RECOVERING,
 };
 
 // Returns true if state represents an active measurement (not idle/recovery)
@@ -66,12 +73,14 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // Configuration setters — called from generated code
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+  void set_bus_identity(i2c::I2CBus *bus) { this->bus_identity_ = bus; }
   void set_range_sensor(sensor::Sensor *s) { this->range_sensor_ = s; }
   void set_scaling(uint8_t scaling) { this->scaling_ = scaling; }
   void set_als_gain(uint8_t gain, float factor) {
     this->als_gain_ = gain;
     this->als_gain_factor_ = factor;
   }
+  void set_als_integration_time(uint16_t time_ms) { this->als_integration_time_ms_ = time_ms; }
   void set_range_status_sensor(text_sensor::TextSensor *s) { this->range_status_sensor_ = s; }
   void set_lux_sensor(sensor::Sensor *s) { this->lux_sensor_ = s; }
   void set_lux_update_interval(uint32_t ms) { this->lux_update_interval_ms_ = ms; }
@@ -80,8 +89,8 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // Recovery configuration — all optional, defaults applied in header
   void set_failure_threshold(uint8_t n) { this->failure_threshold_ = n; }
   void set_retry_interval(uint32_t ms) { this->retry_interval_ms_ = ms; }
-  void set_max_retries(uint8_t n) { this->max_retries_ = n; }
 
+  SLOT_LIST_REQUIRES(VL6180X_INSTANCE_COUNT)
   static void register_instance(VL6180XComponent *inst) { all_instances().push_back(inst); }
 
   void setup() override;
@@ -106,9 +115,9 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   bool configure_defaults_();
   bool apply_scaling_();
 
-  // Full Option-1 reinit of all sensors — shared by setup() and reinit path.
-  // Resets all instances to IDLE, runs the full XSHUT sequence, restores state.
-  static void run_init_sequence();
+  // Address assignment requires a shared startup sequence on one I2C bus.
+  static void run_init_sequence(i2c::I2CBus *bus);
+  bool recover_sensor_();
 
   // State machine steps
   void do_range_start_();
@@ -124,17 +133,18 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void record_failure_();
   // Called on any successful publish — resets the consecutive failure counter
   void record_success_();
-  void fail_range_measurement_(const char *status);
+  void fail_range_measurement_(RangeStatus status);
   void fail_lux_measurement_();
 
   // Publish helpers
   void publish_range_(uint8_t raw, uint8_t error_code);
-  void publish_range_error_(const char *status);
+  void publish_range_error_(RangeStatus status);
   void publish_lux_(uint16_t raw);
 
   // ── Sensor configuration ─────────────────────────────────────────────────
   GPIOPin *enable_pin_{nullptr};
   InternalGPIOPin *interrupt_pin_{nullptr};
+  i2c::I2CBus *bus_identity_{nullptr};
   sensor::Sensor *range_sensor_{nullptr};
   text_sensor::TextSensor *range_status_sensor_{nullptr};
   sensor::Sensor *lux_sensor_{nullptr};
@@ -143,6 +153,7 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   uint8_t scaling_{1};
   uint8_t als_gain_{6};
   float als_gain_factor_{1.0f};
+  uint16_t als_integration_time_ms_{100};
   int8_t ptp_offset_{0};
 
   // ── Operational state ────────────────────────────────────────────────────
@@ -155,7 +166,6 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // ── Health monitoring ────────────────────────────────────────────────────
   uint8_t failure_threshold_{3};       // consecutive failures before recovery
   uint32_t retry_interval_ms_{30000};  // ms between reinit attempts
-  uint8_t max_retries_{10};            // give up after this many failed reinits
   uint8_t consecutive_failures_{0};    // reset on any successful measurement
   uint8_t reinit_attempts_{0};         // attempts made in current recovery episode
   uint32_t reinit_due_at_{0};
