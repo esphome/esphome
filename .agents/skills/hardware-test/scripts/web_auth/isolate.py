@@ -12,14 +12,18 @@ import time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import authfuzz as af  # noqa: E402
 
+# the Uptime sensor updates every second; allow that plus request latency before calling a boot time later
+BOOT_SLACK_S = 3.0
 
-def uptime() -> float | None:
-    """The device's uptime, retried for about 50 s so a rebooting device can come back."""
+
+def boot_time() -> tuple[float | None, float | None]:
+    """(uptime, estimated boot time on the local monotonic clock), retried for about 50 s so a rebooting device
+    can come back; (None, None) when it never answers."""
     for _ in range(25):
         if (u := af.uptime()) is not None:
-            return float(u)
+            return float(u), time.monotonic() - float(u)
         time.sleep(2)
-    return None
+    return None, None
 
 
 def main() -> None:
@@ -44,7 +48,7 @@ def main() -> None:
         "control": get(auth=good),
     }
     only = sys.argv[5].split(",") if len(sys.argv) > 5 else list(cases)
-    u0 = uptime()
+    u0, b0 = boot_time()
     reboots = 0
     for r in range(rounds):
         for name in only:
@@ -52,14 +56,19 @@ def main() -> None:
             res = af.raw(cases[name], timeout=6, read_body=False)
             head = res["head"].split("\r\n", 1)[0] or res["err"] or "closed"
             time.sleep(4)
-            u1 = uptime()
-            rb = "REBOOT" if (u0 is None or u1 is None or u1 < u0) else "ok"
+            u1, b1 = boot_time()
+            # a later boot time catches a reboot even when the uptime climbed past the previous reading
+            rb = (
+                "REBOOT"
+                if (b0 is None or b1 is None or b1 - b0 > BOOT_SLACK_S)
+                else "ok"
+            )
             reboots += rb == "REBOOT"
             print(
                 f"[{t}] round {r} {name:22} -> {head[:40]:40} uptime {u0} -> {u1} {rb}",
                 flush=True,
             )
-            u0 = u1
+            u0, b0 = u1, b1
     print(
         "PASS" if not reboots else f"FAIL: {reboots} requests followed by a reboot",
         flush=True,

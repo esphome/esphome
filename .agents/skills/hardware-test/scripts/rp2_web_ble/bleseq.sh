@@ -19,6 +19,7 @@ for i in 1 2 3 4; do
 done
 sleep 3
 kill -0 $CAP 2>/dev/null || fail "the capture ended before the run did (see $D/$N-bleseq-cap.err)"
+[ "$(grep -a -c -v '^\[[0-9:.]*\]\[capture\]' $L)" -gt 0 ] || fail "no firmware lines in $L"
 kill $CAP; wait $CAP 2>/dev/null; trap - EXIT
 CRASH=$(grep -a -c -i -E 'CRASH|panic|HardFault|assert' $L)
 echo "serial: crash/assert $CRASH boots $(grep -a -c 'ESPHome version' $L) notify-response warnings $(grep -a -c 'Failed to send notify' $L) connects $(grep -a -c 'Connecting v3' $L)"

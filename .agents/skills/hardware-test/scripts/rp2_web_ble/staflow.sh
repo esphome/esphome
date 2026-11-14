@@ -43,6 +43,7 @@ if [ $BLE = 1 ]; then
 fi
 sleep 3
 kill -0 $CAP 2>/dev/null || fail "the capture ended before the run did (see $D/$N-cap.err)"
+[ "$(grep -a -c -v '^\[[0-9:.]*\]\[capture\]' $L)" -gt 0 ] || fail "no firmware lines in $L"
 kill $CAP; wait $CAP 2>/dev/null; trap - EXIT
 CRASH=$(grep -a -c -i -E 'CRASH|panic|HardFault|assert|lock not held' $L)
 echo "serial: crash/assert lines $CRASH, boots $(grep -a -c 'Log initialized\|ESPHome version' $L), port losses $(grep -a -c 'port lost' $L), lines $(wc -l < $L)"

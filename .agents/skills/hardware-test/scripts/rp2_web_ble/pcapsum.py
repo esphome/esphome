@@ -43,7 +43,8 @@ def packets(pcap: str, dev: str) -> Iterator[dict]:
             "line": line,
         }
     if skipped:
-        print(f"warning: {skipped} TCP lines did not parse", file=sys.stderr)
+        # on stdout, so a summary built from part of the capture says so
+        print(f"warning: {skipped} TCP lines did not parse", flush=True)
     if skipped and not parsed:
         sys.exit("no TCP line parsed; the tcpdump output format differs")
 
