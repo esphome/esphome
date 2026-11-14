@@ -7,7 +7,7 @@ namespace esphome::xiaomi_mhoc401 {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_mhoc401");
 
-void XiaomiMHOC401::dump_config() {
+void XiaomiMHOC401::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MHOC401");
   this->dump_bindkey_(TAG);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

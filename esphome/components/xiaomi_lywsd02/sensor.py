@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -19,9 +20,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_lywsd02_ns = cg.esphome_ns.namespace("xiaomi_lywsd02")
-XiaomiLYWSD02 = xiaomi_lywsd02_ns.class_(
-    "XiaomiLYWSD02", xiaomi_ble.XiaomiDevice, cg.Component
-)
+XiaomiLYWSD02 = xiaomi_lywsd02_ns.class_("XiaomiLYWSD02", xiaomi_ble.XiaomiDevice)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("xiaomi_lywsd02"),
@@ -49,14 +48,13 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await ble_device_base.register_ble_device(var, config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 

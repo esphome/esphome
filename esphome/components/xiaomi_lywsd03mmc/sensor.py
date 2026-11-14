@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -23,7 +24,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_lywsd03mmc_ns = cg.esphome_ns.namespace("xiaomi_lywsd03mmc")
 XiaomiLYWSD03MMC = xiaomi_lywsd03mmc_ns.class_(
-    "XiaomiLYWSD03MMC", xiaomi_ble.XiaomiEncryptedDevice, cg.Component
+    "XiaomiLYWSD03MMC", xiaomi_ble.XiaomiEncryptedDevice
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -53,14 +54,13 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await ble_device_base.register_ble_device(var, config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 

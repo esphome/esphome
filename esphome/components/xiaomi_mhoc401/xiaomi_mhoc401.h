@@ -6,13 +6,13 @@
 
 namespace esphome::xiaomi_mhoc401 {
 
-class XiaomiMHOC401 final : public Component, public xiaomi_ble::XiaomiEncryptedDevice {
+class XiaomiMHOC401 final : public xiaomi_ble::XiaomiEncryptedDevice {
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
   SUB_SENSOR(battery_level)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;

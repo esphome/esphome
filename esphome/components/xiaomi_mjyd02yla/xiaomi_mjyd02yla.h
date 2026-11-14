@@ -7,16 +7,14 @@
 
 namespace esphome::xiaomi_mjyd02yla {
 
-class XiaomiMJYD02YLA final : public Component,
-                              public binary_sensor::BinarySensorInitiallyOff,
-                              public xiaomi_ble::XiaomiEncryptedDevice {
+class XiaomiMJYD02YLA final : public binary_sensor::BinarySensorInitiallyOff, public xiaomi_ble::XiaomiEncryptedDevice {
   SUB_SENSOR(idle_time)
   SUB_SENSOR(battery_level)
   SUB_SENSOR(illuminance)
   SUB_BINARY_SENSOR(light)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;

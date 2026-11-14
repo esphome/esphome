@@ -14,7 +14,7 @@ struct ParseResult {
   optional<float> impedance;
 };
 
-class XiaomiMiscale final : public Component, public ble_device_base::ESPBTDeviceListener {
+class XiaomiMiscale final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(weight)
   SUB_SENSOR(impedance)
 
@@ -22,7 +22,7 @@ class XiaomiMiscale final : public Component, public ble_device_base::ESPBTDevic
   void set_address(uint64_t address) { address_ = address; };
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-  void dump_config() override;
+  void dump_child_config() override;
   void set_clear_impedance(bool clear_impedance) { clear_impedance_ = clear_impedance; }
 
  protected:

@@ -6,12 +6,12 @@
 
 namespace esphome::xiaomi_hhccpot002 {
 
-class XiaomiHHCCPOT002 final : public Component, public xiaomi_ble::XiaomiDevice {
+class XiaomiHHCCPOT002 final : public xiaomi_ble::XiaomiDevice {
   SUB_SENSOR(moisture)
   SUB_SENSOR(conductivity)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
