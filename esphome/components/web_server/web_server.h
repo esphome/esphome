@@ -149,9 +149,9 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
   uint16_t consecutive_send_failures_{0};
-  // Set by the network callbacks; the list handles them on the main loop
-  bool connected_{false};
-  bool disconnected_{false};
+  // Set by the network callbacks; handled on the main loop
+  volatile bool connected_{false};
+  volatile bool disconnected_{false};
   static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 
   // helper for allowing only unique entries in the queue
@@ -159,6 +159,10 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 
   void process_deferred_queue_();
   void send_initial_();
+  bool has_work_() const {
+    return this->connected_ || this->disconnected_ || !this->deferred_queue_.empty() ||
+           !this->entities_iterator_.completed();
+  }
 
  public:
   DeferredUpdateEventSource(WebServer *ws, const String &url)

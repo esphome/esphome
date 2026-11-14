@@ -263,6 +263,10 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
 }
 
 void DeferredUpdateEventSource::loop() {
+  if (this->connected_) {
+    this->connected_ = false;
+    this->send_initial_();
+  }
   process_deferred_queue_();
   // One step per loop; refusals retry next pass
   this->entities_iterator_.try_advance(1);
@@ -306,7 +310,6 @@ void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t mes
 
 void DeferredUpdateEventSource::send_initial_() {
   WebServer *ws = this->web_server_;
-  // Configure reconnect timeout and send config
   // this should always go through since the AsyncEventSourceClient event queue is empty on connect
   auto message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
@@ -328,8 +331,19 @@ void DeferredUpdateEventSource::send_initial_() {
 }
 
 // RP2: RPAsyncTCP adds and frees clients from lwIP's async context and the library locks its client list only on
-// ESP32, so main loop access holds LwIPLock.
+// ESP32, so library calls from the main loop hold LwIPLock (empty on ESP8266 and LibreTiny).
 bool DeferredUpdateEventSourceList::loop() {
+  // Lock only with work: each RP2 release re-arms the 20 ms Ethernet poll, so locking every pass starves a polled
+  // NIC. Walking unlocked is safe as the lwIP context only appends, and runs to completion.
+  bool work = false;
+  for (DeferredUpdateEventSource *dues : *this) {
+    if (dues->has_work_()) {
+      work = true;
+      break;
+    }
+  }
+  if (!work)
+    return !this->empty();
   LwIPLock lock;
   for (auto it = this->begin(); it != this->end();) {
     DeferredUpdateEventSource *dues = *it;
@@ -337,10 +351,6 @@ bool DeferredUpdateEventSourceList::loop() {
       it = this->erase(it);
       delete dues;  // NOLINT
       continue;
-    }
-    if (dues->connected_) {
-      dues->connected_ = false;
-      dues->send_initial_();
     }
     dues->loop();
     ++it;
@@ -373,7 +383,6 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
-  // These run in the network callback context: they only set a flag, which loop() handles on the main loop
   es->onConnect([es](AsyncEventSourceClient *) { es->connected_ = true; });
   es->onDisconnect([es](AsyncEventSourceClient *) { es->disconnected_ = true; });
 
