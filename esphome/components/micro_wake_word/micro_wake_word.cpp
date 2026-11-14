@@ -474,7 +474,7 @@ void MicroWakeWord::loop() {
   switch (this->state_) {
     case State::STARTING:
       if (!this->inference_task_.is_created() && !this->status_has_error()) {
-        // Setup preprocesor feature generator. If done in the task, it would lock the task to its initial core, as it
+        // Setup preprocessor feature generator. If done in the task, it would lock the task to its initial core, as it
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {

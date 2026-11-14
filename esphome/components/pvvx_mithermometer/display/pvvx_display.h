@@ -75,7 +75,7 @@ class PVVXDisplay final : public ble_client::BLEClientNode, public PollingCompon
    * Print a happy face
    *
    * Can be combined with print_sad()  print_bracket().
-   * Possible ouputs are:
+   * Possible outputs are:
    *
    * @verbatim
    * bracket sad happy
