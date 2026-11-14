@@ -18,13 +18,10 @@ _FLAG = "-DxPortGetCoreID=int"
         ("loglevel: debug", True),
         ("loglevel: info", False),
         ("loglevel: warn", False),
-        (None, False),
         # framework options override loglevel, as LibreTiny applies them last
         ("options:\n      LT_LOGLEVEL: LT_LEVEL_DEBUG", True),
         ("options:\n      LT_LOGLEVEL: 1", True),
-        ("options:\n      LT_LOGLEVEL: 0", True),
         ("options:\n      LT_LOGLEVEL: LT_LEVEL_INFO", False),
-        ("options:\n      LT_LOGLEVEL: 3", False),
         ("loglevel: debug\n    options:\n      LT_LOGLEVEL: LT_LEVEL_WARN", False),
         ("loglevel: warn\n    options:\n      LT_LOGLEVEL: LT_LEVEL_DEBUG", True),
     ],

@@ -1,6 +1,6 @@
 # Async TCP client support for all platforms
 import esphome.codegen as cg
-from esphome.components.libretiny.const import CONF_LOGLEVEL, LT_LOGLEVELS
+from esphome.components.libretiny.const import CONF_LOGLEVEL
 import esphome.config_validation as cv
 from esphome.const import CONF_FRAMEWORK, CONF_OPTIONS
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -10,22 +10,17 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 DOMAIN = "async_tcp"
 
-# LT_LOGLEVEL values that compile LibreTiny's log_d in (LT_LOGLEVELS runs from most verbose), including the
-# numeric forms from lt_config.h (LT_LEVEL_TRACE 0, LT_LEVEL_DEBUG 1)
-_LT_DEBUG_LOGLEVELS = {
-    *(f"LT_LEVEL_{level}" for level in LT_LOGLEVELS[: LT_LOGLEVELS.index("DEBUG") + 1]),
-    "0",
-    "1",
-}
+# LT_LOGLEVEL values that compile LibreTiny's log_d in (lt_config.h: VERBOSE is TRACE 0, DEBUG 1)
+_LT_DEBUG_LOGLEVELS = {"LT_LEVEL_VERBOSE", "LT_LEVEL_TRACE", "LT_LEVEL_DEBUG", "0", "1"}
 
 
 def _libretiny_logs_debug() -> bool:
-    """Whether LibreTiny's log_d is compiled in; framework options override loglevel, as libretiny applies them last."""
+    """Whether LibreTiny compiles log_d in; framework options override loglevel."""
     framework = CORE.config[CORE.target_platform][CONF_FRAMEWORK]
     level = framework[CONF_OPTIONS].get(
         "LT_LOGLEVEL", f"LT_LEVEL_{framework[CONF_LOGLEVEL]}"
     )
-    return str(level).strip() in _LT_DEBUG_LOGLEVELS
+    return level.strip() in _LT_DEBUG_LOGLEVELS
 
 
 def AUTO_LOAD() -> list[str]:
