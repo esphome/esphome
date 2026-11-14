@@ -54,6 +54,7 @@ from esphome.automation import (
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
+    call_user_lambda,
     choose_action_to_code,
     has_non_synchronous_actions,
     if_action_to_code,
@@ -3395,7 +3396,7 @@ async def test_trigger_callback_all_inline_is_direct() -> None:
 
 @pytest.fixture
 def statements_action() -> Generator[None]:
-    """Register ``my.statements``, a builder that generates its own statements."""
+    """Register ``my.statements`` and ``my.lambda_statements``, builders that generate their own statements."""
 
     @register_action("my.statements", ApplyAction, {}, synchronous=True)
     async def statements_to_code(
@@ -3407,6 +3408,17 @@ def statements_action() -> Generator[None]:
         return apply_statements_action(
             action_id, template_arg, args, ["auto esphome__v = x;", "use(esphome__v);"]
         )
+
+    @register_action("my.lambda_statements", ApplyAction, {}, synchronous=True)
+    async def lambda_statements_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        value = await call_user_lambda(config["value"], args, cg.int32)
+        text = str(cg.statement(cg.MockObj("use")(value)))
+        return apply_statements_action(action_id, template_arg, args, [text])
 
     yield
 
@@ -3442,6 +3454,44 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
     assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
     text = CORE.cpp_global_section
     assert text.index("use(esphome__v);") < text.index("::comp->do_a();")
+
+
+def _lambda_statements(body: str) -> ConfigType:
+    """``my.lambda_statements`` with ``body`` as its value lambda."""
+    config = _action("my.lambda_statements", "act_l")
+    config["my.lambda_statements"]["value"] = Lambda(body)
+    return config
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_call_user_lambda_naming_no_arg_is_reduced() -> None:
+    """In a builder's own statements, a lambda that names no arg is its bare expression."""
+    config = [_lambda_statements("return 42;")]
+
+    await build_action_list(
+        config, cg.TemplateArguments(cg.std_string), [(cg.std_string, "x")]
+    )
+
+    text = CORE.cpp_global_section
+    assert "use(static_cast<int32_t>(42));" in text
+    assert "std::string x)" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_call_user_lambda_copies_a_named_value_arg() -> None:
+    """A lambda that names a value arg gets its own copy, so it may modify it."""
+    config = [_lambda_statements('x += "!";\nreturn x.size();')]
+
+    await build_action_list(
+        config, cg.TemplateArguments(cg.std_string), [(cg.std_string, "x")]
+    )
+
+    text = _squash(CORE.cpp_global_section)
+    assert "esphome__act_l__fn(const std::remove_cvref_t<std::string> & x)" in text
+    assert "use([](std::string x) -> int32_t {" in text
+    assert "}(x));" in text
 
 
 FILTER_CLASS = cg.esphome_ns.namespace("domain").class_("ApplyFilter")
