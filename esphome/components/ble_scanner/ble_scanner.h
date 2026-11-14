@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <ctime>
 
-#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/ble_device_base/ble_device.h"

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
 

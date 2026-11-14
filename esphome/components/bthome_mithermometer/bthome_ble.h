@@ -2,7 +2,6 @@
 
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/core/component.h"
 
 #include <cstdint>
 #include <initializer_list>
