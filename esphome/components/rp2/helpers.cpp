@@ -7,9 +7,10 @@
 
 #if defined(USE_WIFI)
 #include <WiFi.h>
-#include <pico/cyw43_arch.h>  // For cyw43_arch_lwip_begin/end (LwIPLock)
-#elif defined(USE_ETHERNET)
-#include <lwip_wrap.h>  // For LWIPMutex — LwIPLock mirrors its semantics (see below)
+#include <pico/cyw43_arch.h>  // For cyw43_arch_lwip_begin/end (LwIPMutex)
+#endif
+#if defined(USE_ETHERNET)
+#include <lwip_wrap.h>  // For LWIPMutex — LwIPMutex mirrors its semantics (see below)
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
 #include <hardware/structs/rosc.h>
@@ -41,7 +42,8 @@ IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 //
 // Without locking, recv_fn() from IRQ context races with read_locked_() on the
 // main loop, corrupting the shared rx_buf_ pbuf chain (use-after-free, pbuf_cat
-// assertion failures). See esphome#10681.
+// assertion failures). See esphome#10681. The scheduler takes the same lock, as
+// web_server, captive portal and web OTA call defer() from those callbacks.
 //
 // WiFi uses cyw43_arch_lwip_begin/end.
 //
@@ -50,37 +52,43 @@ IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 // counter to decide whether to defer packet processing. If we hold the
 // async_context lock without bumping `__inLWIP`, an interrupt-driven packet
 // arrival re-enters lwIP from IRQ context and corrupts pbufs (the `pbuf_cat`
-// assertion crash on wiznet-w5500-evb-pico). We mirror arduino-pico's
+// assertion crash on wiznet-w5500-evb-pico). LwIPMutex mirrors arduino-pico's
 // LWIPMutex (cores/rp2040/lwip_wrap.h) exactly: bump `__inLWIP`, take the
 // lock, and on release re-unmask any GPIO IRQs that were deferred while we
 // held it. We can't `using LwIPLock = LWIPMutex;` in helpers.h because
 // pulling lwip_wrap.h there poisons many TUs with lwIP types.
 //
+// Ethernet comes first so Wi-Fi + Ethernet also bumps `__inLWIP`;
+// ethernet_arch_lwip_begin() takes cyw43_arch_lwip_begin() itself on a Pico W.
+//
 // When neither WiFi nor Ethernet is configured, this is a no-op since
 // there's no network stack and no lwip callbacks to race with.
-#if defined(USE_WIFI)
-void LwIPMutex::lock() { cyw43_arch_lwip_begin(); }
-void LwIPMutex::unlock() { cyw43_arch_lwip_end(); }
-#elif defined(USE_ETHERNET)
+#if defined(USE_ETHERNET)
 void LwIPMutex::lock() {
-  __inLWIP++;
+  __inLWIP = __inLWIP + 1;
   ethernet_arch_lwip_begin();
 }
 void LwIPMutex::unlock() {
   ethernet_arch_lwip_end();
-  __inLWIP--;
+  __inLWIP = __inLWIP - 1;
   if (__needsIRQEN && !__inLWIP) {
     __needsIRQEN = false;
     ethernet_arch_lwip_gpio_unmask();
   }
 }
-#endif
-#if defined(USE_WIFI) || defined(USE_ETHERNET)
-LwIPLock::LwIPLock() { LwIPMutex::lock(); }
-LwIPLock::~LwIPLock() { LwIPMutex::unlock(); }
+#elif defined(USE_WIFI)
+// No async context when CYW43 init was skipped (a Pico W image on a plain Pico): nothing to lock out
+void LwIPMutex::lock() {
+  if (cyw43_arch_async_context() != nullptr)
+    cyw43_arch_lwip_begin();
+}
+void LwIPMutex::unlock() {
+  if (cyw43_arch_async_context() != nullptr)
+    cyw43_arch_lwip_end();
+}
 #else
-LwIPLock::LwIPLock() {}
-LwIPLock::~LwIPLock() {}
+void LwIPMutex::lock() {}
+void LwIPMutex::unlock() {}
 #endif
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
