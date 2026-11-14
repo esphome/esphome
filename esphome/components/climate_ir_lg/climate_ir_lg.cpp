@@ -112,6 +112,27 @@ const uint32_t TEMP_SHIFT = 8;
 
 const uint16_t BITS = 28;
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Mode commands sit in bits 12-15; the command that also powers the unit on clears the top one
+static constexpr uint8_t MODE_SHIFT = 12;
+static constexpr uint8_t MODE_NOT_POWER_ON = COMMAND_COOL >> MODE_SHIFT;
+// A mode not listed is sent as off
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_COOL, COMMAND_COOL >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_DRY, COMMAND_DRY >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_FAN_ONLY, COMMAND_FAN_ONLY >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_HEAT_COOL, COMMAND_AI >> MODE_SHIFT},
+    {climate::CLIMATE_MODE_HEAT, COMMAND_HEAT >> MODE_SHIFT},
+};
+// The first entry is the fallback when sending; F2 and F4 are only received
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, FAN_AUTO}, {climate::CLIMATE_FAN_HIGH, FAN_MAX}, {climate::CLIMATE_FAN_MEDIUM, FAN_MED},
+    {climate::CLIMATE_FAN_LOW, FAN_MIN},   {climate::CLIMATE_FAN_LOW, FAN_F2},   {climate::CLIMATE_FAN_MEDIUM, FAN_F4},
+};
+
 void LgIrClimate::transmit_state() {
   uint32_t remote_state = LG_HEADER;
 
@@ -144,27 +165,13 @@ void LgIrClimate::transmit_state() {
     this->transmit_(remote_state);
     return;
   } else {  // Mode commands
-    const bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
-    switch (this->mode) {
-      case climate::CLIMATE_MODE_COOL:
-        remote_state |= climate_is_off ? COMMAND_ON_COOL : COMMAND_COOL;
-        break;
-      case climate::CLIMATE_MODE_DRY:
-        remote_state |= climate_is_off ? COMMAND_ON_DRY : COMMAND_DRY;
-        break;
-      case climate::CLIMATE_MODE_FAN_ONLY:
-        remote_state |= climate_is_off ? COMMAND_ON_FAN_ONLY : COMMAND_FAN_ONLY;
-        break;
-      case climate::CLIMATE_MODE_HEAT_COOL:
-        remote_state |= climate_is_off ? COMMAND_ON_AI : COMMAND_AI;
-        break;
-      case climate::CLIMATE_MODE_HEAT:
-        remote_state |= climate_is_off ? COMMAND_ON_HEAT : COMMAND_HEAT;
-        break;
-      case climate::CLIMATE_MODE_OFF:
-      default:
-        remote_state |= CommandSys::HEADER_SYS;
-        remote_state |= CommandSys::COMMAND_OFF;
+    if (const auto entry = find_ir_code(MODES, this->mode, false)) {
+      const bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
+      remote_state |= static_cast<uint32_t>(climate_is_off ? entry->code & ~MODE_NOT_POWER_ON : entry->code)
+                      << MODE_SHIFT;
+    } else {
+      remote_state |= CommandSys::HEADER_SYS;
+      remote_state |= CommandSys::COMMAND_OFF;
     }
   }
 
@@ -175,21 +182,7 @@ void LgIrClimate::transmit_state() {
   // Set fan speed
   if (this->mode !=
       climate::CLIMATE_MODE_OFF) {  // https://github.com/esphome/esphome/pull/10875#issuecomment-5042765948
-    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-      case climate::CLIMATE_FAN_HIGH:
-        remote_state |= FAN_MAX;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        remote_state |= FAN_MED;
-        break;
-      case climate::CLIMATE_FAN_LOW:
-        remote_state |= FAN_MIN;
-        break;
-      case climate::CLIMATE_FAN_AUTO:
-      default:
-        remote_state |= FAN_AUTO;
-        break;
-    }
+    remote_state |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
   }
 
   uint8_t temp;
@@ -294,52 +287,25 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
       this->publish_state();
       return true;
-    // Following commands also contain fan speed and temperature, so no 'return' in these cases
-    case COMMAND_DRY:
-    case COMMAND_ON_DRY:
-      this->mode = climate::CLIMATE_MODE_DRY;
+    default: {
+      // Mode commands also contain fan speed and temperature, so no 'return' here
+      const uint8_t command = (remote_state & COMMAND_HEADER_MASK) >> MODE_SHIFT;
+      const auto mode = find_ir_code(MODES, command | MODE_NOT_POWER_ON, true);
+      if (!mode.has_value()) {
+        ESP_LOGD(TAG, "Got unknown command! Ignoring!");
+        return false;
+      }
+      this->mode = static_cast<climate::ClimateMode>(mode->value);
       break;
-    case COMMAND_FAN_ONLY:
-    case COMMAND_ON_FAN_ONLY:
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-      break;
-    case COMMAND_AI:
-    case COMMAND_ON_AI:
-      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-      break;
-    case COMMAND_HEAT:
-    case COMMAND_ON_HEAT:
-      this->mode = climate::CLIMATE_MODE_HEAT;
-      break;
-    case COMMAND_COOL:
-    case COMMAND_ON_COOL:
-      this->mode = climate::CLIMATE_MODE_COOL;
-      break;
-    default:
-      ESP_LOGD(TAG, "Got unknown command! Ignoring!");
-      return false;
+    }
   }
 
-  // Decode fan speed
-  switch (remote_state & FAN_SPEED_MASK) {
-    case FAN_AUTO:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-    case FAN_MIN:
-    case FAN_F2:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case FAN_MED:
-    case FAN_F4:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case FAN_MAX:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    default:
-      ESP_LOGD(TAG, "Got unknown fan speed! Ignoring!");
-      return false;
+  const auto fan = find_ir_code(FANS, remote_state & FAN_SPEED_MASK, true);
+  if (!fan.has_value()) {
+    ESP_LOGD(TAG, "Got unknown fan speed! Ignoring!");
+    return false;
   }
+  this->fan_mode = static_cast<climate::ClimateFanMode>(fan->value);
 
   // Keep previous behavior
   if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->advanced_commands_support_)) {
