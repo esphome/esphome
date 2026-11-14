@@ -1,4 +1,5 @@
 from esphome import automation, pins
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
@@ -45,6 +46,15 @@ DATAPOINT_TYPES = {
 
 
 CONF_TUYA_ID = "tuya_id"
+
+# The hub's dump_config prints each child's dump
+DUMP_PUBLISHER = cg.HubFunction("dump", cg.void, [], define="USE_TUYA_DUMP_PUBLISHER")
+
+
+def register_tuya_child(hub: MockObj, var: MockObj) -> None:
+    """Register the datapoint listeners of ``var`` before setup; call after its datapoint setters."""
+    cg.add(var.register_listeners())
+    DUMP_PUBLISHER.add(hub, parent_ref(var).dump_child_config())
 
 
 def _validate_time_options(config: ConfigType) -> ConfigType:

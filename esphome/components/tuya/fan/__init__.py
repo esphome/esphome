@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_SWITCH_DATAPOINT,
 )
 
-from .. import CONF_TUYA_ID, Tuya, tuya_ns
+from .. import CONF_TUYA_ID, Tuya, register_tuya_child, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 
@@ -16,11 +16,10 @@ CONF_SPEED_DATAPOINT = "speed_datapoint"
 CONF_OSCILLATION_DATAPOINT = "oscillation_datapoint"
 CONF_DIRECTION_DATAPOINT = "direction_datapoint"
 
-TuyaFan = tuya_ns.class_("TuyaFan", cg.Component, fan.Fan)
+TuyaFan = tuya_ns.class_("TuyaFan", fan.Fan)
 
 CONFIG_SCHEMA = cv.All(
-    fan.fan_schema(TuyaFan)
-    .extend(
+    fan.fan_schema(TuyaFan).extend(
         {
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Optional(CONF_OSCILLATION_DATAPOINT): cv.uint8_t,
@@ -30,17 +29,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SPEED_COUNT, default=3): cv.int_range(min=1, max=256),
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA),
+    ),
     cv.has_at_least_one_key(CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT),
 )
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_TUYA_ID])
+    hub = await cg.get_variable(config[CONF_TUYA_ID])
 
-    var = cg.new_Pvariable(config[CONF_ID], parent, config[CONF_SPEED_COUNT])
-    await cg.register_component(var, config)
+    var = cg.new_Pvariable(config[CONF_ID], hub, config[CONF_SPEED_COUNT])
     await fan.register_fan(var, config)
 
     cg.add_optional(var.set_speed_id, config.get(CONF_SPEED_DATAPOINT))
@@ -48,3 +45,4 @@ async def to_code(config):
     cg.add_optional(var.set_oscillation_id, config.get(CONF_OSCILLATION_DATAPOINT))
     cg.add_optional(var.set_direction_id, config.get(CONF_DIRECTION_DATAPOINT))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    register_tuya_child(hub, var)
