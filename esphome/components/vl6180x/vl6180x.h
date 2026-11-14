@@ -150,6 +150,7 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(range);
   SUB_TEXT_SENSOR(range_status);
   SUB_SENSOR(lux);
+
  protected:
   uint32_t lux_update_interval_ms_{0};
   const char *name_str_{"vl6180x"};

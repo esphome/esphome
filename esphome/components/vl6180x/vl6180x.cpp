@@ -1020,7 +1020,8 @@ void VL6180XComponent::dump_config() {
   LOG_SENSOR("  ", "Lux", this->lux_sensor_);
   ESP_LOGCONFIG(TAG, "  Recovery: threshold=%u, retry_interval=%lus, max_retries=%u",
                 static_cast<unsigned>(this->failure_threshold_),
-                static_cast<unsigned long>(this->retry_interval_ms_ / 1000U), static_cast<unsigned>(this->max_retries_));
+                static_cast<unsigned long>(this->retry_interval_ms_ / 1000U),
+                static_cast<unsigned>(this->max_retries_));
   LOG_UPDATE_INTERVAL(this);
   if (this->recovery_exhausted_) {
     ESP_LOGE(TAG, "  Recovery stopped after %u failed attempts", static_cast<unsigned>(this->reinit_attempts_));
