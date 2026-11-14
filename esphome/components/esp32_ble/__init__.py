@@ -590,6 +590,22 @@ async def to_code(config: ConfigType) -> None:
         _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
         add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
 
+    # Bluedroid runs a queued MTU or execute write request that fails at once again until the BTU task stack
+    # overflows (see bluedroid_gattc_queue.c); every ESP-IDF release so far. Private headers, as above.
+    if (
+        CORE.using_toolchain_esp_idf
+        and not IS_WINDOWS
+        and _has_gatt_client(CORE.config)
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_GATTC_QUEUE")
+        _wrap_bluedroid_symbols(
+            "bta_gattc_cfg_mtu",
+            "bta_gattc_execute",
+            "GATTC_ConfigureMTU",
+            "GATTC_ExecuteWrite",
+        )
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_gattc_queue.c"))
+
     # ESP-IDF 5.5.6 and 6.0.3 end GATT discovery on a response listing handles out of order
     # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
     if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
@@ -681,6 +697,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
         "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
         "bluedroid_bond_keys.c": "USE_ESP32_BLE_BLUEDROID_BOND_KEYS",
+        "bluedroid_gattc_queue.c": "USE_ESP32_BLE_BLUEDROID_GATTC_QUEUE",
         "bluedroid_gattc_order.cpp": "USE_ESP32_BLE_GATTC_HANDLE_ORDER",
     }
 )
