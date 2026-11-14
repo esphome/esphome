@@ -57,6 +57,7 @@ from .const_zephyr import (
     KEY_EP_NUMBER,
     MAX_EP_NUMBER_ZEPHYR,
 )
+from .endpoints_zephyr import endpoint_ids
 from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
@@ -307,6 +308,8 @@ async def setup_number(
 def consume_endpoint(config: ConfigType) -> ConfigType:
     if not config.get(CONF_ZIGBEE_ID):
         return config
+    if (endpoint := config.get(CONF_ENDPOINT)) is not None:
+        endpoint_ids().reserve(endpoint)
     if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
             "Spaces in '%s' requires ZHA or at least Zigbee2MQTT 2.8.0. For older version of Zigbee2MQTT use '%s'",

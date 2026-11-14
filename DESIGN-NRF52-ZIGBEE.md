@@ -1,7 +1,36 @@
 # Optional nRF52 Zigbee endpoints and generic attributes
 
-Design checkpoint, 2026-11-15. No implementation in this checkpoint.
-Base: `904f0df92034ee70233f6f225c65a5784fb2a6a8`.
+Endpoint numbering implementation checkpoint. Advanced attributes remain a design proposal.
+Upstream source base: `904f0df92034ee70233f6f225c65a5784fb2a6a8`.
+Implementation/test baseline: `3a5267b7cafe505ce448d8d3509c2c38b7ac5cee`
+(the source base plus the reviewed design document).
+
+## First slice status
+
+Implemented optional `endpoint` for nRF sensor, binary sensor, number and switch
+entities. Explicit IDs 1..239 are reserved before implicit allocation; compact slots
+remain limited to eight. Time uses its resolved implicit ID. The runtime callback
+table performs bounded lookup by wire ID and rejects zero, reserved IDs, duplicate
+registrations and capacity overflow. Simple YAML still needs no cluster declarations.
+
+Validation: the pre-change core baseline passed 134 tests. The first new explicit-17
+test failed at the ESP32-only schema gate before implementation, then passed. The
+final targeted Python run passed 168 tests, with one host C++ test skipped on the
+authoring worker because it has no compiler. The existing nine core coroutine
+warnings were also present in the baseline. Full generated C++ matches the base for
+legacy nRF and default/explicit ESP32 fixtures after build-time normalization. The
+language schema builds successfully; neutral build YAML validates. An independent
+read-only review found no correctness defect. External isolated host execution of
+the callback test with ASan/UBSan was reported successful; final target compilation
+is a separate validation step and is not claimed here.
+
+Compatibility guarantees apply to public YAML. Internal allocation/codegen helpers
+now distinguish compact slots from wire IDs; external code that calls those helpers
+directly must review its assumptions. Such consumers are outside this slice's public
+YAML compatibility guarantee.
+
+No generic attribute API, command handling, standard-cluster expansion or production
+configuration changes are included in this implementation checkpoint.
 
 ## Acceptance and corrected API assumption
 
@@ -27,8 +56,8 @@ support and automatic Zigbee2MQTT converter/exposes generation.
 
 ### Simple: unchanged automatic endpoints
 
-This illustrates existing syntax. The commented option is the proposed nRF port of
-the existing ESP32 option; it needs no advanced configuration.
+This illustrates existing syntax. The commented option is now available on nRF as
+well as ESP32; it needs no advanced configuration.
 
 ```yaml
 esphome:
@@ -42,7 +71,7 @@ sensor:
     id: sample_a
     name: Sample A
     lambda: return 12.0f;
-    # endpoint: 17  # Optional after the numbering slice; otherwise automatic.
+    # endpoint: 17  # Optional; otherwise automatic.
   - platform: template
     id: sample_b
     name: Sample B
@@ -223,7 +252,8 @@ validation exists, reject unsupported standard-cluster configurations clearly.
 
 ## Sequential RED–GREEN roadmap
 
-No implementation is started at this checkpoint. Execute one failing behavior test,
+The optional numbering slice below is implemented; later slices remain deferred.
+For subsequent work, execute one failing behavior test,
 minimal implementation, passing targeted checks and review before the next bullet.
 An unavailable test runner is a prerequisite failure, not a RED behavioral result.
 

@@ -1,0 +1,16 @@
+ESPHOME_ZB_HA_DECLARE_EP(zigbee_ep1_ep, 1, zigbee_ep1_cluster_list, 3, 0, 2, ZB_HA_CUSTOM_ATTR_DEVICE_ID, ZB_ZCL_CLUSTER_ID_BASIC, ZB_ZCL_CLUSTER_ID_IDENTIFY, ZB_ZCL_CLUSTER_ID_ANALOG_INPUT);
+ESPHOME_ZB_HA_DECLARE_EP(zigbee_ep2_ep, 2, zigbee_ep2_cluster_list, 3, 0, 2, ZB_HA_SIMPLE_SENSOR_DEVICE_ID, ZB_ZCL_CLUSTER_ID_BASIC, ZB_ZCL_CLUSTER_ID_IDENTIFY, ZB_ZCL_CLUSTER_ID_BINARY_INPUT);
+ESPHOME_ZB_HA_DECLARE_EP(zigbee_ep3_ep, 3, zigbee_ep3_cluster_list, 3, 0, 2, ZB_HA_CUSTOM_ATTR_DEVICE_ID, ZB_ZCL_CLUSTER_ID_BASIC, ZB_ZCL_CLUSTER_ID_IDENTIFY, ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT);
+ESPHOME_ZB_HA_DECLARE_EP(zigbee_ep4_ep, 4, zigbee_ep4_cluster_list, 3, 0, 2, ZB_HA_CUSTOM_ATTR_DEVICE_ID, ZB_ZCL_CLUSTER_ID_BASIC, ZB_ZCL_CLUSTER_ID_IDENTIFY, ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT);
+ESPHOME_ZB_HA_DECLARE_EP(zigbee_ep5_ep, 5, zigbee_ep5_cluster_list, 3, 1, 0, ZB_HA_CUSTOM_ATTR_DEVICE_ID, ZB_ZCL_CLUSTER_ID_BASIC, ZB_ZCL_CLUSTER_ID_IDENTIFY, ZB_ZCL_CLUSTER_ID_TIME, ZB_ZCL_CLUSTER_ID_TIME);
+ZBOSS_DECLARE_DEVICE_CTX_EP_VA(zb_device_ctx, &zigbee_ep1_ep, &zigbee_ep2_ep, &zigbee_ep3_ep, &zigbee_ep4_ep, &zigbee_ep5_ep);
+zigbee_zigbeesensor_id->set_endpoint(1);
+zigbee_zigbeesensor_id->set_cluster_attributes(zigbee_ep1_attrs);
+zigbee_zigbeebinarysensor_id->set_endpoint(2);
+zigbee_zigbeebinarysensor_id->set_cluster_attributes(zigbee_ep2_attrs);
+zigbee_zigbeenumber_id->set_endpoint(3);
+zigbee_zigbeenumber_id->set_cluster_attributes(zigbee_ep3_attrs);
+zigbee_zigbeeswitch_id->set_endpoint(4);
+zigbee_zigbeeswitch_id->set_cluster_attributes(zigbee_ep4_attrs);
+test_time->set_endpoint(5);
+test_time->set_cluster_attributes(zigbee_ep5_time_attrs);

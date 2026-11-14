@@ -3,6 +3,7 @@
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "zigbee_endpoint_callbacks.h"
 extern "C" {
 #include <zboss_api.h>
 #include <zboss_api_addons.h>
@@ -70,9 +71,8 @@ class ZigbeeComponent final : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
-    // endpoints are enumerated from 1
-    this->callbacks_[endpoint - 1] = std::move(cb);
+  template<typename F> void add_callback(zb_uint8_t endpoint, F &&cb) {
+    this->callbacks_.add(endpoint, std::forward<F>(cb));
   }
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
@@ -92,7 +92,7 @@ class ZigbeeComponent final : public Component {
   void erase_flash_(int area);
 #endif
   void dump_reporting_();
-  std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
+  EndpointCallbacks<ZIGBEE_ENDPOINTS_COUNT> callbacks_;
   CallbackManager<void(bool)> join_cb_;
   LazyCallbackManager<void()> start_cb_;
   bool force_report_{false};
