@@ -32,6 +32,25 @@ static constexpr remote_base::BitTimings TCL112_BIT_TIMINGS{
     .bit_mark = TCL112_BIT_MARK, .one_space = 1100, .zero_space = 350};
 const uint32_t TCL112_GAP = TCL112_HEADER_SPACE;
 
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// A mode not listed is sent as power off, and ignored when received
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, TCL112_AUTO}, {climate::CLIMATE_MODE_COOL, TCL112_COOL},
+    {climate::CLIMATE_MODE_HEAT, TCL112_HEAT},      {climate::CLIMATE_MODE_DRY, TCL112_DRY},
+    {climate::CLIMATE_MODE_FAN_ONLY, TCL112_FAN},
+};
+// The first entry is the fallback
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, TCL112_FAN_AUTO},
+    {climate::CLIMATE_FAN_HIGH, TCL112_FAN_HIGH},
+    {climate::CLIMATE_FAN_MEDIUM, TCL112_FAN_MED},
+    {climate::CLIMATE_FAN_LOW, TCL112_FAN_LOW},
+};
+
 void Tcl112Climate::transmit_state() {
   uint8_t remote_state[TCL112_STATE_LENGTH] = {0};
 
@@ -46,31 +65,11 @@ void Tcl112Climate::transmit_state() {
   remote_state[8] = 0x40;
 
   // Set mode
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      remote_state[6] &= 0xF0;
-      remote_state[6] |= TCL112_AUTO;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      remote_state[6] &= 0xF0;
-      remote_state[6] |= TCL112_COOL;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state[6] &= 0xF0;
-      remote_state[6] |= TCL112_HEAT;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      remote_state[6] &= 0xF0;
-      remote_state[6] |= TCL112_DRY;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[6] &= 0xF0;
-      remote_state[6] |= TCL112_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      remote_state[5] &= ~TCL112_POWER_MASK;
-      break;
+  if (const auto entry = find_ir_code(MODES, this->mode, false)) {
+    remote_state[6] &= 0xF0;
+    remote_state[6] |= entry->code;
+  } else {
+    remote_state[5] &= ~TCL112_POWER_MASK;
   }
 
   // Set temperature
@@ -88,22 +87,7 @@ void Tcl112Climate::transmit_state() {
   remote_state[7] |= ((uint8_t) TCL112_TEMP_MAX - half_degrees / 2);
 
   // Set fan
-  uint8_t selected_fan;
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_HIGH:
-      selected_fan = TCL112_FAN_HIGH;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      selected_fan = TCL112_FAN_MED;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      selected_fan = TCL112_FAN_LOW;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      selected_fan = TCL112_FAN_AUTO;
-  }
-  remote_state[8] |= selected_fan;
+  remote_state[8] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO));
 
   // Set swing
   if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
@@ -169,47 +153,14 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   if ((remote_state[5] & TCL112_POWER_MASK) == 0) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    auto mode = remote_state[6] & 0x0F;
-    switch (mode) {
-      case TCL112_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case TCL112_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case TCL112_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case TCL112_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case TCL112_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      default:
-        break;
-    }
+    if (const auto entry = find_ir_code(MODES, remote_state[6] & 0x0F, true))
+      this->mode = static_cast<climate::ClimateMode>(entry->value);
   }
   auto temp = TCL112_TEMP_MAX - remote_state[7];
   if (remote_state[12] & TCL112_HALF_DEGREE)
     temp += .5f;
   this->target_temperature = temp;
-  auto fan = remote_state[8] & 0x7;
-  switch (fan) {
-    case TCL112_FAN_HIGH:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case TCL112_FAN_MED:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case TCL112_FAN_LOW:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case TCL112_FAN_AUTO:
-    default:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-  }
+  this->fan_mode = from_ir_code<climate::ClimateFanMode>(FANS, remote_state[8] & 0x7);
   if ((remote_state[8] & TCL112_VSWING_MASK) == TCL112_VSWING_MASK) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
   } else {
