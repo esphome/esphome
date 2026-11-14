@@ -86,7 +86,7 @@ __attribute__((noinline, cold)) uint32_t tie_float_bits(uint32_t m10, int32_t e1
 }
 
 // The float nearest to m10 * 10^e10 (0 < m10 <= 10^9). The product is under 4 units low; checked for all 85 billion
-// (m10, e10), only exact ties come within 34 units of a midpoint.
+// (m10, e10), only exact ties and one non-tie (6 units off, keeps its float) come within 34 units of a midpoint.
 uint32_t decimal_to_float_bits(uint32_t m10, int32_t e10) {
   // Both operands are exact floats, so the one float operation gives the nearest float
   const uint32_t power = e10 < 0 ? -e10 : e10;
