@@ -177,8 +177,11 @@ __attribute__((noinline, cold)) uint32_t read_hex(const char *p, bool dot, int32
   for (;; p++) {
     const char lower = static_cast<char>(*p | 0x20);
     uint32_t digit = static_cast<uint8_t>(*p - '0');
-    if (static_cast<uint8_t>(lower - 'a') <= 5)
+    if (static_cast<uint8_t>(lower - 'a') <= 5) {
       digit = static_cast<uint8_t>(lower - 'a') + 10;
+    } else if (digit > 9) {
+      digit = 16;  // picolibc takes ':' to '?' as 10 to 15; we stop there like newlib
+    }
     if (digit < 16) {
       if (kept < HEX_DIGITS) {
         if (dot)
