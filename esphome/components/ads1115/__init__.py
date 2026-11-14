@@ -3,6 +3,7 @@ from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["ads1xxx"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "ads1115"
 MULTI_CONF = True
@@ -26,6 +27,4 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await i2c.new_i2c_component(config)
-
-    cg.add(var.set_continuous_mode(config[CONF_CONTINUOUS_MODE]))
+    await i2c.new_i2c_component(config, config[CONF_CONTINUOUS_MODE])
