@@ -151,13 +151,11 @@ TEST(TuyaLowPowerSession, FullStatusAndWrites) {
     state.observe_dp(dp, 1, &dp, 1);
   EXPECT_TRUE(state.ready());
 
-  // The product info names the wake pins and standby-vs-hibernation; product_id restricts the PID.
+  // The product info names the wake pins and standby-vs-hibernation.
   using esphome::tuya::TuyaLowPowerProductInfo;
   TuyaLowPowerProductInfo info;
   const std::string product_json = R"({"p":"ihedujbuli6hsx9b","v":"1.3.1","wk":20,"mwk":28,"sm":1})";
   EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(product_json.data()), product_json.size()));
-  EXPECT_TRUE(info.matches("ihedujbuli6hsx9b"));
-  EXPECT_TRUE(info.matches(""));
   EXPECT_STREQ(info.pid.data(), "ihedujbuli6hsx9b");
   EXPECT_STREQ(info.version.data(), "1.3.1");
   EXPECT_TRUE(info.wake_gpio == 20 && info.mcu_wake_gpio == 28 && info.sleep_mode == 1);
@@ -188,11 +186,10 @@ TEST(TuyaLowPowerSession, FullStatusAndWrites) {
   EXPECT_FALSE(info.parse(reinterpret_cast<const uint8_t *>(no_version.data()), no_version.size()));
   const std::string hib_json = R"({"p":"ihedujbuli6hsx9b","v":"1.3.1","wk":20,"mwk":28,"sm":0})";
   EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(hib_json.data()), hib_json.size()));
-  EXPECT_TRUE(info.matches("ihedujbuli6hsx9b") && info.sleep_mode == 0);
+  EXPECT_EQ(info.sleep_mode, 0);
   const std::string wrong_pid = R"({"p":"another_product","v":"1.3.1","wk":20,"mwk":28,"sm":1})";
   EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(wrong_pid.data()), wrong_pid.size()));
-  EXPECT_FALSE(info.matches("ihedujbuli6hsx9b"));
-  EXPECT_TRUE(info.matches(""));
+  EXPECT_STREQ(info.pid.data(), "another_product");
   const std::string missing_pin = R"({"p":"ihedujbuli6hsx9b","v":"1.3.1","wk":20,"sm":1})";
   // A missing wake pin no longer rejects the product; it only rules out standby.
   EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(missing_pin.data()), missing_pin.size()));

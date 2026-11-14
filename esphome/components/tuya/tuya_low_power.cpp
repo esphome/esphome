@@ -1170,14 +1170,6 @@ void Tuya::handle_low_power_command_(uint8_t command, uint8_t version, const uin
         ESP_LOGW(LP_TAG, "Malformed CMD01 product info: retrying at 500ms intervals (bounded)");
         return;
       }
-      if (!incoming.matches(this->product_id_)) {
-        ESP_LOGE(LP_TAG, "MCU product ID %s does not match the configured %s", incoming.pid.data(), this->product_id_);
-        this->product_invalid_ = true;
-        this->init_failed_ = true;
-        this->lp_sleep_window_.invalidate_product();
-        this->status_set_warning(LOG_STR("Wrong MCU product ID"));
-        return;
-      }
       // parse() limits len to 512, so the raw descriptor fits our fixed
       // diagnostics buffer without an extra allocation and without an
       // implementation-dependent nothrow-new/abort path.

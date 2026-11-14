@@ -129,7 +129,6 @@ class Tuya final : public Component, public uart::UARTDevice {
   void set_auto_baud(bool auto_baud) { this->auto_baud_ = auto_baud; }
   void set_mcu_wake_pin(GPIOPin *pin) { this->mcu_wake_pin_ = pin; }
   /// Only an MCU that reports this product ID (CMD01 "p") is accepted; empty accepts any.
-  void set_product_id(const char *product_id) { this->product_id_ = product_id; }
   void set_low_power_host(TuyaLowPowerHost *host) { this->lp_host_ = host; }
   bool request_low_power_refresh();
   /// Diagnostics: sends only the start of an MCU firmware update (CMD0A, or CMD0D for version-0 frames) for an
@@ -259,7 +258,6 @@ class Tuya final : public Component, public uart::UARTDevice {
   bool auto_baud_{false};
   GPIOPin *mcu_wake_pin_{nullptr};
   TuyaLowPowerHost *lp_host_{nullptr};
-  const char *product_id_{""};
   TuyaLowPowerAutoBaud lp_autobaud_{};
   TuyaLowPowerUartErrors lp_uart_rx_errors_{};
   TuyaLowPowerSession lp_session_{};

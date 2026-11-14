@@ -104,11 +104,6 @@ struct TuyaLowPowerProductInfo {
       mcu_wake_pulse_ms = pulse_ms < 5 ? 5 : (pulse_ms > 200 ? 200 : static_cast<uint32_t>(pulse_ms));
     return true;
   }
-
-  /// True if parsed and the product ID equals expected_pid; an empty expected_pid accepts any product.
-  bool matches(const char *expected_pid) const {
-    return parsed && (expected_pid[0] == '\0' || std::strcmp(pid.data(), expected_pid) == 0);
-  }
 };
 
 }  // namespace esphome::tuya
