@@ -52,7 +52,8 @@ class AsyncStreamResponse {
 
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
   /// keeps the rest and continues from there. 0 means the send buffer is full or the connection is not ours yet; -1
-  /// means the stream is closing. Refused writes for SEND_STALL_TIMEOUT_MS in a row also close it.
+  /// means the stream is closing. SEND_STALL_TIMEOUT_MS of refused writes, or of writes with no ACK in between,
+  /// also closes it.
   ssize_t write(StreamIovec *iov, int iovcnt);
   ssize_t write(const void *data, size_t len);
   /// Main loop. Closes the connection; safe to call more than once.
@@ -89,6 +90,9 @@ class AsyncStreamResponse {
   // Runs while sends make no progress
   StallClock stall_;
   uint32_t last_try_ms_{0};
+  // Send buffer free after the last write, and the most seen (nothing outstanding); main loop only
+  size_t space_after_write_{0};
+  size_t max_space_{0};
   // Set from the network callbacks with plain stores (no read-modify-write: RP2040 has none)
   std::atomic<bool> disconnected_{false};
   std::atomic<bool> ack_timed_out_{false};
