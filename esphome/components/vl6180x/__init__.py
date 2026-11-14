@@ -77,7 +77,9 @@ CONFIG_SCHEMA = cv.ensure_list(_ENTRY_SCHEMA)
 
 def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
     for index, config in enumerate(configs):
-        siblings = [entry for entry in configs if entry[CONF_I2C_ID] == config[CONF_I2C_ID]]
+        siblings = [
+            entry for entry in configs if entry[CONF_I2C_ID] == config[CONF_I2C_ID]
+        ]
         if config[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in config:
             raise cv.Invalid(
                 "enable_pin is required when changing the sensor's default I2C address",
@@ -93,7 +95,11 @@ def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
         pin_config = config[CONF_ENABLE_PIN]
         pin_number = pin_config["number"]
         pin_provider = repr(
-            {key: value for key, value in pin_config.items() if key not in ("number", "mode", "inverted")}
+            {
+                key: value
+                for key, value in pin_config.items()
+                if key not in ("number", "mode", "inverted")
+            }
         )
         for sibling_index, sibling in enumerate(configs):
             if sibling_index == index or sibling[CONF_I2C_ID] != config[CONF_I2C_ID]:
@@ -101,9 +107,16 @@ def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
             sibling_pin = sibling.get(CONF_ENABLE_PIN)
             if sibling_pin is not None:
                 sibling_provider = repr(
-                    {key: value for key, value in sibling_pin.items() if key not in ("number", "mode", "inverted")}
+                    {
+                        key: value
+                        for key, value in sibling_pin.items()
+                        if key not in ("number", "mode", "inverted")
+                    }
                 )
-                if pin_provider == sibling_provider and pin_number == sibling_pin["number"]:
+                if (
+                    pin_provider == sibling_provider
+                    and pin_number == sibling_pin["number"]
+                ):
                     raise cv.Invalid(
                         "Each VL6180X on a shared I2C bus needs a unique enable_pin",
                         path=[index, CONF_ENABLE_PIN],
@@ -114,6 +127,7 @@ def _final_validate(configs: list[ConfigType]) -> list[ConfigType]:
                     path=[index, CONF_ADDRESS],
                 )
     return configs
+
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 

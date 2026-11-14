@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import DOMAIN, CONF_VL6180X_ID, VL6180XComponent
+from . import CONF_VL6180X_ID, DOMAIN, VL6180XComponent
 
 DEPENDENCIES = ["vl6180x"]
 
@@ -15,10 +15,10 @@ CONF_RANGE_STATUS = "range_status"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-        cv.GenerateID(CONF_VL6180X_ID): cv.use_id(VL6180XComponent),
-        cv.Optional(CONF_RANGE_STATUS): text_sensor.text_sensor_schema(
-            icon="mdi:map-marker-distance",
-        ),
+            cv.GenerateID(CONF_VL6180X_ID): cv.use_id(VL6180XComponent),
+            cv.Optional(CONF_RANGE_STATUS): text_sensor.text_sensor_schema(
+                icon="mdi:map-marker-distance",
+            ),
         }
     ),
     cv.has_at_least_one_key(CONF_RANGE_STATUS),
