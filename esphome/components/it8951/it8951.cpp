@@ -59,8 +59,17 @@ void IT8951Display::loop() {
   // (e.g. during reset, HW_RDY is undefined/low until ROM boot completes).
   Op queued_op = this->queue_.front();
   const bool needs_hardware_ready = queued_op.type != OpType::GPIO_RESET_LOW &&
-                                    queued_op.type != OpType::GPIO_RESET_HIGH && queued_op.type != OpType::DELAY_MS;
+                                    queued_op.type != OpType::GPIO_RESET_HIGH &&
+                                    queued_op.type != OpType::GPIO_ENABLE_LOW &&
+                                    queued_op.type != OpType::GPIO_ENABLE_HIGH && queued_op.type != OpType::DELAY_MS;
   if (needs_hardware_ready && this->is_busy_()) {
+    // While the controller holds HW_RDY low there is nothing to dispatch, so drop
+    // the continuous-loop request: the loop keeps polling at the scheduler cadence
+    // and the CPU can sleep between polls. Holding the request here is what turns a
+    // wedged controller (or a miswired BUSY pin) into a battery drain, because every
+    // iteration would return right here. The request is re-taken below as soon as
+    // HW_RDY is high again.
+    this->high_freq_.stop();
     // Signed elapsed: any pending DELAY_MS or scheduled work in the near
     // future shows up as <= 0 elapsed and won't trigger a false timeout.
     const int32_t elapsed = static_cast<int32_t>(now - this->phase_started_at_);
@@ -73,6 +82,9 @@ void IT8951Display::loop() {
     }
     return;
   }
+
+  if (this->phase_ != Phase::IDLE && this->phase_ != Phase::RECOVERY_BACKOFF)
+    this->high_freq_.start();
 
   this->queue_.pop();
   this->process_op_(queued_op);
@@ -145,6 +157,14 @@ void IT8951Display::process_op_(const Op &op) {
       if (this->reset_pin_ != nullptr)
         this->reset_pin_->digital_write(true);
       break;
+    case OpType::GPIO_ENABLE_LOW:
+      for (auto *pin : this->enable_pins_)
+        pin->digital_write(false);
+      break;
+    case OpType::GPIO_ENABLE_HIGH:
+      for (auto *pin : this->enable_pins_)
+        pin->digital_write(true);
+      break;
     case OpType::DELAY_MS:
       this->delay_until_ = millis() + op.a;
       break;
@@ -154,14 +174,15 @@ void IT8951Display::process_op_(const Op &op) {
 void IT8951Display::set_phase_(Phase next) {
   ESP_LOGV(TAG, "Phase %u -> %u", static_cast<unsigned>(this->phase_), static_cast<unsigned>(next));
   // Run the loop continuously for the whole active sequence, returning to normal
-  // throttling only at IDLE. Each queued op is processed one per loop iteration,
-  // so at the default ~16ms loop interval the dozens of small ops in the refresh
-  // and restore phases (register polls, 1bpp enable/restore, DPY) would dominate
-  // a partial update's latency. The LUT-idle polls are DELAY_MS-paced, so this
-  // doesn't hammer SPI — it only spends a little extra CPU during the (short,
-  // infrequent) update instead of sleeping between ops. start()/stop() are
-  // idempotent, so driving them off the transition is safe.
-  if (next == Phase::IDLE) {
+  // throttling only at IDLE (and while parked between recovery attempts). Each
+  // queued op is processed one per loop iteration, so at the default ~16ms loop
+  // interval the dozens of small ops in the refresh and restore phases (register
+  // polls, 1bpp enable/restore, DPY) would dominate a partial update's latency. The
+  // LUT-idle polls are DELAY_MS-paced, so this doesn't hammer SPI — it only spends a
+  // little extra CPU during the (short, infrequent) update instead of sleeping
+  // between ops. start()/stop() are idempotent, so driving them off the transition
+  // is safe.
+  if (next == Phase::IDLE || next == Phase::RECOVERY_BACKOFF) {
     this->high_freq_.stop();
   } else {
     this->high_freq_.start();
@@ -249,6 +270,8 @@ void IT8951Display::advance_phase_() {
       }
       this->initialised_ = true;
       this->recovery_attempts_ = 0;
+      this->recovery_backoff_ms_ = 0;
+      this->status_clear_warning();
       ESP_LOGCONFIG(TAG, "IT8951 setup complete");
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
@@ -293,6 +316,13 @@ void IT8951Display::advance_phase_() {
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
       break;
+
+    case Phase::RECOVERY_BACKOFF:
+      // Back-off elapsed: try the controller again. recover_() already counted this
+      // attempt, so go straight to the power-cycle + re-init sequence.
+      ESP_LOGW(TAG, "Retrying IT8951 after back-off (attempt %u)", this->recovery_attempts_);
+      this->begin_reinit_();
+      break;
   }
 }
 
@@ -335,6 +365,13 @@ void IT8951Display::setup() {
   // The allocator does not zero memory; start blank (white) so undrawn regions
   // (e.g. with auto_clear disabled) don't show garbage on the first update.
   this->fill(Color::WHITE);
+  // The fill is initialisation, not content: drop the dirty region it just marked.
+  // Otherwise the first update() after boot always sees a fully dirty framebuffer
+  // and pushes a blank GC16 white screen over whatever the panel was holding, even
+  // for a writer that drew nothing. A writer that does draw still gets its GC16
+  // clean first, because set_full_update_every() seeds partial_update_count_ to the
+  // threshold independently of the dirty region.
+  this->reset_dirty_region_();
 
   // Kick off async init via the queue. Reset pulse + boot delay + wake +
   // packed-write enable; everything blocking lives as DELAY_MS Ops gated by
@@ -679,6 +716,16 @@ void IT8951Display::op_set_1bpp_() {
 // --- Update prep / public API ------------------------------------------------
 
 bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
+  // Nothing was drawn since the last update: there is no region to refresh, so bail out
+  // before touching the counters. set_full_update_every() seeds partial_update_count_ to
+  // the threshold, which makes the very first update() of a boot look like a periodic
+  // full refresh; with an empty framebuffer that pushes a blank (white) screen over
+  // whatever the panel is currently holding. Writers that skip redrawing unchanged
+  // content (a wake-up that keeps the existing image, for example) hit this every wake.
+  if (this->x_high_ <= this->x_low_ || this->y_high_ <= this->y_low_) {
+    this->reset_dirty_region_();
+    return false;
+  }
   this->partial_update_count_++;
   const bool full_update = this->partial_update_count_ >= this->full_update_every_;
   if (full_update) {
@@ -792,18 +839,23 @@ void IT8951Display::update_mode(UpdateMode mode) {
 
 // --- Recovery ----------------------------------------------------------------
 
-void IT8951Display::recover_() {
-  if (++this->recovery_attempts_ > 3) {
-    ESP_LOGE(TAG, "Recovery failed after %u attempts; giving up. Check BUSY pin wiring and power.",
-             this->recovery_attempts_);
-    this->mark_failed(LOG_STR("IT8951 recovery exhausted"));
-    this->queue_.clear();
-    this->set_phase_(Phase::IDLE);
-    this->disable_loop();
+// Queue the rail power-cycle, then restart the init handshake. Used by recover_():
+// a controller stuck mid-transfer only clears after its supply actually drops (see
+// the comment inside recover_()), and a bare reset pulse is not enough.
+//
+// Both the rail transitions and the waits between them are queue Ops, so a dead
+// controller costs loop() nothing: GPIO ops run unconditionally (they are how we get
+// out of a stuck-busy state in the first place) and the waits are DELAY_MS Ops.
+void IT8951Display::enqueue_rail_power_cycle_() {
+  if (this->enable_pins_.empty())
     return;
-  }
-  ESP_LOGW(TAG, "Recovering (attempt %u): hardware-resetting controller (was in phase %u)", this->recovery_attempts_,
-           static_cast<unsigned>(this->phase_));
+  this->enqueue_(OpType::GPIO_ENABLE_LOW);
+  this->enqueue_(OpType::DELAY_MS, RAIL_POWER_OFF_MS);
+  this->enqueue_(OpType::GPIO_ENABLE_HIGH);
+  this->enqueue_(OpType::DELAY_MS, RAIL_BOOT_MS);
+}
+
+void IT8951Display::begin_reinit_() {
   this->queue_.clear();
   this->update_pending_ = false;
   this->transfer_row_ = 0;
@@ -817,17 +869,55 @@ void IT8951Display::recover_() {
     this->spi_setup();
   }
 
-  // Force a full redraw on next opportunity.
+  // Force a full redraw on next opportunity: the controller lost its image RAM, so
+  // whatever the panel is showing is no longer ours.
   this->x_low_ = 0;
   this->y_low_ = 0;
   this->x_high_ = this->width_;
   this->y_high_ = this->height_;
 
   this->set_phase_(Phase::INIT_RESET);
+  this->enqueue_rail_power_cycle_();
   this->enqueue_init_reset_();
   this->update_pending_ = true;
   this->pending_update_mode_ = UPDATE_MODE_GC16;
   this->enable_loop();
+}
+
+void IT8951Display::recover_() {
+  // Do not fail the component here. An IT8951 interrupted in the middle of an image
+  // load (deep sleep, a dropped SPI transfer, a busy-poll timeout) can stop
+  // acknowledging commands until its supply is cycled; mark_failed() removes the
+  // component from the scheduler for good, which turns a transient controller hang
+  // into a permanently dead panel.
+  //
+  // The first few attempts run back to back because a transient hang usually clears
+  // on the first or second pulse. Past that the retry interval doubles up to
+  // RECOVERY_BACKOFF_MAX_MS: a panel that is really gone (unplugged ribbon, broken
+  // BUSY line) must not be power-cycled forever at the 5 s busy-timeout cadence, and
+  // the wait must not be spent spinning.
+  if (this->recovery_attempts_ < UINT8_MAX)
+    this->recovery_attempts_++;
+
+  if (this->recovery_attempts_ > MAX_IMMEDIATE_RECOVERIES) {
+    uint32_t backoff = this->recovery_backoff_ms_ == 0 ? RECOVERY_BACKOFF_BASE_MS : this->recovery_backoff_ms_ * 2;
+    if (backoff > RECOVERY_BACKOFF_MAX_MS)
+      backoff = RECOVERY_BACKOFF_MAX_MS;
+    this->recovery_backoff_ms_ = backoff;
+    ESP_LOGW(TAG, "IT8951 is not responding (attempt %u); next retry in %" PRIu32 " ms", this->recovery_attempts_,
+             backoff);
+    this->status_set_warning(LOG_STR("IT8951 controller is not responding; retrying"));
+    // Park in a phase that does no SPI work and holds no high-frequency request, so
+    // the CPU can sleep between checks instead of polling a silent controller.
+    this->queue_.clear();
+    this->delay_until_ = millis() + backoff;
+    this->set_phase_(Phase::RECOVERY_BACKOFF);
+    return;
+  }
+
+  ESP_LOGW(TAG, "Recovering (attempt %u): power-cycling the panel (was in phase %u)", this->recovery_attempts_,
+           static_cast<unsigned>(this->phase_));
+  this->begin_reinit_();
 }
 
 // --- Coordinate transform ----------------------------------------------------
