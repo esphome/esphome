@@ -9,6 +9,8 @@ namespace esphome::sx126x {
 ESPHOME_LOG_TAG(TAG, "sx126x");
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
 static constexpr uint32_t MAX_TRANSMIT_TIMEOUT_MS = 262143;  // 24-bit SetTx timeout in 1/64 ms steps
+static constexpr uint32_t RECONFIGURE_INTERVAL_ID = 0;
+static constexpr uint32_t RECONFIGURE_INTERVAL_MS = 1000;
 
 // Indexed by SX126xError.
 PROGMEM_STRING_TABLE(SX126xErrorStrings, "none", "timeout", "invalid payload", "radio not ready", "bus timeout",
@@ -29,11 +31,13 @@ void SX126x::setup() {
   // start spi
   this->radio_.bus().setup();
 
-  // configure rf
-  this->configure();
-  if (this->radio_.state() != RadioState::RADIO_STATE_IDLE) {
-    this->mark_failed(LOG_STR("Radio configuration failed"));
+  // configure rf; a failure is reported through mark_failed() only, with its own reason
+  const RadioEffects effects = this->radio_.configure(this->requested_profile_, this->version_);
+  if (effects.warning != nullptr) {
+    this->mark_failed(effects.warning);
+    return;
   }
+  this->apply_(effects);
 }
 
 void SX126x::apply_(const RadioEffects &effects) {
@@ -45,6 +49,7 @@ void SX126x::apply_(const RadioEffects &effects) {
   } else if (this->radio_.state() != RadioState::RADIO_STATE_NEEDS_CONFIGURATION) {
     this->enable_loop();
   }
+  this->watch_configuration_();
   // The packet buffer is borrowed from the status report until listeners return;
   // loop() will not refill it meanwhile.
   if (effects.received) {
@@ -73,7 +78,23 @@ void SX126x::configure() {
     ESP_LOGW(TAG, "Radio operation in progress, configuration ignored");
     return;
   }
+  this->cold_sleep_ = false;
   this->apply_(this->radio_.configure(this->requested_profile_, this->version_));
+}
+
+// A failed command leaves the radio needing configuration, which nothing else would do, so a node
+// that only uses YAML would stay deaf. Cold sleep is asked for, so it waits for a mode command.
+void SX126x::watch_configuration_() {
+  const bool needed = this->radio_.state() == RadioState::RADIO_STATE_NEEDS_CONFIGURATION && !this->cold_sleep_;
+  if (needed == this->reconfigure_pending_) {
+    return;
+  }
+  this->reconfigure_pending_ = needed;
+  if (needed) {
+    this->set_interval(RECONFIGURE_INTERVAL_ID, RECONFIGURE_INTERVAL_MS, [this]() { this->configure(); });
+  } else {
+    this->cancel_interval(RECONFIGURE_INTERVAL_ID);
+  }
 }
 
 void SX126x::set_mode_rx() { this->change_mode_(ModeCommand::MODE_COMMAND_RX); }
@@ -85,10 +106,19 @@ void SX126x::set_mode_sleep(bool cold) {
 void SX126x::run_image_cal() { this->change_mode_(ModeCommand::MODE_COMMAND_IMAGE_CAL); }
 
 void SX126x::change_mode_(ModeCommand command, uint8_t arg) {
+  const bool sleep = command == ModeCommand::MODE_COMMAND_SLEEP || command == ModeCommand::MODE_COMMAND_COLD_SLEEP;
+  if (this->cold_sleep_) {
+    if (sleep) {
+      return;
+    }
+    // Cold sleep lost the configuration, so waking needs it applied again first
+    this->configure();
+  }
   if (!this->radio_.can_change_mode()) {
     ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
     return;
   }
+  this->cold_sleep_ = command == ModeCommand::MODE_COMMAND_COLD_SLEEP;
   this->apply_(this->radio_.change_mode(command, arg));
 }
 

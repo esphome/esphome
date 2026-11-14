@@ -75,6 +75,9 @@ class RadioHardware {
           default:
             break;
         }
+        if (this->on_command) {
+          this->on_command(command[0]);
+        }
       }
     };
     this->busy.on_read = [this]() {
@@ -116,7 +119,11 @@ class RadioHardware {
     this->radio.set_crc_enable(true);
     this->radio.set_sync_value({0x14, 0x24});
   }
-  ~RadioHardware() { this->radio.spi_teardown(); }
+  ~RadioHardware() {
+    // The configuration retry interval (id 0) must not outlive the radio
+    App.scheduler.cancel_interval(&this->radio, uint32_t{0});
+    this->radio.spi_teardown();
+  }
 
   void configure(bool lora, bool rx, bool fixed = false) {
     this->radio.set_modulation(lora ? PACKET_TYPE_LORA : PACKET_TYPE_GFSK);
@@ -152,6 +159,8 @@ class RadioHardware {
   size_t ends{0};
   unsigned sends{0};
   uint16_t irq{0};
+  // Called as each command ends, with its opcode
+  std::function<void(uint8_t)> on_command;
   bool receiving{false};
   bool auto_complete{true};
   bool supported_version{true};

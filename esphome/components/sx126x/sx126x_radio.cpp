@@ -21,6 +21,7 @@ RadioEffects Sx126xRadio::configure(const RadioProfile &requested, std::span<cha
   ESPHOME_DEBUG_ASSERT(this->can_configure());
   this->busy_ = true;
   this->rx_retry_pending_ = false;
+  this->pending_irq_ = 0;
   RadioEffects effects;
   effects.report = true;
   effects.warning = this->apply_configuration_(requested, version);
@@ -102,12 +103,15 @@ RadioEffects Sx126xRadio::start_transmit(SX126xTransmitListener *listener, const
   this->commands_.standby(STDBY_XOSC);
   // RX cannot advance in standby. Keep a packet that completed before standby intact for
   // poll(), before clearing IRQs or overwriting the shared FIFO. A failed read returns 0.
-  if (this->commands_.read_irq() & IRQ_RX_DONE) {
+  // A packet that failed its CRC is not delivered, so it does not hold up the send.
+  const uint16_t irq = this->commands_.read_irq() | this->pending_irq_;
+  if ((irq & IRQ_RX_DONE) && !(irq & IRQ_CRC_ERROR)) {
     this->commit_(RadioState::RADIO_STATE_HOLDING_RX);
     effects.result = SX126xError::SX126X_ERROR_BUSY;
     return effects;
   }
   this->commands_.clear_irqs();
+  this->pending_irq_ = 0;
   if (fixed_length == 0) {
     this->commands_.set_packet_length(this->applied_, len);
   }
@@ -207,7 +211,7 @@ RadioEffects Sx126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {
     return effects;
   }
   const bool holding = this->state_ == RadioState::RADIO_STATE_HOLDING_RX;
-  if (!holding && !this->dio1_pin_->digital_read()) {
+  if (!holding && this->pending_irq_ == 0 && !this->dio1_pin_->digital_read()) {
     effects.sleep_loop = this->dio1_pin_->is_internal();  // Its interrupt wakes the loop.
     return effects;
   }
@@ -217,18 +221,20 @@ RadioEffects Sx126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {
 RadioEffects Sx126xRadio::receive_(bool holding, uint32_t now, std::vector<uint8_t> &packet) {
   this->busy_ = true;
   this->bus().begin();
-  const uint16_t status = this->commands_.read_irq();
+  // A packet whose read failed has had its flags cleared, so they are kept until it is read.
+  const uint16_t status = this->commands_.read_irq() | this->pending_irq_;
   const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
+  if (!holding) {
+    // Cleared before the read, so a packet that completes during the read raises DIO1 again.
+    // A held packet keeps its IRQ until restoration.
+    this->commands_.clear_irqs(status);
+  }
   float rssi = 0, snr = 0;
   if (received) {
     this->commands_.read_packet(this->applied_.modulation, packet, rssi, snr);
   }
-  if (!holding) {
-    // Cleared only after a successful read, so a failed read leaves DIO1 high and retries.
-    // A held packet keeps its IRQ until restoration.
-    this->commands_.clear_irqs(status);
-  }
   const bool read = this->bus().ok();
+  this->pending_irq_ = read || holding ? 0 : status;
   // Do not spend a BUSY timeout on every loop while a read keeps failing.
   this->rx_retry_pending_ = !read;
   this->rx_retry_started_ms_ = now;

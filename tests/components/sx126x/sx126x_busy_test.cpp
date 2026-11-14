@@ -225,7 +225,7 @@ TEST_P(SX126xBusyReceive, KeepsAPacketWhoseReadFailedAndRetries) {
     EXPECT_TRUE(listener.packets.empty());
     EXPECT_TRUE(hardware.radio.status_has_warning());
     EXPECT_FALSE(hardware.radio.is_failed());
-    EXPECT_EQ(hardware.irq, IRQ_RX_DONE);  // Not cleared, so DIO1 stays high.
+    // The flags may already be cleared; the packet is still read on the retry.
     hardware.clear_trace();
     LoopBlockingGuard retry{nullptr, nullptr, App.get_loop_component_start_time() + 200};
     hardware.radio.loop();
@@ -447,7 +447,7 @@ TEST(SX126xBusy, InvalidPayloadDoesNotEnterAnOperation) {
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
 }
 
-TEST(SX126xBusy, ColdSleepRequiresConfigurationAndWarmSleepRetainsIt) {
+TEST(SX126xBusy, ColdSleepIsWokenByAModeCommandAndWarmSleepRetainsIt) {
   RadioHardware hw;
   hw.configure(true, true);
   hw.radio.set_mode_sleep(false);
@@ -455,10 +455,76 @@ TEST(SX126xBusy, ColdSleepRequiresConfigurationAndWarmSleepRetainsIt) {
   hw.radio.set_mode_sleep(true);
   hw.clear_trace();
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
-  hw.radio.set_mode_rx();
+  // Sleeping again leaves it asleep
+  hw.radio.set_mode_sleep(false);
   EXPECT_TRUE(hw.transactions.empty());
-  hw.radio.configure();
+  // Any other mode command applies the lost configuration first
+  hw.radio.set_mode_rx();
+  EXPECT_FALSE(hw.transactions.empty());
+  EXPECT_TRUE(hw.receiving);
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
+}
+
+// Runs the scheduler for ms milliseconds of real time, as the main loop would
+static void run_scheduler(uint32_t ms) {
+  const uint32_t start = millis();
+  while (millis() - start < ms) {
+    App.scheduler.call(millis());
+    delay(5);
+  }
+}
+
+TEST(SX126xBusy, FailedModeChangeIsReconfiguredWithoutBeingAsked) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.clear_trace();
+  hw.fail_at = 1;
+  hw.radio.set_mode_rx();
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+  run_scheduler(1100);
+  EXPECT_FALSE(hw.radio.status_has_warning());
+  EXPECT_TRUE(hw.receiving);
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
+  // Once configured, the retry stops
+  hw.clear_trace();
+  run_scheduler(1100);
+  EXPECT_TRUE(hw.transactions.empty());
+}
+
+TEST(SX126xBusy, ColdSleepIsNotReconfiguredWithoutBeingAsked) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.radio.set_mode_sleep(true);
+  hw.clear_trace();
+  run_scheduler(1100);
+  EXPECT_TRUE(hw.transactions.empty());
+}
+
+TEST(SX126xBusy, PacketThatFailedItsCrcDoesNotHoldUpASend) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.irq = IRQ_RX_DONE | IRQ_CRC_ERROR;
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
+}
+
+TEST(SX126xBusy, PacketCompletingDuringAReadIsReadNext) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(true, true);
+  hw.radio.register_listener(&listener);
+  bool second = false;
+  hw.on_command = [&](uint8_t opcode) {
+    if (opcode == RADIO_READ_BUFFER && !second) {
+      second = true;
+      hw.irq |= IRQ_RX_DONE;
+    }
+  };
+  hw.irq = IRQ_RX_DONE;
+  hw.radio.loop();
+  EXPECT_EQ(listener.packets.size(), 1u);
+  EXPECT_EQ(hw.irq & IRQ_RX_DONE, IRQ_RX_DONE);  // DIO1 stays high for the second packet
+  hw.radio.loop();
+  EXPECT_EQ(listener.packets.size(), 2u);
 }
 
 TEST(SX126xBusy, UnavailableLoopStopsAndConfigurationResumesReceiveWithoutAnInterrupt) {

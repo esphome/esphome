@@ -107,6 +107,7 @@ class SX126x final : public Component {
   // The only place that runs user code for a radio operation: loop scheduling, then status,
   // then the completion or packet listeners. Sx126xRadio has already committed its state.
   void apply_(const RadioEffects &effects);
+  void watch_configuration_();
   SX126xError start_transmit_(SX126xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
   Sx126xRadio radio_;
   RadioProfile requested_profile_;
@@ -115,6 +116,8 @@ class SX126x final : public Component {
   std::vector<SX126xListener *> listeners_;
   std::vector<uint8_t> packet_;
   bool rx_dispatching_{false};
+  bool cold_sleep_{false};
+  bool reconfigure_pending_{false};
 };
 
 }  // namespace esphome::sx126x

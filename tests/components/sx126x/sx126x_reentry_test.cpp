@@ -33,6 +33,21 @@ struct ReentryCompletion final : SX126xTransmitListener {
   std::vector<SX126xError> results;
 };
 
+// Setup reports why it failed, not a generic reason
+TEST(SX126xReentry, FailedSetupKeepsItsReason) {
+  RadioLogCallback log;
+  std::vector<std::string> messages;
+  log.set_callback([&](const std::string &message) { messages.push_back(message); });
+  RadioHardware hw;
+  hw.supported_version = false;
+  hw.configure(true, true);
+  ASSERT_TRUE(hw.radio.is_failed());
+  bool found = false;
+  for (const auto &message : messages)
+    found |= message.find("set Error flag: Unsupported chip version") != std::string::npos;
+  EXPECT_TRUE(found);
+}
+
 // Status logging is the only user code that can run inside a radio operation. It runs only
 // after the operation has committed its state, so a callback sees either a running send or a
 // released radio, and the interrupted operation touches nothing after the callback returns.

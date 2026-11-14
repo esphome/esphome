@@ -135,6 +135,7 @@ class Sx126xRadio {
   AppliedProfile applied_;
   TxOperation tx_;
   uint32_t rx_retry_started_ms_{0};
+  uint16_t pending_irq_{0};  // flags of a received packet whose read failed after they were cleared
   GPIOPin *dio1_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   RadioState state_{RadioState::RADIO_STATE_NEEDS_CONFIGURATION};
