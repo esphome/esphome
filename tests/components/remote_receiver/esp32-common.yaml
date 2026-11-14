@@ -91,6 +91,14 @@ binary_sensor:
     lg:
       data: 0x20DF10EF
   - platform: remote_receiver
+    name: Nexa Remote Input
+    nexa:
+      device: 0x1
+      group: 0
+      state: 0
+      channel: 0
+      level: 0
+  - platform: remote_receiver
     name: KeeLoq Remote Input
     keeloq:
       address: 0x57ffe7b
