@@ -446,9 +446,7 @@ CONFIG_SCHEMA = cv.All(
             # Raise it for sleepy devices, e.g. a Thread MTD with a long poll_period.
             cv.Optional(CONF_KEEPALIVE, default=DEFAULT_KEEPALIVE): cv.All(
                 cv.positive_time_period_milliseconds,
-                cv.Range(
-                    min=cv.TimePeriod(seconds=10), max=cv.TimePeriod(hours=1)
-                ),
+                cv.Range(min=cv.TimePeriod(seconds=10), max=cv.TimePeriod(hours=1)),
             ),
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
