@@ -1866,50 +1866,20 @@ SAMSUNG_SCHEMA = cv.Schema(
 
 
 # Samsung36
-(
-    Samsung36Data,
-    Samsung36BinarySensor,
-    Samsung36Trigger,
-    _,
-    Samsung36Dumper,
-) = declare_protocol("Samsung36")
 SAMSUNG36_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Required(CONF_COMMAND): cv.hex_uint32_t,
     }
 )
-
-
-@register_binary_sensor("samsung36", Samsung36BinarySensor, SAMSUNG36_SCHEMA)
-def samsung36_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                Samsung36Data,
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
+Samsung36Data, Samsung36BinarySensor, Samsung36Trigger, _, Samsung36Dumper = (
+    register_simple_protocol(
+        "samsung36",
+        "Samsung36",
+        SAMSUNG36_SCHEMA,
+        (CONF_ADDRESS, "address", cg.uint16),
+        (CONF_COMMAND, "command", cg.uint32),
     )
-
-
-@register_trigger("samsung36", Samsung36Trigger, Samsung36Data)
-def samsung36_trigger(var, config):
-    pass
-
-
-@register_dumper("samsung36", Samsung36Dumper)
-def samsung36_dumper(var, config):
-    pass
-
-
-register_protocol_action(
-    "samsung36",
-    "Samsung36",
-    SAMSUNG36_SCHEMA,
-    (CONF_ADDRESS, "address", cg.uint16),
-    (CONF_COMMAND, "command", cg.uint32),
 )
 
 
