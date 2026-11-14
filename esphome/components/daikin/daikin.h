@@ -72,7 +72,6 @@ class DaikinClimate final : public climate_ir::ClimateIR {
   void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
-  uint8_t operation_mode_() const;
   uint16_t fan_speed_() const;
   uint8_t temperature_() const;
   void set_presets_(uint8_t *remote_state) const;

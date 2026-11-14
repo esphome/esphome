@@ -17,6 +17,27 @@ static constexpr uint8_t DAIKIN_FRAME_TYPE_INDEX = 4;
 static constexpr uint8_t DAIKIN_FRAME_HEADER_SIZE = DAIKIN_FRAME_TYPE_INDEX + 1;
 static constexpr uint8_t DAIKIN_STATE_FRAME_OFFSET = 2 * DAIKIN_COMFORT_FRAME_SIZE;
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// The first entry of each table is the fallback when sending; a received code that is not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, DAIKIN_MODE_OFF},
+    {climate::CLIMATE_MODE_COOL, DAIKIN_MODE_ON | DAIKIN_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, DAIKIN_MODE_ON | DAIKIN_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, DAIKIN_MODE_ON | DAIKIN_MODE_HEAT},
+    {climate::CLIMATE_MODE_HEAT_COOL, DAIKIN_MODE_ON | DAIKIN_MODE_AUTO},
+    {climate::CLIMATE_MODE_FAN_ONLY, DAIKIN_MODE_ON | DAIKIN_MODE_FAN},
+};
+// Fan speeds 2 and 4 are only received
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, DAIKIN_FAN_AUTO}, {climate::CLIMATE_FAN_QUIET, DAIKIN_FAN_SILENT},
+    {climate::CLIMATE_FAN_LOW, DAIKIN_FAN_1},     {climate::CLIMATE_FAN_MEDIUM, DAIKIN_FAN_3},
+    {climate::CLIMATE_FAN_HIGH, DAIKIN_FAN_5},    {climate::CLIMATE_FAN_LOW, DAIKIN_FAN_2},
+    {climate::CLIMATE_FAN_HIGH, DAIKIN_FAN_4},
+};
+
 void DaikinClimate::setup() {
   climate_ir::ClimateIR::setup();
   // A boost preset restored from flash gets its timer too
@@ -35,7 +56,7 @@ void DaikinClimate::transmit_state() {
                               0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
   this->set_presets_(remote_state);
-  remote_state[21] = this->operation_mode_();
+  remote_state[21] = to_ir_code(MODES, this->mode);
   remote_state[22] = this->temperature_();
   put_be16(remote_state + 24, this->fan_speed_());
 
@@ -67,52 +88,8 @@ void DaikinClimate::transmit_state() {
   transmit.perform();
 }
 
-uint8_t DaikinClimate::operation_mode_() const {
-  uint8_t operating_mode = DAIKIN_MODE_ON;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      operating_mode |= DAIKIN_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      operating_mode |= DAIKIN_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      operating_mode |= DAIKIN_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      operating_mode |= DAIKIN_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      operating_mode |= DAIKIN_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      operating_mode = DAIKIN_MODE_OFF;
-      break;
-  }
-
-  return operating_mode;
-}
-
 uint16_t DaikinClimate::fan_speed_() const {
-  uint16_t fan_speed;
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_QUIET:
-      fan_speed = DAIKIN_FAN_SILENT << 8;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      fan_speed = DAIKIN_FAN_1 << 8;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DAIKIN_FAN_3 << 8;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      fan_speed = DAIKIN_FAN_5 << 8;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      fan_speed = DAIKIN_FAN_AUTO << 8;
-  }
+  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) << 8;
 
   // If swing is enabled switch first 4 bits to 1111
   switch (this->swing_mode) {
@@ -189,29 +166,12 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   // Temperature is given in degrees celsius * 2
   // only update for states that use the temperature
   uint8_t temperature = frame[6];
-  if (mode & DAIKIN_MODE_ON) {
-    switch (mode & 0xF0) {
-      case DAIKIN_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        this->target_temperature = static_cast<float>(temperature * 0.5f);
-        break;
-      case DAIKIN_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case DAIKIN_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        this->target_temperature = static_cast<float>(temperature * 0.5f);
-        break;
-      case DAIKIN_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        this->target_temperature = static_cast<float>(temperature * 0.5f);
-        break;
-      case DAIKIN_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-    }
-  } else {
+  if (!(mode & DAIKIN_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (const auto entry = find_ir_code(MODES, mode & (0xF0 | DAIKIN_MODE_ON), true)) {
+    this->mode = static_cast<climate::ClimateMode>(entry->value);
+    if (this->mode != climate::CLIMATE_MODE_DRY && this->mode != climate::CLIMATE_MODE_FAN_ONLY)
+      this->target_temperature = static_cast<float>(temperature * 0.5f);
   }
   uint8_t fan_mode = frame[8];
   uint8_t swing_mode = frame[9];
@@ -224,25 +184,8 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   } else {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
-  switch (fan_mode & 0xF0) {
-    case DAIKIN_FAN_1:
-    case DAIKIN_FAN_2:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case DAIKIN_FAN_3:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case DAIKIN_FAN_4:
-    case DAIKIN_FAN_5:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case DAIKIN_FAN_AUTO:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-    case DAIKIN_FAN_SILENT:
-      this->fan_mode = climate::CLIMATE_FAN_QUIET;
-      break;
-  }
+  if (const auto entry = find_ir_code(FANS, fan_mode & 0xF0, true))
+    this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
 
   // Comfort lives in the first frame, recorded as pending until this frame proves the transmission valid
   // A comfort frame whose own state frame never came must not attach to a later transmission
