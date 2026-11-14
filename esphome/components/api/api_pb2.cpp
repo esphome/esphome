@@ -4177,7 +4177,8 @@ uint8_t *InfraredRFReceiveEvent::encode_msg(const void *self, uint8_t *__restric
 #endif
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
   for (const auto &it : *msg.timings) {
-    pos = ProtoEncode::encode_sint32_force(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
+    pos = ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(it));
   }
   return pos;
 }

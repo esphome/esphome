@@ -670,11 +670,11 @@ def test_uc8179_e1001_code_generation(
     assert "97, 4, 3, 32, 1, 224" in main_cpp
 
 
-def test_gdey0583t81_defaults_and_driver_class(
+def test_uc8179_named_models(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """The GDEY0583T81 models default to 648x480 and use the UC8179 driver class."""
+    """The named UC8179 models use the UC8179 driver class with their own dimensions."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
@@ -682,7 +682,12 @@ def test_gdey0583t81_defaults_and_driver_class(
 
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
 
-    for name in ("goodisplay-gdey0583t81-5.83", "0583BN-T81-D2"):
+    for name, dimensions in (
+        ("goodisplay-gdew075t7-7.5", (800, 480)),
+        ("075BN-T7-D2", (800, 480)),
+        ("goodisplay-gdey0583t81-5.83", (648, 480)),
+        ("0583BN-T81-D2", (648, 480)),
+    ):
         model = MODELS[name.upper()]
         assert model.class_name == "EPaperUC8179"
         config = run_schema_validation(
@@ -693,7 +698,7 @@ def test_gdey0583t81_defaults_and_driver_class(
                 "full_update_every": 5,
             }
         )
-        assert model.get_dimensions(config) == (648, 480)
+        assert model.get_dimensions(config) == dimensions
 
 
 def test_uc8279_width_must_be_a_multiple_of_8(
@@ -886,9 +891,18 @@ def test_uc8279_offset_height_configurable(
     assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
 
 
+@pytest.mark.parametrize(
+    "dimensions",
+    [
+        {"width": 16, "height": 2, "offset_height": 0xFFFF},
+        # offset_height not written: the default of 0 applies, and the error must not point at a missing key
+        {"width": 16, "height": 0x10000},
+    ],
+)
 def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
 ) -> None:
     """offset_height plus the panel height is the gate count, which the controller holds in 16 bits."""
     set_core_config(
@@ -897,15 +911,16 @@ def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     )
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
 
-    with pytest.raises(cv.Invalid, match="must not exceed"):
+    with pytest.raises(cv.Invalid, match="must not exceed") as exc_info:
         run_schema_validation(
             {
                 "id": "test_display",
                 "model": "uc8279",
                 "dc_pin": 21,
-                "dimensions": {"width": 16, "height": 2, "offset_height": 0xFFFF},
+                "dimensions": dimensions,
             }
         )
+    assert exc_info.value.path[-2:] == ["dimensions", "height"]
 
 
 def test_uc8279_x4pro_explicit_dimensions_keep_the_model_offset(

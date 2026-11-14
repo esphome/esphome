@@ -12,10 +12,8 @@ ESPHOME_LOG_TAG(TAG, "dht12");
 
 void DHT12Component::update() {
   uint8_t data[5];
-  if (!this->read_data_(data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_data_(data)))
     return;
-  }
   const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
   float temperature = raw_temperature / 10.0f;
   if ((data[3] & 0x80) != 0) {
@@ -29,7 +27,6 @@ void DHT12Component::update() {
   ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
   PUBLISH_STATE(this->temperature_sensor_, temperature);
   PUBLISH_STATE(this->humidity_sensor_, humidity);
-  this->status_clear_warning();
 }
 void DHT12Component::setup() {
   uint8_t data[5];
