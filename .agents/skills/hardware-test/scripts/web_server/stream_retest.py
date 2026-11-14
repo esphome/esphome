@@ -210,7 +210,11 @@ elif args.mode == "wifidrop":
             + b"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
         )
         b.settimeout(3)
-        status = b.recv(200).split(b"\r\n")[0]
+        # read through the end of the status line; one recv may hold only part of it
+        reply = b""
+        while b"\r\n" not in reply and (d := b.recv(200)):
+            reply += d
+        status = reply.split(b"\r\n")[0]
         pressed = status.startswith(b"HTTP/1.1 200")
         print("press reply:", status, flush=True)
         b.close()

@@ -81,7 +81,7 @@ def stream(stop: threading.Event) -> None:
             )
             stats["stream_opens"] += 1
             s.settimeout(1)
-            first = True
+            head = b""
             tail = b""
             while not stop.is_set():
                 try:
@@ -91,14 +91,18 @@ def stream(stop: threading.Event) -> None:
                 if not d:
                     stats["sse_closes"] += 1
                     break
-                # a refused stream (401, 503) is an error, not load
-                if first and not d.startswith(b"HTTP/1.1 200"):
-                    stats["stream_errors"] += 1
-                    time.sleep(1)
-                    break
-                if first:
-                    d = d.partition(b"\r\n\r\n")[2]
-                first = False
+                # collect the whole response head first; TCP may split even the status line
+                if head is not None:
+                    head += d
+                    if b"\r\n\r\n" not in head:
+                        continue
+                    hd, _, d = head.partition(b"\r\n\r\n")
+                    head = None
+                    # a refused stream (401, 503) is an error, not load
+                    if not hd.startswith(b"HTTP/1.1 200"):
+                        stats["stream_errors"] += 1
+                        time.sleep(1)
+                        break
                 stats["sse_bytes"] += len(d)
                 # keep the tail so an event line split across two reads is still counted
                 buf = tail + d
@@ -128,8 +132,9 @@ def connector(stop: threading.Event) -> None:
                     continue
                 if not d:
                     break
-                if not head:
-                    head = d
+                # keep fragments until the status line is complete
+                if b"\r\n" not in head:
+                    head += d
                 n += len(d)
             s.close()
             # A refused or empty answer did not run the new client listing

@@ -57,6 +57,8 @@ log "counter resets (reboots): $RESETS, failed counter polls: $BADPOLLS of $POLL
 if [ -n "$SP" ]; then
   CRASH=$(grep -a -c -i -E 'CRASH|panic|HardFault|assert' $D/$N-serial.log)
   log "serial: crash lines $CRASH, boots $(grep -a -c 'Log initialized' $D/$N-serial.log)"
+  # a live capture that read nothing would pass the crash check without proving anything
+  [ "$(grep -a -c -v '^\[[0-9:.]*\]\[capture\]' $D/$N-serial.log)" -gt 0 ] || fail "no firmware lines in $D/$N-serial.log"
   [ "$CRASH" = 0 ] || fail "$CRASH crash or assert lines"
 fi
 [ $FAILS = 0 ] || exit 1

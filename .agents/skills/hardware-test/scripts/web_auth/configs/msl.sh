@@ -11,12 +11,13 @@ T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; CR=$D/${CREDS:-creds-short.ya
 read -r U PW < <($PY -c 'import sys, yaml; s = yaml.safe_load(open(sys.argv[1]))["substitutions"]; print(s["web_user"], s["web_pass"])' "$CR") ||
   { echo "cannot read $CR"; exit 1; }
 "$S/pio_build.sh" compile "$N" "$D/$C" -s web_user "$U" -s web_pass "$PW" || exit 1
+# a capture left on this port would fight the flasher for the serial lines
+pkill -f "[s]erial_capture.py $P "; sleep 1
 if [ "$4" != noflash ]; then
   PC=${PIO_CORE:-$D/pio}; LTPY=$PC/penv/.libretiny/bin/python; LTL=$(ls -d "$PC"/platforms/libretiny* 2>/dev/null | head -1)
   timeout 600 "$LTPY" "$S/flash_rtl87xx_kit.py" -L "$LTL" flash write -d "$P" "$D/.esphome/build/$N/.pioenvs/$N/firmware.uf2" \
     > "$D/$N-upload.log" 2>&1 || { echo "$N flash failed (see $D/$N-upload.log)"; exit 1; }
 fi
-pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$D/$N-serial.log; : > "$L"
 $PY "$S/serial_capture.py" "$P" 3000 "$L" --released 2> "$D/$N-cap.err" &
 CAP=$!; trap 'kill $CAP 2>/dev/null' EXIT

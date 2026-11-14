@@ -18,6 +18,8 @@ grep -q USE_JSON_ARENA "$DEFS" && echo "$N: USE_JSON_ARENA on" || echo "$N: USE_
 IMG=$A/.esphome/build/$N/.pioenvs/$N/firmware.uf2
 PC=${PIO_CORE:-$A/pio}; LTPY=$PC/penv/.libretiny/bin/python; LTL=$(ls -d "$PC"/platforms/libretiny* 2>/dev/null | head -1)
 OPT=""
+# a capture left on this port would fight the flasher for the serial lines
+pkill -f "[s]erial_capture.py $P "; sleep 1
 if [ -z "$NOFLASH" ]; then
   case $K in
     bw) OPT=--released
@@ -31,7 +33,6 @@ else
   [ "$K" = bw ] && OPT=--released
   [ "$K" = bk ] && OPT=--reset
 fi
-pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$A/$N-serial.log; : > "$L"
 if [ -z "$NOCAP" ]; then $PY "$S/serial_capture.py" "$P" 2400 "$L" $OPT 2> "$A/$N-cap.err" & CAP=$!; trap 'kill $CAP 2>/dev/null' EXIT; fi
 H=$("$S/resolve.sh" "$N" 60) || exit 1
