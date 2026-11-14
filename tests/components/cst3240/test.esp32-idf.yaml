@@ -1,0 +1,13 @@
+substitutions:
+  cs_pin: GPIO25
+  dc_pin: GPIO27
+  reset_pin: GPIO22
+  interrupt_pin: GPIO33
+
+packages:
+  # touchscreen
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  # display
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml

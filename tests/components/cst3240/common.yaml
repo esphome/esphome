@@ -1,0 +1,21 @@
+display:
+  - id: display0
+    platform: ili9xxx
+    model: ST7796
+    dimensions: 480x320
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${reset_pin}
+    transform:
+      swap_xy: false
+      mirror_x: false
+      mirror_y: false
+    auto_clear_enabled: false
+    invert_colors: false
+
+touchscreen:
+  - id: ts_cst3240
+    platform: cst3240
+    i2c_id: i2c_bus
+    display: display0
+    interrupt_pin: ${interrupt_pin}
