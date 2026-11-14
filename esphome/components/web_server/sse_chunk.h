@@ -15,25 +15,23 @@ namespace esphome::web_server {
 // HTTP chunk header "%08x\r\n"
 constexpr size_t CHUNK_HDR_LEN = 10;
 // Chunk terminator, also the only piece of a null message (no data line, no blank line)
-constexpr char CHUNK_END[] = "\r\n";
-constexpr size_t CHUNK_END_LEN = sizeof(CHUNK_END) - 1;
+extern const char CHUNK_END[];
+constexpr size_t CHUNK_END_LEN = 2;
 // Between two data lines: the end of one and the prefix of the next
-constexpr char SSE_SEP[] = "\r\ndata: ";
-constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
+extern const char SSE_SEP[];
+constexpr size_t SSE_SEP_LEN = 8;
 // End of the last data line, the blank line ending the event, and the chunk terminator
-constexpr char SSE_SUFFIX[] = "\r\n\r\n\r\n";
-constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
+extern const char SSE_SUFFIX[];
+constexpr size_t SSE_SUFFIX_LEN = 6;
 
 // Status, Content-Type and headers of the /events response head
-constexpr char SSE_STATUS[] = "200 OK";
-constexpr char SSE_CONTENT_TYPE[] = "text/event-stream";
-constexpr web_server_base::HttpHeader SSE_HEADERS[] = {
-    {"Transfer-Encoding", "chunked"},
-    {"Cache-Control", "no-cache"},
-    {"Connection", "keep-alive"},
-};
+// In flash on ESP8266; the stream helpers read them with the _P functions
+extern const char SSE_STATUS[];
+extern const char SSE_CONTENT_TYPE[];
+constexpr size_t SSE_HEADERS_COUNT = 3;
+extern const web_server_base::HttpHeader SSE_HEADERS[SSE_HEADERS_COUNT];
 // Hand-framed first chunk holding an empty event (one blank line), as httpd_resp_send_chunk() sent it before
-constexpr char SSE_FIRST_CHUNK[] = "2\r\n\r\n\r\n";
+extern const char SSE_FIRST_CHUNK[];
 
 // Receives one piece of the chunk; ctx is whatever the caller passed to for_each_chunk_piece()
 using ChunkPieceSink = void (*)(void *ctx, const char *piece, size_t len);

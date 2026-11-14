@@ -7,9 +7,7 @@
 #include "esphome/components/web_server_base/captive_dns.h"
 // The host only builds sse_chunk.cpp for unit tests, but other tests can define USE_WEBSERVER there
 #if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
-#ifdef USE_ESP32
 #include "event_source.h"
-#endif
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/entity_includes.h"
@@ -19,7 +17,6 @@
 #endif
 
 #include <functional>
-#include <list>
 #include <map>
 #include <string>
 #include <utility>
@@ -102,97 +99,6 @@ struct SortingGroup {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
-/*
-  In order to defer updates in arduino mode, we need to create one AsyncEventSource per incoming request to /events.
-  This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
-  update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
-  multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
-  implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
-  can be forgotten.
-*/
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-using message_generator_t = void(WebServer *, void *, json::JsonBuilder &);
-
-class DeferredUpdateEventSourceList;
-class DeferredUpdateEventSource final : public AsyncEventSource {
-  friend class DeferredUpdateEventSourceList;
-
-  /*
-    This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
-    that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-    the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
-    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two
-    pointers per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors
-    publishing because of dedup) would take up only 0.8 kB.
-  */
-  struct DeferredEvent {
-    friend class DeferredUpdateEventSource;
-
-   protected:
-    void *source_;
-    message_generator_t *message_generator_;
-
-   public:
-    DeferredEvent(void *source, message_generator_t *message_generator)
-        : source_(source), message_generator_(message_generator) {}
-    bool operator==(const DeferredEvent &test) const {
-      return (source_ == test.source_ && message_generator_ == test.message_generator_);
-    }
-  };
-  static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
-                "DeferredEvent should have no padding");
-
- protected:
-  // surface a couple methods from the base class
-  using AsyncEventSource::handleRequest;
-  using AsyncEventSource::send;
-
-  ListEntitiesIterator entities_iterator_;
-  // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory
-  // footprint is more important than speed here)
-  std::vector<DeferredEvent> deferred_queue_;
-  WebServer *web_server_;
-  uint16_t consecutive_send_failures_{0};
-  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
-
-  // helper for allowing only unique entries in the queue
-  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
-
-  void process_deferred_queue_();
-
- public:
-  DeferredUpdateEventSource(WebServer *ws, const String &url)
-      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(ws, this)), web_server_(ws) {}
-
-  void loop();
-
-  // detail_all events go out while entities are still being listed; state events wait until listing is done
-  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
-  // The old event name argument would otherwise convert to true
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
-  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
-                        uint32_t reconnect = 0);
-};
-
-class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
- protected:
-  void on_client_connect_(DeferredUpdateEventSource *source);
-  void on_client_disconnect_(DeferredUpdateEventSource *source);
-
- public:
-  /// Returns true if there are event sources remaining (including pending cleanup).
-  bool loop();
-
-  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
-  // The old event name argument would otherwise convert to true
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
-  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
-                        uint32_t reconnect = 0);
-
-  void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
-};
-#endif
-
 /** This class allows users to create a web server with their ESP nodes.
  *
  * Behind the scenes it's using AsyncWebServer to set up the server. It exposes 3 things:
@@ -203,10 +109,6 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
  * can be found under https://esphome.io/web-api/.
  */
 class WebServer final : public Component, public AsyncWebHandler {
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  friend class DeferredUpdateEventSourceList;
-#endif
-
  public:
   WebServer(web_server_base::WebServerBase *base);
 
@@ -611,11 +513,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   }
 
   web_server_base::WebServerBase *base_;
-#ifdef USE_ESP32
-  AsyncEventSource events_{StringRef::from_lit("/events"), this};
-#elif USE_ARDUINO
-  DeferredUpdateEventSourceList events_;
-#endif
+  AsyncEventSource events_;
 #ifdef USE_WEBSERVER_CAPTIVE
   void handle_not_found_(AsyncWebServerRequest *request);
   web_server_base::CaptiveDNS dns_;

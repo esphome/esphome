@@ -527,7 +527,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", port)
     if CORE.is_esp32:
-        # The ESP-IDF event source builds state documents in a stack arena
+        # The event source builds state documents in a stack arena; too large for the ESP8266 loop stack
         enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
@@ -614,7 +614,7 @@ async def to_code(config: ConfigType) -> None:
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out web_server_v1.cpp when version is not 1, the ESP32 event stream elsewhere, and the server on host."""
+    """Filter out web_server_v1.cpp when version is not 1, and the server on host."""
     files_to_filter: list[str] = []
 
     # The host has no web server; it builds only sse_chunk.cpp, for its unit tests
@@ -628,10 +628,6 @@ def FILTER_SOURCE_FILES() -> list[str]:
             )
         )
         return files_to_filter
-
-    # The /events implementation is ESP32 only
-    if not CORE.is_esp32:
-        files_to_filter.extend(("event_source.cpp", "sse_chunk.cpp"))
 
     # web_server_v1.cpp is only needed when version is 1
     config = CORE.config.get(DOMAIN, {})
