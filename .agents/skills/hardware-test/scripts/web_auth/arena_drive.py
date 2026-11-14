@@ -5,7 +5,9 @@ Needs the "Stack min" and "Heap free" template sensors and the "Big select" sele
 with the logger at VERY_VERBOSE (logs flood the /events streams).
 Phases: idle, two /events streams, plus a new /events client every 3 s (greeting and full listing), plus select
 changes every 0.5 s with a detail=all read of the select (a state over 1 KB), then all at once.
-Prints per phase: lowest stack minimum, heap range, uptime (resets), SSE bytes.
+Prints per phase (the load counters cover that phase only): lowest stack minimum, heap range, uptime (resets), SSE
+bytes and the connect, stream and select errors. Exits 1 when a phase had a reset, no stack reading, or a load that
+mostly failed to reach the device (marked NOT LOADED).
 """
 
 import base64
@@ -19,16 +21,7 @@ import urllib.parse
 HOST, U, P = sys.argv[1:4]
 PHASE = float(sys.argv[4]) if len(sys.argv) > 4 else 60
 H = base64.b64encode(f"{U}:{P}".encode()).decode()
-stop_all = threading.Event()
-stats = {
-    "sse_bytes": 0,
-    "sse_closes": 0,
-    "connects": 0,
-    "listing_bytes": [],
-    "select_ok": 0,
-    "select_fail": 0,
-    "detail_bytes": 0,
-}
+stats: dict = {}
 OPTS = [
     f"Option {i:02d} with a deliberately long label to grow the listing"
     for i in range(40)
@@ -69,9 +62,10 @@ def req(method: str, path: str, timeout: float = 5) -> tuple[int | None, bytes]:
 
 def val(name: str) -> float | None:
     st, body = req("GET", "/sensor/" + urllib.parse.quote(name))
+    # TypeError: an unknown (NaN) state is null
     try:
         return float(json.loads(body)["value"]) if st == 200 else None
-    except (ValueError, KeyError):
+    except (ValueError, KeyError, TypeError):
         return None
 
 
@@ -82,6 +76,7 @@ def stream(stop: threading.Event) -> None:
             s.sendall(
                 f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
             )
+            stats["stream_opens"] += 1
             s.settimeout(1)
             while not stop.is_set():
                 try:
@@ -94,6 +89,7 @@ def stream(stop: threading.Event) -> None:
                 stats["sse_bytes"] += len(d)
             s.close()
         except OSError:
+            stats["stream_errors"] += 1
             time.sleep(1)
 
 
@@ -119,7 +115,7 @@ def connector(stop: threading.Event) -> None:
             stats["connects"] += 1
             stats["listing_bytes"].append(n)
         except OSError:
-            pass
+            stats["connect_errors"] += 1
         stop.wait(0.5)
 
 
@@ -138,7 +134,19 @@ def selector(stop: threading.Event) -> None:
         stop.wait(0.5)
 
 
-def phase(name: str, workers: list) -> None:
+def phase(name: str, workers: list) -> bool:
+    stats.update(
+        sse_bytes=0,
+        sse_closes=0,
+        stream_opens=0,
+        stream_errors=0,
+        connects=0,
+        connect_errors=0,
+        listing_bytes=[],
+        select_ok=0,
+        select_fail=0,
+        detail_bytes=0,
+    )
     stop = threading.Event()
     ts = [threading.Thread(target=w, args=(stop,)) for w in workers]
     for t in ts:
@@ -159,15 +167,28 @@ def phase(name: str, workers: list) -> None:
         t.join()
     resets = sum(1 for a, b in zip(ups, ups[1:], strict=False) if b < a)
     lb = stats["listing_bytes"]
+    loaded = not (
+        (
+            stream in workers
+            and (
+                stats["sse_bytes"] == 0
+                or stats["stream_errors"] > stats["stream_opens"]
+            )
+        )
+        or (connector in workers and stats["connect_errors"] >= stats["connects"])
+        or (selector in workers and stats["select_fail"] >= stats["select_ok"])
+    )
     print(
         time.strftime("[%H:%M:%S]"),
-        f"PHASE {name}: stack min {min(stacks) if stacks else None} B, heap "
+        f"PHASE {name}{'' if loaded else ' NOT LOADED'}: stack min {min(stacks) if stacks else None} B, heap "
         f"{min(heaps) if heaps else None}..{max(heaps) if heaps else None}, uptime {ups[:1]}..{ups[-1:]}, resets {resets}; "
-        f"sse bytes {stats['sse_bytes']}, sse closes {stats['sse_closes']}, connects {stats['connects']} "
+        f"sse bytes {stats['sse_bytes']}, sse closes {stats['sse_closes']}, stream opens {stats['stream_opens']} "
+        f"errors {stats['stream_errors']}, connects {stats['connects']} errors {stats['connect_errors']} "
         f"(listing {min(lb) if lb else 0}..{max(lb) if lb else 0} B), select ok {stats['select_ok']} fail "
         f"{stats['select_fail']}, detail {stats['detail_bytes']} B",
         flush=True,
     )
+    return loaded and bool(stacks) and resets == 0
 
 
 print(
@@ -175,8 +196,17 @@ print(
     f"start: stack min {val('Stack min')} heap {val('Heap free')} uptime {val('Uptime')}",
     flush=True,
 )
-phase("idle", [])
-phase("two streams", [stream, stream])
-phase("two streams + new clients", [stream, stream, connector])
-phase("two streams + select over 1 KB", [stream, stream, selector])
-phase("all", [stream, stream, connector, selector])
+ok = [
+    phase("idle", []),
+    phase("two streams", [stream, stream]),
+    phase("two streams + new clients", [stream, stream, connector]),
+    phase("two streams + select over 1 KB", [stream, stream, selector]),
+    phase("all", [stream, stream, connector, selector]),
+]
+print(
+    "PASS"
+    if all(ok)
+    else f"FAIL: {ok.count(False)} phases with a reset, no stack reading or NOT LOADED",
+    flush=True,
+)
+sys.exit(0 if all(ok) else 1)

@@ -25,7 +25,9 @@ sensor:
     name: Stack min
     unit_of_measurement: B
     update_interval: 5s
-    lambda: return (float) stackmin_free_bytes();
+    lambda: |-
+      int32_t n = stackmin_free_bytes();
+      return n < 0 ? NAN : (float) n;
   - platform: template
     name: Heap free
     unit_of_measurement: B

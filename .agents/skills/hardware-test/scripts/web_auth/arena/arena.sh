@@ -1,7 +1,8 @@
 #!/bin/bash
 # arena.sh NAME CONFIG KIND PORT: build CONFIG (bw15.yaml or bk7238.yaml) as NAME from TREE, flash it over serial PORT
 # (KIND bw or bk), capture the serial log unless NOCAP is set, settle 60 s, run arena_drive.py, then print the resets,
-# faults and lowest stack minimum from the log. Diagnostic: compare the per phase stack minimum between two builds.
+# faults and lowest stack minimum from the log. Exits with the arena_drive.py status; compare the per phase stack
+# minimum between two builds.
 # NOFLASH=1 skips the flash. NOCAP=1 skips the capture: under a VERY_VERBOSE flood a BW15 CH340 can drop off USB, and
 # each reopen of its port resets the chip.
 # env: TREE, PY, CREDS (default creds-short.yaml in ../configs), NOFLASH, NOCAP
@@ -35,9 +36,11 @@ if [ -z "$NOCAP" ]; then $PY "$S/serial_capture.py" "$P" 2400 "$L" $OPT 2> "$A/$
 H=$("$S/resolve.sh" "$N" 60) || exit 1
 echo "$H" > "$A/$N-host.txt"
 echo "== $N settle 60 s"; sleep 60
-$PY -I "$W/arena_drive.py" "$H" "$U" "$PW" 60
+$PY -I "$W/arena_drive.py" "$H" "$U" "$PW" 60; RC=$?
 sleep 3; [ -n "$CAP" ] && { kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; }
 echo "== $N serial: resets $(grep -a -c -E 'Reset Reason|ROM Version' "$L"), port losses $(grep -a -c 'port lost' "$L")," \
   "faults $(grep -a -c -i -E 'fault|crash|assert|abort|stack overflow' "$L")"
 grep -a "\[hwm" "$L" | sed -n '1p;$p'
-grep -a "\[hwm" "$L" | sed 's/.*stack min \([0-9-]*\) B.*/\1/' | sort -n | head -1 | sed 's/^/serial lowest stack min: /'
+# -1 is an unknown stack base, not a reading
+grep -a "\[hwm" "$L" | sed -n 's/.*stack min \([0-9][0-9]*\) B.*/\1/p' | sort -n | head -1 | sed 's/^/serial lowest stack min: /'
+exit $RC

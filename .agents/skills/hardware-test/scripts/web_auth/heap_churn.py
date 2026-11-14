@@ -4,6 +4,7 @@ usage: heap_churn.py HOST USER PASS [N] [RATE] [SAMPLE_S] [AFTER_S]
 Prints one line per heap sample (seconds since start, phase, heap, uptime) and a summary: idle heap, lowest heap
 during the load, heap at the end of the load, and seconds after the load until the heap is back within 2 KB of idle.
 Built for lwIP TIME_WAIT checks (TCP_MSL): each closed connection may keep a PCB on the heap for 2 * TCP_MSL.
+Exits 1 on a reboot, no idle heap reading, no recovery in the window, or when fewer than half the requests got a 401.
 """
 
 import base64
@@ -20,6 +21,7 @@ SAMPLE = float(sys.argv[6]) if len(sys.argv) > 6 else 10.0
 AFTER = float(sys.argv[7]) if len(sys.argv) > 7 else 150.0
 H = base64.b64encode(f"{U}:{P}".encode()).decode()
 BAD = "Basic " + H[:-1] + ("B" if H[-1] != "B" else "C")
+read_fails = [0]
 
 
 def val(path: str) -> float | None:
@@ -37,6 +39,7 @@ def val(path: str) -> float | None:
         s.close()
         return float(json.loads(buf.split(b"\r\n\r\n", 1)[1])["value"])
     except Exception:  # noqa: BLE001
+        read_fails[0] += 1
         return None
 
 
@@ -49,7 +52,7 @@ def bad_once() -> str:
         d = s.recv(64)
         s.close()
         return d.split(b" ", 2)[1].decode() if d.startswith(b"HTTP") else "closed"
-    except OSError as e:
+    except Exception as e:  # noqa: BLE001
         return type(e).__name__
 
 
@@ -65,14 +68,16 @@ load_done_at: list[float] = []
 
 def load() -> None:
     nxt = time.monotonic()
-    for _ in range(N):
-        if (w := nxt - time.monotonic()) > 0:
-            time.sleep(w)
-        nxt += 1.0 / RATE
-        k = bad_once()
-        codes[k] = codes.get(k, 0) + 1
-    load_done_at.append(time.monotonic())
-    load_done.set()
+    try:
+        for _ in range(N):
+            if (w := nxt - time.monotonic()) > 0:
+                time.sleep(w)
+            nxt += 1.0 / RATE
+            k = bad_once()
+            codes[k] = codes.get(k, 0) + 1
+    finally:
+        load_done_at.append(time.monotonic())
+        load_done.set()
 
 
 th = threading.Thread(target=load)
@@ -111,6 +116,17 @@ print(
     f"SUMMARY requests {N} at {RATE}/s: {codes}; idle {idle_heap}, lowest during load {min(load_heaps) if load_heaps else None}, "
     f"last during load {load_heaps[-1] if load_heaps else None}, back within 2 KB of idle "
     f"{f'{recovered_at:.0f} s after the load (sampling every {SAMPLE:.0f} s)' if recovered_at is not None else 'never in the window'}"
-    f"; reboot {'YES' if reboot else 'no'}",
+    f"; reboot {'YES' if reboot else 'no'}; failed heap/uptime reads {read_fails[0]}",
     flush=True,
 )
+fails = []
+if reboot:
+    fails.append("reboot")
+if idle_heap is None:
+    fails.append("no idle heap reading")
+if recovered_at is None:
+    fails.append("heap not back within 2 KB of idle")
+if codes.get("401", 0) * 2 < N:
+    fails.append(f"only {codes.get('401', 0)} of {N} requests got a 401")
+print("PASS" if not fails else "FAIL: " + ", ".join(fails), flush=True)
+sys.exit(1 if fails else 0)

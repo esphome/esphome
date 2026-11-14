@@ -2,7 +2,7 @@
 # stream_runall.sh NAME PORT: upload stream-dut.yaml as NAME over serial PORT, capture serial for 15 min, then run every
 # stream_retest.py mode (head saved to head-NAME.bin, multi, stall, churn, wifidrop) and print the stall closes, the
 # heap and any reset or crash lines. Run it for both builds and compare the heads with head_compare.py. Exits 1 when
-# any mode reports ok=False.
+# any mode reports ok=False, on a crash line or a second boot in the serial log, or when the capture ended early.
 # env: TREE, PY (secrets.yaml next to stream-dut.yaml)
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; P=${2:?serial port}
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; FAILS=0; R="$PY -I $D/stream_retest.py"
@@ -23,4 +23,9 @@ $R "$IP" churn || FAILS=$((FAILS + 1))
 $R "$IP" wifidrop || FAILS=$((FAILS + 1))
 sleep 5; grep -a heap "$L" | tail -1 | cut -c1-120
 grep -a -E "rst:|ESPHome version|Guru|abort|Backtrace|wifi drop|connection closed \(" "$L" | cut -c1-140 | tail -15
-[ $FAILS = 0 ] || { echo "FAIL: $FAILS modes not ok"; exit 1; }
+kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended before the run did"; FAILS=$((FAILS + 1)); }
+CRASH=$(grep -a -c -E "Guru|abort\(|Backtrace" "$L"); BOOTS=$(grep -a -c "rst:" "$L")
+echo "serial: crash lines $CRASH, boots $BOOTS"
+[ "$CRASH" = 0 ] || { echo "FAIL: $CRASH crash lines"; FAILS=$((FAILS + 1)); }
+[ "$BOOTS" -le 1 ] || { echo "FAIL: $((BOOTS - 1)) resets after the first boot"; FAILS=$((FAILS + 1)); }
+[ $FAILS = 0 ] || { echo "FAIL: $FAILS checks not ok"; exit 1; }

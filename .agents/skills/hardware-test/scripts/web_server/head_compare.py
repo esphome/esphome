@@ -1,7 +1,8 @@
 """Compare two raw /events heads saved by stream_retest.py head: numbers and the device name masked.
 
 usage: head_compare.py A.bin B.bin NAME_A NAME_B [CHUNKS]
-Prints the first CHUNKS (default 6) masked chunks of each side and whether they are identical.
+Prints the first CHUNKS (default 6) masked chunks of each side and whether they are identical. Exits 1 when they
+differ, or when a file has no HTTP head or no event chunk (an empty or truncated capture).
 """
 
 import pathlib
@@ -27,9 +28,13 @@ def chunks(path: str, name: str) -> list[str]:
 
 
 ca, cb = chunks(a, na), chunks(b, nb)
+for path, c in ((a, ca), (b, cb)):
+    if not c[0].startswith("HTTP/") or len(c) < 2:
+        sys.exit(f"FAIL: {path} has no HTTP head or no event chunk")
 for i, (x, y) in enumerate(zip(ca, cb, strict=False)):
     print(f"--- chunk {i} {'same' if x == y else 'DIFFERENT'}")
     print(repr(x)[:400])
     if x != y:
         print(repr(y)[:400])
 print("IDENTICAL" if ca == cb else "DIFFER")
+sys.exit(0 if ca == cb else 1)
