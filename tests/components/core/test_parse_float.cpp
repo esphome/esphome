@@ -365,6 +365,27 @@ TEST(StrToFloat, LongMantissas) {
   expect_picolibc("3" + std::string(799, '7') + "e-761", 0x7F800000);
 }
 
+// picolibc takes ':' to '?' as hex digits 10 to 15 ("0x1:" is 26); these stop at them, as newlib does. #22677 review
+TEST(StrToFloat, HexStopsAtPunctuationAfterNine) {
+  struct Case {
+    const char *str;
+    uint32_t bits;
+    int32_t end;
+  };
+  const Case cases[] = {
+      {"0x1:", 0x3F800000, 3}, {"0x1;", 0x3F800000, 3}, {"0x1<", 0x3F800000, 3},  {"0x1=", 0x3F800000, 3},
+      {"0x1>", 0x3F800000, 3}, {"0x1?", 0x3F800000, 3}, {"0x1.:", 0x3F800000, 4}, {"0x:", 0x00000000, 2},
+      {"0x9?", 0x41100000, 3}, {"0xA:", 0x41200000, 3},
+  };
+  for (const auto &c : cases) {
+    char *end = nullptr;
+    const float value = str_to_float(c.str, &end);
+    EXPECT_EQ(bits(value), c.bits) << '"' << c.str << '"';
+    EXPECT_EQ(end - c.str, c.end) << '"' << c.str << '"';
+    EXPECT_FALSE(parse_number<float>(c.str).has_value()) << c.str;
+  }
+}
+
 TEST(StrToFloat, HexDenormalsAndOverflow) {
   struct Case {
     const char *str;
