@@ -223,6 +223,11 @@ class LightState : public EntityBase, public Component {
   void set_resume_effect(bool resume_effect) { this->resume_effect_ = resume_effect; }
 #endif  // USE_LIGHT_RESUME_EFFECT
 
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// Set whether setup() writes the initial state to the output, instead of the first loop().
+  void set_write_on_setup(bool write_on_setup) { this->write_on_setup_ = write_on_setup; }
+#endif  // USE_LIGHT_WRITE_ON_SETUP
+
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects() const { return !this->effects_.empty(); }
 
@@ -321,6 +326,10 @@ class LightState : public EntityBase, public Component {
   // The two halves of loop()
   void apply_effect_and_transformer_();
   void write_if_pending_();
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// The write of a loop() pass, without its effect and transition steps; setup() calls it with write_on_setup.
+  virtual void write_start_up_state() { this->write_if_pending_(); }
+#endif  // USE_LIGHT_WRITE_ON_SETUP
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
@@ -432,6 +441,10 @@ class LightState : public EntityBase, public Component {
   /// Whether a plain turn-on restores the effect that was active when the light was turned off.
   bool resume_effect_ : 1 {false};
 #endif  // USE_LIGHT_RESUME_EFFECT
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// Whether setup() writes the initial state; the output must be set up before the light.
+  bool write_on_setup_ : 1 {false};
+#endif  // USE_LIGHT_WRITE_ON_SETUP
 };
 
 }  // namespace esphome::light
