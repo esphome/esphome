@@ -27,7 +27,7 @@ class WebServer;
 
 class ListEntitiesIterator final : public ComponentIterator {
  public:
-  ListEntitiesIterator(const WebServer *ws, EventSession *es) : web_server_(ws), events_(es) {}
+  ListEntitiesIterator(const WebServer *ws, EventSession *session) : web_server_(ws), session_(session) {}
 
 // Entity overrides (generated from entity_types.h).
 // Implementations live in list_entities.cpp.
@@ -45,7 +45,7 @@ class ListEntitiesIterator final : public ComponentIterator {
   void send_all_(void *source, void (*generator)(WebServer *, void *, json::JsonBuilder &));
 
   const WebServer *web_server_;
-  EventSession *events_;
+  EventSession *session_;
 };
 
 }  // namespace esphome::web_server
