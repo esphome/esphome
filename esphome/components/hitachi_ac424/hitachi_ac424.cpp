@@ -5,6 +5,25 @@ namespace esphome::hitachi_ac424 {
 
 ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac424");
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// A received code that is not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_COOL, HITACHI_AC424_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, HITACHI_AC424_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, HITACHI_AC424_MODE_HEAT},
+    {climate::CLIMATE_MODE_HEAT_COOL, HITACHI_AC424_MODE_AUTO},
+    {climate::CLIMATE_MODE_FAN_ONLY, HITACHI_AC424_MODE_FAN},
+};
+// The first entry is the fallback when sending; the min and max speeds are only received
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, HITACHI_AC424_FAN_AUTO},     {climate::CLIMATE_FAN_LOW, HITACHI_AC424_FAN_LOW},
+    {climate::CLIMATE_FAN_MEDIUM, HITACHI_AC424_FAN_MEDIUM}, {climate::CLIMATE_FAN_HIGH, HITACHI_AC424_FAN_HIGH},
+    {climate::CLIMATE_FAN_HIGH, HITACHI_AC424_FAN_MAX},      {climate::CLIMATE_FAN_LOW, HITACHI_AC424_FAN_MIN},
+};
+
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
     return;  // Short circuit as it won't change.
@@ -142,46 +161,17 @@ uint8_t HitachiClimate::get_button_() { return remote_state_[HITACHI_AC424_BUTTO
 void HitachiClimate::set_button_(uint8_t button) { remote_state_[HITACHI_AC424_BUTTON_BYTE] = button; }
 
 void HitachiClimate::transmit_state() {
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      set_mode_(HITACHI_AC424_MODE_COOL);
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      set_mode_(HITACHI_AC424_MODE_DRY);
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      set_mode_(HITACHI_AC424_MODE_HEAT);
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      set_mode_(HITACHI_AC424_MODE_AUTO);
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      set_mode_(HITACHI_AC424_MODE_FAN);
-      break;
-    case climate::CLIMATE_MODE_OFF:
-      set_power_(false);
-      break;
-    default:
-      ESP_LOGW(TAG, "Unsupported mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
+  if (const auto entry = find_ir_code(MODES, this->mode, false)) {
+    set_mode_(entry->code);
+  } else if (this->mode == climate::CLIMATE_MODE_OFF) {
+    set_power_(false);
+  } else {
+    ESP_LOGW(TAG, "Unsupported mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
   }
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      set_fan_(HITACHI_AC424_FAN_LOW);
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      set_fan_(HITACHI_AC424_FAN_MEDIUM);
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      set_fan_(HITACHI_AC424_FAN_HIGH);
-      break;
-    case climate::CLIMATE_FAN_ON:
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      set_fan_(HITACHI_AC424_FAN_AUTO);
-  }
+  set_fan_(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)));
 
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
@@ -230,28 +220,10 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
   ESP_LOGV(TAG, "Power: %02X %02X", remote_state[HITACHI_AC424_POWER_BYTE], power);
   uint8_t mode = remote_state[HITACHI_AC424_MODE_BYTE] & 0xF;
   ESP_LOGV(TAG, "Mode: %02X %02X", remote_state[HITACHI_AC424_MODE_BYTE], mode);
-  if (power == HITACHI_AC424_POWER_ON) {
-    switch (mode) {
-      case HITACHI_AC424_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case HITACHI_AC424_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case HITACHI_AC424_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case HITACHI_AC424_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case HITACHI_AC424_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      default:
-        break;
-    }
-  } else {
+  if (power != HITACHI_AC424_POWER_ON) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (const auto entry = find_ir_code(MODES, mode, true)) {
+    this->mode = static_cast<climate::ClimateMode>(entry->value);
   }
   return true;
 }
@@ -268,24 +240,8 @@ bool HitachiClimate::parse_temperature_(const uint8_t remote_state[]) {
 bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
   uint8_t fan_mode = remote_state[HITACHI_AC424_FAN_BYTE] >> 4 & 0xF;
   ESP_LOGV(TAG, "Fan: %02X %02X", remote_state[HITACHI_AC424_FAN_BYTE], fan_mode);
-  switch (fan_mode) {
-    case HITACHI_AC424_FAN_MIN:
-    case HITACHI_AC424_FAN_LOW:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case HITACHI_AC424_FAN_MEDIUM:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case HITACHI_AC424_FAN_HIGH:
-    case HITACHI_AC424_FAN_MAX:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case HITACHI_AC424_FAN_AUTO:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-    default:
-      break;
-  }
+  if (const auto entry = find_ir_code(FANS, fan_mode, true))
+    this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
   return true;
 }
 
