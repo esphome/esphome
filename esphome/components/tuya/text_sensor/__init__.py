@@ -10,9 +10,8 @@ CODEOWNERS = ["@dentra"]
 
 TuyaTextSensor = tuya_ns.class_("TuyaTextSensor", text_sensor.TextSensor)
 
-CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(TuyaTextSensor).extend(
     {
-        cv.GenerateID(): cv.declare_id(TuyaTextSensor),
         cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
         cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
     }
