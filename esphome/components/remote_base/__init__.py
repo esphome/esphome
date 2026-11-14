@@ -1165,39 +1165,13 @@ RoombaData, RoombaBinarySensor, RoombaTrigger, _, RoombaDumper = (
 
 
 # Sony
-SonyData, SonyBinarySensor, SonyTrigger, _, SonyDumper = declare_protocol("Sony")
 SONY_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.hex_uint32_t,
         cv.Optional(CONF_NBITS, default=12): cv.one_of(12, 15, 20, int=True),
     }
 )
-
-
-@register_binary_sensor("sony", SonyBinarySensor, SONY_SCHEMA)
-def sony_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                SonyData,
-                ("data", config[CONF_DATA]),
-                ("nbits", config[CONF_NBITS]),
-            )
-        )
-    )
-
-
-@register_trigger("sony", SonyTrigger, SonyData)
-def sony_trigger(var, config):
-    pass
-
-
-@register_dumper("sony", SonyDumper)
-def sony_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+SonyData, SonyBinarySensor, SonyTrigger, _, SonyDumper = register_simple_protocol(
     "sony",
     "Sony",
     SONY_SCHEMA,
