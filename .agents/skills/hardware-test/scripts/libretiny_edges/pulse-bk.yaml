@@ -1,0 +1,47 @@
+substitutions:
+  name: pulse-bk
+  inv: "false"
+
+esphome:
+  name: ${name}
+  platformio_options:
+    build_flags:
+      - -DGEN_PIN_A=26
+      - -DGEN_PIN_B=8
+  includes:
+    - pulsegen.hpp
+
+bk72xx:
+  board: xh-wb3s
+
+logger:
+  hardware_uart: UART1
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: pulsegen::tick();
+
+sensor:
+  - platform: pulse_counter
+    name: PC default filter
+    pin:
+      number: P6
+      inverted: ${inv}
+    update_interval: 5s
+    on_raw_value:
+      - lambda: 'ESP_LOGI("meas", "F13 %.1f", x);'
+  - platform: pulse_counter
+    name: PC filter 0
+    pin:
+      number: P24
+      inverted: ${inv}
+    internal_filter: 0us
+    update_interval: 5s
+    on_raw_value:
+      - lambda: 'ESP_LOGI("meas", "F0 %.1f", x);'

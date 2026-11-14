@@ -60,6 +60,22 @@ _COMPONENT_API = f"{_COMPONENT_PREFIX_ESPHOME}api"
 _PSTORAGE_SUFFIX = "__pstorage"
 
 
+def _split_patterns(
+    table: dict[str, list[str]],
+) -> tuple[tuple[str, tuple[str, ...], tuple[str, ...] | None], ...]:
+    """Split a pattern table into (category, substrings, prefixes or None), in table order."""
+    result = []
+    for category, patterns in table.items():
+        prefixes = tuple(p[1:] for p in patterns if p.startswith("^"))
+        substrings = tuple(p for p in patterns if not p.startswith("^"))
+        result.append((category, substrings, prefixes or None))
+    return tuple(result)
+
+
+_SYMBOL_MATCHERS = _split_patterns(SYMBOL_PATTERNS)
+_DEMANGLED_MATCHERS = _split_patterns(DEMANGLED_PATTERNS)
+
+
 # C++ namespace prefixes
 _NAMESPACE_ESPHOME = "esphome::"
 _NAMESPACE_STD = "std::"
@@ -384,13 +400,17 @@ class MemoryAnalyzer:
             return component
 
         # Check against symbol patterns
-        for component, patterns in SYMBOL_PATTERNS.items():
-            if any(pattern in symbol_name for pattern in patterns):
+        for component, substrings, prefixes in _SYMBOL_MATCHERS:
+            if (prefixes and symbol_name.startswith(prefixes)) or any(
+                pattern in symbol_name for pattern in substrings
+            ):
                 return self._heuristic_to_lib.get(component, component)
 
         # Check against demangled patterns
-        for component, patterns in DEMANGLED_PATTERNS.items():
-            if any(pattern in demangled for pattern in patterns):
+        for component, substrings, prefixes in _DEMANGLED_MATCHERS:
+            if (prefixes and demangled.startswith(prefixes)) or any(
+                pattern in demangled for pattern in substrings
+            ):
                 return self._heuristic_to_lib.get(component, component)
 
         # Special cases that need more complex logic

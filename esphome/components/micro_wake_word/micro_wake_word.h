@@ -136,8 +136,8 @@ class MicroWakeWord final : public Component
   bool vad_state_{false};
 #endif
 
-  bool pending_start_{false};
-  bool pending_stop_{false};
+  // The last start() or stop() request; loop() moves the state toward it
+  bool want_running_{false};
 
   bool stop_after_detection_;
 

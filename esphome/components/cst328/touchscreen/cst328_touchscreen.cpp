@@ -155,8 +155,8 @@ void CST328Touchscreen::update_touches() {
   }
 
   bool cleanup_error = false;
-  cleanup_error |= (i2c::ERROR_OK != this->write_register16(CST_REG_TOUCH_FINGER_NUMBER, &ZERO_BYTE, 1));
-  cleanup_error |= (i2c::ERROR_OK != this->write_register16(CST_REG_TOUCH_INFORMATION, &CST328_SYNC_BYTE, 1));
+  cleanup_error |= !this->write_byte_reg16(CST_REG_TOUCH_FINGER_NUMBER, ZERO_BYTE);
+  cleanup_error |= !this->write_byte_reg16(CST_REG_TOUCH_INFORMATION, CST328_SYNC_BYTE);
 
   if (cleanup_error) {
     ESP_LOGW(TAG, "Failed to clean up touch registers");
