@@ -19,9 +19,11 @@ from esphome.components.esp32 import (
     request_software_coexistence,
 )
 from esphome.components.esp32_ble import IDF_MAX_CONNECTIONS, BTLoggers
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
+    CONF_AP,
     CONF_CONTINUOUS,
     CONF_DURATION,
     CONF_ID,
@@ -64,6 +66,7 @@ def _get_required_features() -> set[BLEFeatures]:
 # Slot counters sizing the tracker's StaticVector storage; one request per
 # registered listener or client.
 CLIENT_COUNT_DEFINE = "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
+SHORT_SCAN_WINDOW_DEFINE = "USE_ESP32_BLE_TRACKER_SHORT_SCAN_WINDOW"
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
 _request_client_slot = cg.slot_counter(CLIENT_COUNT_DEFINE)
 
@@ -109,7 +112,9 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 # listens 9.4 % of the time and misses most advertisements when wifi shares
 # the radio. Espressif recommends setting the window equal to the interval in
 # that case: the coexistence arbiter still shares the radio with wifi, and
-# BLE uses the airtime wifi does not claim.
+# BLE uses the airtime wifi does not claim. Full duty leaves the AP no airtime
+# for joins though, so while the AP runs the tracker drops back to the short
+# window (esphome/esphome#22534).
 IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
 
 # Above this the scanner holds the shared radio long enough that wifi drops
@@ -153,6 +158,8 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     present iff wifi is configured and not disabled by the user) and the IDF
     honors the window strictly (>= 5.5.5); without the arbiter a full-duty
     scan would starve wifi outright, and a user-set window is never touched.
+    The raise also arms the short window used while a GATT connection or the
+    wifi AP is active.
     Raising to the interval cannot invalidate the already-validated
     parameters, so no re-validation is needed. The connection window is
     checked against the window here, after the raise.
@@ -166,7 +173,7 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
         # Copy so the config dump shows a plain value instead of a YAML
         # anchor/alias pair pointing at the interval.
         params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
-        # Arm the connection-time fallback unless the user set one. Injected
+        # Arm the connection and AP fallback unless the user set one. Injected
         # after validation; safe because it equals the validated window default.
         if CONF_CONNECTION_SCAN_WINDOW not in params:
             params[CONF_CONNECTION_SCAN_WINDOW] = cv.positive_time_period(
@@ -300,20 +307,22 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(params[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(params[CONF_WINDOW])))
     if (connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
-        # Emitted at FINAL so a scan-only build, where the guarded C++ path
-        # compiles out, skips the call entirely.
+        # Emitted at FINAL, once the client count is known: a build with
+        # neither clients nor a wifi AP compiles the short-window path out.
         window_units = ble_device_base.to_ble_units(connection_window)
 
         @coroutine_with_priority(CoroPriority.FINAL)
         async def _emit_connection_scan_window() -> None:
-            if cg.get_slot_count(CLIENT_COUNT_DEFINE):
+            has_ap = CONF_AP in CORE.config.get(WIFI_DOMAIN, {})
+            if cg.get_slot_count(CLIENT_COUNT_DEFINE) or has_ap:
+                cg.add_define(SHORT_SCAN_WINDOW_DEFINE)
                 cg.add(var.set_connection_scan_window(window_units))
             elif not _get_data().connection_window_injected:
                 # Warn only for a user-set value; the injected default drops silently.
                 _LOGGER.warning(
                     "'%s' has no effect because this build has no BLE client "
                     "components (for example bluetooth_proxy with active "
-                    "connections, or ble_client)",
+                    "connections, or ble_client) and no wifi access point",
                     CONF_CONNECTION_SCAN_WINDOW,
                 )
 

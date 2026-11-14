@@ -26,3 +26,32 @@ swap fails when a round never connects. An owner that never got the link also fa
 - Before #22077, case H holds the link for good: 0 adverts, and the address stays in the slot report. With #22077 the
   link is released in the same millisecond as the `replaces` warning. In case 4 the first request logs `Connection
   request ignored, state: DISCONNECTING` (connected=false at 0.2 s) and the retry connects at 0.5 to 0.7 s.
+
+## Out-of-order GATT discovery responses (#22518)
+
+Some peripherals answer a characteristic discovery (Read By Type) with records out of handle order. ESP-IDF 5.5.6
+rejects that (`gatt_process_read_by_type_rsp invalid handle ...`) and ends the whole discovery; 5.5.5, Android and
+BlueZ accept it. `scripts/att_reorder/` reproduces it with no such device:
+
+- `server.yaml` (ESP32-S3) serves `FFF0` with six characteristics, then `1826`.
+- `proxy.yaml` (classic ESP32, `idf` substitution; keep per-build files such as `example-proxy.yaml` in the same
+  directory) links `components/attswap`, which wraps Bluedroid's
+  `l2c_rcv_acl_data` (`-Wl,--wrap`); `attswap.hpp` swaps the first two records of the response whose first record
+  declares `FFF1`, and logs a swap count.
+- `gattget.py PROXY PEER_MAC ROUNDS` reads the services through the proxy like Home Assistant (no cache);
+  `run.sh PROXY_YAML [ROUNDS]` flashes both boards and prints the services per round and the discovery errors.
+
+On 5.5.6 Home Assistant gets `fff0` with no characteristics and no `1826`, while the proxy still logs
+`Service discovery complete` (the proxy ignores the error status); on 5.5.5 every service arrives. To find the order a
+real device uses, decode an Android HCI snoop: a Read By Type response lists its records in the order sent.
+
+- Handles, reads and notifies after a reordered response: flash `server-notify.yaml` (`SERVER_YAML` on `run.sh`) and run
+  `gattcheck.py PROXY PEER_MAC`. It prints every service, characteristic and descriptor handle, reads FFF1, FFF2 and
+  FFF3 by the received handles (each holds its own value), and enables notify on FFF1, FFF2 and 2ACD. Compare the table
+  with a run of a proxy built without `attswap`. On ESP-IDF 5.5.5, which accepts the unsorted response, FFF1's
+  descriptor range runs over FFF2's declaration, value and CCCD, so FFF2 has no CCCD (#22576).
+- `bluetooth_gatt_start_notify` only registers the notify on the proxy; the client writes the CCCD itself, as Home
+  Assistant does. Without that write no notification arrives.
+- Give the proxy an `api` encryption key (`API_KEY` for the scripts). A Home Assistant on the same network connected to
+  a plaintext test proxy and took over its Bluetooth subscription (`Subscription from Home Assistant ... replaces
+  aioesphomeapi`), dropping the test client's connection mid-run.

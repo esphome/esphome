@@ -208,7 +208,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
       this->mode = climate::CLIMATE_MODE_AUTO;
     }
 
-    // Taregt Temperature
+    // Target Temperature
     this->target_temperature = (ir_message[9] & 0x1F) + 16.0f;
   }
 

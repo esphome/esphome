@@ -225,7 +225,7 @@ def test_package_override(basic_wifi, basic_esphome) -> None:
 
 def test_multiple_package_order() -> None:
     """
-    Ensures that mutiple packages are merged in order.
+    Ensures that multiple packages are merged in order.
     """
     config = {
         CONF_PACKAGES: {

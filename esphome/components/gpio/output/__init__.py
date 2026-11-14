@@ -41,8 +41,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await output.register_output(var, config)
+    var = await output.new_output(config)
     await cg.register_component(var, config)
 
     await cg.add_pin(var.set_pin, config[CONF_PIN])
