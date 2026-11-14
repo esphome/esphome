@@ -521,10 +521,10 @@ bool WiFiComponent::needs_full_scan_results_() const {
   return false;
 }
 
-bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+const WiFiAP *WiFiComponent::find_configured_network_(const char *ssid, const uint8_t *bssid) const {
   // Hidden networks in scan results have empty SSIDs - skip them
   if (ssid[0] == '\0') {
-    return false;
+    return nullptr;
   }
   for (const auto &sta : this->sta_) {
     // Skip hidden network configs (they don't appear in normal scans)
@@ -534,16 +534,16 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
     // For BSSID-only configs (empty SSID), match by BSSID
     if (sta.ssid_.empty()) {
       if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
-        return true;
+        return &sta;
       }
       continue;
     }
     // Match by SSID
     if (sta.ssid_ == ssid) {
-      return true;
+      return &sta;
     }
   }
-  return false;
+  return nullptr;
 }
 
 void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {
@@ -707,6 +707,15 @@ void WiFiComponent::setup() {
   }
 }
 
+void WiFiComponent::apply_radio_settings_() {
+  if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
+    ESP_LOGV(TAG, "Setting Output Power Option failed");
+  }
+  if (!this->wifi_apply_power_save_()) {
+    ESP_LOGV(TAG, "Setting Power Save Option failed");
+  }
+}
+
 void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Starting");
   // The loop's time, not millis(): a wifi.enable from a trigger in this pass must not stamp a time after now
@@ -750,10 +759,6 @@ void WiFiComponent::start() {
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
-    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
-      ESP_LOGV(TAG, "Setting Output Power Option failed");
-    }
-
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
     // Synchronize power_save_ with semaphore state before applying
     if (this->high_performance_semaphore_ != nullptr) {
@@ -767,9 +772,7 @@ void WiFiComponent::start() {
       }
     }
 #endif
-    if (!this->wifi_apply_power_save_()) {
-      ESP_LOGV(TAG, "Setting Power Save Option failed");
-    }
+    this->apply_radio_settings_();
 
     this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
 #ifdef USE_WIFI_FAST_CONNECT
@@ -806,6 +809,11 @@ void WiFiComponent::start() {
   if (!this->has_sta() && this->is_dpp_active_() && this->wifi_mode_(true, {}))
     this->start_dpp_listen_(millis());
 #endif
+#ifdef USE_RTL87XX
+  // Realtek starts lwIP on the first mode change; web_server's listener blocks forever until then
+  if (!this->has_sta() && !this->has_ap())
+    this->wifi_mode_(true, {});
+#endif
 #ifdef USE_IMPROV_BLE
   if (!this->has_sta() && improv_ble::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
@@ -837,6 +845,22 @@ void WiFiComponent::loop() {
   if (events_processed || !this->connected_) {
     this->update_connected_state_();
   }
+
+#if defined(USE_WIFI_AP_START_TRIGGER) || defined(USE_WIFI_AP_STOP_TRIGGER)
+  // ap_setup_ is set only once the AP is fully up; firing from loop() keeps actions from
+  // re-entering setup_ap_config_()
+  if (const bool ap_up = this->ap_setup_; ap_up != this->handled_ap_state_) {
+    this->handled_ap_state_ = ap_up;
+#ifdef USE_WIFI_AP_START_TRIGGER
+    if (ap_up)
+      this->on_ap_start_();
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+    if (!ap_up)
+      this->on_ap_stop_();
+#endif
+  }
+#endif  // USE_WIFI_AP_START_TRIGGER || USE_WIFI_AP_STOP_TRIGGER
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -1119,11 +1143,10 @@ void WiFiComponent::setup_ap_config_() {
   // Reset before the AP exists: afterwards only the platform's event path writes the counter
   this->ap_clients_ = 0;
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
-  // The station path applied it in start(); without a station the radio only exists from here
-  if (this->ap_setup_ && !this->has_sta() && !std::isnan(this->output_power_) &&
-      !this->wifi_apply_output_power_(this->output_power_)) {
-    ESP_LOGV(TAG, "Setting Output Power Option failed");
-  }
+  // The station path applied these in start(); without a station the radio only exists from here,
+  // and credentials saved through the portal connect without another start()
+  if (this->ap_setup_ && !this->has_sta())
+    this->apply_radio_settings_();
 #if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_PERSISTENT)
   // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse
   // the STA attempts until the next try, and an AP that stays up would take clients it cannot serve.
@@ -1198,17 +1221,18 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
-void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::clear_sta() {
   // Clear roaming state - no more configured networks
   this->clear_roaming_state_();
+  // StaticVector::clear() keeps the entries, so free their credentials here
+  for (auto &ap : this->sta_)
+    ap = WiFiAP{};
   this->sta_.clear();
   this->selected_sta_index_ = -1;
 }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();  // Also clears roaming state
-  this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
   // New credentials end the next cooldown early; start_connecting() clears this once they are tried
@@ -1744,10 +1768,11 @@ void WiFiComponent::check_scanning_finished() {
   if (!found_match) {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
-    // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
-    // If no hidden networks to try, skip connection attempt (will be handled on next loop)
+    // No hidden network left: retry now instead of waiting out the scan timeout. With
+    // selected_sta_index_ at -1, retry_connect() penalizes no BSSID.
     if (this->selected_sta_index_ == -1) {
+      this->retry_connect();
       return;
     }
     // Now start connection attempt in hidden mode
