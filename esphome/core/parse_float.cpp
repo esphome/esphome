@@ -80,9 +80,9 @@ uint64_t mul_high(uint64_t a, uint64_t b) {
 __attribute__((noinline, cold)) uint32_t tie_float_bits(uint32_t m10, int32_t e10, uint32_t bits) {
   if (e10 >= 0) {
     if (e10 <= 14)  // m10 * 5^14 stays below 2^64
-      return round_to_float_bits(m10 * (pow10<uint64_t>(e10) >> e10), e10, false);
+      return round_to_float_bits(m10 * (pow10_exact<uint64_t>(e10) >> e10), e10, false);
   } else if (e10 >= -13) {
-    const auto pow5 = static_cast<uint32_t>(pow10<uint64_t>(-e10) >> -e10);
+    const auto pow5 = static_cast<uint32_t>(pow10_exact<uint64_t>(-e10) >> -e10);
     if (m10 % pow5 == 0)
       return round_to_float_bits(m10 / pow5, e10, false);
   }
@@ -98,11 +98,12 @@ uint32_t decimal_to_float_bits(uint32_t m10, int32_t e10) {
   const uint32_t power = e10 < 0 ? -e10 : e10;
   if (m10 < (1u << 24) && power <= 10) {
     const auto value = static_cast<float>(m10);
-    const float factor = power == 10 ? 1e10f : static_cast<float>(pow10<uint32_t>(power));  // 10^10 overflows uint32_t
+    // 10^10 overflows uint32_t
+    const float factor = power == 10 ? 1e10f : static_cast<float>(pow10_exact<uint32_t>(power));
     return bit_cast<uint32_t>(e10 < 0 ? value / factor : value * factor);
   }
   const int32_t k8 = e10 >> 3;  // rounds down
-  const uint64_t x = uint64_t{m10} * pow10<uint32_t>(e10 & 7);
+  const uint64_t x = uint64_t{m10} * pow10_exact<uint32_t>(e10 & 7);
   const auto zeros = static_cast<int32_t>(std::countl_zero(x));
   uint64_t m = x << zeros;
   int32_t e = -zeros;
@@ -312,7 +313,7 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
     return nullptr;
   float value = static_cast<float>(mantissa);
   if (fraction != 0)
-    value /= static_cast<float>(pow10<uint32_t>(fraction));  // 10^9 is an exact float
+    value /= static_cast<float>(pow10_exact<uint32_t>(fraction));  // 10^9 is an exact float
   *bits = bit_cast<uint32_t>(value);
   return p;
 }
@@ -346,7 +347,7 @@ optional<float> parse_float(const char *str) {
   if (*p == '\0' && p - digits > (point != nullptr ? 1 : 0) && fraction <= 9) {
     float value = negative ? -static_cast<float>(mantissa) : static_cast<float>(mantissa);
     if (fraction != 0)
-      value /= static_cast<float>(pow10<uint32_t>(fraction));
+      value /= static_cast<float>(pow10_exact<uint32_t>(fraction));
     return value;
   }
   const char *end;
