@@ -11,7 +11,9 @@ T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; CR=$W/configs/${CREDS:-creds-
 read -r U PW < <($PY -c 'import sys, yaml; s = yaml.safe_load(open(sys.argv[1]))["substitutions"]; print(s["web_user"], s["web_pass"])' "$CR") ||
   { echo "cannot read $CR"; exit 1; }
 "$S/pio_build.sh" compile "$N" "$A/$C" -s web_user "$U" -s web_pass "$PW" || exit 1
-grep -q USE_JSON_ARENA "$A/.esphome/build/$N/src/esphome/core/defines.h" && echo "$N: USE_JSON_ARENA on" || echo "$N: USE_JSON_ARENA off"
+DEFS=$A/.esphome/build/$N/src/esphome/core/defines.h
+[ -f "$DEFS" ] || { echo "$N: USE_JSON_ARENA unknown, no $DEFS"; exit 1; }
+grep -q USE_JSON_ARENA "$DEFS" && echo "$N: USE_JSON_ARENA on" || echo "$N: USE_JSON_ARENA off"
 IMG=$A/.esphome/build/$N/.pioenvs/$N/firmware.uf2
 LTPY=$A/pio/penv/.libretiny/bin/python; LTL=$(ls -d "$A"/pio/platforms/libretiny* 2>/dev/null | head -1)
 OPT=""

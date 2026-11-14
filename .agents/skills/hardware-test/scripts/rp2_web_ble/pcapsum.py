@@ -1,6 +1,6 @@
 """pcapsum.py PCAP DEVICE_IP: per TCP connection to port 80, device data segments, last data time and seq, retransmits,
 FIN/RST and who sent them, windows, and anything sent by the device after its last data. Uses tcpdump -tt text.
-packets() is shared with stallctr.py."""
+Exits 1 when the capture has no TCP packet. packets() is shared with stallctr.py."""
 
 from collections.abc import Iterator
 import re
@@ -95,6 +95,8 @@ def main(pcap: str, dev: str) -> None:
             c["fin"].append((who, round(t - c["t0"], 3)))
         if "R" in k["flags"]:
             c["rst"].append((who, round(t - c["t0"], 3)))
+    if not conns:
+        sys.exit(f"no TCP packets in {pcap}")
     for p, c in conns.items():
         ld = round(c["last_data"] - c["t0"], 3) if c["last_data"] else None
         print(

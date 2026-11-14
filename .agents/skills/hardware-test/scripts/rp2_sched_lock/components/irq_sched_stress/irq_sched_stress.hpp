@@ -17,8 +17,9 @@ class IrqSchedStress : public Component {
       return;
     // Issue the main loop share in one tight burst while the IRQ issues its share, so every operation lands inside
     // the 150 ms timeout window and the IRQ interleaves with the main loop inside the scheduler.
+    // The time limit keeps a stalled timer IRQ from wedging the main loop; the result then reports the shortfall.
     uint32_t lim = this->mode_ == DEFER ? N : NC;
-    while (this->main_issued_ < lim || this->irq_issued_ < lim) {
+    while ((this->main_issued_ < lim || this->irq_issued_ < lim) && millis() - this->start_ms_ < ISSUE_LIMIT_MS) {
       if (this->main_issued_ < lim)
         this->step_(false);
       delayMicroseconds(60);
@@ -36,6 +37,7 @@ class IrqSchedStress : public Component {
   enum Mode : uint8_t { IDLE, DEFER, CANCEL };
   static constexpr uint32_t N = 500;   // per source, defer mode
   static constexpr uint32_t NC = 200;  // per source, cancel mode
+  static constexpr uint32_t ISSUE_LIMIT_MS = 2000;
   static constexpr const char *NAMES[10] = {"shared_0", "shared_1", "shared_2", "shared_3", "shared_4",
                                             "shared_5", "shared_6", "shared_7", "shared_8", "shared_9"};
 
@@ -54,7 +56,10 @@ class IrqSchedStress : public Component {
     this->start_ms_ = millis();
     ESP_LOGI("irq_sched_stress", "%s test start", mode == DEFER ? "defer" : "cancel");
     this->mode_ = mode;
-    add_repeating_timer_us(-300, &IrqSchedStress::irq_tick_, this, &this->timer_);
+    if (!add_repeating_timer_us(-300, &IrqSchedStress::irq_tick_, this, &this->timer_)) {
+      this->mode_ = IDLE;
+      ESP_LOGE("irq_sched_stress", "%s RESULT FAIL timer not started", mode == DEFER ? "DEFER" : "CANCEL");
+    }
   }
 
   // One operation from the IRQ (irq true) or the main loop.

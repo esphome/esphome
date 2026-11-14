@@ -1,6 +1,6 @@
 """API soak: subscribe states and logs for SECONDS, reconnect on drops, report the state count, uptime resets
 (reboots), reset reason and crash or assert lines. usage: soak.py HOST SECONDS LOGFILE  env: API_KEY
-Exits 1 on a drop, an uptime reset, a crash or assert line, or no states at all."""
+Exits 1 on a drop, an uptime reset, a crash or assert line, no states at all or no uptime reading."""
 
 import asyncio
 import contextlib
@@ -70,7 +70,9 @@ async def main(host: str, secs: float, logf: str) -> None:
     )
     for b in bad[:10]:
         print("BAD", b)
-    if drops or reboots or bad or not states:
+    if last_up is None:
+        print("no uptime state seen, so reboots were not checked")
+    if drops or reboots or bad or not states or last_up is None:
         sys.exit("FAIL")
     print("PASS")
 

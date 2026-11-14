@@ -346,14 +346,14 @@ inline uint32_t start_phase(int i) {
   return PHASES[i].ms;
 }
 
+// polls and max_field_ms are for this phase; the error counters are totals since boot.
 inline void stats(const char *phase) {
   ESP_LOGI(TAG,
-           "STATS %s polls=%u cs_bad=%u tx_field_off=%u tx_early=%u bad_tx=%u bad_cmd=%u max_field_ms=%u reg01=%02X "
-           "reg07=%02X "
-           "reg09=%02X reg0D=%02X reg00=%02X",
-           phase, (unsigned) C.polls, (unsigned) C.cs_bad, (unsigned) C.tx_field_off, (unsigned) C.tx_early,
-           (unsigned) C.bad_tx, (unsigned) C.bad_cmd, (unsigned) C.max_field_ms, C.reg[1], C.reg[7], C.reg[9],
-           C.reg[0x0D], C.reg[0]);
+           "STATS %s phase: polls=%u max_field_ms=%u | since boot: cs_bad=%u tx_field_off=%u tx_early=%u bad_tx=%u "
+           "bad_cmd=%u | reg01=%02X reg07=%02X reg09=%02X reg0D=%02X reg00=%02X",
+           phase, (unsigned) C.polls, (unsigned) C.max_field_ms, (unsigned) C.cs_bad, (unsigned) C.tx_field_off,
+           (unsigned) C.tx_early, (unsigned) C.bad_tx, (unsigned) C.bad_cmd, C.reg[1], C.reg[7], C.reg[9], C.reg[0x0D],
+           C.reg[0]);
   C.polls = 0;
   C.max_field_ms = 0;
 }
