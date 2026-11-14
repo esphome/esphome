@@ -129,13 +129,14 @@ def zephyr_data() -> ZephyrData:
 
 
 def _variant_data() -> ZephyrData | dict[str, object]:
-    """Raise if a variants registry platform has not set its Zephyr data yet."""
+    """Raise if no platform is set yet, or a registry platform has no Zephyr data yet."""
     if (data := CORE.data.get(KEY_ZEPHYR)) is not None:
         return data
     # deferred: the variants package imports this one
     from .variants import _ZEPHYR_PLATFORMS  # noqa: PLC0415
 
-    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) in _ZEPHYR_PLATFORMS:
+    platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+    if platform is None or platform in _ZEPHYR_PLATFORMS:
         raise RuntimeError("Zephyr variant read before the platform schema set it")
     return {}
 
