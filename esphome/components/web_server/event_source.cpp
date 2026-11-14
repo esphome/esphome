@@ -244,12 +244,8 @@ void AsyncEventSourceResponse::drain_tail_() {
     ESP_LOGV(TAG, "Partial send: %zd/%zu bytes (total: %u/%u)", sent, remaining, this->tail_sent_, this->tail_len_);
     return;
   }
+  // Fully sent; the storage stays for the next stall
   this->tail_len_ = 0;
-#ifdef USE_ESP8266
-  // Free it: on ESP8266 each session keeping its high-water mark starves the heap with several clients
-  this->tail_.reset();
-  this->tail_cap_ = 0;
-#endif
 }
 
 bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
