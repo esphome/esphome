@@ -338,7 +338,6 @@ class AsyncStreamResponse {
   static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
 };
 
-
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
   friend class AsyncStreamResponse;

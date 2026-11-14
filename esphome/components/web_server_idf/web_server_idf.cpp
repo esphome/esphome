@@ -29,7 +29,6 @@
 #include "multipart.h"  // For parse_multipart_boundary and other utils
 #endif
 
-
 // Include socket headers after Arduino headers to avoid IPADDR_NONE/INADDR_NONE macro conflicts
 #include <cerrno>
 #include <sys/socket.h>
