@@ -139,8 +139,4 @@ void SDS011Component::parse_data_(const uint8_t *frame) {
   PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0_concentration);
 }
 
-void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
-  this->update_interval_min_ = update_interval_min;
-}
-
 }  // namespace esphome::sds011

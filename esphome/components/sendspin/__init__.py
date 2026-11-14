@@ -36,7 +36,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import CORE
-from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -601,25 +600,27 @@ async def to_code(config: ConfigType) -> None:
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. Each configured codec is advertised for 16 bits per sample
-        # mono and stereo at the configured sample rate. The order is a preference order, both for
-        # the codecs themselves and for stereo over mono.
+        # Configures the player role. Each configured codec is advertised for mono and stereo at the
+        # configured sample rate and bits per sample, except Opus, which sendspin-cpp only decodes to
+        # 16 bits per sample. The order is a preference order, both for the codecs themselves and for
+        # stereo over mono.
         player_cfg = data.player_config
         sample_rate = player_cfg[CONF_SAMPLE_RATE]
+        bits_per_sample = player_cfg[CONF_BITS_PER_SAMPLE]
 
-        codecs = [CODECS[codec] for codec in player_cfg[CONF_CODECS]]
-
-        def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
+        def _audio_format(codec: str, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(
                 AudioSupportedFormatObject,
-                ("codec", codec),
+                ("codec", CODECS[codec]),
                 ("channels", channels),
                 ("sample_rate", sample_rate),
-                ("bit_depth", 16),
+                ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
             )
 
         audio_format_structs = [
-            _audio_format(codec, channels) for codec in codecs for channels in (2, 1)
+            _audio_format(codec, channels)
+            for codec in player_cfg[CONF_CODECS]
+            for channels in (2, 1)
         ]
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)

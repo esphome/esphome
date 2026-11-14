@@ -9,6 +9,7 @@ before the LinkChecks instead.
 import sys
 
 import bk7231tools.serial.main as bk_main
+from lt_platform import with_platform
 from ltchiptool.__main__ import cli
 from ltchiptool.soc.bk72xx.flash import BK72XXFlash
 from serial import Serial
@@ -47,5 +48,5 @@ def flash_connect(self) -> None:
 BK72XXFlash.flash_hw_reset = flash_hw_reset
 BK72XXFlash.flash_connect = flash_connect
 
-sys.argv = ["ltchiptool", *sys.argv[1:]]
+sys.argv = ["ltchiptool", *with_platform(sys.argv[1:])]
 cli()

@@ -34,22 +34,12 @@ bool XiaomiHHCCJCY10::parse_device(const ble_device_base::ESPBTDevice &device) {
     }
     const uint8_t *data = service_data.data.data();
 
-    if (this->temperature_sensor_ != nullptr) {
-      const int16_t temperature = encode_value<int16_t>(&data[1]);
-      this->temperature_sensor_->publish_state((float) temperature / 10.0f);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, encode_value<int16_t>(&data[1]) / 10.0f);
 
     PUBLISH_STATE(this->moisture_sensor_, data[0]);
 
-    if (this->conductivity_sensor_ != nullptr) {
-      const uint16_t conductivity = encode_uint16(data[7], data[8]);
-      this->conductivity_sensor_->publish_state((float) conductivity);
-    }
-
-    if (this->illuminance_sensor_ != nullptr) {
-      const uint32_t illuminance = encode_uint24(data[3], data[4], data[5]);
-      this->illuminance_sensor_->publish_state((float) illuminance);
-    }
+    PUBLISH_STATE(this->conductivity_sensor_, encode_uint16(data[7], data[8]));
+    PUBLISH_STATE(this->illuminance_sensor_, encode_uint24(data[3], data[4], data[5]));
 
     PUBLISH_STATE(this->battery_level_sensor_, data[6]);
     success = true;

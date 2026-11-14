@@ -87,12 +87,4 @@ void HONEYWELLABPSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void HONEYWELLABPSensor::set_honeywellabp_min_pressure(float min_pressure) {
-  this->honeywellabp_min_pressure_ = min_pressure;
-}
-
-void HONEYWELLABPSensor::set_honeywellabp_max_pressure(float max_pressure) {
-  this->honeywellabp_max_pressure_ = max_pressure;
-}
-
 }  // namespace esphome::honeywellabp

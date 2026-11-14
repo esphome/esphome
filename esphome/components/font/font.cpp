@@ -182,11 +182,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
       continue;
     }
 
-    if (!has_char) {
-      min_x = glyph->offset_x;
-    } else {
-      min_x = std::min(min_x, x + glyph->offset_x);
-    }
+    min_x = !has_char ? glyph->offset_x : std::min(min_x, x + glyph->offset_x);
     x += glyph->advance;
 
     has_char = true;

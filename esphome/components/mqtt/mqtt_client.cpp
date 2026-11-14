@@ -103,6 +103,13 @@ static void format_esphome_topic(char (&topic)[ESPHOME_TOPIC_BUFFER_SIZE], const
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
+        // total comes from the broker; reserving it unchecked can exhaust the heap
+        if (total > MQTT_MAX_PAYLOAD_SIZE) {
+          if (index == 0) {
+            ESP_LOGW(TAG, "Dropped %zu byte message on '%s' (max %d)", total, topic, MQTT_MAX_PAYLOAD_SIZE);
+          }
+          return;
+        }
         if (index == 0) {
           this->payload_buffer_.clear();
           this->payload_buffer_.reserve(total);
@@ -299,7 +306,10 @@ void MQTTClientComponent::dump_config() {
                   "  Discovery retain: %s",
                   this->discovery_info_.prefix.c_str(), YESNO(this->discovery_info_.retain));
   }
-  ESP_LOGCONFIG(TAG, "  Topic Prefix: '%s'", this->topic_prefix_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "  Topic Prefix: '%s'\n"
+                "  Max Payload Size: %d",
+                this->topic_prefix_.c_str(), MQTT_MAX_PAYLOAD_SIZE);
   if (!this->log_message_.topic.empty()) {
     ESP_LOGCONFIG(TAG, "  Log Topic: '%s'", this->log_message_.topic.c_str());
   }
@@ -511,17 +521,16 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        if (!this->birth_message_.topic.empty() && !this->sent_birth_message_) {
+        this->last_connected_ = now;
+        const bool all_subscribed = this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+        if (all_subscribed && !this->subacks_settled_)
+          this->check_subacks_();
+#endif
+        // Online only once every paced SUBSCRIBE is out, so no command for an unsubscribed topic is lost
+        if (all_subscribed && !this->birth_message_.topic.empty() && !this->sent_birth_message_) {
           this->sent_birth_message_ = this->publish(this->birth_message_);
         }
-
-        this->last_connected_ = now;
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-        if (this->resubscribe_subscriptions_() && !this->subacks_settled_)
-          this->check_subacks_();
-#else
-        this->resubscribe_subscriptions_();
-#endif
 
         // Process pending resends for all MQTT components centrally
         // Limit work per loop iteration to avoid triggering task WDT on reconnect
@@ -576,7 +585,8 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   const uint32_t now = millis();
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
-  if (do_resub) {
+  // Paced so the connect burst fits the backend queue
+  if (do_resub && this->mqtt_backend_.can_subscribe()) {
     sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
 #ifdef USE_MQTT_SESSION_PERSISTENCE
@@ -849,17 +859,18 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
-    const bool was_dispatching = this->dispatching_;
-    this->dispatching_ = true;
-    const size_t count = this->subscriptions_.size();
-    for (size_t i = 0; i < count; i++) {
-      const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
-        subscription.callback.call(topic, payload);
+    // Only the outermost dispatch erases what was unsubscribed meanwhile.
+    const bool outermost = !this->dispatching_;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      const size_t count = this->subscriptions_.size();
+      for (size_t i = 0; i < count; i++) {
+        const auto &subscription = this->subscriptions_[i];
+        if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
+          subscription.callback.call(topic, payload);
+      }
     }
-    this->dispatching_ = was_dispatching;
-    if (!was_dispatching && this->removed_while_dispatching_) {
+    if (outermost && this->removed_while_dispatching_) {
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
@@ -873,9 +884,7 @@ void MQTTClientComponent::disable_log_message() { this->log_message_.topic = "";
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
-void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -907,8 +916,6 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
   this->birth_message_ = std::move(message);
   this->recalculate_availability_();
 }
-
-void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,

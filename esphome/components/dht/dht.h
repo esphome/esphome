@@ -17,6 +17,18 @@ enum DHTModel : uint8_t {
   DHT_MODEL_DHT22_TYPE2
 };
 
+/// Convert a DHT22-family temperature reading to tenths of a degree. Sensors encode negative values in one of three
+/// ways: sign and magnitude (bit 15 set, bit 14 clear), 16-bit two's complement, or 12-bit two's complement (bit 11).
+inline int16_t decode_dht22_temperature(uint16_t raw) {
+  if (raw & 0x8000) {
+    if (!(raw & 0x4000))
+      return static_cast<int16_t>(-static_cast<int16_t>(raw & 0x7FFF));
+  } else if (raw & 0x800) {
+    raw |= 0xF000;
+  }
+  return static_cast<int16_t>(raw);
+}
+
 /// Component for reading temperature/humidity measurements from DHT11/DHT22 sensors.
 class DHT final : public PollingComponent {
   SUB_SENSOR(temperature)

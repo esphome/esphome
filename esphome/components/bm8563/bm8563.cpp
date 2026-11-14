@@ -21,10 +21,8 @@ static constexpr uint8_t CLOCK_1_60_HZ = 0x83;
 static constexpr uint32_t MAX_TIMER_DURATION_S = 255 * 60;
 
 void BM8563::setup() {
-  if (!this->write_byte_16(CONTROL_STATUS_1_REG, 0)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(CONTROL_STATUS_1_REG, 0)))
     return;
-  }
 }
 
 void BM8563::update() { this->read_time(); }
@@ -93,11 +91,7 @@ void BM8563::get_date_(ESPTime &time) {
 
   uint8_t year_byte = bcd_to_uint8(buf[3] & 0xff);
 
-  if (buf[2] & 0x80) {
-    time.year = 1900 + year_byte;
-  } else {
-    time.year = 2000 + year_byte;
-  }
+  time.year = buf[2] & 0x80 ? 1900 + year_byte : 2000 + year_byte;
 }
 
 void BM8563::set_date_(const ESPTime &time) {

@@ -1,0 +1,60 @@
+esphome:
+  name: light-effect-cycle-action-test
+host:
+api:
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: test_out
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: monochromatic
+    name: "Test Light"
+    id: test_light
+    output: test_out
+    default_transition_length: 0s
+    effects:
+      - lambda:
+          name: "A"
+          update_interval: 1h
+          lambda: ""
+      - lambda:
+          name: "B"
+          update_interval: 1h
+          lambda: ""
+
+button:
+  - platform: template
+    id: btn_setup
+    name: "Setup"
+    on_press:
+      - light.turn_on: test_light
+  - platform: template
+    id: btn_next_skip
+    name: "Next Skip"
+    on_press:
+      - light.effect.next: test_light
+  - platform: template
+    id: btn_prev_skip
+    name: "Prev Skip"
+    on_press:
+      - light.effect.previous: test_light
+  - platform: template
+    id: btn_next_none
+    name: "Next None"
+    on_press:
+      - light.effect.next:
+          id: test_light
+          include_none: true
+  - platform: template
+    id: btn_prev_none
+    name: "Prev None"
+    on_press:
+      - light.effect.previous:
+          id: test_light
+          include_none: true

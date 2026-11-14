@@ -22,10 +22,10 @@ class LD6004Component final : public ld600x::LD600XComponent {
 #endif
 
 #ifdef USE_NUMBER
-  void set_number_value(number::Number *entity, float value) override;
+  bool set_number_value(number::Number *entity, float value) override;
 #endif
 #ifdef USE_SELECT
-  void set_select_value(select::Select *entity, size_t index) override;
+  bool set_select_value(select::Select *entity, size_t index) override;
 #endif
 #ifdef USE_BUTTON
   void press_button(uint8_t kind) override;
