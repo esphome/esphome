@@ -16,4 +16,6 @@ then
   echo "FAIL: $N run failed (see $D/$N-run.log)"; exit 1
 fi
 tail -1 "$D/$N-run.log"
+# A capture that ended during the flash holds only the old firmware
+kill -0 $CAP 2>/dev/null || { echo "FAIL: the capture ended before the flash finished; raise SECS"; exit 1; }
 wait $CAP

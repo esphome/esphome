@@ -45,8 +45,15 @@ async def connect(
         c = APIClient(
             host, port, None, noise_psk=None if key in (None, "", "-") else key
         )
+        live = [False]
+
+        # a failed attempt's cleanup may call on_stop too; pass on only stops of the returned client
+        async def stop(expected: bool, live: list[bool] = live) -> None:
+            if live[0] and on_stop is not None:
+                await on_stop(expected)
+
         try:
-            await asyncio.wait_for(c.connect(on_stop=on_stop, login=True), timeout)
+            await asyncio.wait_for(c.connect(on_stop=stop, login=True), timeout)
         except FATAL as e:
             sys.exit(f"no API connection to {host}: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
@@ -56,6 +63,7 @@ async def connect(
                 await c.disconnect(force=True)
             await asyncio.sleep(1)
         else:
+            live[0] = True
             return c
     sys.exit(
         f"no API connection to {host} after {tries} tries: {type(last).__name__}: {last}"

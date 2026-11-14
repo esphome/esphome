@@ -22,6 +22,10 @@ def chunks(path: str, name: str) -> list[str]:
         if i < 0:
             break
         size = int(body[:i].split(b";")[0], 16)
+        end = i + 2 + size
+        # stop at the last chunk or one cut short by the capture, so a truncated file never counts as an event
+        if size == 0 or body[end : end + 2] != b"\r\n":
+            break
         out.append(body[i + 2 : i + 2 + size].decode(errors="replace"))
         body = body[i + 4 + size :]
     return [re.sub(r"\d+(\.\d+)?", "N", c.replace(name, "NAME")) for c in out]
