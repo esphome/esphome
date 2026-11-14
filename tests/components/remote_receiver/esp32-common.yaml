@@ -195,6 +195,11 @@ binary_sensor:
     name: MagiQuest Any Wand
     magiquest: {}
   - platform: remote_receiver
+    name: MagiQuest Wand With Magnitude
+    magiquest:
+      wand_id: 0x0F1E2D3C
+      magnitude: 0x1234
+  - platform: remote_receiver
     name: Nexus Sensor
     nexus:
       channel: 1
