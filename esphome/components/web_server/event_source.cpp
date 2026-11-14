@@ -175,7 +175,10 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
     // A refusal means the socket is full or closing; the remaining groups are not sent. The
     // session stays up on purpose: partial grouping beats a reconnect loop on a slow link.
     if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
-      ESP_LOGW(TAG, "Sorting groups not sent to stream %d", this->log_id());
+      // A stream closing mid-greeting is not a failed send
+      if (!this->is_closing()) {
+        ESP_LOGW(TAG, "Sorting groups not sent to stream %d", this->log_id());
+      }
       break;
     }
   }
@@ -241,8 +244,12 @@ void AsyncEventSourceResponse::drain_tail_() {
     ESP_LOGV(TAG, "Partial send: %zd/%zu bytes (total: %u/%u)", sent, remaining, this->tail_sent_, this->tail_len_);
     return;
   }
-  // Fully sent; the storage stays for the next stall
   this->tail_len_ = 0;
+#ifdef USE_ESP8266
+  // Free it: on ESP8266 each session keeping its high-water mark starves the heap with several clients
+  this->tail_.reset();
+  this->tail_cap_ = 0;
+#endif
 }
 
 bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
