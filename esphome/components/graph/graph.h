@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <span>
-#include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
 #include "esphome/core/helpers.h"
