@@ -1,0 +1,2 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/nrf52-nrf54lm20dk.yaml
