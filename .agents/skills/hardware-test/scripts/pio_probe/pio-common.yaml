@@ -1,0 +1,27 @@
+# Shared by pa.yaml and pc.yaml: Pico 2 W, pioscope.hpp, an ALIVE line every 2 s and the s_ws_p0 strip on pin 2.
+esphome:
+  name: ${name}
+  includes:
+    - pioscope.hpp
+
+rp2040:
+  board: rpipico2w
+
+logger:
+  level: DEBUG
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: 'static int n = 0; ESP_LOGI("hwt", "ALIVE %d", ++n);'
+
+light:
+  - platform: rp2040_pio_led_strip
+    id: s_ws_p0
+    pin: 2
+    num_leds: 2
+    pio: 0
+    channel_colors: GRB
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    chipset: WS2812

@@ -28,11 +28,6 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  RAMAllocator<uint8_t> allocator;
-  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_),
-                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
-    return;
-
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
@@ -117,11 +112,6 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Light is in failed state, not writing state.");
-    return;
-  }
-
-  if (this->internal_accessor_.color_data == nullptr) {
-    ESP_LOGW(TAG, "Buffer is null, not writing state.");
     return;
   }
 

@@ -1223,8 +1223,13 @@ KEELOQ_ACTION_SCHEMA = KEELOQ_SCHEMA.extend(
     }
 )
 
+# Only address and command are matched. code stays accepted for existing configs.
+KEELOQ_BINARY_SENSOR_SCHEMA = KEELOQ_SCHEMA.extend(
+    {cv.Optional(CONF_CODE): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFFFFFF))}
+)
 
-@register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_SCHEMA)
+
+@register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_BINARY_SENSOR_SCHEMA)
 def Keeloq_binary_sensor(var, config):
     cg.add(
         var.set_data(

@@ -1,0 +1,119 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          sim::loopback(id(u_g));
+          sim::loopback(id(u_p));
+
+uart:
+  - id: u_g
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 9600
+    parity: EVEN
+  - id: u_p
+    tx_pin: GPIO32
+    rx_pin: GPIO33
+    baud_rate: 9600
+
+sensor:
+  - platform: gcja5
+    id: gj
+    uart_id: u_g
+    pm_1_0:
+      name: G PM1
+      filters: []
+    pm_2_5:
+      name: G PM25
+      filters: []
+    pm_10_0:
+      name: G PM10
+      filters: []
+  - platform: pm1006
+    uart_id: u_p
+    update_interval: 15s
+    pm_2_5:
+      name: P PM25
+      filters: []
+
+binary_sensor:
+  - platform: template
+    name: G Warning
+    lambda: return id(gj)->status_has_warning();
+
+button:
+  - platform: template
+    name: G Good
+    on_press:
+      - lambda: sim::send(id(u_g), "G Good", sim::gcja5(1, 11, 21));
+  - platform: template
+    name: G Two Frames
+    on_press:
+      - lambda: sim::send(id(u_g), "G Two Frames", sim::cat(sim::gcja5(1, 12, 22), sim::gcja5(1, 13, 23)));
+  - platform: template
+    name: G Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_g), "G Bad Checksum", sim::gcja5(1, 14, 24, true));
+  - platform: template
+    name: G Bad End
+    on_press:
+      - lambda: sim::send(id(u_g), "G Bad End", sim::gcja5(1, 15, 25, false, true));
+  - platform: template
+    name: G Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_g), "G Garbage Then Frame", sim::cat({0x55, 0x99, 0x03}, sim::gcja5(1, 16, 26)));
+  - platform: template
+    name: G Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_g), "G Cut Then Frame", sim::cat(sim::part(sim::gcja5(9, 90, 99), 0, 10), sim::gcja5(1, 17, 27)));
+  - platform: template
+    name: G Split 300
+    on_press:
+      - lambda: sim::send(id(u_g), "G Split 300 head", sim::part(sim::gcja5(1, 18, 28), 0, 12));
+      - delay: 300ms
+      - lambda: sim::send(id(u_g), "G Split 300 rest", sim::part(sim::gcja5(1, 18, 28), 12, 32));
+  - platform: template
+    name: G Split 700
+    on_press:
+      - lambda: sim::send(id(u_g), "G Split 700 head", sim::part(sim::gcja5(1, 19, 29), 0, 12));
+      - delay: 700ms
+      - lambda: sim::send(id(u_g), "G Split 700 rest", sim::part(sim::gcja5(1, 19, 29), 12, 32));
+  - platform: template
+    name: G Good After
+    on_press:
+      - lambda: sim::send(id(u_g), "G Good After", sim::gcja5(1, 20, 30));
+  - platform: template
+    name: P Good
+    on_press:
+      - lambda: sim::send(id(u_p), "P Good", sim::pm1006(31));
+  - platform: template
+    name: P Repeated Header
+    on_press:
+      - lambda: sim::send(id(u_p), "P Repeated Header", sim::cat({0x16}, sim::pm1006(32)));
+  - platform: template
+    name: P Bad Checksum
+    on_press:
+      - lambda: sim::send(id(u_p), "P Bad Checksum", sim::pm1006(33, true));
+  - platform: template
+    name: P Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_p), "P Cut Then Frame", sim::cat(sim::part(sim::pm1006(91), 0, 8), sim::pm1006(34)));
+  - platform: template
+    name: P Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_p), "P Garbage Then Frame", sim::cat({0x11, 0x0B, 0x99}, sim::pm1006(35)));
+  - platform: template
+    name: P Split
+    on_press:
+      - lambda: sim::send(id(u_p), "P Split head", sim::part(sim::pm1006(36), 0, 7));
+      - delay: 300ms
+      - lambda: sim::send(id(u_p), "P Split rest", sim::part(sim::pm1006(36), 7, 20));
+  - platform: template
+    name: P Two Frames
+    on_press:
+      - lambda: sim::send(id(u_p), "P Two Frames", sim::cat(sim::pm1006(37), sim::pm1006(38)));
+  - platform: template
+    name: P Good After
+    on_press:
+      - lambda: sim::send(id(u_p), "P Good After", sim::pm1006(39));
