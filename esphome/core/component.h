@@ -297,9 +297,17 @@ class Component {
   void status_set_warning(const LogString *message);
 
   /// Clears the warning when `ok`, else sets it with `message` (default "Communication failed"); returns `ok`.
-  /// Replaces the `if (!read()) { status_set_warning(...); return; } status_clear_warning();` pattern.
+  /// For the last (or only) bus step; earlier steps of a multi-step poll use status_comm_check().
   bool status_comm_result(bool ok);
   bool status_comm_result(bool ok, const LogString *message);
+  /// Sets the warning ("Communication failed") when not `ok` but never clears it; returns `ok`. For earlier steps of
+  /// a poll, where a clear would log a clear/set pair each time a later step fails; the last step must use
+  /// status_comm_result() so the warning clears.
+  bool status_comm_check(bool ok) {
+    if (!ok)
+      this->status_comm_check_slow_path_();
+    return ok;
+  }
 
   void status_set_error();  // Set error flag without message
   void status_set_error(const LogString *message);
@@ -501,6 +509,7 @@ class Component {
   bool cancel_defer(uint32_t id);       // NOLINT
 
   void status_clear_warning_slow_path_();
+  void status_comm_check_slow_path_();
   void status_clear_error_slow_path_();
 
   // Ordered for optimal packing on 32-bit systems (8 bytes total with vtable)

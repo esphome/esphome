@@ -1,0 +1,98 @@
+# Needs packages/aux-2-pre-prod.yaml from NabuCasa/aux-2 next to this file (see reference/recipes/usb_audio.md).
+# The AUX-2 with the speaker platform media player (swapped in for the package's speaker_source player), a USB
+# speaker on usb_audio as the output, and played-frame counters on both resampler speakers ("[frames" log lines).
+# The per-run file supplies esphome: name.
+packages:
+  core: !include aux-2-pre-prod.yaml
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+sendspin:
+  unpaired_access: true
+
+usb_audio:
+  id: usb_audio_id
+
+speaker:
+  - platform: usb_audio
+    id: usb_speaker
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 24bit
+    num_channels: 2
+    buffer_size: 28800
+    write_timeout: 50ms
+  - id: !extend mixing_speaker
+    output_speaker: usb_speaker
+
+media_player:
+  - id: !remove external_media_player
+  - platform: speaker
+    id: speaker_media_player
+    name: Media Player
+    volume_increment: 0.05
+    volume_min: 0.4
+    volume_max: 0.85
+    announcement_pipeline:
+      speaker: announcement_resampling_speaker
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+    media_pipeline:
+      speaker: media_resampling_speaker
+      format: FLAC
+      num_channels: 2
+      sample_rate: 48000
+
+globals:
+  - {id: ann_logged, type: uint32_t, initial_value: "0"}
+  - {id: med_logged, type: uint32_t, initial_value: "0"}
+
+esphome:
+  includes:
+    - frames.h
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            id(announcement_resampling_speaker).add_audio_output_callback(
+                [](uint32_t frames, int64_t) { hwt_frames::ann.fetch_add(frames); });
+            id(media_resampling_speaker).add_audio_output_callback(
+                [](uint32_t frames, int64_t) { hwt_frames::med.fetch_add(frames); });
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint32_t v = hwt_frames::ann.load();
+          if (v != id(ann_logged)) {
+            ESP_LOGI("frames", "played %u", (unsigned) v);
+            id(ann_logged) = v;
+          }
+          uint32_t w = hwt_frames::med.load();
+          if (w != id(med_logged)) {
+            ESP_LOGI("frames", "media played %u", (unsigned) w);
+            id(med_logged) = w;
+          }
+
+button:
+  - platform: template
+    name: Reset frames
+    on_press:
+      - lambda: |-
+          hwt_frames::ann.store(0);
+          id(ann_logged) = 0;
+          hwt_frames::med.store(0);
+          id(med_logged) = 0;
+          ESP_LOGI("frames", "reset");
