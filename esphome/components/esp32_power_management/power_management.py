@@ -18,10 +18,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
 )
 from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zigbee import DOMAIN as ZIGBEE_DOMAIN
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPENTHREAD
 from esphome.core import CORE
@@ -31,6 +33,10 @@ from esphome.types import ConfigType
 from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"tick_overflow_guard.cpp": "USE_ESP32_PM_TICK_OVERFLOW_GUARD"}
+)
 
 CODEOWNERS = ["@rwrozelle"]
 DEPENDENCIES = ["esp32"]
@@ -187,6 +193,15 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option(
         "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP", config[CONF_IDLE_TIME_BEFORE_SLEEP]
     )
+    # Stop vTaskStepTick asserting on a tick overshoot after light sleep; built into
+    # IDF 6.0.1, backported by tick_overflow_guard.cpp before that.
+    if idf_version() >= cv.Version(6, 0, 1):
+        add_idf_sdkconfig_option("CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION", True)
+    else:
+        cg.add_define("USE_ESP32_PM_TICK_OVERFLOW_GUARD")
+        for symbol in ("vApplicationSleep", "vTaskStepTick"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
     if config[CONF_POWER_DOWN_PERIPHERALS]:
         add_idf_sdkconfig_option("CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP", True)
     if config[CONF_POWER_DOWN_FLASH]:
