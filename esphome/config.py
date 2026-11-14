@@ -845,7 +845,7 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
 class MetadataValidationStep(ConfigValidationStep):
     """Validate component metadata
 
-    Responsibilties:
+    Responsibilities:
      - Config transformation (nullable, multi conf)
      - Check dependencies
      - Check conflicts

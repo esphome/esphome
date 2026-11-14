@@ -2548,10 +2548,10 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.contains(entity)) {
-    root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
-      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entitys_[entity].group_id].name);
+  if (this->sorting_entities_.contains(entity)) {
+    root[ESPHOME_F("sorting_weight")] = this->sorting_entities_[entity].weight;
+    if (this->sorting_groups_.contains(this->sorting_entities_[entity].group_id)) {
+      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entities_[entity].group_id].name);
     }
   }
 #endif
@@ -2559,7 +2559,7 @@ void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 
 #ifdef USE_WEBSERVER_SORTING
 void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
-  this->sorting_entitys_[entity] = SortingComponents{weight, group};
+  this->sorting_entities_[entity] = SortingComponents{weight, group};
 }
 
 void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {

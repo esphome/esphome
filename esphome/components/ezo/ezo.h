@@ -81,8 +81,8 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
 
   // Device Information
   void get_device_information();
-  template<typename F> void add_device_infomation_callback(F &&callback) {
-    this->device_infomation_callback_.add(std::forward<F>(callback));
+  template<typename F> void add_device_information_callback(F &&callback) {
+    this->device_information_callback_.add(std::forward<F>(callback));
   }
 
   // Sleep
@@ -135,7 +135,7 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   static void send_queued(EZOSensor *self, uint32_t now);
   void finish_command_();
 
-  CallbackManager<void(StringRef)> device_infomation_callback_{};
+  CallbackManager<void(StringRef)> device_information_callback_{};
   CallbackManager<void(StringRef)> calibration_callback_{};
   CallbackManager<void(StringRef)> slope_callback_{};
   CallbackManager<void(StringRef)> t_callback_{};

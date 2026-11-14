@@ -42,7 +42,7 @@ class StreamingModel {
   // Performs inference on the given features.
   //  - If the model is enabled but not loaded, it will load it
   //  - If the model is disabled but loaded, it will unload it
-  // Returns true if sucessful or false if there is an error
+  // Returns true if successful or false if there is an error
   bool perform_streaming_inference(const int8_t features[PREPROCESSOR_FEATURE_SIZE]);
 
   /// @brief Sets all recent_streaming_probabilities to 0 and resets the ignore window count
@@ -116,7 +116,7 @@ class WakeWordModel final : public StreamingModel {
   /// @param id (std::string) identifier for this model
   /// @param model_start (const uint8_t *) pointer to the start of the model's TFLite FlatBuffer
   /// @param model_size (size_t) size of the compiled-in model data
-  /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
+  /// @param default_probability_cutoff (uint8_t) probability cutoff for accepting the wake word has been said
   /// @param sliding_window_average_size (size_t) the length of the sliding window computing the mean rolling
   ///                                    probability
   /// @param wake_word (std::string) Friendly name of the wake word
@@ -130,7 +130,7 @@ class WakeWordModel final : public StreamingModel {
   /// @brief Constructs a wake word model object with a runtime-downloaded model
   /// @param id (std::string) identifier for this model
   /// @param model_data (std::shared_ptr<ModelData>) owning handle to the downloaded model buffer; must be valid
-  /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
+  /// @param default_probability_cutoff (uint8_t) probability cutoff for accepting the wake word has been said
   /// @param sliding_window_average_size (size_t) the length of the sliding window computing the mean rolling
   ///                                    probability
   /// @param wake_word (std::string) Friendly name of the wake word

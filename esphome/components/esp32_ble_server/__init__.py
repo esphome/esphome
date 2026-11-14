@@ -76,7 +76,7 @@ CONF_WRITE_NO_RESPONSE = "write_no_response"
 # Internal configuration keys
 CONF_CHAR_VALUE_ACTION_ID_ = "char_value_action_id_"
 
-# BLE reserverd UUIDs
+# BLE reserved UUIDs
 CCCD_DESCRIPTOR_UUID = 0x2902
 CUD_DESCRIPTOR_UUID = 0x2901
 DEVICE_INFORMATION_SERVICE_UUID = 0x180A
