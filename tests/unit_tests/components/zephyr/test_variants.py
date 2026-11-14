@@ -33,6 +33,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_NRF52,
     PLATFORM_STM32,
 )
 from esphome.core import CORE
@@ -256,17 +257,19 @@ def test_set_core_data(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_no_variant_without_the_registry() -> None:
     """nrf52 sets up Zephyr data without a variant; other platforms have none."""
     lookups = (zephyr_variant, zephyr_variant_family, zephyr_framework_type)
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_NRF52}
     assert [lookup() for lookup in lookups] == [None, None, None]
     zephyr_set_core_data(_config())
     assert [lookup() for lookup in lookups] == [None, None, None]
 
 
+@pytest.mark.parametrize("platform", [None, PLATFORM_STM32])
 @pytest.mark.parametrize(
     "lookup", [zephyr_variant, zephyr_variant_family, zephyr_framework_type]
 )
 def test_variant_read_before_the_platform_schema_is_rejected(
-    lookup: Callable[[], str | None],
+    lookup: Callable[[], str | None], platform: str | None
 ) -> None:
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_STM32}
+    CORE.data[KEY_CORE] = {} if platform is None else {KEY_TARGET_PLATFORM: platform}
     with pytest.raises(RuntimeError, match="before the platform schema set it"):
         lookup()
