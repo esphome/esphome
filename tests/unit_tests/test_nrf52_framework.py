@@ -12,7 +12,7 @@ from unittest.mock import ANY, call, patch
 import platformdirs
 import pytest
 
-from esphome.components.nrf52 import _resolve_toolchain
+from esphome.components.nrf52 import _resolve_toolchain, framework
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
@@ -91,6 +91,15 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # The penv build lives in the shared Zephyr framework helpers
+        patch("esphome.components.zephyr.framework_helpers.rmdir", mock_rmdir),
+        patch(
+            "esphome.components.zephyr.framework_helpers.create_venv",
+            mock_create_venv,
+        ),
+        patch(
+            "esphome.components.zephyr.framework_helpers.run_command_ok", mock_run_cmd
+        ),
         # download_and_extract resolves its internals in framework_helpers,
         # so the download/extract seams are patched there.
         patch(
@@ -1269,3 +1278,105 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
         _resolve_toolchain({})
+
+
+PYOCD_NRF54LM20A_BEFORE = """\
+from ..family.target_nRF54L import NRF54L
+
+FLASH_ALGO = {
+    'load_address' : 0x20000000,
+    'instructions': [
+    0xe7fdbe00,
+    0x68134a02, 0xd1fc2b01, 0x46c04770, 0x5004e400, 0x47702000, 0x47702000, 0x2501b570, 0x60254c05,
+    ],
+    'page_size' : 0x4,
+    'sector_sizes': (
+        (0x0, 0x1fd000),
+        (0xffd000, 0x1000),
+    )
+}
+
+class NRF54LM20A(NRF54L):
+    pass
+"""
+
+
+def test_patch_pyocd_nrf54lm20a_flash_algo(tmp_path: Path) -> None:
+    """PyOCD's faulting nRF54LM20A flash algorithm is replaced by the fixed one."""
+    target = (
+        framework._get_penv_site_packages(tmp_path)
+        / "pyocd"
+        / "target"
+        / "builtin"
+        / "target_nRF54LM20A.py"
+    )
+    target.parent.mkdir(parents=True)
+    target.write_text(PYOCD_NRF54LM20A_BEFORE)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    patched = target.read_text()
+    assert framework._PYOCD_NRF54LM20A_FLASH_ALGO in patched
+    assert "0x68134a02" not in patched
+    assert patched.startswith("from ..family.target_nRF54L import NRF54L\n\n")
+    assert patched.endswith("\nclass NRF54LM20A(NRF54L):\n    pass\n")
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)  # idempotent
+    assert target.read_text() == patched
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path / "absent")  # tolerant
+
+
+def test_unpatched_pyocd_nrf54lm20a_target(tmp_path: Path) -> None:
+    """The upload error names pyOCD's target file until the fix is in it."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    with (
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None  # absent
+        target.parent.mkdir(parents=True)
+        target.write_text(PYOCD_NRF54LM20A_BEFORE)
+        assert framework.unpatched_pyocd_nrf54lm20a_target() == target
+        framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
+def test_patch_pyocd_nrf54lm20a_leaves_another_algorithm_alone(tmp_path: Path) -> None:
+    """A newer pyOCD's algorithm, without the faulting instructions, is not replaced."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    target.parent.mkdir(parents=True)
+    newer = PYOCD_NRF54LM20A_BEFORE.replace("0x68134a02", "0x12345678")
+    target.write_text(newer)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    assert target.read_text() == newer
+    with (
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
+def test_patch_pyocd_nrf54lm20a_warns_on_an_unknown_layout(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The faulting algorithm in a layout the patch cannot find is left as it is."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    target.parent.mkdir(parents=True)
+    indented = PYOCD_NRF54LM20A_BEFORE.replace("FLASH_ALGO = {", "  FLASH_ALGO = {")
+    target.write_text(indented)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    assert target.read_text() == indented
+    assert "Could not patch pyOCD's nRF54LM20A flash algorithm" in caplog.text
+
+
+def test_pyocd_target_found_in_an_env_of_another_python_version(
+    tmp_path: Path,
+) -> None:
+    """An SDK env kept across a Python upgrade still has its packages under its own version."""
+    builtin = tmp_path / "lib" / "python3.9" / "site-packages" / "pyocd" / "target"
+    (builtin / "builtin").mkdir(parents=True)
+    (builtin / "builtin" / "target_nRF54L15.py").write_text("")
+    with (
+        patch.object(framework.sys, "version_info", SimpleNamespace(major=3, minor=99)),
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.pyocd_has_builtin_target("target_nRF54L15.py")
+        assert not framework.pyocd_has_builtin_target("target_nRF54LM20A.py")

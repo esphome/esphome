@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE: "4096"
+
+usb_host:
