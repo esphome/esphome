@@ -77,7 +77,7 @@ void AsyncStreamResponse::accept(AsyncWebServerRequest *request, const char *sta
 
 void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
   client->setRxTimeout(0);
-  // Covers data left unacked with nothing more to send (each send restarts it, which write() covers)
+  // Backstop for data left unacked once writes stop; each send restarts it
   client->setAckTimeout(SEND_STALL_TIMEOUT_MS);
   client->setNoDelay(true);
   // clientRelease() already cleared the request's data, ack, poll and error handlers
@@ -124,32 +124,31 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     return -1;
   }
   size_t sent = 0;
-  bool acked = true;
   const uint32_t now = App.get_loop_component_start_time();
   if (!this->stall_.is_running() || now - this->last_try_ms_ >= STALL_RETRY_MS) {
     this->last_try_ms_ = now;
     // RP2: the network IRQ may free the pcb between the check and the use, so hold it out across both
     LwIPLock lock;
     if (this->is_connected()) {
-      // An ACK since the last write frees send buffer; with nothing outstanding the buffer is at its largest.
-      // ESPAsyncTCP and RPAsyncTCP call onAck only once everything is acked, so it cannot measure this.
-      const size_t space = this->client_->space();
-      acked = space > this->space_after_write_ || space >= this->max_space_;
-      if (space > this->max_space_)
-        this->max_space_ = space;
+      // Only an ACK grows the send buffer's free space (lwIP snd_buf). ESPAsyncTCP and RPAsyncTCP call onAck
+      // only once everything is acked, so it cannot measure this.
+      if (this->client_->space() > this->space_after_write_)
+        this->last_ack_ms_ = now;
       char scratch[ADD_SCRATCH_SIZE];
       sent = add_iovecs(*this->client_, iov, iovcnt, scratch, sizeof(scratch));
-      this->space_after_write_ = this->client_->space();
+      if (sent > 0)
+        this->space_after_write_ = this->client_->space();
     }
   }
-  if (sent > 0 && acked) {
-    this->stall_.clear();
-    return static_cast<ssize_t>(sent);
-  }
   if (sent > 0) {
-    // Queued, but nothing acked since the last write: a reader whose window stays shut fills a large send buffer
-    // only slowly, so this counts as no progress too
-    return this->stall_or_close_(LOG_STR("without an ACK")) ? -1 : static_cast<ssize_t>(sent);
+    this->stall_.clear();
+    // lwIP keeps queueing into a large buffer while the window is shut, so the buffer may never fill
+    if (now - this->last_ack_ms_ >= SEND_STALL_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without an ACK", now - this->last_ack_ms_);
+      this->close();
+      return -1;
+    }
+    return static_cast<ssize_t>(sent);
   }
   // Send buffer full, try again later; a buffer that stays full past the stall timeout is closed
   return this->stall_or_close_(LOG_STR("without send progress")) ? -1 : 0;
