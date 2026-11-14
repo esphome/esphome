@@ -18,11 +18,12 @@ One file per component, named after it:
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing, SIM7080G behaviour with no SIM and with no data plan through a raw UART passthrough
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
 - [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes
+- [`npm1300.md`](npm1300.md): nPM1300 PMIC on the XIAO nRF54LM20A: probe build, every entity with a register dump and regulator toggles, power-on state and no-battery readings
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
 - [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
-- [`scheduler.md`](scheduler.md): loop wake A/B, interval startup delay and control from lambdas
+- [`scheduler.md`](scheduler.md): loop wake A/B, interval startup delay and control from lambdas, RP2 scheduler lock under IRQ and lwIP load
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
 - [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save, soft AP clients with the BLE tracker scanning, ESP8266 power save after captive portal provisioning
@@ -36,7 +37,7 @@ One file per component, named after it:
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
-- [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback
+- [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
 - [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
 - [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip
@@ -84,5 +85,5 @@ One file per component, named after it:
 - [`wled.md`](wled.md): WLED realtime sender on a board's own access point
 - [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
 - [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes
-- [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls and `/events` churn crashes
+- [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls, `/events` churn crashes and never completed connects, W5100S OTA without `interrupt_pin`
 - [`bluedroid_gattc_queue.md`](bluedroid_gattc_queue.md): queued MTU request and execute write recursion that overflows BTU_TASK, ble_client central against an ESP32-S3 peer
