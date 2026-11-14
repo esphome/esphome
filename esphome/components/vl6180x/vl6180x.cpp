@@ -35,6 +35,7 @@ static constexpr uint16_t REG_SYSRANGE_VHV_REPEAT_RATE = 0x031;
 static constexpr uint16_t REG_RESULT_ALS_VAL = 0x050;
 static constexpr uint16_t REG_RESULT_RANGE_VAL = 0x062;
 static constexpr uint16_t REG_RESULT_ALS_STATUS = 0x04E;
+static constexpr uint8_t ALS_ERROR_MASK = 0xF0;
 static constexpr uint16_t REG_RESULT_RANGE_STATUS = 0x04D;
 static constexpr uint16_t REG_RESULT_INTERRUPT_STATUS_GPIO = 0x04F;
 static constexpr uint16_t REG_SYSRANGE_CROSSTALK_VALID_HEIGHT = 0x021;
@@ -264,7 +265,7 @@ void VL6180XComponent::run_init_sequence(i2c::I2CBus *bus) {
   // Reset all state machines — any in-progress measurement is abandoned.
   // Publish NAN / "Recovering" so HA reflects the outage immediately.
   for (auto *inst : all) {
-    if (inst->bus_identity_ != bus)
+    if (inst->bus_ != bus)
       continue;
     if (inst->is_failed())
       continue;
@@ -279,7 +280,7 @@ void VL6180XComponent::run_init_sequence(i2c::I2CBus *bus) {
 
   // Step 1: all XSHUT pins low
   for (auto *inst : all) {
-    if (inst->bus_identity_ != bus)
+    if (inst->bus_ != bus)
       continue;
     if (inst->enable_pin_ != nullptr)
       inst->enable_pin_->digital_write(false);
@@ -291,7 +292,7 @@ void VL6180XComponent::run_init_sequence(i2c::I2CBus *bus) {
   // recovery, which can run after setup on a long-lived device.
   for (uint8_t phase = 0; phase < 2; phase++) {
     for (auto *inst : all) {
-      if (inst->bus_identity_ != bus)
+      if (inst->bus_ != bus)
         continue;
       const uint8_t target_addr = inst->get_i2c_address();
       const bool is_default_address = target_addr == 0x29;
@@ -679,6 +680,17 @@ void VL6180XComponent::do_als_wait_() {
   }
 
   uint16_t raw = 0;
+  uint8_t status = 0;
+  if (!this->read_reg8_(REG_RESULT_ALS_STATUS, status)) {
+    this->fail_lux_measurement_();
+    return;
+  }
+  const uint8_t als_error = (status & ALS_ERROR_MASK) >> 4;
+  if (als_error != 0) {
+    ESP_LOGW(TAG, "[%s] ALS result error: %u (status=0x%02X)", this->name_str_, als_error, status);
+    this->fail_lux_measurement_();
+    return;
+  }
   if (!this->read_reg16_(REG_RESULT_ALS_VAL, raw)) {
     this->fail_lux_measurement_();
     return;
@@ -729,13 +741,13 @@ bool VL6180XComponent::begin_recovery_attempt_() {
 
   auto &all = all_instances();
   for (auto *inst : all) {
-    if (inst != this && inst->bus_identity_ == this->bus_identity_ && inst->recovery_attempt_active_)
+    if (inst != this && inst->bus_ == this->bus_ && inst->recovery_attempt_active_)
       return false;
   }
 
   this->recovery_attempt_active_ = true;
   for (auto *inst : all) {
-    if (inst == this || inst->bus_identity_ != this->bus_identity_)
+    if (inst == this || inst->bus_ != this->bus_)
       continue;
     inst->recovery_pause_ = true;
     inst->range_pending_ = false;
@@ -749,7 +761,7 @@ bool VL6180XComponent::begin_recovery_attempt_() {
 
 void VL6180XComponent::end_recovery_attempt_() {
   for (auto *inst : all_instances()) {
-    if (inst->bus_identity_ == this->bus_identity_)
+    if (inst->bus_ == this->bus_)
       inst->recovery_pause_ = false;
   }
   this->recovery_attempt_active_ = false;
@@ -757,7 +769,7 @@ void VL6180XComponent::end_recovery_attempt_() {
 
 bool VL6180XComponent::recovery_group_has_active_measurement_() const {
   for (auto *inst : all_instances()) {
-    if (inst == this || inst->bus_identity_ != this->bus_identity_)
+    if (inst == this || inst->bus_ != this->bus_)
       continue;
     if (inst->state_ == MeasurementState::MEASUREMENT_STATE_RANGE_WAIT ||
         inst->state_ == MeasurementState::MEASUREMENT_STATE_ALS_WAIT)
@@ -773,7 +785,7 @@ bool VL6180XComponent::recover_sensor_() {
 
   if (target_address != 0x29) {
     for (auto *inst : all) {
-      if (inst != this && inst->bus_identity_ == this->bus_identity_ && inst->get_i2c_address() == 0x29) {
+      if (inst != this && inst->bus_ == this->bus_ && inst->get_i2c_address() == 0x29) {
         default_address_sensor = inst;
         break;
       }
@@ -912,17 +924,17 @@ void VL6180XComponent::setup() {
   }
 
   if (std::find_if(all.begin(), all.end(), [this](const auto *inst) {
-        return inst != this && inst->bus_identity_ == this->bus_identity_;
+        return inst != this && inst->bus_ == this->bus_ && inst->startup_sequence_complete_;
       }) != all.end())
     return;
 
   const auto sensor_count = static_cast<size_t>(std::count_if(
-      all.begin(), all.end(), [this](const auto *inst) { return inst->bus_identity_ == this->bus_identity_; }));
+      all.begin(), all.end(), [this](const auto *inst) { return inst->bus_ == this->bus_; }));
   ESP_LOGI(TAG, "VL6180X: initialising %u sensor(s) on this I2C bus", static_cast<unsigned>(sensor_count));
 
   // GPIO setup — must happen before run_init_sequence drives the pins
   for (auto *inst : all) {
-    if (inst->bus_identity_ != this->bus_identity_)
+    if (inst->bus_ != this->bus_)
       continue;
     if (inst->enable_pin_ != nullptr)
       inst->enable_pin_->setup();
@@ -930,12 +942,12 @@ void VL6180XComponent::setup() {
       inst->interrupt_pin_->setup();
   }
 
-  run_init_sequence(this->bus_identity_);
+  run_init_sequence(this->bus_);
 
   // Sensors that failed initial boot enter RECOVERY_WAIT immediately so
   // they'll be retried automatically without manual intervention.
   for (auto *inst : all) {
-    if (inst->bus_identity_ != this->bus_identity_)
+    if (inst->bus_ != this->bus_)
       continue;
     if (!inst->initialized_ && !inst->is_failed()) {
       inst->publish_range_error_(RangeStatus::RANGE_STATUS_RECOVERING);
@@ -945,6 +957,7 @@ void VL6180XComponent::setup() {
       ESP_LOGW(TAG, "[%s] Initial boot failed — will retry in %lu s", inst->name_str_,
                static_cast<unsigned long>(inst->retry_interval_ms_ / 1000U));
     }
+    inst->startup_sequence_complete_ = true;
   }
 
   ESP_LOGI(TAG, "VL6180X: init sequence complete");

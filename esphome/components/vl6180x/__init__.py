@@ -144,8 +144,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: list[ConfigType]) -> None:
     for entry in config:
         var = await i2c.new_i2c_component(entry)
-        await cg.add_variable(var.set_bus_identity, entry[CONF_I2C_ID])
-
         cg.add(var.set_name_str(entry[CONF_ID].id))
 
         _request_instance_slot()

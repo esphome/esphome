@@ -9,12 +9,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-// The production code generator defines this from the configured hub count.
-// Host unit tests construct two hubs directly and do not run component codegen.
-#if defined(ESPHOME_DEBUG) && !defined(VL6180X_INSTANCE_COUNT)
-#define VL6180X_INSTANCE_COUNT 2
-#endif
-
 namespace esphome::vl6180x {
 
 namespace testing {
@@ -74,7 +68,6 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // Configuration setters — called from generated code
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-  void set_bus_identity(i2c::I2CBus *bus) { this->bus_identity_ = bus; }
   void set_scaling(uint8_t scaling) { this->scaling_ = scaling; }
   void set_als_gain(uint8_t gain, float factor) {
     this->als_gain_ = gain;
@@ -146,7 +139,6 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // ── Sensor configuration ─────────────────────────────────────────────────
   GPIOPin *enable_pin_{nullptr};
   InternalGPIOPin *interrupt_pin_{nullptr};
-  i2c::I2CBus *bus_identity_{nullptr};
   SUB_SENSOR(range);
   SUB_TEXT_SENSOR(range_status);
   SUB_SENSOR(lux);
@@ -162,6 +154,7 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
 
   // ── Operational state ────────────────────────────────────────────────────
   bool initialized_{false};
+  bool startup_sequence_complete_{false};
   MeasurementState state_{MeasurementState::MEASUREMENT_STATE_IDLE};
   uint32_t state_deadline_{0};
   bool lux_pending_{false};    // lux timer fired while range was in progress

@@ -74,7 +74,6 @@ class VL6180XComponentTest : public ::testing::Test {
     VL6180XComponentTest::clear_instances();
     this->component_.set_i2c_bus(&this->bus_);
     this->component_.set_i2c_address(0x29);
-    this->component_.set_bus_identity(&this->bus_);
     this->component_.set_lux_sensor(&this->lux_sensor_);
     this->component_.set_range_sensor(&this->range_sensor_);
   }
@@ -146,10 +145,8 @@ TEST_F(VL6180XComponentTest, SecondarySensorRetriesAfterBootFailure) {
   VL6180XComponent secondary;
   primary.set_i2c_bus(&primary_bus);
   primary.set_i2c_address(0x29);
-  primary.set_bus_identity(&primary_bus);
   secondary.set_i2c_bus(&secondary_bus);
   secondary.set_i2c_address(0x29);
-  secondary.set_bus_identity(&secondary_bus);
   primary.set_retry_interval(0);
   secondary.set_retry_interval(0);
   primary_bus.set8(0x000, 0xB4);
