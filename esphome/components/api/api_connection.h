@@ -48,6 +48,7 @@ void log_dropped_message(const char *tag, int line, const LogString *what);
 #endif
 
 // Keepalive timeout in milliseconds (configurable via api: keepalive:)
+// Must match DEFAULT_KEEPALIVE in __init__.py
 static constexpr uint32_t DEFAULT_KEEPALIVE_TIMEOUT_MS = 60000;
 #ifdef USE_API_KEEPALIVE_INTERVAL
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = API_KEEPALIVE_TIMEOUT_MS;

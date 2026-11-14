@@ -146,7 +146,6 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_OUTGOING_CONNECTION = "outgoing_connection"
-DEFAULT_KEEPALIVE = "60s"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 # Schema defaults that also match the C++ initializers in api_server.h; codegen
@@ -155,6 +154,9 @@ DEFAULT_PORT = 6053
 DEFAULT_REBOOT_TIMEOUT = "15min"
 DEFAULT_BATCH_DELAY = "100ms"
 DEFAULT_LISTEN_BACKLOG = 4
+# Must match DEFAULT_KEEPALIVE_TIMEOUT_MS in api_connection.h: codegen only emits the
+# keepalive defines when the config differs from it.
+DEFAULT_KEEPALIVE = "60s"
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -614,10 +616,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
-    keepalive_ms = config[CONF_KEEPALIVE].total_milliseconds
-    if keepalive_ms != cv.time_period(DEFAULT_KEEPALIVE).total_milliseconds:
+    if (keepalive := config[CONF_KEEPALIVE]) != cv.time_period(DEFAULT_KEEPALIVE):
         cg.add_define("USE_API_KEEPALIVE_INTERVAL")
-        cg.add_define("API_KEEPALIVE_TIMEOUT_MS", keepalive_ms)
+        cg.add_define("API_KEEPALIVE_TIMEOUT_MS", keepalive.total_milliseconds)
 
     actions = config.get(CONF_ACTIONS, [])
     has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]
