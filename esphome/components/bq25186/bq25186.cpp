@@ -1,10 +1,4 @@
 #include "bq25186.h"
-#ifdef USE_BINARY_SENSOR
-#include "bq25186_binary_sensor.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "bq25186_text_sensor.h"
-#endif
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -144,13 +138,9 @@ void BQ25186Component::update() {
 #endif
   if (!pending)
     this->status_clear_warning();
-#ifdef BQ25186_BINARY_SENSOR_COUNT
-  for (auto *sensor : this->binary_sensors_)
-    sensor->on_status(status);
-#endif
-#ifdef BQ25186_TEXT_SENSOR_COUNT
-  for (auto *sensor : this->text_sensors_)
-    sensor->on_status(status);
+#ifdef USE_BQ25186_STATUS_PUBLISHER
+  if (this->status_publisher_ != nullptr)
+    this->status_publisher_(status);
 #endif
 }
 

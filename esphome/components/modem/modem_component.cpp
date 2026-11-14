@@ -327,10 +327,8 @@ void ModemComponent::setup() {
       break;
     }
   }
-  if (this->uart_port_ == UART_NUM_MAX) {
-    this->mark_failed(LOG_STR("No free UART port for modem"));
+  if (!this->setup_check(this->uart_port_ != UART_NUM_MAX, LOG_STR("No free UART port for modem")))
     return;
-  }
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->ppp_netif_ = esp_netif_new(&netif_ppp_config);

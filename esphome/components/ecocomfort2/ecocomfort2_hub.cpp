@@ -2,6 +2,7 @@
 #ifdef USE_ESP32
 #include "ecocomfort2_hub.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cmath>
@@ -279,11 +280,9 @@ void Ecocomfort2Hub::on_oper_(const uint8_t *data, uint16_t len) {
   this->mode_ = data[0];
   this->speed_ = data[1];
   ESP_LOGD(TAG, "[%s] C_OPER: mode=0x%02x, speed=0x%02x", this->parent_->address_str(), this->mode_, this->speed_);
-#ifdef ECOCOMFORT2_CHILD_COUNT
   for (auto *child : this->children_) {
     child->on_status();
   }
-#endif
 }
 
 // C_STATE: bytes 0-1 the mode and speed the unit runs; byte 1 also has the boost flag (0x40) and the advanced
@@ -535,9 +534,9 @@ void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value, uint8_t stored)
 }
 
 void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
-  const auto temperature_bytes = decode_value(static_cast<uint16_t>(temperature));
-  const auto humidity_bytes = decode_value(static_cast<uint16_t>(humidity));
-  uint8_t data[4]{temperature_bytes[0], temperature_bytes[1], humidity_bytes[0], humidity_bytes[1]};
+  uint8_t data[4];
+  put_be16(data, temperature);
+  put_be16(data + 2, humidity);
   ESP_LOGD(TAG, "[%s] Writing C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
   if (!this->write_settings_(this->advanced_char_, data, sizeof(data)))
     return;
@@ -604,13 +603,6 @@ void Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
 }
 #endif
 #endif  // USE_ECOCOMFORT2_SETTINGS
-
-#ifdef ECOCOMFORT2_CHILD_COUNT
-void Ecocomfort2Hub::register_child(Ecocomfort2Client *obj) {
-  this->children_.push_back(obj);
-  obj->set_parent(this);
-}
-#endif
 
 }  // namespace esphome::ecocomfort2
 

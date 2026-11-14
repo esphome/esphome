@@ -1,5 +1,5 @@
 #include "wifi_info_text_sensor.h"
-#ifdef USE_WIFI
+#if defined(USE_WIFI) && defined(USE_TEXT_SENSOR)
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 

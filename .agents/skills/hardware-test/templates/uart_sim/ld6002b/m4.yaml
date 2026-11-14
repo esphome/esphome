@@ -1,0 +1,2 @@
+esphome: {name: m4}
+packages: {c: !include m4-common.yaml}

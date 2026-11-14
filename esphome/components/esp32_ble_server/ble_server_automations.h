@@ -26,23 +26,6 @@ template<typename T, typename V, typename... Xs> void apply_value(T *target, con
   }
 }
 
-class BLETriggers {
- public:
-#ifdef USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE
-  static Trigger<std::vector<uint8_t>, uint16_t> *create_characteristic_on_write_trigger(
-      BLECharacteristic *characteristic);
-#endif
-#ifdef USE_ESP32_BLE_SERVER_DESCRIPTOR_ON_WRITE
-  static Trigger<std::vector<uint8_t>, uint16_t> *create_descriptor_on_write_trigger(BLEDescriptor *descriptor);
-#endif
-#ifdef USE_ESP32_BLE_SERVER_ON_CONNECT
-  static Trigger<uint16_t> *create_server_on_connect_trigger(BLEServer *server);
-#endif
-#ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
-  static Trigger<uint16_t> *create_server_on_disconnect_trigger(BLEServer *server);
-#endif
-};
-
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 // Class to make sure only one BLECharacteristicSetValueAction is active at a time for each characteristic
 class BLECharacteristicSetValueActionManager {

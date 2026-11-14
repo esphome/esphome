@@ -7,7 +7,12 @@ from esphome.components.packet_transport import (
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import CONF_PACKET_INTERFACE, PacketInterface, packet_interface_ns
+from .. import (
+    CONF_PACKET_INTERFACE,
+    PacketInterface,
+    final_validate_interface,
+    packet_interface_ns,
+)
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["packet_interface"]
@@ -21,6 +26,8 @@ CONFIG_SCHEMA = transport_schema(PacketInterfaceTransport).extend(
         cv.GenerateID(CONF_PACKET_INTERFACE): cv.use_id(PacketInterface),
     }
 )
+
+FINAL_VALIDATE_SCHEMA = final_validate_interface(CONF_PACKET_INTERFACE)
 
 
 async def to_code(config: ConfigType) -> None:

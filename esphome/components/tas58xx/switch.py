@@ -10,7 +10,6 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
 from .audio_dac import CONF_TAS58XX_ID, TAS58xx
 
 CONF_ACTIVATE = "activate"

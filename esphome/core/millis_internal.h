@@ -35,6 +35,9 @@ class MillisInternal {
   static ESPHOME_ALWAYS_INLINE uint32_t get() {
 #if defined(USE_ESP32) && CONFIG_FREERTOS_HZ == 1000
     return xTaskGetTickCount();
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+    // The tick is 976.6 us here, so millis() reads the system timer (rtl8710b_micros.c)
+    return millis();
 #elif defined(USE_LIBRETINY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
     // 1 kHz: xTaskGetTickCount() is already ms.
     static_assert(configTICK_RATE_HZ == 1000, "MillisInternal fast path requires 1 kHz FreeRTOS tick");

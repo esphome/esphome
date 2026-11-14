@@ -34,7 +34,7 @@ class AddressableLightState final : public LightState {
 };
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
-// Allocated only for a strip with power_estimation configured
+// Static storage from codegen, only for a strip with power_estimation configured
 struct PowerEstimation {
   float ma_per_level[4];
   float idle_ma_per_led;
@@ -87,15 +87,14 @@ class AddressableLight : public LightOutput, public Component {
   }
 #ifdef USE_LIGHT_POWER_ESTIMATION
   // Per-channel draw at full level and idle draw per LED
-  void set_power_estimation(float ma_red, float ma_green, float ma_blue, float ma_white, float idle_ma_per_led) {
-    if (this->power_estimation_ == nullptr)
-      this->power_estimation_ = new PowerEstimation();  // NOLINT(cppcoreguidelines-owning-memory)
-    auto *power = this->power_estimation_;
-    power->ma_per_level[0] = ma_red / 255.0f;
-    power->ma_per_level[1] = ma_green / 255.0f;
-    power->ma_per_level[2] = ma_blue / 255.0f;
-    power->ma_per_level[3] = ma_white / 255.0f;
-    power->idle_ma_per_led = idle_ma_per_led;
+  void set_power_estimation(PowerEstimation *storage, float ma_red, float ma_green, float ma_blue, float ma_white,
+                            float idle_ma_per_led) {
+    this->power_estimation_ = storage;
+    storage->ma_per_level[0] = ma_red / 255.0f;
+    storage->ma_per_level[1] = ma_green / 255.0f;
+    storage->ma_per_level[2] = ma_blue / 255.0f;
+    storage->ma_per_level[3] = ma_white / 255.0f;
+    storage->idle_ma_per_led = idle_ma_per_led;
   }
   // Called after set_power_estimation()
   void set_max_current_ma(float max_current_ma) { this->power_estimation_->max_current_ma = max_current_ma; }
