@@ -2494,13 +2494,6 @@ register_protocol_action(
 
 
 # Hob2Hood
-(
-    Hob2HoodData,
-    Hob2HoodBinarySensor,
-    Hob2HoodTrigger,
-    _,
-    Hob2HoodDumper,
-) = declare_protocol("Hob2Hood")
 
 Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
 HOB2HOOD_COMMAND_OPTIONS = Hob2HoodCommand.options(
@@ -2517,35 +2510,13 @@ HOB2HOOD_COMMAND_OPTIONS = Hob2HoodCommand.options(
 HOB2HOOD_SCHEMA = cv.Schema(
     {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
 )
-
-
-@register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
-def hob2hood_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                Hob2HoodData,
-                ("command", config[CONF_COMMAND]),
-            )
-        )
+Hob2HoodData, Hob2HoodBinarySensor, Hob2HoodTrigger, _, Hob2HoodDumper = (
+    register_simple_protocol(
+        "hob2hood",
+        "Hob2Hood",
+        HOB2HOOD_SCHEMA,
+        (CONF_COMMAND, "command", Hob2HoodCommand),
     )
-
-
-@register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
-def hob2hood_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("hob2hood", Hob2HoodDumper)
-def hob2hood_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
-register_protocol_action(
-    "hob2hood",
-    "Hob2Hood",
-    HOB2HOOD_SCHEMA,
-    (CONF_COMMAND, "command", Hob2HoodCommand),
 )
 
 
