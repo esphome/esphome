@@ -24,7 +24,7 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeCore
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
@@ -57,6 +57,7 @@ from .const import (
     LibreTinyComponent,
     LTComponent,
 )
+from .gpio import lookup_board_pins
 
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
@@ -176,6 +177,15 @@ def get_libretiny_component(core_obj=None):
 
 def get_libretiny_family(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
+
+
+def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
+    return (core_obj or CORE).data[KEY_LIBRETINY][KEY_BOARD]
+
+
+def get_board_pins() -> dict[str, int]:
+    """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
+    return lookup_board_pins(get_libretiny_board())
 
 
 def only_on_family(*, supported=None, unsupported=None):
@@ -387,6 +397,7 @@ def _configure_lwip(config: dict) -> None:
     MEMP_NUM_NETCONN          0       10     38       4*****   =sum     =sum
     MEMP_NUM_NETBUF           0       2      16       2*****   8        4
     MEMP_NUM_TCPIP_MSG_INPKT  4       8      16       8*****   12       8
+    TCP_MSL (ms)              60000†  60000  250      60000    60000    250
 
     * ESP8266/ESP32/LN882H use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
       ESP8266/ESP32 also use MEMP_MEM_MALLOC=1 (MEMP pools from heap, not static).
@@ -394,6 +405,8 @@ def _configure_lwip(config: dict) -> None:
     *** BK LT overlay: MAX_SOCKETS_UDP+2+1 = 25.
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
+    † ESP8266's lwIP also caps TIME_WAIT at 5 PCBs; LibreTiny's stock lwIP has no
+      cap once MEMP_MEM_MALLOC=1.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
@@ -470,6 +483,10 @@ def _configure_lwip(config: dict) -> None:
     #   both ship with MEMP_MEM_MALLOC=1.
     lwip_opts.append("MEM_LIBC_MALLOC=1")
     lwip_opts.append("MEMP_MEM_MALLOC=1")
+    # With MEMP_MEM_MALLOC=1, MEMP_NUM_TCP_PCB no longer limits PCBs, so every
+    # connection the device closes keeps its ~176 B PCB on the heap for TIME_WAIT
+    # (2 * TCP_MSL, 120 s by default). BK's lwIP port already uses 250.
+    lwip_opts.append("TCP_MSL=250")
 
     # BK72XX-specific: PBUF_POOL_SIZE override
     # BK SDK "reduced plan" sets this to only 3 — too few for multiple

@@ -33,7 +33,7 @@ LINUX = ("linux", "x86_64", "tar.xz")
 def test_launcher_triple_follows_the_host(
     host: tuple[str, str, str], triple: str
 ) -> None:
-    with patch.object(framework, "_get_toolchain_platform_info", return_value=host):
+    with patch.object(framework, "get_sdk_host_info", return_value=host):
         assert _nrfutil_target_triple() == triple
 
 
@@ -41,7 +41,7 @@ def test_unknown_host_is_a_clear_error() -> None:
     with (
         patch.object(
             framework,
-            "_get_toolchain_platform_info",
+            "get_sdk_host_info",
             return_value=("freebsd", "x86_64", "tar.xz"),
         ),
         pytest.raises(EsphomeError, match="freebsd x86_64"),
@@ -69,7 +69,7 @@ def test_first_use_downloads_and_installs_into_the_cache(tmp_path: Path) -> None
     env: dict[str, str] = {}
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(
             framework, "download_with_resume", side_effect=_fake_download
         ) as download,
@@ -126,7 +126,7 @@ def test_a_cache_that_lost_its_command_is_installed_again(tmp_path: Path) -> Non
     _installed_cache(tmp_path, with_command=False)
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(framework, "download_with_resume", side_effect=_fake_download),
         patch.object(framework, "run_command_ok", side_effect=_fake_install) as install,
     ):
@@ -138,7 +138,7 @@ def test_install_without_the_command_file_is_a_failure(tmp_path: Path) -> None:
     """The launcher's exit code alone does not prove the command is in place."""
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(framework, "download_with_resume", side_effect=_fake_download),
         patch.object(framework, "run_command_ok", return_value=True),
         pytest.raises(EsphomeError, match="nrf5sdk-tools"),
@@ -150,7 +150,7 @@ def test_install_without_the_command_file_is_a_failure(tmp_path: Path) -> None:
 def test_failed_install_leaves_no_ready_marker(tmp_path: Path) -> None:
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(framework, "download_with_resume", side_effect=_fake_download),
         patch.object(framework, "run_command_ok", return_value=False),
         pytest.raises(EsphomeError, match="nrf5sdk-tools"),
