@@ -41,6 +41,13 @@ static bool network_is_connected() {
 }
 
 void Tuya::setup() {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_()) {
+    // Validation rejects force_time_sync and status_pin for this protocol.
+    this->setup_low_power_();
+    return;
+  }
+#endif
   this->set_interval(HEARTBEAT_INTERVAL_ID, 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 #ifdef USE_TIME
   if (this->force_time_sync_) {
@@ -55,12 +62,32 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  this->read_available([this](uint8_t b) { this->handle_char_(b); });
+  this->read_available([this](uint8_t b) {
+#ifdef USE_TUYA_LOW_POWER
+    // The UART may discover an RX overflow while filling its ring. Drop
+    // this read chunk rather than accepting a partial/incorrect MCU frame.
+    if (this->is_low_power_() && this->check_low_power_uart_rx_errors_()) {
+      this->discard_available();
+      return false;
+    }
+#endif
+    this->handle_char_(b);
+    return true;
+  });
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_()) {
+    this->loop_low_power_();
+    return;
+  }
+#endif
   process_command_queue_();
 }
 
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
+#ifdef USE_TUYA_LOW_POWER
+  this->dump_low_power_config_();
+#endif
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
     if (this->init_failed_) {
       ESP_LOGCONFIG(TAG, "  Initialization failed. Current init_state: %u", static_cast<uint8_t>(this->init_state_));
@@ -135,6 +162,15 @@ bool Tuya::validate_message_() {
   }
 
   uint16_t length = encode_uint16(data[4], data[5]);
+  // Keep the low-power MCU parser bounded. Corrupted length bytes on a
+  // sleeping UART must not accumulate a 64-KiB heap buffer.
+#ifdef USE_TUYA_LOW_POWER
+  // The HC32 firmware 1.3.1 sends version 0; other TRV16 MCU firmware sends version 3 like standard Tuya MCUs.
+  if (this->is_low_power_() && (length > 512 || (version != 0 && version != 3))) {
+    ESP_LOGW(TAG, "Invalid low-power MCU frame length/version: %u/%u", length, version);
+    return false;
+  }
+#endif
 
   // wait until all data is read
   if (at - 6 < length)
@@ -145,6 +181,10 @@ bool Tuya::validate_message_() {
   const uint8_t calc_checksum = sum_bytes(data, 6 + length);
 
   if (rx_checksum != calc_checksum) {
+#ifdef USE_TUYA_LOW_POWER
+    if (this->is_low_power_() && this->lp_standby_.requested())
+      this->cancel_low_power_standby_();
+#endif
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
     return false;
   }
@@ -163,6 +203,10 @@ bool Tuya::validate_message_() {
 }
 
 void Tuya::handle_char_(uint8_t c) {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_())
+    this->on_low_power_rx_byte_();
+#endif
   this->rx_message_.push_back(c);
   if (!this->validate_message_()) {
     this->rx_message_.clear();
@@ -172,6 +216,12 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_()) {
+    this->handle_low_power_frame_(command, version, buffer, len);
+    return;
+  }
+#endif
   TuyaCommandType command_type = (TuyaCommandType) command;
 
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
@@ -291,6 +341,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->initialized_callback_.call();
       }
       this->handle_datapoints_(buffer, len);
+      this->notify_mcu_ready_();
 
       if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
         this->send_command_(
@@ -487,6 +538,12 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_()) {
+    this->send_low_power_raw_command_(command);
+    return;
+  }
+#endif
   uint8_t len_hi = (uint8_t) (command.payload.size() >> 8);
   uint8_t len_lo = (uint8_t) (command.payload.size() & 0xFF);
   uint8_t version = 0;
@@ -526,6 +583,12 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 }
 
 void Tuya::process_command_queue_() {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_()) {
+    this->process_low_power_queue_();
+    return;
+  }
+#endif
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
@@ -557,6 +620,10 @@ void Tuya::process_command_queue_() {
 }
 
 void Tuya::send_command_(const TuyaCommand &command) {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_())
+    this->preempt_low_power_sleep_();
+#endif
   command_queue_.push_back(command);
   process_command_queue_();
 }
@@ -810,6 +877,12 @@ void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const char *value, 
 }
 
 void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data) {
+#ifdef USE_TUYA_LOW_POWER
+  if (this->is_low_power_()) {
+    this->send_low_power_datapoint_(datapoint_id, datapoint_type, data);
+    return;
+  }
+#endif
   std::vector<uint8_t> buffer;
   buffer.push_back(datapoint_id);
   buffer.push_back(static_cast<uint8_t>(datapoint_type));

@@ -1,0 +1,35 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: tuya_time
+
+tuya:
+  id: tuya_mcu
+  protocol: low_power
+  auto_baud: true
+  product_id: ihedujbuli6hsx9b
+  time_id: tuya_time
+  mcu_wake_pin:
+    number: ${mcu_wake_pin}
+    inverted: true
+  on_mcu_ready:
+    - logger.log: "MCU ready"
+
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+    current_temperature_datapoint: 4
+    target_temperature_multiplier: 0.1
+    current_temperature_multiplier: 0.1
+
+button:
+  - platform: template
+    id: tuya_refresh_button
+    on_press:
+      - tuya.refresh:
+          tuya_id: tuya_mcu
