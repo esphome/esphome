@@ -70,7 +70,8 @@ void APIServer::setup() {
   this->state_subs_.reserve(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT);
 #endif
 #ifdef USE_API_HOMEASSISTANT_IMPORTS
-  this->homeassistant_subscribe_publisher_();
+  if (this->homeassistant_subscribe_publisher_ != nullptr)
+    this->homeassistant_subscribe_publisher_();
 #endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
@@ -392,7 +393,8 @@ void APIServer::dump_config() {
   this->outgoing_conn_.dump_config();
 #endif
 #ifdef USE_API_HOMEASSISTANT_IMPORTS
-  this->homeassistant_dump_publisher_();
+  if (this->homeassistant_dump_publisher_ != nullptr)
+    this->homeassistant_dump_publisher_();
 #endif
 }
 
