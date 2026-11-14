@@ -35,4 +35,4 @@ FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_VL6180X_ID])
     sensors = text_sensor.sub_text_sensors(config)
-    await sensors(CONF_RANGE_STATUS, hub.set_range_status_sensor)
+    await sensors(CONF_RANGE_STATUS, hub.set_range_status_text_sensor)

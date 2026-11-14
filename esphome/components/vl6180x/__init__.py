@@ -26,6 +26,7 @@ CONF_VL6180X_ID = "vl6180x_id"
 CONF_RECOVERY = "recovery"
 CONF_FAILURE_THRESHOLD = "failure_threshold"
 CONF_RETRY_INTERVAL = "retry_interval"
+CONF_MAX_RETRIES = "max_retries"
 CONF_INTEGRATION_TIME = "integration_time"
 
 ALS_GAINS = {
@@ -56,6 +57,7 @@ RECOVERY_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RETRY_INTERVAL, default="30s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_RETRIES, default=5): cv.int_range(min=1, max=255),
     }
 )
 
@@ -161,3 +163,4 @@ async def to_code(config: list[ConfigType]) -> None:
             rec = entry[CONF_RECOVERY]
             cg.add(var.set_failure_threshold(rec[CONF_FAILURE_THRESHOLD]))
             cg.add(var.set_retry_interval(rec[CONF_RETRY_INTERVAL]))
+            cg.add(var.set_max_retries(rec[CONF_MAX_RETRIES]))

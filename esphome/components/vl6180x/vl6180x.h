@@ -58,6 +58,7 @@ enum class RangeStatus : uint8_t {
   RANGE_STATUS_SENSOR_ERROR,
   RANGE_STATUS_TIMEOUT,
   RANGE_STATUS_RECOVERING,
+  RANGE_STATUS_FAILED,
 };
 
 // Returns true if state represents an active measurement (not idle/recovery)
@@ -74,21 +75,19 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_bus_identity(i2c::I2CBus *bus) { this->bus_identity_ = bus; }
-  void set_range_sensor(sensor::Sensor *s) { this->range_sensor_ = s; }
   void set_scaling(uint8_t scaling) { this->scaling_ = scaling; }
   void set_als_gain(uint8_t gain, float factor) {
     this->als_gain_ = gain;
     this->als_gain_factor_ = factor;
   }
   void set_als_integration_time(uint16_t time_ms) { this->als_integration_time_ms_ = time_ms; }
-  void set_range_status_sensor(text_sensor::TextSensor *s) { this->range_status_sensor_ = s; }
-  void set_lux_sensor(sensor::Sensor *s) { this->lux_sensor_ = s; }
   void set_lux_update_interval(uint32_t ms) { this->lux_update_interval_ms_ = ms; }
   void set_name_str(const char *name) { this->name_str_ = name; }
 
   // Recovery configuration — all optional, defaults applied in header
   void set_failure_threshold(uint8_t n) { this->failure_threshold_ = n; }
   void set_retry_interval(uint32_t ms) { this->retry_interval_ms_ = ms; }
+  void set_max_retries(uint8_t n) { this->max_retries_ = n; }
 
   SLOT_LIST_REQUIRES(VL6180X_INSTANCE_COUNT)
   static void register_instance(VL6180XComponent *inst) { all_instances().push_back(inst); }
@@ -118,6 +117,9 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // Address assignment requires a shared startup sequence on one I2C bus.
   static void run_init_sequence(i2c::I2CBus *bus);
   bool recover_sensor_();
+  bool begin_recovery_attempt_();
+  void end_recovery_attempt_();
+  bool recovery_group_has_active_measurement_() const;
 
   // State machine steps
   void do_range_start_();
@@ -145,9 +147,10 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   GPIOPin *enable_pin_{nullptr};
   InternalGPIOPin *interrupt_pin_{nullptr};
   i2c::I2CBus *bus_identity_{nullptr};
-  sensor::Sensor *range_sensor_{nullptr};
-  text_sensor::TextSensor *range_status_sensor_{nullptr};
-  sensor::Sensor *lux_sensor_{nullptr};
+  SUB_SENSOR(range);
+  SUB_TEXT_SENSOR(range_status);
+  SUB_SENSOR(lux);
+ protected:
   uint32_t lux_update_interval_ms_{0};
   const char *name_str_{"vl6180x"};
   uint8_t scaling_{1};
@@ -166,9 +169,13 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // ── Health monitoring ────────────────────────────────────────────────────
   uint8_t failure_threshold_{3};       // consecutive failures before recovery
   uint32_t retry_interval_ms_{30000};  // ms between reinit attempts
+  uint8_t max_retries_{5};             // failed recovery attempts before stopping retries
   uint8_t consecutive_failures_{0};    // reset on any successful measurement
   uint8_t reinit_attempts_{0};         // attempts made in current recovery episode
   uint32_t reinit_due_at_{0};
+  bool recovery_pause_{false};
+  bool recovery_attempt_active_{false};
+  bool recovery_exhausted_{false};
 
   // ── Static instance registry ─────────────────────────────────────────────
   static SlotList<VL6180XComponent *, VL6180X_INSTANCE_COUNT> &all_instances() {
