@@ -10,7 +10,7 @@
 // Pure helpers of AsyncStreamResponse, kept free of httpd and lwIP so they build on the host.
 // The iovec type is a template parameter: lwIP defines its own on the device, POSIX on the host.
 
-namespace esphome::web_server_idf {
+namespace esphome::web_server_base {
 
 struct HttpHeader {
   const char *name;
@@ -123,4 +123,4 @@ class StallClock {
   uint32_t started_ms_{0};
 };
 
-}  // namespace esphome::web_server_idf
+}  // namespace esphome::web_server_base

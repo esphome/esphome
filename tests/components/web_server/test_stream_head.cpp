@@ -8,10 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "esphome/components/web_server_idf/sse_chunk.h"
-#include "esphome/components/web_server_idf/stream_head.h"
+#include "esphome/components/web_server/sse_chunk.h"
+#include "esphome/components/web_server_base/stream_head.h"
 
-namespace esphome::web_server_idf::testing {
+namespace esphome::web_server::testing {
+
+using namespace web_server_base;  // NOLINT(google-build-using-namespace)
 
 // Collects every batch write_stream_head() sends
 struct Capture {
@@ -293,6 +295,6 @@ TEST(StallClock, AcrossMillisWraparound) {
   EXPECT_EQ(clock.elapsed(start + TIMEOUT), TIMEOUT);
 }
 
-}  // namespace esphome::web_server_idf::testing
+}  // namespace esphome::web_server::testing
 
 #endif  // USE_HOST

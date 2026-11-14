@@ -1,24 +1,19 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_WEBSERVER
+#if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 namespace esphome::json {
 class JsonBuilder;
 }  // namespace esphome::json
 
-#ifdef USE_ESP32
-namespace esphome::web_server_idf {
-class AsyncEventSourceResponse;
-}  // namespace esphome::web_server_idf
-#endif
-
 namespace esphome::web_server {
 
 // The /events session the iterator lists entities to
 #ifdef USE_ESP32
-using EventSession = web_server_idf::AsyncEventSourceResponse;
+class AsyncEventSourceResponse;
+using EventSession = AsyncEventSourceResponse;
 #elif defined(USE_ARDUINO)
 class DeferredUpdateEventSource;
 using EventSession = DeferredUpdateEventSource;
