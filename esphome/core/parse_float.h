@@ -6,7 +6,8 @@
 
 namespace esphome {
 
-/// Parse a decimal floating-point number; the whole string must be the number.
+/// The whole string as str_to_float's syntax (leading space, hex, inf, nan); trailing characters, "inf" and positive
+/// overflow are rejected, while -inf, negative overflow and NaN are accepted.
 optional<float> parse_float(const char *str);
 
 /// strtof with picolibc's results on every platform; use it instead of strtof, strtod or atof.
