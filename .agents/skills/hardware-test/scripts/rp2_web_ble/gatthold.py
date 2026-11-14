@@ -1,5 +1,5 @@
 """Through a bluetooth_proxy: connect to the ble_notify GATT server (server.yaml), read both characteristics, enable
-notify on both (writing the CCCD like Home Assistant), hold for HOLD seconds re-reading every 20 s, then disconnect.
+notify on both (writing the CCCD like Home Assistant), hold for HOLD seconds re-reading every 3 s, then disconnect.
 usage: gatthold.py PROXY PEER_MAC HOLD   env: API_KEY. Prints counts; exits 1 on a lost link or failed read."""
 
 import asyncio
@@ -59,7 +59,8 @@ async def main(host: str, peer: str, hold: float) -> None:
             except Exception as e:  # noqa: BLE001
                 fails += 1
                 print(f"read {u[4:8]} FAILED {type(e).__name__}: {e}", flush=True)
-        await asyncio.sleep(20)
+        # 3 s, so a hold covers several of the server's 10 s empty-value cycles
+        await asyncio.sleep(3)
     print(
         f"held {hold:.0f}s: notifications num={got[NUM]} txt={got[TXT]} reads ok={reads} failed={fails} "
         f"link losses={len(lost)} empty reads={empty} samples={samples}",

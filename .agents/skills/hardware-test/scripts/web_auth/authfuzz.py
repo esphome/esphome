@@ -207,10 +207,11 @@ def case(
         "body_head": r["body"][:120].decode("latin1"),
         "note": note,
         "closed": r["closed"],
+        "info": note.startswith("informational"),
     }
     ROWS.append(row)
     p(
-        f"{'PASS' if ok else 'FAIL'} {name}: status {st} expect {expect} www={row['www']} err={r['err']} "
+        f"{'PASS' if ok else 'INFO' if row['info'] else 'FAIL'} {name}: status {st} expect {expect} www={row['www']} err={r['err']} "
         f"body {len(r['body'])}B"
     )
     return row
@@ -511,6 +512,7 @@ def heavy() -> None:
         "sse_bytes": 0,
         "sse_states": 0,
         "sse_maxgap": 0.0,
+        "sse_errors": 0,
         "sse_opens": 0,
         "sse_closes": 0,
     }
@@ -531,30 +533,33 @@ def heavy() -> None:
         last = time.monotonic()
         while time.monotonic() < stop:
             try:
-                s = socket.create_connection((HOST, 80), timeout=10)
-                s.sendall(
-                    build("GET", "/events", GOOD, b"Accept: text/event-stream\r\n")
-                )
-                stats["sse_opens"] += 1
-                s.settimeout(1)
-                while time.monotonic() < stop:
-                    try:
-                        d = s.recv(8192)
-                    except TimeoutError:
-                        continue
-                    if not d:
-                        stats["sse_closes"] += 1
-                        break
-                    now = time.monotonic()
-                    n = d.count(b"event: state")
-                    if n:
-                        stats["sse_maxgap"] = max(stats["sse_maxgap"], now - last)
-                        last = now
-                    stats["sse_states"] += n
-                    stats["sse_bytes"] += len(d)
-                s.close()
-            except OSError:
+                with socket.create_connection((HOST, 80), timeout=10) as s:
+                    s.sendall(
+                        build("GET", "/events", GOOD, b"Accept: text/event-stream\r\n")
+                    )
+                    stats["sse_opens"] += 1
+                    s.settimeout(1)
+                    while time.monotonic() < stop:
+                        try:
+                            d = s.recv(8192)
+                        except TimeoutError:
+                            continue
+                        if not d:
+                            stats["sse_closes"] += 1
+                            break
+                        now = time.monotonic()
+                        n = d.count(b"event: state")
+                        if n:
+                            stats["sse_maxgap"] = max(stats["sse_maxgap"], now - last)
+                            last = now
+                        stats["sse_states"] += n
+                        stats["sse_bytes"] += len(d)
+            except OSError as e:
+                stats["sse_errors"] += 1
+                p(f"SSE error {type(e).__name__}: {e}")
                 time.sleep(0.5)
+        # a stream that stopped early leaves the gap open until the end of the phase
+        stats["sse_maxgap"] = max(stats["sse_maxgap"], time.monotonic() - last)
 
     ts = [threading.Thread(target=sse)] + [
         threading.Thread(target=hammer) for _ in range(A.conc_threads)
@@ -568,6 +573,8 @@ def heavy() -> None:
     c_ok = (
         set(stats["bad"]) <= {"401"}
         and stats["sse_states"] > A.conc * 2
+        and stats["sse_errors"] == 0
+        and stats["sse_maxgap"] < 5
         and heap_ok(h0, h1)
         and u1 is not None
         and u0 is not None
@@ -718,7 +725,11 @@ def main() -> None:
         pathlib.Path(A.out + "-cases.json").write_text(
             json.dumps(ROWS, indent=1, default=str), encoding="utf-8"
         )
-    fails = [r["case"] for r in ROWS if not r.get("pass")]
+    # informational cases show library behaviour that dev and the PR share; they are reported, not judged
+    fails = [r["case"] for r in ROWS if not r.get("pass") and not r.get("info")]
+    infos = [r["case"] for r in ROWS if not r.get("pass") and r.get("info")]
+    if infos:
+        p(f"informational, not counted: {infos}")
     p(f"TOTAL {len(ROWS)} rows, fails {len(fails)}: {fails}")
     sys.exit(1 if fails else 0)
 
