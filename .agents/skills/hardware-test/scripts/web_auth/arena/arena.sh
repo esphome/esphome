@@ -37,9 +37,15 @@ H=$("$S/resolve.sh" "$N" 60) || exit 1
 echo "$H" > "$A/$N-host.txt"
 echo "== $N settle 60 s"; sleep 60
 $PY -I "$W/arena_drive.py" "$H" "$U" "$PW" 60; RC=$?
-sleep 3; [ -n "$CAP" ] && { kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; }
-echo "== $N serial: resets $(grep -a -c -E 'Reset Reason|ROM Version' "$L"), port losses $(grep -a -c 'port lost' "$L")," \
-  "faults $(grep -a -c -i -E 'fault|crash|assert|abort|stack overflow' "$L")"
+sleep 3
+if [ -n "$CAP" ]; then
+  kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended early"; RC=1; }
+  kill $CAP 2>/dev/null; wait $CAP 2>/dev/null
+fi
+RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); FL=$(grep -a -c -i -E 'fault|crash|assert|abort|stack overflow' "$L")
+echo "== $N serial: resets $RS, port losses $(grep -a -c 'port lost' "$L"), faults $FL"
+# Opening the capture can reset the chip once (BK7238), so one boot is expected
+[ -n "$CAP" ] && { [ "$FL" -gt 0 ] || [ "$RS" -gt 1 ]; } && { echo "FAIL: faults $FL, resets $RS"; RC=1; }
 grep -a "\[hwm" "$L" | sed -n '1p;$p'
 # -1 is an unknown stack base, not a reading
 grep -a "\[hwm" "$L" | sed -n 's/.*stack min \([0-9][0-9]*\) B.*/\1/p' | sort -n | head -1 | sed 's/^/serial lowest stack min: /'

@@ -124,6 +124,10 @@ if reboot:
     fails.append("reboot")
 if idle_heap is None:
     fails.append("no idle heap reading")
+if u_start is None or not ups:
+    fails.append("no uptime reading, so a reboot cannot be ruled out")
+if not load_heaps:
+    fails.append("no heap reading during the load")
 if recovered_at is None:
     fails.append("heap not back within 2 KB of idle")
 if codes.get("401", 0) * 2 < N:
