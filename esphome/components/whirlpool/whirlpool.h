@@ -66,6 +66,8 @@ class WhirlpoolClimate final : public climate_ir::ClimateIR {
     return false;
 #endif
   }
+  /// The remote ID sent in bytes 0 and 1.
+  uint16_t remote_id_() const { return this->is_hitachi_hcra31newh_() ? 0xA959 : 0x8306; }
   /// Modes in which the Hisense ARG model sends a fixed temperature.
   bool fixed_temp_mode_() const;
   /// Add the Hisense ARG bytes on top of the common whirlpool frame.
