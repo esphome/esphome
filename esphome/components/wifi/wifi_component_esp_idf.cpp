@@ -1639,6 +1639,8 @@ void WiFiComponent::on_powerdown() {
   // Leave the AP before esp_restart() or deep sleep stops Wi-Fi. esp_wifi_stop() while associated
   // makes the ESP32 retransmit its Disassociation up to the retry limit although the AP ACKs it
   // (32 copies with protected management frames), which some APs handle badly.
+  // Upstream bug: https://github.com/espressif/esp-idf/issues/19443 - remove this once it is fixed
+  // in the ESP-IDF versions we support.
   if (!s_sta_connected)
     return;
   ESP_LOGD(TAG, "Disconnecting before powerdown");
