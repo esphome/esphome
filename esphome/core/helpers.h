@@ -549,35 +549,34 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
       std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
 
  public:
-  class Iterator {
+  /// Walks the elements oldest first. It keeps a pointer to the current element and wraps it only when it runs
+  /// past the end of the storage, so reading an element does not reload the buffer's fields.
+  template<typename B, typename V> class IteratorImpl {
    public:
-    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    T &operator*() { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
-    Iterator &operator++() {
-      ++pos_;
+    ESPHOME_ALWAYS_INLINE IteratorImpl(B *buf, index_type pos)
+        : ptr_(buf->data_ + buf->wrap_(static_cast<size_t>(buf->head_) + pos)),
+          data_(buf->data_),
+          data_end_(buf->data_ + buf->capacity_),
+          pos_(pos) {}
+    ESPHOME_ALWAYS_INLINE V &operator*() const { return *this->ptr_; }
+    ESPHOME_ALWAYS_INLINE IteratorImpl &operator++() {
+      ++this->pos_;
+      if (++this->ptr_ == this->data_end_)
+        this->ptr_ = this->data_;
       return *this;
     }
-    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+    // Compares positions, not pointers: when the buffer is full, begin() and end() point at the same element
+    ESPHOME_ALWAYS_INLINE bool operator!=(const IteratorImpl &other) const { return this->pos_ != other.pos_; }
 
    private:
-    FixedRingBuffer *buf_;
+    V *ptr_;
+    V *data_;
+    V *data_end_;
     index_type pos_;
   };
 
-  class ConstIterator {
-   public:
-    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
-    ConstIterator &operator++() {
-      ++pos_;
-      return *this;
-    }
-    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
-
-   private:
-    const FixedRingBuffer *buf_;
-    index_type pos_;
-  };
+  using Iterator = IteratorImpl<FixedRingBuffer, T>;
+  using ConstIterator = IteratorImpl<const FixedRingBuffer, const T>;
 
   FixedRingBuffer() = default;
   ~FixedRingBuffer() {
@@ -677,10 +676,10 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     this->count_ = 0;
   }
 
-  Iterator begin() { return Iterator(this, 0); }
-  Iterator end() { return Iterator(this, this->count_); }
-  ConstIterator begin() const { return ConstIterator(this, 0); }
-  ConstIterator end() const { return ConstIterator(this, this->count_); }
+  ESPHOME_ALWAYS_INLINE Iterator begin() { return Iterator(this, 0); }
+  ESPHOME_ALWAYS_INLINE Iterator end() { return Iterator(this, this->count_); }
+  ESPHOME_ALWAYS_INLINE ConstIterator begin() const { return ConstIterator(this, 0); }
+  ESPHOME_ALWAYS_INLINE ConstIterator end() const { return ConstIterator(this, this->count_); }
 
   /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
   const T &operator[](index_type pos) const { return this->data_[this->wrap_(static_cast<size_t>(this->head_) + pos)]; }
