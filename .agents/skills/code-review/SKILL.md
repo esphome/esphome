@@ -125,6 +125,49 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
 | enum-to-string `switch` returning literals | `PROGMEM_STRING_TABLE` with `get_log_str` / `get_progmem_str` |
 | `if (x := config.get(CONF_X)) is not None: cg.add(var.set_x(x))` | `cg.add_optional(var.set_x, config.get(CONF_X))`, when the setter takes the value unchanged |
+| `x = (x & ~mask) \| (on ? mask : 0)` or a bit-reversal loop | `assign_bits(x, mask, on)`, `reverse_bits(x)` (`esphome/core/helpers.h`) |
+| `x < lo ? lo : (x > hi ? hi : x)` | `std::clamp(x, lo, hi)` |
+| I2C read, mask, write by hand; private 16-bit register byte helpers | `update_register`, `update_register16`, `read_byte_reg16`, `write_byte_reg16` |
+| custom validator that checks which keys are set, or one schema with model checks | `cv.has_exactly_one_key`, `cv.has_at_most_one_key`, `cv.Inclusive`/`cv.Exclusive`, `cv.typed_schema` per model |
+
+
+## Cleanups automated reviews keep missing
+
+Multi-pass cleanup reviews of contributor PRs find these again and again, and single-pass reviews
+almost never flag them. Look for each one explicitly; the matching `AGENTS.md` section 4 entry has the
+detail.
+
+- **Copies within the PR** (the most common finding): two functions, branches, platform files or tests
+  that differ in a constant or two. Ask for one helper, loop or table.
+- **State that copies other state:** a `write_pending_` bool beside a timer (use the return value of
+  `cancel_timeout(ID)`), a `has_x_` bool beside `x_` (use `NAN` or a sentinel), an enum that can be worked
+  out from stored fields.
+- **Dead guards:** null checks on members codegen always sets, `is_failed()` checks in `loop()`, range
+  checks the schema already enforces, `default:` in a `switch` over every `enum class` value, calls that
+  set a member to its default (`set_cs_pin(nullptr)`).
+- **Member layout:** fields not ordered largest first, `int`/`uint32_t` for values that fit a `uint8_t`,
+  an `enum class` without `: uint8_t`, several `bool` members that could share a byte. Each costs RAM per
+  instance.
+- **C++ work that belongs in codegen:** scaling, clamping, checksums or register bytes computed at boot
+  from config values; ask for the plain value from `to_code`.
+- **Two `switch` ladders for one mapping:** encode and decode of the same value pairs should share one
+  `static constexpr` table (`PROGMEM` on ESP8266).
+- **Compile-time constants:** `static const` or `#define` with a constant value (use `static constexpr`),
+  constant tables not in `PROGMEM`, unused constants.
+- **Code for one model or feature compiled into every build:** ask for a `cg.add_define()` emitted only
+  when the config uses it, with the runtime check inside the `#ifdef`.
+- **Failure handling:** `mark_failed()` outside `setup()` (runtime failures set a warning that the next
+  success clears), an error enum that only picks a log message, `ESP_LOGE` before `mark_failed()`.
+- **Log noise:** `ESP_LOGD` on every reading, "Setting up" or "initialized" lines in `setup()`, a
+  `dump_config()` made of many single-line `ESP_LOGCONFIG` calls instead of one multi-line call, a
+  name helper that returns `const char *` instead of `const LogString *`.
+- **Leaf classes** that are not `final`.
+- **Unused helpers, includes and imports** left behind; lint does not catch most of them.
+- **Comments that restate the code** or tell its history: a block comment that walks through the next
+  ten lines, a docstring that repeats the signature, a derivation that a one-line note plus a datasheet
+  section would cover.
+- **Tests:** near-identical test functions that differ only in inputs (ask for `pytest.mark.parametrize`
+  or a table-driven gtest), tests that repeat another test, test YAML that sets options to their defaults.
 
 ## Python conventions
 
