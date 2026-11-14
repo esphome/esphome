@@ -466,7 +466,7 @@ class HelloRequest final : public ProtoDecodableMessage {
 class HelloResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 2;
-  static constexpr uint8_t ESTIMATED_SIZE = 26;
+  static constexpr uint8_t ESTIMATED_SIZE = 30;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("hello_response"); }
 #endif
@@ -474,6 +474,7 @@ class HelloResponse final : public ProtoMessage {
   uint32_t api_version_minor{0};
   ProgmemStringRef server_info{};
   StringRef name{};
+  uint32_t keepalive_interval{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

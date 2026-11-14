@@ -149,6 +149,12 @@ message HelloResponse {
   // The name of the server (App.get_name() - device hostname)
   // max_data_length matches ESPHOME_DEVICE_NAME_MAX_LEN (validated by validate_hostname)
   string name = 4 [(max_data_length) = 31, (force) = true];
+
+  // Keepalive interval the server uses, in seconds. 0 means the default (60s).
+  // Clients should not ping more often than this and should scale their pong
+  // timeout to it. Lets sleepy devices (e.g. Thread MTD/SED with a long
+  // poll_period) avoid being woken by pings and dropped as unresponsive.
+  uint32 keepalive_interval = 5;
 }
 
 // DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.

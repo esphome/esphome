@@ -98,6 +98,7 @@ esphome:
 api:
   port: 8000
   reboot_timeout: 0min
+  keepalive: 5min
   actions:
     - action: hello_world
       description: Log a greeting
