@@ -1,0 +1,42 @@
+# Shared dmx_reader configuration for component compile tests.
+# Pins / uart_num can be overridden per platform via substitutions.
+
+substitutions:
+  dmx_uart_num: "1"
+  dmx_tx_pin: GPIO17
+  dmx_rx_pin: GPIO16
+  # Leave unset / empty to omit RTS (no driver enable pin)
+
+dmx_reader:
+  id: dmx
+  uart_num: ${dmx_uart_num}
+  tx_pin: ${dmx_tx_pin}
+  rx_pin: ${dmx_rx_pin}
+  # rts_pin omitted on purpose — optional DE/RE pin
+
+# Runtime channel selection (Home Assistant number input)
+number:
+  - platform: template
+    name: "DMX Channel"
+    id: selected_channel
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 1
+    restore_value: true
+
+# Sensors: one dynamic + one fixed channel
+sensor:
+  - platform: dmx_reader
+    dmx_reader_id: dmx
+    channel_id: selected_channel
+    name: "DMX Value"
+    id: dmx_value
+
+  - platform: dmx_reader
+    dmx_reader_id: dmx
+    channel: 1
+    name: "DMX Channel 1 (fixed)"
+    id: dmx_channel_1
