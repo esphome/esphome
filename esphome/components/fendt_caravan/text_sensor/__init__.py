@@ -29,10 +29,8 @@ def _text_schema(
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_SOFTWARE_VERSION: _text_schema(
-            MainControlUnitHub, icon="mdi:application-braces-outline"
-        ),
-        CONF_PANEL_VERSION: _text_schema(MainControlUnitHub, icon="mdi:monitor"),
+        CONF_SOFTWARE_VERSION: _text_schema(icon="mdi:application-braces-outline"),
+        CONF_PANEL_VERSION: _text_schema(icon="mdi:monitor"),
     }
 )
 

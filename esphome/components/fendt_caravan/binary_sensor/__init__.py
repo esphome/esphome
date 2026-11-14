@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_TYPE, DEVICE_CLASS_PLUG as DEVICE_CLASS_PLUG
 from esphome.types import ConfigType
 
-from .. import CONF_PARENT_ID, DOMAIN, MainControlUnitHub as MainControlUnitHub
+from .. import CONF_PARENT_ID, DOMAIN, MainControlUnitHub
 
 CONF_POWER_STATUS = "power_status"
 
@@ -13,6 +13,10 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         CONF_POWER_STATUS: binary_sensor.binary_sensor_schema(
             icon="mdi:power-plug",
+        ).extend(
+            {
+                cv.Required(CONF_PARENT_ID): cv.use_id(MainControlUnitHub),
+            }
         ),
     }
 )
