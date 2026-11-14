@@ -291,6 +291,15 @@ script:
           id: test_monochromatic_light
           relative_brightness: !lambda "step *= 0.5f; return step;"
           transition_length: !lambda "return step *= 100.0f;"
+  # Field lambdas take the script arguments by value, so they may modify them
+  - id: light_lambda_args
+    parameters:
+      x: float
+    then:
+      - light.turn_on:
+          id: test_monochromatic_light
+          brightness: !lambda "x *= 0.5f; return x;"
+          transition_length: !lambda "return x *= 1000.0f;"
 
 output:
   - platform: template

@@ -130,14 +130,62 @@ void BME68xBSEC2Component::check_status_() {
 }
 
 void BME68xBSEC2Component::loop() {
-  // Process a single action from the queue. These are primarily sensor state publishes
-  // that in totality take too long to send in a single call.
-  if (this->queue_.size()) {
-    auto action = std::move(this->queue_.front());
-    this->queue_.pop();
-    action();
-  } else {
+  // Publish a single waiting state. All of them in one call take too long.
+  if (this->pending_.empty()) {
     this->disable_loop();
+    return;
+  }
+  const PendingPublish pending = this->pending_.front();
+  this->pending_.pop();
+  const float value = pending.value;
+  switch (pending.slot) {
+#ifdef USE_SENSOR
+    case PUBLISH_SLOT_IAQ:
+      this->publish_sensor_(this->iaq_sensor_, value);
+      break;
+    case PUBLISH_SLOT_IAQ_STATIC:
+      this->publish_sensor_(this->iaq_static_sensor_, value);
+      break;
+    case PUBLISH_SLOT_CO2_EQUIVALENT:
+      this->publish_sensor_(this->co2_equivalent_sensor_, value);
+      break;
+    case PUBLISH_SLOT_BREATH_VOC_EQUIVALENT:
+      this->publish_sensor_(this->breath_voc_equivalent_sensor_, value);
+      break;
+    case PUBLISH_SLOT_PRESSURE:
+      this->publish_sensor_(this->pressure_sensor_, value);
+      break;
+    case PUBLISH_SLOT_GAS_RESISTANCE:
+      this->publish_sensor_(this->gas_resistance_sensor_, value);
+      break;
+    case PUBLISH_SLOT_TEMPERATURE:
+      this->publish_sensor_(this->temperature_sensor_, value);
+      break;
+    case PUBLISH_SLOT_HUMIDITY:
+      this->publish_sensor_(this->humidity_sensor_, value);
+      break;
+    case PUBLISH_SLOT_IAQ_ACCURACY:
+      this->publish_sensor_(this->iaq_accuracy_sensor_, value, true);
+      break;
+#endif
+#ifdef USE_TEXT_SENSOR
+    case PUBLISH_SLOT_IAQ_ACCURACY_TEXT:
+      this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[static_cast<uint8_t>(value)]);
+      break;
+#endif
+    case PUBLISH_SLOT_SAVE_STATE:
+      this->save_state_(static_cast<uint8_t>(value));
+      break;
+    default:
+      break;
+  }
+}
+
+void BME68xBSEC2Component::queue_publish_(PublishSlot slot, float value) {
+  // Only full when the loop stalled for seconds; drop the oldest so the newest reading still goes out
+  if (!this->pending_.push({value, slot})) {
+    this->pending_.pop();
+    this->pending_.push({value, slot});
   }
 }
 
@@ -414,44 +462,44 @@ void BME68xBSEC2Component::publish_(const bsec_output_t *outputs, uint8_t num_ou
         max_accuracy = std::max(outputs[i].accuracy, max_accuracy);
         update_accuracy = true;
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_IAQ, signal);
 #endif
         break;
       case BSEC_OUTPUT_STATIC_IAQ:
         max_accuracy = std::max(outputs[i].accuracy, max_accuracy);
         update_accuracy = true;
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_static_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_IAQ_STATIC, signal);
 #endif
         break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->co2_equivalent_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_CO2_EQUIVALENT, signal);
 #endif
         break;
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->breath_voc_equivalent_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_BREATH_VOC_EQUIVALENT, signal);
 #endif
         break;
       case BSEC_OUTPUT_RAW_PRESSURE:
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->pressure_sensor_, signal / 100.0f); });
+        this->queue_publish_(PUBLISH_SLOT_PRESSURE, signal / 100.0f);
 #endif
         break;
       case BSEC_OUTPUT_RAW_GAS:
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->gas_resistance_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_GAS_RESISTANCE, signal);
 #endif
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->temperature_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_TEMPERATURE, signal);
 #endif
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
 #ifdef USE_SENSOR
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->humidity_sensor_, signal); });
+        this->queue_publish_(PUBLISH_SLOT_HUMIDITY, signal);
 #endif
         break;
     }
@@ -459,16 +507,13 @@ void BME68xBSEC2Component::publish_(const bsec_output_t *outputs, uint8_t num_ou
   if (update_accuracy) {
     max_accuracy = std::min<uint8_t>(max_accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
 #ifdef USE_SENSOR
-    this->queue_push_(
-        [this, max_accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, max_accuracy, true); });
+    this->queue_publish_(PUBLISH_SLOT_IAQ_ACCURACY, max_accuracy);
 #endif
 #ifdef USE_TEXT_SENSOR
-    this->queue_push_([this, max_accuracy]() {
-      this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[max_accuracy]);
-    });
+    this->queue_publish_(PUBLISH_SLOT_IAQ_ACCURACY_TEXT, max_accuracy);
 #endif
     // Queue up an opportunity to save state
-    this->queue_push_([this, max_accuracy]() { this->save_state_(max_accuracy); });
+    this->queue_publish_(PUBLISH_SLOT_SAVE_STATE, max_accuracy);
   }
   this->enable_loop();
 }

@@ -18,9 +18,6 @@ static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
 // ---------------------------------------------------------------------------
 
 void LN882HBLETracker::setup() {
-  // Receive the controller's scan reports; the controller queues them from the
-  // rw task and delivers here on the main task.
-  this->parent_->register_scan_listener(this);
   // Merged (and unmerged) frames go to the shared dispatcher; scan_continuous_
   // is read at each delivery to decide unclaimed-device logging.
   this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);

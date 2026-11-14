@@ -101,6 +101,20 @@ TEST(ColorAccessors, RawBufferColorAccessor) {
   EXPECT_EQ(effect_data, (std::array<uint8_t, 3>{0, 50, 0}));
 }
 
+TEST(ColorAccessors, SetBufferLaysOutColorThenEffectData) {
+  // 3 WRGB LEDs: 12 color bytes, 3 effect bytes, then 2 extra bytes for the driver
+  std::array<uint8_t, 17> buffer{};
+  RawBufferColorAccessor accessor(nullptr, nullptr, WRGB);
+  uint8_t *extra = accessor.set_buffer(buffer.data(), 3);
+
+  EXPECT_EQ(buffer.data(), accessor.color_data);
+  EXPECT_EQ(buffer.data() + 12, accessor.effect_data);
+  EXPECT_EQ(buffer.data() + 15, extra);
+  accessor.set(2, Color{10, 20, 30, 40});
+  accessor.set_effect_data(2, 50);
+  EXPECT_EQ(buffer, (std::array<uint8_t, 17>{0, 0, 0, 0, 0, 0, 0, 0, 40, 10, 20, 30, 0, 0, 50, 0, 0}));
+}
+
 TEST(ColorAccessors, CorrectedBufferColorAccessor) {
   std::array<uint8_t, 12> color_data{};
   std::array<uint8_t, 3> effect_data{};

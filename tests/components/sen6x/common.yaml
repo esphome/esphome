@@ -68,6 +68,7 @@ sensor:
         std_initial: 75
         gain_factor: 180
     co2:
+      id: sen6x_co2
       name: Carbon Dioxide
       automatic_self_calibration: true
       altitude_compensation: 100
@@ -108,3 +109,12 @@ button:
     name: SHT Heater
     on_press:
       - sen6x.activate_sht_heater: sen6x_sensor
+  - platform: template
+    name: CO2 Forced Recalibration
+    on_press:
+      - sen6x.perform_forced_co2_recalibration:
+          id: sen6x_sensor
+          value: 420
+      - sen6x.perform_forced_co2_recalibration:
+          id: sen6x_sensor
+          value: !lambda "return id(sen6x_co2).state;"

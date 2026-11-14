@@ -22,3 +22,11 @@ async def to_code(config: ConfigType) -> None:
     await light.register_light(var, config)
     await spi.register_spi_device(var, config)
     await cg.register_component(var, config)
+    buffer = cg.static_buffer(
+        config[CONF_OUTPUT_ID],
+        cg.uint8,
+        spi_led_strip_ns.buffer_bytes(config[CONF_NUM_LEDS]),
+        psram=True,
+        align=4,
+    )
+    cg.add(var.set_buffer(buffer))

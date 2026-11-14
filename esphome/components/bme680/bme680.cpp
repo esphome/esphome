@@ -175,10 +175,8 @@ void BME680Component::update() {
   meas_control |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_control |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_control |= 0b01;  // forced mode
-  if (!this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)))
     return;
-  }
 
   this->set_timeout(DATA_TIMEOUT_ID, this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
@@ -422,15 +420,6 @@ uint32_t BME680Component::calc_meas_duration_() {
   tph_dur += this->heater_duration_;
 
   return tph_dur;
-}
-void BME680Component::set_temperature_oversampling(BME680Oversampling temperature_oversampling) {
-  this->temperature_oversampling_ = temperature_oversampling;
-}
-void BME680Component::set_pressure_oversampling(BME680Oversampling pressure_oversampling) {
-  this->pressure_oversampling_ = pressure_oversampling;
-}
-void BME680Component::set_humidity_oversampling(BME680Oversampling humidity_oversampling) {
-  this->humidity_oversampling_ = humidity_oversampling;
 }
 void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_duration) {
   this->heater_temperature_ = heater_temperature;

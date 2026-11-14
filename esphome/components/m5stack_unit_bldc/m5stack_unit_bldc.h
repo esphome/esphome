@@ -64,24 +64,22 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   }
 
 #ifdef USE_SENSOR
-  void set_rpm_sensor(sensor::Sensor *rpm_sensor) { this->rpm_sensor_ = rpm_sensor; }
-  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
+  SUB_SENSOR(rpm)
+  SUB_SENSOR(frequency)
 #endif
 #ifdef USE_TEXT_SENSOR
-  void set_status_text_sensor(text_sensor::TextSensor *status_text_sensor) {
-    this->status_text_sensor_ = status_text_sensor;
-  }
+  SUB_TEXT_SENSOR(status)
 #endif
 #ifdef USE_NUMBER
   /// The PWM duty number in open loop, the target RPM number in closed loop.
-  void set_command_number(number::Number *command_number) { this->command_number_ = command_number; }
+  SUB_NUMBER(command)
   void control_command(float value) {
     if (this->write_command(value))
       this->command_number_->publish_state(value);
   }
 #endif
 #ifdef USE_SELECT
-  void set_direction_select(select::Select *direction_select) { this->direction_select_ = direction_select; }
+  SUB_SELECT(direction)
   void control_direction(size_t index) {
     if (this->write_direction(static_cast<Direction>(index)))
       this->direction_select_->publish_state(index);
@@ -107,19 +105,6 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool read_command_raw_(float *value);
   void finish_direction_change_();
 
-#ifdef USE_SENSOR
-  sensor::Sensor *rpm_sensor_{nullptr};
-  sensor::Sensor *frequency_sensor_{nullptr};
-#endif
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *status_text_sensor_{nullptr};
-#endif
-#ifdef USE_SELECT
-  select::Select *direction_select_{nullptr};
-#endif
-#ifdef USE_NUMBER
-  number::Number *command_number_{nullptr};
-#endif
   int32_t pid_[3]{};
   ESPPreferenceObject save_pref_;
   // Last command, restored after the stop a direction change needs

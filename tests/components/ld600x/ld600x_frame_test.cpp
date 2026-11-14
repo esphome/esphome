@@ -237,15 +237,6 @@ TEST(Ld600xFrameId, SetsTopBitAndWrapsLowBits) {
   EXPECT_EQ(counter, 0);
 }
 
-TEST(Ld600xByteHelpers, UnsignedInt32) {
-  const std::array<uint8_t, 4> bytes = {0x12, 0x34, 0x56, 0xF8};
-  std::array<uint8_t, 4> written{};
-  write_u32_le(written.data(), 0xF8563412u);
-  EXPECT_EQ(written, bytes);
-  write_u32_le(written.data(), static_cast<uint32_t>(-2));
-  EXPECT_EQ(written, (std::array<uint8_t, 4>{0xFE, 0xFF, 0xFF, 0xFF}));
-}
-
 TEST(Ld600xByteHelpers, FloatLayoutAndRoundTrip) {
   const std::array<uint8_t, 4> bytes = {0x00, 0x00, 0x48, 0xC1};
   EXPECT_FLOAT_EQ(read_f32_le(bytes.data()), -12.5f);

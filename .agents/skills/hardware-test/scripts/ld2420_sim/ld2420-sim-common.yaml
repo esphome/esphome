@@ -1,0 +1,103 @@
+# LD2420 hub on a D1 mini UART0 with the loopback bit set and no module: a uart debug TX hook (ldsim.hpp) answers each
+# command frame the hub sends with a success ack written right behind it, and template buttons inject energy frames or
+# simple mode lines. The loopback bit is set at priority 900, after the UART and before the hub's blocking setup().
+# The serial console is the bus, so logs go over the API. secrets.yaml (wifi_ssid, wifi_password) goes next to this
+# file; the per-run yaml sets the substitution fw (v1.5.5 energy mode, v1.5.3 or older simple mode) and includes
+# ldsim.hpp.
+esp8266:
+  board: d1_mini
+
+logger:
+  baud_rate: 0
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+uart:
+  id: bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 115200
+  debug:
+    direction: TX
+    after:
+      delimiter: [0x04, 0x03, 0x02, 0x01]
+    sequence:
+      - lambda: 'ldsim::on_tx(id(bus), bytes, "${fw}");'
+
+ld2420:
+  id: radar
+
+sensor:
+  - platform: ld2420
+    moving_distance:
+      name: Distance
+
+binary_sensor:
+  - platform: ld2420
+    has_target:
+      name: Presence
+
+text_sensor:
+  - platform: ld2420
+    fw_version:
+      name: Firmware
+
+button:
+  - platform: template
+    name: Sim stats
+    on_press:
+      - lambda: 'ESP_LOGI("sim", "cmds %u acks %u", (unsigned) ldsim::n_cmds, (unsigned) ldsim::n_acks);'
+  - platform: template
+    name: Energy steps
+    on_press:
+      - lambda: 'ldsim::energy(id(bus), 1, 150);'
+      - delay: 1500ms
+      - lambda: 'ldsim::energy(id(bus), 1, 150);'
+      - delay: 1500ms
+      - lambda: 'ldsim::energy(id(bus), 1, 300);'
+      - delay: 1500ms
+      - lambda: 'ldsim::energy(id(bus), 0, 300);'
+      - delay: 1500ms
+      - lambda: 'ldsim::energy(id(bus), 0, 0);'
+      - delay: 1500ms
+      - repeat:
+          count: 5
+          then:
+            - lambda: 'ldsim::energy(id(bus), 1, 400 + iteration * 10);'
+            - delay: 100ms
+      - delay: 1500ms
+      - lambda: 'ldsim::energy(id(bus), 1, 500);'
+  - platform: template
+    name: Simple steps
+    on_press:
+      - lambda: 'ldsim::line(id(bus), "ON"); ldsim::line(id(bus), "Range 150");'
+      - delay: 1500ms
+      - lambda: 'ldsim::line(id(bus), "Range 150");'
+      - delay: 1500ms
+      - lambda: 'ldsim::line(id(bus), "Range 300");'
+      - delay: 1500ms
+      - lambda: 'ldsim::line(id(bus), "OFF");'
+      - delay: 1500ms
+      - repeat:
+          count: 5
+          then:
+            - lambda: |-
+                char s[16];
+                snprintf(s, sizeof(s), "Range %u", (unsigned) (400 + iteration * 10));
+                ldsim::line(id(bus), "ON");
+                ldsim::line(id(bus), s);
+            - delay: 100ms
+      - delay: 1500ms
+      - lambda: 'ldsim::line(id(bus), "Range 500");'
+
+esphome:
+  on_boot:
+    priority: 900
+    then:
+      - lambda: 'USC0(0) |= (1 << UCLBE);'

@@ -48,15 +48,15 @@ def test_tracker_requests_one_slot(
         ("rp2_controller_only.yaml", "RP2040_BLE_SCAN_LISTENER_COUNT"),
     ],
 )
-def test_controller_only_emits_no_count(
+def test_controller_only_emits_zero_count(
     config: str,
     define: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """No consumer, no define — the guarded listener storage compiles out."""
+    """No consumer: the count is 0, so the listener list takes no space."""
     generate_main(component_config_path(config))
-    assert get_define_value(define) is None
+    assert get_define_value(define) == "0"
 
 
 def test_neutral_listener_count_emitted_when_requested() -> None:
