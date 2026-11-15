@@ -23,6 +23,7 @@ void CST3240Touchscreen::continue_setup_() {
   if (!this->setup_check(this->read_words_(cstxxx::REG_CHIP_INFO, this->project_id_, this->chip_id_),
                          LOG_STR("Failed to read chip ID")))
     return;
+  // Only warn: the chip ID has not been confirmed on enough boards to fail setup on it
   if (this->chip_id_ != CST3240_CHIP_ID) {
     ESP_LOGW(TAG, "Unexpected chip ID 0x%04X", this->chip_id_);
   }
