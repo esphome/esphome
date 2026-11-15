@@ -28,7 +28,14 @@ static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool r
   App.scheduler.call(now);
 }
 
-// Benchmark: invert, no scheduler pass since it schedules nothing
+// Benchmark: no filter, one scheduler pass per publish; subtract it from the delayed filters below
+static void BinarySensorFilter_SchedulerBaseline(benchmark::State &state) {
+  BinarySensor sensor;
+  publish_bounce(state, sensor);
+}
+BENCHMARK(BinarySensorFilter_SchedulerBaseline);
+
+// Benchmark: invert, no scheduler pass since it schedules nothing, so not comparable to the five below
 static void BinarySensorFilter_Invert(benchmark::State &state) {
   BinarySensor sensor;
   InvertFilter filter;
