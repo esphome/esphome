@@ -245,8 +245,8 @@ def test_unnamed_constants_inline_copies_counted_once(
 
 def test_parse_symbols_keeps_alias_names() -> None:
     """C1/C2 constructor aliases share an address; both names are in the ELF."""
-    objdump = """4020b558 g     F .irom0.text	0000007e _ZN7esphome3FooC1Ev
-4020b558 g     F .irom0.text	0000007e _ZN7esphome3FooC2Ev
+    objdump = """4020b558 g     F .irom0.text\t0000007e _ZN7esphome3FooC1Ev
+4020b558 g     F .irom0.text\t0000007e _ZN7esphome3FooC2Ev
 """
     analyzer = make_analyzer()
     analyzer.sections[".text"] = MemorySection(".text")
