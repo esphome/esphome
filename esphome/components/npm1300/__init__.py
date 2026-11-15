@@ -175,29 +175,39 @@ LDO_SCHEMA = BUCK_SCHEMA.extend(
 WARM_TERMINATION_VOLTAGE_DEFAULT = 3.6
 
 
-def _warn_warm_termination_default(config: ConfigType) -> ConfigType:
-    """Warn when the warm termination voltage falls back to the reset value but the other one does not."""
+def _warm_termination_default(config: ConfigType) -> ConfigType:
+    """Keep the default warm termination voltage at or below the termination voltage.
+
+    Warn when the default stays below a higher termination voltage.
+    """
     if (
-        isinstance(config, dict)
-        and CONF_WARM_TERMINATION_VOLTAGE not in config
-        and CONF_TERMINATION_VOLTAGE in config
+        not isinstance(config, dict)
+        or CONF_WARM_TERMINATION_VOLTAGE in config
+        or CONF_TERMINATION_VOLTAGE not in config
     ):
-        try:
-            termination = cv.voltage(config[CONF_TERMINATION_VOLTAGE])
-        except cv.Invalid:
-            # The schema reports it
-            return config
-        if abs(termination - WARM_TERMINATION_VOLTAGE_DEFAULT) > 0.001:
-            _LOGGER.warning(
-                "npm1300 '%s' is not set, so a warm battery (45 °C to 60 °C by default) is charged "
-                "to %.2fV instead of the %.2fV of '%s'. Set '%s' to the value your battery allows "
-                "when warm",
-                CONF_WARM_TERMINATION_VOLTAGE,
-                WARM_TERMINATION_VOLTAGE_DEFAULT,
-                termination,
-                CONF_TERMINATION_VOLTAGE,
-                CONF_WARM_TERMINATION_VOLTAGE,
-            )
+        return config
+    try:
+        termination = cv.voltage(config[CONF_TERMINATION_VOLTAGE])
+    except cv.Invalid:
+        # The schema reports it
+        return config
+    if termination < WARM_TERMINATION_VOLTAGE_DEFAULT - 0.001:
+        # A warm battery is never charged higher than a cool one
+        return {
+            **config,
+            CONF_WARM_TERMINATION_VOLTAGE: config[CONF_TERMINATION_VOLTAGE],
+        }
+    if termination > WARM_TERMINATION_VOLTAGE_DEFAULT + 0.001:
+        _LOGGER.warning(
+            "npm1300 '%s' is not set, so a warm battery (45 °C to 60 °C by default) stops "
+            "charging at %.2fV instead of the %.2fV of '%s'. Set '%s' to the value your "
+            "battery allows when warm",
+            CONF_WARM_TERMINATION_VOLTAGE,
+            WARM_TERMINATION_VOLTAGE_DEFAULT,
+            termination,
+            CONF_TERMINATION_VOLTAGE,
+            CONF_WARM_TERMINATION_VOLTAGE,
+        )
     return config
 
 
@@ -227,16 +237,23 @@ _CHARGER_SETTINGS_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLED, default=False): cv.boolean,
     }
 )
-CHARGER_SCHEMA = cv.All(_warn_warm_termination_default, _CHARGER_SETTINGS_SCHEMA)
+CHARGER_SCHEMA = cv.All(_warm_termination_default, _CHARGER_SETTINGS_SCHEMA)
 
 
 def _check_thermistor(config: ConfigType) -> ConfigType:
     """A wrong thermistor shifts the battery temperature the charger sees, so charging needs one chosen."""
-    if CONF_CHARGER in config and CONF_THERMISTOR_RESISTANCE not in config:
+    resistance = config.get(CONF_THERMISTOR_RESISTANCE)
+    if CONF_CHARGER in config and resistance is None:
         raise cv.Invalid(
             f"'{CONF_THERMISTOR_RESISTANCE}' is required with '{CONF_CHARGER}': set the nominal "
             f"resistance of the battery thermistor, or '{THERMISTOR_NONE}'",
             path=[CONF_THERMISTOR_RESISTANCE],
+        )
+    if CONF_THERMISTOR_BETA in config and resistance in (None, THERMISTOR_NONE):
+        raise cv.Invalid(
+            f"'{CONF_THERMISTOR_BETA}' needs '{CONF_THERMISTOR_RESISTANCE}' set to the "
+            "resistance of the thermistor",
+            path=[CONF_THERMISTOR_BETA],
         )
     return config
 

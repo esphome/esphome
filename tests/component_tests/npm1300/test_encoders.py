@@ -8,11 +8,15 @@ from esphome.components.npm1300 import (
     CHARGER_SCHEMA,
     NPM1300_UNSET,
     OUTPUT_VOLTAGE,
+    THERMISTOR_NONE,
     VBUS_CURRENT_LIMIT,
     _charger_config,
+    _check_thermistor,
+    _config,
     _output_config,
     _termination_voltage_code,
     _vbus_current_limit_code,
+    thermistor_beta,
 )
 from esphome.const import CONF_MODE, CONF_VOLTAGE
 from esphome.cpp_generator import StructInitializer
@@ -64,7 +68,7 @@ def test_warm_termination_defaults_to_reset_value() -> None:
     ("config", "warns"),
     [
         ({"termination_voltage": "4.2V"}, True),
-        ({"termination_voltage": "3.5V"}, True),
+        ({"termination_voltage": "3.5V"}, False),
         ({"termination_voltage": "3.6V"}, False),
         ({}, False),
         ({"termination_voltage": "4.2V", "warm_termination_voltage": "4.0V"}, False),
@@ -75,6 +79,14 @@ def test_warm_termination_default_warning(
 ) -> None:
     CHARGER_SCHEMA(config)
     assert ("warm_termination_voltage" in caplog.text) is warns
+
+
+@pytest.mark.parametrize(("termination", "code"), [("3.5V", "0"), ("3.55V", "1")])
+def test_warm_termination_default_not_above_termination(
+    termination: str, code: str
+) -> None:
+    fields = _charger({"termination_voltage": termination})
+    assert fields["warm_termination_voltage"] == code
 
 
 def test_warm_termination_code() -> None:
@@ -129,3 +141,48 @@ def test_vbus_current_limit_code(limit: str, code: int) -> None:
 def test_vbus_current_limit_rejected(limit: str) -> None:
     with pytest.raises(cv.Invalid):
         VBUS_CURRENT_LIMIT(limit)
+
+
+def test_charger_needs_thermistor() -> None:
+    with pytest.raises(cv.Invalid, match="thermistor_resistance"):
+        _check_thermistor({"charger": {}})
+    config = {"charger": {}, "thermistor_resistance": THERMISTOR_NONE}
+    assert _check_thermistor(config) is config
+
+
+@pytest.mark.parametrize("resistance", [None, THERMISTOR_NONE])
+def test_thermistor_beta_needs_resistance(resistance: str | None) -> None:
+    config = {"thermistor_beta": 3380}
+    if resistance is not None:
+        config["thermistor_resistance"] = resistance
+    with pytest.raises(cv.Invalid, match="thermistor_beta"):
+        _check_thermistor(config)
+
+
+@pytest.mark.parametrize(
+    ("resistance", "beta"), [(10000.0, 3380), (47000.0, 4050), (100000.0, 4250)]
+)
+def test_thermistor_beta_default(resistance: float, beta: int) -> None:
+    assert thermistor_beta({"thermistor_resistance": resistance}) == beta
+
+
+def test_thermistor_beta_configured() -> None:
+    config = {"thermistor_resistance": 47000.0, "thermistor_beta": 3950}
+    assert thermistor_beta(config) == 3950
+
+
+@pytest.mark.parametrize(
+    ("resistance", "code", "beta"),
+    [
+        (None, str(NPM1300_UNSET), "0"),
+        (THERMISTOR_NONE, "0", "0"),
+        (100000.0, "3", "4250"),
+    ],
+)
+def test_config_thermistor(
+    resistance: str | float | None, code: str, beta: str
+) -> None:
+    config = {} if resistance is None else {"thermistor_resistance": resistance}
+    fields = _fields(_config(config))
+    assert fields["thermistor"] == code
+    assert fields["thermistor_beta"] == beta
