@@ -26,19 +26,13 @@ void SenseAirComponent::update() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x04) {
-    ESP_LOGW(TAG, "Invalid preamble from SenseAir! %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x",
-             response[0], response[1], response[2], response[3], response[4], response[5], response[6], response[7],
-             response[8], response[9], response[10], response[11], response[12]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(sizeof(response))];
+    ESP_LOGW(TAG, "Invalid preamble from SenseAir! %s", format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
 
     this->status_set_warning();
-    while (this->available()) {
-      uint8_t b;
-      if (this->read_byte(&b)) {
-        ESP_LOGV(TAG, "    ... %02x", b);
-      } else {
-        ESP_LOGV(TAG, "    ... nothing read");
-      }
-    }
+    this->discard_available();
     return;
   }
 
@@ -58,8 +52,7 @@ void SenseAirComponent::update() {
     ESP_LOGD(TAG, "Discarding 0 ppm reading with out-of-range status.");
     return;
   }
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(ppm);
+  PUBLISH_STATE(this->co2_sensor_, ppm);
 }
 
 void SenseAirComponent::background_calibration() {
@@ -81,15 +74,20 @@ void SenseAirComponent::background_calibration_result() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x03) {
-    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x", response[0], response[1], response[2],
-             response[3], response[4], response[5], response[6]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(sizeof(response))];
+    ESP_LOGE(TAG, "Invalid reply from SenseAir! %s", format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
     return;
   }
 
   // Check if 5th bit (register CI6) is set
-  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)",
-           (response[4] & 0b100000) != 0 ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("NOT_OK"), response[0], response[1],
-           response[2], response[3], response[4], response[5], response[6]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+  char hex_buf[format_hex_pretty_size(sizeof(response))];
+  ESP_LOGI(TAG, "SenseAir Result=%s (%s)",
+           (response[4] & 0b100000) != 0 ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("NOT_OK"),
+           format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
 }
 
 void SenseAirComponent::abc_enable() {
@@ -117,12 +115,14 @@ void SenseAirComponent::abc_get_period() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x03) {
-    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x", response[0], response[1], response[2],
-             response[3], response[4], response[5], response[6]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(sizeof(response))];
+    ESP_LOGE(TAG, "Invalid reply from SenseAir! %s", format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
     return;
   }
 
-  const uint16_t hours = (uint16_t(response[3]) << 8) | response[4];
+  const uint16_t hours = encode_uint16(response[3], response[4]);
   ESP_LOGD(TAG, "SenseAir Read ABC Period: %u hours", hours);
 }
 

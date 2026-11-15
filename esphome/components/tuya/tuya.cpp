@@ -1,4 +1,5 @@
 #include "tuya.h"
+#include <cstring>
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -54,20 +55,7 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->handle_char_(buf[i]);
-    }
-  }
+  this->read_available([this](uint8_t b) { this->handle_char_(b); });
   process_command_queue_();
 }
 
@@ -146,7 +134,7 @@ bool Tuya::validate_message_() {
     return true;
   }
 
-  uint16_t length = (uint16_t(data[4]) << 8) | (uint16_t(data[5]));
+  uint16_t length = encode_uint16(data[4], data[5]);
 
   // wait until all data is read
   if (at - 6 < length)
@@ -394,7 +382,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     datapoint.type = (TuyaDatapointType) buffer[1];
     datapoint.value_uint = 0;
 
-    size_t data_size = (buffer[2] << 8) + buffer[3];
+    size_t data_size = encode_uint16(buffer[2], buffer[3]);
     const uint8_t *data = buffer + 4;
     size_t data_len = len - 4;
     if (data_size > data_len) {
@@ -704,7 +692,11 @@ void Tuya::set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value) {
 }
 
 void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &value) {
-  this->set_string_datapoint_value_(datapoint_id, value, false);
+  this->set_string_datapoint_value_(datapoint_id, value.c_str(), value.size(), false);
+}
+
+void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const char *value) {
+  this->set_string_datapoint_value_(datapoint_id, value, strlen(value), false);
 }
 
 void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {
@@ -728,7 +720,11 @@ void Tuya::force_set_integer_datapoint_value(uint8_t datapoint_id, uint32_t valu
 }
 
 void Tuya::force_set_string_datapoint_value(uint8_t datapoint_id, const std::string &value) {
-  this->set_string_datapoint_value_(datapoint_id, value, true);
+  this->set_string_datapoint_value_(datapoint_id, value.c_str(), value.size(), true);
+}
+
+void Tuya::force_set_string_datapoint_value(uint8_t datapoint_id, const char *value) {
+  this->set_string_datapoint_value_(datapoint_id, value, strlen(value), true);
 }
 
 void Tuya::force_set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {
@@ -796,22 +792,20 @@ void Tuya::set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint
   this->send_datapoint_command_(datapoint_id, TuyaDatapointType::RAW, value);
 }
 
-void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool forced) {
-  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, value.c_str());
+void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const char *value, size_t len, bool forced) {
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, value);
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
   } else if (datapoint->type != TuyaDatapointType::STRING) {
     ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
     return;
-  } else if (!forced && datapoint->value_string == value) {
+  } else if (!forced && datapoint->value_string.size() == len &&
+             memcmp(datapoint->value_string.data(), value, len) == 0) {
     ESP_LOGV(TAG, "Not sending unchanged value");
     return;
   }
-  std::vector<uint8_t> data;
-  for (char const &c : value) {
-    data.push_back(c);
-  }
+  std::vector<uint8_t> data(value, value + len);
   this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 

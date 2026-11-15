@@ -18,7 +18,7 @@ from .raw_api_client import (
     decode_fields,
     tag,
 )
-from .state_utils import InitialStateHelper, StateWaiter, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 COVER_COMMAND = MESSAGE_TYPE_OF[api_pb2.CoverCommandRequest]
@@ -48,12 +48,10 @@ async def test_api_cover_toggle(
         plain_cover = require_entity(entities, "plain_cover", CoverInfo, exact=True)
 
         positions: dict[int, list[float]] = {toggle_cover.key: [], plain_cover.key: []}
-        waiter = StateWaiter()
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, CoverState) and state.key in positions:
                 positions[state.key].append(state.position)
-            waiter.on_state(state)
 
         def position_is(key: int, value: float) -> Callable[[EntityState], bool]:
             return lambda s: (
@@ -62,9 +60,8 @@ async def test_api_cover_toggle(
                 and s.position == pytest.approx(value, abs=0.01)
             )
 
-        initial = InitialStateHelper(entities)
-        client.subscribe_states(initial.on_state_wrapper(on_state))
-        await initial.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        waiter = sub.waiter
 
         # Capability discovery: only the cover with a toggle_action advertises toggle
         await raw.connect()

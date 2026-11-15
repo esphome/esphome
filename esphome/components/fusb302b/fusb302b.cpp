@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "fusb302b_registers.h"
@@ -51,10 +52,8 @@ void FUSB302B::task_func(void *arg) { static_cast<FUSB302B *>(arg)->run_task_();
 
 void FUSB302B::setup() {
   uint8_t device_id = 0;
-  if (!this->read_byte(FUSB_DEVICE_ID, &device_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(FUSB_DEVICE_ID, &device_id)))
     return;
-  }
   const uint8_t version = device_id & FUSB_DEVICE_ID_VERSION_MASK;
   if (version != FUSB_DEVICE_ID_VERSION_A && version != FUSB_DEVICE_ID_VERSION_B) {
     ESP_LOGE(TAG, "Unknown device ID 0x%02X", device_id);
@@ -62,17 +61,15 @@ void FUSB302B::setup() {
     return;
   }
   ESP_LOGD(TAG, "Device ID 0x%02X (product %u, revision %u)", device_id, (device_id >> 2) & 0x3, device_id & 0x3);
-  if (!this->init_chip_()) {
-    this->mark_failed(LOG_STR("Initialization failed"));
+  if (!this->setup_check(this->init_chip_(), LOG_STR("Initialization failed")))
     return;
-  }
 
   this->interrupt_pin_->setup();
   // The task must exist before the interrupt is attached, since the ISR notifies it
-  if (!this->task_.create(FUSB302B::task_func, "fusb302b", TASK_STACK_SIZE, this, TASK_PRIORITY, false)) {
-    this->mark_failed(LOG_STR("Failed to create task"));
+  if (!this->setup_check(
+          this->task_.create(FUSB302B::task_func, "fusb302b", TASK_STACK_SIZE, this, TASK_PRIORITY, false),
+          LOG_STR("Failed to create task")))
     return;
-  }
   this->interrupt_pin_->attach_interrupt(&FUSB302B::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
 }
 
@@ -149,10 +146,8 @@ void FUSB302B::publish_state_(PdState state) {
 
 void FUSB302B::publish_contract_(PackedContract contract) {
 #ifdef USE_SENSOR
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(contract.voltage());
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(contract.current());
+  PUBLISH_STATE(this->voltage_sensor_, contract.voltage());
+  PUBLISH_STATE(this->current_sensor_, contract.current());
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->contract_text_sensor_ != nullptr) {
@@ -265,12 +260,8 @@ bool FUSB302B::init_chip_() {
     return false;
 
   // Let the chip retransmit unacknowledged messages up to 3 times
-  uint8_t control3 = 0;
-  if (!this->read_byte(FUSB_CONTROL3, &control3))
-    return false;
-  control3 =
-      (control3 & ~FUSB_CONTROL3_N_RETRIES_MASK) | (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY;
-  if (!this->write_byte(FUSB_CONTROL3, control3))
+  if (!this->update_register(FUSB_CONTROL3, FUSB_CONTROL3_N_RETRIES_MASK | FUSB_CONTROL3_AUTO_RETRY,
+                             (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY))
     return false;
 
   if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL))
@@ -286,9 +277,7 @@ bool FUSB302B::reset_pd_() {
 }
 
 bool FUSB302B::enable_auto_crc_() {
-  uint8_t switches1 = 0;
-  return this->read_byte(FUSB_SWITCHES1, &switches1) &&
-         this->write_byte(FUSB_SWITCHES1, switches1 | FUSB_SWITCHES1_AUTO_CRC);
+  return this->update_register(FUSB_SWITCHES1, FUSB_SWITCHES1_AUTO_CRC, FUSB_SWITCHES1_AUTO_CRC);
 }
 
 void FUSB302B::handle_interrupt_() {
@@ -359,7 +348,6 @@ bool FUSB302B::send_message(const PdMsg &msg) {
   // Register address, then the TX tokens; written in one transfer without the copy write_register() makes
   uint8_t buf[1 + 4 + 1 + 2 + PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
   size_t len = 0;
-  const uint16_t header = msg.get_coded_header();
 
   buf[len++] = FUSB_FIFOS;
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
@@ -367,14 +355,11 @@ bool FUSB302B::send_message(const PdMsg &msg) {
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
   buf[len++] = FUSB_TX_TOKEN_SYNC2;
   buf[len++] = FUSB_TX_TOKEN_PACKSYM | (msg.num_of_obj * 4 + 2);
-  buf[len++] = header & 0xFF;
-  buf[len++] = header >> 8;
+  put_le16(buf + len, msg.get_coded_header());
+  len += 2;
   for (uint8_t i = 0; i < msg.num_of_obj; i++) {
-    const uint32_t obj = msg.data_objects[i];
-    buf[len++] = obj & 0xFF;
-    buf[len++] = (obj >> 8) & 0xFF;
-    buf[len++] = (obj >> 16) & 0xFF;
-    buf[len++] = obj >> 24;
+    put_le32(buf + len, msg.data_objects[i]);
+    len += 4;
   }
   buf[len++] = FUSB_TX_TOKEN_JAM_CRC;
   buf[len++] = FUSB_TX_TOKEN_EOP;

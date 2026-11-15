@@ -23,17 +23,17 @@ enum MLX90393Setting {
 };
 
 class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
+  SUB_SENSOR(x)
+  SUB_SENSOR(y)
+  SUB_SENSOR(z)
+  SUB_SENSOR(t)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
 
   void set_drdy_gpio(GPIOPin *pin) { drdy_pin_ = pin; }
-
-  void set_x_sensor(sensor::Sensor *x_sensor) { x_sensor_ = x_sensor; }
-  void set_y_sensor(sensor::Sensor *y_sensor) { y_sensor_ = y_sensor; }
-  void set_z_sensor(sensor::Sensor *z_sensor) { z_sensor_ = z_sensor; }
-  void set_t_sensor(sensor::Sensor *t_sensor) { t_sensor_ = t_sensor; }
 
   void set_oversampling(uint8_t osr) { oversampling_ = osr; }
   void set_t_oversampling(uint8_t osr2) { temperature_oversampling_ = osr2; }
@@ -57,10 +57,6 @@ class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public
 
  protected:
   MLX90393 mlx_;
-  sensor::Sensor *x_sensor_{nullptr};
-  sensor::Sensor *y_sensor_{nullptr};
-  sensor::Sensor *z_sensor_{nullptr};
-  sensor::Sensor *t_sensor_{nullptr};
   uint8_t gain_;
   uint8_t oversampling_;
   uint8_t temperature_oversampling_{0};

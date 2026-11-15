@@ -1,8 +1,10 @@
 #pragma once
 
+#include <type_traits>
 #include <utility>
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
@@ -101,17 +103,28 @@ class AddressableRainbowLightEffect : public AddressableLightEffect {
   uint16_t width_{50};
 };
 
+/// One wipe color. Codegen keeps the colors in a flash table, so it is read with progmem_memcpy.
 struct AddressableColorWipeEffectColor {
   uint8_t r, g, b, w;
-  bool random;
-  size_t num_leds;
+  uint8_t random_slot;  ///< index into the effect's random colors, or NO_RANDOM_SLOT
   bool gradient;
+  uint32_t num_leds;
 };
+static_assert(std::is_trivially_copyable_v<AddressableColorWipeEffectColor>,
+              "AddressableColorWipeEffectColor is copied out of flash");
+static_assert(sizeof(AddressableColorWipeEffectColor) % sizeof(uint32_t) == 0,
+              "AddressableColorWipeEffectColor must be whole words for ESP8266 flash reads");
+static constexpr uint8_t NO_RANDOM_SLOT = 0xFF;
 
 class AddressableColorWipeEffect : public AddressableLightEffect {
  public:
   explicit AddressableColorWipeEffect(const char *name) : AddressableLightEffect(name) {}
-  void set_colors(const std::initializer_list<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
+  /// Codegen only: point at the generated flash table of colors, which must outlive the effect.
+  /// Random colors keep their current value in a RAM array, one slot per random entry.
+  void set_colors(const AddressableColorWipeEffectColor *colors, size_t count, Color *random_colors) {
+    this->colors_ = {colors, count};
+    this->random_colors_ = random_colors;
+  }
   void set_add_led_interval(uint32_t add_led_interval) { this->add_led_interval_ = add_led_interval; }
   void set_reverse(bool reverse) { this->reverse_ = reverse; }
   void apply(AddressableLight &it, const Color &current_color) override {
@@ -124,12 +137,11 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
     } else {
       it.shift_right(1);
     }
-    const AddressableColorWipeEffectColor &color = this->colors_[this->at_color_];
-    Color esp_color = Color(color.r, color.g, color.b, color.w);
+    const AddressableColorWipeEffectColor color = this->entry_(this->at_color_);
+    Color esp_color = this->color_of_(color);
     if (color.gradient) {
       size_t next_color_index = (this->at_color_ + 1) % this->colors_.size();
-      const AddressableColorWipeEffectColor &next_color = this->colors_[next_color_index];
-      const Color next_esp_color = Color(next_color.r, next_color.g, next_color.b, next_color.w);
+      const Color next_esp_color = this->color_of_(this->entry_(next_color_index));
       uint8_t gradient = 255 * ((float) this->leds_added_ / color.num_leds);
       esp_color = esp_color.gradient(next_esp_color, gradient);
     }
@@ -141,19 +153,32 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
     if (++this->leds_added_ >= color.num_leds) {
       this->leds_added_ = 0;
       this->at_color_ = (this->at_color_ + 1) % this->colors_.size();
-      AddressableColorWipeEffectColor &new_color = this->colors_[this->at_color_];
-      if (new_color.random) {
+      const AddressableColorWipeEffectColor new_color = this->entry_(this->at_color_);
+      if (new_color.random_slot != NO_RANDOM_SLOT) {
         Color c = Color::random_color();
-        new_color.r = c.r;
-        new_color.g = c.g;
-        new_color.b = c.b;
+        Color &slot = this->random_colors_[new_color.random_slot];
+        slot.r = c.r;
+        slot.g = c.g;
+        slot.b = c.b;
       }
     }
     it.schedule_show();
   }
 
  protected:
-  FixedVector<AddressableColorWipeEffectColor> colors_;
+  AddressableColorWipeEffectColor entry_(size_t index) const {
+    AddressableColorWipeEffectColor entry;
+    progmem_memcpy(&entry, &this->colors_[index], sizeof(entry));
+    return entry;
+  }
+  Color color_of_(const AddressableColorWipeEffectColor &entry) const {
+    if (entry.random_slot != NO_RANDOM_SLOT)
+      return this->random_colors_[entry.random_slot];
+    return Color(entry.r, entry.g, entry.b, entry.w);
+  }
+
+  ConstVector<AddressableColorWipeEffectColor> colors_;
+  Color *random_colors_{nullptr};
   size_t at_color_{0};
   uint32_t last_add_{0};
   uint32_t add_led_interval_{};

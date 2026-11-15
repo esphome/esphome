@@ -1,14 +1,9 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import (
-    media_player,
-    micro_wake_word,
-    microphone,
-    network,
-    speaker,
-)
+from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUFFER_DURATION,
     CONF_ID,
     CONF_MEDIA_PLAYER,
     CONF_MICROPHONE,
@@ -18,6 +13,7 @@ from esphome.const import (
     CONF_ON_IDLE,
     CONF_ON_START,
     CONF_SPEAKER,
+    CONF_TIMEOUT,
 )
 from esphome.types import ConfigType
 
@@ -40,6 +36,7 @@ CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_STREAM_START = "on_tts_stream_start"
 CONF_ON_TTS_STREAM_END = "on_tts_stream_end"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_ON_WAKE_WORD_REJECTED = "on_wake_word_rejected"
 
 CONF_SILENCE_DETECTION = "silence_detection"
 CONF_USE_WAKE_WORD = "use_wake_word"
@@ -51,11 +48,12 @@ CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
 CONF_MICRO_WAKE_WORD = "micro_wake_word"
 CONF_WAKE_WORD = "wake_word"
+CONF_WAKE_WORD_AUDIO = "wake_word_audio"
 
 CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
 CONF_TTS_PLAYBACK_START_TIMEOUT = "tts_playback_start_timeout"
 # Keep in sync with VoiceAssistant::tts_playback_start_timeout_ in voice_assistant.h.
-TTS_PLAYBACK_START_TIMEOUT_DEFAULT = core.TimePeriod(milliseconds=2000)
+TTS_PLAYBACK_START_TIMEOUT_DEFAULT = core.TimePeriod(milliseconds=15000)
 
 CONF_ON_TIMER_STARTED = "on_timer_started"
 CONF_ON_TIMER_UPDATED = "on_timer_updated"
@@ -98,6 +96,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
             cv.Optional(CONF_MICRO_WAKE_WORD): cv.use_id(micro_wake_word.MicroWakeWord),
+            cv.Optional(CONF_WAKE_WORD_AUDIO): cv.Schema(
+                {
+                    cv.Optional(CONF_BUFFER_DURATION, default="1500ms"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(
+                            min=core.TimePeriod(milliseconds=100),
+                            max=core.TimePeriod(seconds=5),
+                        ),
+                    ),
+                    cv.Optional(CONF_TIMEOUT, default="2s"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(min=core.TimePeriod(milliseconds=1)),
+                    ),
+                }
+            ),
             cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
                 "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
             ),
@@ -122,6 +135,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_WAKE_WORD_REJECTED): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
@@ -175,7 +191,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.key_requires((CONF_ON_TTS_STREAM_START, CONF_ON_TTS_STREAM_END), CONF_SPEAKER),
-    network.require_ipv4("voice_assistant"),
+    cv.key_requires(CONF_WAKE_WORD_AUDIO, CONF_MICRO_WAKE_WORD),
+    cv.key_requires(CONF_ON_WAKE_WORD_REJECTED, CONF_WAKE_WORD_AUDIO),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -210,6 +227,14 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
 
+    if wake_word_audio := config.get(CONF_WAKE_WORD_AUDIO):
+        cg.add_define("USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO")
+        cg.add(
+            var.set_wake_word_audio(
+                wake_word_audio[CONF_BUFFER_DURATION], wake_word_audio[CONF_TIMEOUT]
+            )
+        )
+
     cg.add_optional(var.set_vad_threshold, config.get(CONF_VAD_THRESHOLD))
 
     cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
@@ -236,6 +261,13 @@ async def to_code(config: ConfigType) -> None:
             var.get_wake_word_detected_trigger(),
             [],
             config[CONF_ON_WAKE_WORD_DETECTED],
+        )
+
+    if CONF_ON_WAKE_WORD_REJECTED in config:
+        await automation.build_automation(
+            var.get_wake_word_rejected_trigger(),
+            [],
+            config[CONF_ON_WAKE_WORD_REJECTED],
         )
 
     if CONF_ON_STT_END in config:

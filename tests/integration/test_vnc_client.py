@@ -1,8 +1,9 @@
 """Integration test for the vnc component against a fake RFB server.
 
 One compiled device runs every step in order against one server: the first frame, request
-pacing, a reconnect after the server closes the link, a stream cut into tiny pieces, and an
-unknown message type that makes the client drop the link.
+pacing, input, a reconnect after the server closes the link, a stream cut into tiny pieces, an
+unknown message type that makes the client drop the link, and tiles that are skipped when sent
+again unchanged.
 
 The client asks for the next frame only once the previous one is fully drawn, so snapshots are
 taken after that request arrives. The snapshot display draws as soon as pixels arrive, so the
@@ -57,11 +58,12 @@ RECONNECT_S = 1.0
 # Long enough for a frame that drew something to be logged.
 LOG_SETTLE_S = 0.5
 
-# Raw rects that cross the right and bottom edges of the display.
+# Raw across the right edge, then two Hextile rects with edge tiles that cross the right and
+# bottom edges of the display.
 FULL_FRAME: list[Rect] = [
     (0, 0, SERVER_WIDTH, 13, "raw"),
-    (0, 13, 37, SERVER_HEIGHT - 13, "raw"),
-    (37, 13, SERVER_WIDTH - 37, SERVER_HEIGHT - 13, "raw"),
+    (0, 13, 37, SERVER_HEIGHT - 13, "hextile"),
+    (37, 13, SERVER_WIDTH - 37, SERVER_HEIGHT - 13, "hextile"),
 ]
 
 LogMatch = str | re.Pattern[str] | Callable[[str], bool]
@@ -124,9 +126,11 @@ class LogWatch:
 
 
 def paint(server: FakeRfbServer, seed: int) -> None:
-    """Draw solid bands, boxes and noise.
+    """Draw a picture that gives every kind of Hextile tile.
 
-    Noise also runs along the right and bottom edges of the display, so clipping errors show.
+    Solid bands give background-only tiles, boxes in one accent colour give foreground
+    subrects, boxes in many colours give coloured subrects, and noise gives raw tiles. Noise
+    also runs along the right and bottom edges of the display, so clipping errors show.
     """
     rng = random.Random(seed)
 
@@ -205,6 +209,26 @@ def full_request(incremental: bool) -> Message:
     }
 
 
+def tap_events(x: int, y: int) -> list[Message]:
+    return [
+        {"type": "pointer", "mask": 1, "x": x, "y": y},
+        {"type": "pointer", "mask": 0, "x": x, "y": y},
+    ]
+
+
+def key_press(keysym: int) -> list[Message]:
+    return [
+        {"type": "key", "down": True, "keysym": keysym},
+        {"type": "key", "down": False, "keysym": keysym},
+    ]
+
+
+def combine_updates(*updates: bytes) -> bytes:
+    """Merge FramebufferUpdates into one, so rects built with different options share it."""
+    count = sum(struct.unpack_from(">H", update, 2)[0] for update in updates)
+    return struct.pack(">BxH", 0, count) + b"".join(update[4:] for update in updates)
+
+
 def cut_text(text: bytes) -> bytes:
     return struct.pack(">B3xI", 3, len(text)) + text
 
@@ -272,6 +296,19 @@ async def expect_logged(log: LogWatch, frame: bytes, before: int) -> None:
     )
 
 
+def fill_noise(
+    server: FakeRfbServer, x: int, y: int, w: int, h: int, seed: int
+) -> None:
+    rng = random.Random(seed)
+    for row in range(y, y + h):
+        for col in range(x, x + w):
+            server.set_pixel(col, row, (rng.randrange(256), rng.randrange(256), 0))
+
+
+def inputs_since(server: FakeRfbServer, mark: int) -> list[Message]:
+    return [m for m in server.messages[mark:] if m["type"] in ("pointer", "key")]
+
+
 @pytest.mark.asyncio
 async def test_vnc_client(
     yaml_config: str,
@@ -280,7 +317,7 @@ async def test_vnc_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The client renders, paces and recovers from drops and bad streams."""
+    """The client renders, paces, sends input and recovers from drops and bad streams."""
     snapshot_dir = tmp_path / "snapshots"
     monkeypatch.setenv("ESPHOME_SNAPSHOT_DIR", str(snapshot_dir))
     loop = asyncio.get_running_loop()
@@ -303,7 +340,7 @@ async def test_vnc_client(
             # The snapshot display declares no byte order, so the client asks for big-endian pixels
             assert pixel_format == {"type": "set_pixel_format", **asdict(RGB565_BE)}
             encodings = await server.wait_for("set_encodings")
-            assert encodings["encodings"] == [0, -239]
+            assert encodings["encodings"] == [5, 0, -239]
             request, _ = await next_request(server)
             assert request == full_request(incremental=False)
             assert [m["type"] for m in server.messages[:3]] == [
@@ -331,7 +368,7 @@ async def test_vnc_client(
             server.fill_rect(30, 10, 10, 10, (250, 10, 10))
             server.fill_rect(58, 40, 22, 20, (10, 250, 10))
             frame = server.build_update(
-                [(30, 10, 10, 10, "raw"), (58, 40, 22, 20, "raw")]
+                [(30, 10, 10, 10, "raw"), (58, 40, 22, 20, "hextile")]
             )
             elapsed, _ = await exchange(server, frame, log=log)
             assert elapsed < QUICK_REQUEST_S, f"next request after {elapsed:.3f}s"
@@ -363,7 +400,7 @@ async def test_vnc_client(
                         DISPLAY_HEIGHT,
                         SERVER_WIDTH,
                         SERVER_HEIGHT - DISPLAY_HEIGHT,
-                        "raw",
+                        "hextile",
                     ),
                 ]
             )
@@ -391,6 +428,66 @@ async def test_vnc_client(
             )
             assert_shows(await device.snapshot("hidden"), server)
 
+            # vnc.refresh asks for the whole screen at once, even with a request parked, and
+            # redraws it even where nothing changed.
+            whole = server.build_update(
+                [(0, 0, SERVER_WIDTH, SERVER_HEIGHT, "hextile")]
+            )
+            await exchange(server, whole)
+            await asyncio.sleep(LOG_SETTLE_S)
+            await device.run("vnc_refresh")
+            request, _ = await next_request(server)
+            assert request == full_request(incremental=False)
+            await exchange(server, whole, log=log)
+            assert_shows(await device.snapshot("refresh"), server)
+
+            # Input: the API actions send exact pointer and key events, with no scaling even
+            # though the server screen is larger than the display.
+            mark = len(server.messages)
+            for x, y in (
+                (10, 20),
+                (0, 0),
+                (DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1),
+                (70, 55),
+                (500, 500),
+            ):
+                await device.run("tap", x=x, y=y)
+            await device.run("key", keysym=0xFF0D)
+            await device.run("type", chars="aB\n\t\b\x01 é€")
+            expected_input = [
+                *tap_events(10, 20),
+                *tap_events(0, 0),
+                *tap_events(DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1),
+                *tap_events(70, 55),
+                *tap_events(SERVER_WIDTH - 1, SERVER_HEIGHT - 1),
+                *key_press(0xFF0D),
+                *key_press(ord("a")),
+                *key_press(ord("B")),
+                *key_press(0xFF0D),
+                *key_press(0xFF09),
+                *key_press(0xFF08),
+                *key_press(ord(" ")),
+                *key_press(0xE9),
+                *key_press(0x010020AC),
+            ]
+            await server.wait_until(
+                lambda: len(inputs_since(server, mark)) >= len(expected_input),
+                what="input events",
+            )
+            await asyncio.sleep(0.2)
+            assert inputs_since(server, mark) == expected_input
+
+            # Text longer than the send buffer is flushed on the way, not cut.
+            mark = len(server.messages)
+            long_text = "".join(chr(ord("a") + i % 26) for i in range(300))
+            await device.run("type", chars=long_text)
+            expected_input = [m for c in long_text for m in key_press(ord(c))]
+            await server.wait_until(
+                lambda: len(inputs_since(server, mark)) >= len(expected_input),
+                what="long text",
+            )
+            assert inputs_since(server, mark) == expected_input
+
             # Reconnect: the server closes the link; the client comes back after the backoff
             # and sets the session up again.
             server.discard_pending()
@@ -406,24 +503,39 @@ async def test_vnc_client(
             )
             await log.wait_count(CONNECTED, 2)
             assert await server.wait_for("set_pixel_format") == pixel_format
-            assert (await server.wait_for("set_encodings"))["encodings"] == [0, -239]
+            assert (await server.wait_for("set_encodings"))["encodings"] == [5, 0, -239]
             request, _ = await next_request(server)
             assert request == full_request(incremental=False)
             assert server.sessions == 2
 
             # Hostile stream: 1-7 byte pieces, a long cut text, bells, a colour map and
-            # cursor rects around a frame.
+            # cursor rects around a frame, with raw tiles flagged 0x1F.
             paint(server, seed=2)
-            frame = server.build_update(
-                [
-                    (3, 4, 12, 18, "rich-cursor"),
-                    (0, 0, DISPLAY_WIDTH, 20, "raw"),
-                    (DISPLAY_WIDTH, 0, SERVER_WIDTH - DISPLAY_WIDTH, 60, "raw"),
-                    (0, 0, 0, 0, "rich-cursor"),
-                    (0, 20, 30, SERVER_HEIGHT - 20, "raw"),
-                    (30, 20, SERVER_WIDTH - 30, SERVER_HEIGHT - 20, "raw"),
-                    (1, 1, 7, 9, "rich-cursor"),
-                ]
+            frame = combine_updates(
+                server.build_update(
+                    [
+                        (3, 4, 12, 18, "rich-cursor"),
+                        (0, 0, DISPLAY_WIDTH, 20, "raw"),
+                        (DISPLAY_WIDTH, 0, SERVER_WIDTH - DISPLAY_WIDTH, 60, "raw"),
+                        (0, 0, 0, 0, "rich-cursor"),
+                    ]
+                ),
+                server.build_update(
+                    [(0, 20, 30, SERVER_HEIGHT - 20, "hextile")], always_send_bg=True
+                ),
+                server.build_update(
+                    [
+                        (
+                            30,
+                            20,
+                            SERVER_WIDTH - 30,
+                            SERVER_HEIGHT - 20,
+                            "hextile-raw-tiles",
+                        )
+                    ],
+                    raw_tile_flags=0x1F,
+                ),
+                server.build_update([(1, 1, 7, 9, "rich-cursor")]),
             )
             colour_map = struct.pack(">BxHH", 1, 0, 2) + bytes(12)
             long_cut = bytes(
@@ -461,6 +573,45 @@ async def test_vnc_client(
             paint(server, seed=6)
             await exchange(server, server.build_update(FULL_FRAME), log=log)
             assert_shows(await device.snapshot("third"), server)
+
+            # A tile on the 16 pixel grid that is sent again unchanged is skipped, so the
+            # frame draws nothing.
+            aligned: Rect = (16, 16, 16, 16, "hextile")
+            fill_noise(server, *aligned[:4], seed=9)
+            await exchange(server, server.build_update([aligned]), log=log)
+            logged = log.count(FRAME_LOG)
+            await exchange(server, server.build_update([aligned]))
+            await asyncio.sleep(LOG_SETTLE_S)
+            assert log.count(FRAME_LOG) == logged, "an unchanged tile was drawn again"
+            assert_shows(await device.snapshot("tiles-skip"), server)
+
+            # It is drawn again once something else drew over part of it: an off-grid tile, or
+            # raw rows that start in another cell. A tile off the grid spans several cells and
+            # is never skipped, even when the overlap is in a cell other than its first.
+            failures = []
+            for i, (tile, overwrite) in enumerate(
+                [
+                    (aligned, (10, 10, 16, 16, "hextile")),
+                    (aligned, (8, 20, 12, 6, "raw")),
+                    ((5, 3, 16, 16, "hextile"), aligned),
+                ]
+            ):
+                fill_noise(server, *tile[:4], seed=10 + i)
+                await exchange(server, server.build_update([tile]))
+                server.fill_rect(*overwrite[:4], (255, 255, 0))
+                await exchange(server, server.build_update([overwrite]))
+                fill_noise(server, *tile[:4], seed=10 + i)
+                await exchange(server, server.build_update([tile]))
+                try:
+                    assert_shows(await device.snapshot(f"tiles-{i}"), server)
+                except AssertionError as err:
+                    failures.append(
+                        f"tile {tile[:4]}, {overwrite[4]} {overwrite[:4]}: {err}"
+                    )
+            assert not failures, (
+                "a skipped tile left pixels another rect had drawn over it: "
+                + "; ".join(failures)
+            )
 
             assert server.protocol_errors == []
             assert log.count(LONG_OPERATION) == 0

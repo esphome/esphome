@@ -4,6 +4,7 @@
 #include "pvvx_display.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::pvvx_mithermometer {
 
@@ -111,12 +112,9 @@ void PVVXDisplay::display() {
            this->parent_->address_str(), this->bignum_, this->smallnum_, this->cfg_, this->validity_period_);
   uint8_t blk[8] = {};
   blk[0] = 0x22;
-  blk[1] = this->bignum_ & 0xff;
-  blk[2] = (this->bignum_ >> 8) & 0xff;
-  blk[3] = this->smallnum_ & 0xff;
-  blk[4] = (this->smallnum_ >> 8) & 0xff;
-  blk[5] = this->validity_period_ & 0xff;
-  blk[6] = (this->validity_period_ >> 8) & 0xff;
+  put_le16(blk + 1, this->bignum_);
+  put_le16(blk + 3, this->smallnum_);
+  put_le16(blk + 5, this->validity_period_);
   blk[7] = this->cfg_;
   this->send_to_setup_char_(blk, sizeof(blk));
 }
@@ -181,10 +179,7 @@ void PVVXDisplay::sync_time_() {
   uint8_t blk[5] = {};
   ESP_LOGD(TAG, "[%s] Sync time with timestamp %" PRIu64 ".", this->parent_->address_str(), time.timestamp);
   blk[0] = 0x23;
-  blk[1] = time.timestamp & 0xff;
-  blk[2] = (time.timestamp >> 8) & 0xff;
-  blk[3] = (time.timestamp >> 16) & 0xff;
-  blk[4] = (time.timestamp >> 24) & 0xff;
+  put_le32(blk + 1, time.timestamp);
   this->send_to_setup_char_(blk, sizeof(blk));
 }
 #endif

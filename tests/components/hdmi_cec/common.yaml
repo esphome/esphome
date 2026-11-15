@@ -9,6 +9,9 @@ hdmi_cec:
         - hdmi_cec.send:
             destination: !lambda return source;
             data: [0x90, 0x01]  # Report Power Status: standby
+        - hdmi_cec.send:
+            destination: 0x0
+            data: !lambda return {0x90, 0x01};
     - opcode: 0x8C  # Give Device Vendor ID
       then:
         - lambda: |-

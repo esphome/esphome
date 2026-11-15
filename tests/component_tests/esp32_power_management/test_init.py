@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.const import CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
     KEY_VARIANT,
     VARIANT_ESP32,
@@ -25,7 +26,7 @@ from esphome.components.esp32_power_management.power_management import (
     to_code,
     valid_min_frequencies,
 )
-from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_POLL_PERIOD
+from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.const import CONF_OPENTHREAD, KEY_FRAMEWORK_VERSION, PlatformFramework
 from esphome.core import CORE, TimePeriodMilliseconds
 from esphome.types import ConfigType

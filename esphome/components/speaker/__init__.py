@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
 from esphome.const import CONF_AUDIO_DAC, CONF_DATA, CONF_ID, CONF_VOLUME
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
@@ -16,13 +16,25 @@ speaker_ns = cg.esphome_ns.namespace("speaker")
 
 Speaker = speaker_ns.class_("Speaker")
 
-PlayAction = speaker_ns.class_(
-    "PlayAction", automation.Action, cg.Parented.template(Speaker)
-)
+
+def get_audio_dac_ids(config):
+    """Return the audio DAC ids of a speaker config: none, the single id, or the list."""
+    audio_dac_ids = config.get(CONF_AUDIO_DAC)
+    if audio_dac_ids is None:
+        return []
+    return audio_dac_ids if isinstance(audio_dac_ids, list) else [audio_dac_ids]
 
 
 async def setup_speaker_core_(var, config):
-    await cg.add_variable(var.set_audio_dac, config.get(CONF_AUDIO_DAC))
+    if audio_dacs := get_audio_dac_ids(config):
+        dacs = [await cg.get_variable(dac_id) for dac_id in audio_dacs]
+        table = cg.shared_progmem_array(
+            "speaker_audio_dacs",
+            audio_dac.AudioDac.operator("ptr"),
+            cg.ArrayInitializer(*dacs),
+            constexpr=False,
+        )
+        cg.add(var.set_audio_dacs(table, len(dacs)))
 
 
 async def register_speaker(var, config):
@@ -31,9 +43,26 @@ async def register_speaker(var, config):
     await setup_speaker_core_(var, config)
 
 
+def _unique_audio_dacs(value):
+    # a repeated DAC would get every volume, mute and audio start write twice
+    if len(set(value)) != len(value):
+        raise cv.Invalid("Each audio_dac can only be listed once")
+    return value
+
+
 SPEAKER_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
     {
-        cv.Optional(CONF_AUDIO_DAC): cv.use_id(audio_dac.AudioDac),
+        # one id as before (kept as a single value), or a list of DACs fed by this speaker's audio output that all
+        # get the same volume and mute
+        # the list comes first so a bad list reports its own error
+        cv.Optional(CONF_AUDIO_DAC): cv.Any(
+            cv.All(
+                [cv.use_id(audio_dac.AudioDac)],
+                cv.Length(min=1),
+                _unique_audio_dacs,
+            ),
+            cv.use_id(audio_dac.AudioDac),
+        ),
     }
 )
 
@@ -42,9 +71,8 @@ SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "speaker.play",
-    PlayAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Speaker),
@@ -52,22 +80,8 @@ SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "play({})"),
 )
-async def speaker_play_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
-    return var
 
 
 for _name, _call in (

@@ -7,3 +7,7 @@ climate:
     min_temperature: 18
     max_temperature: 30
     transmitter_id: xmitr
+
+  - platform: ballu
+    name: Ballu Climate
+    transmitter_id: xmitr

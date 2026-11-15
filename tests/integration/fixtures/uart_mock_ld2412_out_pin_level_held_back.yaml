@@ -1,0 +1,66 @@
+esphome:
+  name: uart-mock-ld2412-outpin-held
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Answers only the second basic configuration query, and only inside configuration mode, so the select
+# must hold its write back and ask again the way a real module expects
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  on_tx:
+    - then:
+        - lambda: |-
+            // The length and command word arrive as one write of their own
+            static const std::vector<uint8_t> BASIC_CONF_QUERY = {0x02, 0x00, 0x12, 0x00};
+            static const std::vector<uint8_t> ENABLE_CONF = {0x04, 0x00, 0xFF, 0x00};
+            static const std::vector<uint8_t> DISABLE_CONF = {0x02, 0x00, 0xFE, 0x00};
+            static bool config_mode = false;
+            static int queries = 0;
+            if (data == ENABLE_CONF) {
+              config_mode = true;
+              return;
+            }
+            if (data == DISABLE_CONF) {
+              config_mode = false;
+              return;
+            }
+            if (data != BASIC_CONF_QUERY || !config_mode || ++queries != 2) {
+              return;
+            }
+            id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{
+                0xFD, 0xFC, 0xFB, 0xFA,  // header
+                0x09, 0x00,              // length 9
+                0x12, 0x01,              // answer to command 0x0012
+                0x00, 0x00,              // status: success
+                0x03, 0x09,              // min and max gate
+                0x0A, 0x00,              // timeout 10 s
+                0x01,                    // output pin level: low
+                0x04, 0x03, 0x02, 0x01,  // footer
+            });
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+# No numbers on purpose: the select must resend what the module reported for them
+select:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    out_pin_level:
+      name: "Out Pin Level"

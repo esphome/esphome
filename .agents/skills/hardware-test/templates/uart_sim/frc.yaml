@@ -1,0 +1,6 @@
+# Run file for build c; copy it as frcbase.yaml with name frcbase for the base build.
+esphome:
+  name: frc
+packages:
+  common: !include fr-common.yaml
+  parts: !include frc-parts.yaml

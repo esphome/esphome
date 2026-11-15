@@ -3,6 +3,7 @@
 #ifdef USE_RUNTIME_IMAGE_BMP
 
 #include "esphome/components/display/display.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -11,6 +12,9 @@
 namespace esphome::runtime_image {
 
 ESPHOME_LOG_TAG(TAG, "image_decoder.bmp");
+
+// BMP has no alpha. Every pixel is drawn opaque, or a transparent image would hide it
+static constexpr Color OPAQUE_BLACK(0, 0, 0, 0xFF);
 
 void BmpDecoder::reset() {
   ImageDecoder::reset();
@@ -142,23 +146,31 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     this->current_index_ = this->data_offset_;
     index = this->data_offset_;
   }
+  // A call that has run for DECODE_TIME_LIMIT_MS stops, and the caller passes the rest again later
+  const uint32_t start = millis();
+  uint32_t steps = 0;
+  auto out_of_time = [start, &steps]() {
+    return ++steps % DECODE_TIME_CHECK_STEPS == 0 && millis() - start >= DECODE_TIME_LIMIT_MS;
+  };
+  // Bytes after the last pixel are used up without drawing anything
+  const size_t total_pixels = static_cast<size_t>(this->width_) * this->height_;
   switch (this->bits_per_pixel_) {
     case 1: {
       size_t width = static_cast<size_t>(this->width_);
-      while (index < size) {
+      while (index < size && this->paint_index_ < total_pixels) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t remaining_in_row = width - x;
         uint8_t pixels_in_byte = std::min<size_t>(remaining_in_row, 8);
         bool end_of_row = remaining_in_row <= 8;
         size_t needed = 1 + (end_of_row ? this->padding_bytes_ : 0);
-        if (index + needed > size) {
+        if (index + needed > size || out_of_time()) {
           this->decoded_bytes_ += index;
           return index;
         }
         uint8_t current_byte = buffer[index];
         for (uint8_t i = 0; i < pixels_in_byte; i++) {
-          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
+          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : OPAQUE_BLACK;
           this->draw(x + i, y, 1, 1, c);
         }
         this->paint_index_ += pixels_in_byte;
@@ -175,11 +187,11 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     case 8: {
       size_t width = static_cast<size_t>(this->width_);
       size_t last_col = width - 1;
-      while (index < size) {
+      while (index < size && this->paint_index_ < total_pixels) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 1 + ((x == last_col) ? this->padding_bytes_ : 0);
-        if (index + needed > size) {
+        if (index + needed > size || out_of_time()) {
           this->decoded_bytes_ += index;
           return index;
         }
@@ -194,7 +206,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         uint8_t b = rgb & 0xff;
         uint8_t g = (rgb >> 8) & 0xff;
         uint8_t r = (rgb >> 16) & 0xff;
-        this->draw(x, y, 1, 1, Color(r, g, b));
+        this->draw(x, y, 1, 1, Color(r, g, b, 0xFF));
         this->paint_index_++;
         this->current_index_++;
         index++;
@@ -208,18 +220,18 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     case 24: {
       size_t width = static_cast<size_t>(this->width_);
       size_t last_col = width - 1;
-      while (index < size) {
+      while (index < size && this->paint_index_ < total_pixels) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 3 + ((x == last_col) ? this->padding_bytes_ : 0);
-        if (index + needed > size) {
+        if (index + needed > size || out_of_time()) {
           this->decoded_bytes_ += index;
           return index;
         }
         uint8_t b = buffer[index];
         uint8_t g = buffer[index + 1];
         uint8_t r = buffer[index + 2];
-        this->draw(x, y, 1, 1, Color(r, g, b));
+        this->draw(x, y, 1, 1, Color(r, g, b, 0xFF));
         this->paint_index_++;
         this->current_index_ += 3;
         index += 3;

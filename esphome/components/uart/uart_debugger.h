@@ -36,11 +36,13 @@ class UARTDebugger final : public Component, public Trigger<UARTDirection, std::
   /// this timeout, logging will be triggered.
   void set_after_timeout(uint32_t timeout) { this->after_timeout_ = timeout; }
 
-  /// Add a delimiter byte. This can be called multiple times to setup a
-  /// multi-byte delimiter (a typical example would be '\r\n').
-  /// When the constructed byte sequence is found in the data stream,
-  /// logging will be triggered.
-  void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
+  /// Set a delimiter byte sequence (a typical example would be '\r\n').
+  /// When the sequence is found in the data stream, logging will be triggered.
+  /// `delimiter` is a codegen PROGMEM table that must outlive the debugger.
+  void set_after_delimiter(const uint8_t *delimiter, uint8_t len) {
+    this->after_delimiter_ = delimiter;
+    this->after_delimiter_len_ = len;
+  }
 
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
 
@@ -51,8 +53,9 @@ class UARTDebugger final : public Component, public Trigger<UARTDirection, std::
   size_t after_bytes_;
   uint32_t after_timeout_;
   uint32_t last_time_{};
-  std::vector<uint8_t> after_delimiter_{};
-  size_t after_delimiter_pos_{};
+  const uint8_t *after_delimiter_{nullptr};
+  uint8_t after_delimiter_len_{0};
+  uint8_t after_delimiter_pos_{0};
   bool is_triggering_{false};
   StringRef debug_prefix_{};
 

@@ -1,10 +1,12 @@
 #include "bthome_ble.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 #include <array>
+#include <cinttypes>
 #include <cstring>
 #include <span>
 
@@ -31,6 +33,9 @@ static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
 static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
+// If no frame with a higher counter has been accepted for this long, a lower
+// counter is accepted again (the sensor rebooted, e.g. after a battery swap).
+static constexpr uint32_t BTHOME_REPLAY_RESYNC_MS = 10 * 60 * 1000;
 
 // Both callers are log macros (LOGCONFIG / LOGVV); below CONFIG level they
 // compile away and an ungated helper trips -Wunused-function.
@@ -156,12 +161,15 @@ void BTHomeMiThermometer::dump_config() {
   if (this->has_bindkey_) {
     char bindkey_hex[format_hex_pretty_size(BTHOME_BINDKEY_SIZE)];
     ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, BTHOME_BINDKEY_SIZE, '.'));
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+    ESP_LOGCONFIG(TAG, "  Replay Protection: %s", YESNO(this->replay_protection_));
+#endif
   }
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
-  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
-  LOG_SENSOR("  ", "Signal Strength", this->signal_strength_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
+  LOG_SENSOR("  ", "Signal Strength", this->signal_strength_sensor_);
 }
 
 bool BTHomeMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -171,8 +179,8 @@ bool BTHomeMiThermometer::parse_device(const ble_device_base::ESPBTDevice &devic
       matched = true;
     }
   }
-  if (matched && this->signal_strength_ != nullptr) {
-    this->signal_strength_->publish_state(device.get_rssi());
+  if (matched && this->signal_strength_sensor_ != nullptr) {
+    this->signal_strength_sensor_->publish_state(device.get_rssi());
   }
   return matched;
 }
@@ -252,6 +260,40 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
 #endif
   return true;
 }
+
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+// PVVX sends new data under an unchanged counter, so only an exact repeat (counter and MIC) is a duplicate and
+// earlier frames under the current counter can be replayed; the lower-counter rule is the defence. It holds only
+// while the sensor keeps being heard: after the resync window one old frame becomes the baseline and recorded
+// frames above it can follow in order, the price of recovering from a counter restart. RAM only.
+bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (counter == this->last_counter_ && mic == this->last_mic_) {
+    ESP_LOGVV(TAG, "Duplicate BTHome frame (counter %" PRIu32 ")", counter);
+    return false;
+  }
+  if (counter < this->last_counter_) {
+    if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
+      // One warning per run of rejections
+      if (this->replay_rejected_) {
+        ESP_LOGVV(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32, counter,
+                  this->last_counter_);
+      } else {
+        ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
+                 this->last_counter_);
+        this->replay_rejected_ = true;
+      }
+      return false;
+    }
+    ESP_LOGW(TAG, "BTHome counter restarted (%" PRIu32 " -> %" PRIu32 "), resync", this->last_counter_, counter);
+  }
+  this->last_counter_ = counter;
+  this->last_mic_ = mic;
+  this->last_accepted_ms_ = now;
+  this->replay_rejected_ = false;
+  return true;
+}
+#endif
 
 bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceData &service_data,
                                                const ble_device_base::ESPBTDevice &device) {
@@ -339,6 +381,17 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
     return false;
   }
 
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+  // After the MIC and address checks, so other devices never touch the state
+  if (is_encrypted && this->replay_protection_) {
+    const uint8_t *tail = data.data() + data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+    if (!this->check_replay_counter_(encode_value_le<uint32_t>(tail),
+                                     encode_value_le<uint32_t>(tail + BTHOME_COUNTER_SIZE))) {
+      return false;
+    }
+  }
+#endif
+
   if (payload_size == 0) {
     ESP_LOGVV(TAG, "BTHome payload empty after header");
     return false;
@@ -392,47 +445,47 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
         break;
       }
       case 0x01: {  // battery percentage
-        if (this->battery_level_ != nullptr) {
-          this->battery_level_->publish_state(value[0]);
+        if (this->battery_level_sensor_ != nullptr) {
+          this->battery_level_sensor_->publish_state(value[0]);
           reported = true;
         }
         break;
       }
       case 0x0C: {  // battery voltage (mV)
-        if (this->battery_voltage_ != nullptr) {
+        if (this->battery_voltage_sensor_ != nullptr) {
           const uint16_t raw = encode_uint16(value[1], value[0]);
-          this->battery_voltage_->publish_state(raw * 0.001f);
+          this->battery_voltage_sensor_->publish_state(raw * 0.001f);
           reported = true;
         }
         break;
       }
       case 0x02: {  // temperature
-        if (this->temperature_ != nullptr) {
+        if (this->temperature_sensor_ != nullptr) {
           const int16_t raw = encode_value_le<int16_t>(value);
-          this->temperature_->publish_state(raw * 0.01f);
+          this->temperature_sensor_->publish_state(raw * 0.01f);
           reported = true;
         }
         break;
       }
       case 0x03: {  // humidity
-        if (this->humidity_ != nullptr) {
+        if (this->humidity_sensor_ != nullptr) {
           const uint16_t raw = encode_uint16(value[1], value[0]);
-          this->humidity_->publish_state(raw * 0.01f);
+          this->humidity_sensor_->publish_state(raw * 0.01f);
           reported = true;
         }
         break;
       }
       case 0x45: {  // temperature (0.1C), e.g. Shelly BLU H&T
-        if (this->temperature_ != nullptr) {
+        if (this->temperature_sensor_ != nullptr) {
           const int16_t raw = encode_value_le<int16_t>(value);
-          this->temperature_->publish_state(raw * 0.1f);
+          this->temperature_sensor_->publish_state(raw * 0.1f);
           reported = true;
         }
         break;
       }
       case 0x2E: {  // humidity (uint8, 1%), e.g. Shelly BLU H&T
-        if (this->humidity_ != nullptr) {
-          this->humidity_->publish_state(value[0]);
+        if (this->humidity_sensor_ != nullptr) {
+          this->humidity_sensor_->publish_state(value[0]);
           reported = true;
         }
         break;

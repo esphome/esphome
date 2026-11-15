@@ -18,7 +18,7 @@ class TestableSSD1677 : public EPaperSSD1677 {
     this->set_reset_pin(&this->reset_pin);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
-    this->init_comparison_frame_();
+    this->init_previous_frame_();
   }
 
   bool has_comparison_frame() const { return this->sent_.is_valid(); }
@@ -243,6 +243,31 @@ TEST(EPaperSSD1677, NoComparisonFrameWhenEveryUpdateIsFull) {
   display.set_update_count(0);
   display.run_push();
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
+}
+
+/// Partial updates turned on after setup, as a switch calling set_full_update_every() does, get a
+/// comparison frame at the next reset, so the partial pushes after the next full one compare
+/// against the frame on the panel instead of falling back to EPaperMono's transfer.
+TEST(EPaperSSD1677, PartialUpdatesTurnedOnAfterSetupGetAComparisonFrame) {
+  TestableSSD1677 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+  ASSERT_FALSE(display.has_comparison_frame());
+
+  display.set_full_update_every(5);
+  display.set_update_count(0);
+  EXPECT_FALSE(display.reset_in(EPaperState::RESET));
+  EXPECT_TRUE(display.reset_in(EPaperState::RESET_END));
+  EXPECT_TRUE(display.has_comparison_frame());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.run_push();
+  bus.clear();
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_update_count(1);
+  display.run_push();
+  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
 }
 
 }  // namespace esphome::epaper_spi::testing

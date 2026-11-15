@@ -1259,17 +1259,11 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
     warning must fire exactly once per entity regardless of how many writes happen.
     """
 
-    warn_count = 0
-
-    def line_callback(line: str) -> None:
-        nonlocal warn_count
-        if "write_lambda buffer" in line:
-            warn_count += 1
-
+    waiter = LineWaiter()
     tracker = SensorTracker(["written_value"])
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities = await tracker.setup_and_start_scenario(client)
@@ -1286,6 +1280,7 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
             tracker.expect("written_value", 222), "written_value", timeout=4.0
         )
 
+    warn_count = waiter.count("write_lambda buffer")
     assert warn_count == 1, (
         f"deprecation warning should fire exactly once per entity, got {warn_count}"
     )

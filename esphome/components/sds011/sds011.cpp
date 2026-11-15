@@ -167,16 +167,8 @@ void SDS011Component::parse_data_() {
     // not yet any valid data
     return;
   }
-  if (this->pm_2_5_sensor_ != nullptr) {
-    this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-  }
-  if (this->pm_10_0_sensor_ != nullptr) {
-    this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
-  }
-}
-
-void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
-  this->update_interval_min_ = update_interval_min;
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5_concentration);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0_concentration);
 }
 
 }  // namespace esphome::sds011

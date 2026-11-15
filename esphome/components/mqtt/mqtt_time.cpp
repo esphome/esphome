@@ -17,7 +17,7 @@ using namespace esphome::datetime;
 MQTTTimeComponent::MQTTTimeComponent(TimeEntity *time) : time_(time) {}
 
 void MQTTTimeComponent::setup() {
-  this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
+  this->subscribe_json(this->command_topic_source_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->time_->make_call();
     if (root[ESPHOME_F("hour")].is<uint8_t>()) {
       call.set_hour(root[ESPHOME_F("hour")]);
@@ -40,7 +40,12 @@ MQTT_COMPONENT_TYPE(MQTTTimeComponent, "time")
 const EntityBase *MQTTTimeComponent::get_entity() const { return this->time_; }
 
 void MQTTTimeComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // Nothing extra to add here
+  // Home Assistant sends and expects ISO "HH:MM:SS", while state and command payloads here are JSON
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  root[MQTT_VALUE_TEMPLATE] =
+      ESPHOME_F("{{ '%02d:%02d:%02d' | format(value_json.hour, value_json.minute, value_json.second) }}");
+  root[MQTT_COMMAND_TEMPLATE] =
+      ESPHOME_F("{\"hour\":{{ value.hour }},\"minute\":{{ value.minute }},\"second\":{{ value.second }}}");
 }
 bool MQTTTimeComponent::send_initial_state() {
   if (this->time_->has_state()) {

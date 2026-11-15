@@ -92,10 +92,8 @@ void DPS310Component::update() {
 
 void DPS310Component::read_() {
   uint8_t reg = 0;
-  if (!this->read_byte(DPS310_REG_MEAS_CFG, &reg)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_byte(DPS310_REG_MEAS_CFG, &reg)))
     return;
-  }
 
   if ((!this->got_pres_) && (reg & DPS310_BIT_PRS_RDY)) {
     this->read_pressure_();
@@ -118,20 +116,16 @@ void DPS310Component::read_() {
 
 void DPS310Component::read_pressure_() {
   uint8_t bytes[3];
-  if (!this->read_bytes(DPS310_REG_PRS_B2, bytes, 3)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes(DPS310_REG_PRS_B2, bytes, 3)))
     return;
-  }
   this->got_pres_ = true;
   this->raw_pressure_ = sign_extend<24>(encode_uint24(bytes[0], bytes[1], bytes[2]));
 }
 
 void DPS310Component::read_temperature_() {
   uint8_t bytes[3];
-  if (!this->read_bytes(DPS310_REG_TMP_B2, bytes, 3)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->read_bytes(DPS310_REG_TMP_B2, bytes, 3)))
     return;
-  }
   this->got_temp_ = true;
   this->raw_temperature_ = sign_extend<24>(encode_uint24(bytes[0], bytes[1], bytes[2]));
 }
@@ -150,12 +144,8 @@ void DPS310Component::calculate_values_(int32_t raw_temperature, int32_t raw_pre
                           t_raw_sc * this->c01_ + t_raw_sc * p_raw_sc * (this->c11_ + p_raw_sc * this->c21_)) /
                          100;  // divide by 100 for hPa
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature);
-  }
-  if (this->pressure_sensor_ != nullptr) {
-    this->pressure_sensor_->publish_state(pressure);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
 }
 
 }  // namespace esphome::dps310

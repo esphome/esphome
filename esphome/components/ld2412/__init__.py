@@ -17,8 +17,6 @@ CONF_LD2412_ID = "ld2412_id"
 
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
-CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
-CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 
 CONFIG_SCHEMA = (
     cv.Schema(

@@ -266,14 +266,24 @@ def _convert_pio_libs(
     in the real esp32 build; converting them too would give IDF the same requirement
     twice. Arduino below IDF 6.0 has them rule-gated off, so there they convert.
     """
-    from esphome.components.esp32 import arduino_bundles_libsodium
+    from esphome.components.esp32 import (
+        ARDUINO_DISABLED_LIBRARIES,
+        arduino_bundles_libsodium,
+    )
     from esphome.espidf.component import generate_idf_components
 
     libraries = _parse_lib_deps(platformio_ini, framework)
     # Same rule as noise._use_managed_components and the manifest
     managed = set() if arduino_bundles_libsodium() else _esphome_manifest_deps()
     deps: dict[str, dict[str, str]] = {}
-    for component in generate_idf_components(libraries, managed=managed):
+    # As in the real esp32 build, a dependency on an Arduino-bundled library is
+    # left to arduino-esp32 instead of being fetched from the registry
+    provides = (
+        ARDUINO_DISABLED_LIBRARIES.__contains__ if framework == "arduino" else None
+    )
+    for component in generate_idf_components(
+        libraries, managed=managed, provides=provides
+    ):
         deps[component.get_sanitized_name()] = {"override_path": str(component.path)}
     return deps
 
