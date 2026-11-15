@@ -5,8 +5,10 @@
 
 namespace esphome::wifi {
 
-// Switching APs calls esp_wifi_disconnect(), which queues an association-leave event from the old AP. Remembers
-// that AP so its leave event does not end the connection attempt started after it. Platform free for host tests.
+// Switching APs calls esp_wifi_disconnect(), which queues a leave event for the old AP, or with no BSSID for an
+// attempt that never associated. Remembers it so that event does not end the connection attempt started after it.
+// When the driver posts no such event, the next real disconnect clears the expectation without matching it.
+// Platform free for host tests.
 class ExpectedDisconnect {
  public:
   void arm(const uint8_t *bssid) {

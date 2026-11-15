@@ -10,6 +10,8 @@ namespace {
 
 constexpr uint8_t OLD_AP[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
 constexpr uint8_t NEW_AP[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x02};
+// What the driver reports for an attempt that never associated
+constexpr uint8_t NO_AP[6] = {};
 
 ExpectedDisconnect armed() {
   ExpectedDisconnect expected;
@@ -109,7 +111,6 @@ TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
 TEST(ExpectedDisconnectTest, DisconnectWithoutApExpectsTheAttemptsLeave) {
   ExpectedDisconnect expected;
   ASSERT_TRUE(expected.disconnect_and_expect_leave([](uint8_t *) { return false; }, []() { return true; }));
-  constexpr uint8_t NO_AP[6] = {};
   // The driver reports the attempt it was making as left, with no BSSID, after the next one starts
   EXPECT_TRUE(expected.consume_disconnect(NO_AP, true));
   EXPECT_FALSE(expected.consume_disconnect(NO_AP, true));
@@ -118,7 +119,6 @@ TEST(ExpectedDisconnectTest, DisconnectWithoutApExpectsTheAttemptsLeave) {
 TEST(ExpectedDisconnectTest, AttemptLeaveExpectationEndsOnARealFailure) {
   ExpectedDisconnect expected;
   ASSERT_TRUE(expected.disconnect_and_expect_leave([](uint8_t *) { return false; }, []() { return true; }));
-  constexpr uint8_t NO_AP[6] = {};
   // Probe failure (no leave) of the new attempt: real, and nothing stays expected
   EXPECT_FALSE(expected.consume_disconnect(NO_AP, false));
   EXPECT_FALSE(expected.consume_disconnect(NO_AP, true));
