@@ -57,6 +57,9 @@ inline uint8_t num_outputs = 0;
 inline bool armed = false;
 // Counts bsec_get_state calls, which the component makes only when it saves its state.
 inline int get_state_calls = 0;
+// The blob and length the last bsec_set_configuration call received.
+inline uint8_t config[BSEC_MAX_PROPERTY_BLOB_SIZE]{};
+inline uint32_t config_size = 0;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 inline void arm(const bsec_output_t *reading, uint8_t count) {
@@ -71,7 +74,11 @@ inline bsec_library_return_t bsec_get_version(bsec_version_t *version) {
   *version = {};
   return BSEC_OK;
 }
-inline bsec_library_return_t bsec_set_configuration(const uint8_t *, uint32_t, uint8_t *, uint32_t) { return BSEC_OK; }
+inline bsec_library_return_t bsec_set_configuration(const uint8_t *config, uint32_t size, uint8_t *, uint32_t) {
+  std::memcpy(bsec_double::config, config, size < sizeof(bsec_double::config) ? size : sizeof(bsec_double::config));
+  bsec_double::config_size = size;
+  return BSEC_OK;
+}
 inline bsec_library_return_t bsec_update_subscription(const bsec_sensor_configuration_t *, uint8_t,
                                                       bsec_sensor_configuration_t *, uint8_t *) {
   return BSEC_OK;
