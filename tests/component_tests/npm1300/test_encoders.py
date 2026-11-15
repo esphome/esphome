@@ -54,10 +54,10 @@ def test_termination_voltage_gap_rejected(voltage: str) -> None:
         CHARGER_SCHEMA({"charge_current": "100mA", "termination_voltage": voltage})
 
 
-def test_warm_termination_defaults_to_termination() -> None:
+def test_warm_termination_defaults_to_reset_value() -> None:
     fields = _charger({"charge_current": "100mA", "termination_voltage": "4.1V"})
     assert fields["termination_voltage"] == "6"
-    assert fields["warm_termination_voltage"] == "6"
+    assert fields["warm_termination_voltage"] == "2"
 
 
 def test_warm_termination_code() -> None:
