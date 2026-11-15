@@ -110,10 +110,10 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_BATTERY_TEMPERATURE not in config:
         return
     hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
-    if hub[CONF_THERMISTOR_RESISTANCE] == THERMISTOR_NONE:
+    if hub.get(CONF_THERMISTOR_RESISTANCE, THERMISTOR_NONE) == THERMISTOR_NONE:
         raise cv.Invalid(
-            f"'{CONF_BATTERY_TEMPERATURE}' needs a thermistor; "
-            f"'{CONF_THERMISTOR_RESISTANCE}' is '{THERMISTOR_NONE}'",
+            f"'{CONF_BATTERY_TEMPERATURE}' needs '{CONF_THERMISTOR_RESISTANCE}' set to the "
+            "nominal resistance of the battery thermistor on the npm1300 component",
             path=[CONF_BATTERY_TEMPERATURE],
         )
 

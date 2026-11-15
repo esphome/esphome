@@ -76,7 +76,7 @@ OUTPUTS = NPM1300Output.options(
 
 # Written for a field the YAML leaves out
 NPM1300_UNSET = 0xFF
-# ADCNTCRSEL codes, by kiloohms (reset value: 10 kOhm)
+# ADCNTCRSEL codes, by kiloohms
 THERMISTOR_NONE = "none"
 THERMISTOR_RESISTANCES = {10: 1, 47: 2, 100: 3}
 # B25/50 of the thermistors the product specification lists for each resistance, by kiloohms
@@ -198,14 +198,23 @@ CHARGER_SCHEMA = cv.Schema(
 )
 
 
-CONFIG_SCHEMA = (
+def _check_thermistor(config: ConfigType) -> ConfigType:
+    """A wrong thermistor shifts the battery temperature the charger sees, so charging needs one chosen."""
+    if CONF_CHARGER in config and CONF_THERMISTOR_RESISTANCE not in config:
+        raise cv.Invalid(
+            f"'{CONF_THERMISTOR_RESISTANCE}' is required with '{CONF_CHARGER}': set the nominal "
+            f"resistance of the battery thermistor, or '{THERMISTOR_NONE}'",
+            path=[CONF_THERMISTOR_RESISTANCE],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(NPM1300Component),
             cv.Optional(CONF_VBUS_CURRENT_LIMIT): VBUS_CURRENT_LIMIT,
-            cv.Optional(
-                CONF_THERMISTOR_RESISTANCE, default="10kOhm"
-            ): _thermistor_resistance,
+            cv.Optional(CONF_THERMISTOR_RESISTANCE): _thermistor_resistance,
             cv.Optional(CONF_THERMISTOR_BETA): cv.int_range(min=1, max=65535),
             cv.Optional(CONF_CHARGER): CHARGER_SCHEMA,
             cv.Optional(CONF_BUCK1): BUCK_SCHEMA,
@@ -215,7 +224,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x6B))
+    .extend(i2c.i2c_device_schema(0x6B)),
+    _check_thermistor,
 )
 
 
@@ -265,8 +275,14 @@ def _output_config(config: ConfigType | None) -> cg.StructInitializer:
 
 def _config(config: ConfigType) -> cg.StructInitializer:
     charger = config.get(CONF_CHARGER)
-    resistance = config[CONF_THERMISTOR_RESISTANCE]
-    no_thermistor = resistance == THERMISTOR_NONE
+    resistance = config.get(CONF_THERMISTOR_RESISTANCE)
+    if resistance is None:
+        thermistor, beta = NPM1300_UNSET, 0
+    elif resistance == THERMISTOR_NONE:
+        thermistor, beta = 0, 0
+    else:
+        thermistor = THERMISTOR_RESISTANCES[round(resistance / 1000)]
+        beta = thermistor_beta(config)
     return cg.StructInitializer(
         NPM1300Config,
         (
@@ -274,11 +290,8 @@ def _config(config: ConfigType) -> cg.StructInitializer:
             cg.ArrayInitializer(*(_output_config(config.get(key)) for key in OUTPUTS)),
         ),
         ("charger", None if charger is None else _charger_config(charger)),
-        ("thermistor_beta", 0 if no_thermistor else thermistor_beta(config)),
-        (
-            "thermistor",
-            0 if no_thermistor else THERMISTOR_RESISTANCES[round(resistance / 1000)],
-        ),
+        ("thermistor_beta", beta),
+        ("thermistor", thermistor),
         ("charger_configured", charger is not None),
     )
 

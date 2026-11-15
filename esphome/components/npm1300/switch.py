@@ -45,6 +45,13 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_CHARGER not in config:
         return
     hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
+    # A wrong thermistor shifts the battery temperature the charger sees
+    if CONF_THERMISTOR_RESISTANCE not in hub:
+        raise cv.Invalid(
+            f"The '{CONF_CHARGER}' switch needs '{CONF_THERMISTOR_RESISTANCE}' on the npm1300 "
+            f"component: the nominal resistance of the battery thermistor, or '{THERMISTOR_NONE}'",
+            path=[CONF_CHARGER],
+        )
     # Only the charger block turns off the NTC check, without which the charger never starts
     if CONF_CHARGER not in hub and hub[CONF_THERMISTOR_RESISTANCE] == THERMISTOR_NONE:
         raise cv.Invalid(
