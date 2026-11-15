@@ -3,7 +3,7 @@ Rapid native API connect/disconnect stress test (from esphome#14687 and esphome#
 
 usage: connstress.py HOST [ITERATIONS] [CONCURRENCY]   (default 500 iterations, 4 at a time)
 env:   API_KEY (base64 noise key; unset, empty or - for plaintext), API_PORT (default 6053), API_PASSWORD
-Each attempt connects with login, disconnects and counts a failure on any error or a 10 s timeout.
+Each attempt connects with login, disconnects and counts a failure on any error or a 10 s timeout on either step.
 Exits 1 when any attempt failed. Watch the serial log for crashes: the client only sees resets.
 """
 
@@ -27,7 +27,8 @@ async def connect_disconnect(client_id: int, iteration: int) -> tuple[int, bool,
     cli = APIClient(HOST, PORT, PASSWORD, noise_psk=NOISE_PSK)
     try:
         await asyncio.wait_for(cli.connect(login=True), timeout=10)
-        await cli.disconnect()
+        # a disconnect that hangs on a wedged device is a failure too, not a stuck slot
+        await asyncio.wait_for(cli.disconnect(), timeout=10)
         return iteration, True, ""
     except Exception as e:  # noqa: BLE001  every failure is a counted result
         return (
@@ -37,7 +38,7 @@ async def connect_disconnect(client_id: int, iteration: int) -> tuple[int, bool,
         )
     finally:
         with contextlib.suppress(Exception):
-            await cli.disconnect(force=True)
+            await asyncio.wait_for(cli.disconnect(force=True), timeout=10)
 
 
 async def main() -> None:
