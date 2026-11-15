@@ -651,3 +651,25 @@ def test_unnamed_constants_discarded_unique_user_does_not_vouch(obj_dir: Path) -
     ):
         analyzer._analyze_object_rodata()
     assert analyzer._unnamed_constants == []
+
+
+def test_unnamed_constants_single_object(tmp_path: Path) -> None:
+    """With one object readelf prints no File: header; its constants are still found."""
+    single = tmp_path / "obj" / "src" / "only.cpp.o"
+    single.parent.mkdir(parents=True)
+    single.touch()
+    analyzer, _ = _esp8266_analyzer(tmp_path / "obj", {SETUP})
+    headers = HEADERS_AND_SYMBOLS.split("File: {web}", maxsplit=1)[0].replace(
+        "File: {light}\n", ""
+    )
+
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        if "-SW" in cmd:
+            assert cmd[-1] == str(single)
+            return completed(headers.format(bind="GLOBAL", setup=SETUP, save=SAVE))
+        return completed(LIGHT_OBJECT_DUMP)
+
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        analyzer._analyze_object_rodata()
+    (constant,) = analyzer._unnamed_constants
+    assert (constant.size, constant.source_file) == (44, "src/only.cpp.o")
