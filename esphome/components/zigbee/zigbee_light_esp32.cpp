@@ -7,6 +7,7 @@
 
 namespace esphome::zigbee {
 
+static constexpr uint32_t RECOVER_LEVEL_RETRY_TIMEOUT_ID = 0;
 ESPHOME_LOG_TAG(TAG, "zigbee.light");
 
 void ZigbeeLight::on_light_remote_values_update() {
@@ -152,8 +153,14 @@ void ZigbeeLight::apply_on_off_(bool on) {
   }
   this->next_call_.set_state(on);
   ESP_LOGD(TAG, "set state");
-  if (!on) {                                 // recover level
-    esp_zigbee_lock_acquire(portMAX_DELAY);  // Todo: limit time?
+  if (!on) {
+    // the zigbee sdk always sets brightness to the minimum while turning off (fade out).
+    // Afterwards the attribute restores the previous level, but the application is not notified.
+    if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
+      // in case lock fails (unlikely), retry in 50 ms
+      this->set_timeout(RECOVER_LEVEL_RETRY_TIMEOUT_ID, 50, [on, this]() { this->apply_on_off_(on); });
+      return;
+    }
     if (ezb_zcl_get_cluster_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER) != NULL) {
       ezb_zcl_attr_desc_t current_level =
           ezb_zcl_get_attr_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
@@ -207,8 +214,8 @@ void ZigbeeLight::apply_color_() {
     if (xy_to_rgb(this->x_, this->y_, r, g, b)) {
       this->next_call_.set_rgb(r, g, b);
       this->next_call_.set_color_brightness(1);
-      this->next_call_.set_white_if_supported(0);
-      // this->next_call_.set_color_mode(light::ColorMode::RGB);
+      this->next_call_.set_white(0);
+      this->next_call_.set_color_mode_if_supported(light::ColorMode::RGB);
       ESP_LOGD(TAG, "set color: %f, %f, %f", r, g, b);
       this->schedule_call_();
     }
@@ -223,7 +230,8 @@ void ZigbeeLight::apply_ct_(uint16_t ct) {
   this->next_call_.set_color_temperature(convert_color_temp(ct));
   this->next_call_.set_color_brightness_if_supported(0);
   this->next_call_.set_white(1);
-  // this->next_call_.set_color_mode(light::ColorMode::COLOR_TEMPERATURE);
+  this->next_call_.set_color_mode_if_supported(light::ColorMode::COLD_WARM_WHITE);
+  this->next_call_.set_color_mode_if_supported(light::ColorMode::COLOR_TEMPERATURE);
   ESP_LOGD(TAG, "set color temp: %f", convert_color_temp(ct));
   this->schedule_call_();
 }
