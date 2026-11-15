@@ -111,12 +111,10 @@ void ZigbeeLight::setup() {
                           EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, ct);
       uint16_t min_ct = convert_color_temp(traits.get_min_mireds());
       uint16_t max_ct = convert_color_temp(traits.get_max_mireds());
-      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MIN_MIREDS_ID, 0,
-                          min_ct);
-      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MAX_MIREDS_ID, 0,
-                          max_ct);
+      this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
+                          EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MIN_MIREDS_ID, 0, min_ct);
+      this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
+                          EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MAX_MIREDS_ID, 0, max_ct);
     }
   }
 }
@@ -361,13 +359,15 @@ void ZigbeeLight::set_attr_internal() {
         ct = get_color_temp(values.get_warm_white(), values.get_cold_white(), traits.get_min_mireds(),
                             traits.get_max_mireds());
       }
-      ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                             EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, EZB_ZCL_STD_MANUF_CODE, &ct,
-                             false);
+      if (ct > 0) {
+        ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
+                               EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, EZB_ZCL_STD_MANUF_CODE, &ct,
+                               false);
+        ESP_LOGI(TAG, "Set color temp: %u", ct);
+      }
       uint8_t mode = 0x02;
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
                              EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_MODE_ID, EZB_ZCL_STD_MANUF_CODE, &mode, false);
-      ESP_LOGI(TAG, "Set color temp: %u", ct);
     }
     // cleared before report_() so it can disable the loop
     // when the report has to wait for join

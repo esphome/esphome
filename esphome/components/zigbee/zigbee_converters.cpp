@@ -34,7 +34,10 @@ float convert_color_temp(uint16_t ct) {
 }
 
 uint16_t get_color_temp(float ww, float cw, float min_mireds, float max_mireds) {
-  return convert_color_temp(ww / (ww + cw) * (max_mireds - min_mireds) + min_mireds);
+  float sum = ww + cw;
+  if (sum <= 0.0f)
+    return 0;  // caller skips the write on 0
+  return convert_color_temp(ww / sum * (max_mireds - min_mireds) + min_mireds);
 }
 
 // color temperature or XY
