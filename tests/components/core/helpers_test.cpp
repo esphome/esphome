@@ -67,7 +67,7 @@ TEST(HelpersTest, EncodeUint12) {
   EXPECT_EQ(encode_uint12(0x12, 0x3), 0x123);
   EXPECT_EQ(encode_uint12(0xFF, 0xF), 0xFFF);
   EXPECT_EQ(encode_uint12(0x00, 0x0), 0x000);
-  EXPECT_EQ(encode_uint12(0x12, 0xA3), 0x123);  // bits above the low nibble are ignored
+  EXPECT_EQ(encode_uint12(0x12, 0xA3), 0x123);
   // A touch record byte packing the low nibbles of X (high) and Y (low)
   const uint8_t shared = 0x5C;
   EXPECT_EQ(encode_uint12(0x34, high_nibble(shared)), 0x345);

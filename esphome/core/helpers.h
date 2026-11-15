@@ -1160,10 +1160,10 @@ constexpr uint8_t high_nibble(uint8_t byte) { return byte >> 4; }
 /// The low 4 bits of a byte, e.g. low_nibble(0xA5) == 0x5.
 constexpr uint8_t low_nibble(uint8_t byte) { return byte & 0x0F; }
 
-/// Encode a 12-bit value from its 8 high bits and a nibble holding its 4 low bits, as touch controllers pack
-/// coordinates with the low nibbles of X and Y sharing one byte. Bits above the low 4 of \p low_bits are ignored.
-constexpr uint16_t encode_uint12(uint8_t msb, uint8_t low_bits) {
-  return (static_cast<uint16_t>(msb) << 4) | low_nibble(low_bits);
+/// Encode a 12-bit value from its high 8 and low 4 bits, e.g. encode_uint12(0x12, 0x3) == 0x123.
+/// Bits above the low 4 of \p low_bits are ignored.
+constexpr uint16_t encode_uint12(uint8_t high_bits, uint8_t low_bits) {
+  return (static_cast<uint16_t>(high_bits) << 4) | low_nibble(low_bits);
 }
 /// Encode a 16-bit value given the most and least significant byte.
 constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
