@@ -1,0 +1,33 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
+sx127x:
+  - id: transceiver_long_fixed
+    cs_pin: GPIO5
+    rst_pin: GPIO6
+    dio0_pin: GPIO7
+    dio1_pin: GPIO8
+    frequency: 433920000
+    modulation: FSK
+    bitsync: true
+    packet_mode: true
+    payload_length: 1024
+    on_packet:
+      then:
+        - lambda: 'ESP_LOGD("sx127x", "long packet %u bytes", x.size());'
+
+  - id: transceiver_long_lambda
+    cs_pin: GPIO9
+    rst_pin: GPIO10
+    dio1_pin: GPIO11
+    frequency: 868950000
+    modulation: FSK
+    bitsync: true
+    packet_mode: true
+    payload_length: !lambda |-
+      if (x.size() < 3) return 0;
+      if (x[0] != 0x54) return -1;
+      return x[2] + 12;
+    on_packet:
+      then:
+        - lambda: 'ESP_LOGD("sx127x", "lambda packet %u bytes rssi %.1f", x.size(), rssi);'

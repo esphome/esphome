@@ -47,6 +47,7 @@ CONF_SYNC_VALUE = "sync_value"
 sx127x_ns = cg.esphome_ns.namespace("sx127x")
 SX127x = sx127x_ns.class_("SX127x", cg.Component, spi.SPIDevice)
 SX127xListener = sx127x_ns.class_("SX127xListener")
+PACKET_TYPE = cg.std_vector.template(cg.uint8)
 SX127xBw = sx127x_ns.enum("SX127xBw")
 SX127xOpMode = sx127x_ns.enum("SX127xOpMode")
 SX127xPaConfig = sx127x_ns.enum("SX127xPaConfig")
@@ -275,7 +276,7 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(
             var.get_packet_trigger(),
             [
-                (cg.std_vector.template(cg.uint8), "x"),
+                (PACKET_TYPE, "x"),
                 (cg.float_, "rssi"),
                 (cg.float_, "snr"),
             ],
@@ -299,10 +300,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pa_power(config[CONF_PA_POWER]))
     cg.add(var.set_shaping(config[CONF_SHAPING]))
     cg.add(var.set_crc_enable(config[CONF_CRC_ENABLE]))
+    if is_long_packet(config):
+        cg.add_define("USE_SX127X_LONG_PACKET")
     if cg.is_template(config[CONF_PAYLOAD_LENGTH]):
         lambda_ = await cg.process_lambda(
             config[CONF_PAYLOAD_LENGTH],
-            [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
+            [(PACKET_TYPE.operator("ref").operator("const"), "x")],
             return_type=cg.int32,
         )
         cg.add(var.set_payload_length_lambda(lambda_))

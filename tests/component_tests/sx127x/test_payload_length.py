@@ -1,12 +1,14 @@
 """Tests for sx127x payload_length validation."""
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from esphome.components.sx127x import is_long_packet, validate_config
 import esphome.config_validation as cv
-from esphome.core import Lambda
+from esphome.core import CORE, Lambda
 
 LENGTH_LAMBDA = Lambda("return x.size() < 3 ? 0 : x[2] + 12;")
 
@@ -123,3 +125,24 @@ def test_payload_length_invalid(overrides: dict[str, Any], message: str) -> None
 def test_is_long_packet(overrides: dict[str, Any], expected: bool) -> None:
     """Long packet RX applies to FSK/OOK packet mode above 64 bytes or with a lambda."""
     assert is_long_packet(_config(**overrides)) is expected
+
+
+def test_long_packet_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Long packet support is only compiled in for a config that uses it."""
+    main_cpp = generate_main(component_config_path("long_packet.yaml"))
+    assert "USE_SX127X_LONG_PACKET" in {d.name for d in CORE.defines}
+    assert "->set_payload_length_lambda(" in main_cpp
+    assert "->set_dio1_pin(" in main_cpp
+
+
+def test_short_packet_has_no_long_packet_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A config without long packets leaves the support out."""
+    main_cpp = generate_main(component_config_path("packet_tables.yaml"))
+    assert "USE_SX127X_LONG_PACKET" not in {d.name for d in CORE.defines}
+    assert "->set_dio1_pin(" not in main_cpp
