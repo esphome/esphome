@@ -272,14 +272,14 @@ void ZigbeeLight::set_attr_internal() {
             ezb_err_t ret = ezb_zcl_on_off_off_cmd_req(&cmd_req);  // send off command
             esp_zigbee_lock_release();
             if (ret != EZB_ERR_NONE) {
-              ESP_LOGW(TAG, "Could not send on command: Error %u", ret);
+              ESP_LOGW(TAG, "Could not send off command: Error %u", ret);
             }
             return;  // proceed in next loop iteration so the off command is processed.
           }
           ezb_err_t ret = ezb_zcl_on_off_on_cmd_req(&cmd_req);  // send on command
           esp_zigbee_lock_release();
           if (ret != EZB_ERR_NONE) {
-            ESP_LOGW(TAG, "Could not send off command: Error %u", ret);
+            ESP_LOGW(TAG, "Could not send on command: Error %u", ret);
           }
           return;  // proceed in next loop iteration so the on command is processed.
         }
