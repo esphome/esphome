@@ -4,7 +4,7 @@
 #include <limits>
 #include <type_traits>
 
-#include "zigbee_device_base_esp32.h"
+#include "zigbee_entity_base_esp32.h"
 
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
@@ -24,11 +24,11 @@
 
 namespace esphome::zigbee {
 
-class ZigbeeAttribute final : public ZigbeeDeviceBase {
+class ZigbeeAttribute final : public ZigbeeEntityBase {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
-      : ZigbeeDeviceBase(parent, endpoint_id),
+      : ZigbeeEntityBase(parent, endpoint_id),
         cluster_id_(cluster_id),
         role_(role),
         attr_id_(attr_id),

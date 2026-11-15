@@ -1,4 +1,4 @@
-#include "zigbee_device_base_esp32.h"
+#include "zigbee_entity_base_esp32.h"
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 #ifdef USE_ESP32
@@ -6,9 +6,9 @@
 
 namespace esphome::zigbee {
 
-ESPHOME_LOG_TAG(TAG, "zigbee.device_base");
+ESPHOME_LOG_TAG(TAG, "zigbee.entity_base");
 
-void ZigbeeDeviceBase::set_report(ZigbeeReportT report) {
+void ZigbeeEntityBase::set_report(ZigbeeReportT report) {
   if (report == ZigbeeReportT::ZIGBEE_REPORT_DEFAULT || report == ZigbeeReportT::ZIGBEE_REPORT_COORDINATOR) {
     return;
   }
@@ -23,7 +23,7 @@ void ZigbeeDeviceBase::set_report(ZigbeeReportT report) {
   });
 }
 
-void ZigbeeDeviceBase::report() {
+void ZigbeeEntityBase::report() {
   if (!this->report_enabled) {
     return;
   }
@@ -31,7 +31,7 @@ void ZigbeeDeviceBase::report() {
   this->enable_loop();
 }
 
-void ZigbeeDeviceBase::loop() {
+void ZigbeeEntityBase::loop() {
   bool can_disable = this->loop_internal();
 
   if (this->set_attr_requested_) {

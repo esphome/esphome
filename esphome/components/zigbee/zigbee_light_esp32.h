@@ -6,42 +6,17 @@
 #ifdef USE_ZIGBEE
 #ifdef USE_LIGHT
 
-#include "zigbee_device_base_esp32.h"
+#include "zigbee_entity_base_esp32.h"
 #include "esphome/components/light/light_state.h"
 #include "esp_zigbee.h"
 #include "zigbee_esp32.h"
 
 namespace esphome::zigbee {
 
-template<typename T, typename Owner> class ZigbeeOnValueForwarder final : public ZigbeeAttributeInterface {
- public:
-  using Callback = void (Owner::*)(T);
-
-  ZigbeeOnValueForwarder(Owner *owner, uint8_t type, Callback callback, bool report)
-      : owner_(owner), type_(type), callback_(callback), report_(report) {}
-
-  void on_value(ezb_zcl_attribute_t attribute) override {
-    if (attribute.data.value && attribute.data.type == this->type_) {
-      (this->owner_->*this->callback_)(*static_cast<T *>(attribute.data.value));
-    }
-  }
-
-  void report() override {
-    if (this->report_)
-      this->owner_->report();
-  }
-
- protected:
-  Owner *owner_;
-  uint8_t type_;
-  Callback callback_;
-  bool report_;
-};
-
-class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValuesListener {
+class ZigbeeLight final : public ZigbeeEntityBase, public light::LightRemoteValuesListener {
  public:
   ZigbeeLight(ZigbeeComponent *parent, uint8_t endpoint_id)
-      : ZigbeeDeviceBase(parent, endpoint_id),
+      : ZigbeeEntityBase(parent, endpoint_id),
         on_off_forwarder_(this, EZB_ZCL_ATTR_TYPE_BOOL, &ZigbeeLight::apply_on_off_, true) {}
 
   void setup() override;
