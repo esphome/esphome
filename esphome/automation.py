@@ -7,6 +7,8 @@ import re
 import string
 from typing import Any
 
+import voluptuous as vol
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -457,6 +459,13 @@ def _names_parent(text: str) -> bool:
     return any(f == "parent" for _, f, _, _ in string.Formatter().parse(text))
 
 
+def _lambda_type(type_: Any, parent: str | None) -> Any:
+    """Raw C++ type text becomes an expression with ``{parent}`` filled in."""
+    if isinstance(type_, str):
+        return cg.RawExpression(type_.format(parent=parent))
+    return type_
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
@@ -592,7 +601,7 @@ def _dict_schema(schema: Any) -> Any:
         return cv.Schema(schema)
     if isinstance(getattr(schema, "schema", None), dict):
         return schema
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         inner = schema.validators
     else:
         inner = (
@@ -620,6 +629,13 @@ def _check_key_in_schema(
         if part not in markers:
             raise ValueError(f"{name}: config key {part!r} is not in the schema")
         schema = schema.schema[markers[part]]
+
+
+def _check_call_keys(
+    name: str, schema: Any, members: list[tuple[Any, Any, Any]]
+) -> None:
+    for conf_key, _, _ in members:
+        _check_key_in_schema(name, schema, conf_key)
 
 
 def parent_ref(var: MockObj) -> MockObj:
@@ -686,15 +702,17 @@ def apply_static_function(
     return_type: SafeExpType,
     params: TemplateArgsType,
     statements: list[str],
+    share: bool = False,
+    suffix: str = "fn",
 ) -> MockObj:
-    """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(
-        _apply_function_name(id_), return_type, params, statements
+    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one."""
+    return cg.shared_static_function(
+        _apply_function_name(id_, suffix), return_type, params, statements, share=share
     )
 
 
-def _apply_function_name(id_: ID) -> str:
-    return f"esphome__{id_.id}__fn"
+def _apply_function_name(id_: ID, suffix: str = "fn") -> str:
+    return f"esphome__{id_.id}__{suffix}"
 
 
 # Comments, raw strings, strings and char literals; a ' after a digit is a digit separator.
@@ -728,14 +746,15 @@ def _has_top_level_comma(code: str) -> bool:
     return False
 
 
-async def _call_user_lambda(
+async def call_user_lambda(
     value: Lambda, args: TemplateArgsType, return_type: SafeExpType
 ) -> Expression:
-    """Call a config lambda in place; a value arg its body names is a copy it may modify.
+    """Call a config lambda in an apply function's statements; a value arg its body names is a copy it may modify.
 
-    The other args are the generated function's const references, so a body that names
-    none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
+    The other args are the function's const references (``register_apply_action``, ``apply_statements_action``),
+    so a body that names none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
     name check counts a use: a needless copy is only a cost, a missed one fails to compile.
+    The result is safe as an argument or initializer; parenthesize it before using it as an operand.
     """
     code = _cpp_code_only(value.value)
     by_value = {
@@ -777,9 +796,7 @@ async def _render_call(
     exprs: list[str] = []
     for (_, type_, const_fn), value in zip(members, values, strict=True):
         if isinstance(value, Lambda):
-            if isinstance(type_, str):
-                type_ = cg.RawExpression(type_.format(parent=parent))
-            expr = await _call_user_lambda(value, args, type_)
+            expr = await call_user_lambda(value, args, _lambda_type(type_, parent))
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -840,8 +857,7 @@ def apply_action_builder(
             continue
         c = f if isinstance(f, ApplyCall) else f.call()
         members = _default_std_string(c.members, flash_string)
-        for conf_key, _, _ in members:
-            _check_key_in_schema(name, schema, conf_key)
+        _check_call_keys(name, schema, members)
         statements_spec.append((c.target, members))
     # Named like the generated function, so it cannot clash with an SDK symbol
     table_name = f"esphome__{name.replace('.', '_')}__bytes"
@@ -900,7 +916,7 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        call = await _call_user_lambda(value, args, _BYTE_VECTOR)
+        call = await call_user_lambda(value, args, _BYTE_VECTOR)
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",
@@ -958,8 +974,9 @@ async def new_value_range_trigger(
         None,
         [(cg.float_, "x")],
     )
-    apply_static_function(
-        trigger_id,
+    # The trigger above already names this function, so it must keep this exact name
+    cg.static_function(
+        _apply_function_name(trigger_id),
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
         [f"return {bounds};"],
@@ -987,8 +1004,7 @@ def register_apply_condition(
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = _default_std_string(call.members, flash_compare)
     _check_key_in_schema(name, schema, id_key)
-    for conf_key, _, _ in members:
-        _check_key_in_schema(name, schema, conf_key)
+    _check_call_keys(name, schema, members)
 
     async def builder(
         config: ConfigType,
@@ -1012,6 +1028,106 @@ def register_apply_condition(
         )
 
     register_condition(name, ApplyCondition, schema)(builder)
+
+
+# The key of a filter whose schema is a single value rather than a mapping
+WHOLE_CONFIG: tuple[str, ...] = ()
+
+
+def _apply_calls(name: str, statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+    if not statements:
+        # A non-void function with no statement would never return
+        raise ValueError(f"{name}: a filter needs at least one statement")
+    return [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
+
+
+async def _apply_value_function(
+    filter_id: ID, index: int, value: Lambda, type_: SafeExpType
+) -> cg.RawExpression:
+    """A value lambda as its own function, called from the filter's function; inlined there,
+    its ids would be shadowed by the filter's parameters, such as an id ``x``."""
+    lambda_ = await cg.process_lambda(value, [], return_type=type_)
+    fn = apply_static_function(
+        filter_id, type_, [], lambda_.body_lines, suffix=f"value{index}"
+    )
+    return cg.RawExpression(f"{fn}()")
+
+
+@dataclass(frozen=True)
+class ApplyFilterDomain:
+    """How one entity domain declares filters that are one generated function.
+
+    ``filter_class`` is the domain's ``ApplyFilter``, templated on the function, whose
+    ``params`` and ``return_type`` follow what that class passes and expects.
+    """
+
+    registry: Registry
+    filter_class: MockObjClass
+    return_type: SafeExpType
+    params: tuple[tuple[Any, str], ...]
+
+    def new(self, filter_id: ID, statements: list[str], share: bool = False) -> MockObj:
+        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements`` taking ``params``."""
+        id_ = filter_id.copy()
+        id_.type = self.filter_class
+        fn = apply_static_function(
+            id_, self.return_type, list(self.params), statements, share=share
+        )
+        return cg.new_Pvariable(id_, cg.TemplateArguments(fn))
+
+    async def build(
+        self,
+        name: str,
+        config: Any,
+        filter_id: ID,
+        *statements: str | ApplyCall,
+        schema: Any,
+    ) -> MockObj:
+        """Declare filter ``name`` as the function of ``statements`` over ``config``.
+
+        Value lambdas become their own functions; a statement whose keys are all absent is skipped,
+        except the last; ``schema`` checks the statement keys, so a typo is not a skipped statement.
+        """
+        calls = _apply_calls(name, statements)
+        for c in calls:
+            _check_call_keys(name, schema, c.members)
+        body: list[str] = []
+        lambdas = 0
+        for index, c in enumerate(calls):
+            values = _apply_values(config, c.members)
+            if not _apply_call_active(c.members, values):
+                if index == len(calls) - 1:
+                    raise ValueError(
+                        f"{name}: the last statement is skipped, so the function may not return"
+                    )
+                continue
+            members = list(c.members)
+            for i, ((key, type_, _), value) in enumerate(
+                zip(members, values, strict=True)
+            ):
+                if isinstance(value, Lambda):
+                    type_ = _lambda_type(type_, None)
+                    # The call is already the argument text, so no const_fn applies
+                    members[i] = (key, type_, None)
+                    values[i] = await _apply_value_function(
+                        filter_id, lambdas, value, type_
+                    )
+                    lambdas += 1
+            body.append(
+                await _render_call(
+                    name, c.target, members, values, config, None, [], compare=True
+                )
+            )
+        return self.new(filter_id, body, share=not lambdas)
+
+    def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
+        """Register filter ``name`` as the function of ``statements``; see ``build``."""
+        calls = _apply_calls(name, statements)
+
+        async def builder(config: Any, filter_id: ID) -> MockObj:
+            return await self.build(name, config, filter_id, *calls, schema=schema)
+
+        self.registry.register(name, self.filter_class, schema)(builder)
 
 
 def validate_potentially_and_condition(value):

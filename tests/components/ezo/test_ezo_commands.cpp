@@ -98,12 +98,17 @@ TEST_F(EzoCommandTest, WireTextOfEachCommand) {
 
 TEST_F(EzoCommandTest, RepliesReachTheirCallbacks) {
   std::vector<std::string> got;
-  this->ezo_.add_device_infomation_callback([&got](const std::string &x) { got.push_back("info " + x); });
-  this->ezo_.add_slope_callback([&got](const std::string &x) { got.push_back("slope " + x); });
-  this->ezo_.add_calibration_callback([&got](const std::string &x) { got.push_back("cal " + x); });
-  this->ezo_.add_t_callback([&got](const std::string &x) { got.push_back("t " + x); });
+  // Lambdas log c_str() with %s, so the text must end at size()
+  auto record = [&got](const char *prefix, StringRef x) {
+    EXPECT_EQ(std::strlen(x.c_str()), x.size());
+    got.push_back(std::string(prefix) + x.c_str());
+  };
+  this->ezo_.add_device_information_callback([&record](StringRef x) { record("info ", x); });
+  this->ezo_.add_slope_callback([&record](StringRef x) { record("slope ", x); });
+  this->ezo_.add_calibration_callback([&record](StringRef x) { record("cal ", x); });
+  this->ezo_.add_t_callback([&record](StringRef x) { record("t ", x); });
   this->ezo_.add_led_state_callback([&got](bool on) { got.emplace_back(on ? "led on" : "led off"); });
-  this->ezo_.add_custom_callback([&got](const std::string &x) { got.push_back("custom " + x); });
+  this->ezo_.add_custom_callback([&record](StringRef x) { record("custom ", x); });
   this->bus_.replies = {
       {"i", "?I,pH,2.16"}, {"Slope,?", "?Slope,99.7,100.3,-0.89"}, {"Cal,?", "?Cal,2"}, {"T,?", "?T,19.5"},
       {"L,?", "?L,1"},     {"Status", "?Status,P,5.038"},          {"R", "7.25,1.5"}};

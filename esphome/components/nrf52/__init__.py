@@ -20,6 +20,8 @@ from esphome.components.zephyr import (
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_enable_cdc_acm_rate_callback,
+    zephyr_require_cdc_acm,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -28,6 +30,7 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_OVERLAY,
     KEY_SYSBUILD,
     KEY_ZEPHYR,
 )
@@ -71,7 +74,18 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARD_ALIASES,
+    BOARDS_WITHOUT_ANTENNA,
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+)
+from .cmsis_dap import (
+    can_upload_using_cmsis_dap,
+    cmsis_dap_unique_id,
+    upload_using_cmsis_dap,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -101,6 +115,7 @@ from .framework import (
     get_build_paths,
     get_nrf52_variant,
     include_west_project,
+    set_nrf52_board,
     set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
@@ -109,7 +124,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
-from .jlink import upload_using_jlink
+from .jlink import can_upload_using_jlink, jlink_serial_number, upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -174,6 +189,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
     if (target := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_BOARD)) is not None:
         zephyr_data()[KEY_BOARD] = target
     set_nrf52_variant(_board_variant(zephyr_data()[KEY_BOARD]))
+    set_nrf52_board(config[CONF_BOARD])
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -449,6 +465,15 @@ def _warn_old_framework_version(config: ConfigType) -> None:
         )
 
 
+def _warn_without_antenna(config: ConfigType) -> None:
+    if (board := config.get(CONF_BOARD)) in BOARDS_WITHOUT_ANTENNA:
+        _LOGGER.warning(
+            "The %s has no antenna of its own: connect an external 2.4 GHz antenna to its "
+            "antenna connector, or Bluetooth, Thread and Zigbee will not be received",
+            board,
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -458,6 +483,7 @@ def _final_validate(config):
             "Please use 'toolchain: sdk-nrf' instead."
         )
     _warn_old_framework_version(config)
+    _warn_without_antenna(config)
     _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
@@ -530,6 +556,10 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    if (
+        overlay := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_OVERLAY)
+    ) is not None:
+        zephyr_add_overlay(overlay)
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if variant == VARIANT_NRF51822:
@@ -585,7 +615,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_to_code(config)
 
-    if CORE.testing_mode:
+    # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
+    if CORE.testing_mode and variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
         zephyr_add_overlay(
             f"""
                 &flash0 {{
@@ -662,6 +693,7 @@ async def to_code(config: ConfigType) -> None:
     # some boards enable USB and UART by default.
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False, False)
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default
@@ -680,10 +712,8 @@ async def _dfu_to_code(dfu_config):
     await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    zephyr_add_prj_conf("SERIAL", True)
+    zephyr_require_cdc_acm()
+    zephyr_enable_cdc_acm_rate_callback()
     await cg.register_component(var, dfu_config)
 
 
@@ -904,10 +934,50 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         set_framework(platform_config)
 
     mcumgr_device: str | None = None
+    file = getattr(args, "file", None)
 
     if get_port_type(host) == PortType.SERIAL:
-        check_permissions(host)
         bootloader = zephyr_data()[KEY_BOOTLOADER]
+        # A probe flashes the local build, so a given file goes over mcumgr
+        probe_upload = bootloader == BOOTLOADER_MCUBOOT and file is None
+        if probe_upload and (jlink_serial := jlink_serial_number(host)) is not None:
+            # The serial port of a J-Link probe, such as the one built into Nordic DKs:
+            # flash through the probe, which works whatever firmware the device runs
+            if can_upload_using_jlink():
+                _LOGGER.info(
+                    "%s belongs to J-Link %s, flashing over J-Link", host, jlink_serial
+                )
+                upload_using_jlink(jlink_serial)
+                return True
+            _LOGGER.warning(
+                "%s belongs to J-Link %s, but flashing over J-Link needs the '%s' "
+                "toolchain and the SEGGER J-Link software; uploading with mcumgr instead, "
+                "which needs firmware that accepts it",
+                host,
+                jlink_serial,
+                Toolchain.SDK_NRF,
+            )
+        if probe_upload and (dap_id := cmsis_dap_unique_id(host)) is not None:
+            # The serial port of a CMSIS-DAP probe, such as the one built into Seeed XIAO
+            # nRF54 boards: flash through the probe, which works whatever firmware runs
+            if can_upload_using_cmsis_dap():
+                _LOGGER.info(
+                    "%s belongs to CMSIS-DAP probe %s, flashing with pyOCD",
+                    host,
+                    dap_id,
+                )
+                upload_using_cmsis_dap(dap_id)
+                return True
+            _LOGGER.warning(
+                "%s belongs to CMSIS-DAP probe %s, but flashing with pyOCD needs the "
+                "'%s' toolchain at version 2.9.2 or newer and a pyOCD that knows the "
+                "chip; uploading with mcumgr instead, which needs firmware that accepts it",
+                host,
+                dap_id,
+                Toolchain.SDK_NRF,
+            )
+        # Not before the probe uploads, which do not open the port
+        check_permissions(host)
         if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         elif CORE.using_toolchain_platformio:
@@ -996,7 +1066,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
-    file = getattr(args, "file", None)
     if mcumgr_device:
         # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
         asyncio.run(_smpmgr_upload(mcumgr_device, file))

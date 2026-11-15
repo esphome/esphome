@@ -159,7 +159,7 @@ void EZOSensor::loop() {
     return;
   char *comma = strchr(payload, ',');
   const char *text = comma != nullptr ? comma + 1 : nullptr;
-  CallbackManager<void(const std::string &)> *callback = nullptr;
+  CallbackManager<void(StringRef)> *callback = nullptr;
   switch (command_type) {
     case EzoCommandType::EZO_READ: {
       // some sensors return multiple comma-separated values, terminate string after first one
@@ -177,7 +177,7 @@ void EZOSensor::loop() {
       this->led_callback_.call(payload[strlen(payload) - 1] == '1');
       return;
     case EzoCommandType::EZO_DEVICE_INFORMATION:
-      callback = &this->device_infomation_callback_;
+      callback = &this->device_information_callback_;
       break;
     case EzoCommandType::EZO_SLOPE:
       callback = &this->slope_callback_;
@@ -196,7 +196,7 @@ void EZOSensor::loop() {
       return;
   }
   if (text != nullptr)
-    callback->call(std::string(text));
+    callback->call(StringRef(text));
 }
 
 void EZOSensor::send_queued(EZOSensor *self, uint32_t now) {
