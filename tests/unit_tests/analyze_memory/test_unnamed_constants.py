@@ -12,6 +12,8 @@ from esphome.analyze_memory import (
     MemoryAnalyzer,
     MemorySection,
     UnnamedConstant,
+    _FunctionDefinitions,
+    _parse_unnamed_rodata,
     _RodataSection,
 )
 from esphome.analyze_memory.cli import MemoryAnalyzerCLI
@@ -51,7 +53,7 @@ Section Headers:
 Symbol table '.symtab' contains 1 entries:
    Num:    Value  Size Type    Bind   Vis      Ndx Name
      0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
-"""
+{web_symbols}"""
 
 LIGHT_OBJECT_DUMP = f"""\
 Relocation section '.rela.text.{SETUP}' at offset 0x7928 contains 2 entries:
@@ -100,6 +102,7 @@ def _esp8266_analyzer(
     web_size: int = 0x1C,
     web_dump: str = WEB_OBJECT_DUMP,
     bind: str = "GLOBAL",
+    web_symbols: str = "",
 ) -> tuple[MemoryAnalyzer, Callable[..., subprocess.CompletedProcess[str]]]:
     analyzer = make_analyzer()
     analyzer.elf_path = obj_dir.parent / "firmware.elf"
@@ -120,6 +123,7 @@ def _esp8266_analyzer(
                     bind=bind,
                     setup=SETUP,
                     save=SAVE,
+                    web_symbols=web_symbols,
                 )
             )
         # Only sections with uncovered bytes are dumped
@@ -226,6 +230,7 @@ def test_unnamed_constants_inline_copies_counted_once(
     obj_dir: Path, bind: str, expected: int
 ) -> None:
     """Only weak (inline) functions bring the same constant from several objects."""
+    # The second object emits the same functions, with the same binding
     analyzer, run_tool = _esp8266_analyzer(
         obj_dir,
         {SETUP},
@@ -233,6 +238,10 @@ def test_unnamed_constants_inline_copies_counted_once(
         web_size=0x2C,
         web_dump=LIGHT_OBJECT_DUMP,
         bind=bind,
+        web_symbols=(
+            f"   300: 00000000    64 FUNC    {bind:<6} DEFAULT  12 {SETUP}\n"
+            f"   301: 00000000    64 FUNC    {bind:<6} DEFAULT  13 {SAVE}\n"
+        ),
     )
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
         analyzer._analyze_object_rodata()
@@ -407,3 +416,60 @@ def test_unnamed_constants_same_object_not_merged(obj_dir: Path) -> None:
     ):
         analyzer._analyze_object_rodata()
     assert len(analyzer._unnamed_constants) == 2
+
+
+def test_unnamed_constants_jump_table_only_from_unnamed_bytes() -> None:
+    """Code pointers in a named table at the start do not make the rest a jump table."""
+    analyzer = make_analyzer()
+    analyzer._elf_symbol_names = {"_Z3fooi"}
+    dump = """\
+Relocation section '.rela.text._Z3fooi' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 4
+
+Relocation section '.rela.rodata' at offset 0x200 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003b01 R_XTENSA_32            00000000   .text._Z3fooi + 12
+
+"""
+    section = _RodataSection(".rodata", 8, covered=[(0, 4)])
+    with patch("esphome.analyze_memory.run_tool", return_value=completed(dump)):
+        (constant,) = analyzer._scan_object_constants(
+            "foo.o", {"5": section}, "src/foo.o", "[esphome]foo"
+        )
+    assert not constant.jump_table
+
+
+def _definitions(rows: dict[str, list[tuple[str, str]]]) -> _FunctionDefinitions:
+    """Parse symbol rows (binding, function) per object, as readelf -sW prints them."""
+    output = "".join(
+        f"File: {path}\n"
+        + "".join(
+            f"   {i}: 00000000    64 FUNC    {bind:<6} DEFAULT   12 {name}\n"
+            for i, (bind, name) in enumerate(symbols)
+        )
+        for path, symbols in rows.items()
+    )
+    return _parse_unnamed_rodata(output)[1]
+
+
+def test_linked_copy_unknown_weak_overridden_by_strong() -> None:
+    """A strong definition replaces every weak copy, so their constants are not linked."""
+    definitions = _definitions(
+        {"a.o": [("WEAK", "_Z3foov")], "b.o": [("GLOBAL", "_Z3foov")]}
+    )
+    assert definitions.linked_copy_unknown("a.o", ["_Z3foov"])
+    assert not definitions.linked_copy_unknown("b.o", ["_Z3foov"])
+
+
+def test_linked_copy_unknown_same_named_locals() -> None:
+    """Local functions with one name in two objects can't be told apart in the ELF."""
+    definitions = _definitions(
+        {
+            "a.o": [("LOCAL", "_ZL3barv"), ("LOCAL", "_ZL3bazv")],
+            "b.o": [("LOCAL", "_ZL3barv")],
+        }
+    )
+    assert definitions.linked_copy_unknown("a.o", ["_ZL3barv"])
+    # Another, unique user decides it
+    assert not definitions.linked_copy_unknown("a.o", ["_ZL3barv", "_ZL3bazv"])

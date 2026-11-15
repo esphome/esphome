@@ -255,16 +255,33 @@ def _pointed_literal(
     return bytes(strings[start : end if end != -1 else len(strings)])
 
 
+@dataclass
+class _FunctionDefinitions:
+    """Where each function is defined across the scanned objects."""
+
+    weak: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    strong: set[str] = field(default_factory=set)  # Global, non-weak
+    count: Counter[str] = field(default_factory=Counter)  # Objects defining it
+
+    def linked_copy_unknown(self, file_path: str, functions: list[str]) -> bool:
+        """True if another object's copy of these functions may be the linked one."""
+        if self.weak[file_path].issuperset(functions):
+            # Inline copies: a strong definition elsewhere replaces them all
+            return not self.strong.isdisjoint(functions)
+        # Same-named local functions in several objects; the ELF can't tell them apart
+        return all(f not in self.strong and self.count[f] > 1 for f in functions)
+
+
 def _parse_unnamed_rodata(
     output: str,
-) -> tuple[dict[str, dict[str, _RodataSection]], set[str]]:
+) -> tuple[dict[str, dict[str, _RodataSection]], _FunctionDefinitions]:
     """Find .rodata sections with bytes no symbol covers in ``readelf -SW -sW`` output.
 
     Returns:
-        Object path -> section index -> section, and the weak (inline) functions
+        Object path -> section index -> section, and where functions are defined
     """
     sections: dict[str, dict[str, _RodataSection]] = defaultdict(dict)
-    weak_functions: set[str] = set()
+    definitions = _FunctionDefinitions()
     file_path = ""
     for line in output.splitlines():
         if line.startswith("File: "):
@@ -288,8 +305,12 @@ def _parse_unnamed_rodata(
                 section := sections[file_path].get(fields[6])
             ):
                 section.covered.append((int(fields[1], 16), int(fields[2], 0)))
-            elif fields[3] == "FUNC" and fields[4] == "WEAK":
-                weak_functions.add(fields[7])
+            elif fields[3] == "FUNC" and fields[6] != "UND":
+                definitions.count[fields[7]] += 1
+                if fields[4] == "WEAK":
+                    definitions.weak[file_path].add(fields[7])
+                elif fields[4] == "GLOBAL":
+                    definitions.strong.add(fields[7])
     unnamed = {
         path: kept
         for path, file_sections in sections.items()
@@ -301,7 +322,7 @@ def _parse_unnamed_rodata(
             }
         )
     }
-    return unnamed, weak_functions
+    return unnamed, definitions
 
 
 class MemoryAnalyzer:
@@ -1393,7 +1414,7 @@ class MemoryAnalyzer:
 
     def _attribute_unnamed_constants(self, output: str, obj_dir: Path) -> None:
         """Attribute constants GCC copies into objects built from constant initializers."""
-        unnamed, weak_functions = _parse_unnamed_rodata(output)
+        unnamed, definitions = _parse_unnamed_rodata(output)
         # Inline (weak) functions are emitted, with their constants, in every
         # object that uses them; the linker keeps one copy
         inline_copies: dict[tuple[tuple[str, ...], int], str] = {}
@@ -1403,7 +1424,9 @@ class MemoryAnalyzer:
             for constant in self._scan_object_constants(
                 file_path, sections, rel_path, component
             ):
-                if weak_functions.issuperset(constant.functions):
+                if definitions.linked_copy_unknown(file_path, constant.functions):
+                    continue
+                if definitions.weak[file_path].issuperset(constant.functions):
                     key = (tuple(constant.functions), constant.size)
                     if inline_copies.setdefault(key, file_path) != file_path:
                         continue
@@ -1447,10 +1470,10 @@ class MemoryAnalyzer:
                 code = _CODE_SECTION_PATTERN.match(section)
                 if code and code.group(1):
                     functions[target].add(code.group(1))
-            elif section in by_name:
+            elif section in by_name and by_name[section].is_unnamed(offset):
                 if _CODE_SECTION_PATTERN.match(target):
                     jump_tables.add(section)
-                elif ".str" in target and by_name[section].is_unnamed(offset):
+                elif ".str" in target:
                     pointers[section].append((offset, target, addend))
 
         strings = self._read_pointed_strings(file_path, pointers, contents)
