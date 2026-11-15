@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "esp_clk_tree.h"
 #include "hal/uart_ll.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
@@ -38,6 +39,10 @@ ESPHOME_LOG_TAG(TAG, "uart");
 static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
 }
+
+// RX thresholds stay this many bytes below the hardware FIFO size (128 bytes, 16 on the LP UART).
+static constexpr uint8_t RX_FIFO_HEADROOM = 6;
+static constexpr size_t max_rx_threshold(uart_port_t uart_num) { return UART_HW_FIFO_LEN(uart_num) - RX_FIFO_HEADROOM; }
 
 // clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
 static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
@@ -99,7 +104,23 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
   uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
-  uart_config.rx_flow_ctrl_thresh = 122;
+  uart_config.rx_flow_ctrl_thresh = max_rx_threshold(this->uart_num_);
+#if (SOC_UART_LP_NUM >= 1)
+  // lp_source_clk shares source_clk's storage, and an HP clock there trips a HAL assert in uart_param_config().
+  // XTAL_D2 is the more precise clock; below the lowest rate its divider reaches, the default clock takes over.
+  if (this->uart_num_ >= SOC_UART_HP_NUM) {
+#if defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32P4)
+    uint32_t xtal_d2_freq = 0;
+    esp_clk_tree_src_get_freq_hz(static_cast<soc_module_clk_t>(LP_UART_SCLK_XTAL_D2),
+                                 ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &xtal_d2_freq);
+    uart_config.lp_source_clk =
+        xtal_d2_freq / this->baud_rate_ <= UART_CLKDIV_V ? LP_UART_SCLK_XTAL_D2 : LP_UART_SCLK_DEFAULT;
+#else
+    // Other LP UARTs, such as the ESP32-S31's, have no XTAL_D2 but a prescaler, so the default clock fits.
+    uart_config.lp_source_clk = LP_UART_SCLK_DEFAULT;
+#endif
+  }
+#endif
 
   return uart_config;
 }
@@ -146,6 +167,8 @@ void IDFUARTComponent::setup() {
     ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
     this->rx_buffer_size_ = fifo_len * 2;
   }
+  // Above the FIFO size the RX full interrupt never fires; on the LP UART even the 10 ms default can pass it.
+  this->rx_full_threshold_ = std::min(this->rx_full_threshold_, max_rx_threshold(this->uart_num_));
 
   this->load_settings(false);
 }
@@ -384,6 +407,7 @@ void IDFUARTComponent::dump_config() {
 
 void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
   if (this->is_ready()) {
+    rx_full_threshold = std::min(rx_full_threshold, max_rx_threshold(this->uart_num_));
     esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
