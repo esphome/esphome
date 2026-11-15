@@ -48,14 +48,14 @@ bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len
     temp[raw_idx++] = command & 0xFF;
   } else {
     // command is 2 bytes
-    temp[raw_idx++] = command >> 8;
-    temp[raw_idx++] = command & 0xFF;
+    put_be16(temp + raw_idx, command);
+    raw_idx += 2;
   }
   // add parameters followed by crc
   // skipped if len == 0
   for (size_t i = 0; i < data_len; i++) {
-    temp[raw_idx++] = data[i] >> 8;
-    temp[raw_idx++] = data[i] & 0xFF;
+    put_be16(temp + raw_idx, data[i]);
+    raw_idx += 2;
     // Use MSB first since Sensirion devices use CRC-8 with MSB first
     uint8_t crc = crc8(&temp[raw_idx - 2], 2, 0xFF, CRC_POLYNOMIAL, true);
     temp[raw_idx++] = crc;

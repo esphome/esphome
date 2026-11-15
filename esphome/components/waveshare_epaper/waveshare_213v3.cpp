@@ -1,6 +1,7 @@
 #include "waveshare_epaper.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::waveshare_epaper {
 
@@ -118,8 +119,7 @@ void WaveshareEPaper2P13InV3::set_window_(int t, int b) {
   SEND(RAM_Y_START);
   SEND(RAM_X_POS);
   buffer[0] = 0x4F;
-  buffer[1] = (uint8_t) t;
-  buffer[2] = (uint8_t) (t >> 8);
+  put_le16(buffer + 1, t);
   SEND(buffer);
 }
 

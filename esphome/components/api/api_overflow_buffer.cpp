@@ -1,6 +1,7 @@
 #include "api_overflow_buffer.h"
 #ifdef USE_API
 #include <cstring>
+#include "esphome/core/helpers.h"
 
 namespace esphome::api {
 
@@ -17,7 +18,7 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
 
   while (this->count_ > 0) {
     uint8_t *msg = this->buf_.data() + this->head_;
-    size_t len = msg[0] | (msg[1] << 8);
+    size_t len = encode_uint16(msg[1], msg[0]);
 
     ssize_t sent = socket->write(msg + LEN_PREFIX, len);
     if (sent <= 0)

@@ -1,6 +1,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "uart_transport.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::uart {
 
@@ -23,7 +24,7 @@ void UARTTransport::loop() {
       if (this->rx_started_ && this->receive_buffer_.size() > 6) {
         auto len = this->receive_buffer_.size();
         auto crc = crc16(this->receive_buffer_.data(), len - 2);
-        if (crc != (this->receive_buffer_[len - 2] | (this->receive_buffer_[len - 1] << 8))) {
+        if (crc != encode_uint16(this->receive_buffer_[len - 1], this->receive_buffer_[len - 2])) {
           ESP_LOGD(TAG, "CRC mismatch, discarding packet");
           this->rx_started_ = false;
           this->receive_buffer_.clear();

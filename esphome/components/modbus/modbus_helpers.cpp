@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus::helpers {
 
@@ -471,7 +472,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
                values[1]);
       return pdu;
     }
-    append_pdu_header(pdu, function_code, start_address, uint16_t((values[0] << 8) | values[1]));
+    append_pdu_header(pdu, function_code, start_address, encode_uint16(values[0], values[1]));
     return pdu;
   }
   // The quantity is spec-bounded above, so the data length just has to agree with it exactly

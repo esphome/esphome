@@ -61,9 +61,7 @@ ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::
   if (profile.tcxo_voltage != TCXO_CTRL_NONE) {
     uint32_t delay = profile.tcxo_delay >> 6;
     buf[0] = profile.tcxo_voltage;
-    buf[1] = (delay >> 16) & 0xFF;
-    buf[2] = (delay >> 8) & 0xFF;
-    buf[3] = (delay >> 0) & 0xFF;
+    put_be24(buf + 1, delay);
     this->write_opcode_(RADIO_SET_TCXOMODE, buf, 4);
     buf[0] = 0x7F;
     this->write_opcode_(RADIO_CALIBRATE, buf, 1);
@@ -99,10 +97,7 @@ ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::
 
   // set frequency
   uint64_t freq = ((uint64_t) profile.frequency << 25) / XTAL_FREQ;
-  buf[0] = (uint8_t) ((freq >> 24) & 0xFF);
-  buf[1] = (uint8_t) ((freq >> 16) & 0xFF);
-  buf[2] = (uint8_t) ((freq >> 8) & 0xFF);
-  buf[3] = (uint8_t) (freq & 0xFF);
+  put_be32(buf, static_cast<uint32_t>(freq));
   this->write_opcode_(RADIO_SET_RFFREQUENCY, buf, 4);
 
   // configure pa
@@ -152,23 +147,17 @@ ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::
     // set modulation params
     uint32_t bitrate = ((uint64_t) XTAL_FREQ * 32) / profile.bitrate;
     uint32_t fdev = ((uint64_t) profile.deviation << 25) / XTAL_FREQ;
-    buf[0] = (bitrate >> 16) & 0xFF;
-    buf[1] = (bitrate >> 8) & 0xFF;
-    buf[2] = (bitrate >> 0) & 0xFF;
+    put_be24(buf, bitrate);
     buf[3] = profile.shaping;
     buf[4] = progmem_read_byte(&BW_FSK[profile.bandwidth - SX126X_BW_4800]);
-    buf[5] = (fdev >> 16) & 0xFF;
-    buf[6] = (fdev >> 8) & 0xFF;
-    buf[7] = (fdev >> 0) & 0xFF;
+    put_be24(buf + 5, fdev);
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 8);
 
     // set crc params
     if (profile.crc_enable) {
-      buf[0] = profile.crc_initial >> 8;
-      buf[1] = profile.crc_initial & 0xFF;
+      put_be16(buf, profile.crc_initial);
       this->write_register_(REG_CRC_INITIAL, buf, 2);
-      buf[0] = profile.crc_polynomial >> 8;
-      buf[1] = profile.crc_polynomial & 0xFF;
+      put_be16(buf, profile.crc_polynomial);
       this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
     }
 
@@ -203,8 +192,7 @@ void SX126xCommands::encode_packet_params(const RadioProfile &profile, AppliedPr
   auto &buf = applied.packet_params;
   const uint8_t payload_length = profile.max_packet_size();
   if (profile.modulation == PACKET_TYPE_LORA) {
-    buf[0] = (profile.preamble_size >> 8) & 0xFF;
-    buf[1] = (profile.preamble_size >> 0) & 0xFF;
+    put_be16(buf.data(), profile.preamble_size);
     buf[2] = (profile.payload_length > 0) ? 0x01 : 0x00;
     buf[3] = payload_length;
     buf[4] = (profile.crc_enable) ? 0x01 : 0x00;
@@ -212,8 +200,7 @@ void SX126xCommands::encode_packet_params(const RadioProfile &profile, AppliedPr
     applied.packet_params_size = 6;
   } else {
     uint16_t preamble_size = profile.preamble_size * 8;
-    buf[0] = (preamble_size >> 8) & 0xFF;
-    buf[1] = (preamble_size >> 0) & 0xFF;
+    put_be16(buf.data(), preamble_size);
     buf[2] = (profile.preamble_detect > 0) ? ((profile.preamble_detect - 1) | 0x04) : 0x00;
     buf[3] = profile.sync_size * 8;
     buf[4] = 0x00;
@@ -264,14 +251,9 @@ void SX126xCommands::receive() {
 
   // configure irq params
   uint16_t irq = IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR;
-  buf[0] = (irq >> 8) & 0xFF;
-  buf[1] = (irq >> 0) & 0xFF;
-  buf[2] = (irq >> 8) & 0xFF;
-  buf[3] = (irq >> 0) & 0xFF;
-  buf[4] = (IRQ_RADIO_NONE >> 8) & 0xFF;
-  buf[5] = (IRQ_RADIO_NONE >> 0) & 0xFF;
-  buf[6] = (IRQ_RADIO_NONE >> 8) & 0xFF;
-  buf[7] = (IRQ_RADIO_NONE >> 0) & 0xFF;
+  // IRQ, DIO1, DIO2 and DIO3 masks
+  uint8_t *pos = put_be16(put_be16(buf, irq), irq);
+  put_be16(put_be16(pos, IRQ_RADIO_NONE), IRQ_RADIO_NONE);
   this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
 
   // set timeout to 0
@@ -290,20 +272,13 @@ void SX126xCommands::transmit(uint32_t timeout_ms) {
 
   // configure irq params
   uint16_t irq = IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT;
-  buf[0] = (irq >> 8) & 0xFF;
-  buf[1] = (irq >> 0) & 0xFF;
-  buf[2] = (irq >> 8) & 0xFF;
-  buf[3] = (irq >> 0) & 0xFF;
-  buf[4] = (IRQ_RADIO_NONE >> 8) & 0xFF;
-  buf[5] = (IRQ_RADIO_NONE >> 0) & 0xFF;
-  buf[6] = (IRQ_RADIO_NONE >> 8) & 0xFF;
-  buf[7] = (IRQ_RADIO_NONE >> 0) & 0xFF;
+  // IRQ, DIO1, DIO2 and DIO3 masks
+  uint8_t *pos = put_be16(put_be16(buf, irq), irq);
+  put_be16(put_be16(pos, IRQ_RADIO_NONE), IRQ_RADIO_NONE);
   this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
 
   const uint32_t ticks = timeout_ms * 64;
-  buf[0] = ticks >> 16;
-  buf[1] = ticks >> 8;
-  buf[2] = ticks;
+  put_be24(buf, ticks);
   this->write_opcode_(RADIO_SET_TX, buf, 3);
 }
 
