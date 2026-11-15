@@ -179,7 +179,7 @@ BENCHMARK(AddressableEffect_Rainbow_150);
 static void AddressableEffect_ColorWipe_150(benchmark::State &state) {
   static constexpr light::AddressableColorWipeEffectColor COLORS[] = {
       {255, 0, 0, 0, light::NO_RANDOM_SLOT, true, 10},
-      {0, 0, 0, 0, 0, false, 10},
+      {0, 0, 0, 0, 0, false, 10},  // random slot 0: a new random color each time this entry starts
   };
   Color random_colors[1];
   light::AddressableColorWipeEffect effect("Color Wipe");
