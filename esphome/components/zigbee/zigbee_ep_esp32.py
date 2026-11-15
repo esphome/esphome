@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
+    CONF_NUMBER,
     CONF_TYPE,
     CONF_VALUE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -477,10 +478,10 @@ def create_ep(router: bool) -> None:
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
             ep_num = _get_next_ep_num(eps)
-            ep["num"] = ep_num
+            ep[CONF_NUMBER] = ep_num
             if _KEY_EP_REFS in ep:
                 for ep_ref in ep[_KEY_EP_REFS]:
-                    ep_ref["num"] = ep_num
+                    ep_ref[CONF_NUMBER] = ep_num
                 del ep[_KEY_EP_REFS]
             ep_dict[ep_num] = ep
 

@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_POLLING_INTERVAL,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
@@ -366,7 +367,7 @@ def validate_light_esp32(config: ConfigType) -> ConfigType:
             },
         ],
     }
-    config["zigbee_ep"] = ep
+    config[KEY_ZIGBEE_EP] = ep
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE, True))
     config[CONF_ZIGBEE_LIGHT] = cv.declare_id(ZigbeeLight)(None)
@@ -503,14 +504,14 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
 async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
     ep_num = config.get(CONF_ENDPOINT)
     if ep_num is None:
-        ep_num = config["zigbee_ep"]["num"]
+        ep_num = config[KEY_ZIGBEE_EP][CONF_NUMBER]
     zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
     var = cg.new_Pvariable(
         config[CONF_ZIGBEE_LIGHT],
         zb,
         ep_num,
     )
-    await cg.register_component(var, config["zigbee_ep"])
+    await cg.register_component(var, config[KEY_ZIGBEE_EP])
     cg.add(var.connect(entity))
 
 
