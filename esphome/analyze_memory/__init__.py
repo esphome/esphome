@@ -1513,10 +1513,12 @@ class MemoryAnalyzer:
             for constant in self._scan_object_constants(
                 file_path, sections, rel_path, component
             ):
-                if definitions.linked_copy_unknown(file_path, constant.users):
+                # Only linked users can show which object's copy survived
+                live = [u for u in constant.users if u in self._elf_symbol_names]
+                if definitions.linked_copy_unknown(file_path, live):
                     continue
-                if definitions.weak[file_path].issuperset(constant.users):
-                    key = (tuple(constant.users), constant.size)
+                if definitions.weak[file_path].issuperset(live):
+                    key = (tuple(live), constant.size)
                     if inline_copies.setdefault(key, file_path) != file_path:
                         continue
                 self._unnamed_constants.append(constant)
@@ -1672,7 +1674,11 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.warning("readelf failed reading constants of %s", file_path)
+            _LOGGER.warning(
+                "readelf failed reading constants of %s: %s",
+                file_path,
+                result.stderr.strip() if result else "not run",
+            )
             return []
 
         by_name = {section.name: section for section in sections.values()}
@@ -1766,7 +1772,11 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.warning("readelf failed reading strings of %s", file_path)
+            _LOGGER.warning(
+                "readelf failed reading strings of %s: %s",
+                file_path,
+                result.stderr.strip() if result else "not run",
+            )
             return {}
         literals = _parse_hex_dumps(result.stdout)
         resolved: dict[str, list[str]] = {}

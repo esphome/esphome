@@ -621,3 +621,33 @@ def test_unnamed_constants_mixed_section_without_unnamed_user(obj_dir: Path) -> 
         analyzer._analyze_object_rodata()
     assert analyzer._unnamed_constants == [constant]
     assert analyzer.components["[esphome]light"].data_size == 4
+
+
+def test_unnamed_constants_discarded_unique_user_does_not_vouch(obj_dir: Path) -> None:
+    """A dropped unique user can't keep a constant whose only linked user is ambiguous."""
+    analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP})
+    constant = UnnamedConstant(
+        size=4,
+        source_file=LIGHT_OBJ,
+        component="[esphome]light",
+        functions=[SETUP],
+        jump_table=False,
+        data=b"",
+        # SAVE is unique but was dropped; SETUP is a local defined in two objects
+        users=[SAVE, SETUP],
+    )
+    light = str(obj_dir / LIGHT_OBJ)
+    with (
+        patch("esphome.analyze_memory.run_tool", side_effect=run_tool),
+        patch.object(
+            analyzer,
+            "_scan_object_constants",
+            side_effect=lambda path, *_: [constant] if path == light else [],
+        ),
+        patch(
+            "esphome.analyze_memory._FunctionDefinitions.linked_copy_unknown",
+            side_effect=lambda _path, functions: functions == [SETUP],
+        ),
+    ):
+        analyzer._analyze_object_rodata()
+    assert analyzer._unnamed_constants == []
