@@ -50,26 +50,21 @@ class SX127xTransmitListener {
   virtual void on_transmit_complete(SX127xError result) = 0;
 };
 
-// Who may use the radio between operations. This is driver state, not the chip's mode.
+// Driver state, not the chip's mode
 enum class RadioState : uint8_t {
-  // Before setup, or after a mode change that did not take. Sends return NOT_READY, mode changes
-  // are ignored, and SX127x configures again every second.
+  // Before setup or after a failed mode change; configure() is retried every second
   RADIO_STATE_NEEDS_CONFIGURATION,
-  // Available. The chip is receiving or sleeping, as configured, or after the TX mode action
-  // sending whatever the FIFO holds; that send is not tracked.
+  // Receiving or sleeping as configured, or sending after the TX mode action (untracked)
   RADIO_STATE_IDLE,
-  // A send is on air. Mode changes, configuration and other sends are refused until it ends.
+  // A send is on air
   RADIO_STATE_TRANSMITTING,
-  // Standby with a received packet in the FIFO, found when a send entered standby. The send
-  // was refused with BUSY; the next loop() delivers the packet and restores the radio.
+  // A send found a received packet waiting; loop() delivers it
   RADIO_STATE_HOLDING_RX,
 };
 
 class SX127xListener {
  public:
-  // Called from loop(). The packet is borrowed until this returns; copy what you keep.
-  // Listeners may send, change mode or configure. A send returns BUSY if another packet
-  // is already waiting, which is then delivered by the next loop().
+  // Called from loop(); the packet is only valid until this returns
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
@@ -92,7 +87,7 @@ class SX127x final : public Component,
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio0_pin(GPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
-  // Mode changes are ignored with a warning unless the radio is idle and configured.
+  // Ignored unless the radio is idle
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby();
@@ -114,32 +109,27 @@ class SX127x final : public Component,
   void set_spreading_factor(uint8_t spreading_factor) { this->spreading_factor_ = spreading_factor; }
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void run_image_cal();
-  // Resets the chip and applies the configuration. Ignored while a send is on air; a packet
-  // held for delivery is discarded.
+  // Ignored while a send is on air; discards a held packet
   void configure();
   SX127xError transmit_packet(const uint8_t *data, size_t len);
   SX127xError transmit_packet(const std::vector<uint8_t> &packet) {
     return this->transmit_packet(packet.data(), packet.size());
   }
-  // Main loop context only. SX127X_ERROR_NONE starts a send that completes exactly once, through
-  // the listener, which must outlive it. The data is copied into the chip FIFO before return.
-  // A received packet still waiting refuses the send with BUSY, and a later loop() delivers it.
+  // On SX127X_ERROR_NONE, the listener is called once from loop()
   [[nodiscard]] SX127xError start_transmit_async(SX127xTransmitListener *listener, const uint8_t *data, size_t len,
                                                  uint32_t timeout_ms = 4000);
   [[nodiscard]] SX127xError start_transmit_async(SX127xTransmitListener *listener, const std::vector<uint8_t> &packet,
                                                  uint32_t timeout_ms = 4000) {
     return this->start_transmit_async(listener, packet.data(), packet.size(), timeout_ms);
   }
-  // Ends the listener's send at once with SX127X_ERROR_CANCELLED, called before this returns.
-  // Returns false if that listener has no send on air.
+  // Completes the send with SX127X_ERROR_CANCELLED; false if the listener has none
   bool cancel_transmit_async(SX127xTransmitListener *listener);
   bool is_transmitting() const { return this->state_ == RadioState::RADIO_STATE_TRANSMITTING; }
   void register_listener(SX127xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  // The settings configure() last applied. Sends and reception use these, so a setter called while
-  // configure() is refused, during a send, does not change them before the chip has the new value.
+  // Settings as last applied by configure(), used by sends and reception
   struct AppliedSettings {
     uint32_t frequency{0};
     uint32_t payload_length{0};
@@ -166,12 +156,12 @@ class SX127x final : public Component,
   void change_mode_(uint8_t mode);
   // Puts the radio back in RX or sleep after a send or a held packet
   bool restore_();
-  // A command did not take: the radio needs configuration, which is retried every second
+  // Retries configure() every second
   void fail_(const LogString *reason);
   bool packet_waiting_();
   void receive_();
   SX127xError start_transmit_(SX127xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
-  // Returns true once the send has ended, with its outcome in result
+  // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX127xError &result);
   SX127xError finish_transmit_(SX127xError result);
   void write_fifo_(const uint8_t *data, size_t len);
