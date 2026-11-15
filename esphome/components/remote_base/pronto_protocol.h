@@ -21,20 +21,24 @@ class ProntoProtocol : public RemoteProtocol<ProntoData> {
   void send_pronto_(RemoteTransmitData *dst, const std::vector<uint16_t> &data);
   void send_pronto_(RemoteTransmitData *dst, const std::string &str);
 
-  uint16_t effective_frequency_(uint16_t frequency);
-  uint16_t to_timebase_(uint16_t frequency);
-  uint16_t to_frequency_code_(uint16_t frequency);
-  std::string dump_digit_(uint8_t x);
-  std::string dump_number_(uint16_t number, bool end = false);
-  std::string dump_duration_(uint32_t duration, uint16_t timebase, bool end = false);
-  std::string compensate_and_dump_sequence_(RawTimingsView data, uint16_t timebase);
-
  public:
+  /// Length of the Pronto text decode() builds from these timings.
+  static size_t text_length(RawTimingsView data);
+  /// Writes characters [offset, offset + len) of that text, so it can be produced in pieces without a buffer.
+  static void write_text(RawTimingsView data, size_t offset, char *out, size_t len);
+
   void encode(RemoteTransmitData *dst, const ProntoData &data);
   optional<ProntoData> decode(RemoteReceiveData src);
   void dump(const ProntoData &data);
 };
 
-DECLARE_REMOTE_PROTOCOL(Pronto)
+using ProntoBinarySensor = RemoteReceiverBinarySensor<ProntoProtocol>;
+using ProntoTrigger = RemoteReceiverTrigger<ProntoProtocol>;
+
+/// Logs the Pronto text straight from the timings in chunks, so a dump never allocates.
+class ProntoDumper : public RemoteReceiverDumperBase {
+ public:
+  bool dump(RemoteReceiveData src) override;
+};
 
 }  // namespace esphome::remote_base

@@ -33,7 +33,10 @@
  */
 
 #include "pronto_protocol.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <algorithm>
 
 namespace esphome::remote_base {
 
@@ -156,74 +159,54 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
 
 void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { send_pronto_(dst, data.data); }
 
-uint16_t ProntoProtocol::effective_frequency_(uint16_t frequency) {
-  return frequency > 0 ? frequency : FALLBACK_FREQUENCY;
-}
+// decode() reports every frame as learned at 38 kHz
+static constexpr uint32_t DECODE_FREQUENCY = 38000U;
+static constexpr uint16_t DECODE_TIMEBASE = MICROSECONDS_IN_SECONDS / DECODE_FREQUENCY;
+// Four hex digits and a space
+static constexpr size_t TEXT_NUMBER_LENGTH = DIGITS_IN_PRONTO_NUMBER + 1;
 
-uint16_t ProntoProtocol::to_timebase_(uint16_t frequency) {
-  return MICROSECONDS_IN_SECONDS / effective_frequency_(frequency);
-}
-
-uint16_t ProntoProtocol::to_frequency_code_(uint16_t frequency) {
-  return REFERENCE_FREQUENCY / effective_frequency_(frequency);
-}
-
-std::string ProntoProtocol::dump_digit_(uint8_t x) {
-  return std::string(1, (char) (x <= 9 ? ('0' + x) : ('A' + (x - 10))));
-}
-
-std::string ProntoProtocol::dump_number_(uint16_t number, bool end /* = false */) {
-  std::string num;
-
-  for (uint8_t i = 0; i < DIGITS_IN_PRONTO_NUMBER; ++i) {
-    uint8_t shifts = BITS_IN_HEXADECIMAL * (DIGITS_IN_PRONTO_NUMBER - 1 - i);
-    num += dump_digit_((number >> shifts) & HEX_MASK);
+// The index-th number of the text: the preamble, then each timing in timebase units
+static uint16_t text_number(RawTimingsView data, size_t index) {
+  switch (index) {
+    case 0:
+      return LEARNED_TOKEN;
+    case 1:
+      return REFERENCE_FREQUENCY / DECODE_FREQUENCY;
+    case 2:
+      return (data.size() + 1) / 2;
+    case 3:
+      return 0;
+    default:
+      break;
   }
-
-  if (!end)
-    num += ' ';
-
-  return num;
+  const int32_t t_length = data[index - NUMBERS_IN_PREAMBLE];
+  const uint32_t t_duration = t_length > 0 ? t_length - MARK_EXCESS_MICROS : -t_length + MARK_EXCESS_MICROS;
+  return (t_duration + DECODE_TIMEBASE / 2) / DECODE_TIMEBASE;
 }
 
-std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase, bool end /* = false */) {
-  return dump_number_((duration + timebase / 2) / timebase, end);
+size_t ProntoProtocol::text_length(RawTimingsView data) {
+  return (NUMBERS_IN_PREAMBLE + data.size()) * TEXT_NUMBER_LENGTH;
 }
 
-std::string ProntoProtocol::compensate_and_dump_sequence_(RawTimingsView data, uint16_t timebase) {
-  std::string out;
-
-  for (int32_t t_length : data) {
-    uint32_t t_duration;
-    if (t_length > 0) {
-      // Mark
-      t_duration = t_length - MARK_EXCESS_MICROS;
-    } else {
-      t_duration = -t_length + MARK_EXCESS_MICROS;
+void ProntoProtocol::write_text(RawTimingsView data, size_t offset, char *out, size_t len) {
+  size_t index = offset / TEXT_NUMBER_LENGTH;
+  size_t pos = offset % TEXT_NUMBER_LENGTH;
+  while (len > 0) {
+    const uint16_t number = text_number(data, index++);
+    for (; pos < TEXT_NUMBER_LENGTH && len > 0; pos++, len--) {
+      const uint8_t shift = BITS_IN_HEXADECIMAL * (DIGITS_IN_PRONTO_NUMBER - 1 - pos);
+      *out++ = pos < DIGITS_IN_PRONTO_NUMBER ? format_hex_pretty_char((number >> shift) & HEX_MASK) : ' ';
     }
-    out += dump_duration_(t_duration, timebase);
+    pos = 0;
   }
-
-  return out;
 }
 
 optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
+  const auto data = src.get_raw_data();
   ProntoData out;
-
-  uint16_t frequency = 38000U;
-  auto data = src.get_raw_data();
-  std::string prontodata;
-
-  prontodata += dump_number_(frequency > 0 ? LEARNED_TOKEN : LEARNED_NON_MODULATED_TOKEN);
-  prontodata += dump_number_(to_frequency_code_(frequency));
-  prontodata += dump_number_((data.size() + 1) / 2);
-  prontodata += dump_number_(0);
-  uint16_t timebase = to_timebase_(frequency);
-  prontodata += compensate_and_dump_sequence_(data, timebase);
-
-  out.data = prontodata;
+  out.data.resize(text_length(data));
+  write_text(data, 0, out.data.data(), out.data.size());
   out.delta = -1;
-
   return out;
 }
 
@@ -240,6 +223,19 @@ void ProntoProtocol::dump(const ProntoData &data) {
     ptr += chunk_size;
     remaining -= chunk_size;
   } while (remaining > 0);
+}
+
+bool ProntoDumper::dump(RemoteReceiveData src) {
+  const auto data = src.get_raw_data();
+  ESP_LOGI(TAG, "Received Pronto: data=");
+  char chunk[PRONTO_LOG_CHUNK_SIZE];
+  const size_t total = ProntoProtocol::text_length(data);
+  for (size_t offset = 0; offset < total; offset += PRONTO_LOG_CHUNK_SIZE) {
+    const size_t len = std::min(total - offset, PRONTO_LOG_CHUNK_SIZE);
+    ProntoProtocol::write_text(data, offset, chunk, len);
+    ESP_LOGI(TAG, "%.*s", (int) len, chunk);
+  }
+  return true;
 }
 
 }  // namespace esphome::remote_base
