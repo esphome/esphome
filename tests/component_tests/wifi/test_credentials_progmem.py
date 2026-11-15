@@ -12,7 +12,7 @@ def test_ssid_and_password_use_flash_literals(
     component_config_path: Callable[[str], Path],
     config_file: str,
 ) -> None:
-    """Station and AP credentials are ESPHOME_F literals; it is a plain literal off ESP8266."""
+    """Codegen emits ESPHOME_F for station and AP credentials; the macro decides placement."""
     main_cpp = generate_main(component_config_path(config_file))
 
     assert 'set_ssid(ESPHOME_F("test"));' in main_cpp
@@ -31,3 +31,15 @@ def test_eap_strings_use_flash_literals(
 
     for value in ("eap_identity", "eap_username", "eap_password"):
         assert f'progmem_string(ESPHOME_F("{value}"))' in main_cpp
+
+
+def test_eap_strings_plain_off_esp8266(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Off ESP8266 the EAP strings stay plain literals, with no copy from flash."""
+    main_cpp = generate_main(component_config_path("eap_esp32.yaml"))
+
+    assert "progmem_string(" not in main_cpp
+    for value in ("eap_identity", "eap_username", "eap_password"):
+        assert f'"{value}"' in main_cpp
