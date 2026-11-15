@@ -24,10 +24,3 @@ climate:
     current_temperature_datapoint: 4
     target_temperature_multiplier: 0.1
     current_temperature_multiplier: 0.1
-
-button:
-  - platform: template
-    id: tuya_refresh_button
-    on_press:
-      - tuya.refresh:
-          tuya_id: tuya_mcu

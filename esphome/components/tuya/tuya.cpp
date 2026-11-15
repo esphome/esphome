@@ -62,13 +62,6 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-#ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_() && this->init_failed_) {
-    // The MCU cannot be used: no valid product info, or that of another product. Act on none of its frames.
-    this->discard_available();
-    return;
-  }
-#endif
   this->read_available([this](uint8_t b) { this->handle_char_(b); });
 #ifdef USE_TUYA_LOW_POWER
   if (this->is_low_power_()) {
@@ -330,7 +323,6 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->initialized_callback_.call();
       }
       this->handle_datapoints_(buffer, len);
-      this->notify_mcu_ready_();
 
       if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
         this->send_command_(

@@ -1,7 +1,6 @@
-from esphome import automation, final_validate as fv, pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import time, uart
-from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import CONF_PROTOCOL, CONF_SENSOR_DATAPOINT, CONF_TIME_ID
 from esphome.cpp_generator import MockObj
@@ -23,7 +22,6 @@ tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
 TuyaProtocol = tuya_ns.enum("TuyaProtocol", is_class=True)
 Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
-TuyaRefreshAction = tuya_ns.class_("TuyaRefreshAction", automation.Action)
 
 TuyaDatapoint = tuya_ns.struct("TuyaDatapoint")
 
@@ -69,11 +67,9 @@ def _validate_time_options(config: ConfigType) -> ConfigType:
             "status_pin is unsupported for low_power; wake is configured separately",
             path=[CONF_STATUS_PIN],
         )
-    if CONF_MCU_WAKE_PIN in config and config[CONF_PROTOCOL] != PROTOCOL_LOW_POWER:
-        raise cv.Invalid(
-            f"{CONF_MCU_WAKE_PIN} requires protocol: low_power",
-            path=[CONF_MCU_WAKE_PIN],
-        )
+    for key in (CONF_MCU_WAKE_PIN, CONF_ON_MCU_READY):
+        if key in config and config[CONF_PROTOCOL] != PROTOCOL_LOW_POWER:
+            raise cv.Invalid(f"{key} requires protocol: low_power", path=[key])
     return config
 
 
@@ -136,29 +132,3 @@ async def to_code(config):
         await automation.build_callback_automation(
             var, "add_on_mcu_ready_callback", [], conf
         )
-
-
-def _validate_refresh_actions(config: ConfigType) -> None:
-    """Reject tuya.refresh unless the referenced Tuya hub uses low_power."""
-    full_config = fv.full_config.get()
-    for tuya_id, path in iter_ids(full_config):
-        if len(path) < 2 or path[-2:] != ["tuya.refresh", CONF_TUYA_ID]:
-            continue
-        hub = fv.get_declaring_config(tuya_id, full_config)
-        if hub.get(CONF_PROTOCOL) != PROTOCOL_LOW_POWER:
-            with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path]):
-                raise cv.Invalid("tuya.refresh requires protocol: low_power")
-
-
-FINAL_VALIDATE_SCHEMA = _validate_refresh_actions
-
-
-@automation.register_action(
-    "tuya.refresh",
-    TuyaRefreshAction,
-    cv.Schema({cv.Required(CONF_TUYA_ID): cv.use_id(Tuya)}),
-    synchronous=True,
-)
-async def tuya_refresh_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_TUYA_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)

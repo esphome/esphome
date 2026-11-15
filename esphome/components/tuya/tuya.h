@@ -10,7 +10,6 @@
 #include "esphome/components/uart/uart.h"
 
 #ifdef USE_TUYA_LOW_POWER
-#include "esphome/core/automation.h"
 #include "tuya_low_power.h"
 #include "tuya_low_power_product.h"
 #include "tuya_low_power_wire_transactions.h"
@@ -119,8 +118,10 @@ class Tuya final : public Component, public uart::UARTDevice {
 #ifdef USE_TUYA_LOW_POWER
   void set_protocol(TuyaProtocol protocol) { this->protocol_ = protocol; }
   void set_mcu_wake_pin(GPIOPin *pin) { this->mcu_wake_pin_ = pin; }
-  /// Asks the MCU for its current datapoints; false when it cannot take a command now.
-  bool request_low_power_refresh();
+  /// Called once after boot, when the MCU's state is known and it takes writes.
+  template<typename F> void add_on_mcu_ready_callback(F &&callback) {
+    this->mcu_ready_callback_.add(std::forward<F>(callback));
+  }
 #endif  // USE_TUYA_LOW_POWER
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
   void set_string_datapoint_value(uint8_t datapoint_id, const char *value);
@@ -144,19 +145,8 @@ class Tuya final : public Component, public uart::UARTDevice {
   template<typename F> void add_on_initialized_callback(F &&callback) {
     this->initialized_callback_.add(std::forward<F>(callback));
   }
-  /// Called once after boot, when the MCU takes commands: after the initialization of the standard protocol,
-  /// and for protocol low_power once the MCU reports its changes on its own.
-  template<typename F> void add_on_mcu_ready_callback(F &&callback) {
-    this->mcu_ready_callback_.add(std::forward<F>(callback));
-  }
 
  protected:
-  void notify_mcu_ready_() {
-    if (this->mcu_ready_)
-      return;
-    this->mcu_ready_ = true;
-    this->mcu_ready_callback_.call();
-  }
   void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   void handle_char_(uint8_t c);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
@@ -186,6 +176,12 @@ class Tuya final : public Component, public uart::UARTDevice {
   void begin_low_power_product_retry_(uint32_t now);
   void poll_low_power_product_recovery_();
   void finish_low_power_sync_();
+  void notify_mcu_ready_() {
+    if (this->mcu_ready_)
+      return;
+    this->mcu_ready_ = true;
+    this->mcu_ready_callback_.call();
+  }
 #endif  // USE_TUYA_LOW_POWER
   void send_raw_command_(TuyaCommand command);
   void process_command_queue_();
@@ -218,8 +214,11 @@ class Tuya final : public Component, public uart::UARTDevice {
   TuyaLowPowerSession lp_session_{};
   TuyaLowPowerWireTransactions lp_wire_{};
   TuyaLowPowerProductInfo lp_product_{};
+  CallbackManager<void()> mcu_ready_callback_{};
   uint32_t lp_product_retry_at_{0};
-  uint8_t lp_product_retries_{0};  // CMD01 retries left plus one; 0 when no retry runs
+  uint8_t lp_product_retries_{0};  // Fast CMD01 retries left before the slow ones
+  bool lp_product_retry_active_{false};
+  bool mcu_ready_{false};
   // The MCU frames with protocol version 3: status via CMD08/CMD07, writes via CMD06.
   bool lp_v3_{false};
   bool lp_v3_mode_acked_{false};
@@ -250,20 +249,6 @@ class Tuya final : public Component, public uart::UARTDevice {
   uint8_t wifi_status_ = -1;
   bool product_invalid_{false};
   CallbackManager<void()> initialized_callback_{};
-  CallbackManager<void()> mcu_ready_callback_{};
-  bool mcu_ready_{false};
 };
-
-#ifdef USE_TUYA_LOW_POWER
-template<typename... Ts> class TuyaRefreshAction : public Action<Ts...> {
- public:
-  explicit TuyaRefreshAction(Tuya *parent) : parent_(parent) {}
-
- protected:
-  void play(const Ts &...x) override { (void) this->parent_->request_low_power_refresh(); }
-
-  Tuya *parent_;
-};
-#endif
 
 }  // namespace esphome::tuya
