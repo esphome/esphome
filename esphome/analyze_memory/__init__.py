@@ -1399,15 +1399,25 @@ class MemoryAnalyzer:
 
     def _analyze_object_rodata(self) -> None:
         """Attribute .rodata without a symbol, which is RAM on ESP8266, to components."""
-        if not self.rodata_in_ram or (obj_dir := self._find_object_files_dir()) is None:
+        if not self.rodata_in_ram:
+            return
+        if (obj_dir := self._find_object_files_dir()) is None:
+            _LOGGER.warning(
+                "No object files next to the ELF, so constants in RAM are not listed"
+            )
             return
         result = run_tool(
             [self.readelf_path, "-SW", "-sW"]
             + [str(f) for f in sorted(obj_dir.rglob("*.o"))]
         )
-        if result is None or result.returncode != 0:
-            _LOGGER.debug("readelf failed scanning object files for constants")
+        if result is None:
+            _LOGGER.warning("readelf failed, so constants in RAM are not listed")
             return
+        if result.returncode != 0:
+            # readelf still prints every object it could read
+            _LOGGER.warning(
+                "readelf could not read every object: %s", result.stderr.strip()
+            )
         self._attribute_unnamed_constants(result.stdout, obj_dir)
         names = {n for c in self._unnamed_constants for n in c.functions}
         self._batch_demangle_symbols(sorted(names - self._demangle_cache.keys()))
@@ -1456,7 +1466,7 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.debug("readelf failed reading constants of %s", file_path)
+            _LOGGER.warning("readelf failed reading constants of %s", file_path)
             return []
 
         by_name = {section.name: section for section in sections.values()}
@@ -1512,7 +1522,7 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.debug("readelf failed reading strings of %s", file_path)
+            _LOGGER.warning("readelf failed reading strings of %s", file_path)
             return {}
         literals = _parse_hex_dumps(result.stdout)
         return {
