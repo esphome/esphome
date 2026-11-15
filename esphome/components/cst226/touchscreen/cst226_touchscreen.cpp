@@ -14,6 +14,10 @@ void CST226Touchscreen::setup() {
 }
 
 void CST226Touchscreen::update_touches() {
+  if (!this->setup_complete_) {
+    this->skip_update_ = true;
+    return;
+  }
   uint8_t data[28];
   if (!this->status_comm_result(this->read_bytes(CST226_REG_STATUS, data, sizeof data))) {
     this->skip_update_ = true;
@@ -44,16 +48,17 @@ void CST226Touchscreen::update_touches() {
 
 void CST226Touchscreen::continue_setup_() {
   this->setup_interrupt_pin_(gpio::INTERRUPT_FALLING_EDGE);
-  if (!this->setup_check(this->write_byte_reg16(0xD1, 0xD1), LOG_STR("Write byte to 0xD1 failed")))
+  if (!this->enter_command_mode_())
     return;
   delay(10);
-  uint16_t project_id, chip_id;
-  if (this->setup_check(this->read_words_(cstxxx::REG_CHIP_INFO, project_id, chip_id))) {
-    ESP_LOGCONFIG(TAG, "Chip ID %X, project ID %x", chip_id, project_id);
-  }
+  if (!this->check_firmware_())
+    return;
+  if (!this->setup_check(this->read_words_(cstxxx::REG_CHIP_INFO, this->project_id_, this->chip_id_),
+                         LOG_STR("Failed to read chip ID")))
+    return;
   if (this->x_raw_max_ == 0 || this->y_raw_max_ == 0) {
     uint16_t x_max, y_max;
-    if (this->setup_check(this->read_words_(cstxxx::REG_RESOLUTION, x_max, y_max))) {
+    if (this->read_words_(cstxxx::REG_RESOLUTION, x_max, y_max)) {
       this->x_raw_max_ = x_max;
       this->y_raw_max_ = y_max;
       if (this->swap_x_y_)
@@ -63,6 +68,7 @@ void CST226Touchscreen::continue_setup_() {
       this->y_raw_max_ = this->display_->get_native_height();
     }
   }
+  this->status_comm_check(this->write_register16(cstxxx::REG_NORMAL_MODE, nullptr, 0) == i2c::ERROR_OK);
   this->setup_complete_ = true;
 }
 
@@ -79,6 +85,10 @@ void CST226Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG,
+                "  Chip ID: 0x%04X, Project ID: 0x%04X\n"
+                "  X/Y raw max: %d/%d",
+                this->chip_id_, this->project_id_, this->x_raw_max_, this->y_raw_max_);
 }
 
 }  // namespace esphome::cst226
