@@ -13,20 +13,61 @@ esp32_camera:
 
 esphome:
   on_boot:
-    then:
-      - esp32_camera.set_window:
-          id: test_camera
-          offset_x: 0
-          offset_y: 0
-          width: 480
-          height: 320
-      - esp32_camera.set_window:
-          id: test_camera
-          offset_x: 0
-          offset_y: 0
-          width: !lambda "return 320;"
-          height: 240
-      - esp32_camera.reset_window: test_camera
+    - then:
+        - esp32_camera.set_window:
+            id: test_camera
+            offset_x: 0
+            offset_y: 0
+            width: 480
+            height: 320
+        - esp32_camera.set_window:
+            id: test_camera
+            offset_x: 0
+            offset_y: 0
+            width: !lambda "return 320;"
+            height: 240
+        - esp32_camera.reset_window: test_camera
+    # After the saved values are restored, before the camera starts
+    - priority: 700
+      then:
+        - number.set:
+            id: camera_jpeg_quality
+            value: !lambda "return id(camera_jpeg_quality).state;"
+        - select.set:
+            id: camera_resolution
+            option: !lambda "return id(camera_resolution).current_option().str();"
+
+number:
+  - platform: template
+    id: camera_jpeg_quality
+    name: Camera JPEG Quality
+    entity_category: config
+    min_value: 6
+    max_value: 63
+    step: 1
+    initial_value: 10
+    restore_value: true
+    optimistic: true
+    set_action:
       - lambda: |-
-          if (id(test_camera).set_jpeg_quality(12))
+          if (id(test_camera).set_jpeg_quality(x))
             id(test_camera).update_camera_parameters();
+
+select:
+  - platform: template
+    id: camera_resolution
+    name: Camera Resolution
+    entity_category: config
+    options: ["320x240", "640x480", "800x600"]
+    initial_option: 640x480
+    restore_value: true
+    optimistic: true
+    set_action:
+      - lambda: |-
+          if (x == "320x240")
+            id(test_camera).set_frame_size(esp32_camera::ESP32_CAMERA_SIZE_320X240);
+          else if (x == "800x600")
+            id(test_camera).set_frame_size(esp32_camera::ESP32_CAMERA_SIZE_800X600);
+          else
+            id(test_camera).set_frame_size(esp32_camera::ESP32_CAMERA_SIZE_640X480);
+          id(test_camera).update_camera_parameters();
