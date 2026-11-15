@@ -106,5 +106,30 @@ TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
   EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
 }
 
+TEST(AttemptSsidTest, NothingIsOtherBeforeTheFirstAttempt) {
+  AttemptSsid attempt;
+  EXPECT_FALSE(attempt.is_other(reinterpret_cast<const uint8_t *>("home"), 4));
+}
+
+TEST(AttemptSsidTest, OnlyAnotherSsidIsFromAnEarlierAttempt) {
+  AttemptSsid attempt;
+  attempt.set(reinterpret_cast<const uint8_t *>("home"), 4);
+  EXPECT_FALSE(attempt.is_other(reinterpret_cast<const uint8_t *>("home"), 4));
+  // The hidden network tried before, reported after the real attempt started
+  EXPECT_TRUE(attempt.is_other(reinterpret_cast<const uint8_t *>("hidden"), 6));
+  EXPECT_TRUE(attempt.is_other(reinterpret_cast<const uint8_t *>("hom"), 3));
+  EXPECT_TRUE(attempt.is_other(reinterpret_cast<const uint8_t *>("homE"), 4));
+}
+
+TEST(AttemptSsidTest, FullLengthSsidWithoutTerminator) {
+  uint8_t ssid[32];
+  std::fill(std::begin(ssid), std::end(ssid), 'a');
+  AttemptSsid attempt;
+  attempt.set(ssid, sizeof(ssid));
+  EXPECT_FALSE(attempt.is_other(ssid, sizeof(ssid)));
+  ssid[31] = 'b';
+  EXPECT_TRUE(attempt.is_other(ssid, sizeof(ssid)));
+}
+
 }  // namespace
 }  // namespace esphome::wifi::testing

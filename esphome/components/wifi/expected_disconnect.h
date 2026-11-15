@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace esphome::wifi {
@@ -46,6 +47,27 @@ class ExpectedDisconnect {
  protected:
   std::array<uint8_t, 6> bssid_{};
   bool armed_{false};
+};
+
+/// The SSID of the connect attempt in progress. When a new attempt replaces one that never associated, the driver
+/// reports the old attempt's leave (reason 36, no BSSID) only after the new one has started, naming the old SSID.
+class AttemptSsid {
+ public:
+  void set(const uint8_t *ssid, size_t len) {
+    this->len_ = static_cast<uint8_t>(std::min(len, this->ssid_.size()));
+    std::copy_n(ssid, this->len_, this->ssid_.begin());
+    this->set_ = true;
+  }
+
+  /// Whether a disconnect names another SSID than the current attempt, so it belongs to an earlier attempt.
+  bool is_other(const uint8_t *ssid, size_t len) const {
+    return this->set_ && (len != this->len_ || !std::equal(ssid, ssid + len, this->ssid_.begin()));
+  }
+
+ protected:
+  std::array<uint8_t, 32> ssid_{};
+  uint8_t len_{0};
+  bool set_{false};
 };
 
 }  // namespace esphome::wifi
