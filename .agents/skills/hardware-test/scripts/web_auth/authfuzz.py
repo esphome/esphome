@@ -185,6 +185,7 @@ def case(
     u0 = uptime() if expect == "reject" else None
     r = raw(req, **kw)
     st = r["status"]
+    down = False
     if expect == "reject":
         ok = st in (400, 401, 413, 431)
         if st is None:
@@ -192,6 +193,7 @@ def case(
             time.sleep(1)
             u1 = uptime()
             ok = u0 is not None and u1 is not None and u1 >= u0
+            down = not ok
             note = (note + " " if note else "") + f"no status, uptime {u0} -> {u1}"
     else:
         ok = st == expect
@@ -207,7 +209,8 @@ def case(
         "body_head": r["body"][:120].decode("latin1"),
         "note": note,
         "closed": r["closed"],
-        "info": note.startswith("informational"),
+        # only the status of an informational case is not judged; a reboot or no answer still fails it
+        "info": note.startswith("informational") and not down,
     }
     ROWS.append(row)
     p(
