@@ -10,7 +10,7 @@ namespace esphome::sensor::benchmarks {
 
 static constexpr int kInnerIterations = 2000;
 // Long enough that interval filters never fire during a run
-static constexpr uint32_t kNeverFireMs = 3600000;
+static constexpr uint32_t NEVER_FIRE_MS = 3600000;
 
 static constexpr float NO_MAX_DELTA = std::numeric_limits<float>::infinity();
 static constexpr uint32_t LOOP_TICK_MS = 16;
@@ -123,25 +123,28 @@ static void SensorFilter_Median(benchmark::State &state) {
 }
 BENCHMARK(SensorFilter_Median);
 
+// Cancels the filter's interval and runs the scheduler once so the item is gone before the filter
+static void publish_ramp_then_cancel(benchmark::State &state, Sensor &sensor, Filter *filter) {
+  publish_ramp(state, sensor);
+  App.scheduler.cancel_interval(filter);
+  App.scheduler.call(millis());
+}
+
 // Benchmark: throttle_average accumulate path (interval never fires)
 static void SensorFilter_ThrottleAverage(benchmark::State &state) {
   Sensor sensor;
-  auto *filter = new ThrottleAverageFilter(kNeverFireMs);
+  auto *filter = new ThrottleAverageFilter(NEVER_FIRE_MS);
   sensor.add_filter(filter);
-  publish_ramp(state, sensor);
-  App.scheduler.cancel_interval(filter);
-  App.scheduler.process_to_add();
+  publish_ramp_then_cancel(state, sensor, filter);
 }
 BENCHMARK(SensorFilter_ThrottleAverage);
 
 // Benchmark: heartbeat store path (interval never fires)
 static void SensorFilter_Heartbeat(benchmark::State &state) {
   Sensor sensor;
-  auto *filter = new HeartbeatFilter(kNeverFireMs);
+  auto *filter = new HeartbeatFilter(NEVER_FIRE_MS);
   sensor.add_filter(filter);
-  publish_ramp(state, sensor);
-  App.scheduler.cancel_interval(filter);
-  App.scheduler.process_to_add();
+  publish_ramp_then_cancel(state, sensor, filter);
 }
 BENCHMARK(SensorFilter_Heartbeat);
 
