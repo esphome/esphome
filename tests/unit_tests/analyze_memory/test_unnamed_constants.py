@@ -475,3 +475,32 @@ def test_linked_copy_unknown_same_named_locals() -> None:
     assert definitions.linked_copy_unknown("a.o", ["_ZL3barv"])
     # Another, unique user decides it
     assert not definitions.linked_copy_unknown("a.o", ["_ZL3barv", "_ZL3bazv"])
+
+
+def test_unnamed_constants_partial_readelf_output(
+    obj_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable object warns, and the objects readelf did print are still used."""
+    analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP, MATCH_URL})
+
+    def failing_run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        result = run_tool(cmd)
+        if "-SW" in cmd:
+            return subprocess.CompletedProcess([], 1, result.stdout, "readelf: bad.o")
+        return result
+
+    with patch("esphome.analyze_memory.run_tool", side_effect=failing_run_tool):
+        analyzer._analyze_object_rodata()
+    assert len(analyzer._unnamed_constants) == 2
+    assert "readelf could not read every object: readelf: bad.o" in caplog.text
+
+
+def test_unnamed_constants_missing_objects_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Without object files the report says why constants are missing."""
+    analyzer = make_analyzer()
+    analyzer.elf_path = tmp_path / "firmware.elf"
+    analyzer.rodata_in_ram = True
+    analyzer._analyze_object_rodata()
+    assert "No object files next to the ELF" in caplog.text
