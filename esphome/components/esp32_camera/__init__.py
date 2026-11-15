@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 
 from esphome import automation, pins
@@ -95,6 +96,7 @@ FRAME_SIZES = {
     "2560X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
     "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
+
 ESP32CameraPixelFormat = esp32_camera_ns.enum("ESP32CameraPixelFormat")
 PIXEL_FORMATS = ESP32CameraPixelFormat.options(
     "RGB565",
@@ -333,7 +335,91 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _check_window_fits(config: ConfigType) -> None:
+    """Warn about a window the configured frame size cannot hold.
+
+    ``resolution`` takes names such as ``QVGA`` as well as ``320X240``, and the
+    enum member name always ends in ``_<W>X<H>``, so the check works from the
+    resolved frame size rather than the spelling in the config.
+
+    How far a window may reach depends on the sensor, which is not known here, so
+    the warning is worded per case:
+
+    * a window larger than the frame itself is usable on no sensor;
+    * a full-resolution window with an offset is valid on the SC sensors, which
+      count the offset in pixels of the whole sensor, and only the OV sensors
+      clamp it;
+    * a window that is not the resolution is clamped by the OV sensors and
+      rejected by the SC sensors, which require the size to equal it.
+    """
+    window = config.get(CONF_WINDOW)
+    if window is None:
+        return
+
+    match = re.search(r"(\d+)X(\d+)$", str(config[CONF_RESOLUTION].enum_value))
+    if match is None:
+        return
+    frame_width = int(match.group(1))
+    frame_height = int(match.group(2))
+
+    offset_x = window[CONF_OFFSET_X]
+    offset_y = window[CONF_OFFSET_Y]
+    width = window[CONF_WIDTH]
+    height = window[CONF_HEIGHT]
+    right = offset_x + width
+    bottom = offset_y + height
+    if right <= frame_width and bottom <= frame_height:
+        return
+
+    if width > frame_width or height > frame_height:
+        _LOGGER.warning(
+            "The camera window at (%d,%d) sized %dx%d is larger than the %dx%d "
+            "frame itself, so no sensor can read it out as written.",
+            offset_x,
+            offset_y,
+            width,
+            height,
+            frame_width,
+            frame_height,
+        )
+        return
+
+    if width == frame_width and height == frame_height:
+        _LOGGER.warning(
+            "The camera window at (%d,%d) is the whole %dx%d resolution, so it "
+            "reaches (%d,%d). The OV2640, OV3660 and OV5640 clamp such a window, "
+            "which changes the crop; use a larger `resolution` to read the window "
+            "as written. The SC101IOT and SC030IOT count the offset in pixels of "
+            "the whole sensor, so the window is fine there.",
+            offset_x,
+            offset_y,
+            frame_width,
+            frame_height,
+            right,
+            bottom,
+        )
+        return
+
+    _LOGGER.warning(
+        "The camera window at (%d,%d) sized %dx%d reaches (%d,%d), outside the "
+        "%dx%d resolution. The OV2640, OV3660 and OV5640 clamp such a window, "
+        "which changes the crop; use a larger `resolution` to read the window as "
+        "written. The SC101IOT and SC030IOT require the window size to equal the "
+        "`resolution`, so this window cannot be used there.",
+        offset_x,
+        offset_y,
+        width,
+        height,
+        right,
+        bottom,
+        frame_width,
+        frame_height,
+    )
+
+
 def _final_validate(config: ConfigType) -> None:
+    _check_window_fits(config)
+
     # Check psram requirement for non-JPEG formats
     if (
         config.get(CONF_PIXEL_FORMAT, "JPEG") != "JPEG"
