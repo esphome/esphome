@@ -122,8 +122,8 @@ bool MotionComponent::calibrate_level() {
   float r[9];
   if (nz < -0.9999f) {
     // Aligned with -Z — 180° rotation about X
-    float m[9] = {1, 0, 0, 0, -1, 0, 0, 0, -1};
-    memcpy(r, m, sizeof(r));
+    MotionComponent::set_identity(r);
+    r[4] = r[8] = -1.0f;
   } else {
     float f = 1.0f / (1.0f + nz);
     r[0] = 1.0f - nx * nx * f;
