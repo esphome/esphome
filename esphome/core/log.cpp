@@ -37,6 +37,14 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const char *forma
 }
 
 #ifdef USE_ESP8266
+const char LOG_STR_YES[] PROGMEM = "YES";
+const char LOG_STR_NO[] PROGMEM = "NO";
+const char LOG_STR_ON[] PROGMEM = "ON";
+const char LOG_STR_OFF[] PROGMEM = "OFF";
+const char LOG_STR_TRUE[] PROGMEM = "TRUE";
+const char LOG_STR_FALSE[] PROGMEM = "FALSE";
+const char LOG_STR_UNKNOWN[] PROGMEM = "UNKNOWN";
+
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);

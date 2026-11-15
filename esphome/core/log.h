@@ -197,12 +197,6 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
   ((byte) & 0x80 ? '1' : '0'), ((byte) & 0x40 ? '1' : '0'), ((byte) & 0x20 ? '1' : '0'), ((byte) & 0x10 ? '1' : '0'), \
       ((byte) & 0x08 ? '1' : '0'), ((byte) & 0x04 ? '1' : '0'), ((byte) & 0x02 ? '1' : '0'), \
       ((byte) & 0x01 ? '1' : '0')
-#define YESNO(b) ((b) ? "YES" : "NO")
-#define ONOFF(b) ((b) ? "ON" : "OFF")
-#define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
-// for use with optional values
-#define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : "UNKNOWN")
-
 // Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
 struct LogString;
 
@@ -221,6 +215,29 @@ struct LogString;
 #define LOG_STR_ARG(s) (reinterpret_cast<const char *>(s))
 #define LOG_STR_LITERAL(s) (s)
 
+#endif
+
+// Words for %s log arguments. On ESP8266 one shared copy of each lives in flash, so the result must only be
+// passed where a LOG_STR_ARG is accepted (ESP_LOG* %s arguments, the *_P functions).
+#ifdef USE_ESP8266
+extern const char LOG_STR_YES[];
+extern const char LOG_STR_NO[];
+extern const char LOG_STR_ON[];
+extern const char LOG_STR_OFF[];
+extern const char LOG_STR_TRUE[];
+extern const char LOG_STR_FALSE[];
+extern const char LOG_STR_UNKNOWN[];
+#define YESNO(b) LOG_STR_ARG((b) ? ::esphome::LOG_STR_YES : ::esphome::LOG_STR_NO)
+#define ONOFF(b) LOG_STR_ARG((b) ? ::esphome::LOG_STR_ON : ::esphome::LOG_STR_OFF)
+#define TRUEFALSE(b) LOG_STR_ARG((b) ? ::esphome::LOG_STR_TRUE : ::esphome::LOG_STR_FALSE)
+// for use with optional values
+#define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : LOG_STR_ARG(::esphome::LOG_STR_UNKNOWN))
+#else
+#define YESNO(b) ((b) ? "YES" : "NO")
+#define ONOFF(b) ((b) ? "ON" : "OFF")
+#define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
+// for use with optional values
+#define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : "UNKNOWN")
 #endif
 
 // Declares a static log tag at namespace scope, in a source file or a header; on ESP8266 it lives in flash, so

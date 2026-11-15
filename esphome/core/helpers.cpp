@@ -656,7 +656,8 @@ size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float 
   }
 
   // Fallback for NaN/Inf/high accuracy/out-of-range
-  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, static_cast<double>(value));
+  int len =
+      ESPHOME_snprintf_P(buf.data(), buf.size(), ESPHOME_PSTR("%.*f"), accuracy_decimals, static_cast<double>(value));
   if (len < 0)
     return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);

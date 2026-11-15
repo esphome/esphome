@@ -834,7 +834,7 @@ class BoolType(VarintTypeMixin, TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     def dump(self, name: str) -> str:
-        return f"out.append(YESNO({name}));"
+        return f"out.append_p(YESNO({name}));"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(name, force, "bool")
@@ -3353,7 +3353,7 @@ static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, 
 
 static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append(YESNO(value));
+  out.append_p(YESNO(value));
   out.append("\\n");
 }
 

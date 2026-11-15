@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 
 #include "esphome/components/logger/logger.h"
@@ -349,7 +350,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         const auto &ssid = scan.get_ssid();
         builder.add_string(ssid.c_str(), ssid.size());
         builder.add_string(rssi_buf, rssi_end - rssi_buf);
-        builder.add_string(YESNO(with_auth));
+        // YESNO points to flash on ESP8266
+        char auth[4];
+        ESPHOME_strncpy_P(auth, YESNO(with_auth), sizeof(auth));
+        builder.add_string(auth);
         this->send_response_(builder.finish(false));
       }
 #endif  // USE_WIFI
