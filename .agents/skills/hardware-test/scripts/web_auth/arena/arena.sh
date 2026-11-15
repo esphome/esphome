@@ -48,7 +48,8 @@ if [ -n "$NOCAP" ]; then
   echo "== $N serial: not captured (NOCAP), no reset, fault or stack check"
   exit $RC
 fi
-RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L"); FL=$(grep -a -c -i -E '(^|[^[:alpha:]])fault|hardfault|crash|assert|abort|stack overflow' "$L")
+# boot lines: the BW15 ROM banner, the BK7238 Beken bootloader banner (BK7238_1.0.14, generic-bk7238)
+RS=$(grep -a -c -E 'Reset Reason|ROM Version|BK7238_1' "$L"); FL=$(grep -a -c -i -E '(^|[^[:alpha:]])fault|hardfault|crash|assert|abort|stack overflow' "$L")
 echo "== $N serial: resets $RS, port losses $(grep -a -c 'port lost' "$L"), faults $FL"
 # Opening the capture can reset the chip once (BK7238), so one boot is expected
 { [ "$FL" -gt 0 ] || [ "$RS" -gt 1 ]; } && { echo "FAIL: faults $FL, resets $RS"; RC=1; }

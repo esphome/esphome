@@ -85,44 +85,43 @@ class Stream(threading.Thread):
     def run(self):
         try:
             self.t_start = time.monotonic()
-            s = socket.create_connection((args.host, 80), timeout=5)
-            self.t_conn = time.monotonic()
-            s.sendall(REQ % args.host.encode())
-            s.settimeout(0.5)
-            buf = body = b""
-            headers = False
-            cur = None
-            while not self.stop:
-                try:
-                    data = s.recv(65536)
-                except TimeoutError:
-                    continue
-                if not data:
-                    self.end = "closed"
-                    return
-                buf += data
-                if not headers:
-                    i = buf.find(b"\r\n\r\n")
-                    if i < 0:
+            with socket.create_connection((args.host, 80), timeout=5) as s:
+                self.t_conn = time.monotonic()
+                s.sendall(REQ % args.host.encode())
+                s.settimeout(0.5)
+                buf = body = b""
+                headers = False
+                cur = None
+                while not self.stop:
+                    try:
+                        data = s.recv(65536)
+                    except TimeoutError:
                         continue
-                    headers, buf = True, buf[i + 4 :]
-                while (i := buf.find(b"\r\n")) >= 0:
-                    size = int(buf[:i].split(b";")[0], 16)
-                    if len(buf) < i + 4 + size:
-                        break
-                    body += buf[i + 2 : i + 2 + size]
-                    buf = buf[i + 4 + size :]
-                while b"\n" in body:
-                    line, body = body.split(b"\n", 1)
-                    line = line.rstrip(b"\r")
-                    if line.startswith(b"event:"):
-                        cur = line[6:].strip().decode()
-                    elif line.startswith(b"data:"):
-                        self.record(cur or "message", line[5:].strip())
-                    elif not line:
-                        cur = None
-            self.end = "stopped"
-            s.close()
+                    if not data:
+                        self.end = "closed"
+                        return
+                    buf += data
+                    if not headers:
+                        i = buf.find(b"\r\n\r\n")
+                        if i < 0:
+                            continue
+                        headers, buf = True, buf[i + 4 :]
+                    while (i := buf.find(b"\r\n")) >= 0:
+                        size = int(buf[:i].split(b";")[0], 16)
+                        if len(buf) < i + 4 + size:
+                            break
+                        body += buf[i + 2 : i + 2 + size]
+                        buf = buf[i + 4 + size :]
+                    while b"\n" in body:
+                        line, body = body.split(b"\n", 1)
+                        line = line.rstrip(b"\r")
+                        if line.startswith(b"event:"):
+                            cur = line[6:].strip().decode()
+                        elif line.startswith(b"data:"):
+                            self.record(cur or "message", line[5:].strip())
+                        elif not line:
+                            cur = None
+                self.end = "stopped"
         except (OSError, ValueError) as e:
             self.end = f"error: {e}"
 

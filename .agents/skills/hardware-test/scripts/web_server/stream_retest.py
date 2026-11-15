@@ -55,12 +55,17 @@ class Reader(threading.Thread):
 
     def connect(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if self.rcvbuf:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.rcvbuf)
-        s.settimeout(5)
-        s.connect((H, 80))
-        s.sendall(REQ)
-        s.settimeout(0.5)
+        # a failed connect or send must not leave the socket open; _read() closes it after a good connect
+        try:
+            if self.rcvbuf:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.rcvbuf)
+            s.settimeout(5)
+            s.connect((H, 80))
+            s.sendall(REQ)
+            s.settimeout(0.5)
+        except OSError:
+            s.close()
+            raise
         self.sock = s
         return s
 
@@ -154,47 +159,48 @@ elif args.mode == "stall":
     for run in range(args.runs):
         reader = Reader(45)
         reader.start()
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
-        s.settimeout(5)
-        s.connect((H, 80))
-        s.sendall(REQ)
-        s.settimeout(0.5)
-        t_end = time.monotonic() + 3
-        got, early = b"", None
-        while time.monotonic() < t_end:
-            try:
-                d = s.recv(4096)
-            except TimeoutError:
-                continue
-            except OSError as e:
-                early = e.__class__.__name__
-                break
-            if not d:
-                early = "eof"
-                break
-            got += d
-        # a stream refused or closed before the stall would make the later EOF a false pass
-        live = early is None and got.startswith(b"HTTP/1.1 200") and b"event:" in got
-        t_stop = time.time()
-        print(
-            f"stall run {run + 1}: stopped reading at {time.strftime('%H:%M:%S', time.localtime(t_stop))}",
-            flush=True,
-        )
-        time.sleep(35)
-        s.settimeout(2)
-        closed = False
-        drain_end = time.monotonic() + 5
-        try:
-            while time.monotonic() < drain_end:
-                if not s.recv(65536):
-                    closed = True
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+            s.settimeout(5)
+            s.connect((H, 80))
+            s.sendall(REQ)
+            s.settimeout(0.5)
+            t_end = time.monotonic() + 3
+            got, early = b"", None
+            while time.monotonic() < t_end:
+                try:
+                    d = s.recv(4096)
+                except TimeoutError:
+                    continue
+                except OSError as e:
+                    early = e.__class__.__name__
                     break
-        except TimeoutError:
-            pass
-        except OSError:
-            closed = True
-        s.close()
+                if not d:
+                    early = "eof"
+                    break
+                got += d
+            # a stream refused or closed before the stall would make the later EOF a false pass
+            live = (
+                early is None and got.startswith(b"HTTP/1.1 200") and b"event:" in got
+            )
+            t_stop = time.time()
+            print(
+                f"stall run {run + 1}: stopped reading at {time.strftime('%H:%M:%S', time.localtime(t_stop))}",
+                flush=True,
+            )
+            time.sleep(35)
+            s.settimeout(2)
+            closed = False
+            drain_end = time.monotonic() + 5
+            try:
+                while time.monotonic() < drain_end:
+                    if not s.recv(65536):
+                        closed = True
+                        break
+            except TimeoutError:
+                pass
+            except OSError:
+                closed = True
         reader.join()
         ok = live and closed and reader.end == "deadline" and reader.max_gap < 5
         summary(
@@ -213,21 +219,20 @@ elif args.mode == "wifidrop":
     pressed = False
     t_send = time.monotonic()
     try:
-        b = socket.create_connection((H, 80), timeout=5)
-        b.sendall(
-            b"POST /button/Wifi%20Drop/press HTTP/1.1\r\nHost: "
-            + H.encode()
-            + b"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-        )
-        b.settimeout(3)
-        # read through the end of the status line; one recv may hold only part of it
-        reply = b""
-        while b"\r\n" not in reply and (d := b.recv(200)):
-            reply += d
-        status = reply.split(b"\r\n")[0]
-        pressed = status.startswith(b"HTTP/1.1 200")
-        print("press reply:", status, flush=True)
-        b.close()
+        with socket.create_connection((H, 80), timeout=5) as b:
+            b.sendall(
+                b"POST /button/Wifi%20Drop/press HTTP/1.1\r\nHost: "
+                + H.encode()
+                + b"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            b.settimeout(3)
+            # read through the end of the status line; one recv may hold only part of it
+            reply = b""
+            while b"\r\n" not in reply and (d := b.recv(200)):
+                reply += d
+            status = reply.split(b"\r\n")[0]
+            pressed = status.startswith(b"HTTP/1.1 200")
+            print("press reply:", status, flush=True)
     except OSError as e:
         print("press error", e, flush=True)
     t_press = time.monotonic()
