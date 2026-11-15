@@ -1,0 +1,34 @@
+# I2C bus and camera pins for the Seeed Studio XIAO ESP32-S3 Sense.
+psram:
+  mode: octal
+  speed: 80MHz
+
+i2c:
+  - id: i2c_camera_bus
+    sda: GPIO40
+    scl: GPIO39
+    frequency: 400kHz
+
+esp32_camera:
+  id: test_camera
+  name: ESP32 Camera
+  data_pins:
+    - number: GPIO15
+    - number: GPIO17
+    - number: GPIO18
+    - number: GPIO16
+    - number: GPIO14
+    - number: GPIO12
+    - number: GPIO11
+    - number: GPIO48
+  vsync_pin: GPIO38
+  href_pin: GPIO47
+  pixel_clock_pin: GPIO13
+  external_clock:
+    pin: GPIO10
+    frequency: 20MHz
+  i2c_id: i2c_camera_bus
+  resolution: 640x480
+  jpeg_quality: 10
+  frame_buffer_location: PSRAM
+  pixel_format: JPEG
