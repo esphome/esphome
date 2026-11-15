@@ -1335,7 +1335,7 @@ class MemoryAnalyzer:
         # object that uses them; the linker keeps one copy
         inline_copies: set[tuple[tuple[str, ...], int]] = set()
         for file_path, sections in unnamed.items():
-            rel_path = str(Path(file_path).relative_to(obj_dir))
+            rel_path = Path(file_path).relative_to(obj_dir).as_posix()
             component = self._source_file_to_component(rel_path)
             for constant in self._scan_object_constants(
                 file_path, sections, rel_path, component
