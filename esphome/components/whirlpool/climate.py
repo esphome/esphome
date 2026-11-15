@@ -5,13 +5,15 @@ from esphome.const import CONF_MODEL
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
-CODEOWNERS = ["@glmnet", "@arpena"]
+CODEOWNERS = ["@glmnet", "@arpena", "@Rodrigoah"]
 
 whirlpool_ns = cg.esphome_ns.namespace("whirlpool")
 WhirlpoolClimate = whirlpool_ns.class_("WhirlpoolClimate", climate_ir.ClimateIR)
 
 Model = whirlpool_ns.enum("Model")
-MODELS = Model.options("DG11J1-3A", "DG11J1-91", "HISENSE_ARG", prefix="MODEL_")
+MODELS = Model.options(
+    "DG11J1-3A", "DG11J1-91", "HISENSE_ARG", "HITACHI_HCRA31NEWH", prefix="MODEL_"
+)
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(WhirlpoolClimate).extend(
     {
@@ -26,3 +28,5 @@ async def to_code(config: ConfigType) -> None:
     # cv.enum keeps the YAML key as a str subclass; the MockObj value cannot be compared
     if config[CONF_MODEL] == "HISENSE_ARG":
         cg.add_define("USE_WHIRLPOOL_HISENSE_ARG")
+    elif config[CONF_MODEL] == "HITACHI_HCRA31NEWH":
+        cg.add_define("USE_WHIRLPOOL_HITACHI_HCRA31NEWH")
