@@ -213,8 +213,10 @@ void ZigbeeLight::apply_color_() {
     float r, g, b;
     if (xy_to_rgb(this->x_, this->y_, r, g, b)) {
       this->next_call_.set_rgb(r, g, b);
-      this->next_call_.set_color_brightness(1);
-      this->next_call_.set_white(0);
+      this->next_call_.set_color_brightness_if_supported(1);
+      this->next_call_.set_white_if_supported(0);
+      this->next_call_.set_warm_white_if_supported(0);
+      this->next_call_.set_cold_white_if_supported(0);
       this->next_call_.set_color_mode_if_supported(light::ColorMode::RGB);
       ESP_LOGD(TAG, "set color: %f, %f, %f", r, g, b);
       this->schedule_call_();
@@ -229,7 +231,7 @@ void ZigbeeLight::apply_ct_(uint16_t ct) {
   }
   this->next_call_.set_color_temperature(convert_color_temp(ct));
   this->next_call_.set_color_brightness_if_supported(0);
-  this->next_call_.set_white(1);
+  this->next_call_.set_white_if_supported(1);
   this->next_call_.set_color_mode_if_supported(light::ColorMode::COLD_WARM_WHITE);
   this->next_call_.set_color_mode_if_supported(light::ColorMode::COLOR_TEMPERATURE);
   ESP_LOGD(TAG, "set color temp: %f", convert_color_temp(ct));
@@ -359,8 +361,9 @@ void ZigbeeLight::set_attr_internal() {
         ct = get_color_temp(values.get_warm_white(), values.get_cold_white(), traits.get_min_mireds(),
                             traits.get_max_mireds());
       }
-      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, ct);
+      ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
+                             EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, EZB_ZCL_STD_MANUF_CODE, &ct,
+                             false);
       uint8_t mode = 0x02;
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
                              EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_MODE_ID, EZB_ZCL_STD_MANUF_CODE, &mode, false);
