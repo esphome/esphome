@@ -38,11 +38,11 @@ void ZigbeeEntityBase::loop() {
     this->set_attr_internal();
   }
 
-  if (this->report_requested_) {
+  if (this->report_requested_ && this->zb_->is_joined()) {
     this->report_internal(false);
   }
 
-  if (!this->report_requested_ && !this->set_attr_requested_ && can_disable) {
+  if ((!this->report_requested_ || !this->zb_->is_joined()) && !this->set_attr_requested_ && can_disable) {
     this->disable_loop();
   }
 }
