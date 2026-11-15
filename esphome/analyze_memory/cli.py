@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 import heapq
+import json
 from operator import itemgetter
 from pathlib import Path
 import sys
@@ -777,7 +778,6 @@ def main():
     build_dir = sys.argv[1]
 
     # Load build directory
-    import json
 
     from esphome.platformio.toolchain import IDEData
 
