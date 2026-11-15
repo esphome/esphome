@@ -1588,7 +1588,11 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.warning("readelf failed reading strings of %s", file_path)
+            _LOGGER.warning(
+                "readelf failed reading strings of %s: %s",
+                file_path,
+                result.stderr.strip() if result else "not run",
+            )
             return {}
         contents = _parse_hex_dumps(result.stdout)
         users: dict[bytes, set[str]] = defaultdict(set)
@@ -1641,7 +1645,11 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.warning("readelf failed reading string users of %s", file_path)
+            _LOGGER.warning(
+                "readelf failed reading string users of %s: %s",
+                file_path,
+                result.stderr.strip() if result else "not run",
+            )
             return users
         referrers = _parse_hex_dumps(result.stdout)
         for section, found, offset, target, addend in refs:
