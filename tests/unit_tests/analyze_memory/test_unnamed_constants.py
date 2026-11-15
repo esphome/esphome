@@ -462,6 +462,17 @@ def test_linked_copy_unknown_weak_overridden_by_strong() -> None:
     assert not definitions.linked_copy_unknown("b.o", ["_Z3foov"])
 
 
+def test_linked_copy_unknown_weak_partly_overridden() -> None:
+    """A constant stays linked while one of its weak users has no strong override."""
+    definitions = _definitions(
+        {
+            "a.o": [("WEAK", "_Z3foov"), ("WEAK", "_Z3barv")],
+            "b.o": [("GLOBAL", "_Z3foov")],
+        }
+    )
+    assert not definitions.linked_copy_unknown("a.o", ["_Z3barv", "_Z3foov"])
+
+
 def test_linked_copy_unknown_same_named_locals() -> None:
     """Local functions with one name in two objects can't be told apart in the ELF."""
     definitions = _definitions(

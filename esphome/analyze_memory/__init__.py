@@ -266,8 +266,8 @@ class _FunctionDefinitions:
     def linked_copy_unknown(self, file_path: str, functions: list[str]) -> bool:
         """True if another object's copy of these functions may be the linked one."""
         if self.weak[file_path].issuperset(functions):
-            # Inline copies: a strong definition elsewhere replaces them all
-            return not self.strong.isdisjoint(functions)
+            # Inline copies: dropped only once a strong definition replaces every user
+            return self.strong.issuperset(functions)
         # Same-named local functions in several objects; the ELF can't tell them apart
         return all(f not in self.strong and self.count[f] > 1 for f in functions)
 
