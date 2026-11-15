@@ -16,7 +16,7 @@ from esphome.analyze_memory import (
 )
 from esphome.analyze_memory.cli import MemoryAnalyzerCLI
 
-from . import make_analyzer
+from . import completed, hex_dump, make_analyzer
 
 LIGHT_OBJ = "src/esphome/components/light/light_state.cpp.o"
 WEB_OBJ = "src/esphome/components/web_server/web_server.cpp.o"
@@ -83,10 +83,6 @@ Hex dump of section '.rodata':
 """
 
 
-def _completed(stdout: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess([], 0, stdout=stdout)
-
-
 @pytest.fixture
 def obj_dir(tmp_path: Path) -> Path:
     """Native ESP8266 build layout: objects under obj/, ELF next to it."""
@@ -110,12 +106,14 @@ def _esp8266_analyzer(
     analyzer.rodata_in_ram = True
     analyzer.sections[".data"] = MemorySection(".data", total_size=1000)
     analyzer._elf_symbol_names = kept
+    # String literals have their own tests
+    analyzer._attribute_string_literals = lambda *_: None
     light = str(obj_dir / LIGHT_OBJ)
     web = str(obj_dir / WEB_OBJ)
 
     def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
         if "-SW" in cmd:
-            return _completed(
+            return completed(
                 HEADERS_AND_SYMBOLS.format(
                     light=light,
                     web=web,
@@ -127,16 +125,11 @@ def _esp8266_analyzer(
                 )
             )
         # String literal scans (the ELF's .rodata, string sections) find nothing here
-        if (
-            "-SW" not in cmd
-            and cmd[1:-1] != ["-rW", "-x", "174"]
-            and (cmd[-1] == light or cmd[-1].endswith("firmware.elf"))
-        ):
-            return _completed("")
         # Only sections with uncovered bytes are dumped
         if cmd[-1] == light:
-            return _completed(LIGHT_OBJECT_DUMP)
-        return _completed(web_dump)
+            assert cmd[1:-1] == ["-rW", "-x", "174"]
+            return completed(LIGHT_OBJECT_DUMP)
+        return completed(web_dump)
 
     return analyzer, run_tool
 
@@ -165,7 +158,7 @@ def _parse_sections(code_section: str) -> MemoryAnalyzer:
 """
     analyzer = make_analyzer()
     with patch(
-        "esphome.analyze_memory.subprocess.run", return_value=_completed(readelf)
+        "esphome.analyze_memory.subprocess.run", return_value=completed(readelf)
     ):
         analyzer._parse_sections()
     return analyzer
@@ -258,7 +251,7 @@ def test_parse_symbols_keeps_alias_names() -> None:
     analyzer = make_analyzer()
     analyzer.sections[".text"] = MemorySection(".text")
     with patch(
-        "esphome.analyze_memory.subprocess.run", return_value=_completed(objdump)
+        "esphome.analyze_memory.subprocess.run", return_value=completed(objdump)
     ):
         analyzer._parse_symbols()
     assert {"_ZN7esphome3FooC1Ev", "_ZN7esphome3FooC2Ev"} <= analyzer._elf_symbol_names
@@ -277,7 +270,7 @@ Hex dump of section '.rodata':
   0x00000000 aaaaaaaa 01020304                   ........
 """
     section = _RodataSection(".rodata", 8, covered=[(0, 4)])
-    with patch("esphome.analyze_memory.run_tool", return_value=_completed(dump)):
+    with patch("esphome.analyze_memory.run_tool", return_value=completed(dump)):
         (constant,) = analyzer._scan_object_constants(
             "foo.o", {"5": section}, "src/foo.o", "[esphome]foo"
         )
@@ -299,7 +292,7 @@ Relocation section '.rela.rodata' at offset 0x200 contains 2 entries:
 00000000  00003b01 R_XTENSA_32            00000000   .text._Z3fooi + 12
 00000004  00003b01 R_XTENSA_32            00000000   .text._Z3fooi + 20
 """
-    with patch("esphome.analyze_memory.run_tool", return_value=_completed(dump)):
+    with patch("esphome.analyze_memory.run_tool", return_value=completed(dump)):
         (constant,) = analyzer._scan_object_constants(
             "foo.o", {"5": _RodataSection(".rodata", 8)}, "src/foo.o", "[esphome]foo"
         )
@@ -348,19 +341,15 @@ Relocation section '.rela.rodata' at offset 0xe6fc contains 3 entries:
 Hex dump of section '.rodata':
   0x00000000 00000000 0f000000 1e000000          ............
 """
-    literals = """\
-
-String dump of section '.rodata.str1.1':
-  [     0]  0.pool.ntp.org
-  [     f]  1.pool.ntp.org
-  [    1e]  2.pool.ntp.org
-"""
+    literals = hex_dump(
+        ".rodata.str1.1", b"0.pool.ntp.org\0001.pool.ntp.org\0002.pool.ntp.org\0"
+    )
 
     def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-        if "-p" in cmd:
-            assert cmd[1:-1] == ["-p", ".rodata.str1.1"]
-            return _completed(literals)
-        return _completed(relocations)
+        if "-rW" not in cmd:
+            assert cmd[1:-1] == ["-x", ".rodata.str1.1"]
+            return completed(literals)
+        return completed(relocations)
 
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
         (constant,) = analyzer._scan_object_constants(
@@ -421,7 +410,7 @@ def test_unnamed_constants_same_object_not_merged(obj_dir: Path) -> None:
         save=SAVE,
     )
     with (
-        patch("esphome.analyze_memory.run_tool", return_value=_completed(headers)),
+        patch("esphome.analyze_memory.run_tool", return_value=completed(headers)),
         patch.object(
             analyzer,
             "_scan_object_constants",

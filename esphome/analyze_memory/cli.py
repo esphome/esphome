@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 import heapq
 import json
 from operator import itemgetter
 from pathlib import Path
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from . import (
     _COMPONENT_API,
@@ -86,13 +86,6 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         + COL_SEPARATOR
         + COL_TOTAL_RAM
     )
-
-    def __init__(
-        self, *args: Any, secret_values: Mapping[str, str] | None = None, **kwargs: Any
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        # Value -> !secret name; reports get shared, so these are never printed
-        self.secret_values: Mapping[str, str] = secret_values or {}
 
     @staticmethod
     def _make_separator_line(*widths: int) -> str:
@@ -258,22 +251,21 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         lines.append("")
         by_component: dict[str, list[StringLiteral]] = defaultdict(list)
         for literal in self._string_literals:
-            for component in literal.components:
+            for component in literal.users:
                 by_component[component].append(literal)
+        totals = {c: sum(s.size for s in ls) for c, ls in by_component.items()}
         for component, literals in sorted(
-            by_component.items(), key=lambda x: (-sum(s.size for s in x[1]), x[0])
+            by_component.items(), key=lambda x: (-totals[x[0]], x[0])
         ):
-            comp_total = sum(s.size for s in literals)
+            comp_total = totals[component]
             lines.append(f"{component} ({comp_total:,} B, {len(literals)} strings):")
             for literal in literals[: self.STRINGS_PER_COMPONENT]:
-                # Reports get shared; never print a value that came from !secret
-                if secret := self.secret_values.get(literal.text):
-                    text = f"!secret {secret}"
-                else:
-                    text = json.dumps(literal.text, ensure_ascii=False)
+                text = json.dumps(literal.text, ensure_ascii=False)
                 if len(text) > 50:
                     text = f'{text[:47]}..."'
-                users = sorted(self._demangle_symbol(u) for u in literal.users)
+                users = sorted(
+                    self._demangle_symbol(u) for u in literal.users[component]
+                )
                 used_by = users[0][:60] + (
                     f" (+{len(users) - 1})" if len(users) > 1 else ""
                 )
