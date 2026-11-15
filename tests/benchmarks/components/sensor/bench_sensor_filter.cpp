@@ -3,6 +3,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensor/filter.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 #include <limits>
 
