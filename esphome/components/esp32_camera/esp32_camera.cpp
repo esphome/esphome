@@ -422,9 +422,10 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
 }
 bool ESP32Camera::set_jpeg_quality(uint8_t quality) {
   // 0 is only the configuration value for "no conversion", it is no quality to apply
-  bool in_use = this->config_.pixel_format == PIXFORMAT_JPEG;
 #ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
-  in_use = true;
+  const bool in_use = true;
+#else
+  const bool in_use = this->config_.pixel_format == PIXFORMAT_JPEG;
 #endif
   if (quality == 0 ? in_use : (quality < JPEG_QUALITY_MIN || quality > JPEG_QUALITY_MAX)) {
     ESP_LOGE(TAG, "JPEG quality %u is not valid, use %u to %u", quality, JPEG_QUALITY_MIN, JPEG_QUALITY_MAX);
