@@ -124,12 +124,13 @@ void SX127x::configure() {
 
 void SX127x::fail_(const LogString *reason) {
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
-  this->status_set_warning(reason);
   // Nothing else would configure the radio again, so a node that only uses YAML would stay deaf
   if (!this->reconfigure_pending_) {
     this->reconfigure_pending_ = true;
     this->set_interval(RECONFIGURE_INTERVAL_ID, RECONFIGURE_INTERVAL_MS, [this]() { this->configure(); });
   }
+  // Last: its log message can run user code that calls configure(), which cancels the retry
+  this->status_set_warning(reason);
 }
 
 const LogString *SX127x::configure_radio_() {
