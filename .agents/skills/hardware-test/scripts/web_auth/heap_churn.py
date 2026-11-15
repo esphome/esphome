@@ -48,7 +48,10 @@ def bad_once() -> str:
             s.sendall(
                 f"GET / HTTP/1.1\r\nHost: x\r\nAuthorization: {BAD}\r\nConnection: close\r\n\r\n".encode()
             )
-            d = s.recv(64)
+            # read through the end of the status line; one recv may hold only part of it
+            d = b""
+            while b"\r\n" not in d and (r := s.recv(64)):
+                d += r
         return d.split(b" ", 2)[1].decode() if d.startswith(b"HTTP") else "closed"
     except Exception as e:  # noqa: BLE001
         return type(e).__name__

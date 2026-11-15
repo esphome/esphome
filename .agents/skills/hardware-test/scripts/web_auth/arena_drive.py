@@ -90,6 +90,10 @@ def stream(stop: threading.Event) -> None:
                     continue
                 if not d:
                     stats["sse_closes"] += 1
+                    # closed before the response head: a refused stream, not load
+                    if head is not None:
+                        stats["stream_errors"] += 1
+                        time.sleep(1)
                     break
                 # collect the whole response head first; TCP may split even the status line
                 if head is not None:
