@@ -8,3 +8,8 @@ climate:
     model: HISENSE_ARG
     transmitter_id: xmitr
     receiver_id: rcvr
+  - platform: whirlpool
+    name: Whirlpool Hitachi HCRA31NEWH Climate
+    model: HITACHI_HCRA31NEWH
+    transmitter_id: xmitr
+    receiver_id: rcvr
