@@ -1419,10 +1419,8 @@ class MemoryAnalyzer:
                 "No object files next to the ELF, so constants in RAM are not listed"
             )
             return
-        result = run_tool(
-            [self.readelf_path, "-SW", "-sW"]
-            + [str(f) for f in sorted(obj_dir.rglob("*.o"))]
-        )
+        objects = [str(f) for f in sorted(obj_dir.rglob("*.o"))]
+        result = run_tool([self.readelf_path, "-SW", "-sW", *objects])
         if result is None:
             _LOGGER.warning("readelf failed, so constants in RAM are not listed")
             return
@@ -1431,7 +1429,11 @@ class MemoryAnalyzer:
             _LOGGER.warning(
                 "readelf could not read every object: %s", result.stderr.strip()
             )
-        self._attribute_unnamed_constants(result.stdout, obj_dir)
+        output = result.stdout
+        # readelf names each file only when given several
+        if len(objects) == 1:
+            output = f"File: {objects[0]}\n{output}"
+        self._attribute_unnamed_constants(output, obj_dir)
         names = {n for c in self._unnamed_constants for n in c.functions}
         self._batch_demangle_symbols(sorted(names - self._demangle_cache.keys()))
 
