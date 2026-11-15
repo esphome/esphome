@@ -249,8 +249,10 @@ void SX126xCommands::calibrate_image(uint32_t frequency) {
 // The IRQ mask also routes to DIO1; DIO2 and DIO3 stay unused.
 void SX126xCommands::set_dio_irq_params_(uint16_t irq) {
   uint8_t buf[8];
-  put_be16(put_be16(buf, irq), irq);
-  put_be16(put_be16(buf + 4, IRQ_RADIO_NONE), IRQ_RADIO_NONE);
+  put_be16(buf, irq);
+  put_be16(buf + 2, irq);
+  put_be16(buf + 4, IRQ_RADIO_NONE);
+  put_be16(buf + 6, IRQ_RADIO_NONE);
   this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
 }
 

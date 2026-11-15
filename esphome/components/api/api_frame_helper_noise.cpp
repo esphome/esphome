@@ -463,8 +463,8 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_
 
   // Write message header (to be encrypted)
   constexpr uint8_t msg_offset = noise::FRAME_HEADER_SIZE;
-  // Message type, then payload length
-  put_be16(put_be16(buf_start + msg_offset, message_type), payload_size);
+  put_be16(buf_start + msg_offset, message_type);
+  put_be16(buf_start + msg_offset + 2, payload_size);
   // payload data is already in the buffer starting at offset + 7
 
   // Encrypt the message in place

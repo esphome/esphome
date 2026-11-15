@@ -445,8 +445,10 @@ bool RTSPSession::queue_next_packet_() {
   put_be16(buf + pos, this->sequence_number_);
   pos += 2;
   this->sequence_number_++;
-  put_be32(put_be32(buf + pos, this->rtp_timestamp_), this->ssrc_);
-  pos += 8;
+  put_be32(buf + pos, this->rtp_timestamp_);
+  pos += 4;
+  put_be32(buf + pos, this->ssrc_);
+  pos += 4;
 
   // RFC 2435 main JPEG header
   buf[pos++] = 0;  // type-specific
