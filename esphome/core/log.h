@@ -217,28 +217,25 @@ struct LogString;
 
 #endif
 
+// Empty off ESP8266, as in each platform's hal.h, which log.h cannot include (hal.h -> gpio_pin.h -> log.h)
+#ifndef PROGMEM
+#define PROGMEM
+#endif
+
 // Words for %s log arguments. On ESP8266 one shared copy of each lives in flash, so the result must only be
 // passed where a LOG_STR_ARG is accepted (ESP_LOG* %s arguments, the *_P functions).
-#ifdef USE_ESP8266
-extern const char LOG_STR_YES[];
-extern const char LOG_STR_NO[];
-extern const char LOG_STR_ON[];
-extern const char LOG_STR_OFF[];
-extern const char LOG_STR_TRUE[];
-extern const char LOG_STR_FALSE[];
-extern const char LOG_STR_UNKNOWN[];
+inline constexpr char LOG_STR_YES[] PROGMEM = "YES";
+inline constexpr char LOG_STR_NO[] PROGMEM = "NO";
+inline constexpr char LOG_STR_ON[] PROGMEM = "ON";
+inline constexpr char LOG_STR_OFF[] PROGMEM = "OFF";
+inline constexpr char LOG_STR_TRUE[] PROGMEM = "TRUE";
+inline constexpr char LOG_STR_FALSE[] PROGMEM = "FALSE";
+inline constexpr char LOG_STR_UNKNOWN[] PROGMEM = "UNKNOWN";
 #define YESNO(b) LOG_STR_ARG((b) ? ::esphome::LOG_STR_YES : ::esphome::LOG_STR_NO)
 #define ONOFF(b) LOG_STR_ARG((b) ? ::esphome::LOG_STR_ON : ::esphome::LOG_STR_OFF)
 #define TRUEFALSE(b) LOG_STR_ARG((b) ? ::esphome::LOG_STR_TRUE : ::esphome::LOG_STR_FALSE)
 // for use with optional values
 #define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : LOG_STR_ARG(::esphome::LOG_STR_UNKNOWN))
-#else
-#define YESNO(b) ((b) ? "YES" : "NO")
-#define ONOFF(b) ((b) ? "ON" : "OFF")
-#define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
-// for use with optional values
-#define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : "UNKNOWN")
-#endif
 
 // Declares a static log tag at namespace scope, in a source file or a header; on ESP8266 it lives in flash, so
 // read it with the _P functions, never strcmp/strlen. Not usable for a class member: the ESP8266 form is a

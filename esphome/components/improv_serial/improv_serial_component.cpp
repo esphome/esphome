@@ -353,7 +353,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         // YESNO points to flash on ESP8266
         char auth[4];
         ESPHOME_strncpy_P(auth, YESNO(with_auth), sizeof(auth));
-        builder.add_string(auth);
+        builder.add_string(auth, with_auth ? 3 : 2);
         this->send_response_(builder.finish(false));
       }
 #endif  // USE_WIFI
