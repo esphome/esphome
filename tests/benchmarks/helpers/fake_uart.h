@@ -15,9 +15,7 @@ class FakeUART : public uart::UARTComponent {
     this->len_ = len;
     this->pos_ = 0;
   }
-  void rewind() { this->pos_ = 0; }
-
-  void write_array(const uint8_t *data, size_t len) override { this->rewind(); }
+  void write_array(const uint8_t *data, size_t len) override { this->pos_ = 0; }
   bool peek_byte(uint8_t *data) override {
     if (this->pos_ >= this->len_)
       return false;

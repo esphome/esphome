@@ -35,9 +35,8 @@ static void UART_ReadAvailable_NmeaBurst(benchmark::State &state) {
 }
 BENCHMARK(UART_ReadAvailable_NmeaBurst);
 
-// --- discard_available(): drop a 256 byte backlog ---
+// --- discard_available(): drop a 256 byte backlog, two virtual calls per byte ---
 
-// Two virtual calls per byte, available() and read_byte(): this measures that per-byte call overhead
 static void UART_DiscardAvailable(benchmark::State &state) {
   uint8_t backlog[256]{};
   FakeUART uart;

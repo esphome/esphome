@@ -1,6 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include "esphome/core/frame_reader.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/line_reader.h"
 
 namespace esphome::benchmarks {
@@ -15,8 +16,7 @@ static constexpr uint8_t FRAME_30[30] = {0xAA, 0xFF, 0x03, 0x00, 0x0E, 0x03, 0xB
                                          0x40, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55, 0xCC};
 
-// Four A02YYUW distance frames among noise bytes; the doubled 0xFF fails the checksum and resyncs onto the
-// frame behind it. Ends on a whole frame, so every pass starts clean
+// Four A02YYUW frames among noise; the doubled 0xFF fails the checksum and resyncs onto the next frame
 static constexpr uint8_t ULTRASONIC_NOISY[] = {0x12, 0xFF, 0x07, 0xA1, 0xA7, 0x34, 0xFF, 0xFF, 0x07, 0xA1, 0xA7,
                                                0x00, 0xFF, 0x07, 0xA1, 0xA7, 0x56, 0xFF, 0x07, 0xA1, 0xA7};
 
@@ -25,18 +25,21 @@ static constexpr uint8_t ULTRASONIC_NOISY[] = {0x12, 0xFF, 0x07, 0xA1, 0xA7, 0x3
 static void LineReader_NmeaLine(benchmark::State &state) {
   LineReader<96> reader;
   const auto *bytes = reinterpret_cast<const uint8_t *>(NMEA_GGA);
-  size_t total = 0;
+  uint32_t lines = 0;
 
   for (auto _ : state) {
     benchmark::DoNotOptimize(bytes);
     for (int i = 0; i < kInnerIterations; i++) {
       for (size_t j = 0; j < sizeof(NMEA_GGA) - 1; j++) {
-        size_t len;
-        if (reader.feed(bytes[j], len) != nullptr)
-          total += len;
+        char *line = reader.feed(bytes[j]);
+        if (line == nullptr)
+          continue;
+        // Keeps the line copy and its NUL write
+        benchmark::DoNotOptimize(line);
+        lines++;
       }
     }
-    benchmark::DoNotOptimize(total);
+    benchmark::DoNotOptimize(lines);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
@@ -77,7 +80,7 @@ static void FrameReader_UltrasonicNoisy(benchmark::State &state) {
         const uint8_t *frame = reader.feed(bytes[j]);
         if (frame == nullptr)
           continue;
-        if (frame[3] == static_cast<uint8_t>(frame[0] + frame[1] + frame[2])) {
+        if (frame[3] == sum_bytes(frame, 3)) {
           frames++;
         } else {
           reader.resync();

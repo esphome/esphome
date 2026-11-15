@@ -29,7 +29,7 @@ static void LD2450_PeriodicFrame(benchmark::State &state) {
   radar.set_uart_parent(&uart);
   radar.set_link_timeout(60000);
   // Bring the link up outside the timed loop
-  uart.load(FRAME_A, FRAME_SIZE);
+  uart.load(FRAME_B, FRAME_SIZE);
   radar.loop();
 
   for (auto _ : state) {
@@ -59,7 +59,7 @@ static void LD2450_PeriodicFrameSensors(benchmark::State &state) {
   radar.set_move_angle_sensor(0, &angle);
   radar.set_target_count_sensor(&count);
   radar.set_target_binary_sensor(&presence);
-  uart.load(FRAME_A, FRAME_SIZE);
+  uart.load(FRAME_B, FRAME_SIZE);
   radar.loop();
 
   for (auto _ : state) {

@@ -25,7 +25,6 @@ CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 # allow benchmarks to compile on the host platform.
 STUBS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "stubs"
 
-# Shared test doubles, reached by -I so only the benchmarks that include them pull in their headers
 HELPERS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "helpers"
 
 BUILD_FLAGS = [
