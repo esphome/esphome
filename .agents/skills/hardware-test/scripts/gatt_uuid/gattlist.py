@@ -1,5 +1,6 @@
 """List every service, characteristic and descriptor UUID a bluetooth_proxy reports for a peer, read each readable
 characteristic, enable notify (CCCD write) on each notifying one and count 10 s of notifications, then disconnect.
+A link lost before that disconnect is recorded as "lost" in the JSON, which cmp.py fails on.
 usage: gattlist.py PROXY PEER_MAC OUT_JSON   env: API_KEY (unset for a plaintext API). Retries 0x3E connect failures."""
 
 import asyncio
@@ -13,7 +14,15 @@ from apiconn import ble_connect, connect, enable_notify  # noqa: E402
 
 async def once(host: str, addr: int) -> dict | None:
     cli = await connect(host)
-    c, _mtu, err, cancel = await ble_connect(cli, addr)
+    lost: list[int] = []
+    closing = False
+
+    def on_lost(e: int) -> None:
+        if not closing:
+            lost.append(e)
+            print(f"LINK LOST err={e}", flush=True)
+
+    c, _mtu, err, cancel = await ble_connect(cli, addr, on_lost)
     if not c:
         print(f"connect err={err}", flush=True)
         cancel()
@@ -58,6 +67,8 @@ async def once(host: str, addr: int) -> dict | None:
         out["services"].append(so)
     await asyncio.sleep(10)
     out["notify"] = notif
+    out["lost"] = lost
+    closing = True
     await cli.bluetooth_device_disconnect(addr)
     await asyncio.sleep(2)
     cancel()
