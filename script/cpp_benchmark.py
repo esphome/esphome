@@ -25,6 +25,9 @@ CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 # allow benchmarks to compile on the host platform.
 STUBS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "stubs"
 
+# Shared test doubles, reached by -I so only the benchmarks that include them pull in their headers
+HELPERS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "helpers"
+
 BUILD_FLAGS = [
     "-Os",  # match firmware optimization level (detects inlining regressions)
     "-g",  # debug symbols for profiling
@@ -32,6 +35,7 @@ BUILD_FLAGS = [
     "-fdata-sections",  # required for dead-code stripping with -Os
     "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
     f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
+    f"-I{HELPERS_DIR}",  # shared test doubles such as fake_uart.h
 ]
 
 

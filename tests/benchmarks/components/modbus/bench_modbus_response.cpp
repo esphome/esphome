@@ -1,54 +1,22 @@
 #include <benchmark/benchmark.h>
 
-#include <array>
-#include <cstring>
-
 #include "esphome/components/modbus/modbus.h"
-#include "esphome/components/uart/uart_component.h"
 #include "esphome/core/helpers.h"
+#include "fake_uart.h"
 
 namespace esphome::modbus::benchmarks {
+
+using esphome::benchmarks::FakeUART;
 
 // Inner iteration count to amortize CodSpeed instrumentation overhead.
 static constexpr int kInnerIterations = 2000;
 
 static constexpr uint8_t ADDRESS = 1;
-static constexpr uint16_t REGISTER_COUNT = 10;
+static constexpr uint8_t REGISTER_COUNT = 10;
 // Read 10 holding registers from address 0, as an energy meter poll does
 static constexpr uint8_t REQUEST_PDU[] = {0x03, 0x00, 0x00, 0x00, REGISTER_COUNT};
 // Address + function + byte count + 20 data bytes + CRC
 static constexpr size_t RESPONSE_SIZE = 3 + REGISTER_COUNT * 2 + 2;
-
-// Serves the same response frame each time it is rewound.
-class ResponseUART : public uart::UARTComponent {
- public:
-  ResponseUART() {
-    this->frame_[0] = ADDRESS;
-    this->frame_[1] = 0x03;
-    this->frame_[2] = REGISTER_COUNT * 2;
-    static constexpr uint8_t DATA[REGISTER_COUNT * 2] = {0x09, 0x1F, 0x00, 0x00, 0x01, 0xF4, 0x00, 0x00, 0x13, 0x88,
-                                                         0x00, 0x32, 0x03, 0xE8, 0x00, 0x00, 0x00, 0x64, 0x12, 0x34};
-    std::memcpy(&this->frame_[3], DATA, sizeof(DATA));
-    put_le16(&this->frame_[RESPONSE_SIZE - 2], crc16(this->frame_.data(), RESPONSE_SIZE - 2));
-  }
-  void rewind() { this->pos_ = 0; }
-  void write_array(const uint8_t *data, size_t len) override {}
-  bool peek_byte(uint8_t *data) override { return false; }
-  bool read_array(uint8_t *data, size_t len) override {
-    if (len > RESPONSE_SIZE - this->pos_)
-      return false;
-    std::memcpy(data, this->frame_.data() + this->pos_, len);
-    this->pos_ += len;
-    return true;
-  }
-  size_t available() override { return RESPONSE_SIZE - this->pos_; }
-  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
-  void check_logger_conflict() override {}
-
- protected:
-  std::array<uint8_t, RESPONSE_SIZE> frame_{};
-  size_t pos_{RESPONSE_SIZE};
-};
 
 class SumDevice : public ModbusClientDevice {
  public:
@@ -61,35 +29,39 @@ class SumDevice : public ModbusClientDevice {
   uint32_t sum{0};
 };
 
-// Holds one continuous poll on the wire so each frame is the awaited response.
-class BenchHub : public ModbusClientHub {
- public:
-  void await_response() {
-    this->tx_buffer_.front().state = FrameState::WAITING;
-    this->waiting_for_response_ = true;
-  }
-  void receive() { this->Modbus::loop(); }
+class NoDelayHub : public ModbusClientHub {
+ protected:
+  // No wait before a send, so every loop() can send the next poll
+  int32_t tx_delay_remaining() override { return 0; }
 };
 
-// --- Receive, CRC check and decode a read holding registers response ---
+// --- One continuous poll cycle per loop(): receive and CRC check the response, decode it, requeue and resend ---
 
-static void Modbus_ReadHoldingResponse(benchmark::State &state) {
-  ResponseUART uart;
-  BenchHub hub;
+static void Modbus_ReadHoldingPollCycle(benchmark::State &state) {
+  // Address 1, function 3, byte count 20, 10 registers; the CRC goes in the last two bytes
+  uint8_t response[RESPONSE_SIZE] = {0x01, 0x03, 0x14, 0x09, 0x1F, 0x00, 0x00, 0x01, 0xF4, 0x00, 0x00, 0x13,
+                                     0x88, 0x00, 0x32, 0x03, 0xE8, 0x00, 0x00, 0x00, 0x64, 0x12, 0x34};
+  put_le16(&response[RESPONSE_SIZE - 2], crc16(response, RESPONSE_SIZE - 2));
+
+  FakeUART uart;
+  uart.set_baud_rate(9600);
+  NoDelayHub hub;
   hub.set_uart_parent(&uart);
+  hub.setup();
   SumDevice device(&hub, ADDRESS);
   hub.queue_pdu(ADDRESS, REQUEST_PDU, &device, {.continuous = true});
+  // The first loop() sends the poll; every send rewinds the response, so the device answers each one
+  hub.loop();
+  uart.load(response, RESPONSE_SIZE);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      hub.await_response();
-      uart.rewind();
-      hub.receive();
+      hub.loop();
     }
     benchmark::DoNotOptimize(device.sum);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
-BENCHMARK(Modbus_ReadHoldingResponse);
+BENCHMARK(Modbus_ReadHoldingPollCycle);
 
 }  // namespace esphome::modbus::benchmarks

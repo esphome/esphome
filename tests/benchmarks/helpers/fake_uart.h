@@ -1,21 +1,23 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
 #include "esphome/components/uart/uart_component.h"
 
-namespace esphome::uart::benchmarks {
+namespace esphome::benchmarks {
 
-// Serves a fixed byte stream as received data; rewind() makes it available again.
-class FakeUART : public UARTComponent {
+// Serves a fixed byte stream as received data. Every write rewinds it, so the stream answers each request.
+class FakeUART : public uart::UARTComponent {
  public:
-  FakeUART(const uint8_t *data, size_t len) : data_(data), len_(len) {}
-
+  void load(const uint8_t *data, size_t len) {
+    this->data_ = data;
+    this->len_ = len;
+    this->pos_ = 0;
+  }
   void rewind() { this->pos_ = 0; }
 
-  void write_array(const uint8_t *data, size_t len) override {}
+  void write_array(const uint8_t *data, size_t len) override { this->rewind(); }
   bool peek_byte(uint8_t *data) override {
     if (this->pos_ >= this->len_)
       return false;
@@ -30,13 +32,13 @@ class FakeUART : public UARTComponent {
     return true;
   }
   size_t available() override { return this->len_ - this->pos_; }
-  UARTFlushResult flush() override { return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
+  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
   void check_logger_conflict() override {}
 
  protected:
-  const uint8_t *data_;
-  size_t len_;
+  const uint8_t *data_{nullptr};
+  size_t len_{0};
   size_t pos_{0};
 };
 
-}  // namespace esphome::uart::benchmarks
+}  // namespace esphome::benchmarks
