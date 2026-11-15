@@ -18,7 +18,7 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
 
   while (this->count_ > 0) {
     uint8_t *msg = this->buf_.data() + this->head_;
-    size_t len = encode_uint16(msg[1], msg[0]);
+    size_t len = encode_value_le<uint16_t>(msg);
 
     ssize_t sent = socket->write(msg + LEN_PREFIX, len);
     if (sent <= 0)

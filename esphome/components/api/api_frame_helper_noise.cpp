@@ -278,9 +278,9 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-  put_be16(dst, rx_size);
+  uint8_t *payload = put_be16(dst, rx_size);
   if (rx_size > 0) {
-    std::memcpy(dst + 2, this->rx_buf_.data(), rx_size);
+    std::memcpy(payload, this->rx_buf_.data(), rx_size);
   }
 
 #ifdef USE_API_OUTGOING_CONNECTION
@@ -463,6 +463,7 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_
 
   // Write message header (to be encrypted)
   constexpr uint8_t msg_offset = noise::FRAME_HEADER_SIZE;
+  // Message type, then payload length
   put_be16(put_be16(buf_start + msg_offset, message_type), payload_size);
   // payload data is already in the buffer starting at offset + 7
 

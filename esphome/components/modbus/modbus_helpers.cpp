@@ -1,8 +1,8 @@
 #include "modbus_helpers.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
-#include "esphome/core/helpers.h"
 
 namespace esphome::modbus::helpers {
 

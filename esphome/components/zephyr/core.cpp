@@ -32,9 +32,8 @@ bool random_bytes(uint8_t *data, size_t len) {
 
 #ifdef USE_NRF52
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
-  mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
-  put_be32(mac + 2, NRF_FICR->DEVICEADDR[0]);
+  // The top two bits of a random static address are set
+  put_be32(put_be16(mac, NRF_FICR->DEVICEADDR[1] | 0xC000), NRF_FICR->DEVICEADDR[0]);
 }
 #endif
 }  // namespace esphome

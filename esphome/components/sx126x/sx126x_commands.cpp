@@ -246,15 +246,18 @@ void SX126xCommands::calibrate_image(uint32_t frequency) {
   }
 }
 
-void SX126xCommands::receive() {
+// The IRQ mask also routes to DIO1; DIO2 and DIO3 stay unused.
+void SX126xCommands::set_dio_irq_params_(uint16_t irq) {
   uint8_t buf[8];
-
-  // configure irq params
-  uint16_t irq = IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR;
-  // IRQ, DIO1, DIO2 and DIO3 masks
-  uint8_t *pos = put_be16(put_be16(buf, irq), irq);
-  put_be16(put_be16(pos, IRQ_RADIO_NONE), IRQ_RADIO_NONE);
+  put_be16(put_be16(buf, irq), irq);
+  put_be16(put_be16(buf + 4, IRQ_RADIO_NONE), IRQ_RADIO_NONE);
   this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
+}
+
+void SX126xCommands::receive() {
+  this->set_dio_irq_params_(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR);
+
+  uint8_t buf[3];
 
   // set timeout to 0
   buf[0] = 0x00;
@@ -268,14 +271,9 @@ void SX126xCommands::receive() {
 }
 
 void SX126xCommands::transmit(uint32_t timeout_ms) {
-  uint8_t buf[8];
+  this->set_dio_irq_params_(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT);
 
-  // configure irq params
-  uint16_t irq = IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT;
-  // IRQ, DIO1, DIO2 and DIO3 masks
-  uint8_t *pos = put_be16(put_be16(buf, irq), irq);
-  put_be16(put_be16(pos, IRQ_RADIO_NONE), IRQ_RADIO_NONE);
-  this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
+  uint8_t buf[3];
 
   const uint32_t ticks = timeout_ms * 64;
   put_be24(buf, ticks);

@@ -41,6 +41,7 @@ class SX126xCommands {
  private:
   void read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   void write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size);
+  void set_dio_irq_params_(uint16_t irq);
   void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void write_register_(uint16_t reg, const uint8_t *data, uint8_t size);
   static void encode_packet_params(const RadioProfile &profile, AppliedProfile &applied);

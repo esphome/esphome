@@ -83,7 +83,7 @@ bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device)
   }
 
   auto battery_level = mnf_data.data[5];
-  auto humidity = encode_uint16(mnf_data.data[1], mnf_data.data[0]) / 100.0f;
+  auto humidity = encode_value_le<uint16_t>(mnf_data.data.data()) / 100.0f;
 
   // Send temperature only if the value is set
   if (!std::isnan(temperature) && this->temperature_sensor_ != nullptr) {

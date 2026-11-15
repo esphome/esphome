@@ -22,7 +22,7 @@ void EE895Component::setup() {
   uint8_t serial_number[20];
   this->read(serial_number, 20);
 
-  crc16_check = encode_uint16(serial_number[19], serial_number[18]);
+  crc16_check = encode_value_le<uint16_t>(serial_number + 18);
   if (!this->setup_check(crc16_check == calc_crc16_(serial_number, 18), LOG_STR("CRC check failed")))
     return;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE

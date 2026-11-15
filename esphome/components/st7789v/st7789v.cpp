@@ -1,4 +1,5 @@
 #include "st7789v.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -250,11 +251,9 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   this->dc_pin_->digital_write(true);
   while (remaining > 0) {
     uint16_t batch = std::min(remaining, static_cast<uint16_t>(sizeof(byte) / 2));
-    int index = 0;
-    for (int i = 0; i < batch; i++) {
-      put_be16(byte + index, color);
-      index += 2;
-    }
+    uint8_t *p = byte;
+    for (int i = 0; i < batch; i++)
+      p = put_be16(p, color);
     this->write_array(byte, batch * 2);
     remaining -= batch;
   }
