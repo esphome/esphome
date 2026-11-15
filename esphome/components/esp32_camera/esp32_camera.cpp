@@ -101,7 +101,7 @@ void ESP32Camera::setup() {
   this->last_update_ = millis();
 
   /* initialize camera */
-  if (!this->start_driver_()) {
+  if (!this->start_driver_(false)) {
     this->mark_failed();
     return;
   }
@@ -112,7 +112,10 @@ void ESP32Camera::setup() {
   /* initialize RTOS */
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
-  this->start_framebuffer_task_();
+  if (!this->start_framebuffer_task_()) {
+    this->mark_failed();
+    return;
+  }
 }
 
 void ESP32Camera::dump_config() {
@@ -498,7 +501,7 @@ void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
   // Another frame size, or a driver that is down after a failed start, needs the driver started again.
   // Before setup() there is neither a sensor nor an error, and set_frame_size() only has to store the size.
-  if (s != nullptr ? s->status.framesize != this->config_.frame_size : this->init_error_ != ESP_OK) {
+  if (this->init_error_ != ESP_OK || (s != nullptr && s->status.framesize != this->config_.frame_size)) {
     this->driver_restart_pending_ = true;
     return;
   }
@@ -537,9 +540,10 @@ void ESP32Camera::update_camera_parameters() {
 /* ---------------- Internal methods ---------------- */
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
-// Starts the driver with config_. The driver lowers a frame size the sensor does not take, config_ follows it.
-bool ESP32Camera::start_driver_() {
-  const esp_err_t err = esp_camera_reconfigure(&this->config_);
+// Starts the driver with config_, or stops and starts it again when restart is set. The driver lowers a frame size
+// the sensor does not take, config_ follows it.
+bool ESP32Camera::start_driver_(bool restart) {
+  const esp_err_t err = restart ? esp_camera_reconfigure(&this->config_) : esp_camera_init(&this->config_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_camera_init failed: %s", esp_err_to_name(err));
     this->init_error_ = err;
@@ -550,7 +554,7 @@ bool ESP32Camera::start_driver_() {
     this->config_.frame_size = s->status.framesize;
   return true;
 }
-void ESP32Camera::start_framebuffer_task_() {
+bool ESP32Camera::start_framebuffer_task_() {
   this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_RUNNING);
   if (xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
                               "framebuffer_task",           // name
@@ -562,7 +566,10 @@ void ESP32Camera::start_framebuffer_task_() {
                               ) != pdPASS) {
     ESP_LOGE(TAG, "Failed to create the framebuffer task");
     this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED);
+    this->init_error_ = ESP_ERR_NO_MEM;
+    return false;
   }
+  return true;
 }
 // Frees what the current image holds. The camera frame goes back to the driver only when return_frame is set.
 void ESP32Camera::release_current_image_(bool return_frame) {
@@ -598,8 +605,9 @@ void ESP32Camera::restart_driver_step_() {
   this->finish_ended_capture_();
 #endif
 
-  auto expected = FramebufferTaskState::FRAMEBUFFER_TASK_STATE_RUNNING;
-  this->task_state_.compare_exchange_strong(expected, FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPING);
+  // Only this thread moves RUNNING to STOPPING, and the task only ends once it sees STOPPING
+  if (this->task_state_.load() == FramebufferTaskState::FRAMEBUFFER_TASK_STATE_RUNNING)
+    this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPING);
   if (this->task_state_.load() != FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED) {
     // The task ends once it gets a frame back: drop the one it hands over and send an empty one
     camera_fb_t *fb = nullptr;
@@ -615,17 +623,21 @@ void ESP32Camera::restart_driver_step_() {
   xQueueReset(this->framebuffer_get_queue_);
   xQueueReset(this->framebuffer_return_queue_);
   this->driver_restart_pending_ = false;
-  if (!this->start_driver_()) {
+  if (!this->start_driver_(true)) {
     this->status_set_error();
     return;
   }
-  this->status_clear_error();
 #ifdef USE_ESP32_CAMERA_WINDOW
   // The window is in pixels of the old frame size
   this->window_ = {};
 #endif
   this->update_camera_parameters();
-  this->start_framebuffer_task_();
+  // A failed task start counts as a failed restart: the next update_camera_parameters() tries again
+  if (!this->start_framebuffer_task_()) {
+    this->status_set_error();
+    return;
+  }
+  this->status_clear_error();
 }
 #ifdef USE_ESP32_CAMERA_CAPTURE
 void ESP32Camera::cancel_capture_() {

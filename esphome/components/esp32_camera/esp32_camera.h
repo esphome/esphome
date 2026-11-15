@@ -244,8 +244,8 @@ class ESP32Camera final : public camera::Camera {
   /* internal methods */
   bool has_requested_image_() const;
   bool can_return_image_() const;
-  bool start_driver_();
-  void start_framebuffer_task_();
+  bool start_driver_(bool restart);
+  bool start_framebuffer_task_();
   void release_current_image_(bool return_frame);
   void restart_driver_step_();
 #ifdef USE_ESP32_CAMERA_CAPTURE

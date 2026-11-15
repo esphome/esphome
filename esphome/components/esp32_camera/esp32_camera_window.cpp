@@ -432,6 +432,10 @@ bool ESP32Camera::supports_window() const {
 }
 
 sensor_t *ESP32Camera::window_sensor_() const {
+  if (this->driver_restart_pending_) {
+    ESP_LOGE(TAG, "The camera is restarting for a new frame size; set the window afterwards");
+    return nullptr;
+  }
   sensor_t *sensor = esp_camera_sensor_get();
   if (sensor == nullptr) {
     ESP_LOGE(TAG, "No sensor; the camera has not finished setting up");
