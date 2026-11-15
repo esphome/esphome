@@ -245,12 +245,21 @@ def _parse_relocations(output: str) -> list[tuple[str, int, str, int]]:
     return relocations
 
 
+def _pointer_target(referrer: bytes, offset: int, addend: int) -> int | None:
+    """Offset a relocated pointer at ``offset`` points to, or None if not dumped."""
+    if offset < 0 or offset + 4 > len(referrer):
+        return None
+    # Xtensa keeps part of the addend in the relocated word
+    return addend + int.from_bytes(referrer[offset : offset + 4], "little")
+
+
 def _pointed_literal(
     referrer: bytes, offset: int, addend: int, strings: bytes
-) -> bytes:
-    """Read the string literal a relocated pointer at ``offset`` refers to."""
-    # Xtensa keeps part of the addend in the relocated word
-    start = addend + int.from_bytes(referrer[offset : offset + 4], "little")
+) -> bytes | None:
+    """Read the string literal a relocated pointer refers to, or None if out of range."""
+    start = _pointer_target(referrer, offset, addend)
+    if start is None or not 0 <= start < len(strings):
+        return None
     end = strings.find(b"\0", start)
     return bytes(strings[start : end if end != -1 else len(strings)])
 
@@ -1471,7 +1480,12 @@ class MemoryAnalyzer:
 
         by_name = {section.name: section for section in sections.values()}
         contents = _parse_hex_dumps(result.stdout)
+        # Every function using the section decides whether the link kept it
+        users: dict[str, set[str]] = defaultdict(set)
+        # Functions shown as using the unnamed bytes
         functions: dict[str, set[str]] = defaultdict(set)
+        # (code section, offset, addend, target, function) into sections with named bytes
+        mixed: list[tuple[str, int, int, str, str]] = []
         jump_tables: set[str] = set()
         # Section -> (offset, string section, addend) of each pointer to a literal
         pointers: dict[str, list[tuple[int, str, int]]] = defaultdict(list)
@@ -1479,13 +1493,18 @@ class MemoryAnalyzer:
             if target in by_name:
                 code = _CODE_SECTION_PATTERN.match(section)
                 if code and code.group(1):
-                    functions[target].add(code.group(1))
+                    users[target].add(code.group(1))
+                    if by_name[target].covered:
+                        mixed.append((section, offset, addend, target, code.group(1)))
+                    else:
+                        functions[target].add(code.group(1))
             elif section in by_name and by_name[section].is_unnamed(offset):
                 if _CODE_SECTION_PATTERN.match(target):
                     jump_tables.add(section)
                 elif ".str" in target:
                     pointers[section].append((offset, target, addend))
 
+        self._add_mixed_section_users(file_path, mixed, by_name, functions)
         strings = self._read_pointed_strings(file_path, pointers, contents)
         return [
             UnnamedConstant(
@@ -1503,8 +1522,30 @@ class MemoryAnalyzer:
             )
             for name, section in by_name.items()
             # Dropped by --gc-sections unless a function that uses it was kept
-            if not self._elf_symbol_names.isdisjoint(functions[name])
+            if not self._elf_symbol_names.isdisjoint(users[name])
         ]
+
+    def _add_mixed_section_users(
+        self,
+        file_path: str,
+        mixed: list[tuple[str, int, int, str, str]],
+        by_name: dict[str, _RodataSection],
+        functions: dict[str, set[str]],
+    ) -> None:
+        """Name only the functions that point at the unnamed bytes of a mixed section."""
+        if not mixed:
+            return
+        result = run_tool(
+            [self.readelf_path]
+            + [arg for name in sorted({m[0] for m in mixed}) for arg in ("-x", name)]
+            + [file_path]
+        )
+        code = _parse_hex_dumps(result.stdout) if result else {}
+        for section, offset, addend, target, function in mixed:
+            start = _pointer_target(code.get(section, b""), offset, addend)
+            # Without the code dump, keep the function rather than lose a user
+            if start is None or by_name[target].is_unnamed(start):
+                functions[target].add(function)
 
     def _read_pointed_strings(
         self,
@@ -1525,15 +1566,18 @@ class MemoryAnalyzer:
             _LOGGER.warning("readelf failed reading strings of %s", file_path)
             return {}
         literals = _parse_hex_dumps(result.stdout)
-        return {
-            name: [
+        resolved: dict[str, list[str]] = {}
+        for name, refs in pointers.items():
+            texts = [
                 _pointed_literal(
-                    contents[name], offset, addend, literals[target]
-                ).decode("utf-8", "backslashreplace")
+                    contents[name], offset, addend, literals.get(target, b"")
+                )
                 for offset, target, addend in sorted(refs)
             ]
-            for name, refs in pointers.items()
-        }
+            # One pointer that can't be read makes the list misleading; show bytes instead
+            if all(text is not None for text in texts):
+                resolved[name] = [t.decode("utf-8", "backslashreplace") for t in texts]
+        return resolved
 
     def _charge_ram(self, component: str, size: int) -> None:
         """Charge RAM bytes that have no ELF symbol to a component."""

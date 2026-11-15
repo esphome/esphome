@@ -227,7 +227,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 for function in constant.functions
             )
             if constant.strings:
-                shown = ", ".join(f'"{text[:40]}"' for text in constant.strings[:4])
+                # Escaped, so control characters in a literal can't disturb the terminal
+                shown = ", ".join(
+                    json.dumps(text[:40], ensure_ascii=False)
+                    for text in constant.strings[:4]
+                )
                 more = ", ..." if len(constant.strings) > 4 else ""
                 lines.append(f"{'':>9} points to {shown}{more}")
             elif constant.data and not constant.jump_table:
