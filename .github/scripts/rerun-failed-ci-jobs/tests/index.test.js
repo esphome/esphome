@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const rerunFailed = require('../index');
@@ -363,6 +365,22 @@ describe('which runs are re-run', () => {
     await runCommand(commentEvent(), api);
     assert.deepEqual(reruns(api.calls), []);
     assert.deepEqual(reactions(api.calls), ['confused']);
+  });
+
+  // ci.yml points to the command in the summary of a red run while
+  // `github.run_attempt < 3`. With 3 there, attempt 2 shows the note and must be
+  // re-run, and attempt 3 shows no note and must be refused.
+  it('re-runs exactly the attempts whose summary in ci.yml points to the command', async () => {
+    const ciYml = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'workflows', 'ci.yml'), 'utf8');
+    const limit = Number(ciYml.match(/github\.run_attempt < (\d+)/)[1]);
+
+    const lastWithNote = fakeGitHub({ runs: [ciRun({ id: 1, attempt: limit - 1 })] });
+    await runCommand(commentEvent(), lastWithNote);
+    assert.deepEqual(reactions(lastWithNote.calls), ['rocket']);
+
+    const firstWithoutNote = fakeGitHub({ runs: [ciRun({ id: 1, attempt: limit })] });
+    await runCommand(commentEvent(), firstWithoutNote);
+    assert.deepEqual(reactions(firstWithoutNote.calls), ['confused']);
   });
 });
 

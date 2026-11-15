@@ -2,6 +2,7 @@
 module.exports = async ({ github, context, core }) => {
   const { owner, repo } = context.repo;
   const { comment, issue } = context.payload;
+  // The note step in ci.yml uses the same limit; a test checks that both match.
   const MAX_RERUNS = 2;
 
   if (!issue.pull_request || comment.body.trim() !== '/rerun-failed') {
