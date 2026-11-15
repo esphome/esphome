@@ -74,7 +74,7 @@ void DaikinArcClimate::transmit_state() {
   // 16    [0:3] 8  00 [6:7] SENSOR WIND = 11 / NORMAL = 00
   // 17    24
 
-  static constexpr uint8_t REMOTE_STATE_TEMPLATE[19] PROGMEM = {
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[DAIKIN_STATE_FRAME_SIZE] PROGMEM = {
       0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x0a, 0xC4,
       /*                               MODE  TEMP  HUMD  FANH  FANL
          パワフル音声応答     */
