@@ -34,7 +34,8 @@ kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended early (see $D
 kill $CAP 2>/dev/null; wait $CAP 2>/dev/null; trap - EXIT
 # a live capture that read nothing would look clean
 [ "$(grep -a -c -v '^\[[0-9:.]*\]\[capture\]' "$L")" -gt 0 ] || { echo "FAIL: no firmware lines in $L"; RC=1; }
-RS=$(grep -a -c -E 'Reset Reason|ROM Version' "$L")
+# one BW15 boot prints both the ROM banner and debug's Reset Reason, so count the ROM banner only
+RS=$(grep -a -c 'ROM Version' "$L")
 # fault only as a word start, so the light's "Default Transition Length" line does not count
 FL=$(grep -a -c -i -E '(^|[^[:alpha:]])fault|hardfault|crash|assert|abort|stack overflow' "$L")
 echo "== $N serial resets: $RS, port losses: $(grep -a -c 'port lost' "$L"), faults: $FL"

@@ -47,8 +47,11 @@ class IrqSchedStress : public Component {
   }
 
   void start_(Mode mode) {
-    if (this->mode_ != IDLE)
+    if (this->mode_ != IDLE) {
+      // a request during a running test is dropped; say so instead of leaving the caller to time out
+      ESP_LOGW("irq_sched_stress", "%s RESULT FAIL busy", mode == DEFER ? "DEFER" : "CANCEL");
       return;
+    }
     this->irq_issued_ = this->main_issued_ = this->irq_exec_ = this->main_exec_ = 0;
     this->fifo_viol_ = this->cancel_exec_ = 0;
     this->irq_last_ = this->main_last_ = -1;

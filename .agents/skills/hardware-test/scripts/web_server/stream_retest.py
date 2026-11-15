@@ -3,7 +3,8 @@
 usage: stream_retest.py HOST MODE [--out FILE] [--runs N]
   head      save the raw response bytes of the first 3 s of GET /events to --out (compare two builds with
             head_compare.py)
-  multi     4 clients for 20 s: state events and longest gap per client
+  multi     4 clients for 20 s: state events and longest gap per client (each needs over 500 events and no gap
+            of 5 s or more)
   stall     a reader plus a client with a 2 KB receive buffer that reads 3 s, stops 35 s, then drains and
             checks for EOF; the device log line gives the close time
   wifidrop  a client streams, POST /button/Wifi Drop/press (disable 8 s, enable), the client reconnects after
@@ -139,7 +140,8 @@ elif args.mode == "multi":
             time.sleep(0.2)
         for r in rs:
             r.join()
-        ok = all(r.end == "deadline" and r.states > 500 for r in rs)
+        # a stream that stops partway keeps end=deadline, so the gap must be bounded too
+        ok = all(r.end == "deadline" and r.states > 500 and r.max_gap < 5 for r in rs)
         summary(
             "multi",
             ok,
@@ -263,22 +265,24 @@ elif args.mode == "churn":
     made = resets = 0
     for i in range(40):
         try:
-            c = socket.create_connection((H, 80), timeout=5)
-            c.sendall(REQ)
-            c.settimeout(3)
-            got = b""
-            end = time.monotonic() + 3
-            while b"event: state" not in got and time.monotonic() < end:
-                try:
-                    got += c.recv(4096)
-                except TimeoutError:
-                    break
-            if i % 2:
-                c.setsockopt(
-                    socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
-                )
-                resets += 1
-            c.close()
+            with socket.create_connection((H, 80), timeout=5) as c:
+                c.sendall(REQ)
+                c.settimeout(3)
+                got = b""
+                end = time.monotonic() + 3
+                while b"event: state" not in got and time.monotonic() < end:
+                    try:
+                        d = c.recv(4096)
+                    except TimeoutError:
+                        break
+                    if not d:
+                        break
+                    got += d
+                if i % 2:
+                    c.setsockopt(
+                        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+                    )
+                    resets += 1
             made += b"event: state" in got
         except OSError as e:
             print("churn error", i, e, flush=True)

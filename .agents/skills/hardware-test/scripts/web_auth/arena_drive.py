@@ -75,44 +75,43 @@ def val(name: str) -> float | None:
 def stream(stop: threading.Event) -> None:
     while not stop.is_set():
         try:
-            s = socket.create_connection((HOST, 80), timeout=10)
-            s.sendall(
-                f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
-            )
-            stats["stream_opens"] += 1
-            s.settimeout(1)
-            head = b""
-            tail = b""
-            while not stop.is_set():
-                try:
-                    d = s.recv(8192)
-                except TimeoutError:
-                    continue
-                if not d:
-                    stats["sse_closes"] += 1
-                    # closed before the response head: a refused stream, not load
-                    if head is not None:
-                        stats["stream_errors"] += 1
-                        time.sleep(1)
-                    break
-                # collect the whole response head first; TCP may split even the status line
-                if head is not None:
-                    head += d
-                    if b"\r\n\r\n" not in head:
+            with socket.create_connection((HOST, 80), timeout=10) as s:
+                s.sendall(
+                    f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
+                )
+                stats["stream_opens"] += 1
+                s.settimeout(1)
+                head = b""
+                tail = b""
+                while not stop.is_set():
+                    try:
+                        d = s.recv(8192)
+                    except TimeoutError:
                         continue
-                    hd, _, d = head.partition(b"\r\n\r\n")
-                    head = None
-                    # a refused stream (401, 503) is an error, not load
-                    if not hd.startswith(b"HTTP/1.1 200"):
-                        stats["stream_errors"] += 1
-                        time.sleep(1)
+                    if not d:
+                        stats["sse_closes"] += 1
+                        # closed before the response head: a refused stream, not load
+                        if head is not None:
+                            stats["stream_errors"] += 1
+                            time.sleep(1)
                         break
-                stats["sse_bytes"] += len(d)
-                # keep the tail so an event line split across two reads is still counted
-                buf = tail + d
-                stats["sse_states"] += buf.count(b"event: state")
-                tail = buf[-11:]
-            s.close()
+                    # collect the whole response head first; TCP may split even the status line
+                    if head is not None:
+                        head += d
+                        if b"\r\n\r\n" not in head:
+                            continue
+                        hd, _, d = head.partition(b"\r\n\r\n")
+                        head = None
+                        # a refused stream (401, 503) is an error, not load
+                        if not hd.startswith(b"HTTP/1.1 200"):
+                            stats["stream_errors"] += 1
+                            time.sleep(1)
+                            break
+                    stats["sse_bytes"] += len(d)
+                    # keep the tail so an event line split across two reads is still counted
+                    buf = tail + d
+                    stats["sse_states"] += buf.count(b"event: state")
+                    tail = buf[-11:]
         except OSError:
             stats["stream_errors"] += 1
             time.sleep(1)
@@ -121,24 +120,23 @@ def stream(stop: threading.Event) -> None:
 def connector(stop: threading.Event) -> None:
     while not stop.is_set():
         try:
-            s = socket.create_connection((HOST, 80), timeout=10)
-            s.sendall(
-                f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
-            )
-            s.settimeout(0.5)
-            buf = b""
-            closed = False
-            end = time.monotonic() + 2.5
-            while time.monotonic() < end:
-                try:
-                    d = s.recv(8192)
-                except TimeoutError:
-                    continue
-                if not d:
-                    closed = True
-                    break
-                buf += d
-            s.close()
+            with socket.create_connection((HOST, 80), timeout=10) as s:
+                s.sendall(
+                    f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
+                )
+                s.settimeout(0.5)
+                buf = b""
+                closed = False
+                end = time.monotonic() + 2.5
+                while time.monotonic() < end:
+                    try:
+                        d = s.recv(8192)
+                    except TimeoutError:
+                        continue
+                    if not d:
+                        closed = True
+                        break
+                    buf += d
             n = len(buf)
             # A refused, empty or early closed answer did not run the new client listing; the listing's detail_all
             # states carry "domain", plain state updates do not
