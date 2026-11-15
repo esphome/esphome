@@ -161,8 +161,10 @@ void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { s
 // decode() reports every frame as learned at 38 kHz
 static constexpr uint32_t DECODE_FREQUENCY = 38000U;
 static constexpr uint16_t DECODE_TIMEBASE = MICROSECONDS_IN_SECONDS / DECODE_FREQUENCY;
-// Four hex digits and a space
-static constexpr size_t TEXT_NUMBER_LENGTH = DIGITS_IN_PRONTO_NUMBER + 1;
+static_assert(ProntoProtocol::TEXT_NUMBER_LENGTH == DIGITS_IN_PRONTO_NUMBER + 1);
+// Each log line holds whole numbers
+static_assert(PRONTO_LOG_CHUNK_SIZE % ProntoProtocol::TEXT_NUMBER_LENGTH == 0);
+static constexpr size_t PRONTO_LOG_CHUNK_NUMBERS = PRONTO_LOG_CHUNK_SIZE / ProntoProtocol::TEXT_NUMBER_LENGTH;
 
 // The index-th number of the text: the preamble, then each timing in timebase units
 static uint16_t text_number(RawTimingsView data, size_t index) {
@@ -183,56 +185,38 @@ static uint16_t text_number(RawTimingsView data, size_t index) {
   return (t_duration + DECODE_TIMEBASE / 2) / DECODE_TIMEBASE;
 }
 
-size_t ProntoProtocol::text_length(RawTimingsView data) {
-  return (NUMBERS_IN_PREAMBLE + data.size()) * TEXT_NUMBER_LENGTH;
-}
+size_t ProntoProtocol::number_count(RawTimingsView data) { return NUMBERS_IN_PREAMBLE + data.size(); }
 
-void ProntoProtocol::write_text(RawTimingsView data, size_t offset, char *out, size_t len) {
-  size_t index = offset / TEXT_NUMBER_LENGTH;
-  size_t pos = offset % TEXT_NUMBER_LENGTH;
-  while (len > 0) {
-    const uint16_t number = text_number(data, index++);
-    for (; pos < TEXT_NUMBER_LENGTH && len > 0; pos++, len--) {
-      const uint8_t shift = BITS_IN_HEXADECIMAL * (DIGITS_IN_PRONTO_NUMBER - 1 - pos);
-      *out++ = pos < DIGITS_IN_PRONTO_NUMBER ? format_hex_pretty_char((number >> shift) & HEX_MASK) : ' ';
+void ProntoProtocol::write_numbers(RawTimingsView data, size_t first, size_t count, char *out) {
+  for (size_t index = first; index < first + count; index++) {
+    const uint16_t number = text_number(data, index);
+    for (uint8_t digit = 0; digit < DIGITS_IN_PRONTO_NUMBER; digit++) {
+      const uint8_t shift = BITS_IN_HEXADECIMAL * (DIGITS_IN_PRONTO_NUMBER - 1 - digit);
+      *out++ = format_hex_pretty_char((number >> shift) & HEX_MASK);
     }
-    pos = 0;
+    *out++ = ' ';
   }
 }
 
 optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   const auto data = src.get_raw_data();
+  const size_t count = number_count(data);
   ProntoData out;
-  out.data.resize(text_length(data));
-  write_text(data, 0, out.data.data(), out.data.size());
+  out.data.resize(count * TEXT_NUMBER_LENGTH);
+  write_numbers(data, 0, count, out.data.data());
   out.delta = -1;
   return out;
-}
-
-void ProntoProtocol::dump(const ProntoData &data) {
-  ESP_LOGI(TAG, "Received Pronto: data=");
-
-  const char *ptr = data.data.c_str();
-  size_t remaining = data.data.size();
-
-  // Log in chunks, always logging at least once (even for empty string)
-  do {
-    size_t chunk_size = remaining < PRONTO_LOG_CHUNK_SIZE ? remaining : PRONTO_LOG_CHUNK_SIZE;
-    ESP_LOGI(TAG, "%.*s", (int) chunk_size, ptr);
-    ptr += chunk_size;
-    remaining -= chunk_size;
-  } while (remaining > 0);
 }
 
 bool ProntoDumper::dump(RemoteReceiveData src) {
   const auto data = src.get_raw_data();
   ESP_LOGI(TAG, "Received Pronto: data=");
   char chunk[PRONTO_LOG_CHUNK_SIZE];
-  const size_t total = ProntoProtocol::text_length(data);
-  for (size_t offset = 0; offset < total; offset += PRONTO_LOG_CHUNK_SIZE) {
-    const size_t len = std::min(total - offset, PRONTO_LOG_CHUNK_SIZE);
-    ProntoProtocol::write_text(data, offset, chunk, len);
-    ESP_LOGI(TAG, "%.*s", (int) len, chunk);
+  const size_t total = ProntoProtocol::number_count(data);
+  for (size_t first = 0; first < total; first += PRONTO_LOG_CHUNK_NUMBERS) {
+    const size_t count = std::min(total - first, PRONTO_LOG_CHUNK_NUMBERS);
+    ProntoProtocol::write_numbers(data, first, count, chunk);
+    ESP_LOGI(TAG, "%.*s", (int) (count * ProntoProtocol::TEXT_NUMBER_LENGTH), chunk);
   }
   return true;
 }
