@@ -40,17 +40,27 @@ output:
     write_action:
       - zigbee.factory_reset
   - platform: template
-    id: output_red
+    id: zb_output_red
     type: float
     write_action:
       - delay: 1s
   - platform: template
-    id: output_blue
+    id: zb_output_blue
     type: float
     write_action:
       - delay: 1s
   - platform: template
-    id: output_green
+    id: zb_output_green
+    type: float
+    write_action:
+      - delay: 1s
+  - platform: template
+    id: zb_output_ww
+    type: float
+    write_action:
+      - delay: 1s
+  - platform: template
+    id: zb_output_cw
     type: float
     write_action:
       - delay: 1s
@@ -71,11 +81,15 @@ number:
     device_class: temperature
 
 light:
-  - platform: rgb
+  - platform: rgbww
     name: "RGB Light"
-    red: output_red
-    green: output_green
-    blue: output_blue
+    red: zb_output_red
+    green: zb_output_green
+    blue: zb_output_blue
+    warm_white: zb_output_ww
+    cold_white: zb_output_cw
+    cold_white_color_temperature: 200 mireds
+    warm_white_color_temperature: 455 mireds
 
 time:
   - platform: zigbee
