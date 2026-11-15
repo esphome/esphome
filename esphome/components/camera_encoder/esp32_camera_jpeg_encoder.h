@@ -27,7 +27,8 @@ class ESP32CameraJPEGEncoder final : public camera::Encoder {
   // -------------------------
  protected:
   static size_t callback(void *arg, size_t index, const void *data, size_t len);
-  pixformat_t to_internal_(camera::PixelFormat format);
+  /// Maps a camera pixel format onto the backend's layout, false when unsupported.
+  static bool to_internal(camera::PixelFormat format, pixformat_t *internal);
 
   camera::EncoderBuffer *output_{};
   size_t buffer_expand_size_{};

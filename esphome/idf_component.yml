@@ -25,6 +25,12 @@ dependencies:
     version: 1.5.0
   espressif/esp32-camera:
     version: 2.1.7
+  # Keep in sync with esphome/components/camera_decoder/__init__.py and the
+  # targets in the component's own manifest (no H2/H21 support).
+  espressif/esp_new_jpeg:
+    version: 1.0.2
+    rules:
+      - if: "target in [esp32, esp32s2, esp32s3, esp32s31, esp32p4, esp32c2, esp32c3, esp32c5, esp32c6, esp32c61, esp32h4]"
   espressif/esp_modem:
     version: 2.1.0
   espressif/mdns:

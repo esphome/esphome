@@ -14,10 +14,16 @@ ESP32CameraJPEGEncoder::ESP32CameraJPEGEncoder(uint8_t quality, camera::EncoderB
 }
 
 camera::EncoderError ESP32CameraJPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
+  pixformat_t internal_format = PIXFORMAT_GRAYSCALE;
+  if (!to_internal(spec->format, &internal_format)) {
+    ESP_LOGE(TAG, "Cannot encode %s input", camera::to_string(spec->format));
+    return camera::ENCODER_ERROR_CONFIGURATION;
+  }
+
   this->bytes_written_ = 0;
   this->out_of_output_memory_ = false;
   bool success = fmt2jpg_cb(pixels->get_data_buffer(), pixels->get_data_length(), spec->width, spec->height,
-                            to_internal_(spec->format), this->quality_, callback, this);
+                            internal_format, this->quality_, callback, this);
 
   if (!success)
     return camera::ENCODER_ERROR_CONFIGURATION;
@@ -65,18 +71,27 @@ size_t ESP32CameraJPEGEncoder::callback(void *arg, size_t index, const void *dat
   return len;
 }
 
-pixformat_t ESP32CameraJPEGEncoder::to_internal_(camera::PixelFormat format) {
+bool ESP32CameraJPEGEncoder::to_internal(camera::PixelFormat format, pixformat_t *internal) {
   switch (format) {
     case camera::PIXEL_FORMAT_GRAYSCALE:
-      return PIXFORMAT_GRAYSCALE;
+      *internal = PIXFORMAT_GRAYSCALE;
+      return true;
     case camera::PIXEL_FORMAT_RGB565:
-      return PIXFORMAT_RGB565;
+      *internal = PIXFORMAT_RGB565;
+      return true;
     // Internal representation for RGB is in byte order: B, G, R
     case camera::PIXEL_FORMAT_BGR888:
-      return PIXFORMAT_RGB888;
+      *internal = PIXFORMAT_RGB888;
+      return true;
+    // The backend only takes B, G, R pixels and Y, Cb, Y, Cr YUV, so a true
+    // R, G, B buffer and the decoder's Cb, Y, Cr, Y buffer have no layout to
+    // map to; encoding them as grayscale would silently corrupt the picture.
+    case camera::PIXEL_FORMAT_RGB888:
+    case camera::PIXEL_FORMAT_CBYCRY:
+      return false;
   }
 
-  return PIXFORMAT_GRAYSCALE;
+  return false;
 }
 
 }  // namespace esphome::camera_encoder
