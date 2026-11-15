@@ -70,8 +70,9 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
-  this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
+  // H1 and H2 are 12-bit values sharing byte 1: its low nibble ends H1, its high nibble ends H2
+  this->calibration_.h1 = encode_uint12(coeff2[2], low_nibble(coeff2[1]));
+  this->calibration_.h2 = encode_uint12(coeff2[0], high_nibble(coeff2[1]));
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];

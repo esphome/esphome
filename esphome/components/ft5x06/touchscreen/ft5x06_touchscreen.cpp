@@ -69,7 +69,7 @@ void FT5x06Touchscreen::update_touches() {
   for (uint8_t i = 0; i != touch_cnt; i++) {
     uint8_t status = data[i][0] >> 6;
     uint8_t id = data[i][2] >> 3;
-    uint16_t x = encode_uint16(data[i][0] & 0x0F, data[i][1]);
+    uint16_t x = encode_uint16(low_nibble(data[i][0]), data[i][1]);
     uint16_t y = encode_uint16(data[i][2] & 0xF, data[i][3]);
 
     ESP_LOGV(TAG, "Read %X status, id: %d, pos %d/%d", status, id, x, y);
