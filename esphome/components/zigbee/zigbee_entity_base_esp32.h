@@ -19,7 +19,7 @@ enum ZigbeeReportT {
   ZIGBEE_REPORT_FORCE,
 };
 
-class ZigbeeDeviceBase : public Component, public ZigbeeAttributeInterface {
+class ZigbeeEntityBase : public Component, public ZigbeeAttributeInterface {
  public:
   void loop() override;
   void set_report(ZigbeeReportT report);
@@ -28,7 +28,7 @@ class ZigbeeDeviceBase : public Component, public ZigbeeAttributeInterface {
   bool report_enabled = false;
 
  protected:
-  ZigbeeDeviceBase(ZigbeeComponent *parent, uint8_t endpoint_id) : zb_(parent), endpoint_id_(endpoint_id) {}
+  ZigbeeEntityBase(ZigbeeComponent *parent, uint8_t endpoint_id) : zb_(parent), endpoint_id_(endpoint_id) {}
   virtual void set_attr_internal() = 0;
   virtual void report_internal(bool has_lock) = 0;
   virtual bool loop_internal() { return true; };
