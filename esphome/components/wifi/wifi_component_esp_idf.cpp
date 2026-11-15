@@ -1161,10 +1161,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const ExpectedLeave expected = s_expected_disconnect.consume_disconnect(
         it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE || it.reason == WIFI_REASON_STA_LEAVING);
     const bool expected_disconnect = expected != ExpectedLeave::EXPECTED_LEAVE_NONE;
-    if (expected == ExpectedLeave::EXPECTED_LEAVE_ATTEMPT) {
-      ESP_LOGD(TAG, "Expected leave of the previous attempt");
-    } else if (expected_disconnect) {
-      ESP_LOGD(TAG, "Expected disconnect from previous AP");
+    if (expected_disconnect) {
+      ESP_LOGD(TAG, "Expected leave of the previous %s",
+               expected == ExpectedLeave::EXPECTED_LEAVE_AP ? LOG_STR_LITERAL("AP") : LOG_STR_LITERAL("attempt"));
     } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);

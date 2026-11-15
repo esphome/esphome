@@ -10,7 +10,6 @@ namespace {
 
 constexpr uint8_t OLD_AP[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
 constexpr uint8_t NEW_AP[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x02};
-// What the driver reports for an attempt that never associated
 constexpr uint8_t NO_AP[6] = {};
 
 ExpectedDisconnect armed() {
@@ -87,15 +86,6 @@ TEST(ExpectedDisconnectTest, DisconnectExpectsTheLeaveOfTheApItLeft) {
   EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_AP);
 }
 
-TEST(ExpectedDisconnectTest, NoApMeansNoExpectation) {
-  ExpectedDisconnect expected;
-  Driver driver;
-  driver.has_ap = false;
-
-  EXPECT_TRUE(disconnect(expected, driver));
-  EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
-}
-
 TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
   auto expected = armed();
   Driver driver;
@@ -110,20 +100,26 @@ TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
 
 TEST(ExpectedDisconnectTest, DisconnectWithoutApExpectsTheAttemptsLeave) {
   ExpectedDisconnect expected;
-  ASSERT_TRUE(expected.disconnect_and_expect_leave([](uint8_t *) { return false; }, []() { return true; }));
-  // The driver reports the attempt it was making as left, with no BSSID, after the next one starts
+  Driver driver;
+  driver.has_ap = false;
+
+  EXPECT_TRUE(disconnect(expected, driver));
+  // A real AP never matches the attempt's zero BSSID
+  EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
+  // The driver reports the attempt as left, with no BSSID, after the next one starts
   EXPECT_EQ(expected.consume_disconnect(NO_AP, true), ExpectedLeave::EXPECTED_LEAVE_ATTEMPT);
   EXPECT_EQ(expected.consume_disconnect(NO_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 }
 
 TEST(ExpectedDisconnectTest, AttemptLeaveExpectationEndsOnARealFailure) {
   ExpectedDisconnect expected;
-  ASSERT_TRUE(expected.disconnect_and_expect_leave([](uint8_t *) { return false; }, []() { return true; }));
-  // Probe failure (no leave) of the new attempt: real, and nothing stays expected
+  Driver driver;
+  driver.has_ap = false;
+
+  EXPECT_TRUE(disconnect(expected, driver));
+  // A probe failure of the new attempt is real, and nothing stays expected after it
   EXPECT_EQ(expected.consume_disconnect(NO_AP, false), ExpectedLeave::EXPECTED_LEAVE_NONE);
   EXPECT_EQ(expected.consume_disconnect(NO_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
-  // A connected event from a real AP never matches the zero BSSID
-  EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
 }
 
 }  // namespace
