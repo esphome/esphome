@@ -264,7 +264,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             comp_total = totals[component]
             lines.append(f"{component} ({comp_total:,} B, {len(literals)} strings):")
             for literal in literals[: self.STRINGS_PER_COMPONENT]:
-                text = json.dumps(literal.text, ensure_ascii=False)
+                text = json.dumps(literal.text)
                 if len(text) > 50:
                     text = f'{text[:47]}..."'
                 users = sorted(
