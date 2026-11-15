@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome::sx127x {
 
@@ -22,6 +23,11 @@ static constexpr uint8_t BW_FSK_OOK[22] PROGMEM = {
 
 static const int32_t RSSI_OFFSET_HF = 157;
 static const int32_t RSSI_OFFSET_LF = 164;
+static constexpr uint16_t MAX_PACKET_LENGTH = 1024;
+static constexpr uint16_t PACKET_IDLE_TIMEOUT_BYTES = 64;
+static constexpr uint32_t PACKET_IDLE_TIMEOUT_MIN_MS = 5;
+
+static float rssi_dbm(uint8_t rssi) { return -(float) rssi / 2.0f; }
 
 uint8_t SX127x::read_register_(uint8_t reg) {
   this->enable();
@@ -38,14 +44,16 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
   this->disable();
 }
 
-void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
+void SX127x::read_fifo_(uint8_t *data, size_t length) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  for (auto &byte : packet) {
-    byte = this->transfer_byte(0x00);
+  for (size_t i = 0; i < length; i++) {
+    data[i] = this->transfer_byte(0x00);
   }
   this->disable();
 }
+
+void SX127x::read_fifo_(std::vector<uint8_t> &packet) { this->read_fifo_(packet.data(), packet.size()); }
 
 void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->enable();
@@ -56,8 +64,6 @@ void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->disable();
 }
 
-void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
-
 void SX127x::setup() {
   // setup reset
   this->rst_pin_->setup();
@@ -67,6 +73,14 @@ void SX127x::setup() {
     this->dio0_pin_->setup();
     this->dio0_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
+
+#ifdef USE_SX127X_LONG_PACKET
+  // setup dio1 (FifoEmpty falling edge during long packet RX)
+  if (this->dio1_pin_) {
+    this->dio1_pin_->setup();
+    this->dio1_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+  }
+#endif
 
   // start spi
   this->spi_setup();
@@ -128,6 +142,19 @@ void SX127x::configure() {
     this->configure_lora_();
   }
 
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    // Reserve once, so receiving never allocates. Before a lambda resolves the length, one burst past
+    // MAX_PACKET_LENGTH can be read before the size check discards the packet.
+    this->packet_.reserve(this->payload_length_func_ ? MAX_PACKET_LENGTH + FIFO_THRESHOLD_HALF + 1
+                                                     : this->payload_length_);
+    this->reset_long_packet_rx_();
+    if (this->dio1_pin_ == nullptr) {
+      ESP_LOGW(TAG, "Long packets need dio1_pin");
+    }
+  }
+#endif
+
   // switch to rx or sleep
   if (this->rx_start_) {
     this->set_mode_rx();
@@ -163,11 +190,26 @@ void SX127x::configure_fsk_ook_() {
   // configure packet mode
   if (this->packet_mode_) {
     uint8_t crc_mode = (this->crc_enable_) ? CRC_ON : CRC_OFF;
-    this->write_register_(REG_FIFO_THRESH, TX_START_FIFO_EMPTY);
-    if (this->payload_length_ > 0) {
+#ifdef USE_SX127X_LONG_PACKET
+    const bool long_packet = this->is_long_packet_mode_();
+#else
+    const bool long_packet = false;
+    if (this->payload_length_ > 64) {
+      ESP_LOGW(TAG, "Payload length %" PRIu32 " needs a configured payload_length above 64", this->payload_length_);
+    }
+#endif
+    if (long_packet) {
+      // Unlimited length format: PacketFormat=fixed, PayloadLength=0. The total length (known
+      // upfront or resolved from a lambda) is tracked entirely in software; see handle_long_packet_().
+      this->write_register_(REG_FIFO_THRESH, TX_START_FIFO_EMPTY | FIFO_THRESHOLD_HALF);
+      this->write_register_(REG_PAYLOAD_LENGTH_LSB, 0);
+      this->write_register_(REG_PACKET_CONFIG_1, crc_mode | FIXED_LENGTH);
+    } else if (this->payload_length_ > 0) {
+      this->write_register_(REG_FIFO_THRESH, TX_START_FIFO_EMPTY);
       this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->payload_length_);
       this->write_register_(REG_PACKET_CONFIG_1, crc_mode | FIXED_LENGTH);
     } else {
+      this->write_register_(REG_FIFO_THRESH, TX_START_FIFO_EMPTY);
       this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->get_max_packet_size() - 1);
       this->write_register_(REG_PACKET_CONFIG_1, crc_mode | VARIABLE_LENGTH);
     }
@@ -175,7 +217,13 @@ void SX127x::configure_fsk_ook_() {
   } else {
     this->write_register_(REG_PACKET_CONFIG_2, CONTINUOUS_MODE);
   }
-  this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_00);
+  uint8_t dio_mapping = DIO0_MAPPING_00;
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    dio_mapping |= DIO1_MAPPING_FIFO_EMPTY;
+  }
+#endif
+  this->write_register_(REG_DIO_MAPPING1, dio_mapping);
 
   // config bit synchronizer
   uint8_t polarity = (this->preamble_polarity_ == 0xAA) ? PREAMBLE_AA : PREAMBLE_55;
@@ -267,6 +315,13 @@ SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
     ESP_LOGW(TAG, "Radio not ready, packet dropped");
     return SX127xError::SX127X_ERROR_NOT_READY;
   }
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    // Long packet TX would need chunked FIFO refills; not implemented, RX-only.
+    ESP_LOGE(TAG, "Long packet TX is not supported");
+    return SX127xError::INVALID_PARAMS;
+  }
+#endif
   if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX127xError::INVALID_PARAMS;
@@ -325,7 +380,167 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
   this->packet_trigger_.trigger(packet, rssi, snr);
 }
 
+void SX127x::dispatch_packet_(float rssi, float snr) {
+  // Hand out the packet from a swapped buffer, which a callback that changes the mode or calls configure()
+  // cannot clear or move. Swapping back keeps the capacity unless such a callback reserved a larger buffer.
+  std::vector<uint8_t> packet;
+  packet.swap(this->packet_);
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    // Restart RX before dispatching, so a mode set by a callback is kept
+    this->restart_long_packet_rx_();
+  }
+#endif
+  this->call_listeners_(packet, rssi, snr);
+  if (packet.capacity() > this->packet_.capacity()) {
+    packet.clear();
+    this->packet_.swap(packet);
+  }
+}
+
+void SX127x::set_payload_length(uint32_t payload_length) {
+  this->payload_length_ = payload_length;
+#ifdef USE_SX127X_LONG_PACKET
+  this->payload_length_func_ = nullptr;
+#endif
+}
+
+#ifdef USE_SX127X_LONG_PACKET
+bool SX127x::is_long_packet_mode_() const {
+  return this->packet_mode_ && this->modulation_ != MOD_LORA &&
+         (this->payload_length_ > 64 || this->payload_length_func_);
+}
+
+void SX127x::reset_long_packet_rx_() {
+  this->packet_.clear();
+  // When the length is known upfront (not resolved via payload_length_func_), set it immediately so each
+  // drain is capped to the bytes still missing and never grows packet_ past the capacity reserved in configure()
+  this->packet_expected_length_ = this->payload_length_func_ ? 0 : this->payload_length_;
+  this->packet_last_byte_ms_ = 0;
+}
+
+void SX127x::restart_long_packet_rx_() {
+  // set_mode_() clears the FIFO and the long packet state on each mode change
+  this->set_mode_standby();
+  this->set_mode_rx();
+}
+
+void SX127x::finish_long_packet_() {
+  this->packet_.resize(this->packet_expected_length_);
+  this->dispatch_packet_(rssi_dbm(this->long_packet_rssi_), 0.0f);
+}
+
+void SX127x::handle_long_packet_(uint8_t irq2) {
+  // Drain until FifoEmpty in this pass: the chip reports no byte count, and a pass that leaves bytes behind
+  // gets no FifoEmpty edge to wake the loop before the FIFO overruns. The packet length bounds the loop.
+  while (true) {
+    if (irq2 & FIFO_OVERRUN) {
+      ESP_LOGW(TAG, "FIFO overrun during long packet RX, restarting: received=%u expected=%u",
+               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
+      this->restart_long_packet_rx_();
+      return;
+    }
+    if (irq2 & FIFO_EMPTY) {
+      return;
+    }
+
+    // FifoLevel guarantees strictly more than FIFO_THRESHOLD_HALF bytes are present, otherwise at
+    // least 1 byte (the tail end) is available.
+    size_t to_read = (irq2 & FIFO_LEVEL) ? FIFO_THRESHOLD_HALF + 1 : 1;
+    if (this->packet_expected_length_ > 0) {
+      to_read = std::min(to_read, this->packet_expected_length_ - this->packet_.size());
+    }
+
+    // Read through an aligned buffer: for an unaligned target the ESP32 SPI driver allocates a bounce buffer
+    alignas(4) uint8_t staged[FIFO_THRESHOLD_HALF + 1];
+    const size_t old_size = this->packet_.size();
+    if (old_size == 0) {
+      // The RSSI register follows the live signal; sample it while the packet is still on air
+      this->long_packet_rssi_ = this->read_register_(REG_RSSI_VALUE_FSK);
+    }
+    this->read_fifo_(staged, to_read);
+    this->packet_.resize(old_size + to_read);
+    std::memcpy(this->packet_.data() + old_size, staged, to_read);
+    this->packet_last_byte_ms_ = App.get_loop_component_start_time();
+    ESP_LOGVV(TAG, "Drained RX FIFO: read=%u received=%u expected=%u", (unsigned) to_read,
+              (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
+
+    if (this->packet_expected_length_ == 0 && this->payload_length_func_) {
+      int32_t expected = this->payload_length_func_(this->packet_);
+      if (expected < 0) {
+        ESP_LOGVV(TAG, "Long packet length lambda discarded packet: received=%u", (unsigned) this->packet_.size());
+        this->restart_long_packet_rx_();
+        return;
+      }
+      if (expected > MAX_PACKET_LENGTH) {
+        ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%" PRId32 " max=%u", expected,
+                 MAX_PACKET_LENGTH);
+        this->restart_long_packet_rx_();
+        return;
+      }
+      if (expected > 0 && (size_t) expected + FIFO_THRESHOLD_HALF + 1 < this->packet_.size()) {
+        ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", expected,
+                 (unsigned) this->packet_.size());
+        this->restart_long_packet_rx_();
+        return;
+      }
+      if (expected > 0) {
+        this->packet_expected_length_ = (size_t) expected;
+        ESP_LOGVV(TAG, "Resolved packet length: received=%u expected=%u", (unsigned) this->packet_.size(),
+                  (unsigned) this->packet_expected_length_);
+      }
+    }
+
+    // Only reachable while the length is still unknown; a known length caps every read
+    if (this->packet_expected_length_ == 0 && this->packet_.size() > MAX_PACKET_LENGTH) {
+      ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u",
+               (unsigned) this->packet_.size(), MAX_PACKET_LENGTH);
+      this->restart_long_packet_rx_();
+      return;
+    }
+
+    if (this->packet_expected_length_ > 0 && this->packet_.size() >= this->packet_expected_length_) {
+      this->finish_long_packet_();
+      return;
+    }
+
+    irq2 = this->read_register_(REG_IRQ_FLAGS2);
+  }
+}
+
+void SX127x::loop_long_packet_() {
+  if (this->dio1_pin_ == nullptr) {
+    this->disable_loop();
+    return;
+  }
+  uint8_t irq2 = this->read_register_(REG_IRQ_FLAGS2);
+  if (irq2 & FIFO_EMPTY) {
+    if (this->packet_.empty()) {
+      this->disable_loop();
+      return;
+    }
+    // Discard a packet when no byte arrived for the air time of PACKET_IDLE_TIMEOUT_BYTES
+    const uint32_t timeout_ms =
+        std::max<uint32_t>((8u * PACKET_IDLE_TIMEOUT_BYTES * 1000u) / this->bitrate_, PACKET_IDLE_TIMEOUT_MIN_MS);
+    if (App.get_loop_component_start_time() - this->packet_last_byte_ms_ > timeout_ms) {
+      ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u",
+               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
+      this->restart_long_packet_rx_();
+    }
+    return;  // keep the loop ticking while a reception is in progress, even without a new interrupt
+  }
+  this->handle_long_packet_(irq2);
+}
+#endif
+
 void SX127x::loop() {
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    this->loop_long_packet_();
+    return;
+  }
+#endif
+
   this->disable_loop();
   if (this->dio0_pin_ == nullptr || !this->dio0_pin_->digital_read()) {
     return;
@@ -343,9 +558,9 @@ void SX127x::loop() {
       this->write_register_(REG_FIFO_ADDR_PTR, addr);
       this->read_fifo_(this->packet_);
       if (this->frequency_ > 700000000) {
-        this->call_listeners_(this->packet_, (float) rssi - RSSI_OFFSET_HF, (float) snr / 4);
+        this->dispatch_packet_((float) rssi - RSSI_OFFSET_HF, (float) snr / 4);
       } else {
-        this->call_listeners_(this->packet_, (float) rssi - RSSI_OFFSET_LF, (float) snr / 4);
+        this->dispatch_packet_((float) rssi - RSSI_OFFSET_LF, (float) snr / 4);
       }
     }
   } else if (this->packet_mode_) {
@@ -353,9 +568,11 @@ void SX127x::loop() {
     if (payload_length == 0) {
       payload_length = this->read_register_(REG_FIFO);
     }
+    // Read RSSI before emptying the FIFO, which restarts the receiver (AutoRestartRxMode)
+    float rssi = rssi_dbm(this->read_register_(REG_RSSI_VALUE_FSK));
     this->packet_.resize(payload_length);
     this->read_fifo_(this->packet_);
-    this->call_listeners_(this->packet_, 0.0f, 0.0f);
+    this->dispatch_packet_(rssi, 0.0f);
   }
 }
 
@@ -398,6 +615,13 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
       return;
     }
   }
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    // Drop a partial packet on any mode change; leaving Rx does not clear the FIFO, writing FifoOverrun does
+    this->write_register_(REG_IRQ_FLAGS2, FIFO_OVERRUN);
+    this->reset_long_packet_rx_();
+  }
+#endif
 }
 
 void SX127x::set_mode_rx() {
@@ -409,6 +633,12 @@ void SX127x::set_mode_rx() {
 }
 
 void SX127x::set_mode_tx() {
+#ifdef USE_SX127X_LONG_PACKET
+  if (this->is_long_packet_mode_()) {
+    ESP_LOGW(TAG, "TX is not supported with long packets");
+    return;
+  }
+#endif
   this->set_mode_(this->modulation_, MODE_TX);
   if (this->modulation_ == MOD_LORA) {
     this->write_register_(REG_IRQ_FLAGS_MASK, 0x00);
@@ -425,6 +655,9 @@ void SX127x::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   LOG_PIN("  DIO0 Pin: ", this->dio0_pin_);
+#ifdef USE_SX127X_LONG_PACKET
+  LOG_PIN("  DIO1 Pin: ", this->dio1_pin_);
+#endif
   const char *pa_pin = "RFO";
   if (this->pa_pin_ == PA_PIN_BOOST) {
     pa_pin = "BOOST";
@@ -497,8 +730,15 @@ void SX127x::dump_config() {
     if (this->packet_mode_) {
       ESP_LOGCONFIG(TAG, "  CRC Enable: %s", TRUEFALSE(this->crc_enable_));
     }
-    if (this->payload_length_ > 0) {
+#ifdef USE_SX127X_LONG_PACKET
+    if (this->payload_length_func_) {
+      ESP_LOGCONFIG(TAG, "  Payload Length: lambda");
+    } else
+#endif
+        if (this->payload_length_ > 0) {
       ESP_LOGCONFIG(TAG, "  Payload Length: %" PRIu32, this->payload_length_);
+    } else if (this->packet_mode_) {
+      ESP_LOGCONFIG(TAG, "  Payload Length: variable");
     }
     if (!this->sync_value_.empty()) {
       char hex_buf[17];  // 8 bytes max = 16 hex chars + null
