@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
     CONF_ID,
-    CONF_INTEGRATION_TIME,
+    CONF_INTEGRATION_TIME as CONF_INTEGRATION_TIME,
     CONF_INTERRUPT_PIN,
     CONF_NUMBER,
 )
@@ -108,16 +108,15 @@ def _final_validate(configs: list[ConfigType]) -> None:
             if sibling_index == index or sibling[CONF_I2C_ID] != config[CONF_I2C_ID]:
                 continue
             sibling_pin = sibling.get(CONF_ENABLE_PIN)
-            if sibling_pin is not None:
-                if (
-                    pin_schema == pins.PIN_SCHEMA_REGISTRY.get_key(sibling_pin)
-                    and pin_provider_id == sibling_pin.get(pin_schema)
-                    and pin_number == sibling_pin[CONF_NUMBER]
-                ):
-                    raise cv.Invalid(
-                        "Each VL6180X on a shared I2C bus needs a unique enable_pin",
-                        path=[index, CONF_ENABLE_PIN],
-                    )
+            if sibling_pin is not None and (
+                pin_schema == pins.PIN_SCHEMA_REGISTRY.get_key(sibling_pin)
+                and pin_provider_id == sibling_pin.get(pin_schema)
+                and pin_number == sibling_pin[CONF_NUMBER]
+            ):
+                raise cv.Invalid(
+                    "Each VL6180X on a shared I2C bus needs a unique enable_pin",
+                    path=[index, CONF_ENABLE_PIN],
+                )
             if sibling[CONF_ADDRESS] == config[CONF_ADDRESS]:
                 raise cv.Invalid(
                     f"Address 0x{config[CONF_ADDRESS]:02X} is used more than "
