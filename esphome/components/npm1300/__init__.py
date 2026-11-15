@@ -42,20 +42,18 @@ NPM1300_CHILD_SCHEMA = cv.Schema(
     {cv.GenerateID(CONF_NPM1300_ID): cv.use_id(NPM1300Component)}
 )
 
-# Status registers read on each update: VBUSINSTATUS, BCHGCHARGESTATUS and BCHGERRREASON
+NPM1300Status = npm1300_ns.struct("NPM1300Status")
+# The status registers read on each update
 STATUS_PUBLISHER = cg.HubFunction(
     "status",
     cg.void,
-    [
-        (cg.uint8, "vbus_status"),
-        (cg.uint8, "charge_status"),
-        (cg.uint8, "error_reason"),
-    ],
+    [(NPM1300Status.operator("const").operator("ref"), "status")],
     define="USE_NPM1300_STATUS_PUBLISHER",
 )
-VBUS_STATUS = STATUS_PUBLISHER.param("vbus_status")
-CHARGE_STATUS = STATUS_PUBLISHER.param("charge_status")
-ERROR_REASON = STATUS_PUBLISHER.param("error_reason")
+STATUS = STATUS_PUBLISHER.param("status")
+VBUS_STATUS = STATUS.vbus
+CHARGE_STATUS = STATUS.charge
+ERROR_REASON = STATUS.error_reason
 # The ADC results and the amperes per code of the battery current
 DATA_PUBLISHER = cg.HubFunction(
     "data",
