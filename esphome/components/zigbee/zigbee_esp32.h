@@ -40,7 +40,7 @@ class ZigbeeAttributeInterface {
 template<typename T, typename Owner> class ZigbeeOnValueForwarder final : public ZigbeeAttributeInterface {
  public:
   using Callback = void (Owner::*)(T);
-
+  // only one ZigbeeOnValueForwarder per owner should should set report=true
   ZigbeeOnValueForwarder(Owner *owner, uint8_t type, Callback callback, bool report)
       : owner_(owner), type_(type), callback_(callback), report_(report) {}
 
