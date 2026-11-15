@@ -1577,14 +1577,13 @@ class MemoryAnalyzer:
             return {}
         contents = _parse_hex_dumps(result.stdout)
         users: dict[bytes, set[str]] = defaultdict(set)
-        shared: set[str] = set()
-        for name, function in sections.values():
-            # A section named after its function holds only that function's literals
+        # Section -> the function it is named after, None for the shared section
+        owners = dict(sections.values())
+        for name, function in owners.items():
+            # A section named after a function holds its literals; others may use them too
             if function:
                 for text in bytes(contents[name]).split(b"\0")[:-1]:
                     users[text].add(function)
-            else:
-                shared.add(name)
 
         relocations = _parse_relocations(result.stdout)
         # Functions using each unnamed table, for literals reached through a pointer in it
@@ -1597,15 +1596,28 @@ class MemoryAnalyzer:
                 and _CODE_SECTION_PATTERN.match(section)
             ):
                 table_users[target].add(function)
-        # Literals in the shared section are found from the pointers that use them
+        # Other users are found from the pointers they hold
         refs = [
             (section, found, offset, target, addend)
             for section, offset, target, addend in relocations
-            if target in shared
+            if target in owners
             and (
                 found := {u} if (u := _section_user(section)) else table_users[section]
             )
+            and found != {owners[target]}
         ]
+        unnamed = sum(
+            1
+            for section, _, target, _ in relocations
+            if target in owners
+            and owners[target] is None
+            and not _section_user(section)
+            and not table_users[section]
+        )
+        if unnamed:
+            _LOGGER.debug(
+                "%s: %d string pointers with no named user", file_path, unnamed
+            )
         if not refs:
             return users
         result = run_tool(

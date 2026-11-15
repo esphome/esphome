@@ -246,7 +246,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             "LOG_STR, ESPHOME_F or a PROGMEM table keeps a literal in flash."
         )
         lines.append(
-            "A literal used by several components is listed under each and charged to none."
+            "Only literals whose user is known are counted; one used by several components is "
+            "listed under each and charged to none."
         )
         lines.append("")
         by_component: dict[str, list[StringLiteral]] = defaultdict(list)

@@ -349,3 +349,25 @@ Relocation section '.rela.rodata' at offset 0x200 contains 3 entries:
     ]
     assert analyzer.components["[esphome]core"].data_size == 12 + 3 * 15
     assert analyzer.sections[".data"].symbol_size == 12 + 3 * 15
+
+
+def test_string_literals_pooled_in_another_function_section() -> None:
+    """A literal in one function's section that another function uses names both."""
+    analyzer = make_analyzer()
+    section = ".rodata._Z1av.str1.1"
+    relocations = f"""\
+Relocation section '.rela.text._Z1bv' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000004  00000501 R_XTENSA_32            00000000   {section} + 0
+
+""" + hex_dump(section, b"ON\0OFF\0")
+
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        if "-rW" in cmd:
+            return completed(relocations)
+        assert cmd[1:-1] == ["-x", ".text._Z1bv"]
+        return completed(hex_dump(".text._Z1bv", bytes(4) + (3).to_bytes(4, "little")))
+
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        users = analyzer._scan_object_strings("a.o", {"7": (section, "_Z1av")})
+    assert users == {b"ON": {"_Z1av"}, b"OFF": {"_Z1av", "_Z1bv"}}
