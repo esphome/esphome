@@ -138,6 +138,15 @@ class SX127x final : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
+  // The settings configure() last applied. Sends and reception use these, so a setter called while
+  // configure() is refused, during a send, does not change them before the chip has the new value.
+  struct AppliedSettings {
+    uint32_t frequency{0};
+    uint32_t payload_length{0};
+    uint8_t modulation{0};
+    bool packet_mode{false};
+    bool rx_start{false};
+  };
   struct TxOperation {
     SX127xTransmitListener *listener{nullptr};
     uint32_t started_ms{0};
@@ -174,6 +183,7 @@ class SX127x final : public Component,
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
+  AppliedSettings applied_;
   TxOperation tx_;
   GPIOPin *dio0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};

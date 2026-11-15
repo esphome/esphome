@@ -309,3 +309,39 @@ TEST(SX127xRecovery, NothingHappensBeforeSetup) {
 }
 
 }  // namespace esphome::sx127x::testing
+
+namespace esphome::sx127x::testing {
+
+// configure() is refused during a send, so settings changed then are not used until it succeeds
+TEST(SX127xSettings, SettingsChangedDuringASendWaitForConfigure) {
+  RadioHardware hw;
+  TransmitListener listener;
+  PacketListener packets;
+  hw.radio.register_listener(&packets);
+  hw.configure(false, true, true);
+  hw.auto_complete = false;
+  ASSERT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX127xError::SX127X_ERROR_NONE);
+  hw.radio.set_payload_length(4);
+  hw.radio.set_rx_start(false);
+  hw.radio.set_modulation(MOD_LORA);
+  hw.radio.configure();  // Refused: a send is on air
+  hw.complete_send();
+  hw.radio.loop();
+  EXPECT_EQ(listener.results, std::vector<SX127xError>{SX127xError::SX127X_ERROR_NONE});
+  EXPECT_TRUE(hw.receiving());  // Still the applied rx_start
+  EXPECT_FALSE(hw.lora());
+  EXPECT_EQ(hw.radio.get_max_packet_size(), 3u);
+  const std::vector<uint8_t> four{0x01, 0x02, 0x03, 0x04};
+  EXPECT_EQ(hw.radio.transmit_packet(four), SX127xError::SX127X_ERROR_INVALID_PARAMS);
+  hw.receive({0x07, 0x08, 0x09});
+  hw.radio.loop();
+  ASSERT_EQ(packets.packets.size(), 1u);
+  EXPECT_EQ(packets.packets[0], (std::vector<uint8_t>{0x07, 0x08, 0x09}));
+  // Once applied, they are used
+  hw.radio.configure();
+  EXPECT_TRUE(hw.lora());
+  EXPECT_EQ(hw.mode(), MODE_SLEEP);
+  EXPECT_EQ(hw.radio.get_max_packet_size(), 4u);
+}
+
+}  // namespace esphome::sx127x::testing

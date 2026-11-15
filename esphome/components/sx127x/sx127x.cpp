@@ -87,9 +87,6 @@ void SX127x::setup() {
   // start spi
   this->spi_setup();
 
-  // Sized once so later packet reads do not reallocate
-  this->packet_.reserve(this->get_max_packet_size());
-
   // configure rf; a failure here is reported through mark_failed() only
   const LogString *reason = this->configure_radio_();
   if (reason != nullptr) {
@@ -97,6 +94,8 @@ void SX127x::setup() {
     return;
   }
   this->state_ = RadioState::RADIO_STATE_IDLE;
+  // Sized once so later packet reads do not reallocate
+  this->packet_.reserve(this->get_max_packet_size());
 }
 
 void SX127x::configure() {
@@ -136,6 +135,7 @@ void SX127x::fail_(const LogString *reason) {
 const LogString *SX127x::configure_radio_() {
   // Until this succeeds; a held packet is discarded
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
+  this->applied_ = {this->frequency_, this->payload_length_, this->modulation_, this->packet_mode_, this->rx_start_};
 
   // toggle chip reset
   this->rst_pin_->digital_write(false);
@@ -319,10 +319,10 @@ void SX127x::configure_lora_() {
 }
 
 size_t SX127x::get_max_packet_size() {
-  if (this->payload_length_ > 0) {
-    return this->payload_length_;
+  if (this->applied_.payload_length > 0) {
+    return this->applied_.payload_length;
   }
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     return SX127X_MAX_PACKET_SIZE;
   }
   return 64;
@@ -364,7 +364,7 @@ SX127xError SX127x::start_transmit_(SX127xTransmitListener *listener, const uint
     return SX127xError::SX127X_ERROR_BUSY;
   }
   if (data == nullptr || len == 0 || len > this->get_max_packet_size() ||
-      (this->payload_length_ > 0 && this->payload_length_ != len)) {
+      (this->applied_.payload_length > 0 && this->applied_.payload_length != len)) {
     return SX127xError::SX127X_ERROR_INVALID_PARAMS;
   }
   if (this->dio0_pin_ == nullptr) {
@@ -372,7 +372,7 @@ SX127xError SX127x::start_transmit_(SX127xTransmitListener *listener, const uint
     return SX127xError::SX127X_ERROR_INVALID_PARAMS;
   }
 
-  if (!this->set_mode_(this->modulation_, MODE_STDBY)) {
+  if (!this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
     this->fail_(set_mode_failure());
     return SX127xError::SX127X_ERROR_NOT_READY;
   }
@@ -382,13 +382,13 @@ SX127xError SX127x::start_transmit_(SX127xTransmitListener *listener, const uint
     this->enable_loop();
     return SX127xError::SX127X_ERROR_BUSY;
   }
-  if (this->modulation_ == MOD_LORA) {
-    if (this->payload_length_ == 0) {
+  if (this->applied_.modulation == MOD_LORA) {
+    if (this->applied_.payload_length == 0) {
       this->write_register_(REG_PAYLOAD_LENGTH, len);
     }
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
     this->write_register_(REG_FIFO_ADDR_PTR, 0);
-  } else if (this->payload_length_ == 0) {
+  } else if (this->applied_.payload_length == 0) {
     this->write_register_(REG_FIFO, len);
   }
   this->write_fifo_(data, len);
@@ -444,21 +444,21 @@ SX127xError SX127x::finish_transmit_(SX127xError result) {
 bool SX127x::restore_() {
   // The chip stays in TX when asked for RX while a packet is still going out, so a send that
   // is ended early goes through standby
-  if (!this->set_mode_(this->modulation_, MODE_STDBY)) {
+  if (!this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
     return false;
   }
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
   }
-  return this->rx_start_ ? this->enter_rx_() : this->set_mode_(this->modulation_, MODE_SLEEP);
+  return this->applied_.rx_start ? this->enter_rx_() : this->set_mode_(this->applied_.modulation, MODE_SLEEP);
 }
 
 bool SX127x::packet_waiting_() {
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     const uint8_t flags = this->read_register_(REG_IRQ_FLAGS);
     return (flags & RX_DONE) != 0 && (flags & PAYLOAD_CRC_ERROR) == 0;
   }
-  return this->packet_mode_ && (this->read_register_(REG_IRQ_FLAGS2) & PAYLOAD_READY) != 0;
+  return this->applied_.packet_mode && (this->read_register_(REG_IRQ_FLAGS2) & PAYLOAD_READY) != 0;
 }
 
 void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr) {
@@ -503,7 +503,7 @@ void SX127x::receive_() {
   bool received = false;
   float rssi = 0.0f;
   float snr = NAN;  // FSK and OOK have no SNR
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     uint8_t status = this->read_register_(REG_IRQ_FLAGS);
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
     if ((status & RX_DONE) != 0 && (status & PAYLOAD_CRC_ERROR) == 0) {
@@ -514,12 +514,12 @@ void SX127x::receive_() {
       this->packet_.resize(bytes);
       this->write_register_(REG_FIFO_ADDR_PTR, addr);
       this->read_fifo_(this->packet_);
-      rssi = (float) raw_rssi - (this->frequency_ > 700000000 ? RSSI_OFFSET_HF : RSSI_OFFSET_LF);
+      rssi = (float) raw_rssi - (this->applied_.frequency > 700000000 ? RSSI_OFFSET_HF : RSSI_OFFSET_LF);
       snr = (float) raw_snr / 4;
       received = true;
     }
-  } else if (this->packet_mode_ && (this->read_register_(REG_IRQ_FLAGS2) & PAYLOAD_READY) != 0) {
-    uint8_t payload_length = this->payload_length_;
+  } else if (this->applied_.packet_mode && (this->read_register_(REG_IRQ_FLAGS2) & PAYLOAD_READY) != 0) {
+    uint8_t payload_length = this->applied_.payload_length;
     if (payload_length == 0) {
       payload_length = this->read_register_(REG_FIFO);
     }
@@ -540,7 +540,7 @@ void SX127x::receive_() {
 }
 
 const LogString *SX127x::image_cal_() {
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     if (!this->set_mode_(MOD_FSK, MODE_SLEEP) || !this->set_mode_(MOD_FSK, MODE_STDBY)) {
       return set_mode_failure();
     }
@@ -556,8 +556,9 @@ const LogString *SX127x::image_cal_() {
       return LOG_STR("Image cal failure");
     }
   }
-  if (this->modulation_ == MOD_LORA) {
-    if (!this->set_mode_(this->modulation_, MODE_SLEEP) || !this->set_mode_(this->modulation_, MODE_STDBY)) {
+  if (this->applied_.modulation == MOD_LORA) {
+    if (!this->set_mode_(this->applied_.modulation, MODE_SLEEP) ||
+        !this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
       return set_mode_failure();
     }
   }
@@ -592,19 +593,19 @@ bool SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
 }
 
 bool SX127x::enter_rx_() {
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     this->write_register_(REG_IRQ_FLAGS_MASK, 0x00);
     this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_00);
   }
-  return this->set_mode_(this->modulation_, MODE_RX);
+  return this->set_mode_(this->applied_.modulation, MODE_RX);
 }
 
 bool SX127x::enter_tx_() {
-  if (this->modulation_ == MOD_LORA) {
+  if (this->applied_.modulation == MOD_LORA) {
     this->write_register_(REG_IRQ_FLAGS_MASK, 0x00);
     this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_01);
   }
-  return this->set_mode_(this->modulation_, MODE_TX);
+  return this->set_mode_(this->applied_.modulation, MODE_TX);
 }
 
 bool SX127x::can_change_mode_() {
@@ -625,7 +626,7 @@ void SX127x::change_mode_(uint8_t mode) {
   } else if (mode == MODE_TX) {
     ok = this->enter_tx_();
   } else {
-    ok = this->set_mode_(this->modulation_, mode);
+    ok = this->set_mode_(this->applied_.modulation, mode);
   }
   if (!ok) {
     this->fail_(set_mode_failure());
