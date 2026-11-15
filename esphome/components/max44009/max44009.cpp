@@ -82,7 +82,7 @@ float MAX44009Sensor::read_illuminance_() {
 
 float MAX44009Sensor::convert_to_lux_(uint8_t data_high, uint8_t data_low) {
   uint8_t exponent = high_nibble(data_high);
-  uint32_t mantissa = encode_uint12(low_nibble(data_high), data_low);
+  uint32_t mantissa = (low_nibble(data_high) << 4) | low_nibble(data_low);
   return ((0x0001 << exponent) * 0.045) * mantissa;
 }
 
