@@ -1,8 +1,9 @@
 """approbe_check.py CLIENT_LOG: verdict for the probes of configs/ap-client-common.yaml in the client's serial log.
 
-Needs at least one round of all four probes; in every round a POST without credentials must get 401 and one with
-credentials 200, and the portal root and /config.json must answer (any status but -1; their codes are printed to
-compare two builds). Exits 1 when a probe is missing or a status is wrong.
+Needs at least one round of all four probes and the same number of replies to each (a cut-off round fails); in every
+round a POST without credentials must get 401 and one with credentials 200, and the portal root and /config.json must
+answer (any status but -1; their codes are printed to compare two builds). Exits 1 when a probe is missing or a status
+is wrong.
 """
 
 import pathlib
@@ -21,6 +22,8 @@ for line in (
     if m := RX.search(line):
         seen[m[1]].append(m[2])
 fails = []
+if len({len(c) for c in seen.values()}) > 1:
+    fails.append("unequal probe counts, a round did not finish")
 for name, codes in seen.items():
     print(f"{name}: {codes}")
     if not codes:
