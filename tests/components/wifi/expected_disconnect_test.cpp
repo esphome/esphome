@@ -106,29 +106,24 @@ TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
   EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
 }
 
-TEST(AttemptSsidTest, NothingIsOtherBeforeTheFirstAttempt) {
-  AttemptSsid attempt;
-  EXPECT_FALSE(attempt.is_other(reinterpret_cast<const uint8_t *>("home"), 4));
+TEST(ExpectedDisconnectTest, DisconnectWithoutApExpectsTheAttemptsLeave) {
+  ExpectedDisconnect expected;
+  ASSERT_TRUE(expected.disconnect_and_expect_leave([](uint8_t *) { return false; }, []() { return true; }));
+  constexpr uint8_t NO_AP[6] = {};
+  // The driver reports the attempt it was making as left, with no BSSID, after the next one starts
+  EXPECT_TRUE(expected.consume_disconnect(NO_AP, true));
+  EXPECT_FALSE(expected.consume_disconnect(NO_AP, true));
 }
 
-TEST(AttemptSsidTest, OnlyAnotherSsidIsFromAnEarlierAttempt) {
-  AttemptSsid attempt;
-  attempt.set(reinterpret_cast<const uint8_t *>("home"), 4);
-  EXPECT_FALSE(attempt.is_other(reinterpret_cast<const uint8_t *>("home"), 4));
-  // The hidden network tried before, reported after the real attempt started
-  EXPECT_TRUE(attempt.is_other(reinterpret_cast<const uint8_t *>("hidden"), 6));
-  EXPECT_TRUE(attempt.is_other(reinterpret_cast<const uint8_t *>("hom"), 3));
-  EXPECT_TRUE(attempt.is_other(reinterpret_cast<const uint8_t *>("homE"), 4));
-}
-
-TEST(AttemptSsidTest, FullLengthSsidWithoutTerminator) {
-  uint8_t ssid[32];
-  std::fill(std::begin(ssid), std::end(ssid), 'a');
-  AttemptSsid attempt;
-  attempt.set(ssid, sizeof(ssid));
-  EXPECT_FALSE(attempt.is_other(ssid, sizeof(ssid)));
-  ssid[31] = 'b';
-  EXPECT_TRUE(attempt.is_other(ssid, sizeof(ssid)));
+TEST(ExpectedDisconnectTest, AttemptLeaveExpectationEndsOnARealFailure) {
+  ExpectedDisconnect expected;
+  ASSERT_TRUE(expected.disconnect_and_expect_leave([](uint8_t *) { return false; }, []() { return true; }));
+  constexpr uint8_t NO_AP[6] = {};
+  // Probe failure (no leave) of the new attempt: real, and nothing stays expected
+  EXPECT_FALSE(expected.consume_disconnect(NO_AP, false));
+  EXPECT_FALSE(expected.consume_disconnect(NO_AP, true));
+  // A connected event from a real AP never matches the zero BSSID
+  EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
 }
 
 }  // namespace

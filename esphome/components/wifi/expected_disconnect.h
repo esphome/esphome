@@ -1,7 +1,6 @@
 #pragma once
 #include <algorithm>
 #include <array>
-#include <cstddef>
 #include <cstdint>
 
 namespace esphome::wifi {
@@ -18,7 +17,8 @@ class ExpectedDisconnect {
 
   /// Disconnects from the current AP and, once that succeeds, expects its leave event. read_bssid(uint8_t *out)
   /// returns whether there was an AP and runs first, since the record is gone after the disconnect; disconnect()
-  /// returns whether it succeeded, which is also the result. Any earlier expectation is dropped.
+  /// returns whether it succeeded, which is also the result. Any earlier expectation is dropped. Without an AP the
+  /// driver still reports an attempt it was making as left, with no BSSID, so that leave is expected too.
   template<typename ReadBssid, typename Disconnect>
   bool disconnect_and_expect_leave(ReadBssid &&read_bssid, Disconnect &&disconnect) {
     this->armed_ = false;
@@ -26,8 +26,9 @@ class ExpectedDisconnect {
     const bool had_ap = read_bssid(bssid.data());
     if (!disconnect())
       return false;
-    if (had_ap)
-      this->arm(bssid.data());
+    if (!had_ap)
+      bssid.fill(0);
+    this->arm(bssid.data());
     return true;
   }
 
@@ -47,27 +48,6 @@ class ExpectedDisconnect {
  protected:
   std::array<uint8_t, 6> bssid_{};
   bool armed_{false};
-};
-
-/// The SSID of the connect attempt in progress. When a new attempt replaces one that never associated, the driver
-/// reports the old attempt's leave (reason 36, no BSSID) only after the new one has started, naming the old SSID.
-class AttemptSsid {
- public:
-  void set(const uint8_t *ssid, size_t len) {
-    this->len_ = static_cast<uint8_t>(std::min(len, this->ssid_.size()));
-    std::copy_n(ssid, this->len_, this->ssid_.begin());
-    this->set_ = true;
-  }
-
-  /// Whether a disconnect names another SSID than the current attempt, so it belongs to an earlier attempt.
-  bool is_other(const uint8_t *ssid, size_t len) const {
-    return this->set_ && (len != this->len_ || !std::equal(ssid, ssid + len, this->ssid_.begin()));
-  }
-
- protected:
-  std::array<uint8_t, 32> ssid_{};
-  uint8_t len_{0};
-  bool set_{false};
 };
 
 }  // namespace esphome::wifi

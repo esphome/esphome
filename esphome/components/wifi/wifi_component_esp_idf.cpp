@@ -15,6 +15,7 @@
 #include <freertos/task.h>
 
 #include <algorithm>
+#include <iterator>
 #include <cinttypes>
 #include <memory>
 #include <utility>
@@ -72,7 +73,6 @@ static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-
 static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static ExpectedDisconnect s_expected_disconnect;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static AttemptSsid s_attempt_ssid;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_WIFI_DPP
 /// Terminated copies of the received station credentials; the supplicant's wifi_config_t would grow every event
@@ -637,7 +637,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connecting = true;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
-  s_attempt_ssid.set(conf.sta.ssid, ap.ssid_.size());
   // Ensures we don't report connected before DHCP completes (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
   this->clear_sta_session_();
 
@@ -1160,15 +1159,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     }
-    const bool expected_disconnect =
-        s_expected_disconnect.consume_disconnect(it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE);
-    if (!expected_disconnect && s_attempt_ssid.is_other(it.ssid, it.ssid_len)) {
-      // Queued from an earlier attempt; it must not fail the one in progress
-      ESP_LOGD(TAG, "Ignoring disconnect from previous attempt ssid='%.*s' reason=%u", it.ssid_len,
-               (const char *) it.ssid, it.reason);
-      return;
-    }
-    if (expected_disconnect) {
+    const bool expected_disconnect = s_expected_disconnect.consume_disconnect(
+        it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE || it.reason == WIFI_REASON_STA_LEAVING);
+    // An attempt that never associated has no BSSID; its leave ends no session listeners know of
+    const bool left_attempt =
+        expected_disconnect && std::all_of(std::begin(it.bssid), std::end(it.bssid), [](uint8_t b) { return b == 0; });
+    if (left_attempt) {
+      ESP_LOGD(TAG, "Expected leave of the previous attempt");
+    } else if (expected_disconnect) {
       ESP_LOGD(TAG, "Expected disconnect from previous AP");
     } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
@@ -1189,7 +1187,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    this->notify_disconnect_state_listeners_();
+    if (!left_attempt)
+      this->notify_disconnect_state_listeners_();
 #endif
 
 #if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
