@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.analyze_memory import (
+    _CODE_SECTION_PATTERN,
     MemoryAnalyzer,
     MemorySection,
     UnnamedConstant,
@@ -376,3 +377,56 @@ String dump of section '.rodata.str1.1':
         'points to "0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"'
         in cli.generate_report()
     )
+
+
+@pytest.mark.parametrize(
+    ("section", "function"),
+    [
+        (".text._Z3foov", "_Z3foov"),
+        (".literal._Z3foov", "_Z3foov"),
+        (".irom0.text._Z3foov", "_Z3foov"),
+        (".text.startup._GLOBAL__sub_I_setup", "_GLOBAL__sub_I_setup"),
+        (".text.unlikely._Z3foov", "_Z3foov"),
+        (".iram.text._Z3foov", "_Z3foov"),
+        (".text.hot_path", "hot_path"),
+        (".text", None),
+    ],
+)
+def test_code_section_function(section: str, function: str | None) -> None:
+    """Placement prefixes and IRAM code still resolve to the function."""
+    match = _CODE_SECTION_PATTERN.match(section)
+    assert match is not None
+    assert match.group(1) == function
+
+
+def test_unnamed_constants_same_object_not_merged(obj_dir: Path) -> None:
+    """Two equal constants of one inline function in one object are both counted."""
+    analyzer, _ = _esp8266_analyzer(obj_dir, {SETUP}, bind="WEAK")
+    constant = UnnamedConstant(
+        size=8,
+        source_file=LIGHT_OBJ,
+        component="[esphome]light",
+        functions=[SAVE, SETUP],
+        jump_table=False,
+        data=b"",
+    )
+    light = str(obj_dir / LIGHT_OBJ)
+    headers = HEADERS_AND_SYMBOLS.format(
+        light=light,
+        web=str(obj_dir / WEB_OBJ),
+        web_index=9,
+        web_size=0x1C,
+        bind="WEAK",
+        setup=SETUP,
+        save=SAVE,
+    )
+    with (
+        patch("esphome.analyze_memory.run_tool", return_value=_completed(headers)),
+        patch.object(
+            analyzer,
+            "_scan_object_constants",
+            side_effect=lambda path, *_: [constant, constant] if path == light else [],
+        ),
+    ):
+        analyzer._analyze_object_rodata()
+    assert len(analyzer._unnamed_constants) == 2

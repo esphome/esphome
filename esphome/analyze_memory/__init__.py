@@ -95,8 +95,12 @@ _RELOC_SECTION_PATTERN = re.compile(r"^Relocation section '\.rela(\S+)'")
 _STRING_SECTION_PATTERN = re.compile(r"^\.rodata(?:\.(.+))?\.str\d+\.\d+$")
 # Data section of one symbol; group 1 is the symbol
 _DATA_SECTION_PATTERN = re.compile(r"^\.(?:rodata|data)\.(.+)$")
-# Code section; group 1 is the function for -ffunction-sections names
-_CODE_SECTION_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)(?:\.(.+))?$")
+# Code section; group 1 is the function for -ffunction-sections names, after any
+# placement prefix (.text.startup.<fn>, .iram.text.<fn> for IRAM_ATTR)
+_CODE_SECTION_PATTERN = re.compile(
+    r"^\.(?:literal|text|irom0\.text|iram\.text|iram0\.text)"
+    r"(?:\.(?:startup|unlikely|hot|exit)(?=\.|$))?(?:\.(.+))?$"
+)
 # readelf -x row: "  0x00000000 0000803f 0000803f 0000803f 0000803f ...?...?...?...?"
 _HEX_DUMP_PREFIX = "  0x"
 _HEX_DUMP_COLUMNS = slice(13, 48)
@@ -1413,18 +1417,17 @@ class MemoryAnalyzer:
         unnamed, weak_functions = _parse_unnamed_rodata(output)
         # Inline (weak) functions are emitted, with their constants, in every
         # object that uses them; the linker keeps one copy
-        inline_copies: set[tuple[tuple[str, ...], int]] = set()
+        inline_copies: dict[tuple[tuple[str, ...], int], str] = {}
         for file_path, sections in unnamed.items():
-            rel_path = str(Path(file_path).relative_to(obj_dir))
+            rel_path = Path(file_path).relative_to(obj_dir).as_posix()
             component = self._source_file_to_component(rel_path)
             for constant in self._scan_object_constants(
                 file_path, sections, rel_path, component
             ):
                 if weak_functions.issuperset(constant.functions):
                     key = (tuple(constant.functions), constant.size)
-                    if key in inline_copies:
+                    if inline_copies.setdefault(key, file_path) != file_path:
                         continue
-                    inline_copies.add(key)
                 self._unnamed_constants.append(constant)
                 self._add_component_size(component, ".data", constant.size)
                 if data_section is not None:
@@ -1562,6 +1565,7 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
+            _LOGGER.debug("readelf failed reading constants of %s", file_path)
             return []
 
         by_name = {section.name: section for section in sections.values()}
@@ -1641,6 +1645,7 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
+            _LOGGER.debug("readelf failed reading strings of %s", file_path)
             return {}
         literals: dict[str, dict[int, str]] = defaultdict(dict)
         section = ""
