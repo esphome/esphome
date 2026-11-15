@@ -5,14 +5,15 @@
 
 namespace esphome::wifi {
 
-// Switching APs calls esp_wifi_disconnect(), which queues a leave event for the old AP, or with no BSSID for an
-// attempt that never associated. Remembers it so that event does not end the next attempt. Platform free for tests.
+/// Which expected leave a disconnect matched.
 enum class ExpectedLeave : uint8_t {
   EXPECTED_LEAVE_NONE,
   EXPECTED_LEAVE_AP,
   EXPECTED_LEAVE_ATTEMPT,  ///< An attempt that never associated, so no BSSID
 };
 
+// Switching APs calls esp_wifi_disconnect(), which queues a leave event for the old AP, or with no BSSID for an
+// attempt that never associated. Remembers it so that event does not end the next attempt. Platform free for tests.
 class ExpectedDisconnect {
  public:
   void arm(const uint8_t *bssid) { this->arm_(bssid, ExpectedLeave::EXPECTED_LEAVE_AP); }
