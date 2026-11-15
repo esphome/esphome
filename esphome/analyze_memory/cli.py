@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import heapq
+import json
 from operator import itemgetter
 from pathlib import Path
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from . import (
     _COMPONENT_API,
@@ -23,7 +24,7 @@ from . import (
 from .toolchain import find_elf_path, find_idedata_path, idedata_candidates
 
 if TYPE_CHECKING:
-    from . import ComponentMemory
+    from . import ComponentMemory, StringLiteral
 
 
 def _format_pstorage_name(name: str) -> str:
@@ -46,6 +47,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
+    # String literals listed per component in the RAM strings report
+    STRINGS_PER_COMPONENT: int = 10
     # Number of top symbols to show in the largest symbols report
     TOP_SYMBOLS_LIMIT: int = 30
     # Width for symbol name display in top symbols report
@@ -83,6 +86,13 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         + COL_SEPARATOR
         + COL_TOTAL_RAM
     )
+
+    def __init__(
+        self, *args: Any, secret_values: Mapping[str, str] | None = None, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        # Value -> !secret name; reports get shared, so these are never printed
+        self.secret_values: Mapping[str, str] = secret_values or {}
 
     @staticmethod
     def _make_separator_line(*widths: int) -> str:
@@ -232,6 +242,46 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             elif constant.data and not constant.jump_table:
                 more = " ..." if constant.size > len(constant.data) else ""
                 lines.append(f"{'':>9} bytes: {constant.data.hex(' ')}{more}")
+        lines.append("")
+
+    def _add_string_literals_analysis(self, lines: list[str]) -> None:
+        """Add the string literals in RAM (ESP8266 .rodata) section, by component."""
+        self._add_section_header(lines, "String Literals in RAM (.rodata)")
+        total_size = sum(s.size for s in self._string_literals)
+        lines.append(
+            f"Total: {len(self._string_literals)} string(s), {total_size:,} B. "
+            "LOG_STR, ESPHOME_F or a PROGMEM table keeps a literal in flash."
+        )
+        lines.append(
+            "A literal used by several components is listed under each and charged to none."
+        )
+        lines.append("")
+        by_component: dict[str, list[StringLiteral]] = defaultdict(list)
+        for literal in self._string_literals:
+            for component in literal.components:
+                by_component[component].append(literal)
+        for component, literals in sorted(
+            by_component.items(), key=lambda x: (-sum(s.size for s in x[1]), x[0])
+        ):
+            comp_total = sum(s.size for s in literals)
+            lines.append(f"{component} ({comp_total:,} B, {len(literals)} strings):")
+            for literal in literals[: self.STRINGS_PER_COMPONENT]:
+                # Reports get shared; never print a value that came from !secret
+                if secret := self.secret_values.get(literal.text):
+                    text = f"!secret {secret}"
+                else:
+                    text = json.dumps(literal.text, ensure_ascii=False)
+                if len(text) > 50:
+                    text = f'{text[:47]}..."'
+                users = sorted(self._demangle_symbol(u) for u in literal.users)
+                used_by = users[0][:60] + (
+                    f" (+{len(users) - 1})" if len(users) > 1 else ""
+                )
+                lines.append(f"  {literal.size:>5,} B {text:<50} {used_by}")
+            if len(literals) > self.STRINGS_PER_COMPONENT:
+                lines.append(
+                    f"  ... and {len(literals) - self.STRINGS_PER_COMPONENT} more"
+                )
         lines.append("")
 
     def _add_cswtch_analysis(self, lines: list[str]) -> None:
@@ -695,6 +745,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         if self._unnamed_constants:
             self._add_unnamed_constants_analysis(lines)
+        if self._string_literals:
+            self._add_string_literals_analysis(lines)
 
         # CSWTCH (GCC switch table) analysis
         if self._cswtch_symbols:

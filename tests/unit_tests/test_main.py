@@ -5776,6 +5776,7 @@ def test_command_analyze_memory_success(
         "/path/to/readelf",
         set(),  # No external components
         idedata=mock_get_idedata.return_value,
+        secret_values={},
     )
 
     # Verify analysis was run
@@ -5846,6 +5847,7 @@ def test_command_analyze_memory_with_external_components(
         "/path/to/readelf",
         {"my_custom_component"},  # External component detected
         idedata=mock_get_idedata.return_value,
+        secret_values={},
     )
 
 
@@ -7781,6 +7783,7 @@ def test_command_analyze_memory_native_toolchains(
         str(readelf),
         set(),
         idedata=None,
+        secret_values={},
     )
 
 
@@ -8220,7 +8223,12 @@ def test_command_analyze_memory_native_toolchain(
     ):
         assert command_analyze_memory(MockArgs(), config) == 0
     mock_memory_analyzer_cli.assert_called_once_with(
-        str(elf), str(objdump), str(readelf), set(), idedata=None
+        str(elf),
+        str(objdump),
+        str(readelf),
+        set(),
+        idedata=None,
+        secret_values={},
     )
     mock_ram_strings_analyzer.assert_called_once_with(
         str(elf), objdump_path=str(objdump), platform="host"

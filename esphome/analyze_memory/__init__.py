@@ -91,6 +91,10 @@ _OBJ_SECTION_PATTERN = re.compile(
     r"^\s*\[\s*(\d+)\]\s+(\S+)\s+(\S+)\s+[\da-f]+\s+[\da-f]+\s+([\da-f]+)\s+[\da-f]+\s+(\S*)"
 )
 _RELOC_SECTION_PATTERN = re.compile(r"^Relocation section '\.rela(\S+)'")
+# String literal section; group 1 is the function for -fdata-sections names
+_STRING_SECTION_PATTERN = re.compile(r"^\.rodata(?:\.(.+))?\.str\d+\.\d+$")
+# Data section of one symbol; group 1 is the symbol
+_DATA_SECTION_PATTERN = re.compile(r"^\.(?:rodata|data)\.(.+)$")
 # Code section; group 1 is the function for -ffunction-sections names
 _CODE_SECTION_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)(?:\.(.+))?$")
 # readelf -x row: "  0x00000000 0000803f 0000803f 0000803f 0000803f ...?...?...?...?"
@@ -149,6 +153,16 @@ class UnnamedConstant:
 
 
 @dataclass
+class StringLiteral:
+    """A string literal kept in RAM (.rodata on ESP8266)."""
+
+    text: str
+    size: int  # Bytes in RAM; strings shared or merged into a longer one count once
+    components: set[str] = field(default_factory=set)
+    users: set[str] = field(default_factory=set)  # Functions or objects, mangled
+
+
+@dataclass
 class ComponentMemory:
     """Tracks memory usage for a component."""
 
@@ -197,6 +211,54 @@ class _RodataSection:
     @property
     def unnamed_size(self) -> int:
         return sum(1 for offset in range(self.size) if self.is_unnamed(offset))
+
+
+def _parse_string_sections(output: str) -> dict[str, dict[str, str]]:
+    """Find string literal sections in ``readelf -SW`` output.
+
+    Returns:
+        Object path -> section index -> section name
+    """
+    sections: dict[str, dict[str, str]] = defaultdict(dict)
+    file_path = ""
+    for line in output.splitlines():
+        if line.startswith("File: "):
+            file_path = line[6:]
+        elif (match := _OBJ_SECTION_PATTERN.match(line)) is not None:
+            index, name, section_type, size_hex, flags = match.groups()
+            if (
+                section_type == "PROGBITS"
+                and "S" in flags
+                and int(size_hex, 16)
+                and _STRING_SECTION_PATTERN.match(name)
+            ):
+                sections[file_path][index] = name
+    return sections
+
+
+def _ram_string_size(text: bytes, rodata: bytes) -> int:
+    """Bytes a literal takes in RAM: 0 if dropped or stored as the tail of a longer one."""
+    needle = text + b"\0"
+    start = rodata.find(needle)
+    while start != -1:
+        if start == 0 or rodata[start - 1] == 0:
+            return len(needle)
+        start = rodata.find(needle, start + 1)
+    return 0
+
+
+def _parse_hex_dumps(output: str) -> dict[str, bytearray]:
+    """Collect the bytes of each ``readelf -x`` section dump by section name."""
+    contents: dict[str, bytearray] = defaultdict(bytearray)
+    section: str | None = None
+    for line in output.splitlines():
+        if line.startswith("Hex dump of section"):
+            section = line.split("'")[1]
+        elif section is not None and line.startswith(_HEX_DUMP_PREFIX):
+            contents[section] += bytes.fromhex(line[_HEX_DUMP_COLUMNS].replace(" ", ""))
+        elif line and not line.startswith(" "):
+            section = None
+    return contents
 
 
 def _parse_unnamed_rodata(
@@ -330,6 +392,7 @@ class MemoryAnalyzer:
         # True on ESP8266, where .rodata is RAM; it is then counted as .data
         self.rodata_in_ram = False
         self._unnamed_constants: list[UnnamedConstant] = []
+        self._string_literals: list[StringLiteral] = []
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -339,7 +402,7 @@ class MemoryAnalyzer:
         self._scan_source_symbols()
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
-        self._analyze_unnamed_constants()
+        self._analyze_object_rodata()
         self._analyze_sdk_libraries()
         self._analyze_function_calls()
         return dict(self.components)
@@ -1221,6 +1284,12 @@ class MemoryAnalyzer:
         ):
             return f"{_COMPONENT_PREFIX_LIB}{self._lib_hash_to_name[parts[1]]}"
 
+        # Native ESP8266 build: lib/<owner>__<Name>/... and the Arduino core in core/
+        if len(parts) >= 3 and parts[0] == "lib":
+            return f"{_COMPONENT_PREFIX_LIB}{parts[1].rsplit('__', 1)[-1].lower()}"
+        if len(parts) >= 2 and parts[0] == "core":
+            return "arduino_core"
+
         # Other framework/library files - return the first path component
         # e.g., FrameworkArduino/... -> FrameworkArduino
         return parts[0] if parts else source_file
@@ -1314,11 +1383,8 @@ class MemoryAnalyzer:
             total_size,
         )
 
-    def _analyze_unnamed_constants(self) -> None:
-        """Attribute .rodata bytes without a symbol, which are RAM on ESP8266.
-
-        GCC copies constant aggregate initializers from such unnamed constants.
-        """
+    def _analyze_object_rodata(self) -> None:
+        """Attribute .rodata without a symbol, which is RAM on ESP8266, to components."""
         if not self.rodata_in_ram or (obj_dir := self._find_object_files_dir()) is None:
             return
         result = run_tool(
@@ -1328,9 +1394,23 @@ class MemoryAnalyzer:
         if result is None or result.returncode != 0:
             _LOGGER.debug("readelf failed scanning object files for constants")
             return
+        self._attribute_unnamed_constants(result.stdout, obj_dir)
+        self._attribute_string_literals(result.stdout, obj_dir)
+        self._batch_demangle_symbols(
+            [
+                name
+                for name in {
+                    *(n for c in self._unnamed_constants for n in c.functions),
+                    *(n for literal in self._string_literals for n in literal.users),
+                }
+                if name not in self._demangle_cache
+            ]
+        )
 
+    def _attribute_unnamed_constants(self, output: str, obj_dir: Path) -> None:
+        """Attribute constants GCC copies into objects built from constant initializers."""
         data_section = self.sections.get(".data")
-        unnamed, weak_functions = _parse_unnamed_rodata(result.stdout)
+        unnamed, weak_functions = _parse_unnamed_rodata(output)
         # Inline (weak) functions are emitted, with their constants, in every
         # object that uses them; the linker keeps one copy
         inline_copies: set[tuple[tuple[str, ...], int]] = set()
@@ -1351,14 +1431,115 @@ class MemoryAnalyzer:
                     data_section.symbol_size += constant.size
 
         self._unnamed_constants.sort(key=lambda c: c.size, reverse=True)
-        self._batch_demangle_symbols(
-            [
-                name
-                for constant in self._unnamed_constants
-                for name in constant.functions
-                if name not in self._demangle_cache
-            ]
+
+    def _attribute_string_literals(self, output: str, obj_dir: Path) -> None:
+        """Attribute string literals in RAM to the components whose code uses them.
+
+        The linker merges identical literals across objects, so each is counted
+        once, from the bytes it really takes in the ELF's .rodata.
+        """
+        result = run_tool([self.readelf_path, "-x", ".rodata", str(self.elf_path)])
+        if result is None or result.returncode != 0:
+            return
+        rodata = bytes(_parse_hex_dumps(result.stdout).get(".rodata", b""))
+        literals: dict[bytes, StringLiteral] = {}
+        for file_path, sections in _parse_string_sections(output).items():
+            rel_path = str(Path(file_path).relative_to(obj_dir))
+            component = self._source_file_to_component(rel_path)
+            for text, users in self._scan_object_strings(file_path, sections).items():
+                kept = {u for u in users if u in self._elf_symbol_names}
+                if not kept or not text:
+                    continue
+                if (literal := literals.get(text)) is None:
+                    literal = literals[text] = StringLiteral(
+                        text.decode("utf-8", "backslashreplace"),
+                        _ram_string_size(text, rodata),
+                    )
+                literal.components.add(component)
+                literal.users |= kept
+
+        data_section = self.sections.get(".data")
+        for literal in literals.values():
+            if not literal.size:
+                continue
+            self._string_literals.append(literal)
+            # A literal used by several components is not charged to any of them
+            if len(literal.components) == 1:
+                self._add_component_size(
+                    next(iter(literal.components)), ".data", literal.size
+                )
+                if data_section is not None:
+                    data_section.symbol_size += literal.size
+        self._string_literals.sort(key=lambda s: (-s.size, s.text))
+
+    def _scan_object_strings(
+        self, file_path: str, sections: dict[str, str]
+    ) -> dict[bytes, set[str]]:
+        """Map each string literal of one object to the functions or data using it.
+
+        Args:
+            file_path: Object file to read
+            sections: String sections by index
+        """
+        result = run_tool(
+            [self.readelf_path, "-rW"]
+            + [arg for index in sections for arg in ("-x", index)]
+            + [file_path]
         )
+        if result is None or result.returncode != 0:
+            return {}
+        names = set(sections.values())
+        contents = _parse_hex_dumps(result.stdout)
+        users: dict[bytes, set[str]] = defaultdict(set)
+
+        # A section named after its function holds only that function's literals
+        for name in names:
+            if (match := _STRING_SECTION_PATTERN.match(name)) and match.group(1):
+                for text in bytes(contents[name]).split(b"\0")[:-1]:
+                    users[text].add(match.group(1))
+
+        # The shared section: find each literal from the pointer that uses it
+        refs: list[tuple[str, int, str, int]] = []
+        reloc_section: str | None = None
+        for line in result.stdout.splitlines():
+            if line.startswith("Relocation section"):
+                match = _RELOC_SECTION_PATTERN.match(line)
+                reloc_section = match.group(1) if match else None
+            elif line.startswith("Hex dump of section"):
+                reloc_section = None
+            elif reloc_section is not None:
+                # Offset Info Type Sym.Value Sym.Name + Addend
+                fields = line.split()
+                if len(fields) >= 5 and fields[4] in names:
+                    match = _STRING_SECTION_PATTERN.match(fields[4])
+                    if match and not match.group(1):
+                        addend = int(fields[6], 16) if len(fields) > 6 else 0
+                        refs.append(
+                            (reloc_section, int(fields[0], 16), fields[4], addend)
+                        )
+        if not refs:
+            return users
+
+        result = run_tool(
+            [self.readelf_path]
+            + [arg for name in sorted({r[0] for r in refs}) for arg in ("-x", name)]
+            + [file_path]
+        )
+        if result is None or result.returncode != 0:
+            return users
+        referrers = _parse_hex_dumps(result.stdout)
+        for referrer, offset, target, addend in refs:
+            match = _CODE_SECTION_PATTERN.match(
+                referrer
+            ) or _DATA_SECTION_PATTERN.match(referrer)
+            if match is None or not match.group(1):
+                continue
+            # Xtensa keeps part of the addend in the relocated word
+            word = referrers[referrer][offset : offset + 4]
+            start = addend + int.from_bytes(word, "little")
+            text = bytes(contents[target][start:]).split(b"\0", 1)[0]
+            users[text].add(match.group(1))
+        return users
 
     def _scan_object_constants(
         self,

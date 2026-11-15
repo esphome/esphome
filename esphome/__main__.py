@@ -2283,6 +2283,18 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
+def _secret_values() -> dict[str, str]:
+    """Map the configuration's !secret values to their names, to mask them in reports."""
+    from esphome import yaml_util
+
+    try:
+        yaml_util.load_yaml(CORE.config_path)
+    except EsphomeError as err:
+        _LOGGER.warning("Not masking !secret values in the report: %s", err)
+        return {}
+    return yaml_util.registered_secret_values()
+
+
 def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     """Analyze memory usage by component.
 
@@ -2365,6 +2377,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         readelf_path,
         external_components,
         idedata=idedata,
+        secret_values=_secret_values(),
     )
     analyzer.analyze()
 

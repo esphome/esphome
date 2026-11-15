@@ -125,9 +125,15 @@ def _esp8266_analyzer(
                     save=SAVE,
                 )
             )
+        # String literal scans (the ELF's .rodata, string sections) find nothing here
+        if (
+            "-SW" not in cmd
+            and cmd[1:-1] != ["-rW", "-x", "174"]
+            and (cmd[-1] == light or cmd[-1].endswith("firmware.elf"))
+        ):
+            return _completed("")
         # Only sections with uncovered bytes are dumped
         if cmd[-1] == light:
-            assert cmd[1:-1] == ["-rW", "-x", "174"]
             return _completed(LIGHT_OBJECT_DUMP)
         return _completed(web_dump)
 
@@ -184,7 +190,7 @@ def test_unnamed_constants_attributed_to_component(obj_dir: Path) -> None:
     """Unnamed .rodata in a kept function is listed and counted as the component's RAM."""
     analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP, MATCH_URL})
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
-        analyzer._analyze_unnamed_constants()
+        analyzer._analyze_object_rodata()
 
     light, web = analyzer._unnamed_constants
     assert light == UnnamedConstant(
@@ -210,7 +216,7 @@ def test_unnamed_constants_skip_garbage_collected(obj_dir: Path) -> None:
     """A constant whose functions the linker dropped is not in the firmware."""
     analyzer, run_tool = _esp8266_analyzer(obj_dir, {MATCH_URL})
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
-        analyzer._analyze_unnamed_constants()
+        analyzer._analyze_object_rodata()
     assert [c.component for c in analyzer._unnamed_constants] == ["[esphome]web_server"]
 
 
@@ -219,7 +225,7 @@ def test_unnamed_constants_skipped_when_rodata_in_flash(obj_dir: Path) -> None:
     analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP, MATCH_URL})
     analyzer.rodata_in_ram = False
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool) as mock:
-        analyzer._analyze_unnamed_constants()
+        analyzer._analyze_object_rodata()
     mock.assert_not_called()
     assert analyzer._unnamed_constants == []
 
@@ -238,7 +244,7 @@ def test_unnamed_constants_inline_copies_counted_once(
         bind=bind,
     )
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
-        analyzer._analyze_unnamed_constants()
+        analyzer._analyze_object_rodata()
     assert len(analyzer._unnamed_constants) == expected
     assert analyzer.sections[".data"].symbol_size == 44 * expected
 
