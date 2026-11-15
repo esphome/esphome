@@ -11,19 +11,16 @@ namespace esphome::benchmarks {
 // Inner iteration count to amortize CodSpeed instrumentation overhead.
 static constexpr int kInnerIterations = 2000;
 
-// Test subclass to access protected configure_entity_() for benchmark setup.
+// Exposes configure_entity_(); configure() also sets instant transitions and the gamma 2.8 LUT.
+// setup() is not called (no preferences backend), so saving is a no-op.
 class TestLightState : public light::LightState {
  public:
   using LightState::LightState;
-  void configure(const char *name) { this->configure_entity_(name, 0x12345678, 0); }
+  void configure(const char *name) {
+    this->configure_entity_(name, 0x12345678, 0);
+    this->set_default_transition_length(0);
+    this->set_gamma_table(&bench_gamma_2_8);
+  }
 };
-
-// Instant transitions by default and the gamma 2.8 LUT.
-// setup() is not called (no preferences backend), so saving is effectively a no-op.
-inline void configure_bench_light(TestLightState &light, const char *name) {
-  light.configure(name);
-  light.set_default_transition_length(0);
-  light.set_gamma_table(&bench_gamma_2_8);
-}
 
 }  // namespace esphome::benchmarks

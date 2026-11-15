@@ -17,12 +17,11 @@ class BenchLightOutput : public light::LightOutput {
 };
 
 // Helper to create a configured RGBWW light state for benchmarks.
-// This benchmarks the call/validation path, not persistence.
 static void setup_rgbww_light(BenchLightOutput &output, TestLightState &light) {
   output.traits_.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
   output.traits_.set_min_mireds(153.0f);
   output.traits_.set_max_mireds(500.0f);
-  configure_bench_light(light, "test_light");
+  light.configure("test_light");
 }
 
 // --- LightCall::perform() with instant RGB color change (Home Assistant API path) ---

@@ -40,16 +40,14 @@ class LoopLightOutput : public light::LightOutput {
 // In-memory RGB strip with no hardware behind it
 class FakeStrip : public light::AddressableLight {
  public:
-  FakeStrip() : accessor_impl_(this->colors_, this->effect_data_, light::ChannelColors{0, 1, 2}, &this->correction_) {
+  static constexpr light::ChannelColors RGB{0, 1, 2};
+
+  FakeStrip() : accessor_impl_(this->colors_, this->effect_data_, RGB, &this->correction_) {
     this->accessor_ = &this->accessor_impl_;
   }
   int32_t size() const override { return kStripLeds; }
   void clear_effect_data() override { this->accessor_impl_.clear_effect_data(kStripLeds); }
-  light::LightTraits get_traits() override {
-    light::LightTraits traits;
-    traits.set_supported_color_modes({light::ColorMode::RGB});
-    return traits;
-  }
+  light::LightTraits get_traits() override { return RGB.traits(); }
   void write_state(light::LightState * /*state*/) override { benchmark::DoNotOptimize(this->colors_); }
 
  protected:
@@ -59,17 +57,15 @@ class FakeStrip : public light::AddressableLight {
 };
 
 static void setup_light(TestLightState &light) {
-  configure_bench_light(light, "bench_light");
+  light.configure("bench_light");
   light.get_output()->setup_state(&light);
 }
 
-// Registers the effect and seeds the random generator, so seeding is not timed
-static void add_effect(TestLightState &light, light::LightEffect &effect) {
-  // add_effects keeps a pointer to the array; benchmarks run one at a time
-  static light::LightEffect *effects[1];
-  effects[0] = &effect;
+// Registers the effect and seeds the random generator, so seeding is not timed.
+// add_effects keeps the pointer, so the table must live as long as the light.
+static void add_effect(TestLightState &light, light::LightEffect **effects) {
   light.add_effects(effects, 1);
-  effect.init_internal(&light);
+  effects[0]->init_internal(&light);
   random_uint32();
 }
 
@@ -93,17 +89,17 @@ static void LightTransition_RGBWW(benchmark::State &state) {
       .set_state(true)
       .set_brightness(0.2f)
       .set_red(1.0f)
-      .set_green(0.0f)
-      .set_blue(0.0f)
+      .set_green(0.1f)
+      .set_blue(0.1f)
       .set_cold_white(1.0f)
-      .set_warm_white(0.0f)
+      .set_warm_white(0.1f)
       .perform();
   light.make_call()
       .set_brightness(1.0f)
-      .set_red(0.0f)
+      .set_red(0.1f)
       .set_green(0.5f)
       .set_blue(1.0f)
-      .set_cold_white(0.0f)
+      .set_cold_white(0.1f)
       .set_warm_white(1.0f)
       .set_transition_length(kLongMs)
       .perform();
@@ -130,8 +126,14 @@ static void LightFlash_RGBWW(benchmark::State &state) {
   TestLightState light(&output);
   setup_light(light);
   light.set_flash_transition_length(kLongMs);
-  light.make_call().set_state(true).set_brightness(0.2f).set_red(1.0f).set_green(0.0f).set_blue(0.0f).perform();
-  light.make_call().set_brightness(1.0f).set_red(0.0f).set_blue(1.0f).set_flash_length(kLongMs * 2).perform();
+  light.make_call().set_state(true).set_brightness(0.2f).set_red(1.0f).set_green(0.1f).set_blue(0.1f).perform();
+  light.make_call()
+      .set_brightness(1.0f)
+      .set_red(0.1f)
+      .set_green(0.5f)
+      .set_blue(1.0f)
+      .set_flash_length(kLongMs * 2)
+      .perform();
   run_loop(state, light, kInnerIterations);
 }
 BENCHMARK(LightFlash_RGBWW);
@@ -145,7 +147,8 @@ static void LightEffect_Flicker_RGBWW(benchmark::State &state) {
   light::FlickerLightEffect flicker("Flicker");
   flicker.set_alpha(0.95f);
   flicker.set_intensity(0.0f);  // no random noise, so the clamps take the same branch every run
-  add_effect(light, flicker);
+  light::LightEffect *effects[] = {&flicker};
+  add_effect(light, effects);
   light.make_call().set_state(true).set_brightness(0.8f).set_red(1.0f).set_green(0.6f).set_blue(0.2f).perform();
   light.make_call().set_effect(1u).perform();
   run_loop(state, light, kInnerIterations);
@@ -154,24 +157,23 @@ BENCHMARK(LightEffect_Flicker_RGBWW);
 
 // --- loop() running an addressable effect on a 150 LED strip ---
 
-// effect_data, if given, fills each LED's effect byte after the effect starts
-static void run_strip_effect(benchmark::State &state, light::AddressableLightEffect &effect,
-                             uint8_t (*effect_data)(int32_t) = nullptr) {
+static void run_strip_effect(benchmark::State &state, light::AddressableLightEffect &effect) {
   FakeStrip strip;
   TestLightState light(&strip);
+  light::LightEffect *effects[] = {&effect};
   setup_light(light);
-  add_effect(light, effect);
+  add_effect(light, effects);
   light.make_call().set_state(true).set_brightness(1.0f).set_red(1.0f).set_green(0.5f).set_blue(0.0f).perform();
   light.make_call().set_effect(1u).perform();
-  if (effect_data != nullptr) {
-    for (int32_t i = 0; i < kStripLeds; i++)
-      strip[i].set_effect_data(effect_data(i));
-  }
+  // Only the twinkles read it: every LED is lit, the fade position is at least 1 and all eight color codes appear
+  for (int32_t i = 0; i < kStripLeds; i++)
+    strip[i].set_effect_data(i | 0b1000);
   run_loop(state, light, kStripIterations);
 }
 
 static void AddressableEffect_Rainbow_150(benchmark::State &state) {
   light::AddressableRainbowLightEffect effect("Rainbow");
+  effect.set_speed(0);  // so the hue does not follow millis()
   run_strip_effect(state, effect);
 }
 BENCHMARK(AddressableEffect_Rainbow_150);
@@ -203,7 +205,7 @@ static void AddressableEffect_Twinkle_150(benchmark::State &state) {
   light::AddressableTwinkleEffect effect("Twinkle");
   effect.set_twinkle_probability(0.0f);
   effect.set_progress_interval(UINT32_MAX);
-  run_strip_effect(state, effect, [](int32_t i) -> uint8_t { return 1 + i % 255; });
+  run_strip_effect(state, effect);
 }
 BENCHMARK(AddressableEffect_Twinkle_150);
 
@@ -211,8 +213,7 @@ static void AddressableEffect_RandomTwinkle_150(benchmark::State &state) {
   light::AddressableRandomTwinkleEffect effect("Random Twinkle");
   effect.set_twinkle_probability(0.0f);
   effect.set_progress_interval(UINT32_MAX);
-  // Fade position 1..31 in the high bits, all eight color codes in the low bits
-  run_strip_effect(state, effect, [](int32_t i) -> uint8_t { return ((1 + i % 31) << 3) | (i & 0b111); });
+  run_strip_effect(state, effect);
 }
 BENCHMARK(AddressableEffect_RandomTwinkle_150);
 
