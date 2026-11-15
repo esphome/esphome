@@ -67,9 +67,8 @@ void GSL3670Touchscreen::update_touches() {
 
   // Build gsl_touch_info exactly as the Seeed driver does
   for (uint8_t j = 0; j != finger_num; j++) {
-    // buf[(j+1)*4 + 0..3]:  byte0=y_lo, byte1=y_hi, byte2=x_lo, byte3=id|x_hi
+    // Record: y_lo, y_hi, x_lo, then the id (high nibble) and the top 4 bits of X (low nibble)
     const uint8_t *record = &buf[(j + 1) * 4];
-    // Byte 3 holds the touch id in its high nibble and the top 4 bits of X in its low nibble
     auto x = encode_uint16(low_nibble(record[3]), record[2]);
     auto y = encode_uint16(record[1], record[0]);
     auto id = high_nibble(record[3]);

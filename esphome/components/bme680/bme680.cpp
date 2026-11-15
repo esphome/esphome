@@ -244,7 +244,7 @@ void BME680Component::read_data_() {
   uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
   uint32_t raw_humidity = encode_uint16(data[8], data[9]);
   uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
-  uint8_t gas_range = data[14] & 0x0F;
+  uint8_t gas_range = low_nibble(data[14]);
 
   float temperature = this->calc_temperature_(raw_temperature);
   float pressure = this->calc_pressure_(raw_pressure);

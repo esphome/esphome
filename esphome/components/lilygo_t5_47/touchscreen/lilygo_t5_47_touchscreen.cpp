@@ -62,7 +62,7 @@ void LilygoT547Touchscreen::update_touches() {
     return;
   }
 
-  point = buffer[5] & 0xF;
+  point = low_nibble(buffer[5]);
   if (point > 2) {
     ESP_LOGW(TAG, "Invalid touch point count: %d", point);
     point = 2;
