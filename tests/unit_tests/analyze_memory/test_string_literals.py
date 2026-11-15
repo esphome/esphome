@@ -284,3 +284,68 @@ def test_string_literals_skip_unlinked_copies(
     ):
         analyzer._attribute_string_literals(output, obj_dir)
     assert {c for s in analyzer._string_literals for c in s.users} == expected
+
+
+def test_unnamed_table_and_its_strings_charged_once(tmp_path: Path) -> None:
+    """Both passes together: the pointer table and each literal are charged once."""
+    obj = tmp_path / "obj" / "src" / "main.cpp.o"
+    obj.parent.mkdir(parents=True)
+    obj.touch()
+    analyzer = make_analyzer(cls=MemoryAnalyzerCLI)
+    analyzer.elf_path = tmp_path / "firmware.elf"
+    analyzer.rodata_in_ram = True
+    analyzer.sections[".data"] = MemorySection(".data", total_size=1000)
+    analyzer._elf_symbol_names = {"setup"}
+    names = b"0.pool.ntp.org\0001.pool.ntp.org\0002.pool.ntp.org\0"
+    table = b"".join(offset.to_bytes(4, "little") for offset in (0, 15, 30))
+    headers = f"""\
+File: {obj}
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [  5] .rodata           PROGBITS        00000000 000040 00000c 00   A  0   0  4
+  [  6] .rodata.str1.1    PROGBITS        00000000 000050 00002d 01 AMS  0   0  1
+
+Symbol table '.symtab' contains 2 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     1: 00000000    64 FUNC    GLOBAL DEFAULT    2 setup
+"""
+    relocations = """\
+Relocation section '.rela.text.setup' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
+
+Relocation section '.rela.rodata' at offset 0x200 contains 3 entries:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+00000004  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+00000008  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+
+"""
+
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        args = cmd[1:-1]
+        if "-SW" in args:
+            return completed(headers)
+        if cmd[-1].endswith("firmware.elf"):
+            return completed(hex_dump(".rodata", table + names, 0x3FFE86B0))
+        if args == ["-rW", "-x", "5"]:
+            return completed(relocations + hex_dump(".rodata", table))
+        if args == ["-rW", "-x", "6"]:
+            return completed(relocations + hex_dump(".rodata.str1.1", names))
+        if args == ["-x", ".rodata.str1.1"]:
+            return completed(hex_dump(".rodata.str1.1", names))
+        assert args == ["-x", ".rodata"], args
+        return completed(hex_dump(".rodata", table))
+
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        analyzer._analyze_object_rodata()
+
+    (constant,) = analyzer._unnamed_constants
+    assert (constant.size, constant.functions) == (12, ["setup"])
+    assert constant.strings == ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
+    assert [(s.text, s.size, dict(s.users)) for s in analyzer._string_literals] == [
+        (f"{i}.pool.ntp.org", 15, {"[esphome]core": {"setup"}}) for i in range(3)
+    ]
+    assert analyzer.components["[esphome]core"].data_size == 12 + 3 * 15
+    assert analyzer.sections[".data"].symbol_size == 12 + 3 * 15

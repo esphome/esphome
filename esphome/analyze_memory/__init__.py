@@ -1618,10 +1618,10 @@ class MemoryAnalyzer:
             return users
         referrers = _parse_hex_dumps(result.stdout)
         for section, found, offset, target, addend in refs:
-            text = _pointed_literal(
-                referrers[section], offset, addend, contents[target]
-            )
-            users[text] |= found
+            # A pointer read from a section missing from the dump would be offset 0
+            if (referrer := referrers.get(section)) is None:
+                continue
+            users[_pointed_literal(referrer, offset, addend, contents[target])] |= found
         return users
 
     def _scan_object_constants(
