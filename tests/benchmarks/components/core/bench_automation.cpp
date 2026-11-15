@@ -10,33 +10,28 @@
 
 namespace esphome::benchmarks {
 
+// The generated shapes copied here are pinned by tests/unit_tests/test_automation.py; update both together.
+
 // Inner iteration count to amortize CodSpeed instrumentation overhead.
 static constexpr int kInnerIterations = 2000;
+
+static switch_::Switch *bench_switch = nullptr;
+static binary_sensor::BinarySensor *bench_binary_sensor = nullptr;
+static uint32_t bench_counter = 0;
 
 // Optimistic switch: write_state() publishes directly, like an optimistic template switch.
 class AutomationBenchSwitch : public switch_::Switch {
  public:
-  void configure(const char *name) { this->configure_entity_(name, 0x12345678, 0); }
+  AutomationBenchSwitch() {
+    this->configure_entity_("bench_switch", 0x12345678, 0);
+    this->set_restore_mode(switch_::SWITCH_ALWAYS_OFF);
+    this->publish_state(false);
+    bench_switch = this;
+  }
 
  protected:
   void write_state(bool state) override { this->publish_state(state); }
 };
-
-class AutomationBenchSensor : public sensor::Sensor {
- public:
-  void configure(const char *name) { this->configure_entity_(name, 0x12345679, 0); }
-};
-
-static AutomationBenchSwitch *bench_switch = nullptr;
-static binary_sensor::BinarySensor *bench_binary_sensor = nullptr;
-static uint32_t bench_counter = 0;
-
-static void setup_switch(AutomationBenchSwitch &sw) {
-  sw.configure("bench_switch");
-  sw.set_restore_mode(switch_::SWITCH_ALWAYS_OFF);
-  sw.publish_state(false);
-  bench_switch = &sw;
-}
 
 static void setup_binary_sensor(binary_sensor::BinarySensor &binary_sensor, bool state) {
   binary_sensor.publish_initial_state(state);
@@ -97,14 +92,11 @@ static void if_state_fn(const float &x) {
   }
 }
 
-static void setup_sensor(AutomationBenchSensor &sensor) { sensor.configure("bench_sensor"); }
-
 // --- on_value: [lambda: 'id(counter)++;'] ---
 // Dispatch only: the direct function bumps a counter, with no switch publishing.
 
 static void Automation_DispatchOnly(benchmark::State &state) {
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   sensor.add_on_state_callback([](const float &x) -> void { counter_fn(x); });
 
   for (auto _ : state) {
@@ -122,9 +114,7 @@ BENCHMARK(Automation_DispatchOnly);
 
 static void Automation_SensorOnValue(benchmark::State &state) {
   AutomationBenchSwitch sw;
-  setup_switch(sw);
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   sensor.add_on_state_callback([](const float &x) -> void { toggle_fn(x); });
 
   for (auto _ : state) {
@@ -138,14 +128,11 @@ static void Automation_SensorOnValue(benchmark::State &state) {
 BENCHMARK(Automation_SensorOnValue);
 
 // --- on_value with automation_id: [switch.toggle x3] ---
-// The toggles merge into one ApplyRunAction in an Automation, the chain [toggle x3, delay: 1s] also
-// builds; the delay is left out here, Automation_DelaySchedule covers it.
+// The toggles merge into one ApplyRunAction in an Automation; without automation_id they inline into one function.
 
 static void Automation_MergedRun(benchmark::State &state) {
   AutomationBenchSwitch sw;
-  setup_switch(sw);
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   Automation<float> automation;
   ApplyRunAction<merged_toggles_fn, float> run;
   automation.add_action(&run);
@@ -166,9 +153,7 @@ BENCHMARK(Automation_MergedRun);
 
 static void Automation_IfInline(benchmark::State &state) {
   AutomationBenchSwitch sw;
-  setup_switch(sw);
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   sensor.add_on_state_callback([](const float &x) -> void { if_lambda_fn(x); });
 
   for (auto _ : state) {
@@ -186,11 +171,9 @@ BENCHMARK(Automation_IfInline);
 
 static void Automation_IfStateInline(benchmark::State &state) {
   AutomationBenchSwitch sw;
-  setup_switch(sw);
   binary_sensor::BinarySensor binary_sensor;
   setup_binary_sensor(binary_sensor, true);
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   sensor.add_on_state_callback([](const float &x) -> void { if_state_fn(x); });
 
   for (auto _ : state) {
@@ -208,9 +191,7 @@ BENCHMARK(Automation_IfStateInline);
 
 static void Automation_IfActionObject(benchmark::State &state) {
   AutomationBenchSwitch sw;
-  setup_switch(sw);
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   DelayAction<float> delay;
   delay.set_delay([](float x) -> uint32_t { return 1000; });
   StatelessLambdaCondition<float> condition([](float x) -> bool { return x > 10; });
@@ -237,11 +218,10 @@ static void Automation_IfActionObject(benchmark::State &state) {
 BENCHMARK(Automation_IfActionObject);
 
 // --- on_value: [delay: 1s, ...] ---
-// Each trigger schedules the delay; stop() cancels it and the scheduler runs once per trigger.
+// Schedules a delay end to end, scheduler included; the delay cannot fire on host, so stop() cancels it.
 
 static void Automation_DelaySchedule(benchmark::State &state) {
-  AutomationBenchSensor sensor;
-  setup_sensor(sensor);
+  sensor::Sensor sensor;
   DelayAction<float> delay;
   delay.set_delay([](float x) -> uint32_t { return 1000; });
   Automation<float> automation;
@@ -270,7 +250,6 @@ BENCHMARK(Automation_DelaySchedule);
 
 static void Automation_BinarySensorOnPress(benchmark::State &state) {
   AutomationBenchSwitch sw;
-  setup_switch(sw);
   binary_sensor::BinarySensor binary_sensor;
   setup_binary_sensor(binary_sensor, false);
   binary_sensor.add_on_state_callback([](const bool &state) -> void {
