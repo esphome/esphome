@@ -121,7 +121,7 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
             min_channels=1,
             max_channels=2,
             min_sample_rate=16000,
-            max_sample_rate=48000,
+            max_sample_rate=192000,
         )(config)
     else:
         # Secondary mode has unmodifiable min/max sample rates
