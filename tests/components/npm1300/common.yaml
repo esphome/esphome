@@ -12,6 +12,7 @@ npm1300:
     trickle_voltage: 2.5V
     discharge_current_limit: 1000mA
     recharge: true
+    enabled: true
   buck2:
     voltage: 3.3V
   ldo1:

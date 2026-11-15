@@ -267,8 +267,8 @@ void NPM1300Component::update() {
     uint8_t code;
     if (!this->status_comm_check(this->read_reg_(REG_VBUSIN_ILIM0, &code)))
       return;
-    // Code 0 (the reset value) is 500 mA, codes 1 to 4 are 100 mA, then 100 mA per step of the code
-    const uint16_t milliamps = code == 0 ? 500 : (code < 5 ? 100 : code * 100);
+    // 100 mA per step of the code, except code 0, which is 500 mA
+    const uint16_t milliamps = code == 0 ? 500 : code * 100;
     this->vbus_current_limit_sensor_->publish_state(milliamps / 1000.0f);
   }
   // Start the battery voltage (followed by the battery current), NTC, die temperature and system voltage
@@ -409,7 +409,9 @@ void NPM1300Component::dump_config() {
                   config.current * 2u, config.discharge_limit <= DISCHARGE_LIMIT_200MA_CODE ? 200u : 1000u,
                   YESNO(config.enabled), YESNO(config.recharge));
   }
-  if (this->thermistor_ != NPM1300_UNSET) {
+  if (this->thermistor_ == 0) {
+    ESP_LOGCONFIG(TAG, "  Thermistor: none");
+  } else if (this->thermistor_ != NPM1300_UNSET) {
     ESP_LOGCONFIG(TAG, "  Thermistor B constant: %u", this->thermistor_beta_);
   }
 #ifdef USE_SENSOR

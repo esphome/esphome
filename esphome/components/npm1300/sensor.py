@@ -20,6 +20,7 @@ from . import (
     CONF_THERMISTOR_RESISTANCE,
     CONF_VBUS_CURRENT_LIMIT,
     NPM1300_CHILD_SCHEMA,
+    THERMISTOR_NONE,
 )
 
 DEPENDENCIES = ["npm1300"]
@@ -82,10 +83,10 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_BATTERY_TEMPERATURE not in config:
         return
     hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
-    if CONF_THERMISTOR_RESISTANCE not in hub:
+    if hub[CONF_THERMISTOR_RESISTANCE] == THERMISTOR_NONE:
         raise cv.Invalid(
-            f"'{CONF_BATTERY_TEMPERATURE}' needs '{CONF_THERMISTOR_RESISTANCE}' "
-            "set on the npm1300 component",
+            f"'{CONF_BATTERY_TEMPERATURE}' needs a thermistor; "
+            f"'{CONF_THERMISTOR_RESISTANCE}' is '{THERMISTOR_NONE}'",
             path=[CONF_BATTERY_TEMPERATURE],
         )
 

@@ -48,7 +48,7 @@ struct NPM1300ChargerConfig {
   uint8_t trickle_voltage{0};           // BCHGVTRICKLESEL: 0 for 2.9 V, 1 for 2.5 V
   uint8_t termination_current{0};       // BCHGITERMSEL: 0 for 10 %, 1 for 20 %
   bool recharge{true};
-  bool enabled{true};
+  bool enabled{false};
 };
 
 class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
@@ -85,7 +85,7 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void dump_config() override;
 
-  /// VBUSINILIM0 code: 1 for 100 mA, 5 to 15 for 500 mA to 1500 mA
+  /// VBUSINILIM0 code: 1 to 15 for 100 mA to 1500 mA
   void set_vbus_current_limit(uint8_t code) { this->vbus_current_limit_ = code; }
   void set_charger_config(const NPM1300ChargerConfig &config) {
     this->charger_ = config;
@@ -94,7 +94,8 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   void set_output_config(NPM1300Output output, const NPM1300OutputConfig &config) {
     this->outputs_[static_cast<uint8_t>(output)] = config;
   }
-  /// ADCNTCRSEL code (1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm) and the B constant of the battery thermistor
+  /// ADCNTCRSEL code (0 for none, 1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm) and the B constant of the battery
+  /// thermistor
   void set_thermistor(uint8_t resistance, uint16_t beta) {
     this->thermistor_ = resistance;
     this->thermistor_beta_ = beta;
