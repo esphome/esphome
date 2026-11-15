@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import logging
 
 from esphome import automation
 import esphome.codegen as cg
@@ -7,6 +8,8 @@ from esphome.components.const import CONF_CHARGE_CURRENT, CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID, CONF_MODE, CONF_VOLTAGE
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23"]
 DEPENDENCIES = ["i2c"]
@@ -169,7 +172,36 @@ LDO_SCHEMA = BUCK_SCHEMA.extend(
     }
 )
 
-CHARGER_SCHEMA = cv.Schema(
+WARM_TERMINATION_VOLTAGE_DEFAULT = 3.6
+
+
+def _warn_warm_termination_default(config: ConfigType) -> ConfigType:
+    """Warn when the warm termination voltage falls back to the reset value but the other one does not."""
+    if (
+        isinstance(config, dict)
+        and CONF_WARM_TERMINATION_VOLTAGE not in config
+        and CONF_TERMINATION_VOLTAGE in config
+    ):
+        try:
+            termination = cv.voltage(config[CONF_TERMINATION_VOLTAGE])
+        except cv.Invalid:
+            # The schema reports it
+            return config
+        if abs(termination - WARM_TERMINATION_VOLTAGE_DEFAULT) > 0.001:
+            _LOGGER.warning(
+                "npm1300 '%s' is not set, so a warm battery (45 °C to 60 °C by default) is charged "
+                "to %.2fV instead of the %.2fV of '%s'. Set '%s' to the value your battery allows "
+                "when warm",
+                CONF_WARM_TERMINATION_VOLTAGE,
+                WARM_TERMINATION_VOLTAGE_DEFAULT,
+                termination,
+                CONF_TERMINATION_VOLTAGE,
+                CONF_WARM_TERMINATION_VOLTAGE,
+            )
+    return config
+
+
+_CHARGER_SETTINGS_SCHEMA = cv.Schema(
     {
         # Defaults are the reset values of the product specification
         cv.Optional(CONF_CHARGE_CURRENT, default="32mA"): _stepped(
@@ -178,9 +210,10 @@ CHARGER_SCHEMA = cv.Schema(
         cv.Optional(CONF_TERMINATION_VOLTAGE, default="3.6V"): _one_of_units(
             cv.voltage, TERMINATION_VOLTAGES, "V"
         ),
-        cv.Optional(CONF_WARM_TERMINATION_VOLTAGE, default="3.6V"): _one_of_units(
-            cv.voltage, TERMINATION_VOLTAGES, "V"
-        ),
+        cv.Optional(
+            CONF_WARM_TERMINATION_VOLTAGE,
+            default=f"{WARM_TERMINATION_VOLTAGE_DEFAULT}V",
+        ): _one_of_units(cv.voltage, TERMINATION_VOLTAGES, "V"),
         cv.Optional(CONF_TERMINATION_CURRENT, default="10%"): cv.enum(
             TERMINATION_CURRENTS
         ),
@@ -194,6 +227,7 @@ CHARGER_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLED, default=False): cv.boolean,
     }
 )
+CHARGER_SCHEMA = cv.All(_warn_warm_termination_default, _CHARGER_SETTINGS_SCHEMA)
 
 
 def _check_thermistor(config: ConfigType) -> ConfigType:

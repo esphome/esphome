@@ -60,6 +60,23 @@ def test_warm_termination_defaults_to_reset_value() -> None:
     assert fields["warm_termination_voltage"] == "2"
 
 
+@pytest.mark.parametrize(
+    ("config", "warns"),
+    [
+        ({"termination_voltage": "4.2V"}, True),
+        ({"termination_voltage": "3.5V"}, True),
+        ({"termination_voltage": "3.6V"}, False),
+        ({}, False),
+        ({"termination_voltage": "4.2V", "warm_termination_voltage": "4.0V"}, False),
+    ],
+)
+def test_warm_termination_default_warning(
+    config: ConfigType, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    CHARGER_SCHEMA(config)
+    assert ("warm_termination_voltage" in caplog.text) is warns
+
+
 def test_warm_termination_code() -> None:
     fields = _charger(
         {
