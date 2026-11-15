@@ -25,7 +25,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
                 "}"
             )
         )
-        # NEC and RCSwitch are already requested by their dumpers
+        # NEC and RCSwitch are already requested by their dumpers. The counts are set directly, not through
+        # add_dumper/add_listener slots, because the C++ registers its dumper table and listeners itself.
         cg.add_define("REMOTE_BASE_DUMPER_COUNT", 1)
         cg.add_define("REMOTE_BASE_LISTENER_COUNT", 8)
 

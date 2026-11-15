@@ -130,6 +130,13 @@ BENCHMARK(RemoteDumpAll_Noise);
 
 // Every sensor shares the NEC address; sensor 0 has the frame's command when match is true
 static void listeners_bench(benchmark::State &state, const RawTimings &raw, bool match) {
+  // A broken NEC round trip would otherwise quietly time eight rejections
+  RemoteReceiveData check(raw, TOLERANCE, TOLERANCE_MODE);
+  const auto decoded = remote_base::NECProtocol().decode(check);
+  if ((decoded.has_value() && decoded->command == NEC_COMMAND) != match) {
+    state.SkipWithError("unexpected decode result");
+    return;
+  }
   BenchReceiver receiver;
   remote_base::NECBinarySensor sensors[REMOTE_BASE_LISTENER_COUNT];
   for (uint16_t i = 0; i < REMOTE_BASE_LISTENER_COUNT; i++) {
