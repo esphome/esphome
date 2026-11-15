@@ -67,7 +67,9 @@ TEST(ProntoProtocol, WriteNumbersInPiecesMatchesDecode) {
 TEST(ProntoDumper, LogsTheTextInChunks) {
   const auto timings = long_timings();
   RemoteReceiveData src(timings, 25, TOLERANCE_MODE_PERCENTAGE);
-  const std::string whole = ProntoProtocol().decode(src)->data;
+  const auto decoded = ProntoProtocol().decode(src);
+  ASSERT_TRUE(decoded.has_value());
+  const std::string &whole = decoded->data;
   // The test logger only prints while it has a baud rate
   const uint32_t baud_rate = logger::global_logger->get_baud_rate();
   logger::global_logger->set_baud_rate(115200);
