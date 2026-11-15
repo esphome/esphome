@@ -298,7 +298,7 @@ void HdlcReliability::receive_(const PacketBuffer &data, const PacketMetaData &m
   size_t length = frame.size() - FRAME_OVERHEAD;
   uint8_t control = frame[0];
   const uint8_t *payload = frame.data() + 1;
-  uint16_t crc = frame[length + 1] | (frame[length + 2] << 8);
+  uint16_t crc = encode_value_le<uint16_t>(frame.data() + length + 1);
   if (frame_crc(control, payload, length) != crc) {
     ESP_LOGV(TAG, "%s: CRC error, frame dropped", this->name_);
     this->note_received_(false);
