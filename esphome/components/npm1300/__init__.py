@@ -36,24 +36,48 @@ NPM1300Component = npm1300_ns.class_(
 NPM1300Output = npm1300_ns.enum("NPM1300Output", is_class=True)
 NPM1300OutputConfig = npm1300_ns.struct("NPM1300OutputConfig")
 NPM1300ChargerConfig = npm1300_ns.struct("NPM1300ChargerConfig")
+NPM1300Config = npm1300_ns.struct("NPM1300Config")
 
 NPM1300_CHILD_SCHEMA = cv.Schema(
     {cv.GenerateID(CONF_NPM1300_ID): cv.use_id(NPM1300Component)}
 )
 
-# Config key of each regulator and its NPM1300Output enumerator
-OUTPUTS = {
-    CONF_BUCK1: NPM1300Output.NPM1300_OUTPUT_BUCK1,
-    CONF_BUCK2: NPM1300Output.NPM1300_OUTPUT_BUCK2,
-    CONF_LDO1: NPM1300Output.NPM1300_OUTPUT_LDO1,
-    CONF_LDO2: NPM1300Output.NPM1300_OUTPUT_LDO2,
-}
+# Status registers read on each update: VBUSINSTATUS, BCHGCHARGESTATUS and BCHGERRREASON
+STATUS_PUBLISHER = cg.HubFunction(
+    "status",
+    cg.void,
+    [
+        (cg.uint8, "vbus_status"),
+        (cg.uint8, "charge_status"),
+        (cg.uint8, "error_reason"),
+    ],
+    define="USE_NPM1300_STATUS_PUBLISHER",
+)
+VBUS_STATUS = STATUS_PUBLISHER.param("vbus_status")
+CHARGE_STATUS = STATUS_PUBLISHER.param("charge_status")
+ERROR_REASON = STATUS_PUBLISHER.param("error_reason")
+# The ADC results and the amperes per code of the battery current
+DATA_PUBLISHER = cg.HubFunction(
+    "data",
+    cg.void,
+    [(cg.uint8.operator("const").operator("ptr"), "adc"), (cg.float_, "ibat_scale")],
+    define="USE_NPM1300_DATA_PUBLISHER",
+)
+ADC = DATA_PUBLISHER.param("adc")
+IBAT_SCALE = DATA_PUBLISHER.param("ibat_scale")
+# The dump lines of the children decoded by the two functions above
+DUMP = cg.HubFunction("dump", cg.void, [(cg.const_char_ptr, "tag")])
+DUMP_TAG = DUMP.param("tag")
 
-# ADCNTCRSEL codes (reset value: 10 kOhm)
-THERMISTOR_NONE = "none"
-THERMISTOR_RESISTANCES = {10000: 1, 47000: 2, 100000: 3}
-# B25/50 of the thermistors the product specification lists for each resistance
-THERMISTOR_BETAS = {10000: 3380, 47000: 4050, 100000: 4250}
+# Config key of each regulator and its NPM1300Output enumerator
+OUTPUTS = NPM1300Output.options(
+    CONF_BUCK1, CONF_BUCK2, CONF_LDO1, CONF_LDO2, prefix="NPM1300_OUTPUT_"
+)
+
+# Written for a field the YAML leaves out
+NPM1300_UNSET = 0xFF
+# ADCNTCRSEL codes, by kiloohms
+THERMISTOR_RESISTANCES = {10: 1, 47: 2, 100: 3}
 LDO_MODES = {"load_switch": 0, "ldo": 1}
 TERMINATION_CURRENTS = {"10%": 0, "20%": 1}
 # BCHGVTRICKLESEL, by millivolts
@@ -74,14 +98,17 @@ def _millis(value: float) -> int:
 
 
 def _one_of_units(
-    validator: Callable[[object], float], allowed: list[int], unit: str
+    validator: Callable[[object], float],
+    allowed: list[int],
+    unit: str,
+    scale: float = 1000,
 ) -> Callable[[object], float]:
-    """Validate a quantity with `validator` and accept only the listed values, given in milli-units."""
+    """Validate a quantity with `validator` and accept only the listed values, given in units * `scale`."""
 
     def validate(value: object) -> float:
         value = validator(value)
-        if _millis(value) not in allowed:
-            options = ", ".join(f"{v / 1000:g}{unit}" for v in allowed)
+        if round(value * scale) not in allowed:
+            options = ", ".join(f"{v / scale:g}{unit}" for v in allowed)
             raise cv.Invalid(f"Must be one of {options}")
         return value
 
@@ -108,16 +135,8 @@ def _stepped(
     return validate
 
 
-def _thermistor_resistance(value: object) -> float | str:
-    if isinstance(value, str) and value.lower() == THERMISTOR_NONE:
-        return THERMISTOR_NONE
-    value = cv.resistance(value)
-    if round(value) not in THERMISTOR_RESISTANCES:
-        raise cv.Invalid("Must be one of none, 10kOhm, 47kOhm, 100kOhm")
-    return value
-
-
 OUTPUT_VOLTAGE = _stepped(cv.voltage, 1000, 3300, 100, "V")
+VBUS_CURRENT_LIMIT = _stepped(cv.current, 100, 1500, 100, "A")
 
 BUCK_SCHEMA = cv.Schema(
     {
@@ -133,14 +152,11 @@ LDO_SCHEMA = BUCK_SCHEMA.extend(
 
 CHARGER_SCHEMA = cv.Schema(
     {
-        # Defaults are the reset values of the product specification
-        cv.Optional(CONF_CHARGE_CURRENT, default="32mA"): _stepped(
-            cv.current, 32, 800, 2, "A"
-        ),
-        cv.Optional(CONF_TERMINATION_VOLTAGE, default="3.6V"): _one_of_units(
+        cv.Required(CONF_CHARGE_CURRENT): _stepped(cv.current, 32, 800, 2, "A"),
+        cv.Optional(CONF_TERMINATION_VOLTAGE, default="4.2V"): _one_of_units(
             cv.voltage, TERMINATION_VOLTAGES, "V"
         ),
-        cv.Optional(CONF_WARM_TERMINATION_VOLTAGE, default="3.6V"): _one_of_units(
+        cv.Optional(CONF_WARM_TERMINATION_VOLTAGE): _one_of_units(
             cv.voltage, TERMINATION_VOLTAGES, "V"
         ),
         cv.Optional(CONF_TERMINATION_CURRENT, default="10%"): cv.enum(
@@ -153,12 +169,9 @@ CHARGER_SCHEMA = cv.Schema(
             cv.current, list(DISCHARGE_CURRENT_LIMITS), "A"
         ),
         cv.Optional(CONF_RECHARGE, default=True): cv.boolean,
-        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
     }
 )
-
-# VBUSINILIM0: 100 mA to 1500 mA in 100 mA steps
-VBUS_CURRENT_LIMIT = _stepped(cv.current, 100, 1500, 100, "A")
 
 
 CONFIG_SCHEMA = (
@@ -166,10 +179,12 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(NPM1300Component),
             cv.Optional(CONF_VBUS_CURRENT_LIMIT): VBUS_CURRENT_LIMIT,
-            cv.Optional(
-                CONF_THERMISTOR_RESISTANCE, default="10kOhm"
-            ): _thermistor_resistance,
-            cv.Optional(CONF_THERMISTOR_BETA): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_THERMISTOR_RESISTANCE): _one_of_units(
+                cv.resistance, list(THERMISTOR_RESISTANCES), "kOhm", scale=0.001
+            ),
+            cv.Optional(CONF_THERMISTOR_BETA, default=3380): cv.int_range(
+                min=1, max=65535
+            ),
             cv.Optional(CONF_CHARGER): CHARGER_SCHEMA,
             cv.Optional(CONF_BUCK1): BUCK_SCHEMA,
             cv.Optional(CONF_BUCK2): BUCK_SCHEMA,
@@ -186,9 +201,14 @@ def _termination_voltage_code(volts: float) -> int:
     return TERMINATION_VOLTAGES.index(_millis(volts))
 
 
+def _vbus_current_limit_code(amps: float) -> int:
+    """VBUSINILIM0: 100 mA per step of the code."""
+    return _millis(amps) // 100
+
+
 def _charger_config(config: ConfigType) -> cg.StructInitializer:
     termination = _termination_voltage_code(config[CONF_TERMINATION_VOLTAGE])
-    warm = _termination_voltage_code(config[CONF_WARM_TERMINATION_VOLTAGE])
+    warm = config.get(CONF_WARM_TERMINATION_VOLTAGE)
     return cg.StructInitializer(
         NPM1300ChargerConfig,
         ("current", _millis(config[CONF_CHARGE_CURRENT]) // 2),
@@ -197,7 +217,10 @@ def _charger_config(config: ConfigType) -> cg.StructInitializer:
             DISCHARGE_CURRENT_LIMITS[_millis(config[CONF_DISCHARGE_CURRENT_LIMIT])],
         ),
         ("termination_voltage", termination),
-        ("warm_termination_voltage", warm),
+        (
+            "warm_termination_voltage",
+            termination if warm is None else _termination_voltage_code(warm),
+        ),
         ("trickle_voltage", TRICKLE_VOLTAGES[_millis(config[CONF_TRICKLE_VOLTAGE])]),
         ("termination_current", TERMINATION_CURRENTS[config[CONF_TERMINATION_CURRENT]]),
         ("recharge", config[CONF_RECHARGE]),
@@ -205,33 +228,51 @@ def _charger_config(config: ConfigType) -> cg.StructInitializer:
     )
 
 
-def _output_config(config: ConfigType) -> cg.StructInitializer:
+def _output_config(config: ConfigType | None) -> cg.StructInitializer:
+    config = config or {}
     voltage = config.get(CONF_VOLTAGE)
     mode = config.get(CONF_MODE)
     enabled = config.get(CONF_ENABLED)
     return cg.StructInitializer(
         NPM1300OutputConfig,
-        ("voltage", None if voltage is None else (_millis(voltage) - 1000) // 100),
-        ("ldo_mode", None if mode is None else LDO_MODES[mode]),
-        ("enabled", None if enabled is None else int(enabled)),
+        (
+            "voltage",
+            NPM1300_UNSET if voltage is None else (_millis(voltage) - 1000) // 100,
+        ),
+        ("ldo_mode", NPM1300_UNSET if mode is None else LDO_MODES[mode]),
+        ("enabled", NPM1300_UNSET if enabled is None else int(enabled)),
+    )
+
+
+def _config(config: ConfigType) -> cg.StructInitializer:
+    charger = config.get(CONF_CHARGER)
+    resistance = config.get(CONF_THERMISTOR_RESISTANCE)
+    return cg.StructInitializer(
+        NPM1300Config,
+        (
+            "outputs",
+            cg.ArrayInitializer(*(_output_config(config.get(key)) for key in OUTPUTS)),
+        ),
+        ("charger", None if charger is None else _charger_config(charger)),
+        ("thermistor_beta", config[CONF_THERMISTOR_BETA]),
+        (
+            "thermistor",
+            NPM1300_UNSET
+            if resistance is None
+            else THERMISTOR_RESISTANCES[round(resistance / 1000)],
+        ),
+        ("charger_configured", charger is not None),
     )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await i2c.new_i2c_component(config)
-
+    # In flash: only setup() and dump_config() read it
+    table = cg.shared_progmem_array(
+        "npm1300_config", NPM1300Config, cg.ArrayInitializer(_config(config))
+    )
+    var = await i2c.new_i2c_component(config, table)
     if (limit := config.get(CONF_VBUS_CURRENT_LIMIT)) is not None:
-        cg.add(var.set_vbus_current_limit(_millis(limit) // 100))
-    if (resistance := config[CONF_THERMISTOR_RESISTANCE]) == THERMISTOR_NONE:
-        cg.add(var.set_thermistor(0, 0))
-    else:
-        beta = config.get(CONF_THERMISTOR_BETA, THERMISTOR_BETAS[round(resistance)])
-        cg.add(var.set_thermistor(THERMISTOR_RESISTANCES[round(resistance)], beta))
-    if (charger := config.get(CONF_CHARGER)) is not None:
-        cg.add(var.set_charger_config(_charger_config(charger)))
-    for key, output in OUTPUTS.items():
-        if (output_config := config.get(key)) is not None:
-            cg.add(var.set_output_config(output, _output_config(output_config)))
+        cg.add(var.set_vbus_current_limit(_vbus_current_limit_code(limit)))
 
 
 automation.register_apply_action(
