@@ -91,11 +91,13 @@ _OBJ_SECTION_PATTERN = re.compile(
     r"^\s*\[\s*(\d+)\]\s+(\S+)\s+(\S+)\s+[\da-f]+\s+[\da-f]+\s+([\da-f]+)\s+[\da-f]+\s+(\S*)"
 )
 _RELOC_SECTION_PATTERN = re.compile(r"^Relocation section '\.rela(\S+)'")
-_CODE_SECTION_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)(?:\.|$)")
-_CODE_SECTION_PREFIX_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)\.")
+# Code section; group 1 is the function for -ffunction-sections names
+_CODE_SECTION_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)(?:\.(.+))?$")
 # readelf -x row: "  0x00000000 0000803f 0000803f 0000803f 0000803f ...?...?...?...?"
 _HEX_DUMP_PREFIX = "  0x"
 _HEX_DUMP_COLUMNS = slice(13, 48)
+# readelf -p row: "  [     f]  1.pool.ntp.org"
+_STRING_DUMP_PATTERN = re.compile(r"^\s*\[\s*([\da-f]+)\]  (.*)$")
 
 # RAM sections - symbols in these sections consume RAM
 RAM_SECTIONS = frozenset([".data", ".bss"])
@@ -135,11 +137,7 @@ class SDKSymbol:
 
 @dataclass
 class UnnamedConstant:
-    """Constant data without a symbol, found in an object's .rodata.
-
-    GCC builds constant aggregate initializers (member defaults, local arrays,
-    braced lists) by copying such a constant; ESP8266 keeps it in RAM.
-    """
+    """Constant without a symbol in an object's .rodata (RAM on ESP8266)."""
 
     size: int
     source_file: str
@@ -147,6 +145,7 @@ class UnnamedConstant:
     functions: list[str]  # Functions that reference it, mangled
     jump_table: bool  # Holds code addresses (a switch table), not a value
     data: bytes  # Leading bytes, to recognize the value
+    strings: list[str] = field(default_factory=list)  # String literals it points to
 
 
 @dataclass
@@ -180,6 +179,45 @@ class ComponentMemory:
     def ram_total(self) -> int:
         """Total RAM usage (data + bss)."""
         return self.data_size + self.bss_size
+
+
+def _parse_unnamed_rodata(output: str) -> dict[str, dict[str, tuple[str, int]]]:
+    """Find .rodata sections with bytes no symbol covers in ``readelf -SW -sW`` output.
+
+    Returns:
+        Object path -> section index -> (section name, unnamed bytes)
+    """
+    sections: dict[str, dict[str, tuple[str, int]]] = defaultdict(dict)
+    covered: dict[str, Counter[str]] = defaultdict(Counter)
+    file_path = ""
+    for line in output.splitlines():
+        if line.startswith("File: "):
+            file_path = line[6:]
+        elif match := _OBJ_SECTION_PATTERN.match(line):
+            index, name, section_type, size_hex, flags = match.groups()
+            # Merged sections (string literals) are shared between objects
+            if (
+                section_type == "PROGBITS"
+                and name.startswith(".rodata")
+                and "A" in flags
+                and "M" not in flags
+            ):
+                sections[file_path][index] = (name, int(size_hex, 16))
+        else:
+            # Num: Value Size Type Bind Vis Ndx Name
+            fields = line.split()
+            if len(fields) >= 8 and fields[3] == "OBJECT":
+                covered[file_path][fields[6]] += int(fields[2], 0)
+    result: dict[str, dict[str, tuple[str, int]]] = {}
+    for path, file_sections in sections.items():
+        unnamed = {
+            index: (name, size - covered[path][index])
+            for index, (name, size) in file_sections.items()
+            if size > covered[path][index]
+        }
+        if unnamed:
+            result[path] = unnamed
+    return result
 
 
 class MemoryAnalyzer:
@@ -1233,9 +1271,7 @@ class MemoryAnalyzer:
                 and other_mem is not None
             ):
                 other_mem.add_section_size(section_name, -size)
-                if component not in self.components:
-                    self.components[component] = ComponentMemory(component)
-                self.components[component].add_section_size(section_name, size)
+                self._add_component_size(component, section_name, size)
 
         # Sort by size descending
         self._cswtch_symbols.sort(key=lambda x: x[1], reverse=True)
@@ -1248,73 +1284,35 @@ class MemoryAnalyzer:
         )
 
     def _analyze_unnamed_constants(self) -> None:
-        """Find constants without a symbol in RAM (.rodata on ESP8266).
+        """Attribute .rodata bytes without a symbol, which are RAM on ESP8266.
 
-        GCC copies constant aggregate initializers from an unnamed constant in
-        the object's ``.rodata``. Such bytes have no ELF symbol, so they would
-        otherwise show up only as unattributed RAM. Each one is attributed to
-        the component of its object file and listed with the functions that
-        reference it.
+        GCC copies constant aggregate initializers from such unnamed constants.
         """
-        if not self.rodata_in_ram:
+        if not self.rodata_in_ram or (obj_dir := self._find_object_files_dir()) is None:
             return
-        obj_dir = self._find_object_files_dir()
-        if obj_dir is None:
-            return
-        obj_files = sorted(obj_dir.rglob("*.o"))
-        if not obj_files:
-            return
-
         result = run_tool(
-            [self.readelf_path, "-SW"] + [str(f) for f in obj_files], timeout=30
+            [self.readelf_path, "-SW", "-sW"]
+            + [str(f) for f in sorted(obj_dir.rglob("*.o"))]
         )
         if result is None or result.returncode != 0:
             _LOGGER.debug("readelf failed scanning object files for constants")
             return
 
-        candidates: dict[str, dict[str, tuple[str, int]]] = defaultdict(dict)
-        current_file = ""
-        for line in result.stdout.splitlines():
-            if line.startswith("File: "):
-                current_file = line[6:]
-                continue
-            if not (match := _OBJ_SECTION_PATTERN.match(line)):
-                continue
-            index, name, section_type, size_hex, flags = match.groups()
-            size = int(size_hex, 16)
-            # Merged sections (string literals) are shared between objects
-            if (
-                section_type == "PROGBITS"
-                and name.startswith(".rodata")
-                and "A" in flags
-                and "M" not in flags
-                and size
-            ):
-                candidates[current_file][index] = (name, size)
-
         data_section = self.sections.get(".data")
         seen: set[tuple[tuple[str, ...], int]] = set()
-        for file_path, sections in candidates.items():
-            for constant in self._scan_object_constants(file_path, sections):
+        for file_path, sections in _parse_unnamed_rodata(result.stdout).items():
+            rel_path = str(Path(file_path).relative_to(obj_dir))
+            component = self._source_file_to_component(rel_path)
+            for constant in self._scan_object_constants(
+                file_path, sections, rel_path, component
+            ):
                 # Inline functions are emitted in every object that uses them
                 key = (tuple(constant.functions), constant.size)
                 if key in seen:
                     continue
                 seen.add(key)
-                try:
-                    rel_path = str(Path(file_path).relative_to(obj_dir))
-                except ValueError:
-                    rel_path = file_path
-                constant.source_file = rel_path
-                constant.component = self._source_file_to_component(rel_path)
                 self._unnamed_constants.append(constant)
-                if constant.component not in self.components:
-                    self.components[constant.component] = ComponentMemory(
-                        constant.component
-                    )
-                self.components[constant.component].add_section_size(
-                    ".data", constant.size
-                )
+                self._add_component_size(component, ".data", constant.size)
                 if data_section is not None:
                     data_section.symbol_size += constant.size
 
@@ -1329,86 +1327,123 @@ class MemoryAnalyzer:
         )
 
     def _scan_object_constants(
-        self, file_path: str, sections: dict[str, tuple[str, int]]
+        self,
+        file_path: str,
+        sections: dict[str, tuple[str, int]],
+        rel_path: str,
+        component: str,
     ) -> list[UnnamedConstant]:
         """Return the unnamed constants of one object that the link kept.
 
         Args:
             file_path: Object file to read
-            sections: Candidate ``.rodata`` sections, by section index
+            sections: Section index -> (name, unnamed bytes)
+            rel_path: Object path shown in the report
+            component: Component the object belongs to
         """
         result = run_tool(
-            [self.readelf_path, "-sW", "-rW"]
+            [self.readelf_path, "-rW"]
             + [arg for index in sections for arg in ("-x", index)]
-            + [file_path],
-            timeout=30,
+            + [file_path]
         )
         if result is None or result.returncode != 0:
             return []
 
-        names = {name: index for index, (name, _) in sections.items()}
-        covered: Counter[str] = Counter()
+        names = {name for name, _ in sections.values()}
         functions: dict[str, set[str]] = defaultdict(set)
         jump_tables: set[str] = set()
+        # Section -> (offset, string section, addend) of each pointer to a literal
+        pointers: dict[str, list[tuple[int, str, int]]] = defaultdict(list)
         contents: dict[str, bytearray] = defaultdict(bytearray)
         reloc_section: str | None = None
+        reloc_function: str | None = None
         dump_section: str | None = None
         for line in result.stdout.splitlines():
             if line.startswith("Relocation section"):
                 match = _RELOC_SECTION_PATTERN.match(line)
                 reloc_section = match.group(1) if match else None
+                code = _CODE_SECTION_PATTERN.match(reloc_section or "")
+                reloc_function = code.group(1) if code else None
                 dump_section = None
-                continue
-            if line.startswith("Hex dump of section"):
+            elif line.startswith("Hex dump of section"):
                 dump_section = line.split("'")[1]
                 reloc_section = None
-                continue
-            if line.startswith("Symbol table"):
-                reloc_section = dump_section = None
-                continue
-            if dump_section is not None:
+            elif dump_section is not None:
                 if line.startswith(_HEX_DUMP_PREFIX):
                     contents[dump_section] += bytes.fromhex(
                         line[_HEX_DUMP_COLUMNS].replace(" ", "")
                     )
-                continue
-            fields = line.split()
-            if reloc_section is None:
-                # Symbol row: Num: Value Size Type Bind Vis Ndx Name
-                if len(fields) >= 8 and fields[3] == "OBJECT" and fields[6] in sections:
-                    covered[fields[6]] += int(fields[2], 0)
-                continue
-            # Relocation row: Offset Info Type Sym.Value Sym.Name + Addend
-            if len(fields) < 5:
-                continue
-            target = fields[4]
-            if target in names and _CODE_SECTION_PATTERN.match(reloc_section):
-                functions[target].add(
-                    _CODE_SECTION_PREFIX_PATTERN.sub("", reloc_section)
-                )
-            elif reloc_section in names and _CODE_SECTION_PATTERN.match(target):
-                jump_tables.add(reloc_section)
+            elif reloc_section is not None:
+                # Offset Info Type Sym.Value Sym.Name + Addend
+                fields = line.split()
+                if len(fields) < 5:
+                    continue
+                target = fields[4]
+                if target in names and reloc_function:
+                    functions[target].add(reloc_function)
+                elif reloc_section in names and _CODE_SECTION_PATTERN.match(target):
+                    jump_tables.add(reloc_section)
+                elif reloc_section in names and ".str" in target:
+                    addend = int(fields[6], 16) if len(fields) > 6 else 0
+                    pointers[reloc_section].append((int(fields[0], 16), target, addend))
 
-        constants: list[UnnamedConstant] = []
-        for index, (name, size) in sections.items():
-            unnamed = size - covered[index]
-            referenced_by = sorted(functions[name])
-            # Dropped by --gc-sections unless a function that uses it was kept
-            if unnamed <= 0 or not any(
-                f in self._elf_symbol_names for f in referenced_by
-            ):
-                continue
-            constants.append(
-                UnnamedConstant(
-                    size=unnamed,
-                    source_file=file_path,
-                    component="",
-                    functions=referenced_by,
-                    jump_table=name in jump_tables,
-                    data=bytes(contents[name][:16]),
-                )
+        strings = self._read_pointed_strings(file_path, pointers, contents)
+        return [
+            UnnamedConstant(
+                size=size,
+                source_file=rel_path,
+                component=component,
+                functions=sorted(functions[name]),
+                jump_table=name in jump_tables,
+                data=bytes(contents[name][:16]),
+                strings=strings.get(name, []),
             )
-        return constants
+            for name, size in sections.values()
+            # Dropped by --gc-sections unless a function that uses it was kept
+            if not self._elf_symbol_names.isdisjoint(functions[name])
+        ]
+
+    def _read_pointed_strings(
+        self,
+        file_path: str,
+        pointers: dict[str, list[tuple[int, str, int]]],
+        contents: dict[str, bytearray],
+    ) -> dict[str, list[str]]:
+        """Resolve each constant's pointers to string literals, in offset order."""
+        if not pointers:
+            return {}
+        targets = sorted({t for refs in pointers.values() for _, t, _ in refs})
+        result = run_tool(
+            [self.readelf_path]
+            + [arg for target in targets for arg in ("-p", target)]
+            + [file_path]
+        )
+        if result is None or result.returncode != 0:
+            return {}
+        literals: dict[str, dict[int, str]] = defaultdict(dict)
+        section = ""
+        for line in result.stdout.splitlines():
+            if line.startswith("String dump of section"):
+                section = line.split("'")[1]
+            elif match := _STRING_DUMP_PATTERN.match(line):
+                literals[section][int(match.group(1), 16)] = match.group(2)
+        resolved: dict[str, list[str]] = {}
+        for name, refs in pointers.items():
+            data = contents[name]
+            strings = []
+            for offset, target, addend in sorted(refs):
+                # Xtensa keeps part of the addend in the relocated word
+                addend += int.from_bytes(data[offset : offset + 4], "little")
+                if (text := literals[target].get(addend)) is not None:
+                    strings.append(text)
+            resolved[name] = strings
+        return resolved
+
+    def _add_component_size(self, component: str, section: str, size: int) -> None:
+        """Add size to a component, creating it under its own name."""
+        if component not in self.components:
+            self.components[component] = ComponentMemory(component)
+        self.components[component].add_section_size(section, size)
 
     def _analyze_function_calls(self) -> None:
         """Count function call sites by parsing disassembly output.

@@ -225,7 +225,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 f"{'':>9} used by {self._demangle_symbol(function)}"
                 for function in constant.functions
             )
-            if constant.data and not constant.jump_table:
+            if constant.strings:
+                shown = ", ".join(f'"{text[:40]}"' for text in constant.strings[:4])
+                more = ", ..." if len(constant.strings) > 4 else ""
+                lines.append(f"{'':>9} points to {shown}{more}")
+            elif constant.data and not constant.jump_table:
                 more = " ..." if constant.size > len(constant.data) else ""
                 lines.append(f"{'':>9} bytes: {constant.data.hex(' ')}{more}")
         lines.append("")

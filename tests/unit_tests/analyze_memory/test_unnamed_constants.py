@@ -1,12 +1,13 @@
 """Tests for ESP8266 .rodata accounting and unnamed constant attribution."""
 
+from collections.abc import Callable
 from pathlib import Path
 import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from esphome.analyze_memory import MemorySection, UnnamedConstant
+from esphome.analyze_memory import MemoryAnalyzer, MemorySection, UnnamedConstant
 from esphome.analyze_memory.cli import MemoryAnalyzerCLI
 
 from . import make_analyzer
@@ -17,7 +18,8 @@ SETUP = "_ZN7esphome5light10LightState5setupEv"
 SAVE = "_ZN7esphome5light10LightState19save_remote_values_Ev"
 MATCH_URL = "_ZN7esphome10web_serverL9match_urlEPKcjbb"
 
-SECTION_HEADERS = """\
+# readelf -SW -sW over all objects; the web section index and size vary per test
+HEADERS_AND_SYMBOLS = """\
 File: {light}
 
 Section Headers:
@@ -27,11 +29,20 @@ Section Headers:
   [221] .rodata.str1.1    PROGBITS        00000000 001f39 000005 01 AMS  0   0  1
   [225] .rodata.BUILTIN_LED PROGBITS        00000000 001f54 000004 00   A  0   0  4
 
+Symbol table '.symtab' contains 348 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+   347: 00000000     4 OBJECT  WEAK   DEFAULT  225 BUILTIN_LED
+
 File: {web}
 
 Section Headers:
   [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
-  [ 9] .rodata           PROGBITS        00000000 000400 00001c 00   A  0   0  4
+  [{web_index:>3}] .rodata           PROGBITS        00000000 000400 {web_size:06x} 00   A  0   0  4
+
+Symbol table '.symtab' contains 1 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
 """
 
 LIGHT_OBJECT_DUMP = f"""\
@@ -44,23 +55,14 @@ Relocation section '.rela.text.{SAVE}' at offset 0x7d28 contains 1 entry:
  Offset     Info    Type                Sym. Value  Symbol's Name + Addend
 00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
 
-Relocation section '.rela.xt.prop' at offset 0x8000 contains 2 entries:
+Relocation section '.rela.xt.prop' at offset 0x8000 contains 1 entry:
  Offset     Info    Type                Sym. Value  Symbol's Name + Addend
 000007d4  00003a01 R_XTENSA_32            00000000   .rodata + 0
-00000b1c  00005701 R_XTENSA_32            00000000   .rodata.BUILTIN_LED + 0
-
-Symbol table '.symtab' contains 348 entries:
-   Num:    Value  Size Type    Bind   Vis      Ndx Name
-     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
-   347: 00000000     4 OBJECT  WEAK   DEFAULT  225 BUILTIN_LED
 
 Hex dump of section '.rodata':
   0x00000000 0000803f 0000803f 0000803f 0000803f ...?...?...?...?
   0x00000010 0000803f 0000803f 0000803f 0000803f ...?...?...?...?
   0x00000020 0000803f 00000000 00000000          ...?........
-
-Hex dump of section '.rodata.BUILTIN_LED':
-  0x00000000 02000000                            ....
 """
 
 WEB_OBJECT_DUMP = f"""\
@@ -68,17 +70,13 @@ Relocation section '.rela.text.{MATCH_URL}' at offset 0x100 contains 1 entry:
  Offset     Info    Type                Sym. Value  Symbol's Name + Addend
 00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
 
-Symbol table '.symtab' contains 1 entries:
-   Num:    Value  Size Type    Bind   Vis      Ndx Name
-     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
-
 Hex dump of section '.rodata':
   0x00000000 00000000 00000000 00000000 00000000 ................
 """
 
 
-def _completed(stdout: str) -> MagicMock:
-    return MagicMock(returncode=0, stdout=stdout)
+def _completed(stdout: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess([], 0, stdout=stdout)
 
 
 @pytest.fixture
@@ -91,7 +89,13 @@ def obj_dir(tmp_path: Path) -> Path:
     return tmp_path / "obj"
 
 
-def _esp8266_analyzer(obj_dir: Path, kept: set[str]):
+def _esp8266_analyzer(
+    obj_dir: Path,
+    kept: set[str],
+    web_index: int = 9,
+    web_size: int = 0x1C,
+    web_dump: str = WEB_OBJECT_DUMP,
+) -> tuple[MemoryAnalyzer, Callable[..., subprocess.CompletedProcess[str]]]:
     analyzer = make_analyzer()
     analyzer.elf_path = obj_dir.parent / "firmware.elf"
     analyzer.rodata_in_ram = True
@@ -100,13 +104,18 @@ def _esp8266_analyzer(obj_dir: Path, kept: set[str]):
     light = str(obj_dir / LIGHT_OBJ)
     web = str(obj_dir / WEB_OBJ)
 
-    def run_tool(cmd: list[str], timeout: int = 30) -> MagicMock:
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
         if "-SW" in cmd:
-            return _completed(SECTION_HEADERS.format(light=light, web=web))
+            return _completed(
+                HEADERS_AND_SYMBOLS.format(
+                    light=light, web=web, web_index=web_index, web_size=web_size
+                )
+            )
+        # Only sections with uncovered bytes are dumped
         if cmd[-1] == light:
-            assert cmd[cmd.index("-x") + 1] == "174"
+            assert cmd[1:-1] == ["-rW", "-x", "174"]
             return _completed(LIGHT_OBJECT_DUMP)
-        return _completed(WEB_OBJECT_DUMP)
+        return _completed(web_dump)
 
     return analyzer, run_tool
 
@@ -127,30 +136,34 @@ def test_find_object_files_dir_platformio_layout(tmp_path: Path) -> None:
     assert analyzer._find_object_files_dir() == tmp_path
 
 
-@pytest.mark.parametrize(
-    ("irom_section", "expected_rodata_section"),
-    [(".irom0.text", ".data"), (".flash.text", ".rodata")],
-)
-def test_parse_sections_rodata_in_ram_on_esp8266(
-    irom_section: str, expected_rodata_section: str
-) -> None:
-    """ESP8266 (.irom0.text) counts .rodata as RAM data; other platforms keep it as flash."""
+def _parse_sections(code_section: str) -> MemoryAnalyzer:
     readelf = f"""\
   [ 1] .data             PROGBITS        3ffe8000 001000 000668 00 WAX  0   0 16
-  [ 4] {irom_section}       PROGBITS        40201010 00b010 06612c 00 WAX  0   0 16
+  [ 4] {code_section}       PROGBITS        40201010 00b010 06612c 00 WAX  0   0 16
   [ 6] .rodata           PROGBITS        3ffe86b0 0016b0 000b90 00   A  0   0 16
 """
     analyzer = make_analyzer()
     with patch(
-        "esphome.analyze_memory.subprocess.run",
-        return_value=subprocess.CompletedProcess([], 0, stdout=readelf),
+        "esphome.analyze_memory.subprocess.run", return_value=_completed(readelf)
     ):
         analyzer._parse_sections()
-    assert analyzer.rodata_in_ram is (irom_section == ".irom0.text")
-    assert analyzer.sections[expected_rodata_section].total_size >= 0xB90
-    if analyzer.rodata_in_ram:
-        assert ".rodata" not in analyzer.sections
-        assert analyzer.sections[".data"].total_size == 0x668 + 0xB90
+    return analyzer
+
+
+def test_parse_sections_esp8266_counts_rodata_as_data() -> None:
+    """ESP8266 (.irom0.text) copies .rodata to RAM, so it is counted as .data."""
+    analyzer = _parse_sections(".irom0.text")
+    assert analyzer.rodata_in_ram
+    assert ".rodata" not in analyzer.sections
+    assert analyzer.sections[".data"].total_size == 0x668 + 0xB90
+
+
+def test_parse_sections_other_platforms_keep_rodata() -> None:
+    """Other platforms keep .rodata in flash."""
+    analyzer = _parse_sections(".flash.text")
+    assert not analyzer.rodata_in_ram
+    assert analyzer.sections[".rodata"].total_size == 0xB90
+    assert analyzer.sections[".data"].total_size == 0x668
 
 
 def test_unnamed_constants_attributed_to_component(obj_dir: Path) -> None:
@@ -197,6 +210,17 @@ def test_unnamed_constants_skipped_when_rodata_in_flash(obj_dir: Path) -> None:
     assert analyzer._unnamed_constants == []
 
 
+def test_unnamed_constants_inline_copies_counted_once(obj_dir: Path) -> None:
+    """An inline function emitted in two objects brings the same constant twice."""
+    analyzer, run_tool = _esp8266_analyzer(
+        obj_dir, {SETUP}, web_index=174, web_size=0x2C, web_dump=LIGHT_OBJECT_DUMP
+    )
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        analyzer._analyze_unnamed_constants()
+    assert len(analyzer._unnamed_constants) == 1
+    assert analyzer.sections[".data"].symbol_size == 44
+
+
 def test_unnamed_constants_jump_table() -> None:
     """A .rodata section that points into code is a switch jump table."""
     analyzer = make_analyzer()
@@ -212,37 +236,16 @@ Relocation section '.rela.rodata' at offset 0x200 contains 2 entries:
 00000004  00003b01 R_XTENSA_32            00000000   .text._Z3fooi + 20
 """
     with patch("esphome.analyze_memory.run_tool", return_value=_completed(dump)):
-        (constant,) = analyzer._scan_object_constants("foo.o", {"5": (".rodata", 8)})
+        (constant,) = analyzer._scan_object_constants(
+            "foo.o", {"5": (".rodata", 8)}, "src/foo.o", "[esphome]foo"
+        )
     assert constant.jump_table
     assert constant.functions == ["_Z3fooi"]
 
 
-def test_unnamed_constants_inline_copies_counted_once(obj_dir: Path) -> None:
-    """An inline function emitted in two objects brings the same constant twice."""
-    analyzer, _ = _esp8266_analyzer(obj_dir, {SETUP})
-    light = str(obj_dir / LIGHT_OBJ)
-    web = str(obj_dir / WEB_OBJ)
-    headers = SECTION_HEADERS.format(light=light, web=web).replace(
-        "[ 9] .rodata           PROGBITS        00000000 000400 00001c",
-        "[174] .rodata           PROGBITS        00000000 000400 00002c",
-    )
-
-    def run_tool(cmd: list[str], timeout: int = 30) -> MagicMock:
-        return _completed(headers if "-SW" in cmd else LIGHT_OBJECT_DUMP)
-
-    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
-        analyzer._analyze_unnamed_constants()
-    assert len(analyzer._unnamed_constants) == 1
-    assert analyzer.sections[".data"].symbol_size == 44
-
-
 def test_report_lists_unnamed_constants() -> None:
     """The report names the component, the object, the functions and the bytes."""
-    with (
-        patch("esphome.analyze_memory.resolve_tool_path", return_value=None),
-        patch("esphome.analyze_memory.find_tool", return_value="nm"),
-    ):
-        analyzer = MemoryAnalyzerCLI(__file__)
+    analyzer = make_analyzer(cls=MemoryAnalyzerCLI)
     analyzer.rodata_in_ram = True
     analyzer._demangle_cache = {SETUP: "esphome::light::LightState::setup()"}
     analyzer._unnamed_constants = [
@@ -261,3 +264,49 @@ def test_report_lists_unnamed_constants() -> None:
     assert f"44 B constant     [esphome]light ({LIGHT_OBJ})" in report
     assert "used by esphome::light::LightState::setup()" in report
     assert "bytes: 00 00 80 3f 00 00 80 3f 00 00 80 3f 00 00 80 3f ..." in report
+
+
+def test_unnamed_constants_resolve_string_pointers() -> None:
+    """A constant of pointers to literals lists the strings, so it can be recognized."""
+    analyzer = make_analyzer()
+    analyzer._elf_symbol_names = {"setup"}
+    relocations = """\
+Relocation section '.rela.text.setup' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
+
+Relocation section '.rela.rodata' at offset 0xe6fc contains 3 entries:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+00000004  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+00000008  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+
+Hex dump of section '.rodata':
+  0x00000000 00000000 0f000000 1e000000          ............
+"""
+    literals = """\
+
+String dump of section '.rodata.str1.1':
+  [     0]  0.pool.ntp.org
+  [     f]  1.pool.ntp.org
+  [    1e]  2.pool.ntp.org
+"""
+
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        if "-p" in cmd:
+            assert cmd[1:-1] == ["-p", ".rodata.str1.1"]
+            return _completed(literals)
+        return _completed(relocations)
+
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        (constant,) = analyzer._scan_object_constants(
+            "main.cpp.o", {"5": (".rodata", 12)}, "src/main.cpp.o", "[esphome]core"
+        )
+    assert constant.strings == ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
+
+    cli = make_analyzer(cls=MemoryAnalyzerCLI)
+    cli._unnamed_constants = [constant]
+    assert (
+        'points to "0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"'
+        in cli.generate_report()
+    )
