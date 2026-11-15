@@ -788,10 +788,27 @@ class SendspinCapabilities final : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_CRASH_REPORT
+class CrashReportCapabilities final : public ProtoMessage {
+ public:
+  uint32_t flags{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 153;
+  static constexpr uint8_t ESTIMATED_SIZE = 170;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -815,6 +832,9 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #endif
 #ifdef USE_STORE_YAML
   StoreYamlCapabilities store_yaml{};
+#endif
+#ifdef USE_CRASH_REPORT
+  CrashReportCapabilities crash_report{};
 #endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -885,6 +905,53 @@ class ListEntitiesDoneResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_CRASH_REPORT
+class CrashReportCore final : public ProtoMessage {
+ public:
+  uint32_t core{0};
+  std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> backtrace{};
+  uint16_t backtrace_len{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class CrashReportResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 164;
+  static constexpr uint8_t ESTIMATED_SIZE = 164;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("crash_report_response"); }
+#endif
+  uint32_t flags{0};
+  uint32_t reason{0};
+  uint32_t pc{0};
+  uint32_t cause{0};
+  uint32_t fault_address{0};
+  uint32_t build_time{0};
+  uint32_t crashed_core{0};
+  std::array<CrashReportCore, CRASH_REPORT_MAX_CORES> cores{};
+  uint16_t cores_len{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 #ifdef USE_BINARY_SENSOR
 class ListEntitiesBinarySensorResponse final : public InfoResponseProtoMessage {
  public:

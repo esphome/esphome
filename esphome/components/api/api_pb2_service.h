@@ -39,6 +39,9 @@ class APIServerConnectionBase {
   void on_list_entities_request() {};
 
   void on_subscribe_states_request() {};
+#ifdef USE_CRASH_REPORT
+  void on_crash_report_request() {};
+#endif
 
 #ifdef USE_COVER
   void on_cover_command_request(const CoverCommandRequest &value) {};

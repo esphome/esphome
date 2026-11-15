@@ -1,7 +1,6 @@
 #pragma once
 
-#include "esphome/components/i2c/i2c.h"
-#include "esphome/components/touchscreen/touchscreen.h"
+#include "esphome/components/cstxxx/cstxxx.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -15,32 +14,26 @@ namespace esphome::cst226 {
 
 static const uint8_t CST226_REG_STATUS = 0x00;
 
-class CST226Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class CST226Touchscreen final : public cstxxx::CSTTouchscreen {
  public:
   void setup() override;
   void update_touches() override;
   void dump_config() override;
 
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-  void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   bool can_proceed() override { return this->setup_complete_ || this->is_failed(); }
 #ifdef CST226_BUTTON_COUNT
   void add_button_binary_sensor(binary_sensor::BinarySensor *sensor) { this->buttons_.push_back(sensor); }
 #endif
 
  protected:
-  bool read16_(uint16_t addr, uint8_t *data, size_t len);
   void continue_setup_();
   void update_button_state_(bool state);
 
-  // Small fields first: they fill the padding at the end of the base classes
-  uint8_t chip_id_{};
-  bool setup_complete_{};
 #ifdef CST226_BUTTON_COUNT
   bool button_touched_{};
 #endif
-  InternalGPIOPin *interrupt_pin_{};
-  GPIOPin *reset_pin_{};
+  uint16_t chip_id_{};
+  uint16_t project_id_{};
 #ifdef CST226_BUTTON_COUNT
   StaticVector<binary_sensor::BinarySensor *, CST226_BUTTON_COUNT> buttons_;
 #endif

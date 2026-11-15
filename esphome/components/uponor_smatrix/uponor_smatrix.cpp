@@ -120,7 +120,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   }
 
 #ifdef USE_TIME
-  // Detect device that acts as time master if not set explicitely
+  // Detect device that acts as time master if not set explicitly
   if (this->time_device_address_ == 0 && data_len >= 2) {
     // The first thermostat paired to the controller will act as the time master. Time can only be manually adjusted at
     // this first thermostat. To synchronize time, we need to know its address, so we search for packets coming from a

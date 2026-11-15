@@ -10,10 +10,7 @@
 
 namespace esphome::socket {
 
-// One client at a time; a second connection waits in the stack until the first drops.
-static constexpr int LISTEN_BACKLOG = 1;
-
-void TcpListener::try_listen_(TcpClientLink &link) {
+void TcpListener::try_listen_(TcpClientLink &link, uint8_t backlog) {
   this->listen_ = socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
   int err = errno;
   if (this->listen_ != nullptr) {
@@ -25,7 +22,7 @@ void TcpListener::try_listen_(TcpClientLink &link) {
     // setblocking result is part of the success condition.
     if (this->listen_->setblocking(false) == 0 && local_len != 0 &&
         this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
-        this->listen_->listen(LISTEN_BACKLOG) == 0) {
+        this->listen_->listen(backlog) == 0) {
       ESP_LOGI(this->tag_, "Listening on %u", link.port());
       return;
     }
@@ -37,32 +34,36 @@ void TcpListener::try_listen_(TcpClientLink &link) {
   link.note_attempt();
 }
 
-void TcpListener::accept_(TcpClientLink &link) {
+std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &link) {
+  if (this->listen_ == nullptr) {
+    return nullptr;
+  }
   struct sockaddr_storage peer{};
   socklen_t peer_len = sizeof(peer);
   auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
   if (client == nullptr) {
-    // A reset during the handshake or a signal only affects that connection.
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) {
-      return;
+    // Out of sockets or memory, or a reset/signal on that connection: try again next loop.
+    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR || errno == ENFILE ||
+        errno == EMFILE || errno == ENOBUFS || errno == ENOMEM) {
+      return nullptr;
     }
     // Rebuild the listener after the backoff instead of spinning on it.
     int err = errno;
     this->listen_.reset();
     ESP_LOGW(this->tag_, "Accept failed: %d", err);
     link.note_attempt();
-    return;
+    return nullptr;
   }
   const auto *sa = reinterpret_cast<const struct sockaddr *>(&peer);
 #ifdef USE_SOCKET_IPV4_ALLOW
   if (!this->allow_.admit(sa, peer_len, this->tag_, App.get_loop_component_start_time())) {
-    return;
+    return nullptr;
   }
 #endif
   char text[SOCKADDR_STR_LEN];
   format_sockaddr_to(sa, peer_len, std::span<char, SOCKADDR_STR_LEN>(text));
-  link.adopt(std::move(client));
   ESP_LOGI(this->tag_, "Client connected from %s", text);
+  return client;
 }
 
 void TcpListener::dump_config() const {

@@ -43,7 +43,6 @@ void Duco::reset_frame_() {
 }
 
 void Duco::close_request(DucoDevice *device) {
-#ifdef DUCO_DEVICE_COUNT
   for (auto &pending : this->pending_) {
     if (pending.device == device) {
       pending.function = 0;
@@ -52,7 +51,6 @@ void Duco::close_request(DucoDevice *device) {
       return;
     }
   }
-#endif
 }
 
 bool Duco::parse_byte_(uint8_t byte) {
@@ -105,7 +103,8 @@ void Duco::finalize_message_() {
     ESP_LOGV(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
   }
 
-#ifdef DUCO_DEVICE_COUNT
+  if (this->pending_.empty())  // no device, no answer to match
+    return;
   // The box first acknowledges a request with function + 1, then answers with function + 2
   const DucoMessage message{raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
   for (auto &pending : this->pending_) {
@@ -121,10 +120,8 @@ void Duco::finalize_message_() {
   if ((raw[1] & 1) == 0) {
     ESP_LOGV(TAG, "Answer %02X with id %u matches no open request", raw[1], message.id);
   }
-#endif
 }
 
-#ifdef DUCO_DEVICE_COUNT
 void Duco::update_warning_() {
   for (const auto &pending : this->pending_) {
     if (pending.missed) {
@@ -134,7 +131,6 @@ void Duco::update_warning_() {
   }
   this->status_clear_warning();
 }
-#endif
 
 void Duco::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -166,7 +162,6 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   this->write_array(frame, size + 7);
   this->flush();
 
-#ifdef DUCO_DEVICE_COUNT
   for (auto &pending : this->pending_) {
     if (pending.device == device) {
       pending.missed = pending.function != 0;
@@ -179,7 +174,6 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
       break;
     }
   }
-#endif
 
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
