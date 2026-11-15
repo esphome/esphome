@@ -1,6 +1,6 @@
 """cmp.py REF.json OTHER.json : list each UUID (service / characteristic / descriptor, in order) where OTHER differs
-from REF, whether reads match (static characteristics) and whether every notifying characteristic notified.
-Exits 1 on any difference."""
+from REF, whether reads match (static characteristics), whether every notifying characteristic notified and
+whether OTHER lost its link before the final disconnect. Exits 1 on any difference."""
 
 import json
 import pathlib
@@ -49,6 +49,9 @@ for i, (a, b) in enumerate(zip(rc, oc, strict=False)):
         n = od["notify"].get(b["uuid"])
         if not isinstance(n, int) or n <= 0:
             problems.append(f"notify {i} {b['uuid']} {n}")
+# a link that dropped after the first notification still has counts, so the drop itself fails the run
+if od.get("lost"):
+    problems.append(f"link lost before the disconnect: {od['lost']}")
 print(f"notify {od['notify']}")
 for x in problems:
     print(" ", x)
