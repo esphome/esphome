@@ -243,8 +243,8 @@ class CompactString {
   CompactString() : length_(0), is_heap_(0) { this->storage_[0] = '\0'; }
   CompactString(const char *str, size_t len);
 #ifdef USE_ESP8266
-  /// Copy a string kept in flash with ESPHOME_F, so the literal never takes RAM.
-  explicit CompactString(ProgmemStr str);
+  /// Copy a string kept in flash with ESPHOME_F.
+  static CompactString from_progmem(ProgmemStr str);
 #endif
   CompactString(const CompactString &other);
   CompactString(CompactString &&other) noexcept;
@@ -274,8 +274,6 @@ class CompactString {
     return ptr;
   }
   void set_heap_ptr_(char *ptr) { std::memcpy(this->storage_, &ptr, sizeof(ptr)); }
-  /// Set the length, write the null terminator and return where the len characters go.
-  char *init_storage_(size_t len);
 
   // Storage for string data. When is_heap_=0, contains the string directly (null-terminated).
   // When is_heap_=1, first sizeof(char*) bytes contain pointer to heap allocation.
@@ -304,10 +302,7 @@ class WiFiAP {
   void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
 #ifdef USE_ESP8266
-  // For codegen's ESPHOME_F literals. Elsewhere ProgmemStr is const char *, which the overload above takes.
-  void set_ssid(ProgmemStr ssid) { this->ssid_ = CompactString(ssid); }
-  static_assert(!std::is_convertible_v<char *, ProgmemStr> && !std::is_convertible_v<const char *, ProgmemStr>,
-                "runtime strings must not reach the flash setters");
+  void set_ssid(ProgmemStr ssid) { this->ssid_ = CompactString::from_progmem(ssid); }
 #endif
   void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
   void clear_bssid() { this->bssid_ = {}; }
@@ -315,7 +310,7 @@ class WiFiAP {
   void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_ESP8266
-  void set_password(ProgmemStr password) { this->password_ = CompactString(password); }
+  void set_password(ProgmemStr password) { this->password_ = CompactString::from_progmem(password); }
 #endif
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }

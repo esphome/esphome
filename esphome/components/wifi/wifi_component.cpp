@@ -55,31 +55,35 @@ namespace esphome::wifi {
 ESPHOME_LOG_TAG(TAG, "wifi");
 
 // CompactString implementation
-char *CompactString::init_storage_(size_t len) {
-  this->length_ = len;
-  this->is_heap_ = len > INLINE_CAPACITY;
-  char *dest = this->storage_;
-  if (this->is_heap_) {
-    dest = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
-    this->set_heap_ptr_(dest);
-  }
-  dest[len] = '\0';
-  return dest;
-}
-
 CompactString::CompactString(const char *str, size_t len) {
-  len = std::min<size_t>(len, MAX_LENGTH);
-  char *dest = this->init_storage_(len);
-  if (len > 0) {
-    std::memcpy(dest, str, len);
+  if (len > MAX_LENGTH) {
+    len = MAX_LENGTH;  // Clamp to max valid length
+  }
+
+  this->length_ = len;
+  if (len <= INLINE_CAPACITY) {
+    // Store inline with null terminator
+    this->is_heap_ = 0;
+    if (len > 0) {
+      std::memcpy(this->storage_, str, len);
+    }
+    this->storage_[len] = '\0';
+  } else {
+    // Heap allocate with null terminator
+    this->is_heap_ = 1;
+    char *heap_data = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
+    std::memcpy(heap_data, str, len);
+    heap_data[len] = '\0';
+    this->set_heap_ptr_(heap_data);
   }
 }
 
 #ifdef USE_ESP8266
-CompactString::CompactString(ProgmemStr str) {
-  const char *src = reinterpret_cast<const char *>(str);
-  const size_t len = std::min<size_t>(ESPHOME_strlen_P(src), MAX_LENGTH);
-  progmem_memcpy(this->init_storage_(len), src, len);
+CompactString CompactString::from_progmem(ProgmemStr str) {
+  char buf[MAX_LENGTH + 1];
+  ESPHOME_strncpy_P(buf, reinterpret_cast<const char *>(str), MAX_LENGTH);
+  buf[MAX_LENGTH] = '\0';
+  return CompactString(buf, strlen(buf));
 }
 #endif
 

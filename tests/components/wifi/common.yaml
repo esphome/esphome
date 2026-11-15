@@ -43,8 +43,6 @@ esphome:
           const char *ssid_ptr = ssid.c_str();
           sta.set_ssid(ssid_ptr);
           sta.set_password(StringRef(password));
-          wifi::global_wifi_component->set_sta(sta);
-          wifi::global_wifi_component->save_wifi_sta(ssid, std::string(password));
 
 wifi:
   networks:
