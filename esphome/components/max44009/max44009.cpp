@@ -1,5 +1,6 @@
 #include "max44009.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::max44009 {
@@ -80,8 +81,8 @@ float MAX44009Sensor::read_illuminance_() {
 }
 
 float MAX44009Sensor::convert_to_lux_(uint8_t data_high, uint8_t data_low) {
-  uint8_t exponent = data_high >> 4;
-  uint32_t mantissa = ((data_high & 0x0F) << 4) + (data_low & 0x0F);
+  uint8_t exponent = high_nibble(data_high);
+  uint32_t mantissa = encode_uint12(low_nibble(data_high), data_low);
   return ((0x0001 << exponent) * 0.045) * mantissa;
 }
 
