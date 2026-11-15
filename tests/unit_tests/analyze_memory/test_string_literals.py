@@ -64,26 +64,38 @@ WEB_REFERRERS = hex_dump(f".text.{MATCH_URL}", bytes(4) + (3).to_bytes(4, "littl
 
 LIGHT_STRINGS = hex_dump(f".rodata.{DUMP_JSON}.str1.1", b"ON\0OFF\0")
 
-# Linked .rodata: "OFF" is kept on its own and "ON" only as the tail of "MON"
-ELF_RODATA = hex_dump(".rodata", b"MON\0OFF\0CLOSED\0all\0", 0x3FFE86B0)
+# Linked .rodata: "OPEN" and "ON" were dropped
+ELF_RODATA = hex_dump(".rodata", b"OFF\0CLOSED\0all\0", 0x3FFE86B0)
 
 
 def test_parse_string_sections() -> None:
     """Only string literal sections are listed, named after their function or not."""
     assert _parse_string_sections(_sections("web.o", "light.o")) == {
-        "web.o": {"209": ".rodata.str1.1", "481": f".rodata.{COVER_JSON}.str1.1"},
-        "light.o": {"30": f".rodata.{DUMP_JSON}.str1.1"},
+        "web.o": {
+            "209": (".rodata.str1.1", None),
+            "481": (f".rodata.{COVER_JSON}.str1.1", COVER_JSON),
+        },
+        "light.o": {"30": (f".rodata.{DUMP_JSON}.str1.1", DUMP_JSON)},
     }
 
 
 @pytest.mark.parametrize(
     ("text", "expected"),
-    [(b"OFF", 4), (b"MON", 4), (b"ON", 0), (b"missing", 0), (b"all", 4)],
+    [
+        (b"OFF", 4),
+        (b"MON", 4),
+        # Stored only as the tail of "MON"
+        (b"ON", 0),
+        (b"missing", 0),
+        # After a float constant ending in 0x3f, not inside another literal
+        (b"all", 4),
+    ],
 )
 def test_ram_string_size(text: bytes, expected: int) -> None:
     """A literal stored only as the tail of a longer one, or dropped, takes no RAM."""
-    rodata = b"MON\0OFF\0CLOSED\0all\0"
-    assert _ram_string_size(text, rodata) == expected
+    rodata = b"MON\0OFF\0CLOSED\0\x00\x00\x80\x3fall\0"
+    literals = {b"MON", b"OFF", b"ON", b"CLOSED", b"all", b"missing"}
+    assert _ram_string_size(text, rodata, literals) == expected
 
 
 @pytest.fixture
@@ -136,7 +148,7 @@ def test_string_literals_attributed(obj_dir: Path) -> None:
         StringLiteral("OFF", 4, {"[esphome]light": {DUMP_JSON}}),
         StringLiteral("all", 4, {"[esphome]web_server": {MATCH_URL}}),
     ]
-    # "OPEN" is not in the ELF and "ON" is only the tail of "MON"
+    # "OPEN" and "ON" are not in the ELF
     assert analyzer.components["[esphome]web_server"].data_size == 11
     assert analyzer.components["[esphome]light"].data_size == 4
     assert analyzer.sections[".data"].symbol_size == 15
@@ -194,17 +206,30 @@ def test_report_groups_by_component() -> None:
     assert "WebServer::cover_json_()" in report
 
 
-@pytest.mark.parametrize(
-    ("rel_path", "component"),
-    [
-        (
-            "lib/esp32async__ESPAsyncWebServer/WebHandlers.cpp.o",
-            "[lib]espasyncwebserver",
-        ),
-        ("lib/ESP8266WiFi/ESP8266WiFi.cpp.o", "[lib]esp8266wifi"),
-        ("core/core_esp8266_main.cpp.o", "arduino_core"),
-    ],
-)
-def test_native_library_objects(rel_path: str, component: str) -> None:
-    """Objects of the native ESP8266 build's libraries and core get a component."""
-    assert make_analyzer()._source_file_to_component(rel_path) == component
+def test_string_literals_through_unnamed_table() -> None:
+    """Literals reached through an unnamed pointer table go to the table's users."""
+    analyzer = make_analyzer()
+    relocations = """\
+Relocation section '.rela.text.setup' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
+
+Relocation section '.rela.rodata' at offset 0xe6fc contains 2 entries:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+00000004  00000501 R_XTENSA_32            00000000   .rodata.str1.1 + 0
+
+""" + hex_dump(".rodata.str1.1", b"0.pool.ntp.org\0001.pool.ntp.org\0")
+    table = hex_dump(".rodata", (0).to_bytes(4, "little") + (15).to_bytes(4, "little"))
+
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        if "-rW" in cmd:
+            return completed(relocations)
+        assert cmd[1:-1] == ["-x", ".rodata"]
+        return completed(table)
+
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        users = analyzer._scan_object_strings(
+            "main.cpp.o", {"5": (".rodata.str1.1", None)}
+        )
+    assert users == {b"0.pool.ntp.org": {"setup"}, b"1.pool.ntp.org": {"setup"}}

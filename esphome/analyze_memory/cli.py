@@ -821,7 +821,6 @@ def main():
     build_dir = sys.argv[1]
 
     # Load build directory
-    import json
 
     from esphome.platformio.toolchain import IDEData
 

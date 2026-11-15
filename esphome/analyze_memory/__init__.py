@@ -1,7 +1,9 @@
 """Memory usage analyzer for ESPHome compiled binaries."""
 
 from collections import Counter, defaultdict
+from collections.abc import Container
 from dataclasses import dataclass, field
+from functools import cached_property
 import logging
 from pathlib import Path
 import re
@@ -206,23 +208,29 @@ class _RodataSection:
     size: int
     covered: list[tuple[int, int]] = field(default_factory=list)  # (offset, size)
 
-    def is_unnamed(self, offset: int) -> bool:
-        return 0 <= offset < self.size and not any(
-            start <= offset < start + size for start, size in self.covered
+    @cached_property
+    def _named(self) -> frozenset[int]:
+        return frozenset(
+            offset
+            for start, size in self.covered
+            for offset in range(start, min(start + size, self.size))
         )
+
+    def is_unnamed(self, offset: int) -> bool:
+        return 0 <= offset < self.size and offset not in self._named
 
     @property
     def unnamed_size(self) -> int:
-        return sum(1 for offset in range(self.size) if self.is_unnamed(offset))
+        return self.size - len(self._named)
 
 
-def _parse_string_sections(output: str) -> dict[str, dict[str, str]]:
+def _parse_string_sections(output: str) -> dict[str, dict[str, tuple[str, str | None]]]:
     """Find string literal sections in ``readelf -SW`` output.
 
     Returns:
-        Object path -> section index -> section name
+        Object path -> section index -> (section name, function it is named after)
     """
-    sections: dict[str, dict[str, str]] = defaultdict(dict)
+    sections: dict[str, dict[str, tuple[str, str | None]]] = defaultdict(dict)
     file_path = ""
     for line in output.splitlines():
         if line.startswith("File: "):
@@ -233,18 +241,20 @@ def _parse_string_sections(output: str) -> dict[str, dict[str, str]]:
                 section_type == "PROGBITS"
                 and "S" in flags
                 and int(size_hex, 16)
-                and _STRING_SECTION_PATTERN.match(name)
+                and (string := _STRING_SECTION_PATTERN.match(name))
             ):
-                sections[file_path][index] = name
+                sections[file_path][index] = (name, string.group(1))
     return sections
 
 
-def _ram_string_size(text: bytes, rodata: bytes) -> int:
-    """Bytes a literal takes in RAM: 0 if dropped or stored as the tail of a longer one."""
+def _ram_string_size(text: bytes, rodata: bytes, literals: Container[bytes]) -> int:
+    """Bytes a literal takes in RAM: 0 if dropped or only the tail of another literal."""
     needle = text + b"\0"
     start = rodata.find(needle)
     while start != -1:
-        if start == 0 or rodata[start - 1] == 0:
+        head = rodata.rfind(b"\0", 0, start) + 1
+        # Bytes before it that are not one of our literals are other data
+        if start == head or rodata[head : start + len(text)] not in literals:
             return len(needle)
         start = rodata.find(needle, start + 1)
     return 0
@@ -272,10 +282,7 @@ def _parse_relocations(output: str) -> list[tuple[str, int, str, int]]:
         if line.startswith("Relocation section"):
             match = _RELOC_SECTION_PATTERN.match(line)
             section = match.group(1) if match else None
-        elif not line.startswith(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")):
-            if line and not line.startswith(" "):
-                section = None
-        elif section is not None:
+        elif line[:1].isdigit() and section is not None:
             # Offset Info Type Sym.Value Sym.Name + Addend
             fields = line.split()
             if len(fields) < 5:
@@ -284,6 +291,8 @@ def _parse_relocations(output: str) -> list[tuple[str, int, str, int]]:
             if len(fields) > 6 and fields[5] == "-":
                 addend = -addend
             relocations.append((section, int(fields[0], 16), fields[4], addend))
+        elif line and line[0] != " ":
+            section = None
     return relocations
 
 
@@ -293,7 +302,8 @@ def _pointed_literal(
     """Read the string literal a relocated pointer at ``offset`` refers to."""
     # Xtensa keeps part of the addend in the relocated word
     start = addend + int.from_bytes(referrer[offset : offset + 4], "little")
-    return bytes(strings[start:]).split(b"\0", 1)[0]
+    end = strings.find(b"\0", start)
+    return bytes(strings[start : end if end != -1 else len(strings)])
 
 
 def _section_user(section: str) -> str | None:
@@ -1447,7 +1457,6 @@ class MemoryAnalyzer:
 
     def _attribute_unnamed_constants(self, output: str, obj_dir: Path) -> None:
         """Attribute constants GCC copies into objects built from constant initializers."""
-        data_section = self.sections.get(".data")
         unnamed, weak_functions = _parse_unnamed_rodata(output)
         # Inline (weak) functions are emitted, with their constants, in every
         # object that uses them; the linker keeps one copy
@@ -1463,9 +1472,7 @@ class MemoryAnalyzer:
                     if inline_copies.setdefault(key, file_path) != file_path:
                         continue
                 self._unnamed_constants.append(constant)
-                self._add_component_size(component, ".data", constant.size)
-                if data_section is not None:
-                    data_section.symbol_size += constant.size
+                self._charge_ram(component, constant.size)
 
         self._unnamed_constants.sort(key=lambda c: c.size, reverse=True)
 
@@ -1479,42 +1486,40 @@ class MemoryAnalyzer:
         if result is None or result.returncode != 0:
             return
         rodata = bytes(_parse_hex_dumps(result.stdout).get(".rodata", b""))
-        literals: dict[bytes, StringLiteral] = {}
+        # Literal -> component -> functions or data using it
+        users: dict[bytes, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
         for file_path, sections in _parse_string_sections(output).items():
-            rel_path = str(Path(file_path).relative_to(obj_dir))
-            component = self._source_file_to_component(rel_path)
-            for text, users in self._scan_object_strings(file_path, sections).items():
-                kept = {u for u in users if u in self._elf_symbol_names}
-                if not kept or not text:
-                    continue
-                if (literal := literals.get(text)) is None:
-                    literal = literals[text] = StringLiteral(
-                        text.decode("utf-8", "backslashreplace"),
-                        _ram_string_size(text, rodata),
-                    )
-                literal.users[component] |= kept
+            component = self._source_file_to_component(
+                Path(file_path).relative_to(obj_dir).as_posix()
+            )
+            for text, found in self._scan_object_strings(file_path, sections).items():
+                if text and (kept := found & self._elf_symbol_names):
+                    users[text][component] |= kept
 
-        data_section = self.sections.get(".data")
+        literals = (
+            StringLiteral(
+                text.decode("utf-8", "backslashreplace"),
+                _ram_string_size(text, rodata, users),
+                by_component,
+            )
+            for text, by_component in users.items()
+        )
         self._string_literals = sorted(
-            (s for s in literals.values() if s.size), key=lambda s: (-s.size, s.text)
+            (s for s in literals if s.size), key=lambda s: (-s.size, s.text)
         )
         for literal in self._string_literals:
             # A literal used by several components is not charged to any of them
             if len(literal.users) == 1:
-                self._add_component_size(
-                    next(iter(literal.users)), ".data", literal.size
-                )
-                if data_section is not None:
-                    data_section.symbol_size += literal.size
+                self._charge_ram(next(iter(literal.users)), literal.size)
 
     def _scan_object_strings(
-        self, file_path: str, sections: dict[str, str]
+        self, file_path: str, sections: dict[str, tuple[str, str | None]]
     ) -> dict[bytes, set[str]]:
         """Map each string literal of one object to the functions or data using it.
 
         Args:
             file_path: Object file to read
-            sections: String sections by index
+            sections: String sections by index, with the function each is named after
         """
         result = run_tool(
             [self.readelf_path, "-rW"]
@@ -1522,23 +1527,38 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
+            _LOGGER.debug("readelf failed reading strings of %s", file_path)
             return {}
         contents = _parse_hex_dumps(result.stdout)
         users: dict[bytes, set[str]] = defaultdict(set)
         shared: set[str] = set()
-        for name in sections.values():
+        for name, function in sections.values():
             # A section named after its function holds only that function's literals
-            if function := _STRING_SECTION_PATTERN.match(name).group(1):
+            if function:
                 for text in bytes(contents[name]).split(b"\0")[:-1]:
                     users[text].add(function)
             else:
                 shared.add(name)
 
+        relocations = _parse_relocations(result.stdout)
+        # Functions using each unnamed table, for literals reached through a pointer in it
+        table_users: dict[str, set[str]] = defaultdict(set)
+        for section, _, target, _ in relocations:
+            if (
+                target.startswith(".rodata")
+                and not _STRING_SECTION_PATTERN.match(target)
+                and (function := _section_user(section))
+                and _CODE_SECTION_PATTERN.match(section)
+            ):
+                table_users[target].add(function)
         # Literals in the shared section are found from the pointers that use them
         refs = [
-            (section, user, offset, target, addend)
-            for section, offset, target, addend in _parse_relocations(result.stdout)
-            if target in shared and (user := _section_user(section))
+            (section, found, offset, target, addend)
+            for section, offset, target, addend in relocations
+            if target in shared
+            and (
+                found := {u} if (u := _section_user(section)) else table_users[section]
+            )
         ]
         if not refs:
             return users
@@ -1551,11 +1571,11 @@ class MemoryAnalyzer:
             _LOGGER.debug("readelf failed reading string users of %s", file_path)
             return users
         referrers = _parse_hex_dumps(result.stdout)
-        for section, user, offset, target, addend in refs:
+        for section, found, offset, target, addend in refs:
             text = _pointed_literal(
                 referrers[section], offset, addend, contents[target]
             )
-            users[text].add(user)
+            users[text] |= found
         return users
 
     def _scan_object_constants(
@@ -1647,6 +1667,12 @@ class MemoryAnalyzer:
             ]
             for name, refs in pointers.items()
         }
+
+    def _charge_ram(self, component: str, size: int) -> None:
+        """Charge RAM bytes that have no ELF symbol to a component."""
+        self._add_component_size(component, ".data", size)
+        if (data_section := self.sections.get(".data")) is not None:
+            data_section.symbol_size += size
 
     def _add_component_size(self, component: str, section: str, size: int) -> None:
         """Add size to a component, creating it under its own name."""

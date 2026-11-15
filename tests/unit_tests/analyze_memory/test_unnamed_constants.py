@@ -124,7 +124,6 @@ def _esp8266_analyzer(
                     save=SAVE,
                 )
             )
-        # String literal scans (the ELF's .rodata, string sections) find nothing here
         # Only sections with uncovered bytes are dumped
         if cmd[-1] == light:
             assert cmd[1:-1] == ["-rW", "-x", "174"]
@@ -390,7 +389,7 @@ def test_code_section_function(section: str, function: str | None) -> None:
 
 def test_unnamed_constants_same_object_not_merged(obj_dir: Path) -> None:
     """Two equal constants of one inline function in one object are both counted."""
-    analyzer, _ = _esp8266_analyzer(obj_dir, {SETUP}, bind="WEAK")
+    analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP}, bind="WEAK")
     constant = UnnamedConstant(
         size=8,
         source_file=LIGHT_OBJ,
@@ -400,17 +399,8 @@ def test_unnamed_constants_same_object_not_merged(obj_dir: Path) -> None:
         data=b"",
     )
     light = str(obj_dir / LIGHT_OBJ)
-    headers = HEADERS_AND_SYMBOLS.format(
-        light=light,
-        web=str(obj_dir / WEB_OBJ),
-        web_index=9,
-        web_size=0x1C,
-        bind="WEAK",
-        setup=SETUP,
-        save=SAVE,
-    )
     with (
-        patch("esphome.analyze_memory.run_tool", return_value=completed(headers)),
+        patch("esphome.analyze_memory.run_tool", side_effect=run_tool),
         patch.object(
             analyzer,
             "_scan_object_constants",
