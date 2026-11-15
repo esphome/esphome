@@ -7,6 +7,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow", "@latonita"]
+DEPENDENCIES = ["i2c", "touchscreen"]
 DOMAIN = "cstxxx"
 
 cstxxx_ns = cg.esphome_ns.namespace("cstxxx")

@@ -30,6 +30,8 @@ class CST226Touchscreen final : public cstxxx::CSTTouchscreen {
   void update_button_state_(bool state);
 
   bool button_touched_{};
+  uint16_t chip_id_{};
+  uint16_t project_id_{};
   std::vector<CST226ButtonListener *> button_listeners_;
 };
 
