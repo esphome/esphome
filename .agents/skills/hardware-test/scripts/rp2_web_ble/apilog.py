@@ -1,5 +1,6 @@
 """apilog.py HOST SECONDS OUT: subscribe VERBOSE logs and states for SECONDS with ms timestamps, reconnecting on a drop.
-env: API_KEY (unset for a plaintext API). Prints the state count at the end."""
+env: API_KEY (unset for a plaintext API). Prints the state and drop counts at the end; exits 1 on a drop or when no
+state arrived, so an unexercised API is not read as a working one."""
 
 import asyncio
 import contextlib
@@ -19,7 +20,7 @@ def ts() -> str:
 
 async def main(host: str, secs: float, outf: str) -> None:
     end = time.monotonic() + secs
-    states = 0
+    states = drops = 0
     with pathlib.Path(outf).open("a", encoding="utf-8") as out:
 
         def w(line: str) -> None:
@@ -41,11 +42,14 @@ async def main(host: str, secs: float, outf: str) -> None:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stopped.wait(), max(0.0, end - time.monotonic()))
             if stopped.is_set():
+                drops += 1
                 w("API DROPPED")
             with contextlib.suppress(Exception):
                 await cli.disconnect()
-        w(f"API done states={states}")
-    print(f"api states={states}")
+        w(f"API done states={states} drops={drops}")
+    print(f"api states={states} drops={drops}")
+    if drops or not states:
+        sys.exit(1)
 
 
 asyncio.run(main(sys.argv[1], float(sys.argv[2]), sys.argv[3]))
