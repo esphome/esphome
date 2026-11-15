@@ -1,12 +1,11 @@
 import esphome.codegen as cg
+from esphome.components import remote_base
 from esphome.core import CORE, ID
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    from esphome.components import remote_base
-
     async def to_code(config: ConfigType) -> None:
         # Called directly: validate_dumpers plus build_dumpers would leave the GenerateIDs unresolved
         dumpers = [
@@ -16,17 +15,15 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             )
             for name, entry in remote_base.DUMPER_REGISTRY.items()
         ]
-        table = ", ".join(str(d) for d in dumpers)
         CORE.add_global_after_includes(
             cg.RawStatement(
                 "namespace esphome::benchmarks {\n"
-                f"extern remote_base::RemoteReceiverDumperBase *const DUMP_ALL[] = {{{table}}};\n"
+                f"extern remote_base::RemoteReceiverDumperBase *const DUMP_ALL[] = {cg.ArrayInitializer(*dumpers)};\n"
                 f"extern const size_t DUMP_ALL_COUNT = {len(dumpers)};\n"
                 "}"
             )
         )
-        # NEC and RCSwitch are already requested by their dumpers. The counts are set directly, not through
-        # add_dumper/add_listener slots, because the C++ registers its dumper table and listeners itself.
+        # Set directly, not through add_dumper/add_listener: the C++ registers its dumper table and listeners itself
         cg.add_define("REMOTE_BASE_DUMPER_COUNT", 1)
         cg.add_define("REMOTE_BASE_LISTENER_COUNT", 8)
 

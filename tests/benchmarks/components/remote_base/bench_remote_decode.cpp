@@ -124,11 +124,11 @@ static void dump_all_bench(benchmark::State &state, const RawTimings &raw) {
 static void RemoteDumpAll_NEC(benchmark::State &state) { dump_all_bench(state, nec_frame()); }
 BENCHMARK(RemoteDumpAll_NEC);
 
-// Pronto always decodes, so the raw fallback never runs and Pronto's string building and logging dominate
+// Pronto always decodes, so the raw fallback never runs; Pronto's text and logging are measured
 static void RemoteDumpAll_Noise(benchmark::State &state) { dump_all_bench(state, noise_frame()); }
 BENCHMARK(RemoteDumpAll_Noise);
 
-// Every sensor shares the NEC address; sensor 0 has the frame's command when match is true
+// Every sensor shares the NEC address; sensor 0 has the frame's command
 static void listeners_bench(benchmark::State &state, const RawTimings &raw, bool match) {
   // A broken NEC round trip would otherwise quietly time eight rejections
   RemoteReceiveData check(raw, TOLERANCE, TOLERANCE_MODE);
@@ -140,7 +140,7 @@ static void listeners_bench(benchmark::State &state, const RawTimings &raw, bool
   BenchReceiver receiver;
   remote_base::NECBinarySensor sensors[REMOTE_BASE_LISTENER_COUNT];
   for (uint16_t i = 0; i < REMOTE_BASE_LISTENER_COUNT; i++) {
-    const uint16_t command = match && i == 0 ? NEC_COMMAND : i;
+    const uint16_t command = i == 0 ? NEC_COMMAND : i;
     sensors[i].set_data({.address = NEC_ADDRESS, .command = command, .command_repeats = 1});
     receiver.register_listener(&sensors[i]);
   }
