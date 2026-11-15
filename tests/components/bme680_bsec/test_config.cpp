@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <tuple>
 
 #include "esphome/components/bme680_bsec/bme680_bsec.h"
@@ -24,6 +25,10 @@ TEST_P(BSECConfigTest, SetupPassesTheSelectedBlob) {
   component.set_sample_rate(sample_rate);
   component.set_supply_voltage(supply_voltage);
   component.setup();
+  // setup() registers the component; drop it so later tests do not see a dangling instance
+  ASSERT_FALSE(BME680BSECComponent::instances.empty());
+  ASSERT_EQ(BME680BSECComponent::instances.back(), &component);
+  BME680BSECComponent::instances.pop_back();
 
   // The whole blob, copied out of the selected table, padded with zeros to the blob size
   EXPECT_EQ(bsec_double::config_size, BSEC_MAX_PROPERTY_BLOB_SIZE);
