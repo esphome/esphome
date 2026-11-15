@@ -486,7 +486,8 @@ def heavy() -> None:
     time.sleep(3)
     h1, u1 = heap(), uptime()
     bf_ok = (
-        set(codes) <= {401}
+        bool(codes)
+        and set(codes) <= {401}
         and heap_ok(h0, h1)
         and u1 is not None
         and u0 is not None
@@ -573,8 +574,11 @@ def heavy() -> None:
         th.join()
     time.sleep(3)
     h1, u1 = heap(), uptime()
+    # at least one completed wrong-credential request per second, or the phase ran without its load
+    bad_n = sum(stats["bad"].values())
     c_ok = (
-        set(stats["bad"]) <= {"401"}
+        bad_n >= A.conc
+        and set(stats["bad"]) <= {"401"}
         and stats["sse_states"] > A.conc * 2
         and stats["sse_errors"] == 0
         and stats["sse_maxgap"] < 5
@@ -584,8 +588,8 @@ def heavy() -> None:
         and u1 > u0
     )
     p(
-        f"{'PASS' if c_ok else 'FAIL'} concurrency {A.conc:.0f}s x{A.conc_threads}: bad {stats['bad']}; SSE states "
-        f"{stats['sse_states']} ({stats['sse_states'] / A.conc:.1f}/s) opens {stats['sse_opens']} closes "
+        f"{'PASS' if c_ok else 'FAIL'} concurrency {A.conc:.0f}s x{A.conc_threads}: bad {bad_n} {stats['bad']}; "
+        f"SSE states {stats['sse_states']} ({stats['sse_states'] / A.conc:.1f}/s) opens {stats['sse_opens']} closes "
         f"{stats['sse_closes']} max gap {stats['sse_maxgap']:.1f}s; heap {h0}->{h1} uptime {u0}->{u1}"
     )
     ROWS.append(

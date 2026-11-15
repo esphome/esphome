@@ -160,6 +160,11 @@ inline void command(uint8_t cmd) {
       C.fifo_n = C.fifo_rd = 0;
       break;
     case 0x11:
+      // re-arming over a transmit that never got all its bytes hides a driver length bug
+      if (C.tx_armed && C.tx_got > 0) {
+        C.bad_tx++;
+        ESP_LOGW(TAG, "transmit re-armed after %u of %u bytes", C.tx_got, C.tx_len);
+      }
       C.tx_armed = true;
       C.tx_got = 0;
       C.fifo_n = C.fifo_rd = 0;
@@ -176,7 +181,12 @@ inline void write_reg(uint8_t r, uint8_t v) {
     if (C.tx_armed && C.tx_got < sizeof(C.tx_buf)) {
       C.tx_buf[C.tx_got++] = v;
       C.tx_len = ((uint16_t) C.reg[0x1D] << 4) | (C.reg[0x1E] >> 4);
-      if (C.tx_got == C.tx_len) {
+      if (C.tx_len == 0 || C.tx_len > sizeof(C.tx_buf)) {
+        // a length the buffer can never reach would wait forever for start_tx()
+        C.bad_tx++;
+        C.tx_armed = false;
+        ESP_LOGW(TAG, "transmit length %u does not fit the %u byte TX buffer", C.tx_len, (unsigned) sizeof(C.tx_buf));
+      } else if (C.tx_got == C.tx_len) {
         C.tx_armed = false;
         start_tx();
       }
