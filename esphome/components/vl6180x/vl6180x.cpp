@@ -414,14 +414,15 @@ void VL6180XComponent::publish_range_(uint8_t raw, uint8_t error_code) {
     const uint8_t error_index = error_code <= 15 ? error_code : 9;
     const bool is_sensor_failure = error_code <= 5 || error_code == 9 || error_code == 10 || error_code > 15;
     RangeStatus status = RangeStatus::RANGE_STATUS_SENSOR_ERROR;
-    if (error_code >= 1 && error_code <= 5)
+    if (error_code >= 1 && error_code <= 5) {
       status = RangeStatus::RANGE_STATUS_HARDWARE_FAULT;
-    else if (error_code == 12 || error_code == 14)
+    } else if (error_code == 12 || error_code == 14) {
       status = RangeStatus::RANGE_STATUS_TARGET_TOO_CLOSE;
-    else if (error_code == 6 || error_code == 7 || error_code == 8 || error_code == 11)
+    } else if (error_code == 6 || error_code == 7 || error_code == 8 || error_code == 11) {
       status = RangeStatus::RANGE_STATUS_NO_TARGET;
-    else if (error_code == 13 || error_code == 15)
+    } else if (error_code == 13 || error_code == 15) {
       status = RangeStatus::RANGE_STATUS_OUT_OF_RANGE;
+    }
     ESP_LOGW(TAG, "[%s] Range error %d: %s (raw=%d)", this->name_str_, error_code,
              LOG_STR_ARG(RangeErrorStrings::get_log_str(error_index, RangeErrorStrings::LAST_INDEX)), raw);
     PUBLISH_STATE(this->range_sensor_, NAN);

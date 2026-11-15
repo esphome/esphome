@@ -77,10 +77,7 @@ _ENTRY_SCHEMA = (
 )
 
 
-CONFIG_SCHEMA = cv.Any(
-    cv.All(_ENTRY_SCHEMA, cv.ensure_list()),
-    cv.ensure_list(_ENTRY_SCHEMA),
-)
+CONFIG_SCHEMA = cv.ensure_list(_ENTRY_SCHEMA)
 
 
 def _final_validate(configs: list[ConfigType]) -> None:

@@ -11,6 +11,13 @@
 
 namespace esphome::vl6180x {
 
+// The generated define sizes this registry in firmware builds. clang-tidy
+// compiles the component without generated configuration, so provide enough
+// entries for its two-instance host tests in that analysis-only build.
+#if defined(CLANG_TIDY) && !defined(VL6180X_INSTANCE_COUNT)
+static constexpr size_t VL6180X_INSTANCE_COUNT = 2;
+#endif
+
 namespace testing {
 class VL6180XComponentTest;
 }
