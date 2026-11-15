@@ -23,10 +23,13 @@ TEST(ProntoProtocol, DecodeText) {
 
 TEST(ProntoProtocol, WriteTextInPiecesMatchesDecode) {
   std::vector<int32_t> timings;
+  timings.reserve(120);
   for (int i = 0; i < 120; i++)
     timings.push_back(i % 2 == 0 ? 300 + i * 7 : -(200 + i * 11));
   RemoteReceiveData src(timings, 25, TOLERANCE_MODE_PERCENTAGE);
-  const std::string whole = ProntoProtocol().decode(src)->data;
+  auto decoded = ProntoProtocol().decode(src);
+  ASSERT_TRUE(decoded.has_value());
+  const std::string whole = decoded->data;
   // Piece sizes that split numbers at every position, like the dumper's log chunks
   for (size_t piece : {1u, 3u, 7u, 230u}) {
     std::string joined;

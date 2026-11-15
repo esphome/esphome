@@ -24,7 +24,7 @@ class ProntoProtocol : public RemoteProtocol<ProntoData> {
  public:
   /// Length of the Pronto text decode() builds from these timings.
   static size_t text_length(RawTimingsView data);
-  /// Writes characters [offset, offset + len) of that text, so it can be produced in pieces without a buffer.
+  /// Writes characters [offset, offset + len) of that text; offset + len must not exceed text_length(data).
   static void write_text(RawTimingsView data, size_t offset, char *out, size_t len);
 
   void encode(RemoteTransmitData *dst, const ProntoData &data);

@@ -73,7 +73,6 @@ static constexpr uint16_t DIGITS_IN_PRONTO_NUMBER = 4U;
 static constexpr uint16_t NUMBERS_IN_PREAMBLE = 4U;
 static constexpr uint16_t HEX_MASK = 0xFU;
 static constexpr uint32_t REFERENCE_FREQUENCY = 4145146UL;
-static constexpr uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
 static constexpr uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static constexpr uint16_t PRONTO_DEFAULT_GAP = 45000;
 static constexpr uint16_t MARK_EXCESS_MICROS = 20;
