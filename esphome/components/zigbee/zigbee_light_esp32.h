@@ -1,11 +1,12 @@
 #pragma once
 
-#include "zigbee_device_base_esp32.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 #ifdef USE_LIGHT
 
+#include "zigbee_device_base_esp32.h"
 #include "esphome/components/light/light_state.h"
 #include "esp_zigbee.h"
 #include "zigbee_esp32.h"
@@ -60,11 +61,13 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   void apply_level_(uint8_t level);
   void apply_x_(uint16_t x);
   void apply_y_(uint16_t y);
+  void apply_ct_(uint16_t ct);
   void apply_color_();
   ZigbeeOnValueForwarder<bool, ZigbeeLight> on_off_forwarder_;
   ZigbeeOnValueForwarder<uint8_t, ZigbeeLight> *level_forwarder_{nullptr};
   ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *x_forwarder_{nullptr};
   ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *y_forwarder_{nullptr};
+  ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *ct_forwarder_{nullptr};
   light::LightState *light_state_;
   light::LightCall next_call_ = light::LightCall(nullptr);
   bool synchronizing_from_zigbee_{false};

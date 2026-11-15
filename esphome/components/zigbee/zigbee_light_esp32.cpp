@@ -1,106 +1,17 @@
 #include "zigbee_light_esp32.h"
-#include "esphome/core/log.h"
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 #ifdef USE_LIGHT
+#include "esphome/core/log.h"
+#include "zigbee_converters.h"
 
 namespace esphome::zigbee {
 
 ESPHOME_LOG_TAG(TAG, "zigbee.light");
 
-// convertion between float 0.0 - 1.0 scale and zigbee uint8_t scale 1 - 254 with 255 = NaN.
-// theoretically 1 should map to the minimum brightness the light can still show, so should
-// set this to 0+eps.
-float level_to_brightness(uint8_t level) {
-  if (level == 255)
-    return std::numeric_limits<float>::quiet_NaN();
-  if (level == 0)
-    return std::numeric_limits<float>::min();
-  return static_cast<float>(level - 1) / 253;
-}
-
-uint8_t brightness_to_level(float brightness) {
-  if (std::isnan(brightness))
-    return 255;
-  return static_cast<uint8_t>(roundf(253.0f * brightness) + 1);  // 1 to 254
-}
-
-uint8_t get_color_mode(light::ColorMode mode) {
-  if (!(mode & light::ColorCapability::RGB) && (mode & light::ColorCapability::COLOR_TEMPERATURE)) {
-    return 0x02;
-  }
-  // default to XY
-  return 0x01;
-}
-
-// This follows Home Assistant's color_RGB_to_xy() conversion. ESPHome uses
-// normalized RGB channel values instead of Home Assistant's 0-255 values, and
-// Zigbee stores each resulting CIE xy component as a 16-bit value.
-bool rgb_to_xy(float red, float green, float blue, uint16_t &x, uint16_t &y) {
-  float r = std::clamp(red, 0.0f, 1.0f);
-  float g = std::clamp(green, 0.0f, 1.0f);
-  float b = std::clamp(blue, 0.0f, 1.0f);
-  if (r + g + b == 0.0f) {
-    x = 0;
-    y = 0;
-    return true;
-  }
-
-  auto gamma_decode = [](float channel) {
-    return channel > 0.04045f ? std::pow((channel + 0.055f) / 1.055f, 2.4f) : channel / 12.92f;
-  };
-  r = gamma_decode(r);
-  g = gamma_decode(g);
-  b = gamma_decode(b);
-
-  float cie_x = r * 0.664511f + g * 0.154324f + b * 0.162028f;
-  float cie_y = r * 0.283881f + g * 0.668433f + b * 0.047685f;
-  float cie_z = r * 0.000088f + g * 0.072310f + b * 0.986039f;
-  float sum = cie_x + cie_y + cie_z;
-
-  x = static_cast<uint16_t>(std::lroundf(std::clamp(cie_x / sum * 65536.0f, 0.0f, 65279.0f)));
-  y = static_cast<uint16_t>(std::lroundf(std::clamp(cie_y / sum * 65536.0f, 0.0f, 65279.0f)));
-  return true;
-}
-
-// This follows Home Assistant's color_xy_to_RGB() conversion. Zigbee provides
-// CIE xy as 16-bit values while ESPHome expects normalized RGB channels.
-bool xy_to_rgb(uint16_t zb_x, uint16_t zb_y, float &red, float &green, float &blue) {
-  float x = zb_x / 65536.0f;
-  float y = zb_y / 65536.0f;
-  if (y == 0.0f)
-    return false;
-
-  float cie_x = x / y;
-  float cie_z = (1.0f - x - y) / y;
-
-  float r = cie_x * 1.656492f - 0.354851f - cie_z * 0.255038f;
-  float g = -cie_x * 0.707196f + 1.655397f + cie_z * 0.036152f;
-  float b = cie_x * 0.051713f - 0.121364f + cie_z * 1.011530f;
-
-  auto gamma_encode = [](float channel) {
-    return channel <= 0.0031308f ? 12.92f * channel : 1.055f * std::pow(channel, 1.0f / 2.4f) - 0.055f;
-  };
-  r = std::max(0.0f, gamma_encode(r));
-  g = std::max(0.0f, gamma_encode(g));
-  b = std::max(0.0f, gamma_encode(b));
-
-  float maximum = std::max({r, g, b});
-  if (maximum > 1.0f) {
-    r /= maximum;
-    g /= maximum;
-    b /= maximum;
-  }
-
-  red = r;
-  green = g;
-  blue = b;
-  return true;
-}
-
 void ZigbeeLight::on_light_remote_values_update() {
   if (this->synchronizing_from_zigbee_)
-    return;  // TODO: Fix this race-condition
+    return;
   this->set_attr_internal();
 }
 
@@ -113,7 +24,9 @@ void ZigbeeLight::setup() {
   bool onoff = traits.supports_color_capability(light::ColorCapability::ON_OFF);
   bool level = traits.supports_color_capability(light::ColorCapability::BRIGHTNESS);
   bool color = traits.supports_color_capability(light::ColorCapability::RGB);
-  bool ct = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE);
+  bool ct = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
+            (traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
+             traits.get_max_mireds() > 0);
   if (!onoff) {
     ESP_LOGE(TAG, "Light must at least support ON_OFF capability to be added as Zigbee light");
     this->mark_failed();
@@ -176,13 +89,33 @@ void ZigbeeLight::setup() {
                                                                              &ZigbeeLight::apply_x_, false);
       this->y_forwarder_ = new ZigbeeOnValueForwarder<uint16_t, ZigbeeLight>(this, EZB_ZCL_ATTR_TYPE_UINT16,
                                                                              &ZigbeeLight::apply_y_, false);
-      uint16_t x = 0;
-      uint16_t y = 0;
-      rgb_to_xy(values.get_red(), values.get_green(), values.get_blue(), x, y);
+      rgb_to_xy(values.get_red(), values.get_green(), values.get_blue(), this->x_, this->y_);
       this->zb_->add_attr(this->x_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID, 0, x);
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID, 0, this->x_);
       this->zb_->add_attr(this->y_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID, 0, y);
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID, 0, this->y_);
+    }
+
+    if (ct) {
+      this->ct_forwarder_ = new ZigbeeOnValueForwarder<uint16_t, ZigbeeLight>(this, EZB_ZCL_ATTR_TYPE_UINT16,
+                                                                              &ZigbeeLight::apply_ct_, false);
+      uint16_t ct;
+      if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE)) {
+        ct = convert_color_temp(values.get_color_temperature());
+      } else {
+        ct = get_color_temp(values.get_warm_white(), values.get_cold_white(), traits.get_min_mireds(),
+                            traits.get_max_mireds());
+      }
+      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, ct);
+      uint16_t min_ct = convert_color_temp(traits.get_min_mireds());
+      uint16_t max_ct = convert_color_temp(traits.get_max_mireds());
+      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MIN_MIREDS_ID, 0,
+                          min_ct);
+      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MAX_MIREDS_ID, 0,
+                          max_ct);
     }
   }
 }
@@ -273,10 +206,26 @@ void ZigbeeLight::apply_color_() {
     float r, g, b;
     if (xy_to_rgb(this->x_, this->y_, r, g, b)) {
       this->next_call_.set_rgb(r, g, b);
+      this->next_call_.set_color_brightness(1);
+      this->next_call_.set_white_if_supported(0);
+      // this->next_call_.set_color_mode(light::ColorMode::RGB);
       ESP_LOGD(TAG, "set color: %f, %f, %f", r, g, b);
       this->schedule_call_();
     }
   }
+}
+
+void ZigbeeLight::apply_ct_(uint16_t ct) {
+  if (this->block_zigbee_) {
+    this->set_attr_requested_ = true;
+    return;
+  }
+  this->next_call_.set_color_temperature(convert_color_temp(ct));
+  this->next_call_.set_color_brightness_if_supported(0);
+  this->next_call_.set_white(1);
+  // this->next_call_.set_color_mode(light::ColorMode::COLOR_TEMPERATURE);
+  ESP_LOGD(TAG, "set color temp: %f", convert_color_temp(ct));
+  this->schedule_call_();
 }
 
 void ZigbeeLight::set_attr_internal() {
@@ -312,12 +261,16 @@ void ZigbeeLight::set_attr_internal() {
           if (ontime > 0) {
             ezb_err_t ret = ezb_zcl_on_off_off_cmd_req(&cmd_req);  // send off command
             esp_zigbee_lock_release();
-            ESP_LOGI(TAG, "Err %u", ret);
+            if (ret != EZB_ERR_NONE) {
+              ESP_LOGW(TAG, "Could not send on command: Error %u", ret);
+            }
             return;  // proceed in next loop iteration so the off command is processed.
           }
           ezb_err_t ret = ezb_zcl_on_off_on_cmd_req(&cmd_req);  // send on command
           esp_zigbee_lock_release();
-          ESP_LOGI(TAG, "Err %u", ret);
+          if (ret != EZB_ERR_NONE) {
+            ESP_LOGW(TAG, "Could not send off command: Error %u", ret);
+          }
           return;  // proceed in next loop iteration so the on command is processed.
         }
       }
@@ -339,7 +292,9 @@ void ZigbeeLight::set_attr_internal() {
           cmd_req.cmd_ctrl.dst_addr.u.short_addr = ezb_get_short_address();
           cmd_req.cmd_ctrl.dis_default_rsp = true;
           ezb_err_t ret = ezb_zcl_level_stop_cmd_req(&cmd_req);  // send stop command
-          ESP_LOGI(TAG, "Err %u", ret);
+          if (ret != EZB_ERR_NONE) {
+            ESP_LOGW(TAG, "Could not send stop command: Error %u", ret);
+          }
         }
       }
     }
@@ -360,7 +315,9 @@ void ZigbeeLight::set_attr_internal() {
           cmd_req.cmd_ctrl.dst_addr.u.short_addr = ezb_get_short_address();
           cmd_req.cmd_ctrl.dis_default_rsp = true;
           ezb_err_t ret = ezb_zcl_color_control_stop_move_step_cmd_req(&cmd_req);  // send stop command
-          ESP_LOGI(TAG, "Err %u", ret);
+          if (ret != EZB_ERR_NONE) {
+            ESP_LOGW(TAG, "Could not send stop_move_step command: Error %u", ret);
+          }
         }
       }
     }
@@ -374,16 +331,32 @@ void ZigbeeLight::set_attr_internal() {
       ESP_LOGI(TAG, "Set brightness %u", level);
     }
     if (this->x_forwarder_ && color_mode & light::ColorCapability::RGB) {
-      uint16_t x, y;
-      rgb_to_xy(values.get_red(), values.get_green(), values.get_blue(), x, y);
+      rgb_to_xy(values.get_red(), values.get_green(), values.get_blue(), this->x_, this->y_);
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                             EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID, EZB_ZCL_STD_MANUF_CODE, &x, false);
+                             EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID, EZB_ZCL_STD_MANUF_CODE, &this->x_, false);
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                             EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID, EZB_ZCL_STD_MANUF_CODE, &y, false);
+                             EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID, EZB_ZCL_STD_MANUF_CODE, &this->y_, false);
       uint8_t mode = 0x01;
       ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
                              EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_MODE_ID, EZB_ZCL_STD_MANUF_CODE, &mode, false);
       ESP_LOGI(TAG, "Set color");
+    }
+    if (this->ct_forwarder_ && (color_mode & light::ColorCapability::COLOR_TEMPERATURE ||
+                                color_mode & light::ColorCapability::COLD_WARM_WHITE)) {
+      uint16_t ct;
+      if (color_mode & light::ColorCapability::COLOR_TEMPERATURE) {
+        ct = convert_color_temp(values.get_color_temperature());
+      } else {
+        light::LightTraits traits = this->light_state_->get_traits();
+        ct = get_color_temp(values.get_warm_white(), values.get_cold_white(), traits.get_min_mireds(),
+                            traits.get_max_mireds());
+      }
+      this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, ct);
+      uint8_t mode = 0x02;
+      ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
+                             EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_MODE_ID, EZB_ZCL_STD_MANUF_CODE, &mode, false);
+      ESP_LOGI(TAG, "Set color temp: %u", ct);
     }
     // cleared before report_() so it can disable the loop
     // when the report has to wait for join
