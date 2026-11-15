@@ -462,7 +462,6 @@ bool RTSPSession::queue_next_packet_() {
     buf[pos++] = 0;  // MBZ
     buf[pos++] = 0;  // 8-bit precision
     put_be16(buf + pos, qtables_len);
-    pos += 2;
     this->iov_[0] = {buf, header_len};
     this->iov_[1] = {const_cast<uint8_t *>(this->jpeg_.qtable0), QTABLE_LEN};
     this->iov_[2] = {const_cast<uint8_t *>(this->jpeg_.qtable1), QTABLE_LEN};
