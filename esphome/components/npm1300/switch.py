@@ -15,6 +15,7 @@ from . import (
     CONF_THERMISTOR_RESISTANCE,
     NPM1300_CHILD_SCHEMA,
     OUTPUTS,
+    THERMISTOR_NONE,
 )
 
 DEPENDENCIES = ["npm1300"]
@@ -45,10 +46,10 @@ def _final_validate(config: ConfigType) -> None:
         return
     hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
     # Only the charger block turns off the NTC check, without which the charger never starts
-    if CONF_CHARGER not in hub and CONF_THERMISTOR_RESISTANCE not in hub:
+    if CONF_CHARGER not in hub and hub[CONF_THERMISTOR_RESISTANCE] == THERMISTOR_NONE:
         raise cv.Invalid(
-            f"The '{CONF_CHARGER}' switch needs a '{CONF_CHARGER}' block or "
-            f"'{CONF_THERMISTOR_RESISTANCE}' on the npm1300 component",
+            f"The '{CONF_CHARGER}' switch needs a '{CONF_CHARGER}' block when "
+            f"'{CONF_THERMISTOR_RESISTANCE}' is '{THERMISTOR_NONE}'",
             path=[CONF_CHARGER],
         )
 
