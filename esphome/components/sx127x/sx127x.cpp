@@ -87,7 +87,7 @@ void SX127x::setup() {
   // start spi
   this->spi_setup();
 
-  // configure rf; a failure here is reported through mark_failed() only
+  // configure rf
   const LogString *reason = this->configure_radio_();
   if (reason != nullptr) {
     this->mark_failed(reason);
@@ -99,7 +99,7 @@ void SX127x::setup() {
 }
 
 void SX127x::configure() {
-  // Before setup() the bus is not set up, and after a failed setup the radio stays unused
+  // Nothing to configure before setup() or after a failed setup
   if (!this->is_ready()) {
     return;
   }
@@ -123,12 +123,12 @@ void SX127x::configure() {
 
 void SX127x::fail_(const LogString *reason) {
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
-  // Nothing else would configure the radio again, so a node that only uses YAML would stay deaf
+  // Nothing else configures the radio again
   if (!this->reconfigure_pending_) {
     this->reconfigure_pending_ = true;
     this->set_interval(RECONFIGURE_INTERVAL_ID, RECONFIGURE_INTERVAL_MS, [this]() { this->configure(); });
   }
-  // Last: its log message can run user code that calls configure(), which cancels the retry
+  // Last: a log listener may call configure(), which cancels the retry
   this->status_set_warning(reason);
 }
 
@@ -332,8 +332,7 @@ size_t SX127x::get_max_packet_size() {
 SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
   SX127xError result = this->start_transmit_(nullptr, data, len, TRANSMIT_TIMEOUT_MS);
   if (result == SX127xError::SX127X_ERROR_NONE) {
-    // Wait for this send's own completion. A send without a listener cannot be cancelled,
-    // and no user code runs between these polls, so the send cannot be replaced.
+    // Without a listener this send cannot be cancelled or replaced
     result = SX127xError::SX127X_ERROR_NOT_READY;
     while (this->is_transmitting() && !this->poll_transmit_(millis(), result)) {
       App.feed_wdt();
@@ -377,7 +376,7 @@ SX127xError SX127x::start_transmit_(SX127xTransmitListener *listener, const uint
     this->fail_(set_mode_failure());
     return SX127xError::SX127X_ERROR_NOT_READY;
   }
-  // RX stops in standby. A packet that completed before that stays in the FIFO for loop().
+  // A packet received before standby stays in the FIFO for loop()
   if (this->packet_waiting_()) {
     this->state_ = RadioState::RADIO_STATE_HOLDING_RX;
     this->enable_loop();
@@ -411,7 +410,7 @@ bool SX127x::poll_transmit_(uint32_t now, SX127xError &result) {
   if (this->dio0_pin_->digital_read()) {
     result = SX127xError::SX127X_ERROR_NONE;
   } else if (static_cast<int32_t>(now - this->tx_.started_ms) >= static_cast<int32_t>(this->tx_.timeout_ms)) {
-    // A cached loop tick can precede the start; the signed difference also handles wraparound
+    // Signed, as the cached loop time can precede the start
     result = SX127xError::SX127X_ERROR_TIMEOUT;
   } else {
     return false;
@@ -428,7 +427,7 @@ bool SX127x::cancel_transmit_async(SX127xTransmitListener *listener) {
   return true;
 }
 
-// The only place a send ends. The state is committed before the listener runs, so it may start another send.
+// The only place a send ends; state is committed before the listener runs
 SX127xError SX127x::finish_transmit_(SX127xError result) {
   SX127xTransmitListener *listener = std::exchange(this->tx_.listener, nullptr);
   if (this->restore_()) {
@@ -443,8 +442,7 @@ SX127xError SX127x::finish_transmit_(SX127xError result) {
 }
 
 bool SX127x::restore_() {
-  // The chip stays in TX when asked for RX while a packet is still going out, so a send that
-  // is ended early goes through standby
+  // Via standby: the chip ignores RX while a packet is still going out
   if (!this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
     return false;
   }
@@ -506,7 +504,7 @@ void SX127x::loop() {
         this->disable_loop();
         return;
       }
-      // The interrupt on the rising edge of DIO0 wakes the loop again
+      // DIO0's interrupt wakes the loop
       if (this->dio0_pin_->is_internal()) {
         this->disable_loop();
       }
