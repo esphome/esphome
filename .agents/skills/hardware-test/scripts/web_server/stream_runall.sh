@@ -25,8 +25,9 @@ $R "$IP" wifidrop || FAILS=$((FAILS + 1))
 sleep 5; grep -a heap "$L" | tail -1 | cut -c1-120
 grep -a -E "rst:|ESPHome version|Guru|abort|Backtrace|wifi drop|connection closed \(" "$L" | cut -c1-140 | tail -15
 # the client cannot see the device close the old stream while Wi-Fi is off, so judge it from the device log
-WDC=$(awk '/wifi drop: disable/ {w = 1} /wifi drop: enable/ {w = 0}
-  w && /connection closed \(fd/ {n++} END {print n + 0}' "$L")
+# a close counts only when the matching enable line follows it; a disable with no enable leaves the count at 0
+WDC=$(awk '/wifi drop: disable/ {w = 1; c = 0} w && /connection closed \(fd/ {c++}
+  /wifi drop: enable/ && w {n += c; w = 0} END {print n + 0}' "$L")
 echo "stream closes during the Wi-Fi drop: $WDC"
 [ "$WDC" -gt 0 ] || { echo "FAIL: no stream closed during the Wi-Fi drop"; FAILS=$((FAILS + 1)); }
 kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended before the run did"; FAILS=$((FAILS + 1)); }
