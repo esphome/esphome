@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
 #include <array>
+#include <type_traits>
 
 namespace esphome::sntp {
 
@@ -17,11 +18,12 @@ namespace esphome::sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent final : public time::RealTimeClock {
  public:
-  // One argument per server: a braced std::array argument is copied from a constant, which is RAM on ESP8266
-  template<typename... Servers> explicit SNTPComponent(Servers... servers) : servers_{servers...} {
-    // One std::array, or one argument per server; fewer would leave null server names
-    static_assert(sizeof...(Servers) == 1 || sizeof...(Servers) == SNTP_SERVER_COUNT);
-  }
+  // One argument per server (codegen: a braced std::array is copied from a constant, RAM on ESP8266), or one std::array
+  template<typename... Servers>
+  requires(sizeof...(Servers) == SNTP_SERVER_COUNT ||
+           (sizeof...(Servers) == 1 && (std::is_same_v<Servers, std::array<const char *, SNTP_SERVER_COUNT>> && ...)))
+      SNTPComponent(Servers... servers)
+      : servers_{servers...} {}
 
   void setup() override;
   void dump_config() override;
