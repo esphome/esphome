@@ -198,7 +198,7 @@ bool NPM1300Component::configure_charger_(const NPM1300Config &config) {
   split_9bit(charger.discharge_limit, discharge);
   uint8_t disable = charger.recharge ? 0 : CHARGER_DISABLE_RECHARGE;
   // Without a thermistor the charger reports an NTC error and does not charge
-  if (config.thermistor == NPM1300_UNSET)
+  if (config.thermistor == 0 || config.thermistor == NPM1300_UNSET)
     disable |= CHARGER_DISABLE_NTC;
   const uint8_t enable = (CHARGER_DISABLE_RECHARGE | CHARGER_DISABLE_NTC) & ~disable;
   if (this->write_register16(REG_BCHG_ISET_MSB, current, sizeof(current)) != i2c::ERROR_OK ||
@@ -461,7 +461,9 @@ void NPM1300Component::dump_config() {
       ESP_LOGCONFIG(TAG, "    Enabled at boot: %s", YESNO(output.enabled != 0));
     }
   }
-  if (config.thermistor != NPM1300_UNSET) {
+  if (config.thermistor == 0) {
+    ESP_LOGCONFIG(TAG, "  Thermistor: none");
+  } else if (config.thermistor != NPM1300_UNSET) {
     ESP_LOGCONFIG(TAG, "  Thermistor B constant: %u", config.thermistor_beta);
   }
 #ifdef USE_SENSOR

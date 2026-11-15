@@ -76,8 +76,11 @@ OUTPUTS = NPM1300Output.options(
 
 # Written for a field the YAML leaves out
 NPM1300_UNSET = 0xFF
-# ADCNTCRSEL codes, by kiloohms
+# ADCNTCRSEL codes, by kiloohms (reset value: 10 kOhm)
+THERMISTOR_NONE = "none"
 THERMISTOR_RESISTANCES = {10: 1, 47: 2, 100: 3}
+# B25/50 of the thermistors the product specification lists for each resistance, by kiloohms
+THERMISTOR_BETAS = {10: 3380, 47: 4050, 100: 4250}
 LDO_MODES = {"load_switch": 0, "ldo": 1}
 TERMINATION_CURRENTS = {"10%": 0, "20%": 1}
 # BCHGVTRICKLESEL, by millivolts
@@ -135,6 +138,24 @@ def _stepped(
     return validate
 
 
+_THERMISTOR_RESISTANCE = _one_of_units(
+    cv.resistance, list(THERMISTOR_RESISTANCES), "kOhm", scale=0.001
+)
+
+
+def _thermistor_resistance(value: object) -> float | str:
+    if isinstance(value, str) and value.lower() == THERMISTOR_NONE:
+        return THERMISTOR_NONE
+    return _THERMISTOR_RESISTANCE(value)
+
+
+def thermistor_beta(config: ConfigType) -> int:
+    """The B constant of the hub's thermistor: the configured one, or the one listed for its resistance."""
+    if (beta := config.get(CONF_THERMISTOR_BETA)) is not None:
+        return beta
+    return THERMISTOR_BETAS[round(config[CONF_THERMISTOR_RESISTANCE] / 1000)]
+
+
 OUTPUT_VOLTAGE = _stepped(cv.voltage, 1000, 3300, 100, "V")
 VBUS_CURRENT_LIMIT = _stepped(cv.current, 100, 1500, 100, "A")
 
@@ -152,11 +173,14 @@ LDO_SCHEMA = BUCK_SCHEMA.extend(
 
 CHARGER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CHARGE_CURRENT): _stepped(cv.current, 32, 800, 2, "A"),
-        cv.Optional(CONF_TERMINATION_VOLTAGE, default="4.2V"): _one_of_units(
+        # Defaults are the reset values of the product specification
+        cv.Optional(CONF_CHARGE_CURRENT, default="32mA"): _stepped(
+            cv.current, 32, 800, 2, "A"
+        ),
+        cv.Optional(CONF_TERMINATION_VOLTAGE, default="3.6V"): _one_of_units(
             cv.voltage, TERMINATION_VOLTAGES, "V"
         ),
-        cv.Optional(CONF_WARM_TERMINATION_VOLTAGE): _one_of_units(
+        cv.Optional(CONF_WARM_TERMINATION_VOLTAGE, default="3.6V"): _one_of_units(
             cv.voltage, TERMINATION_VOLTAGES, "V"
         ),
         cv.Optional(CONF_TERMINATION_CURRENT, default="10%"): cv.enum(
@@ -169,7 +193,7 @@ CHARGER_SCHEMA = cv.Schema(
             cv.current, list(DISCHARGE_CURRENT_LIMITS), "A"
         ),
         cv.Optional(CONF_RECHARGE, default=True): cv.boolean,
-        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
     }
 )
 
@@ -179,12 +203,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(NPM1300Component),
             cv.Optional(CONF_VBUS_CURRENT_LIMIT): VBUS_CURRENT_LIMIT,
-            cv.Optional(CONF_THERMISTOR_RESISTANCE): _one_of_units(
-                cv.resistance, list(THERMISTOR_RESISTANCES), "kOhm", scale=0.001
-            ),
-            cv.Optional(CONF_THERMISTOR_BETA, default=3380): cv.int_range(
-                min=1, max=65535
-            ),
+            cv.Optional(
+                CONF_THERMISTOR_RESISTANCE, default="10kOhm"
+            ): _thermistor_resistance,
+            cv.Optional(CONF_THERMISTOR_BETA): cv.int_range(min=1, max=65535),
             cv.Optional(CONF_CHARGER): CHARGER_SCHEMA,
             cv.Optional(CONF_BUCK1): BUCK_SCHEMA,
             cv.Optional(CONF_BUCK2): BUCK_SCHEMA,
@@ -208,7 +230,7 @@ def _vbus_current_limit_code(amps: float) -> int:
 
 def _charger_config(config: ConfigType) -> cg.StructInitializer:
     termination = _termination_voltage_code(config[CONF_TERMINATION_VOLTAGE])
-    warm = config.get(CONF_WARM_TERMINATION_VOLTAGE)
+    warm = _termination_voltage_code(config[CONF_WARM_TERMINATION_VOLTAGE])
     return cg.StructInitializer(
         NPM1300ChargerConfig,
         ("current", _millis(config[CONF_CHARGE_CURRENT]) // 2),
@@ -217,10 +239,7 @@ def _charger_config(config: ConfigType) -> cg.StructInitializer:
             DISCHARGE_CURRENT_LIMITS[_millis(config[CONF_DISCHARGE_CURRENT_LIMIT])],
         ),
         ("termination_voltage", termination),
-        (
-            "warm_termination_voltage",
-            termination if warm is None else _termination_voltage_code(warm),
-        ),
+        ("warm_termination_voltage", warm),
         ("trickle_voltage", TRICKLE_VOLTAGES[_millis(config[CONF_TRICKLE_VOLTAGE])]),
         ("termination_current", TERMINATION_CURRENTS[config[CONF_TERMINATION_CURRENT]]),
         ("recharge", config[CONF_RECHARGE]),
@@ -246,7 +265,8 @@ def _output_config(config: ConfigType | None) -> cg.StructInitializer:
 
 def _config(config: ConfigType) -> cg.StructInitializer:
     charger = config.get(CONF_CHARGER)
-    resistance = config.get(CONF_THERMISTOR_RESISTANCE)
+    resistance = config[CONF_THERMISTOR_RESISTANCE]
+    no_thermistor = resistance == THERMISTOR_NONE
     return cg.StructInitializer(
         NPM1300Config,
         (
@@ -254,12 +274,10 @@ def _config(config: ConfigType) -> cg.StructInitializer:
             cg.ArrayInitializer(*(_output_config(config.get(key)) for key in OUTPUTS)),
         ),
         ("charger", None if charger is None else _charger_config(charger)),
-        ("thermistor_beta", config[CONF_THERMISTOR_BETA]),
+        ("thermistor_beta", 0 if no_thermistor else thermistor_beta(config)),
         (
             "thermistor",
-            NPM1300_UNSET
-            if resistance is None
-            else THERMISTOR_RESISTANCES[round(resistance / 1000)],
+            0 if no_thermistor else THERMISTOR_RESISTANCES[round(resistance / 1000)],
         ),
         ("charger_configured", charger is not None),
     )

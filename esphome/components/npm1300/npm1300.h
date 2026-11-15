@@ -54,7 +54,7 @@ struct NPM1300Config {
   NPM1300OutputConfig outputs[NPM1300_OUTPUT_COUNT];
   NPM1300ChargerConfig charger;  // only applied when charger_configured
   uint16_t thermistor_beta;
-  uint8_t thermistor;  // ADCNTCRSEL code: 1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm, or NPM1300_UNSET
+  uint8_t thermistor;  // ADCNTCRSEL code: 0 for none, 1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm
   bool charger_configured;
 };
 

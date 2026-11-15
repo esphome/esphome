@@ -21,7 +21,6 @@ from esphome.types import ConfigType
 from . import (
     ADC,
     CONF_NPM1300_ID,
-    CONF_THERMISTOR_BETA,
     CONF_THERMISTOR_RESISTANCE,
     CONF_VBUS_CURRENT_LIMIT,
     DATA_PUBLISHER,
@@ -30,7 +29,9 @@ from . import (
     DUMP_TAG,
     IBAT_SCALE,
     NPM1300_CHILD_SCHEMA,
+    THERMISTOR_NONE,
     npm1300_ns,
+    thermistor_beta,
 )
 
 DEPENDENCIES = ["npm1300"]
@@ -109,10 +110,10 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_BATTERY_TEMPERATURE not in config:
         return
     hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
-    if CONF_THERMISTOR_RESISTANCE not in hub:
+    if hub[CONF_THERMISTOR_RESISTANCE] == THERMISTOR_NONE:
         raise cv.Invalid(
-            f"'{CONF_BATTERY_TEMPERATURE}' needs '{CONF_THERMISTOR_RESISTANCE}' "
-            "set on the npm1300 component",
+            f"'{CONF_BATTERY_TEMPERATURE}' needs a thermistor; "
+            f"'{CONF_THERMISTOR_RESISTANCE}' is '{THERMISTOR_NONE}'",
             path=[CONF_BATTERY_TEMPERATURE],
         )
 
@@ -145,7 +146,7 @@ async def to_code(config: ConfigType) -> None:
     if (var := await sensors(CONF_BATTERY_TEMPERATURE, None)) is not None:
         hub_config = next(c for c in CORE.config[DOMAIN] if c[CONF_ID] == hub_id)
         state = npm1300_ns.ntc_temperature(
-            _adc(2, 5, 2), 1.0 / hub_config[CONF_THERMISTOR_BETA]
+            _adc(2, 5, 2), 1.0 / thermistor_beta(hub_config)
         )
         _add_adc_sensor(hub, var, state, "Battery Temperature")
     await sensors(CONF_VBUS_CURRENT_LIMIT, hub.set_vbus_current_limit_sensor)
