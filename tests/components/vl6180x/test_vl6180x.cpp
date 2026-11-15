@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "esphome/components/vl6180x/vl6180x.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 
 namespace esphome::vl6180x::testing {
 
@@ -50,6 +51,7 @@ class VL6180XComponentTest : public ::testing::Test {
     component.update();
   }
   static bool range_pending(const VL6180XComponent &component) { return component.range_pending_; }
+  static bool lux_pending(const VL6180XComponent &component) { return component.lux_pending_; }
   static void set_range_pending(VL6180XComponent &component, bool pending) { component.range_pending_ = pending; }
   static void set_state(VL6180XComponent &component, MeasurementState state) { component.state_ = state; }
   static void finish_lux_wait(VL6180XComponent &component) { component.do_als_wait_(); }
@@ -67,7 +69,12 @@ class VL6180XComponentTest : public ::testing::Test {
     component.do_recovery_wait_();
   }
   static bool initialized(const VL6180XComponent &component) { return component.initialized_; }
+  static bool retry_limit_reached(const VL6180XComponent &component) { return component.retry_limit_reached_; }
   static uint8_t retry_attempts(const VL6180XComponent &component) { return component.reinit_attempts_; }
+  static void set_max_retries(VL6180XComponent &component, uint8_t retries) { component.set_max_retries(retries); }
+  static void publish_range(VL6180XComponent &component, uint8_t raw, uint8_t error) {
+    component.publish_range_(raw, error);
+  }
 
  protected:
   void SetUp() override {
@@ -76,6 +83,7 @@ class VL6180XComponentTest : public ::testing::Test {
     this->component_.set_i2c_address(0x29);
     this->component_.set_lux_sensor(&this->lux_sensor_);
     this->component_.set_range_sensor(&this->range_sensor_);
+    this->component_.set_range_status_text_sensor(&this->range_status_sensor_);
   }
 
   void TearDown() override { VL6180XComponentTest::clear_instances(); }
@@ -84,6 +92,7 @@ class VL6180XComponentTest : public ::testing::Test {
   VL6180XComponent component_;
   sensor::Sensor lux_sensor_;
   sensor::Sensor range_sensor_;
+  text_sensor::TextSensor range_status_sensor_;
 };
 
 TEST_F(VL6180XComponentTest, GainAndIntegrationTimeNormalizeLux) {
@@ -124,6 +133,19 @@ TEST_F(VL6180XComponentTest, PendingRangeRunsBeforeAnotherAlsMeasurement) {
   EXPECT_EQ(VL6180XComponentTest::state(this->component_), MeasurementState::MEASUREMENT_STATE_RANGE_START);
   EXPECT_FALSE(VL6180XComponentTest::range_pending(this->component_));
   EXPECT_EQ(this->bus_.get8(0x038), 0);
+}
+
+TEST_F(VL6180XComponentTest, PreemptedAlsStartKeepsLuxRequestPending) {
+  VL6180XComponentTest::set_range_pending(this->component_, true);
+  VL6180XComponentTest::set_state(this->component_, MeasurementState::MEASUREMENT_STATE_ALS_START);
+  VL6180XComponentTest::begin_als_start(this->component_);
+  EXPECT_EQ(VL6180XComponentTest::state(this->component_), MeasurementState::MEASUREMENT_STATE_RANGE_START);
+  EXPECT_TRUE(VL6180XComponentTest::lux_pending(this->component_));
+}
+
+TEST_F(VL6180XComponentTest, EarlyConvergenceIsReportedAsNoTarget) {
+  VL6180XComponentTest::publish_range(this->component_, 0, 6);
+  EXPECT_EQ(this->range_status_sensor_.state, "No Target");
 }
 
 TEST_F(VL6180XComponentTest, QueuesRangeUpdateBehindActiveLuxMeasurement) {
@@ -171,6 +193,18 @@ TEST_F(VL6180XComponentTest, SecondarySensorRetriesAfterBootFailure) {
   VL6180XComponentTest::retry(secondary);
   ASSERT_TRUE(VL6180XComponentTest::initialized(secondary));
   EXPECT_EQ(VL6180XComponentTest::state(secondary), MeasurementState::MEASUREMENT_STATE_IDLE);
+}
+
+TEST_F(VL6180XComponentTest, PeriodicallyRetriesAfterConfiguredRetryLimit) {
+  this->component_.set_retry_interval(0);
+  VL6180XComponentTest::set_max_retries(this->component_, 1);
+  VL6180XComponentTest::retry(this->component_);
+  ASSERT_TRUE(VL6180XComponentTest::retry_limit_reached(this->component_));
+
+  this->bus_.set8(0x000, 0xB4);
+  VL6180XComponentTest::retry(this->component_);
+  EXPECT_FALSE(VL6180XComponentTest::retry_limit_reached(this->component_));
+  EXPECT_TRUE(VL6180XComponentTest::initialized(this->component_));
 }
 
 }  // namespace esphome::vl6180x::testing

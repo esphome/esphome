@@ -1,5 +1,5 @@
 packages:
-  i2c: !include i2c-multi-bus.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf-multi-bus.yaml
 
 vl6180x:
   - id: vl6180x_bus_a

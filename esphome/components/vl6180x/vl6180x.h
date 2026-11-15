@@ -163,13 +163,13 @@ class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
   // ── Health monitoring ────────────────────────────────────────────────────
   uint8_t failure_threshold_{3};       // consecutive failures before recovery
   uint32_t retry_interval_ms_{30000};  // ms between reinit attempts
-  uint8_t max_retries_{5};             // failed recovery attempts before stopping retries
+  uint8_t max_retries_{5};             // failed probes before normal measurements stop
   uint8_t consecutive_failures_{0};    // reset on any successful measurement
   uint8_t reinit_attempts_{0};         // attempts made in current recovery episode
   uint32_t reinit_due_at_{0};
   bool recovery_pause_{false};
   bool recovery_attempt_active_{false};
-  bool recovery_exhausted_{false};
+  bool retry_limit_reached_{false};  // periodic recovery probes continue after this limit
 
   // ── Static instance registry ─────────────────────────────────────────────
   static SlotList<VL6180XComponent *, VL6180X_INSTANCE_COUNT> &all_instances() {

@@ -1,6 +1,7 @@
 #include "vl6180x.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
 #include <algorithm>
@@ -58,7 +59,7 @@ static constexpr uint32_t RECOVERY_COORDINATION_DELAY_MS = 100;
 bool VL6180XComponent::write_reg8_(uint16_t reg, uint8_t value) {
   uint8_t buf[3] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF), value};
   i2c::ErrorCode err = this->write(buf, 3);
-  const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
+  const bool ok = this->status_comm_check(err == i2c::ERROR_OK);
   if (!ok) {
     ESP_LOGW(TAG, "[%s] write_reg8 0x%04X=0x%02X err=%d", this->name_str_, reg, value, (int) err);
   }
@@ -68,7 +69,7 @@ bool VL6180XComponent::write_reg8_(uint16_t reg, uint8_t value) {
 bool VL6180XComponent::write_reg16_(uint16_t reg, uint16_t value) {
   uint8_t buf[4] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF), (uint8_t) (value >> 8), (uint8_t) (value & 0xFF)};
   i2c::ErrorCode err = this->write(buf, 4);
-  const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
+  const bool ok = this->status_comm_check(err == i2c::ERROR_OK);
   if (!ok) {
     ESP_LOGW(TAG, "[%s] write_reg16 0x%04X=0x%04X err=%d", this->name_str_, reg, value, (int) err);
   }
@@ -78,7 +79,7 @@ bool VL6180XComponent::write_reg16_(uint16_t reg, uint16_t value) {
 bool VL6180XComponent::read_reg8_(uint16_t reg, uint8_t &value) {
   uint8_t addr[2] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF)};
   i2c::ErrorCode err = this->write_read(addr, 2, &value, 1);
-  const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
+  const bool ok = this->status_comm_check(err == i2c::ERROR_OK);
   if (!ok) {
     ESP_LOGW(TAG, "[%s] read_reg8 0x%04X err=%d", this->name_str_, reg, (int) err);
   }
@@ -89,7 +90,7 @@ bool VL6180XComponent::read_reg16_(uint16_t reg, uint16_t &value) {
   uint8_t addr[2] = {(uint8_t) (reg >> 8), (uint8_t) (reg & 0xFF)};
   uint8_t data[2];
   i2c::ErrorCode err = this->write_read(addr, 2, data, 2);
-  const bool ok = this->status_comm_result(err == i2c::ERROR_OK);
+  const bool ok = this->status_comm_check(err == i2c::ERROR_OK);
   if (!ok) {
     ESP_LOGW(TAG, "[%s] read_reg16 0x%04X err=%d", this->name_str_, reg, (int) err);
     return false;
@@ -351,6 +352,7 @@ void VL6180XComponent::run_init_sequence(i2c::I2CBus *bus) {
 
       inst->initialized_ = true;
       inst->consecutive_failures_ = 0;
+      inst->status_clear_warning();
       // Leave state_ as IDLE — normal measurement will resume on next update()/lux timer
       ESP_LOGI(TAG, "[%s] Ready at 0x%02X", inst->name_str_, target_addr);
     }
@@ -363,6 +365,7 @@ void VL6180XComponent::run_init_sequence(i2c::I2CBus *bus) {
 
 void VL6180XComponent::record_failure_() {
   this->consecutive_failures_++;
+  this->status_set_warning();
   if (this->consecutive_failures_ >= this->failure_threshold_ &&
       this->state_ != MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT) {
     ESP_LOGW(TAG, "[%s] %d consecutive failures — entering recovery", this->name_str_, this->consecutive_failures_);
@@ -372,17 +375,18 @@ void VL6180XComponent::record_failure_() {
     this->state_ = MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT;
     // Do not call publish_range_error_() here: it calls record_failure_(),
     // which would recurse until the ESP32 loop task overflows its stack.
-    if (this->range_sensor_ != nullptr)
-      this->range_sensor_->publish_state(NAN);
-    if (this->range_status_text_sensor_ != nullptr)
-      this->range_status_text_sensor_->publish_state(RangeStatusStrings::get_progmem_str(
-          static_cast<uint8_t>(RangeStatus::RANGE_STATUS_RECOVERING), RangeStatusStrings::LAST_INDEX));
-    if (this->lux_sensor_ != nullptr)
-      this->lux_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->range_sensor_, NAN);
+    PUBLISH_STATE(this->range_status_text_sensor_,
+                  RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(RangeStatus::RANGE_STATUS_RECOVERING),
+                                                      RangeStatusStrings::LAST_INDEX));
+    PUBLISH_STATE(this->lux_sensor_, NAN);
   }
 }
 
-void VL6180XComponent::record_success_() { this->consecutive_failures_ = 0; }
+void VL6180XComponent::record_success_() {
+  this->consecutive_failures_ = 0;
+  this->status_clear_warning();
+}
 
 void VL6180XComponent::fail_range_measurement_(RangeStatus status) {
   this->publish_range_error_(status);
@@ -391,8 +395,7 @@ void VL6180XComponent::fail_range_measurement_(RangeStatus status) {
 }
 
 void VL6180XComponent::fail_lux_measurement_() {
-  if (this->lux_sensor_ != nullptr)
-    this->lux_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->lux_sensor_, NAN);
   this->record_failure_();
   if (this->state_ != MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT)
     this->state_ = MeasurementState::MEASUREMENT_STATE_IDLE;
@@ -413,19 +416,17 @@ void VL6180XComponent::publish_range_(uint8_t raw, uint8_t error_code) {
     RangeStatus status = RangeStatus::RANGE_STATUS_SENSOR_ERROR;
     if (error_code >= 1 && error_code <= 5)
       status = RangeStatus::RANGE_STATUS_HARDWARE_FAULT;
-    else if (error_code == 6 || error_code == 12 || error_code == 14)
+    else if (error_code == 12 || error_code == 14)
       status = RangeStatus::RANGE_STATUS_TARGET_TOO_CLOSE;
-    else if (error_code == 7 || error_code == 8 || error_code == 11)
+    else if (error_code == 6 || error_code == 7 || error_code == 8 || error_code == 11)
       status = RangeStatus::RANGE_STATUS_NO_TARGET;
     else if (error_code == 13 || error_code == 15)
       status = RangeStatus::RANGE_STATUS_OUT_OF_RANGE;
     ESP_LOGW(TAG, "[%s] Range error %d: %s (raw=%d)", this->name_str_, error_code,
              LOG_STR_ARG(RangeErrorStrings::get_log_str(error_index, RangeErrorStrings::LAST_INDEX)), raw);
-    if (this->range_sensor_ != nullptr)
-      this->range_sensor_->publish_state(NAN);
-    if (this->range_status_text_sensor_ != nullptr)
-      this->range_status_text_sensor_->publish_state(
-          RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(status), RangeStatusStrings::LAST_INDEX));
+    PUBLISH_STATE(this->range_sensor_, NAN);
+    PUBLISH_STATE(this->range_status_text_sensor_,
+                  RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(status), RangeStatusStrings::LAST_INDEX));
 
     if (is_sensor_failure) {
       this->record_failure_();
@@ -438,21 +439,18 @@ void VL6180XComponent::publish_range_(uint8_t raw, uint8_t error_code) {
   const float distance_mm = static_cast<float>(raw) * this->scaling_;
   ESP_LOGD(TAG, "[%s] Range: %.0f mm (raw=%u, scaler=%ux)", this->name_str_, distance_mm, static_cast<unsigned>(raw),
            static_cast<unsigned>(this->scaling_));
-  if (this->range_sensor_ != nullptr)
-    this->range_sensor_->publish_state(distance_mm);
-  if (this->range_status_text_sensor_ != nullptr)
-    this->range_status_text_sensor_->publish_state(RangeStatusStrings::get_progmem_str(
-        static_cast<uint8_t>(RangeStatus::RANGE_STATUS_OK), RangeStatusStrings::LAST_INDEX));
+  PUBLISH_STATE(this->range_sensor_, distance_mm);
+  PUBLISH_STATE(this->range_status_text_sensor_,
+                RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(RangeStatus::RANGE_STATUS_OK),
+                                                    RangeStatusStrings::LAST_INDEX));
   this->record_success_();
 }
 
 void VL6180XComponent::publish_range_error_(RangeStatus status) {
   // Called for I2C-level errors and timeouts — always a sensor failure
-  if (this->range_sensor_ != nullptr)
-    this->range_sensor_->publish_state(NAN);
-  if (this->range_status_text_sensor_ != nullptr)
-    this->range_status_text_sensor_->publish_state(
-        RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(status), RangeStatusStrings::LAST_INDEX));
+  PUBLISH_STATE(this->range_sensor_, NAN);
+  PUBLISH_STATE(this->range_status_text_sensor_,
+                RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(status), RangeStatusStrings::LAST_INDEX));
   this->record_failure_();
 }
 
@@ -460,8 +458,7 @@ void VL6180XComponent::publish_lux_(uint16_t raw) {
   const float lux = 0.32f * static_cast<float>(raw) * 100.0f /
                     (this->als_gain_factor_ * static_cast<float>(this->als_integration_time_ms_));
   ESP_LOGD(TAG, "[%s] Lux raw=%u → %.2f lx", this->name_str_, static_cast<unsigned>(raw), lux);
-  if (this->lux_sensor_ != nullptr)
-    this->lux_sensor_->publish_state(lux);
+  PUBLISH_STATE(this->lux_sensor_, lux);
   this->record_success_();
 }
 
@@ -599,6 +596,7 @@ void VL6180XComponent::do_als_start_() {
   }
 
   if (this->range_pending_) {
+    this->lux_pending_ = true;
     this->range_pending_ = false;
     this->state_deadline_ = this->now_() + RANGE_READY_TIMEOUT_MS;
     this->state_ = MeasurementState::MEASUREMENT_STATE_RANGE_START;
@@ -822,6 +820,8 @@ bool VL6180XComponent::recover_sensor_() {
   if (initialized) {
     this->consecutive_failures_ = 0;
     this->reinit_attempts_ = 0;
+    this->retry_limit_reached_ = false;
+    this->status_clear_warning();
     this->lux_pending_ = false;
     this->range_pending_ = false;
     this->state_ = MeasurementState::MEASUREMENT_STATE_IDLE;
@@ -831,6 +831,8 @@ bool VL6180XComponent::recover_sensor_() {
     default_address_sensor->enable_pin_->digital_write(true);
     delay(10);
     default_address_sensor->initialized_ = default_address_sensor->init_sensor_();
+    if (default_address_sensor->initialized_)
+      default_address_sensor->status_clear_warning();
     default_address_sensor->state_ = default_address_sensor->initialized_
                                          ? MeasurementState::MEASUREMENT_STATE_IDLE
                                          : MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT;
@@ -845,7 +847,7 @@ bool VL6180XComponent::recover_sensor_() {
 }
 
 void VL6180XComponent::do_recovery_wait_() {
-  if (this->recovery_exhausted_ || this->recovery_pause_)
+  if (this->recovery_pause_)
     return;
   if (!deadline_reached(this->now_(), this->reinit_due_at_))
     return;
@@ -854,8 +856,11 @@ void VL6180XComponent::do_recovery_wait_() {
     this->reinit_due_at_ = this->now_() + RECOVERY_COORDINATION_DELAY_MS;
     return;
   }
-  if (this->recovery_group_has_active_measurement_())
+  if (this->recovery_group_has_active_measurement_()) {
+    this->end_recovery_attempt_();
+    this->reinit_due_at_ = this->now_() + RECOVERY_COORDINATION_DELAY_MS;
     return;
+  }
 
   const bool recovered = this->recover_sensor_();
   this->end_recovery_attempt_();
@@ -866,21 +871,15 @@ void VL6180XComponent::do_recovery_wait_() {
   if (this->reinit_attempts_ < UINT8_MAX)
     this->reinit_attempts_++;
 
-  if (this->reinit_attempts_ >= this->max_retries_) {
-    this->recovery_exhausted_ = true;
-    this->state_ = MeasurementState::MEASUREMENT_STATE_IDLE;
-    this->range_pending_ = false;
-    this->lux_pending_ = false;
-    if (this->range_sensor_ != nullptr)
-      this->range_sensor_->publish_state(NAN);
-    if (this->range_status_text_sensor_ != nullptr)
-      this->range_status_text_sensor_->publish_state(RangeStatusStrings::get_progmem_str(
-          static_cast<uint8_t>(RangeStatus::RANGE_STATUS_FAILED), RangeStatusStrings::LAST_INDEX));
-    if (this->lux_sensor_ != nullptr)
-      this->lux_sensor_->publish_state(NAN);
-    ESP_LOGE(TAG, "[%s] Recovery stopped after %u failed attempts; check sensor, wiring, and power", this->name_str_,
+  if (!this->retry_limit_reached_ && this->reinit_attempts_ >= this->max_retries_) {
+    this->retry_limit_reached_ = true;
+    PUBLISH_STATE(this->range_sensor_, NAN);
+    PUBLISH_STATE(this->range_status_text_sensor_,
+                  RangeStatusStrings::get_progmem_str(static_cast<uint8_t>(RangeStatus::RANGE_STATUS_FAILED),
+                                                      RangeStatusStrings::LAST_INDEX));
+    PUBLISH_STATE(this->lux_sensor_, NAN);
+    ESP_LOGE(TAG, "[%s] Recovery failed %u times; continuing periodic retries", this->name_str_,
              static_cast<unsigned>(this->reinit_attempts_));
-    return;
   }
 
   this->reinit_due_at_ = this->now_() + this->retry_interval_ms_;
@@ -894,7 +893,7 @@ void VL6180XComponent::do_recovery_wait_() {
 // ---------------------------------------------------------------------------
 
 void VL6180XComponent::lux_start_() {
-  if (this->is_failed() || this->recovery_exhausted_ || this->recovery_pause_)
+  if (this->is_failed() || this->retry_limit_reached_ || this->recovery_pause_)
     return;
   if (this->lux_sensor_ == nullptr)
     return;
@@ -968,7 +967,7 @@ void VL6180XComponent::setup() {
 // ---------------------------------------------------------------------------
 
 void VL6180XComponent::loop() {
-  if (this->is_failed() || this->recovery_exhausted_)
+  if (this->is_failed())
     return;
   switch (this->state_) {
     case MeasurementState::MEASUREMENT_STATE_IDLE:
@@ -996,7 +995,7 @@ void VL6180XComponent::loop() {
 // ---------------------------------------------------------------------------
 
 void VL6180XComponent::update() {
-  if (this->is_failed() || this->recovery_exhausted_ || this->recovery_pause_)
+  if (this->is_failed() || this->retry_limit_reached_ || this->recovery_pause_)
     return;
   if (this->range_sensor_ == nullptr && this->range_status_text_sensor_ == nullptr)
     return;
@@ -1036,8 +1035,8 @@ void VL6180XComponent::dump_config() {
                 static_cast<unsigned long>(this->retry_interval_ms_ / 1000U),
                 static_cast<unsigned>(this->max_retries_));
   LOG_UPDATE_INTERVAL(this);
-  if (this->recovery_exhausted_) {
-    ESP_LOGE(TAG, "  Recovery stopped after %u failed attempts", static_cast<unsigned>(this->reinit_attempts_));
+  if (this->retry_limit_reached_) {
+    ESP_LOGE(TAG, "  Recovery retry limit reached; periodic retries continue");
   } else if (this->is_failed()) {
     ESP_LOGE(TAG, "  Communication with VL6180X failed during setup");
   }
