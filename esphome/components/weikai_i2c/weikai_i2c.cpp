@@ -58,15 +58,23 @@ uint8_t WeikaiRegisterI2C::read_reg() const {
   comp_i2c->set_i2c_address(address);
   // A register is read in two transfers: the register address is written and closed with
   // a STOP, then the value is read. A read after a repeated start is not always
-  // acknowledged. An occasional read still fails, so it is tried a second time.
-  auto error = comp_i2c->write(&reg, 1);
-  if (error == i2c::NO_ERROR)
-    error = comp_i2c->read(&value, 1);
-  if (error != i2c::NO_ERROR) {
-    delayMicroseconds(100);
+  // acknowledged. An occasional transfer is still not acknowledged, so it is tried a
+  // second time. The retry is limited to the cases where no data byte has left the chip
+  // (the register address write failed, or the read was not acknowledged), so that a
+  // clear-on-read status register such as LSR or SIFR is never read twice.
+  i2c::ErrorCode error;
+  for (uint8_t attempt = 0;; attempt++) {
+    bool data_phase = false;
     error = comp_i2c->write(&reg, 1);
-    if (error == i2c::NO_ERROR)
+    if (error == i2c::NO_ERROR) {
       error = comp_i2c->read(&value, 1);
+      data_phase = error != i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
+    if (error == i2c::NO_ERROR || data_phase || attempt == 1)
+      break;
+    ESP_LOGV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, retrying", address,
+             LOG_STR_ARG(reg_to_str(this->register_, comp_i2c->page1())), this->channel_, (int) error);
+    delayMicroseconds(100);
   }
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
