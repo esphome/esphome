@@ -27,13 +27,13 @@ class CST3240Test : public ::testing::Test {
     this->bus_.writes.clear();
   }
 
-  void update() {
+  void update_() {
     this->hub_.skip_update_ = false;
     this->hub_.is_touched_ = false;
     this->hub_.update_touches();
   }
 
-  bool cleared() const {
+  bool cleared_() const {
     return this->bus_.writes.size() == 1 && this->bus_.writes[0].reg == cstxxx::REG_TOUCH_DATA &&
            this->bus_.writes[0].size == 2u + CST3240_REPORT_SIZE;
   }
@@ -52,22 +52,22 @@ TEST_F(CST3240Test, SetupReadsTheChipAndResolutionWithoutAFirmwareCheck) {
 
 TEST_F(CST3240Test, ReportWithoutTheSyncByteIsSkippedAndCleared) {
   this->bus_.set_report(1, 0x55);
-  this->update();
+  this->update_();
   EXPECT_TRUE(this->hub_.skip_update_);
   EXPECT_FALSE(this->hub_.is_touched_);
-  EXPECT_TRUE(this->cleared());
+  EXPECT_TRUE(this->cleared_());
 }
 
 TEST_F(CST3240Test, IdleBlockIsNotRewritten) {
   this->bus_.set_report(0, 0);
-  this->update();
+  this->update_();
   EXPECT_TRUE(this->hub_.skip_update_);
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
 TEST_F(CST3240Test, ReleasedRecordIsNotATouch) {
   this->bus_.set_report(1, cstxxx::SYNC_BYTE, 0);
-  this->update();
+  this->update_();
   EXPECT_FALSE(this->hub_.skip_update_);
   EXPECT_FALSE(this->hub_.is_touched_);
   EXPECT_TRUE(this->hub_.get_touches().empty());
@@ -75,16 +75,16 @@ TEST_F(CST3240Test, ReleasedRecordIsNotATouch) {
 
 TEST_F(CST3240Test, PollingClearsTheReport) {
   this->bus_.set_report(1);
-  this->update();
+  this->update_();
   EXPECT_TRUE(this->hub_.is_touched_);
-  EXPECT_TRUE(this->cleared());
+  EXPECT_TRUE(this->cleared_());
 }
 
 TEST_F(CST3240Test, InterruptAcknowledgesTheReport) {
   InternalGPIOPin pin;
   this->hub_.set_interrupt_pin(&pin);
   this->bus_.set_report(1);
-  this->update();
+  this->update_();
   ASSERT_EQ(this->bus_.writes.size(), 2u);
   EXPECT_EQ(this->bus_.writes[0].reg, cstxxx::REG_FINGER_COUNT);
   EXPECT_EQ(this->bus_.writes[1].reg, cstxxx::REG_TOUCH_DATA);
@@ -93,10 +93,10 @@ TEST_F(CST3240Test, InterruptAcknowledgesTheReport) {
 
 TEST_F(CST3240Test, ReportsUpToFiveFingers) {
   this->bus_.set_report(5);
-  this->update();
+  this->update_();
   EXPECT_EQ(this->hub_.get_touches().size(), 5u);
   this->bus_.set_report(6);
-  this->update();
+  this->update_();
   EXPECT_FALSE(this->hub_.is_touched_);
 }
 
