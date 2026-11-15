@@ -5,6 +5,8 @@
 # return 200, so a broken or unloaded run is not read as a comparison.
 # env: TREE or PY, API_KEY (unset for a plaintext API)
 D=${0:A:h}; N=$1; H=$2; S=$3; PY=${PY:-${TREE:?set TREE or PY}/venv/bin/python}; cd $D
+# apilog.py appends, so start from an empty log or an earlier run's windows count for this one
+: > $D/$N-lt-api.log
 $PY -I ../rp2_web_ble/apilog.py $H $S $D/$N-lt-api.log > /dev/null & AP=$!
 ( end=$(( $(date +%s) + S ))
   while (( $(date +%s) < end )); do curl -s -o /dev/null -m 5 -w '%{http_code}\n' http://$H/; sleep 2; done
