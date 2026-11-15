@@ -50,7 +50,8 @@ class RadioLinkBase : public PacketInterface {
  * loop() watches the radio and ends the period as soon as the radio is free, so a later reception starts a new one.
  *
  * Radio provides is_receiving(), register_listener(Listener *) and transmit_packet(const uint8_t *, size_t), which
- * returns Error::NONE on success. Listener declares on_packet(packet, rssi, snr). MaxPacketSize is the radio's limit.
+ * returns an Error whose value 0 means success. Listener declares on_packet(packet, rssi, snr). MaxPacketSize is the
+ * radio's limit.
  */
 template<typename Radio, typename Listener, typename Error, size_t MaxPacketSize>
 class RadioLink : public RadioLinkBase, public Listener {
@@ -82,11 +83,11 @@ class RadioLink : public RadioLinkBase, public Listener {
       return false;
     if (data.is_contiguous()) {
       auto span = data.as_span();
-      return this->sent_(this->radio_->transmit_packet(span.data(), span.size()) == Error::NONE, busy);
+      return this->sent_(this->radio_->transmit_packet(span.data(), span.size()) == Error{}, busy);
     }
     uint8_t buf[MaxPacketSize];
     data.copy_to(buf, size);
-    return this->sent_(this->radio_->transmit_packet(buf, size) == Error::NONE, busy);
+    return this->sent_(this->radio_->transmit_packet(buf, size) == Error{}, busy);
   }
 
   void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override {
