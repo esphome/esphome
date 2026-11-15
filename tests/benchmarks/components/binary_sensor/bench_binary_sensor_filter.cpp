@@ -3,6 +3,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/binary_sensor/filter.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::binary_sensor::benchmarks {
 
@@ -11,12 +12,13 @@ static constexpr int kInnerIterations = 2000;
 static constexpr uint32_t DELAY_MS = 3600000;
 
 // Alternate the input with one scheduler pass per publish, like a bouncing GPIO polled each loop
-static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool run_scheduler = true) {
+static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool run_scheduler = true,
+                           bool bounce = true) {
   sensor.publish_initial_state(false);
   const uint32_t now = millis();
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      sensor.publish_state(i % 2 == 0);
+      sensor.publish_state(bounce && i % 2 == 0);
       if (run_scheduler)
         App.scheduler.call(now);
     }
@@ -28,10 +30,11 @@ static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool r
   App.scheduler.call(now);
 }
 
-// Benchmark: no filter, one scheduler pass per publish; subtract it from the delayed filters below
+// Benchmark: no filter and an unchanged input, so only the publish early return and one scheduler pass;
+// the delayed filters below never change the state either, so subtract it from them
 static void BinarySensorFilter_SchedulerBaseline(benchmark::State &state) {
   BinarySensor sensor;
-  publish_bounce(state, sensor);
+  publish_bounce(state, sensor, true, false);
 }
 BENCHMARK(BinarySensorFilter_SchedulerBaseline);
 
