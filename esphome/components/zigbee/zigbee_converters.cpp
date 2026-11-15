@@ -1,5 +1,6 @@
 #include "zigbee_converters.h"
 #ifdef USE_ZIGBEE
+#ifdef USE_LIGHT
 
 namespace esphome::zigbee {
 // convertion between float 0.0 - 1.0 scale and Zigbee uint8_t scale 1 - 254 with 255 = NaN.
@@ -112,4 +113,5 @@ bool xy_to_rgb(uint16_t zb_x, uint16_t zb_y, float &red, float &green, float &bl
 }
 
 }  // namespace esphome::zigbee
+#endif
 #endif

@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_ZIGBEE
+#ifdef USE_LIGHT
 #include "esphome/components/light/color_mode.h"
 
 namespace esphome::zigbee {
@@ -32,4 +33,5 @@ bool rgb_to_xy(float red, float green, float blue, uint16_t &x, uint16_t &y);
 bool xy_to_rgb(uint16_t zb_x, uint16_t zb_y, float &red, float &green, float &blue);
 
 }  // namespace esphome::zigbee
+#endif
 #endif
