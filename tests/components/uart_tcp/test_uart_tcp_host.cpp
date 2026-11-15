@@ -190,16 +190,18 @@ TEST_F(UartTcpClient, PacesTheFirstWriteToOneLoopInterval) {
 }
 
 TEST_F(UartTcpClient, CountsFromWhenABlockingWriteReturned) {
-  this->uart_.set_baud_rate(1200);
-  this->uart_.write_ms = 20;
+  App.set_loop_interval(100);
+  this->uart_.set_baud_rate(300);
+  this->uart_.write_ms = 100;
   this->connect();
   this->send(100);
   this->pass();
   this->pass();
-  // 1200 baud is 120 bytes/s: the first write gets one loop interval and one byte, 2.92 bytes rounded down. The next
-  // pass comes right after the write returned, so the line sent less than one whole byte (8.3 ms) since. Counting the
-  // 20 ms it blocked would give 2.
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{2, 1}));
+  // 300 baud is 30 bytes/s, 33.3 ms per byte: the first write gets one 100-ms loop interval and one byte, 4 bytes. The
+  // stamp keeps less than one byte (33.3 ms) and the next pass comes up to 5 ms after the write returned, so it sees
+  // under 38.3 ms and gets 1 byte; only a pass more than 28 ms late reaches 2 bytes (66.7 ms). Counting the 100 ms the
+  // write blocked would give 3 or more.
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{4, 1}));
 }
 
 TEST_F(UartTcpClient, FullUartHoldsSocketBytesUntilThereIsRoom) {
