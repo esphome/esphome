@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
+#include <iterator>
 #include <limits>
 
 namespace esphome::sensor::benchmarks {
@@ -108,8 +109,8 @@ static void SensorFilter_Delta(benchmark::State &state) {
 BENCHMARK(SensorFilter_Delta);
 
 // Fixed zig-zag so the median window is rarely already sorted
-static constexpr float MEDIAN_INPUT[16] = {3.0f, 9.0f, 1.0f, 7.0f, 4.0f, 8.0f, 2.0f, 6.0f,
-                                           5.0f, 0.0f, 9.5f, 1.5f, 7.5f, 3.5f, 8.5f, 2.5f};
+static constexpr float MEDIAN_INPUT[] = {3.0f, 9.0f, 1.0f, 7.0f, 4.0f, 8.0f, 2.0f, 6.0f,
+                                         5.0f, 0.0f, 9.5f, 1.5f, 7.5f, 3.5f, 8.5f, 2.5f};
 
 // Benchmark: median of 5, computed on every publish
 static void SensorFilter_Median(benchmark::State &state) {
@@ -117,14 +118,14 @@ static void SensorFilter_Median(benchmark::State &state) {
   sensor.add_filter(new MedianFilter(5, 1, 1));
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++)
-      sensor.publish_state(MEDIAN_INPUT[i % 16]);
+      sensor.publish_state(MEDIAN_INPUT[i % std::size(MEDIAN_INPUT)]);
     benchmark::DoNotOptimize(sensor.state);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(SensorFilter_Median);
 
-// Cancels the filter's interval and runs the scheduler once so the item is gone before the filter
+// Cancel the interval so it never fires into the sensor after it leaves scope
 static void publish_ramp_then_cancel(benchmark::State &state, Sensor &sensor, Filter *filter) {
   publish_ramp(state, sensor);
   App.scheduler.cancel_interval(filter);
@@ -172,7 +173,7 @@ static void SensorFilter_Round(benchmark::State &state) {
 }
 BENCHMARK(SensorFilter_Round);
 
-// Benchmark: or of throttle 60s and delta 0.5, the common "report on change or every minute", one publish per tick
+// Benchmark: throttle 60s or delta 0.5 ("on change or every minute"), one publish per tick
 static void SensorFilter_Or(benchmark::State &state) {
   Sensor sensor;
   sensor.add_filter(new OrFilter<2>(new ThrottleFilter(60000), new DeltaFilter(0.5f, 0.0f, NO_MAX_DELTA, 0.0f)));

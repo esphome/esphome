@@ -12,8 +12,7 @@ static constexpr int kInnerIterations = 2000;
 static constexpr uint32_t DELAY_MS = 3600000;
 
 // Alternate the input with one scheduler pass per publish, like a bouncing GPIO polled each loop
-static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool run_scheduler = true,
-                           bool bounce = true) {
+static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool run_scheduler, bool bounce) {
   sensor.publish_initial_state(false);
   const uint32_t now = millis();
   for (auto _ : state) {
@@ -30,11 +29,10 @@ static void publish_bounce(benchmark::State &state, BinarySensor &sensor, bool r
   App.scheduler.call(now);
 }
 
-// Benchmark: no filter and an unchanged input, so only the publish early return and one scheduler pass;
-// the delayed filters below never change the state either, so subtract it from them
+// Benchmark: no filter, unchanged input; subtract from the delayed filters that hold their output
 static void BinarySensorFilter_SchedulerBaseline(benchmark::State &state) {
   BinarySensor sensor;
-  publish_bounce(state, sensor, true, false);
+  publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/false);
 }
 BENCHMARK(BinarySensorFilter_SchedulerBaseline);
 
@@ -43,7 +41,7 @@ static void BinarySensorFilter_Invert(benchmark::State &state) {
   BinarySensor sensor;
   InvertFilter filter;
   sensor.add_filter(&filter);
-  publish_bounce(state, sensor, false);
+  publish_bounce(state, sensor, /*run_scheduler=*/false, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_Invert);
 
@@ -53,7 +51,7 @@ static void BinarySensorFilter_DelayedOn(benchmark::State &state) {
   DelayedOnFilter filter;
   filter.set_delay([]() -> uint32_t { return DELAY_MS; });
   sensor.add_filter(&filter);
-  publish_bounce(state, sensor);
+  publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_DelayedOn);
 
@@ -63,7 +61,7 @@ static void BinarySensorFilter_DelayedOff(benchmark::State &state) {
   DelayedOffFilter filter;
   filter.set_delay([]() -> uint32_t { return DELAY_MS; });
   sensor.add_filter(&filter);
-  publish_bounce(state, sensor);
+  publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_DelayedOff);
 
@@ -77,26 +75,26 @@ static void BinarySensorFilter_DelayedOnOff(benchmark::State &state) {
   BinarySensor sensor;
   ApplyFilter<delayed_on_off_fn> filter;
   sensor.add_filter(&filter);
-  publish_bounce(state, sensor);
+  publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_DelayedOnOff);
 
-// Benchmark: settle bounce, the first edge passes and the rest re-arm the timeout
+// Benchmark: settle bounce, every edge re-arms the timeout
 static void BinarySensorFilter_Settle(benchmark::State &state) {
   BinarySensor sensor;
   SettleFilter filter;
   filter.set_delay([]() -> uint32_t { return DELAY_MS; });
   sensor.add_filter(&filter);
-  publish_bounce(state, sensor);
+  publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_Settle);
 
-// Benchmark: autorepeat press and release, arming the first step then cancelling both timers
+// Benchmark: autorepeat, passes every press and release, so it also pays a state change per publish
 static void BinarySensorFilter_Autorepeat(benchmark::State &state) {
   BinarySensor sensor;
   AutorepeatFilter<1> filter({{DELAY_MS, 100, 900}});
   sensor.add_filter(&filter);
-  publish_bounce(state, sensor);
+  publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_Autorepeat);
 
