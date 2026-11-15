@@ -1,5 +1,4 @@
 #include "st7789v.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -239,7 +238,10 @@ void ST7789V::write_data_(uint8_t value) {
 
 void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
   uint8_t byte[4];
-  put_be16(put_be16(byte, addr1), addr2);
+  byte[0] = (addr1 >> 8) & 0xFF;
+  byte[1] = addr1 & 0xFF;
+  byte[2] = (addr2 >> 8) & 0xFF;
+  byte[3] = addr2 & 0xFF;
 
   this->dc_pin_->digital_write(true);
   this->write_array(byte, 4);
@@ -251,9 +253,11 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   this->dc_pin_->digital_write(true);
   while (remaining > 0) {
     uint16_t batch = std::min(remaining, static_cast<uint16_t>(sizeof(byte) / 2));
-    uint8_t *p = byte;
-    for (int i = 0; i < batch; i++)
-      p = put_be16(p, color);
+    int index = 0;
+    for (int i = 0; i < batch; i++) {
+      byte[index++] = (color >> 8) & 0xFF;
+      byte[index++] = color & 0xFF;
+    }
     this->write_array(byte, batch * 2);
     remaining -= batch;
   }
@@ -304,7 +308,8 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   } else {
     auto color565 = display::ColorUtil::color_to_565(color);
     uint32_t pos = (x + y * this->get_width_internal()) * 2;
-    put_be16(this->buffer_ + pos, color565);
+    this->buffer_[pos++] = (color565 >> 8) & 0xff;
+    this->buffer_[pos] = color565 & 0xff;
   }
 }
 

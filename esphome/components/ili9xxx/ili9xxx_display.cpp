@@ -12,6 +12,12 @@ namespace esphome::ili9xxx {
 static const uint16_t SPI_SETUP_US = 100;         // estimated fixed overhead in microseconds for an SPI write
 static const uint16_t SPI_MAX_BLOCK_SIZE = 4092;  // Max size of continuous SPI transfer
 
+// store a 16 bit value in a buffer, big endian.
+static inline void put16_be(uint8_t *buf, uint16_t value) {
+  buf[0] = value >> 8;
+  buf[1] = value;
+}
+
 void ILI9XXXDisplay::set_madctl() {
   // custom x/y transform and color order
   uint8_t mad = this->color_order_ == display::COLOR_ORDER_BGR ? MADCTL_BGR : MADCTL_RGB;
@@ -149,7 +155,8 @@ void ILI9XXXDisplay::fill(Color color) {
           memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
         } else {
           for (uint32_t i = 0; i < buffer_length_16_bits; i = i + 2) {
-            put_be16(this->buffer_ + i, new_color);
+            this->buffer_[i] = (uint8_t) (new_color >> 8);
+            this->buffer_[i + 1] = (uint8_t) new_color;
           }
         }
       }
@@ -269,7 +276,7 @@ void ILI9XXXDisplay::display_() {
               display::ColorUtil::index8_to_color_palette888(this->buffer_[pos++], this->palette_));
           break;
         default:  // case BITS_16:
-          color_val = encode_uint16(this->buffer_[pos * 2], this->buffer_[pos * 2 + 1]);
+          color_val = (this->buffer_[pos * 2] << 8) + this->buffer_[pos * 2 + 1];
           pos++;
           break;
       }
@@ -278,7 +285,7 @@ void ILI9XXXDisplay::display_() {
         transfer_buffer[idx++] = (uint8_t) ((color_val & 0x7E0) >> 3);   // Green
         transfer_buffer[idx++] = (uint8_t) (color_val << 3);             // Red
       } else {
-        put_be16(transfer_buffer + idx, color_val);
+        put16_be(transfer_buffer + idx, color_val);
         idx += 2;
       }
       if (idx == sizeof(transfer_buffer)) {

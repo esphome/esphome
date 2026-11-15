@@ -316,7 +316,8 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
   } else {
     const uint32_t color565 = display::ColorUtil::color_to_565(color);
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
-    put_be16(this->buffer_ + pos, color565);
+    this->buffer_[pos++] = (color565 >> 8) & 0xff;
+    this->buffer_[pos] = color565 & 0xff;
   }
 }
 
@@ -465,7 +466,10 @@ void HOT ST7735::write_display_data_() {
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
   uint8_t byte[4];
-  put_be16(put_be16(byte, addr1), addr2);
+  byte[0] = (addr1 >> 8) & 0xFF;
+  byte[1] = addr1 & 0xFF;
+  byte[2] = (addr2 >> 8) & 0xFF;
+  byte[3] = addr2 & 0xFF;
 
   this->dc_pin_->digital_write(true);
   this->write_array(byte, 4);

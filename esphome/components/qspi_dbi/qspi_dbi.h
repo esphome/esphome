@@ -42,6 +42,12 @@ static const uint8_t MADCTL_RGB = 0x00;  ///< Bit 3 Red-Green-Blue pixel order
 static const uint8_t MADCTL_BGR = 0x08;  ///< Bit 3 Blue-Green-Red pixel order
 
 static const uint8_t DELAY_FLAG = 0xFF;
+// store a 16 bit value in a buffer, big endian.
+static inline void put16_be(uint8_t *buf, uint16_t value) {
+  buf[0] = value >> 8;
+  buf[1] = value;
+}
+
 enum Model {
   CUSTOM,
   RM690B0,

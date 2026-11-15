@@ -129,9 +129,11 @@ void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y
   x2 += this->offset_x_;
   y1 += this->offset_y_;
   y2 += this->offset_y_;
-  put_be16(put_be16(buf, y1), y2);
+  put16_be(buf, y1);
+  put16_be(buf + 2, y2);
   this->write_command_(RASET, buf, sizeof buf);
-  put_be16(put_be16(buf, x1), x2);
+  put16_be(buf, x1);
+  put16_be(buf + 2, x2);
   this->write_command_(CASET, buf, sizeof buf);
 }
 
