@@ -1526,6 +1526,7 @@ class MemoryAnalyzer:
             )
             return
         rodata = bytes(rodata)
+        _, definitions = _parse_unnamed_rodata(output)
         # Literal -> component -> functions or data using it
         users: dict[bytes, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
         for file_path, sections in _parse_string_sections(output).items():
@@ -1533,7 +1534,12 @@ class MemoryAnalyzer:
                 Path(file_path).relative_to(obj_dir).as_posix()
             )
             for text, found in self._scan_object_strings(file_path, sections).items():
-                if text and (kept := found & self._elf_symbol_names):
+                kept = {
+                    user
+                    for user in found & self._elf_symbol_names
+                    if not definitions.linked_copy_unknown(file_path, [user])
+                }
+                if text and kept:
                     users[text][component] |= kept
 
         literals = (

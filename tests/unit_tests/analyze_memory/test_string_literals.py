@@ -253,3 +253,34 @@ Relocation section '.rela.rodata' at offset 0xe6fc contains 2 entries:
             "main.cpp.o", {"5": (".rodata.str1.1", None)}
         )
     assert users == {b"0.pool.ntp.org": {"setup"}, b"1.pool.ntp.org": {"setup"}}
+
+
+@pytest.mark.parametrize(
+    ("symbols", "expected"),
+    [
+        # The light object's weak copy is replaced by the web object's strong one
+        ([("light", "WEAK"), ("web", "GLOBAL")], {"[esphome]web_server"}),
+        # Same-named local functions: neither object can be told to be the linked one
+        ([("light", "LOCAL"), ("web", "LOCAL")], set()),
+    ],
+)
+def test_string_literals_skip_unlinked_copies(
+    obj_dir: Path, symbols: list[tuple[str, str]], expected: set[str]
+) -> None:
+    """A user whose linked copy may be another object's does not make a literal shared."""
+    analyzer = _new_analyzer(obj_dir, {"_Z3foov"})
+    paths = {"web": str(obj_dir / WEB_OBJ), "light": str(obj_dir / LIGHT_OBJ)}
+    output = _sections(paths["web"], paths["light"]) + "".join(
+        f"File: {paths[obj]}\n   1: 00000000    64 FUNC    {bind:<6} DEFAULT   12 _Z3foov\n"
+        for obj, bind in symbols
+    )
+    with (
+        patch.object(
+            analyzer,
+            "_scan_object_strings",
+            side_effect=lambda *_: {b"OFF": {"_Z3foov"}},
+        ),
+        patch("esphome.analyze_memory.run_tool", return_value=completed(ELF_RODATA)),
+    ):
+        analyzer._attribute_string_literals(output, obj_dir)
+    assert {c for s in analyzer._string_literals for c in s.users} == expected
