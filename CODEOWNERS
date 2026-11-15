@@ -146,6 +146,7 @@ esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
+esphome/components/cst3240/* @tpruvot
 esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
@@ -468,6 +469,7 @@ esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/noise/* @esphome/core
 esphome/components/npi19/* @bakerkj
+esphome/components/npm1300/* @tomaszduda23
 esphome/components/nrf52/* @tomaszduda23
 esphome/components/ns2009/* @tchilov
 esphome/components/ns2009/touchscreen/* @tchilov
