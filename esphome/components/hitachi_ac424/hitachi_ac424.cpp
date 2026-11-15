@@ -1,9 +1,24 @@
 #include "hitachi_ac424.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::hitachi_ac424 {
 
 ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac424");
+
+// Default frame, kept in flash; an in-class initializer is a RAM copy on ESP8266
+static constexpr uint8_t DEFAULT_STATE[HITACHI_AC424_STATE_LENGTH] PROGMEM = {
+    0x01, 0x10, 0x00, 0x40, 0xBF, 0xFF, 0x00, 0xCC, 0x33, 0x92, 0x6D, 0x13, 0xEC, 0x5C, 0xA3, 0x00, 0xFF, 0x00,
+    0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x53, 0xAC, 0xF1, 0x0E, 0x00, 0xFF, 0x00, 0xFF, 0x80, 0x7F, 0x03,
+    0xFC, 0x01, 0xFE, 0x88, 0x77, 0x00, 0xFF, 0x00, 0xFF, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00};
+
+HitachiClimate::HitachiClimate()
+    : climate_ir::ClimateIR(
+          HITACHI_AC424_TEMP_MIN, HITACHI_AC424_TEMP_MAX, 1.0F, true, true,
+          {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {
+  progmem_memcpy(this->remote_state_, DEFAULT_STATE, sizeof(this->remote_state_));
+}
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
