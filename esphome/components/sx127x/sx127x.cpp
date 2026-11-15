@@ -71,8 +71,6 @@ void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->disable();
 }
 
-void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
-
 void SX127x::setup() {
   // setup reset
   this->rst_pin_->setup();
@@ -443,6 +441,11 @@ SX127xError SX127x::finish_transmit_(SX127xError result) {
 }
 
 bool SX127x::restore_() {
+  // The chip stays in TX when asked for RX while a packet is still going out, so a send that
+  // is ended early goes through standby
+  if (!this->set_mode_(this->modulation_, MODE_STDBY)) {
+    return false;
+  }
   if (this->modulation_ == MOD_LORA) {
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
   }

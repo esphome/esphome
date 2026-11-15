@@ -59,7 +59,10 @@ class RadioHardware {
       }
       return bit;
     };
-    this->dio0.on_read = [this]() { return this->dio0_level(); };
+    this->dio0.on_read = [this]() {
+      this->finish_pending_send_();
+      return this->dio0_level();
+    };
     this->rst.on_write = [this](bool high) {
       if (!high) {
         this->reset_();
@@ -176,6 +179,9 @@ class RadioHardware {
     if (addr == REG_VERSION) {
       return this->version;
     }
+    if (addr == REG_IRQ_FLAGS2 || (addr == REG_IRQ_FLAGS && this->lora())) {
+      this->finish_pending_send_();
+    }
     if (addr == REG_IRQ_FLAGS2) {
       return (this->payload_ready ? PAYLOAD_READY : 0) | (this->packet_sent ? PACKET_SENT : 0);
     }
@@ -230,10 +236,15 @@ class RadioHardware {
       return;
     }
     const uint8_t previous = this->mode();
-    this->regs[REG_OP_MODE] = value;
     const uint8_t mode = value & MODE_MASK;
+    // As on an SX1276, a send that is still going out can be stopped by standby or sleep only
+    if (previous == MODE_TX && !this->send_done_() && mode != MODE_STDBY && mode != MODE_SLEEP) {
+      return;
+    }
+    this->regs[REG_OP_MODE] = value;
     if (previous == MODE_TX && mode != MODE_TX) {
       this->packet_sent = false;
+      this->send_pending_ = false;  // Stopped before it finished
     }
     if (mode == MODE_SLEEP) {
       this->payload_ready = false;
@@ -241,16 +252,26 @@ class RadioHardware {
     if (mode == MODE_TX && previous != MODE_TX) {
       this->sent.push_back(this->fifo);
       this->fifo.clear();
-      if (this->auto_complete) {
-        this->complete_send();
-      }
+      // Completes on the next poll, not before the mode reads back as TX
+      this->send_pending_ = this->auto_complete;
     }
   }
 
+  bool send_done_() const { return this->lora() ? (this->irq & TX_DONE) != 0 : this->packet_sent; }
+
+  void finish_pending_send_() {
+    if (this->send_pending_ && this->mode() == MODE_TX) {
+      this->complete_send();
+    }
+    this->send_pending_ = false;
+  }
+
  public:
+  // In LoRa the chip returns to standby by itself; in FSK it stays in TX
   void complete_send() {
     if (this->lora()) {
       this->irq |= TX_DONE;
+      this->regs[REG_OP_MODE] = (this->regs[REG_OP_MODE] & ~MODE_MASK) | MODE_STDBY;
     } else {
       this->packet_sent = true;
     }
@@ -265,6 +286,7 @@ class RadioHardware {
   uint8_t reply_{0};
   bool selected_{false};
   bool fsk_length_pending_{false};
+  bool send_pending_{false};
 };
 
 class PacketListener : public SX127xListener {

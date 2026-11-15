@@ -117,13 +117,18 @@ TEST(SX127xAsync, SendWithoutCompletionTimesOut) {
     hw.radio.loop();
   }
   EXPECT_EQ(listener.results, std::vector<SX127xError>{SX127xError::SX127X_ERROR_TIMEOUT});
+  EXPECT_FALSE(hw.radio.status_has_warning());
   EXPECT_TRUE(hw.receiving());
 }
 
-TEST(SX127xAsync, CancelEndsOnlyTheListenersOwnSend) {
+// The chip leaves a send that is still going out for standby or sleep, but not for RX
+class SX127xCancel : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+TEST_P(SX127xCancel, CancelEndsOnlyTheListenersOwnSend) {
+  const auto [lora, rx] = GetParam();
   RadioHardware hw;
   TransmitListener owner, other;
-  hw.configure(true, false);
+  hw.configure(lora, rx);
   hw.auto_complete = false;
   ASSERT_EQ(hw.radio.start_transmit_async(&owner, hw.packet), SX127xError::SX127X_ERROR_NONE);
   EXPECT_FALSE(hw.radio.cancel_transmit_async(&other));
@@ -131,12 +136,15 @@ TEST(SX127xAsync, CancelEndsOnlyTheListenersOwnSend) {
   EXPECT_TRUE(hw.radio.cancel_transmit_async(&owner));
   EXPECT_EQ(owner.results, std::vector<SX127xError>{SX127xError::SX127X_ERROR_CANCELLED});
   EXPECT_FALSE(hw.radio.is_transmitting());
-  EXPECT_EQ(hw.mode(), MODE_SLEEP);
+  EXPECT_FALSE(hw.radio.status_has_warning());
+  EXPECT_EQ(hw.mode(), rx ? MODE_RX : MODE_SLEEP);
   EXPECT_FALSE(hw.radio.cancel_transmit_async(&owner));
   hw.radio.loop();
   EXPECT_EQ(owner.results.size(), 1u);
   EXPECT_TRUE(other.results.empty());
 }
+
+INSTANTIATE_TEST_SUITE_P(Modes, SX127xCancel, ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 
 TEST(SX127xAsync, CompletionMayStartTheNextSend) {
   RadioHardware hw;
@@ -239,7 +247,7 @@ TEST(SX127xReceive, RawTxModeIsNotAPacket) {
     hw.configure(lora, true);
     hw.radio.set_mode_tx();
     EXPECT_EQ(hw.mode(), MODE_TX);
-    EXPECT_TRUE(hw.dio0_level());
+    EXPECT_TRUE(hw.dio0.digital_read());
     hw.radio.loop();
     EXPECT_TRUE(packets.packets.empty()) << (lora ? "LoRa" : "FSK");
     hw.radio.set_mode_rx();
