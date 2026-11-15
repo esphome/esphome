@@ -3,6 +3,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#include <algorithm>
+
 namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
@@ -49,36 +51,36 @@ void BME680BSECComponent::setup() {
   this->load_state_();
 }
 
-void BME680BSECComponent::set_config_() {
-  if (this->sample_rate_ == SAMPLE_RATE_ULP) {
-    if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
-      const uint8_t config[] = {
+// BSEC configuration blobs, kept in flash on ESP8266
+static constexpr uint8_t CONFIG_33V_300S[] PROGMEM = {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
-      };
-      this->bsec_status_ =
-          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-    } else {  // SUPPLY_VOLTAGE_1V8
-      const uint8_t config[] = {
+};
+static constexpr uint8_t CONFIG_18V_300S[] PROGMEM = {
 #include "config/generic_18v_300s_28d/bsec_iaq.txt"
-      };
-      this->bsec_status_ =
-          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-    }
-  } else {  // SAMPLE_RATE_LP
-    if (this->supply_voltage_ == SUPPLY_VOLTAGE_3V3) {
-      const uint8_t config[] = {
+};
+static constexpr uint8_t CONFIG_33V_3S[] PROGMEM = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
-      };
-      this->bsec_status_ =
-          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-    } else {  // SUPPLY_VOLTAGE_1V8
-      const uint8_t config[] = {
+};
+static constexpr uint8_t CONFIG_18V_3S[] PROGMEM = {
 #include "config/generic_18v_3s_28d/bsec_iaq.txt"
-      };
-      this->bsec_status_ =
-          bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
-    }
+};
+
+void BME680BSECComponent::set_config_() {
+  const bool v33 = this->supply_voltage_ == SUPPLY_VOLTAGE_3V3;
+  const uint8_t *source;
+  size_t size;
+  if (this->sample_rate_ == SAMPLE_RATE_ULP) {
+    source = v33 ? CONFIG_33V_300S : CONFIG_18V_300S;
+    size = v33 ? sizeof(CONFIG_33V_300S) : sizeof(CONFIG_18V_300S);
+  } else {  // SAMPLE_RATE_LP
+    source = v33 ? CONFIG_33V_3S : CONFIG_18V_3S;
+    size = v33 ? sizeof(CONFIG_33V_3S) : sizeof(CONFIG_18V_3S);
   }
+  // BSEC reads the blob with plain loads, so copy the selected one to RAM
+  uint8_t config[BSEC_MAX_PROPERTY_BLOB_SIZE]{};
+  progmem_memcpy(config, source, std::min(size, sizeof(config)));
+  this->bsec_status_ =
+      bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
 }
 
 float BME680BSECComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
