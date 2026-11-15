@@ -59,7 +59,7 @@ RECOVERY_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RETRY_INTERVAL, default="30s"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MAX_RETRIES, default=5): cv.int_range(min=1, max=255),
+        cv.Optional(CONF_MAX_RETRIES, default=10): cv.int_range(min=1, max=255),
     }
 )
 
