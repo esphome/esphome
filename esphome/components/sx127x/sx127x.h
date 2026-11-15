@@ -143,7 +143,7 @@ class SX127x final : public Component,
     uint32_t started_ms{0};
     uint32_t timeout_ms{0};
   };
-  static void gpio_intr(SX127x *arg);
+  static void IRAM_ATTR gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
   // Each returns the failure reason, or nullptr
   const LogString *configure_radio_();
   const LogString *image_cal_();
