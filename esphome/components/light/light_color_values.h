@@ -211,7 +211,8 @@ class LightColorValues {
     if (this->color_mode_ & ColorCapability::COLD_WARM_WHITE) {
       const float cw_level = this->cold_white_;
       const float ww_level = this->warm_white_;
-      const float white_level = this->state_ * this->brightness_;
+      const float white_level =
+          this->state_ * this->brightness_ * (this->color_mode_ & ColorCapability::RGB ? this->white_ : 1);
       if (!constant_brightness) {
         *cold_white = white_level * cw_level;
         *warm_white = white_level * ww_level;

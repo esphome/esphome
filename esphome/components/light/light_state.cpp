@@ -318,7 +318,8 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
 
   const float cw_level = this->gamma_correct_lut(v.get_cold_white());
   const float ww_level = this->gamma_correct_lut(v.get_warm_white());
-  const float white_level = this->gamma_correct_lut(v.get_state() * v.get_brightness());
+  const float white_level = this->gamma_correct_lut(v.get_state() * v.get_brightness() *
+                                                    (v.get_color_mode() & ColorCapability::RGB ? v.get_white() : 1));
   const float sum = cw_level > 0 || ww_level > 0 ? cw_level + ww_level : 1;  // Don't divide by zero.
   *cold_white = white_level * std::max(cw_level, ww_level) * cw_level / sum;
   *warm_white = white_level * std::max(cw_level, ww_level) * ww_level / sum;
