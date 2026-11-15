@@ -83,6 +83,20 @@ _NAMESPACE_STD = "std::"
 # Type alias for symbol information: (symbol_name, size, component)
 SymbolInfoType = tuple[str, int, str]
 
+# Only ESP8266 has this section; its .rodata is copied to RAM at boot like .data
+_ESP8266_FLASH_CODE_SECTION = ".irom0.text"
+
+# readelf -SW row: [Nr] Name Type Address Off Size ES Flg
+_OBJ_SECTION_PATTERN = re.compile(
+    r"^\s*\[\s*(\d+)\]\s+(\S+)\s+(\S+)\s+[\da-f]+\s+[\da-f]+\s+([\da-f]+)\s+[\da-f]+\s+(\S*)"
+)
+_RELOC_SECTION_PATTERN = re.compile(r"^Relocation section '\.rela(\S+)'")
+_CODE_SECTION_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)(?:\.|$)")
+_CODE_SECTION_PREFIX_PATTERN = re.compile(r"^\.(?:literal|text|irom0\.text)\.")
+# readelf -x row: "  0x00000000 0000803f 0000803f 0000803f 0000803f ...?...?...?...?"
+_HEX_DUMP_PREFIX = "  0x"
+_HEX_DUMP_COLUMNS = slice(13, 48)
+
 # RAM sections - symbols in these sections consume RAM
 RAM_SECTIONS = frozenset([".data", ".bss"])
 
@@ -117,6 +131,22 @@ class SDKSymbol:
     section: str  # ".bss" or ".data"
     is_local: bool  # True if static/local symbol (lowercase in nm output)
     demangled: str = ""  # Demangled name (populated after analysis)
+
+
+@dataclass
+class UnnamedConstant:
+    """Constant data without a symbol, found in an object's .rodata.
+
+    GCC builds constant aggregate initializers (member defaults, local arrays,
+    braced lists) by copying such a constant; ESP8266 keeps it in RAM.
+    """
+
+    size: int
+    source_file: str
+    component: str
+    functions: list[str]  # Functions that reference it, mangled
+    jump_table: bool  # Holds code addresses (a switch table), not a value
+    data: bytes  # Leading bytes, to recognize the value
 
 
 @dataclass
@@ -231,6 +261,9 @@ class MemoryAnalyzer:
         self._heuristic_to_lib: dict[str, str] = {}
         # Function call counts: mangled_name -> call_count
         self._function_call_counts: Counter[str] = Counter()
+        # True on ESP8266, where .rodata is RAM; it is then counted as .data
+        self.rodata_in_ram = False
+        self._unnamed_constants: list[UnnamedConstant] = []
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -240,6 +273,7 @@ class MemoryAnalyzer:
         self._scan_source_symbols()
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
+        self._analyze_unnamed_constants()
         self._analyze_sdk_libraries()
         self._analyze_function_calls()
         return dict(self.components)
@@ -253,24 +287,29 @@ class MemoryAnalyzer:
             check=True,
         )
 
-        # Parse section headers
-        for line in result.stdout.splitlines():
-            # Look for section entries
-            if not (match := _READELF_SECTION_PATTERN.match(line)):
-                continue
+        raw_sections = [
+            (match.group(1), int(match.group(2), 16))
+            for line in result.stdout.splitlines()
+            if (match := _READELF_SECTION_PATTERN.match(line))
+        ]
+        self.rodata_in_ram = any(
+            name == _ESP8266_FLASH_CODE_SECTION for name, _ in raw_sections
+        )
 
-            section_name = match.group(1)
-            size_hex = match.group(2)
-            size = int(size_hex, 16)
-
-            # Map to standard section name
-            mapped_section = map_section_name(section_name)
+        for section_name, size in raw_sections:
+            mapped_section = self._standard_section(map_section_name(section_name))
             if not mapped_section:
                 continue
 
             if mapped_section not in self.sections:
                 self.sections[mapped_section] = MemorySection(mapped_section)
             self.sections[mapped_section].total_size += size
+
+    def _standard_section(self, section: str | None) -> str | None:
+        """Count .rodata as .data where it is RAM (ESP8266)."""
+        if section == ".rodata" and self.rodata_in_ram:
+            return ".data"
+        return section
 
     def _parse_symbols(self) -> None:
         """Parse symbols from ELF file."""
@@ -289,6 +328,7 @@ class MemoryAnalyzer:
                 continue
 
             section, name, size, address = symbol_info
+            section = self._standard_section(section)
 
             # Skip duplicate symbols at the same address (e.g., C1/C2 constructors)
             if address in seen_addresses or section not in self.sections:
@@ -925,10 +965,12 @@ class MemoryAnalyzer:
             Path to the directory containing .o files, or None if not found.
         """
         # The ELF is typically at .pioenvs/<env>/firmware.elf
-        # Object files are in .pioenvs/<env>/src/ and .pioenvs/<env>/lib*/
+        # PlatformIO puts object files in .pioenvs/<env>/src/ and .pioenvs/<env>/lib*/,
+        # the native ESP8266 build in .pioenvs/<env>/obj/src/ and obj/lib/
         pioenvs_dir = self.elf_path.parent
-        if pioenvs_dir.exists() and any(pioenvs_dir.glob("src/*.o")):
-            return pioenvs_dir
+        for obj_dir in (pioenvs_dir, pioenvs_dir / "obj"):
+            if any(obj_dir.glob("src/*.o")):
+                return obj_dir
         return None
 
     @staticmethod
@@ -1204,6 +1246,169 @@ class MemoryAnalyzer:
             len(self._cswtch_symbols),
             total_size,
         )
+
+    def _analyze_unnamed_constants(self) -> None:
+        """Find constants without a symbol in RAM (.rodata on ESP8266).
+
+        GCC copies constant aggregate initializers from an unnamed constant in
+        the object's ``.rodata``. Such bytes have no ELF symbol, so they would
+        otherwise show up only as unattributed RAM. Each one is attributed to
+        the component of its object file and listed with the functions that
+        reference it.
+        """
+        if not self.rodata_in_ram:
+            return
+        obj_dir = self._find_object_files_dir()
+        if obj_dir is None:
+            return
+        obj_files = sorted(obj_dir.rglob("*.o"))
+        if not obj_files:
+            return
+
+        result = run_tool(
+            [self.readelf_path, "-SW"] + [str(f) for f in obj_files], timeout=30
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.debug("readelf failed scanning object files for constants")
+            return
+
+        candidates: dict[str, dict[str, tuple[str, int]]] = defaultdict(dict)
+        current_file = ""
+        for line in result.stdout.splitlines():
+            if line.startswith("File: "):
+                current_file = line[6:]
+                continue
+            if not (match := _OBJ_SECTION_PATTERN.match(line)):
+                continue
+            index, name, section_type, size_hex, flags = match.groups()
+            size = int(size_hex, 16)
+            # Merged sections (string literals) are shared between objects
+            if (
+                section_type == "PROGBITS"
+                and name.startswith(".rodata")
+                and "A" in flags
+                and "M" not in flags
+                and size
+            ):
+                candidates[current_file][index] = (name, size)
+
+        data_section = self.sections.get(".data")
+        seen: set[tuple[tuple[str, ...], int]] = set()
+        for file_path, sections in candidates.items():
+            for constant in self._scan_object_constants(file_path, sections):
+                # Inline functions are emitted in every object that uses them
+                key = (tuple(constant.functions), constant.size)
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    rel_path = str(Path(file_path).relative_to(obj_dir))
+                except ValueError:
+                    rel_path = file_path
+                constant.source_file = rel_path
+                constant.component = self._source_file_to_component(rel_path)
+                self._unnamed_constants.append(constant)
+                if constant.component not in self.components:
+                    self.components[constant.component] = ComponentMemory(
+                        constant.component
+                    )
+                self.components[constant.component].add_section_size(
+                    ".data", constant.size
+                )
+                if data_section is not None:
+                    data_section.symbol_size += constant.size
+
+        self._unnamed_constants.sort(key=lambda c: c.size, reverse=True)
+        self._batch_demangle_symbols(
+            [
+                name
+                for constant in self._unnamed_constants
+                for name in constant.functions
+                if name not in self._demangle_cache
+            ]
+        )
+
+    def _scan_object_constants(
+        self, file_path: str, sections: dict[str, tuple[str, int]]
+    ) -> list[UnnamedConstant]:
+        """Return the unnamed constants of one object that the link kept.
+
+        Args:
+            file_path: Object file to read
+            sections: Candidate ``.rodata`` sections, by section index
+        """
+        result = run_tool(
+            [self.readelf_path, "-sW", "-rW"]
+            + [arg for index in sections for arg in ("-x", index)]
+            + [file_path],
+            timeout=30,
+        )
+        if result is None or result.returncode != 0:
+            return []
+
+        names = {name: index for index, (name, _) in sections.items()}
+        covered: Counter[str] = Counter()
+        functions: dict[str, set[str]] = defaultdict(set)
+        jump_tables: set[str] = set()
+        contents: dict[str, bytearray] = defaultdict(bytearray)
+        reloc_section: str | None = None
+        dump_section: str | None = None
+        for line in result.stdout.splitlines():
+            if line.startswith("Relocation section"):
+                match = _RELOC_SECTION_PATTERN.match(line)
+                reloc_section = match.group(1) if match else None
+                dump_section = None
+                continue
+            if line.startswith("Hex dump of section"):
+                dump_section = line.split("'")[1]
+                reloc_section = None
+                continue
+            if line.startswith("Symbol table"):
+                reloc_section = dump_section = None
+                continue
+            if dump_section is not None:
+                if line.startswith(_HEX_DUMP_PREFIX):
+                    contents[dump_section] += bytes.fromhex(
+                        line[_HEX_DUMP_COLUMNS].replace(" ", "")
+                    )
+                continue
+            fields = line.split()
+            if reloc_section is None:
+                # Symbol row: Num: Value Size Type Bind Vis Ndx Name
+                if len(fields) >= 8 and fields[3] == "OBJECT" and fields[6] in sections:
+                    covered[fields[6]] += int(fields[2], 0)
+                continue
+            # Relocation row: Offset Info Type Sym.Value Sym.Name + Addend
+            if len(fields) < 5:
+                continue
+            target = fields[4]
+            if target in names and _CODE_SECTION_PATTERN.match(reloc_section):
+                functions[target].add(
+                    _CODE_SECTION_PREFIX_PATTERN.sub("", reloc_section)
+                )
+            elif reloc_section in names and _CODE_SECTION_PATTERN.match(target):
+                jump_tables.add(reloc_section)
+
+        constants: list[UnnamedConstant] = []
+        for index, (name, size) in sections.items():
+            unnamed = size - covered[index]
+            referenced_by = sorted(functions[name])
+            # Dropped by --gc-sections unless a function that uses it was kept
+            if unnamed <= 0 or not any(
+                f in self._elf_symbol_names for f in referenced_by
+            ):
+                continue
+            constants.append(
+                UnnamedConstant(
+                    size=unnamed,
+                    source_file=file_path,
+                    component="",
+                    functions=referenced_by,
+                    jump_table=name in jump_tables,
+                    data=bytes(contents[name][:16]),
+                )
+            )
+        return constants
 
     def _analyze_function_calls(self) -> None:
         """Count function call sites by parsing disassembly output.
