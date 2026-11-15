@@ -181,14 +181,34 @@ class ComponentMemory:
         return self.data_size + self.bss_size
 
 
-def _parse_unnamed_rodata(output: str) -> dict[str, dict[str, tuple[str, int]]]:
+@dataclass
+class _RodataSection:
+    """An object's .rodata section and the byte ranges its symbols cover."""
+
+    name: str
+    size: int
+    covered: list[tuple[int, int]] = field(default_factory=list)  # (offset, size)
+
+    def is_unnamed(self, offset: int) -> bool:
+        return 0 <= offset < self.size and not any(
+            start <= offset < start + size for start, size in self.covered
+        )
+
+    @property
+    def unnamed_size(self) -> int:
+        return sum(1 for offset in range(self.size) if self.is_unnamed(offset))
+
+
+def _parse_unnamed_rodata(
+    output: str,
+) -> tuple[dict[str, dict[str, _RodataSection]], set[str]]:
     """Find .rodata sections with bytes no symbol covers in ``readelf -SW -sW`` output.
 
     Returns:
-        Object path -> section index -> (section name, unnamed bytes)
+        Object path -> section index -> section, and the weak (inline) functions
     """
-    sections: dict[str, dict[str, tuple[str, int]]] = defaultdict(dict)
-    covered: dict[str, Counter[str]] = defaultdict(Counter)
+    sections: dict[str, dict[str, _RodataSection]] = defaultdict(dict)
+    weak_functions: set[str] = set()
     file_path = ""
     for line in output.splitlines():
         if line.startswith("File: "):
@@ -202,22 +222,30 @@ def _parse_unnamed_rodata(output: str) -> dict[str, dict[str, tuple[str, int]]]:
                 and "A" in flags
                 and "M" not in flags
             ):
-                sections[file_path][index] = (name, int(size_hex, 16))
+                sections[file_path][index] = _RodataSection(name, int(size_hex, 16))
         else:
             # Num: Value Size Type Bind Vis Ndx Name
             fields = line.split()
-            if len(fields) >= 8 and fields[3] == "OBJECT":
-                covered[file_path][fields[6]] += int(fields[2], 0)
-    result: dict[str, dict[str, tuple[str, int]]] = {}
-    for path, file_sections in sections.items():
-        unnamed = {
-            index: (name, size - covered[path][index])
-            for index, (name, size) in file_sections.items()
-            if size > covered[path][index]
-        }
-        if unnamed:
-            result[path] = unnamed
-    return result
+            if len(fields) < 8:
+                continue
+            if fields[3] == "OBJECT" and (
+                section := sections[file_path].get(fields[6])
+            ):
+                section.covered.append((int(fields[1], 16), int(fields[2], 0)))
+            elif fields[3] == "FUNC" and fields[4] == "WEAK":
+                weak_functions.add(fields[7])
+    unnamed = {
+        path: kept
+        for path, file_sections in sections.items()
+        if (
+            kept := {
+                index: section
+                for index, section in file_sections.items()
+                if section.unnamed_size
+            }
+        )
+    }
+    return unnamed, weak_functions
 
 
 class MemoryAnalyzer:
@@ -368,13 +396,16 @@ class MemoryAnalyzer:
             section, name, size, address = symbol_info
             section = self._standard_section(section)
 
+            if section not in self.sections:
+                continue
+            # Every alias is in the ELF, even when its size is counted once
+            self._elf_symbol_names.add(name)
             # Skip duplicate symbols at the same address (e.g., C1/C2 constructors)
-            if address in seen_addresses or section not in self.sections:
+            if address in seen_addresses:
                 continue
 
             self.sections[section].symbols.append((name, size, ""))
             self.sections[section].symbol_size += size
-            self._elf_symbol_names.add(name)
             seen_addresses.add(address)
 
     def _categorize_symbols(self) -> None:
@@ -1299,18 +1330,21 @@ class MemoryAnalyzer:
             return
 
         data_section = self.sections.get(".data")
-        seen: set[tuple[tuple[str, ...], int]] = set()
-        for file_path, sections in _parse_unnamed_rodata(result.stdout).items():
+        unnamed, weak_functions = _parse_unnamed_rodata(result.stdout)
+        # Inline (weak) functions are emitted, with their constants, in every
+        # object that uses them; the linker keeps one copy
+        inline_copies: set[tuple[tuple[str, ...], int]] = set()
+        for file_path, sections in unnamed.items():
             rel_path = str(Path(file_path).relative_to(obj_dir))
             component = self._source_file_to_component(rel_path)
             for constant in self._scan_object_constants(
                 file_path, sections, rel_path, component
             ):
-                # Inline functions are emitted in every object that uses them
-                key = (tuple(constant.functions), constant.size)
-                if key in seen:
-                    continue
-                seen.add(key)
+                if weak_functions.issuperset(constant.functions):
+                    key = (tuple(constant.functions), constant.size)
+                    if key in inline_copies:
+                        continue
+                    inline_copies.add(key)
                 self._unnamed_constants.append(constant)
                 self._add_component_size(component, ".data", constant.size)
                 if data_section is not None:
@@ -1329,7 +1363,7 @@ class MemoryAnalyzer:
     def _scan_object_constants(
         self,
         file_path: str,
-        sections: dict[str, tuple[str, int]],
+        sections: dict[str, _RodataSection],
         rel_path: str,
         component: str,
     ) -> list[UnnamedConstant]:
@@ -1337,7 +1371,7 @@ class MemoryAnalyzer:
 
         Args:
             file_path: Object file to read
-            sections: Section index -> (name, unnamed bytes)
+            sections: Candidate sections by index
             rel_path: Object path shown in the report
             component: Component the object belongs to
         """
@@ -1349,7 +1383,8 @@ class MemoryAnalyzer:
         if result is None or result.returncode != 0:
             return []
 
-        names = {name for name, _ in sections.values()}
+        by_name = {section.name: section for section in sections.values()}
+        names = by_name.keys()
         functions: dict[str, set[str]] = defaultdict(set)
         jump_tables: set[str] = set()
         # Section -> (offset, string section, addend) of each pointer to a literal
@@ -1384,21 +1419,27 @@ class MemoryAnalyzer:
                 elif reloc_section in names and _CODE_SECTION_PATTERN.match(target):
                     jump_tables.add(reloc_section)
                 elif reloc_section in names and ".str" in target:
-                    addend = int(fields[6], 16) if len(fields) > 6 else 0
-                    pointers[reloc_section].append((int(fields[0], 16), target, addend))
+                    offset = int(fields[0], 16)
+                    if by_name[reloc_section].is_unnamed(offset):
+                        addend = int(fields[6], 16) if len(fields) > 6 else 0
+                        pointers[reloc_section].append((offset, target, addend))
 
         strings = self._read_pointed_strings(file_path, pointers, contents)
         return [
             UnnamedConstant(
-                size=size,
+                size=section.unnamed_size,
                 source_file=rel_path,
                 component=component,
                 functions=sorted(functions[name]),
                 jump_table=name in jump_tables,
-                data=bytes(contents[name][:16]),
+                data=bytes(
+                    byte
+                    for offset, byte in enumerate(contents[name])
+                    if section.is_unnamed(offset)
+                )[:16],
                 strings=strings.get(name, []),
             )
-            for name, size in sections.values()
+            for name, section in by_name.items()
             # Dropped by --gc-sections unless a function that uses it was kept
             if not self._elf_symbol_names.isdisjoint(functions[name])
         ]

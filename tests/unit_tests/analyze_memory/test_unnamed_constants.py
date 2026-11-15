@@ -7,7 +7,12 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.analyze_memory import MemoryAnalyzer, MemorySection, UnnamedConstant
+from esphome.analyze_memory import (
+    MemoryAnalyzer,
+    MemorySection,
+    UnnamedConstant,
+    _RodataSection,
+)
 from esphome.analyze_memory.cli import MemoryAnalyzerCLI
 
 from . import make_analyzer
@@ -32,6 +37,8 @@ Section Headers:
 Symbol table '.symtab' contains 348 entries:
    Num:    Value  Size Type    Bind   Vis      Ndx Name
      0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+   300: 00000000    64 FUNC    {bind:<6} DEFAULT  12 {setup}
+   301: 00000000    64 FUNC    {bind:<6} DEFAULT  13 {save}
    347: 00000000     4 OBJECT  WEAK   DEFAULT  225 BUILTIN_LED
 
 File: {web}
@@ -95,6 +102,7 @@ def _esp8266_analyzer(
     web_index: int = 9,
     web_size: int = 0x1C,
     web_dump: str = WEB_OBJECT_DUMP,
+    bind: str = "GLOBAL",
 ) -> tuple[MemoryAnalyzer, Callable[..., subprocess.CompletedProcess[str]]]:
     analyzer = make_analyzer()
     analyzer.elf_path = obj_dir.parent / "firmware.elf"
@@ -108,7 +116,13 @@ def _esp8266_analyzer(
         if "-SW" in cmd:
             return _completed(
                 HEADERS_AND_SYMBOLS.format(
-                    light=light, web=web, web_index=web_index, web_size=web_size
+                    light=light,
+                    web=web,
+                    web_index=web_index,
+                    web_size=web_size,
+                    bind=bind,
+                    setup=SETUP,
+                    save=SAVE,
                 )
             )
         # Only sections with uncovered bytes are dumped
@@ -210,15 +224,58 @@ def test_unnamed_constants_skipped_when_rodata_in_flash(obj_dir: Path) -> None:
     assert analyzer._unnamed_constants == []
 
 
-def test_unnamed_constants_inline_copies_counted_once(obj_dir: Path) -> None:
-    """An inline function emitted in two objects brings the same constant twice."""
+@pytest.mark.parametrize(("bind", "expected"), [("WEAK", 1), ("GLOBAL", 2)])
+def test_unnamed_constants_inline_copies_counted_once(
+    obj_dir: Path, bind: str, expected: int
+) -> None:
+    """Only weak (inline) functions bring the same constant from several objects."""
     analyzer, run_tool = _esp8266_analyzer(
-        obj_dir, {SETUP}, web_index=174, web_size=0x2C, web_dump=LIGHT_OBJECT_DUMP
+        obj_dir,
+        {SETUP},
+        web_index=174,
+        web_size=0x2C,
+        web_dump=LIGHT_OBJECT_DUMP,
+        bind=bind,
     )
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
         analyzer._analyze_unnamed_constants()
-    assert len(analyzer._unnamed_constants) == 1
-    assert analyzer.sections[".data"].symbol_size == 44
+    assert len(analyzer._unnamed_constants) == expected
+    assert analyzer.sections[".data"].symbol_size == 44 * expected
+
+
+def test_parse_symbols_keeps_alias_names() -> None:
+    """C1/C2 constructor aliases share an address; both names are in the ELF."""
+    objdump = """4020b558 g     F .irom0.text	0000007e _ZN7esphome3FooC1Ev
+4020b558 g     F .irom0.text	0000007e _ZN7esphome3FooC2Ev
+"""
+    analyzer = make_analyzer()
+    analyzer.sections[".text"] = MemorySection(".text")
+    with patch(
+        "esphome.analyze_memory.subprocess.run", return_value=_completed(objdump)
+    ):
+        analyzer._parse_symbols()
+    assert {"_ZN7esphome3FooC1Ev", "_ZN7esphome3FooC2Ev"} <= analyzer._elf_symbol_names
+    assert analyzer.sections[".text"].symbol_size == 0x7E
+
+
+def test_unnamed_constants_skip_named_bytes() -> None:
+    """In a section shared with a named object, only the unnamed bytes are shown."""
+    analyzer = make_analyzer()
+    analyzer._elf_symbol_names = {"_Z3fooi"}
+    dump = """Relocation section '.rela.text._Z3fooi' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 4
+
+Hex dump of section '.rodata':
+  0x00000000 aaaaaaaa 01020304                   ........
+"""
+    section = _RodataSection(".rodata", 8, covered=[(0, 4)])
+    with patch("esphome.analyze_memory.run_tool", return_value=_completed(dump)):
+        (constant,) = analyzer._scan_object_constants(
+            "foo.o", {"5": section}, "src/foo.o", "[esphome]foo"
+        )
+    assert constant.size == 4
+    assert constant.data == bytes([1, 2, 3, 4])
 
 
 def test_unnamed_constants_jump_table() -> None:
@@ -237,7 +294,7 @@ Relocation section '.rela.rodata' at offset 0x200 contains 2 entries:
 """
     with patch("esphome.analyze_memory.run_tool", return_value=_completed(dump)):
         (constant,) = analyzer._scan_object_constants(
-            "foo.o", {"5": (".rodata", 8)}, "src/foo.o", "[esphome]foo"
+            "foo.o", {"5": _RodataSection(".rodata", 8)}, "src/foo.o", "[esphome]foo"
         )
     assert constant.jump_table
     assert constant.functions == ["_Z3fooi"]
@@ -300,7 +357,10 @@ String dump of section '.rodata.str1.1':
 
     with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
         (constant,) = analyzer._scan_object_constants(
-            "main.cpp.o", {"5": (".rodata", 12)}, "src/main.cpp.o", "[esphome]core"
+            "main.cpp.o",
+            {"5": _RodataSection(".rodata", 12)},
+            "src/main.cpp.o",
+            "[esphome]core",
         )
     assert constant.strings == ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
 
