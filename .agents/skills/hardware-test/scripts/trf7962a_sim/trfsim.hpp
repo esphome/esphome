@@ -37,7 +37,7 @@ struct Chip {
   // scenario and stats
   Tag tag{NONE};
   uint32_t polls{0}, cs_bad{0}, tx_field_off{0}, tx_early{0}, bad_tx{0}, bad_cmd{0}, bad_rd{0}, max_field_ms{0},
-      flaky_n{0};
+      flaky_n{0}, fifo_under{0}, bad_wr{0};
   int irq_gpio{-1}, cs_gpio{-1};
 } C;
 
@@ -215,8 +215,14 @@ inline void write_reg(uint8_t r, uint8_t v) {
 }
 
 inline uint8_t read_reg(uint8_t r) {
-  if (r == 0x1F)
-    return C.fifo_rd < C.fifo_n ? C.fifo[C.fifo_rd++] : 0;
+  if (r == 0x1F) {
+    if (C.fifo_rd < C.fifo_n)
+      return C.fifo[C.fifo_rd++];
+    // a read past the loaded bytes gets zeros a driver would take as data
+    if (C.fifo_under++ < 5)
+      ESP_LOGW(TAG, "FIFO read past %u loaded bytes", C.fifo_n);
+    return 0;
+  }
   if (r == 0x1C)
     return C.fifo_n > C.fifo_rd ? (uint8_t) (C.fifo_n - C.fifo_rd - 1) : 0;
   if (r == 0x0C) {
@@ -270,8 +276,11 @@ class FakeDelegate : public esphome::spi::SPIDelegate {
       this->addr_byte_(d);
       return 0;
     }
-    if (C.rd)
-      return 0;  // writing while reading: ignored
+    if (C.rd) {  // a write after a read address byte: the register write is lost
+      if (C.bad_wr++ < 5)
+        ESP_LOGW(TAG, "byte 0x%02X written after read address 0x%02X", d, C.addr);
+      return 0;
+    }
     write_reg(C.addr, d);
     if (C.cont) {
       if (C.addr != 0x1F)
@@ -363,10 +372,10 @@ inline uint32_t start_phase(int i) {
 inline void stats(const char *phase) {
   ESP_LOGI(TAG,
            "STATS %s phase: polls=%u max_field_ms=%u | since boot: cs_bad=%u tx_field_off=%u tx_early=%u bad_tx=%u "
-           "bad_cmd=%u bad_rd=%u | reg01=%02X reg07=%02X reg09=%02X reg0D=%02X reg00=%02X",
+           "bad_cmd=%u bad_rd=%u fifo_under=%u bad_wr=%u | reg01=%02X reg07=%02X reg09=%02X reg0D=%02X reg00=%02X",
            phase, (unsigned) C.polls, (unsigned) C.max_field_ms, (unsigned) C.cs_bad, (unsigned) C.tx_field_off,
-           (unsigned) C.tx_early, (unsigned) C.bad_tx, (unsigned) C.bad_cmd, (unsigned) C.bad_rd, C.reg[1], C.reg[7],
-           C.reg[9], C.reg[0x0D], C.reg[0]);
+           (unsigned) C.tx_early, (unsigned) C.bad_tx, (unsigned) C.bad_cmd, (unsigned) C.bad_rd,
+           (unsigned) C.fifo_under, (unsigned) C.bad_wr, C.reg[1], C.reg[7], C.reg[9], C.reg[0x0D], C.reg[0]);
   C.polls = 0;
   C.max_field_ms = 0;
 }
