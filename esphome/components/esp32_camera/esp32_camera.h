@@ -148,9 +148,10 @@ class ESP32Camera final : public camera::Camera {
   /* -- image */
   void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
-  /// 6 (best) to 63. After setup(), JPEG output takes a new value on update_camera_parameters(),
-  /// and frames converted from another format use it from the next frame on.
-  void set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
+  /// Set the JPEG quality, 6 (best) to 63. Returns false and keeps the current value when it is out of range.
+  /// After setup(), JPEG output takes a new value on update_camera_parameters(), and frames converted from
+  /// another format use it from the next frame on.
+  bool set_jpeg_quality(uint8_t quality);
   void set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
   void set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
   void set_contrast(int contrast) { this->contrast_ = contrast; }

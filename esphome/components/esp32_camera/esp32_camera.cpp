@@ -14,6 +14,8 @@ static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
 #endif
+static constexpr uint8_t JPEG_QUALITY_MIN = 6;
+static constexpr uint8_t JPEG_QUALITY_MAX = 63;
 #ifdef USE_ESP32_CAMERA_CAPTURE
 // Below the 5 s snapshot timeout of esp32_camera_web_server, at least 1 s after the longest capture_delay
 static constexpr uint32_t CAPTURE_TIMEOUT_MS = 4000;
@@ -435,6 +437,19 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
       this->config_.frame_size = FRAMESIZE_QSXGA;
       break;
   }
+}
+bool ESP32Camera::set_jpeg_quality(uint8_t quality) {
+  // 0 is only the configuration value for "no conversion", it is no quality to apply
+  bool in_use = this->config_.pixel_format == PIXFORMAT_JPEG;
+#ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
+  in_use = true;
+#endif
+  if (quality == 0 ? in_use : (quality < JPEG_QUALITY_MIN || quality > JPEG_QUALITY_MAX)) {
+    ESP_LOGE(TAG, "JPEG quality %u is not valid, use %u to %u", quality, JPEG_QUALITY_MIN, JPEG_QUALITY_MAX);
+    return false;
+  }
+  this->config_.jpeg_quality = quality;
+  return true;
 }
 void ESP32Camera::set_pixel_format(ESP32CameraPixelFormat format) {
   switch (format) {
