@@ -3,8 +3,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <algorithm>
-
 namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
@@ -64,6 +62,10 @@ static constexpr uint8_t CONFIG_33V_3S[] PROGMEM = {
 static constexpr uint8_t CONFIG_18V_3S[] PROGMEM = {
 #include "config/generic_18v_3s_28d/bsec_iaq.txt"
 };
+static_assert(sizeof(CONFIG_33V_300S) <= BSEC_MAX_PROPERTY_BLOB_SIZE &&
+              sizeof(CONFIG_18V_300S) <= BSEC_MAX_PROPERTY_BLOB_SIZE &&
+              sizeof(CONFIG_33V_3S) <= BSEC_MAX_PROPERTY_BLOB_SIZE &&
+              sizeof(CONFIG_18V_3S) <= BSEC_MAX_PROPERTY_BLOB_SIZE);
 
 void BME680BSECComponent::set_config_() {
   const bool v33 = this->supply_voltage_ == SUPPLY_VOLTAGE_3V3;
@@ -78,7 +80,7 @@ void BME680BSECComponent::set_config_() {
   }
   // BSEC reads the blob with plain loads, so copy the selected one to RAM
   uint8_t config[BSEC_MAX_PROPERTY_BLOB_SIZE]{};
-  progmem_memcpy(config, source, std::min(size, sizeof(config)));
+  progmem_memcpy(config, source, size);
   this->bsec_status_ =
       bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
 }
