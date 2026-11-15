@@ -1,7 +1,7 @@
 #!/bin/zsh
 # sserun.sh HOST TAG SECS MODE(alone|api|pages) [N] : N sequential SSE streams (curl -m SECS each) with a pcap, a 1 s
 # netstat poll and optional API log stream or page loads; after each stream ends, a fresh /events and GET / probe.
-# Exits 1 when the API log stream (api, apipages) failed.
+# Exits 1 when the API log stream or the API check after the streams (api, apipages) failed.
 # env: TREE or PY, IFACE (default en0), API_KEY or apikey.txt here; tcpdump must be allowed to capture (bpf group on macOS)
 setopt null_glob
 D=${0:A:h}; H=$1; T=$2; S=$3; M=$4; N=${5:-1}
@@ -25,9 +25,14 @@ RC=0
 # a failed API log run must say so in the summary, or an api run reads like one without API traffic
 if [[ -n $AP ]]; then
   wait $AP; ARC=$?
-  if [ $ARC = 0 ]; then cat $T-apisum.txt | tee -a $T-summary.txt; else echo "api log FAILED rc=$ARC" | tee -a $T-summary.txt; RC=1; fi
+  if [ $ARC = 0 ]; then cat $T-apisum.txt | tee -a $T-summary.txt
+  else echo "api log FAILED rc=$ARC" | tee -a $T-summary.txt; RC=1; fi
 fi
 [[ -n $PP ]] && kill $PP 2>/dev/null
-[[ $M == api || $M == apipages ]] && echo "api-after: $(API_KEY=${API_KEY:-$(cat apikey.txt)} $PY -I apilog.py $H 8 $D/$T-apiafter.log)" | tee -a $T-summary.txt
+if [[ $M == api || $M == apipages ]]; then
+  OUT=$(API_KEY=${API_KEY:-$(cat apikey.txt)} $PY -I apilog.py $H 8 $D/$T-apiafter.log); ARC=$?
+  if [ $ARC = 0 ]; then echo "api-after: $OUT" | tee -a $T-summary.txt
+  else echo "api-after FAILED rc=$ARC" | tee -a $T-summary.txt; RC=1; fi
+fi
 kill $TP $NP 2>/dev/null; wait 2>/dev/null
 exit $RC
