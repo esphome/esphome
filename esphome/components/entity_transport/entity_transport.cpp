@@ -52,6 +52,11 @@ static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
 // How long the interface may refuse every packet before it is reported
 static constexpr uint32_t REFUSED_WARNING_MS = 60000;
 
+static void put_uint32(uint8_t *buf, uint32_t value) {
+  for (size_t i = 0; i != 4; i++)
+    buf[i] = value >> (i * 8);
+}
+
 // True if the NUL terminated str is the same as the len bytes at data
 static bool matches(const char *str, const char *data, size_t len) {
   return strlen(str) == len && memcmp(str, data, len) == 0;
@@ -283,7 +288,7 @@ void EntityTransport::sending_refused_() {
 
 size_t EntityTransport::write_header_(uint8_t type) const {
   this->buffer_[0] = type;
-  put_le32(this->buffer_ + 1, this->dictionary_id_);
+  put_uint32(this->buffer_ + 1, this->dictionary_id_);
   return HEADER_SIZE;
 }
 
@@ -353,7 +358,7 @@ size_t EntityTransport::write_record_(const LocalEntity &entity, uint8_t *record
       payload = PAYLOAD_WORD;
       uint32_t bits;
       memcpy(&bits, &state, sizeof(bits));
-      put_le32(record + TAG_SIZE, bits);
+      put_uint32(record + TAG_SIZE, bits);
       size += WORD_SIZE;
     }
   }
@@ -630,7 +635,7 @@ void EntityTransport::request_dictionary_(uint32_t dictionary_id) {
   if (this->request_sent_ && now - this->last_request_ms_ < REQUEST_INTERVAL_MS)
     return;
   uint8_t packet[HEADER_SIZE] = {PACKET_REQUEST};
-  put_le32(packet + 1, dictionary_id);
+  put_uint32(packet + 1, dictionary_id);
   // A refused request is tried again with the next data packet under that dictionary id
   if (!this->interface_->send_to_interface(PacketBuffer(packet, sizeof(packet)), {})) {
     ESP_LOGV(TAG, "Request for dictionary %08" PRIX32 " not accepted", dictionary_id);
