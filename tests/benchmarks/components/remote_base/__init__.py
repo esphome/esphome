@@ -3,23 +3,19 @@ from esphome.core import CORE, ID
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
-# Listener slots for the binary sensor fan-out benchmark
-LISTENER_SLOTS = 8
-
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     from esphome.components import remote_base
 
     async def to_code(config: ConfigType) -> None:
-        # Build every in-tree dumper, as `dump: all` does, into a table the benchmarks read
-        dumpers = []
-        for name, entry in remote_base.DUMPER_REGISTRY.items():
-            if remote_base._protocol_stem(name) not in remote_base._PROTOCOL_STEMS:
-                continue
-            dumper_id = ID(
-                f"bench_dump_{name}", is_declaration=True, type=entry.type_id
+        # Called directly: validate_dumpers plus build_dumpers would leave the GenerateIDs unresolved
+        dumpers = [
+            await entry.coroutine_fun(
+                entry.schema({}),
+                ID(f"bench_dump_{name}", is_declaration=True, type=entry.type_id),
             )
-            dumpers.append(await entry.coroutine_fun(entry.schema({}), dumper_id))
+            for name, entry in remote_base.DUMPER_REGISTRY.items()
+        ]
         table = ", ".join(str(d) for d in dumpers)
         CORE.add_global_after_includes(
             cg.RawStatement(
@@ -29,10 +25,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
                 "}"
             )
         )
-        # NEC, RCSwitch and Coolix are already requested by their dumpers
+        # NEC and RCSwitch are already requested by their dumpers
         cg.add_define("REMOTE_BASE_DUMPER_COUNT", 1)
-        cg.add_define("REMOTE_BASE_LISTENER_COUNT", LISTENER_SLOTS)
+        cg.add_define("REMOTE_BASE_LISTENER_COUNT", 8)
 
     manifest.to_code = to_code
-    # AUTO_LOAD is not resolved by the benchmark build.
-    manifest.dependencies = manifest.dependencies + ["binary_sensor"]

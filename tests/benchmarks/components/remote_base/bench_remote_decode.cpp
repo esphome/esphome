@@ -1,8 +1,5 @@
 #include <benchmark/benchmark.h>
 
-#include <vector>
-
-#include "esphome/components/remote_base/coolix_protocol.h"
 #include "esphome/components/remote_base/nec_protocol.h"
 #include "esphome/components/remote_base/rc_switch_protocol.h"
 #include "esphome/components/remote_base/remote_base.h"
@@ -17,14 +14,23 @@ using remote_base::RawTimings;
 using remote_base::RemoteReceiveData;
 
 // Amortizes CodSpeed's per-iteration instrumentation cost
-static constexpr int kInnerIterations = 1000;
+static constexpr int kInnerIterations = 2000;
 static constexpr uint32_t TOLERANCE = 25;
 static constexpr auto TOLERANCE_MODE = remote_base::TOLERANCE_MODE_PERCENTAGE;
+static constexpr uint16_t NEC_ADDRESS = 0x7F80;
+static constexpr uint16_t NEC_COMMAND = 0xF20D;
 
 static RawTimings nec_frame() {
   remote_base::RemoteTransmitData dst;
-  remote_base::NECProtocol().encode(&dst, {.address = 0x7F80, .command = 0xF20D, .command_repeats = 1});
+  remote_base::NECProtocol().encode(&dst, {.address = NEC_ADDRESS, .command = NEC_COMMAND, .command_repeats = 1});
   return dst.get_data();
+}
+
+// Valid header and 31 bits, then a last bit space that is neither a one nor a zero
+static RawTimings nec_near_miss_frame() {
+  RawTimings raw = nec_frame();
+  raw[raw.size() - 2] = -1100;
+  return raw;
 }
 
 static RawTimings rc_switch_frame() {
@@ -75,6 +81,12 @@ static void RemoteDecode_NEC_Noise(benchmark::State &state) {
 }
 BENCHMARK(RemoteDecode_NEC_Noise);
 
+// Rejected at the last bit, the most work a failed decode does
+static void RemoteDecode_NEC_NearMiss(benchmark::State &state) {
+  decode_bench<remote_base::NECProtocol>(state, nec_near_miss_frame(), false);
+}
+BENCHMARK(RemoteDecode_NEC_NearMiss);
+
 static void RemoteDecode_RCSwitch_Match(benchmark::State &state) {
   decode_bench<remote_base::RCSwitchBase>(state, rc_switch_frame(), true);
 }
@@ -86,55 +98,54 @@ static void RemoteDecode_RCSwitch_Noise(benchmark::State &state) {
 }
 BENCHMARK(RemoteDecode_RCSwitch_Noise);
 
-// What a Coolix climate_ir on_receive does first with a frame that is not its own
-static void RemoteDecode_Coolix_NECFrame(benchmark::State &state) {
-  decode_bench<remote_base::CoolixProtocol>(state, nec_frame(), false);
-}
-BENCHMARK(RemoteDecode_Coolix_NECFrame);
-
 // --- Receiver fan-out ---
 
 class BenchReceiver : public remote_base::RemoteReceiverBase {
  public:
   BenchReceiver() : RemoteReceiverBase(nullptr) {}
-  void receive(const RawTimings &raw) { this->call_listeners_dumpers_(remote_base::RawTimingsView(raw)); }
+  void run(benchmark::State &state, const RawTimings &raw) {
+    const remote_base::RawTimingsView view(raw);
+    for (auto _ : state) {
+      for (int i = 0; i < kInnerIterations; i++)
+        this->call_listeners_dumpers_(view);
+    }
+    state.SetItemsProcessed(state.iterations() * kInnerIterations);
+  }
 };
 
+// Log formatting is measured: DEBUG level, and the Logger at baud 0 formats without writing to a console
 static void dump_all_bench(benchmark::State &state, const RawTimings &raw) {
   BenchReceiver receiver;
   receiver.set_dumpers(DUMP_ALL, DUMP_ALL_COUNT);
-  for (auto _ : state) {
-    for (int i = 0; i < kInnerIterations; i++) {
-      receiver.receive(raw);
-    }
-  }
-  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+  receiver.run(state, raw);
 }
 
 // Every dumper tries the frame; the matching ones log it
 static void RemoteDumpAll_NEC(benchmark::State &state) { dump_all_bench(state, nec_frame()); }
 BENCHMARK(RemoteDumpAll_NEC);
 
-// No primary matches, so the raw dumper logs it last
+// Pronto always decodes, so the raw fallback never runs and Pronto's string building and logging dominate
 static void RemoteDumpAll_Noise(benchmark::State &state) { dump_all_bench(state, noise_frame()); }
 BENCHMARK(RemoteDumpAll_Noise);
 
-// Eight NEC binary sensors, none matching the noise
-static void RemoteListeners_NEC8_Noise(benchmark::State &state) {
+// Every sensor shares the NEC address; sensor 0 has the frame's command when match is true
+static void listeners_bench(benchmark::State &state, const RawTimings &raw, bool match) {
   BenchReceiver receiver;
-  remote_base::NECBinarySensor sensors[8];
-  for (uint16_t i = 0; i < 8; i++) {
-    sensors[i].set_data({.address = 0x7F80, .command = i, .command_repeats = 1});
+  remote_base::NECBinarySensor sensors[REMOTE_BASE_LISTENER_COUNT];
+  for (uint16_t i = 0; i < REMOTE_BASE_LISTENER_COUNT; i++) {
+    const uint16_t command = match && i == 0 ? NEC_COMMAND : i;
+    sensors[i].set_data({.address = NEC_ADDRESS, .command = command, .command_repeats = 1});
     receiver.register_listener(&sensors[i]);
   }
-  const RawTimings raw = noise_frame();
-  for (auto _ : state) {
-    for (int i = 0; i < kInnerIterations; i++) {
-      receiver.receive(raw);
-    }
-  }
-  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+  receiver.run(state, raw);
 }
+
+// Eight NEC binary sensors, none matching the noise
+static void RemoteListeners_NEC8_Noise(benchmark::State &state) { listeners_bench(state, noise_frame(), false); }
 BENCHMARK(RemoteListeners_NEC8_Noise);
+
+// Every sensor decodes the full frame; one matches and pulses its state on and off
+static void RemoteListeners_NEC8_Match(benchmark::State &state) { listeners_bench(state, nec_frame(), true); }
+BENCHMARK(RemoteListeners_NEC8_Match);
 
 }  // namespace esphome::benchmarks
