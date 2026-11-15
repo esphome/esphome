@@ -14,6 +14,7 @@ from esphome.analyze_memory import (
     UnnamedConstant,
     _FunctionDefinitions,
     _parse_unnamed_rodata,
+    _pointed_literal,
     _RodataSection,
 )
 from esphome.analyze_memory.cli import MemoryAnalyzerCLI
@@ -197,6 +198,7 @@ def test_unnamed_constants_attributed_to_component(obj_dir: Path) -> None:
         functions=[SAVE, SETUP],
         jump_table=False,
         data=bytes.fromhex("0000803f") * 4,
+        users=[SAVE, SETUP],
     )
     assert (web.size, web.component, web.functions) == (
         28,
@@ -515,3 +517,107 @@ def test_unnamed_constants_missing_objects_warn(
     analyzer.rodata_in_ram = True
     analyzer._analyze_object_rodata()
     assert "No object files next to the ELF" in caplog.text
+
+
+def test_unnamed_constants_mixed_section_users_by_offset() -> None:
+    """Only functions pointing at the unnamed bytes are listed; any user keeps it live."""
+    analyzer = make_analyzer()
+    analyzer._elf_symbol_names = {"_Z5namedv"}
+    dump = """\
+Relocation section '.rela.text._Z5namedv' at offset 0x100 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
+
+Relocation section '.rela.text._Z7unnamedv' at offset 0x200 contains 1 entry:
+ Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+00000000  00003a01 R_XTENSA_32            00000000   .rodata + 0
+
+""" + hex_dump(".rodata", bytes([0xAA] * 4 + [1, 2, 3, 4]))
+    # Literal-pool words: _Z5namedv points at offset 0 (named), _Z7unnamedv at 4
+    code = hex_dump(".text._Z5namedv", (0).to_bytes(4, "little")) + hex_dump(
+        ".text._Z7unnamedv", (4).to_bytes(4, "little")
+    )
+
+    def run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        return completed(dump if "-rW" in cmd else code)
+
+    section = _RodataSection(".rodata", 8, covered=[(0, 4)])
+    with patch("esphome.analyze_memory.run_tool", side_effect=run_tool):
+        (constant,) = analyzer._scan_object_constants(
+            "foo.o", {"5": section}, "src/foo.o", "[esphome]foo"
+        )
+    # Kept because _Z5namedv is linked, but only _Z7unnamedv uses the unnamed bytes
+    assert constant.functions == ["_Z7unnamedv"]
+
+
+@pytest.mark.parametrize(
+    ("referrer", "offset", "addend", "expected"),
+    [
+        ((3).to_bytes(4, "little"), 0, 0, b"lo"),
+        ((3).to_bytes(4, "little"), 0, -9, None),
+        ((50).to_bytes(4, "little"), 0, 0, None),
+        (b"\x00\x00", 0, 0, None),
+    ],
+)
+def test_pointed_literal_bounds(
+    referrer: bytes, offset: int, addend: int, expected: bytes | None
+) -> None:
+    """A pointer outside the dumped bytes yields nothing instead of a made-up string."""
+    assert _pointed_literal(referrer, offset, addend, b"hello\0") == expected
+
+
+def test_report_escapes_pointed_strings() -> None:
+    """Control characters in a literal are escaped in the report."""
+    analyzer = make_analyzer(cls=MemoryAnalyzerCLI)
+    analyzer._unnamed_constants = [
+        UnnamedConstant(
+            size=8,
+            source_file="src/main.cpp.o",
+            component="[esphome]core",
+            functions=["setup"],
+            jump_table=False,
+            data=b"",
+            strings=["a\nb", "\x1b[2J"],
+        )
+    ]
+    report = analyzer.generate_report()
+    assert 'points to "a\\nb", "\\u001b[2J"' in report
+    assert "\x1b" not in report
+
+
+def test_read_pointed_strings_falls_back_on_bad_pointer() -> None:
+    """One unreadable pointer drops the string list so the byte preview is shown."""
+    analyzer = make_analyzer()
+    table = bytearray((0).to_bytes(4, "little") + (99).to_bytes(4, "little"))
+    pointers = {".rodata": [(0, ".rodata.str1.1", 0), (4, ".rodata.str1.1", 0)]}
+    with patch(
+        "esphome.analyze_memory.run_tool",
+        return_value=completed(hex_dump(".rodata.str1.1", b"ok\0")),
+    ):
+        assert analyzer._read_pointed_strings("a.o", pointers, {".rodata": table}) == {}
+
+
+def test_unnamed_constants_mixed_section_without_unnamed_user(obj_dir: Path) -> None:
+    """Unnamed bytes no function points at are still listed and charged."""
+    analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP, MATCH_URL})
+    constant = UnnamedConstant(
+        size=4,
+        source_file=LIGHT_OBJ,
+        component="[esphome]light",
+        functions=[],
+        jump_table=False,
+        data=b"",
+        users=[SETUP],
+    )
+    light = str(obj_dir / LIGHT_OBJ)
+    with (
+        patch("esphome.analyze_memory.run_tool", side_effect=run_tool),
+        patch.object(
+            analyzer,
+            "_scan_object_constants",
+            side_effect=lambda path, *_: [constant] if path == light else [],
+        ),
+    ):
+        analyzer._analyze_object_rodata()
+    assert analyzer._unnamed_constants == [constant]
+    assert analyzer.components["[esphome]light"].data_size == 4
