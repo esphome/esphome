@@ -34,5 +34,7 @@ if [[ $M == api || $M == apipages ]]; then
   if [ $ARC = 0 ]; then echo "api-after: $OUT" | tee -a $T-summary.txt
   else echo "api-after FAILED rc=$ARC" | tee -a $T-summary.txt; RC=1; fi
 fi
+# a tcpdump that died mid-run leaves a short pcap that pcapsum.py would read as fewer connections
+kill -0 $TP 2>/dev/null || { echo "pcap capture ended early, see $T-tcpdump.err" | tee -a $T-summary.txt; RC=1; }
 kill $TP $NP 2>/dev/null; wait 2>/dev/null
 exit $RC
