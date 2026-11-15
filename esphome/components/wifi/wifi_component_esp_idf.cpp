@@ -15,7 +15,6 @@
 #include <freertos/task.h>
 
 #include <algorithm>
-#include <iterator>
 #include <cinttypes>
 #include <memory>
 #include <utility>
@@ -1159,12 +1158,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     }
-    const bool expected_disconnect = s_expected_disconnect.consume_disconnect(
+    const ExpectedLeave expected = s_expected_disconnect.consume_disconnect(
         it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE || it.reason == WIFI_REASON_STA_LEAVING);
-    // An attempt that never associated has no BSSID; its leave ends no session listeners know of
-    const bool left_attempt =
-        expected_disconnect && std::all_of(std::begin(it.bssid), std::end(it.bssid), [](uint8_t b) { return b == 0; });
-    if (left_attempt) {
+    const bool expected_disconnect = expected != ExpectedLeave::EXPECTED_LEAVE_NONE;
+    if (expected == ExpectedLeave::EXPECTED_LEAVE_ATTEMPT) {
       ESP_LOGD(TAG, "Expected leave of the previous attempt");
     } else if (expected_disconnect) {
       ESP_LOGD(TAG, "Expected disconnect from previous AP");
@@ -1187,7 +1184,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    if (!left_attempt)
+    // An attempt that never associated ended no session listeners know of
+    if (expected != ExpectedLeave::EXPECTED_LEAVE_ATTEMPT)
       this->notify_disconnect_state_listeners_();
 #endif
 

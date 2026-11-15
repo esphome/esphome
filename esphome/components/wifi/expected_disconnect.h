@@ -9,10 +9,18 @@ namespace esphome::wifi {
 // attempt that never associated. Remembers it so that event does not end the connection attempt started after it.
 // When the driver posts no such event, the next real disconnect clears the expectation without matching it.
 // Platform free for host tests.
+/// Which leave a disconnect event matched.
+enum class ExpectedLeave : uint8_t {
+  EXPECTED_LEAVE_NONE,     ///< Not expected: a real disconnect
+  EXPECTED_LEAVE_AP,       ///< The previous AP's leave
+  EXPECTED_LEAVE_ATTEMPT,  ///< The leave of an attempt that never associated, with no BSSID
+};
+
 class ExpectedDisconnect {
  public:
   void arm(const uint8_t *bssid) {
     std::copy_n(bssid, this->bssid_.size(), this->bssid_.begin());
+    this->had_ap_ = true;
     this->armed_ = true;
   }
   void clear() { this->armed_ = false; }
@@ -31,6 +39,7 @@ class ExpectedDisconnect {
     if (!had_ap)
       bssid.fill(0);
     this->arm(bssid.data());
+    this->had_ap_ = had_ap;
     return true;
   }
 
@@ -39,16 +48,20 @@ class ExpectedDisconnect {
     return this->armed_ && std::equal(this->bssid_.begin(), this->bssid_.end(), bssid);
   }
 
-  /// Whether a disconnect is the previous AP's leave. Every disconnect ends the expectation, so it matches at
-  /// most once; the caller handles roaming disconnects before this.
-  bool consume_disconnect(const uint8_t *bssid, bool assoc_leave) {
-    const bool expected = assoc_leave && this->is_previous_ap(bssid);
+  /// Which expected leave a disconnect is, if any. \p is_leave is true for a leave reason: the association leave
+  /// of an AP (8) and the station leave the driver reports for an attempt that never associated (36). Every
+  /// disconnect ends the expectation, so it matches at most once; the caller handles roaming before this.
+  ExpectedLeave consume_disconnect(const uint8_t *bssid, bool is_leave) {
+    ExpectedLeave expected = ExpectedLeave::EXPECTED_LEAVE_NONE;
+    if (is_leave && this->is_previous_ap(bssid))
+      expected = this->had_ap_ ? ExpectedLeave::EXPECTED_LEAVE_AP : ExpectedLeave::EXPECTED_LEAVE_ATTEMPT;
     this->armed_ = false;
     return expected;
   }
 
  protected:
   std::array<uint8_t, 6> bssid_{};
+  bool had_ap_{false};
   bool armed_{false};
 };
 
