@@ -229,8 +229,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             if constant.strings:
                 # Escaped, so control characters in a literal can't disturb the terminal
                 shown = ", ".join(
-                    json.dumps(text[:40], ensure_ascii=False)
-                    for text in constant.strings[:4]
+                    json.dumps(text[:40]) for text in constant.strings[:4]
                 )
                 more = ", ..." if len(constant.strings) > 4 else ""
                 lines.append(f"{'':>9} points to {shown}{more}")

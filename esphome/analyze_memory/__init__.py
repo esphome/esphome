@@ -150,6 +150,8 @@ class UnnamedConstant:
     jump_table: bool  # Holds code addresses (a switch table), not a value
     data: bytes  # Leading bytes, to recognize the value
     strings: list[str] = field(default_factory=list)  # String literals it points to
+    # Every function that uses the section, which decides whether the link kept it
+    users: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -274,6 +276,8 @@ class _FunctionDefinitions:
 
     def linked_copy_unknown(self, file_path: str, functions: list[str]) -> bool:
         """True if another object's copy of these functions may be the linked one."""
+        if not functions:
+            return False
         if self.weak[file_path].issuperset(functions):
             # Inline copies: dropped only once a strong definition replaces every user
             return self.strong.issuperset(functions)
@@ -1443,10 +1447,10 @@ class MemoryAnalyzer:
             for constant in self._scan_object_constants(
                 file_path, sections, rel_path, component
             ):
-                if definitions.linked_copy_unknown(file_path, constant.functions):
+                if definitions.linked_copy_unknown(file_path, constant.users):
                     continue
-                if definitions.weak[file_path].issuperset(constant.functions):
-                    key = (tuple(constant.functions), constant.size)
+                if definitions.weak[file_path].issuperset(constant.users):
+                    key = (tuple(constant.users), constant.size)
                     if inline_copies.setdefault(key, file_path) != file_path:
                         continue
                 self._unnamed_constants.append(constant)
@@ -1519,6 +1523,7 @@ class MemoryAnalyzer:
                     if section.is_unnamed(offset)
                 )[:16],
                 strings=strings.get(name, []),
+                users=sorted(users[name]),
             )
             for name, section in by_name.items()
             # Dropped by --gc-sections unless a function that uses it was kept
@@ -1543,8 +1548,13 @@ class MemoryAnalyzer:
         code = _parse_hex_dumps(result.stdout) if result else {}
         for section, offset, addend, target, function in mixed:
             start = _pointer_target(code.get(section, b""), offset, addend)
-            # Without the code dump, keep the function rather than lose a user
-            if start is None or by_name[target].is_unnamed(start):
+            # A pointer that can't be read, or lands outside the section, keeps the user
+            section_size = by_name[target].size
+            if (
+                start is None
+                or not 0 <= start < section_size
+                or by_name[target].is_unnamed(start)
+            ):
                 functions[target].add(function)
 
     def _read_pointed_strings(

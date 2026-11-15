@@ -196,6 +196,7 @@ def test_unnamed_constants_attributed_to_component(obj_dir: Path) -> None:
         functions=[SAVE, SETUP],
         jump_table=False,
         data=bytes.fromhex("0000803f") * 4,
+        users=[SAVE, SETUP],
     )
     assert (web.size, web.component, web.functions) == (
         28,
@@ -592,3 +593,29 @@ def test_read_pointed_strings_falls_back_on_bad_pointer() -> None:
         return_value=completed(hex_dump(".rodata.str1.1", b"ok\0")),
     ):
         assert analyzer._read_pointed_strings("a.o", pointers, {".rodata": table}) == {}
+
+
+def test_unnamed_constants_mixed_section_without_unnamed_user(obj_dir: Path) -> None:
+    """Unnamed bytes no function points at are still listed and charged."""
+    analyzer, run_tool = _esp8266_analyzer(obj_dir, {SETUP, MATCH_URL})
+    constant = UnnamedConstant(
+        size=4,
+        source_file=LIGHT_OBJ,
+        component="[esphome]light",
+        functions=[],
+        jump_table=False,
+        data=b"",
+        users=[SETUP],
+    )
+    light = str(obj_dir / LIGHT_OBJ)
+    with (
+        patch("esphome.analyze_memory.run_tool", side_effect=run_tool),
+        patch.object(
+            analyzer,
+            "_scan_object_constants",
+            side_effect=lambda path, *_: [constant] if path == light else [],
+        ),
+    ):
+        analyzer._analyze_object_rodata()
+    assert analyzer._unnamed_constants == [constant]
+    assert analyzer.components["[esphome]light"].data_size == 4
