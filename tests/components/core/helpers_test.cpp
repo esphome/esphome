@@ -55,6 +55,26 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
   }
 }
 
+TEST(HelpersTest, Nibbles) {
+  EXPECT_EQ(high_nibble(0xA5), 0xA);
+  EXPECT_EQ(low_nibble(0xA5), 0x5);
+  EXPECT_EQ(high_nibble(0x0F), 0x0);
+  EXPECT_EQ(low_nibble(0xF0), 0x0);
+  static_assert(high_nibble(0xFF) == 0xF && low_nibble(0xFF) == 0xF, "usable in constant expressions");
+}
+
+TEST(HelpersTest, EncodeUint12) {
+  EXPECT_EQ(encode_uint12(0x12, 0x3), 0x123);
+  EXPECT_EQ(encode_uint12(0xFF, 0xF), 0xFFF);
+  EXPECT_EQ(encode_uint12(0x00, 0x0), 0x000);
+  EXPECT_EQ(encode_uint12(0x12, 0xA3), 0x123);  // bits above the low nibble are ignored
+  // A touch record byte packing the low nibbles of X (high) and Y (low)
+  const uint8_t shared = 0x5C;
+  EXPECT_EQ(encode_uint12(0x34, high_nibble(shared)), 0x345);
+  EXPECT_EQ(encode_uint12(0x67, low_nibble(shared)), 0x67C);
+  static_assert(encode_uint12(0xAB, 0xC) == 0xABC, "usable in constant expressions");
+}
+
 TEST(HelpersTest, SignExtend) {
   EXPECT_EQ(sign_extend<24>(0x000000), 0);
   EXPECT_EQ(sign_extend<24>(0x7FFFFF), 8388607);
