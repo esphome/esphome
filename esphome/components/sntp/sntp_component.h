@@ -17,7 +17,11 @@ namespace esphome::sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent final : public time::RealTimeClock {
  public:
-  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers) : servers_(servers) {}
+  // One argument per server: a braced std::array argument is copied from a constant, which is RAM on ESP8266
+  template<typename... Servers> explicit SNTPComponent(Servers... servers) : servers_{servers...} {
+    // One std::array, or one argument per server; fewer would leave null server names
+    static_assert(sizeof...(Servers) == 1 || sizeof...(Servers) == SNTP_SERVER_COUNT);
+  }
 
   void setup() override;
   void dump_config() override;
