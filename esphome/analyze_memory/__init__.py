@@ -253,8 +253,10 @@ def _ram_string_size(text: bytes, rodata: bytes, literals: Container[bytes]) -> 
     start = rodata.find(needle)
     while start != -1:
         head = rodata.rfind(b"\0", 0, start) + 1
-        # Bytes before it that are not one of our literals are other data
-        if start == head or rodata[head : start + len(text)] not in literals:
+        end = start + len(text)
+        # Only the tail of a longer literal of ours if one starts before it; other
+        # bytes there are data, or a literal from an object that was not scanned
+        if not any(rodata[k:end] in literals for k in range(head, start)):
             return len(needle)
         start = rodata.find(needle, start + 1)
     return 0
@@ -1516,9 +1518,14 @@ class MemoryAnalyzer:
         once, from the bytes it really takes in the ELF's .rodata.
         """
         result = run_tool([self.readelf_path, "-x", ".rodata", str(self.elf_path)])
-        if result is None or result.returncode != 0:
+        rodata = _parse_hex_dumps(result.stdout).get(".rodata") if result else None
+        if not rodata:
+            _LOGGER.warning(
+                "No .rodata dump of %s, so string literals are not listed",
+                self.elf_path,
+            )
             return
-        rodata = bytes(_parse_hex_dumps(result.stdout).get(".rodata", b""))
+        rodata = bytes(rodata)
         # Literal -> component -> functions or data using it
         users: dict[bytes, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
         for file_path, sections in _parse_string_sections(output).items():
@@ -1560,7 +1567,7 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.debug("readelf failed reading strings of %s", file_path)
+            _LOGGER.warning("readelf failed reading strings of %s", file_path)
             return {}
         contents = _parse_hex_dumps(result.stdout)
         users: dict[bytes, set[str]] = defaultdict(set)
@@ -1601,7 +1608,7 @@ class MemoryAnalyzer:
             + [file_path]
         )
         if result is None or result.returncode != 0:
-            _LOGGER.debug("readelf failed reading string users of %s", file_path)
+            _LOGGER.warning("readelf failed reading string users of %s", file_path)
             return users
         referrers = _parse_hex_dumps(result.stdout)
         for section, found, offset, target, addend in refs:

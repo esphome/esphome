@@ -98,6 +98,26 @@ def test_ram_string_size(text: bytes, expected: int) -> None:
     assert _ram_string_size(text, rodata, literals) == expected
 
 
+def test_ram_string_size_tail_after_other_data() -> None:
+    """A tail of a literal that follows binary data is still only a tail."""
+    rodata = b"\x00\x00\x80\x3fMON\0"
+    assert _ram_string_size(b"MON", rodata, {b"MON", b"ON"}) == 4
+    assert _ram_string_size(b"ON", rodata, {b"MON", b"ON"}) == 0
+
+
+def test_string_literals_missing_rodata_warns(
+    obj_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Without the ELF's .rodata dump the report says why strings are missing."""
+    analyzer = _new_analyzer(obj_dir, {COVER_JSON})
+    with patch("esphome.analyze_memory.run_tool", return_value=completed("")):
+        analyzer._attribute_string_literals(
+            _sections(str(obj_dir / WEB_OBJ), str(obj_dir / LIGHT_OBJ)), obj_dir
+        )
+    assert analyzer._string_literals == []
+    assert "No .rodata dump" in caplog.text
+
+
 @pytest.fixture
 def obj_dir(tmp_path: Path) -> Path:
     for rel in (WEB_OBJ, LIGHT_OBJ, "src/main.cpp.o"):
