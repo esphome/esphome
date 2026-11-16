@@ -567,12 +567,12 @@ async def to_code(config: ConfigType) -> None:
 
     request_bluetooth()
 
-    # Replace Bluedroid's only two sscanf callers so newlib's scanf engine is not
-    # linked; see bluedroid_hex_wraps.cpp. IDF 6.0+ uses picolibc, not newlib.
-    if (
-        not CORE.using_arduino
-        and idf_version() < cv.Version(6, 0, 0)
-        and get_esp32_variant() not in ROM_SSCANF_VARIANTS
+    # Replace Bluedroid's only two sscanf callers so the C library's scanf engine is
+    # not linked; see bluedroid_hex_wraps.cpp. The ROM only provides sscanf for newlib,
+    # which IDF 6.0 replaced with picolibc.
+    if not CORE.using_arduino and (
+        idf_version() >= cv.Version(6, 0, 0)
+        or get_esp32_variant() not in ROM_SSCANF_VARIANTS
     ):
         cg.add_define("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS")
         _wrap_bluedroid_symbols("btc_config_get_bin", "string_to_bdaddr")
