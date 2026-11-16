@@ -32,7 +32,7 @@ class Bmi270Bus final : public i2c::I2CBus {
       return i2c::ERROR_INVALID_ARGUMENT;
     uint8_t reg = data[0];
     if (size > 1) {
-      if (reg == BMI270_REG_INIT_ADDR_0 || reg == BMI270_REG_INIT_DATA)
+      if (reg == BMI270_REG_INIT_ADDR_0 || reg == BMI270_REG_INIT_ADDR_0 + 1 || reg == BMI270_REG_INIT_DATA)
         ++this->upload_writes;
       if (reg == BMI270_REG_INIT_DATA) {
         size_t offset =

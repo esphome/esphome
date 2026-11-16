@@ -96,9 +96,10 @@ void BMI270Component::setup() {
 #ifdef USE_BMI270_BMM150
   // A missing magnetometer only disables magnetometer reporting
   if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
-    this->magnetometer_ready_ = this->setup_magnetometer_();
-    if (!this->magnetometer_ready_) {
-      ESP_LOGW(TAG, "BMM150 magnetometer setup failed; continuing without it");
+    const LogString *failed_step = this->setup_magnetometer_();
+    this->magnetometer_ready_ = failed_step == nullptr;
+    if (failed_step != nullptr) {
+      ESP_LOGW(TAG, "BMM150 magnetometer setup failed at %s; continuing without it", LOG_STR_ARG(failed_step));
     }
   }
 #endif
@@ -132,43 +133,45 @@ bool BMI270Component::read_aux_block_(uint8_t reg, uint8_t *buf) {
 
 // Follows the Bosch BMI270 aux-interface sequence; ends in auto-burst mode, where the BMI270 keeps
 // AUX_X/Y/Z/R filled from the BMM150's data registers
-bool BMI270Component::setup_magnetometer_() {
+const LogString *BMI270Component::setup_magnetometer_() {
   if (!(this->write_byte(BMI270_REG_IF_CONF, BMI270_IF_CONF_AUX_IF_EN) &&
         this->write_byte(BMI270_REG_AUX_IF_CONF, BMI270_AUX_IF_CONF_MANUAL_EN | BMI270_AUX_IF_CONF_MAN_RD_BURST_8) &&
         this->write_byte(BMI270_REG_AUX_DEV_ID, this->aux_device_address_ << 1)))
-    return false;
+    return LOG_STR("aux interface");
 
   // Suspend -> sleep, then a soft reset so the BMM150 starts from a known state even if it
   // stayed powered across a restart. The chip ID is only readable once the power bit is set.
   if (!this->write_aux_register_(BMM150_REG_POWER_CONTROL, BMM150_CMD_POWER_ON))
-    return false;
+    return LOG_STR("power-on");
   delay(BMM150_START_UP_TIME_MS);
   if (!this->write_aux_register_(BMM150_REG_POWER_CONTROL, BMM150_CMD_SOFT_RESET))
-    return false;
+    return LOG_STR("soft reset");
   delay(BMM150_SOFT_RESET_TIME_MS);
 
   uint8_t chip_id[BMI270_AUX_DATA_LEN];
   if (!this->read_aux_block_(BMM150_REG_CHIP_ID, chip_id))
-    return false;
+    return LOG_STR("chip ID read");
   if (chip_id[0] != BMM150_CHIP_ID_VALUE) {
-    ESP_LOGW(TAG, "BMM150 not detected (chip ID 0x%02X, expected 0x%02X)", chip_id[0], BMM150_CHIP_ID_VALUE);
-    return false;
+    ESP_LOGW(TAG, "BMM150 chip ID 0x%02X, expected 0x%02X", chip_id[0], BMM150_CHIP_ID_VALUE);
+    return LOG_STR("chip ID check");
   }
 
   uint8_t trim[BMM150_TRIM_BLOCKS * BMM150_TRIM_BLOCK_LEN];
   for (uint8_t i = 0; i < BMM150_TRIM_BLOCKS; i++) {
     if (!this->read_aux_block_(BMM150_REG_TRIM_START + i * BMM150_TRIM_BLOCK_LEN, trim + i * BMM150_TRIM_BLOCK_LEN))
-      return false;
+      return LOG_STR("trim read");
   }
   this->mag_trim_ = bmm150_parse_trim(trim);
 
   if (!this->write_aux_register_(BMM150_REG_OP_MODE, BMM150_CMD_NORMAL_MODE_ODR_30HZ))
-    return false;
+    return LOG_STR("normal mode");
 
-  return this->write_byte(BMI270_REG_AUX_IF_CONF, BMI270_AUX_IF_CONF_FCU_WRITE_EN | BMI270_AUX_IF_CONF_MAN_RD_BURST_8 |
-                                                      BMI270_AUX_IF_CONF_RD_BURST_8) &&
-         this->write_byte(BMI270_REG_AUX_RD_ADDR, BMM150_REG_DATA_X_LSB) &&
-         this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU | BMI270_PWR_CTRL_AUX_EN);
+  if (!(this->write_byte(BMI270_REG_AUX_IF_CONF, BMI270_AUX_IF_CONF_FCU_WRITE_EN | BMI270_AUX_IF_CONF_MAN_RD_BURST_8 |
+                                                     BMI270_AUX_IF_CONF_RD_BURST_8) &&
+        this->write_byte(BMI270_REG_AUX_RD_ADDR, BMM150_REG_DATA_X_LSB) &&
+        this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU | BMI270_PWR_CTRL_AUX_EN)))
+    return LOG_STR("auto-burst mode");
+  return nullptr;
 }
 #endif  // USE_BMI270_BMM150
 

@@ -151,7 +151,8 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   bool update_data(motion::MotionData &data) override;
   bool load_config_file_();
 #ifdef USE_BMI270_BMM150
-  bool setup_magnetometer_();
+  // Returns the step that failed, or nullptr once the BMM150 is running
+  const LogString *setup_magnetometer_();
   // Polls the aux busy bit, as the aux transaction time depends on the attached device
   bool wait_for_aux_idle_();
   // Manual-mode aux read of 8 bytes starting at `reg` on the aux device
