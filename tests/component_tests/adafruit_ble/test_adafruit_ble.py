@@ -47,56 +47,86 @@ def adafruit_ble_ota_full_config() -> Generator[None]:
     fv.full_config.reset(token)
 
 
+@pytest.fixture
+def entry_config(
+    tmp_path: Path, component_config_path: Callable[[str], Path]
+) -> Callable[..., Path]:
+    """Adapt the manual fixture without duplicating its configuration."""
+
+    def write(trigger: bool | None = False, server: bool = False) -> Path:
+        text = component_config_path("adafruit_ble_manual.yaml").read_text()
+        text = text.replace(
+            "    ble_trigger: false\n",
+            "" if trigger is None else f"    ble_trigger: {str(trigger).lower()}\n",
+        )
+        if server:
+            text += "\nzephyr_ble_server:\n"
+        path = tmp_path / "entry.yaml"
+        path.write_text(text)
+        return path
+
+    return write
+
+
+@pytest.mark.parametrize(
+    ("trigger", "server"), [(None, True), (True, True), (False, False), (False, True)]
+)
 def test_adafruit_ble_config_builds_ota_component(
     generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
+    entry_config: Callable[..., Path],
+    trigger: bool | None,
+    server: bool,
 ) -> None:
-    main_cpp = generate_main(component_config_path("adafruit_ble.yaml"))
+    main_cpp = generate_main(entry_config(trigger, server))
     assert "adafruit_ble::OTAComponent" in main_cpp
-
-
-def test_manual_mode_builds_without_application_bluetooth(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    main_cpp = generate_main(component_config_path("adafruit_ble_manual.yaml"))
     assert "firmware_update->request_dfu_mode();" in main_cpp
-    assert "zephyr_ble_server" not in CORE.loaded_integrations
-    assert "USE_ADAFRUIT_BLE_TRIGGER" not in {d.name for d in CORE.defines}
+    assert ("zephyr_ble_server" in CORE.loaded_integrations) is server
+    assert ("USE_ADAFRUIT_BLE_TRIGGER" in {d.name for d in CORE.defines}) is (
+        trigger is not False
+    )
 
 
+@pytest.mark.parametrize("trigger", [None, True])
 def test_requires_zephyr_ble_server(
-    component_config_path: Callable[[str], Path], capsys: pytest.CaptureFixture[str]
+    entry_config: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
+    trigger: bool | None,
 ) -> None:
-    CORE.config_path = component_config_path("adafruit_ble_without_server.yaml")
+    CORE.config_path = entry_config(trigger)
     assert read_config({}) is None
     assert "requires component zephyr_ble_server" in capsys.readouterr().out
 
 
-def test_requires_adafruit_bootloader() -> None:
+@pytest.mark.parametrize("trigger", [True, False])
+def test_requires_adafruit_bootloader(trigger: bool) -> None:
     CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
     with pytest.raises(cv.Invalid, match="requires an Adafruit bootloader"):
-        _final_validate({})
+        _final_validate({"ble_trigger": trigger})
 
 
 @pytest.mark.parametrize(
-    ("server", "warned"),
+    ("server", "trigger", "warned"),
     [
-        ({}, True),
-        ({"on_numeric_comparison_request": [{"then": []}]}, False),
+        ({}, None, True),
+        ({}, True, True),
+        ({"on_numeric_comparison_request": [{"then": []}]}, True, False),
+        ({}, False, False),
+        (None, False, False),
     ],
-    ids=["no_pairing", "pairing"],
+    ids=["default_open", "explicit_open", "pairing", "manual_server", "manual"],
 )
 def test_warns_about_open_trigger_without_pairing(
     adafruit_ble_ota_full_config: None,
     caplog: pytest.LogCaptureFixture,
-    server: dict,
+    server: dict | None,
+    trigger: bool | None,
     warned: bool,
 ) -> None:
     CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6}
-    fv.full_config.get()["zephyr_ble_server"] = server
+    if server is not None:
+        fv.full_config.get()["zephyr_ble_server"] = server
     with caplog.at_level(logging.WARNING):
-        _final_validate({})
+        _final_validate({} if trigger is None else {"ble_trigger": trigger})
     assert ("without pairing" in caplog.text) is warned
 
 
@@ -155,6 +185,62 @@ def test_rollback_default_off_quietly_without_safe_mode(
         nrf52_final_validate(config)
     assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
     assert "rollback" not in caplog.text
+
+
+@pytest.mark.parametrize("action", ["firmware_update", "{id: firmware_update}"])
+def test_action_id_forms(
+    entry_config: Callable[..., Path],
+    generate_main: Callable[[str | Path], str],
+    action: str,
+) -> None:
+    path = entry_config()
+    path.write_text(
+        path.read_text().replace(
+            "enter_bootloader: firmware_update", f"enter_bootloader: {action}"
+        )
+    )
+    assert "firmware_update->request_dfu_mode();" in generate_main(path)
+
+
+@pytest.mark.parametrize(
+    ("action", "error"),
+    [("missing", "Couldn't find ID 'missing'"), ("wrong_type", "doesn't inherit")],
+)
+def test_invalid_action_id(
+    entry_config: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
+    action: str,
+    error: str,
+) -> None:
+    path = entry_config()
+    path.write_text(
+        path.read_text()
+        .replace("logger:\n", "logger:\n  id: wrong_type\n")
+        .replace("enter_bootloader: firmware_update", f"enter_bootloader: {action}")
+    )
+    CORE.config_path = path
+    assert read_config({}) is None
+    assert error in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("first", [True, False])
+@pytest.mark.parametrize("second", [True, False])
+def test_duplicate_instances_rejected(
+    entry_config: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
+    first: bool,
+    second: bool,
+) -> None:
+    path = entry_config(first, server=True)
+    path.write_text(
+        path.read_text().replace(
+            "\nbutton:",
+            f"\n  - platform: adafruit_ble\n    ble_trigger: {str(second).lower()}\n\nbutton:",
+        )
+    )
+    CORE.config_path = path
+    assert read_config({}) is None
+    assert "does not support multiple instances" in capsys.readouterr().out
 
 
 def test_safe_mode_keeps_the_ble_trigger(
