@@ -84,8 +84,9 @@ void ArduinoI2CBus::dump_config() {
   this->dump_scan_results_();
 }
 
-ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
-                                     uint8_t *read_buffer, size_t read_count) {
+ErrorCode ArduinoI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len,
+                                   const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                                   size_t read_count) {
 #if defined(USE_ESP8266)
   this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
 #endif
@@ -94,13 +95,15 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     return ERROR_NOT_INITIALIZED;
   }
 
+  if (prefix_len != 0)
+    ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
   ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
 
   uint8_t status = 0;
-  if (write_count != 0 || read_count == 0) {
+  if (prefix_len != 0 || write_count != 0 || read_count == 0) {
     this->wire_->beginTransmission(address);
-    size_t ret = this->wire_->write(write_buffer, write_count);
-    if (ret != write_count) {
+    if (this->wire_->write(prefix, prefix_len) != prefix_len ||
+        this->wire_->write(write_buffer, write_count) != write_count) {
       ESP_LOGV(TAG, "TX failed");
       return ERROR_UNKNOWN;
     }

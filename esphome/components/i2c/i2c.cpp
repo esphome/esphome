@@ -52,22 +52,23 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
   return bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&a_register), 2, data, len);
 }
 
-ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<17> buffer_alloc(len + 1);  // Most I2C writes are <= 16 bytes
+ErrorCode I2CBus::write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
+                                 size_t len) {
+  SmallBufferWithHeapFallback<20> buffer_alloc(prefix_len + len);
   uint8_t *buffer = buffer_alloc.get();
+  std::copy(prefix, prefix + prefix_len, buffer);
+  std::copy(data, data + len, buffer + prefix_len);
+  return this->write_readv(address, buffer, prefix_len + len, nullptr, 0);
+}
 
-  buffer[0] = a_register;
-  std::copy(data, data + len, buffer + 1);
-  return this->bus_->write_readv(this->address_, buffer, len + 1, nullptr, 0);
+ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
+  return this->bus_->write_prefixed(this->address_, &a_register, 1, data, len);
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
-  uint8_t *buffer = buffer_alloc.get();
-
-  put_be16(buffer, a_register);
-  std::copy(data, data + len, buffer + 2);
-  return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
+  uint8_t reg[2];
+  put_be16(reg, a_register);
+  return this->bus_->write_prefixed(this->address_, reg, sizeof(reg), data, len);
 }
 
 bool I2CDevice::write_registers(const I2CRegValue *table, size_t count) const {

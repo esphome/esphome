@@ -200,8 +200,8 @@ void IDFI2CBus::dump_config() {
   this->dump_scan_results_();
 }
 
-ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
-                                 size_t read_count) {
+ErrorCode IDFI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *write_buffer,
+                               size_t write_count, uint8_t *read_buffer, size_t read_count) {
   // logging is only enabled with v level, if warnings are shown the caller
   // should log them
   if (!this->initialized_) {
@@ -209,12 +209,13 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     return ERROR_NOT_INITIALIZED;
   }
 
-  i2c_operation_job_t jobs[8]{};
+  // START, address, prefix, data, START, address, two reads, STOP
+  i2c_operation_job_t jobs[9]{};
   size_t num_jobs = 0;
   uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
   uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
   ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", write_count, read_count);
-  if (read_count == 0 && write_count == 0) {
+  if (read_count == 0 && write_count == 0 && prefix_len == 0) {
     // basically just a bus probe. Send a start, address and stop
     ESP_LOGV(TAG, "0x%02X BUS PROBE", address);
     jobs[num_jobs++].command = I2C_MASTER_CMD_START;
@@ -223,17 +224,27 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     jobs[num_jobs].write.data = &write_addr;
     jobs[num_jobs++].write.total_bytes = 1;
   } else {
-    if (write_count != 0) {
+    if (prefix_len != 0 || write_count != 0) {
+      if (prefix_len != 0)
+        ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
       ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
       jobs[num_jobs++].command = I2C_MASTER_CMD_START;
       jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
       jobs[num_jobs].write.ack_check = true;
       jobs[num_jobs].write.data = &write_addr;
       jobs[num_jobs++].write.total_bytes = 1;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = (uint8_t *) write_buffer;
-      jobs[num_jobs++].write.total_bytes = write_count;
+      if (prefix_len != 0) {
+        jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+        jobs[num_jobs].write.ack_check = true;
+        jobs[num_jobs].write.data = const_cast<uint8_t *>(prefix);
+        jobs[num_jobs++].write.total_bytes = prefix_len;
+      }
+      if (write_count != 0) {
+        jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
+        jobs[num_jobs].write.ack_check = true;
+        jobs[num_jobs].write.data = const_cast<uint8_t *>(write_buffer);
+        jobs[num_jobs++].write.total_bytes = write_count;
+      }
     }
     if (read_count != 0) {
       ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
