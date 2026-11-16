@@ -15,6 +15,27 @@ static constexpr uint32_t REQUEST_TIMEOUT_MS = 5000;
 /// Scheduler id for the delivery timeout, so a late frame can cancel it.
 static constexpr uint32_t REQUEST_TIMEOUT_ID = 0;
 
+namespace {
+
+/// Reads better in dump_config than the raw enum value.
+const char *image_type_name(image::ImageType type) {
+  switch (type) {
+    case image::IMAGE_TYPE_BINARY:
+      return "BINARY";
+    case image::IMAGE_TYPE_GRAYSCALE:
+      return "GRAYSCALE";
+    case image::IMAGE_TYPE_RGB:
+      return "RGB";
+    case image::IMAGE_TYPE_RGB565:
+      return "RGB565";
+    case image::IMAGE_TYPE_RGB111:
+      return "RGB111";
+  }
+  return "UNKNOWN";
+}
+
+}  // namespace
+
 CameraImage::CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
                          bool is_big_endian)
@@ -65,7 +86,7 @@ void CameraImage::update() {
     ESP_LOGW(TAG, "Camera did not deliver a frame within %u ms", static_cast<unsigned>(REQUEST_TIMEOUT_MS));
     this->on_error_callback_.call();
   });
-  this->camera_->request_image(camera::IDLE);
+  this->camera_->request_image(camera::COMPONENT_REQUESTER);
 }
 
 void CameraImage::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
@@ -232,7 +253,7 @@ bool CameraImage::apply_crop_rotation_() {
 void CameraImage::dump_config() {
   ESP_LOGCONFIG(TAG, "Camera Image:");
   ESP_LOGCONFIG(TAG, "  Format: %s", LOG_STR_ARG(runtime_image::get_format_name(this->get_format())));
-  ESP_LOGCONFIG(TAG, "  Type: %d", static_cast<int>(this->get_type()));
+  ESP_LOGCONFIG(TAG, "  Type: %s", image_type_name(this->get_type()));
   if (this->has_crop_) {
     ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->crop_x_, this->crop_y_, this->crop_width_, this->crop_height_);
   }

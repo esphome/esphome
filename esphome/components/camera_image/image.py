@@ -12,12 +12,14 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_ERROR,
     CONF_RESIZE,
+    CONF_RESOLUTION,
     CONF_ROTATION,
     CONF_TYPE,
     CONF_WIDTH,
     CONF_X,
     CONF_Y,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["runtime_image"]
@@ -107,6 +109,70 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_IMAGE, "add_on_image_callback"),
     automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
 )
+
+
+# The numeric resolution names in esp32_camera.FRAME_SIZES carry the pixel size;
+# the aliases (QQVGA, VGA, ...) map to the same frame size.
+def _resolution_dimensions(resolution: object) -> tuple[int, int]:
+    name = str(resolution).upper()
+    parts = name.split("X")
+    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+        return int(parts[0]), int(parts[1])
+
+    try:
+        frame_size = esp32_camera.FRAME_SIZES[name]
+    except KeyError:
+        raise cv.Invalid(f"Unknown camera resolution {resolution}") from None
+    for numeric_name, candidate in esp32_camera.FRAME_SIZES.items():
+        parts = numeric_name.split("X")
+        # The enum values are codegen mock objects, one per attribute access, so
+        # they are compared rendered rather than by identity.
+        if len(parts) == 2 and parts[0].isdigit() and str(candidate) == str(frame_size):
+            return int(parts[0]), int(parts[1])
+    raise cv.Invalid(f"Unknown camera resolution {resolution}")
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    """Check the options that depend on the referenced camera's configuration."""
+    camera_config = fv.get_declaring_config(config[CONF_CAMERA_ID])
+
+    # Without jpeg_quality the camera returns raw pixels, which this platform can
+    # never decode.
+    pixel_format = camera_config.get(esp32_camera.CONF_PIXEL_FORMAT, "JPEG")
+    if (
+        pixel_format != "JPEG"
+        and camera_config.get(esp32_camera.CONF_JPEG_QUALITY, 0) == 0
+    ):
+        raise cv.Invalid(
+            f"camera_image needs JPEG frames, but the camera is configured with "
+            f"pixel_format: {pixel_format} and jpeg_quality: 0, which delivers raw "
+            f"frames. Set jpeg_quality so the camera converts to JPEG, or use "
+            f"pixel_format: JPEG.",
+            path=[CONF_CAMERA_ID],
+        )
+
+    # With a resize the decoded frame is scaled to fit those bounds, and the crop
+    # was already checked against them; without one the crop has to fit the
+    # camera resolution.
+    if CONF_CROP in config and CONF_RESIZE not in config:
+        frame_width, frame_height = _resolution_dimensions(
+            camera_config[CONF_RESOLUTION]
+        )
+        crop = config[CONF_CROP]
+        if (
+            crop[CONF_X] + crop[CONF_WIDTH] > frame_width
+            or crop[CONF_Y] + crop[CONF_HEIGHT] > frame_height
+        ):
+            raise cv.Invalid(
+                f"crop {crop[CONF_X]},{crop[CONF_Y]} "
+                f"{crop[CONF_WIDTH]}x{crop[CONF_HEIGHT]} does not fit inside the "
+                f"{frame_width}x{frame_height} camera resolution",
+                path=[CONF_CROP],
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

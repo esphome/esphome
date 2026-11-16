@@ -12,8 +12,10 @@ namespace esphome::camera {
  *  API_REQUESTER: API requests a new image.
  *  WEB_REQUESTER: ESP32 web server request an image. Ignored by API.
  *  RTSP_REQUESTER: RTSP server requests a stream of images. Ignored by API and web server.
+ *  COMPONENT_REQUESTER: an in-tree consumer such as camera_image requested the
+ *  frame for itself. Ignored by API, web server and RTSP server.
  */
-enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER, RTSP_REQUESTER };
+enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER, RTSP_REQUESTER, COMPONENT_REQUESTER };
 
 /// Enumeration of different pixel formats.
 enum PixelFormat : uint8_t {
