@@ -194,7 +194,7 @@ struct LogBuffer {
     *p++ = d;
     return p;
   }
-  // Returns the new end; p is by value so it stays in a register (char *& made GCC store it per byte)
+  // Writes up to 7 bytes unchecked, so the caller reserves space; returns the new end, keeping p in a register
   static char *write_ansi_color(char *p, uint8_t level) {
     if (level == 0)
       return p;
@@ -208,7 +208,7 @@ struct LogBuffer {
     *p++ = 'm';
     return p;
   }
-  // Copies str without its null terminator and returns the new end
+  // Copies str unchecked and without its null terminator, so the caller reserves space; returns the new end
   static char *copy_string(char *p, const char *str) {
 #ifdef USE_ESP8266
     // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
