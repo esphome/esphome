@@ -21,4 +21,4 @@ esphome:
   on_boot:
     priority: -100
     then:
-      - lambda: esphome::mipi_dsi::testing::exercise_owned_api(id(mipi_panel));
+      - lambda: esphome::mipi_dsi::testing::exercise_owned_api(*id(mipi_panel));
