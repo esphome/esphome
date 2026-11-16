@@ -213,12 +213,12 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_RX_BW, progmem_read_byte(&BW_FSK_OOK[this->bandwidth_]));
 
   // set fdev
-  uint32_t fdev = std::min((this->deviation_ * 4096) / 250000, (uint32_t) 0x3FFF);
+  uint16_t fdev = clamp_at_most((this->deviation_ * 4096) / 250000, uint32_t{0x3FFF});
   this->write_register16_(REG_FDEV_MSB, fdev);
 
   // set bitrate
-  uint64_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // round up
-  this->write_register16_(REG_BITRATE_MSB, static_cast<uint16_t>(bitrate));
+  uint16_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // round up
+  this->write_register16_(REG_BITRATE_MSB, bitrate);
 
   // configure rx and afc
   this->write_register_(REG_AFC_BW, progmem_read_byte(&BW_FSK_OOK[this->afc_bandwidth_]));
