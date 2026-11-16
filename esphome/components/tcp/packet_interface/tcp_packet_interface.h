@@ -41,8 +41,8 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   bool send_to_interface(const packet_interface::PacketBuffer &data,
                          const packet_interface::PacketMetaData &meta_data) override;
   /**
-   * Unlimited while the socket takes what is sent. Once frames wait for it, how many more full frames fit, so a
-   * fragmented packet is not started when it would be cut short.
+   * Unlimited while the socket takes what is sent. Once frames wait for it, how many more full frames fit. A socket
+   * that stalls part way through a fragmented packet still cuts it short.
    */
   size_t get_send_capacity() const override;
 
