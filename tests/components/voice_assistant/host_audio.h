@@ -21,8 +21,8 @@ class RingBufferAudioSource {
  public:
   explicit RingBufferAudioSource(std::shared_ptr<ring_buffer::RingBuffer> ring_buffer)
       : ring_buffer_(std::move(ring_buffer)) {}
-  static std::unique_ptr<RingBufferAudioSource> create(const std::shared_ptr<ring_buffer::RingBuffer> &ring_buffer, size_t,
-                                                       size_t) {
+  static std::unique_ptr<RingBufferAudioSource> create(const std::shared_ptr<ring_buffer::RingBuffer> &ring_buffer,
+                                                       size_t, size_t) {
     return std::make_unique<RingBufferAudioSource>(ring_buffer);
   }
   size_t fill(uint32_t) { return 0; }
@@ -30,6 +30,7 @@ class RingBufferAudioSource {
   const uint8_t *data() const { return nullptr; }
   void consume(size_t) {}
   void clear_buffered_data() {}
+
  protected:
   std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
 };

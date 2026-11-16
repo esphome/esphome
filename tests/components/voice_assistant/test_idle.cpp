@@ -13,20 +13,29 @@
 
 // Only PCM capture is doubled. The complete VA, scheduler, Automation and API connection are production code.
 namespace esphome::microphone {
-void MicrophoneSource::start() { this->enabled_ = true; this->mic_->start(); }
-void MicrophoneSource::stop() { this->enabled_ = false; this->mic_->stop(); }
+void MicrophoneSource::start() {
+  this->enabled_ = true;
+  this->mic_->start();
+}
+void MicrophoneSource::stop() {
+  this->enabled_ = false;
+  this->mic_->stop();
+}
 void MicrophoneSource::process_audio_(std::span<const uint8_t>, const audio::AudioStreamInfo &,
                                       std::vector<uint8_t> &) {
   ADD_FAILURE() << "Unexpected PCM in a lifecycle test";
 }
 audio::AudioStreamInfo MicrophoneSource::get_audio_stream_info() { return {16, 1, 16000}; }
-}
+}  // namespace esphome::microphone
 
 namespace esphome::voice_assistant::testing {
 class IdleMicrophone : public microphone::Microphone {
  public:
   unsigned starts{0};
-  void start() override { ++this->starts; this->state_ = microphone::STATE_RUNNING; }
+  void start() override {
+    ++this->starts;
+    this->state_ = microphone::STATE_RUNNING;
+  }
   void stop() override { this->state_ = microphone::STATE_STOPPED; }
 };
 
@@ -108,8 +117,8 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     unsigned starts = 0;
     api::ReadPacketBuffer packet;
     while (this->peer_->read_packet(&packet) == api::APIError::OK) {
-      if (packet.type == api::VoiceAssistantRequest::MESSAGE_TYPE && packet.data_len >= 2 &&
-          packet.data[0] == 0x08 && packet.data[1] == 1) {
+      if (packet.type == api::VoiceAssistantRequest::MESSAGE_TYPE && packet.data_len >= 2 && packet.data[0] == 0x08 &&
+          packet.data[1] == 1) {
         ++starts;
       }
     }
