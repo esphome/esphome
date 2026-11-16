@@ -7,8 +7,30 @@ request/deferred callback and OTA notification ordering execute unchanged.
 from pathlib import Path
 import shutil
 import subprocess
+from sys import platform
+from unittest.mock import patch
 
 import pytest
+
+
+@pytest.mark.parametrize("host_platform", ["win32", "linux", "darwin"])
+def test_manual_runtime_host_command(tmp_path: Path, host_platform: str) -> None:
+    """Keep native execution on Windows and sanitizers on Linux/macOS."""
+    with (
+        patch(f"{__name__}.platform", host_platform),
+        patch("shutil.which", return_value="g++"),
+        patch("subprocess.run") as run,
+    ):
+        test_manual_runtime(tmp_path, ble_trigger=False, paired=False)
+
+    assert run.call_count == 2
+    compile_call, execute_call = run.call_args_list
+    command = compile_call.args[0]
+    assert ("-fsanitize=address,undefined" in command) == (host_platform != "win32")
+    binary = tmp_path / ("runtime.exe" if host_platform == "win32" else "runtime")
+    assert command[-2:] == ["-o", str(binary)]
+    assert execute_call.args[0] == [str(binary)]
+    assert compile_call.kwargs == execute_call.kwargs == {"check": True}
 
 
 @pytest.mark.parametrize(
@@ -131,7 +153,9 @@ int main() {
   assert((events == std::vector<int>{1, 2, 3}));
 }
 """)
-    binary = tmp_path / "runtime"
+    binary = tmp_path / ("runtime.exe" if platform == "win32" else "runtime")
+    # The Windows MinGW toolchain does not ship the ASan/UBSan runtimes.
+    sanitizer_flags = [] if platform == "win32" else ["-fsanitize=address,undefined"]
     subprocess.run(
         [
             compiler,
@@ -140,7 +164,7 @@ int main() {
             "-Wextra",
             "-Werror",
             "-Wno-unused-parameter",
-            "-fsanitize=address,undefined",
+            *sanitizer_flags,
             "-fno-omit-frame-pointer",
             "-I",
             str(tmp_path),
