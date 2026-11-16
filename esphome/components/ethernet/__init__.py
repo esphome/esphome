@@ -181,7 +181,8 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "IP101": IDFRegistryComponent("espressif/ip101", "1.1.0"),
     "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
     "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
-    "W5500": IDFRegistryComponent("espressif/w5500", "2.0.1"),
+    # arduino-esp32 4.x requires espressif/w5500 ^1.0.1
+    "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
     "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.1"),
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.1.0"),
     "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.1.0"),
