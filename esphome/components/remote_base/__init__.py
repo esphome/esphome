@@ -2712,7 +2712,7 @@ HAIER_SCHEMA = cv.Schema(
 
 @register_binary_sensor("haier", HaierBinarySensor, HAIER_SCHEMA)
 def haier_binary_sensor(var, config):
-    cg.add(var.set_code(config[CONF_CODE]))
+    cg.add(var.set_data(cg.StructInitializer(HaierData, ("data", config[CONF_CODE]))))
 
 
 @register_trigger("haier", HaierTrigger, HaierData)
@@ -2831,7 +2831,7 @@ MIRAGE_SCHEMA = cv.Schema(
 
 @register_binary_sensor("mirage", MirageBinarySensor, MIRAGE_SCHEMA)
 def mirage_binary_sensor(var, config):
-    cg.add(var.set_code(config[CONF_CODE]))
+    cg.add(var.set_data(cg.StructInitializer(MirageData, ("data", config[CONF_CODE]))))
 
 
 @register_trigger("mirage", MirageTrigger, MirageData)
