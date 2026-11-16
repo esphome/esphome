@@ -3,11 +3,8 @@
 #include <cstdint>
 #include "esphome/core/helpers.h"
 
-// BMM150 magnetometer definitions - the chip that can optionally be wired to the BMI270's
-// auxiliary (secondary I2C master) interface. Lives in its own header/namespace because this
-// is BMM150-specific driver knowledge, not BMI270 knowledge - it just can't be a standalone
-// ESPHome component, since the BMM150 has no address of its own on the main I2C bus and is only
-// reachable by having the BMI270 proxy register reads/writes through its aux interface.
+// BMM150 magnetometer behind the BMI270's aux interface; it is not on the main I2C bus, so it is not
+// its own component
 namespace esphome::bmi270::bmm150 {
 
 static constexpr uint8_t BMM150_DEFAULT_I2C_ADDRESS = 0x10;
@@ -108,11 +105,11 @@ inline float bmm150_compensate_z(const BMM150Trim &trim, int16_t raw, uint16_t r
 
 // Converts 8 raw bytes from the BMM150 data registers (X, Y, Z, RHALL; 0x42-0x49) to compensated µT.
 inline BMM150Data bmm150_convert(const BMM150Trim &trim, const uint8_t *raw) {
-  // X/Y are 13-bit (LSB byte bits 7:3), Z is 15-bit (bits 7:1), RHALL is 14-bit (bits 7:2).
-  int16_t x = (int16_t) (((int16_t) (int8_t) raw[1] * 32) | (raw[0] >> 3));
-  int16_t y = (int16_t) (((int16_t) (int8_t) raw[3] * 32) | (raw[2] >> 3));
-  int16_t z = (int16_t) (((int16_t) (int8_t) raw[5] * 128) | (raw[4] >> 1));
-  uint16_t rhall = (uint16_t) (((uint16_t) raw[7] << 6) | (raw[6] >> 2));
+  // Left-aligned in their 16-bit words: X/Y are 13-bit, Z is 15-bit, RHALL is 14-bit
+  const int16_t x = encode_value_le<int16_t>(&raw[0]) >> 3;
+  const int16_t y = encode_value_le<int16_t>(&raw[2]) >> 3;
+  const int16_t z = encode_value_le<int16_t>(&raw[4]) >> 1;
+  const uint16_t rhall = encode_value_le<uint16_t>(&raw[6]) >> 2;
   return BMM150Data{
       .x = bmm150_compensate_xy(trim, trim.x1, trim.x2, x, rhall),
       .y = bmm150_compensate_xy(trim, trim.y1, trim.y2, y, rhall),

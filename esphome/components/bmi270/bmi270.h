@@ -14,16 +14,14 @@ namespace esphome::bmi270 {
 
 //  Register map
 static constexpr uint8_t BMI270_REG_CHIP_ID = 0x00;
-static constexpr uint8_t BMI270_REG_ERR_REG = 0x02;
 static constexpr uint8_t BMI270_REG_STATUS = 0x03;
 static constexpr uint8_t BMI270_REG_DATA_8 = 0x0C;   // ACC_X LSB
 static constexpr uint8_t BMI270_REG_DATA_14 = 0x12;  // GYR_X LSB
 static constexpr uint8_t BMI270_REG_TEMP_0 = 0x22;
-static constexpr uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-endian ish)
+static constexpr uint8_t BMI270_REG_TEMP_MSB = 0x23;
 
-static constexpr uint8_t REG_READ_LEN =
-    BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 +
-    1;  // 0x23 - 0x0C + 1 = 0x18 bytes total for accel(6) + gyro(6) + temp(2) + padding(4)
+// Accel, gyro, 10 unused bytes, then temperature: 0x0C to 0x23
+static constexpr uint8_t REG_READ_LEN = BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 + 1;
 
 static constexpr uint8_t BMI270_REG_PWR_CONF = 0x7C;
 static constexpr uint8_t BMI270_REG_PWR_CTRL = 0x7D;
@@ -153,18 +151,12 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   bool update_data(motion::MotionData &data) override;
   bool load_config_file_();
 #ifdef USE_BMI270_BMM150
-  // Brings up the BMM150 over the BMI270's aux interface. Optional: on failure this only
-  // disables magnetometer reporting, it does not fail the whole component (accel/gyro still work).
   bool setup_magnetometer_();
-  // Blocking poll of the aux-transaction-busy bit; aux transaction time depends on the
-  // attached device, so this is bounded by retries/timeout rather than a fixed delay.
-  bool wait_for_aux_idle_(uint32_t timeout_ms);
-  // Manual-mode aux read of 8 bytes starting at `reg` on the aux device.
+  // Polls the aux busy bit, as the aux transaction time depends on the attached device
+  bool wait_for_aux_idle_();
+  // Manual-mode aux read of 8 bytes starting at `reg` on the aux device
   bool read_aux_block_(uint8_t reg, uint8_t *buf);
-  // Manual-mode aux write of one byte to `reg` on the aux device.
   bool write_aux_register_(uint8_t reg, uint8_t value);
-  // Reads the BMM150 factory trim values used to compensate its samples.
-  bool read_magnetometer_trim_();
 #endif
 
   // Config
