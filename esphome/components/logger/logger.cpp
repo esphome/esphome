@@ -159,6 +159,7 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
     return false;
   if (this->main_task_recursion_guard_)
     return true;
+  // Two word-at-a-time scans beat one strcspn(), which is a byte loop in newlib
   if (strchr(msg, '%') != nullptr)
     return false;
   RecursionGuard guard(this->main_task_recursion_guard_);
