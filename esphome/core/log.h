@@ -89,7 +89,9 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ESPHOME_LOG_ARGS_(level, tag, format, ...) \
   ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), __VA_ARGS__)
 // The format check is a statement-level if (false), not sizeof: GCC 16 skips format checks in unevaluated or folded
-// expressions. __builtin_strchr folds on the literal, so only a line with '%' (such as "100%%") is formatted.
+// expressions. __builtin_strchr folds on a literal, so only a line with '%' (such as "100%%") is formatted.
+#ifdef USE_ESP8266
+// F() only takes a literal, so using format more than once cannot repeat a side effect
 #define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
   ({ \
     if (false) \
@@ -99,6 +101,19 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
     else \
       ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
   })
+#else
+// format is evaluated once, so an expression such as messages[i++] logs and increments once
+#define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
+  ({ \
+    if (false) \
+      ::esphome::esp_log_format_check_(format); \
+    const char *const esphome_log_format_ = (format); \
+    if (__builtin_strchr(esphome_log_format_, '%') != nullptr) \
+      ::esphome::esp_log_printf_(level, tag, __LINE__, esphome_log_format_); \
+    else \
+      ::esphome::esp_log_str_(level, tag, __LINE__, esphome_log_format_); \
+  })
+#endif
 // ESPHOME_LOG_NO_ARGS_ when there are no arguments after the format, ESPHOME_LOG_ARGS_ otherwise
 #define ESPHOME_LOG_PICK_(skip, name, ...) name
 #define ESPHOME_LOG_(level, tag, format, ...) \

@@ -94,6 +94,18 @@ TEST_F(UnformattedLoggerTest, PercentSignIsStillFormatted) {
   EXPECT_NE(this->lines_[0].message.find("]: 100% done"), std::string::npos) << this->lines_[0].message;
 }
 
+TEST_F(UnformattedLoggerTest, FormatExpressionIsEvaluatedOnce) {
+  const char *const messages[] = {"first", "second"};
+  int index = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+  ESP_LOGW(PLAIN_TAG, messages[index++]);
+#pragma GCC diagnostic pop
+  EXPECT_EQ(index, 1);
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_NE(this->lines_[0].message.find("]: first"), std::string::npos) << this->lines_[0].message;
+}
+
 TEST_F(UnformattedLoggerTest, LevelIsStillFiltered) {
   this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
   ESP_LOGI(PLAIN_TAG, "hidden");
