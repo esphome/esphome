@@ -223,12 +223,11 @@ class Logger final : public Component {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-  // Logs a message that has no arguments without formatting it. Returns false when the caller must format it
-  // instead: it contains '%', or it comes from another thread.
+  // Logs a message with no arguments and no '%' unformatted; false means another thread, so the caller formats it
   bool log_str_(uint8_t level, const char *tag, int line, const char *msg);  // NOLINT
 #ifdef USE_ESP8266
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg);
+  void log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg);
 #endif
 
  protected:

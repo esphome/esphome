@@ -49,21 +49,13 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStri
 #endif
 
 #ifdef USE_LOGGER
-// Formats a line without arguments that esp_log_str_() could not copy
+// Formats a line without arguments that esp_log_str_() could not copy; it has no '%', so it is its own format
 static void log_no_args(int level, const char *tag, int line, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   esp_log_vprintf_(level, tag, line, format, arg);
   va_end(arg);
 }
-#ifdef USE_ESP8266
-static void log_no_args(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
-  va_list arg;
-  va_start(arg, format);
-  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
-  va_end(arg);
-}
-#endif
 #endif
 
 void HOT esp_log_str_(int level, const char *tag, int line, const char *format) {  // NOLINT
@@ -84,9 +76,7 @@ void HOT esp_log_str_(int level, const char *tag, int line, const char *format) 
 void HOT esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
-  if (logger::global_logger->log_str_(static_cast<uint8_t>(level), tag, line, format))
-    return;
-  log_no_args(level, tag, line, format);
+  logger::global_logger->log_str_(static_cast<uint8_t>(level), tag, line, format);
 #endif
 }
 #endif

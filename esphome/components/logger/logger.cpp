@@ -159,9 +159,6 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
     return false;
   if (this->main_task_recursion_guard_)
     return true;
-  // Two word-at-a-time scans beat one strcspn(), which is a byte loop in newlib
-  if (strchr(msg, '%') != nullptr)
-    return false;
   RecursionGuard guard(this->main_task_recursion_guard_);
   LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
   buf.write_header(level, tag, line, nullptr);
@@ -171,16 +168,14 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
 }
 
 #ifdef USE_ESP8266
-bool Logger::log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg) {
+void Logger::log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg) {
   if (level > this->level_for(tag) || this->main_task_recursion_guard_)
-    return true;
+    return;
   RecursionGuard guard(this->main_task_recursion_guard_);
   LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
   buf.write_header(level, tag, line, nullptr);
-  if (!buf.write_unformatted_body_p(reinterpret_cast<PGM_P>(msg)))
-    return false;
+  buf.write_unformatted_body_p(reinterpret_cast<PGM_P>(msg));
   this->send_unformatted_line_(level, tag, buf);
-  return true;
 }
 #endif  // USE_ESP8266
 

@@ -125,9 +125,8 @@ struct LogBuffer {
     }
     this->finalize_();
   }
-  // write_unformatted_body() for a message in flash. Returns false without finishing the line if the message has a
-  // '%' in the part that fits, since it then needs formatting.
-  bool HOT write_unformatted_body_p(ESPHOME_PGM_P text) {
+  // write_unformatted_body() for a message in flash
+  void HOT write_unformatted_body_p(ESPHOME_PGM_P text) {
     if (!this->full_()) {
       char *p = this->current_();
       const char *const end = p + this->remaining_() - 1;
@@ -135,15 +134,12 @@ struct LogBuffer {
         const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(text++)));
         if (c == '\0')
           break;
-        if (c == '%')
-          return false;
         *p++ = c;
       }
       this->pos = static_cast<uint16_t>(p - this->data);
       this->strip_trailing_newlines_();
     }
     this->finalize_();
-    return true;
   }
   static constexpr uint16_t ANSI_COLOR_LEN = 7;  // "\033[{bold};3{color}m" written by write_header for level != 0
   static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"

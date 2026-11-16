@@ -67,7 +67,7 @@ void esp_log_printf_(int level, const char *tag, int line, const char *format, .
 // NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
-// esp_log_printf_ for a line with no arguments: it is copied without formatting unless it contains '%'
+// esp_log_printf_ for a line with no arguments and no '%': it is copied without formatting
 void esp_log_str_(int level, const char *tag, int line, const char *format);  // NOLINT
 #ifdef USE_ESP8266
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -86,21 +86,24 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ESPHOME_LOG_FORMAT(format) format
 #endif
 
-// esp_log_str_ when there are no arguments after the format, esp_log_printf_ otherwise
 #define ESPHOME_LOG_ARGS_(level, tag, format, ...) \
   ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), __VA_ARGS__)
-// A statement-level if (false), not sizeof: GCC 16 skips format checks in unevaluated or folded expressions
+// The format check is a statement-level if (false), not sizeof: GCC 16 skips format checks in unevaluated or folded
+// expressions. __builtin_strchr folds on the literal, so only a line with '%' (such as "100%%") is formatted.
 #define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
   ({ \
     if (false) \
       ::esphome::esp_log_format_check_(format); \
-    ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
+    if (__builtin_strchr(format, '%') != nullptr) \
+      ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
+    else \
+      ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
   })
-#define ESPHOME_LOG_PICK_(first, second, name, ...) name
-#define ESPHOME_LOG_FN_(...) \
-  ESPHOME_LOG_PICK_(__VA_OPT__(, ) ESPHOME_LOG_NO_ARGS_, ESPHOME_LOG_ARGS_, ESPHOME_LOG_NO_ARGS_)
+// ESPHOME_LOG_NO_ARGS_ when there are no arguments after the format, ESPHOME_LOG_ARGS_ otherwise
+#define ESPHOME_LOG_PICK_(skip, name, ...) name
 #define ESPHOME_LOG_(level, tag, format, ...) \
-  ESPHOME_LOG_FN_(__VA_ARGS__)(level, tag, format __VA_OPT__(, ) __VA_ARGS__)
+  ESPHOME_LOG_PICK_(__VA_OPT__(, ) ESPHOME_LOG_ARGS_, ESPHOME_LOG_NO_ARGS_)(level, tag, \
+                                                                            format __VA_OPT__(, ) __VA_ARGS__)
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define esph_log_vv(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, format, ##__VA_ARGS__)
