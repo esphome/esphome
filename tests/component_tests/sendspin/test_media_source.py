@@ -93,7 +93,7 @@ def test_opus_at_wrong_sample_rate_rejected(
     dropping the stated preference."""
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    with pytest.raises(cv.Invalid, match="requires a format with sample_rate of 48000"):
+    with pytest.raises(cv.Invalid, match="requires a sample_rate of 48000"):
         CONFIG_SCHEMA(_media_source_config(codecs=["opus"], sample_rate=44100))
 
 
