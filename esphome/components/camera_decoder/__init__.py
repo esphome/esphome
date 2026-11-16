@@ -35,9 +35,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
-    # esp_new_jpeg is an ESP-IDF managed component, so the Arduino framework has
-    # no decoder library to link against.
-    cv.only_with_framework("esp-idf"),
     # esp_new_jpeg 1.0.2 ships no build for these variants, so reject them here
     # instead of failing later in dependency resolution.
     esp32.only_on_variant(

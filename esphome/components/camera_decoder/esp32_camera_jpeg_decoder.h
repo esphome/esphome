@@ -3,8 +3,6 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_CAMERA_DECODER
-// esp_new_jpeg is an ESP-IDF managed component, so the decoder is IDF-only.
-#ifdef USE_ESP_IDF
 
 #include "esphome/components/camera/decoder.h"
 
@@ -58,5 +56,4 @@ class ESP32CameraJPEGDecoder final : public camera::Decoder {
 
 }  // namespace esphome::camera_decoder
 
-#endif  // USE_ESP_IDF
 #endif  // USE_CAMERA_DECODER

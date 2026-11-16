@@ -1,7 +1,6 @@
 #include "esp32_camera_jpeg_decoder.h"
 
 #ifdef USE_CAMERA_DECODER
-#ifdef USE_ESP_IDF
 
 #include "esphome/core/log.h"
 
@@ -143,5 +142,4 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
 
 }  // namespace esphome::camera_decoder
 
-#endif  // USE_ESP_IDF
 #endif  // USE_CAMERA_DECODER
