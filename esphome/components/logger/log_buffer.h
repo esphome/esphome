@@ -220,9 +220,7 @@ struct LogBuffer {
     }
 #else
     const size_t len = strlen(str);
-    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
-    // piece
-    memcpy(p, str, len);
+    memcpy(p, str, len);  // NOLINT(bugprone-not-null-terminated-result) - the header is built piece by piece
     p += len;
 #endif
     return p;
