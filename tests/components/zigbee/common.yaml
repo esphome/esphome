@@ -20,6 +20,7 @@ binary_sensor:
 sensor:
   - platform: template
     name: "Analog 1"
+    endpoint: 17
     lambda: return 10.0;
     accuracy_decimals: 0
     device_class: temperature
@@ -43,11 +44,13 @@ output:
 switch:
   - platform: template
     name: "Template Switch"
+    endpoint: 1
     optimistic: true
 
 number:
   - platform: template
     name: "Template number"
+    endpoint: 239
     optimistic: true
     min_value: 2
     max_value: 100
