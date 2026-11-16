@@ -569,6 +569,12 @@ def final_validate(config):
             raise cv.Invalid(
                 "eap cannot be combined with use_coprocessor", path=[CONF_NETWORKS]
             )
+        # ESP-NOW would stay on the host radio, which Wi-Fi no longer initialises
+        if "espnow" in full_config:
+            raise cv.Invalid(
+                "espnow cannot be combined with use_coprocessor",
+                path=[CONF_USE_COPROCESSOR],
+            )
     if "esp32_hosted" in full_config and any(
         CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
     ):

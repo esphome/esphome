@@ -59,7 +59,6 @@
 #ifdef USE_WIFI_REMOTE
 // Host with its own radio: Wi-Fi goes to the esp32_hosted co-processor, the host radio stays free
 #include <esp_wifi_remote.h>
-#include "esphome/components/watchdog/watchdog.h"
 // esp_wifi_remote 1.6 create_default_sta/ap() use the keys WIFI_STA_RMT/WIFI_AP_RMT, but esp_hosted 3.1 drops
 // received frames unless it finds the netif as WIFI_STA_DEF/WIFI_AP_DEF; declared in esp_wifi_remote_net2.c
 extern "C" esp_netif_t *esp_netif_create_wifi_remote(wifi_interface_t wifi_if,
@@ -273,11 +272,6 @@ void WiFiComponent::wifi_pre_setup_() {
 void WiFiComponent::wifi_lazy_init_() {
   if (this->wifi_initialized_)
     return;
-
-#ifdef USE_WIFI_REMOTE
-  // Waiting for a missing co-processor (5 s timeouts) would otherwise trip the task watchdog
-  watchdog::WatchdogManager wdt(60000);
-#endif
 
   // Guard each creation so partial init (e.g. a failed esp_wifi_init() below)
   // followed by a retry via enable() does not leak the existing netif handle

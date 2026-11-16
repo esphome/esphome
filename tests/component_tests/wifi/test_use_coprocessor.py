@@ -67,6 +67,12 @@ def test_use_coprocessor_valid(validate: Callable[..., None]) -> None:
             None,
             "dpp cannot be combined",
         ),
+        (
+            {"networks": [_NETWORK]},
+            VARIANT_ESP32C5,
+            {**_HOSTED, "espnow": {}},
+            "espnow cannot be combined",
+        ),
     ],
 )
 def test_use_coprocessor_invalid(
