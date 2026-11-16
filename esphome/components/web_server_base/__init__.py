@@ -132,7 +132,7 @@ async def to_code(config: ConfigType) -> None:
             )
             cg.add_platformio_option("extra_scripts", ["pre:fix_rp2040_hash.py"])
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
-        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.12.1")
 
 
 # The DNS server used for captive portals on ESP32; other platforms use the Arduino
