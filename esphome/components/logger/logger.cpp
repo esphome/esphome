@@ -148,8 +148,7 @@ void HOT Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffe
     this->boot_log_capture_(level, tag, buf);
 #endif
   this->notify_listeners_(level, tag, buf);
-  if (this->baud_rate_ > 0)
-    this->write_to_console_(buf);
+  this->write_log_buffer_to_console_(buf);
 }
 
 bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *msg) {
@@ -159,7 +158,7 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
   if (!this->is_main_task_())
     return false;
   if (this->main_task_recursion_guard_)
-    return false;
+    return true;
   if (strchr(msg, '%') != nullptr)
     return false;
   RecursionGuard guard(this->main_task_recursion_guard_);

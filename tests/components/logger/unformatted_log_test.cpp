@@ -28,21 +28,36 @@ TEST(UnformattedLogTest, BodyMatchesFormattedBodyAtEverySize) {
   for (uint16_t size = 1; size <= max_size; size++) {
     for (uint16_t start = 0; start <= size; start++) {
       for (const char *text : texts) {
-        char formatted[max_size], unformatted[max_size];
+        char formatted[max_size], unformatted[max_size], flash[max_size];
         memset(formatted, '#', sizeof(formatted));
         memset(unformatted, '#', sizeof(unformatted));
+        memset(flash, '#', sizeof(flash));
         LogBuffer a{formatted, size, start};
         LogBuffer b{unformatted, size, start};
+        LogBuffer c{flash, size, start};
         format_into(a, "%s", text);
         b.write_unformatted_body(text, strlen(text));
+        ASSERT_TRUE(c.write_unformatted_body_p(text));
         ASSERT_EQ(a.pos, b.pos) << "size " << size << " start " << start << " text '" << text << "'";
+        ASSERT_EQ(a.pos, c.pos) << "size " << size << " start " << start << " text '" << text << "'";
         // Up to and including the null terminator; vsnprintf() may leave bytes after it that nothing reads
         const size_t used = (a.pos < size) ? a.pos + 1 : size;
         ASSERT_EQ(memcmp(formatted, unformatted, used), 0)
             << "size " << size << " start " << start << " text '" << text << "'";
+        ASSERT_EQ(memcmp(formatted, flash, used), 0)
+            << "size " << size << " start " << start << " text '" << text << "'";
       }
     }
   }
+}
+
+TEST(UnformattedLogTest, FlashBodyRejectsPercentOnlyInThePartThatFits) {
+  char data[16];
+  LogBuffer before{data, 16};
+  EXPECT_FALSE(before.write_unformatted_body_p("ab%d"));
+  LogBuffer after{data, 4};  // three bytes of text fit
+  EXPECT_TRUE(after.write_unformatted_body_p("abcd%d"));
+  EXPECT_EQ(after.pos, 3u);
 }
 
 struct PlainLine {

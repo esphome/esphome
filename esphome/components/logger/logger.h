@@ -224,7 +224,7 @@ class Logger final : public Component {
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
   // Logs a message that has no arguments without formatting it. Returns false when the caller must format it
-  // instead: it contains '%', or it comes from another thread or from inside the logger.
+  // instead: it contains '%', or it comes from another thread.
   bool log_str_(uint8_t level, const char *tag, int line, const char *msg);  // NOLINT
 #ifdef USE_ESP8266
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -328,7 +328,6 @@ class Logger final : public Component {
     this->write_log_buffer_to_console_(buf);
   }
 
-  // Sends a line written by log_str_() to the boot log, the listeners and the console
   void send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf);
 
   // True on the task that runs the main loop, and always on single-task platforms
