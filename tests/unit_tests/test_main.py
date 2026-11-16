@@ -7657,54 +7657,17 @@ def test_run_multiple_configs_parallel_live_command_not_found(
     assert out.count("Running command failed") == 2
 
 
-@pytest.mark.parametrize("live", [False, True])
-def test_run_config_captured_does_not_start_after_stop(
-    tmp_path: Path, live: bool
-) -> None:
-    """A worker that reaches its child after Ctrl-C must not start it."""
-    marker = tmp_path / "started"
-    script = "import sys, pathlib; pathlib.Path(sys.argv[1]).touch()"
-    children = main._ChildProcesses()
-    children.stop()
-    display = MagicMock() if live else None
-
-    rc, output = main._run_config_captured(
-        [*_child_script(script), str(marker)], dict(os.environ), children, display, "a"
-    )
-
-    assert rc != 0
-    assert "stopped" in output
-    assert not marker.exists()
-    if display is not None:
-        display.finish.assert_called_once_with("a", False)
-
-
-def test_child_processes_stop_terminates_running_children() -> None:
-    """stop() ends children that were started before it."""
-    children = main._ChildProcesses()
-    proc = children.start(
-        _child_script("import time; print('up', flush=True); time.sleep(60)"),
-        dict(os.environ),
-    )
-    assert proc is not None
-    with proc:
-        assert proc.stdout.readline().strip() == b"up"
-        children.stop()
-        assert proc.wait(timeout=30) != 0
-    children.finished(proc)
-
-
 def test_run_multiple_configs_single_job_streams(tmp_path: Path) -> None:
     """jobs=1 keeps the sequential, live-streaming path."""
     files = [tmp_path / "a.yaml", tmp_path / "b.yaml"]
     with (
         patch.object(main, "run_external_process", return_value=0) as mock_run,
-        patch.object(main, "_run_config_captured") as mock_captured,
+        patch("esphome.parallel_runner.run_parallel") as mock_parallel,
     ):
         assert main.run_multiple_configs(files, lambda f: ["x", str(f)], jobs=1) == 0
 
     assert mock_run.call_count == 2
-    mock_captured.assert_not_called()
+    mock_parallel.assert_not_called()
 
 
 @pytest.mark.parametrize(
