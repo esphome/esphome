@@ -1221,7 +1221,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(4, 0, 0, "RC1"): cv.Version(6, 1, 0),
+    cv.Version(4, 0, 0, "RC1"): cv.Version(6, 1, 1),
     cv.Version(3, 3, 12): cv.Version(5, 5, 6),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
@@ -1246,12 +1246,13 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(6, 1, 0),
+    "recommended": cv.Version(6, 1, 1),
     "latest": cv.Version(5, 5, 6),
     "dev": cv.Version(5, 5, 6),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(6, 1, 1): cv.Version(61, 4, 0, "RC1"),
     cv.Version(6, 1, 0): cv.Version(61, 4, 0, "RC1"),
     cv.Version(
         6, 0, 1
