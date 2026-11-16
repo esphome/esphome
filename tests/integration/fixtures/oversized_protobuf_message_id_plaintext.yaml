@@ -1,9 +1,0 @@
-esphome:
-  name: oversized-protobuf-plaintext
-
-host:
-
-api:
-
-logger:
-  level: VERY_VERBOSE

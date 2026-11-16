@@ -1,0 +1,39 @@
+# Raw UART passthrough to a modem (M5Stack Atom Lite, modem on the Grove port: RX GPIO32, TX GPIO26): both
+# directions logged line by line, and a text entity whose value is sent with a CR. Drive with scripts/modem/mdrive.py text:CMD.
+esphome:
+  name: ${name}
+esp32:
+  board: m5stack-atom
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+api:
+  reboot_timeout: 0s
+uart:
+  id: mu
+  rx_pin: GPIO32
+  tx_pin: GPIO26
+  baud_rate: 115200
+  rx_buffer_size: 2048
+  debug:
+    direction: BOTH
+    dummy_receiver: true
+    after:
+      delimiter: "\n"
+    sequence:
+      - lambda: UARTDebug::log_string(direction, bytes);
+text:
+  - platform: template
+    id: at_cmd
+    name: AT
+    mode: text
+    max_length: 120
+    optimistic: true
+    set_action:
+      - lambda: |-
+          std::string s = x + "\r";
+          id(mu).write_array((const uint8_t *) s.data(), s.size());

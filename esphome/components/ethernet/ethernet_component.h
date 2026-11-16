@@ -7,6 +7,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
+#include <atomic>
+
 #ifdef USE_ETHERNET
 
 #ifdef USE_ESP32
@@ -263,7 +265,7 @@ class EthernetComponent final : public Component {
   void yt8531_phy_init_();
 #endif
 #ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
-  /// @brief Set arbitratry PHY registers from config.
+  /// @brief Set arbitrary PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 #endif
 
@@ -366,6 +368,9 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
+#ifdef USE_ESP32
+  std::atomic<uint8_t> ip_state_pending_{0};
+#endif
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
