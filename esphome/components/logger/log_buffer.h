@@ -125,16 +125,27 @@ struct LogBuffer {
     }
     this->finalize_();
   }
-  // write_unformatted_body() for a message in flash
+  // write_unformatted_body() for a message in flash. Flash only allows aligned 32-bit loads, so it reads a word at a
+  // time (little endian) instead of one load per byte; the text must be readable up to the end of its last word.
   void HOT write_unformatted_body_p(ESPHOME_PGM_P text) {
     if (!this->full_()) {
       char *p = this->current_();
       const char *const end = p + this->remaining_() - 1;
+      const uintptr_t addr = reinterpret_cast<uintptr_t>(text);
+      const uint32_t *word = reinterpret_cast<const uint32_t *>(addr & ~uintptr_t{3});
+      uint32_t bytes = *word++ >> (8 * (addr & 3));
+      uint32_t left = 4 - (addr & 3);
       while (p < end) {
-        const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(text++)));
+        if (left == 0) {
+          bytes = *word++;
+          left = 4;
+        }
+        const char c = static_cast<char>(bytes);
         if (c == '\0')
           break;
         *p++ = c;
+        bytes >>= 8;
+        left--;
       }
       this->pos = static_cast<uint16_t>(p - this->data);
       this->strip_trailing_newlines_();
