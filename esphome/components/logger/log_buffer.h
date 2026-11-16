@@ -194,8 +194,7 @@ struct LogBuffer {
     *p++ = d;
     return p;
   }
-  // Writes the ANSI color escape sequence and returns the end; the caller ensures there is space.
-  // Takes and returns the pointer by value so it stays in a register instead of memory.
+  // Returns the new end; p is by value so it stays in a register (char *& made GCC store it per byte)
   static char *write_ansi_color(char *p, uint8_t level) {
     if (level == 0)
       return p;
@@ -209,8 +208,7 @@ struct LogBuffer {
     *p++ = 'm';
     return p;
   }
-  // Copies a string without its null terminator and returns the end; the caller ensures there is space.
-  // Tags may be in PROGMEM on ESP8266.
+  // Copies str without its null terminator and returns the new end
   static char *copy_string(char *p, const char *str) {
 #ifdef USE_ESP8266
     // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
