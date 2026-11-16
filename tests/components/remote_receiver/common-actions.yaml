@@ -28,11 +28,11 @@ on_canalsat:
     - logger.log:
         format: "on_canalsat: %u %u"
         args: ["x.address", "x.command"]
-# on_canalsatld:
-#   then:
-#     - logger.log:
-#         format: "on_canalsatld: %u %u"
-#         args: ["x.address", "x.command"]
+on_canalsatld:
+  then:
+    - logger.log:
+        format: "on_canalsatld: %u %u"
+        args: ["x.address", "x.command"]
 on_coolix:
   then:
     - logger.log:
