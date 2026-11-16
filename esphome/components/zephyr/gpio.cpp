@@ -172,14 +172,6 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   gpio_pin_configure(pin->gpio_, pin->pin_ % pin->gpio_size_, zephyr::flags_to_mode(flags));
 }
 
-void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  auto *arg = (zephyr::ISRPinArg *) this->arg_;
-  if (arg == nullptr || arg->gpio == nullptr) {
-    return;
-  }
-  gpio_pin_configure(arg->gpio, arg->pin % arg->gpio_size, zephyr::flags_to_mode(flags));
-}
-
 }  // namespace esphome
 
 #endif

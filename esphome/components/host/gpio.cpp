@@ -39,9 +39,6 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   // pass
 }
-void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  // pass
-}
 
 }  // namespace esphome
 
