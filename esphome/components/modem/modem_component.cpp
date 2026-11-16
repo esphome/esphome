@@ -42,9 +42,10 @@ static constexpr uint32_t PROBE_TIMEOUT_MS = 100;
 // A silent modem is not going to answer the next second, so its probes are spaced out, doubling up to a minute
 static constexpr uint32_t PROBE_RETRY_DELAY_MS = 5000;
 static constexpr uint32_t PROBE_RETRY_MAX_MS = 60000;
-// The escape sequence needs a second of silence on both sides; the modem answers OK after the second one
+// The +++ escape needs a second of silence before it; esp_modem waits for the answer after it
+// A modem in command mode answers the ATE0 sent before the mode detection within this time
+static constexpr uint32_t ECHO_OFF_TIMEOUT_MS = 100;
 static constexpr uint32_t ESCAPE_GUARD_MS = 1100;
-static constexpr uint32_t ESCAPE_TIMEOUT_MS = 2000;
 // A SIM7670 left in CMUX by an ESP reset ignores every frame until this many flag bytes overflow its receive buffer;
 // it then reinitialises its AT channel within about 2 s
 static constexpr size_t CMUX_FLUSH_BYTES = 4096;
@@ -101,14 +102,15 @@ static const LogString *registration_to_str(int registration) {
 // Puts a raw reply on one line for the log and drops the final OK
 static void flatten_reply(std::string &reply) {
   std::replace_if(reply.begin(), reply.end(), [](char c) { return c == '\r' || c == '\n'; }, ' ');
-  for (bool strip_ok = true;; strip_ok = false) {
+  auto trim_end = [&reply]() {
     const size_t end = reply.find_last_not_of(' ');
     reply.resize(end == std::string::npos ? 0 : end + 1);
-    const size_t len = reply.size();
-    if (!strip_ok || len < 2 || reply.compare(len - 2, 2, "OK") != 0 || (len > 2 && reply[len - 3] != ' ')) {
-      break;
-    }
+  };
+  trim_end();
+  const size_t len = reply.size();
+  if (len >= 2 && reply.compare(len - 2, 2, "OK") == 0 && (len == 2 || reply[len - 3] == ' ')) {
     reply.resize(len - 2);
+    trim_end();
   }
   reply.erase(0, reply.find_first_not_of(' '));
 }
@@ -623,6 +625,10 @@ ModemState ModemComponent::compute_next_state_() {
 }
 
 ModemState ModemComponent::handle_state_enabling_() {
+  // With echo on (SIM7670G after power-up), the modem sends esp_modem's PPP probe back and the detection takes it for
+  // a PPP reply; in PPP or CMUX these bytes are dropped as a bad frame
+  std::string reply;
+  this->dce_->at("ATE0", reply, ECHO_OFF_TIMEOUT_MS);
   // Find the baud rate the modem answers at and leave it in command mode, synced
   if (!this->dce_->set_mode(modem_mode::AUTODETECT)) {
     // A failed detection keeps the previous mode, which would skip the baud rate search below
@@ -694,18 +700,10 @@ ModemState ModemComponent::handle_state_enabling_() {
       break;
 
     case modem_mode::DATA_MODE:
-      // With echo on, a modem in command mode sends the PPP probe back, which passes for a PPP reply
-      if (this->dce_->sync() == command_result::OK) {
-        this->dce_->set_mode(modem_mode::UNDEF);
-        exited = false;
-        break;
-      }
       // Can block 20 s; esp_modem offers no shorter exit
       ESP_LOGW(TAG, "Exiting DATA_MODE");
       if (!this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
         ESP_LOGW(TAG, "Failed to leave data mode");
-        // esp_modem leaves its UART side in data mode then, from where the later switch to CMUX fails at once
-        this->dce_->set_mode(modem_mode::UNDEF);
       }
       break;
 
@@ -725,6 +723,9 @@ ModemState ModemComponent::handle_state_enabling_() {
     this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
     return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
+  // The modem answers AT, so it is in command mode. A failed data mode exit leaves esp_modem's UART side in data mode,
+  // from where its later switch to CMUX fails at once, so its mode is set to match; this sends nothing to the modem.
+  this->dce_->set_mode(modem_mode::RESUME_COMMAND_MODE);
   this->probe_backoff_.store(0, std::memory_order_relaxed);
   // esp_modem keeps the last line before OK as the reply, which can be the echoed command
   if (this->dce_->set_echo(false) != command_result::OK) {
@@ -861,8 +862,8 @@ ModemState ModemComponent::handle_state_connecting_() {
       // Before registration some modems hold the AT channel for minutes on this (SIM7080G: up to 141 s) and
       // drop every command meanwhile; LTE attaches with the registration anyway
       std::string output;
-      if (this->dce_->at("AT+CGATT=1", output, ATTACH_TIMEOUT_MS) != command_result::OK) {
-        ESP_LOGD(TAG, "Network attachment request refused");
+      if (this->at_reply_("AT+CGATT=1", output, ATTACH_TIMEOUT_MS) != command_result::OK) {
+        ESP_LOGD(TAG, "Network attachment request refused: %s", output.c_str());
       }
       this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
@@ -876,10 +877,9 @@ ModemState ModemComponent::handle_state_connecting_() {
       if (registration == REGISTRATION_DENIED) {
         // The modem's reason tells a rejected APN (ESM failure) from a SIM the network does not serve
         std::string reason;
-        if (this->dce_->at_raw("AT+CEER\r", reason, "OK\r\n", "ERROR", COMMAND_TIMEOUT_MS) != command_result::OK) {
+        if (this->at_reply_("AT+CEER", reason) != command_result::OK) {
           reason.clear();
         }
-        flatten_reply(reason);
         ESP_LOGW(TAG,
                  "The network refused registration (%s); check the APN and that the SIM's plan covers this modem's "
                  "network types",
@@ -992,19 +992,17 @@ void ModemComponent::transition_to_(ModemState next_state) {
 
 bool ModemComponent::escape_data_mode_() {
   delay(ESCAPE_GUARD_MS);  // NOLINT
-  std::string output;
-  return this->dce_->at_raw("+++", output, "OK", "ERROR", ESCAPE_TIMEOUT_MS) == command_result::OK;
+  return this->dce_->set_command_mode() == command_result::OK;
 }
 
 bool ModemComponent::flush_cmux_() {
   static constexpr uint8_t CMUX_FLAG = 0xF9;
   uint8_t flags[64];
   memset(flags, CMUX_FLAG, sizeof(flags));
-  const auto port = static_cast<uart_port_t>(this->uart_port_);
   for (size_t sent = 0; sent < CMUX_FLUSH_BYTES; sent += sizeof(flags)) {
-    uart_write_bytes(port, flags, sizeof(flags));
+    this->dte_->write(flags, sizeof(flags));
   }
-  uart_wait_tx_done(port, pdMS_TO_TICKS(1000));
+  uart_wait_tx_done(static_cast<uart_port_t>(this->uart_port_), pdMS_TO_TICKS(1000));
   delay(CMUX_FLUSH_SETTLE_MS);  // NOLINT
   return this->dce_->sync() == command_result::OK;
 }
@@ -1021,8 +1019,10 @@ void ModemComponent::not_responding_(int baud) {
 
 void ModemComponent::sim_not_ready_(const char *reason) {
   // A missing or broken SIM never gets ready; the status is polled every second, so only some polls warn
-  if (++this->sim_polls_ == SIM_WARN_AFTER || this->sim_polls_ == SIM_WARN_AFTER + SIM_WARN_EVERY) {
+  if (++this->sim_polls_ == SIM_WARN_AFTER + SIM_WARN_EVERY) {
     this->sim_polls_ = SIM_WARN_AFTER;
+  }
+  if (this->sim_polls_ == SIM_WARN_AFTER) {
     ESP_LOGW(TAG, "SIM not ready: %s. Check that a working SIM is inserted",
              reason[0] != '\0' ? reason : LOG_STR_LITERAL("no reply"));
   }
@@ -1055,13 +1055,18 @@ bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
 
 #endif
 
-command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
-  // at() keeps no text from a failed command, so the raw reply is read to show the +CME ERROR
-  std::string output;
+// at() keeps no text from a failed command, so the raw reply is read to show the +CME ERROR
+command_result ModemComponent::at_reply_(const char *cmd, std::string &output, uint32_t timeout) {
   std::string line = cmd;
   line += '\r';
   const command_result result = this->dce_->at_raw(line, output, "OK\r\n", "ERROR", timeout);
   flatten_reply(output);
+  return result;
+}
+
+command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
+  std::string output;
+  const command_result result = this->at_reply_(cmd, output, timeout);
   if (result == command_result::OK) {
     ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd, output.c_str());
   } else {
@@ -1080,8 +1085,7 @@ SimResult ModemComponent::prepare_sim_() {
 #endif
   // The raw reply keeps the +CME ERROR text a missing SIM gives
   std::string output;
-  const command_result result = this->dce_->at_raw("AT+CPIN?\r", output, "OK\r\n", "ERROR", COMMAND_TIMEOUT_MS);
-  flatten_reply(output);
+  const command_result result = this->at_reply_("AT+CPIN?", output);
   if (result != command_result::OK) {
     // A SIM that is still starting answers with an error for a second or so
     ESP_LOGD(TAG, "SIM status not readable yet: %s", output.c_str());

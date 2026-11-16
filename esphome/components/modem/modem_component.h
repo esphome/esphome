@@ -201,6 +201,8 @@ class ModemComponent : public Component {
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   esp_modem::command_result at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
+  /// Send an AT command; output gets the whole reply on one line, including any +CME ERROR text
+  esp_modem::command_result at_reply_(const char *cmd, std::string &output, uint32_t timeout = COMMAND_TIMEOUT_MS);
   void publish_status_();
   /// Send the +++ escape with its guard times; true when the modem answered
   bool escape_data_mode_();
