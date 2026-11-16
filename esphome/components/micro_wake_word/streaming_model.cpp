@@ -134,6 +134,10 @@ bool StreamingModel::load_model_() {
       ESP_LOGE(TAG, "Streaming model tensor output is not uint8.");
       return false;
     }
+
+    // A new interpreter has no input slices or pending score from the prior stream.
+    this->current_stride_step_ = 0;
+    this->unprocessed_probability_status_ = false;
   }
 
   this->loaded_ = true;
