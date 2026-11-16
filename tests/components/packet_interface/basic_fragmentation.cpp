@@ -3,6 +3,8 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <string>
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/packet_interface/basic_fragmentation.h"
 #include "esphome/components/packet_interface/hdlc_reliability.h"
 #include "esphome/core/application.h"
@@ -26,6 +28,8 @@ class MockLink : public PacketInterface {
     // Before the packet is read, as a log line in a real link would run it
     if (this->on_send)
       this->on_send();
+    if (this->sent.size() == this->accept)
+      return false;
     this->sent.push_back(to_vector(data));
     return true;
   }
@@ -39,6 +43,27 @@ class MockLink : public PacketInterface {
   std::vector<Packet> sent;
   std::function<void()> on_send;
   size_t capacity{SIZE_MAX};
+  // Packets taken before the link refuses more
+  size_t accept{SIZE_MAX};
+};
+
+// Collects each warning logged
+class Warnings {
+ public:
+  Warnings() : previous_(logger::global_logger) {
+    this->logger_.pre_setup();
+    this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
+    this->logger_.add_log_callback(this, [](void *instance, uint8_t, const char *, const char *message, size_t len) {
+      static_cast<Warnings *>(instance)->lines.emplace_back(message, len);
+    });
+  }
+  ~Warnings() { logger::global_logger = this->previous_; }
+
+  std::vector<std::string> lines;
+
+ private:
+  logger::Logger *previous_;
+  logger::Logger logger_{0};
 };
 
 struct BufferHolder {
@@ -165,6 +190,19 @@ TEST_F(BasicFragmentationTest, NotStartedWithoutRoomForAllFragments) {
   EXPECT_TRUE(this->link_a_.sent.empty());
   EXPECT_TRUE(a.send(make_packet(20)));
   EXPECT_FALSE(a.send(make_packet(101)));
+}
+
+TEST_F(BasicFragmentationTest, PacketCutShortIsWarned) {
+  Peer a(&this->link_a_);
+  Warnings warnings;
+  this->link_a_.accept = 0;
+  EXPECT_FALSE(a.send(make_packet(30)));
+  EXPECT_TRUE(warnings.lines.empty());  // nothing was sent
+  this->link_a_.accept = 1;
+  EXPECT_FALSE(a.send(make_packet(30)));
+  EXPECT_EQ(this->link_a_.sent.size(), 1u);
+  ASSERT_EQ(warnings.lines.size(), 1u);
+  EXPECT_NE(warnings.lines[0].find("Packet cut short, fragment 1 of 3"), std::string::npos);
 }
 
 TEST_F(BasicFragmentationTest, InterleavedSourcesNotMixed) {
