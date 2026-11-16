@@ -129,4 +129,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_keep_alive(config[CONF_KEEP_ALIVE]))
     cg.add(var.set_receive_timeout(config[CONF_TIMEOUT]))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
+    await binary_sensors(CONF_CONNECTED, var.set_connected_binary_sensor)

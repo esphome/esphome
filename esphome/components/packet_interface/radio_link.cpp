@@ -26,7 +26,8 @@ bool RadioLinkBase::sent_(bool sent, bool busy) {
     // The radio listens again, and a reception that starts now must be waited for afresh
     this->listen_before_talk_.end_busy();
     // The limit is longer than any packet takes, so the radio's busy indication is stuck or the channel is jammed
-    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, sent anyway", busy_ms);
+    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, %s", busy_ms,
+             sent ? LOG_STR_LITERAL("sent anyway") : LOG_STR_LITERAL("tried to send anyway, which failed"));
   }
   if (sent)
     this->listen_before_talk_.sent(this->current_time_ms(), App.get_loop_component_start_time());

@@ -59,7 +59,7 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
 #endif
 #endif
 #ifdef USE_BINARY_SENSOR
-  void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
+  SUB_BINARY_SENSOR(connected)
 #endif
 
   bool is_connected() const { return this->connected_; }
@@ -73,9 +73,6 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   socket::TcpClientLink link_;
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
-#endif
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *connected_sensor_{nullptr};
 #endif
   const std::span<uint8_t> rx_buffer_;
   uint32_t keep_alive_ms_{10000};

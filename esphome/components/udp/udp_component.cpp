@@ -249,6 +249,11 @@ void UDPComponent::loop() {
     socklen_t source_len = sizeof(source);
     auto len =
         this->listen_socket_->recvfrom(buf.data(), buf.size(), reinterpret_cast<sockaddr *>(&source), &source_len);
+    if (len < 0 && errno != EWOULDBLOCK && errno != EAGAIN) {
+      // The raw lwIP socket consumes a packet whose source address it cannot convert
+      ESP_LOGD(TAG, "Read failed: errno %d", errno);
+      break;
+    }
     if (len <= 0)
       break;
     size_t packet_len = static_cast<size_t>(len);

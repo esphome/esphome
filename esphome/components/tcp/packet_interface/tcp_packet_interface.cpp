@@ -27,8 +27,8 @@ void TcpPacketInterface::setup() {
   this->listener_.begin(TAG);
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr)
-    this->connected_sensor_->publish_initial_state(false);
+  if (this->connected_binary_sensor_ != nullptr)
+    this->connected_binary_sensor_->publish_initial_state(false);
 #endif
 }
 
@@ -52,7 +52,7 @@ void TcpPacketInterface::dump_config() {
   this->listener_.dump_config();
 #endif
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
 #endif
 }
 
@@ -109,8 +109,8 @@ void TcpPacketInterface::on_connection_(bool connected) {
   this->rx_have_ = 0;
   this->last_rx_ms_ = this->last_tx_ms_ = App.get_loop_component_start_time();
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr)
-    this->connected_sensor_->publish_state(connected);
+  if (this->connected_binary_sensor_ != nullptr)
+    this->connected_binary_sensor_->publish_state(connected);
 #endif
   this->session_callback_.call(connected);
 }
