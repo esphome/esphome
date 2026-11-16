@@ -8,11 +8,13 @@
 
 namespace esphome::zigbee {
 
+static constexpr uint8_t MAX_ENDPOINT_ID = 239;
+
 // Wire endpoint IDs are sparse; capacity counts registered handlers, not IDs.
 template<size_t N> class EndpointCallbacks {
  public:
   template<typename F> bool add(uint8_t endpoint, F &&callback) {
-    if (endpoint == 0 || endpoint > 239)
+    if (endpoint == 0 || endpoint > MAX_ENDPOINT_ID)
       return false;
     for (const auto &entry : this->entries_) {
       if (entry.endpoint == endpoint)
@@ -29,7 +31,7 @@ template<size_t N> class EndpointCallbacks {
   }
 
   bool dispatch(uint8_t endpoint, uint8_t buffer) const {
-    if (endpoint == 0 || endpoint > 239)
+    if (endpoint == 0 || endpoint > MAX_ENDPOINT_ID)
       return false;
     for (const auto &entry : this->entries_) {
       if (entry.endpoint == endpoint && entry.callback) {

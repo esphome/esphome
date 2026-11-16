@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import esphome.config_validation as cv
 from esphome.core import CORE
 
-from .const import KEY_ZIGBEE
+from .const import CONF_MAX_EP_NUMBER, KEY_ZIGBEE
 
 KEY_ENDPOINT_IDS = "endpoint_ids"
 
@@ -21,12 +21,21 @@ class EndpointIds:
         self.reserved.add(endpoint)
 
     def resolve(self, slot: int, endpoint: int | None = None) -> int:
-        if slot not in self.assigned:
-            if endpoint is None:
-                used = self.reserved | set(self.assigned.values())
-                endpoint = next(i for i in range(1, 240) if i not in used)
-            self.assigned[slot] = endpoint
-        return self.assigned[slot]
+        if slot in self.assigned:
+            if endpoint is not None and endpoint != self.assigned[slot]:
+                raise cv.Invalid(f"Zigbee endpoint slot {slot} is already assigned")
+            return self.assigned[slot]
+        if endpoint is not None and endpoint not in self.reserved:
+            raise cv.Invalid(f"Zigbee endpoint {endpoint} is not reserved")
+        if endpoint is None:
+            used = self.reserved | set(self.assigned.values())
+            endpoint = next(
+                i for i in range(1, CONF_MAX_EP_NUMBER + 1) if i not in used
+            )
+        elif endpoint in self.assigned.values():
+            raise cv.Invalid(f"Zigbee endpoint {endpoint} is already assigned")
+        self.assigned[slot] = endpoint
+        return endpoint
 
 
 def endpoint_ids() -> EndpointIds:
