@@ -36,22 +36,21 @@ bool BMI270Component::load_config_file_() {
     return false;
 
   // 3. Burst-write the config in pages
-  const uint8_t *cfg = BMI270_CONFIG_FILE;
   constexpr size_t cfg_len = sizeof(BMI270_CONFIG_FILE);
+  // The register byte goes first, so each burst is copied once and sent with write()
+  uint8_t buf[1 + MAX_I2C_BUFFER_SIZE];
+  buf[0] = BMI270_REG_INIT_DATA;
   size_t index = 0;
 
   while (index != cfg_len) {
-    // Set the page address in INIT_ADDR registers
-    uint8_t addr_lsb = (uint8_t) ((index / 2) & 0x0F);
-    uint8_t addr_msb = (uint8_t) ((index / 2) >> 4);
-    if (!this->write_byte(BMI270_REG_INIT_ADDR_0, addr_lsb))
-      return false;
-    if (!this->write_byte(BMI270_REG_INIT_ADDR_0 + 1, addr_msb))
+    // INIT_ADDR_0 takes the word address bits 0-3 and INIT_ADDR_1 bits 4-11
+    const uint8_t addr[2] = {static_cast<uint8_t>((index / 2) & 0x0F), static_cast<uint8_t>((index / 2) >> 4)};
+    if (this->write_register(BMI270_REG_INIT_ADDR_0, addr, sizeof(addr)) != i2c::ERROR_OK)
       return false;
 
-    // Write a burst of up to the maximum allowed size
     size_t burst = clamp_at_most(cfg_len - index, MAX_I2C_BUFFER_SIZE);
-    if (this->write_register(BMI270_REG_INIT_DATA, cfg + index, burst) != i2c::ERROR_OK)
+    progmem_memcpy(buf + 1, BMI270_CONFIG_FILE + index, burst);
+    if (this->write(buf, burst + 1) != i2c::ERROR_OK)
       return false;
 
     index += burst;
