@@ -62,7 +62,8 @@ def AUTO_LOAD(config: ConfigType) -> list[str]:
     if not config:
         return ["sha256", "socket", "noise"]
     base = ["socket"]
-    # Password auth hashes with SHA256; to_code defines USE_OTA_PASSWORD only with a password
+    # Keyed on the password alone, not password without encryption as USE_OTA_PASSWORD is:
+    # final validation can merge ota blocks, and a merged block must not lack sha256
     if CONF_PASSWORD in config:
         base.append("sha256")
     if CONF_ENCRYPTION in config:
