@@ -1,0 +1,15 @@
+# A host with Wi-Fi of its own: wifi runs on the co-processor through esp_wifi_remote
+esp32_hosted:
+  type: spi
+  variant: ESP32C6
+  reset_pin: GPIO25
+  handshake_pin: GPIO1
+  data_ready_pin: GPIO0
+  miso_pin: GPIO9
+  mosi_pin: GPIO10
+  clk_pin: GPIO8
+  cs_pin: GPIO7
+
+wifi:
+  ssid: MySSID
+  password: password1

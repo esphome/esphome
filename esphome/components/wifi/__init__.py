@@ -919,6 +919,13 @@ async def to_code(config):
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
     if CORE.is_esp32:
         request_wifi(ap=CONF_AP in config)
+        # A host with its own radio reaches the esp32_hosted co-processor's Wi-Fi only via esp_wifi_remote_*
+        if "esp32_hosted" in CORE.config and variant_has_wifi(get_esp32_variant()):
+            cg.add_define("USE_WIFI_REMOTE")
+            # esp_hosted posts WIFI_EVENT, the esp_wifi_remote netif handlers wait on the undefined WIFI_REMOTE_EVENT
+            cg.add_build_flag("-Wl,--defsym=WIFI_REMOTE_EVENT=WIFI_EVENT")
+            # esp_hosted's iTWT wrappers reuse esp_wifi_* names that the host's own driver defines
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_ITWT", False)
 
     if (dpp := config.get(CONF_DPP)) is not None:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)

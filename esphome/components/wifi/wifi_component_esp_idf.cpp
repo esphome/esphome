@@ -56,6 +56,57 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
+#ifdef USE_WIFI_REMOTE
+// Host with its own radio: Wi-Fi goes to the esp32_hosted co-processor, the host radio stays free
+#include <esp_wifi_remote.h>
+#include "esphome/components/watchdog/watchdog.h"
+// esp_wifi_remote_create_default_sta/ap() use the keys WIFI_STA_RMT/WIFI_AP_RMT, but esp_hosted drops
+// received frames unless it finds the netif as WIFI_STA_DEF/WIFI_AP_DEF
+extern "C" esp_netif_t *esp_netif_create_wifi_remote(wifi_interface_t wifi_if,
+                                                     const esp_netif_inherent_config_t *esp_netif_config);
+extern "C" esp_err_t esp_wifi_set_default_wifi_remote_sta_handlers();
+extern "C" esp_err_t esp_wifi_set_default_wifi_remote_ap_handlers();
+static esp_netif_t *create_remote_sta() {
+  esp_netif_inherent_config_t cfg = ESP_NETIF_INHERENT_DEFAULT_WIFI_STA();
+  esp_netif_t *netif = esp_netif_create_wifi_remote(WIFI_IF_STA, &cfg);
+  esp_wifi_set_default_wifi_remote_sta_handlers();
+  return netif;
+}
+#define esp_netif_create_default_wifi_sta create_remote_sta
+#ifdef USE_WIFI_AP
+static esp_netif_t *create_remote_ap() {
+  esp_netif_inherent_config_t cfg = ESP_NETIF_INHERENT_DEFAULT_WIFI_AP();
+  esp_netif_t *netif = esp_netif_create_wifi_remote(WIFI_IF_AP, &cfg);
+  esp_wifi_set_default_wifi_remote_ap_handlers();
+  return netif;
+}
+#define esp_netif_create_default_wifi_ap create_remote_ap
+#endif
+#define esp_wifi_ap_get_sta_list esp_wifi_remote_ap_get_sta_list
+#define esp_wifi_clear_ap_list esp_wifi_remote_clear_ap_list
+#define esp_wifi_connect esp_wifi_remote_connect
+#define esp_wifi_deauth_sta esp_wifi_remote_deauth_sta
+#define esp_wifi_disconnect esp_wifi_remote_disconnect
+#define esp_wifi_get_channel esp_wifi_remote_get_channel
+#define esp_wifi_get_config esp_wifi_remote_get_config
+#define esp_wifi_get_mode esp_wifi_remote_get_mode
+#define esp_wifi_init esp_wifi_remote_init
+#define esp_wifi_scan_get_ap_record esp_wifi_remote_scan_get_ap_record
+#define esp_wifi_scan_get_ap_records esp_wifi_remote_scan_get_ap_records
+#define esp_wifi_scan_start esp_wifi_remote_scan_start
+#define esp_wifi_set_band_mode esp_wifi_remote_set_band_mode
+#define esp_wifi_set_config esp_wifi_remote_set_config
+#define esp_wifi_set_max_tx_power esp_wifi_remote_set_max_tx_power
+#define esp_wifi_set_mode esp_wifi_remote_set_mode
+#define esp_wifi_set_ps esp_wifi_remote_set_ps
+#define esp_wifi_set_storage esp_wifi_remote_set_storage
+#define esp_wifi_sta_get_ap_info esp_wifi_remote_sta_get_ap_info
+#define esp_wifi_start esp_wifi_remote_start
+#define esp_wifi_stop esp_wifi_remote_stop
+// Keeps esp_hosted's esp_wifi_* HE stubs, meant for hosts without a radio, out of the link
+extern "C" const char eh_wifi_he_with_hosted_anchor = 0;  // NOLINT(readability-identifier-naming)
+#endif
+
 namespace esphome::wifi {
 
 ESPHOME_LOG_TAG(TAG, "wifi_esp32");
@@ -223,6 +274,11 @@ void WiFiComponent::wifi_lazy_init_() {
   if (this->wifi_initialized_)
     return;
 
+#ifdef USE_WIFI_REMOTE
+  // Waiting for a missing co-processor (5 s timeouts) would otherwise trip the task watchdog
+  watchdog::WatchdogManager wdt(60000);
+#endif
+
   // Guard each creation so partial init (e.g. a failed esp_wifi_init() below)
   // followed by a retry via enable() does not leak the existing netif handle
   // nor re-register the default WiFi handlers.
@@ -283,6 +339,10 @@ void WiFiComponent::wifi_lazy_init_() {
     ESP_LOGW(TAG, "starting wifi without nvs");
     cfg.nvs_enable = false;
   }
+#ifdef USE_WIFI_REMOTE
+  // Credentials stay in RAM; the co-processor may not have initialised its NVS yet
+  cfg.nvs_enable = false;
+#endif
   esp_err_t err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
