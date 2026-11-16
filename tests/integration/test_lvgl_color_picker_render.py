@@ -64,6 +64,7 @@ def _check(image: Bmp, capture: Path, expected: str, name: str) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("lvgl_render")
 async def test_lvgl_color_picker_render(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -77,7 +78,7 @@ async def test_lvgl_color_picker_render(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
-        take_screenshot = require_service(services, "take_screenshot")
+        take_screenshot = require_service(services, "take_picker_screenshot")
         set_orange = require_service(services, "set_orange")
 
         async def take(name: str) -> None:

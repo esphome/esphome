@@ -35,6 +35,7 @@ EXPECTED_LVGL_VERSION = "9.6.0"
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("lvgl_render")
 async def test_lvgl_headless_render(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -48,7 +49,7 @@ async def test_lvgl_headless_render(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
-        service = require_service(services, "take_screenshot")
+        service = require_service(services, "take_hello_screenshot")
 
         async def take(name: str) -> None:
             await client.execute_service(service, {"name": name})
