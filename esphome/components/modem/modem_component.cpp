@@ -42,6 +42,9 @@ static constexpr uint32_t PROBE_TIMEOUT_MS = 100;
 // A silent modem is not going to answer the next second, so its probes are spaced out, doubling up to a minute
 static constexpr uint32_t PROBE_RETRY_DELAY_MS = 5000;
 static constexpr uint32_t PROBE_RETRY_MAX_MS = 60000;
+// The escape sequence needs a second of silence on both sides; the modem answers OK after the second one
+static constexpr uint32_t ESCAPE_GUARD_MS = 1100;
+static constexpr uint32_t ESCAPE_TIMEOUT_MS = 2000;
 // How long the task waits for the main loop to run on_sync before attaching
 static constexpr uint32_t SYNC_ACK_TIMEOUT_MS = 5000;
 // esp_modem's command strings and the log lines are built on this stack
@@ -636,6 +639,11 @@ ModemState ModemComponent::handle_state_enabling_() {
       break;
 
     case modem_mode::UNDEF: {
+      // A modem left in data mode before PPP started answers neither AT nor the mode probes
+      if (this->escape_data_mode_()) {
+        ESP_LOGW(TAG, "Modem was left in data mode; escaped to command mode");
+        break;
+      }
       // The detection above probed the current rate; the other known rates are tried in this pass
       const int detected = this->current_baud_rate_;
       exited = false;
@@ -682,6 +690,8 @@ ModemState ModemComponent::handle_state_enabling_() {
       ESP_LOGW(TAG, "Exiting DATA_MODE");
       if (!this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
         ESP_LOGW(TAG, "Failed to leave data mode");
+        // esp_modem leaves its UART side in data mode then, from where the later switch to CMUX fails at once
+        this->dce_->set_mode(modem_mode::UNDEF);
       }
       break;
 
@@ -964,6 +974,12 @@ void ModemComponent::transition_to_(ModemState next_state) {
       this->hand_over_(PENDING_ON_DISCONNECT | PENDING_CONNECT_TIMEOUT);
     }
   }
+}
+
+bool ModemComponent::escape_data_mode_() {
+  delay(ESCAPE_GUARD_MS);  // NOLINT
+  std::string output;
+  return this->dce_->at_raw("+++", output, "OK", "ERROR", ESCAPE_TIMEOUT_MS) == command_result::OK;
 }
 
 void ModemComponent::not_responding_(int baud) {

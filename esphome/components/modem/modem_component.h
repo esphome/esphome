@@ -202,6 +202,8 @@ class ModemComponent : public Component {
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   esp_modem::command_result at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   void publish_status_();
+  /// Send the +++ escape with its guard times; true when the modem answered
+  bool escape_data_mode_();
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
   void dump_connect_params_();
