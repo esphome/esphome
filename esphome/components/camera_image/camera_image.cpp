@@ -111,15 +111,21 @@ bool CameraImage::decode_frame_(const uint8_t *data, size_t length) {
   while (offset < length) {
     const int consumed = this->feed_data(const_cast<uint8_t *>(data) + offset, length - offset);
     if (consumed < 0) {
+      ESP_LOGE(TAG, "Decoder error %d at offset %zu of %zu bytes", consumed, offset, length);
       this->abort_decode();
       return false;
     }
-    if (consumed == 0)
-      break;
+    if (consumed == 0) {
+      // The decoder asked for more data than the frame holds.
+      ESP_LOGE(TAG, "Decoder stalled at offset %zu of %zu bytes", offset, length);
+      this->abort_decode();
+      return false;
+    }
     offset += static_cast<size_t>(consumed);
   }
 
   if (!this->is_decode_finished()) {
+    ESP_LOGE(TAG, "Truncated frame: decoded %zu of %zu bytes", offset, length);
     this->abort_decode();
     return false;
   }
@@ -137,6 +143,8 @@ bool CameraImage::apply_crop_rotation_() {
     return true;
 
   if (this->buffer_ == nullptr || this->buffer_width_ <= 0 || this->buffer_height_ <= 0) {
+    ESP_LOGE(TAG, "No decoded buffer to crop or rotate (%dx%d); the resize allocation failed", this->buffer_width_,
+             this->buffer_height_);
     return false;
   }
 

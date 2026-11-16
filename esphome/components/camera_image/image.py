@@ -7,6 +7,7 @@ from esphome.components.image import CONF_ALPHA_CHANNEL, CONF_TRANSPARENCY, add_
 from esphome.components.runtime_image import CONF_DOUBLE_BUFFER
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -63,6 +64,21 @@ def _validate_options(config: ConfigType) -> ConfigType:
         and CONF_RESIZE not in config
     ):
         raise cv.Invalid("'rotation' requires 'resize' or 'crop'")
+    if CONF_CROP in config and CONF_RESIZE in config:
+        # `resize` keeps the aspect ratio inside these bounds, so the decoded
+        # frame is never larger than it and a crop reaching past it can never
+        # fit.
+        resize_width, resize_height = config[CONF_RESIZE]
+        crop = config[CONF_CROP]
+        if (
+            crop[CONF_X] + crop[CONF_WIDTH] > resize_width
+            or crop[CONF_Y] + crop[CONF_HEIGHT] > resize_height
+        ):
+            raise cv.Invalid(
+                f"crop {crop[CONF_X]},{crop[CONF_Y]} "
+                f"{crop[CONF_WIDTH]}x{crop[CONF_HEIGHT]} does not fit inside "
+                f"resize {resize_width}x{resize_height}"
+            )
     return config
 
 
@@ -71,6 +87,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
+            # A camera only produces JPEG frames, so any other format could
+            # never decode.
+            cv.Required(CONF_FORMAT): cv.one_of("JPEG", "JPG", upper=True),
             cv.Optional(CONF_DOUBLE_BUFFER, default=False): cv.boolean,
             cv.Optional(CONF_CROP): _CROP_SCHEMA,
             cv.Optional(CONF_ROTATION, default=0): cv.one_of(0, 90, 180, 270),
@@ -80,6 +99,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("never")),
     _validate_options,
+    runtime_image.validate_runtime_image_settings,
     cv.only_on_esp32,
 )
 
