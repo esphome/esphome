@@ -91,8 +91,8 @@ class IdleMediaPlayer : public media_player::MediaPlayer {
 
 class VoiceAssistantIdleTest : public ::testing::Test {
  protected:
-  virtual void attach_output_() {}
-  virtual void clear_output_() {}
+  virtual void attach_output() {}
+  virtual void clear_output() {}
   void SetUp() override {
     int listener = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(listener, 0);
@@ -122,16 +122,16 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     this->idle_automation_.add_action(&this->idle_action_);
     this->end_automation_.add_action(&this->end_action_);
     this->voice_.client_subscription(this->client_.get(), true);
-    this->attach_output_();
+    this->attach_output();
     this->voice_.setup();
   }
   void TearDown() override {
     this->restart_once_ = false;
-    this->clear_output_();
+    this->clear_output();
     if (this->client_ && this->voice_.get_api_connection() == this->client_.get())
       this->voice_.client_subscription(this->client_.get(), false);
     this->voice_.request_stop();
-    this->pump(4);
+    this->pump_(4);
     for (uint32_t id = 0; id <= 5; ++id) {
       App.scheduler.cancel_timeout(&this->voice_, id);
       App.scheduler.cancel_interval(&this->voice_, id);
@@ -141,17 +141,17 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     global_voice_assistant = this->previous_voice_;
     api::global_api_server = this->previous_server_;
   }
-  void flush() {
+  void flush_() {
     App.scheduler.process_to_add();
     App.scheduler.call(millis());
   }
-  void pump(unsigned count) {
+  void pump_(unsigned count) {
     for (unsigned step = 0; step < count; ++step) {
       this->voice_.loop();
-      this->flush();
+      this->flush_();
     }
   }
-  void event(api::enums::VoiceAssistantEvent type, const char *name = nullptr, const char *value = nullptr) {
+  void event_(api::enums::VoiceAssistantEvent type, const char *name = nullptr, const char *value = nullptr) {
     api::VoiceAssistantEventResponse message;
     message.event_type = type;
     if (name != nullptr) {
@@ -162,31 +162,31 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     }
     this->voice_.on_event(message);
   }
-  void begin_request(bool continuous = false) {
+  void begin_request_(bool continuous = false) {
     this->voice_.request_start(continuous, false);
-    this->pump(3);
+    this->pump_(3);
     this->voice_.start_streaming();
-    this->event(api::enums::VOICE_ASSISTANT_RUN_START);
+    this->event_(api::enums::VOICE_ASSISTANT_RUN_START);
   }
-  void start_tts() {
-    this->event(api::enums::VOICE_ASSISTANT_TTS_START, "text", "fixture response");
-    this->flush();
-    this->event(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/response.wav");
-    this->flush();
+  void start_tts_() {
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_START, "text", "fixture response");
+    this->flush_();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/response.wav");
+    this->flush_();
   }
-  void disconnect_client() {
+  void disconnect_client_() {
     this->peer_.reset();
     // Same production destructor/unsubscribe path used when APIServer drops the connection.
     this->client_.reset();
     ASSERT_EQ(this->voice_.get_api_connection(), nullptr);
   }
-  void await_response() {
-    this->event(api::enums::VOICE_ASSISTANT_STT_VAD_END);
-    this->pump(2);
+  void await_response_() {
+    this->event_(api::enums::VOICE_ASSISTANT_STT_VAD_END);
+    this->pump_(2);
     ASSERT_TRUE(this->microphone_.is_stopped());
     ASSERT_TRUE(this->voice_.is_running());
   }
-  unsigned start_requests() {
+  unsigned start_requests_() {
     unsigned starts = 0;
     api::ReadPacketBuffer packet;
     while (this->peer_->read_packet(&packet) == api::APIError::OK) {
@@ -219,70 +219,70 @@ class VoiceAssistantIdleTest : public ::testing::Test {
 };
 
 TEST_F(VoiceAssistantIdleTest, InitialAndRepeatedIdleDoNotInventACompletion) {
-  this->pump(3);
+  this->pump_(3);
   EXPECT_EQ(this->idle_count_, 0u);
   EXPECT_EQ(this->end_count_, 0u);
 }
 
 TEST_F(VoiceAssistantIdleTest, NoncontinuousRunEndReportsLocalIdleOnce) {
-  this->begin_request();
-  this->await_response();
-  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->begin_request_();
+  this->await_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->idle_count_, 1u);
-  this->pump(3);
+  this->pump_(3);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 1u);
 }
 
 TEST_F(VoiceAssistantIdleTest, IdleAutomationCanStartTheNextRequest) {
-  this->begin_request();
-  ASSERT_EQ(this->start_requests(), 1u);
-  this->await_response();
+  this->begin_request_();
+  ASSERT_EQ(this->start_requests_(), 1u);
+  this->await_response_();
   this->restart_once_ = true;
-  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
-  this->pump(3);
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump_(3);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->microphone_.starts, 2u);
-  EXPECT_EQ(this->start_requests(), 1u);
+  EXPECT_EQ(this->start_requests_(), 1u);
   EXPECT_TRUE(this->voice_.is_running());
 }
 
 TEST_F(VoiceAssistantIdleTest, ContinuousIdleRetainsItsExistingLoopTiming) {
-  this->begin_request(true);
-  this->await_response();
-  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->begin_request_(true);
+  this->await_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
   EXPECT_EQ(this->idle_count_, 0u);
-  this->pump(1);
+  this->pump_(1);
   EXPECT_EQ(this->idle_count_, 1u);
-  this->pump(3);
+  this->pump_(3);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->microphone_.starts, 2u);
 }
 
 TEST_F(VoiceAssistantIdleTest, ExplicitStopReportsIdleIndependentlyOfDeferredRunEnd) {
-  this->begin_request();
+  this->begin_request_();
   this->voice_.request_stop();
-  this->pump(2);
+  this->pump_(2);
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 0u);
-  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
-  this->flush();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->flush_();
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 1u);
 }
 
 class VoiceAssistantSpeakerIdleTest : public VoiceAssistantIdleTest {
  protected:
-  void attach_output_() override { this->voice_.set_speaker(&this->speaker_); }
-  void clear_output_() override { this->speaker_.stop(); }
-  void begin_speaker_response() {
-    this->begin_request();
-    ASSERT_EQ(this->start_requests(), 1u);
-    this->await_response();
-    this->start_tts();
-    this->event(api::enums::VOICE_ASSISTANT_TTS_STREAM_START);
+  void attach_output() override { this->voice_.set_speaker(&this->speaker_); }
+  void clear_output() override { this->speaker_.stop(); }
+  void begin_speaker_response_() {
+    this->begin_request_();
+    ASSERT_EQ(this->start_requests_(), 1u);
+    this->await_response_();
+    this->start_tts_();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_START);
     const std::array<uint8_t, 6> pcm{1, 2, 3, 4, 5, 6};
     api::VoiceAssistantAudio message;
     message.data = pcm.data();
@@ -295,13 +295,13 @@ class VoiceAssistantSpeakerIdleTest : public VoiceAssistantIdleTest {
 
 class VoiceAssistantMediaPlayerIdleTest : public VoiceAssistantIdleTest {
  protected:
-  void attach_output_() override { this->voice_.set_media_player(&this->player_); }
-  void clear_output_() override { this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE); }
-  void begin_player_response() {
-    this->begin_request();
-    ASSERT_EQ(this->start_requests(), 1u);
-    this->await_response();
-    this->start_tts();
+  void attach_output() override { this->voice_.set_media_player(&this->player_); }
+  void clear_output() override { this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE); }
+  void begin_player_response_() {
+    this->begin_request_();
+    ASSERT_EQ(this->start_requests_(), 1u);
+    this->await_response_();
+    this->start_tts_();
     ASSERT_EQ(this->player_.urls, 1u);
     this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
   }
@@ -309,48 +309,48 @@ class VoiceAssistantMediaPlayerIdleTest : public VoiceAssistantIdleTest {
 };
 
 TEST_F(VoiceAssistantSpeakerIdleTest, TtsDrainReportsIdleOnceAndCanRestartFromTheCallback) {
-  this->begin_speaker_response();
-  this->event(api::enums::VOICE_ASSISTANT_TTS_STREAM_END);
-  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
-  this->pump(2);
+  this->begin_speaker_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_END);
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump_(2);
   EXPECT_TRUE(this->voice_.is_running());
   EXPECT_EQ(this->idle_count_, 0u);
   this->speaker_.drain_buffer();
-  this->pump(1);
+  this->pump_(1);
   EXPECT_EQ(this->idle_count_, 0u);  // The output driver is still running.
   this->restart_once_ = true;
   this->speaker_.finish_output();
-  this->pump(6);
+  this->pump_(6);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 1u);
   EXPECT_EQ(this->microphone_.starts, 2u);
-  EXPECT_EQ(this->start_requests(), 1u);
+  EXPECT_EQ(this->start_requests_(), 1u);
   EXPECT_TRUE(this->voice_.is_running());
 }
 
 TEST_F(VoiceAssistantMediaPlayerIdleTest, TtsFinishReportsIdleOnceAndCanRestartFromTheCallback) {
-  this->begin_player_response();
-  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
-  this->pump(2);
+  this->begin_player_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump_(2);
   EXPECT_TRUE(this->voice_.is_running());
   EXPECT_EQ(this->idle_count_, 0u);
   this->restart_once_ = true;
   this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
-  this->pump(6);
+  this->pump_(6);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 1u);
   EXPECT_EQ(this->microphone_.starts, 2u);
-  EXPECT_EQ(this->start_requests(), 1u);
+  EXPECT_EQ(this->start_requests_(), 1u);
   EXPECT_TRUE(this->voice_.is_running());
   EXPECT_EQ(this->player_.stops, 0u);
 }
 
 TEST_F(VoiceAssistantSpeakerIdleTest, DisconnectNotifiesVaIdleAndPreservesExistingSpeakerPolicy) {
-  this->begin_speaker_response();
+  this->begin_speaker_response_();
   ASSERT_TRUE(this->speaker_.is_running());
   this->restart_once_ = true;
-  this->disconnect_client();
-  this->pump(2);
+  this->disconnect_client_();
+  this->pump_(2);
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 0u);
@@ -360,16 +360,16 @@ TEST_F(VoiceAssistantSpeakerIdleTest, DisconnectNotifiesVaIdleAndPreservesExisti
   EXPECT_TRUE(this->speaker_.has_buffered_data());
   EXPECT_EQ(this->speaker_.stops, 0u);
   this->speaker_.finish_output();
-  this->pump(3);
+  this->pump_(3);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->microphone_.starts, 1u);
 }
 
 TEST_F(VoiceAssistantMediaPlayerIdleTest, DisconnectNotifiesVaIdleAndPreservesExistingPlayerPolicy) {
-  this->begin_player_response();
+  this->begin_player_response_();
   this->restart_once_ = true;
-  this->disconnect_client();
-  this->pump(2);
+  this->disconnect_client_();
+  this->pump_(2);
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 0u);
@@ -377,7 +377,7 @@ TEST_F(VoiceAssistantMediaPlayerIdleTest, DisconnectNotifiesVaIdleAndPreservesEx
   EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
   EXPECT_EQ(this->player_.stops, 0u);
   this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
-  this->pump(3);
+  this->pump_(3);
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->microphone_.starts, 1u);
 }
