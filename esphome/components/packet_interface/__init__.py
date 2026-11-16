@@ -152,9 +152,9 @@ def interface_packet_size(interface_id: ID) -> int:
 
 def interface_has_layer(interface_id: ID, key: str) -> bool:
     """During final validation, whether the packet interface with this id has the layer, configured or done by its link."""
-    interface = interface_layers(interface_id)
-    return key in interface or key in _PROVIDED_LAYERS.get(
-        str(interface[CONF_ID].type), ()
+    link, layers_config = _find_interface(interface_id, fv.full_config.get())
+    return key in layers_config or key in _PROVIDED_LAYERS.get(
+        str(link[CONF_ID].type), ()
     )
 
 
