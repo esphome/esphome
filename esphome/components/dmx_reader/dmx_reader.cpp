@@ -64,7 +64,7 @@ void DMXReader::loop() {
       continue;
 
     const float channel_value = ds.channel_number->state;
-    if (!(channel_value >= 1.0f && channel_value <= 512.0f))
+    if (channel_value < 1.0f || channel_value > 512.0f)
       continue;
 
     const uint16_t channel = static_cast<uint16_t>(channel_value);

@@ -22,9 +22,9 @@ struct dmx_personality_t {
   const char* name;
 };
 static constexpr size_t DMX_PACKET_SIZE = 513;
-#define DMX_CONFIG_DEFAULT \
-  {}
-#define DMX_OK 0
+static constexpr int DMX_OK = 0;
+inline dmx_config_t dmx_config_default() { return {}; }
+
 // Minimal stubs that the .cpp parses; real builds use esp_dmx.h
 inline int dmx_driver_install(dmx_port_t, dmx_config_t*, dmx_personality_t*, int) { return 0; }
 inline int dmx_set_pin(dmx_port_t, int, int, int) { return 0; }
