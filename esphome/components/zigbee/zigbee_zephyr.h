@@ -72,7 +72,9 @@ class ZigbeeComponent final : public Component {
   void setup() override;
   void dump_config() override;
   template<typename F> void add_callback(zb_uint8_t endpoint, F &&cb) {
-    this->callbacks_.add(endpoint, std::forward<F>(cb));
+    if (!this->callbacks_.add(endpoint, std::forward<F>(cb))) {
+      this->log_callback_registration_error_(endpoint);
+    }
   }
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
@@ -86,6 +88,7 @@ class ZigbeeComponent final : public Component {
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
+  void log_callback_registration_error_(zb_uint8_t endpoint);
   void on_join_(bool factory_new);
   void on_start_();
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
