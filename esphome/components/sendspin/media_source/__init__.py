@@ -5,10 +5,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
     CONF_BUFFER_SIZE,
+    CONF_FORMATS,
     CONF_ID,
     CONF_SAMPLE_RATE,
     CONF_TASK_STACK_IN_PSRAM,
-    CONF_FORMATS,
 )
 from esphome.types import ConfigType
 
