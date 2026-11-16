@@ -63,7 +63,7 @@ from esphome.core import CORE
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
-from . import mipi_dsi_ns, models
+from . import get_data, mipi_dsi_ns, models
 from .models import DsiDriverChip
 
 # Currently only ESP32-P4 is supported, so esp_ldo and psram are required
@@ -167,11 +167,19 @@ def _config_schema(config: ConfigType) -> ConfigType:
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
+    rgb565 = get_color_depth(config) == 16
+    transform = rgb565 and config[CONF_BYTE_ORDER] == BYTE_ORDER_LITTLE
+    # Keep ID objects until the normal ID pass resolves generated names.
+    capabilities = get_data()
+    if rgb565:
+        capabilities.framebuffer_readback_ids.append(config[CONF_ID])
+    if transform:
+        capabilities.rgb565_transform_ids.append(config[CONF_ID])
     display.add_metadata(
         config[CONF_ID],
         width,
         height,
-        has_hardware_rotation=False,
+        has_hardware_rotation=transform,
         byte_order=config[CONF_BYTE_ORDER],
         has_writer=requires_buffer(config)
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
@@ -196,6 +204,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
+    if get_color_depth(config) == 16 and config[CONF_BYTE_ORDER] == BYTE_ORDER_LITTLE:
+        cg.add_define("USE_MIPI_DSI_RGB565_OWNED_TRANSFORM")
     # While flash is written (NVS, OTA) the cache is off; a DSI interrupt that waits for it makes the
     # panel miss a frame, seen as a white flash. Code run from PSRAM does not wait for the flash.
     if not CORE.config[KEY_ESP32][CONF_FRAMEWORK][CONF_ADVANCED][

@@ -1,0 +1,24 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+psram:
+
+display:
+  - platform: mipi_dsi
+    id: mipi_panel
+    model: JC1060P470
+    enable_pin: GPIO22
+    color_depth: 24
+    pixel_mode: 24bit
+
+esphome:
+  includes:
+    - owned_api.h
+  on_boot:
+    priority: -100
+    then:
+      - lambda: esphome::mipi_dsi::testing::exercise_owned_api(id(mipi_panel));

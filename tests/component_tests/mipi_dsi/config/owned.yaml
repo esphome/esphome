@@ -1,0 +1,16 @@
+esphome:
+  name: mipi-api
+esp32:
+  board: esp32-p4-evboard
+  framework:
+    type: esp-idf
+psram:
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+display:
+  - platform: mipi_dsi
+    id: panel
+    model: WAVESHARE-10.1-DSI-TOUCH-A
+    color_depth: 16
+    byte_order: little_endian

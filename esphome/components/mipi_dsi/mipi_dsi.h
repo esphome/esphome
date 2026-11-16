@@ -5,18 +5,21 @@
 
 // only applicable on ESP32-P4
 #ifdef USE_ESP32_VARIANT_ESP32P4
-#include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
-#include "esphome/core/log.h"
+#include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_io.h"
 
+#include "driver/ppa.h"
 #include "esp_lcd_mipi_dsi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 #include <utility>
 
@@ -79,6 +82,23 @@ class MipiDsi final : public display::Display {
 
   void dump_config() override;
 
+  using WriteAdmission = bool (*)(void *context);
+  bool supports_rgb565_transform() const;
+  // Present from normal display/main-loop context. Input remains borrowed until
+  // return, including PPA and panel completion; operation.out is not borrowed.
+  // Input formats are RGB565/RGB888/ARGB8888/YUV420/YUV444; output is RGB565.
+  // Rectangles are logical and the supplied rotation is zero;
+  // this driver composes its own rotation once. Admission must be read-only.
+  bool draw_rgb565_transformed(const ppa_srm_oper_config_t &operation, size_t input_bytes, int logical_x, int logical_y,
+                               int logical_width, int logical_height, WriteAdmission still_current = nullptr,
+                               void *context = nullptr);
+  // Copy completed composition in main-loop context. Default output is logical
+  // orientation; rotation is additional clockwise. Busy owners or short buffers
+  // return false without replacing the caller's previous image.
+  // Caller storage must have uint16_t alignment.
+  bool copy_frame_buffer_rgb565(uint8_t *target, size_t capacity,
+                                display::DisplayRotation rotation = display::DISPLAY_ROTATION_0_DEGREES);
+
  protected:
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                             bool big_endian, int x_offset, int y_offset, int x_pad) override;
@@ -86,6 +106,11 @@ class MipiDsi final : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
+  bool draw_rotated_rgb565_(int x, int y, int w, int h, const uint8_t *data, int x_offset, int y_offset, int x_pad);
+  bool submit_bitmap_(int x1, int y1, int x2, int y2, const uint8_t *data);
+  bool submit_bitmap_locked_(int x1, int y1, int x2, int y2, const uint8_t *data);
+  void mirror_native_rgb565_(int x, int y, int w, int h, const uint8_t *data, size_t stride);
+
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
   // Maps drawn coordinates to the buffer the way draw_pixel_at() stores them
@@ -141,6 +166,15 @@ class MipiDsi final : public display::Display {
   esp_lcd_dsi_bus_handle_t bus_handle_{};
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
+  StaticSemaphore_t io_lock_storage_{};
+  SemaphoreHandle_t submit_mutex_{};
+  StaticSemaphore_t submit_mutex_storage_{};
+  uint8_t *frame_buffer_{nullptr};
+  size_t frame_buffer_size_{0};
+#ifdef USE_MIPI_DSI_RGB565_OWNED_TRANSFORM
+  ppa_client_handle_t transform_client_{nullptr};
+#endif
+
   uint8_t *buffer_{nullptr};
   uint16_t x_low_{1};
   uint16_t y_low_{1};
