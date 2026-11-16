@@ -22,9 +22,9 @@ void DMXReader::setup() {
   dmx_personality_t personalities[] = {{1, "ESPHome DMX Reader"}};
   dmx_driver_install(this->dmx_port_, &config, personalities, 1);
 
-  int tx = this->tx_pin_->get_pin();
-  int rx = this->rx_pin_->get_pin();
-  int rts = this->rts_pin_ ? this->rts_pin_->get_pin() : -1;
+  int tx = this->tx_pin_;
+  int rx = this->rx_pin_;
+  int rts = this->rts_pin_;
 
   dmx_set_pin(this->dmx_port_, tx, rx, rts);
 

@@ -66,9 +66,9 @@ class DMXReader : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_tx_pin(InternalGPIOPin *pin) { this->tx_pin_ = pin; }
-  void set_rx_pin(InternalGPIOPin *pin) { this->rx_pin_ = pin; }
-  void set_rts_pin(InternalGPIOPin *pin) { this->rts_pin_ = pin; }
+  void set_tx_pin(int pin) { this->tx_pin_ = pin; }
+  void set_rx_pin(int pin) { this->rx_pin_ = pin; }
+  void set_rts_pin(int pin) { this->rts_pin_ = pin; }
   void set_uart_num(int num) { this->uart_num_ = num; }
 
   uint8_t get_channel(uint16_t channel) const;
@@ -86,9 +86,9 @@ class DMXReader : public Component {
   }
 
  protected:
-  InternalGPIOPin *tx_pin_{nullptr};
-  InternalGPIOPin *rx_pin_{nullptr};
-  InternalGPIOPin *rts_pin_{nullptr};
+  int tx_pin_{-1};
+  int rx_pin_{-1};
+  int rts_pin_{-1};
   int uart_num_{1};
 
   dmx_port_t dmx_port_;

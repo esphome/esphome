@@ -42,9 +42,9 @@ register_dynamic_channel_sensor = cg.slot_list(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DMXReader),
-        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_RTS_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Required(CONF_TX_PIN): pins.internal_gpio_pin_number,
+        cv.Required(CONF_RX_PIN): pins.internal_gpio_pin_number,
+        cv.Optional(CONF_RTS_PIN): pins.internal_gpio_pin_number,
         # Default 2: on classic ESP32, logger owns UART0 and the first uart: bus gets UART1
         cv.Optional(CONF_UART_NUM, default=2): cv.int_range(min=0, max=2),
     }
@@ -127,14 +127,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    tx = await cg.gpio_pin_expression(config[CONF_TX_PIN])
-    rx = await cg.gpio_pin_expression(config[CONF_RX_PIN])
-    cg.add(var.set_tx_pin(tx))
-    cg.add(var.set_rx_pin(rx))
+    cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
+    cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
 
     if CONF_RTS_PIN in config:
-        rts = await cg.gpio_pin_expression(config[CONF_RTS_PIN])
-        cg.add(var.set_rts_pin(rts))
+        cg.add(var.set_rts_pin(config[CONF_RTS_PIN]))
 
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
     cg.add_library("someweisguy/esp_dmx", None)
