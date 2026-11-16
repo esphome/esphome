@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_CHANNELS,
     CONF_ESPHOME,
     CONF_FORMAT,
+    CONF_FORMATS,
     CONF_HEIGHT,
     CONF_ID,
     CONF_MICROPHONE,
