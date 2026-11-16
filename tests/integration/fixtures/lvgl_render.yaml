@@ -1,6 +1,5 @@
-# Shared by test_lvgl_headless_render.py and test_lvgl_color_picker_render.py, so LVGL is compiled
-# once for both. Each test draws on its own display, driven by its own LVGL instance, at the size
-# its expected hashes were taken at.
+# Shared by both tests in test_lvgl_render.py, so LVGL is compiled once for them. Each test draws
+# on its own display, driven by its own LVGL instance, at the size its expected hashes were taken at.
 esphome:
   name: lvgl-render-test
 host:
