@@ -192,7 +192,8 @@ struct LogBuffer {
       this->pos += ANSI_RESET_LEN;
     }
   }
-  void strip_trailing_newlines_() {
+  // Forced inline: the body writers also call it, and an outlined copy slows every formatted line
+  inline void ESPHOME_ALWAYS_INLINE strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
       this->pos--;
   }

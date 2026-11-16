@@ -48,7 +48,25 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStri
 }
 #endif
 
-void HOT esp_log_str_(int level, const char *tag, int line, const char *format, ...) {  // NOLINT
+#ifdef USE_LOGGER
+// Formats a line without arguments that esp_log_str_() could not copy
+static void log_no_args(int level, const char *tag, int line, const char *format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  esp_log_vprintf_(level, tag, line, format, arg);
+  va_end(arg);
+}
+#ifdef USE_ESP8266
+static void log_no_args(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
+  va_end(arg);
+}
+#endif
+#endif
+
+void HOT esp_log_str_(int level, const char *tag, int line, const char *format) {  // NOLINT
 #ifdef USE_LOGGER
 #ifdef ESPHOME_DEBUG
   // Before Logger::pre_setup(), the formatting path below reports the early call
@@ -58,23 +76,17 @@ void HOT esp_log_str_(int level, const char *tag, int line, const char *format, 
     if (logger::global_logger->log_str_(static_cast<uint8_t>(level), tag, line, format))
       return;
   }
-  va_list arg;
-  va_start(arg, format);
-  esp_log_vprintf_(level, tag, line, format, arg);
-  va_end(arg);
+  log_no_args(level, tag, line, format);
 #endif
 }
 
 #ifdef USE_ESP8266
-void HOT esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
+void HOT esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
   if (logger::global_logger->log_str_(static_cast<uint8_t>(level), tag, line, format))
     return;
-  va_list arg;
-  va_start(arg, format);
-  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
-  va_end(arg);
+  log_no_args(level, tag, line, format);
 #endif
 }
 #endif

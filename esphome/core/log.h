@@ -67,14 +67,14 @@ void esp_log_printf_(int level, const char *tag, int line, const char *format, .
 // NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
-// esp_log_printf_ for a line with no arguments: it is copied without formatting unless it contains '%'. The
-// ESP_LOGx macros pick it when they are given no arguments. It is variadic only so that the format is still checked.
-void esp_log_str_(int level, const char *tag, int line, const char *format, ...)  // NOLINT
-    __attribute__((format(printf, 4, 5)));
+// esp_log_printf_ for a line with no arguments: it is copied without formatting unless it contains '%'
+void esp_log_str_(int level, const char *tag, int line, const char *format);  // NOLINT
 #ifdef USE_ESP8266
 // NOLINTNEXTLINE(readability-identifier-naming)
-void esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
+void esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format);
 #endif
+// Never defined: the ESP_LOGx macros name it inside sizeof so a line without arguments still has its format checked
+int esp_log_format_check_(const char *format, ...) __attribute__((format(printf, 1, 2)));       // NOLINT
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
@@ -87,10 +87,16 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 // esp_log_str_ when there are no arguments after the format, esp_log_printf_ otherwise
+#define ESPHOME_LOG_ARGS_(level, tag, format, ...) \
+  ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), __VA_ARGS__)
+#define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
+  (static_cast<void>(sizeof(::esphome::esp_log_format_check_(format))), \
+   ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)))
 #define ESPHOME_LOG_PICK_(first, second, name, ...) name
-#define ESPHOME_LOG_FN_(...) ESPHOME_LOG_PICK_(__VA_OPT__(, ) esp_log_str_, esp_log_printf_, esp_log_str_)
+#define ESPHOME_LOG_FN_(...) \
+  ESPHOME_LOG_PICK_(__VA_OPT__(, ) ESPHOME_LOG_NO_ARGS_, ESPHOME_LOG_ARGS_, ESPHOME_LOG_NO_ARGS_)
 #define ESPHOME_LOG_(level, tag, format, ...) \
-  ::esphome::ESPHOME_LOG_FN_(__VA_ARGS__)(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ESPHOME_LOG_FN_(__VA_ARGS__)(level, tag, format __VA_OPT__(, ) __VA_ARGS__)
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define esph_log_vv(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, format, ##__VA_ARGS__)

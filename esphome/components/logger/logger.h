@@ -299,7 +299,7 @@ class Logger final : public Component {
   }
 
   // Helper to write log buffer to console if logging is enabled
-  inline void HOT write_log_buffer_to_console_(LogBuffer &buf) {
+  inline void HOT ESPHOME_ALWAYS_INLINE write_log_buffer_to_console_(LogBuffer &buf) {
     if (this->baud_rate_ > 0)
       this->write_to_console_(buf);
   }
