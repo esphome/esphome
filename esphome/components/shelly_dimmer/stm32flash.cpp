@@ -611,7 +611,7 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const
     ESP_LOGD(TAG, "Only %d bytes sent in the PID, unknown/unsupported device", returned);
     return make_stm32_with_deletor(nullptr);
   }
-  stm->pid = (buf[1] << 8) | buf[2];
+  stm->pid = encode_uint16(buf[1], buf[2]);
   if (returned > 2) {
     ESP_LOGD(TAG, "This bootloader returns %d extra bytes in PID:", returned);
     for (auto i = 2; i <= returned; i++) {
@@ -952,7 +952,7 @@ stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address
     if (buf[4] != xor_bytes(buf, 4))
       return STM32_ERR_UNKNOWN;
 
-    *crc = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+    *crc = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
   }
 
   return STM32_ERR_OK;
