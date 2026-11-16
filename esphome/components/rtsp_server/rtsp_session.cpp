@@ -296,6 +296,7 @@ void RTSPSession::open(std::unique_ptr<socket::Socket> socket, uint32_t now) {
   this->audio_octets_ = 0;
   this->video_packets_ = 0;
   this->video_octets_ = 0;
+  this->stalled_ = false;
 #endif
   format_hex_to(this->session_id_, random_uint32());
 }
@@ -326,6 +327,9 @@ void RTSPSession::service_(uint32_t now, uint16_t port) {
   if (this->frame_ != nullptr && now - this->frame_progress_ms_ > FRAME_STALL_MS) {
     ESP_LOGV(TAG, "Session %s stalled, dropping frame", this->session_id_);
     this->drop_frame_();
+#ifdef USE_RTSP_SERVER_AUDIO
+    this->stalled_ = true;
+#endif
   }
   if (!this->flush_(now))
     return;
@@ -568,10 +572,17 @@ void RTSPSession::stop_playing_() {
 void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now,
                                [[maybe_unused]] uint64_t time_ms) {
   // Pending output other than audio means a frame is in flight or a stalled one is still being padded out.
-  if (!this->is_playing_video() || this->frame_ != nullptr || this->filler_len_ > 0 ||
-      (this->iov_pos_ < this->iov_count_ && this->output_ != Output::OUTPUT_AUDIO &&
-       this->output_ != Output::OUTPUT_REPORT))
+  // Audio includes the padding of an audio packet whose slot was reused: a client at the lag limit has one
+  // pending most of the time, and would otherwise get no video.
+  const bool pending = this->iov_pos_ < this->iov_count_ || this->filler_len_ > 0;
+  if (!this->is_playing_video() || this->frame_ != nullptr ||
+      (pending && this->output_ != Output::OUTPUT_AUDIO && this->output_ != Output::OUTPUT_REPORT))
     return;
+#ifdef USE_RTSP_SERVER_AUDIO
+  // A client that has taken nothing since its last frame stalled gets no frame to hold behind its audio.
+  if (pending && this->stalled_)
+    return;
+#endif
   this->frame_ = image;
   this->jpeg_ = jpeg;
   this->frame_sent_ = 0;
@@ -738,10 +749,15 @@ void RTSPSession::drop_frame_() {
 void RTSPSession::detach_payload_() {
   this->filler_ = ZERO_FILL;
 #ifdef USE_RTSP_SERVER_AUDIO
-  if (this->output_ == Output::OUTPUT_AUDIO)
+  // A padded audio packet stays audio output, so on_new_frame() still takes a frame behind it.
+  // (its slot is not reused again while it is pending, so it is not detached twice).
+  if (this->output_ == Output::OUTPUT_AUDIO) {
     this->filler_ = this->audio_track_->filler;
+  } else
 #endif
-  this->output_ = Output::OUTPUT_CONTROL;
+  {
+    this->output_ = Output::OUTPUT_CONTROL;
+  }
   if (this->iov_pos_ >= this->iov_count_)
     return;
   // Even an unwritten packet is kept, so output stays pending and on_new_frame() takes nothing until the
@@ -777,6 +793,9 @@ bool RTSPSession::flush_(uint32_t now) {
       return false;
     }
     this->last_activity_ms_ = now;
+#ifdef USE_RTSP_SERVER_AUDIO
+    this->stalled_ = false;
+#endif
     // Only the frame's own packets count: a client that takes audio but no video still stalls the frame.
     if (this->output_ == Output::OUTPUT_FRAME)
       this->frame_progress_ms_ = now;

@@ -190,6 +190,7 @@ class RTSPSession {
   uint32_t last_report_ms_{0};
   uint16_t audio_sequence_number_{0};
   bool video_turn_{false};  // a video packet goes next, so audio cannot starve the video
+  bool stalled_{false};     // nothing was written since a frame was dropped as stalled
 #endif
 
   // Pending output: a response or one RTP packet. Packets point at the frame's tables and scan data.

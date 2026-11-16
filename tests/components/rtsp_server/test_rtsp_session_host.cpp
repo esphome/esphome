@@ -764,6 +764,44 @@ TEST_F(RTSPAudioSessionTest, SlowReaderStillGetsVideo) {
   EXPECT_GE(audio, 10u);
 }
 
+TEST_F(RTSPAudioSessionTest, StalledReaderHoldsNoFramesBehindAudio) {
+  // A Unix socket's buffer does not grow, so a peer that stops reading takes nothing more at all.
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  int size = 4096;
+  ::setsockopt(fds[0], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+  ::close(this->peer_fd_);
+  this->peer_fd_ = fds[1];
+  this->session_.open(std::make_unique<socket::Socket>(fds[0]), this->now_);
+  this->session_.set_audio_track(&this->track_);
+  this->play(true, true);
+  // The peer does not read: audio fills the socket buffer, and a frame taken behind it is dropped as stalled.
+  for (int i = 0; i < 40; i++) {
+    this->now_ += AUDIO_PACKET_MS;
+    this->produce();
+    this->loops(1);
+  }
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 3000);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
+  ASSERT_TRUE(this->session_.has_frame());
+  for (uint32_t i = 0; i < FRAME_STALL_MS / AUDIO_PACKET_MS + 1; i++) {
+    this->now_ += AUDIO_PACKET_MS;
+    this->produce();
+    this->loops(1);
+  }
+  ASSERT_EQ(image.use_count(), 1);
+  // Audio packets keep being padded as their slots are reused. No frame is taken behind them while nothing is
+  // written, so the camera can keep capturing for other consumers.
+  for (int i = 0; i < 100; i++) {
+    this->now_ += AUDIO_PACKET_MS;
+    this->produce();
+    auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+    this->session_.on_new_frame(next, stub_jpeg(*next), this->now_, this->now_);
+    this->loops(1);
+    ASSERT_EQ(next.use_count(), 1) << "frame taken at step " << i;
+  }
+}
+
 // ITU-T G.711 decoders, to check the encoders against.
 static int16_t decode_ulaw(uint8_t code) {
   code = ~code;
