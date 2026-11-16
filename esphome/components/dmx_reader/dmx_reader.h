@@ -30,7 +30,7 @@ using dmx_personality_t = DmxPersonalityT;
 
 static constexpr size_t DMX_PACKET_SIZE = 513;
 static constexpr int DMX_OK = 0;
-inline dmx_config_t dmx_config_default() { return {}; }
+inline dmx_config_t DMX_CONFIG_DEFAULT() { return {}; }
 
 // Minimal stubs that the .cpp parses; real builds use esp_dmx.h
 inline int dmx_driver_install(dmx_port_t, dmx_config_t *, dmx_personality_t *, int) { return 0; }
