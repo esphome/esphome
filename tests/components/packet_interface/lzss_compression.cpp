@@ -172,6 +172,20 @@ TEST_F(LzssCompressionTest, SplitPacketDropped) {
   EXPECT_EQ(a.received, std::vector<Packet>{text("ab")});
 }
 
+TEST_F(LzssCompressionTest, BadHeadersAndSizesDropped) {
+  Peer a(JSON_DICTIONARY, 255, 32);
+  a.link.inject(Packet{});  // no header
+  Packet oversized(34, 'a');
+  oversized[0] = 0x2A;  // sent as it is, with 33 bytes for a 32 byte limit
+  a.link.inject(oversized);
+  EXPECT_TRUE(a.received.empty());
+  oversized.pop_back();
+  a.link.inject(oversized);
+  EXPECT_EQ(a.received.size(), 1u);
+  EXPECT_FALSE(a.send(Packet(33, 'b')));
+  EXPECT_TRUE(a.link.sent.empty());
+}
+
 TEST_F(LzssCompressionTest, LargerThanLinkOnlyIfItCompresses) {
   Peer a(WEATHER, 64, 400);
   Peer b(WEATHER, 64, 400);

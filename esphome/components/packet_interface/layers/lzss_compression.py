@@ -4,7 +4,7 @@ import zlib
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
-from esphome.components.lzss import MAX_DICTIONARY_SIZE
+from esphome.components.lzss import MAX_DICTIONARY_SIZE, shared_chains
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
@@ -23,6 +23,8 @@ CONF_DICTIONARY = "dictionary"
 
 # Whether the packet is compressed, and the dictionary check
 HEADER_SIZE = 1
+# The smallest max_packet_size, which a packet sent as it is must also fit
+MIN_ROOM = 16
 
 # Pieces common in JSON, for when no dictionary is given. One made from a typical packet of the application does much
 # better, as most of a short packet is then copied from it.
@@ -41,7 +43,7 @@ LZSS_SCHEMA = cv.Schema(
             cv.string_strict, cv.ByteLength(max=MAX_DICTIONARY_SIZE)
         ),
         # A packet larger than the layer below takes is sent only if it compresses enough
-        cv.Optional(CONF_MAX_PACKET_SIZE): cv.int_range(16, 16384),
+        cv.Optional(CONF_MAX_PACKET_SIZE): cv.int_range(MIN_ROOM, 16384),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -53,6 +55,13 @@ def _packet_size(config: ConfigType, size: int) -> int:
 def _check_lower(config: ConfigType, size: int, capacity: int | None) -> None:
     if size <= HEADER_SIZE:
         raise cv.Invalid("The layers below leave no room for compressed packets")
+    # Layers above are sized by max_packet_size, and a packet that does not compress is sent as it is
+    if CONF_MAX_PACKET_SIZE in config and size - HEADER_SIZE < MIN_ROOM:
+        raise cv.Invalid(
+            f"With '{CONF_MAX_PACKET_SIZE}', the layers below must leave at least {MIN_ROOM} bytes after the "
+            "header, so packets that do not compress can still be sent",
+            path=[CONF_MAX_PACKET_SIZE],
+        )
 
 
 def dictionary_check(dictionary: bytes) -> int:
@@ -86,12 +95,7 @@ async def build_lzss(
         LzssCompression.static_("buffer_size")(lower_size, max_packet_size),
         psram=True,
     )
-    chains = cg.static_buffer(
-        config[CONF_ID],
-        cg.uint16,
-        LzssCompression.static_("CHAIN_WORDS"),
-        psram=True,
-    )
+    chains = shared_chains()
     var = cg.new_Pvariable(
         config[CONF_ID],
         lower,

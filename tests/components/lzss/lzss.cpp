@@ -83,6 +83,17 @@ TEST(Lzss, LongMatchesAndOverlap) {
   EXPECT_EQ(codec.round_trip(run), run);
 }
 
+// The length code allows at most MAX_MATCH, so a longer run is split
+TEST(Lzss, LongestMatchIsCapped) {
+  Codec codec("");
+  Bytes run(Lzss::MAX_MATCH * 2 + 10, 'x');
+  Bytes compressed = codec.compress(run, run.size());
+  ASSERT_FALSE(compressed.empty());
+  bool ok;
+  EXPECT_EQ(codec.expand(compressed, run.size(), ok), run);
+  EXPECT_TRUE(ok);
+}
+
 // Any input either expands into the buffer or is refused; nothing is written past it
 TEST(Lzss, MalformedDataNeverOverruns) {
   Codec codec(JSON_DICTIONARY);

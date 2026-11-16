@@ -8,6 +8,7 @@ namespace esphome::lzss {
 
 // Gamma codes up to this many bits after the first, so lengths up to 65536
 static constexpr uint8_t MAX_GAMMA_ZEROS = 15;
+static_assert(Lzss::MAX_MATCH == size_t{1} << (MAX_GAMMA_ZEROS + 1));
 static constexpr size_t LITERAL_BITS = 9;
 static constexpr uint16_t NO_POSITION = 0xFFFF;
 
@@ -119,7 +120,7 @@ size_t Lzss::compress(const uint8_t *in, size_t size, uint8_t *out, size_t capac
   size_t i = 0;
   while (i < size && !writer.is_full()) {
     size_t pos = this->dictionary_size_ + i;
-    size_t longest = size - i;
+    size_t longest = clamp_at_most(size - i, MAX_MATCH);
     size_t best_length = 0;
     size_t best_offset = 0;
     if (longest >= 2) {

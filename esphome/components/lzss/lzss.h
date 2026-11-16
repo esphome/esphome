@@ -12,10 +12,10 @@ namespace esphome::lzss {
  *
  * The compressed data is a stream of bits, the first in bit 7 of each byte:
  * - a 1 bit and 8 bits of a byte to copy;
- * - a 0 bit, an offset back from the current position, and a length of at least 2. The offset less 1 takes as many
- *   bits as the number of bytes behind the current position less 1 needs, counting the dictionary, so near the start
- *   of a block it takes few bits. The length less 1 is an Elias gamma code: one 0 bit for each bit after the first,
- *   then the value.
+ * - a 0 bit, an offset back from the current position, and a length from 2 to MAX_MATCH. The offset less 1 takes
+ *   as many bits as the number of bytes behind the current position, counting the dictionary but at most WINDOW,
+ *   less 1 needs, so near the start of a block it takes few bits. The length less 1 is an Elias gamma code: one 0
+ *   bit for each bit after the first, then the value.
  * The last byte is padded with 1 bits, which read as the start of a byte to copy with too few bits left.
  */
 class Lzss {
@@ -24,8 +24,11 @@ class Lzss {
   static constexpr uint8_t HASH_BITS = 8;
   /// How many earlier positions the compressor tries for each match; more finds longer matches, but takes longer.
   static constexpr size_t MAX_CHAIN = 32;
-  /// How far back the compressor looks for a match, a power of 2; the format allows any distance.
+  /// Part of the format: a match reaches back at most this far, and offsets take the bits that the bytes behind the
+  /// current position need, counting at most this many; a power of 2.
   static constexpr size_t WINDOW = 512;
+  /// The longest match, as the decoder reads a length code of at most 16 bits after the first.
+  static constexpr size_t MAX_MATCH = 65536;
   /// The working space compress() needs: the latest position for each hash, then the previous one for each position
   /// in the window.
   static constexpr size_t CHAIN_WORDS = (size_t{1} << HASH_BITS) + WINDOW;

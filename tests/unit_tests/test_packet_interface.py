@@ -463,6 +463,16 @@ def test_compression_packet_size(
     assert COMPRESSION.get_type(config).packet_size(config, lower) == size
 
 
+def test_compression_max_needs_room_below(setup_core) -> None:
+    """A packet that does not compress is sent as it is, so it must fit the layer below after the header."""
+    compression = {CONF_COMPRESSION: {CONF_MAX_PACKET_SIZE: 64}}
+    with pytest.raises(cv.Invalid, match="at least 16 bytes"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_MAX_PACKET_SIZE: 16, **compression})
+    assert uart_packet_interface.CONFIG_SCHEMA(
+        {CONF_MAX_PACKET_SIZE: 17, **compression}
+    )
+
+
 def test_compression_above_fragmentation(setup_core) -> None:
     """Compression sits above fragmentation and encryption, so whole packets are compressed before either."""
     order = [kind.key for kind in STACK_ORDER]
