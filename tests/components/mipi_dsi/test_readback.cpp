@@ -1,4 +1,4 @@
-#ifdef USE_HOST
+#if defined(USE_HOST) && defined(MIPI_TEST_IDF_MAJOR)
 #include <gtest/gtest.h>
 
 #include <algorithm>

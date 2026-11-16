@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_HOST
+#if defined(USE_HOST) && defined(MIPI_TEST_IDF_MAJOR)
 // Public ESP-IDF boundary double, with separate DMA memory and CPU read view.
 #include <algorithm>
 #include <array>
@@ -13,13 +13,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#ifndef MIPI_TEST_IDF_MAJOR
-#define MIPI_TEST_IDF_MAJOR 5
-#endif
 #define ESP_IDF_VERSION_VAL(a, b, c) (((a) << 16) | ((b) << 8) | (c))
-#ifndef MIPI_TEST_IDF_PATCH
-#define MIPI_TEST_IDF_PATCH (MIPI_TEST_IDF_MAJOR >= 6 ? 3 : 6)
-#endif
 #define ESP_IDF_VERSION \
   ESP_IDF_VERSION_VAL(MIPI_TEST_IDF_MAJOR, (MIPI_TEST_IDF_MAJOR >= 6 ? 0 : 5), MIPI_TEST_IDF_PATCH)
 using esp_err_t = int;

@@ -1,4 +1,4 @@
-#ifdef USE_HOST
+#if defined(USE_HOST) && defined(MIPI_TEST_IDF_MAJOR)
 #include "esphome/components/mipi_dsi/mipi_dsi.h"
 #include "esphome/core/hal.h"
 #include "mipi_test_sdk.h"
