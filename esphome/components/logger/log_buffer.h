@@ -125,28 +125,11 @@ struct LogBuffer {
     }
     this->finalize_();
   }
-  // write_unformatted_body() for a message in flash. Flash only allows aligned 32-bit loads, so it reads a word at a
-  // time (little endian) instead of one load per byte; the text must be readable up to the end of its last word.
-  void HOT write_unformatted_body_p(ESPHOME_PGM_P text) {
+  // write_unformatted_body() for a message in flash
+  inline void HOT ESPHOME_ALWAYS_INLINE write_unformatted_body_p(ESPHOME_PGM_P text) {
     if (!this->full_()) {
       char *p = this->current_();
-      const char *const end = p + this->remaining_() - 1;
-      const uint32_t offset = reinterpret_cast<uintptr_t>(text) & 3;
-      const uint32_t *word = reinterpret_cast<const uint32_t *>(text - offset);
-      uint32_t bytes = *word++ >> (8 * offset);
-      uint32_t left = 4 - offset;
-      while (p < end) {
-        if (left == 0) {
-          bytes = *word++;
-          left = 4;
-        }
-        const char c = static_cast<char>(bytes);
-        if (c == '\0')
-          break;
-        *p++ = c;
-        bytes >>= 8;
-        left--;
-      }
+      p = copy_flash_text(p, p + this->remaining_() - 1, text);
       this->pos = static_cast<uint16_t>(p - this->data);
       this->strip_trailing_newlines_();
     }
@@ -223,6 +206,36 @@ struct LogBuffer {
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
   }
 #endif
+  // Copies text from flash up to its null or end, returning the new end. Flash only allows aligned 32-bit loads, so it
+  // reads whole words, including bytes after the null in the last one; one step per byte keeps each a single extract.
+  static inline char *ESPHOME_ALWAYS_INLINE copy_flash_text(char *p, const char *end, const char *text) {
+    uint32_t offset = reinterpret_cast<uintptr_t>(text) & 3;
+    const uint32_t *word = reinterpret_cast<const uint32_t *>(text - offset);
+    for (;; offset = 0) {
+      const uint32_t bytes = *word++;
+      switch (offset) {
+        case 0:
+          if (p >= end || static_cast<char>(bytes) == '\0')
+            return p;
+          *p++ = static_cast<char>(bytes);
+          [[fallthrough]];
+        case 1:
+          if (p >= end || static_cast<char>(bytes >> 8) == '\0')
+            return p;
+          *p++ = static_cast<char>(bytes >> 8);
+          [[fallthrough]];
+        case 2:
+          if (p >= end || static_cast<char>(bytes >> 16) == '\0')
+            return p;
+          *p++ = static_cast<char>(bytes >> 16);
+          [[fallthrough]];
+        default:
+          if (p >= end || static_cast<char>(bytes >> 24) == '\0')
+            return p;
+          *p++ = static_cast<char>(bytes >> 24);
+      }
+    }
+  }
   // Extract one decimal digit via subtraction (no division - important for ESP8266)
   static inline char *ESPHOME_ALWAYS_INLINE write_digit(char *p, int &value, int divisor) {
     char d = '0';

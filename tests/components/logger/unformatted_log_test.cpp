@@ -38,7 +38,7 @@ TEST(UnformattedLogTest, BodyMatchesFormattedBodyAtEverySize) {
         LogBuffer c{flash, size, start};
         format_into(a, "%s", text);
         b.write_unformatted_body(text, strlen(text));
-        // The flash copy reads whole aligned words, so give it a zero padded copy at a misaligned start
+        // The flash copy reads whole aligned words, so give it a zero padded copy
         alignas(4) char padded[128] = {};
         char *const in_flash = padded + (start & 3);
         memcpy(in_flash, text, strlen(text) + 1);
