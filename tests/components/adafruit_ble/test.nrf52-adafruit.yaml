@@ -10,10 +10,3 @@ ota:
     on_begin:
       then:
         - logger.log: "OTA start"
-
-button:
-  - platform: template
-    name: Enter bootloader
-    internal: true
-    on_press:
-      - ota.adafruit_ble.enter_bootloader:
