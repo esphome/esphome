@@ -987,11 +987,6 @@ SimResult ModemComponent::prepare_sim_() {
     while (*found == ' ') {
       found++;
     }
-    // A URC in the same reply follows on its own line, which flatten_reply() turned into two spaces
-    const size_t end = output.find("  ", found - output.c_str());
-    if (end != std::string::npos) {
-      output.resize(end);
-    }
   }
   const StringRef status = found != nullptr ? StringRef(found) : StringRef();
   if (status.empty()) {
