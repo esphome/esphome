@@ -46,18 +46,18 @@ SendspinMediaSource = sendspin_ns.class_(
 
 def _resolve_codecs(config: ConfigType) -> ConfigType:
     """Validate the codec preference list, filling in the default when it is not set."""
-    sample_rate = config[CONF_SAMPLE_RATE]
+    sample_rates = [f[CONF_SAMPLE_RATE] for f in config[CONF_FORMATS]]
     if (codecs := config.get(CONF_CODECS)) is None:
         config[CONF_CODECS] = [
             codec
             for codec in DEFAULT_CODECS
-            if codec != CODEC_OPUS or sample_rate == OPUS_SAMPLE_RATE
+            if codec != CODEC_OPUS or OPUS_SAMPLE_RATE in sample_rates
         ]
         return config
 
     if len(set(codecs)) != len(codecs):
         raise cv.Invalid("Each codec may only be listed once", path=[CONF_CODECS])
-    if CODEC_OPUS in codecs and sample_rate != OPUS_SAMPLE_RATE:
+    if CODEC_OPUS in codecs and OPUS_SAMPLE_RATE not in sample_rates:
         raise cv.Invalid(
             f"Codec '{CODEC_OPUS}' requires a {CONF_SAMPLE_RATE} of {OPUS_SAMPLE_RATE}",
             path=[CONF_CODECS],
