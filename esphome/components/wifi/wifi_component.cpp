@@ -2174,6 +2174,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         // Even when skipping full restart, disconnect to clear driver state
         // Without this, platforms like LibreTiny may think we're still connecting
         this->wifi_disconnect_();
+        // And clear the error flag, as restart_adapter() does: COOLDOWN leads to
+        // check_connecting_finished() without start_connecting(), so a stale
+        // error would fail a connection the driver completes meanwhile.
+        this->error_from_callback_ = false;
       }
       // Clear scan flag - we're starting a new retry cycle
       // This is critical for DPP/captive portal/improv flow: when determine_next_phase_()
