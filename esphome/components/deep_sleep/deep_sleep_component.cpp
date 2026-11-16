@@ -13,10 +13,13 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
 #ifdef USE_BK72XX
-  // Apply the configured mode (e.g. the pull-up). Without it the pins float and the
-  // wake-up level is chosen from a bogus reading.
-  for (WakeUpPinItem &item : this->wakeup_pins_)
-    item.wakeup_pin->setup();
+  // Apply a configured pull. Without it the pins float and the wake-up level is chosen
+  // from a bogus reading. A plain input is left alone (reading the pin already makes it
+  // one), so a pull set by another component sharing the pin is not undone.
+  for (WakeUpPinItem &item : this->wakeup_pins_) {
+    if (item.wakeup_pin->get_flags() & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN))
+      item.wakeup_pin->setup();
+  }
 #endif
   this->schedule_sleep_();
 }
