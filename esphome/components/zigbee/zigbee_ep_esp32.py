@@ -359,6 +359,28 @@ SWITCH_EP_CONFIGS: dict[str, dict[str, Any]] = {
     },
 }
 
+WINDOW_COVERING_EP = {
+    DEVICE_TYPE: "WINDOW_COVERING",
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "WINDOW_COVERING",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x7,  # ConfigStatus
+                    CONF_TYPE: "MAP8",
+                    CONF_VALUE: 0x03,  # operational | online
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x8,  # CurrentPositionLiftPercentage
+                    CONF_TYPE: "UINT8",
+                    CONNECT: True,
+                },
+            ],
+        },
+    ],
+}
+
 
 def _get_next_ep_num(eps: list[int]) -> int:
     try:

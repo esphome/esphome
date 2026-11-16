@@ -26,6 +26,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_COVER
+#include "esphome/components/cover/cover.h"
+#endif
 
 namespace esphome::zigbee {
 
@@ -75,6 +78,13 @@ class ZigbeeAttribute final : public Component {
 #ifdef USE_NUMBER
   template<typename T> void connect(number::Number *device);
 #endif
+#ifdef USE_COVER
+  template<typename T> void connect(cover::Cover *device);
+  template<typename F> void add_on_command_callback(F &&callback) {
+    this->on_command_callback_.add(std::forward<F>(callback));
+  }
+  void on_command(uint8_t cmd_id, uint8_t percentage) { this->on_command_callback_.call(cmd_id, percentage); }
+#endif
   bool report_enabled = false;
 
  protected:
@@ -93,6 +103,9 @@ class ZigbeeAttribute final : public Component {
   bool report_requested_{false};
   bool force_report_{false};
   LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
+#ifdef USE_COVER
+  LazyCallbackManager<void(uint8_t cmd_id, uint8_t percentage)> on_command_callback_{};
+#endif
   template<typename T> T scale_value_(float value);
   template<typename T> T invalid_value_();
 };
@@ -181,6 +194,37 @@ template<typename T> void ZigbeeAttribute::connect(number::Number *device) {
     call.perform();
   });
   device->add_on_state_callback([this](float value) { this->set_attr(this->scale_value_<T>(value)); });
+}
+#endif
+#ifdef USE_COVER
+// ZCL lift percentage counts closed: 0 is fully open and 100 is fully closed.
+template<typename T> void ZigbeeAttribute::connect(cover::Cover *device) {
+  this->add_on_command_callback([device](uint8_t cmd_id, uint8_t percentage) {
+    auto call = device->make_call();
+    switch (cmd_id) {
+      case EZB_ZCL_CMD_WINDOW_COVERING_UP_OPEN_ID:
+        call.set_command_open();
+        break;
+      case EZB_ZCL_CMD_WINDOW_COVERING_DOWN_CLOSE_ID:
+        call.set_command_close();
+        break;
+      case EZB_ZCL_CMD_WINDOW_COVERING_STOP_ID:
+        call.set_command_stop();
+        break;
+      case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID:
+        call.set_position(1.0f - static_cast<float>(percentage) / 100.0f);
+        break;
+      default:
+        return;
+    }
+    call.perform();
+  });
+  device->add_on_state_callback([this, device]() {
+    if (std::isnan(device->position)) {
+      return;
+    }
+    this->set_attr(static_cast<T>(lroundf((1.0f - device->position) * 100.0f)));
+  });
 }
 #endif
 

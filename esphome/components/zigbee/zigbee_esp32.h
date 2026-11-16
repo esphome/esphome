@@ -97,6 +97,9 @@ class ZigbeeComponent final : public Component {
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  T *value_p);
   void handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
+#ifdef USE_COVER
+  void handle_window_covering_(ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage);
+#endif
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id

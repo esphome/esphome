@@ -55,6 +55,7 @@ from .const_zephyr import (
 )
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
+ZigbeeCover = zigbee_ns.class_("ZigbeeCover", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)

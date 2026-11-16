@@ -82,6 +82,7 @@ from .zigbee_ep_esp32 import (
     BINARY_SENSOR_EP_CONFIGS,
     SENSOR_EP_CONFIGS,
     SWITCH_EP_CONFIGS,
+    WINDOW_COVERING_EP,
     add_ep,
     create_ep,
 )
@@ -331,6 +332,13 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
                 "use 'cluster: on_off' to expose a MAINS_POWER_OUTLET device type"
             )
         ep = copy.deepcopy(BINARY_OUTPUT_EP)
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_cover_esp32(config: ConfigType) -> ConfigType:
+    ep = copy.deepcopy(WINDOW_COVERING_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config

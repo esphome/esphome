@@ -31,12 +31,14 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENDPOINT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_REPORT,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WEB_SERVER,
 )
@@ -1449,6 +1451,22 @@ def test_zigbee_entity_schema_cluster_options() -> None:
     with patch.object(CORE, "loaded_integrations", {"nrf52", "zigbee"}):
         assert CONF_CLUSTER not in schema({})
         with pytest.raises(Invalid, match="requires component esp32"):
+            schema({CONF_CLUSTER: "generic"})
+
+
+def test_zigbee_cover_schema_has_no_cluster_key() -> None:
+    """A cover has one zigbee representation: it takes the shared esp32 options but no cluster."""
+    schema = entity_helpers.ZIGBEE_COVER_SCHEMA
+
+    with patch.object(CORE, "loaded_integrations", set()):
+        assert schema({}) == {}
+        with pytest.raises(Invalid, match="requires component zigbee"):
+            schema({CONF_ENDPOINT: 3})
+
+    with patch.object(CORE, "loaded_integrations", {"esp32", "zigbee"}):
+        assert schema({}) == {}
+        assert schema({CONF_ENDPOINT: 3, CONF_REPORT: "force"})[CONF_ENDPOINT] == 3
+        with pytest.raises(Invalid):
             schema({CONF_CLUSTER: "generic"})
 
 
