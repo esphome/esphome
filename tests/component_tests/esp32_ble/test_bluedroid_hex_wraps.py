@@ -18,15 +18,18 @@ _WRAP_FLAGS = {
     "-Wl,--undefined=__wrap_string_to_bdaddr",
 }
 
+# The last ESP-IDF line on newlib; 6.0 moved to picolibc
+_NEWLIB_IDF = "{type: esp-idf, version: 5.5.6}"
+
 
 @pytest.mark.parametrize(
     ("variant", "framework", "expected"),
     [
-        pytest.param("esp32", "{type: esp-idf}", True, id="esp32"),
-        pytest.param("esp32c3", "{type: esp-idf}", True, id="c3"),
-        pytest.param("esp32s3", "{type: esp-idf}", True, id="s3"),
-        pytest.param("esp32c2", "{type: esp-idf}", True, id="c2"),
-        pytest.param("esp32c6", "{type: esp-idf}", False, id="c6_rom_sscanf"),
+        pytest.param("esp32", _NEWLIB_IDF, True, id="esp32"),
+        pytest.param("esp32c3", _NEWLIB_IDF, True, id="c3"),
+        pytest.param("esp32s3", _NEWLIB_IDF, True, id="s3"),
+        pytest.param("esp32c2", _NEWLIB_IDF, True, id="c2"),
+        pytest.param("esp32c6", _NEWLIB_IDF, False, id="c6_rom_sscanf"),
         pytest.param(
             "esp32", "{type: esp-idf, version: 6.0.1}", False, id="idf6_picolibc"
         ),
