@@ -149,6 +149,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_drdy_gpio, config.get(CONF_DRDY_PIN))
 
     cg.add_library("functionpointer/arduino-MLX90393", "1.0.2")
-    # The library includes Wire.h on Arduino even though its own HAL is unused
     if CORE.using_arduino:
         cg.add_library("Wire", None)
