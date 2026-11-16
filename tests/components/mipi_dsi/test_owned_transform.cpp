@@ -56,12 +56,15 @@ TEST_P(MipiOwnedRotation, LogicalOnePassMatchesThePublicScalarDisplay) {
   EXPECT_EQ(c.out.buffer, reinterpret_cast<void *>(1));
   const Color colors[]{Color(255, 0, 0),     Color(0, 255, 0), Color(0, 0, 255),
                        Color(255, 255, 255), Color(0, 0, 0),   Color(255, 0, 255)};
-  for (int y = 0; y < 2; y++)
+  for (int y = 0; y < 2; y++) {
     for (int x = 0; x < 3; x++)
       expected.driver->draw_pixel_at(1 + x, 1 + y, colors[y * 3 + x]);
+  }
   expected.driver->update();
   EXPECT_EQ(actual.panel->memory, expected.panel->memory);
 }
+// GoogleTest registration creates a generated non-const global.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 INSTANTIATE_TEST_SUITE_P(OwnerRotation, MipiOwnedRotation,
                          ::testing::Values(display::DISPLAY_ROTATION_0_DEGREES, display::DISPLAY_ROTATION_90_DEGREES,
                                            display::DISPLAY_ROTATION_180_DEGREES,
@@ -200,18 +203,21 @@ TEST_P(MipiOutputRotation, ReadbackAddsOnlyTheRequestedClockwiseRotation) {
   reference->set_rotation(GetParam());
   const Color colors[]{Color(255, 0, 0),     Color(0, 255, 0), Color(0, 0, 255),
                        Color(255, 255, 255), Color(0, 0, 0),   Color(255, 0, 255)};
-  for (unsigned y = 0; y < 8; y++)
+  for (unsigned y = 0; y < 8; y++) {
     for (unsigned x = 0; x < 4; x++) {
       const auto color = colors[(x + 3 * y + 2 * x * y) % 6];
       actual.driver->draw_pixel_at(x, y, color);
       reference->draw_pixel_at(x, y, color);
     }
+  }
   actual.driver->update();
   reference->update();
   std::array<uint8_t, 64> target{};
   ASSERT_TRUE(actual.driver->copy_frame_buffer_rgb565(target.data(), target.size(), GetParam()));
   EXPECT_TRUE(std::equal(target.begin(), target.end(), expected->memory.begin()));
 }
+// GoogleTest registration creates a generated non-const global.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 INSTANTIATE_TEST_SUITE_P(RequestedRotation, MipiOutputRotation,
                          ::testing::Values(display::DISPLAY_ROTATION_0_DEGREES, display::DISPLAY_ROTATION_90_DEGREES,
                                            display::DISPLAY_ROTATION_180_DEGREES,

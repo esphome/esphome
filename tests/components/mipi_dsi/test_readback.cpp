@@ -60,7 +60,7 @@ class MipiReadbackPixels : public MipiReadback,
                            public ::testing::WithParamInterface<std::tuple<display::DisplayRotation, bool>> {};
 
 TEST_P(MipiReadbackPixels, PublicDrawCopiesCompletedDpiPixelsInLogicalLittleEndianOrder) {
-  const auto [rotation, big_endian] = this->GetParam();
+  const auto [rotation, big_endian] = MipiReadbackPixels::GetParam();
   auto &rig = rgb_rig(big_endian);
   rig.display->set_rotation(rotation);
   mipi_test_sdk::reset_calls();
@@ -87,6 +87,8 @@ TEST_P(MipiReadbackPixels, PublicDrawCopiesCompletedDpiPixelsInLogicalLittleEndi
   EXPECT_EQ(mipi_test_sdk::try_takes, tries_before + 1u);
 }
 
+// GoogleTest registration creates a generated non-const global.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 INSTANTIATE_TEST_SUITE_P(
     RotationAndInputEndian, MipiReadbackPixels,
     ::testing::Combine(::testing::Values(display::DISPLAY_ROTATION_0_DEGREES, display::DISPLAY_ROTATION_90_DEGREES,

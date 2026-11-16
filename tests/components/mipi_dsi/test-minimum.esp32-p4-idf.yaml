@@ -1,0 +1,7 @@
+# The same public API caller against the oldest SDK supported by this driver.
+packages:
+  mipi_dsi: !include test.esp32-p4-idf.yaml
+
+esp32:
+  framework:
+    version: 5.5.0

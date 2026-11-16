@@ -107,8 +107,8 @@ class MipiDsi final : public display::Display {
                          int x_pad);
   bool check_buffer_();
   bool draw_rotated_rgb565_(int x, int y, int w, int h, const uint8_t *data, int x_offset, int y_offset, int x_pad);
-  bool submit_bitmap_(int x1, int y1, int x2, int y2, const uint8_t *data);
-  bool submit_bitmap_locked_(int x1, int y1, int x2, int y2, const uint8_t *data);
+  bool submit_bitmap_(int x_start, int y_start, int x_end, int y_end, const uint8_t *ptr);
+  bool submit_bitmap_locked_(int x_start, int y_start, int x_end, int y_end, const uint8_t *ptr);
   void mirror_native_rgb565_(int x, int y, int w, int h, const uint8_t *data, size_t stride);
 
   /// Send the region touched since the last flush to the panel.
