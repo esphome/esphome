@@ -17,6 +17,7 @@ DEPENDENCIES = ["i2c"]
 CONF_AUX_ADDRESS = "aux_address"
 CONF_AUX_DEVICE = "aux_device"
 
+# to_code skips the setters at these values, so each must match its member default in bmi270.h
 DEFAULT_ACCELEROMETER_RANGE = "4G"
 DEFAULT_ACCELEROMETER_ODR = "100HZ"
 DEFAULT_GYROSCOPE_RANGE = "2000DPS"
