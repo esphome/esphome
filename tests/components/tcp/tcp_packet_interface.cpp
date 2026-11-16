@@ -165,7 +165,7 @@ TEST_F(TcpPacketInterfaceTest, SlowerPeerMatchedByTimeout) {
 TEST_F(TcpPacketInterfaceTest, ConnectedSensorStartsFalse) {
   TestTcp link;
   binary_sensor::BinarySensor sensor;
-  link.set_connected_sensor(&sensor);
+  link.set_connected_binary_sensor(&sensor);
   link.setup();
   EXPECT_TRUE(sensor.has_state());
   EXPECT_FALSE(sensor.state);
