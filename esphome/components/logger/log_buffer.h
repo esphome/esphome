@@ -59,7 +59,7 @@ struct LogBuffer {
     char *p = this->current_();
 
     // Write ANSI color
-    this->write_ansi_color_(p, level);
+    p = write_ansi_color(p, level);
 
     // Construct: [LEVEL][tag:line]
     *p++ = '[';
@@ -75,27 +75,27 @@ struct LogBuffer {
     *p++ = '[';
 
     // Copy tag
-    this->copy_string_(p, tag);
+    p = copy_string(p, tag);
 
     *p++ = ':';
 
     // Format line number using subtraction loops (no division - important for ESP8266 which lacks hardware divider)
     if (line > 999) [[unlikely]] {
-      write_digit(p, line, 1000);
+      p = write_digit(p, line, 1000);
     }
-    write_digit(p, line, 100);
-    write_digit(p, line, 10);
+    p = write_digit(p, line, 100);
+    p = write_digit(p, line, 10);
     *p++ = '0' + line;
     *p++ = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
     // Write thread name with bold red color
     if (thread_name != nullptr) {
-      this->write_ansi_color_(p, 1);  // Bold red for thread name
+      p = write_ansi_color(p, 1);  // Bold red for thread name
       *p++ = '[';
-      this->copy_string_(p, thread_name);
+      p = copy_string(p, thread_name);
       *p++ = ']';
-      this->write_ansi_color_(p, level);  // Restore original color
+      p = write_ansi_color(p, level);  // Restore original color
     }
 #endif
 
@@ -123,7 +123,7 @@ struct LogBuffer {
     if (this->pos + REPLAY_HEADER_MAX_SIZE > this->size)
       return;
     char *p = this->current_();
-    this->write_ansi_color_(p, level);
+    p = write_ansi_color(p, level);
     *p++ = '@';
     p = uint32_to_str_unchecked(p, ms);
     *p++ = 'm';
@@ -185,19 +185,20 @@ struct LogBuffer {
   }
 #endif
   // Extract one decimal digit via subtraction (no division - important for ESP8266)
-  static inline void ESPHOME_ALWAYS_INLINE write_digit(char *&p, int &value, int divisor) {
+  static inline char *ESPHOME_ALWAYS_INLINE write_digit(char *p, int &value, int divisor) {
     char d = '0';
     while (value >= divisor) {
       d++;
       value -= divisor;
     }
     *p++ = d;
+    return p;
   }
-  // Write ANSI color escape sequence to buffer, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
-  void write_ansi_color_(char *&p, uint8_t level) {
+  // Writes the ANSI color escape sequence and returns the end; the caller ensures there is space.
+  // Takes and returns the pointer by value so it stays in a register instead of memory.
+  static char *write_ansi_color(char *p, uint8_t level) {
     if (level == 0)
-      return;
+      return p;
     // Direct buffer fill: "\033[{bold};3{color}m" (7 bytes)
     *p++ = '\033';
     *p++ = '[';
@@ -206,10 +207,11 @@ struct LogBuffer {
     *p++ = '3';
     *p++ = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_COLOR_DIGIT[level])));
     *p++ = 'm';
+    return p;
   }
-  // Copy string without null terminator, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space. Tags may be in PROGMEM on ESP8266.
-  void copy_string_(char *&p, const char *str) {
+  // Copies a string without its null terminator and returns the end; the caller ensures there is space.
+  // Tags may be in PROGMEM on ESP8266.
+  static char *copy_string(char *p, const char *str) {
 #ifdef USE_ESP8266
     // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
     for (size_t i = 0; i < MAX_TAG_LENGTH; i++) {
@@ -225,6 +227,7 @@ struct LogBuffer {
     memcpy(p, str, len);
     p += len;
 #endif
+    return p;
   }
 };
 
