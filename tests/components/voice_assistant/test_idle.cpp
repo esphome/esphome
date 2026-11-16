@@ -1,15 +1,18 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <netinet/in.h>
 #include <span>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <vector>
 
 #include "esphome/components/api/api_frame_helper_plaintext.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #include "esphome/core/application.h"
 #include "esphome/core/base_automation.h"
+#include "esphome/core/string_ref.h"
 
 // Only PCM capture is doubled. The complete VA, scheduler, Automation and API connection are production code.
 namespace esphome::microphone {
@@ -39,8 +42,57 @@ class IdleMicrophone : public microphone::Microphone {
   void stop() override { this->state_ = microphone::STATE_STOPPED; }
 };
 
+class IdleSpeaker : public speaker::Speaker {
+ public:
+  std::vector<uint8_t> pcm;
+  bool buffered{false};
+  unsigned stops{0};
+  void start() override { this->state_ = speaker::STATE_RUNNING; }
+  void stop() override {
+    ++this->stops;
+    this->state_ = speaker::STATE_STOPPED;
+    this->buffered = false;
+  }
+  size_t play(const uint8_t *data, size_t size) override {
+    this->pcm.insert(this->pcm.end(), data, data + size);
+    this->buffered = true;
+    this->state_ = speaker::STATE_RUNNING;
+    return size;
+  }
+  bool has_buffered_data() const override { return this->buffered; }
+  void drain_buffer() { this->buffered = false; }
+  void finish_output() {
+    this->buffered = false;
+    this->state_ = speaker::STATE_STOPPED;
+  }
+};
+
+class IdleMediaPlayer : public media_player::MediaPlayer {
+ public:
+  unsigned urls{0}, stops{0};
+  media_player::MediaPlayerTraits get_traits() override { return {}; }
+  void report(media_player::MediaPlayerState next) {
+    this->state = next;
+    this->publish_state();
+  }
+
+ protected:
+  void control(const media_player::MediaPlayerCall &call) override {
+    if (call.get_media_url().has_value()) {
+      EXPECT_EQ(call.get_announcement(), true);
+      ++this->urls;
+    }
+    if (call.get_command() == media_player::MEDIA_PLAYER_COMMAND_STOP) {
+      ++this->stops;
+      this->report(media_player::MEDIA_PLAYER_STATE_IDLE);
+    }
+  }
+};
+
 class VoiceAssistantIdleTest : public ::testing::Test {
  protected:
+  virtual void attach_output_() {}
+  virtual void clear_output_() {}
   void SetUp() override {
     int listener = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(listener, 0);
@@ -70,11 +122,14 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     this->idle_automation_.add_action(&this->idle_action_);
     this->end_automation_.add_action(&this->end_action_);
     this->voice_.client_subscription(this->client_.get(), true);
+    this->attach_output_();
     this->voice_.setup();
   }
   void TearDown() override {
     this->restart_once_ = false;
-    this->voice_.client_subscription(this->client_.get(), false);
+    this->clear_output_();
+    if (this->client_ && this->voice_.get_api_connection() == this->client_.get())
+      this->voice_.client_subscription(this->client_.get(), false);
     this->voice_.request_stop();
     this->pump(4);
     for (uint32_t id = 0; id <= 5; ++id) {
@@ -96,9 +151,15 @@ class VoiceAssistantIdleTest : public ::testing::Test {
       this->flush();
     }
   }
-  void event(api::enums::VoiceAssistantEvent type) {
+  void event(api::enums::VoiceAssistantEvent type, const char *name = nullptr, const char *value = nullptr) {
     api::VoiceAssistantEventResponse message;
     message.event_type = type;
+    if (name != nullptr) {
+      api::VoiceAssistantEventData argument;
+      argument.name = StringRef::from_maybe_nullptr(name);
+      argument.value = StringRef::from_maybe_nullptr(value);
+      message.data.push_back(argument);
+    }
     this->voice_.on_event(message);
   }
   void begin_request(bool continuous = false) {
@@ -106,6 +167,18 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     this->pump(3);
     this->voice_.start_streaming();
     this->event(api::enums::VOICE_ASSISTANT_RUN_START);
+  }
+  void start_tts() {
+    this->event(api::enums::VOICE_ASSISTANT_TTS_START, "text", "fixture response");
+    this->flush();
+    this->event(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/response.wav");
+    this->flush();
+  }
+  void disconnect_client() {
+    this->peer_.reset();
+    // Same production destructor/unsubscribe path used when APIServer drops the connection.
+    this->client_.reset();
+    ASSERT_EQ(this->voice_.get_api_connection(), nullptr);
   }
   void await_response() {
     this->event(api::enums::VOICE_ASSISTANT_STT_VAD_END);
@@ -198,5 +271,114 @@ TEST_F(VoiceAssistantIdleTest, ExplicitStopReportsIdleIndependentlyOfDeferredRun
   this->flush();
   EXPECT_EQ(this->idle_count_, 1u);
   EXPECT_EQ(this->end_count_, 1u);
+}
+
+class VoiceAssistantSpeakerIdleTest : public VoiceAssistantIdleTest {
+ protected:
+  void attach_output_() override { this->voice_.set_speaker(&this->speaker_); }
+  void clear_output_() override { this->speaker_.stop(); }
+  void begin_speaker_response() {
+    this->begin_request();
+    ASSERT_EQ(this->start_requests(), 1u);
+    this->await_response();
+    this->start_tts();
+    this->event(api::enums::VOICE_ASSISTANT_TTS_STREAM_START);
+    const std::array<uint8_t, 6> pcm{1, 2, 3, 4, 5, 6};
+    api::VoiceAssistantAudio message;
+    message.data = pcm.data();
+    message.data_len = pcm.size();
+    this->voice_.on_audio(message);
+    ASSERT_EQ(this->speaker_.pcm, std::vector<uint8_t>({1, 2, 3, 4, 5, 6}));
+  }
+  IdleSpeaker speaker_;
+};
+
+class VoiceAssistantMediaPlayerIdleTest : public VoiceAssistantIdleTest {
+ protected:
+  void attach_output_() override { this->voice_.set_media_player(&this->player_); }
+  void clear_output_() override { this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE); }
+  void begin_player_response() {
+    this->begin_request();
+    ASSERT_EQ(this->start_requests(), 1u);
+    this->await_response();
+    this->start_tts();
+    ASSERT_EQ(this->player_.urls, 1u);
+    this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  }
+  IdleMediaPlayer player_;
+};
+
+TEST_F(VoiceAssistantSpeakerIdleTest, TtsDrainReportsIdleOnceAndCanRestartFromTheCallback) {
+  this->begin_speaker_response();
+  this->event(api::enums::VOICE_ASSISTANT_TTS_STREAM_END);
+  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump(2);
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 0u);
+  this->speaker_.drain_buffer();
+  this->pump(1);
+  EXPECT_EQ(this->idle_count_, 0u);  // The output driver is still running.
+  this->restart_once_ = true;
+  this->speaker_.finish_output();
+  this->pump(6);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 2u);
+  EXPECT_EQ(this->start_requests(), 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+}
+
+TEST_F(VoiceAssistantMediaPlayerIdleTest, TtsFinishReportsIdleOnceAndCanRestartFromTheCallback) {
+  this->begin_player_response();
+  this->event(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump(2);
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 0u);
+  this->restart_once_ = true;
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->pump(6);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 2u);
+  EXPECT_EQ(this->start_requests(), 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_EQ(this->player_.stops, 0u);
+}
+
+TEST_F(VoiceAssistantSpeakerIdleTest, DisconnectNotifiesVaIdleAndPreservesExistingSpeakerPolicy) {
+  this->begin_speaker_response();
+  ASSERT_TRUE(this->speaker_.is_running());
+  this->restart_once_ = true;
+  this->disconnect_client();
+  this->pump(2);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 0u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+  // Disconnect relinquishes VA activity; existing queued output is not a new Stop request.
+  EXPECT_TRUE(this->speaker_.is_running());
+  EXPECT_TRUE(this->speaker_.has_buffered_data());
+  EXPECT_EQ(this->speaker_.stops, 0u);
+  this->speaker_.finish_output();
+  this->pump(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+}
+
+TEST_F(VoiceAssistantMediaPlayerIdleTest, DisconnectNotifiesVaIdleAndPreservesExistingPlayerPolicy) {
+  this->begin_player_response();
+  this->restart_once_ = true;
+  this->disconnect_client();
+  this->pump(2);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 0u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+  EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  EXPECT_EQ(this->player_.stops, 0u);
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->pump(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
 }
 }  // namespace esphome::voice_assistant::testing
