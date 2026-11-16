@@ -5,7 +5,7 @@ ci:
   autoupdate_commit_msg: 'pre-commit: autoupdate'
   autoupdate_schedule: off  # Disabled until ruff versions are synced between deps and pre-commit
   # Skip hooks that have issues in pre-commit CI environment
-  skip: [pylint]
+  skip: [pylint, ty]
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -50,6 +50,16 @@ repos:
         language: system
         types: [python]
         files: ^esphome/.+\.py$
+      - id: ty
+        name: ty
+        entry: python script/run-in-env.py ty check
+        language: system
+        types: [python]
+        files: ^esphome/.+\.py$
+        # A change to one file can break an import in another, so check the
+        # whole tree (scoped by [tool.ty.src] in pyproject.toml).
+        pass_filenames: false
+        require_serial: true
       - id: ci-custom
         name: ci-custom
         entry: python script/run-in-env.py script/ci-custom.py

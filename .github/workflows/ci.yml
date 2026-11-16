@@ -273,6 +273,26 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
+  ty:
+    name: Check ty
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: Restore Python
+        uses: $/.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run ty
+        run: |
+          . venv/bin/activate
+          ty check --output-format github
+
   lint-format:
     name: Check lint and formatting
     runs-on: ubuntu-latest
@@ -302,7 +322,7 @@ jobs:
           # avoid. Building the hooks from scratch takes seconds, so skip it.
           cache: false
         env:
-          PREK_SKIP: pylint,ci-custom
+          PREK_SKIP: pylint,ty,ci-custom
       # Pushes any fixes the hooks made back to the pull request. This step
       # must keep its default name: the GitHub App that performs the push
       # locates the workflow run by that name.
@@ -1979,6 +1999,7 @@ jobs:
       - determine-jobs
       - ci-custom
       - pylint
+      - ty
       - lint-format
       - pytest
       - codecov-empty-upload

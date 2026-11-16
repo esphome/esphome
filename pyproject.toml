@@ -107,6 +107,23 @@ disable = [
 [tool.pylint.FORMAT]
 expected-line-ending-format = "LF"
 
+# ty only checks imports here: a name imported from another module must exist
+# there. Ruff checks one file at a time, so it cannot see this. Type checking
+# stays off until the codebase is ready for it.
+[tool.ty.src]
+include = ["esphome"]
+
+[tool.ty.analysis]
+# Imported only when running inside the ESP-IDF tools environment or by
+# developer scripts, so they are not installed in the venv.
+allowed-unresolved-imports = ["idf_tools", "_tool_resolution", "black", "ltchiptool.**"]
+# Members are generated at run time, so ty cannot see them.
+replace-imports-with-any = ["freetype", "aioesphomeapi.api_pb2"]
+
+[tool.ty.rules]
+all = "ignore"
+import-not-found = "error"
+
 [tool.ruff]
 required-version = ">=0.5.0"
 target-version = "py312"

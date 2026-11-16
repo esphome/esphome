@@ -31,7 +31,7 @@ The CI workflow uses this information to:
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
-- Skip or run pylint
+- Skip or run pylint and ty
 - Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
@@ -418,9 +418,9 @@ PYTHON_LINTERS_TRIGGER_FILES = frozenset(
 
 
 def should_run_python_linters(branch: str | None = None) -> bool:
-    """Determine if the pylint job should run based on changed files.
+    """Determine if the pylint and ty jobs should run based on changed files.
 
-    The CI workflow skips pylint unless a Python file or a file in
+    The CI workflow skips pylint and ty unless a Python file or a file in
     PYTHON_LINTERS_TRIGGER_FILES has changed. ruff and pyupgrade run in
     lint-format, which this flag does not gate.
 
@@ -428,7 +428,7 @@ def should_run_python_linters(branch: str | None = None) -> bool:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if pylint should run, False otherwise.
+        True if pylint and ty should run, False otherwise.
     """
     return any(
         file.endswith(PYTHON_FILE_EXTENSIONS) or file in PYTHON_LINTERS_TRIGGER_FILES
