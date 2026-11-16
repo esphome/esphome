@@ -2402,6 +2402,11 @@ class LwIPLock {
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
+#ifdef USE_ESP32
+ private:
+  // Only the instance that took the core lock releases it; unused without CONFIG_LWIP_TCPIP_CORE_LOCKING
+  [[maybe_unused]] bool locked_{false};
+#endif
 #else
   // No lwIP core locking — inline no-ops (empty bodies instead of = default
   // to prevent clang-tidy unused-variable warnings at call sites)

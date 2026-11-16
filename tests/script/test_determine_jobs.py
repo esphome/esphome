@@ -842,6 +842,29 @@ def test_determine_integration_tests_changed_test_file() -> None:
         assert test_files == ["tests/integration/test_syslog.py"]
 
 
+def test_determine_integration_tests_deleted_test_file_skipped() -> None:
+    """A test file the PR deletes is in the diff but must not be handed to pytest."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=[
+                "tests/integration/test_syslog.py",
+                "tests/integration/test_removed_by_this_pr.py",
+            ],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_syslog.py"]
+
+
 def test_determine_integration_tests_changed_fixture_yaml() -> None:
     """Test that changing a fixture YAML runs the corresponding test file."""
     with (
@@ -2780,6 +2803,16 @@ def test_should_run_benchmarks_host_platform_change() -> None:
             )
 
 
+def test_should_run_benchmarks_logger_change() -> None:
+    """Test benchmarks trigger on logger changes, which the core logger benchmarks run through."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["esphome/components/logger/log_buffer.h"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
 def test_should_run_benchmarks_benchmark_infra_change() -> None:
     """Test benchmarks trigger on benchmark infrastructure changes."""
     for infra_file in [
@@ -2823,15 +2856,15 @@ def test_python_import_benchmarked_components_imports_real_components() -> None:
 def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
     """A Python change in a component the import benchmark loads runs benchmarks.
 
-    logger has no C++ benchmark, so before this a change to its __init__.py
-    skipped the Python import benchmark that times it.
+    ota has no C++ benchmark, so without this a change to its __init__.py
+    would skip the Python import benchmark that times it.
     """
     for changed, expected in [
-        ("esphome/components/logger/__init__.py", True),
-        ("esphome/components/logger/select/__init__.py", True),
+        ("esphome/components/ota/__init__.py", True),
+        ("esphome/components/ota/sub/__init__.py", True),
         ("esphome/components/mqtt/__init__.py", True),
-        ("esphome/components/logger/logger.cpp", False),
-        ("tests/components/logger/common.yaml", False),
+        ("esphome/components/ota/ota_backend.cpp", False),
+        ("tests/components/ota/common.yaml", False),
         ("esphome/components/wifi/__init__.py", False),
     ]:
         with (
@@ -2839,7 +2872,7 @@ def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
             patch.object(
                 determine_jobs,
                 "python_import_benchmarked_components",
-                return_value=frozenset({"logger", "mqtt"}),
+                return_value=frozenset({"ota", "mqtt"}),
             ),
         ):
             assert determine_jobs.should_run_benchmarks() is expected, changed

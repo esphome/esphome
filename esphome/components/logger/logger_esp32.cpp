@@ -73,7 +73,7 @@ static void init_usb_serial_jtag() {
 }
 #endif
 
-void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
+static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config_t uart_config{};
   uart_config.baud_rate = (int) baud_rate;
   uart_config.data_bits = UART_DATA_8_BITS;
@@ -98,24 +98,23 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
 #endif
 }
 
+// get_uart_num() and pre_setup() cast the selection straight to a port
+static_assert(static_cast<int>(UART_SELECTION_UART0) == static_cast<int>(UART_NUM_0) &&
+              static_cast<int>(UART_SELECTION_UART1) == static_cast<int>(UART_NUM_1));
+#ifdef USE_ESP32_VARIANT_ESP32
+static_assert(static_cast<int>(UART_SELECTION_UART2) == static_cast<int>(UART_NUM_2));
+#endif
+
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-    this->uart_num_ = UART_NUM_0;
     switch (this->uart_) {
       case UART_SELECTION_UART0:
-        this->uart_num_ = UART_NUM_0;
-        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
-        break;
       case UART_SELECTION_UART1:
-        this->uart_num_ = UART_NUM_1;
-        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
-        break;
 #ifdef USE_ESP32_VARIANT_ESP32
       case UART_SELECTION_UART2:
-        this->uart_num_ = UART_NUM_2;
-        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
-        break;
 #endif
+        init_uart(static_cast<uart_port_t>(this->uart_), this->baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
+        break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
         break;
