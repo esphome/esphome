@@ -302,9 +302,10 @@ def fetch_missing_west_projects(
     Only the missing projects are updated, so a build running from the others
     is left alone. Call under the workspace's install lock.
     """
-    if projects <= source.required:
-        return
     installed = _installed_west_projects(framework_path)
+    # A later release may add a required project, so check the stamp first
+    if projects <= source.required and (installed is None or projects <= installed):
+        return
     # Before the fetch, so an unknown name costs nothing on any install
     _check_west_projects(env_python_path, framework_path, source, version, projects)
     if installed is None or not (missing := projects - installed):

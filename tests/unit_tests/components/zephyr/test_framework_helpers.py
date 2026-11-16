@@ -266,7 +266,7 @@ def test_install_clones_the_manifest_with_the_filter(
     assert update.kwargs == {"cwd": workspace, "stream_output": True}
     # Streamed, so the long clone's progress reaches the log
     assert init.kwargs["stream_output"] is True
-    # Required projects are never checked by name
+    # Every name, required ones too, is checked after the first update
     assert _west_call(west, "list").args[0][-2:] == ["hal_a", "zephyr"]
     assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == [
         "hal_a",
@@ -369,16 +369,27 @@ def test_unknown_project_is_never_recorded(workspace: Path, west: MagicMock) -> 
     assert not (workspace / ".west_projects").exists()
 
 
-def test_fetch_of_only_required_projects_reads_nothing(
+def test_fetch_of_installed_required_projects_runs_nothing(
     workspace: Path, west: MagicMock
 ) -> None:
-    """Any install has the required projects; an unreadable stamp shows nothing looked."""
-    _mark_finished(workspace, None)
-    (workspace / ".west_projects").mkdir()
+    """A stamp with every required project needs no west call."""
+    _mark_finished(workspace, "zephyr")
 
     _fetch(workspace, {"zephyr"})
 
     west.assert_not_called()
+
+
+def test_fetch_of_only_a_new_required_project_fetches_it(
+    workspace: Path, west: MagicMock
+) -> None:
+    """A stamp from before a project became required, with nothing else wanted."""
+    _mark_finished(workspace, "hal_a")
+
+    _fetch(workspace, {"zephyr"})
+
+    assert _west_call(west, "update").args[0][-1:] == ["zephyr"]
+    assert _project_filter(west) == "-hal_.*,+hal_a,+zephyr"
 
 
 def test_fetch_gains_only_the_missing_project(workspace: Path, west: MagicMock) -> None:
