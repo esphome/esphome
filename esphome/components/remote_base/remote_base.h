@@ -88,6 +88,14 @@ class RemoteTransmitData {
   uint32_t carrier_frequency_{0};
 };
 
+/// The lengths that match one timing within the tolerance. A hot loop computes it once instead of at every
+/// timing; matches_mark() accepts exactly what peek_mark() does.
+struct TimingRange {
+  int32_t min;
+  int32_t max;
+  bool matches_mark(int32_t value) const { return this->min <= value && value <= this->max; }
+};
+
 class RemoteReceiveData {
  public:
   /// The timings are not copied: they must outlive this object.
@@ -110,6 +118,7 @@ class RemoteReceiveData {
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_most(uint32_t length, uint32_t offset = 0) const;
+  TimingRange timing_range(uint32_t length) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
     return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }

@@ -9,6 +9,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.const import CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
+    KEY_IDF_VERSION,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C6,
@@ -33,6 +34,7 @@ from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 LIGHT_SLEEP = {CONF_ENABLE_LIGHT_SLEEP: True}
+IDF_VERSION = cv.Version(5, 5, 5)
 
 
 def _set_variant(
@@ -41,11 +43,12 @@ def _set_variant(
     /,
     *,
     full_config: ConfigType | None = None,
+    idf_version: cv.Version = IDF_VERSION,
 ) -> None:
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
-        platform_data={KEY_VARIANT: variant},
+        core_data={KEY_FRAMEWORK_VERSION: idf_version},
+        platform_data={KEY_VARIANT: variant, KEY_IDF_VERSION: idf_version},
         full_config=full_config,
     )
 
@@ -360,3 +363,32 @@ async def test_to_code_sdkconfig(
     CORE.config = core_config
     await to_code(CONFIG_SCHEMA({CONF_ENABLE_LIGHT_SLEEP: light_sleep}))
     assert sdkconfig_calls.get(key, NOT_SET) is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("idf_version", "light_sleep", "kconfig", "guard"),
+    [
+        pytest.param(cv.Version(5, 5, 6), True, NOT_SET, True, id="idf55_wrap"),
+        pytest.param(cv.Version(6, 0, 0), True, NOT_SET, True, id="idf600_wrap"),
+        pytest.param(cv.Version(6, 0, 1), True, True, False, id="idf601_kconfig"),
+        pytest.param(cv.Version(5, 5, 6), False, NOT_SET, False, id="light_sleep_off"),
+    ],
+)
+async def test_tick_overflow_guard(
+    set_core_config: SetCoreConfigCallable,
+    sdkconfig_calls: dict[str, object],
+    idf_version: cv.Version,
+    light_sleep: bool,
+    kconfig: object,
+    guard: bool,
+) -> None:
+    """IDF 6.0.1 has the overflow protection built in; older releases get the --wrap backport."""
+    _set_variant(set_core_config, VARIANT_ESP32H2, idf_version=idf_version)
+    CORE.config = {}
+    await to_code(CONFIG_SCHEMA({CONF_ENABLE_LIGHT_SLEEP: light_sleep}))
+    key = "CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION"
+    assert sdkconfig_calls.get(key, NOT_SET) is kconfig
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_ESP32_PM_TICK_OVERFLOW_GUARD" in defines) is guard
+    assert ("-Wl,--wrap=vTaskStepTick" in CORE.build_flags) is guard
