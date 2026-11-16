@@ -34,8 +34,6 @@ class ZigbeeEntityBase : public Component, public ZigbeeAttributeInterface {
   /// Handle pending reports and clear report_requested_ when complete; leave it set to retry.
   /// Acquire/release the Zigbee lock only when has_lock is false; otherwise the caller owns it.
   virtual void report_internal(bool has_lock) = 0;
-  /// Run subclass work; return true to allow loop disabling, or false to keep the loop enabled.
-  virtual bool loop_internal() { return true; };
   ZigbeeComponent *zb_;
   uint8_t endpoint_id_;
   bool set_attr_requested_{false};
