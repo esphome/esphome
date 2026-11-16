@@ -4,10 +4,14 @@
 #include <limits>
 #include <type_traits>
 
+#include "esphome/core/defines.h"
 #include "zigbee_entity_base_esp32.h"
 
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
+
+#include "esp_zigbee.h"
+#include "zigbee_esp32.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
