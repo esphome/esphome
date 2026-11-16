@@ -15,9 +15,6 @@ class OTAComponent : public ota::OTAComponent {
   void dump_config() override;
   // Called by a YAML action or the Bluetooth trigger; always deferred to the main loop.
   void request_dfu_mode();
-
- protected:
-  bool dfu_requested_{false};  // Accessed only by the deferred main-loop callback.
 };
 
 }  // namespace esphome::adafruit_ble

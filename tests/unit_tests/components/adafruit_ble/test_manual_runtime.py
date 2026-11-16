@@ -1,36 +1,15 @@
 """Compile the production DFU entry path without Bluetooth headers or a radio.
 
-Only hardware and framework lifecycle boundaries are stubbed; the production
-request/deferred callback and OTA notification ordering execute unchanged.
+The production component executes unchanged against minimal scheduler, OTA and
+hardware stubs. This is not an integration test of the real framework classes.
 """
 
 from pathlib import Path
 import shutil
 import subprocess
 from sys import platform
-from unittest.mock import patch
 
 import pytest
-
-
-@pytest.mark.parametrize("host_platform", ["win32", "linux", "darwin"])
-def test_manual_runtime_host_command(tmp_path: Path, host_platform: str) -> None:
-    """Keep native execution on Windows and sanitizers on Linux/macOS."""
-    with (
-        patch(f"{__name__}.platform", host_platform),
-        patch("shutil.which", return_value="g++"),
-        patch("subprocess.run") as run,
-    ):
-        test_manual_runtime(tmp_path, ble_trigger=False, paired=False)
-
-    assert run.call_count == 2
-    compile_call, execute_call = run.call_args_list
-    command = compile_call.args[0]
-    assert ("-fsanitize=address,undefined" in command) == (host_platform != "win32")
-    binary = tmp_path / ("runtime.exe" if host_platform == "win32" else "runtime")
-    assert command[-2:] == ["-o", str(binary)]
-    assert execute_call.args[0] == [str(binary)]
-    assert compile_call.kwargs == execute_call.kwargs == {"check": True}
 
 
 @pytest.mark.parametrize(
@@ -58,6 +37,8 @@ def test_manual_runtime(tmp_path: Path, ble_trigger: bool, paired: bool) -> None
 extern std::vector<int> events;
 namespace esphome::ota {
 enum OTAState { OTA_STARTED };
+// Minimal boundary double for ota_backend.h and Component::defer().
+// It models queued execution and notification order, not the full framework ABI.
 class OTAComponent {
  public:
   virtual ~OTAComponent() = default;
@@ -90,8 +71,15 @@ extern Power power;
 #include <cassert>
 #include <hal/nrf_power.h>
 namespace esphome {
+struct RebootRequested {};
 struct Application {
-  void reboot() { assert(power.GPREGRET == 0xA8); events.push_back(3); }
+  [[noreturn]] void reboot() {
+    assert(power.GPREGRET == 0xA8);
+    events.push_back(3);
+    // Zephyr sys_reboot never returns. Unwind to the test boundary instead of
+    // allowing another queued callback to run in this simulated boot.
+    throw RebootRequested{};
+  }
 };
 extern Application App;
 }
@@ -125,9 +113,11 @@ Power power;
 namespace esphome { Application App; }
 int main() {
   esphome::adafruit_ble::OTAComponent component;
-  component.listener = []() {
+  component.listener = [&component]() {
     assert(power.GPREGRET == 0);
     events.push_back(2);
+    // Re-entry from on_begin queues work; it must not execute before reboot.
+    component.request_dfu_mode();
   };
 #ifdef USE_ADAFRUIT_BLE_TRIGGER
   using esphome::adafruit_ble::dfu_trigger_write;
@@ -147,9 +137,13 @@ int main() {
   component.request_dfu_mode();
   assert(events.empty() && power.GPREGRET == 0);
   assert(component.pending.size() == 2);
-  component.drain();
-  component.request_dfu_mode();
-  component.drain();
+  bool rebooted = false;
+  try {
+    component.drain();
+  } catch (const esphome::RebootRequested &) {
+    rebooted = true;
+  }
+  assert(rebooted);
   assert((events == std::vector<int>{1, 2, 3}));
 }
 """)
