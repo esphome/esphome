@@ -27,7 +27,6 @@ AUDIO_FORMAT_RE = re.compile(
 
 def _media_source_config(sample_rate=48000, bits_per_sample=16, **kwargs):
     return {
-        "platform": "sendspin",
         "sendspin_id": "sendspin_hub",
         "formats": [{"sample_rate": sample_rate, "bits_per_sample": bits_per_sample}],
         **kwargs,
