@@ -59,9 +59,6 @@ OTAComponent::OTAComponent() { global_ota_component = this; }
 void OTAComponent::request_dfu_mode() {
   // Restart from the main loop, so the OTA listeners run there and the write is answered first
   this->defer([this]() {
-    if (this->dfu_requested_)
-      return;
-    this->dfu_requested_ = true;
     ESP_LOGI(TAG, "DFU mode requested, restarting into the bootloader");
 #ifdef USE_OTA_STATE_LISTENER
     this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
