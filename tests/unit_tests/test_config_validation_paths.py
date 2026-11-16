@@ -6,6 +6,7 @@ import pytest
 import voluptuous as vol
 
 from esphome import config_validation as cv
+from tests.testing_helpers import symlink_or_skip
 
 
 def test_directory_valid_path(setup_core: Path) -> None:
@@ -139,7 +140,7 @@ def test_directory_with_symlink(setup_core: Path) -> None:
     actual_dir.mkdir()
 
     symlink_dir = setup_core / "symlink_directory"
-    symlink_dir.symlink_to(actual_dir)
+    symlink_or_skip(symlink_dir, actual_dir)
 
     result = cv.directory("symlink_directory")
     assert result == symlink_dir
@@ -151,7 +152,7 @@ def test_file_with_symlink(setup_core: Path) -> None:
     actual_file.write_text("content")
 
     symlink_file = setup_core / "symlink_file.txt"
-    symlink_file.symlink_to(actual_file)
+    symlink_or_skip(symlink_file, actual_file)
 
     result = cv.file_("symlink_file.txt")
     assert result == symlink_file

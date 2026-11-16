@@ -15,6 +15,7 @@ from pytest import CaptureFixture
 from esphome.cli.rename import command_rename
 from esphome.const import CONF_ESPHOME, CONF_NAME, CONF_SUBSTITUTIONS
 from esphome.core import CORE
+from tests.testing_helpers import symlink_or_skip
 
 
 @dataclass
@@ -773,7 +774,7 @@ def test_command_rename_reads_a_config_linked_from_outside(
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     config_file = config_dir / "oldname.yaml"
-    config_file.symlink_to(outside)
+    symlink_or_skip(config_file, outside)
     setup_core(tmp_path=config_dir)
     CORE.config_path = config_file
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}

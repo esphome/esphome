@@ -1,4 +1,7 @@
+from pathlib import Path
 from typing import Any
+
+import pytest
 
 from esphome.loader import ComponentManifest, FileResource, _replace_component_manifest
 from esphome.types import ConfigType
@@ -94,3 +97,22 @@ def add_defines_to_code(manifest: ComponentManifestOverride, *defines: str) -> N
     if hasattr(original_to_code, "priority"):
         to_code.priority = original_to_code.priority
     manifest.to_code = to_code
+
+
+# winerror set on the OSError Windows raises when the account may not create symlinks
+ERROR_PRIVILEGE_NOT_HELD = 1314
+
+
+def symlink_or_skip(link: Path, target: str | Path) -> None:
+    """Create ``link`` pointing at ``target``, skipping the test if Windows forbids it.
+
+    Windows only lets an account create symlinks when it holds
+    SeCreateSymbolicLinkPrivilege, which needs Developer Mode or an elevated
+    shell. Any other failure is a real error and is raised.
+    """
+    try:
+        link.symlink_to(target)
+    except OSError as err:
+        if getattr(err, "winerror", None) != ERROR_PRIVILEGE_NOT_HELD:
+            raise
+        pytest.skip("creating symlinks needs a privilege this Windows account lacks")
