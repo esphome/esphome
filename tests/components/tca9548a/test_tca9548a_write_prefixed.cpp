@@ -14,10 +14,7 @@ struct Call {
   std::vector<uint8_t> prefix;
   std::vector<uint8_t> data;
   size_t read_count;
-  bool operator==(const Call &other) const {
-    return this->address == other.address && this->prefix == other.prefix && this->data == other.data &&
-           this->read_count == other.read_count;
-  }
+  bool operator==(const Call &other) const = default;
 };
 
 class RecordingBus final : public i2c::I2CBus {
@@ -31,6 +28,15 @@ class RecordingBus final : public i2c::I2CBus {
     return i2c::ERROR_OK;
   }
 
+  // A frequency switch is recorded as a call to address 0 carrying the frequency
+  i2c::ErrorCode switch_frequency(uint32_t frequency) override {
+    this->calls.push_back({0, {}, {}, frequency});
+    this->frequency = frequency;
+    return i2c::ERROR_OK;
+  }
+  uint32_t get_frequency() const override { return this->frequency; }
+  uint32_t frequency{100000};
+
   i2c::ErrorCode write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
                                 size_t len) override {
     this->calls.push_back({address, {prefix, prefix + prefix_len}, {data, data + len}, 0});
@@ -41,6 +47,7 @@ class RecordingBus final : public i2c::I2CBus {
 
 static const Call SELECT_CHANNEL_3{MUX_ADDRESS, {}, {1 << 3}, 0};
 static const Call DESELECT{MUX_ADDRESS, {}, {0}, 0};
+static Call switch_to(uint32_t frequency) { return {0, {}, {}, frequency}; }
 
 class TCA9548AWritePrefixedTest : public ::testing::Test {
  protected:
@@ -76,6 +83,28 @@ TEST_F(TCA9548AWritePrefixedTest, ReadsAndPlainWritesStillUseWriteReadv) {
   const std::vector<Call> expected{SELECT_CHANNEL_3, {DEVICE_ADDRESS, {}, {0x10}, 2}, DESELECT,
                                    SELECT_CHANNEL_3, {DEVICE_ADDRESS, {}, {7}, 0},    DESELECT};
   EXPECT_EQ(this->bus_.calls, expected);
+}
+
+TEST_F(TCA9548AWritePrefixedTest, RegisterWriteAtAPortFrequencyStaysInTwoParts) {
+  // The mux addresses at 100 kHz (the bus), the device runs at 400 kHz
+  this->channel_.set_frequency(400000);
+  const uint8_t data[3] = {1, 2, 3};
+  EXPECT_EQ(this->device_.write_register(0x10, data, sizeof(data)), i2c::ERROR_OK);
+  const std::vector<Call> expected{
+      switch_to(100000), SELECT_CHANNEL_3, switch_to(400000), {DEVICE_ADDRESS, {0x10}, {1, 2, 3}, 0},
+      switch_to(100000), DESELECT,         switch_to(100000)};
+  EXPECT_EQ(this->bus_.calls, expected);
+  EXPECT_EQ(this->bus_.data_ptr, data);
+}
+
+TEST_F(TCA9548AWritePrefixedTest, RegisterWriteAtTheMuxFrequencyStaysInTwoParts) {
+  this->mux_.set_frequency(400000);
+  const uint8_t data[2] = {4, 5};
+  EXPECT_EQ(this->device_.write_register(0x20, data, sizeof(data)), i2c::ERROR_OK);
+  const std::vector<Call> expected{
+      switch_to(400000), SELECT_CHANNEL_3, {DEVICE_ADDRESS, {0x20}, {4, 5}, 0}, DESELECT, switch_to(100000)};
+  EXPECT_EQ(this->bus_.calls, expected);
+  EXPECT_EQ(this->bus_.data_ptr, data);
 }
 
 }  // namespace esphome::tca9548a::testing
