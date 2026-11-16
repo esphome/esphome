@@ -1,5 +1,6 @@
 #include "inkbird_ibsth1_mini.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::inkbird_ibsth1_mini {
 
@@ -82,7 +83,7 @@ bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device)
   }
 
   auto battery_level = mnf_data.data[5];
-  auto humidity = ((mnf_data.data[1] << 8) + mnf_data.data[0]) / 100.0f;
+  auto humidity = encode_value_le<uint16_t>(mnf_data.data.data()) / 100.0f;
 
   // Send temperature only if the value is set
   if (!std::isnan(temperature) && this->temperature_sensor_ != nullptr) {
