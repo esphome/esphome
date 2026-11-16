@@ -92,9 +92,13 @@ void CameraImage::update() {
 void CameraImage::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
   if (this->is_failed())
     return;
-  // The camera notifies every listener for every frame; only decode the frame
-  // this component asked for.
+  // The camera notifies every listener for every frame; only the frame this
+  // component asked for may clear the pending request. A frame captured for the
+  // API, web server or RTSP server would otherwise be decoded here while the
+  // frame requested for this component is dropped.
   if (!this->waiting_)
+    return;
+  if (image != nullptr && !image->was_requested_by(camera::COMPONENT_REQUESTER))
     return;
   this->waiting_ = false;
   this->cancel_timeout(REQUEST_TIMEOUT_ID);

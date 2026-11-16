@@ -1,5 +1,7 @@
 """Camera image platform: expose the camera's frames as an ``image``."""
 
+from struct import pack, unpack
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_camera, runtime_image
@@ -66,21 +68,9 @@ def _validate_options(config: ConfigType) -> ConfigType:
         and CONF_RESIZE not in config
     ):
         raise cv.Invalid("'rotation' requires 'resize' or 'crop'")
-    if CONF_CROP in config and CONF_RESIZE in config:
-        # `resize` keeps the aspect ratio inside these bounds, so the decoded
-        # frame is never larger than it and a crop reaching past it can never
-        # fit.
-        resize_width, resize_height = config[CONF_RESIZE]
-        crop = config[CONF_CROP]
-        if (
-            crop[CONF_X] + crop[CONF_WIDTH] > resize_width
-            or crop[CONF_Y] + crop[CONF_HEIGHT] > resize_height
-        ):
-            raise cv.Invalid(
-                f"crop {crop[CONF_X]},{crop[CONF_Y]} "
-                f"{crop[CONF_WIDTH]}x{crop[CONF_HEIGHT]} does not fit inside "
-                f"resize {resize_width}x{resize_height}"
-            )
+    # A crop is checked against the size the frame actually decodes to in the
+    # final validation, which needs the camera resolution; with `resize` that is
+    # smaller than the resize box when the aspect ratios differ.
     return config
 
 
@@ -132,6 +122,30 @@ def _resolution_dimensions(resolution: object) -> tuple[int, int]:
     raise cv.Invalid(f"Unknown camera resolution {resolution}")
 
 
+def _to_float32(value: float) -> float:
+    """Round to float32, as RuntimeImage::resize() computes the scale in floats."""
+    return unpack("f", pack("f", value))[0]
+
+
+def _decoded_size(
+    camera_width: int, camera_height: int, resize: tuple[int, int] | None
+) -> tuple[int, int]:
+    """Size the frame decodes to, matching RuntimeImage::resize()."""
+    if resize is None:
+        return camera_width, camera_height
+    resize_width, resize_height = resize
+    # Both dimensions are fixed, so the scale is the smaller ratio and the result
+    # is truncated to whole pixels.
+    scale = min(
+        _to_float32(resize_width / camera_width),
+        _to_float32(resize_height / camera_height),
+    )
+    return (
+        int(_to_float32(camera_width * scale)),
+        int(_to_float32(camera_height * scale)),
+    )
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     """Check the options that depend on the referenced camera's configuration."""
     camera_config = fv.get_declaring_config(config[CONF_CAMERA_ID])
@@ -151,22 +165,34 @@ def _final_validate(config: ConfigType) -> ConfigType:
             path=[CONF_CAMERA_ID],
         )
 
-    # With a resize the decoded frame is scaled to fit those bounds, and the crop
-    # was already checked against them; without one the crop has to fit the
-    # camera resolution.
-    if CONF_CROP in config and CONF_RESIZE not in config:
-        frame_width, frame_height = _resolution_dimensions(
+    # The crop has to fit the size the frame decodes to. With a resize that is
+    # the resize box only when the aspect ratios match; otherwise the uniform
+    # scale makes one side smaller.
+    if CONF_CROP in config:
+        camera_width, camera_height = _resolution_dimensions(
             camera_config[CONF_RESOLUTION]
+        )
+        decoded_width, decoded_height = _decoded_size(
+            camera_width, camera_height, config.get(CONF_RESIZE)
         )
         crop = config[CONF_CROP]
         if (
-            crop[CONF_X] + crop[CONF_WIDTH] > frame_width
-            or crop[CONF_Y] + crop[CONF_HEIGHT] > frame_height
+            crop[CONF_X] + crop[CONF_WIDTH] > decoded_width
+            or crop[CONF_Y] + crop[CONF_HEIGHT] > decoded_height
         ):
+            if CONF_RESIZE in config:
+                resize_width, resize_height = config[CONF_RESIZE]
+                detail = (
+                    f"the {decoded_width}x{decoded_height} frame decoded from the "
+                    f"{camera_width}x{camera_height} camera with "
+                    f"resize {resize_width}x{resize_height}"
+                )
+            else:
+                detail = f"the {camera_width}x{camera_height} camera resolution"
             raise cv.Invalid(
                 f"crop {crop[CONF_X]},{crop[CONF_Y]} "
-                f"{crop[CONF_WIDTH]}x{crop[CONF_HEIGHT]} does not fit inside the "
-                f"{frame_width}x{frame_height} camera resolution",
+                f"{crop[CONF_WIDTH]}x{crop[CONF_HEIGHT]} does not fit inside "
+                f"{detail}",
                 path=[CONF_CROP],
             )
     return config
