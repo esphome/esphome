@@ -13,4 +13,6 @@ sendspin:
 
 media_source:
   - platform: sendspin
-    bits_per_sample: 24
+    formats:
+      - sample_rate: 48000
+        bits_per_sample: 24   
