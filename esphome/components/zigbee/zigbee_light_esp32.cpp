@@ -383,7 +383,43 @@ void ZigbeeLight::report_internal(bool has_lock) {
   if (!this->report_enabled) {
     return;
   }
-  this->report_enabled = false;
+  if (!this->zb_->is_joined()) {
+    this->report_requested_ = true;
+    return;
+  }
+  if (has_lock or esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
+    ezb_zcl_report_attr_cmd_t cmd = {};
+    cmd.cmd_ctrl.fc.direction = EZB_ZCL_CMD_DIRECTION_TO_CLI;
+    cmd.cmd_ctrl.fc.dis_default_rsp = 1;
+    cmd.cmd_ctrl.dst_addr.addr_mode = EZB_ADDR_MODE_SHORT;
+    cmd.cmd_ctrl.dst_addr.u.short_addr = 0x0000;
+    cmd.cmd_ctrl.dst_ep = 1;
+    cmd.cmd_ctrl.src_ep = this->endpoint_id_;
+    cmd.cmd_ctrl.cluster_id = EZB_ZCL_CLUSTER_ID_ON_OFF;
+    cmd.payload.attr_id = EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID;
+    ezb_zcl_report_attr_cmd_req(&cmd);
+    if (this->level_forwarder_) {
+      cmd.cmd_ctrl.cluster_id = EZB_ZCL_CLUSTER_ID_LEVEL;
+      cmd.payload.attr_id = EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID;
+      ezb_zcl_report_attr_cmd_req(&cmd);
+    }
+    if (this->x_forwarder_) {
+      cmd.cmd_ctrl.cluster_id = EZB_ZCL_CLUSTER_ID_COLOR_CONTROL;
+      cmd.payload.attr_id = EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID;
+      ezb_zcl_report_attr_cmd_req(&cmd);
+      cmd.payload.attr_id = EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID;
+      ezb_zcl_report_attr_cmd_req(&cmd);
+    }
+    if (this->ct_forwarder_) {
+      cmd.cmd_ctrl.cluster_id = EZB_ZCL_CLUSTER_ID_COLOR_CONTROL;
+      cmd.payload.attr_id = EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID;
+      ezb_zcl_report_attr_cmd_req(&cmd);
+    }
+    this->report_requested_ = false;
+    if (!has_lock) {
+      esp_zigbee_lock_release();
+    }
+  }
 }
 
 }  // namespace esphome::zigbee

@@ -512,6 +512,11 @@ async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
         ep_num,
     )
     await cg.register_component(var, config[KEY_ZIGBEE_EP])
+    if (report := config.get(CONF_REPORT, "default")) not in (
+        "default",
+        "coordinator",
+    ):
+        cg.add(var.set_report(report))
     cg.add(var.connect(entity))
 
 
