@@ -73,7 +73,7 @@ void esp_log_str_(int level, const char *tag, int line, const char *format);  //
 // NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format);
 #endif
-// Never defined: the ESP_LOGx macros name it inside sizeof so a line without arguments still has its format checked
+// Never defined or called: the ESP_LOGx macros name it in dead code so a line without arguments has its format checked
 int esp_log_format_check_(const char *format, ...) __attribute__((format(printf, 1, 2)));       // NOLINT
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #if defined(USE_ESP32)
@@ -89,9 +89,13 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 // esp_log_str_ when there are no arguments after the format, esp_log_printf_ otherwise
 #define ESPHOME_LOG_ARGS_(level, tag, format, ...) \
   ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), __VA_ARGS__)
+// A statement-level if (false), not sizeof: GCC 16 skips format checks in unevaluated or folded expressions
 #define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
-  (static_cast<void>(sizeof(::esphome::esp_log_format_check_(format))), \
-   ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)))
+  ({ \
+    if (false) \
+      ::esphome::esp_log_format_check_(format); \
+    ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
+  })
 #define ESPHOME_LOG_PICK_(first, second, name, ...) name
 #define ESPHOME_LOG_FN_(...) \
   ESPHOME_LOG_PICK_(__VA_OPT__(, ) ESPHOME_LOG_NO_ARGS_, ESPHOME_LOG_ARGS_, ESPHOME_LOG_NO_ARGS_)
