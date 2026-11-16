@@ -1,0 +1,20 @@
+esphome:
+  name: adafruitblemanual
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+
+logger:
+
+ota:
+  - platform: adafruit_ble
+    id: firmware_update
+    ble_trigger: false
+
+button:
+  - platform: template
+    name: Enter bootloader
+    internal: true
+    on_press:
+      - ota.adafruit_ble.enter_bootloader: firmware_update
