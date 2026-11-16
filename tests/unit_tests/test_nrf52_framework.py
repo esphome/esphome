@@ -151,6 +151,9 @@ def _mark_installed(dirs: SimpleNamespace) -> None:
     _mark_venv_ready(dirs.python_env)
     (dirs.python_env / ".zephyr_reqs_ready").touch()
     (dirs.framework / ".ready").touch()
+    (dirs.framework / ".west_projects").write_text(
+        "\n".join(sorted(NRF_CONNECT_SDK.required)), encoding="utf-8"
+    )
     (dirs.toolchain / ".ready").touch()
 
 
@@ -250,6 +253,9 @@ class TestCheckAndInstall:
         _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
+        (nrf52_dirs.framework / ".west_projects").write_text(
+            "\n".join(sorted(NRF_CONNECT_SDK.required)), encoding="utf-8"
+        )
 
         check_and_install()
 
