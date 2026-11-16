@@ -64,14 +64,14 @@ class FaultHttpClient : public micro_decoder::HttpClient {
 }  // namespace esphome::audio_http::testing
 
 // GNU ld --wrap requires these ABI symbols; C++ identifiers stay ordinary names.
-extern "C" int real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *)
-    asm("__real_pthread_create");
+extern "C" int real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *),
+                                   void *) asm("__real_pthread_create");
 extern "C" int real_pthread_join(pthread_t, void **) asm("__real_pthread_join");
-extern "C" int wrapped_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *)
-    asm("__wrap_pthread_create");
+extern "C" int wrapped_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *),
+                                      void *) asm("__wrap_pthread_create");
 extern "C" int wrapped_pthread_join(pthread_t, void **) asm("__wrap_pthread_join");
 extern "C" int wrapped_pthread_create(pthread_t *thread, const pthread_attr_t *attributes, void *(*entry)(void *),
-                                       void *argument) {
+                                      void *argument) {
   int result = real_pthread_create(thread, attributes, entry, argument);
   if (result == 0)
     ++esphome::audio_http::testing::fixture().threads_created;
