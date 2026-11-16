@@ -29,6 +29,14 @@ TEST(RemoteBytesTest, ComparesSizeAndContent) {
   EXPECT_NE((RemoteBytes<4>{1, 2}), (RemoteBytes<4>{1, 3}));
 }
 
+TEST(RemoteBytesTest, ComparesWithAVectorWithoutCuttingIt) {
+  const std::vector<uint8_t> longer{1, 2, 3};
+  EXPECT_FALSE((RemoteBytes<2>{1, 2} == longer));
+  EXPECT_FALSE((longer == RemoteBytes<2>{1, 2}));
+  EXPECT_TRUE((RemoteBytes<2>{1, 2} == std::vector<uint8_t>{1, 2}));
+  EXPECT_TRUE((std::vector<uint8_t>{1, 2} == RemoteBytes<2>{1, 2}));
+}
+
 template<typename P> typename P::ProtocolData round_trip(const typename P::ProtocolData &data) {
   RemoteTransmitData tx;
   P().encode(&tx, data);

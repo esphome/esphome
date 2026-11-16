@@ -27,6 +27,10 @@ template<size_t N> class RemoteBytes : public StaticVector<uint8_t, N> {
   bool operator==(const RemoteBytes &rhs) const {
     return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
   }
+  // Without this a longer vector would be cut to N bytes by the conversion above and could compare equal
+  bool operator==(const std::vector<uint8_t> &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
 };
 
 enum ToleranceMode : uint8_t {
