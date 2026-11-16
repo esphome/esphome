@@ -204,6 +204,8 @@ class ModemComponent : public Component {
   void publish_status_();
   /// Send the +++ escape with its guard times; true when the modem answered
   bool escape_data_mode_();
+  /// Overflow a stuck CMUX receiver with flag bytes; true when the modem answers AT afterwards
+  bool flush_cmux_();
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
   void dump_connect_params_();

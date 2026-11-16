@@ -45,6 +45,10 @@ static constexpr uint32_t PROBE_RETRY_MAX_MS = 60000;
 // The escape sequence needs a second of silence on both sides; the modem answers OK after the second one
 static constexpr uint32_t ESCAPE_GUARD_MS = 1100;
 static constexpr uint32_t ESCAPE_TIMEOUT_MS = 2000;
+// A SIM7670 left in CMUX by an ESP reset ignores every frame until this many flag bytes overflow its receive buffer;
+// it then reinitialises its AT channel within about 2 s
+static constexpr size_t CMUX_FLUSH_BYTES = 4096;
+static constexpr uint32_t CMUX_FLUSH_SETTLE_MS = 3000;
 // How long the task waits for the main loop to run on_sync before attaching
 static constexpr uint32_t SYNC_ACK_TIMEOUT_MS = 5000;
 // esp_modem's command strings and the log lines are built on this stack
@@ -644,6 +648,10 @@ ModemState ModemComponent::handle_state_enabling_() {
         ESP_LOGW(TAG, "Modem was left in data mode; escaped to command mode");
         break;
       }
+      if (this->flush_cmux_()) {
+        ESP_LOGW(TAG, "Modem was stuck in CMUX; reset it to command mode");
+        break;
+      }
       // The detection above probed the current rate; the other known rates are tried in this pass
       const int detected = this->current_baud_rate_;
       exited = false;
@@ -686,6 +694,12 @@ ModemState ModemComponent::handle_state_enabling_() {
       break;
 
     case modem_mode::DATA_MODE:
+      // With echo on, a modem in command mode sends the PPP probe back, which passes for a PPP reply
+      if (this->dce_->sync() == command_result::OK) {
+        this->dce_->set_mode(modem_mode::UNDEF);
+        exited = false;
+        break;
+      }
       // Can block 20 s; esp_modem offers no shorter exit
       ESP_LOGW(TAG, "Exiting DATA_MODE");
       if (!this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
@@ -980,6 +994,19 @@ bool ModemComponent::escape_data_mode_() {
   delay(ESCAPE_GUARD_MS);  // NOLINT
   std::string output;
   return this->dce_->at_raw("+++", output, "OK", "ERROR", ESCAPE_TIMEOUT_MS) == command_result::OK;
+}
+
+bool ModemComponent::flush_cmux_() {
+  static constexpr uint8_t CMUX_FLAG = 0xF9;
+  uint8_t flags[64];
+  memset(flags, CMUX_FLAG, sizeof(flags));
+  const auto port = static_cast<uart_port_t>(this->uart_port_);
+  for (size_t sent = 0; sent < CMUX_FLUSH_BYTES; sent += sizeof(flags)) {
+    uart_write_bytes(port, flags, sizeof(flags));
+  }
+  uart_wait_tx_done(port, pdMS_TO_TICKS(1000));
+  delay(CMUX_FLUSH_SETTLE_MS);  // NOLINT
+  return this->dce_->sync() == command_result::OK;
 }
 
 void ModemComponent::not_responding_(int baud) {
