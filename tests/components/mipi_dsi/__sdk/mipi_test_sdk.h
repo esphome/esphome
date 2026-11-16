@@ -1,5 +1,5 @@
 #pragma once
-#if defined(USE_HOST) && defined(MIPI_TEST_IDF_MAJOR)
+#if defined(USE_HOST) && defined(MIPI_TEST_IDF_MAJOR) && defined(MIPI_DSI_HOST_TEST)
 // Public ESP-IDF boundary double, with separate DMA memory and CPU read view.
 #include <algorithm>
 #include <array>
@@ -13,9 +13,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#define ESP_IDF_VERSION_VAL(a, b, c) (((a) << 16) | ((b) << 8) | (c))
-#define ESP_IDF_VERSION \
-  ESP_IDF_VERSION_VAL(MIPI_TEST_IDF_MAJOR, (MIPI_TEST_IDF_MAJOR >= 6 ? 0 : 5), MIPI_TEST_IDF_PATCH)
+#include "esp_idf_version.h"
 using esp_err_t = int;
 static constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_INVALID_ARG = 0x102;
 inline const char *esp_err_to_name(esp_err_t) { return "test SDK error"; }

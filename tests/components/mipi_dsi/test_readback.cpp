@@ -1,4 +1,5 @@
 #if defined(USE_HOST) && defined(MIPI_TEST_IDF_MAJOR)
+#define MIPI_DSI_HOST_TEST
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -6,7 +7,10 @@
 #include <thread>
 #include <tuple>
 
+// Keep the target capability local to this test translation unit.
+#define USE_ESP32_VARIANT_ESP32P4
 #include "esphome/components/mipi_dsi/mipi_dsi.h"
+#undef USE_ESP32_VARIANT_ESP32P4
 #include "esphome/core/hal.h"
 #include "mipi_test_sdk.h"
 
@@ -186,4 +190,5 @@ TEST_F(MipiReadback, WriterReentryAndBackgroundCallAreRejected) {
   expect_unchanged(target);
 }
 }  // namespace esphome::mipi_dsi::testing
+#undef MIPI_DSI_HOST_TEST
 #endif

@@ -1,2 +1,5 @@
 #pragma once
-#include "mipi_test_sdk.h"
+#include <cstdint>
+using TickType_t = uint32_t;
+using UBaseType_t = unsigned;
+using BaseType_t = int;

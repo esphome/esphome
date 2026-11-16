@@ -15,7 +15,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.config_schema = cv.Schema({})
 
     async def to_code_testing(config: ConfigType) -> None:
-        cg.add_define("USE_ESP32_VARIANT_ESP32P4")
         cg.add_define("USE_MIPI_DSI_RGB565_OWNED_TRANSFORM")
         cg.add_build_flag("-DCONFIG_CACHE_L2_CACHE_LINE_SIZE=64")
         major = os.environ.get("MIPI_TEST_IDF_MAJOR", "5")
