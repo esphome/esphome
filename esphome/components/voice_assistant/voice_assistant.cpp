@@ -814,6 +814,8 @@ void VoiceAssistant::set_state_(State state) {
       this->end_session_();
     }
   }
+  if (old_state != State::IDLE && state == State::IDLE && !this->continuous_)
+    this->idle_trigger_.trigger();
 }
 
 void VoiceAssistant::end_run_() {
@@ -833,9 +835,10 @@ void VoiceAssistant::end_session_() {
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
-  this->set_state_(state);
+  // An idle callback may synchronously start another run. Do not overwrite its desired state afterward.
   this->desired_state_ = desired_state;
   ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
+  this->set_state_(state);
 }
 
 void VoiceAssistant::set_state_after_mic_stop_(State state) {
