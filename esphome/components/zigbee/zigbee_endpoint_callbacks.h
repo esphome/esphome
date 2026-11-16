@@ -16,14 +16,14 @@ template<size_t N> class EndpointCallbacks {
   template<typename F> bool add(uint8_t endpoint, F &&callback) {
     if (endpoint == 0 || endpoint > MAX_ENDPOINT_ID)
       return false;
-    for (const auto registered_endpoint : this->endpoints_) {
-      if (registered_endpoint == endpoint)
+    for (const auto &entry : this->entries_) {
+      if (entry.endpoint == endpoint)
         return false;
     }
-    for (size_t i = 0; i < N; i++) {
-      if (this->endpoints_[i] == 0) {
-        this->callbacks_[i] = std::forward<F>(callback);
-        this->endpoints_[i] = endpoint;
+    for (auto &entry : this->entries_) {
+      if (entry.endpoint == 0) {
+        entry.callback = std::forward<F>(callback);
+        entry.endpoint = endpoint;
         return true;
       }
     }
@@ -33,9 +33,9 @@ template<size_t N> class EndpointCallbacks {
   bool dispatch(uint8_t endpoint, uint8_t buffer) const {
     if (endpoint == 0 || endpoint > MAX_ENDPOINT_ID)
       return false;
-    for (size_t i = 0; i < N; i++) {
-      if (this->endpoints_[i] == endpoint && this->callbacks_[i]) {
-        this->callbacks_[i](buffer);
+    for (const auto &entry : this->entries_) {
+      if (entry.endpoint == endpoint && entry.callback) {
+        entry.callback(buffer);
         return true;
       }
     }
@@ -43,8 +43,11 @@ template<size_t N> class EndpointCallbacks {
   }
 
  protected:
-  std::array<uint8_t, N> endpoints_{};
-  std::array<std::function<void(uint8_t)>, N> callbacks_{};
+  struct Entry {
+    uint8_t endpoint{};
+    std::function<void(uint8_t)> callback;
+  };
+  std::array<Entry, N> entries_{};
 };
 
 }  // namespace esphome::zigbee
