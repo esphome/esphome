@@ -11,6 +11,11 @@ remote_receiver:
 
 binary_sensor:
   - platform: remote_receiver
+    name: CanalSatLD Remote Input
+    canalsatld:
+      device: 0x7F
+      command: 0x12
+  - platform: remote_receiver
     name: Panasonic Remote Input
     panasonic:
       address: 0x4004
