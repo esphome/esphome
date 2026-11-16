@@ -37,12 +37,11 @@ static constexpr uint8_t LP_V3_BUSY_NETWORK = 0x02;
 // Scheduler ids continue those in tuya.cpp. The network status shares the Wi-Fi status slot
 // there, because a hub runs one protocol only.
 static constexpr uint32_t LP_NETWORK_STATUS_INTERVAL_ID = 1;
-static constexpr uint32_t LP_PREPROBE_WAKE_TIMEOUT_ID = 4;
 
-// A datapoint write: CMD09 for version 0, CMD06 for version 3 (version 0 uses CMD06 only for direct time replies).
-static bool is_low_power_write(const TuyaCommand &command) {
-  return command.cmd == static_cast<TuyaCommandType>(0x09) || command.cmd == static_cast<TuyaCommandType>(0x06);
-}
+// A queued datapoint write. It is CMD09 for version 0 and becomes the standard CMD06 for version 3 when it is
+// sent, because the version is only known from the product info.
+static constexpr auto LP_WRITE_CMD = static_cast<TuyaCommandType>(0x09);
+static bool is_low_power_write(const TuyaCommand &command) { return command.cmd == LP_WRITE_CMD; }
 
 void Tuya::setup_low_power_() {
   this->init_state_ = TuyaInitState::INIT_PRODUCT;
@@ -70,6 +69,7 @@ void Tuya::loop_low_power_() {
     this->begin_low_power_product_retry_(App.get_loop_component_start_time());
     return;
   }
+  this->poll_low_power_product_probe_();
   this->poll_low_power_product_recovery_();
   switch (this->lp_session_.update(App.get_loop_component_start_time())) {
     case TuyaLowPowerSession::Event::EVENT_SYNCHRONIZED:
@@ -109,6 +109,16 @@ void Tuya::handle_low_power_frame_(uint8_t command, uint8_t version, const uint8
   if (this->lp_wire_.complete(command, len) && this->expected_response_ == command_type)
     this->expected_response_.reset();
   this->handle_low_power_command_(command, version, buffer, len);
+  // A frame shows that the MCU is awake right now: during a recovery, ask for the product info at once instead
+  // of waiting for a retry that may reach it asleep.
+  const uint32_t now = App.get_loop_component_start_time();
+  if (command != 0x01 && this->lp_product_retry_active_ && !this->lp_wire_.active() && !this->lp_session_.busy() &&
+      this->lp_probe_pending_ == ProductProbe::PRODUCT_PROBE_NONE &&
+      static_cast<int32_t>(now - this->lp_product_probe_ms_) >= static_cast<int32_t>(LP_PRODUCT_RETRY_MS)) {
+    this->lp_product_probe_ms_ = now;
+    this->lp_product_retry_at_ = now + LP_PRODUCT_RETRY_MS;
+    this->send_product_query_now_(true);
+  }
 }
 
 void Tuya::send_low_power_raw_command_(const TuyaCommand &command) {
@@ -151,9 +161,7 @@ void Tuya::send_low_power_datapoint_(uint8_t datapoint_id, TuyaDatapointType dat
     ESP_LOGW(LP_TAG, "Too many pending MCU commands; dropping the DP%u write", static_cast<unsigned>(datapoint_id));
     return;
   }
-  // Version-0 MCUs take writes as CMD09, version-3 MCUs as the standard CMD06.
-  this->command_queue_.push_back(
-      TuyaCommand{.cmd = static_cast<TuyaCommandType>(this->lp_v3_ ? 0x06 : 0x09), .payload = std::move(buffer)});
+  this->command_queue_.push_back(TuyaCommand{.cmd = LP_WRITE_CMD, .payload = std::move(buffer)});
 }
 
 void Tuya::begin_mcu_wake_pulse_() {
@@ -173,6 +181,8 @@ bool Tuya::mcu_wake_pulse_running_() {
     return true;
   this->mcu_wake_pin_->digital_write(false);
   this->lp_mcu_wake_pulse_active_ = false;
+  // Counted from the end of the pulse, so the command goes out before the MCU falls asleep again.
+  this->lp_mcu_woken_ms_ = millis();
   return false;
 }
 
@@ -182,12 +192,17 @@ void Tuya::send_low_power_product_query_(bool direct_probe) {
     this->send_product_query_now_(direct_probe);
     return;
   }
-  // Like the original module firmware, wake the MCU before CMD01.
-  this->mcu_wake_pin_->digital_write(true);
-  this->set_timeout(LP_PREPROBE_WAKE_TIMEOUT_ID, this->lp_product_.mcu_wake_pulse_ms, [this, direct_probe]() {
-    this->mcu_wake_pin_->digital_write(false);
-    this->send_product_query_now_(direct_probe);
-  });
+  // Like the original module firmware, wake the MCU before CMD01; it goes out when the pulse is over.
+  this->lp_probe_pending_ = direct_probe ? ProductProbe::PRODUCT_PROBE_DIRECT : ProductProbe::PRODUCT_PROBE_QUEUED;
+  this->begin_mcu_wake_pulse_();
+}
+
+void Tuya::poll_low_power_product_probe_() {
+  if (this->lp_probe_pending_ == ProductProbe::PRODUCT_PROBE_NONE || this->mcu_wake_pulse_running_())
+    return;
+  const bool direct_probe = this->lp_probe_pending_ == ProductProbe::PRODUCT_PROBE_DIRECT;
+  this->lp_probe_pending_ = ProductProbe::PRODUCT_PROBE_NONE;
+  this->send_product_query_now_(direct_probe);
 }
 
 void Tuya::send_product_query_now_(bool direct_probe) {
@@ -227,6 +242,7 @@ void Tuya::poll_low_power_product_recovery_() {
     this->status_set_warning(LOG_STR("MCU does not answer"));
     this->lp_product_retry_at_ = now + LP_PRODUCT_SLOW_RETRY_MS;
   }
+  this->lp_product_probe_ms_ = now;
   this->send_low_power_product_query_(true);
 }
 
@@ -273,13 +289,14 @@ void Tuya::process_low_power_queue_() {
   // been silent; the command goes out once the pulse is over.
   if (this->mcu_wake_pin_ != nullptr && wire_now - this->last_rx_char_timestamp_ > LP_MCU_SILENT_MS &&
       wire_now - this->lp_mcu_woken_ms_ > LP_MCU_SILENT_MS) {
-    this->lp_mcu_woken_ms_ = wire_now;
     this->begin_mcu_wake_pulse_();
     return;
   }
 
-  const TuyaCommand command = std::move(*next);
+  TuyaCommand command = std::move(*next);
   this->command_queue_.erase(next);
+  if (this->lp_v3_ && is_low_power_write(command))
+    command.cmd = static_cast<TuyaCommandType>(0x06);
   this->send_raw_command_(command);
 }
 

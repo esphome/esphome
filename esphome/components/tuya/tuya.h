@@ -168,6 +168,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   void send_low_power_time_(uint8_t command);
   void send_low_power_network_();
   void send_low_power_product_query_(bool direct_probe);
+  void poll_low_power_product_probe_();
   void send_product_query_now_(bool direct_probe);
   void begin_mcu_wake_pulse_();
   bool mcu_wake_pulse_running_();
@@ -216,7 +217,8 @@ class Tuya final : public Component, public uart::UARTDevice {
   TuyaLowPowerProductInfo lp_product_{};
   CallbackManager<void()> mcu_ready_callback_{};
   uint32_t lp_product_retry_at_{0};
-  uint8_t lp_product_retries_{0};  // Fast CMD01 retries left before the slow ones
+  uint32_t lp_product_probe_ms_{0};  // Last product query of a recovery
+  uint8_t lp_product_retries_{0};    // Fast CMD01 retries left before the slow ones
   bool lp_product_retry_active_{false};
   bool mcu_ready_{false};
   // The MCU frames with protocol version 3: status via CMD08/CMD07, writes via CMD06.
@@ -226,7 +228,10 @@ class Tuya final : public Component, public uart::UARTDevice {
   bool lp_v3_pushes_{false};
   uint32_t lp_v3_last_poll_ms_{0};
   uint32_t lp_mcu_wake_pulse_until_{0};
-  uint32_t lp_mcu_woken_ms_{0};  // Last wake pulse before a queued command
+  uint32_t lp_mcu_woken_ms_{0};  // End of the last wake pulse
+  enum class ProductProbe : uint8_t { PRODUCT_PROBE_NONE, PRODUCT_PROBE_QUEUED, PRODUCT_PROBE_DIRECT };
+  // A product query waiting for the wake pulse to end.
+  ProductProbe lp_probe_pending_{ProductProbe::PRODUCT_PROBE_NONE};
   bool lp_mcu_wake_pulse_active_{false};
   uint8_t lp_network_status_{0xFF};
 #endif  // USE_TUYA_LOW_POWER
