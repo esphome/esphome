@@ -10,7 +10,6 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/media_source/media_source.h"
 #include "platform/http_client.h"
@@ -80,13 +79,8 @@ std::unique_ptr<HttpClient> create_http_client() {
 
 namespace esphome::audio_http::testing {
 std::vector<uint8_t> fixture_bytes(const char *name) {
-  std::ifstream input(std::string(AUDIO_HTTP_TEST_FIXTURES) + "/" + name + ".b64");
-  std::string encoded, line;
-  while (input >> line)
-    encoded.append(line);
-  std::vector<uint8_t> bytes(encoded.size() / 4 * 3);
-  bytes.resize(base64_decode(encoded, bytes.data(), bytes.size()));
-  return bytes;
+  std::ifstream input(std::string(AUDIO_HTTP_TEST_FIXTURES) + "/" + name + ".bin", std::ios::binary);
+  return {std::istreambuf_iterator<char>(input), {}};
 }
 template<typename Predicate, typename Pump> bool pump_until(Predicate predicate, Pump pump) {
   auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
