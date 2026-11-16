@@ -15,7 +15,7 @@
 namespace esphome::micro_wake_word {
 // Runtime-downloaded model storage is outside these compiled-in model tests.
 const uint8_t *ModelData::get_model_pointer() const { return nullptr; }
-}
+}  // namespace esphome::micro_wake_word
 
 namespace esphome::micro_wake_word::testing {
 class StreamingReloadTest : public ::testing::TestWithParam<unsigned> {
