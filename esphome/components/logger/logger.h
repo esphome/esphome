@@ -223,7 +223,8 @@ class Logger final : public Component {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-  // Logs a message with no arguments and no '%' unformatted; false means another thread, so the caller formats it
+  // Logs a message with no arguments and no '%' unformatted; false (another thread, or under the lwIP core lock on
+  // ESP32) means the caller formats it
   bool log_str_(uint8_t level, const char *tag, int line, const char *msg);  // NOLINT
 #ifdef USE_ESP8266
   // NOLINTNEXTLINE(readability-identifier-naming)

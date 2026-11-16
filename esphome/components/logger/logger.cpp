@@ -177,6 +177,11 @@ bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *
     return false;
   if (this->main_task_recursion_guard_)
     return true;
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+  // Under the lwIP core lock the formatting path queues the line for loop(); see log_vprintf_()
+  if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED)) [[unlikely]]
+    return false;
+#endif
   RecursionGuard guard(this->main_task_recursion_guard_);
   LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
   buf.write_header(level, tag, line, nullptr);
