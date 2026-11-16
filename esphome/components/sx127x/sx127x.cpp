@@ -238,7 +238,7 @@ void SX127x::configure_fsk_ook_() {
       this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->payload_length_);
       this->write_register_(REG_PACKET_CONFIG_1, crc_mode | FIXED_LENGTH);
     } else {
-      this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->get_max_packet_size() - 1);
+      this->write_register_(REG_PAYLOAD_LENGTH_LSB, this->get_max_packet_size());
       this->write_register_(REG_PACKET_CONFIG_1, crc_mode | VARIABLE_LENGTH);
     }
     this->write_register_(REG_PACKET_CONFIG_2, PACKET_MODE);
@@ -326,7 +326,8 @@ size_t SX127x::get_max_packet_size() {
   if (this->applied_.modulation == MOD_LORA) {
     return SX127X_MAX_PACKET_SIZE;
   }
-  return 64;
+  // The 64 byte FIFO also holds the length byte
+  return 63;
 }
 
 SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
@@ -450,6 +451,28 @@ bool SX127x::restore_() {
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
   }
   return this->applied_.rx_start ? this->enter_rx_() : this->set_mode_(this->applied_.modulation, MODE_SLEEP);
+}
+
+bool SX127x::is_receiving() {
+  if (this->state_ == RadioState::RADIO_STATE_HOLDING_RX) {
+    return true;
+  }
+  // A radio that sleeps after sending is not listening
+  if (this->state_ != RadioState::RADIO_STATE_IDLE || !this->applied_.rx_start || this->dio0_pin_ == nullptr) {
+    return false;
+  }
+  const bool lora = this->applied_.modulation == MOD_LORA;
+  // In receive mode DIO0 signals a received packet that loop() has not read yet. In LoRa it also signals TX_DONE
+  // after the TX mode action.
+  if (this->dio0_pin_->digital_read() && (!lora || (this->read_register_(REG_IRQ_FLAGS) & RX_DONE) != 0)) {
+    return true;
+  }
+  if (!lora) {
+    // Set from the sync word until the packet has been read; the preamble flag stays set when no sync word follows
+    return (this->read_register_(REG_IRQ_FLAGS_1) & IRQ_FLAGS_1_SYNC_ADDRESS_MATCH) != 0;
+  }
+  return (this->read_register_(REG_MODEM_STAT) &
+          (MODEM_STAT_SIGNAL_DETECTED | MODEM_STAT_SIGNAL_SYNCHRONIZED | MODEM_STAT_HEADER_VALID)) != 0;
 }
 
 bool SX127x::packet_waiting_() {
