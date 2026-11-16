@@ -116,6 +116,8 @@ void NetworkComponent::loop() {
     this->default_netif_ = nullptr;
     return;
   }
+  // Set when only lwIP's DNS table needs repairing; logged at debug, not as an interface change.
+  bool dns_only = false;
   if (best == this->default_netif_) {
     // Same winner as the last assert. Still re-assert if lwIP's default route is
     // not the winner's netif: a winner whose netif bounced down and up between two
@@ -128,15 +130,18 @@ void NetworkComponent::loop() {
     if (now - this->last_route_check_ < ROUTE_CHECK_INTERVAL_MS)
       return;
     this->last_route_check_ = now;
-    bool still_ours;
+    bool route_is_ours;
+    bool dns_is_ours;
     {
       LwIPLock lock;
+      route_is_ours = static_cast<void *>(netif_default) == esp_netif_get_netif_impl(best);
       // DHCP starting on another netif empties lwIP's DNS table, and the manual default
       // stops ESP-IDF from refilling it (espressif/esp-idf#19082); re-asserting copies it back.
-      still_ours = static_cast<void *>(netif_default) == esp_netif_get_netif_impl(best) && dns_is_netifs(best);
+      dns_is_ours = route_is_ours && dns_is_netifs(best);
     }
-    if (still_ours)
+    if (dns_is_ours)
       return;
+    dns_only = route_is_ours;
   }
   esp_err_t err = esp_netif_set_default_netif(best);
   if (err != ESP_OK) {
@@ -149,7 +154,11 @@ void NetworkComponent::loop() {
     return;
   }
   this->default_netif_ = best;
-  ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
+  if (dns_only) {
+    ESP_LOGD(TAG, "DNS servers restored from %s", esp_netif_get_desc(best));
+  } else {
+    ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
+  }
 }
 #endif  // USE_NETWORK_DEFAULT_ROUTE
 
