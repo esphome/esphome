@@ -95,6 +95,21 @@ def test_turnaround_covers_reply_header(radio: dict, expected_ms: int) -> None:
     assert radio_link.turnaround_ms(radio) == expected_ms
 
 
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({}, False),
+        # A session's peer sends keep-alives on its own schedule, not a reply to each packet
+        ({"session": {}}, False),
+        ({"reliability": {}}, True),
+        ({"addressing": {"peers": [{"session": {}}, {"reliability": {}}]}}, True),
+    ],
+)
+def test_takes_turns_only_with_reliability(config: dict, expected: bool) -> None:
+    """Only a reliability layer's peer answers each packet, and it sends again what turn taking refuses."""
+    assert radio_link.takes_turns(config) is expected
+
+
 def _fsk(**options: object) -> dict:
     return {
         "modulation": "FSK",
