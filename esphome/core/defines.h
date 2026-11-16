@@ -69,7 +69,6 @@
 #define USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
 #define USE_BUTTON
 #define USE_CAMERA
-#define USE_CAMERA_DECODER
 #define USE_CANBUS_FD
 #define USE_CC1101_LONG_PACKET
 #define USE_CLIMATE
@@ -584,6 +583,9 @@
 #define ESPHOME_LOOP_TASK_STACK_SIZE 8192
 #define ESPHOME_SUSPEND_LOOP
 #define USE_ESP32_CAMERA_JPEG_ENCODER
+// camera_decoder includes esp_new_jpeg headers, which only exist for ESP32
+// targets, so this flag stays inside the ESP32 block for static analysis.
+#define USE_CAMERA_DECODER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_IMPROV_BLE
