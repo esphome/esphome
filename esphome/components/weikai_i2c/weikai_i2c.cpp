@@ -30,15 +30,8 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
   return addr;
 }
 
-/// @brief Splits a register number into the channel bits and the 4 bit register address
-/// @details On the I²C bus the register byte only carries the 4 bit address A3-A0; the two
-/// bits C1,C0 of the 6 bit address travel in the device address. This also holds for the
-/// global registers: GPDIR (0x21) is register 1 at channel bits 10 and GPDAT (0x31) is
-/// register 1 at channel bits 11. Sent as is to the channel 0 address, they are taken as
-/// GRST (register 1) and soft-reset the UART channels.
-/// @param reg the register number, the bits 5-4 hold C1,C0 for the global GPIO registers
-/// @param channel in: the channel of the register, out: the channel bits to put in the address
-/// @return the 4 bit register address
+/// @brief Splits a register number into channel bits (C1,C0) and the 4 bit register address
+/// @details GPDIR (0x21) and GPDAT (0x31) carry C1,C0 in bits 5-4; they go in the device address
 inline uint8_t i2c_register(uint8_t reg, uint8_t &channel) {
   if (reg > 0x0F) {
     channel = (reg >> 4) & 0x03;
@@ -56,12 +49,8 @@ uint8_t WeikaiRegisterI2C::read_reg() const {
   uint8_t const reg = i2c_register(this->register_, channel);
   uint8_t address = i2c_address(comp_i2c->base_address_, channel, REG);
   comp_i2c->set_i2c_address(address);
-  // A register is read in two transfers: the register address is written and closed with
-  // a STOP, then the value is read. A read after a repeated start is not always
-  // acknowledged. An occasional transfer is still not acknowledged, so it is tried a
-  // second time. The retry is limited to the cases where no data byte has left the chip
-  // (the register address write failed, or the read was not acknowledged), so that a
-  // clear-on-read status register such as LSR or SIFR is never read twice.
+  // Write the register address + STOP, then read. Retry once, only if no data byte was read
+  // (clear-on-read registers).
   i2c::ErrorCode error;
   for (uint8_t attempt = 0;; attempt++) {
     bool data_phase = false;
