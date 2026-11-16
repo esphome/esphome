@@ -102,8 +102,7 @@ def _use_managed_components() -> bool:
     """Whether noise-c and libsodium come from the ESP-IDF component registry.
 
     Both build as ESP-IDF components, so on ESP32 they skip the PlatformIO library
-    converter unless arduino-esp32 bundles its own libsodium. Not toolchain
-    dependent: the PlatformIO toolchain reads the project manifest too, and every
+    converter unless arduino-esp32's own libsodium cannot be replaced. Every
     consumer of libsodium must make the same choice or a second copy appears.
     """
     if not CORE.is_esp32:
