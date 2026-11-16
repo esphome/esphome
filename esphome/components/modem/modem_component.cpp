@@ -752,7 +752,24 @@ ModemState ModemComponent::handle_state_connecting_() {
         return ModemState::MODEM_STATE_ENABLING;
       }
     }
-    // ENABLING left the radio at CFUN=4, where the SIM answers but the modem cannot attach yet
+    // The APN has to be in the PDP context before the modem attaches; esp_modem only sends it when PPP starts.
+    // A context written at CFUN=4 is only used once the SIM restarts on some modems (SIM7670G): until then the
+    // attach is refused with an ESM failure. So it goes in at CFUN=0, and CFUN=4 powers the SIM up again.
+    if (this->dce_->set_radio_state(0) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to power the SIM down; setting the APN anyway");
+    }
+    esp_modem::PdpContext pdp(this->apn_);
+    const bool apn_set = this->dce_->set_pdp_context(pdp) == command_result::OK;
+    if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK || !apn_set) {
+      ESP_LOGW(TAG, "Failed to set the APN");
+      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
+      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
+    this->connect_step_ = ConnectStep::CONNECT_STEP_APN_SET;
+  }
+
+  if (this->connect_step_ == ConnectStep::CONNECT_STEP_APN_SET) {
+    // The SIM answers at CFUN=4, but the modem cannot attach yet
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
         break;
@@ -768,14 +785,6 @@ ModemState ModemComponent::handle_state_connecting_() {
         // still open the SIM
         this->target_state_.store(ModemState::MODEM_STATE_DISABLED);
         return ModemState::MODEM_STATE_DISCONNECTING;
-    }
-    // The APN has to be in the PDP context before the radio comes on and the modem attaches; esp_modem only
-    // sends it when PPP starts
-    esp_modem::PdpContext pdp(this->apn_);
-    if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to set the APN");
-      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
-      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
     if (this->dce_->set_radio_state(1) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to turn the radio on");
@@ -977,6 +986,11 @@ SimResult ModemComponent::prepare_sim_() {
     found += sizeof("+CPIN:") - 1;
     while (*found == ' ') {
       found++;
+    }
+    // A URC in the same reply follows on its own line, which flatten_reply() turned into two spaces
+    const size_t end = output.find("  ", found - output.c_str());
+    if (end != std::string::npos) {
+      output.resize(end);
     }
   }
   const StringRef status = found != nullptr ? StringRef(found) : StringRef();

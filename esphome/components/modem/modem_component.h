@@ -39,6 +39,7 @@ enum class ModemState : uint8_t {
 // CONNECTING runs its long commands once; the later passes only poll the attachment
 enum class ConnectStep : uint8_t {
   CONNECT_STEP_START,
+  CONNECT_STEP_APN_SET,
   CONNECT_STEP_RADIO_ON,
   CONNECT_STEP_ATTACH_REQUESTED,
 };
