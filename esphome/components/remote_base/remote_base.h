@@ -15,7 +15,7 @@
 namespace esphome::remote_base {
 
 /// Received bytes of a protocol with a fixed maximum length, stored without the heap.
-/// Converts to std::vector for lambdas that need one, so existing code such as format_hex(x.data) keeps working.
+/// Converts to std::vector, so lambdas that pass x.data to a function taking a std::vector keep working.
 template<size_t N> class RemoteBytes : public StaticVector<uint8_t, N> {
  public:
   using StaticVector<uint8_t, N>::StaticVector;

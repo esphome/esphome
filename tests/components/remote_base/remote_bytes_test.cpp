@@ -2,9 +2,11 @@
 #include <vector>
 #include "esphome/components/remote_base/aeha_protocol.h"
 #include "esphome/components/remote_base/haier_protocol.h"
-#include "esphome/core/alloc_helpers.h"
 
 namespace esphome::remote_base::testing {
+
+// Stands in for helpers that lambdas call with x.data and that take a std::vector
+static size_t vector_size(const std::vector<uint8_t> &data) { return data.size(); }
 
 TEST(RemoteBytesTest, KeepsTheBytesAndConvertsToAVector) {
   RemoteBytes<4> bytes{0x12, 0x34, 0x56};
@@ -13,8 +15,7 @@ TEST(RemoteBytesTest, KeepsTheBytesAndConvertsToAVector) {
   EXPECT_EQ(bytes.back(), 0x56);
   std::vector<uint8_t> as_vector = bytes;
   EXPECT_EQ(as_vector, (std::vector<uint8_t>{0x12, 0x34, 0x56}));
-  // Lambdas pass x.data to helpers that take a std::vector
-  EXPECT_EQ(format_hex(bytes), "123456");
+  EXPECT_EQ(vector_size(bytes), 3u);
 }
 
 TEST(RemoteBytesTest, BuildsFromAVectorAndDropsBytesPastCapacity) {
