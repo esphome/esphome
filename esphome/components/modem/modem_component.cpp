@@ -671,7 +671,6 @@ ModemState ModemComponent::handle_state_enabling_() {
     this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
     return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
-  this->probe_backoff_.store(0, std::memory_order_relaxed);
   // esp_modem keeps the last line before OK as the reply, which can be the echoed command
   if (this->dce_->set_echo(false) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to disable command echo");
@@ -693,6 +692,7 @@ ModemState ModemComponent::handle_state_enabling_() {
     this->modem_synced_ = true;  // it answers, so a disable() still tears it down
     return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
+  this->probe_backoff_.store(0, std::memory_order_relaxed);
 
   if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
     ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->current_baud_rate_, this->baud_rate_);
@@ -874,6 +874,8 @@ ModemState ModemComponent::handle_state_disconnecting_() {
   // ENABLING does anyway on a reconnect.
   if (this->dce_->set_radio_state(RADIO_STATE_MINIMUM) == command_result::OK) {
     ESP_LOGI(TAG, "Radio off");
+  } else if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) == command_result::OK) {
+    ESP_LOGW(TAG, "Radio off, but the SIM could not be powered down");
   } else {
     ESP_LOGW(TAG, "Radio off failed");
     this->set_teardown_fault_();
