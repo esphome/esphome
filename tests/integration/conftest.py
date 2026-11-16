@@ -193,6 +193,19 @@ def reserved_tcp_port() -> Generator[tuple[int, socket.socket]]:
 
 
 @pytest.fixture
+def reserved_ota_port() -> Generator[tuple[int, socket.socket]]:
+    """Reserve a second unused TCP port, for fixtures that name their OTA port __OTA_PORT__."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("", 0))
+    port = s.getsockname()[1]
+    try:
+        yield port, s
+    finally:
+        s.close()
+
+
+@pytest.fixture
 def unused_tcp_port(reserved_tcp_port: tuple[int, socket.socket]) -> int:
     """Get the reserved TCP port number."""
     return reserved_tcp_port[0]
@@ -226,6 +239,11 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
     if "api:" in content:
         # Add port configuration after api:
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
+
+    # Filled here rather than by the test, so tests sharing an OTA fixture can share its build
+    if "__OTA_PORT__" in content:
+        ota_port, _ = request.getfixturevalue("reserved_ota_port")
+        content = content.replace("__OTA_PORT__", str(ota_port))
 
     # Add debug build flags for integration tests to enable assertions
     if "esphome:" in content and "build_flags:" not in content:
