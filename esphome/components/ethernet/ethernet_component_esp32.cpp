@@ -173,7 +173,7 @@ void EthernetComponent::loop() {
         } else {
           // Restarting DHCP without a link only empties lwIP's DNS servers (espressif/esp-idf#19082);
           // the DHCP client already running resumes when the link comes up.
-          ESP_LOGW(TAG, "Connecting failed: no link");
+          ESP_LOGD(TAG, "Connecting failed: no link");
           this->connect_begin_ = now;
         }
       }
