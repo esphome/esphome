@@ -132,62 +132,55 @@ struct LogBuffer {
     this->pos = static_cast<uint16_t>(p - this->data);
   }
   void write_body(const char *text, uint16_t text_length) {
-    const uint16_t room = this->body_room_();
-    const uint16_t available = room > 0 ? room - 1 : 0;
-    const uint16_t copy_len = (text_length < available) ? text_length : available;
-    if (copy_len > 0) {
+    const int room = this->body_room_();
+    if (room > 0) {
+      const uint16_t copy_len = (text_length < room - 1) ? text_length : room - 1;
       memcpy(this->current_(), text, copy_len);
       this->pos += copy_len;
+      this->strip_trailing_newlines_();  // The cut can land right after a newline in the text
+      this->write_ansi_reset_();
     }
     this->finalize_();
   }
 
  private:
-  bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
-  // Room for the body and its null terminator, leaving space for the color reset behind it
-  uint16_t body_room_() const {
-    const uint16_t rem = this->remaining_();
-    return rem > ANSI_RESET_LEN ? rem - ANSI_RESET_LEN : 0;
-  }
+  // Room for the body and its null terminator with the color reset behind it; 0 or less when there is none
+  int body_room_() const { return this->remaining_() - ANSI_RESET_LEN; }
   char *current_() { return this->data + this->pos; }
-  void finalize_() {
-    this->write_ansi_reset_();
-    // Null terminate
-    this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
-  }
+  // The body writers leave room for the terminator, so pos is always inside the buffer here
+  void finalize_() { this->data[this->pos] = '\0'; }
   // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
+  // Callers have checked body_room_(), which keeps space for the reset and the terminator after it
   void write_ansi_reset_() {
-    // Only with room for the null terminator after it; otherwise it would cut the reset and end up counted in pos
-    if (this->remaining_() > ANSI_RESET_LEN) {
-      char *p = this->current_();
-      *p++ = '\033';
-      *p++ = '[';
-      *p++ = '0';
-      *p++ = 'm';
-      this->pos += ANSI_RESET_LEN;
-    }
+    char *p = this->current_();
+    *p++ = '\033';
+    *p++ = '[';
+    *p++ = '0';
+    *p++ = 'm';
+    this->pos += ANSI_RESET_LEN;
   }
   void strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
       this->pos--;
   }
-  void process_vsnprintf_result_(int ret, uint16_t room) {
-    if (ret < 0)
-      return;
-    this->pos += (ret >= room) ? (room - 1) : static_cast<uint16_t>(ret);
-    this->strip_trailing_newlines_();
+  void process_vsnprintf_result_(int ret, int room) {
+    if (ret >= 0) {
+      this->pos += (ret >= room) ? (room - 1) : ret;
+      this->strip_trailing_newlines_();
+    }
+    this->write_ansi_reset_();
   }
   void format_vsnprintf_(const char *format, va_list args) {
-    const uint16_t room = this->body_room_();
-    if (room == 0)
+    const int room = this->body_room_();
+    if (room <= 0)
       return;
     this->process_vsnprintf_result_(vsnprintf(this->current_(), room, format, args), room);
   }
 #ifdef USE_ESP8266
   void format_vsnprintf_p_(PGM_P format, va_list args) {
-    const uint16_t room = this->body_room_();
-    if (room == 0)
+    const int room = this->body_room_();
+    if (room <= 0)
       return;
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), room, format, args), room);
   }

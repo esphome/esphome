@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstring>
 #include <string>
@@ -34,6 +35,8 @@ TEST(LogBufferTest, CutLineKeepsColorResetAndTerminator) {
         SCOPED_TRACE(::testing::Message() << "size " << size << " start " << start << " text " << len);
         const std::string body = text.substr(0, len);
         char formatted[max_size], copied[max_size];
+        memset(formatted, '#', sizeof(formatted));
+        memset(copied, '#', sizeof(copied));
         LogBuffer a{formatted, size, start};
         format_into(a, "%s", body.c_str());
         expect_reset_and_terminator(a, start);
@@ -41,9 +44,26 @@ TEST(LogBufferTest, CutLineKeepsColorResetAndTerminator) {
         b.write_body(body.data(), static_cast<uint16_t>(len));
         expect_reset_and_terminator(b, start);
         EXPECT_EQ(a.pos, b.pos);
+        // The text keeps every character that fits in front of the reset and the terminator
+        const int room = size - start - LogBuffer::ANSI_RESET_LEN;
+        const size_t kept = room > 0 ? std::min(len, static_cast<size_t>(room - 1)) : 0;
+        EXPECT_EQ(a.pos, start + kept + (room > 0 ? LogBuffer::ANSI_RESET_LEN : 0));
+        EXPECT_EQ(memcmp(formatted + start, text.data(), kept), 0);
+        EXPECT_EQ(memcmp(copied + start, text.data(), kept), 0);
       }
     }
   }
+}
+
+TEST(LogBufferTest, CutAfterNewlineDropsIt) {
+  char formatted[16], copied[16];
+  LogBuffer a{formatted, sizeof(formatted)};
+  LogBuffer b{copied, sizeof(copied)};
+  // 11 bytes of text fit in 16 after the reset and the terminator; the 11th is the newline
+  format_into(a, "%s", "0123456789\nabc");
+  b.write_body("0123456789\nabc", 14);
+  EXPECT_EQ(std::string(formatted, a.pos), "0123456789\033[0m");
+  EXPECT_EQ(std::string(copied, b.pos), "0123456789\033[0m");
 }
 
 TEST(LogBufferTest, LineThatFitsIsUnchanged) {
