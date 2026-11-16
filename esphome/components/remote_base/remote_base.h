@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <concepts>
 #include <span>
 #include <utility>
@@ -12,6 +13,21 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::remote_base {
+
+/// Received bytes of a protocol with a fixed maximum length, stored without the heap.
+/// Converts to std::vector for lambdas that need one, so existing code such as format_hex(x.data) keeps working.
+template<size_t N> class RemoteBytes : public StaticVector<uint8_t, N> {
+ public:
+  using StaticVector<uint8_t, N>::StaticVector;
+  RemoteBytes(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, N>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+  uint8_t front() const { return (*this)[0]; }
+  uint8_t back() const { return (*this)[this->size() - 1]; }
+  bool operator==(const RemoteBytes &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+};
 
 enum ToleranceMode : uint8_t {
   TOLERANCE_MODE_PERCENTAGE = 0,
