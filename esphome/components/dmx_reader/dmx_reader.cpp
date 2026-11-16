@@ -87,10 +87,11 @@ uint8_t DMXReader::get_channel(uint16_t channel) const {
 void DMXReader::dump_config() {
   ESP_LOGCONFIG(TAG, "DMX Reader:");
   ESP_LOGCONFIG(TAG, "  UART: %d", this->uart_num_);
-  LOG_PIN("  TX Pin: ", this->tx_pin_);
-  LOG_PIN("  RX Pin: ", this->rx_pin_);
-  if (this->rts_pin_) {
-    LOG_PIN("  RTS Pin: ", this->rts_pin_);
+  ESP_LOGCONFIG(TAG, "  TX Pin: GPIO%d", this->tx_pin_);
+  ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", this->rx_pin_);
+
+  if (this->rts_pin_ >= 0) {
+    ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
   }
 }
 
