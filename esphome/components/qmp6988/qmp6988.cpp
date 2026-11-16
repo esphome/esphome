@@ -198,24 +198,11 @@ void QMP6988Component::software_reset_() {
 }
 
 void QMP6988Component::set_power_mode_(uint8_t power_mode) {
-  uint8_t data;
-
   ESP_LOGD(TAG, "Setting Power mode to: %d", power_mode);
 
   qmp6988_data_.power_mode = power_mode;
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data = data & 0xfc;
-  if (power_mode == QMP6988_SLEEP_MODE) {
-    data |= 0x00;
-  } else if (power_mode == QMP6988_FORCED_MODE) {
-    data |= 0x01;
-  } else if (power_mode == QMP6988_NORMAL_MODE) {
-    data |= 0x03;
-  }
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
-
-  ESP_LOGD(TAG, "Set Power mode 0xf4=0x%x \r\n", data);
-
+  // The power mode values are the register's mode bits
+  this->update_register(QMP6988_CTRLMEAS_REG, QMP6988_CTRLMEAS_REG_MODE_MSK, power_mode);
   delay(10);
 }
 
@@ -228,22 +215,14 @@ void QMP6988Component::write_filter_(QMP6988IIRFilter filter) {
 }
 
 void QMP6988Component::write_oversampling_pressure_(QMP6988Oversampling oversampling_p) {
-  uint8_t data;
-
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data &= 0xe3;
-  data |= (oversampling_p << 2);
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
+  this->update_register(QMP6988_CTRLMEAS_REG, QMP6988_CTRLMEAS_REG_OSRSP_MSK,
+                        oversampling_p << QMP6988_CTRLMEAS_REG_OSRSP_POS);
   delay(10);
 }
 
 void QMP6988Component::write_oversampling_temperature_(QMP6988Oversampling oversampling_t) {
-  uint8_t data;
-
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data &= 0x1f;
-  data |= (oversampling_t << 5);
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
+  this->update_register(QMP6988_CTRLMEAS_REG, QMP6988_CTRLMEAS_REG_OSRST_MSK,
+                        oversampling_t << QMP6988_CTRLMEAS_REG_OSRST_POS);
   delay(10);
 }
 
@@ -281,10 +260,8 @@ bool QMP6988Component::calculate_pressure_() {
 }
 
 void QMP6988Component::setup() {
-  if (!this->device_check_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->device_check_()))
     return;
-  }
 
   this->software_reset_();
   this->get_calibration_data_();

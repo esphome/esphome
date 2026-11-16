@@ -16,7 +16,7 @@ static const uint8_t EMC2101_ALT_CHIP_ID = 0x28;  // EMC2101 alternate device id
 // EMC2101 registers from the datasheet. We only define what we use.
 static const uint8_t EMC2101_REGISTER_INTERNAL_TEMP = 0x00;      // The internal temperature register
 static const uint8_t EMC2101_REGISTER_EXTERNAL_TEMP_MSB = 0x01;  // high byte for the external temperature reading
-static const uint8_t EMC2101_REGISTER_DAC_CONV_RATE = 0x04;      // DAC convesion rate config
+static const uint8_t EMC2101_REGISTER_DAC_CONV_RATE = 0x04;      // DAC conversion rate config
 static const uint8_t EMC2101_REGISTER_EXTERNAL_TEMP_LSB = 0x10;  // low byte for the external temperature reading
 static const uint8_t EMC2101_REGISTER_CONFIG = 0x03;             // configuration register
 static const uint8_t EMC2101_REGISTER_TACH_LSB = 0x46;           // Tach RPM data low byte

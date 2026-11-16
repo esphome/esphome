@@ -10,6 +10,8 @@
 #endif
 
 #include "core.h"
+#include <FreeRTOS.h>
+#include "esphome/core/crash_report.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -59,6 +61,18 @@ extern char __ram_code_text_end__[];
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
+#ifdef USE_LIBRETINY_VARIANT_RTL8710B
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
+// Bounds of the code in flash (XIP) and of the IRAM_ATTR code (linker symbols; the latter from patch_linker.py).
+extern char __flash_text_start__[];
+extern char __flash_text_end__[];
+extern char __esphome_sram_text_start[];
+extern char __esphome_sram_text_end[];
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif  // USE_LIBRETINY_VARIANT_RTL8710B
+
 #ifdef USE_LN882X
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
@@ -82,10 +96,12 @@ static constexpr uint32_t CRASH_MAGIC_V2 = 0xDEAD0002;
 static constexpr uint32_t CRASH_REASON_UNDEFINED = 1;
 static constexpr uint32_t CRASH_REASON_PREFETCH_ABORT = 2;
 static constexpr uint32_t CRASH_REASON_DATA_ABORT = 3;
-// RTL8720C and LN882H: the Cortex-M exception number (3 to 7) plus this offset.
+// Cortex-M families: the exception number (3 to 7) plus this offset.
 static constexpr uint32_t CRASH_REASON_CORTEX_M_OFFSET = 1;
+// After the Cortex-M ones (4 to 8).
+static constexpr uint32_t CRASH_REASON_ABORT = 9;
 PROGMEM_STRING_TABLE(CrashReasonStrings, "Unknown", "Undefined instruction", "Prefetch abort", "Data abort",
-                     "Hard fault", "MemManage fault", "Bus fault", "Usage fault", "Secure fault");
+                     "Hard fault", "MemManage fault", "Bus fault", "Usage fault", "Secure fault", "Abort");
 
 static constexpr size_t MAX_BACKTRACE = 8;
 // Words scanned above sp for return addresses.
@@ -108,6 +124,10 @@ struct CrashRecord {
 #elif defined(USE_LN882X)
 // ln882hki_bsp.template.ld puts .noinit in RETENTION RAM, which startup does not clear.
 #define CRASH_RECORD_SECTION ".noinit"
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+// The AmebaZ linker script puts .bfsram.data* (the FreeRTOS heap) after the .bss that startup zeroes, and the
+// image the bootloader loads ends before .bss.
+#define CRASH_RECORD_SECTION ".bfsram.data.esphome_crash"
 #else
 // rtl8710c_ram.ld keeps .ram.bss.noinit* out of the startup zeroing.
 #define CRASH_RECORD_SECTION ".ram.bss.noinit.esphome_crash"
@@ -139,7 +159,10 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  CFSR: 0x%08" PRIX32 "  Address: 0x%08" PRIX32, s_record.fault_status, s_record.fault_address);
   }
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_record.pc);
-  ESP_LOGE(TAG, "  LR:  0x%08" PRIX32 "  (return address)", s_record.lr);
+  // 0 for abort(), and for a Cortex-M frame outside SRAM
+  if (s_record.lr != 0) {
+    ESP_LOGE(TAG, "  LR:  0x%08" PRIX32 "  (return address)", s_record.lr);
+  }
   ESP_LOGE(TAG, "  SP:  0x%08" PRIX32, s_record.sp);
   uint8_t count = 0;
   for (; count < MAX_BACKTRACE && s_record.backtrace[count] != 0; count++) {
@@ -147,8 +170,9 @@ void crash_handler_log() {
   }
   // addr2line hint with every address
   char hint[160];
-  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e raw_firmware.elf 0x%08" PRIX32 " 0x%08" PRIX32,
-                     s_record.pc, s_record.lr);
+  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e raw_firmware.elf 0x%08" PRIX32, s_record.pc);
+  if (s_record.lr != 0)
+    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_record.lr);
   for (uint8_t i = 0; i < count && pos < (int) sizeof(hint) - 12; i++) {
     pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_record.backtrace[i]);
   }
@@ -162,6 +186,9 @@ static inline bool is_code_addr(uint32_t val) {
 #ifdef USE_BK72XX
   return (addr >= (uint32_t) _vector_start && addr < (uint32_t) _data_flash_begin) ||
          (addr >= (uint32_t) _itcmcode_ram_begin && addr < (uint32_t) _itcmcode_ram_end);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+  return (addr >= (uint32_t) __flash_text_start__ && addr < (uint32_t) __flash_text_end__) ||
+         (addr >= (uint32_t) __esphome_sram_text_start && addr < (uint32_t) __esphome_sram_text_end);
 #elif defined(USE_LN882X)
   return (addr >= (uint32_t) _stext && addr < (uint32_t) _etext) ||
          (addr >= (uint32_t) __esphome_sram_text_start && addr < (uint32_t) __esphome_sram_text_end);
@@ -169,6 +196,16 @@ static inline bool is_code_addr(uint32_t val) {
   return (addr >= (uint32_t) __xip_code_text_start__ && addr < (uint32_t) __xip_code_text_end__) ||
          (addr >= (uint32_t) __ram_entry_text_start__ && addr < (uint32_t) __ram_code_text_end__);
 #endif
+}
+
+static void fill_record(uint32_t reason, uint32_t pc, uint32_t lr, uint32_t sp, uint32_t fault_status,
+                        uint32_t fault_address) {
+  s_record.reason = reason;
+  s_record.pc = pc;
+  s_record.lr = lr;
+  s_record.sp = sp;
+  s_record.fault_status = fault_status;
+  s_record.fault_address = fault_address;
 }
 
 // Return addresses above sp give the backtrace; then the magic marks the record complete.
@@ -245,12 +282,7 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
   uint32_t lr = 0;
   read_saved_sp_lr(mode, &sp, &lr);
 
-  s_record.reason = reason;
-  s_record.pc = regs->pc - pc_offset;
-  s_record.lr = lr;
-  s_record.sp = sp;
-  s_record.fault_status = 0;
-  s_record.fault_address = 0;
+  fill_record(reason, regs->pc - pc_offset, lr, sp, 0, 0);
   finish_record(sp, SRAM_START, SRAM_END);
 
   lt_wdt_enable(CRASH_REBOOT_WDT_MS);
@@ -279,8 +311,9 @@ extern "C" void __wrap_bk_trap_dabt(arm_registers *regs) {
 #ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
 // The SDK's RAM vector table (VTOR) points the fault vectors at a handler that prints a register dump and then
-// spins: a ROM handler on the RTL8720C, CmBacktrace (hal_interrupt.c) on the LN882H. crash_handler_install()
-// puts esphome_fault_entry() in front of it, as the RTL8720C SDK's own CONFIG_MIIO patch (app_start.c) does.
+// spins: a ROM handler on the RTL8720C and RTL8710B, CmBacktrace (hal_interrupt.c) on the LN882H.
+// crash_handler_install() puts esphome_fault_entry() in front of it, as the RTL8720C SDK's own CONFIG_MIIO patch
+// (app_start.c) does.
 static_assert(LT_HW_WATCHDOG, "the crash reboot relies on the hardware watchdog");
 // The RTL8720C ROM dump takes about 0.4 s at 115200 baud; without the re-arm the reset waits for the 10 s
 // watchdog from arch_init().
@@ -291,6 +324,11 @@ static constexpr uint32_t FAULT_VECTOR_COUNT = 5;  // and SecureFault (ARMv8-M)
 // DTCM, where the app's stacks and heap live (rtl8710c_ram.ld).
 static constexpr uint32_t SRAM_START = 0x10000000;
 static constexpr uint32_t SRAM_END = 0x1003FA00;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+static constexpr uint32_t FAULT_VECTOR_COUNT = 4;
+// All of SRAM: the heap regions span it (heap_5.c) and MSP starts at 0x1003EFFC.
+static constexpr uint32_t SRAM_START = 0x10000000;
+static constexpr uint32_t SRAM_END = 0x10040000;
 #else
 static constexpr uint32_t FAULT_VECTOR_COUNT = 4;
 // RAM0, where the stacks and heap live (ln882hki_bsp.template.ld).
@@ -306,7 +344,7 @@ static constexpr uintptr_t SCB_BFAR = 0xE000ED38;
 static constexpr uint32_t CFSR_MMARVALID = 1u << 7;
 static constexpr uint32_t CFSR_BFARVALID = 1u << 15;
 
-// Exception frame: r0-r3, r12, lr, pc, xPSR, then the FPU registers when EXC_RETURN says so (LN882H only).
+// Exception frame: r0-r3, r12, lr, pc, xPSR, then the FPU registers when EXC_RETURN says so (FPU chips).
 static constexpr uint32_t FRAME_LR = 5;
 static constexpr uint32_t FRAME_PC = 6;
 static constexpr uint32_t FRAME_XPSR = 7;
@@ -341,22 +379,17 @@ extern "C" __attribute__((used)) uint32_t esphome_record_fault(const uint32_t *f
   } else if (cfsr & CFSR_MMARVALID) {
     address = read_reg(SCB_MMFAR);
   }
-  s_record.reason = vector + CRASH_REASON_CORTEX_M_OFFSET;
-  s_record.fault_status = cfsr;
-  s_record.fault_address = address;
-
   auto frame_addr = (uint32_t) frame;
   uint32_t frame_words = (exc_return & EXC_RETURN_STANDARD_FRAME) ? FRAME_WORDS : EXTENDED_FRAME_WORDS;
+  uint32_t pc = 0;
+  uint32_t lr = 0;
   uint32_t sp = 0;
   if (frame_addr >= SRAM_START && frame_addr <= SRAM_END - frame_words * 4 && (frame_addr & 3) == 0) {
-    s_record.pc = frame[FRAME_PC];
-    s_record.lr = frame[FRAME_LR];
+    pc = frame[FRAME_PC];
+    lr = frame[FRAME_LR];
     sp = frame_addr + frame_words * 4 + ((frame[FRAME_XPSR] & XPSR_STACK_ALIGNED) ? 4 : 0);
-  } else {
-    s_record.pc = 0;
-    s_record.lr = 0;
   }
-  s_record.sp = sp;
+  fill_record(vector + CRASH_REASON_CORTEX_M_OFFSET, pc, lr, sp, cfsr, address);
   finish_record(sp, SRAM_START, SRAM_END);
   return s_sdk_fault_vectors[vector - FIRST_FAULT_VECTOR];
 }
@@ -391,7 +424,79 @@ void crash_handler_install() {
 
 #endif  // USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
+// newlib's abort() spins in _exit() with no record and, on the BK7238, no watchdog reset. Interrupts go off first
+// because every task's delay() feeds the watchdog.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" [[noreturn]] void __wrap_abort() {
+  portDISABLE_INTERRUPTS();
+  lt_wdt_enable(CRASH_REBOOT_WDT_MS);
+  uint32_t sp;
+  __asm volatile("mov %0, sp" : "=r"(sp));
+  // Inside the bl that called abort(): a noreturn call can be the caller's last instruction, so the return
+  // address may already be the next function. Bit 0 is the Thumb bit.
+  fill_record(CRASH_REASON_ABORT, ((uint32_t) __builtin_return_address(0) & ~1u) - 2, 0, sp, 0, 0);
+  // Valid without a backtrace, so a fault in the stack scan still leaves this record; every entry is cleared, so
+  // a scan cut short leaves none from an earlier crash
+  for (auto &addr : s_record.backtrace)
+    addr = 0;
+  s_record.magic = CRASH_MAGIC_V2;
+  // Keeps those writes ahead of the scan's reads
+  __asm volatile("" ::: "memory");
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  // A fault in the scan then spins for the watchdog instead of replacing this record or running the SDK dump
+  s_fault_recorded = true;
+#endif
+  finish_record(sp, SRAM_START, SRAM_END);
+  while (true) {
+  }
+}
+
 }  // namespace esphome::libretiny
+
+namespace esphome {
+
+static_assert(libretiny::MAX_BACKTRACE + 1 <= CRASH_REPORT_MAX_BACKTRACE,
+              "Crash report backtrace too small for the record");
+
+static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool crash_report_get(CrashReport &out) {
+  if (s_report_read || !libretiny::crash_handler_has_data())
+    return false;
+  const auto &record = libretiny::s_record;
+  out = {};
+  // The record has no build stamp; like ESP8266 and RP2, assume the running firmware wrote it
+  out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
+  if (record.reason == libretiny::CRASH_REASON_ABORT) {
+    out.reason = CrashReason::CRASH_REASON_ABORT;
+  } else {
+    out.reason = record.reason != 0 ? CrashReason::CRASH_REASON_EXCEPTION : CrashReason::CRASH_REASON_UNKNOWN;
+  }
+  out.pc = record.pc;
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  // Cortex-M CFSR, and the BFAR or MMFAR its valid bits mark (0 is a real address for a null dereference);
+  // BK72xx records neither
+  if (record.fault_status != 0) {
+    out.flags |= CRASH_REPORT_FLAG_CAUSE;
+    out.cause = record.fault_status;
+  }
+  if (record.fault_status & (libretiny::CFSR_BFARVALID | libretiny::CFSR_MMARVALID)) {
+    out.flags |= CRASH_REPORT_FLAG_FAULT_ADDRESS;
+    out.fault_address = record.fault_address;
+  }
+#endif
+  auto &core = out.cores[out.core_count++];
+  // 0 for abort(), and for a Cortex-M frame outside SRAM
+  if (record.lr != 0)
+    core.addresses[core.count++] = record.lr;
+  for (size_t i = 0; i < libretiny::MAX_BACKTRACE && record.backtrace[i] != 0; i++)
+    core.addresses[core.count++] = record.backtrace[i];
+  return true;
+}
+
+void crash_report_clear() { s_report_read = true; }
+
+}  // namespace esphome
 
 #endif  // USE_LIBRETINY_CRASH_HANDLER
 #endif  // USE_LIBRETINY

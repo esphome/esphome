@@ -26,21 +26,17 @@ void TOF10120Sensor::dump_config() {
 void TOF10120Sensor::setup() {}
 
 void TOF10120Sensor::update() {
-  if (!this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  const bool ok =
+      this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD));
+  if (!this->status_comm_check(ok))
     return;
-  }
 
   uint8_t data[2];
-  if (this->write(&TOF10120_DISTANCE_REGISTER, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write(&TOF10120_DISTANCE_REGISTER, 1) == i2c::ERROR_OK))
     return;
-  }
   delay(TOF10120_DEFAULT_DELAY);
-  if (this->read(data, 2) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_result(this->read(data, 2) == i2c::ERROR_OK))
     return;
-  }
 
   uint32_t distance_mm = encode_uint16(data[0], data[1]);
   ESP_LOGI(TAG, "Data read: %" PRIu32 "mm", distance_mm);
@@ -51,7 +47,6 @@ void TOF10120Sensor::update() {
   } else {
     this->publish_state(distance_mm / 1000.0f);
   }
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::tof10120

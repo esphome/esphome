@@ -49,8 +49,6 @@ void PCA9505Component::dump_config() {
 
 bool PCA9505Component::digital_read_hw(uint8_t pin) { return this->read_bank_(pin / 8); }
 
-bool PCA9505Component::digital_read_cache(uint8_t pin) { return this->input_[pin / 8] & (1 << (pin % 8)); }
-
 void PCA9505Component::digital_write_hw(uint8_t pin, bool value) {
   const uint8_t bank = pin / 8;
   const uint8_t mask = 1 << (pin % 8);

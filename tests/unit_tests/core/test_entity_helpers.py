@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from esphome import final_validate as fv
+from esphome import cpp_generator, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import (
     button,
@@ -1602,7 +1602,7 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
         emitted.append((name, params, "\n".join(body)))
         return RawExpression(name)
 
-    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    monkeypatch.setattr(cpp_generator, "static_function", fake_static_function)
     CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
     return emitted
 

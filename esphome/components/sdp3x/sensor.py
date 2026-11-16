@@ -22,10 +22,10 @@ SDP3XComponent = sdp3x_ns.class_(
 )
 
 
-MeasurementMode = sdp3x_ns.enum("MeasurementMode")
+# The start command for each mode, with averaging
 MEASUREMENT_MODE = {
-    "mass_flow": MeasurementMode.MASS_FLOW_AVG,
-    "differential_pressure": MeasurementMode.DP_AVG,
+    "mass_flow": 0x3603,
+    "differential_pressure": 0x3615,
 }
 
 
@@ -50,7 +50,6 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
+    var = await sensor.new_sensor(config, config[CONF_MEASUREMENT_MODE])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))

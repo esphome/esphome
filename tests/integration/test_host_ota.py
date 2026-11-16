@@ -328,6 +328,32 @@ async def test_host_ota_self_update(
 
 
 @pytest.mark.asyncio
+async def test_host_ota_deflate_rtl8710b_bit(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The device inflates an upload asked for with the RTL8710B deflate bit."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    monkeypatch.setattr(espota2, "_is_rtl8710b_image", lambda image: True)
+
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+        proc,
+        _lines,
+    ):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await dev.ota(None, None, "RTL8710B deflate upload failed")
+        assert dev.inflates == 1, "device ignored the RTL8710B deflate offer"
+
+
+@pytest.mark.asyncio
 async def test_host_ota_deflate(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
@@ -528,6 +554,31 @@ async def test_host_ota_api_key_offer_with_password(
             "the right api key encrypts without touching the fallback",
             plaintext_fallback=True,
         )
+
+
+@pytest.mark.asyncio
+async def test_host_ota_cleared_password(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+) -> None:
+    """A password cleared at boot with set_auth_password("") must not be
+    asked for: the auth path is compiled in but the device skips it."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await _wait_for_line(lines, "Over-The-Air updates")
+        assert not any("Password configured" in line for line in lines)
+
+        await dev.ota(None, None, "upload without a password must succeed")
 
 
 @pytest.mark.asyncio

@@ -201,7 +201,10 @@ class TableType(WidgetType):
             1 for column in columns if isinstance(column.get(CONF_WIDTH), float)
         )
         if pct_column_count:
-            lv_add(w.var.init_column_pct(pct_column_count))
+            storage = cg.static_storage(
+                config[CONF_ID], lv_table_t.class_("ColumnPct"), pct_column_count
+            )
+            lv_add(w.var.set_column_pct_storage(storage))
         for index, column in enumerate(columns):
             if (width := column.get(CONF_WIDTH)) is None:
                 continue

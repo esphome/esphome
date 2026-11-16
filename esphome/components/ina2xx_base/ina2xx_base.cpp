@@ -49,16 +49,13 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  if (!this->reset_config_()) {
-    this->mark_failed(LOG_STR("Reset failed, check connection"));
+  if (!this->setup_check(this->reset_config_(), LOG_STR("Reset failed, check connection")))
     return;
-  }
   delay(2);
 
-  if (!this->check_device_model_()) {
-    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
+  if (!this->setup_check(this->check_device_model_(),
+                         LOG_STR("Device not supported or model selected improperly in yaml file")))
     return;
-  }
   delay(1);
 
   this->configure_adc_range_();
@@ -284,7 +281,7 @@ bool INA2XX::check_device_model_() {
     return false;
   }
 
-  // Check user-selected model agains what we have found. Mark as failed if selected model != found model
+  // Check user-selected model against what we have found. Mark as failed if selected model != found model
   if (!check_model_and_device_match(this->ina_model_, this->dev_id_)) {
     ESP_LOGE(TAG, "Selected model %s doesn't match found device INA%x", get_device_name(this->ina_model_),
              this->dev_id_);
@@ -345,7 +342,7 @@ bool INA2XX::configure_shunt_() {
     this->shunt_cal_ *= 4;
 
   if (this->shunt_cal_ & 0x8000) {
-    // cant be more than 15 bits
+    // can't be more than 15 bits
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
@@ -513,7 +510,7 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
     return false;
   }
 
-  // and what to do with this? datasheet doesnt tell us what if charge is negative
+  // and what to do with this? datasheet doesn't tell us what if charge is negative
   uint64_t previous_charge = this->charge_overflows_count_ * (((uint64_t) 1) << 39);
   double coulombs_reading = 0;
   uint64_t raw{0};
