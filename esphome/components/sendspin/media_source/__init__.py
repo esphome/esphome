@@ -75,8 +75,7 @@ def _register(config: ConfigType) -> ConfigType:
     register_player_config(
         {
             CONF_CODECS: config[CONF_CODECS],
-            CONF_SAMPLE_RATE: config[CONF_SAMPLE_RATE],
-            CONF_BITS_PER_SAMPLE: config[CONF_BITS_PER_SAMPLE],
+            CONF_FORMATS: config[CONF_FORMATS],
             CONF_BUFFER_SIZE: config[CONF_BUFFER_SIZE],
             CONF_INITIAL_STATIC_DELAY: config[CONF_INITIAL_STATIC_DELAY],
             CONF_FIXED_DELAY: config[CONF_FIXED_DELAY],
