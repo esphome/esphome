@@ -70,6 +70,7 @@
 #define USE_BUTTON
 #define USE_CAMERA
 #define USE_CANBUS_FD
+#define USE_CC1101_LONG_PACKET
 #define USE_CLIMATE
 #define USE_CLIMATE_VISUAL_OVERRIDES
 #define USE_CONTROLLER_REGISTRY
@@ -320,6 +321,8 @@
 #define USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 #define USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 #define USE_NEXTION_WAVEFORM
+#define USE_NPM1300_DATA_PUBLISHER
+#define USE_NPM1300_STATUS_PUBLISHER
 #define USE_NUMBER
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
@@ -388,6 +391,7 @@
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_WHIRLPOOL_HISENSE_ARG
+#define USE_WHIRLPOOL_HITACHI_HCRA31NEWH
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
@@ -821,7 +825,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 1)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 3, 2)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
