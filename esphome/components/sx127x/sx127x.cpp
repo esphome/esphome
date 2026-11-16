@@ -62,13 +62,18 @@ void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->disable();
 }
 
-void SX127x::write_fifo_(const uint8_t *data, size_t len) {
+// Burst write: the radio moves to the next register after each byte, except for REG_FIFO
+void SX127x::write_registers_(uint8_t reg, const uint8_t *data, size_t len) {
   this->enable();
-  this->write_byte(REG_FIFO | 0x80);
-  for (size_t i = 0; i < len; i++) {
-    this->transfer_byte(data[i]);
-  }
+  this->write_byte(reg | 0x80);
+  this->write_array(data, len);
   this->disable();
+}
+
+void SX127x::write_register16_(uint8_t msb_reg, uint16_t value) {
+  uint8_t bytes[2];
+  put_be16(bytes, value);
+  this->write_registers_(msb_reg, bytes, sizeof(bytes));
 }
 
 void SX127x::setup() {
@@ -155,9 +160,9 @@ const LogString *SX127x::configure_radio_() {
 
   // set freq
   uint64_t frf = ((uint64_t) this->frequency_ << 19) / FXOSC;
-  this->write_register_(REG_FRF_MSB, (uint8_t) ((frf >> 16) & 0xFF));
-  this->write_register_(REG_FRF_MID, (uint8_t) ((frf >> 8) & 0xFF));
-  this->write_register_(REG_FRF_LSB, (uint8_t) ((frf >> 0) & 0xFF));
+  uint8_t frf_bytes[3];
+  put_be24(frf_bytes, static_cast<uint32_t>(frf));
+  this->write_registers_(REG_FRF_MSB, frf_bytes, sizeof(frf_bytes));
 
   // enter standby mode
   if (!this->set_mode_(MOD_FSK, MODE_STDBY)) {
@@ -208,14 +213,12 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_RX_BW, progmem_read_byte(&BW_FSK_OOK[this->bandwidth_]));
 
   // set fdev
-  uint32_t fdev = std::min((this->deviation_ * 4096) / 250000, (uint32_t) 0x3FFF);
-  this->write_register_(REG_FDEV_MSB, (uint8_t) ((fdev >> 8) & 0xFF));
-  this->write_register_(REG_FDEV_LSB, (uint8_t) ((fdev >> 0) & 0xFF));
+  uint16_t fdev = clamp_at_most((this->deviation_ * 4096) / 250000, uint32_t{0x3FFF});
+  this->write_register16_(REG_FDEV_MSB, fdev);
 
   // set bitrate
-  uint64_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // round up
-  this->write_register_(REG_BITRATE_MSB, (uint8_t) ((bitrate >> 8) & 0xFF));
-  this->write_register_(REG_BITRATE_LSB, (uint8_t) ((bitrate >> 0) & 0xFF));
+  uint16_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // round up
+  this->write_register16_(REG_BITRATE_MSB, bitrate);
 
   // configure rx and afc
   this->write_register_(REG_AFC_BW, progmem_read_byte(&BW_FSK_OOK[this->afc_bandwidth_]));
@@ -264,8 +267,7 @@ void SX127x::configure_fsk_ook_() {
   } else {
     this->write_register_(REG_PREAMBLE_DETECT, PREAMBLE_DETECTOR_OFF);
   }
-  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 8);
-  this->write_register_(REG_PREAMBLE_SIZE_LSB, this->preamble_size_ & 0xFF);
+  this->write_register16_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_);
 
   // config sync generation and setup ook threshold
   uint8_t bitsync = this->bitsync_ ? BIT_SYNC_ON : BIT_SYNC_OFF;
@@ -293,8 +295,7 @@ void SX127x::configure_lora_() {
 
   // config preamble
   if (this->preamble_size_ >= 6) {
-    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 8);
-    this->write_register_(REG_PREAMBLE_LEN_LSB, this->preamble_size_ & 0xFF);
+    this->write_register16_(REG_PREAMBLE_LEN_MSB, this->preamble_size_);
   }
 
   // optimize detection
@@ -390,7 +391,7 @@ SX127xError SX127x::start_transmit_(SX127xTransmitListener *listener, const uint
   } else if (this->applied_.payload_length == 0) {
     this->write_register_(REG_FIFO, len);
   }
-  this->write_fifo_(data, len);
+  this->write_registers_(REG_FIFO, data, len);
   if (!this->enter_tx_()) {
     this->fail_(set_mode_failure());
     return SX127xError::SX127X_ERROR_NOT_READY;

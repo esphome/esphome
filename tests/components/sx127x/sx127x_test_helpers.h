@@ -28,7 +28,8 @@ class TestPin : public GPIOPin {
 };
 
 // An SX127x register file behind the real software SPI bus. The first byte of each
-// transaction is the address, with bit 7 set for a write; FIFO reads and writes stream.
+// transaction is the address, with bit 7 set for a write; FIFO reads and writes stream, and
+// further bytes of any other write go to the next register.
 class RadioHardware {
  public:
   RadioHardware() {
@@ -218,6 +219,8 @@ class RadioHardware {
       this->fifo.push_back(value);
       return;
     }
+    // As on the chip, each further byte of a burst goes to the next register
+    this->addr_ = 0x80 | ((addr + 1) & 0x7F);
     if (addr == REG_OP_MODE) {
       this->write_mode_(value);
       return;
