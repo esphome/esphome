@@ -232,7 +232,7 @@ class ModemComponent : public Component {
   const char *urc_line_{nullptr};  // the line urc_pending_ hands to loop(), inside urc_reader_
 #endif
   std::unique_ptr<esp_modem::DCE> dce_;
-  std::string reply_;  // task only; reserved once in setup() to REPLY_SIZE, so at_reply_() never allocates
+  std::string reply_;  // task only; reserved once in setup() to REPLY_SIZE, so collecting a reply never allocates
   std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
