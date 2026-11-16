@@ -842,6 +842,29 @@ def test_determine_integration_tests_changed_test_file() -> None:
         assert test_files == ["tests/integration/test_syslog.py"]
 
 
+def test_determine_integration_tests_deleted_test_file_skipped() -> None:
+    """A test file the PR deletes is in the diff but must not be handed to pytest."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=[
+                "tests/integration/test_syslog.py",
+                "tests/integration/test_removed_by_this_pr.py",
+            ],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_syslog.py"]
+
+
 def test_determine_integration_tests_changed_fixture_yaml() -> None:
     """Test that changing a fixture YAML runs the corresponding test file."""
     with (
