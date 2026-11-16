@@ -31,19 +31,22 @@ _NEWLIB_IDF = "{type: esp-idf, version: 5.5.6}"
         pytest.param("esp32c2", _NEWLIB_IDF, True, id="c2"),
         pytest.param("esp32c6", _NEWLIB_IDF, False, id="c6_rom_sscanf"),
         pytest.param(
-            "esp32", "{type: esp-idf, version: 6.0.1}", False, id="idf6_picolibc"
+            "esp32", "{type: esp-idf, version: 6.0.1}", True, id="idf6_picolibc"
+        ),
+        pytest.param(
+            "esp32c6", "{type: esp-idf, version: 6.0.1}", True, id="c6_idf6_picolibc"
         ),
         pytest.param("esp32", "{type: arduino}", False, id="arduino"),
     ],
 )
-def test_wraps_only_on_newlib_idf_without_rom_sscanf(
+def test_wraps_only_on_idf_without_rom_sscanf(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
     variant: str,
     framework: str,
     expected: bool,
 ) -> None:
-    """The wraps are emitted only where Bluedroid's sscanf calls link newlib's engine."""
+    """The wraps are emitted only where Bluedroid's sscanf calls link a scanf engine."""
     config = tmp_path / "test.yaml"
     config.write_text(
         f"esphome:\n  name: test\n\nesp32:\n  variant: {variant}\n"

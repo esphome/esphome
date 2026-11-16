@@ -19,7 +19,7 @@ inline void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   fwrite(msg, 1, len, stdout);
 #else
   // Regular UART - single write including newline (already in buffer)
-  uart_write_bytes(this->uart_num_, msg, len);
+  uart_write_bytes(this->get_uart_num(), msg, len);
 #endif
 }
 
