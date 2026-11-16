@@ -759,7 +759,7 @@ ModemState ModemComponent::handle_state_connecting_() {
         return ModemState::MODEM_STATE_ENABLING;
       }
     }
-    // ENABLING left the radio at CFUN=4, where the SIM answers but the modem cannot attach yet
+    // ENABLING powered the SIM up (CFUN=4, or CFUN=1 on a modem without it), so the SIM answers
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
         break;
