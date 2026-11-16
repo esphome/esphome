@@ -296,7 +296,10 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
 
     for f in files:
         if f.startswith(f"{INTEGRATION_TESTS_PATH}test_") and f.endswith(".py"):
-            test_files.add(f)
+            # A deleted test file is in the diff too; pytest given a missing path
+            # collects nothing at all, so it must not reach a bucket
+            if (Path(root_path) / f).is_file():
+                test_files.add(f)
         elif f.startswith(f"{INTEGRATION_TESTS_PATH}fixtures/"):
             if f.endswith(".yaml"):
                 # Fixture YAML changed - add corresponding test file(s)
