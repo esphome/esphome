@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
+    CONF_KEEPALIVE,
     CONF_KEY,
     CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
@@ -153,6 +154,9 @@ DEFAULT_PORT = 6053
 DEFAULT_REBOOT_TIMEOUT = "15min"
 DEFAULT_BATCH_DELAY = "100ms"
 DEFAULT_LISTEN_BACKLOG = 4
+# Must match DEFAULT_KEEPALIVE_TIMEOUT_MS in api_connection.h: codegen only emits the
+# keepalive defines when the config differs from it.
+DEFAULT_KEEPALIVE = "60s"
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -440,6 +444,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(wizard.CONF_WIZARD): wizard.WIZARD_SCHEMA,
             cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
+            # Keepalive (ping) interval; the client is told via HelloResponse.
+            # Raise it for sleepy devices, e.g. a Thread MTD with a long poll_period.
+            cv.Optional(CONF_KEEPALIVE, default=DEFAULT_KEEPALIVE): cv.All(
+                # Whole seconds only: the interval is advertised to clients in seconds
+                cv.positive_time_period_seconds,
+                cv.Range(min=cv.TimePeriod(seconds=10), max=cv.TimePeriod(hours=1)),
+            ),
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -605,6 +616,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
+    if (keepalive := config[CONF_KEEPALIVE]) != cv.time_period(DEFAULT_KEEPALIVE):
+        cg.add_define("USE_API_KEEPALIVE_INTERVAL")
+        cg.add_define("API_KEEPALIVE_TIMEOUT_MS", keepalive.total_milliseconds)
 
     actions = config.get(CONF_ACTIONS, [])
     has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]
