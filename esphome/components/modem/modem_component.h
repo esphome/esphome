@@ -152,7 +152,7 @@ class ModemComponent : public Component {
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
-  static constexpr size_t REPLY_SIZE = 256;  // longer replies are cut, their final OK or ERROR still counts
+  static constexpr size_t REPLY_SIZE = 256;  // a longer reply keeps its newest bytes, so its final line counts
 #ifdef USE_MODEM_POLL
   static constexpr uint8_t CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
   static constexpr uint8_t CSQ_RSSI_MAX = 31;

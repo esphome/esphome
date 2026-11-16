@@ -1098,13 +1098,17 @@ void ModemComponent::request_resync_() {
 int ModemComponent::read_registration_() {
   int lte = -1;
   const command_result lte_read = this->dce_->get_network_registration_state(lte);
-  if (is_registered(lte) || lte == REGISTRATION_DENIED) {
+  if (is_registered(lte)) {
     return lte;
   }
   const command_result legacy_read = this->at_reply_("AT+CREG?");
   const int legacy = legacy_read == command_result::OK ? registration_from_reply(this->reply_, "+CREG:") : -1;
-  if (is_registered(legacy) || legacy == REGISTRATION_DENIED) {
+  // A multimode modem can be denied on LTE and registered on 2G or 3G
+  if (is_registered(legacy)) {
     return legacy;
+  }
+  if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
+    return REGISTRATION_DENIED;
   }
   if (lte_read == command_result::FAIL && legacy_read == command_result::FAIL) {
     return REGISTRATION_UNSUPPORTED;
@@ -1176,13 +1180,19 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
         // A UART reply grows in place and comes back whole each time; CMUX hands over each frame on its own
         const char *text = reinterpret_cast<const char *>(data);
         if (len >= reply.size() && reply.compare(0, reply.size(), text, reply.size()) == 0) {
-          reply.assign(text, std::min(len, reply.capacity()));
-        } else {
-          reply.append(text, std::min(len, reply.capacity() - reply.size()));
+          reply.clear();
         }
-        // A reply longer than the buffer still ends with OK or ERROR in the newest data
-        const command_result collected = reply_result(reply.data(), reply.size());
-        return collected != command_result::TIMEOUT ? collected : reply_result(text, len);
+        // A reply longer than the buffer keeps its newest bytes, where the final OK or ERROR line is
+        const size_t capacity = reply.capacity();
+        if (len >= capacity) {
+          reply.assign(text + len - capacity, capacity);
+        } else {
+          if (reply.size() + len > capacity) {
+            reply.erase(0, reply.size() + len - capacity);
+          }
+          reply.append(text, len);
+        }
+        return reply_result(reply.data(), reply.size());
       },
       timeout);
   flatten_reply(reply);
