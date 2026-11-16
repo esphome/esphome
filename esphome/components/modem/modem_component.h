@@ -152,6 +152,7 @@ class ModemComponent : public Component {
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
+  static constexpr size_t REPLY_SIZE = 256;  // longer replies are cut, their final OK or ERROR still counts
 #ifdef USE_MODEM_POLL
   static constexpr uint8_t CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
   static constexpr uint8_t CSQ_RSSI_MAX = 31;
@@ -201,13 +202,15 @@ class ModemComponent : public Component {
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   esp_modem::command_result at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
-  /// Send an AT command; output gets the whole reply on one line, including any +CME ERROR text
-  esp_modem::command_result at_reply_(const char *cmd, std::string &output, uint32_t timeout = COMMAND_TIMEOUT_MS);
+  /// Send an AT command; reply_ gets the whole reply on one line, including any +CME ERROR text
+  esp_modem::command_result at_reply_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   void publish_status_();
   /// Send the +++ escape with its guard times; true when the modem answered
   bool escape_data_mode_();
   /// Overflow a stuck CMUX receiver with flag bytes; true when the modem answers AT afterwards
   bool flush_cmux_();
+  void request_resync_();
+  int read_registration_();
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
   void dump_connect_params_();
@@ -229,6 +232,7 @@ class ModemComponent : public Component {
   const char *urc_line_{nullptr};  // the line urc_pending_ hands to loop(), inside urc_reader_
 #endif
   std::unique_ptr<esp_modem::DCE> dce_;
+  std::string reply_;  // task only; reserved once in setup() to REPLY_SIZE, so at_reply_() never allocates
   std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
@@ -308,7 +312,7 @@ class ModemComponent : public Component {
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
-  bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first
+  bool resync_{false};        // a command timed out, so CONNECTING syncs again first
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif
