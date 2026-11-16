@@ -116,6 +116,7 @@ esphome/components/bq25820/* @beforeyouknowit
 esphome/components/bq27220/* @rggammon
 esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
+esphome/components/brizlabs_led_string/* @TFenby
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
@@ -145,9 +146,11 @@ esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
+esphome/components/cst3240/* @tpruvot
 esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
+esphome/components/cstxxx/* @clydebarrow @latonita
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/cw2017/* @exciton
@@ -465,6 +468,7 @@ esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/noise/* @esphome/core
 esphome/components/npi19/* @bakerkj
+esphome/components/npm1300/* @tomaszduda23
 esphome/components/nrf52/* @tomaszduda23
 esphome/components/ns2009/* @tchilov
 esphome/components/ns2009/touchscreen/* @tchilov
@@ -647,7 +651,9 @@ esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
 esphome/components/sx126x/* @swoboda1337
+esphome/components/sx126x/packet_interface/* @clydebarrow
 esphome/components/sx127x/* @swoboda1337
+esphome/components/sx127x/packet_interface/* @clydebarrow
 esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
 esphome/components/systa_bus/* @Mat931
@@ -659,6 +665,8 @@ esphome/components/tca8418/* @zebble
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
+esphome/components/tcp/* @clydebarrow
+esphome/components/tcp/packet_interface/* @clydebarrow
 esphome/components/tcp_uart/* @Bascht74
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax @FredM67
@@ -740,7 +748,7 @@ esphome/components/web_server_idf/* @dentra
 esphome/components/weikai/* @DrCoolZic
 esphome/components/weikai_i2c/* @DrCoolZic
 esphome/components/weikai_spi/* @DrCoolZic
-esphome/components/whirlpool/* @arpena @glmnet
+esphome/components/whirlpool/* @arpena @glmnet @Rodrigoah
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
