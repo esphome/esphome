@@ -1,8 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::distance_uart {
@@ -41,7 +42,7 @@ class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, publi
   void update() override;
 
  protected:
-  void process_frame_();
+  void process_frame_(const uint8_t *frame);
   DistanceUARTMode mode_{DistanceUARTMode::DISTANCE_UART_MODE_AUTO};
   GPIOPin *trigger_pin_{nullptr};
   uint16_t blind_zone_mm_{0};
@@ -49,8 +50,7 @@ class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, publi
   DistanceUARTOutputMode output_mode_{DistanceUARTOutputMode::DISTANCE_UART_OUTPUT_MODE_PROCESSED};
   GPIOPin *output_mode_pin_{nullptr};
   DistanceUARTPublishMode publish_mode_{DistanceUARTPublishMode::DISTANCE_UART_PUBLISH_MODE_INTERVAL};
-  uint8_t buffer_[4];
-  uint8_t read_pos_{0};
+  FrameReader<4, 0xFF> reader_;
   float last_distance_m_{NAN};
 };
 

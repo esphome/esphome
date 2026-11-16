@@ -1,12 +1,11 @@
 #include "distance_uart.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>  // Required for NAN
 
 namespace esphome::distance_uart {
 
 ESPHOME_LOG_TAG(TAG, "distance_uart.sensor");
-static constexpr uint8_t FRAME_START = 0xFF;
-static constexpr uint8_t FRAME_LENGTH = 4;
 
 void DistanceUARTSensor::set_mode(DistanceUARTMode mode) { this->mode_ = mode; }
 void DistanceUARTSensor::set_trigger_pin(GPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
@@ -17,7 +16,6 @@ void DistanceUARTSensor::set_output_mode_pin(GPIOPin *output_mode_pin) { this->o
 void DistanceUARTSensor::set_publish_mode(DistanceUARTPublishMode publish_mode) { this->publish_mode_ = publish_mode; }
 
 void DistanceUARTSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Distance UART Sensor...");
   if (this->trigger_pin_ != nullptr) {
     this->trigger_pin_->setup();
     this->trigger_pin_->digital_write(true);
@@ -70,8 +68,7 @@ void DistanceUARTSensor::update() {
     } else {
       this->write_byte(0x00);
     }
-  } else if (this->publish_mode_ == DistanceUARTPublishMode::DISTANCE_UART_PUBLISH_MODE_INTERVAL &&
-             !std::isnan(this->last_distance_m_)) {
+  } else if (this->publish_mode_ == DistanceUARTPublishMode::DISTANCE_UART_PUBLISH_MODE_INTERVAL) {
     this->publish_state(this->last_distance_m_);
     this->last_distance_m_ = NAN;
   }
@@ -79,45 +76,28 @@ void DistanceUARTSensor::update() {
 
 void DistanceUARTSensor::loop() {
   this->read_available([this](uint8_t byte) {
-    if (this->read_pos_ == 0) {
-      if (byte == FRAME_START) {
-        this->buffer_[this->read_pos_++] = byte;
-      }
-    } else {
-      this->buffer_[this->read_pos_++] = byte;
-      if (this->read_pos_ >= FRAME_LENGTH) {
-        this->process_frame_();
-        this->read_pos_ = 0;
-      }
+    if (const uint8_t *frame = this->reader_.feed(byte)) {
+      this->process_frame_(frame);
     }
   });
 }
 
-void DistanceUARTSensor::process_frame_() {
-  uint8_t start_byte = this->buffer_[0];
-  uint8_t data_h = this->buffer_[1];
-  uint8_t data_l = this->buffer_[2];
-  uint8_t checksum_received = this->buffer_[3];
-
-  if (start_byte != FRAME_START) {
-    ESP_LOGW(TAG, "Invalid start byte: 0x%02X", start_byte);
+void DistanceUARTSensor::process_frame_(const uint8_t *frame) {
+  uint8_t checksum_calculated = sum_bytes(frame, 3);
+  if (frame[3] != checksum_calculated) {
+    ESP_LOGW(TAG, "Checksum mismatch! Received: 0x%02X, Calculated: 0x%02X", frame[3], checksum_calculated);
+    this->reader_.resync();
     return;
   }
 
-  uint8_t checksum_calculated = (start_byte + data_h + data_l) & 0xFF;
-  if (checksum_received != checksum_calculated) {
-    ESP_LOGW(TAG, "Checksum mismatch! Received: 0x%02X, Calculated: 0x%02X", checksum_received, checksum_calculated);
-    return;
-  }
-
-  uint16_t distance_mm = (data_h << 8) | data_l;
+  uint16_t distance_mm = encode_uint16(frame[1], frame[2]);
   float distance_m = NAN;
 
   if (this->blind_zone_mm_ > 0 && distance_mm <= this->blind_zone_mm_) {
-    ESP_LOGV(TAG, "Distance is within the blind zone (<= %.2fm). Ignoring reading.", this->blind_zone_mm_ / 1000.0f);
+    ESP_LOGV(TAG, "Distance is within the blind zone (<= %.2fm). Reporting NAN.", this->blind_zone_mm_ / 1000.0f);
     distance_m = NAN;
   } else if (this->max_range_mm_ > 0 && distance_mm > this->max_range_mm_) {
-    ESP_LOGV(TAG, "Distance exceeds the max range (> %.2fm). Ignoring reading.", this->max_range_mm_ / 1000.0f);
+    ESP_LOGV(TAG, "Distance exceeds the max range (> %.2fm). Reporting NAN.", this->max_range_mm_ / 1000.0f);
     distance_m = NAN;
   } else {
     distance_m = distance_mm / 1000.0f;
