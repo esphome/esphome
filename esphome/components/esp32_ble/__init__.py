@@ -579,18 +579,18 @@ async def to_code(config: ConfigType) -> None:
         # The headers only feed bluedroid_hex_wraps.cpp's ESP-IDF drift checks
         add_src_cmake(bluedroid_headers_cmake("bluedroid_hex_wraps.cpp"))
 
-    # ESP-IDF 5.5.6 drops bond keys on re-encryption (see bluedroid_bond_keys.c). Needs the
-    # native toolchain for Bluedroid's private headers; Windows response files lose them.
+    # ESP-IDF 5.5.6 and 6.1.1 drop bond keys on re-encryption (see bluedroid_bond_keys.c). Needs
+    # the native toolchain for Bluedroid's private headers; Windows response files lose them.
     if (
         CORE.using_toolchain_esp_idf
         and not IS_WINDOWS
-        and cv.Version(5, 5, 6) <= idf_version() < cv.Version(6, 0, 0)
+        and _drops_bond_keys(idf_version())
     ):
         cg.add_define("USE_ESP32_BLE_BLUEDROID_BOND_KEYS")
         _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
         add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
 
-    # ESP-IDF 5.5.6 and 6.0.3 end GATT discovery on a response listing handles out of order
+    # ESP-IDF 5.5.6, 6.0.3 and 6.1.1 end GATT discovery on a response listing handles out of order
     # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
     if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
         cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
@@ -667,11 +667,23 @@ def _has_gatt_client(config: ConfigType) -> bool:
     return "esp32_ble_tracker" in config or "esp32_ble_client" in config
 
 
-def _has_strict_handle_order(version: cv.Version) -> bool:
-    """Whether this ESP-IDF rejects discovery responses whose handles are out of order."""
+def _drops_bond_keys(version: cv.Version) -> bool:
+    """Whether this ESP-IDF clears a bonded device's keys when it re-encrypts."""
     return cv.Version(5, 5, 6) <= version < cv.Version(
         6, 0, 0
-    ) or version >= cv.Version(6, 0, 3)
+    ) or version >= cv.Version(6, 1, 1)
+
+
+def _has_strict_handle_order(version: cv.Version) -> bool:
+    """Whether this ESP-IDF rejects discovery responses whose handles are out of order.
+
+    ESP-IDF 6.1.0 was released before the check reached the 6.1 line.
+    """
+    return (
+        cv.Version(5, 5, 6) <= version < cv.Version(6, 0, 0)
+        or cv.Version(6, 0, 3) <= version < cv.Version(6, 1, 0)
+        or version >= cv.Version(6, 1, 1)
+    )
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
