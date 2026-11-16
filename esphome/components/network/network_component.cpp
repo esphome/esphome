@@ -12,7 +12,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esp_netif_net_stack.h"
+#include "lwip/dns.h"
 #include "lwip/netif.h"
+#include "ip_address.h"
 #ifdef USE_ETHERNET
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
@@ -72,6 +74,18 @@ static esp_netif_t *connected_ethernet_netif() {
   return nullptr;
 }
 
+// True when lwIP's global DNS table holds the netif's own servers. Call with the lwIP core lock held.
+static bool dns_is_netifs(esp_netif_t *netif) {
+  for (auto type : {ESP_NETIF_DNS_MAIN, ESP_NETIF_DNS_BACKUP}) {
+    esp_netif_dns_info_t own{};
+    if (esp_netif_get_dns_info(netif, type, &own) != ESP_OK)
+      return true;
+    if (IPAddress(&own.ip) != IPAddress(dns_getserver(type)))
+      return false;
+  }
+  return true;
+}
+
 void NetworkComponent::loop() {
   // Pin the default route to the first connected interface in the user's priority
   // order; ESP-IDF's own route_prio selection would always favor WiFi.
@@ -114,12 +128,14 @@ void NetworkComponent::loop() {
     if (now - this->last_route_check_ < ROUTE_CHECK_INTERVAL_MS)
       return;
     this->last_route_check_ = now;
-    bool route_is_ours;
+    bool still_ours;
     {
       LwIPLock lock;
-      route_is_ours = static_cast<void *>(netif_default) == esp_netif_get_netif_impl(best);
+      // DHCP starting on another netif empties lwIP's DNS table, and the manual default
+      // stops ESP-IDF from refilling it (espressif/esp-idf#19082); re-asserting copies it back.
+      still_ours = static_cast<void *>(netif_default) == esp_netif_get_netif_impl(best) && dns_is_netifs(best);
     }
-    if (route_is_ours)
+    if (still_ours)
       return;
   }
   esp_err_t err = esp_netif_set_default_netif(best);
