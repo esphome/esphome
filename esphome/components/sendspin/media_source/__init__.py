@@ -103,12 +103,18 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
             ),
-            cv.Optional(CONF_FORMATS, default=[{"sample_rate": 48000, "bits_per_sample": 16}]): cv.All(
+            cv.Optional(
+                CONF_FORMATS, default=[{"sample_rate": 48000, "bits_per_sample": 16}]
+            ): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.Required(CONF_SAMPLE_RATE): cv.int_range(min=16000, max=192000),
-                            cv.Required(CONF_BITS_PER_SAMPLE): cv.one_of(16, 24, int=True),
+                            cv.Required(CONF_SAMPLE_RATE): cv.int_range(
+                                min=16000, max=192000
+                            ),
+                            cv.Required(CONF_BITS_PER_SAMPLE): cv.one_of(
+                                16, 24, int=True
+                            ),
                         }
                     )
                 ),

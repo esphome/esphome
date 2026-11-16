@@ -80,6 +80,7 @@ STATIC_PAIRING_CODE_DIGITS = 8
 
 CONF_FORMATS = "formats"
 
+
 def _validate_static_pairing_code(value: Any) -> str:
     # string_strict so leading zeros survive and `!secret` works.
     value = cv.string_strict(value)
@@ -606,23 +607,27 @@ async def to_code(config: ConfigType) -> None:
         # 16 bits per sample. The order is a preference order, both for the codecs themselves and for
         # stereo over mono.
         player_cfg = data.player_config
-        
-        def _audio_format(codec: str, channels: int, sample_rate: int, bits_per_sample: int) -> cg.StructInitializer:
+
+        def _audio_format(
+            codec: str, channels: int, sample_rate: int, bits_per_sample: int
+        ) -> cg.StructInitializer:
             return cg.StructInitializer(
-              AudioSupportedFormatObject,
-              ("codec", CODECS[codec]),
-              ("channels", channels),
-              ("sample_rate", sample_rate),
-              ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
+                AudioSupportedFormatObject,
+                ("codec", CODECS[codec]),
+                ("channels", channels),
+                ("sample_rate", sample_rate),
+                ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
             )
 
         audio_format_structs = [
-            _audio_format(codec, channels, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE])
+            _audio_format(
+                codec, channels, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE]
+            )
             for fmt in player_cfg[CONF_FORMATS]
             for codec in player_cfg[CONF_CODECS]
             for channels in (2, 1)
         ]
-        
+
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
         if psram_stack:
             psram.request_external_task_stack()
