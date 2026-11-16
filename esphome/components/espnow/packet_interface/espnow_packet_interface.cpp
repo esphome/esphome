@@ -105,6 +105,19 @@ void ESPNowPacketInterface::delivery_failed_() {
            this->name_);
 }
 
+// Every larger packet from a peer whose max_packet_size is larger is lost, so warn now and then
+void ESPNowPacketInterface::oversized_(uint16_t size) {
+  uint32_t now = App.get_loop_component_start_time();
+  if (this->size_warned_ && now - this->last_size_warning_ms_ < WARNING_INTERVAL_MS) {
+    ESP_LOGV(TAG, "%s: Packet of %u bytes is larger than %zu, dropped", this->name_, size, this->max_packet_size_);
+    return;
+  }
+  this->size_warned_ = true;
+  this->last_size_warning_ms_ = now;
+  ESP_LOGW(TAG, "%s: Packet of %u bytes is larger than %zu, dropped; set the same max_packet_size on both devices",
+           this->name_, size, this->max_packet_size_);
+}
+
 bool ESPNowPacketInterface::on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {
   this->receive_(info, data, size);
   return false;
@@ -127,12 +140,12 @@ bool ESPNowPacketInterface::on_unknown_peer(const ESPNowRecvInfo &info, const ui
 void ESPNowPacketInterface::receive_(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {
   if (size == 0)
     return;
-  if (size > this->max_packet_size_) {
-    ESP_LOGV(TAG, "%s: Packet of %u bytes is larger than %zu, dropped", this->name_, size, this->max_packet_size_);
-    return;
-  }
   if (!this->is_broadcast_() && memcmp(info.src_addr, this->peer_address_.data(), ESP_NOW_ETH_ALEN) != 0)
     return;
+  if (size > this->max_packet_size_) {
+    this->oversized_(size);
+    return;
+  }
   PacketMetaData meta_data;
   memcpy(meta_data.mac_address, info.src_addr, ESP_NOW_ETH_ALEN);
 #ifdef USE_ESP32
