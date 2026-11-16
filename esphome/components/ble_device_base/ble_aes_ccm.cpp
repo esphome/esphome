@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include "esphome/core/helpers.h"
 
 namespace esphome::ble_device_base {
 
@@ -163,8 +164,7 @@ bool aes_ccm_auth_decrypt(const uint8_t key[16], const uint8_t *nonce, size_t no
   if (aad_len > 0) {
     // Only the < 2^16-2^8 encoding is needed for BLE-sized AAD.
     uint8_t blk[16] = {0};
-    blk[0] = static_cast<uint8_t>((aad_len >> 8) & 0xff);
-    blk[1] = static_cast<uint8_t>(aad_len & 0xff);
+    put_be16(blk, aad_len);
     size_t ai = 0;
     size_t pos = 2;
     while (pos < 16 && ai < aad_len)

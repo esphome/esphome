@@ -246,7 +246,7 @@ void VL53L1XSensor::setup() {
   }
 
   if (final_address != DEFAULT_ADDRESS) {
-    if (!this->write_byte16_(I2C_DEVICE_ADDRESS, final_address & 0x7F)) {
+    if (!this->write_byte_reg16(I2C_DEVICE_ADDRESS, final_address & 0x7F)) {
       this->fail_at_default_address_(LOG_STR("Setting address failed"));
       return;
     }
@@ -273,7 +273,7 @@ void VL53L1XSensor::fail_at_default_address_(const LogString *message) {
 bool VL53L1XSensor::wait_for_boot_() {
   for (uint8_t i = 0; i < 100; i++) {
     uint8_t status;
-    if (this->read_byte16_(FIRMWARE_SYSTEM_STATUS, &status) && (status & 0x01))
+    if (this->read_byte_reg16(FIRMWARE_SYSTEM_STATUS, &status) && (status & 0x01))
       return true;
     delay(1);
   }
@@ -296,17 +296,17 @@ bool VL53L1XSensor::configure_() {
   if (center == 0) {
     center = ROI_CENTER_LARGE;
     if (this->roi_width_ <= 10 && this->roi_height_ <= 10 &&
-        !this->read_byte16_(ROI_CONFIG_MODE_ROI_CENTRE_SPAD, &center)) {
+        !this->read_byte_reg16(ROI_CONFIG_MODE_ROI_CENTRE_SPAD, &center)) {
       return false;
     }
   }
   // The register address auto-increments, so the whole table goes in one write.
   return this->write_register16(DEFAULT_CONFIG_START, config, sizeof(config)) == i2c::ERROR_OK &&
          // SetDistanceMode
-         this->write_byte16_(PHASECAL_CONFIG_TIMEOUT_MACROP, mode.phasecal_timeout) &&
-         this->write_byte16_(RANGE_CONFIG_VCSEL_PERIOD_A, mode.vcsel_period_a) &&
-         this->write_byte16_(RANGE_CONFIG_VCSEL_PERIOD_B, mode.vcsel_period_b) &&
-         this->write_byte16_(RANGE_CONFIG_VALID_PHASE_HIGH, mode.valid_phase_high) &&
+         this->write_byte_reg16(PHASECAL_CONFIG_TIMEOUT_MACROP, mode.phasecal_timeout) &&
+         this->write_byte_reg16(RANGE_CONFIG_VCSEL_PERIOD_A, mode.vcsel_period_a) &&
+         this->write_byte_reg16(RANGE_CONFIG_VCSEL_PERIOD_B, mode.vcsel_period_b) &&
+         this->write_byte_reg16(RANGE_CONFIG_VALID_PHASE_HIGH, mode.valid_phase_high) &&
          this->write_word16_(SD_CONFIG_WOI_SD0, mode.woi_sd0) &&
          this->write_word16_(SD_CONFIG_INITIAL_PHASE_SD0, mode.initial_phase_sd0) &&
          // SetTimingBudgetInMs
@@ -316,14 +316,14 @@ bool VL53L1XSensor::configure_() {
          this->write_word16_(ALGO_PART_TO_PART_RANGE_OFFSET_MM, static_cast<uint16_t>(this->offset_mm_ * 4)) &&
          this->write_word16_(MM_CONFIG_INNER_OFFSET_MM, 0) && this->write_word16_(MM_CONFIG_OUTER_OFFSET_MM, 0) &&
          // SetROI and SetROICenter
-         this->write_byte16_(ROI_CONFIG_USER_ROI_CENTRE_SPAD, center) &&
-         this->write_byte16_(ROI_CONFIG_USER_ROI_REQUESTED_GLOBAL_XY_SIZE,
-                             static_cast<uint8_t>(((this->roi_height_ - 1) << 4) | (this->roi_width_ - 1))) &&
+         this->write_byte_reg16(ROI_CONFIG_USER_ROI_CENTRE_SPAD, center) &&
+         this->write_byte_reg16(ROI_CONFIG_USER_ROI_REQUESTED_GLOBAL_XY_SIZE,
+                                static_cast<uint8_t>(((this->roi_height_ - 1) << 4) | (this->roi_width_ - 1))) &&
          // SetSignalThreshold
          this->write_word16_(RANGE_CONFIG_MIN_COUNT_RATE_RTN_LIMIT_MCPS, this->signal_rate_limit_);
 }
 
-bool VL53L1XSensor::start_ranging_() { return this->write_byte16_(SYSTEM_MODE_START, MODE_START_SINGLE_SHOT); }
+bool VL53L1XSensor::start_ranging_() { return this->write_byte_reg16(SYSTEM_MODE_START, MODE_START_SINGLE_SHOT); }
 
 void VL53L1XSensor::update() {
   if (this->is_in_loop_state()) {
@@ -346,7 +346,7 @@ void VL53L1XSensor::loop() {
     return;
 
   uint8_t gpio_status;
-  if (!this->read_byte16_(GPIO_TIO_HV_STATUS, &gpio_status) || (gpio_status & 0x01) == 0) {
+  if (!this->read_byte_reg16(GPIO_TIO_HV_STATUS, &gpio_status) || (gpio_status & 0x01) == 0) {
     if (elapsed > static_cast<uint32_t>(this->budget_ms_) * 2 + 100) {
       ESP_LOGW(TAG, "Measurement timed out");
       this->status_set_warning();
@@ -358,7 +358,7 @@ void VL53L1XSensor::loop() {
 
   uint8_t result[RESULT_LENGTH];
   if (this->read_register16(RESULT_RANGE_STATUS, result, sizeof(result)) != i2c::ERROR_OK ||
-      !this->write_byte16_(SYSTEM_INTERRUPT_CLEAR, 0x01)) {
+      !this->write_byte_reg16(SYSTEM_INTERRUPT_CLEAR, 0x01)) {
     ESP_LOGW(TAG, "Reading result failed");
     this->status_set_warning();
     this->publish_state(NAN);
@@ -369,8 +369,8 @@ void VL53L1XSensor::loop() {
 
   if (this->first_result_) {
     // ULD SensorInit: after the first ranging, start VHV calibration from the previous temperature.
-    if (!this->status_comm_check(this->write_byte16_(VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x09) &&
-                                 this->write_byte16_(VHV_CONFIG_INIT, 0)))
+    if (!this->status_comm_check(this->write_byte_reg16(VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x09) &&
+                                 this->write_byte_reg16(VHV_CONFIG_INIT, 0)))
       return;
     this->first_result_ = false;
     return;
@@ -407,17 +407,9 @@ void VL53L1XSensor::dump_config() {
   }
 }
 
-bool VL53L1XSensor::write_byte16_(uint16_t reg, uint8_t value) {
-  return this->write_register16(reg, &value, 1) == i2c::ERROR_OK;
-}
-
 bool VL53L1XSensor::write_word16_(uint16_t reg, uint16_t value) {
   const uint8_t data[2] = {static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value)};
   return this->write_register16(reg, data, 2) == i2c::ERROR_OK;
-}
-
-bool VL53L1XSensor::read_byte16_(uint16_t reg, uint8_t *value) {
-  return this->read_register16(reg, value, 1) == i2c::ERROR_OK;
 }
 
 bool VL53L1XSensor::read_word16_(uint16_t reg, uint16_t *value) {
