@@ -363,8 +363,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
-    # Arduino fails: below ESP-IDF 6.0 arduino-esp32 bundles a second libsodium next to the one
-    # noise-c brings in, and from 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
+    # Arduino fails: where arduino-esp32's own libsodium cannot be replaced it sits next to the one
+    # noise-c brings in, and from ESP-IDF 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
     cv.only_with_framework("esp-idf"),
     _request_high_performance_networking,
 )
