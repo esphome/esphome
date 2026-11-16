@@ -198,13 +198,13 @@ def test_esphome_manifest_deps_reads_repo_manifest() -> None:
 
 
 @pytest.mark.parametrize("idf_version", [cv.Version(5, 5, 5), cv.Version(6, 0, 0)])
-def test_convert_pio_libs_arduino_framework_passes_empty_managed(
+def test_convert_pio_libs_arduino_framework_passes_manifest_deps(
     idf_version: cv.Version,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The manifest gates noise-c/libsodium off on Arduino, so they still go
-    through the converter."""
+    """The manifest provides noise-c/libsodium on Arduino too, so the converter
+    must skip them."""
     _set_idf_version(idf_version)
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
@@ -228,7 +228,7 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
 
     result = _convert_pio_libs(tmp_path / "platformio.ini", "arduino")
 
-    assert captured["managed"] == set()
+    assert captured["managed"] == _esphome_manifest_deps()
     # Bundled Arduino names are left to arduino-esp32, as in the real build
     assert captured["provides"]("Wire") and not captured["provides"]("Adafruit BusIO")
     assert result == {
@@ -286,44 +286,44 @@ def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     # lan867x is a real ESPHome dependency (esphome/idf_component.yml), so it
     # must be excluded from the stub set.
     assert "espressif/lan867x" not in deps
-    # espressif/libsodium (arduino-esp32's bundled copy) is a different
-    # package from ESPHome's own esphome/libsodium, so below IDF 6.0, where
-    # arduino-esp32 still declares it, it is stubbed.
-    assert "espressif/libsodium" in deps
-    stub_info = deps["espressif/libsodium"]
+    assert "espressif/cbor" in deps
+    stub_info = deps["espressif/cbor"]
     assert stub_info["version"] == "*"
     stub_path = Path(stub_info["override_path"])
     assert (stub_path / "CMakeLists.txt").is_file()
 
 
-def test_arduino_excluded_stubs_points_libsodium_at_converted_library(
+def test_arduino_excluded_stubs_points_stub_at_converted_library_of_same_name(
     tmp_path: Path,
 ) -> None:
-    """Below IDF 6.0 the converted esphome/libsodium shares its directory name
-    with the espressif/libsodium stub; IDF would keep whichever registers last,
-    so the stub entry points at the converted library instead (#20102)."""
+    """A converted library that shares its directory name with a stub would race
+    it; IDF keeps whichever registers last, so the stub entry points at the
+    converted library instead (#20102)."""
     _set_idf_version(cv.Version(5, 5, 4))
-    converted_path = str(tmp_path / "pio" / "esphome" / "libsodium")
-    converted = {"esphome/libsodium": {"override_path": converted_path}}
+    converted_path = str(tmp_path / "pio" / "someone" / "cbor")
+    converted = {"someone/cbor": {"override_path": converted_path}}
 
     deps = _arduino_excluded_stubs(tmp_path, converted)
 
-    assert deps["espressif/libsodium"] == {
+    assert deps["espressif/cbor"] == {
         "version": "*",
         "override_path": converted_path,
     }
-    assert not (tmp_path / "component_stubs" / "libsodium").exists()
+    assert not (tmp_path / "component_stubs" / "cbor").exists()
     # Stubs without a converted namesake are unaffected.
-    assert (tmp_path / "component_stubs" / "cbor" / "CMakeLists.txt").is_file()
+    assert (tmp_path / "component_stubs" / "qrcode" / "CMakeLists.txt").is_file()
 
 
-def test_arduino_excluded_stubs_keeps_libsodium_on_idf_6(tmp_path: Path) -> None:
-    """arduino-esp32 4.0.x still declares espressif/libsodium on IDF 6, so the
-    stub stays."""
-    _set_idf_version(cv.Version(6, 0, 0))
+@pytest.mark.parametrize("idf_version", [cv.Version(5, 5, 4), cv.Version(6, 0, 0)])
+def test_arduino_excluded_stubs_skips_overridden_libsodium(
+    idf_version: cv.Version, tmp_path: Path
+) -> None:
+    """The manifest replaces espressif/libsodium with esphome/libsodium; a stub
+    would clash with it."""
+    _set_idf_version(idf_version)
 
     deps = _arduino_excluded_stubs(tmp_path)
 
-    assert "espressif/libsodium" in deps
+    assert "espressif/libsodium" not in deps
     # Other arduino-bundled components are still stubbed.
     assert "espressif/cbor" in deps

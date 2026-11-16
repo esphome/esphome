@@ -81,15 +81,14 @@ def test_to_code_esp32_idf_uses_managed_idf_components(
     assert lib_calls == []
 
 
-@pytest.mark.parametrize(
-    "idf_version", [cv.Version(5, 5, 4), cv.Version(6, 0, 0), cv.Version(6, 1, 0)]
-)
-def test_to_code_esp32_arduino_uses_add_library(
-    idf_version: cv.Version,
+def test_to_code_esp32_arduino_platformio_below_idf6_uses_add_library(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Arduino bundles espressif/libsodium, so both stay PlatformIO libraries."""
-    _setup_core(Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF, idf_version)
+    """The PlatformIO toolchain below IDF 6.0 cannot replace arduino-esp32's
+    libsodium, so both stay PlatformIO libraries."""
+    _setup_core(
+        Platform.ESP32, Framework.ARDUINO, Toolchain.PLATFORMIO, cv.Version(5, 5, 4)
+    )
     idf_calls, lib_calls = _record_calls(monkeypatch)
 
     asyncio.run(noise.to_code({}))
@@ -99,6 +98,34 @@ def test_to_code_esp32_arduino_uses_add_library(
         ("esphome/libsodium", noise.LIBSODIUM_VERSION),
     ]
     assert idf_calls == []
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "idf_version"),
+    [
+        (Toolchain.ESP_IDF, cv.Version(5, 5, 4)),
+        (Toolchain.ESP_IDF, cv.Version(6, 0, 0)),
+        (Toolchain.PLATFORMIO, cv.Version(6, 0, 0)),
+        (Toolchain.PLATFORMIO, cv.Version(6, 1, 0)),
+    ],
+)
+def test_to_code_esp32_arduino_uses_managed_idf_components(
+    toolchain: Toolchain,
+    idf_version: cv.Version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """arduino-esp32's libsodium is replaced through the manifest, so Arduino uses
+    managed components too."""
+    _setup_core(Platform.ESP32, Framework.ARDUINO, toolchain, idf_version)
+    idf_calls, lib_calls = _record_calls(monkeypatch)
+
+    asyncio.run(noise.to_code({}))
+
+    assert idf_calls == [
+        {"name": "esphome/noise-c", "ref": noise.NOISE_C_VERSION},
+        {"name": "esphome/libsodium", "ref": noise.LIBSODIUM_VERSION},
+    ]
+    assert lib_calls == []
 
 
 def test_to_code_non_esp32_uses_add_library(
@@ -131,10 +158,11 @@ def test_versions_match_the_repo_manifests() -> None:
 
     assert deps["esphome/noise-c"]["version"] == noise.NOISE_C_VERSION
     assert deps["esphome/libsodium"]["version"] == noise.LIBSODIUM_VERSION
-    # Both are skipped on Arduino, where the PlatformIO library path is used
-    # instead (see noise._use_managed_components).
-    for name in ("esphome/noise-c", "esphome/libsodium"):
-        assert deps[name]["rules"] == [{"if": "$ESPHOME_ARDUINO_COMPONENT == 0"}]
+    # arduino-esp32's own libsodium is replaced with the same pin
+    assert manifest["overrides"] == [
+        {target: {"with": {replacement: {"version": noise.LIBSODIUM_VERSION}}}}
+        for target, replacement in esp32.ARDUINO_OVERRIDDEN_IDF_COMPONENTS.items()
+    ]
     # Every noise-c pin in platformio.ini, not just one of them
     pins = re.findall(
         r"esphome/noise-c@(\S+)",

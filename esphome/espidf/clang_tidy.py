@@ -265,17 +265,13 @@ def _convert_pio_libs(
 
     Libraries the manifest already provides as managed components are skipped, as
     in the real esp32 build; converting them too would give IDF the same requirement
-    twice. Arduino below IDF 6.0 has them rule-gated off, so there they convert.
+    twice.
     """
-    from esphome.components.esp32 import (
-        ARDUINO_DISABLED_LIBRARIES,
-        arduino_bundles_libsodium,
-    )
+    from esphome.components.esp32 import ARDUINO_DISABLED_LIBRARIES
     from esphome.espidf.component import generate_idf_components
 
     libraries = _parse_lib_deps(platformio_ini, framework)
-    # Same rule as noise._use_managed_components and the manifest
-    managed = set() if arduino_bundles_libsodium() else _esphome_manifest_deps()
+    managed = _esphome_manifest_deps()
     deps: dict[str, dict[str, str]] = {}
     # As in the real esp32 build, a dependency on an Arduino-bundled library is
     # left to arduino-esp32 instead of being fetched from the registry
@@ -310,9 +306,10 @@ def _arduino_excluded_stubs(
     path order; such a stub points at the converted library instead.
     """
     from esphome.components.esp32 import (
+        ARDUINO_EXCLUDED_IDF_COMPONENTS,
+        ARDUINO_OVERRIDDEN_IDF_COMPONENTS,
         _idf_component_dep_name,
         _idf_component_stub_name,
-        arduino_excluded_idf_components,
     )
 
     esphome_deps = _esphome_manifest_deps()
@@ -324,9 +321,12 @@ def _arduino_excluded_stubs(
     stubs_dir = work_dir / "component_stubs"
     stubs_dir.mkdir(parents=True, exist_ok=True)
     deps: dict[str, dict] = {}
-    for component in sorted(arduino_excluded_idf_components()):
-        if _idf_component_dep_name(component) in esphome_deps:
+    for component in sorted(ARDUINO_EXCLUDED_IDF_COMPONENTS):
+        dep_name = _idf_component_dep_name(component)
+        if dep_name in esphome_deps:
             continue  # ESPHome needs this one for real (don't stub it away)
+        if ARDUINO_OVERRIDDEN_IDF_COMPONENTS.get(dep_name) in esphome_deps:
+            continue  # Replaced through the manifest "overrides" field
         stub_name = _idf_component_stub_name(component)
         if (path := converted_paths.get(stub_name)) is not None:
             deps[_idf_component_dep_name(component)] = {
