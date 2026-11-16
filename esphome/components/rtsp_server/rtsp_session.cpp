@@ -625,32 +625,27 @@ bool RTSPSession::queue_video_packet_() {
   const size_t rtp_len = header_len - INTERLEAVED_HEADER_LEN + qtables_len + payload_len;
 
   auto *buf = reinterpret_cast<uint8_t *>(this->send_buf_.data());
-  size_t pos = 0;
-  buf[pos++] = '$';
-  buf[pos++] = VIDEO_RTP_CHANNEL;
-  buf[pos++] = static_cast<uint8_t>(rtp_len >> 8);
-  buf[pos++] = static_cast<uint8_t>(rtp_len);
+  uint8_t *p = buf;
+  *p++ = '$';
+  *p++ = VIDEO_RTP_CHANNEL;
+  p = put_be16(p, rtp_len);
 
-  pos = put_rtp_header(buf + pos, last_fragment, RTP_PAYLOAD_TYPE_JPEG, this->sequence_number_++, this->rtp_timestamp_,
-                       this->ssrc_) -
-        buf;
+  p = put_rtp_header(p, last_fragment, RTP_PAYLOAD_TYPE_JPEG, this->sequence_number_++, this->rtp_timestamp_,
+                     this->ssrc_);
 
   // RFC 2435 main JPEG header
-  buf[pos++] = 0;  // type-specific
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_);
-  buf[pos++] = this->jpeg_.type;
-  buf[pos++] = 255;  // Q >= 128: the quantization tables follow in the first packet
-  buf[pos++] = static_cast<uint8_t>(this->jpeg_.width / 8);
-  buf[pos++] = static_cast<uint8_t>(this->jpeg_.height / 8);
+  *p++ = 0;  // type-specific
+  p = put_be24(p, this->frame_sent_);
+  *p++ = this->jpeg_.type;
+  *p++ = 255;  // Q >= 128: the quantization tables follow in the first packet
+  *p++ = static_cast<uint8_t>(this->jpeg_.width / 8);
+  *p++ = static_cast<uint8_t>(this->jpeg_.height / 8);
 
   uint8_t count = 0;
   if (first_fragment) {
-    buf[pos++] = 0;  // MBZ
-    buf[pos++] = 0;  // 8-bit precision
-    buf[pos++] = static_cast<uint8_t>(qtables_len >> 8);
-    buf[pos++] = static_cast<uint8_t>(qtables_len);
+    *p++ = 0;  // MBZ
+    *p++ = 0;  // 8-bit precision
+    put_be16(p, qtables_len);
     this->iov_[0] = {buf, header_len};
     this->iov_[1] = {const_cast<uint8_t *>(this->jpeg_.qtable0), QTABLE_LEN};
     this->iov_[2] = {const_cast<uint8_t *>(this->jpeg_.qtable1), QTABLE_LEN};
