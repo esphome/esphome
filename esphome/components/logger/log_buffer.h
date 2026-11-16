@@ -131,10 +131,10 @@ struct LogBuffer {
     if (!this->full_()) {
       char *p = this->current_();
       const char *const end = p + this->remaining_() - 1;
-      const uintptr_t addr = reinterpret_cast<uintptr_t>(text);
-      const uint32_t *word = reinterpret_cast<const uint32_t *>(addr & ~uintptr_t{3});
-      uint32_t bytes = *word++ >> (8 * (addr & 3));
-      uint32_t left = 4 - (addr & 3);
+      const uint32_t offset = reinterpret_cast<uintptr_t>(text) & 3;
+      const uint32_t *word = reinterpret_cast<const uint32_t *>(text - offset);
+      uint32_t bytes = *word++ >> (8 * offset);
+      uint32_t left = 4 - offset;
       while (p < end) {
         if (left == 0) {
           bytes = *word++;
