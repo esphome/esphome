@@ -676,15 +676,22 @@ ModemState ModemComponent::handle_state_enabling_() {
     ESP_LOGW(TAG, "Failed to disable command echo");
   }
 
-  int radio_state = 0;
-  if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
-    ESP_LOGW(TAG, "Failed to read the radio state; skipping the radio off step");
-  } else if (radio_state != RADIO_STATE_RF_OFF) {
-    // Drops a session left by a warm reboot; unlike CFUN=0, which powers the SIM down on the SIM7600, CFUN=4
-    // keeps the SIM readable for the PIN and the APN. A modem that refuses is used as it is.
-    if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to turn the radio off");
-    }
+  // The APN has to be in the PDP context before the modem attaches; esp_modem only sends it when PPP starts. Some
+  // modems (SIM7670G) only use a context written at CFUN=4 once the SIM restarts, and refuse the attach with an ESM
+  // failure until then, so it goes in at CFUN=0. That also drops a session left by a warm reboot. CFUN=4 then powers
+  // the SIM up for the PIN check with the radio still off, before on_sync and init_at run.
+  // A modem that refuses the context at CFUN=0 gets it at CFUN=4, as before.
+  esp_modem::PdpContext pdp(this->apn_);
+  bool apn_set = false;
+  const bool powered_down = this->dce_->set_radio_state(0) == command_result::OK;
+  if (powered_down) {
+    apn_set = this->dce_->set_pdp_context(pdp) == command_result::OK;
+  }
+  if (!powered_down || this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK ||
+      (!apn_set && this->dce_->set_pdp_context(pdp) != command_result::OK)) {
+    ESP_LOGW(TAG, "Failed to set the APN with the SIM powered down");
+    this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
+    return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
 
   if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
@@ -752,24 +759,7 @@ ModemState ModemComponent::handle_state_connecting_() {
         return ModemState::MODEM_STATE_ENABLING;
       }
     }
-    // The APN has to be in the PDP context before the modem attaches; esp_modem only sends it when PPP starts.
-    // A context written at CFUN=4 is only used once the SIM restarts on some modems (SIM7670G): until then the
-    // attach is refused with an ESM failure. So it goes in at CFUN=0, and CFUN=4 powers the SIM up again.
-    if (this->dce_->set_radio_state(0) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to power the SIM down; setting the APN anyway");
-    }
-    esp_modem::PdpContext pdp(this->apn_);
-    const bool apn_set = this->dce_->set_pdp_context(pdp) == command_result::OK;
-    if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK || !apn_set) {
-      ESP_LOGW(TAG, "Failed to set the APN");
-      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
-      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
-    }
-    this->connect_step_ = ConnectStep::CONNECT_STEP_APN_SET;
-  }
-
-  if (this->connect_step_ == ConnectStep::CONNECT_STEP_APN_SET) {
-    // The SIM answers at CFUN=4, but the modem cannot attach yet
+    // ENABLING set the APN and left the radio at CFUN=4, where the SIM answers but the modem cannot attach yet
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
         break;
