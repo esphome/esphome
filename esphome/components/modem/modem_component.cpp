@@ -677,20 +677,21 @@ ModemState ModemComponent::handle_state_enabling_() {
     ESP_LOGW(TAG, "Failed to disable command echo");
   }
 
-  // The APN has to be in the PDP context before the modem attaches; esp_modem only sends it when PPP starts. Some
-  // modems (SIM7670G) only use a context written at CFUN=4 once the SIM restarts, and refuse the attach with an ESM
-  // failure until then, so it goes in at CFUN=0. That also drops a session left by a warm reboot. CFUN=4 then powers
-  // the SIM up for the PIN check with the radio still off, before on_sync and init_at run.
-  // A modem that refuses either step gets the APN in CONNECTING after the SIM check, as before, and one that refuses
-  // CFUN=4 is used as it is.
+  // The SIM7670G only uses an APN written at CFUN=0 (else the attach fails with an ESM failure); CFUN=0 also drops a
+  // session left by a warm reboot. A modem that refuses gets the APN after the SIM check instead, as before.
   esp_modem::PdpContext pdp(this->apn_);
   this->apn_pending_ = this->dce_->set_radio_state(RADIO_STATE_MINIMUM) != command_result::OK ||
                        this->dce_->set_pdp_context(pdp) != command_result::OK;
   if (this->apn_pending_) {
     ESP_LOGW(TAG, "Failed to set the APN with the SIM powered down; setting it after the SIM check");
   }
-  if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK) {
-    ESP_LOGW(TAG, "Failed to turn the radio off");
+  // CFUN=4 powers the SIM up with the radio still off; a modem without it needs CFUN=1 to bring the SIM back
+  if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK &&
+      this->dce_->set_radio_state(1) != command_result::OK) {
+    ESP_LOGW(TAG, "Failed to power the SIM up");
+    this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
+    this->modem_synced_ = true;  // it answers, so a disable() still tears it down
+    return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
 
   if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
@@ -869,10 +870,9 @@ ModemState ModemComponent::handle_state_disconnecting_() {
     ESP_LOGW(TAG, "Failed to leave data mode");
     this->set_teardown_fault_();
   }
-  // Turn the radio off; waiting for the lost IP event could take up to 2 min. A reconnect only turns the radio off,
-  // since ENABLING powers the SIM down anyway to set the APN; disable() powers it down here.
-  const bool reconnect = this->target_state_.load() == ModemState::MODEM_STATE_CONNECTED;
-  if (this->dce_->set_radio_state(reconnect ? RADIO_STATE_RF_OFF : RADIO_STATE_MINIMUM) == command_result::OK) {
+  // Turn the radio off; waiting for the lost IP event could take up to 2 min. The SIM is powered down as well, as
+  // ENABLING does anyway on a reconnect.
+  if (this->dce_->set_radio_state(RADIO_STATE_MINIMUM) == command_result::OK) {
     ESP_LOGI(TAG, "Radio off");
   } else {
     ESP_LOGW(TAG, "Radio off failed");
