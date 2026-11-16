@@ -86,7 +86,7 @@ dependencies:
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/w5500:
-    version: "2.0.1"
+    version: "1.0.1"
     rules:
       - if: "idf_version >=6.0.0"
   espressif/dm9051:
