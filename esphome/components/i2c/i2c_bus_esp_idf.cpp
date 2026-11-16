@@ -212,58 +212,41 @@ ErrorCode IDFI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t pr
   // START, address, prefix, data, START, address, two reads, STOP
   i2c_operation_job_t jobs[9]{};
   size_t num_jobs = 0;
-  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
-  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
-  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", write_count, read_count);
-  if (read_count == 0 && write_count == 0 && prefix_len == 0) {
-    // basically just a bus probe. Send a start, address and stop
-    ESP_LOGV(TAG, "0x%02X BUS PROBE", address);
-    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+  auto add_write = [&jobs, &num_jobs](const uint8_t *data, size_t len) {
     jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
     jobs[num_jobs].write.ack_check = true;
-    jobs[num_jobs].write.data = &write_addr;
-    jobs[num_jobs++].write.total_bytes = 1;
-  } else {
-    if (prefix_len != 0 || write_count != 0) {
-      if (prefix_len != 0)
-        ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
-      ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
-      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = &write_addr;
-      jobs[num_jobs++].write.total_bytes = 1;
-      if (prefix_len != 0) {
-        jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-        jobs[num_jobs].write.ack_check = true;
-        jobs[num_jobs].write.data = const_cast<uint8_t *>(prefix);
-        jobs[num_jobs++].write.total_bytes = prefix_len;
-      }
-      if (write_count != 0) {
-        jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-        jobs[num_jobs].write.ack_check = true;
-        jobs[num_jobs].write.data = const_cast<uint8_t *>(write_buffer);
-        jobs[num_jobs++].write.total_bytes = write_count;
-      }
-    }
-    if (read_count != 0) {
-      ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
-      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = &read_addr;
-      jobs[num_jobs++].write.total_bytes = 1;
-      if (read_count > 1) {
-        jobs[num_jobs].command = I2C_MASTER_CMD_READ;
-        jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
-        jobs[num_jobs].read.data = read_buffer;
-        jobs[num_jobs++].read.total_bytes = read_count - 1;
-      }
+    jobs[num_jobs].write.data = const_cast<uint8_t *>(data);
+    jobs[num_jobs++].write.total_bytes = len;
+  };
+  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
+  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
+  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", prefix_len + write_count, read_count);
+  // With nothing to write or read this only addresses the device (the bus scan probe)
+  if (prefix_len != 0 || write_count != 0 || read_count == 0) {
+    if (prefix_len != 0)
+      ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
+    ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    add_write(&write_addr, 1);
+    if (prefix_len != 0)
+      add_write(prefix, prefix_len);
+    if (write_count != 0)
+      add_write(write_buffer, write_count);
+  }
+  if (read_count != 0) {
+    ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    add_write(&read_addr, 1);
+    if (read_count > 1) {
       jobs[num_jobs].command = I2C_MASTER_CMD_READ;
-      jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
-      jobs[num_jobs].read.data = read_buffer + read_count - 1;
-      jobs[num_jobs++].read.total_bytes = 1;
+      jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
+      jobs[num_jobs].read.data = read_buffer;
+      jobs[num_jobs++].read.total_bytes = read_count - 1;
     }
+    jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+    jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
+    jobs[num_jobs].read.data = read_buffer + read_count - 1;
+    jobs[num_jobs++].read.total_bytes = 1;
   }
   jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
   ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);

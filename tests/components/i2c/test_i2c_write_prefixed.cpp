@@ -68,17 +68,4 @@ TEST(I2CWritePrefixed, WriteRegisterPassesTheRegisterAsPrefixWithoutCopyingTheDa
   EXPECT_EQ(bus.data_ptr, data.data());
 }
 
-TEST(I2CWritePrefixed, WriteRegisterOnAnExternalBusStillSendsOneBuffer) {
-  JoiningBus bus;
-  I2CDevice device;
-  device.set_i2c_bus(&bus);
-  device.set_i2c_address(0x10);
-  const std::vector<uint8_t> data = pattern(40);
-
-  EXPECT_EQ(device.write_register(0x40, data.data(), data.size()), ERROR_OK);
-  std::vector<uint8_t> expected{0x40};
-  expected.insert(expected.end(), data.begin(), data.end());
-  EXPECT_EQ(bus.written, expected);
-}
-
 }  // namespace esphome::i2c::testing

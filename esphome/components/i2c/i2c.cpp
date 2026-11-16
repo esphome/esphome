@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::i2c {
 
 ESPHOME_LOG_TAG(TAG, "i2c");
@@ -56,8 +58,9 @@ ErrorCode I2CBus::write_prefixed(uint8_t address, const uint8_t *prefix, size_t 
                                  size_t len) {
   SmallBufferWithHeapFallback<20> buffer_alloc(prefix_len + len);
   uint8_t *buffer = buffer_alloc.get();
-  std::copy(prefix, prefix + prefix_len, buffer);
-  std::copy(data, data + len, buffer + prefix_len);
+  std::memcpy(buffer, prefix, prefix_len);
+  if (len != 0)
+    std::memcpy(buffer + prefix_len, data, len);
   return this->write_readv(address, buffer, prefix_len + len, nullptr, 0);
 }
 

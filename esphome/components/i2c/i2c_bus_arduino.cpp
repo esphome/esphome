@@ -102,7 +102,7 @@ ErrorCode ArduinoI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_
   uint8_t status = 0;
   if (prefix_len != 0 || write_count != 0 || read_count == 0) {
     this->wire_->beginTransmission(address);
-    if (this->wire_->write(prefix, prefix_len) != prefix_len ||
+    if ((prefix_len != 0 && this->wire_->write(prefix, prefix_len) != prefix_len) ||
         this->wire_->write(write_buffer, write_count) != write_count) {
       ESP_LOGV(TAG, "TX failed");
       return ERROR_UNKNOWN;
