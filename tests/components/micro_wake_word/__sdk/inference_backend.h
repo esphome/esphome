@@ -50,15 +50,26 @@ class MicroResourceVariables {
 };
 template<int N> class MicroMutableOpResolver {
  public:
-#define TEST_OPERATOR(name) \
-  int name() { return kTfLiteOk; }
-  TEST_OPERATOR(AddCallOnce)
-  TEST_OPERATOR(AddVarHandle) TEST_OPERATOR(AddReshape) TEST_OPERATOR(AddReadVariable) TEST_OPERATOR(AddStridedSlice)
-      TEST_OPERATOR(AddConcatenation) TEST_OPERATOR(AddAssignVariable) TEST_OPERATOR(AddConv2D) TEST_OPERATOR(AddMul)
-          TEST_OPERATOR(AddAdd) TEST_OPERATOR(AddMean) TEST_OPERATOR(AddFullyConnected) TEST_OPERATOR(AddLogistic)
-              TEST_OPERATOR(AddQuantize) TEST_OPERATOR(AddDepthwiseConv2D) TEST_OPERATOR(AddAveragePool2D)
-                  TEST_OPERATOR(AddMaxPool2D) TEST_OPERATOR(AddPad) TEST_OPERATOR(AddPack) TEST_OPERATOR(AddSplitV)
-#undef TEST_OPERATOR
+  int AddCallOnce() { return kTfLiteOk; }
+  int AddVarHandle() { return kTfLiteOk; }
+  int AddReshape() { return kTfLiteOk; }
+  int AddReadVariable() { return kTfLiteOk; }
+  int AddStridedSlice() { return kTfLiteOk; }
+  int AddConcatenation() { return kTfLiteOk; }
+  int AddAssignVariable() { return kTfLiteOk; }
+  int AddConv2D() { return kTfLiteOk; }
+  int AddMul() { return kTfLiteOk; }
+  int AddAdd() { return kTfLiteOk; }
+  int AddMean() { return kTfLiteOk; }
+  int AddFullyConnected() { return kTfLiteOk; }
+  int AddLogistic() { return kTfLiteOk; }
+  int AddQuantize() { return kTfLiteOk; }
+  int AddDepthwiseConv2D() { return kTfLiteOk; }
+  int AddAveragePool2D() { return kTfLiteOk; }
+  int AddMaxPool2D() { return kTfLiteOk; }
+  int AddPad() { return kTfLiteOk; }
+  int AddPack() { return kTfLiteOk; }
+  int AddSplitV() { return kTfLiteOk; }
 };
 class MicroInterpreter {
  public:
