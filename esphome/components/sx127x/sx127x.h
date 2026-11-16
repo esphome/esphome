@@ -166,7 +166,8 @@ class SX127x final : public Component,
   // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX127xError &result);
   SX127xError finish_transmit_(SX127xError result);
-  void write_fifo_(const uint8_t *data, size_t len);
+  void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
+  void write_register16_(uint8_t msb_reg, uint16_t value);
   void read_fifo_(std::vector<uint8_t> &packet);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
