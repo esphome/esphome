@@ -15,7 +15,7 @@ click==8.5.1
 aioesphomeapi==46.30.1
 aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
 zeroconf==0.154.0
-puremagic==2.2.0
+puremagic==2.2.1
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.1
