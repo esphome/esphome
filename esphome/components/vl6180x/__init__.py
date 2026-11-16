@@ -56,9 +56,10 @@ ALS_GAIN_FACTORS = {6: 1.0, 5: 1.25, 4: 1.67, 3: 2.5, 2: 5.0, 1: 10.0, 0: 20.0, 
 RECOVERY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_FAILURE_THRESHOLD, default=3): cv.int_range(min=1, max=255),
-        cv.Optional(
-            CONF_RETRY_INTERVAL, default="30s"
-        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_RETRY_INTERVAL, default="30s"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(max=cv.TimePeriod(milliseconds=0x7FFFFFFF)),
+        ),
         cv.Optional(CONF_MAX_RETRIES, default=10): cv.int_range(min=1, max=255),
     }
 )
@@ -126,6 +127,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: list[ConfigType]) -> None:
+    if not config:
+        # The component is still included for an empty configuration; define
+        # the zero-capacity registry so its C++ declarations compile.
+        cg.add_define("VL6180X_INSTANCE_COUNT", 0)
     for entry in config:
         var = await i2c.new_i2c_component(entry)
         cg.add(var.set_name_str(entry[CONF_ID].id))
@@ -144,5 +149,5 @@ async def to_code(config: list[ConfigType]) -> None:
         if CONF_RECOVERY in entry:
             rec = entry[CONF_RECOVERY]
             cg.add(var.set_failure_threshold(rec[CONF_FAILURE_THRESHOLD]))
-            cg.add(var.set_retry_interval(rec[CONF_RETRY_INTERVAL]))
+            cg.add(var.set_retry_interval(rec[CONF_RETRY_INTERVAL].total_milliseconds))
             cg.add(var.set_max_retries(rec[CONF_MAX_RETRIES]))

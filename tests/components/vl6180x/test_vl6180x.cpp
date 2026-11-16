@@ -71,6 +71,17 @@ class VL6180XComponentTest : public ::testing::Test {
   static bool initialized(const VL6180XComponent &component) { return component.initialized_; }
   static bool retry_limit_reached(const VL6180XComponent &component) { return component.retry_limit_reached_; }
   static uint8_t retry_attempts(const VL6180XComponent &component) { return component.reinit_attempts_; }
+  static bool recovery_paused(const VL6180XComponent &component) { return component.recovery_pause_; }
+  static bool recovery_attempt_active(const VL6180XComponent &component) { return component.recovery_attempt_active_; }
+  static void set_retry_limit_reached(VL6180XComponent &component, bool reached) {
+    component.retry_limit_reached_ = reached;
+  }
+  static void set_consecutive_failures(VL6180XComponent &component, uint8_t failures) {
+    component.consecutive_failures_ = failures;
+  }
+  static uint32_t retry_interval(const VL6180XComponent &component) { return component.retry_interval_ms_; }
+  static uint32_t retry_due_at(const VL6180XComponent &component) { return component.reinit_due_at_; }
+  static uint32_t now(const VL6180XComponent &component) { return component.now_(); }
   static void set_max_retries(VL6180XComponent &component, uint8_t retries) { component.set_max_retries(retries); }
   static void publish_range(VL6180XComponent &component, uint8_t raw, uint8_t error) {
     component.publish_range_(raw, error);
@@ -205,6 +216,42 @@ TEST_F(VL6180XComponentTest, PeriodicallyRetriesAfterConfiguredRetryLimit) {
   VL6180XComponentTest::retry(this->component_);
   EXPECT_FALSE(VL6180XComponentTest::retry_limit_reached(this->component_));
   EXPECT_TRUE(VL6180XComponentTest::initialized(this->component_));
+}
+
+TEST_F(VL6180XComponentTest, HoldsSiblingPauseUntilActiveMeasurementDrains) {
+  RegisterBus shared_bus;
+  VL6180XComponent recovering;
+  VL6180XComponent sibling;
+  recovering.set_i2c_bus(&shared_bus);
+  recovering.set_i2c_address(0x29);
+  sibling.set_i2c_bus(&shared_bus);
+  sibling.set_i2c_address(0x30);
+  shared_bus.set8(0x000, 0xB4);
+  VL6180XComponent::register_instance(&recovering);
+  VL6180XComponent::register_instance(&sibling);
+  VL6180XComponentTest::set_state(recovering, MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT);
+  VL6180XComponentTest::set_state(sibling, MeasurementState::MEASUREMENT_STATE_RANGE_WAIT);
+
+  VL6180XComponentTest::retry(recovering);
+  EXPECT_TRUE(VL6180XComponentTest::recovery_paused(sibling));
+  EXPECT_TRUE(VL6180XComponentTest::recovery_attempt_active(recovering));
+  EXPECT_FALSE(VL6180XComponentTest::initialized(recovering));
+
+  VL6180XComponentTest::set_state(sibling, MeasurementState::MEASUREMENT_STATE_IDLE);
+  VL6180XComponentTest::retry(recovering);
+  EXPECT_FALSE(VL6180XComponentTest::recovery_paused(sibling));
+  EXPECT_FALSE(VL6180XComponentTest::recovery_attempt_active(recovering));
+  EXPECT_TRUE(VL6180XComponentTest::initialized(recovering));
+}
+
+TEST_F(VL6180XComponentTest, RetryLimitUsesAtLeastThirtySecondBackoff) {
+  this->component_.set_retry_interval(1000);
+  VL6180XComponentTest::set_max_retries(this->component_, 1);
+  const uint32_t now = VL6180XComponentTest::now(this->component_);
+  VL6180XComponentTest::retry(this->component_);
+  ASSERT_TRUE(VL6180XComponentTest::retry_limit_reached(this->component_));
+  EXPECT_EQ(VL6180XComponentTest::retry_interval(this->component_), 1000U);
+  EXPECT_GE(VL6180XComponentTest::retry_due_at(this->component_) - now, 30000U);
 }
 
 }  // namespace esphome::vl6180x::testing

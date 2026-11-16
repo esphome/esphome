@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/progmem.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
 #include <algorithm>
@@ -11,6 +12,7 @@ namespace esphome::vl6180x {
 ESPHOME_LOG_TAG(TAG, "vl6180x");
 static constexpr uint32_t LUX_INTERVAL_ID = 0;
 static constexpr uint32_t ALS_INTEGRATION_MARGIN_MS = 400;
+static constexpr uint32_t RETRY_LIMIT_BACKOFF_MS = 30000;
 
 PROGMEM_STRING_TABLE(RangeStatusStrings, "OK", "Hardware Fault", "Target Too Close", "No Target", "Out of Range",
                      "Sensor Error", "Timeout", "Recovering", "Failed");
@@ -832,8 +834,14 @@ bool VL6180XComponent::recover_sensor_() {
     default_address_sensor->enable_pin_->digital_write(true);
     delay(10);
     default_address_sensor->initialized_ = default_address_sensor->init_sensor_();
-    if (default_address_sensor->initialized_)
+    if (default_address_sensor->initialized_) {
+      default_address_sensor->consecutive_failures_ = 0;
+      default_address_sensor->reinit_attempts_ = 0;
+      default_address_sensor->retry_limit_reached_ = false;
       default_address_sensor->status_clear_warning();
+      default_address_sensor->lux_pending_ = false;
+      default_address_sensor->range_pending_ = false;
+    }
     default_address_sensor->state_ = default_address_sensor->initialized_
                                          ? MeasurementState::MEASUREMENT_STATE_IDLE
                                          : MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT;
@@ -858,7 +866,9 @@ void VL6180XComponent::do_recovery_wait_() {
     return;
   }
   if (this->recovery_group_has_active_measurement_()) {
-    this->end_recovery_attempt_();
+    // Keep sibling work paused while the current conversions drain. Releasing
+    // the pause here would let periodic timers continually start new work and
+    // starve recovery indefinitely.
     this->reinit_due_at_ = this->now_() + RECOVERY_COORDINATION_DELAY_MS;
     return;
   }
@@ -883,10 +893,12 @@ void VL6180XComponent::do_recovery_wait_() {
              static_cast<unsigned>(this->reinit_attempts_));
   }
 
-  this->reinit_due_at_ = this->now_() + this->retry_interval_ms_;
+  const uint32_t retry_delay = this->retry_limit_reached_ ? std::max(this->retry_interval_ms_, RETRY_LIMIT_BACKOFF_MS)
+                                                          : this->retry_interval_ms_;
+  this->reinit_due_at_ = this->now_() + retry_delay;
   this->state_ = MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT;
   ESP_LOGW(TAG, "[%s] Reinitialization attempt %u failed; retrying in %lu s", this->name_str_,
-           static_cast<unsigned>(this->reinit_attempts_), static_cast<unsigned long>(this->retry_interval_ms_ / 1000U));
+           static_cast<unsigned>(this->reinit_attempts_), static_cast<unsigned long>(retry_delay / 1000U));
 }
 
 // ---------------------------------------------------------------------------

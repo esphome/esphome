@@ -54,8 +54,12 @@ CONFIG_SCHEMA = cv.All(
             ).extend(
                 {
                     cv.Optional(CONF_GAIN, default=1): cv.enum(ALS_GAINS),
-                    cv.Optional(CONF_INTEGRATION_TIME, default=100): cv.int_range(
-                        min=1, max=512
+                    cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(
+                            min=cv.TimePeriod(milliseconds=1),
+                            max=cv.TimePeriod(milliseconds=512),
+                        ),
                     ),
                     cv.Optional(
                         CONF_UPDATE_INTERVAL
@@ -85,7 +89,11 @@ async def to_code(config: ConfigType) -> None:
         await sensors(CONF_LUX, hub.set_lux_sensor)
         gain_code = lux_config[CONF_GAIN].enum_value
         cg.add(hub.set_als_gain(gain_code, ALS_GAIN_FACTORS[gain_code]))
-        cg.add(hub.set_als_integration_time(lux_config[CONF_INTEGRATION_TIME]))
+        cg.add(
+            hub.set_als_integration_time(
+                lux_config[CONF_INTEGRATION_TIME].total_milliseconds
+            )
+        )
         cg.add_optional(
             hub.set_lux_update_interval, lux_config.get(CONF_UPDATE_INTERVAL)
         )

@@ -5,6 +5,8 @@ vl6180x:
   - id: vl6180x_gain_1x
     i2c_id: i2c_bus
     enable_pin: GPIO4
+    recovery:
+      retry_interval: 1s
   - id: vl6180x_gain_20x
     i2c_id: i2c_bus
     enable_pin: GPIO13
@@ -16,6 +18,7 @@ sensor:
     lux:
       name: VL6180X Lux 1x
       gain: 1
+      integration_time: 100ms
   - platform: vl6180x
     vl6180x_id: vl6180x_gain_20x
     lux:
