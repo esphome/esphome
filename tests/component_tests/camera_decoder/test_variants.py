@@ -4,6 +4,7 @@ import pytest
 
 from esphome.components.camera_decoder import CONFIG_SCHEMA
 from esphome.components.esp32 import (
+    ARDUINO_ALLOWED_VARIANTS,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -45,14 +46,19 @@ UNSUPPORTED_VARIANTS = [VARIANT_ESP32H2, VARIANT_ESP32H21]
 @pytest.mark.parametrize(
     ("platform_framework", "variant"),
     [(PlatformFramework.ESP32_IDF, variant) for variant in SUPPORTED_VARIANTS]
-    + [(PlatformFramework.ESP32_ARDUINO, variant) for variant in SUPPORTED_VARIANTS],
+    # ESPHome only supports the Arduino framework on some variants, and those are
+    # the ones the *-ard.yaml build tests cover.
+    + [
+        (PlatformFramework.ESP32_ARDUINO, variant)
+        for variant in ARDUINO_ALLOWED_VARIANTS
+    ],
 )
 def test_supported_variants(
     set_core_config: SetCoreConfigCallable,
     platform_framework: PlatformFramework,
     variant: str,
 ) -> None:
-    """Every variant with an esp_new_jpeg build validates on both frameworks."""
+    """Every variant with an esp_new_jpeg build validates on the frameworks it supports."""
     set_core_config(
         platform_framework,
         platform_data={KEY_VARIANT: variant},
