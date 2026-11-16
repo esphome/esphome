@@ -11,6 +11,11 @@ remote_receiver:
 
 binary_sensor:
   - platform: remote_receiver
+    name: CanalSatLD Remote Input
+    canalsatld:
+      device: 0x7F
+      command: 0x12
+  - platform: remote_receiver
     name: Haier Remote Input
     haier:
       code: [0xA6, 0x12, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05]

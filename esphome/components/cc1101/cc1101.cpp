@@ -430,6 +430,14 @@ void CC1101Component::loop() {
     this->enter_rx_();
     return;
   }
+  // GDO0 also rises when the FIFO fills, which for a 64 byte packet is before the CRC has arrived
+  if (rx_bytes == RX_FIFO_SIZE) {
+    this->read_(Register::MARCSTATE);
+    if (static_cast<State>(this->state_.MARC_STATE) == State::RX) {
+      this->enable_loop();
+      return;
+    }
+  }
 
   // Read packet
   uint8_t payload_length, expected_rx;
