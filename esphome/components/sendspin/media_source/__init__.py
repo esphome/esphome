@@ -19,6 +19,7 @@ from .. import (
     CONF_CODECS,
     CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
+    CONF_FORMATS.
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
     DEFAULT_CODECS,
@@ -34,7 +35,7 @@ AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
 
 CONF_STATIC_DELAY_ADJUSTABLE = "static_delay_adjustable"
-CONF_FORMATS = "formats"
+
 
 SendspinMediaSource = sendspin_ns.class_(
     "SendspinMediaSource",
