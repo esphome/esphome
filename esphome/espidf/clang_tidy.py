@@ -289,20 +289,20 @@ def _arduino_excluded_stubs(
 ) -> dict[str, dict]:
     """Stub the arduino-bundled IDF components ESPHome doesn't use.
 
-    arduino-esp32 declares deps (libsodium, RainMaker, modbus, ...) that ESPHome
-    replaces with its own library (noise-c) or doesn't use; point each at an
-    empty override_path component so the IDF manager doesn't resolve/download
-    them. Mirrors esp32's ``_write_idf_component_yml``.
+    arduino-esp32 declares deps (RainMaker, modbus, ...) that ESPHome doesn't
+    use; point each at an empty override_path component so the IDF manager
+    doesn't resolve/download them. Mirrors esp32's ``_write_idf_component_yml``.
 
     Components ESPHome's own idf_component.yml provides (e.g. lan867x for
     ethernet) are NOT stubbed -- those are real deps we need, and arduino-esp32
-    resolves to the same component rather than conflicting.
+    resolves to the same component rather than conflicting. Neither is one the
+    manifest replaces through its "overrides" field (espressif/libsodium).
 
     ``converted`` is the manifest block from ``_convert_pio_libs``. IDF names a
     component after its directory and a later registration of the same name
     replaces the earlier one, so a stub beside a converted library of the same
-    name (``espressif/libsodium`` vs ``esphome/libsodium``) would win or lose on
-    path order; such a stub points at the converted library instead.
+    name would win or lose on path order; such a stub points at the converted
+    library instead.
     """
     from esphome.components.esp32 import (
         ARDUINO_EXCLUDED_IDF_COMPONENTS,
@@ -432,8 +432,8 @@ def _generate_compile_commands(
     converted = _convert_pio_libs(platformio_ini, settings.target_framework)
     extra_deps.update(converted)
     if settings.target_framework == "arduino":
-        # Stub the arduino-bundled components ESPHome doesn't use (avoids the
-        # libsodium clash with noise-c and ~26 unused heavy downloads).
+        # Stub the arduino-bundled components ESPHome doesn't use (avoids ~26
+        # unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
 
     # Phase 1: discover the components available for this target.
