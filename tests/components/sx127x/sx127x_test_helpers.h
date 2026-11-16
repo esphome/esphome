@@ -86,6 +86,7 @@ class RadioHardware {
     this->radio.set_preamble_size(8);
     this->radio.set_crc_enable(true);
     this->radio.set_sync_value({0x12});
+    this->radio.set_rx_floor(-94);  // FSK setup converts it to an int, so it must be set
   }
   ~RadioHardware() {
     // The configuration retry interval (id 0) must not outlive the radio
