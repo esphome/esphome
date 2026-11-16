@@ -345,6 +345,7 @@ def test_fragments_checked_in_peers(setup_core, link: dict, match: str) -> None:
         ({CONF_RELIABILITY: None, CONF_SESSION: None}, []),
         ({CONF_SESSION: {"binary_sensor": {"name": "Link"}}}, ["binary_sensor"]),
         ({CONF_ENCRYPTION: "secret"}, ["xxtea"]),
+        ({"compression": None}, ["lzss"]),
         (
             {
                 CONF_ADDRESSING: {
@@ -366,7 +367,7 @@ def test_auto_load_follows_layers(
 
 def test_auto_load_without_config() -> None:
     """Tooling that lists dependencies gets everything a layer could load."""
-    assert packet_interface.AUTO_LOAD() == ["binary_sensor", "xxtea"]
+    assert packet_interface.AUTO_LOAD() == ["binary_sensor", "lzss", "xxtea"]
 
 
 def test_xxtea_key_stretched() -> None:

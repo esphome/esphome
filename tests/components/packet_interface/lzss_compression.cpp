@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <functional>
 #include <memory>
 #include <random>
@@ -35,6 +33,7 @@ class MockLink : public PacketInterface {
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
+  void inject(const PacketBuffer &packet) { this->on_receive_from_interface_(packet, {}); }
 
   std::vector<Packet> sent;
   std::function<void()> on_send;
@@ -163,6 +162,16 @@ TEST_F(LzssCompressionTest, NonContiguousPacket) {
   EXPECT_EQ(b.received[0], whole);
 }
 
+TEST_F(LzssCompressionTest, SplitPacketDropped) {
+  Peer a(JSON_DICTIONARY);
+  Packet head{0x2A, 'a'};
+  Packet tail{'b'};
+  a.link.inject(PacketBuffer(head.data(), head.size(), tail.data(), tail.size()));
+  EXPECT_TRUE(a.received.empty());
+  a.link.inject(Packet{0x2A, 'a', 'b'});
+  EXPECT_EQ(a.received, std::vector<Packet>{text("ab")});
+}
+
 TEST_F(LzssCompressionTest, LargerThanLinkOnlyIfItCompresses) {
   Peer a(WEATHER, 64, 400);
   Peer b(WEATHER, 64, 400);
@@ -187,18 +196,6 @@ TEST_F(LzssCompressionTest, OtherDictionaryDropped) {
   EXPECT_TRUE(b.received.empty());
 }
 
-TEST_F(LzssCompressionTest, LongMatchesAndOverlap) {
-  Peer a("");
-  Peer b("");
-  Packet run(240, 'x');
-  ASSERT_TRUE(a.send(run));
-  // A literal and one overlapping match
-  EXPECT_LE(a.link.sent[0].size(), 5u);
-  a.deliver_to(b);
-  ASSERT_EQ(b.received.size(), 1u);
-  EXPECT_EQ(b.received[0], run);
-}
-
 // A send made while one is still going through the layer below would overwrite the buffer it is reading
 TEST_F(LzssCompressionTest, NestedSendRefused) {
   Peer a(JSON_DICTIONARY);
@@ -221,91 +218,18 @@ TEST_F(LzssCompressionTest, NestedSendRefused) {
   EXPECT_EQ(b.received.back(), text(R"({"state":"ON"})"));
 }
 
-// Any input either expands into the buffer or is dropped; nothing is written past it
-TEST_F(LzssCompressionTest, MalformedPacketsNeverOverrun) {
+// Any input is either expanded within max_packet_size or dropped
+TEST_F(LzssCompressionTest, MalformedPacketsDropped) {
   Peer a(JSON_DICTIONARY, 255, 32);
   std::mt19937 random(3);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
-  Packet guard(64, 0xA5);
   for (int round = 0; round < 20000; round++) {
     Packet packet(1 + random() % 40);
     for (auto &byte : packet)
       byte = random();
     packet[0] = LzssCompression::HEADER_COMPRESSED | 0x2A;
-    Packet out(32 + guard.size());
-    std::memcpy(out.data() + 32, guard.data(), guard.size());
-    PacketBuffer buffer(packet);
-    size_t length = a.compression->expand(buffer, 1, packet.size(), out.data(), 32);
-    ASSERT_TRUE(length == SIZE_MAX || length <= 32);
-    ASSERT_EQ(std::memcmp(out.data() + 32, guard.data(), guard.size()), 0);
     a.link.inject(packet);
     ASSERT_TRUE(a.received.empty() || a.received.back().size() <= 32);
   }
-}
-
-TEST_F(LzssCompressionTest, RandomRoundTrips) {
-  std::mt19937 random(4);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
-  for (const auto *dictionary : {&JSON_DICTIONARY, &WEATHER}) {
-    Peer a(*dictionary, 512);
-    Peer b(*dictionary, 512);
-    for (int round = 0; round < 500; round++) {
-      // Mostly pieces of JSON, so there are matches of every length and distance
-      Packet packet;
-      size_t size = random() % 500;
-      while (packet.size() < size) {
-        if (random() % 3 == 0) {
-          packet.push_back(random());
-        } else {
-          size_t start = random() % WEATHER.size();
-          size_t count = std::min<size_t>(1 + random() % 20, WEATHER.size() - start);
-          packet.insert(packet.end(), WEATHER.begin() + start, WEATHER.begin() + start + count);
-        }
-      }
-      packet.resize(size);
-      ASSERT_TRUE(a.send(packet));
-      a.deliver_to(b);
-      ASSERT_EQ(b.received.size(), 1u);
-      ASSERT_EQ(b.received[0], packet);
-      b.received.clear();
-    }
-  }
-}
-
-TEST_F(LzssCompressionTest, Speed) {
-  Peer a(JSON_DICTIONARY, 2048, 1024);
-  Peer b(JSON_DICTIONARY, 2048, 1024);
-  std::string json;
-  while (json.size() + WEATHER.size() < 1000)
-    json += WEATHER;
-  Packet packet = text(json);
-  constexpr int rounds = 200;
-  auto start = std::chrono::steady_clock::now();
-  for (int round = 0; round < rounds; round++) {
-    a.send(packet);
-    a.link.sent.clear();
-  }
-  auto middle = std::chrono::steady_clock::now();
-  a.send(packet);
-  Packet sent = a.link.sent[0];
-  for (int round = 0; round < rounds; round++)
-    b.link.inject(sent);
-  auto end = std::chrono::steady_clock::now();
-  ASSERT_EQ(b.received.back(), packet);
-  auto us = [](auto d) { return std::chrono::duration_cast<std::chrono::microseconds>(d).count() / rounds; };
-  std::printf("%zu bytes compressed to %zu: %lld us to compress, %lld us to expand, on this host\n", packet.size(),
-              sent.size(), static_cast<long long>(us(middle - start)), static_cast<long long>(us(end - middle)));
-  // The slowest case: every position is searched to the end of the window
-  Packet noise(1000);
-  std::mt19937 random(5);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
-  for (auto &byte : noise)
-    byte = random();
-  start = std::chrono::steady_clock::now();
-  for (int round = 0; round < rounds; round++) {
-    a.send(noise);
-    a.link.sent.clear();
-  }
-  end = std::chrono::steady_clock::now();
-  std::printf("%zu bytes of noise: %lld us to find that it does not compress, on this host\n", noise.size(),
-              static_cast<long long>(us(end - start)));
 }
 
 // With PSRAM, the buffers are allocated at boot and can be missing

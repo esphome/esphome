@@ -4,6 +4,7 @@ import zlib
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
+from esphome.components.lzss import MAX_DICTIONARY_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
@@ -22,8 +23,6 @@ CONF_DICTIONARY = "dictionary"
 
 # Whether the packet is compressed, and the dictionary check
 HEADER_SIZE = 1
-# A match reaches back at most 512 bytes (WINDOW in lzss_compression.h), so a longer dictionary would not help
-MAX_DICTIONARY_SIZE = 512
 
 # Pieces common in JSON, for when no dictionary is given. One made from a typical packet of the application does much
 # better, as most of a short packet is then copied from it.
@@ -66,6 +65,7 @@ def dictionary_check(dictionary: bytes) -> int:
     schema=LZSS_SCHEMA,
     packet_size=_packet_size,
     check_lower=_check_lower,
+    auto_load=lambda config: ["lzss"],
 )
 async def build_lzss(
     config: ConfigType, lower: MockObj, lower_size: PacketSize
