@@ -60,7 +60,8 @@ void MipiDsi::setup() {
       .num_data_lanes = this->lanes_,  // Number of data lanes to use, can't set a value that
                                        // exceeds the chip's capability
       // phy_clk_src left at 0 to enable runtime auto-select.
-      .lane_bit_rate_mbps = static_cast<uint32_t>(this->lane_bit_rate_),  // Bit rate of the data lanes, in Mbps
+      .lane_bit_rate_mbps = static_cast<decltype(esp_lcd_dsi_bus_config_t::lane_bit_rate_mbps)>(
+          this->lane_bit_rate_),  // Bit rate of the data lanes, in Mbps
   };
   auto err = esp_lcd_new_dsi_bus(&bus_config, &this->bus_handle_);
   if (err != ESP_OK) {
@@ -85,7 +86,7 @@ void MipiDsi::setup() {
   }
   esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-                                           .dpi_clock_freq_mhz = static_cast<uint32_t>(this->pclk_frequency_),
+                                           .dpi_clock_freq_mhz = static_cast<decltype(esp_lcd_dpi_panel_config_t::dpi_clock_freq_mhz)>(this->pclk_frequency_),
                                            .in_color_format = color_format,
 #else
   auto pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
@@ -94,7 +95,7 @@ void MipiDsi::setup() {
   }
   esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-                                           .dpi_clock_freq_mhz = static_cast<uint32_t>(this->pclk_frequency_),
+                                           .dpi_clock_freq_mhz = static_cast<decltype(esp_lcd_dpi_panel_config_t::dpi_clock_freq_mhz)>(this->pclk_frequency_),
                                            .pixel_format = pixel_format,
 #endif
                                            .num_fbs = 1,  // number of frame buffers to allocate
