@@ -125,8 +125,9 @@ void LzssCompression::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LZSS Compression on '%s':\n"
                 "  Max Packet Size: %zu\n"
-                "  Dictionary Size: %zu",
-                this->name_, this->max_packet_size_, this->dictionary_size_);
+                "  Dictionary Size: %zu\n"
+                "  Dictionary Check: 0x%02X",
+                this->name_, this->max_packet_size_, this->dictionary_size_, this->check_);
 }
 
 uint8_t LzssCompression::byte_at_(const uint8_t *data, size_t pos) const {
@@ -145,7 +146,9 @@ size_t LzssCompression::compress(const uint8_t *in, size_t size, uint8_t *out, s
   BitWriter writer(out, capacity);
   size_t total = this->dictionary_size_ + size;
   std::fill_n(this->head_, size_t{1} << HASH_BITS, NO_POSITION);
-  for (size_t pos = 0; pos < this->dictionary_size_; pos++)
+  // A match reaches back at most WINDOW bytes, so earlier dictionary bytes are never used
+  for (size_t pos = this->dictionary_size_ > WINDOW ? this->dictionary_size_ - WINDOW : 0; pos < this->dictionary_size_;
+       pos++)
     this->insert_(in, pos, total);
   size_t i = 0;
   while (i < size && !writer.is_full()) {
@@ -176,9 +179,10 @@ size_t LzssCompression::compress(const uint8_t *in, size_t size, uint8_t *out, s
       }
     }
     size_t step = 1;
-    if (best_length >= 2 && 1 + std::bit_width(pos - 1) + gamma_bits(best_length - 1) < LITERAL_BITS * best_length) {
+    const size_t offset_bits = std::bit_width(clamp_at_most(pos, WINDOW) - 1);
+    if (best_length >= 2 && 1 + offset_bits + gamma_bits(best_length - 1) < LITERAL_BITS * best_length) {
       writer.put(0, 1);
-      writer.put(best_offset - 1, std::bit_width(pos - 1));
+      writer.put(best_offset - 1, offset_bits);
       writer.put_gamma(best_length - 1);
       step = best_length;
     } else {
@@ -211,7 +215,7 @@ size_t LzssCompression::expand(const PacketBuffer &data, size_t offset, size_t s
     size_t behind = this->dictionary_size_ + length;
     if (behind == 0)
       return SIZE_MAX;
-    size_t offset_bits = std::bit_width(behind - 1);
+    size_t offset_bits = std::bit_width(clamp_at_most(behind, WINDOW) - 1);
     if (reader.left() < offset_bits)
       return SIZE_MAX;
     size_t distance = reader.get(offset_bits) + 1;

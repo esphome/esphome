@@ -22,7 +22,8 @@ CONF_DICTIONARY = "dictionary"
 
 # Whether the packet is compressed, and the dictionary check
 HEADER_SIZE = 1
-MAX_DICTIONARY_SIZE = 1024
+# A match reaches back at most 512 bytes (WINDOW in lzss_compression.h), so a longer dictionary would not help
+MAX_DICTIONARY_SIZE = 512
 
 # Pieces common in JSON, for when no dictionary is given. One made from a typical packet of the application does much
 # better, as most of a short packet is then copied from it.

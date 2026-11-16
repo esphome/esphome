@@ -435,12 +435,12 @@ def test_compression_defaults(setup_core) -> None:
     assert CONF_MAX_PACKET_SIZE not in compression
     with pytest.raises(cv.Invalid):
         uart_packet_interface.CONFIG_SCHEMA(
-            {CONF_COMPRESSION: {CONF_DICTIONARY: "x" * 1025}}
+            {CONF_COMPRESSION: {CONF_DICTIONARY: "x" * 513}}
         )
     # The limit is on the bytes stored, not the characters
     with pytest.raises(cv.Invalid):
         uart_packet_interface.CONFIG_SCHEMA(
-            {CONF_COMPRESSION: {CONF_DICTIONARY: "\u00e9" * 513}}
+            {CONF_COMPRESSION: {CONF_DICTIONARY: "\u00e9" * 257}}
         )
 
 
