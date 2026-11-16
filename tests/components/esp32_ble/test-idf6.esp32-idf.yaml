@@ -1,0 +1,11 @@
+<<: !include common.yaml
+
+esphome:
+  # Fails the link if anything still calls sscanf; ESP-IDF 6.0 moved to picolibc,
+  # and bluedroid_hex_wraps.cpp keeps its scanf engine out too.
+  build_flags:
+    - "-Wl,--wrap=sscanf"
+
+esp32:
+  framework:
+    version: 6.0.1
