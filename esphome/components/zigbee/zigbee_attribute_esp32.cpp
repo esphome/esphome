@@ -15,8 +15,6 @@ void ZigbeeAttribute::set_attr_internal() {
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     ezb_zcl_status_t state = ezb_zcl_set_attr_value(this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_,
                                                     EZB_ZCL_STD_MANUF_CODE, this->value_p_, false);
-    // cleared before report_internal() so it can disable the loop
-    // when the report has to wait for join
     this->set_attr_requested_ = false;
     if (this->force_report_) {
       this->report_internal(true);
