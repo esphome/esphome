@@ -20,6 +20,17 @@ TEST(SX126xReceiving, ReportsAPacketOnTheWayOrWaiting) {
   EXPECT_FALSE(hw.radio.is_receiving());
 }
 
+// The link would otherwise send over a reception it could not see
+TEST(SX126xReceiving, FailedReadCountsAsReceiving) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.clear_trace();
+  hw.fail_at = 1;  // BUSY stays high for the IRQ read
+  EXPECT_TRUE(hw.radio.is_receiving());
+  hw.clear_trace();
+  EXPECT_FALSE(hw.radio.is_receiving());
+}
+
 TEST(SX126xReceiving, NotWhileSendingOrAsleep) {
   RadioHardware hw;
   hw.configure(true, false);

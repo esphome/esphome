@@ -211,7 +211,8 @@ bool SX126xRadio::is_receiving() {
   this->bus().begin();
   const uint16_t status = this->commands_.read_irq();
   this->busy_ = false;
-  return this->bus().ok() && (status & (IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID)) != 0;
+  // A failed read counts as receiving, so the link holds the send and warns if the radio stays unreadable
+  return !this->bus().ok() || (status & (IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID)) != 0;
 }
 
 RadioEffects SX126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {
