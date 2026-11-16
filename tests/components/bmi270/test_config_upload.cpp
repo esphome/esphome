@@ -4,7 +4,6 @@
 
 #include <array>
 #include <cstring>
-#include <vector>
 #include "esphome/components/bmi270/bmi270.h"
 #include "esphome/components/bmi270/bmi270_config.h"
 
@@ -18,7 +17,7 @@ static constexpr size_t MAX_BURST = 256;
 class Bmi270Bus final : public i2c::I2CBus {
  public:
   std::array<uint8_t, 128> regs{};
-  std::vector<uint8_t> config_memory = std::vector<uint8_t>(sizeof(BMI270_CONFIG_FILE));
+  std::array<uint8_t, sizeof(BMI270_CONFIG_FILE)> config_memory{};
   unsigned upload_writes{0};
 
   Bmi270Bus() {

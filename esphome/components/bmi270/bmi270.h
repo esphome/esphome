@@ -12,7 +12,6 @@
 
 namespace esphome::bmi270 {
 
-//  Register map
 static constexpr uint8_t BMI270_REG_CHIP_ID = 0x00;
 static constexpr uint8_t BMI270_REG_STATUS = 0x03;
 static constexpr uint8_t BMI270_REG_DATA_8 = 0x0C;   // ACC_X LSB
@@ -78,7 +77,6 @@ static constexpr uint8_t BMI270_AUX_IF_CONF_RD_BURST_8 = 0x03;      // bits 1:0 
 static constexpr uint8_t BMI270_AUX_DATA_LEN = 8;
 static_assert(BMI270_REG_AUX_X_LSB + BMI270_AUX_DATA_LEN == BMI270_REG_DATA_8, "aux data must precede accel data");
 
-//  Accelerometer range options
 enum BMI270AccelRange : uint8_t {
   BMI270_ACCEL_RANGE_2G = 0x00,
   BMI270_ACCEL_RANGE_4G = 0x01,
@@ -86,7 +84,6 @@ enum BMI270AccelRange : uint8_t {
   BMI270_ACCEL_RANGE_16G = 0x03,
 };
 
-//  Accelerometer ODR options
 enum BMI270AccelODR : uint8_t {
   BMI270_ACCEL_ODR_12_5 = 0x05,
   BMI270_ACCEL_ODR_25 = 0x06,
@@ -98,7 +95,6 @@ enum BMI270AccelODR : uint8_t {
   BMI270_ACCEL_ODR_1600 = 0x0C,
 };
 
-// Gyroscope range options
 enum BMI270GyroRange : uint8_t {
   BMI270_GYRO_RANGE_2000 = 0x00,
   BMI270_GYRO_RANGE_1000 = 0x01,
@@ -107,7 +103,6 @@ enum BMI270GyroRange : uint8_t {
   BMI270_GYRO_RANGE_125 = 0x04,
 };
 
-// Gyroscope ODR options
 enum BMI270GyroODR : uint8_t {
   BMI270_GYRO_ODR_25 = 0x06,
   BMI270_GYRO_ODR_50 = 0x07,
@@ -128,14 +123,11 @@ enum BMI270AuxDevice : uint8_t {
 };
 #endif
 
-// Main component class
 class BMI270Component final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
-  // Lifecycle
   void setup() override;
   void dump_config() override;
 
-  // Configuration setters
   void set_accel_range(BMI270AccelRange r) { this->accel_range_ = r; }
   void set_accel_odr(BMI270AccelODR o) { this->accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { this->gyro_range_ = r; }
@@ -160,7 +152,6 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   bool write_aux_register_(uint8_t reg, uint8_t value);
 #endif
 
-  // Config
   BMI270AccelRange accel_range_{BMI270_ACCEL_RANGE_4G};
   BMI270AccelODR accel_odr_{BMI270_ACCEL_ODR_100};
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};

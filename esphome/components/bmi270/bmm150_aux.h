@@ -61,20 +61,23 @@ inline uint16_t bmm150_trim_word(const uint8_t *regs, uint8_t reg) {
   return encode_value_le<uint16_t>(&regs[offset]);
 }
 
+// A trim byte, addressed by its register
+inline uint8_t bmm150_trim_byte(const uint8_t *regs, uint8_t reg) { return regs[reg - BMM150_REG_TRIM_START]; }
+
 // Decodes the trim registers; `regs` holds the bytes of registers 0x5D onwards (at least 21).
 inline BMM150Trim bmm150_parse_trim(const uint8_t *regs) {
   BMM150Trim trim;
-  trim.x1 = static_cast<int8_t>(regs[BMM150_TRIM_X1 - BMM150_REG_TRIM_START]);
-  trim.y1 = static_cast<int8_t>(regs[BMM150_TRIM_Y1 - BMM150_REG_TRIM_START]);
+  trim.x1 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_X1));
+  trim.y1 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_Y1));
   trim.z4 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z4));
-  trim.x2 = static_cast<int8_t>(regs[BMM150_TRIM_X2 - BMM150_REG_TRIM_START]);
-  trim.y2 = static_cast<int8_t>(regs[BMM150_TRIM_Y2 - BMM150_REG_TRIM_START]);
+  trim.x2 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_X2));
+  trim.y2 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_Y2));
   trim.z2 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z2));
   trim.z1 = bmm150_trim_word(regs, BMM150_TRIM_Z1);
   trim.xyz1 = bmm150_trim_word(regs, BMM150_TRIM_XYZ1) & BMM150_TRIM_XYZ1_MASK;
   trim.z3 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z3));
-  trim.xy2 = static_cast<int8_t>(regs[BMM150_TRIM_XY2 - BMM150_REG_TRIM_START]);
-  trim.xy1 = regs[BMM150_TRIM_XY1 - BMM150_REG_TRIM_START];
+  trim.xy2 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_XY2));
+  trim.xy1 = bmm150_trim_byte(regs, BMM150_TRIM_XY1);
   return trim;
 }
 

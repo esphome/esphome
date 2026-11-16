@@ -1,6 +1,6 @@
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <cmath>
 #include "esphome/components/bmi270/bmm150_aux.h"
 
 namespace esphome::bmi270::bmm150::testing {
@@ -17,8 +17,6 @@ static BMM150Data reference_convert(const BMM150Trim &trim, const uint8_t *raw) 
       .z = bmm150_compensate_z(trim, z, rhall),
   };
 }
-
-static bool same(float a, float b) { return (std::isnan(a) && std::isnan(b)) || a == b; }
 
 TEST(BMM150Convert, MatchesTheReferenceForEveryWordOfEachField) {
   const BMM150Trim trim{.x1 = 0,
@@ -40,8 +38,9 @@ TEST(BMM150Convert, MatchesTheReferenceForEveryWordOfEachField) {
       raw[2 * field + 1] = word >> 8;
       const BMM150Data got = bmm150_convert(trim, raw);
       const BMM150Data want = reference_convert(trim, raw);
-      ASSERT_TRUE(same(got.x, want.x) && same(got.y, want.y) && same(got.z, want.z))
-          << "field " << field << " word 0x" << std::hex << word;
+      ASSERT_THAT(got.x, ::testing::NanSensitiveFloatEq(want.x)) << "field " << field << " word 0x" << std::hex << word;
+      ASSERT_THAT(got.y, ::testing::NanSensitiveFloatEq(want.y)) << "field " << field << " word 0x" << std::hex << word;
+      ASSERT_THAT(got.z, ::testing::NanSensitiveFloatEq(want.z)) << "field " << field << " word 0x" << std::hex << word;
     }
   }
 }

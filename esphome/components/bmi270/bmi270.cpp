@@ -21,7 +21,6 @@ static constexpr size_t MAX_I2C_BUFFER_SIZE = 32;
 static constexpr size_t MAX_I2C_BUFFER_SIZE = 256;
 #endif
 
-// The BMI270 needs its config file written after every power-on before the sensors work
 bool BMI270Component::load_config_file_() {
   // The config port is only reachable with advanced power save off
   if (!this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_ADV_POWER_SAVE_OFF))
@@ -98,7 +97,7 @@ void BMI270Component::setup() {
   if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
     const LogString *failed_step = this->setup_magnetometer_();
     this->magnetometer_ready_ = failed_step == nullptr;
-    if (failed_step != nullptr) {
+    if (!this->magnetometer_ready_) {
       ESP_LOGW(TAG, "BMM150 magnetometer setup failed at %s; continuing without it", LOG_STR_ARG(failed_step));
     }
   }
@@ -106,6 +105,8 @@ void BMI270Component::setup() {
 }
 
 #ifdef USE_BMI270_BMM150
+static_assert(BMM150_TRIM_BLOCK_LEN == BMI270_AUX_DATA_LEN, "each trim block is one aux read");
+
 bool BMI270Component::wait_for_aux_idle_() {
   static constexpr uint32_t AUX_IDLE_TIMEOUT_MS = 20;
   uint32_t start = millis();
