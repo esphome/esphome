@@ -115,8 +115,8 @@ static int registration_from_reply(const std::string &reply, const char *prefix)
   }
   const char *start = reply.c_str() + comma + 1;
   char *end = nullptr;
-  const long stat = strtol(start, &end, 10);
-  return end == start ? -1 : static_cast<int>(stat);
+  const auto stat = static_cast<int32_t>(strtol(start, &end, 10));
+  return end == start ? -1 : stat;
 }
 
 // Puts a raw reply on one line for the log and drops the final OK
