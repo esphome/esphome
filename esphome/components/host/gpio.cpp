@@ -50,6 +50,9 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   ESP_LOGD(TAG, "Clearing interrupt for pin %d", arg->pin);
 }
+void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  // pass
+}
 
 }  // namespace esphome
 
