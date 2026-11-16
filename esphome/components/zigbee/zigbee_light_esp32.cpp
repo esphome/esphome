@@ -52,9 +52,9 @@ void ZigbeeLight::setup() {
                                                                               &ZigbeeLight::apply_level_, false);
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER);
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_CLIENT);
-    uint8_t value = brightness_to_level(values.get_brightness());
+    uint8_t level_value = brightness_to_level(values.get_brightness());
     this->zb_->add_attr(this->level_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, value);
+                        EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, level_value);
 
     // static attributes for level cluster
     uint16_t transition_time = (uint16_t) (this->light_state_->get_default_transition_length() / 100);  // in 1/10s
@@ -100,15 +100,15 @@ void ZigbeeLight::setup() {
     if (ct) {
       this->ct_forwarder_ = new ZigbeeOnValueForwarder<uint16_t, ZigbeeLight>(this, EZB_ZCL_ATTR_TYPE_UINT16,
                                                                               &ZigbeeLight::apply_ct_, false);
-      uint16_t ct;
+      uint16_t colortemp;
       if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE)) {
-        ct = convert_color_temp(values.get_color_temperature());
+        colortemp = convert_color_temp(values.get_color_temperature());
       } else {
-        ct = get_color_temp(values.get_warm_white(), values.get_cold_white(), traits.get_min_mireds(),
-                            traits.get_max_mireds());
+        colortemp = get_color_temp(values.get_warm_white(), values.get_cold_white(), traits.get_min_mireds(),
+                                   traits.get_max_mireds());
       }
       this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, ct);
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, colortemp);
       uint16_t min_ct = convert_color_temp(traits.get_min_mireds());
       uint16_t max_ct = convert_color_temp(traits.get_max_mireds());
       this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,

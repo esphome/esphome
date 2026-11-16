@@ -2,6 +2,10 @@
 #ifdef USE_ZIGBEE
 #ifdef USE_LIGHT
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace esphome::zigbee {
 // convertion between float 0.0 - 1.0 scale and Zigbee uint8_t scale 1 - 254 with 255 = NaN.
 // theoretically 1 should map to the minimum brightness the light can still show, so should
