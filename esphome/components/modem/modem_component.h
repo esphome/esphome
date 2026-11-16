@@ -62,6 +62,7 @@ enum class ModemFault : uint8_t {
   MODEM_FAULT_PIN_RECORD,
   MODEM_FAULT_SETUP,
   MODEM_FAULT_NOT_ATTACHED,
+  MODEM_FAULT_REGISTRATION_DENIED,
   MODEM_FAULT_PPP,
   MODEM_FAULT_TEARDOWN,
 };
@@ -202,6 +203,7 @@ class ModemComponent : public Component {
   esp_modem::command_result at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   void publish_status_();
   void not_responding_(int baud);
+  void sim_not_ready_(const char *reason);
   void dump_connect_params_();
   SimResult prepare_sim_();
 #ifdef USE_MODEM_PIN_CODE
@@ -291,6 +293,7 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
+  uint8_t sim_polls_{0};  // failed SIM status reads in this attempt
 #ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
   uint8_t poll_ber_{CSQ_UNKNOWN};
@@ -298,6 +301,7 @@ class ModemComponent : public Component {
 #endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
+  bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
   bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];

@@ -56,6 +56,15 @@ static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
 // The attachment is polled every 4 s; the signal and operator queries only every 4th poll
 static constexpr uint32_t ATTACH_POLL_MS = 4000;
 static constexpr uint8_t ATTACH_DIAG_EVERY = 4;
+// AT+CGATT=1 once registered; SIMCom documents up to 75 s
+static constexpr uint32_t ATTACH_TIMEOUT_MS = 75000;
+// AT+CEREG? <stat> values
+static constexpr int REGISTRATION_HOME = 1;
+static constexpr int REGISTRATION_DENIED = 3;
+static constexpr int REGISTRATION_ROAMING = 5;
+// SIM status polls that fail before a warning, and between repeats of it
+static constexpr uint8_t SIM_WARN_AFTER = 10;
+static constexpr uint8_t SIM_WARN_EVERY = 60;
 static constexpr int RADIO_STATE_RF_OFF = 4;  // CFUN=4: transmit and receive off, SIM still powered
 static constexpr uint8_t UART_EVENT_QUEUE_SIZE = 10;
 static constexpr uint32_t BAUD_PREF_HASH = 76007670UL;
@@ -72,8 +81,30 @@ static const LogString *state_to_str(ModemState state) {
 // Indexed by ModemFault
 PROGMEM_STRING_TABLE(ModemFaultStrings, "", "Modem not responding", "Configured baud rate failed",
                      "init_at command failed", "SIM not ready", "SIM locked", "SIM PIN not sent; check pin_code",
-                     "PIN record not saved", "APN or radio setup failed", "No network attachment", "PPP link failed",
-                     "Modem teardown failed");
+                     "PIN record not saved", "APN or radio setup failed", "No network attachment",
+                     "Network registration denied", "PPP link failed", "Modem teardown failed");
+
+// Indexed by the AT+CEREG? <stat> value
+PROGMEM_STRING_TABLE(RegistrationStrings, "not searching", "registered", "searching", "denied", "unknown", "roaming",
+                     "other");
+static const LogString *registration_to_str(int registration) {
+  return RegistrationStrings::get_log_str(static_cast<uint8_t>(registration), RegistrationStrings::LAST_INDEX);
+}
+
+// Puts a raw reply on one line for the log and drops the final OK
+static void flatten_reply(std::string &reply) {
+  std::replace_if(reply.begin(), reply.end(), [](char c) { return c == '\r' || c == '\n'; }, ' ');
+  for (bool strip_ok = true;; strip_ok = false) {
+    const size_t end = reply.find_last_not_of(' ');
+    reply.resize(end == std::string::npos ? 0 : end + 1);
+    const size_t len = reply.size();
+    if (!strip_ok || len < 2 || reply.compare(len - 2, 2, "OK") != 0 || (len > 2 && reply[len - 3] != ' ')) {
+      break;
+    }
+    reply.resize(len - 2);
+  }
+  reply.erase(0, reply.find_first_not_of(' '));
+}
 
 // Indexed by esp_modem::command_result
 PROGMEM_STRING_TABLE(CommandResultStrings, "OK", "FAIL", "TIMEOUT");
@@ -675,6 +706,8 @@ ModemState ModemComponent::handle_state_enabling_() {
   if (this->dce_->set_echo(false) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to disable command echo");
   }
+  // Verbose +CME ERROR text, so a failed command or a missing SIM says why; a modem without it keeps plain ERROR
+  this->dce_->config_mobile_termination_error(2);
 
   int radio_state = 0;
   if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
@@ -724,6 +757,7 @@ ModemState ModemComponent::handle_state_enabling_() {
     ESP_LOGW(TAG, "Modem refused hardware flow control; UART overruns are possible");
   }
   this->modem_synced_ = true;
+  this->answered_ = true;
   return ModemState::MODEM_STATE_SYNCED;
 }
 
@@ -739,6 +773,7 @@ ModemState ModemComponent::handle_state_synced_() {
     this->clear_config_fault_(ModemFault::MODEM_FAULT_INIT_AT);
   }
   this->connect_step_ = ConnectStep::CONNECT_STEP_START;
+  this->sim_polls_ = 0;
   return ModemState::MODEM_STATE_CONNECTING;
 }
 
@@ -786,14 +821,6 @@ ModemState ModemComponent::handle_state_connecting_() {
     this->attach_polls_ = 0;
   }
 
-  if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON) {
-    // A modem still searching for a network refuses this; the attachment poll asks again
-    if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
-      ESP_LOGD(TAG, "Network attachment request refused");
-    }
-    this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
-  }
-
   int attached = 0;
   if (this->dce_->get_network_attachment_state(attached) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to read the network attachment state");
@@ -803,16 +830,41 @@ ModemState ModemComponent::handle_state_connecting_() {
     return this->retry_(ModemState::MODEM_STATE_CONNECTING);
   }
   if (!attached) {
+    int registration = -1;  // stays on a modem without AT+CEREG
+    this->dce_->get_network_registration_state(registration);
+    const bool registered = registration == REGISTRATION_HOME || registration == REGISTRATION_ROAMING;
+    if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON && (registered || registration < 0)) {
+      // Before registration some modems hold the AT channel for minutes on this (SIM7080G: up to 141 s) and
+      // drop every command meanwhile; LTE attaches with the registration anyway
+      std::string output;
+      if (this->dce_->at("AT+CGATT=1", output, ATTACH_TIMEOUT_MS) != command_result::OK) {
+        ESP_LOGD(TAG, "Network attachment request refused");
+      }
+      this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
+      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
     if (this->attach_polls_++ % ATTACH_DIAG_EVERY == 0) {
-      int rssi = 99, ber = 99, registration = -1, mode = -1;  // -1 stays when the query fails
-      this->dce_->get_network_registration_state(registration);
+      int rssi = 99, ber = 99, mode = -1;  // -1 stays when the query fails
       this->dce_->get_signal_quality(rssi, ber);
       this->dce_->get_network_system_mode(mode);
-      ESP_LOGW(TAG, "Modem not attached yet: registration %d, network type %d, CSQ %d, BER %d", registration, mode,
-               rssi, ber);
+      ESP_LOGW(TAG, "Modem not attached yet: registration %d (%s), network type %d, CSQ %d, BER %d", registration,
+               LOG_STR_ARG(registration_to_str(registration)), mode, rssi, ber);
+      if (registration == REGISTRATION_DENIED) {
+        // The modem's reason tells a rejected APN (ESM failure) from a SIM the network does not serve
+        std::string reason;
+        if (this->dce_->at_raw("AT+CEER\r", reason, "OK\r\n", "ERROR", COMMAND_TIMEOUT_MS) != command_result::OK) {
+          reason.clear();
+        }
+        flatten_reply(reason);
+        ESP_LOGW(TAG,
+                 "The network refused registration (%s); check the APN and that the SIM's plan covers this modem's "
+                 "network types",
+                 reason.empty() ? LOG_STR_LITERAL("no reason given") : reason.c_str());
+      }
       this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;  // request the attachment again
     }
-    this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
+    this->set_fault_(registration == REGISTRATION_DENIED ? ModemFault::MODEM_FAULT_REGISTRATION_DENIED
+                                                         : ModemFault::MODEM_FAULT_NOT_ATTACHED);
     return this->retry_(ModemState::MODEM_STATE_CONNECTING, ATTACH_POLL_MS);
   }
 
@@ -915,8 +967,23 @@ void ModemComponent::transition_to_(ModemState next_state) {
 }
 
 void ModemComponent::not_responding_(int baud) {
-  ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
+  if (this->answered_) {
+    // It answered before, so the wiring is fine; a long command or a modem restart keeps it silent for minutes
+    ESP_LOGW(TAG, "Modem not responding at %d baud; it may be busy or restarting", baud);
+  } else {
+    ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
+  }
   this->set_fault_(ModemFault::MODEM_FAULT_NO_RESPONSE);
+}
+
+void ModemComponent::sim_not_ready_(const char *reason) {
+  // A missing or broken SIM never gets ready; the status is polled every second, so only some polls warn
+  if (++this->sim_polls_ == SIM_WARN_AFTER || this->sim_polls_ == SIM_WARN_AFTER + SIM_WARN_EVERY) {
+    this->sim_polls_ = SIM_WARN_AFTER;
+    ESP_LOGW(TAG, "SIM not ready: %s. Check that a working SIM is inserted",
+             reason[0] != '\0' ? reason : LOG_STR_LITERAL("no reply"));
+  }
+  this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
 }
 
 #ifdef USE_MODEM_SEND_AT
@@ -946,8 +1013,12 @@ bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
 #endif
 
 command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
+  // at() keeps no text from a failed command, so the raw reply is read to show the +CME ERROR
   std::string output;
-  const command_result result = this->dce_->at(cmd, output, timeout);
+  std::string line = cmd;
+  line += '\r';
+  const command_result result = this->dce_->at_raw(line, output, "OK\r\n", "ERROR", timeout);
+  flatten_reply(output);
   if (result == command_result::OK) {
     ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd, output.c_str());
   } else {
@@ -964,11 +1035,14 @@ SimResult ModemComponent::prepare_sim_() {
     return SimResult::SIM_RESULT_RETRY;  // the save wakes the task
   }
 #endif
+  // The raw reply keeps the +CME ERROR text a missing SIM gives
   std::string output;
-  if (this->dce_->at("AT+CPIN?", output, COMMAND_TIMEOUT_MS) != command_result::OK) {
+  const command_result result = this->dce_->at_raw("AT+CPIN?\r", output, "OK\r\n", "ERROR", COMMAND_TIMEOUT_MS);
+  flatten_reply(output);
+  if (result != command_result::OK) {
     // A SIM that is still starting answers with an error for a second or so
     ESP_LOGD(TAG, "SIM status not readable yet: %s", output.c_str());
-    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    this->sim_not_ready_(output.c_str());
     return SimResult::SIM_RESULT_RETRY;
   }
   // Anything else, such as an echoed command, is not a status and must not reach the lock checks below
@@ -982,7 +1056,7 @@ SimResult ModemComponent::prepare_sim_() {
   const StringRef status = found != nullptr ? StringRef(found) : StringRef();
   if (status.empty()) {
     ESP_LOGD(TAG, "SIM status not reported yet: %s", output.c_str());
-    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    this->sim_not_ready_(output.c_str());
     return SimResult::SIM_RESULT_RETRY;
   }
   ESP_LOGD(TAG, "SIM: %s", status.c_str());
@@ -1010,8 +1084,8 @@ SimResult ModemComponent::prepare_sim_() {
       this->set_fault_(ModemFault::MODEM_FAULT_SIM_LOCKED);
       return SimResult::SIM_RESULT_LOCKED;
     }
-    ESP_LOGW(TAG, "SIM not ready: %s", status.c_str());  // e.g. NOT READY or NOT INSERTED
-    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    ESP_LOGD(TAG, "SIM not ready: %s", status.c_str());  // e.g. NOT READY or NOT INSERTED
+    this->sim_not_ready_(status.c_str());
     return SimResult::SIM_RESULT_RETRY;
   }
 #ifdef USE_MODEM_PIN_CODE
