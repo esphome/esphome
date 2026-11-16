@@ -5,7 +5,7 @@ espnow:
 packet_interface:
   - platform: espnow
     id: espnow_peer_link
-    peer_address: 11:22:33:44:55:66
+    peer_address: 10:22:33:44:55:66
     encryption: Johnny Cash
     reliability:
     session:

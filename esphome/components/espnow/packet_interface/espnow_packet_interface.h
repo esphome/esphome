@@ -35,6 +35,8 @@ class ESPNowPacketInterface : public packet_interface::PacketInterface,
   void dump_config() override;
   bool send_to_interface(const packet_interface::PacketBuffer &data,
                          const packet_interface::PacketMetaData &meta_data) override;
+  /// The free slots in the ESP-NOW send queue, which every link on this device shares.
+  size_t get_send_capacity() const override { return this->parent_->get_send_queue_free(); }
 
   bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override;
   bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override;

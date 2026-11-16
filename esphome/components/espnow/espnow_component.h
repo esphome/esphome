@@ -152,6 +152,10 @@ class ESPNowComponent final : public Component {
     return this->send(peer_address, payload.data(), payload.size(), std::move(callback));
   }
   esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size, send_callback_t callback = nullptr);
+  /// How many more packets send() can queue now; they share one pool.
+  size_t get_send_queue_free() const {
+    return MAX_ESP_NOW_SEND_QUEUE_SIZE - 1 - this->send_packet_queue_.size() - (this->current_send_packet_ != nullptr);
+  }
 
   void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {

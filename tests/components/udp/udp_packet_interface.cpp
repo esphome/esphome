@@ -3,9 +3,12 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/udp/packet_interface/udp_packet_interface.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_NETWORK
 
@@ -101,6 +104,44 @@ TEST_F(UdpPacketInterfaceTest, WithPeerAcceptsOnlyPeer) {
   EXPECT_TRUE(link.received.empty());
   link.receive_(packet, reinterpret_cast<sockaddr *>(&peer));
   EXPECT_EQ(link.received, std::vector<Packet>{packet});
+}
+
+// Collects each warning logged
+class Warnings {
+ public:
+  Warnings() : previous_(logger::global_logger) {
+    this->logger_.pre_setup();
+    this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
+    this->logger_.add_log_callback(this, [](void *instance, uint8_t, const char *, const char *message, size_t len) {
+      static_cast<Warnings *>(instance)->lines.emplace_back(message, len);
+    });
+  }
+  ~Warnings() { logger::global_logger = this->previous_; }
+
+  std::vector<std::string> lines;
+
+ private:
+  logger::Logger *previous_;
+  logger::Logger logger_{0};
+};
+
+TEST_F(UdpPacketInterfaceTest, DroppedSenderWarnedOnceAMinute) {
+  TestUdp link(&this->udp_, PEER);
+  Warnings warnings;
+  Packet packet{1, 2};
+  auto drop_at = [&](uint32_t now) {
+    LoopBlockingGuard guard{nullptr, nullptr, now};
+    link.receive_(packet, reinterpret_cast<sockaddr *>(&this->sender_));
+  };
+  drop_at(1000);
+  ASSERT_EQ(warnings.lines.size(), 1u);
+  EXPECT_NE(warnings.lines[0].find("dropped"), std::string::npos);
+  drop_at(30000);
+  drop_at(60999);
+  EXPECT_EQ(warnings.lines.size(), 1u);
+  drop_at(61000);
+  EXPECT_EQ(warnings.lines.size(), 2u);
+  EXPECT_TRUE(link.received.empty());
 }
 
 TEST_F(UdpPacketInterfaceTest, WithPeerDropsSenderNotIpv4) {

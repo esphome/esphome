@@ -29,8 +29,10 @@ class MockLink : public PacketInterface {
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
+  size_t get_send_capacity() const override { return this->capacity; }
 
   std::vector<Packet> sent;
+  size_t capacity{SIZE_MAX};
 };
 
 static PacketMetaData destination(uint16_t address) {
@@ -90,6 +92,14 @@ TEST(BasicAddressingTest, HeaderAndCapability) {
   EXPECT_EQ(a.link.top(), a.port().port.get());
   a.port().send({0xAA});
   EXPECT_EQ(a.link.sent, (std::vector<Packet>{{0x78, 0x56, 0x34, 0x12, 0xAA}}));
+}
+
+// A fragmentation layer above a port must see how much the link can take
+TEST(BasicAddressingTest, PortsReportTheLinksSendCapacity) {
+  Device a(0x1234, {BROADCAST, 0x5678});
+  a.link.capacity = 7;
+  EXPECT_EQ(a.port(0).port->get_send_capacity(), 7u);
+  EXPECT_EQ(a.port(1).port->get_send_capacity(), 7u);
 }
 
 TEST(BasicAddressingTest, ChosenDestinationOnlyThroughBroadcastPort) {

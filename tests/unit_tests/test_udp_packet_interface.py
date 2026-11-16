@@ -18,6 +18,7 @@ import esphome.final_validate as fv
     [
         ([IPv4Address("192.168.1.60")], None, IPv4Address("192.168.1.60")),
         ([IPv4Address("255.255.255.255")], None, None),
+        ([IPv4Address("0.0.0.0")], None, None),
         ([IPv4Address("192.168.1.255")], None, None),
         ([IPv4Address("239.0.60.53")], None, None),
         ([IPv4Address("192.168.1.60"), IPv4Address("192.168.1.61")], None, None),
@@ -40,6 +41,8 @@ def test_peer(
     [
         [IPv4Address("239.0.60.53")],
         [IPv4Address("192.168.1.60"), IPv4Address("192.168.1.61")],
+        [IPv4Address("255.255.255.255")],
+        [IPv4Address("0.0.0.0")],
     ],
 )
 def test_point_to_point_needs_one_unicast_address(addresses: list) -> None:

@@ -53,7 +53,12 @@ def _peer(udp_config: ConfigType, config: ConfigType) -> IPv4Address | None:
     """
     point_to_point = config.get(CONF_POINT_TO_POINT)
     match udp_config[CONF_ADDRESSES]:
-        case [IPv4Address() as address] if not address.is_multicast:
+        # Neither all zeros nor all ones is one device's address
+        case [IPv4Address() as address] if not (
+            address.is_multicast
+            or address.is_unspecified
+            or address == IPv4Address("255.255.255.255")
+        ):
             if point_to_point is None:
                 point_to_point = address.packed[3] != 255
             return address if point_to_point else None
