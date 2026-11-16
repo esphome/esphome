@@ -19,11 +19,20 @@ def test_broadcast_takes_addressing(setup_core) -> None:
 
 def test_peer_rejects_addressing(setup_core) -> None:
     """Packets to one peer are already addressed."""
-    assert espnow_packet_interface.CONFIG_SCHEMA({"peer_address": "11:22:33:44:55:66"})
+    assert espnow_packet_interface.CONFIG_SCHEMA({"peer_address": "10:22:33:44:55:66"})
     with pytest.raises(cv.Invalid, match="addressing"):
         espnow_packet_interface.CONFIG_SCHEMA(
-            {"peer_address": "11:22:33:44:55:66", "addressing": ADDRESSING}
+            {"peer_address": "10:22:33:44:55:66", "addressing": ADDRESSING}
         )
+
+
+@pytest.mark.parametrize(
+    "mac", ["11:22:33:44:55:66", "01:00:5E:00:00:01", "00:00:00:00:00:00"]
+)
+def test_peer_must_be_one_device(setup_core, mac: str) -> None:
+    """A group or all-zero address names no one device, so source filtering would drop everything."""
+    with pytest.raises(cv.Invalid, match="not the address of a device"):
+        espnow_packet_interface.CONFIG_SCHEMA({"peer_address": mac})
 
 
 def test_broadcast_needs_addressing_for_two_device_layers(setup_core) -> None:
@@ -34,7 +43,7 @@ def test_broadcast_needs_addressing_for_two_device_layers(setup_core) -> None:
         {"reliability": None, "addressing": ADDRESSING}
     )
     assert espnow_packet_interface.CONFIG_SCHEMA(
-        {"peer_address": "11:22:33:44:55:66", "reliability": None}
+        {"peer_address": "10:22:33:44:55:66", "reliability": None}
     )
 
 

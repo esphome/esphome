@@ -60,6 +60,7 @@ class AddressingPort : public PacketInterface {
    * packet to this device's own address is refused, as every receiver drops it.
    */
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
+  size_t get_send_capacity() const override { return this->addressing_->get_link()->get_send_capacity(); }
   uint16_t get_destination() const { return this->destination_; }
 
  protected:

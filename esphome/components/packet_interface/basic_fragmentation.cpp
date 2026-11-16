@@ -55,7 +55,7 @@ void BasicFragmentation::dump_config() {
                 "  Fragments in the Largest Packet: %zu",
                 this->name_, this->max_packet_size_, this->fragment_size_(), fragments);
   if (this->queue_too_short_) {
-    ESP_LOGW(TAG, "  The reliability queue is too short for the largest packets, which cannot be sent");
+    ESP_LOGW(TAG, "  The layer below has room for too few fragments for the largest packets, which cannot be sent");
   }
 }
 
