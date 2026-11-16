@@ -60,8 +60,8 @@
 // Host with its own radio: Wi-Fi goes to the esp32_hosted co-processor, the host radio stays free
 #include <esp_wifi_remote.h>
 #include "esphome/components/watchdog/watchdog.h"
-// esp_wifi_remote_create_default_sta/ap() use the keys WIFI_STA_RMT/WIFI_AP_RMT, but esp_hosted drops
-// received frames unless it finds the netif as WIFI_STA_DEF/WIFI_AP_DEF
+// esp_wifi_remote 1.6 create_default_sta/ap() use the keys WIFI_STA_RMT/WIFI_AP_RMT, but esp_hosted 3.1 drops
+// received frames unless it finds the netif as WIFI_STA_DEF/WIFI_AP_DEF; declared in esp_wifi_remote_net2.c
 extern "C" esp_netif_t *esp_netif_create_wifi_remote(wifi_interface_t wifi_if,
                                                      const esp_netif_inherent_config_t *esp_netif_config);
 extern "C" esp_err_t esp_wifi_set_default_wifi_remote_sta_handlers();
@@ -103,7 +103,7 @@ static esp_netif_t *create_remote_ap() {
 #define esp_wifi_sta_get_ap_info esp_wifi_remote_sta_get_ap_info
 #define esp_wifi_start esp_wifi_remote_start
 #define esp_wifi_stop esp_wifi_remote_stop
-// Keeps esp_hosted's esp_wifi_* HE stubs, meant for hosts without a radio, out of the link
+// Keeps esp_hosted 3.1's esp_wifi_* HE stubs, meant for hosts without a radio, out of the link
 extern "C" const char eh_wifi_he_with_hosted_anchor = 0;  // NOLINT(readability-identifier-naming)
 #endif
 

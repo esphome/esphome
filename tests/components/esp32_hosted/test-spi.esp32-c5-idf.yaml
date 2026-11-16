@@ -11,5 +11,9 @@ esp32_hosted:
   cs_pin: GPIO7
 
 wifi:
+  use_coprocessor: true
   ssid: MySSID
   password: password1
+  ap:
+    ssid: Fallback
+    password: password2

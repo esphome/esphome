@@ -162,6 +162,7 @@ CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
+CONF_USE_COPROCESSOR = "use_coprocessor"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_ON_AP_START = "on_ap_start"
 CONF_ON_AP_STOP = "on_ap_stop"
@@ -548,6 +549,26 @@ def final_validate(config):
             "The AP will not be usable for configuration or monitoring. "
             "Add 'captive_portal:' or 'web_server:' to your configuration."
         )
+    if config.get(CONF_USE_COPROCESSOR):
+        if "esp32_hosted" not in full_config:
+            raise cv.Invalid(
+                "use_coprocessor needs esp32_hosted", path=[CONF_USE_COPROCESSOR]
+            )
+        if not variant_has_wifi(get_esp32_variant()):
+            raise cv.Invalid(
+                "use_coprocessor is only for hosts with a Wi-Fi radio of their own; "
+                "without one, Wi-Fi always runs on the co-processor",
+                path=[CONF_USE_COPROCESSOR],
+            )
+        # Enterprise authentication and DPP run in the host's own supplicant
+        if has_dpp:
+            raise cv.Invalid(
+                "dpp cannot be combined with use_coprocessor", path=[CONF_DPP]
+            )
+        if any(CONF_EAP in net for net in config.get(CONF_NETWORKS, [])):
+            raise cv.Invalid(
+                "eap cannot be combined with use_coprocessor", path=[CONF_NETWORKS]
+            )
     if "esp32_hosted" in full_config and any(
         CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
     ):
@@ -715,6 +736,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DPP): cv.All(cv.only_on_esp32, _dpp_schema),
+            cv.SplitDefault(CONF_USE_COPROCESSOR, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
@@ -920,9 +944,10 @@ async def to_code(config):
     if CORE.is_esp32:
         request_wifi(ap=CONF_AP in config)
         # A host with its own radio reaches the esp32_hosted co-processor's Wi-Fi only via esp_wifi_remote_*
-        if "esp32_hosted" in CORE.config and variant_has_wifi(get_esp32_variant()):
+        if config.get(CONF_USE_COPROCESSOR):
             cg.add_define("USE_WIFI_REMOTE")
-            # esp_hosted posts WIFI_EVENT, the esp_wifi_remote netif handlers wait on the undefined WIFI_REMOTE_EVENT
+            # esp_hosted 3.1 posts WIFI_EVENT, the esp_wifi_remote 1.6 netif handlers wait on the undefined
+            # WIFI_REMOTE_EVENT
             cg.add_build_flag("-Wl,--defsym=WIFI_REMOTE_EVENT=WIFI_EVENT")
             # esp_hosted's iTWT wrappers reuse esp_wifi_* names that the host's own driver defines
             add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_ITWT", False)
