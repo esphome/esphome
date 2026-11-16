@@ -358,6 +358,8 @@ class EthernetComponent final : public Component {
   // to be called at runtime after enable_on_boot:false without re-allocating, and
   // ensures setup() skips the heavy init when enable_on_boot_ is false.
   bool ethernet_initialized_{false};
+  // PHY link state from ETHERNET_EVENT_CONNECTED/DISCONNECTED; the connect timeout retries only with a link.
+  bool link_up_{false};
 #endif
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
