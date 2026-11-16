@@ -62,3 +62,19 @@ Results: https://github.com/esphome/esphome/pull/16445#issuecomment-6335435397
 An API client that connects allocates about 15 times on ESP32: the connection object, then the list entities and
 initial state batches growing the `DeferredBatch` vector. A log subscription adds more per line. Connect before a
 heap measurement and subscribe to logs only afterwards (`heap_alloc.md`).
+
+## Native API connect/disconnect stress (#14679, #14687, #14706)
+
+`scripts/api/connstress.py HOST [ITERATIONS] [CONCURRENCY]` (aioesphomeapi; `API_KEY` env for a noise key) opens and
+closes native API connections as fast as it can, 500 attempts with 4 at a time by default, and ends with
+`RESULT PASS` or `RESULT FAIL`. It is the test that found the raw lwIP socket heap corruption, so run it for any change to
+the socket layer, the scheduler or locking on RP2040/RP2350 and ESP8266, with a bounded serial capture on the device:
+the client only sees resets, the crash is in the log.
+
+- RP2040/RP2350 before #14687: crashed after 3 or 4 iterations (`malloc` from the lwIP accept IRQ while the main loop
+  was in `malloc`: double free in `~APIFrameHelper`, `_malloc_r` in `APIConnection()`); after: 500/500. #14679 first
+  added the lwIP locking between the lwIP callbacks and the main loop on RP2040.
+- ESP8266 before #14706: crashed within about 50 iterations (`umm_malloc_core` LoadStoreError, use after free of a
+  closed PCB's callbacks); after: 490/500, the 10 failures are connection resets from overload, which is expected there.
+- ESP32 (BSD sockets) passes 500/500 on both and is the control.
+- Compare against dev on the same board; count reboots and decode crash addresses as well as the client's failures.
