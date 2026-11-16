@@ -212,7 +212,7 @@ ErrorCode IDFI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t pr
   // START, address, prefix, data, START, address, two reads, STOP
   i2c_operation_job_t jobs[9]{};
   size_t num_jobs = 0;
-  auto add_write = [&jobs, &num_jobs](const uint8_t *data, size_t len) {
+  auto add_write = [&jobs, &num_jobs](const uint8_t *data, size_t len) ESPHOME_ALWAYS_INLINE {
     jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
     jobs[num_jobs].write.ack_check = true;
     jobs[num_jobs].write.data = const_cast<uint8_t *>(data);
