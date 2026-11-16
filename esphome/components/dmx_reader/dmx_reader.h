@@ -12,15 +12,22 @@
 // Stubs for clang-tidy / non-ESP32 analysis environments where the
 // PlatformIO library is not on the include path.
 using dmx_port_t = int;
-struct dmx_config_t {};
-struct dmx_packet_t {
+
+struct DmxConfigT {};
+using dmx_config_t = DmxConfigT;
+
+struct DmxPacketT {
   int err;
   bool is_rdm;
 };
-struct dmx_personality_t {
+using dmx_packet_t = DmxPacketT;
+
+struct DmxPersonalityT {
   int id;
-  const char* name;
+  const char *name;
 };
+using dmx_personality_t = DmxPersonalityT;
+
 static constexpr size_t DMX_PACKET_SIZE = 513;
 static constexpr int DMX_OK = 0;
 inline dmx_config_t dmx_config_default() { return {}; }
