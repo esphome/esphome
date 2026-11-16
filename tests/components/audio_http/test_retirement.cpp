@@ -16,35 +16,42 @@
 
 // Enable only this existing ESP adapter translation unit; the workers remain native pthreads.
 #define USE_ESP32
+// NOLINTNEXTLINE(bugprone-suspicious-include): exercise production code with the host SDK boundary.
 #include "esphome/components/audio_http/audio_http_media_source.cpp"
 #undef USE_ESP32
 
 namespace esphome::audio_http::testing {
-std::atomic<unsigned> threads_created{0}, threads_joined{0};
-std::vector<uint8_t> body;
-std::atomic<bool> natural_end{false}, reader_fault{false};
-std::atomic<unsigned> transport_errors{0}, transport_closed{0};
+struct HttpFixtureState {
+  std::atomic<unsigned> threads_created{0}, threads_joined{0};
+  std::vector<uint8_t> body;
+  std::atomic<bool> natural_end{false}, reader_fault{false};
+  std::atomic<unsigned> transport_errors{0}, transport_closed{0};
+};
+HttpFixtureState &fixture() {
+  static HttpFixtureState state;
+  return state;
+}
 class FaultHttpClient : public micro_decoder::HttpClient {
  public:
   bool open(const micro_decoder::HttpRequest &) override { return true; }
   const micro_decoder::HttpResponse &response_info() const override { return this->response_; }
   int read(uint8_t *data, size_t capacity) override {
-    if (this->position_ < body.size()) {
-      size_t length = std::min(capacity, body.size() - this->position_);
-      std::memcpy(data, body.data() + this->position_, length);
+    if (this->position_ < fixture().body.size()) {
+      size_t length = std::min(capacity, fixture().body.size() - this->position_);
+      std::memcpy(data, fixture().body.data() + this->position_, length);
       this->position_ += length;
       return static_cast<int>(length);
     }
-    if (!reader_fault.load())
+    if (!fixture().reader_fault.load())
       return 0;
-    ++transport_errors;
+    ++fixture().transport_errors;
     return -1;
   }
-  bool is_complete() const override { return natural_end.load() && this->position_ == body.size(); }
+  bool is_complete() const override { return fixture().natural_end.load() && this->position_ == fixture().body.size(); }
   void close() override {
     if (!this->closed_) {
       this->closed_ = true;
-      ++transport_closed;
+      ++fixture().transport_closed;
     }
   }
 
@@ -56,19 +63,24 @@ class FaultHttpClient : public micro_decoder::HttpClient {
 
 }  // namespace esphome::audio_http::testing
 
-extern "C" int __real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
-extern "C" int __real_pthread_join(pthread_t, void **);
-extern "C" int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attributes, void *(*entry)(void *),
-                                     void *argument) {
-  int result = __real_pthread_create(thread, attributes, entry, argument);
+// GNU ld --wrap requires these ABI symbols; C++ identifiers stay ordinary names.
+extern "C" int real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *)
+    asm("__real_pthread_create");
+extern "C" int real_pthread_join(pthread_t, void **) asm("__real_pthread_join");
+extern "C" int wrapped_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *)
+    asm("__wrap_pthread_create");
+extern "C" int wrapped_pthread_join(pthread_t, void **) asm("__wrap_pthread_join");
+extern "C" int wrapped_pthread_create(pthread_t *thread, const pthread_attr_t *attributes, void *(*entry)(void *),
+                                       void *argument) {
+  int result = real_pthread_create(thread, attributes, entry, argument);
   if (result == 0)
-    ++esphome::audio_http::testing::threads_created;
+    ++esphome::audio_http::testing::fixture().threads_created;
   return result;
 }
-extern "C" int __wrap_pthread_join(pthread_t thread, void **value) {
-  int result = __real_pthread_join(thread, value);
+extern "C" int wrapped_pthread_join(pthread_t thread, void **value) {
+  int result = real_pthread_join(thread, value);
   if (result == 0)
-    ++esphome::audio_http::testing::threads_joined;
+    ++esphome::audio_http::testing::fixture().threads_joined;
   return result;
 }
 namespace micro_decoder {
@@ -99,14 +111,14 @@ class RetirementListener : public esphome::media_source::MediaSourceListener {
   }
   void report_state(esphome::media_source::MediaSourceState state) override {
     if (state == esphome::media_source::MediaSourceState::IDLE) {
-      this->at_idle.emplace_back(threads_created.load() - this->created_before,
-                                 threads_joined.load() - this->joined_before);
+      this->at_idle.emplace_back(fixture().threads_created.load() - this->created_before,
+                                 fixture().threads_joined.load() - this->joined_before);
       if (this->at_idle.size() == 1 && this->restart_source != nullptr)
         this->restart_accepted = this->restart_source->play_uri("http://fixture.test/next.flac");
     }
   }
-  const unsigned created_before{threads_created.load()};
-  const unsigned joined_before{threads_joined.load()};
+  const unsigned created_before{fixture().threads_created.load()};
+  const unsigned joined_before{fixture().threads_joined.load()};
   std::vector<std::pair<unsigned, unsigned>> at_idle;
   std::vector<uint8_t> pcm;
   esphome::audio_http::AudioHTTPMediaSource *restart_source{nullptr};
@@ -116,17 +128,17 @@ class RetirementListener : public esphome::media_source::MediaSourceListener {
 class HttpRetirement : public ::testing::Test {
  protected:
   void SetUp() override {
-    body = fixture_bytes("fixture.flac");
-    ASSERT_GT(body.size(), 1024u);
-    natural_end.store(true);
-    reader_fault.store(false);
-    transport_errors.store(0);
-    transport_closed.store(0);
+    fixture().body = fixture_bytes("fixture.flac");
+    ASSERT_GT(fixture().body.size(), 1024u);
+    fixture().natural_end.store(true);
+    fixture().reader_fault.store(false);
+    fixture().transport_errors.store(0);
+    fixture().transport_closed.store(0);
   }
 };
 TEST_F(HttpRetirement, NaturalEndJoinsRealWorkersBeforePublishingIdle) {
   using namespace esphome;
-  ASSERT_GT(body.size(), 1024u);
+  ASSERT_GT(fixture().body.size(), 1024u);
   RetirementListener listener;
   audio_http::AudioHTTPMediaSource source;
   source.media_source::MediaSource::set_listener(&listener);
@@ -143,8 +155,8 @@ TEST_F(HttpRetirement, NaturalEndJoinsRealWorkersBeforePublishingIdle) {
   ASSERT_EQ(at_idle.size(), 1u);
   EXPECT_EQ(at_idle.front(), (std::pair<unsigned, unsigned>{2, 2}));
   EXPECT_EQ(listener.pcm, fixture_bytes("reference.pcm"));
-  EXPECT_EQ(transport_errors.load(), 0u);
-  EXPECT_EQ(transport_closed.load(), 1u);
+  EXPECT_EQ(fixture().transport_errors.load(), 0u);
+  EXPECT_EQ(fixture().transport_closed.load(), 1u);
   EXPECT_EQ(source.get_state(), media_source::MediaSourceState::IDLE);
   EXPECT_TRUE(source.is_idle());
 }
@@ -171,8 +183,8 @@ TEST_F(HttpRetirement, IdleListenerCanStartTheNextRealHttpPlayback) {
   const auto second = expected;
   expected.insert(expected.end(), second.begin(), second.end());
   EXPECT_EQ(listener.pcm, expected);
-  EXPECT_EQ(transport_closed.load(), 2u);
-  EXPECT_EQ(transport_errors.load(), 0u);
+  EXPECT_EQ(fixture().transport_closed.load(), 2u);
+  EXPECT_EQ(fixture().transport_errors.load(), 0u);
   EXPECT_TRUE(source.is_idle());
 }
 
