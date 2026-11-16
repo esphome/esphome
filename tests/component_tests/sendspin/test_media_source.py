@@ -26,16 +26,13 @@ AUDIO_FORMAT_RE = re.compile(
     r"\.bit_depth = (\d+)"
 )
 
-
-def _media_source_config(**overrides: Any) -> ConfigType:
-    """Build a minimal valid media source config, allowing field overrides."""
-    config: ConfigType = {
-        "id": "sendspin_media_source",
+def _media_source_config(sample_rate=48000, bits_per_sample=16, **kwargs):
+    return {
+        "platform": "sendspin",
         "sendspin_id": "sendspin_hub",
-    }
-    config.update(overrides)
-    return config
-
+        "formats": [{"sample_rate": sample_rate, "bits_per_sample": bits_per_sample}],
+        **kwargs,
+    }   
 
 def test_default_codecs_at_48_khz(set_core_config: SetCoreConfigCallable) -> None:
     """Every codec is advertised when the sample rate suits all of them."""
@@ -97,7 +94,7 @@ def test_opus_at_wrong_sample_rate_rejected(
     dropping the stated preference."""
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    with pytest.raises(cv.Invalid, match="requires a sample_rate of 48000"):
+    with pytest.raises(cv.Invalid, match="requires a format with sample_rate of 48000"):
         CONFIG_SCHEMA(_media_source_config(codecs=["opus"], sample_rate=44100))
 
 
