@@ -55,6 +55,16 @@ def test_adafruit_ble_config_builds_ota_component(
     assert "adafruit_ble::OTAComponent" in main_cpp
 
 
+def test_manual_mode_builds_without_application_bluetooth(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("adafruit_ble_manual.yaml"))
+    assert "firmware_update->request_dfu_mode();" in main_cpp
+    assert "zephyr_ble_server" not in CORE.loaded_integrations
+    assert "USE_ADAFRUIT_BLE_TRIGGER" not in {d.name for d in CORE.defines}
+
+
 def test_requires_zephyr_ble_server(
     component_config_path: Callable[[str], Path], capsys: pytest.CaptureFixture[str]
 ) -> None:
