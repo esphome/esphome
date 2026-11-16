@@ -105,7 +105,7 @@ class SX126xRadio {
   bool can_change_mode() const { return !this->busy_ && this->state_ == RadioState::RADIO_STATE_IDLE; }
   size_t max_packet_size() const { return this->applied_.max_packet_size(); }
   // True while a packet is being received, or has been received and not yet read, so a send would lose it.
-  // Reads the chip only when the radio is idle and listening; any other state reports false.
+  // Reads the chip only when the radio is idle and listening; any other state reports false, a failed read true.
   bool is_receiving();
 
   // Requires can_configure(). Resets the chip and applies the requested profile.

@@ -245,6 +245,11 @@ def _two_way_layer(config: ConfigType) -> str | None:
     return None
 
 
+def takes_turns(config: ConfigType) -> bool:
+    """Whether sends wait for the peer to reply: only a reliability layer's peer answers each packet at once."""
+    return next(reliability_layers(config), None) is not None
+
+
 def radio_link_final_validate(
     radio_id_key: str,
     payload_length_key: str,
@@ -301,6 +306,6 @@ async def new_radio_link(
     radio = await cg.get_variable(config[radio_id_key])
     var = await new_packet_interface(config, radio, config[CONF_MAX_PACKET_SIZE])
     cg.add(var.set_max_busy(max_busy_ms(radio_config, packet_size)))
-    # Taking turns only helps a link whose peer replies, and would hold up a run of one-way sends
-    if _two_way_layer(config) is not None:
+    # Taking turns would hold up a run of one-way sends, and a reliability layer sends again what it refuses
+    if takes_turns(config):
         cg.add(var.set_turnaround(turnaround_ms(radio_config)))
