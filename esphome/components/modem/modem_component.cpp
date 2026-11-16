@@ -72,6 +72,7 @@ static constexpr int REGISTRATION_NOT_SEARCHING = 0;
 static constexpr int REGISTRATION_HOME = 1;
 static constexpr int REGISTRATION_DENIED = 3;
 static constexpr int REGISTRATION_ROAMING = 5;
+static constexpr int REGISTRATION_UNKNOWN = -1;      // no readable answer
 static constexpr int REGISTRATION_UNSUPPORTED = -2;  // neither AT+CEREG nor AT+CREG
 // SIM status polls that fail before a warning, and between repeats of it
 static constexpr uint8_t SIM_WARN_AFTER = 10;
@@ -907,9 +908,15 @@ ModemState ModemComponent::handle_state_connecting_() {
   }
   if (!attached) {
     const int registration = this->read_registration_();
+    if (this->resync_) {
+      this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
+      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
     // A modem that has not even searched for a few polls (attachment switched off) gets the request too; right
     // after CFUN=1 it briefly reports not searching, which is when the request would hold the AT channel
-    const bool idle = registration == REGISTRATION_NOT_SEARCHING && this->attach_polls_ >= ATTACH_DIAG_EVERY;
+    // A state that stays unreadable is treated the same way
+    const bool idle = (registration == REGISTRATION_NOT_SEARCHING || registration == REGISTRATION_UNKNOWN) &&
+                      this->attach_polls_ >= ATTACH_DIAG_EVERY;
     if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON &&
         (is_registered(registration) || registration == REGISTRATION_UNSUPPORTED || idle)) {
       // Before registration some modems hold the AT channel for minutes on this (SIM7080G: up to 141 s) and
@@ -936,6 +943,7 @@ ModemState ModemComponent::handle_state_connecting_() {
         // The modem's reason tells a rejected APN (ESM failure) from a SIM the network does not serve
         const command_result reason_read = this->at_reply_("AT+CEER");
         const char *reason = reason_read == command_result::TIMEOUT ? LOG_STR_LITERAL("no answer to AT+CEER")
+                             : reason_read == command_result::FAIL  ? LOG_STR_LITERAL("AT+CEER failed")
                              : this->reply_.empty()                 ? LOG_STR_LITERAL("no reason given")
                                                                     : this->reply_.c_str();
         ESP_LOGW(TAG,
@@ -1110,13 +1118,15 @@ int ModemComponent::read_registration_() {
   if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
     return REGISTRATION_DENIED;
   }
-  if (lte_read == command_result::FAIL && legacy_read == command_result::FAIL) {
+  // A bare ERROR means the command is not supported; a +CME ERROR is a temporary failure
+  if (lte_read == command_result::FAIL && legacy_read == command_result::FAIL &&
+      this->reply_.find("+CME ERROR") == std::string::npos) {
     return REGISTRATION_UNSUPPORTED;
   }
   if (lte_read == command_result::TIMEOUT && legacy_read == command_result::TIMEOUT) {
     this->request_resync_();
   }
-  return lte >= 0 ? lte : legacy;
+  return lte >= 0 ? lte : legacy;  // REGISTRATION_UNKNOWN when neither is readable
 }
 
 void ModemComponent::not_responding_(int baud) {
