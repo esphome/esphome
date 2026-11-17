@@ -27,6 +27,9 @@ RX_RE = re.compile(
 class Dev:
     def __init__(self, host, tag):
         self.host, self.tag, self.rx, self.lines = host, tag, [], []
+        self.failed = (
+            0  # actions that could not be sent and CFG/RATE lines that never came
+        )
 
     async def start(self):
         self.cli = await connect(self.host)
@@ -43,9 +46,14 @@ class Dev:
             self.lines.append(line)
 
     async def act(self, name, **kw):
-        r = self.cli.execute_service(self.svc[name], kw)
-        if asyncio.iscoroutine(r):
-            asyncio.ensure_future(r)
+        try:
+            await self.cli.execute_service(self.svc[name], kw)
+        except Exception as e:  # noqa: BLE001
+            self.failed += 1
+            print(
+                f"  ACTION FAILED {self.tag} {name}: {type(e).__name__}: {e}",
+                flush=True,
+            )
         await asyncio.sleep(0.3)
 
 
@@ -57,7 +65,10 @@ async def wait_mark(dev, mark, before, timeout=8.0):
     ):
         await asyncio.sleep(0.1)
     if sum(1 for line in dev.lines if mark in line) <= before:
-        print(f"  ({dev.tag} never logged {mark.strip()})", flush=True)
+        dev.failed += 1
+        print(f"  INVALID: {dev.tag} never logged {mark.strip()}", flush=True)
+        return False
+    return True
 
 
 async def case(
@@ -73,6 +84,7 @@ async def case(
     crc=False,
     wait=None,
 ):
+    failed = tx.failed + rx.failed
     nr, nt = (
         sum(1 for line in rx.lines if "CFG " in line),
         sum(1 for line in tx.lines if "CFG " in line),
@@ -101,8 +113,9 @@ async def case(
         return f"{statistics.mean(p[i] for p in good):.1f}" if good else "-"
 
     lens = sorted({int(p[0]) for p in got})
+    verdict = "INVALID " if tx.failed + rx.failed > failed else ""
     print(
-        f"{label:34} sent={count} good={len(good)} wrong={len(got) - len(good)} lens={lens} other={other} "
+        f"{label:34} {verdict}sent={count} good={len(good)} wrong={len(got) - len(good)} lens={lens} other={other} "
         f"rssi={stat(4)} lqi={stat(5)} fo={stat(6)}",
         flush=True,
     )
@@ -403,6 +416,10 @@ async def main():
         warn = [line for line in d.lines if "[W]" in line or "[E]" in line]
         print(f"{d.tag} warnings/errors: {len(warn)}", *warn[:10], sep="\n  ")
         await d.cli.disconnect()
+    if tx.failed or rx.failed:
+        sys.exit(
+            f"INVALID: {tx.failed + rx.failed} failed actions or missing CFG/RATE lines"
+        )
 
 
 asyncio.run(main())

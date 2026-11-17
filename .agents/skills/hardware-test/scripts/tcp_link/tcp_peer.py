@@ -95,21 +95,26 @@ def run_conn(sock, tag, args, first):
     sock.settimeout(0.5)
     while time.monotonic() - T0 < args.duration:
         try:
-            hdr = recv_exact(sock, 2)
+            first_byte = recv_exact(sock, 1)
         except TimeoutError:
-            continue
+            continue  # nothing of the next header has arrived yet
         except OSError as e:
             reason = f"error {e}"
             break
-        if hdr is None:
+        if first_byte is None:
             reason = "EOF (peer closed)"
             break
-        (n,) = struct.unpack("<H", hdr)
+        # the rest of the frame is read with a long timeout, so a slow header byte is not lost
         sock.settimeout(5)
         try:
+            rest = recv_exact(sock, 1)
+            if rest is None:
+                reason = "EOF in header"
+                break
+            (n,) = struct.unpack("<H", first_byte + rest)
             body = recv_exact(sock, n) if n else b""
         except OSError as e:
-            reason = f"error in body {e}"
+            reason = f"error in frame {e}"
             break
         sock.settimeout(0.5)
         if body is None:

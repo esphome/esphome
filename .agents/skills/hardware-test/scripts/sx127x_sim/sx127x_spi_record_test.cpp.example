@@ -110,11 +110,13 @@ class RecChip {
   }
 };
 
+// The record file from SX127X_RECORD; nullptr when it is unset or cannot be opened (the test then fails)
 static FILE *out_file() {
   static FILE *f = nullptr;
   if (f == nullptr) {
     const char *path = std::getenv("SX127X_RECORD");
-    f = fopen(path != nullptr ? path : "/dev/null", "w");
+    if (path != nullptr)
+      f = fopen(path, "w");
   }
   return f;
 }
@@ -161,6 +163,7 @@ static void settings(SX127x &r, bool lora, uint32_t freq, uint32_t bitrate, uint
 }
 
 TEST(SX127xSpiRecord, Sweep) {
+  ASSERT_NE(out_file(), nullptr) << "set SX127X_RECORD to a writable record file";
   const uint32_t freqs[] = {137000000, 169400000, 433920000, 525000000, 779000000, 868100000, 915000000, 1020000000};
   const uint32_t rates[] = {500, 1200, 4800, 9600, 38400, 250000, 300000};
   const uint32_t devs[] = {0, 600, 5000, 25000, 100000};

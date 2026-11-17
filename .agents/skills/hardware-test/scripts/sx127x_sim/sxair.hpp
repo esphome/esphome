@@ -740,8 +740,8 @@ inline void start_air() {
   esp_timer_create_args_t args{};
   args.callback = air_tick;
   args.name = "sxair";
-  esp_timer_create(&args, &AIR.timer);
-  esp_timer_start_periodic(AIR.timer, 1000);
+  ESP_ERROR_CHECK(esp_timer_create(&args, &AIR.timer));
+  ESP_ERROR_CHECK(esp_timer_start_periodic(AIR.timer, 1000));
 }
 
 inline void add_radio(Radio *r, const char *name, int dio_gpio) {

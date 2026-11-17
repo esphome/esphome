@@ -3,11 +3,14 @@
 lpair: two SX127x in LoRa; fpair: two SX127x in FSK (63 byte packets); xpair: SX127x (A) and SX126x (B) in LoRa.
 Each has raw links, reliability links and session plus rolling code links, with entity_transport both ways, run by
 sxlink.hpp from a 20 ms interval. Only the interrupt pads (GPIO4 for A, GPIO22 for B) are driven; the SPI, CS, reset and
-busy pins are swapped for fake pins at on_boot 1100 and never set up.
+busy pins are swapped for fake pins at on_boot 1100 and never set up. The shared headers are copied into OUTDIR.
 """
 
 from pathlib import Path
+import shutil
 import sys
+
+HEADERS = ("spibits.hpp", "sxair.hpp", "sxlink.hpp")
 
 SX127X_LORA = """\
   frequency: 917MHz
@@ -250,6 +253,12 @@ interval:
 
 def main() -> None:
     out = Path(sys.argv[1])
+    out.mkdir(parents=True, exist_ok=True)
+    # ESPHome resolves includes from the config's directory, so the shared headers go next to the configs
+    here = Path(__file__).resolve().parent
+    if out.resolve() != here:
+        for header in HEADERS:
+            shutil.copyfile(here / header, out / header)
     for name in ("lpair", "fpair", "xpair"):
         yaml, glue = config(name)
         (out / f"{name}.yaml").write_text(yaml)

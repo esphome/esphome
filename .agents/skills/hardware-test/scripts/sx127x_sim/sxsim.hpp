@@ -318,7 +318,7 @@ inline void timer_action() {
   if (act != 0)
     esp_timer_stop(M.timer);
   if (act == 1)
-    esp_timer_start_once(M.timer, (uint64_t) M.tx_ms * 1000);
+    ESP_ERROR_CHECK(esp_timer_start_once(M.timer, (uint64_t) M.tx_ms * 1000));
 }
 
 inline void tx_timer_cb(void *) {
@@ -389,7 +389,7 @@ inline void install(spi::SPIComponent *bus, sx127x::SX127x *radio, int dio0_gpio
   esp_timer_create_args_t args{};
   args.callback = tx_timer_cb;
   args.name = "sxsim_tx";
-  esp_timer_create(&args, &M.timer);
+  ESP_ERROR_CHECK(esp_timer_create(&args, &M.timer));
   ESP_LOGI(TAG, "fake SX1276 installed");
 }
 

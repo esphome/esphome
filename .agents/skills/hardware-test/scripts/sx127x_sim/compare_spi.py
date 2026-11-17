@@ -38,6 +38,8 @@ def parse(path: str) -> dict[str, dict]:
     cur = None
     for line in lines(path):
         if line.startswith("CASE "):
+            if line[5:] in cases:
+                sys.exit(f"{path}: case {line[5:]!r} appears twice")
             cur = {"T": [], "REGS": "", "FIFO": ""}
             cases[line[5:]] = cur
         elif cur is None:
@@ -48,6 +50,8 @@ def parse(path: str) -> dict[str, dict]:
             cur["REGS"] = line[4:].strip()
         elif line.startswith("FIFO"):
             cur["FIFO"] = line[4:].strip()
+    if not cases:
+        sys.exit(f"{path}: no CASE records")
     return cases
 
 
@@ -75,7 +79,10 @@ def burst_shape(transactions: list[list[int]]) -> Counter:
 
 def main() -> None:
     base, pr = parse(sys.argv[1]), parse(sys.argv[2])
-    assert base.keys() == pr.keys(), "different case lists"
+    if base.keys() != pr.keys():
+        print("only in base:", sorted(base.keys() - pr.keys()))
+        print("only in pr:", sorted(pr.keys() - base.keys()))
+        sys.exit("different case lists")
     bad = 0
     raw_same = 0
     tb = tp = 0

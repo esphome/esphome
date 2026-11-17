@@ -17,8 +17,9 @@ esphome:
               return [=](const PacketBuffer &d, const PacketMetaData &) {
                 static uint8_t buf[1100];
                 size_t n = d.size();
-                d.copy_to(buf, n);
                 (*rx)++;
+                if (n > sizeof(buf)) { (*bad)++; ESP_LOGW("raw", "%s oversize packet %u", link, (unsigned) n); return; }
+                d.copy_to(buf, n);
                 if (n < 2) { (*bad)++; ESP_LOGW("raw", "%s short packet %u", link, (unsigned) n); return; }
                 uint16_t seq = buf[0] | (buf[1] << 8);
                 bool ok = true;
@@ -39,6 +40,7 @@ esphome:
               return [=](const PacketBuffer &d, const PacketMetaData &) {
                 static uint8_t buf[1100];
                 size_t n = d.size();
+                if (n > sizeof(buf)) { ESP_LOGW("probe", "%s oversize packet %u", link, (unsigned) n); return; }
                 d.copy_to(buf, n);
                 uint32_t sum = 0;
                 for (size_t i = 0; i < n; i++) sum += buf[i];
@@ -178,7 +180,8 @@ script:
           using esphome::packet_interface::PacketBuffer;
           static uint8_t big[1023];
           bool r = id(raw_cli)->send_to_interface(PacketBuffer(big, sizeof(big)), {});
-          ESP_LOGI("raw", "1023 byte send returned %d", r);
+          // refused is only meaningful while the link is up
+          ESP_LOGI("raw", "1023 byte send returned %d connected=%d", r, id(raw_cli)->is_connected());
 
 sensor:
   - platform: template

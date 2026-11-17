@@ -1,8 +1,8 @@
 """encheck.py LOG [LOG...]: summarise an entity_transport link test capture.
 
-Reads ETRX <link> <field>=<value>, SESS <link> 0/1, STAT, CHAOS and warning lines. Per link: cnt updates, gaps in the
-received count (a gap is a step other than +1), values never sent (flt not equal to the sender's formula), binary
-transitions, long sensor updates, session edges. Prints one block per log.
+Reads ETRX <link> <field>=<value>, SESS <link> 0/1, STAT, CHAOS and warning lines; ETRX lines it cannot parse are
+counted. Per link: cnt updates, gaps in the received count (a gap is a step other than +1), values never sent (flt not
+equal to the sender's formula), binary transitions, long sensor updates, session edges. Prints one block per log.
 """
 
 import collections
@@ -34,7 +34,7 @@ for path in sys.argv[1:]:
         lambda: {"cnt": [], "flt": [], "bin": [], "long": [], "sess": []}
     )
     warns = collections.Counter()
-    stats, chaos, boots = [], [], 0
+    stats, chaos, boots, unparsed = [], [], 0, 0
     with pathlib.Path(path).open(encoding="utf-8", errors="replace") as fh:
         for line in fh:
             t = secs(line)
@@ -42,8 +42,8 @@ for path in sys.argv[1:]:
                 m = re.search(r"ETRX (\S+) (\w+)=(\S+)", line)
                 if m:
                     links[m[1]][m[2]].append((t, m[3]))
-                elif False:
-                    pass
+                else:
+                    unparsed += 1
             elif "SESS" in line:
                 m = re.search(r"SESS (\S+) (\d)", line)
                 if m:
@@ -52,13 +52,13 @@ for path in sys.argv[1:]:
                 stats.append(line.strip())
             elif "CHAOS" in line:
                 chaos.append((line[1:9], line.strip().split("CHAOS")[1]))
-            if "Running through setup" in line or False:
+            if "Running through setup" in line:
                 boots += 1
             if re.search(r"\]\[[WE]\]", line):
                 msg = re.sub(r"^\[[^\]]*\]", "", line.strip())
                 msg = re.sub(r"\d+", "N", msg)
                 warns[msg] += 1
-    print(f"== {path}  boots={boots}")
+    print(f"== {path}  boots={boots} unparsed_etrx={unparsed}")
     for c in chaos:
         print("  chaos", c)
     for name, d in sorted(links.items()):
@@ -78,9 +78,12 @@ for path in sys.argv[1:]:
             f"sess={[s for _, s in d['sess']]}"
         )
         for g in gaps[:12]:
-            print(
-                f"     gap at {g[0] // 3600:02d}:{g[0] // 60 % 60:02d}:{g[0] % 60:02d}: {g[1]} -> {g[2]}"
+            at = (
+                "?"
+                if g[0] is None
+                else f"{g[0] // 3600:02d}:{g[0] // 60 % 60:02d}:{g[0] % 60:02d}"
             )
+            print(f"     gap at {at}: {g[1]} -> {g[2]}")
         if bad_flt:
             print("     bad flt", bad_flt[:5])
     last = {}

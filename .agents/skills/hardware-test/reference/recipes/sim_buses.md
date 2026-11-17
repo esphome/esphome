@@ -122,7 +122,8 @@ config (no Wi-Fi; `sxpr.yaml` and `sxbase.yaml` are two-line wrappers setting `s
 ## Two radios and a simulated air (#21110)
 
 `scripts/sx127x_sim/sxair.hpp` (models and air), `sxlink.hpp` (runner), `gen_pair.py OUTDIR` (writes `lpair` two SX127x
-LoRa, `fpair` two SX127x FSK, `xpair` SX127x plus SX126x LoRa, each with a `<name>_glue.h`). One ESP32-PICO-D4
+LoRa, `fpair` two SX127x FSK, `xpair` SX127x plus SX126x LoRa, each with a `<name>_glue.h`, and copies the shared
+headers next to them). One ESP32-PICO-D4
 firmware, two software SPI buses; at on_boot 1100 (before the buses' setup at 1000) the bus pins, CS, reset and SX126x
 busy are swapped for fake pins (needs the `GPIOPin *` reset setter from #22733), so the only pads used are the interrupt
 lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared real pin numbers need

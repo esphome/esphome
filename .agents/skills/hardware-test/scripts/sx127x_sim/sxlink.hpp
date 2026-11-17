@@ -47,8 +47,11 @@ struct RawRx {
     link->add_packet_interface_listener([this](const PacketBuffer &data, const PacketMetaData &meta) {
       uint8_t buf[256];
       size_t len = data.size();
-      if (len == 0 || len > sizeof(buf))
+      if (len == 0 || len > sizeof(buf)) {
+        this->bad++;
+        ESP_LOGW(TAG, "EV raw %s unexpected len=%u", this->name, (unsigned) len);
         return;
+      }
       data.copy_to(buf, len);
       if (buf[0] != 0xEE)
         return;  // traffic of the other links on the same radio

@@ -12,7 +12,8 @@ D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); cd "$D" || exit 1; B=$D/.es
 M=${1:?host or esp32}; R=${2:-$M}
 if [ "$M" = host ]; then
   E=127.0.0.1; PEER=tcph2; API_PORT=${API_PORT:-46151}; PROBE_PORT=${PROBE_PORT:-46103}
-  PROBE_CLI_PORT=${PROBE_CLI_PORT:-46104}; LAN=${LAN:-$(ipconfig getifaddr en0)}
+  PROBE_CLI_PORT=${PROBE_CLI_PORT:-46104}; LAN=${LAN:-$(ipconfig getifaddr en0 2>/dev/null)}
+  : "${LAN:?set LAN to the LAN address of this computer}"
   WARM=8; RUNS=17; HOLD=15; WATCH=135; SILENT=58
   REFUSED=(client "$LAN" "$PROBE_PORT" --bind "$LAN")
 else
