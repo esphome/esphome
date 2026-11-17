@@ -1,0 +1,33 @@
+esphome:
+  name: ${name}
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+spi:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+  miso_pin: GPIO10
+cc1101:
+  id: radio
+  cs_pin: GPIO3
+  frequency: 433.92MHz
+remote_receiver:
+  pin: GPIO4
+  dump: all
+interval:
+  - interval: 30s
+    then:
+      - lambda: ESP_LOGI("alive", "up %u heap %u", (unsigned) (millis() / 1000), (unsigned) esp_get_free_heap_size());

@@ -1,0 +1,40 @@
+# scan.yaml plus the Bluedroid scan timer counters (scan_inst.hpp) logged every 30 s as `scaninst`
+substitutions:
+  name: scaninst
+
+packages:
+  base: !include scan.yaml
+
+esphome:
+  includes:
+    - scan_inst.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=BTM_BleScan
+      - -Wl,--wrap=btu_start_timer
+      - -Wl,--wrap=btm_ble_timeout
+      - -Wl,--wrap=osi_alarm_new
+      - -Wl,--wrap=btc_transfer_context
+
+esp32_ble_tracker:
+  on_scan_end:
+    - lambda: id(scan_ends)++;
+
+globals:
+  - id: scan_ends
+    type: uint32_t
+    initial_value: '0'
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          auto &g = g_scan_inst;
+          int64_t now = esp_timer_get_time();
+          ESP_LOGI("scaninst", "start=%u bad=%u stop=%u timer=%u fire=%u timeout=%u cmpl_post=%u cmpl_fail=%u pid=%u ends=%u "
+                   "ago_ms timer=%lld fire=%lld timeout=%lld cmpl=%lld",
+                   (unsigned) g.ble_scan_start, (unsigned) g.ble_scan_start_bad, (unsigned) g.ble_scan_stop,
+                   (unsigned) g.timer_start, (unsigned) g.alarm_fire, (unsigned) g.ble_timeout,
+                   (unsigned) g.inq_cmpl_post, (unsigned) g.inq_cmpl_post_fail, (unsigned) g.pid, (unsigned) id(scan_ends),
+                   (now - g.last_timer_start_us) / 1000, (now - g.last_fire_us) / 1000,
+                   (now - g.last_timeout_us) / 1000, (now - g.last_inq_cmpl_us) / 1000);

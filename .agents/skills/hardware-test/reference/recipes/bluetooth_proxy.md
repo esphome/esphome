@@ -67,3 +67,26 @@ reference from an ESP32 proxy (unset `API_KEY` for a plaintext API).
 - On rp2 before #22679, BTstack truncated 32-bit base UUIDs with a nonzero low half to 16 bits (`5ec10001-...` came
   out as `00000001-...`); a zero low half (5ec10000) came through intact.
 - Connects through the Pico W proxy fail with 0x3E now and then (see `reference/boards.md`); the scripts retry.
+
+## Scan complete never arrives (#22770)
+
+`scripts/ble_scan_complete/`: `scan.yaml` is a proxy config like the report's (ESP32-C6, interval = window = 1100 ms,
+debug sensors, `api: reboot_timeout: 0s`, a `duration` substitution, 5 s by default; the validator wants at least
+three intervals, so 2 s is refused). The tracker watchdog is `duration * 2`, so a short duration shortens it too.
+`scaninst.yaml` adds `scan_inst.hpp` and five `-Wl,--wrap` flags that count one scan's duration timer through
+Bluedroid: `BTM_BleScan` starts and stops, `btu_start_timer(BTU_TTYPE_BLE_SCAN)`, the timer's alarm firing (a shim on
+its `osi_alarm_new` callback, BTC task), `btm_ble_timeout` (BTU task) and the INQ_CMPL handed to `btc_transfer_context`
+(PID 5, act 3; the param is 108 bytes in libbt, so do not compare with the C++ `sizeof`). A 30 s interval logs them as
+`scaninst`; a lost completion shows where the chain stopped (timer > fire + 1, fire > timeout, timeout > cmpl_post, or
+cmpl_post above the ESPHome-side `ends / 2`). `ha.py HOST OUT SECONDS [--toggle S --jitter J]` is the Home Assistant
+stand-in (raw adverts, scanner state, set mode passive once, optional active/passive toggles). `soak.sh TAG HOST
+SECONDS [ha.py options]` (env PORT) runs a bounded serial capture plus ha.py, with the API key in `apikey.txt`.
+`wait.sh CAPTURE SECONDS [FROM_LINE]` blocks until a timeout, drop or unexpected-state line and prints the counters.
+- Bluedroid and IDF log lines reach the ESPHome log as tag `esp-idf` at VERBOSE (`[V][esp-idf:000][BTU_TASK]: E ...`),
+  so a user capturing at INFO over the API never sees a Bluedroid error.
+- A stop from Home Assistant landing just after the timer fired (toggle period 5.03 s with 0.08 s jitter against 5 s
+  scans hits it about once per 20 minutes) gives `Unexpected state: STOPPING on scan complete`, `stop complete -
+  status 1`, `BTM_BleScan scan not active`; the tracker recovers. A stop while STARTING logs `Cannot stop scan:
+  STARTING` and the mode change waits for the next restart.
+- With about 55 devices around (about 95 adverts/s), no lost completion in about 2800 natural 5 s cycles on 2026.10.2
+  (VERBOSE and INFO builds) plus about 670 toggled stops, and none on dev.
