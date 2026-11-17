@@ -12,8 +12,8 @@ case $K in
     IMG=$B/firmware.bin; OPT=() ;;
   bk | bw)
     ltflash "$K" "$P" "$B/firmware.uf2" "$D/$N-upload.log" || { echo "flash failed"; tail -2 "$D/$N-upload.log"; exit 1; }
-    tail -2 "$D/$N-upload.log"; IMG=$B/firmware.uf2; OPT=()
-    [ "$K" = bw ] && OPT=(--released) ;;
+    # both kits wire RTS to reset: a capture that asserts it holds the board in reset
+    tail -2 "$D/$N-upload.log"; IMG=$B/firmware.uf2; OPT=(--released) ;;
   *) echo "unknown kind $K"; exit 1 ;;
 esac
 [ "$K" = pico ] && sleep 6
@@ -21,8 +21,9 @@ esac
 HOST=$(bash "$S/resolve.sh" "$N" 60) || { echo "no host"; exit 1; }
 echo "$HOST" > "$D/$N-host.txt"; sleep 10
 $PY -I "$D/flow.py" "$HOST" "$D/$N"
-PY=$PY bash "$D/webota.sh" "$HOST" "$IMG" "$D/$N"
+PY=$PY bash "$D/webota.sh" "$HOST" "$IMG" "$D/$N"; RC=$?
 sleep 5; pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$D/$N-serial.log
 echo "SERIAL crash lines $(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")," \
   "boots $(grep -a -c -E 'Log initialized' "$L"), port losses $(grep -a -c 'port lost' "$L"), lines $(wc -l < "$L")"
+exit $RC

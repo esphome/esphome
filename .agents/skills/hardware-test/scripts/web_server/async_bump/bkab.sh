@@ -12,7 +12,7 @@ for N in "$@"; do
   ltflash bk "$P" "$D/.esphome/build/$N/.pioenvs/$N/firmware.uf2" "$D/$T-upload.log" ||
     { echo "== pass $k $N flash failed three times (see $D/$T-upload.log)"; exit 1; }
   echo "== pass $k $N flashed"
-  : > "$D/$T-serial.log"; ($PY "$S/serial_capture.py" "$P" 1200 "$D/$T-serial.log" 2> /dev/null &)
+  : > "$D/$T-serial.log"; ($PY "$S/serial_capture.py" "$P" 1200 "$D/$T-serial.log" --released 2> /dev/null &)
   HOST=$(bash "$S/resolve.sh" "$N" 60) || { echo "no host"; continue; }; sleep 10
   (tcpdump -i "$IF" -s 128 -w "$D/$T.pcap" host "$HOST" and tcp port 80 > /dev/null 2>&1 &); sleep 1
   $PY -I "$D/flow.py" "$HOST" "$D/$T" | grep -E 'PAGES|SSE|CONTROL|heap'
