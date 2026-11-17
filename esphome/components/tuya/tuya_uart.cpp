@@ -58,7 +58,7 @@ void TuyaUART::loop() {
 
 void TuyaUART::dump_config() {
   this->dump_mcu_config_();
-  this->dump_children_();
+  Tuya::dump_config();
 }
 
 // Also logged again once the MCU reports its datapoints

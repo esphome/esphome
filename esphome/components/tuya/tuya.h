@@ -49,6 +49,13 @@ struct TuyaDatapointListener {
 class Tuya : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
+  /// Prints each child entity's dump; a transport that overrides it prints its own block first, then calls this
+  void dump_config() override {
+#ifdef USE_TUYA_DUMP_PUBLISHER
+    if (this->dump_publisher_ != nullptr)
+      this->dump_publisher_();
+#endif
+  }
 #ifdef USE_TUYA_DUMP_PUBLISHER
   HUB_PUBLISHER(dump)
 #endif
@@ -83,13 +90,6 @@ class Tuya : public Component {
   void mark_initialized_() { this->initialized_callback_.call(); }
   const TuyaDatapoint *get_datapoint_(uint8_t datapoint_id) const;
   void dump_datapoints_();
-  /// Print each child entity's dump; called from the transport's dump_config()
-  void dump_children_() {
-#ifdef USE_TUYA_DUMP_PUBLISHER
-    if (this->dump_publisher_ != nullptr)
-      this->dump_publisher_();
-#endif
-  }
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
                                     uint8_t length, bool forced);
   void set_string_datapoint_value_(uint8_t datapoint_id, const char *value, size_t len, bool forced);
