@@ -534,6 +534,37 @@ def declare_protocol(name):
     return data, binary_sensor_, trigger, action, dumper
 
 
+def _no_options(var: MockObj, config: ConfigType) -> None:
+    """A trigger or dumper with no options beyond the automation."""
+
+
+def _register_receive(name: str, protocol: str) -> tuple[MockObj, ...]:
+    """Declare a protocol and register its trigger and dumper."""
+    data, _, trigger, _, dumper = classes = declare_protocol(protocol)
+    register_trigger(name, trigger, data)(_no_options)
+    register_dumper(name, dumper)(_no_options)
+    return classes
+
+
+def register_simple_protocol(
+    name: str,
+    protocol: str,
+    schema: cv.Schema,
+    *fields: tuple[str, str, SafeExpType],
+    binary_sensor_schema: cv.Schema | None = None,
+) -> tuple[MockObj, ...]:
+    """Register a plain protocol; list fields in the struct's declaration order."""
+    data, binary_sensor_, _, _, _ = classes = _register_receive(name, protocol)
+
+    @register_binary_sensor(name, binary_sensor_, binary_sensor_schema or schema)
+    def _binary_sensor(var: MockObj, config: ConfigType) -> None:
+        values = ((member, config[key]) for key, member, _ in fields if key in config)
+        cg.add(var.set_data(cg.StructInitializer(data, *values)))
+
+    register_protocol_action(name, protocol, schema, *fields)
+    return classes
+
+
 BINARY_SENSOR_REGISTRY = Registry(
     binary_sensor.binary_sensor_schema().extend(
         {
@@ -946,7 +977,6 @@ register_protocol_action(
 
 
 # Dooya
-DooyaData, DooyaBinarySensor, DooyaTrigger, _, DooyaDumper = declare_protocol("Dooya")
 DOOYA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.hex_int_range(0, 16777215),
@@ -955,34 +985,7 @@ DOOYA_SCHEMA = cv.Schema(
         cv.Required(CONF_CHECK): cv.hex_int_range(0, 15),
     }
 )
-
-
-@register_binary_sensor("dooya", DooyaBinarySensor, DOOYA_SCHEMA)
-def dooya_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                DooyaData,
-                ("id", config[CONF_ID]),
-                ("channel", config[CONF_CHANNEL]),
-                ("button", config[CONF_BUTTON]),
-                ("check", config[CONF_CHECK]),
-            )
-        )
-    )
-
-
-@register_trigger("dooya", DooyaTrigger, DooyaData)
-def dooya_trigger(var, config):
-    pass
-
-
-@register_dumper("dooya", DooyaDumper)
-def dooya_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+DooyaData, DooyaBinarySensor, DooyaTrigger, _, DooyaDumper = register_simple_protocol(
     "dooya",
     "Dooya",
     DOOYA_SCHEMA,
@@ -1268,7 +1271,6 @@ register_protocol_action(
 
 
 # NEC
-NECData, NECBinarySensor, NECTrigger, _, NECDumper = declare_protocol("NEC")
 NEC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
@@ -1277,33 +1279,7 @@ NEC_SCHEMA = cv.Schema(
         cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.int_range(min=1, max=10),
     }
 )
-
-
-@register_binary_sensor("nec", NECBinarySensor, NEC_SCHEMA)
-def nec_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                NECData,
-                ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
-                ("command_repeats", config[CONF_COMMAND_REPEATS]),
-            )
-        )
-    )
-
-
-@register_trigger("nec", NECTrigger, NECData)
-def nec_trigger(var, config):
-    pass
-
-
-@register_dumper("nec", NECDumper)
-def nec_dumper(var, config):
-    pass
-
-
-register_protocol_action(
+NECData, NECBinarySensor, NECTrigger, _, NECDumper = register_simple_protocol(
     "nec",
     "NEC",
     NEC_SCHEMA,
@@ -2594,7 +2570,6 @@ register_protocol_action(
 
 
 # Nexus
-NexusData, NexusBinarySensor, NexusTrigger, _, NexusDumper = declare_protocol("Nexus")
 NEXUS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=4),
@@ -2611,41 +2586,17 @@ NEXUS_ACTION_SCHEMA = NEXUS_SCHEMA.extend(
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
     }
 )
-
-
-@register_binary_sensor("nexus", NexusBinarySensor, NEXUS_SCHEMA)
-def nexus_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                NexusData,
-                ("address", config[CONF_ADDRESS]),
-                ("channel", config[CONF_CHANNEL]),
-            )
-        )
-    )
-
-
-@register_trigger("nexus", NexusTrigger, NexusData)
-def nexus_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("nexus", NexusDumper)
-def nexus_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
-register_protocol_action(
+NexusData, NexusBinarySensor, NexusTrigger, _, NexusDumper = register_simple_protocol(
     "nexus",
     "Nexus",
     NEXUS_ACTION_SCHEMA,
-    (CONF_CHANNEL, "channel", cg.uint8),
-    (CONF_ADDRESS, "address", cg.uint8),
     (CONF_TEMPERATURE, "temperature", cg.float_),
-    (CONF_HUMIDITY, "humidity", cg.uint8),
+    (CONF_ADDRESS, "address", cg.uint8),
     (CONF_BATTERY_LEVEL, "battery_level", cg.bool_),
     (CONF_FORCE_UPDATE, "force_update", cg.bool_),
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_HUMIDITY, "humidity", cg.uint8),
+    binary_sensor_schema=NEXUS_SCHEMA,
 )
 
 
@@ -3189,14 +3140,6 @@ register_protocol_action(
 
 
 # A-OK
-(
-    AOKData,
-    AOKBinarySensor,
-    AOKTrigger,
-    _,
-    AOKDumper,
-) = declare_protocol("AOK")
-
 AOK_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_REMOTE_ID): cv.hex_int_range(0, 0xFFFFFF),
@@ -3204,33 +3147,7 @@ AOK_SCHEMA = cv.Schema(
         cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
-
-
-@register_binary_sensor("aok", AOKBinarySensor, AOK_SCHEMA)
-def aok_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                AOKData,
-                ("remote_id", config[CONF_REMOTE_ID]),
-                ("channels", config[CONF_CHANNELS]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
-    )
-
-
-@register_trigger("aok", AOKTrigger, AOKData)
-def aok_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("aok", AOKDumper)
-def aok_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
-register_protocol_action(
+AOKData, AOKBinarySensor, AOKTrigger, _, AOKDumper = register_simple_protocol(
     "aok",
     "AOK",
     AOK_SCHEMA,
@@ -3241,15 +3158,6 @@ register_protocol_action(
 
 
 # Cardin S438
-(
-    CardinS438Data,
-    CardinS438BinarySensor,
-    CardinS438Trigger,
-    _,
-    CardinS438Dumper,
-) = declare_protocol("CardinS438")
-
-
 CARDIN_S438_CHANNELS = {
     "A": 0x02,
     "B": 0x00,
@@ -3275,32 +3183,13 @@ CARDIN_S438_SCHEMA = cv.Schema(
         cv.Optional(CONF_COMMAND_REPEATS, default=3): cv.int_range(min=1, max=255),
     }
 )
-
-
-@register_binary_sensor("cardin_s438", CardinS438BinarySensor, CARDIN_S438_SCHEMA)
-def cardin_s438_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                CardinS438Data,
-                ("code", config[CONF_CODE]),
-                ("channel", config[CONF_CHANNEL]),
-            )
-        )
-    )
-
-
-@register_trigger("cardin_s438", CardinS438Trigger, CardinS438Data)
-def cardin_s438_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("cardin_s438", CardinS438Dumper)
-def cardin_s438_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
-register_protocol_action(
+(
+    CardinS438Data,
+    CardinS438BinarySensor,
+    CardinS438Trigger,
+    _,
+    CardinS438Dumper,
+) = register_simple_protocol(
     "cardin_s438",
     "CardinS438",
     CARDIN_S438_SCHEMA,

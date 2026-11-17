@@ -11,6 +11,34 @@ remote_receiver:
 
 binary_sensor:
   - platform: remote_receiver
+    name: NEC Remote Input
+    nec:
+      address: 0x4242
+      command: 0x8484
+  - platform: remote_receiver
+    name: Dooya Remote Input
+    dooya:
+      id: 0x123456
+      channel: 1
+      button: 1
+      check: 1
+  - platform: remote_receiver
+    name: Nexus Remote Input
+    nexus:
+      channel: 1
+      address: 0x42
+  - platform: remote_receiver
+    name: A-OK Remote Input
+    aok:
+      remote_id: 0x123456
+      channels: 0x00A1
+      command: 0x0B
+  - platform: remote_receiver
+    name: Cardin S438 Remote Input
+    cardin_s438:
+      code: "01001001110100"
+      channel: B
+  - platform: remote_receiver
     name: CanalSatLD Remote Input
     canalsatld:
       device: 0x7F
