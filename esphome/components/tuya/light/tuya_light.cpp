@@ -180,7 +180,7 @@ void TuyaLight::write_state(light::LightState *state) {
     }
 
     if (this->dimmer_id_.has_value()) {
-      auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
+      auto brightness_int = static_cast<uint32_t>(roundf(brightness * this->max_value_));
       brightness_int = std::max(brightness_int, this->min_value_);
 
       this->parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
