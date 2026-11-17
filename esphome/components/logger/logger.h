@@ -327,7 +327,7 @@ class Logger final : public Component {
     this->write_log_buffer_to_console_(buf);
   }
 
-  void send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf);
+  inline void send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf);
 
   // True on the task that runs the main loop, and always on single-task platforms
   inline bool HOT is_main_task_() const {
