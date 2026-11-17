@@ -60,6 +60,15 @@ void Tuya::loop() {
 }
 
 void Tuya::dump_config() {
+  this->dump_mcu_config_();
+#ifdef USE_TUYA_DUMP_PUBLISHER
+  if (this->dump_publisher_ != nullptr)
+    this->dump_publisher_();
+#endif
+}
+
+// Also logged again once the MCU reports its datapoints
+void Tuya::dump_mcu_config_() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
     if (this->init_failed_) {
@@ -287,7 +296,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_config(); });
+        this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_mcu_config_(); });
         this->initialized_callback_.call();
       }
       this->handle_datapoints_(buffer, len);

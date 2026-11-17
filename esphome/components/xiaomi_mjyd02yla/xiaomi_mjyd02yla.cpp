@@ -5,7 +5,7 @@ namespace esphome::xiaomi_mjyd02yla {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_mjyd02yla");
 
-void XiaomiMJYD02YLA::dump_config() {
+void XiaomiMJYD02YLA::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MJYD02YL-A");
   this->dump_bindkey_(TAG);
   LOG_BINARY_SENSOR("  ", "Motion", this);
