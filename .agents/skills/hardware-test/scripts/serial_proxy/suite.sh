@@ -15,11 +15,11 @@ run() {  # run LABEL CLIENT-ARGS...
   local L=$1; shift
   [[ ${CASES:-all} == all || " $CASES " == *" $L "* ]] || return
   local N
-  N=$(( $(wc -l < "$CAP") ))
+  N=$(( $(wc -l < "$CAP") + 1 ))  # first capture line of this case
   timeout 1200 $PY spclient.py $IP "$@" > $B-$L.txt 2>&1
   sleep 2
   echo "== $L: $(grep RESULT $B-$L.txt)"
-  echo "   $(grep -a SIMDONE $CAP | tail -1 | sed 's/.*SIMDONE//')"
+  echo "   $(tail -n +$N $CAP | grep -a SIMDONE | tail -1 | sed 's/.*SIMDONE//' | grep . || echo 'no SIMDONE in this case')"
   echo "   $(tail -n +$N $CAP | grep -a -E 'SIMSTAT|ASHWIN' | sed 's/.*backlog_max=\([0-9]*\).*/\1/' | sort -n | tail -1 | sed 's/^/peak backlog /')"
   grep -a -c -E "CONNECTION CLOSED|DISCONNECT" $B-$L.txt | sed 's/^/   disconnects /'
 }

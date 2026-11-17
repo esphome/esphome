@@ -28,7 +28,7 @@ esphome:
           } else {
             ESP_LOGI("wdap", "AP set to WPA3-SAE, PMF required, channel %u: %d", check.ap.channel, err);
           }
-          esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, [](void *, esp_event_base_t, int32_t id, void *data) {
+          err = esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, [](void *, esp_event_base_t, int32_t id, void *data) {
             if (id == WIFI_EVENT_AP_STACONNECTED) {
               auto *e = (wifi_event_ap_staconnected_t *) data;
               ESP_LOGI("wdap", "STA JOIN %02X:%02X:%02X:%02X:%02X:%02X aid %u t_us %lld", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, (long long) esp_timer_get_time());
@@ -37,6 +37,9 @@ esphome:
               ESP_LOGI("wdap", "STA LEAVE %02X:%02X:%02X:%02X:%02X:%02X aid %u reason %u t_us %lld", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, e->reason, (long long) esp_timer_get_time());
             }
           }, nullptr);
+          // without the handler no STA JOIN/LEAVE line is logged, which an15.py would read as no leaves
+          if (err != ESP_OK)
+            ESP_LOGE("wdap", "STA event handler register failed: %d", err);
           sniff_start();
       - delay: 5400s
       - lambda: ESP_LOGI("wdap", "AP WINDOW OVER");

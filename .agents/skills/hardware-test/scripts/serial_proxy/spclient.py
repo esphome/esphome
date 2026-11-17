@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import binascii
 import socket
+import sys
 import time
 
 from aioesphomeapi import api_pb2
@@ -184,6 +185,7 @@ class Client:
         self.reading.set()
         self.last_data = time.monotonic()
         self.responses: list[str] = []
+        self.setup_failed: list[str] = []
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
         s.setblocking(False)
@@ -205,6 +207,7 @@ class Client:
                 return
             await asyncio.sleep(0.02)
         print(f"no {want} response within {timeout:.0f} s", flush=True)
+        self.setup_failed.append(want.strip())
 
     async def write(self, data: bytes) -> None:
         await self.send(api_pb2.SerialProxyWriteRequest(instance=0, data=data))
@@ -269,7 +272,7 @@ async def configure(c: Client, baud: int) -> None:
     )
 
 
-async def main() -> None:
+async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("host")
     ap.add_argument("--port", type=int, default=6053)
@@ -394,13 +397,15 @@ async def main() -> None:
         check.finish()
     # a reader that died (closed connection, bad frame) ends the counts early; say so on the RESULT line
     reader = "stopped" if rtask.done() else "ok"
+    setup = "failed:" + ",".join(c.setup_failed) if c.setup_failed else "ok"
     print(
-        f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()} reader={reader}",
+        f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()} reader={reader} setup={setup}",
         flush=True,
     )
     rtask.cancel()
     c.sock.close()
+    return 1 if c.setup_failed or reader != "ok" else 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

@@ -20,8 +20,8 @@ esac
 : > "$D/$N-serial.log"; ($PY "$S/serial_capture.py" "$P" 1800 "$D/$N-serial.log" "${OPT[@]}" 2> "$D/$N-cap.err" &)
 HOST=$(bash "$S/resolve.sh" "$N" 60) || { echo "no host"; exit 1; }
 echo "$HOST" > "$D/$N-host.txt"; sleep 10
-$PY -I "$D/flow.py" "$HOST" "$D/$N"
-PY=$PY bash "$D/webota.sh" "$HOST" "$IMG" "$D/$N"; RC=$?
+$PY -I "$D/flow.py" "$HOST" "$D/$N"; RC=$?
+PY=$PY bash "$D/webota.sh" "$HOST" "$IMG" "$D/$N" || RC=1
 sleep 5; pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$D/$N-serial.log
 echo "SERIAL crash lines $(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")," \

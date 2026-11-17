@@ -12,7 +12,7 @@ for N in "$@"; do
   ltflash bk "$P" "$D/.esphome/build/$N/.pioenvs/$N/firmware.uf2" "$D/$T-upload.log" ||
     { echo "== pass $k $N flash failed three times (see $D/$T-upload.log)"; exit 1; }
   echo "== pass $k $N flashed"
-  : > "$D/$T-serial.log"; ($PY "$S/serial_capture.py" "$P" 1200 "$D/$T-serial.log" --released 2> /dev/null &)
+  : > "$D/$T-serial.log"; ($PY "$S/serial_capture.py" "$P" 1200 "$D/$T-serial.log" --released 2> "$D/$T-cap.err" &)
   HOST=$(bash "$S/resolve.sh" "$N" 60) || { echo "no host"; continue; }; sleep 10
   (tcpdump -i "$IF" -s 128 -w "$D/$T.pcap" host "$HOST" and tcp port 80 > /dev/null 2>&1 &); sleep 1
   $PY -I "$D/flow.py" "$HOST" "$D/$T" | grep -E 'PAGES|SSE|CONTROL|heap'
@@ -20,6 +20,7 @@ for N in "$@"; do
   echo "diag: $(tail -1 "$D/$T-diag.txt"), zero windows $(grep -c 'fast events   0' "$D/$T-diag.txt")," \
     "max lag $(grep -o 'lag [0-9-]*' "$D/$T-diag.txt" | awk '{print $2}' | sort -n | tail -1)"
   pkill -f "[t]cpdump -i $IF -s 128 -w $D/$T.pcap"; pkill -f "[s]erial_capture.py $P "; sleep 1
+  [ -s "$D/$T-serial.log" ] || echo "serial: EMPTY capture, counts below mean nothing: $(tail -1 "$D/$T-cap.err")"
   echo "serial: crash lines $(grep -a -c -E 'CRASH|Crash|abort|HardFault|Undefined' "$D/$T-serial.log")," \
     "boots $(grep -a -c 'Log initialized' "$D/$T-serial.log")"
 done

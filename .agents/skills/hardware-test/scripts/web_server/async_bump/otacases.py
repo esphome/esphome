@@ -79,7 +79,14 @@ def wait_boot(expect, before_up, cap=120):
 def full_upload(tag):
     cur = current_ver()
     nxt = "b" if cur == "a" else "a"
-    up = uptime() or 1e9
+    for _ in range(3):
+        if (up := uptime()) is not None:
+            break
+        time.sleep(1)
+    if up is None:
+        # without a reading before the upload a later boot cannot be told from the old image still running
+        p(f"{tag} no uptime before the upload => BAD")
+        return "BAD"
     t0 = time.monotonic()
     r = subprocess.run(
         [

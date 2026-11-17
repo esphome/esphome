@@ -52,14 +52,16 @@ def main() -> None:
     start = len(d.events)
     d.ser.write(frame(4))
     d.ser.flush()
-    d.wait_for(
+    end = d.wait_for(
         lambda e: e[1] == 4 and e[3] and e[2][0] == 4 and e[2][1] == 0, 15, start
     )
     d.ser.close()
     pathlib.Path(o.out).write_text("\n".join(d.lines) + "\n", encoding="utf-8")
     print(
         f"{len(d.lines)} replies; auth values: {sorted(d.auths)}; bad checksums: {d.bad_checksums}"
+        + ("" if end else "; NO end-of-list reply within 15 s")
     )
+    sys.exit(0 if end and not d.bad_checksums else 1)
 
 
 if __name__ == "__main__":

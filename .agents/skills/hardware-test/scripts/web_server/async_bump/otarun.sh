@@ -8,9 +8,9 @@ for _ in $(seq 1 60); do curl -s -m 3 -o /dev/null "http://$IP/" && break; sleep
 (cd "$T" && PYTHONPATH=$T PYTHONUNBUFFERED=1 timeout 1200 $PY -m esphome logs "$D/$N.yaml" --device "$IP" \
   > "$D/$N-apilog.txt" 2>&1 &)
 sleep 10
-$PY -I "$D/flow.py" "$IP" "$D/$N"
+$PY -I "$D/flow.py" "$IP" "$D/$N"; RC=$?
 B=$D/.esphome/build/$N/.pioenvs/$N; IMG=$B/firmware.bin; [ -f "$B/firmware.uf2" ] && IMG=$B/firmware.uf2
-PY=$PY bash "$D/webota.sh" "$IP" "$IMG" "$D/$N"; RC=$?
+PY=$PY bash "$D/webota.sh" "$IP" "$IMG" "$D/$N" || RC=1
 sleep 5; pkill -f "[e]sphome logs $D/$N.yaml"
 echo "APILOG crash lines $(grep -a -c -E 'CRASH|Crash|abort|HardFault|assert' "$D/$N-apilog.txt")," \
   "boots seen $(grep -a -c 'ESPHome version' "$D/$N-apilog.txt"), lines $(wc -l < "$D/$N-apilog.txt")"

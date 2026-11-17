@@ -2,10 +2,9 @@ esphome:
   name: ${name}
   includes:
     - dhcpwrap.hpp
-  platformio_options:
-    build_flags:
-      - -Wl,--wrap=udp_sendto_if
-      - -Wl,--wrap=udp_sendto_if_src
+  build_flags:
+    - -Wl,--wrap=udp_sendto_if
+    - -Wl,--wrap=udp_sendto_if_src
   on_boot:
     priority: 800
     then:

@@ -124,3 +124,5 @@ p(
     f"=> {'OK' if ctl_ok else 'FAIL'}"
 )
 p("heap end", heap(), "uptime", rest.uptime())
+# a failed page, no SSE state or a failed control fails the run for run.sh and otarun.sh
+sys.exit(0 if ctl_ok and states and pages_ok == pages_n else 1)
