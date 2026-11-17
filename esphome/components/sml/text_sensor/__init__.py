@@ -18,19 +18,15 @@ SML_TYPES = {
     "": SmlType.SML_UNDEFINED,
 }
 
-SmlTextSensor = sml_ns.class_("SmlTextSensor", text_sensor.TextSensor, cg.Component)
+SmlTextSensor = sml_ns.class_("SmlTextSensor", text_sensor.TextSensor)
 
-CONFIG_SCHEMA = (
-    text_sensor.text_sensor_schema(SmlTextSensor)
-    .extend(
-        {
-            cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
-            cv.Required(CONF_OBIS_CODE): obis_code,
-            cv.Optional(CONF_SERVER_ID, default=""): cv.string,
-            cv.Optional(CONF_FORMAT, default=""): cv.enum(SML_TYPES, lower=True),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(SmlTextSensor).extend(
+    {
+        cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
+        cv.Required(CONF_OBIS_CODE): obis_code,
+        cv.Optional(CONF_SERVER_ID, default=""): cv.string,
+        cv.Optional(CONF_FORMAT, default=""): cv.enum(SML_TYPES, lower=True),
+    }
 )
 
 
@@ -41,6 +37,5 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_OBIS_CODE],
         config[CONF_FORMAT],
     )
-    await cg.register_component(var, config)
     sml = await cg.get_variable(config[CONF_SML_ID])
     cg.add(sml.register_sml_listener(var))

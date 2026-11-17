@@ -13,6 +13,8 @@
 #include <cstring>
 #include <pthread.h>
 
+#include "task_log_message.h"
+
 namespace esphome::logger {
 
 /**

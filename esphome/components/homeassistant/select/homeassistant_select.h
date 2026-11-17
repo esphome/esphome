@@ -5,7 +5,6 @@
 #include <span>
 
 #include "esphome/components/select/select.h"
-#include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
@@ -16,7 +15,7 @@ namespace esphome::homeassistant {
  * `options_buffer_size` bytes and a list of at most `max_options` entries, both static arrays from code
  * generation, so options never allocate.
  */
-class HomeassistantSelect final : public select::Select, public Component {
+class HomeassistantSelect final : public select::Select {
  public:
   HomeassistantSelect(std::span<char> options_buffer, std::span<const char *> option_list)
       : options_buffer_(options_buffer.data()),
@@ -26,9 +25,8 @@ class HomeassistantSelect final : public select::Select, public Component {
 
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
 
-  void setup() override;
-  void dump_config() override;
-  float get_setup_priority() const override;
+  void subscribe();
+  void dump_config();
 
  protected:
   void options_changed_(StringRef options);

@@ -62,7 +62,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 mopeka_pro_check_ns = cg.esphome_ns.namespace("mopeka_pro_check")
 MopekaProCheck = mopeka_pro_check_ns.class_(
-    "MopekaProCheck", ble_device_base.ESPBTDeviceListener, cg.Component
+    "MopekaProCheck", ble_device_base.ESPBTDeviceListener
 )
 
 SensorReadQuality = mopeka_pro_check_ns.enum("SensorReadQuality")
@@ -124,14 +124,12 @@ CONFIG_SCHEMA = cv.All(
                 SIGNAL_QUALITIES, upper=True
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 

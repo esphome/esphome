@@ -12,6 +12,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/ringbuf.h>
 
+#include "task_log_message.h"
+
 namespace esphome::logger {
 
 /**
@@ -32,19 +34,7 @@ namespace esphome::logger {
  */
 class TaskLogBuffer {
  public:
-  // Structure for a log message header (text data follows immediately after)
-  struct LogMessage {
-    const char *tag;       // We store the pointer, assuming tags are static
-    char thread_name[16];  // Store thread name directly (only used for non-main threads)
-    uint16_t text_length;  // Length of the message text (up to ~64KB)
-    uint16_t line;         // Source code line number
-    uint8_t level;         // Log level (0-7)
-
-    // Methods for accessing message contents
-    inline char *text_data() { return reinterpret_cast<char *>(this) + sizeof(LogMessage); }
-
-    inline const char *text_data() const { return reinterpret_cast<const char *>(this) + sizeof(LogMessage); }
-  };
+  using LogMessage = TaskLogMessage;
 
   TaskLogBuffer();
   // No destructor: Logger is never destroyed
