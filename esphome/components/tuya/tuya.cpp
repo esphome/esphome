@@ -136,17 +136,15 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
   }
 
   uint8_t data[4];
-  uint8_t *p = data;
   switch (length) {
     case 4:
-      *p++ = value >> 24;
-      *p++ = value >> 16;
-      [[fallthrough]];
+      put_be32(data, value);
+      break;
     case 2:
-      *p++ = value >> 8;
-      [[fallthrough]];
+      put_be16(data, value);
+      break;
     case 1:
-      *p++ = value >> 0;
+      data[0] = value;
       break;
     default:
       ESP_LOGE(TAG, "Unexpected datapoint length %u", length);

@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include <cctype>
+#include <cstring>
 
 #ifdef USE_NETWORK
 #include "esphome/components/network/util.h"
