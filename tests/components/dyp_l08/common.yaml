@@ -1,5 +1,0 @@
-sensor:
-  - platform: dyp_l08
-    id: dyp_l08_sensor
-    name: DYP L08 Distance
-    model: L08

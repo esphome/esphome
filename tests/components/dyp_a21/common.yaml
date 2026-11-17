@@ -1,5 +1,0 @@
-sensor:
-  - platform: dyp_a21
-    id: dyp_a21_sensor
-    name: DYP A21AYYUW Distance
-    model: A21AYYUW

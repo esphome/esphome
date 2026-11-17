@@ -1,6 +1,0 @@
-sensor:
-  - platform: dyp_me007ys
-    id: dyp_me007ys_sensor
-    name: DYP ME007YS Distance
-    model: ME007YS
-    mode: AUTO

@@ -1,6 +1,0 @@
-sensor:
-  - platform: dyp_a15
-    id: dyp_a15_sensor
-    name: DYP A15 Distance
-    model: A15
-    mode: AUTO

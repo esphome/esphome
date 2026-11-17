@@ -1,6 +1,0 @@
-sensor:
-  - platform: dyp_l07a
-    id: dyp_l07a_sensor
-    name: DYP L07A Distance
-    model: L07A
-    mode: AUTO

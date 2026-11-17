@@ -1,5 +1,0 @@
-sensor:
-  - platform: dyp_ds1603
-    id: dyp_ds1603_sensor
-    name: DYP DS1603DA-3U Distance
-    model: DS1603DA-3U

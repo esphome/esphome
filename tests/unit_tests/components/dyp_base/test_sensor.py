@@ -5,8 +5,6 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.const import CONF_OUTPUT_MODE
-from esphome.components.dyp_a02 import sensor as dyp_a02_sensor
-from esphome.components.dyp_a07 import sensor as dyp_a07_sensor
 from esphome.components.dyp_a13 import sensor as dyp_a13_sensor
 from esphome.components.dyp_base import (
     CONF_BLIND_ZONE,
@@ -15,6 +13,8 @@ from esphome.components.dyp_base import (
     MODES,
     OUTPUT_MODES,
     PUBLISH_MODES,
+    DYPModel,
+    dyp_sensor_schema,
     to_code_base,
 )
 from esphome.const import (
@@ -23,6 +23,10 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODEL,
     CONF_TRIGGER_PIN,
+)
+
+NO_OUTPUT_MODE_SCHEMA = dyp_sensor_schema(
+    {"NO_OUT": DYPModel("25cm", "800cm", mode="AUTO", supports_rx_mode_select=False)}
 )
 
 
@@ -64,13 +68,13 @@ def test_unknown_model_raises_cv_invalid() -> None:
     ("schema", "raw_config", "expected_msg"),
     [
         (
-            dyp_a02_sensor.CONFIG_SCHEMA,
-            {CONF_MODEL: "A02YYUW", "name": "Test", CONF_MODE: "AUTO"},
+            dyp_a13_sensor.CONFIG_SCHEMA,
+            {CONF_MODEL: "A13NYUW", "name": "Test", CONF_MODE: "AUTO"},
             "extra keys not allowed",
         ),
         (
-            dyp_a07_sensor.CONFIG_SCHEMA,
-            {CONF_MODEL: "A07NYUB", "name": "Test", CONF_OUTPUT_MODE: "PROCESSED"},
+            NO_OUTPUT_MODE_SCHEMA,
+            {CONF_MODEL: "NO_OUT", "name": "Test", CONF_OUTPUT_MODE: "PROCESSED"},
             "extra keys not allowed",
         ),
         (
@@ -84,9 +88,9 @@ def test_unknown_model_raises_cv_invalid() -> None:
             "`trigger_pin` is not allowed when `mode` is 'AUTO'",
         ),
         (
-            dyp_a02_sensor.CONFIG_SCHEMA,
+            dyp_a13_sensor.CONFIG_SCHEMA,
             {
-                CONF_MODEL: "A02YYUW",
+                CONF_MODEL: "A13NYUW",
                 "name": "Test",
                 CONF_OUTPUT_MODE: "REALTIME",
             },
