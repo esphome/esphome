@@ -6,40 +6,24 @@ split (header sent in two TCP segments, the NUL first in the second). Cases run 
 lands a second late still counts against the right case. Prints one line per reboot and a summary per case.
 """
 
-import base64
-import json
+import pathlib
 import socket
 import sys
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import authfuzz as af  # noqa: E402
 
 HOST, U, P = sys.argv[1:4]
 N = int(sys.argv[4]) if len(sys.argv) > 4 else 200
 # A case stops after MAXREB reboots: a build that reboots every time would otherwise take hours
 MAXREB = int(sys.argv[6]) if len(sys.argv) > 6 else 10
-H = base64.b64encode(f"{U}:{P}".encode()).decode()
-GOOD = f"Basic {H}".encode()
+af.configure(HOST, U, P)
+GOOD = af.GOOD.encode()
 
 
 def uptime(tries: int = 30) -> float | None:
-    for _ in range(tries):
-        try:
-            s = socket.create_connection((HOST, 80), timeout=3)
-            s.sendall(
-                b"GET /sensor/Uptime HTTP/1.1\r\nHost: x\r\nAuthorization: "
-                + GOOD
-                + b"\r\nConnection: close\r\n\r\n"
-            )
-            buf = b""
-            while b"}" not in buf:
-                d = s.recv(512)
-                if not d:
-                    break
-                buf += d
-            s.close()
-            return float(json.loads(buf.split(b"\r\n\r\n", 1)[1])["value"])
-        except Exception:  # noqa: BLE001
-            time.sleep(2)
-    return None
+    return None if (u := af.uptime(tries)) is None else float(u)
 
 
 def send(parts: list[bytes]) -> str:
@@ -88,7 +72,7 @@ for name in names:
         if u1 is None or u0 is None or u1 < u0:
             time.sleep(2)
             u1 = uptime()
-            if u1 is None or u0 is None or u1 < u0 + 0.0:
+            if u1 is None or u0 is None or u1 < u0:
                 reboots += 1
                 print(
                     time.strftime("[%H:%M:%S]"),

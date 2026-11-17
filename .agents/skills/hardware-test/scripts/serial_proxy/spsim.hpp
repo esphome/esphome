@@ -39,10 +39,7 @@ inline uint32_t last_status = 0;
 
 inline void make_reply(uint32_t n) {
   out[0] = 0xA5;
-  out[1] = n >> 24;
-  out[2] = n >> 16;
-  out[3] = n >> 8;
-  out[4] = n;
+  put_be32(out + 1, n);
   for (size_t j = 0; j < REPLY_SIZE - 5; j++)
     out[5 + j] = (n + j) % 251;
   out_len = REPLY_SIZE;
@@ -71,10 +68,7 @@ inline void make_ash(uint32_t seq) {
   uint8_t body[1 + 24 + 2];
   const uint8_t frm = seq & 7;
   body[0] = frm << 4;
-  body[1] = seq >> 24;
-  body[2] = seq >> 16;
-  body[3] = seq >> 8;
-  body[4] = seq;
+  put_be32(body + 1, seq);
   for (int j = 0; j < 20; j++)
     body[5 + j] = (seq * 3 + j) & 0xFF;
   uint16_t crc = crc16be(body, 25, 0xFFFF);

@@ -30,10 +30,6 @@ def expect(t):  # 12345.678f + t * 0.001f - (t % 7) * 1000.5f in single precisio
     return f32(f32(f32(12345.678) + f32(f32(t) * f32(0.001))) - f32((t % 7) * 1000.5))
 
 
-async def conn(host):
-    return await connect(host)
-
-
 async def main():
     boards = {"d1": (D1, D1V), "e32": (E32, E32V)}
     hist = {
@@ -43,7 +39,7 @@ async def main():
     obs = {}  # (receiver, kind, field) -> list of (t, value, missing)
     clients = {}
     for b, (host, _) in boards.items():
-        c = await conn(host)
+        c = await connect(host)
         clients[b] = c
         ents, _ = await c.list_entities_services()
         keys = {e.key: e.object_id for e in ents}
@@ -107,12 +103,7 @@ async def main():
             r["before_run"] = sum(1 for _, v in vals if int(v) < first)
             last_sent = max(sent) if sent else 0
             r["not_sent"] = sum(
-                1
-                for _, v in vals
-                if int(v) < first - 0
-                and False
-                or int(v) > last_sent + 60
-                or int(v) != v
+                1 for _, v in vals if int(v) > last_sent + 60 or int(v) != v
             )
             r["api_gap_values"] = sum(
                 1

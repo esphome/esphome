@@ -3,50 +3,24 @@
 usage: upload_reject.py HOST USER PASS [N] [KB]
 """
 
-import base64
-import json
 import os
+import pathlib
 import socket
 import sys
 import time
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import authfuzz as af  # noqa: E402
+
 HOST, U, P = sys.argv[1:4]
 N = int(sys.argv[4]) if len(sys.argv) > 4 else 5
 KB = int(sys.argv[5]) if len(sys.argv) > 5 else 256
-H = base64.b64encode(f"{U}:{P}".encode()).decode()
-
-
-def val(path: str) -> object:
-    for _ in range(10):
-        try:
-            s = socket.create_connection((HOST, 80), timeout=4)
-            s.sendall(
-                f"GET {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n\r\n".encode()
-            )
-            buf = b""
-            while b"}" not in buf:
-                d = s.recv(512)
-                if not d:
-                    break
-                buf += d
-            s.close()
-            return json.loads(buf.split(b"\r\n\r\n", 1)[1])["value"]
-        except Exception:  # noqa: BLE001
-            time.sleep(2)
-    return None
+af.configure(HOST, U, P)
 
 
 def upload(auth: str | None) -> str:
-    b = "----hwtestb"
-    body = (
-        (
-            f'--{b}\r\nContent-Disposition: form-data; name="update"; filename="firmware.bin"\r\n'
-            "Content-Type: application/octet-stream\r\n\r\n"
-        ).encode()
-        + os.urandom(KB * 1024)
-        + f"\r\n--{b}--\r\n".encode()
-    )
-    h = f"POST /update HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Type: multipart/form-data; boundary={b}\r\n"
+    body, ctype = af.mp_body(os.urandom(KB * 1024))
+    h = f"POST /update HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Type: {ctype}\r\n"
     if auth:
         h += f"Authorization: {auth}\r\n"
     h += f"Content-Length: {len(body)}\r\n\r\n"
@@ -73,12 +47,12 @@ def upload(auth: str | None) -> str:
 for i in range(N):
     for name, auth in (
         ("noauth", None),
-        ("wronghash", "Basic " + H[:-1] + ("B" if H[-1] != "B" else "C")),
+        ("wronghash", af.BAD),
     ):
-        u0 = val("/sensor/Uptime")
+        u0 = af.uptime(10)
         st = upload(auth)
         time.sleep(3)
-        u1, hp = val("/sensor/Uptime"), val("/sensor/Heap%20free")
+        u1, hp = af.uptime(10), af.heap(10)
         rb = "REBOOT" if u0 is None or u1 is None or u1 < u0 else "ok"
         print(
             time.strftime("[%H:%M:%S]"),

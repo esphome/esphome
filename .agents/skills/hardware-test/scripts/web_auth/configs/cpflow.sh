@@ -5,13 +5,13 @@
 # KIND pico waits for the re-enumerated port. env: TREE, CLIENT_TREE, CLIENT (default cpclient), PY
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$(dirname "$D")"); N=${1:?dut}; K=${2:?kind}; P=${3:?dut port}
 CP=${4:?client port}; T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; C=${CLIENT:-cpclient}
-up() { (cd "$2" && PLATFORMIO_CORE_DIR=${PIO_CORE:-$D/pio} PYTHONPATH=$2 PYTHONUNBUFFERED=1 timeout 300 \
-  $PY -m esphome upload "$D/$1.yaml" --device "$3" > "$D/$1-cpupload.log" 2>&1); echo "upload $1 rc=$?"; }
+# up NAME TREE PORT: upload NAME.yaml built from TREE with `-s name NAME`
+up() { TREE=$2 PY=$PY PIO_CORE=${PIO_CORE:-$D/pio} bash "$S/pio_build.sh" upload "$1" "$D/$1.yaml" "$3"; }
 pkill -f "[s]erial_capture.py $P "; pkill -f "[s]erial_capture.py $CP "; sleep 1
-up "$N" "$T" "$P"
+up "$N" "$T" "$P" || exit 1
 if [ "$K" = pico ]; then sleep 3; for _ in $(seq 1 30); do [ -e "$P" ] && break; sleep 1; done; sleep 2; fi
 : > "$D/$N-cp-serial.log"; ($PY "$S/serial_capture.py" "$P" 300 "$D/$N-cp-serial.log" 2> /dev/null &)
-if [ "$5" = flashclient ]; then up "$C" "${CLIENT_TREE:?set CLIENT_TREE}" "$CP"; fi
+if [ "$5" = flashclient ]; then up "$C" "${CLIENT_TREE:?set CLIENT_TREE}" "$CP" || exit 1; fi
 for _ in $(seq 1 90); do grep -a -q "Starting fallback AP" "$D/$N-cp-serial.log" && break; sleep 2; done; sleep 3
 : > "$D/$N-cpclient-serial.log"
 ($PY "$S/serial_capture.py" "$CP" 240 "$D/$N-cpclient-serial.log" --reset 2> /dev/null &)

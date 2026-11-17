@@ -21,7 +21,7 @@ api:
 ota:
   - platform: esphome
 packages:
-  # 60 template sensors bs0..bs59 and the BS pointer array; run gen_sensors.py once to write it
+  # the flooded sensors and text sensors, their pointer arrays and the remote entities; run gen_sensors.py once
   bs: !include putbe-sensors.yaml
 globals:
   - id: flood_n
@@ -57,10 +57,8 @@ interval:
                 uint32_t n = ++id(flood_n);
                 for (size_t i = 0; i < BS_COUNT; i++)
                   BS[i]->publish_state(n * 100 + i);
-                id(bt0).publish_state(make_txt(n, 0));
-                id(bt1).publish_state(make_txt(n, 1));
-                id(bt2).publish_state(make_txt(n, 2));
-                id(bt3).publish_state(make_txt(n, 3));
+                for (size_t i = 0; i < BT_COUNT; i++)
+                  BT[i]->publish_state(make_txt(n, i));
                 id(flood_sensor).publish_state(n);
   - interval: 1s
     then:
@@ -117,23 +115,6 @@ entity_transport:
     binary_sensors:
       - id: loc_bin
         broadcast_id: bin
-text_sensor:
-  - platform: template
-    id: bt0
-    name: T0
-    update_interval: never
-  - platform: template
-    id: bt1
-    name: T1
-    update_interval: never
-  - platform: template
-    id: bt2
-    name: T2
-    update_interval: never
-  - platform: template
-    id: bt3
-    name: T3
-    update_interval: never
 sensor:
   - platform: template
     id: flood_sensor
@@ -164,83 +145,7 @@ sensor:
     id: ovf_drain
     name: Ovf drain
     update_interval: never
-  - platform: entity_transport
-    entity_transport_id: et_plain
-    id: r_plain_b_count
-    name: R plain b count
-    provider: ${peer}b
-    remote_id: count
-  - platform: entity_transport
-    entity_transport_id: et_plain
-    id: r_plain_b_flt
-    name: R plain b flt
-    provider: ${peer}b
-    remote_id: flt
-    accuracy_decimals: 3
-  - platform: entity_transport
-    entity_transport_id: et_plain
-    id: r_plain_p_count
-    name: R plain p count
-    provider: ${peer}p
-    remote_id: count
-  - platform: entity_transport
-    entity_transport_id: et_plain
-    id: r_plain_p_flt
-    name: R plain p flt
-    provider: ${peer}p
-    remote_id: flt
-    accuracy_decimals: 3
-  - platform: entity_transport
-    entity_transport_id: et_full
-    id: r_full_b_count
-    name: R full b count
-    provider: ${peer}b
-    remote_id: count
-  - platform: entity_transport
-    entity_transport_id: et_full
-    id: r_full_b_flt
-    name: R full b flt
-    provider: ${peer}b
-    remote_id: flt
-    accuracy_decimals: 3
-  - platform: entity_transport
-    entity_transport_id: et_full
-    id: r_full_p_count
-    name: R full p count
-    provider: ${peer}p
-    remote_id: count
-  - platform: entity_transport
-    entity_transport_id: et_full
-    id: r_full_p_flt
-    name: R full p flt
-    provider: ${peer}p
-    remote_id: flt
-    accuracy_decimals: 3
 binary_sensor:
   - platform: template
     id: loc_bin
     name: Local bin
-  - platform: entity_transport
-    entity_transport_id: et_plain
-    id: r_plain_b_bin
-    name: R plain b bin
-    provider: ${peer}b
-    remote_id: bin
-  - platform: entity_transport
-    entity_transport_id: et_plain
-    id: r_plain_p_bin
-    name: R plain p bin
-    provider: ${peer}p
-    remote_id: bin
-  - platform: entity_transport
-    entity_transport_id: et_full
-    id: r_full_b_bin
-    name: R full b bin
-    provider: ${peer}b
-    remote_id: bin
-  - platform: entity_transport
-    entity_transport_id: et_full
-    id: r_full_p_bin
-    name: R full p bin
-    provider: ${peer}p
-    remote_id: bin

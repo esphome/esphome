@@ -58,7 +58,8 @@ ezsp_proxy_tap:
   serial_proxy_id: proxy
 
 interval:
-  - interval: 1ms
+  # the main loop cadence: a faster interval would also speed up the proxy's own loop and skew its latency
+  - interval: 16ms
     then:
       - lambda: spsim::poll();
   - interval: 10s

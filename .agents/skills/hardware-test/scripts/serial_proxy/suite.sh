@@ -1,12 +1,11 @@
 #!/bin/bash
 # suite.sh BUILD TREE: flash spBUILD.yaml (a copy of example-run.yaml) from TREE, capture the board, run every case
 # (CASES="a b" picks some), print the client RESULT and the simulator's SIMDONE totals per case.
-# env: PORT (the board's console), PY
+# env: PORT (the board's console), PY, PIO_CORE (default ./pio)
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); cd "$D" || exit 1
 B=${1:?build}; TREE=${2:?tree}; PORT=${PORT:?set PORT}; PY=${PY:-$TREE/venv/bin/python}
 pkill -f "[s]erial_capture.py $PORT "; sleep 1
-(cd "$TREE" && PYTHONUNBUFFERED=1 PYTHONPATH=$TREE timeout 300 $PY -m esphome upload "$D/sp$B.yaml" --device "$PORT") \
-  > "sp$B-upload.log" 2>&1 || { echo upload failed; exit 1; }
+TREE=$TREE PY=$PY bash "$S/pio_build.sh" upload "sp$B" "$D/sp$B.yaml" "$PORT" || exit 1
 CAP=$D/$B-suite-cap-$(date +%H%M%S).txt
 nohup $PY "$S/serial_capture.py" "$PORT" 7200 "$CAP" > /dev/null 2>&1 &
 IP=$(bash "$S/resolve.sh" "sp$B" 40) || exit 1

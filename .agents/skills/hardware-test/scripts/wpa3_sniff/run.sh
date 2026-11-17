@@ -1,6 +1,7 @@
 #!/bin/bash
-# usage: run.sh BUILDNAME TREE SECONDS   flash BUILDNAME.yaml (a station config built on st-common.yaml or
-# stearly-common.yaml) from TREE to the station, then capture station and AP logs with millisecond stamps.
+# usage: run.sh BUILDNAME TREE SECONDS   flash BUILDNAME.yaml (a station config built on st-common.yaml,
+# stearly-common.yaml or ds-common.yaml) from TREE to the station, then capture station and AP logs with millisecond
+# stamps.
 # env: ST (station port), AP (access point port), PY
 W=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$W"); cd "$W" || exit 1; PY=${PY:-$2/venv/bin/python}
 ST=${ST:?station port}; AP=${AP:?access point port}

@@ -55,7 +55,6 @@ async def main():
 
     async def on_stop(expected):
         stopped["t"] = time.monotonic()
-        stopped["expected"] = expected
 
     cli = await connect(HOST, on_stop=on_stop)
     info = await cli.device_info()

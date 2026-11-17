@@ -15,7 +15,8 @@ struct SniffRec {
 };
 static SniffRec s_ring[256];
 static std::atomic<uint32_t> s_head{0};
-static uint32_t s_tail = 0;
+// single producer (sniff_cb on the Wi-Fi task), single consumer (sniff_drain on the main loop)
+static std::atomic<uint32_t> s_tail{0};
 static std::atomic<uint32_t> s_drops{0};
 
 static void sniff_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
@@ -26,8 +27,8 @@ static void sniff_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
   uint8_t st = f[0] & 0xF0;
   if (st != 0x00 && st != 0xA0 && st != 0xB0 && st != 0xC0)
     return;
-  uint32_t h = s_head.load();
-  if (h - s_tail >= 256) {
+  uint32_t h = s_head.load(std::memory_order_relaxed);
+  if (h - s_tail.load(std::memory_order_acquire) >= 256) {
     s_drops++;
     return;
   }
@@ -40,7 +41,7 @@ static void sniff_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
   r.seq = (f[22] | (f[23] << 8)) >> 4;
   r.rssi = p->rx_ctrl.rssi;
   r.len = p->rx_ctrl.sig_len;
-  s_head.store(h + 1);
+  s_head.store(h + 1, std::memory_order_release);
 }
 
 static void sniff_start() {
@@ -53,9 +54,9 @@ static void sniff_start() {
 }
 
 static void sniff_drain() {
-  uint32_t h = s_head.load();
-  while (s_tail != h) {
-    SniffRec &r = s_ring[s_tail & 255];
+  const uint32_t h = s_head.load(std::memory_order_acquire);
+  for (uint32_t t = s_tail.load(std::memory_order_relaxed); t != h; t++) {
+    const SniffRec &r = s_ring[t & 255];
     const char *kind = "?";
     switch (r.fc0 & 0xF0) {
       case 0x00:
@@ -76,7 +77,7 @@ static void sniff_drain() {
              "rssi %d t_us %lld",
              kind, r.a2[0], r.a2[1], r.a2[2], r.a2[3], r.a2[4], r.a2[5], r.a1[0], r.a1[1], r.a1[2], r.a1[3], r.a1[4],
              r.a1[5], r.seq, (r.fc1 >> 3) & 1, (r.fc1 >> 6) & 1, r.len, r.rssi, (long long) r.t_us);
-    s_tail++;
+    s_tail.store(t + 1, std::memory_order_release);
   }
   uint32_t d = s_drops.exchange(0);
   if (d)

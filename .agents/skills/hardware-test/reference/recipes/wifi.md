@@ -120,13 +120,15 @@ provisioning although the config asked for none; with #22564 it read 0 from the 
 
 ## Counting the Disassociation burst at reboot (#22715)
 
-`scripts/wpa3_sniff/`: `w15ap.yaml` is a WPA3-SAE only AP with PMF required (any ESP32, set `board:`) that also turns
+`scripts/wpa3_sniff/`: `sniffap.yaml` is a WPA3-SAE only AP with PMF required (any ESP32, set `board:`) that also turns
 on promiscuous mode with the management filter (`sniff_inc.hpp`) and logs each assoc request, auth, disassoc and deauth
 frame with transmitter, sequence number, Retry and Protected bits. The AP's own sniffer does see retransmitted copies
-addressed to it. `st-common.yaml` reboots 10 s after connect (alternating `App.reboot()`/`safe_reboot()`),
-`stearly-common.yaml` reboots on the first loop pass after `WIFI_EVENT_STA_CONNECTED` (0.15 to 0.46 ms later, before
-the Wi-Fi component handles the event), `ds-common.yaml` deep sleeps 5 s. `run.sh BUILD TREE SECONDS` (env ST, AP)
-flashes the station and captures both; `an15.py BUILD STA_MAC` groups the copies per reboot.
+addressed to it. The station configs share `st-base.yaml`: `st-common.yaml` reboots 10 s after connect (alternating
+`App.reboot()`/`safe_reboot()`), `stearly-common.yaml` reboots on the first loop pass after `WIFI_EVENT_STA_CONNECTED`
+(the event handler wakes the loop and `on_loop` runs before the Wi-Fi component's loop; measured 0.15 to 0.46 ms
+after the event with a 1 ms interval, before the Wi-Fi component handles it), `ds-common.yaml` deep sleeps 5 s.
+`run.sh BUILD TREE SECONDS` (env ST, AP) flashes the station and captures both; `an15.py BUILD STA_MAC` groups the
+copies per sequence number within one burst (copies more than 2 s apart start a new group).
 - On ESP-IDF 5.5.6 the ESP32-C6 station sends 27 to 32 protected Disassociation copies on every reboot while
   associated (espressif/esp-idf#19443); the classic ESP32 sends 1. Use a C6 (or C3) as the station.
 - Deep sleep on dev sends no Disassociation at all; the AP finds out only when the station returns (reason 2).
@@ -170,13 +172,15 @@ line) with `dhcpwrap.hpp`, a `-Wl,--wrap=udp_sendto_if`/`udp_sendto_if_src` hook
 and RELEASE and logs `DHCPRELEASE sent n= up=` (`up` = netif still up). `c3-common.yaml` is an ESP-IDF C3 DUT without
 AP. `outage.py DUT_PORT RTR_PORT LABEL N [--no-ap]` owns both ports: waits for 20 s of `conn=1`, holds the D1 in reset
 (RTS on EN), waits for `→ RESTARTING` after `Starting fallback AP` (or `Restarting adapter` with `--no-ap`), lets the
-router boot 1 s later and watches 40 s. `an.py LABEL...` prints per outage skip, cooldown length, driver association
-and address inside the cooldown, Connected-then-lost, held, releases after the router was back and router-side leaves.
+router boot 1 s later and waits for the first line that ends the cooldown (the ones `an.py` uses, at most 40 s).
+`an.py LABEL...` prints per outage skip, cooldown length, driver association and address inside the cooldown,
+Connected-then-lost, held, releases after the router was back and router-side leaves.
 - The D1 router is back about 1 s after release and hands out the address in about 0.2 s, but the BK7238 only reports
   it 7 to 8 s after associating; the 30 s portal cooldown leaves plenty of room.
 - BK7238 on dev: the Beken supplicant keeps trying after the skip branch's `WiFi.disconnect()` and joins about 5 s into
   the cooldown on every outage; base then logs Connected and, 200 ms later, Connection lost (20/20), #22797 0/20. The
   BK station never deauths on that teardown: the ESP8266 router logs `err already associed!` and only then the leave.
   The release is issued with the netif already down (`up=0`), so it is not proof it hit the air.
-- Opening the D1 mini port resets it once, so the first `Connection lost` in a capture is that reset, not an outage.
+- The first `Connection lost` in a capture is the reset from opening the D1 mini port (see `reference/boards.md`), not
+  an outage.
 - About 2 min per outage; run blocks of 10 interleaved base/PR with a reflash between.

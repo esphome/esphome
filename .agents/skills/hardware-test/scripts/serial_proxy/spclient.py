@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import binascii
 import socket
 import time
 
@@ -52,17 +53,6 @@ def reply(n: int) -> bytes:
         + n.to_bytes(4, "big")
         + bytes((n + j) % 251 for j in range(REPLY_SIZE - 5))
     )
-
-
-def crc_ccitt(data: bytes) -> int:
-    crc = 0xFFFF
-    for b in data:
-        crc ^= b << 8
-        for _ in range(8):
-            crc = (
-                ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
-            )
-    return crc
 
 
 class ReplyCheck:
@@ -163,7 +153,9 @@ class AshCheck:
         f = self.frame
         if not f:
             return
-        if len(f) != 27 or crc_ccitt(bytes(f[:25])) != int.from_bytes(f[25:27], "big"):
+        if len(f) != 27 or binascii.crc_hqx(bytes(f[:25]), 0xFFFF) != int.from_bytes(
+            f[25:27], "big"
+        ):
             self.bad += 1
             return
         seq = int.from_bytes(f[1:5], "big")
@@ -176,9 +168,6 @@ class AshCheck:
                 self.missing_frames += seq - self.last - 1
         self.last = seq
 
-    def finish(self) -> None:
-        pass
-
     def summary(self) -> str:
         return (
             f"valid_frames={self.valid} bad_frames={self.bad} gaps={self.gaps} "
@@ -188,8 +177,7 @@ class AshCheck:
 
 
 class Client:
-    def __init__(self, host: str, check) -> None:
-        self.host = host
+    def __init__(self, check) -> None:
         self.check = check
         self.buf = bytearray()
         self.reading = asyncio.Event()
@@ -206,6 +194,17 @@ class Client:
         payload = msg.SerializeToString()
         frame = b"\x00" + varint(len(payload)) + varint(TYPE_OF[type(msg)]) + payload
         await asyncio.get_running_loop().sock_sendall(self.sock, frame)
+
+    async def acked(self, msg, want: str, timeout: float = 3.0) -> None:
+        """Send msg and wait for a response starting with want ("hello", "type=N")."""
+        n = len(self.responses)
+        await self.send(msg)
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if any(r.startswith(want) for r in self.responses[n:]):
+                return
+            await asyncio.sleep(0.02)
+        print(f"no {want} response within {timeout:.0f} s", flush=True)
 
     async def write(self, data: bytes) -> None:
         await self.send(api_pb2.SerialProxyWriteRequest(instance=0, data=data))
@@ -262,10 +261,11 @@ class Client:
 
 
 async def configure(c: Client, baud: int) -> None:
-    await c.send(
+    await c.acked(
         api_pb2.SerialProxyConfigureRequest(
             instance=0, baudrate=baud, stop_bits=1, data_size=8, parity=0
-        )
+        ),
+        f"type={api_pb2.SERIAL_PROXY_REQUEST_TYPE_CONFIGURE} ",
     )
 
 
@@ -298,7 +298,7 @@ async def main() -> None:
     DEBUG = a.debug
 
     check = AshCheck() if a.mode == "ash" else ReplyCheck()
-    c = Client(a.host, check)
+    c = Client(check)
     loop = asyncio.get_running_loop()
     await loop.sock_connect(c.sock, (a.host, a.port))
     print(
@@ -306,38 +306,39 @@ async def main() -> None:
         flush=True,
     )
     rtask = asyncio.create_task(c.reader())
-    await c.send(
+    await c.acked(
         api_pb2.HelloRequest(
             client_info="spclient", api_version_major=1, api_version_minor=10
-        )
+        ),
+        "hello",
     )
-    await asyncio.sleep(0.5)
-    await c.send(
+    await c.acked(
         api_pb2.SerialProxyRequest(
             instance=0, type=api_pb2.SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE
-        )
+        ),
+        f"type={api_pb2.SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE} ",
     )
-    await asyncio.sleep(0.3)
     # Bring the simulator to the target baud from whichever rate it is on, then the proxy
     c.collect = False
     for b in (1920, 115200):
         await configure(c, b)
-        await asyncio.sleep(0.3)
         await c.write(b"\x7eB%d\x7e" % a.baud)
         await asyncio.sleep(0.6)
     await configure(c, a.baud)
-    await asyncio.sleep(0.3)
     await c.write(b"\x7eX\x7e")
     await asyncio.sleep(0.3)
-    await c.send(
+    await c.acked(
         api_pb2.SerialProxySetModeRequest(
             instance=0,
             mode=api_pb2.SERIAL_PROXY_MODE_PROTOCOL
             if a.protocol
             else api_pb2.SERIAL_PROXY_MODE_RAW,
-        )
+        ),
+        f"type={api_pb2.SERIAL_PROXY_REQUEST_TYPE_SET_MODE} ",
     )
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(
+        1.0
+    )  # bytes left over from the baud switches drain before collecting
     c.collect = True
     print(f"setup responses: {c.responses}", flush=True)
 
@@ -383,7 +384,8 @@ async def main() -> None:
     # Drain: until nothing arrives for 3 s
     while time.monotonic() - c.last_data < 3:
         await asyncio.sleep(0.5)
-    check.finish()
+    if isinstance(check, ReplyCheck):
+        check.finish()
     print(
         f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()}",
         flush=True,

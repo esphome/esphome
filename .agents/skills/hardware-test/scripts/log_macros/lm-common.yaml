@@ -1,7 +1,8 @@
 esphome:
   name: ${name}
 logger:
-  level: DEBUG
+  # sensor states and switch, light and fan calls log at VERBOSE; at DEBUG an A/B sees none of them
+  level: VERBOSE
 api:
   reboot_timeout: 0s
 ota:

@@ -6,8 +6,9 @@ import sys
 
 out = []
 cfg = False
+# case-insensitive only where both spellings occur; MAC, Tx, Max and the like stay case-sensitive
 VOL = re.compile(
-    r"IP Address|MAC|BSSID|Hostname|Signal|Channel|Gateway|Subnet|DNS|compiled|Compile|Uptime|heap|Heap|Free|RSSI|Scan Results|SSID|Address:|Subnet|Reset reason|Boot|Version|ESPHome version|Loop|loop|ms\b|Config hash|Up ?time|frag|Max|stack|Flash|Chip|CPU|MHz|Wakeup|bootloader|SDK|Core|reason|hash|Power|IDF|Mbps|Tx|Partition"
+    r"IP Address|MAC|BSSID|Hostname|Signal|Channel|Gateway|Subnet|DNS|RSSI|Scan Results|SSID|Address:|Boot|ms\b|frag|Max|stack|Flash|Chip|CPU|MHz|Wakeup|bootloader|SDK|Core|reason|hash|Power|IDF|Mbps|Tx|Partition|Free|(?i:compile|heap|loop|up ?time|version)"
 )
 with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as fh:
     for raw in fh:

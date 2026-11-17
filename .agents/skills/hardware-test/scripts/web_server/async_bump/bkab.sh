@@ -4,16 +4,14 @@
 # env: PORT, PY, IFACE (default en0; tcpdump needs capture rights)
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$(dirname "$D")"); P=${PORT:?set PORT}; PY=${PY:-python3}
 IF=${IFACE:-en0}
-LTPY=$D/pio/penv/.libretiny/bin/python; [ -x "$LTPY" ] || LTPY=~/.platformio/penv/.libretiny/bin/python
+. "$D/ltflash.sh"
 k=0
 for N in "$@"; do
   k=$((k + 1)); T=$N-p$k
   pkill -f "[s]erial_capture.py $P "; sleep 1
-  for _ in 1 2 3; do
-    timeout 400 "$LTPY" "$S/flash_bk72xx.py" flash write -d "$P" "$D/.esphome/build/$N/.pioenvs/$N/firmware.uf2" \
-      > "$D/$T-upload.log" 2>&1 && break
-  done
-  echo "== pass $k $N flash rc=$?"
+  ltflash bk "$P" "$D/.esphome/build/$N/.pioenvs/$N/firmware.uf2" "$D/$T-upload.log" ||
+    { echo "== pass $k $N flash failed three times (see $D/$T-upload.log)"; exit 1; }
+  echo "== pass $k $N flashed"
   : > "$D/$T-serial.log"; ($PY "$S/serial_capture.py" "$P" 1200 "$D/$T-serial.log" 2> /dev/null &)
   HOST=$(bash "$S/resolve.sh" "$N" 60) || { echo "no host"; continue; }; sleep 10
   (tcpdump -i "$IF" -s 128 -w "$D/$T.pcap" host "$HOST" and tcp port 80 > /dev/null 2>&1 &); sleep 1

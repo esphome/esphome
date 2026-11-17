@@ -37,6 +37,17 @@ def load(path: str) -> list[tuple[float, str]]:
 
 CONNECTED = re.compile(r"\[I\]\[wifi:\d+\]: Connected$")
 LOST = "Connection lost; reconnecting"
+COOLDOWN_END = (
+    "Retry phase",
+    "Connecting to",
+    "Unknown connection",
+    "failed (callback)",
+)
+
+
+def ends_cooldown(line: str) -> bool:
+    """A state machine line that only comes after the cooldown; outage.py waits for it too."""
+    return bool(CONNECTED.search(line)) or any(x in line for x in COOLDOWN_END)
 
 
 def analyze(label: str) -> list[dict]:
@@ -61,18 +72,7 @@ def analyze(label: str) -> list[dict]:
         skip = not any("Restarting adapter" in b for a, b in after if a - rst < 1.0)
         # first state machine line after the cooldown
         cd_end = next(
-            (
-                a
-                for a, b in after
-                if a - rst > 1.0
-                and (
-                    CONNECTED.search(b)
-                    or "Retry phase" in b
-                    or "Connecting to" in b
-                    or "Unknown connection" in b
-                    or "failed (callback)" in b
-                )
-            ),
+            (a for a, b in after if a - rst > 1.0 and ends_cooldown(b)),
             None,
         )
         first_connecting = next((a for a, b in after if "Connecting to" in b), 1e12)

@@ -6,7 +6,9 @@
   600 failed attempts, 4 bad-credential threads next to an authenticated `/events` stream) and `timing`
   (wrong first byte vs wrong last byte, ms to the first 401 byte, Mann-Whitney z). Heap comes from the
   debug "Heap free" sensor over REST. `--ota` uploads the image with credentials and waits for the reboot.
-  It is importable: `configure()` sets the host and credentials for `raw()`, `build()` and `uptime()`.
+  It is importable: `configure()` sets the host and credentials for `raw()`, `build()`, `uptime()`, `heap()`,
+  `mp_body()` and `bad_once()` (one wrong-hash request, drained to the device's close for at most 0.5 s), which the
+  other scripts here use.
 - `isolate.py HOST USER PASS [ROUNDS] [CASE,...]`: one hostile request at a time with the uptime before and after,
   to tie a reboot to one request.
 - `compare.py DEV_PREFIX PR_PREFIX` lines the two runs up and prints both raw 401 heads;
@@ -25,7 +27,7 @@
 - `upload_reject.py HOST USER PASS [N] [KB]`: unauthenticated and wrong-hash `/update` uploads with the status,
   uptime and heap after each.
 - `rate.py HOST USER PASS [SEQ_N] [PAR_S] [THREADS]`: ms to the first byte and to the device's close per request,
-  sequential and parallel. `pcapphase.py PCAP DEVICE_IP`: per-connection accept, respond and close times from a
+  sequential and parallel; a close that does not come within 1 s of the end of the body counts as "no close". `pcapphase.py PCAP DEVICE_IP`: per-connection accept, respond and close times from a
   tcpdump capture (tcpdump drops packets at flood rates, so it samples).
 - `nul_soak.py HOST USER PASS [N] [CASES] [MAXREB]`: NUL byte in the Authorization header, another header, the
   request line, and split across TCP segments; N requests per case with an uptime check after each, a case stops
@@ -34,7 +36,7 @@
   only then reset the client, or the client joins the real network first and never sees the AP.
 - `heap_churn.py HOST USER PASS [N] [RATE] [SAMPLE_S] [AFTER_S]`: free heap (the "Heap free" sensor over REST) while N
   wrong-credential requests run at a fixed RATE per second and for AFTER_S seconds after, sampled every 1 s for the
-  first 20 s after the load; prints the idle heap, the lowest heap under load, how long the heap takes to come back
+  first 20 s after the load; prints the rate actually reached, the idle heap, the lowest heap under load, how long the heap takes to come back
   within 2 KB of idle, and whether the uptime went backwards. `configs/msl.sh NAME bw15.yaml PORT` runs it with the
   big header cases on a BW15 (`configs/bw15.yaml` reads the heap every 1 s).
 - `arena_drive.py HOST USER PASS [PHASE_S]` with `arena/`: the main task stack high-water mark under web_server load.
@@ -71,7 +73,8 @@ Findings from #22684 (ESP8266, Pico 2 W, BW15):
   its own timeout. Successful responses close after about 0.5 s. Same on dev.
 - BW15: a 32 KB header or a 64 KB line with no newline resets the board (reset reason Power-On), and so does a 60 s
   4-thread flood; free heap drops about 60 KB over 600 rapid connections and stays low. Same on dev.
-- ESP8266 web OTA uploads fail now and then on dev and PR alike (interrupted upload, or flashed without a response).
+- ESP8266 web OTA uploads fail now and then on dev and PR alike; see the ESP8266 web_server OTA section of
+  `reference/recipes/ota.md`.
 - Unpaced floods vary 2x between passes of the same build; compare builds in alternating passes (dev, PR, dev, PR)
   or paced. `/events` gets closed by the device (clean FIN after the ACK timeout) under an unpaced flood on any build.
 - ESPAsyncWebServer 3.12.1 skips all leading spaces of a header value (3.9.6 skipped one).

@@ -8,9 +8,13 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.request
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import rest  # noqa: E402
+from rest import jv, uptime  # noqa: E402
 
 HOST, KIND, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
+rest.HOST = HOST
 REPS = int(sys.argv[4]) if len(sys.argv) > 4 else 5
 D = pathlib.Path(__file__).resolve().parent
 IMG = {v: str(D / f"img-{KIND}-{v}.bin") for v in "ab"}
@@ -24,28 +28,6 @@ def p(*a):
     log.flush()
 
 
-def get(path, t=6):
-    try:
-        with urllib.request.urlopen(f"http://{HOST}{path}", timeout=t) as r:
-            return r.status, r.read()
-    except urllib.error.HTTPError as e:
-        return e.code, b""
-    except Exception as e:  # noqa: BLE001
-        return -1, type(e).__name__.encode()
-
-
-def jv(path, key="value"):
-    c, b = get(path)
-    try:
-        return json.loads(b).get(key) if c == 200 else None
-    except ValueError:
-        return None
-
-
-def uptime():
-    return jv("/sensor/Uptime")
-
-
 def ver():
     return jv("/text_sensor/Build%20ver", "value") or jv(
         "/text_sensor/Build%20ver", "state"
@@ -53,7 +35,7 @@ def ver():
 
 
 def heap():
-    return jv("/sensor/Heap%20free"), jv("/sensor/Heap%20max%20block")
+    return rest.heap(), jv("/sensor/Heap%20max%20block")
 
 
 def events_ok(t=8):
@@ -125,7 +107,10 @@ def full_upload(tag):
     elif back is not None:
         st = "REPLY_LOST"  # new image booted but the HTTP reply never arrived
     elif (
-        back is None and ver() == cur and get("/", 8)[0] == 200 and (uptime() or 0) > up
+        back is None
+        and ver() == cur
+        and rest.req("/", timeout=8)[0] == 200
+        and (uptime() or 0) > up
     ):
         st = "INTERRUPTED"  # upload cut on the network, old image still running and serving
     else:
@@ -179,20 +164,20 @@ def cut_upload(frac, tag):
     time.sleep(0.5)
     s.close()
     # serving right after the cut
-    g = get("/", 8)[0]
+    g = rest.req("/", timeout=8)[0]
     ev = events_ok()
     time.sleep(20)
     up1 = uptime()
     v1 = ver()
     h1 = heap()
-    g2 = get("/", 8)[0]
+    g2 = rest.req("/", timeout=8)[0]
     ev2 = events_ok()
     rebooted = up1 is None or up0 is None or up1 < up0
     p(
         f"{tag} cut {int(frac * 100)}% sent {sent}/{len(data)}: right after GET / {g} events {ev}; +20s GET / {g2} events {ev2}, "
         f"ver {v1} (was {cur}), uptime {up0}->{up1} {'REBOOTED' if rebooted else 'no reboot'}, heap {h0}->{h1}"
     )
-    return not rebooted and v1 == cur and g2 == 200 and ev2, h0, h1
+    return not rebooted and v1 == cur and g2 == 200 and ev2
 
 
 class Sse(threading.Thread):
@@ -283,14 +268,11 @@ if case in ("all", "1"):
         sts.append(full_upload(f"c1#{len(sts)}"))
     res["c1"] = {k: sts.count(k) for k in ("OK", "REPLY_LOST", "INTERRUPTED", "BAD")}
 if case in ("all", "2"):
-    hs = []
     okn = 0
     h_start = heap()
     for i in range(REPS):
         for f in (0.3, 0.8):
-            ok, h0, h1 = cut_upload(f, f"c2#{i}")
-            okn += ok
-            hs.append((h0, h1))
+            okn += cut_upload(f, f"c2#{i}")
     time.sleep(10)
     h_end = heap()
     p(f"c2 heap start {h_start} end {h_end} over {2 * REPS} cuts")

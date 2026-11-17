@@ -6,12 +6,14 @@ stream is open, then everything is closed and the heap is read after SETTLE_S se
 and the async server's queued sockets hold heap for a while after a flood).
 """
 
-import base64
-import json
+import pathlib
 import socket
 import sys
 import threading
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import authfuzz as af  # noqa: E402
 
 HOST, U, P = sys.argv[1:4]
 ROUNDS = int(sys.argv[4]) if len(sys.argv) > 4 else 4
@@ -21,46 +23,12 @@ THREADS = int(sys.argv[7]) if len(sys.argv) > 7 else 4
 # RATE > 0 paces the wrong-hash requests to RATE per second in total, so builds that answer at different
 # speeds see the same load
 RATE = float(sys.argv[8]) if len(sys.argv) > 8 else 0.0
-H = base64.b64encode(f"{U}:{P}".encode()).decode()
-BAD = "Basic " + H[:-1] + ("B" if H[-1] != "B" else "C")
-
-
-def get(path: str) -> object:
-    for _ in range(5):
-        try:
-            s = socket.create_connection((HOST, 80), timeout=4)
-            s.sendall(
-                f"GET {path} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\nConnection: close\r\n\r\n".encode()
-            )
-            buf = b""
-            while b"}" not in buf:
-                d = s.recv(512)
-                if not d:
-                    break
-                buf += d
-            s.close()
-            return json.loads(buf.split(b"\r\n\r\n", 1)[1])["value"]
-        except Exception:  # noqa: BLE001
-            time.sleep(2)
-    return None
+af.configure(HOST, U, P)
 
 
 def heap_settled() -> tuple:
     time.sleep(SETTLE)
-    return get("/sensor/Heap%20free"), get("/sensor/Uptime")
-
-
-def bad_once() -> str:
-    try:
-        s = socket.create_connection((HOST, 80), timeout=5)
-        s.sendall(
-            f"GET / HTTP/1.1\r\nHost: x\r\nAuthorization: {BAD}\r\nConnection: close\r\n\r\n".encode()
-        )
-        d = s.recv(64)
-        s.close()
-        return d.split(b" ", 2)[1].decode() if d.startswith(b"HTTP") else "closed"
-    except OSError as e:
-        return type(e).__name__
+    return af.heap(5), af.uptime(5)
 
 
 h, u = heap_settled()
@@ -81,7 +49,7 @@ for r in range(ROUNDS):
                 nxt += step
                 if time.monotonic() >= stop:
                     break
-            k = bad_once()
+            k = af.bad_once()
             with lock:
                 codes[k] = codes.get(k, 0) + 1
 
@@ -91,7 +59,7 @@ for r in range(ROUNDS):
             try:
                 s = socket.create_connection((HOST, 80), timeout=10)
                 s.sendall(
-                    f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {H}\r\n\r\n".encode()
+                    f"GET /events HTTP/1.1\r\nHost: x\r\nAuthorization: {af.GOOD}\r\n\r\n".encode()
                 )
                 sse["opens"] += 1
                 s.settimeout(1)

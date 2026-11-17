@@ -1,7 +1,8 @@
-# WPA3-SAE only AP with PMF required (set `board:`, an ESP32-C6 devkit here); logs station join/leave events and the management frames its
-# sniffer sees (assoc req, auth, disassoc, deauth) with retry bit and sequence number.
+# WPA3-SAE only AP with PMF required on any ESP32 (set `board:`, an ESP32-C6 devkit here); logs station join and leave
+# events and the management frames its sniffer sees (assoc req, auth, disassoc, deauth) with retry bit and sequence
+# number.
 esphome:
-  name: w15ap
+  name: sniffap
   includes:
     - sniff_inc.hpp
   on_boot:

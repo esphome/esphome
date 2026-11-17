@@ -12,10 +12,14 @@ prefixed with a wall clock timestamp) for an.py.
 import argparse
 import pathlib
 import re
+import sys
 import threading
 import time
 
 import serial
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from an import ends_cooldown  # noqa: E402
 
 ANSI = re.compile(rb"\x1b\[[0-9;]*m")
 
@@ -26,13 +30,10 @@ def ts() -> str:
 
 
 class Reader(threading.Thread):
-    def __init__(self, ser: serial.Serial, path: str, marks) -> None:
+    def __init__(self, ser: serial.Serial, path: str) -> None:
         super().__init__(daemon=True)
-        self.ser, self.f, self.marks = (
-            ser,
-            pathlib.Path(path).open("w", encoding="utf-8", buffering=1),  # noqa: SIM115
-            marks,
-        )
+        self.ser = ser
+        self.f = pathlib.Path(path).open("w", encoding="utf-8", buffering=1)  # noqa: SIM115
         self.lines: list[tuple[float, str]] = []
         self.lock = threading.Lock()
         self.stop = False
@@ -57,9 +58,10 @@ class Reader(threading.Thread):
                 with self.lock:
                     self.lines.append((now, line))
 
-    def since(self, t0: float) -> list[str]:
+    def after(self, idx: int) -> tuple[list[str], int]:
+        """Lines from index idx on, and the index to pass next time."""
         with self.lock:
-            return [line for t, line in self.lines if t >= t0]
+            return [line for _, line in self.lines[idx:]], len(self.lines)
 
 
 def main() -> None:
@@ -96,8 +98,8 @@ def main() -> None:
     rtr.dtr = False
     rtr.rts = False
     dut = serial.Serial(a.dut, 115200, timeout=0.2)  # opening resets the BK7238
-    rr = Reader(rtr, f"{a.label}-rtr.txt", marks)
-    dr = Reader(dut, f"{a.label}-dut.txt", marks)
+    rr = Reader(rtr, f"{a.label}-rtr.txt")
+    dr = Reader(dut, f"{a.label}-dut.txt")
     rr.start()
     dr.start()
     mark(f"START label={a.label} outages={a.outages} release_delay={a.release_delay}")
@@ -130,29 +132,23 @@ def main() -> None:
                 mark("ABORT dut not connecting")
                 break
         t0 = time.time()
+        _, idx = dr.after(0)
         mark(f"OUTAGE {n} DOWN")
-        rtr.dtr = False
         rtr.rts = True  # EN low: router held in reset
         ap_up = False
         hit = False
-        while time.time() - t0 < a.max_outage:
+        # the RESTARTING transition after the fallback AP started
+        while not hit and time.time() - t0 < a.max_outage:
             time.sleep(0.05)
-            for ln in dr.since(t0):
-                if "Starting fallback AP" in ln:
-                    ap_up = True
-            new = dr.since(t0)
-            # the RESTARTING transition after the fallback AP started
-            seen_ap = a.no_ap
+            new, idx = dr.after(idx)
             for ln in new:
                 if "Starting fallback AP" in ln:
-                    seen_ap = True
-                if seen_ap and (
+                    ap_up = True
+                if (ap_up or a.no_ap) and (
                     "Restarting adapter" in ln if a.no_ap else "→ RESTARTING" in ln
                 ):
                     hit = True
                     break
-            if hit:
-                break
         if not hit:
             mark(f"OUTAGE {n} NO_RESTARTING ap_up={ap_up}; releasing")
             rtr.rts = False
@@ -161,8 +157,13 @@ def main() -> None:
         time.sleep(a.release_delay)
         rtr.rts = False
         mark(f"OUTAGE {n} UP")
-        # let the cooldown and its outcome play out before the next stable check
-        time.sleep(40)
+        # let the cooldown end (an.py's end of cooldown lines) before the next stable check
+        t_up = time.time()
+        ended = False
+        while not ended and time.time() - t_up < 40:
+            time.sleep(0.2)
+            new, idx = dr.after(idx)
+            ended = any(ends_cooldown(ln) for ln in new)
     mark("END")
     rtr.rts = False
     time.sleep(2)

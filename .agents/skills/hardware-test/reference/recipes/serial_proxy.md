@@ -5,7 +5,9 @@ and the simulator UART tx 5 rx 4 (GPIO matrix, `allow_other_uses` on all four pi
 client drives it through the proxy with 7E-framed commands: `R` one 88 byte reply (A5, seq u32 BE, 83 bytes
 (seq + j) % 251), `S` stream replies back to back, `A` ASH DATA frames every 50 ms with ACK latency timing (for
 `ezsp_proxy_tap` in PROTOCOL mode), `X` log `SIMDONE` totals and reset, `B<baud>` change the sim's baud. SIMSTAT and
-ASHWIN lines each second carry `backlog_max`, the proxy UART's RX backlog (bytes held back).
+ASHWIN lines each second carry `backlog_max`, the proxy UART's RX backlog (bytes held back). The sim polls every
+16 ms, the main loop cadence (a 1 ms interval also speeds up the proxy's loop and skews what it measures); its 1024
+byte TX buffer holds the 185 bytes 115200 baud needs per poll, and ACK latencies are good to one poll.
 
 - `spclient.py HOST --baud B --mode reply|stream|ash [--interval MS] [--duration S | --pauses N --pause S --read S]
   [--protocol]`: raw plaintext API client (no encryption in the config), subscribes, brings the sim and the proxy to

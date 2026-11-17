@@ -1,14 +1,16 @@
 """web_server flow: page loads + REST GETs, SSE soak, REST control. usage: flow.py HOST OUT_PREFIX [PAGE_S] [SSE_S]"""
 
-import json
 import pathlib
 import socket
 import sys
 import time
-import urllib.error
-import urllib.request
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import rest  # noqa: E402
+from rest import heap, jget, req  # noqa: E402
 
 HOST, OUT = sys.argv[1], sys.argv[2]
+rest.HOST = HOST
 PAGE_S = float(sys.argv[3]) if len(sys.argv) > 3 else 180
 SSE_S = float(sys.argv[4]) if len(sys.argv) > 4 else 180
 log = pathlib.Path(OUT + "-flow.txt").open("w", encoding="utf-8")  # noqa: SIM115
@@ -21,37 +23,7 @@ def p(*a) -> None:
     log.flush()
 
 
-def req(
-    path: str, method: str = "GET", timeout: float = 10
-) -> tuple[int, bytes, float]:
-    t = time.monotonic()
-    r = urllib.request.Request(
-        f"http://{HOST}{path}", method=method, data=b"" if method == "POST" else None
-    )
-    try:
-        with urllib.request.urlopen(r, timeout=timeout) as resp:
-            return resp.status, resp.read(), time.monotonic() - t
-    except urllib.error.HTTPError as e:
-        return e.code, e.read(), time.monotonic() - t
-    except Exception as e:  # noqa: BLE001
-        return -1, str(type(e).__name__).encode(), time.monotonic() - t
-
-
-def jget(path: str) -> dict:
-    code, body, _ = req(path)
-    try:
-        return json.loads(body) if code == 200 else {"_code": code}
-    except ValueError:
-        return {"_code": code, "_bad": body[:80]}
-
-
-def heap() -> object:
-    return jget("/sensor/Heap%20free").get("value") or jget("/sensor/Heap%20Free").get(
-        "value"
-    )
-
-
-p("heap start", heap(), "uptime", jget("/sensor/Uptime").get("value"))
+p("heap start", heap(), "uptime", rest.uptime())
 
 # 1. pages
 gets = [
@@ -151,4 +123,4 @@ p(
     f"CONTROL switch {before}->{after} ({c1}), number {num} ({c2}), light {lt.get('state')} b={lt.get('brightness')} ({c3}) "
     f"=> {'OK' if ctl_ok else 'FAIL'}"
 )
-p("heap end", heap(), "uptime", jget("/sensor/Uptime").get("value"))
+p("heap end", heap(), "uptime", rest.uptime())

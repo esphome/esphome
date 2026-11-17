@@ -5,13 +5,15 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 
 ## ESP8266 (D1 mini, NodeMCU, CH340 or CP2102)
 
-- Opening the port usually resets the board through DTR, but not always; `serial_capture.py --reset`
-  pulses RTS to capture from boot. 74880 baud shows the ROM boot messages (`rst cause`, `boot mode`).
+- Opening the port usually resets the board through DTR, but not always, and on a CH340 even with `--released`, so
+  the first boot (or `Connection lost`) in a capture can be that reset; `serial_capture.py --reset` pulses RTS to
+  capture from boot. 74880 baud shows the ROM boot messages (`rst cause`, `boot mode`).
 - UART0 can be looped back onto itself (`USC0(0) |= (1 << UCLBE)` in an `on_boot` lambda) so a UART
   component is testable without its device: frames written with `uart.write` arrive on RX. Log over the
   API with `logger: baud_rate: 0`, since the serial port carries the component's bytes.
 - `esphome logs` on some CH340s emits thousands of duplicated garbage lines right after the RTS reset;
-  a plain pyserial capture at 115200 is reliable.
+  a plain pyserial capture at 115200 is reliable. A CH340 can also give garbage at 921600 baud;
+  `logger: baud_rate: 460800` with `serial_capture.py --baud 460800` carries long `dump: raw` frames cleanly.
 - A failed esptool write can wedge the adapter (`termios` error 22, or an open that hangs) until replug.
 - The preference sector survives a reflash: a provisioned API key or saved Wi-Fi credentials stay
   active. `esptool erase_flash` gives a clean device.
@@ -36,10 +38,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   return the round count, so the SDK's `aes_encrypt` loops on garbage rounds and the board Soft WDT resets in
   `rijndaelEncrypt`. Do not `--defsym` it over the libcrypto copy; a wrapper in the SDK signature (returns -1 unless
   128 bits, calls the ROM, returns 10) passed the FIPS vectors and a WPA2 soft AP join.
-- A CH340 D1 mini can give garbage at 921600 baud; `logger: baud_rate: 460800` with `serial_capture.py --baud 460800`
-  carries long `dump: raw` frames cleanly.
-- Opening a CH340 port resets the boards that wire RTS to reset, even with `--released`; the first boot in a capture
-  can be that reset.
 
 ## ESP32 classic devkit
 

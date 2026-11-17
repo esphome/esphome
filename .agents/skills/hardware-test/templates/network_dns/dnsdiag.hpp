@@ -18,9 +18,9 @@ static const char *const TAG = "dnsdiag";
 static bool eq(const esp_ip_addr_t &a, const esp_ip_addr_t &b) {
   return a.type == b.type && memcmp(&a.u_addr, &b.u_addr, a.type == ESP_IPADDR_TYPE_V4 ? 4 : 16) == 0;
 }
-static bool any(const esp_ip_addr_t &a) {
-  static const uint8_t z[16] = {0};
-  return memcmp(&a.u_addr, z, a.type == ESP_IPADDR_TYPE_V4 ? 4 : 16) == 0;
+static bool is_zero(const esp_ip_addr_t &a) {
+  static constexpr uint8_t Z[16] = {0};
+  return memcmp(&a.u_addr, Z, a.type == ESP_IPADDR_TYPE_V4 ? 4 : 16) == 0;
 }
 static esp_ip_addr_t dns(esp_netif_t *n, esp_netif_dns_type_t t) {
   esp_netif_dns_info_t d{};
@@ -29,7 +29,7 @@ static esp_ip_addr_t dns(esp_netif_t *n, esp_netif_dns_type_t t) {
 }
 // label: 0 = empty, E = eth's, W = wifi's, B = both (same server), X = something else
 static char label(const esp_ip_addr_t &g, esp_netif_t *eth, esp_netif_t *sta, esp_netif_dns_type_t t) {
-  if (any(g))
+  if (is_zero(g))
     return '0';
   bool e = eth && eq(g, dns(eth, t)), w = sta && eq(g, dns(sta, t));
   return e && w ? 'B' : e ? 'E' : w ? 'W' : 'X';
@@ -60,8 +60,8 @@ inline void print() {
       TAG,
       "DIAG g0=%c g1=%c eth.dns0=%s sta.dns0=%s eth_link=%d eth_conn=%d sta_conn=%d esp_default=%s netif_default=%s",
       label(g0, eth, sta, ESP_NETIF_DNS_MAIN), label(g1, eth, sta, ESP_NETIF_DNS_BACKUP),
-      eth ? (any(dns(eth, ESP_NETIF_DNS_MAIN)) ? "empty" : "set") : "n/a",
-      sta ? (any(dns(sta, ESP_NETIF_DNS_MAIN)) ? "empty" : "set") : "n/a", link,
+      eth ? (is_zero(dns(eth, ESP_NETIF_DNS_MAIN)) ? "empty" : "set") : "n/a",
+      sta ? (is_zero(dns(sta, ESP_NETIF_DNS_MAIN)) ? "empty" : "set") : "n/a", link,
       esphome::ethernet::global_eth_component->is_connected(), esphome::wifi::global_wifi_component->is_connected(),
       desc(esp_netif_get_default_netif()), lw);
 }
@@ -94,7 +94,7 @@ inline void lookup() {
 // The W5500 PHY driver's pwrctl() is a no-op, so write PHYCFGR directly: OPMD=1 with OPMDC 110 (power down)
 // or 111 (all capable, autonegotiation), applied by a PHY reset (RST low, then high).
 inline void phy_power(bool on) {
-  static constexpr uint32_t PHYCFGR = (0x002E << 16) | (0x00 << 3);
+  static constexpr uint32_t PHYCFGR = 0x002E << 16;  // common register block
   esp_eth_mac_t *mac = nullptr;
   if (esp_eth_get_mac_instance(esphome::ethernet::global_eth_component->get_eth_handle(), &mac) != ESP_OK || !mac) {
     ESP_LOGE(TAG, "no mac");
