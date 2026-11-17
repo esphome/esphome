@@ -210,8 +210,10 @@ class ModemComponent : public Component {
   /// Overflow a stuck CMUX receiver with flag bytes; true when the modem answers AT afterwards
   bool flush_cmux_();
   void request_resync_();
+  int read_stat_(const char *cmd, const char *prefix);
   int read_registration_();
-  bool unsupported_reply_(esp_modem::command_result result) const;
+  /// Set the UART rate; current_baud_rate_ follows when the UART takes it
+  esp_err_t set_uart_baud_(int baud);
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
   void dump_connect_params_();
@@ -233,7 +235,8 @@ class ModemComponent : public Component {
   const char *urc_line_{nullptr};  // the line urc_pending_ hands to loop(), inside urc_reader_
 #endif
   std::unique_ptr<esp_modem::DCE> dce_;
-  std::string reply_;  // task only; reserved once in setup() to REPLY_SIZE, so collecting a reply never allocates
+  char reply_[REPLY_SIZE + 1]{};  // task only; the last reply, null-terminated
+  size_t reply_len_{0};
   std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
@@ -313,11 +316,10 @@ class ModemComponent : public Component {
   uint8_t poll_mode_{NETWORK_MODE_NONE};  // raw AT+CNSMOD answer
 #endif
   bool connect_timeout_armed_{false};
-  bool modem_synced_{false};    // a modem that never answered has nothing to tear down
-  bool verbose_errors_{false};  // AT+CMEE=2 accepted, so a bare ERROR means a command is not supported
-  bool answered_{false};        // the modem synced since boot, so its wiring and power are fine
-  bool resync_{false};          // a command timed out, so CONNECTING syncs again first
-  bool apn_pending_{false};     // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
+  bool modem_synced_{false};  // a modem that never answered has nothing to tear down
+  bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
+  bool resync_{false};        // a command timed out, so CONNECTING syncs again first
+  bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif
