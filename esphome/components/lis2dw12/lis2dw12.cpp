@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::lis2dw12 {
 
@@ -13,72 +14,34 @@ static constexpr uint32_t EVENT_COOLDOWN_MS = 500;
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 static constexpr uint8_t SIXD_POSITION_MASK = 0x3F;  // XL..ZH, leaving out D6D_IA
 
+// Indexed by PowerMode
+PROGMEM_STRING_TABLE(PowerModeStrings, "High Performance", "Low Power 1 (12-bit)", "Low Power 2", "Low Power 3",
+                     "Low Power 4", "Unknown");
+
 static const LogString *power_mode_to_string(PowerMode mode) {
-  switch (mode) {
-    case PowerMode::HIGH_PERF:
-      return LOG_STR("High Performance");
-    case PowerMode::LOW_POWER_1:
-      return LOG_STR("Low Power 1 (12-bit)");
-    case PowerMode::LOW_POWER_2:
-      return LOG_STR("Low Power 2");
-    case PowerMode::LOW_POWER_3:
-      return LOG_STR("Low Power 3");
-    case PowerMode::LOW_POWER_4:
-      return LOG_STR("Low Power 4");
-  }
-  return LOG_STR("Unknown");
+  return PowerModeStrings::get_log_str(static_cast<uint8_t>(mode), PowerModeStrings::LAST_INDEX);
 }
+
+// Indexed by Range
+PROGMEM_STRING_TABLE(RangeStrings, "±2g", "±4g", "±8g", "±16g", "Unknown");
 
 static const LogString *range_to_string(Range range) {
-  switch (range) {
-    case Range::RANGE_2G:
-      return LOG_STR("±2g");
-    case Range::RANGE_4G:
-      return LOG_STR("±4g");
-    case Range::RANGE_8G:
-      return LOG_STR("±8g");
-    case Range::RANGE_16G:
-      return LOG_STR("±16g");
-  }
-  return LOG_STR("Unknown");
+  return RangeStrings::get_log_str(static_cast<uint8_t>(range), RangeStrings::LAST_INDEX);
 }
+
+// Indexed by DataRate
+PROGMEM_STRING_TABLE(DataRateStrings, "Unknown", "1.6 Hz", "12.5 Hz", "25 Hz", "50 Hz", "100 Hz", "200 Hz", "400 Hz",
+                     "800 Hz", "1600 Hz");
 
 static const LogString *data_rate_to_string(DataRate rate) {
-  switch (rate) {
-    case DataRate::RATE_1_6HZ:
-      return LOG_STR("1.6 Hz");
-    case DataRate::RATE_12_5HZ:
-      return LOG_STR("12.5 Hz");
-    case DataRate::RATE_25HZ:
-      return LOG_STR("25 Hz");
-    case DataRate::RATE_50HZ:
-      return LOG_STR("50 Hz");
-    case DataRate::RATE_100HZ:
-      return LOG_STR("100 Hz");
-    case DataRate::RATE_200HZ:
-      return LOG_STR("200 Hz");
-    case DataRate::RATE_400HZ:
-      return LOG_STR("400 Hz");
-    case DataRate::RATE_800HZ:
-      return LOG_STR("800 Hz");
-    case DataRate::RATE_1600HZ:
-      return LOG_STR("1600 Hz");
-  }
-  return LOG_STR("Unknown");
+  return DataRateStrings::get_log_str(static_cast<uint8_t>(rate), 0);
 }
 
+// Indexed by FilterBandwidth
+PROGMEM_STRING_TABLE(FilterBandwidthStrings, "ODR/2", "ODR/4", "ODR/10", "ODR/20", "Unknown");
+
 static const LogString *filter_bandwidth_to_string(FilterBandwidth bw) {
-  switch (bw) {
-    case FilterBandwidth::BW_ODR_DIV_2:
-      return LOG_STR("ODR/2");
-    case FilterBandwidth::BW_ODR_DIV_4:
-      return LOG_STR("ODR/4");
-    case FilterBandwidth::BW_ODR_DIV_10:
-      return LOG_STR("ODR/10");
-    case FilterBandwidth::BW_ODR_DIV_20:
-      return LOG_STR("ODR/20");
-  }
-  return LOG_STR("Unknown");
+  return FilterBandwidthStrings::get_log_str(static_cast<uint8_t>(bw), FilterBandwidthStrings::LAST_INDEX);
 }
 
 void LIS2DW12Component::setup() {

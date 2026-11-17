@@ -4,9 +4,7 @@
 #include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#ifdef USE_TEXT_SENSOR
 #include "esphome/core/progmem.h"
-#endif
 
 namespace esphome::npm1300 {
 
@@ -421,17 +419,11 @@ void NPM1300Component::read_measurements_() {
 // BCHGVTERM: 3.50 V to 3.65 V, then 4.00 V to 4.45 V, both in 50 mV steps
 static uint16_t termination_voltage_mv(uint8_t code) { return code < 4 ? 3500 + 50 * code : 4000 + 50 * (code - 4); }
 
+// Indexed by NPM1300Output
+PROGMEM_STRING_TABLE(OutputNameStrings, "BUCK1", "BUCK2", "LDO1", "LDO2");
+
 static const LogString *output_name(uint8_t index) {
-  switch (static_cast<NPM1300Output>(index)) {
-    case NPM1300Output::NPM1300_OUTPUT_BUCK1:
-      return LOG_STR("BUCK1");
-    case NPM1300Output::NPM1300_OUTPUT_BUCK2:
-      return LOG_STR("BUCK2");
-    case NPM1300Output::NPM1300_OUTPUT_LDO1:
-      return LOG_STR("LDO1");
-    default:
-      return LOG_STR("LDO2");
-  }
+  return OutputNameStrings::get_log_str(index, OutputNameStrings::LAST_INDEX);
 }
 
 void NPM1300Component::dump_config() {
