@@ -1,3 +1,6 @@
+from dataclasses import dataclass, field
+import functools
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -26,7 +29,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass, TemplateArguments
 from esphome.cpp_types import global_ns
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "select"
@@ -45,6 +48,25 @@ SelectOperation = select_ns.enum("SelectOperation")
 SELECT_OPERATION_OPTIONS = SelectOperation.options(
     "NEXT", "PREVIOUS", "FIRST", "LAST", prefix="SELECT_OP_"
 )
+
+
+@dataclass
+class SelectData:
+    # Options of each select whose option list never changes at run time, by id
+    fixed_options: dict[str, list[str]] = field(default_factory=dict)
+
+
+def _get_data() -> SelectData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SelectData()
+    return CORE.data[DOMAIN]
+
+
+def _record_options(
+    config: ConfigType, options: list[str], fixed_options: bool
+) -> None:
+    if fixed_options:
+        _get_data().fixed_options[config[CONF_ID].id] = options
 
 
 _SELECT_SCHEMA = (
@@ -105,7 +127,11 @@ async def setup_select_core_(var, config, *, options: list[str]):
     await entity_helpers.setup_entity_integrations(var, config)
 
 
-async def register_select(var, config, *, options: list[str]):
+async def register_select(
+    var, config, *, options: list[str], fixed_options: bool = False
+):
+    """``fixed_options=True`` when the options never change at run time, so ``select.set`` can use the index."""
+    _record_options(config, options, fixed_options)
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("select", config)
@@ -113,9 +139,9 @@ async def register_select(var, config, *, options: list[str]):
     await setup_select_core_(var, config, options=options)
 
 
-async def new_select(config, *args, options: list[str]):
+async def new_select(config, *args, options: list[str], fixed_options: bool = False):
     var = cg.new_Pvariable(config[CONF_ID], *args)
-    await register_select(var, config, options=options)
+    await register_select(var, config, options=options, fixed_options=fixed_options)
     return var
 
 
@@ -131,7 +157,10 @@ def sub_selects(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
     """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity``, ``index`` and ``option``."""
-    return SubEntities(new_select, config, parent, APPLY_ENTITY)
+    # Hub selects get their options from code generation only
+    return SubEntities(
+        functools.partial(new_select, fixed_options=True), config, parent, APPLY_ENTITY
+    )
 
 
 @coroutine_with_priority(CoroPriority.CORE)
@@ -146,13 +175,20 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-automation.register_apply_action(
+_SELECT_SET_SCHEMA = OPERATION_BASE_SCHEMA.extend(
+    {
+        cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
+    }
+)
+
+
+def _option_index(config: ConfigType, option: str) -> str:
+    return str(_get_data().fixed_options[config[CONF_ID].id].index(option))
+
+
+_set_option_builder = automation.apply_action_builder(
     "select.set",
-    OPERATION_BASE_SCHEMA.extend(
-        {
-            cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
-        }
-    ),
+    _SELECT_SET_SCHEMA,
     automation.ApplyField(
         CONF_OPTION,
         "set_option",
@@ -161,6 +197,32 @@ automation.register_apply_action(
     ),
     call="make_call",
 )
+_set_index_builder = automation.apply_action_builder(
+    "select.set",
+    _SELECT_SET_SCHEMA,
+    automation.ApplyField(CONF_OPTION, "set_index", cg.size_t, const_fn=_option_index),
+    call="make_call",
+)
+
+
+@automation.register_action(
+    "select.set", automation.ApplyAction, _SELECT_SET_SCHEMA, synchronous=True
+)
+async def select_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    # A constant fixed option becomes its index
+    await cg.get_variable(config[CONF_ID])
+    option = config[CONF_OPTION]
+    if not cg.is_template(option) and option in _get_data().fixed_options.get(
+        config[CONF_ID].id, ()
+    ):
+        return await _set_index_builder(config, action_id, template_arg, args)
+    return await _set_option_builder(config, action_id, template_arg, args)
+
 
 automation.register_apply_action(
     "select.set_index",
