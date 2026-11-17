@@ -134,13 +134,34 @@ static int registration_from_reply(const std::string &reply, const char *prefix)
 }
 
 // OK, or FAIL once an ERROR line has ended (the +CME ERROR reason may still be on its way), else TIMEOUT
-static command_result reply_result(const char *data, size_t len) {
-  if (memmem(data, len, "OK\r\n", 4) != nullptr) {
-    return command_result::OK;
+// Only a complete final result line counts, so ERROR inside a payload line (+CEER: PROTOCOL_ERROR) does not. With
+// skip_first, the first line is a cut-off fragment of a reply longer than the buffer.
+static command_result reply_result(const char *data, size_t len, bool skip_first) {
+  const char *end = data + len;
+  const char *line = data;
+  if (skip_first) {
+    const auto *newline = static_cast<const char *>(memchr(data, '\n', len));
+    line = newline != nullptr ? newline + 1 : end;
   }
-  const auto *error = static_cast<const char *>(memmem(data, len, "ERROR", 5));
-  return error != nullptr && memchr(error, '\n', data + len - error) != nullptr ? command_result::FAIL
-                                                                                : command_result::TIMEOUT;
+  while (line < end) {
+    const auto *newline = static_cast<const char *>(memchr(line, '\n', end - line));
+    if (newline == nullptr) {
+      break;  // the line has not ended yet
+    }
+    size_t size = newline - line;
+    if (size != 0 && line[size - 1] == '\r') {
+      size--;
+    }
+    if (size == 2 && memcmp(line, "OK", 2) == 0) {
+      return command_result::OK;
+    }
+    if ((size == 5 && memcmp(line, "ERROR", 5) == 0) || (size >= 11 && memcmp(line, "+CME ERROR:", 11) == 0) ||
+        (size >= 11 && memcmp(line, "+CMS ERROR:", 11) == 0)) {
+      return command_result::FAIL;
+    }
+    line = newline + 1;
+  }
+  return command_result::TIMEOUT;
 }
 
 // Puts a raw reply on one line for the log and drops the final OK
@@ -915,7 +936,7 @@ ModemState ModemComponent::handle_state_connecting_() {
   if (!attached) {
     const int registration = this->read_registration_();
     if (this->resync_) {
-      ESP_LOGW(TAG, "No answer to the registration queries");
+      ESP_LOGW(TAG, "No answer to a registration query");
       this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
@@ -1128,6 +1149,11 @@ int ModemComponent::read_registration_() {
   if (is_registered(legacy)) {
     return legacy;
   }
+  // An unanswered query leaves the state open, so the modem is checked with a sync instead
+  if (lte_read == command_result::TIMEOUT || legacy_read == command_result::TIMEOUT) {
+    this->request_resync_();
+    return REGISTRATION_UNKNOWN;
+  }
   if (lte == REGISTRATION_SEARCHING || legacy == REGISTRATION_SEARCHING) {
     return REGISTRATION_SEARCHING;
   }
@@ -1137,9 +1163,6 @@ int ModemComponent::read_registration_() {
   // Without verbose errors a temporary failure is a bare ERROR too, so it proves nothing
   if (this->verbose_errors_ && lte_unsupported && legacy_unsupported) {
     return REGISTRATION_UNSUPPORTED;
-  }
-  if (lte_read == command_result::TIMEOUT && legacy_read == command_result::TIMEOUT) {
-    this->request_resync_();
   }
   return lte != REGISTRATION_UNKNOWN ? lte : legacy;
 }
@@ -1201,7 +1224,7 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
   reply.clear();
   const command_result result = this->dce_->command(
       line,
-      [&reply](const uint8_t *data, size_t len) {
+      [&reply, truncated = false](const uint8_t *data, size_t len) mutable {
         // A UART reply grows in place and comes back whole each time; CMUX hands over each frame on its own
         const char *text = reinterpret_cast<const char *>(data);
         if (len >= reply.size() && reply.compare(0, reply.size(), text, reply.size()) == 0) {
@@ -1211,13 +1234,15 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
         const size_t capacity = reply.capacity();
         if (len >= capacity) {
           reply.assign(text + len - capacity, capacity);
+          truncated = true;
         } else {
           if (reply.size() + len > capacity) {
             reply.erase(0, reply.size() + len - capacity);
+            truncated = true;
           }
           reply.append(text, len);
         }
-        return reply_result(reply.data(), reply.size());
+        return reply_result(reply.data(), reply.size(), truncated);
       },
       timeout);
   flatten_reply(reply);
