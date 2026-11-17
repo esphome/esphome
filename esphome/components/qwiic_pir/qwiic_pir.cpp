@@ -1,5 +1,4 @@
 #include "qwiic_pir.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -26,9 +25,7 @@ void QwiicPIRComponent::setup() {
   if (!this->check_chip_id(this, REG_CHIP_ID, DEVICE_ID))
     return;
 
-  uint8_t debounce[2];
-  put_le16(debounce, this->debounce_time_);
-  if (!this->setup_check(this->write_register(REG_DEBOUNCE_TIME, debounce, 2) == i2c::ERROR_OK,
+  if (!this->setup_check(this->write_byte_16_le(REG_DEBOUNCE_TIME, this->debounce_time_),
                          LOG_STR("Failed to configure debounce time")))
     return;
 
