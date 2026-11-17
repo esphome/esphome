@@ -116,7 +116,8 @@ struct LogBuffer {
   }
 #endif
   // Writes a message that needs no formatting, truncated and stripped of trailing newlines as format_body() does
-  void HOT write_unformatted_body(const char *text, size_t len) {
+  // Forced inline: as on dev, the per-line path keeps it in its caller instead of calling out on every line
+  inline void HOT ESPHOME_ALWAYS_INLINE write_unformatted_body(const char *text, size_t len) {
     const int room = this->body_room_();
     if (room > 0) {
       const uint16_t limit = room - 1;  // vsnprintf() keeps the last byte for the null terminator
@@ -156,8 +157,10 @@ struct LogBuffer {
     *p++ = ' ';
     this->pos = static_cast<uint16_t>(p - this->data);
   }
-  // Same as write_unformatted_body(); kept for the replay and task log buffer callers
-  void write_body(const char *text, uint16_t text_length) { this->write_unformatted_body(text, text_length); }
+  // Same as write_unformatted_body(); one out-of-line copy shared by the boot replay and the task log buffer
+  void __attribute__((noinline)) write_body(const char *text, uint16_t text_length) {
+    this->write_unformatted_body(text, text_length);
+  }
 
  private:
   uint16_t remaining_() const { return this->size - this->pos; }
