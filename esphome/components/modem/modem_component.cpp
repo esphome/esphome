@@ -66,8 +66,8 @@ static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
 static constexpr uint32_t ATTACH_POLL_MS = 4000;
 static constexpr uint8_t ATTACH_DIAG_EVERY = 4;
 static constexpr uint8_t ATTACH_UNKNOWN_POLLS = 15;  // about a minute of polls
-// AT+CGATT=1 once registered; SIMCom documents up to 75 s
-static constexpr uint32_t ATTACH_TIMEOUT_MS = 75000;
+// AT+CGATT=1: SIMCom documents up to 75 s, but a SIM7080G that is not registered yet held it for 141 s
+static constexpr uint32_t ATTACH_TIMEOUT_MS = 150000;
 // AT+CEREG? <stat> values
 static constexpr int REGISTRATION_NOT_SEARCHING = 0;
 static constexpr int REGISTRATION_HOME = 1;
@@ -899,11 +899,12 @@ ModemState ModemComponent::handle_state_connecting_() {
                  LOG_STR_ARG(registration_to_str(registration)), this->unknown_polls_);
         this->unknown_polls_ = 0;
       }
-      // Before registration some modems hold the AT channel for minutes on this (SIM7080G: up to 141 s) and
-      // drop every command meanwhile; LTE attaches with the registration anyway
+      // Before registration a modem can hold the AT channel on this for minutes and drop every command meanwhile,
+      // so it waits for one; the fallbacks above send it anyway, and ATTACH_TIMEOUT_MS covers that hold
       const command_result attach = this->at_reply_("AT+CGATT=1", ATTACH_TIMEOUT_MS);
       if (attach == command_result::TIMEOUT) {
         ESP_LOGW(TAG, "No answer to the network attachment request");
+        this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
         this->request_resync_();
         return this->retry_(ModemState::MODEM_STATE_CONNECTING);
       }
@@ -1103,7 +1104,12 @@ int ModemComponent::read_stat_(const char *cmd, const char *prefix) {
   }
   const int stat = result == command_result::OK ? registration_from_reply(this->reply_, prefix) : REGISTRATION_UNKNOWN;
   if (stat == REGISTRATION_UNKNOWN) {
-    ESP_LOGD(TAG, "%s gave no state: %s", cmd, this->reply_);
+    // An error such as a SIM failure is a warning on the diagnostic polls, so it shows at the default log level
+    if (result == command_result::FAIL && this->attach_polls_ % ATTACH_DIAG_EVERY == 0) {
+      ESP_LOGW(TAG, "%s failed: %s", cmd, this->reply_);
+    } else {
+      ESP_LOGD(TAG, "%s gave no state: %s", cmd, this->reply_);
+    }
   }
   return stat;
 }
