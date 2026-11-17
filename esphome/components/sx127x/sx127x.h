@@ -36,10 +36,35 @@ enum SX127xBw : uint8_t {
   SX127X_BW_500_0,
 };
 
-enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX127X_ERROR_NOT_READY };
+enum class SX127xError {
+  SX127X_ERROR_NONE = 0,
+  SX127X_ERROR_TIMEOUT,
+  SX127X_ERROR_INVALID_PARAMS,
+  SX127X_ERROR_NOT_READY,
+  SX127X_ERROR_BUSY,
+  SX127X_ERROR_CANCELLED,
+};
+
+class SX127xTransmitListener {
+ public:
+  virtual void on_transmit_complete(SX127xError result) = 0;
+};
+
+// Driver state, not the chip's mode
+enum class RadioState : uint8_t {
+  // Before setup or after a failed mode change; configure() is retried every second
+  RADIO_STATE_NEEDS_CONFIGURATION,
+  // Receiving or sleeping as configured, or sending after the TX mode action (untracked)
+  RADIO_STATE_IDLE,
+  // A send is on air
+  RADIO_STATE_TRANSMITTING,
+  // A send found a received packet waiting; loop() delivers it
+  RADIO_STATE_HOLDING_RX,
+};
 
 class SX127xListener {
  public:
+  // Called from loop(); the packet is only valid until this returns
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
@@ -60,8 +85,9 @@ class SX127x final : public Component,
   void set_coding_rate(uint8_t coding_rate) { this->coding_rate_ = coding_rate; }
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
-  void set_dio0_pin(InternalGPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
+  void set_dio0_pin(GPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+  // Ignored unless the radio is idle
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby();
@@ -76,27 +102,72 @@ class SX127x final : public Component,
   void set_preamble_polarity(uint8_t preamble_polarity) { this->preamble_polarity_ = preamble_polarity; }
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
   void set_preamble_detect(uint8_t preamble_detect) { this->preamble_detect_ = preamble_detect; }
-  void set_rst_pin(InternalGPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
+  void set_rst_pin(GPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
   void set_rx_floor(float floor) { this->rx_floor_ = floor; }
   void set_rx_start(bool start) { this->rx_start_ = start; }
   void set_shaping(uint8_t shaping) { this->shaping_ = shaping; }
   void set_spreading_factor(uint8_t spreading_factor) { this->spreading_factor_ = spreading_factor; }
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void run_image_cal();
+  // Ignored while a send is on air; discards a held packet
   void configure();
   SX127xError transmit_packet(const uint8_t *data, size_t len);
   SX127xError transmit_packet(const std::vector<uint8_t> &packet) {
     return this->transmit_packet(packet.data(), packet.size());
   }
+  // On SX127X_ERROR_NONE, the listener is called once from loop()
+  [[nodiscard]] SX127xError start_transmit_async(SX127xTransmitListener *listener, const uint8_t *data, size_t len,
+                                                 uint32_t timeout_ms = 4000);
+  [[nodiscard]] SX127xError start_transmit_async(SX127xTransmitListener *listener, const std::vector<uint8_t> &packet,
+                                                 uint32_t timeout_ms = 4000) {
+    return this->start_transmit_async(listener, packet.data(), packet.size(), timeout_ms);
+  }
+  // Completes the send with SX127X_ERROR_CANCELLED; false if the listener has none
+  bool cancel_transmit_async(SX127xTransmitListener *listener);
+  bool is_transmitting() const { return this->state_ == RadioState::RADIO_STATE_TRANSMITTING; }
   void register_listener(SX127xListener *listener) { this->listeners_.push_back(listener); }
+  // True while a packet is being received, or has been received and not yet read; sending would lose it.
+  bool is_receiving();
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void gpio_intr(SX127x *arg);
+  // Settings as last applied by configure(), used by sends and reception
+  struct AppliedSettings {
+    uint32_t frequency{0};
+    uint32_t payload_length{0};
+    uint8_t modulation{0};
+    bool packet_mode{false};
+    bool rx_start{false};
+  };
+  struct TxOperation {
+    SX127xTransmitListener *listener{nullptr};
+    uint32_t started_ms{0};
+    uint32_t timeout_ms{0};
+  };
+  static void IRAM_ATTR gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
+  // Each returns the failure reason, or nullptr
+  const LogString *configure_radio_();
+  const LogString *image_cal_();
   void configure_fsk_ook_();
   void configure_lora_();
-  void set_mode_(uint8_t modulation, uint8_t mode);
-  void write_fifo_(const uint8_t *data, size_t len);
+  // False if the chip did not enter the mode
+  bool set_mode_(uint8_t modulation, uint8_t mode);
+  bool enter_rx_();
+  bool enter_tx_();
+  bool can_change_mode_();
+  void change_mode_(uint8_t mode);
+  // Puts the radio back in RX or sleep after a send or a held packet
+  bool restore_();
+  // Retries configure() every second
+  void fail_(const LogString *reason);
+  bool packet_waiting_();
+  void receive_();
+  SX127xError start_transmit_(SX127xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
+  // True once the send has ended, with its outcome in result
+  bool poll_transmit_(uint32_t now, SX127xError &result);
+  SX127xError finish_transmit_(SX127xError result);
+  void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
+  void write_register16_(uint8_t msb_reg, uint16_t value);
   void read_fifo_(std::vector<uint8_t> &packet);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
@@ -105,8 +176,10 @@ class SX127x final : public Component,
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
-  InternalGPIOPin *dio0_pin_{nullptr};
-  InternalGPIOPin *rst_pin_{nullptr};
+  AppliedSettings applied_;
+  TxOperation tx_;
+  GPIOPin *dio0_pin_{nullptr};
+  GPIOPin *rst_pin_{nullptr};
   SX127xBw afc_bandwidth_{SX127X_BW_50_0};
   SX127xBw bandwidth_;
   uint32_t bitrate_;
@@ -130,6 +203,8 @@ class SX127x final : public Component,
   bool crc_enable_{false};
   bool packet_mode_{false};
   bool rx_start_{false};
+  bool reconfigure_pending_{false};
+  RadioState state_{RadioState::RADIO_STATE_NEEDS_CONFIGURATION};
 };
 
 }  // namespace esphome::sx127x

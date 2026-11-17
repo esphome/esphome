@@ -8,7 +8,7 @@ static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
 static const uint16_t MANUFACTURER_ID = 0x0059;
 static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535};  // Magic numbers provided by Mopeka
 
-void MopekaProCheck::dump_config() {
+void MopekaProCheck::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Pro Check");
   LOG_SENSOR("  ", "Level", this->level_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

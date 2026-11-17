@@ -1,0 +1,5 @@
+# W5100S-EVB-Pico on wired Ethernet with the scheduler lock packages (name set with -s name).
+packages:
+  board: !include ../rp2_web_ble/evb.yaml
+  stress: !include stress.yaml
+  race: !include race.yaml
