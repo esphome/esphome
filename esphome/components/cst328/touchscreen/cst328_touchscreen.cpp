@@ -1,4 +1,5 @@
 #include "cst328_touchscreen.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::cst328 {
@@ -99,7 +100,7 @@ void CST328Touchscreen::update_touches() {
     return;
   }
 
-  uint8_t touch_cnt = touch_data[CST_REG_FINGER_COUNT_IDX] & 0x0F;
+  uint8_t touch_cnt = low_nibble(touch_data[CST_REG_FINGER_COUNT_IDX]);
   if (touch_cnt == 0 || touch_cnt > CST328_TOUCH_MAX_POINTS) {
     this->update_button_state_(false);
   } else {
