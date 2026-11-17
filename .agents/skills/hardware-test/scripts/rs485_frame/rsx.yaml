@@ -1,0 +1,48 @@
+esphome:
+  name: rsx
+
+packages:
+  base: !include rs-base.yaml
+  buttons: !include buttons.yaml
+
+rs485_frame:
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  tx:
+    gate:
+      mode: fixed_delay
+      interval: 100ms
+    queue_policy: fifo
+    max_queue_size: 4
+  max_frame_length: 200
+
+script:
+  - id: cases
+    then:
+      - logger.log: "X0 press cmd a at boot"
+      - lambda: 'ESP_LOGI("hwt", "PRESS X0 t=%u", (unsigned) millis());'
+      - button.press: cmd_a
+      - delay: 1s
+      - logger.log: "X1 three short frames queued at once"
+      - lambda: 'ESP_LOGI("hwt", "PRESS X1 t=%u", (unsigned) millis());'
+      - button.press: cmd_a
+      - button.press: cmd_b
+      - button.press: cmd_a
+      - delay: 1s
+      - logger.log: "X2 three 150 B frames queued at once"
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x00, 0x84]
+          payload: !lambda 'return simrs::filled({0x01, 0xF1}, 150, 0x5A);'
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x00, 0x84]
+          payload: !lambda 'return simrs::filled({0x01, 0xF2}, 150, 0x5A);'
+      - rs485_frame.send_frame:
+          id: hub
+          frame_type: [0x00, 0x84]
+          payload: !lambda 'return simrs::filled({0x01, 0xF3}, 150, 0x5A);'
+      - delay: 2s
+      - lambda: 'ESP_LOGI("hwt", "DONE");'

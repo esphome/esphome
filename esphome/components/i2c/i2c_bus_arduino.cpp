@@ -18,17 +18,13 @@ void ArduinoI2CBus::setup() {
   this->recover_();
 
 #if defined(USE_ESP8266)
-  wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
+  this->wire_ = &Wire;  // TwoWire state is static on ESP8266, so every bus shares the global instance
 #elif defined(USE_RP2)
   // Select Wire instance based on pin assignment, not definition order.
   // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
   // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
   // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
-  if ((this->sda_pin_ / 2) % 2 == 0) {
-    this->wire_ = &Wire;
-  } else {
-    this->wire_ = &Wire1;
-  }
+  this->wire_ = (this->sda_pin_ / 2) % 2 == 0 ? &Wire : &Wire1;
 #endif
 
   this->set_pins_and_clock_();
@@ -102,6 +98,14 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
 
   uint8_t status = 0;
   if (write_count != 0 || read_count == 0) {
+#ifdef USE_RP2
+    // arduino-pico leaves a transmission open when a write overflows its buffer, and every later
+    // beginTransmission() is then ignored, so refuse the write before starting it
+    if (write_count > WIRE_BUFFER_SIZE) {
+      ESP_LOGVV(TAG, "TX of %zu bytes exceeds the %u byte Wire buffer", write_count, WIRE_BUFFER_SIZE);
+      return ERROR_TOO_LARGE;
+    }
+#endif
     this->wire_->beginTransmission(address);
     size_t ret = this->wire_->write(write_buffer, write_count);
     if (ret != write_count) {

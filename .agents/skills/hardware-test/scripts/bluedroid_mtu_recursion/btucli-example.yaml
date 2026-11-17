@@ -1,0 +1,9 @@
+esphome:
+  name: btuclibase  # one name per build (btuclibase, btuclipr)
+
+substitutions:
+  peer_mac: "AA:BB:CC:DD:EE:FF"  # the peer S3 Bluetooth MAC (Wi-Fi MAC + 2)
+  exec_write: "false"
+
+packages:
+  common: !include btu-common.yaml

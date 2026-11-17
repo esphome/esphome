@@ -6,6 +6,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -17,6 +18,13 @@ namespace esphome::duco {
 static constexpr uint8_t FUNCTION_NODE = 0x0c;       // discovery, status and mode of a node
 static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data (sensors, serial number)
 static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
+static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
+
+/// Set in a node type byte for a node on network type 3 (BS); the node type codes stay below it.
+static constexpr uint8_t NODE_TYPE_BS = 0x80;
+
+/// The name of a node type byte.
+const LogString *node_type_name(uint8_t type);
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
@@ -24,6 +32,11 @@ struct DucoMessage {
   const uint8_t *data;
   uint8_t size;
 };
+
+/// The node type byte of a non-empty node answer; a one-byte answer has no network type.
+inline uint8_t node_type_byte(const DucoMessage &message) {
+  return message.data[0] | (message.size >= 2 && message.data[1] == 3 ? NODE_TYPE_BS : 0);
+}
 
 class DucoDevice;
 
@@ -42,9 +55,8 @@ class Duco : public uart::UARTDevice, public Component {
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
-#ifdef DUCO_DEVICE_COUNT
+  SLOT_LIST_REQUIRES(DUCO_DEVICE_COUNT)
   void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
-#endif
 
   /// Forget device's open request, for a device that will not send again.
   void close_request(DucoDevice *device);
@@ -54,21 +66,18 @@ class Duco : public uart::UARTDevice, public Component {
   void send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
-  // The longest answer to a request sent here is 25 bytes (node status), the longest request 9
-  static constexpr size_t MAX_FRAME_SIZE = 32;
+  // The longest answer to a request sent here is 39 bytes (box serial number), the longest request 9.
+  // An error answer is 1 + 5 bytes per error, so one with more than eight errors is dropped.
+  static constexpr size_t MAX_FRAME_SIZE = 48;
   static constexpr size_t MAX_REQUEST_DATA = 9;
 
   bool parse_byte_(uint8_t byte);
   void reset_frame_();
-#ifdef DUCO_DEVICE_COUNT
   void update_warning_();  // warn while any device's previous request went unanswered
-#endif
   void finalize_message_();
   uint8_t next_id_();
 
-#ifdef DUCO_DEVICE_COUNT
-  StaticVector<DucoPendingRequest, DUCO_DEVICE_COUNT> pending_;
-#endif
+  [[no_unique_address]] SlotList<DucoPendingRequest, DUCO_DEVICE_COUNT> pending_;
   std::array<uint8_t, MAX_FRAME_SIZE> rx_buffer_{};
   uint32_t last_byte_{0};
   uint8_t rx_size_{0};
@@ -94,7 +103,7 @@ class DucoDiscovery : public DucoDevice {
  protected:
   static constexpr uint8_t NODE_COUNT = 0x45;
 
-  std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
+  std::array<uint8_t, NODE_COUNT> node_types_{};  // node type bytes, 0 when no node answered at that address
   uint8_t next_node_{0};
   uint8_t attempts_{0};
 };

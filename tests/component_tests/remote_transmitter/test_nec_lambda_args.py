@@ -17,10 +17,8 @@ def test_nec_field_lambdas_get_the_script_args(
         r"static void esphome__\w+__fn\(const std::remove_cvref_t<int> & x\) \{",
         main_cpp,
     )
-    assert (
-        "apply_call.data.address = [](const std::remove_cvref_t<int> & x) -> uint16_t {"
-        in body
-    )
+    assert "apply_call.data.address = [](int x) -> uint16_t {" in body
     assert "x *= 2; return x;" in body
-    assert "}(x);" in body
-    assert "apply_call.data.command = static_cast<uint16_t>(x *= 2);" in body
+    assert "apply_call.data.command = [](int x) -> uint16_t {" in body
+    assert "return x *= 2;" in body
+    assert body.count("}(x);") == 2

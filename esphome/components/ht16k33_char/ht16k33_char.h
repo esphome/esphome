@@ -52,7 +52,8 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
 
   /// 0 steady, 1 at 2 Hz, 2 at 1 Hz, 3 at 0.5 Hz; before setup only the value is kept
   void set_blink(uint8_t blink);
-  void display_off(bool turn_off);
+  /// Turn the display on or off
+  void display_power(bool power_status);
   /// Stop the oscillator, the lowest power state; before setup only the value is kept
   void display_standby(bool standby);
   /// Clear the display memory; the next update redraws the message

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/display/display.h"
@@ -1059,7 +1060,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   void update() override;
   void loop() override;
-  void set_writer(const nextion_writer_t &writer);
+  void set_writer(nextion_writer_t writer) { this->writer_ = std::move(writer); }
 
   // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
@@ -1145,7 +1146,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
    * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
    * the display properly processes the uploaded file command.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
@@ -1621,8 +1622,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @param bool url successful True: Transfer completed successfully, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_end_(bool successful);
 

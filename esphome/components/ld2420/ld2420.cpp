@@ -461,7 +461,7 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
     }
   }
 
-  // Resonable refresh rate for home assistant database size health
+  // Reasonable refresh rate for home assistant database size health
   const int32_t current_millis = App.get_loop_component_start_time();
   if (current_millis - this->last_periodic_millis < REFRESH_RATE_MS) {
     return;
@@ -512,7 +512,7 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   }
 
   if (this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE) {
-    // Resonable refresh rate for home assistant database size health
+    // Reasonable refresh rate for home assistant database size health
     const int32_t current_millis = App.get_loop_component_start_time();
     if (current_millis - this->last_normal_periodic_millis < REFRESH_RATE_MS) {
       return;
