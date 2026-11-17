@@ -48,6 +48,11 @@ async def main():
             out.append(f"WEB {e.name}: error {last}")
     await c.disconnect()
     pathlib.Path(OUT).write_text("\n".join(out) + "\n", encoding="utf-8")
+    # a sensor with no API state or no web_server answer leaves a hole in the A/B comparison
+    holes = [x for x in out if x.endswith(": no state") or ": error " in x]
+    for x in holes:
+        print(x)
+    return 1 if holes else 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

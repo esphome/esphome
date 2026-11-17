@@ -17,14 +17,16 @@ for N in "$@"; do
   (tcpdump -i "$IF" -s 128 -w "$D/$T.pcap" host "$HOST" and tcp port 80 > /dev/null 2>&1 &); sleep 1
   $PY -I "$D/flow.py" "$HOST" "$D/$T" | grep -E 'PAGES|SSE|CONTROL|heap'
   [ "${PIPESTATUS[0]}" = 0 ] || FAILED+=("p$k:flow")
-  $PY -I "$D/ssediag.py" "$HOST" 150 60 > "$D/$T-diag.txt"
+  $PY -I "$D/ssediag.py" "$HOST" 150 60 > "$D/$T-diag.txt" || FAILED+=("p$k:sse")
   echo "diag: $(tail -1 "$D/$T-diag.txt"), zero windows $(grep -c 'fast events   0' "$D/$T-diag.txt")," \
     "max lag $(grep -o 'lag [0-9-]*' "$D/$T-diag.txt" | awk '{print $2}' | sort -n | tail -1)"
   pkill -f "[t]cpdump -i $IF -s 128 -w $D/$T.pcap"; pkill -f "[s]erial_capture.py $P "; sleep 1
   [ -s "$D/$T.pcap" ] || { echo "pcap: none written (tcpdump capture rights?)"; FAILED+=("p$k:pcap"); }
   [ -s "$D/$T-serial.log" ] ||
     { echo "serial: EMPTY capture, counts below mean nothing: $(tail -1 "$D/$T-cap.err")"; FAILED+=("p$k:capture"); }
-  echo "serial: crash lines $(grep -a -c -E 'CRASH|Crash|abort|HardFault|Undefined' "$D/$T-serial.log")," \
+  CR=$(grep -a -c -E 'CRASH|Crash|abort|HardFault|Undefined' "$D/$T-serial.log")
+  [ "$CR" = 0 ] || FAILED+=("p$k:crash")
+  echo "serial: crash lines $CR," \
     "boots $(grep -a -c 'Log initialized' "$D/$T-serial.log")"
 done
 [ ${#FAILED[@]} = 0 ] || { echo "FAILED: ${FAILED[*]}"; exit 1; }

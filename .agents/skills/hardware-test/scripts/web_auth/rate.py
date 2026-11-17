@@ -82,12 +82,16 @@ def summ(v: list) -> str:
     )
 
 
+fails = []
 for path in ("/", "/sensor/Fast%20counter"):
-    for label, auth in (("bad", af.BAD), ("good", af.GOOD)):
+    for label, auth, want in (("bad", af.BAD, "401"), ("good", af.GOOD, "200")):
         rows = [one(path, auth) for _ in range(SEQ)]
         codes: dict = {}
         for r in rows:
             codes[r[2]] = codes.get(r[2], 0) + 1
+        # timings of other answers (errors, resets) are not the request under test
+        if set(codes) != {want}:
+            fails.append(f"seq {label} {path} {codes}")
         print(
             time.strftime("[%H:%M:%S]"),
             f"seq {label} {path}: ttfb ms {summ([r[0] for r in rows])}; "
@@ -118,3 +122,5 @@ for rnd in range(2):
         f"parallel {TH}x{PAR:.0f}s round {rnd}: {codes}",
         flush=True,
     )
+print("PASS" if not fails else "FAIL: " + "; ".join(fails), flush=True)
+sys.exit(1 if fails else 0)

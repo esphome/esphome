@@ -44,6 +44,7 @@ def upload(auth: str | None) -> str:
     return status
 
 
+fails = 0
 for i in range(N):
     for name, auth in (
         ("noauth", None),
@@ -54,8 +55,16 @@ for i in range(N):
         time.sleep(3)
         u1, hp = af.uptime(10), af.heap(10)
         rb = "REBOOT" if u0 is None or u1 is None or u1 < u0 else "ok"
+        fails += rb != "ok" or hp is None
         print(
             time.strftime("[%H:%M:%S]"),
             f"{i} {name} {KB}KB -> {st}; heap {hp} {rb}",
             flush=True,
         )
+print(
+    "PASS"
+    if not fails
+    else f"FAIL: {fails} uploads followed by a reboot or no heap reading",
+    flush=True,
+)
+sys.exit(1 if fails else 0)

@@ -34,5 +34,7 @@ run tap115200 --baud 115200 --mode ash --protocol --pauses 10 --pause 5 --read 8
 run normal115200r --baud 115200 --mode reply --interval 20 --duration 120
 sleep 11
 grep -a HEAP $CAP | tail -1 | sed 's/^/END /'
-grep -a -c -E "rst:|Guru|panic|abort|Backtrace" $CAP | sed 's/^/crash lines /'
-[ ${#FAILED[@]} = 0 ] || { echo "FAILED cases: ${FAILED[*]}"; exit 1; }
+CR=$(grep -a -c -E "rst:|Guru|panic|abort|Backtrace" "$CAP"); echo "crash lines $CR"
+[ "$CR" = 0 ] || FAILED+=("crash")
+grep -a -q HEAP "$CAP" || FAILED+=("capture-empty")  # the sim logs HEAP every 10 s
+[ ${#FAILED[@]} = 0 ] || { echo "FAILED: ${FAILED[*]}"; exit 1; }

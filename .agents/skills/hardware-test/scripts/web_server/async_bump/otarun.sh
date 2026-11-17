@@ -12,6 +12,10 @@ $PY -I "$D/flow.py" "$IP" "$D/$N"; RC=$?
 B=$D/.esphome/build/$N/.pioenvs/$N; IMG=$B/firmware.bin; [ -f "$B/firmware.uf2" ] && IMG=$B/firmware.uf2
 PY=$PY bash "$D/webota.sh" "$IP" "$IMG" "$D/$N" || RC=1
 sleep 5; pkill -f "[e]sphome logs $D/$N.yaml"
-echo "APILOG crash lines $(grep -a -c -E 'CRASH|Crash|abort|HardFault|assert' "$D/$N-apilog.txt")," \
+CR=$(grep -a -c -E 'CRASH|Crash|abort|HardFault|assert' "$D/$N-apilog.txt")
+[ "$CR" = 0 ] || RC=1
+# an API log capture that never got a device log line saw nothing, so its zero crash count means nothing
+grep -a -q -E '^\[[0-9:.]+\]\[[A-Z]\]' "$D/$N-apilog.txt" || { echo "APILOG has no device log lines"; RC=1; }
+echo "APILOG crash lines $CR," \
   "boots seen $(grep -a -c 'ESPHome version' "$D/$N-apilog.txt"), lines $(wc -l < "$D/$N-apilog.txt")"
 exit $RC

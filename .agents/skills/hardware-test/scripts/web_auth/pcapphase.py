@@ -73,3 +73,5 @@ for k, v in phases.items():
             f"mean {statistics.mean(v):7.1f} ms"
         )
 print(f"connections {len(conns)}, SYN retransmits {retries}")
+if not conns:
+    sys.exit(f"no connections to {dev}:{port} in {pcap}")

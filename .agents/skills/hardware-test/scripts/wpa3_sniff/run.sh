@@ -7,7 +7,12 @@ W=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$W"); cd "$W" || exit 1; PY=${PY:
 ST=${ST:?station port}; AP=${AP:?access point port}
 pkill -f "[s]erial_capture.py $ST "; pkill -f "[s]erial_capture.py $AP "
 TREE=$2 bash "$S/pio_build.sh" upload "$1" "$W/$1.yaml" "$ST" || exit 1
-$PY "$S/serial_capture.py" "$AP" "$3" "$1-ap.txt" --ms > /dev/null 2>&1 &
-$PY "$S/serial_capture.py" "$ST" "$3" "$1-st.txt" --ms > /dev/null 2>&1 &
-wait
+$PY "$S/serial_capture.py" "$AP" "$3" "$1-ap.txt" --ms > /dev/null 2> "$1-ap.err" & PA=$!
+$PY "$S/serial_capture.py" "$ST" "$3" "$1-st.txt" --ms > /dev/null 2> "$1-st.err" & PS=$!
+RC=0
+for k in ap st; do
+  if [ $k = ap ]; then wait $PA; else wait $PS; fi || { echo "$k capture failed: $(tail -1 "$1-$k.err")"; RC=1; }
+  [ -s "$1-$k.txt" ] || { echo "$k capture is empty"; RC=1; }
+done
 echo "$1 done"
+exit $RC

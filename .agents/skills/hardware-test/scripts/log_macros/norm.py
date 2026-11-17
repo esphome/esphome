@@ -64,3 +64,5 @@ text = "\n".join(out)
 if name:
     text = re.sub(rf"\b{re.escape(name)}\b", "<name>", text)
 print(text)
+if not out:
+    sys.exit(f"no config, lm or state lines in {sys.argv[1]}")

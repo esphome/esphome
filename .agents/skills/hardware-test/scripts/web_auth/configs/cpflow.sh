@@ -21,7 +21,9 @@ SAVED=0; for _ in $(seq 1 120); do grep -a -q "real save status" "$D/$N-cpclient
 sleep 30; pkill -f "[s]erial_capture.py $P "; pkill -f "[s]erial_capture.py $CP "
 echo "== $N client:"
 grep -a -E "probe|real save|connected, ip" "$D/$N-cpclient-serial.log" | sed 's/ip [0-9.]*/ip <ip>/' | cut -c1-160
-echo "== $N DUT: wifi saves $(grep -a -c 'Requested WiFi Settings Change' "$D/$N-cp-serial.log")," \
-  "crash lines $(grep -a -c -E 'Exception|Panic|HardFault|abort\(\)|WDT' "$D/$N-cp-serial.log")," \
+SAVES=$(grep -a -c 'Requested WiFi Settings Change' "$D/$N-cp-serial.log")
+CR=$(grep -a -c -E 'Exception|Panic|HardFault|abort\(\)|WDT' "$D/$N-cp-serial.log")
+echo "== $N DUT: wifi saves $SAVES, crash lines $CR," \
   "joined $(grep -a -c -E 'WiFi Connected|Connected to' "$D/$N-cp-serial.log")"
 [ $SAVED = 1 ] || { echo "== $N client: no 'real save status' within 240 s"; exit 1; }
+[ "$CR" = 0 ] && [ "$SAVES" -gt 0 ] || { echo "== $N FAIL: crash lines or no save reached the DUT"; exit 1; }

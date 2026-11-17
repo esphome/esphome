@@ -87,3 +87,5 @@ print(
     f"TOTAL sse fast events {sum(tot)} in {secs:.0f}s ({sum(tot) / secs:.1f}/s)"
     + (" (SSE ended early)" if state["ended"] else "")
 )
+# an SSE stream that ended early or carried nothing is not a measurement
+sys.exit(1 if state["ended"] or not sum(tot) else 0)

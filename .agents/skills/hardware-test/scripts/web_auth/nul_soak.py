@@ -59,6 +59,7 @@ CASES = {
     ],
 }
 names = sys.argv[5].split(",") if len(sys.argv) > 5 else list(CASES)
+total_reboots = 0
 for name in names:
     reboots = 0
     results: dict = {}
@@ -83,9 +84,12 @@ for name in names:
         if reboots >= MAXREB:
             break
     sent = i + 1
+    total_reboots += reboots
     print(
         time.strftime("[%H:%M:%S]"),
         f"CASE {name}: {sent} requests in {time.monotonic() - t0:.0f}s, reboots {reboots}, "
         f"answers {results}",
         flush=True,
     )
+print("PASS" if not total_reboots else f"FAIL: {total_reboots} reboots", flush=True)
+sys.exit(1 if total_reboots else 0)

@@ -116,6 +116,8 @@ def main() -> None:
     allrows = []
     for label in sys.argv[1:]:
         allrows += analyze(label)
+    if not allrows:
+        sys.exit(f"no RESTARTING_SEEN outage in {' '.join(sys.argv[1:])}")
     keys = [
         "label",
         "n",

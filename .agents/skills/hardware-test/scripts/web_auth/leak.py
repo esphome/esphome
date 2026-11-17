@@ -33,6 +33,8 @@ def heap_settled() -> tuple:
 
 h, u = heap_settled()
 print(time.strftime("[%H:%M:%S]"), f"idle heap {h} uptime {u}", flush=True)
+ups = [u]
+heaps = [h]
 for r in range(ROUNDS):
     stop = time.monotonic() + CONC
     codes: dict = {}
@@ -96,3 +98,13 @@ for r in range(ROUNDS):
         f"settle {h} uptime {u}",
         flush=True,
     )
+    ups.append(u)
+    heaps.append(h)
+# a missing reading or an uptime that went down (a reboot) makes the heap numbers meaningless
+fails = []
+if any(x is None for x in heaps + ups):
+    fails.append("missing heap or uptime reading")
+elif any(b < a for a, b in zip(ups, ups[1:], strict=False)):
+    fails.append("reboot (uptime went down)")
+print("PASS" if not fails else "FAIL: " + ", ".join(fails), flush=True)
+sys.exit(1 if fails else 0)
