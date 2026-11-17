@@ -10,6 +10,7 @@ namespace {
 
 constexpr uint8_t OLD_AP[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
 constexpr uint8_t NEW_AP[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x02};
+constexpr uint8_t NO_AP[6] = {};
 
 ExpectedDisconnect armed() {
   ExpectedDisconnect expected;
@@ -20,20 +21,20 @@ ExpectedDisconnect armed() {
 TEST(ExpectedDisconnectTest, PreviousApLeaveIsExpectedOnce) {
   auto expected = armed();
 
-  EXPECT_TRUE(expected.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_AP);
   EXPECT_FALSE(expected.is_previous_ap(OLD_AP));
   // A second leave from the same AP is a real disconnect
-  EXPECT_FALSE(expected.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 }
 
 TEST(ExpectedDisconnectTest, OtherDisconnectsAreRealAndEndTheExpectation) {
   auto other_ap = armed();
-  EXPECT_FALSE(other_ap.consume_disconnect(NEW_AP, true));
-  EXPECT_FALSE(other_ap.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(other_ap.consume_disconnect(NEW_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
+  EXPECT_EQ(other_ap.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 
   auto other_reason = armed();
-  EXPECT_FALSE(other_reason.consume_disconnect(OLD_AP, false));
-  EXPECT_FALSE(other_reason.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(other_reason.consume_disconnect(OLD_AP, false), ExpectedLeave::EXPECTED_LEAVE_NONE);
+  EXPECT_EQ(other_reason.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 }
 
 TEST(ExpectedDisconnectTest, QueuedConnectionFromPreviousApKeepsTheExpectation) {
@@ -41,17 +42,17 @@ TEST(ExpectedDisconnectTest, QueuedConnectionFromPreviousApKeepsTheExpectation) 
 
   EXPECT_TRUE(expected.is_previous_ap(OLD_AP));
   EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
-  EXPECT_TRUE(expected.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_AP);
 }
 
 TEST(ExpectedDisconnectTest, NothingIsExpectedUnlessArmed) {
   ExpectedDisconnect expected;
   EXPECT_FALSE(expected.is_previous_ap(OLD_AP));
-  EXPECT_FALSE(expected.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 
   auto cleared = armed();
   cleared.clear();
-  EXPECT_FALSE(cleared.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(cleared.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 }
 
 // Stands in for esp_wifi_sta_get_ap_info() and esp_wifi_disconnect(): the AP record is gone after disconnecting
@@ -82,16 +83,7 @@ TEST(ExpectedDisconnectTest, DisconnectExpectsTheLeaveOfTheApItLeft) {
   Driver driver;
 
   EXPECT_TRUE(disconnect(expected, driver));
-  EXPECT_TRUE(expected.consume_disconnect(OLD_AP, true));
-}
-
-TEST(ExpectedDisconnectTest, NoApMeansNoExpectation) {
-  ExpectedDisconnect expected;
-  Driver driver;
-  driver.has_ap = false;
-
-  EXPECT_TRUE(disconnect(expected, driver));
-  EXPECT_FALSE(expected.consume_disconnect(OLD_AP, true));
+  EXPECT_EQ(expected.consume_disconnect(OLD_AP, true), ExpectedLeave::EXPECTED_LEAVE_AP);
 }
 
 TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
@@ -104,6 +96,30 @@ TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
   // The earlier expectation is dropped too
   EXPECT_FALSE(expected.is_previous_ap(OLD_AP));
   EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
+}
+
+TEST(ExpectedDisconnectTest, DisconnectWithoutApExpectsTheAttemptsLeave) {
+  ExpectedDisconnect expected;
+  Driver driver;
+  driver.has_ap = false;
+
+  EXPECT_TRUE(disconnect(expected, driver));
+  // A real AP never matches the attempt's zero BSSID
+  EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
+  // The driver reports the attempt as left, with no BSSID, after the next one starts
+  EXPECT_EQ(expected.consume_disconnect(NO_AP, true), ExpectedLeave::EXPECTED_LEAVE_ATTEMPT);
+  EXPECT_EQ(expected.consume_disconnect(NO_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
+}
+
+TEST(ExpectedDisconnectTest, AttemptLeaveExpectationEndsOnARealFailure) {
+  ExpectedDisconnect expected;
+  Driver driver;
+  driver.has_ap = false;
+
+  EXPECT_TRUE(disconnect(expected, driver));
+  // A probe failure of the new attempt is real, and nothing stays expected after it
+  EXPECT_EQ(expected.consume_disconnect(NO_AP, false), ExpectedLeave::EXPECTED_LEAVE_NONE);
+  EXPECT_EQ(expected.consume_disconnect(NO_AP, true), ExpectedLeave::EXPECTED_LEAVE_NONE);
 }
 
 }  // namespace

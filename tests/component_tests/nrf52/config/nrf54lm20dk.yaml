@@ -1,0 +1,5 @@
+esphome:
+  name: testingmodetest
+
+nrf52:
+  board: nrf54lm20dk
