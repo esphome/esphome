@@ -8,6 +8,7 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 import importlib
 import logging
+import re
 from types import ModuleType
 
 import esphome.config_validation as cv
@@ -67,6 +68,19 @@ def resolve_sdk(
     return framework_type, variant.alt_sdks[framework_type]
 
 
+def _release_order(version: cv.Version) -> tuple[int, int, int, bool, str, int]:
+    """Sort key in which a release follows its prereleases and rc2 comes before rc10."""
+    suffix = re.fullmatch(r"(\D*)(\d*)", version.extra)
+    return (
+        version.major,
+        version.minor,
+        version.patch,
+        not version.extra,
+        suffix[1],
+        int(suffix[2] or 0),
+    )
+
+
 def resolve_framework_version(
     variant: ZephyrVariant, variant_name: str, config: ConfigType, requires_reason: str
 ) -> tuple[str, cv.Version, str, ZephyrSDK]:
@@ -94,7 +108,7 @@ def resolve_framework_version(
         raise cv.Invalid(
             f"'{version_str}' is not a version number", [CONF_FRAMEWORK, CONF_VERSION]
         ) from err
-    if framework_ver < sdk.min_version:
+    if _release_order(framework_ver) < _release_order(sdk.min_version):
         raise cv.Invalid(
             f"{variant_name} requires {sdk_name} >= {sdk.min_version} "
             f"({requires_reason}). Got {version_str}.",

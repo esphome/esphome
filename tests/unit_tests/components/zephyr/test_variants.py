@@ -217,6 +217,20 @@ def test_version_below_the_minimum_is_rejected() -> None:
     assert err.value.path == [CONF_FRAMEWORK, CONF_VERSION]
 
 
+def test_prerelease_of_the_minimum_is_rejected() -> None:
+    with pytest.raises(cv.Invalid, match=r"zephyr >= 4.4.0"):
+        resolve_framework_version(
+            _VARIANT, "chip1", _config("4.4.0-rc1"), "chip1 support"
+        )
+
+
+def test_release_meets_a_prerelease_minimum() -> None:
+    sdk = ZephyrSDK(default_version="4.5.0", min_version=cv.Version(4, 5, 0, "rc2"))
+    variant = ZephyrVariant(sdk=sdk)
+    for version in ("4.5.0", "4.5.0-rc10"):
+        resolve_framework_version(variant, "chip1", _config(version), "chip1 support")
+
+
 def test_set_core_data(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(variants, "VARIANTS", {"chip1": _VARIANT})
     CORE.data[KEY_CORE] = {}
