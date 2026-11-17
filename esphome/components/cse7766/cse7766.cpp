@@ -217,7 +217,7 @@ bool CSE7766Component::parse_data_() {
   {
     const float calculated_current = have_power && voltage > 1.0f ? power / voltage : 0.0f;
     char buf[128];  // five fields at %.4f fit with room to spare
-    size_t pos = buf_append_printf(buf, sizeof(buf), 0, "Parsed:");
+    size_t pos = buf_append_str(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
       pos = buf_append_printf(buf, sizeof(buf), pos, " V=%.4fV", voltage);
     }
