@@ -73,6 +73,17 @@ TEST_F(PCM1863InputSelectTest, FailedWriteLeavesTheSelectUnpublished) {
   EXPECT_FALSE(this->select_.has_state());
 }
 
+TEST_F(PCM1863InputSelectTest, FailedWriteDoesNotLeakIntoTheNextRequest) {
+  this->adc_.setup();
+  this->bus_.fail = true;
+  this->choose_(2);
+  this->bus_.fail = false;
+  this->choose_(5);
+  EXPECT_EQ(this->publishes_, 1u);
+  EXPECT_EQ(this->select_.active_index(), 5u);
+  EXPECT_EQ(this->bus_.registers[PCM1863_REG_ADC1_INPUT_SEL_L], PCM1863_INPUT_SEL_RSV | 0x10);
+}
+
 TEST_F(PCM1863InputSelectTest, FailedSetupRejectsTheSelect) {
   this->bus_.fail = true;
   this->adc_.setup();
