@@ -16,8 +16,6 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
-// PKTCTRL0 for async serial TX; begin_tx() puts only the chip in this mode, state_ keeps the configured one
-static constexpr uint8_t PKTCTRL0_ASYNC_SERIAL = 0x32;
 static constexpr size_t RX_FIFO_SIZE = 64;
 // RX FIFO threshold for FIFO_THR = 7 in long packet mode
 static constexpr uint8_t RX_FIFO_THRESHOLD = 32;
@@ -141,7 +139,9 @@ void CC1101Component::setup() {
   if (this->gdo0_pin_ != nullptr) {
     this->defer([this]() {
       this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
-      this->attach_gdo0_interrupt_();
+      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      }
     });
   }
 }
@@ -352,7 +352,8 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
 }
 
 void CC1101Component::loop_long_packet_() {
-  if (this->sleeping_ || this->transmitting_ || !this->is_packet_mode_() || this->gdo0_pin_ == nullptr) {
+  if (this->sleeping_ || this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) ||
+      this->gdo0_pin_ == nullptr) {
     this->high_freq_.stop();
     this->disable_loop();
     return;
@@ -413,8 +414,8 @@ void CC1101Component::loop() {
 #endif
 
   this->disable_loop();
-  if (this->sleeping_ || this->transmitting_ || !this->is_packet_mode_() || this->gdo0_pin_ == nullptr ||
-      !this->gdo0_pin_->digital_read()) {
+  if (this->sleeping_ || this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) ||
+      this->gdo0_pin_ == nullptr || !this->gdo0_pin_->digital_read()) {
     return;
   }
 
@@ -506,17 +507,14 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
+  // Async serial TX only; switching a packet mode radio over would leave it unable to receive packets
+  if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    ESP_LOGW(TAG, "begin_tx is for async serial mode; use send_packet in packet mode");
+    return;
+  }
   this->wake_up();
-  const bool packet_mode = this->is_packet_mode_();
-  this->transmitting_ = true;
-  this->write_(Register::PKTCTRL0);
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
-    // setup() only attaches the interrupt in packet mode. In async serial mode the pin may be
-    // shared with remote_receiver, and detaching here would remove the receiver's interrupt.
-    if (packet_mode) {
-      this->gdo0_pin_->detach_interrupt();
-    }
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
   // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
@@ -529,7 +527,9 @@ void CC1101Component::begin_tx() {
 
 void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Beginning RX sequence");
-  this->end_tx_();
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+  }
   // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
   this->enter_idle_();
   if (!this->enter_rx_()) {
@@ -538,27 +538,8 @@ void CC1101Component::begin_rx() {
 }
 
 void CC1101Component::reset() {
-  // Before configure() so it writes the configured PKTCTRL0
-  this->end_tx_();
   this->strobe_(Command::RES);
   this->configure();
-}
-
-void CC1101Component::end_tx_() {
-  if (!this->transmitting_)
-    return;
-  this->transmitting_ = false;
-  // Release GDO0 first: in packet mode the radio drives it again
-  if (this->gdo0_pin_ != nullptr)
-    this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->write_(Register::PKTCTRL0);
-  this->attach_gdo0_interrupt_();
-}
-
-void CC1101Component::attach_gdo0_interrupt_() {
-  // Only packet mode uses the interrupt; begin_tx() detaches it
-  if (this->gdo0_pin_ != nullptr && this->is_packet_mode_())
-    this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
 }
 
 void CC1101Component::set_idle() {
@@ -681,12 +662,9 @@ void CC1101Component::write_(Register reg) {
     return;  // wake_up() writes state_ to the chip
   }
   uint8_t index = static_cast<uint8_t>(reg);
-  uint8_t value = this->state_.regs()[index];
-  if (this->transmitting_ && reg == Register::PKTCTRL0)
-    value = PKTCTRL0_ASYNC_SERIAL;
   this->enable();
   this->write_byte(index);
-  this->write_byte(value);
+  this->write_array(&this->state_.regs()[index], 1);
   this->disable();
 }
 
@@ -725,7 +703,7 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
 }
 
 CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
-  if (!this->is_packet_mode_()) {
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
     ESP_LOGW(TAG, "Cannot transmit packet: packet mode is not FIFO");
     return CC1101Error::PARAMS;
   }
@@ -747,8 +725,6 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
 
   // Write packet
   this->enter_idle_();
-  // The packet ends back in RX
-  this->end_tx_();
   this->strobe_(Command::FTX);
   if (variable) {
     this->write_(Register::FIFO, static_cast<uint8_t>(len));
@@ -1172,10 +1148,9 @@ void CC1101Component::set_packet_mode(bool value) {
     this->configure_packet_mode_();
   }
   if (this->initialized_) {
-    // GDO0 is an output during TX; end_tx_() applies the interrupt state
-    if (this->gdo0_pin_ != nullptr && !this->transmitting_) {
+    if (this->gdo0_pin_ != nullptr) {
       if (value) {
-        this->attach_gdo0_interrupt_();
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
       } else {
         this->gdo0_pin_->detach_interrupt();
       }
@@ -1205,9 +1180,8 @@ void CC1101Component::set_packet_length_lambda(packet_length_func_t func) {
 #endif
 
 void CC1101Component::reconfigure_packet_length_() {
-  // While asleep the writes wait for wake_up() and the radio stays asleep, like set_frequency(). During TX the
-  // radio stays in TX; begin_rx() or transmit_packet() enters RX with the new settings.
-  if (!this->initialized_ || this->sleeping_ || this->transmitting_) {
+  // While asleep the writes wait for wake_up() and the radio stays asleep, like set_frequency()
+  if (!this->initialized_ || this->sleeping_) {
     this->configure_packet_mode_();
     return;
   }
