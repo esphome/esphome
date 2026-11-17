@@ -162,6 +162,7 @@ async def main():
     res["pass"] = ok and res["expected_links_present"]
     print(json.dumps(res, indent=1))
     pathlib.Path(OUT).write_text(json.dumps(res, indent=1), encoding="utf-8")
+    return 0 if res["pass"] else 1
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

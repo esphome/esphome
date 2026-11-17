@@ -24,6 +24,8 @@ $PY -I "$D/flow.py" "$HOST" "$D/$N"; RC=$?
 PY=$PY bash "$D/webota.sh" "$HOST" "$IMG" "$D/$N" || RC=1
 sleep 5; pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$D/$N-serial.log
-echo "SERIAL crash lines $(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")," \
+CR=$(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")
+[ "$CR" = 0 ] || RC=1
+echo "SERIAL crash lines $CR," \
   "boots $(grep -a -c -E 'Log initialized' "$L"), port losses $(grep -a -c 'port lost' "$L"), lines $(wc -l < "$L")"
 exit $RC

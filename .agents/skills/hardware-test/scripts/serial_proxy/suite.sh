@@ -11,14 +11,17 @@ nohup $PY "$S/serial_capture.py" "$PORT" 7200 "$CAP" > /dev/null 2>&1 &
 IP=$(bash "$S/resolve.sh" "sp$B" 40) || exit 1
 sleep 10
 grep -a HEAP $CAP | tail -1 | sed 's/^/BOOT /'
+FAILED=()
 run() {  # run LABEL CLIENT-ARGS...
   local L=$1; shift
-  [[ ${CASES:-all} == all || " $CASES " == *" $L "* ]] || return
+  [[ ${CASES:-all} == all || " $CASES " == *" $L "* ]] || return 0
   local N
   N=$(( $(wc -l < "$CAP") + 1 ))  # first capture line of this case
-  timeout 1200 $PY spclient.py $IP "$@" > $B-$L.txt 2>&1
+  local RC
+  timeout 1200 $PY spclient.py $IP "$@" > $B-$L.txt 2>&1; RC=$?
+  [ $RC = 0 ] || FAILED+=("$L")
   sleep 2
-  echo "== $L: $(grep RESULT $B-$L.txt)"
+  echo "== $L (client exit $RC): $(grep RESULT $B-$L.txt || echo 'no RESULT line')"
   echo "   $(tail -n +$N $CAP | grep -a SIMDONE | tail -1 | sed 's/.*SIMDONE//' | grep . || echo 'no SIMDONE in this case')"
   echo "   $(tail -n +$N $CAP | grep -a -E 'SIMSTAT|ASHWIN' | sed 's/.*backlog_max=\([0-9]*\).*/\1/' | sort -n | tail -1 | sed 's/^/peak backlog /')"
   grep -a -c -E "CONNECTION CLOSED|DISCONNECT" $B-$L.txt | sed 's/^/   disconnects /'
@@ -32,3 +35,4 @@ run normal115200r --baud 115200 --mode reply --interval 20 --duration 120
 sleep 11
 grep -a HEAP $CAP | tail -1 | sed 's/^/END /'
 grep -a -c -E "rst:|Guru|panic|abort|Backtrace" $CAP | sed 's/^/crash lines /'
+[ ${#FAILED[@]} = 0 ] || { echo "FAILED cases: ${FAILED[*]}"; exit 1; }

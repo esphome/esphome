@@ -102,6 +102,7 @@ async def main():
         state.get("ovf_enqueue"),
         state.get("ovf_drain"),
         state.get("ovf_enqueue_bytes"),
+        state.get("ovf_enqueue_fail"),
     )
     sock = cli._connection._socket
     transport = next(
@@ -132,13 +133,19 @@ async def main():
         state.get("ovf_enqueue"),
         state.get("ovf_drain"),
         state.get("ovf_enqueue_bytes"),
+        state.get("ovf_enqueue_fail"),
     )
     res.update(stats)
     res["flood_n"] = fN
     res["final_states_match"] = final_ok
     # a counter with no state (missing or NaN) gives no delta, which fails the run
     for name, a, b in zip(
-        ("ovf_enqueue_delta", "ovf_drain_delta", "ovf_enqueue_bytes_delta"),
+        (
+            "ovf_enqueue_delta",
+            "ovf_drain_delta",
+            "ovf_enqueue_bytes_delta",
+            "ovf_enqueue_fail_delta",
+        ),
         o0,
         o1,
         strict=True,
@@ -155,9 +162,12 @@ async def main():
         and stats["bad_text"] == 0
         and (res["ovf_enqueue_delta"] or 0) > 0
         and (res["ovf_drain_delta"] or 0) > 0
+        # a refused enqueue loses a message
+        and res["ovf_enqueue_fail_delta"] == 0
     )
     print(json.dumps(res))
     pathlib.Path(OUT).write_text(json.dumps(res, indent=1), encoding="utf-8")
+    return 0 if res["pass"] else 1
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

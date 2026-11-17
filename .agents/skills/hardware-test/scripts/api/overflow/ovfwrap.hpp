@@ -8,6 +8,7 @@ extern "C" {
 uint32_t ovf_enq_calls = 0;
 uint32_t ovf_enq_bytes = 0;
 uint32_t ovf_drain_calls = 0;
+uint32_t ovf_enq_fails = 0;  // the buffer refused a message: it is lost
 bool __real__ZN7esphome3api17APIOverflowBuffer11enqueue_iovEPK5iovecijj(void *self, const iovec *iov, int n,
                                                                         size_t total, size_t skip);
 bool __wrap__ZN7esphome3api17APIOverflowBuffer11enqueue_iovEPK5iovecijj(void *self, const iovec *iov, int n,
@@ -16,6 +17,8 @@ bool __wrap__ZN7esphome3api17APIOverflowBuffer11enqueue_iovEPK5iovecijj(void *se
   if (ok) {
     ovf_enq_calls++;
     ovf_enq_bytes += total - skip;
+  } else {
+    ovf_enq_fails++;
   }
   return ok;
 }

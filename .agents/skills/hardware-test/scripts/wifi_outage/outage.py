@@ -124,12 +124,14 @@ def main() -> None:
                 run_start = None
         return False
 
+    failed = False
     for n in range(1, a.outages + 1):
         if not connected_for(a.stable, 400):
             mark(f"OUTAGE {n} SKIP dut never stable; releasing router and retrying")
             rtr.rts = False
             if not connected_for(a.stable, 300):
                 mark("ABORT dut not connecting")
+                failed = True
                 break
         t0 = time.time()
         _, idx = dr.after(0)
@@ -151,6 +153,7 @@ def main() -> None:
                     break
         if not hit:
             mark(f"OUTAGE {n} NO_RESTARTING ap_up={ap_up}; releasing")
+            failed = True
             rtr.rts = False
             continue
         mark(f"OUTAGE {n} RESTARTING_SEEN ap_up={ap_up}")
@@ -169,6 +172,8 @@ def main() -> None:
     time.sleep(2)
     rr.stop = dr.stop = True
     time.sleep(0.5)
+    # an aborted run or an outage that never reached RESTARTING has fewer outages than asked for
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":

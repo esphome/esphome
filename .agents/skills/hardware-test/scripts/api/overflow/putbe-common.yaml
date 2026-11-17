@@ -70,6 +70,7 @@ interval:
           id(ovf_enq).publish_state(ovf_enq_calls);
           id(ovf_enq_b).publish_state(ovf_enq_bytes);
           id(ovf_drain).publish_state(ovf_drain_calls);
+          id(ovf_enq_fail).publish_state(ovf_enq_fails);
 udp:
   - id: udp_plain
     port: 18611
@@ -144,6 +145,10 @@ sensor:
   - platform: template
     id: ovf_drain
     name: Ovf drain
+    update_interval: never
+  - platform: template
+    id: ovf_enq_fail
+    name: Ovf enqueue fail
     update_interval: never
 binary_sensor:
   - platform: template
