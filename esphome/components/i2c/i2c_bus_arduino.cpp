@@ -180,23 +180,16 @@ void ArduinoI2CBus::recover_() {
     return;
   }
 
-  // Activate input and pull up resistor for the SDA pin, so we can read
-  // whether SDA is released before each clock pulse.
+  // Activate input and pull up resistor for the SDA pin, so it can be read during the pulses.
   pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
-
-  // From the specification:
-  // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
-  //  device that held the bus LOW should release it sometime within
-  //  those nine clocks."
-  // Stop as soon as SDA is released: a device that is receiving a write
-  // treats the extra pulses as data and holds SDA LOW to acknowledge
-  // every ninth one, so a fixed count can end in that acknowledge.
 
   // Make sure that switching to output mode will make SCL low, just in
   // case other code has setup the pin for a HIGH signal.
   digitalWrite(this->scl_pin_, LOW);  // NOLINT
 
   delayMicroseconds(half_period_usec);
+  // Spec: "If the data line (SDA) is stuck LOW, send nine clock pulses."
+  // Pulse only while SDA is low: a device receiving a write ACKs every ninth pulse.
   for (auto i = 0; i < 9 && digitalRead(this->sda_pin_) == LOW; i++) {  // NOLINT
     // Release pull up resistor and switch to output to make the signal LOW.
     pinMode(this->scl_pin_, INPUT);   // NOLINT
@@ -231,9 +224,7 @@ void ArduinoI2CBus::recover_() {
   // START condition below.
   digitalWrite(this->sda_pin_, LOW);  // NOLINT
 
-  // By now, any stuck device ought to have sent all remaining bits of its
-  // transaction, meaning that it should have freed up the SDA line, resulting
-  // in SDA being pulled up.
+  // A device still holding SDA after nine pulses cannot be freed here.
   if (digitalRead(this->sda_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
     this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
@@ -245,10 +236,7 @@ void ArduinoI2CBus::recover_() {
   //  a START or repeated START condition such that they all anticipate
   //  the sending of a target address, even if these START conditions are
   //  not positioned according to the proper format."
-  // While the 9 clock pulses from above might have drained all bits of a
-  // single byte within a transaction, a device might have more bytes to
-  // transmit. So here we'll generate a START condition to snap the device
-  // out of this state.
+  // SDA high does not mean the device is idle (it may be mid-byte); the START resets it.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);
