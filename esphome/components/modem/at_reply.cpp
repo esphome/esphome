@@ -117,13 +117,16 @@ int merge_registration(int lte, int legacy) {
   if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
     return REGISTRATION_DENIED;
   }
+  if (lte >= 0 || legacy >= 0) {
+    return lte >= 0 ? lte : legacy;
+  }
   if (lte == REGISTRATION_NO_ANSWER || legacy == REGISTRATION_NO_ANSWER) {
     return REGISTRATION_NO_ANSWER;
   }
   if (lte == REGISTRATION_UNSUPPORTED && legacy == REGISTRATION_UNSUPPORTED) {
     return REGISTRATION_UNSUPPORTED;
   }
-  return lte >= 0 ? lte : (legacy >= 0 ? legacy : REGISTRATION_UNKNOWN);
+  return REGISTRATION_UNKNOWN;
 }
 
 bool reply_names_unsupported(const char *reply) {
