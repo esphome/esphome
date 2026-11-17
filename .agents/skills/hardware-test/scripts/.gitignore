@@ -37,7 +37,6 @@ npm1300/*-cap.err
 npm1300/*-run.log
 rp2_sched_lock/*.txt
 rp2_sched_lock/*.log
-.eip
 cc1101_long/*.log
 espnow_link/*.log
 tcp_link/*.txt

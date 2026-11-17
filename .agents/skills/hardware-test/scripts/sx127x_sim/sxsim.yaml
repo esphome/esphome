@@ -1,12 +1,12 @@
 # ESP32-PICO-D4 (board pico32, ESP-IDF): sx127x driven by the fake SX1276 in sxsim.hpp, scenarios in sxrun.hpp.
-# Build with `-s name <name>` and `-s flags -DSXSIM_PR` for a driver with the async API (`-DSXSIM_BASE` otherwise).
+# Build sxpr.yaml (a driver with the async API) or sxbase.yaml with `-s name <name>`; they set `flags` and include this.
 # No Wi-Fi: everything is judged from the serial log ("RES", "EV", "STATE", "TRACE" lines, "ALLDONE" at the end).
 # The SPI pins and CS are replaced by fake pins at on_boot 800; only DIO0 (GPIO4) is a real pad, driven by the model.
 substitutions:
   flags: -DSXSIM_BASE
 esphome:
   name: ${name}
-  includes: [sxsim.hpp, sxrun.hpp]
+  includes: [spibits.hpp, sxsim.hpp, sxrun.hpp]
   platformio_options:
     build_flags: ${flags}
   on_boot:

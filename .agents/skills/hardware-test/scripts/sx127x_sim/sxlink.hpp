@@ -43,7 +43,6 @@ struct RawRx {
   uint32_t n{0}, bad{0};
   uint16_t last_len{0};
   float rssi{NAN}, snr{NAN};
-  uint32_t last_ms{0};
   void attach(PacketInterface *link) {
     link->add_packet_interface_listener([this](const PacketBuffer &data, const PacketMetaData &meta) {
       uint8_t buf[256];
@@ -61,7 +60,6 @@ struct RawRx {
       this->last_len = len;
       this->rssi = meta.rssi;
       this->snr = meta.snr;
-      this->last_ms = millis();
       ESP_LOGI(TAG, "EV raw %s len=%u rssi=%.1f snr=%.2f", this->name, (unsigned) len, meta.rssi, meta.snr);
     });
   }

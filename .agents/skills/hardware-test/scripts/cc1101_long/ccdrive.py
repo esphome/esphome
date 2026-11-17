@@ -1,5 +1,8 @@
-"""ccdrive.py TXHOST RXHOST MODE OUT: MODE short | long | lambda. Drives both radios over API actions and
-counts the packets each receiver logs. Writes all log lines to OUT and prints one summary line per case."""
+"""ccdrive.py TXHOST RXHOST MODE OUT [TXLABEL RXLABEL]: drives both radios over API actions and counts the packets
+each receiver logs. Writes all log lines to OUT and prints one summary line per case.
+
+MODE: short, long, r2long, r2mid, lambda, r2lambda, fast (fast38, fast100 for one rate), and the dev bug repros crc,
+rxtx, txback, txrx, txset and nocrc64 (see recipes/cc1101.md)."""
 
 import asyncio
 import pathlib
@@ -11,10 +14,10 @@ import time
 from aioesphomeapi import LogLevel
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from apiconn import connect  # noqa: E402
+from apiconn import connect, log_text  # noqa: E402
 
 TXH, RXH, MODE, OUT = sys.argv[1:5]
-TXN, RXN = (sys.argv[5:7] + ["TX", "RX"])[:2] if len(sys.argv) >= 7 else ("TX", "RX")
+TXN, RXN = sys.argv[5:7] or ("TX", "RX")
 out = pathlib.Path(OUT).open("w", encoding="utf-8", buffering=1)  # noqa: SIM115
 RX_RE = re.compile(
     r"RX len=(\d+) b0=(\d+) seq=(\d+) ok=(\d) rssi=(-?[\d.]+) lqi=(\d+) fo=(-?[\d.]+)"
@@ -32,7 +35,7 @@ class Dev:
         self.cli.subscribe_logs(self.on_log, log_level=LogLevel.LOG_LEVEL_INFO)
 
     def on_log(self, m):
-        line = m.message.decode(errors="replace")
+        line = log_text(m)
         out.write(f"{time.strftime('%H:%M:%S')} {self.tag} {line}\n")
         if r := RX_RE.search(line):
             self.rx.append(tuple(float(v) for v in r.groups()))
@@ -108,8 +111,7 @@ async def case(
 
 async def main():
     tx, rx = Dev(TXH, "TX"), Dev(RXH, "RX")
-    await tx.start()
-    await rx.start()
+    await asyncio.gather(tx.start(), rx.start())
     await asyncio.sleep(1)
     if MODE.startswith("fast"):
         rates = {

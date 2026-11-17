@@ -1,30 +1,45 @@
-"""Writes one config per validation case; expected outcome in the file name prefix (ok_ / bad_)."""
+"""Writes one config per validation case into out-valid/; expected outcome in the file name prefix (ok_ / bad_).
+
+Run `esphome config` on each from the tree under test.
+"""
 
 import pathlib
 import textwrap
 
+OUT = pathlib.Path(__file__).parent / "out-valid"
 E32 = "esp32:\n  board: esp32dev\n  framework:\n    type: esp-idf\n"
 E66 = "esp8266:\n  board: d1_mini\n"
-EN = "espnow:\n  channel: 1\n{extra}"
 WIFI = "wifi:\n  ssid: x\n  password: yyyyyyyy\n"
 
 
-def en(name, link, plat=E32, extra=""):
-    pathlib.Path(f"{name}.yaml").write_text(
-        f"esphome:\n  name: v{abs(hash(name)) % 10**6}\n{plat}{EN.format(extra=extra)}packet_interface:\n  - platform: espnow\n    id: l\n"
-        + textwrap.indent(textwrap.dedent(link), "    "),
+def write(name: str, plat: str, middle: str, link: str) -> None:
+    node = name.replace("_", "-")[:31]
+    (OUT / f"{name}.yaml").write_text(
+        f"esphome:\n  name: {node}\n{plat}{middle}packet_interface:\n"
+        + textwrap.indent(textwrap.dedent(link), "    ").replace("    ", "  - ", 1),
         encoding="utf-8",
     )
 
 
-def udp(name, addrs, link, plat=E32):
-    pathlib.Path(f"{name}.yaml").write_text(
-        f"esphome:\n  name: v{abs(hash(name)) % 10**6}\n{plat}{WIFI}udp:\n  - id: u\n    addresses: {addrs}\npacket_interface:\n  - platform: udp\n    id: l\n    udp_id: u\n"
-        + textwrap.indent(textwrap.dedent(link), "    "),
-        encoding="utf-8",
+def en(name: str, link: str, plat: str = E32, extra: str = "") -> None:
+    write(
+        name,
+        plat,
+        f"espnow:\n  channel: 1\n{extra}",
+        "platform: espnow\nid: l\n" + link,
     )
 
 
+def udp(name: str, addrs: str, link: str, plat: str = E32) -> None:
+    write(
+        name,
+        plat,
+        f"{WIFI}udp:\n  - id: u\n    addresses: {addrs}\n",
+        "platform: udp\nid: l\nudp_id: u\n" + link,
+    )
+
+
+OUT.mkdir(exist_ok=True)
 ADDR = "addressing:\n  address: 1\n  destination: 2\n"
 ADDR_BC = "addressing:\n  address: 1\n  destination: broadcast\n"
 # ESP-NOW

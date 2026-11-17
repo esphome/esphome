@@ -3,7 +3,8 @@
 #   raw_srv / raw_cli : no layers, max_packet_size 1022, a size sweep with checked payloads both ways
 #   probe_srv         : server for the raw Python peer (allowed_ips: ${probe_allow})
 #   probe_cli         : client of the raw Python peer's server
-# substitutions: name, peer, peer_host, srv/raw/probe ports of this device, peer ports, probe_cli_port, probe_allow
+# substitutions: name, peer, peer_host, srv_port, raw_port, probe_port, peer_srv_port, peer_raw_port, probe_host,
+# probe_cli_port, probe_allow, et_key, api_port, long_id
 esphome:
   name: ${name}
   on_boot:
@@ -83,9 +84,7 @@ packet_interface:
     id: et_srv
     role: server
     port: ${srv_port}
-    keep_alive: 2s
-    timeout: 6s
-    reconnect_interval: 3s
+    <<: &timing {keep_alive: 2s, timeout: 6s, reconnect_interval: 3s}
     encryption: ${et_key}
     fragmentation:
       max_packet_size: 2048
@@ -98,9 +97,7 @@ packet_interface:
     role: client
     host: ${peer_host}
     port: ${peer_srv_port}
-    keep_alive: 2s
-    timeout: 6s
-    reconnect_interval: 3s
+    <<: *timing
     encryption: ${et_key}
     fragmentation:
       max_packet_size: 2048
@@ -112,9 +109,7 @@ packet_interface:
     id: raw_srv
     role: server
     port: ${raw_port}
-    keep_alive: 2s
-    timeout: 6s
-    reconnect_interval: 3s
+    <<: *timing
     connected:
       name: raw_srv connected
       on_state:
@@ -124,9 +119,7 @@ packet_interface:
     role: client
     host: ${peer_host}
     port: ${peer_raw_port}
-    keep_alive: 2s
-    timeout: 6s
-    reconnect_interval: 3s
+    <<: *timing
     connected:
       name: raw_cli connected
       on_state:
@@ -135,9 +128,7 @@ packet_interface:
     id: probe_srv
     role: server
     port: ${probe_port}
-    keep_alive: 2s
-    timeout: 6s
-    reconnect_interval: 3s
+    <<: *timing
     allowed_ips: ${probe_allow}
     connected:
       name: probe_srv connected
@@ -148,9 +139,7 @@ packet_interface:
     role: client
     host: ${probe_host}
     port: ${probe_cli_port}
-    keep_alive: 2s
-    timeout: 6s
-    reconnect_interval: 3s
+    <<: *timing
     connected:
       name: probe_cli connected
       on_state:

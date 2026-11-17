@@ -2,11 +2,11 @@
 # PR, accept-all on the base) with a checked stream, and a plain udp on_receive counter.
 esphome:
   name: ${name}
-  includes: [entest.hpp, udtest.hpp]
+  includes: [entest.hpp]
   on_boot:
     - priority: 600
       then:
-        - lambda: entest::UP2PF.listen(id(lnk));
+        - lambda: entest::P2PF.listen(id(lnk));
 logger:
   level: DEBUG
 wifi:
@@ -28,9 +28,9 @@ packet_interface:
 interval:
   - interval: ${stream_interval}
     then:
-      - lambda: entest::UP2PF.send(id(lnk), 100);
+      - lambda: entest::P2PF.send(id(lnk), 100);
   - interval: 10s
     then:
       - lambda: |-
-          entest::UP2PF.log();
+          entest::P2PF.log();
           ESP_LOGI("stat", "STAT on_receive=%u", id(onrx));

@@ -1,5 +1,8 @@
 """compare_spi.py BASE PR: compare two SX127x SPI record files (sx127x_spi_record_test.cpp or the device sim).
 
+Each file is a host record file or a device serial log with sxrec.hpp's "REC ..." lines (the log prefix is cut at
+"REC " and "REC +" continuation lines are joined).
+
 Register files and FIFO bytes must match exactly. Each transaction is flattened into per-register operations with
 burst auto-increment (the FIFO address 0x00 does not move); the flattened streams must match, so the raw streams can
 differ only in how the operations are grouped into chip select windows.
@@ -7,26 +10,44 @@ differ only in how the operations are grouped into chip select windows.
 
 from collections import Counter
 import pathlib
+import re
 import sys
+
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def lines(path: str) -> list[str]:
+    """The record lines of a host record file, or only the "REC" lines of a device log."""
+    plain: list[str] = []
+    rec: list[str] = []
+    with pathlib.Path(path).open(encoding="utf-8", errors="replace") as fh:
+        for raw in fh:
+            line = ANSI.sub("", raw).strip()
+            if (i := line.find("REC ")) < 0:
+                plain.append(line)
+            elif (body := line[i + 4 :]).startswith("+"):
+                if rec:
+                    rec[-1] += body[1:]
+            else:
+                rec.append(body)
+    return rec or plain
 
 
 def parse(path: str) -> dict[str, dict]:
     cases: dict[str, dict] = {}
     cur = None
-    with pathlib.Path(path).open(encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            line = line.strip()
-            if line.startswith("CASE "):
-                cur = {"T": [], "REGS": "", "FIFO": ""}
-                cases[line[5:]] = cur
-            elif cur is None:
-                continue
-            elif line.startswith("T"):
-                cur["T"].append([int(x, 16) for x in line[1:].split()])
-            elif line.startswith("REGS"):
-                cur["REGS"] = line[4:].strip()
-            elif line.startswith("FIFO"):
-                cur["FIFO"] = line[4:].strip()
+    for line in lines(path):
+        if line.startswith("CASE "):
+            cur = {"T": [], "REGS": "", "FIFO": ""}
+            cases[line[5:]] = cur
+        elif cur is None:
+            continue
+        elif line.startswith("T"):
+            cur["T"].append([int(x, 16) for x in line[1:].split()])
+        elif line.startswith("REGS"):
+            cur["REGS"] = line[4:].strip()
+        elif line.startswith("FIFO"):
+            cur["FIFO"] = line[4:].strip()
     return cases
 
 

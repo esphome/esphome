@@ -19,10 +19,15 @@ Files in `scripts/tcp_link/`:
   `--bind ADDR` picks the source address, `--hold S` closes after S. Prints keep-alive gap min/max per connection.
 - `apiwatch.py HOST PORT SECS` (`API_KEY` from `apikey.txt`): state changes with timestamps from connect; shows the `connected` sensors
   read False (not unknown) at boot. The API coalesces a fast off/on, so judge edges from the `CONN` log lines.
-- `run_host_pair.sh RUN`: the host to host timeline (boot states, SIGSTOP/SIGCONT of the peer, kill -9 and restart,
-  silent and oversize raw servers, one client at a time, refused source, oversize from a client). Build the host
-  configs `tcph1` and `tcph2` here first; `LAN` overrides the computer's own LAN address (macOS `ipconfig` otherwise).
-- `validation_cases.py`: writes one config per validation rule; run `esphome config` on each from the tree under test.
+- `run_pair.sh host|esp32 [RUN]`: the timeline (boot states, SIGSTOP/SIGCONT of the host peer, kill -9 and restart,
+  silent and oversize raw servers, one client at a time, a refused client, oversize from a client) against host build
+  `tcph1` (peer `tcph2`, refused client from the LAN address; `LAN` overrides the macOS `ipconfig` guess) or the ESP32
+  `tcpe1` (`NAME` overrides it, found with `resolve.sh`; peer `tcph3`, refused client on `deny_srv`). Build the host
+  configs here first. Ports default to the example configs (`API_PORT`, `PROBE_PORT`, `PROBE_CLI_PORT`, `DENY_PORT`).
+  Logs: `<RUN>-dut.txt` (host mode), `-peer-a.txt` and `-peer-b.txt` (before and after the kill), `-api.txt`, the raw
+  peers and `-events.txt`, without ANSI colours.
+- `validation_cases.py`: writes one config per validation rule into `out-valid/`, named ok_ or bad_ by the expected
+  outcome; run `esphome config` on each from the tree under test.
 
 Facts:
 
@@ -37,7 +42,6 @@ Facts:
   direction per drop); the session goes down and `entity_transport` resends everything on reconnect, so states are
   not lost.
 - Host builds bind every interface; give each host build its own API port and link ports (6053 may be taken).
-- ESP32 pair (`run_esp32_pair.sh`, reads the board address from `.eip` and runs against host config `tcph3`): the
-  host peer reaches the board by its mDNS name; set `HOST_LAN_IP` in the ESP32 example to the computer's address.
+- ESP32 pair (`run_pair.sh esp32`): the host peer reaches the board by its mDNS name; set `HOST_LAN_IP` in the ESP32 example to the computer's address.
   Over Wi-Fi with `power_save_mode: none`, the raw peer saw keep-alive gaps of 1.65 to 2.26 s. A hardware reset (`esptool --after hard_reset chip_id` with the capture stopped) sends no FIN, so the host closes
   on its own receive timeout and then reconnects.

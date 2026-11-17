@@ -21,6 +21,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "spibits.hpp"
 
 namespace sxair {
 using namespace esphome;
@@ -36,7 +37,7 @@ struct Air {
   uint32_t drop_next{0}, corrupt_next{0};
   uint32_t dropped{0}, corrupted{0}, collisions{0};
   esp_timer_handle_t timer{nullptr};
-  void begin_tx_locked(Radio *x, const uint8_t *data, uint16_t len);
+  void begin_tx_locked(Radio *x, uint16_t len);
   void end_tx_locked(Radio *x);
   void abort_tx_locked(Radio *x);
   void left_rx_locked(Radio *y);
@@ -134,7 +135,7 @@ struct Radio {
   }
 };
 
-inline void Air::begin_tx_locked(Radio *x, const uint8_t *data, uint16_t len) {
+inline void Air::begin_tx_locked(Radio *x, uint16_t len) {
   x->tx++;
   x->last_tx_len = len;
   if (x->signal_visible()) {
@@ -149,8 +150,6 @@ inline void Air::begin_tx_locked(Radio *x, const uint8_t *data, uint16_t len) {
   x->on_air = true;
   x->last_tx_air_us = x->airtime_us(len);
   x->air_end_us = now_us() + (x->tx_never ? 0x7FFFFFFF : x->last_tx_air_us);
-  static uint8_t payload[4][256];
-  memcpy(payload[x->index], data, len);
   bool heard = true;
   if (this->drop_next > 0) {
     this->drop_next--;
@@ -175,8 +174,6 @@ inline void Air::begin_tx_locked(Radio *x, const uint8_t *data, uint16_t len) {
 }
 
 inline void Air::end_tx_locked(Radio *x) {
-  static uint8_t payload[4][256];
-  (void) payload;
   x->on_air = false;
   x->last_tx_end_ms = millis();
   x->tx_done_locked();
@@ -249,85 +246,20 @@ inline void air_tick(void *) {
 
 inline void start_tx_locked(Radio *x, const uint8_t *data, uint16_t len) {
   memcpy(TX_PAYLOAD[x->index], data, len);
-  AIR.begin_tx_locked(x, data, len);
+  AIR.begin_tx_locked(x, len);
 }
 
-// ---------------------------------------------------------------- SPI bit engine
-class NopPin : public GPIOPin {
- public:
-  void setup() override {}
-  void pin_mode(gpio::Flags) override {}
-  gpio::Flags get_flags() const override { return gpio::FLAG_NONE; }
-  bool digital_read() override { return false; }
-  void digital_write(bool) override {}
-};
+using spibits::NopPin;
+using spibits::PinSet;
 
-// One chip select window: bytes in, a reply per byte position
-struct SpiChip {
-  bool sel{false}, mosi{false};
-  uint16_t pos{0};
-  uint8_t bit{0}, in{0}, out{0};
-  virtual uint8_t reply_locked(uint16_t pos) = 0;
-  virtual void byte_locked(uint16_t pos, uint8_t value) = 0;
-  virtual void begin_locked() {}
-  virtual void end_locked() = 0;
-};
-
-class MosiPin : public NopPin {
- public:
-  SpiChip *c{nullptr};
-  void digital_write(bool v) override { c->mosi = v; }
-};
-class CsPin : public NopPin {
- public:
-  SpiChip *c{nullptr};
-  void digital_write(bool high) override {
-    portENTER_CRITICAL(&MUX);
-    if (!high) {
-      c->sel = true;
-      c->pos = c->bit = c->in = 0;
-      c->begin_locked();
-    } else if (c->sel) {
-      c->sel = false;
-      c->end_locked();
-    }
-    portEXIT_CRITICAL(&MUX);
-  }
-};
-class MisoPin : public NopPin {
- public:
-  SpiChip *c{nullptr};
-  bool digital_read() override {
-    if (c->bit == 0) {
-      portENTER_CRITICAL(&MUX);
-      c->out = c->reply_locked(c->pos);
-      portEXIT_CRITICAL(&MUX);
-    }
-    const bool b = (c->out >> (7 - c->bit)) & 1;
-    c->in = (c->in << 1) | (c->mosi ? 1 : 0);
-    if (++c->bit == 8) {
-      portENTER_CRITICAL(&MUX);
-      c->byte_locked(c->pos, c->in);
-      portEXIT_CRITICAL(&MUX);
-      c->bit = 0;
-      c->in = 0;
-      c->pos++;
-    }
-    return b;
-  }
-};
-struct PinSet {
-  NopPin clk;
-  MosiPin mosi;
-  MisoPin miso;
-  CsPin cs;
-  NopPin rst;
-  NopPin busy;
-  void bind(SpiChip *c) { mosi.c = miso.c = cs.c = c; }
+// A model behind fake SPI pins, its hooks run under the air's lock
+struct AirChip : spibits::SpiChip {
+  void lock() override { portENTER_CRITICAL(&MUX); }
+  void unlock() override { portEXIT_CRITICAL(&MUX); }
 };
 
 // ---------------------------------------------------------------- SX127x
-struct Sx127x : Radio, SpiChip {
+struct Sx127x : Radio, AirChip {
   uint8_t fsk[128]{}, lr[128]{};
   uint8_t opmode{0x09};
   uint8_t lfifo[256]{};
@@ -338,8 +270,6 @@ struct Sx127x : Radio, SpiChip {
   uint8_t rx_len{0}, raw_rssi{0};
   int8_t raw_snr{0};
   uint8_t addr{0};
-  uint16_t nbytes{0};
-  uint32_t fifo_underflow{0};
 
   bool is_lora_mode() const { return (opmode & 0x80) != 0; }
   uint8_t mode() const { return opmode & 7; }
@@ -387,10 +317,8 @@ struct Sx127x : Radio, SpiChip {
     }
   }
   uint8_t ffifo_pop() {
-    if (fcount == 0) {
-      fifo_underflow++;
+    if (fcount == 0)
       return 0;
-    }
     uint8_t v = ffifo[fhead];
     fhead = (fhead + 1) % 64;
     fcount--;
@@ -587,7 +515,7 @@ struct Sx127x : Radio, SpiChip {
 };
 
 // ---------------------------------------------------------------- SX126x
-struct Sx126x : Radio, SpiChip {
+struct Sx126x : Radio, AirChip {
   uint8_t buf[256]{};
   uint8_t cmd[264]{};
   uint16_t ncmd{0};
@@ -602,7 +530,6 @@ struct Sx126x : Radio, SpiChip {
   bool signal{false};
   uint8_t pkt_rssi{0};
   int8_t pkt_snr{0};
-  uint32_t resets{0};
 
   bool listening() override { return mode == 4; }
   bool lora() override { return pkt_type == 1; }
@@ -685,7 +612,6 @@ struct Sx126x : Radio, SpiChip {
     mode = 1;
     irq = irq_mask = dio1_mask = 0;
     pkt_type = 0;
-    resets++;
     update_dio_locked();
   }
   void set_mode_locked(uint8_t m) {
@@ -746,7 +672,7 @@ struct Sx126x : Radio, SpiChip {
           if (mode == 4)
             AIR.left_rx_locked(this);
           mode = 3;
-          start_tx_locked(this, buf, pkt_type == 1 ? plen : plen);
+          start_tx_locked(this, buf, plen);
         }
         break;
       case 0x8A:
@@ -764,13 +690,12 @@ struct Sx126x : Radio, SpiChip {
         }
         break;
       case 0x8C:
+        preamble = (cmd[1] << 8) | cmd[2];
         if (pkt_type == 1) {
-          preamble = (cmd[1] << 8) | cmd[2];
           implicit = cmd[3];
           plen = cmd[4];
           crc = cmd[5];
         } else {
-          preamble = (cmd[1] << 8) | cmd[2];
           sync_bits = cmd[4];
           fsk_var = cmd[6];
           plen = cmd[7];

@@ -96,6 +96,9 @@ config (no Wi-Fi; `sxpr.yaml` and `sxbase.yaml` are two-line wrappers setting `s
   the client's `spi_setup()`): the bus is `interface: software`, and at on_boot 800 `set_clk/set_mosi/set_miso` on the
   bus and `set_cs_pin` on the radio swap in fake `GPIOPin`s, so the real `SPIDelegateBitBash` clocks every bit into
   the model (the MISO read drives the bit engine, as the PR's own gtest helper does). Works on any driver revision.
+  The fake pins live in `spibits.hpp` (`PinSet` bound to a `SpiChip` with per byte reply and receive hooks, a lock
+  hook and an `after_end()` that runs outside the lock), shared by `sxsim.hpp`, `sxair.hpp` and `sxrec.hpp` and
+  buildable on the host; ESPHome copies only the files in `includes:`, so every config lists it.
   `InternalGPIOPin` is a final platform class alias, so rst and DIO0 cannot be faked on old drivers; rst is a real
   pad and a RegVersion read resets the model instead. DIO0 is GPIO4 with pulldown, switched to INPUT_OUTPUT at on_boot
   399 and driven by the model, so the rising edge interrupt really fires.
@@ -153,8 +156,10 @@ lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared 
   PR` checks register files and FIFO exactly and compares the transactions flattened into per-register operations, so
   only grouping may differ.
 - Device: `sxrec.hpp` with `recsw.yaml` (software bus, fake pins at on_boot 1100) or `rechw.yaml` (ESP-IDF hardware bus
-  `interface: spi2`): a tee delegate robbed into `SPIClient::delegate_` at on_boot 800 sends every byte through the
+  `interface: spi2`), two short wrappers setting the substitutions of `rec.yaml`: a tee delegate robbed into `SPIClient::delegate_` at on_boot 800 sends every byte through the
   real SPIDelegateHw and feeds the model; the radio's own spi_setup() then logs "Device already registered" once and
   keeps the tee. SPI3 as a slave sniffer (CLK 18, MOSI 23, CS 5 routed in, nominal CS GPIO14 high) captures each chip
   select window up to 64 bytes and compares it with what the driver sent ("WIRE ok/differ" line). Records print as
-  "REC ..." lines; `rec_extract.py` strips the log prefix, then feed both builds to compare_spi.py.
+  "REC ..." lines; compare_spi.py reads the two device logs directly (it cuts each line at "REC " and joins the
+  "REC +" continuation lines). The host harness keeps its own register file and pins, so the copy step stays one
+  file.

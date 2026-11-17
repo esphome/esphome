@@ -19,18 +19,21 @@ and its MAC or address):
   clean way to lose frames without touching the other board.
 - `entest.hpp`: `entest::Stream` checked stream (seq, sent size, pattern; counts ok/bad/gap/dup/trunc/foreign, `STAT`
   line). A stream on the top of a stack that also carries `entity_transport` starts with 0x1E (version 1, unknown
-  type), so entity_transport drops it silently. `udtest.hpp` adds the UDP streams.
+  type), so entity_transport drops it silently. The UDP only streams `P2PF` and `P2PT` are there too.
 - `udplink.yaml` + `ud32.example.yaml`: six udp components (unicast peer, subnet broadcast, multicast with
   `listen_address`, peer plus test host, `point_to_point: false`, `point_to_point: true` on the broadcast). Multicast
   needs `listen_address: <group>` on the udp component or nothing is received. `udpraw.py SECS HOST...` sends a
   datagram per second to ports 21121/21125/21126 of each board from the computer and counts what the boards send to it
   on 21124. The `tick` and `stream_interval` substitutions set the load.
-- `urlink.yaml` + `abrun.sh V RUN`: minimal unicast A/B (one raw link plus `on_receive`), PR against base.
-- `rglink.yaml` + `rgrun.sh E32V D1V`: existing users (packet_transport over UDP multicast and ESP-NOW, udp.write,
+- `pairrun.sh PREFIX E32V D1V [SECS] [RUN]`: flashes `<PREFIX>32<E32V>.yaml` on the ESP32 and `<PREFIX>66<D1V>.yaml`
+  on the D1 mini (build letter p from `PR_TREE`, any other from `BASE_TREE`), captures both from a reset and prints a
+  summary per board for the prefix.
+- `urlink.yaml` (prefix `ur`): minimal unicast A/B (one raw link plus `on_receive`), PR against base.
+- `rglink.yaml` (prefix `rg`): existing users (packet_transport over UDP multicast and ESP-NOW, udp.write,
   espnow send and broadcast actions and triggers); remote entities for both peer names so one image serves four
   pairings.
 - `encheck.py LOG...`: per link counts, gaps and bad float values from ETRX lines, last STAT per stream, warning
-  histogram. `validation_cases.py`: writes 41 ok_/bad_ configs; run `esphome config` on each.
+  histogram. `validation_cases.py`: writes 41 ok_/bad_ configs into `out-valid/`; run `esphome config` on each.
 
 Facts:
 - ESP-NOW v2 frames above 250 bytes from an ESP32 (IDF 5.5) arrive on an ESP8266 cut to 250 bytes, not dropped.

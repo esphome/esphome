@@ -90,10 +90,10 @@ struct Stream {
   }
 };
 
-}  // namespace entest
-
-namespace entest {
 inline Stream RAW("raw", 0xA5, 0x5A);
 inline Stream P2P("p2p_seq", 0x1E, 0x5A);
 inline Stream BCR("bcrel_seq", 0x1E, 0x5B);
+// UDP only: the point_to_point false and true links
+inline Stream P2PF("p2pf_raw", 0xA5, 0x5B);
+inline Stream P2PT("p2pt_raw", 0xA5, 0x5C);
 }  // namespace entest

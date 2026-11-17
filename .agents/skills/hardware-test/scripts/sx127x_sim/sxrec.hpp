@@ -8,7 +8,7 @@
 //    nominal CS GPIO14 held high) captures each chip select window from the wire, up to 64 bytes, and the wire bytes
 //    are compared with what the driver sent.
 // DIO0 (a real pad, input/output after setup) is high while the model is in TX, so a send completes at once.
-// Records are printed as "REC CASE/T/REGS/FIFO/END" lines for compare_spi.py (strip the log prefix first).
+// Records are printed as "REC CASE/T/REGS/FIFO/END" lines; compare_spi.py reads the device logs directly.
 #include <driver/gpio.h>
 #include <vector>
 #include "esphome/components/spi/spi.h"
@@ -16,6 +16,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "spibits.hpp"
 #ifdef SXREC_HW
 #include "driver/spi_slave.h"
 #include "esp_rom_gpio.h"
@@ -26,17 +27,16 @@ namespace sxrec {
 using namespace esphome;
 static const char *const TAG = "rec";
 
-struct Chip {
+struct Chip : spibits::SpiChip {
   uint8_t regs[128]{};
   std::vector<uint8_t> fifo;
   std::vector<uint8_t> cur;
   std::vector<std::vector<uint8_t>> log;
   uint8_t addr{0};
-  uint16_t pos{0};
   int dio{-1};
   bool drive{false};
   Chip() { regs[0x01] = 0x01; }
-  uint8_t reply(uint16_t p) {
+  uint8_t reply_locked(uint16_t p) override {
     if (p == 0 || (addr & 0x80))
       return 0;
     const uint8_t a = addr & 0x7F;
@@ -46,9 +46,9 @@ struct Chip {
       return regs[a] & ~0x20;
     return regs[a];
   }
-  void byte(uint8_t v) {
+  void byte_locked(uint16_t p, uint8_t v) override {
     cur.push_back(v);
-    if (pos++ == 0) {
+    if (p == 0) {
       addr = v;
       return;
     }
@@ -62,68 +62,33 @@ struct Chip {
     regs[a] = v;
     addr = 0x80 | ((a + 1) & 0x7F);
   }
-  void begin() {
-    cur.clear();
-    pos = 0;
-  }
-  void end() {
+  void begin_locked() override { cur.clear(); }
+  void end_locked() override {
     log.push_back(cur);
     if (drive)
       gpio_set_level((gpio_num_t) dio, (regs[0x01] & 7) == 3);
   }
+  // The hardware bus tee feeds whole bytes, without the fake pins
+  void start() {
+    pos = 0;
+    begin_locked();
+  }
+  uint8_t exchange(uint8_t v) {
+    const uint8_t r = reply_locked(pos);
+    byte_locked(pos++, v);
+    return r;
+  }
 } CHIP;
 
 // ---------------------------------------------------------------- software bus
-class NopPin : public GPIOPin {
- public:
-  void setup() override {}
-  void pin_mode(gpio::Flags) override {}
-  gpio::Flags get_flags() const override { return gpio::FLAG_NONE; }
-  bool digital_read() override { return false; }
-  void digital_write(bool) override {}
-};
-static bool MOSI_LEVEL = false;
-static uint8_t BIT = 0, IN = 0, OUT = 0;
-class MosiPin : public NopPin {
- public:
-  void digital_write(bool v) override { MOSI_LEVEL = v; }
-};
-class CsPin : public NopPin {
- public:
-  void digital_write(bool high) override {
-    if (!high) {
-      CHIP.begin();
-      BIT = IN = 0;
-    } else {
-      CHIP.end();
-    }
-  }
-};
-class MisoPin : public NopPin {
- public:
-  bool digital_read() override {
-    if (BIT == 0)
-      OUT = CHIP.reply(CHIP.pos);
-    const bool b = (OUT >> (7 - BIT)) & 1;
-    IN = (IN << 1) | (MOSI_LEVEL ? 1 : 0);
-    if (++BIT == 8) {
-      CHIP.byte(IN);
-      BIT = 0;
-      IN = 0;
-    }
-    return b;
-  }
-};
-static NopPin CLK;
-static MosiPin MOSI;
-static MisoPin MISO;
-static CsPin CS;
+static spibits::PinSet PINS;
 
 inline void install_sw(spi::SPIComponent *bus, sx127x::SX127x *radio, int dio) {
-  bus->set_clk(&CLK);
-  bus->set_mosi(&MOSI);
-  bus->set_miso(&MISO);
-  radio->set_cs_pin(&CS);
+  PINS.bind(&CHIP);
+  bus->set_clk(&PINS.clk);
+  bus->set_mosi(&PINS.mosi);
+  bus->set_miso(&PINS.miso);
+  radio->set_cs_pin(&PINS.cs);
   CHIP.dio = dio;
   ESP_LOGI(TAG, "software bus recorder installed");
 }
@@ -184,9 +149,11 @@ class Tee : public spi::SPIDelegate {
     t.tx_buffer = s_tx;
     t.rx_buffer = s_rx;
     this->queued_ = spi_slave_queue_trans(SPI3_HOST, &t, pdMS_TO_TICKS(100)) == ESP_OK;
+    // The slave driver routes its CS input back to SCS when it loads the queued transaction, so the radio's CS is
+    // routed in again each time, after giving the driver time to load it
     esp_rom_delay_us(300);
     esp_rom_gpio_connect_in_signal(CS_PAD, spi_periph_signal[SPI3_HOST].spics_in, false);
-    CHIP.begin();
+    CHIP.start();
     this->hw_->begin_transaction();
   }
   void end_transaction() override {
@@ -207,29 +174,25 @@ class Tee : public spi::SPIDelegate {
         ESP_LOGW(TAG, "wire differs: sent %u bytes, wire %d bits, first sent %02X wire %02X", (unsigned) sent.size(),
                  bits, sent.empty() ? 0 : sent[0], s_rx[0]);
     }
-    CHIP.end();
+    CHIP.end_locked();
   }
   uint8_t transfer(uint8_t data) override {
     IDF_BYTE_CALLS++;
     this->hw_->transfer(data);
-    const uint8_t reply = CHIP.reply(CHIP.pos);
-    CHIP.byte(data);
-    return reply;
+    return CHIP.exchange(data);
   }
   void write_array(const uint8_t *ptr, size_t length) override {
     IDF_ARRAY_CALLS++;
     this->hw_->write_array(ptr, length);  // the ESP-IDF path under test: one SPI transaction
     for (size_t i = 0; i < length; i++)
-      CHIP.byte(ptr[i]);
+      CHIP.exchange(ptr[i]);
   }
   void read_array(uint8_t *ptr, size_t length) override {
     uint8_t zeros[64]{};
     for (size_t off = 0; off < length; off += sizeof(zeros))
       this->hw_->write_array(zeros, std::min(sizeof(zeros), length - off));
-    for (size_t i = 0; i < length; i++) {
-      ptr[i] = CHIP.reply(CHIP.pos);
-      CHIP.byte(0);
-    }
+    for (size_t i = 0; i < length; i++)
+      ptr[i] = CHIP.exchange(0);
   }
   bool is_ready() override { return this->hw_->is_ready(); }
 
@@ -239,8 +202,7 @@ class Tee : public spi::SPIDelegate {
 };
 
 // on_boot 800: after the bus's setup, before the radio's. The radio's own spi_setup() then finds a delegate and keeps
-// it
-// ("Device already registered" is logged once).
+// it ("Device already registered" is logged once).
 inline void install_hw(spi::SPIComponent *bus, sx127x::SX127x *radio, int dio) {
   auto *client = static_cast<spi::SPIClient *>(radio);
   static spi::SPIClient owner(spi::BIT_ORDER_MSB_FIRST, spi::MODE0, 8000000);
@@ -259,34 +221,27 @@ inline void late_pins() {
   gpio_set_level((gpio_num_t) CHIP.dio, 0);
 }
 
-inline void dump(const char *label) {
-  static int index = 0;
-  ESP_LOGI(TAG, "REC CASE %d %s", index++, label);
+// One "REC <prefix> XX XX ..." record, continued on "REC + ..." lines when it does not fit one log line
+inline void log_bytes(const char *prefix, const uint8_t *data, size_t n) {
   char line[400];
-  for (auto &t : CHIP.log) {
-    size_t o = snprintf(line, sizeof(line), "REC T");
-    for (size_t i = 0; i < t.size(); i++) {
-      if (o + 4 >= sizeof(line)) {
-        ESP_LOGI(TAG, "%s", line);
-        o = snprintf(line, sizeof(line), "REC +");
-      }
-      o += snprintf(line + o, sizeof(line) - o, " %02X", t[i]);
-    }
-    ESP_LOGI(TAG, "%s", line);
-  }
-  size_t o = snprintf(line, sizeof(line), "REC REGS");
-  for (auto r : CHIP.regs)
-    o += snprintf(line + o, sizeof(line) - o, " %02X", r);
-  ESP_LOGI(TAG, "%s", line);
-  o = snprintf(line, sizeof(line), "REC FIFO");
-  for (size_t i = 0; i < CHIP.fifo.size(); i++) {
+  size_t o = snprintf(line, sizeof(line), "REC %s", prefix);
+  for (size_t i = 0; i < n; i++) {
     if (o + 4 >= sizeof(line)) {
       ESP_LOGI(TAG, "%s", line);
       o = snprintf(line, sizeof(line), "REC +");
     }
-    o += snprintf(line + o, sizeof(line) - o, " %02X", CHIP.fifo[i]);
+    o += snprintf(line + o, sizeof(line) - o, " %02X", data[i]);
   }
   ESP_LOGI(TAG, "%s", line);
+}
+
+inline void dump(const char *label) {
+  static int index = 0;
+  ESP_LOGI(TAG, "REC CASE %d %s", index++, label);
+  for (auto &t : CHIP.log)
+    log_bytes("T", t.data(), t.size());
+  log_bytes("REGS", CHIP.regs, sizeof(CHIP.regs));
+  log_bytes("FIFO", CHIP.fifo.data(), CHIP.fifo.size());
   ESP_LOGI(TAG, "REC END");
   delay(30);       // let the log drain
   App.feed_wdt();  // the sweep runs in one lambda

@@ -10,15 +10,14 @@ esphome:
   name: ${name}
   includes:
     - entest.hpp
-    - udtest.hpp
   on_boot:
     - priority: 600
       then:
         - lambda: |-
-            entest::UP2P.listen(id(p2p)->top());
-            entest::UBCR.listen(id(bc_rel)->top());
-            entest::UP2PF.listen(id(p2pf));
-            entest::UP2PT.listen(id(p2pt));
+            entest::P2P.listen(id(p2p)->top());
+            entest::BCR.listen(id(bc_rel)->top());
+            entest::P2PF.listen(id(p2pf));
+            entest::P2PT.listen(id(p2pt));
 
 logger:
   level: DEBUG
@@ -113,17 +112,17 @@ interval:
     then:
       - lambda: |-
           static const uint16_t RSIZES[] = {12, 200, 600};
-          entest::UP2P.send(id(p2p)->top(), RSIZES[entest::UP2P.idx++ % 3]);
-          entest::UBCR.send(id(bc_rel)->top(), RSIZES[entest::UBCR.idx++ % 3]);
-          entest::UP2PF.send(id(p2pf), 100);
-          entest::UP2PT.send(id(p2pt), 100);
+          entest::P2P.send(id(p2p)->top(), RSIZES[entest::P2P.idx++ % 3]);
+          entest::BCR.send(id(bc_rel)->top(), RSIZES[entest::BCR.idx++ % 3]);
+          entest::P2PF.send(id(p2pf), 100);
+          entest::P2PT.send(id(p2pt), 100);
   - interval: 10s
     then:
       - lambda: |-
-          entest::UP2P.log();
-          entest::UBCR.log();
-          entest::UP2PF.log();
-          entest::UP2PT.log();
+          entest::P2P.log();
+          entest::BCR.log();
+          entest::P2PF.log();
+          entest::P2PT.log();
           ESP_LOGI("stat", "STAT cnt=%d sess=%d/%d", id(counter), id(p2p_sess).state, id(bcrel_sess).state);
 
 sensor:

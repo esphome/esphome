@@ -23,6 +23,7 @@
 #include "esphome/components/sx127x/sx127x.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "spibits.hpp"
 
 namespace sxsim {
 using namespace esphome;
@@ -69,11 +70,6 @@ struct Model {
   bool tracing{false};
   char trace[4096]{};
   size_t tlen{0};
-  // SPI framing
-  bool sel{false}, mosi{false};
-  uint8_t pos{0}, bit{0}, in{0}, out{0}, addr{0}, first{0};
-  uint16_t nbytes{0};
-  uint8_t tbytes[16]{};
   int timer_action{0};  // 1 start, 2 stop; done outside the lock
   esp_timer_handle_t timer{nullptr};
 } M;
@@ -280,19 +276,31 @@ inline void write_locked(uint8_t a, uint8_t v) {
   *bank(a) = v;
 }
 
-inline void trace_end_locked() {
-  if (!M.tracing || M.pos == 0)
-    return;
-  const bool wr = M.addr & 0x80;
-  const uint8_t a = M.addr & 0x7F;
+// One SPI transaction as the trace shows it: the address byte and up to 16 data bytes
+struct TraceTxn {
+  uint8_t addr{0}, first{0};
+  uint16_t nbytes{0};
+  uint8_t bytes[16]{};
+  void add(uint8_t v) {
+    if (nbytes == 0)
+      first = v;
+    if (nbytes < 16)
+      bytes[nbytes] = v;
+    nbytes++;
+  }
+};
+
+inline void trace_add(const TraceTxn &t) {
+  const bool wr = t.addr & 0x80;
+  const uint8_t a = t.addr & 0x7F;
   char buf[64];
   int n;
-  if (a == 0 && M.nbytes != 1) {
-    n = snprintf(buf, sizeof(buf), " %cF[%u]", wr ? 'W' : 'R', M.nbytes);
-    for (uint16_t i = 0; i < M.nbytes && i < 16 && n < 56; i++)
-      n += snprintf(buf + n, sizeof(buf) - n, "%02X", M.tbytes[i]);
+  if (a == 0 && t.nbytes != 1) {
+    n = snprintf(buf, sizeof(buf), " %cF[%u]", wr ? 'W' : 'R', t.nbytes);
+    for (uint16_t i = 0; i < t.nbytes && i < 16 && n < 56; i++)
+      n += snprintf(buf + n, sizeof(buf) - n, "%02X", t.bytes[i]);
   } else {
-    n = snprintf(buf, sizeof(buf), " %c%02X%c%02X", wr ? 'W' : 'R', a, wr ? '=' : ':', M.first);
+    n = snprintf(buf, sizeof(buf), " %c%02X%c%02X", wr ? 'W' : 'R', a, wr ? '=' : ':', t.first);
   }
   if (M.tlen + n < sizeof(M.trace) - 1) {
     memcpy(M.trace + M.tlen, buf, n);
@@ -329,84 +337,54 @@ inline void tx_timer_cb(void *) {
   portEXIT_CRITICAL(&MUX);
 }
 
-class NopPin : public GPIOPin {
- public:
-  void setup() override {}
-  void pin_mode(gpio::Flags) override {}
-  gpio::Flags get_flags() const override { return gpio::FLAG_NONE; }
-  bool digital_read() override { return false; }
-  void digital_write(bool) override {}
-};
-class MosiPin : public NopPin {
- public:
-  void digital_write(bool v) override { M.mosi = v; }
-};
-class CsPin : public NopPin {
- public:
-  void digital_write(bool high) override {
-    portENTER_CRITICAL(&MUX);
-    if (!high) {
-      M.sel = true;
-      M.pos = M.bit = M.in = 0;
-      M.nbytes = 0;
-    } else if (M.sel) {
-      M.sel = false;
-      trace_end_locked();
-      update_dio0();
+// The SPI side of the model: register reads and writes per byte, the trace capture, and the TX timer after each
+// transaction (esp_timer calls assert inside a critical section)
+struct SimChip : spibits::SpiChip {
+  uint8_t addr{0};
+  TraceTxn txn, done;
+  bool pending{false};
+  void lock() override { portENTER_CRITICAL(&MUX); }
+  void unlock() override { portEXIT_CRITICAL(&MUX); }
+  uint8_t reply_locked(uint16_t p) override {
+    if (p == 0 || (addr & 0x80))
+      return 0;
+    const uint8_t v = read_locked(addr & 0x7F);
+    txn.add(v);
+    return v;
+  }
+  void byte_locked(uint16_t p, uint8_t v) override {
+    if (p == 0) {
+      addr = txn.addr = v;
+    } else if (addr & 0x80) {
+      txn.add(v);
+      write_locked(addr & 0x7F, v);
     }
-    portEXIT_CRITICAL(&MUX);
+  }
+  void begin_locked() override { txn.nbytes = 0; }
+  void end_locked() override {
+    pending = M.tracing && pos > 0;
+    if (pending)
+      done = txn;
+    update_dio0();
+  }
+  void after_end() override {
+    if (pending) {
+      pending = false;
+      trace_add(done);
+    }
     timer_action();
   }
 };
-class MisoPin : public NopPin {
- public:
-  bool digital_read() override {
-    if (M.bit == 0) {
-      portENTER_CRITICAL(&MUX);
-      M.out = (M.pos > 0 && !(M.addr & 0x80)) ? read_locked(M.addr & 0x7F) : 0;
-      if (M.pos > 0 && !(M.addr & 0x80)) {
-        if (M.nbytes == 0)
-          M.first = M.out;
-        if (M.nbytes < 16)
-          M.tbytes[M.nbytes] = M.out;
-        M.nbytes++;
-      }
-      portEXIT_CRITICAL(&MUX);
-    }
-    const bool b = (M.out >> (7 - M.bit)) & 1;
-    M.in = (M.in << 1) | (M.mosi ? 1 : 0);
-    if (++M.bit == 8) {
-      portENTER_CRITICAL(&MUX);
-      if (M.pos == 0) {
-        M.addr = M.in;
-      } else if (M.addr & 0x80) {
-        if (M.nbytes == 0)
-          M.first = M.in;
-        if (M.nbytes < 16)
-          M.tbytes[M.nbytes] = M.in;
-        M.nbytes++;
-        write_locked(M.addr & 0x7F, M.in);
-      }
-      portEXIT_CRITICAL(&MUX);
-      M.bit = 0;
-      M.in = 0;
-      M.pos++;
-    }
-    return b;
-  }
-};
-
-static NopPin CLK;
-static MosiPin MOSI;
-static MisoPin MISO;
-static CsPin CS;
+static SimChip CHIP;
+static spibits::PinSet PINS;
 
 // on_boot priority 800: after the SPI bus setup, before the radio's
 inline void install(spi::SPIComponent *bus, sx127x::SX127x *radio, int dio0_gpio) {
-  bus->set_clk(&CLK);
-  bus->set_mosi(&MOSI);
-  bus->set_miso(&MISO);
-  radio->set_cs_pin(&CS);
+  PINS.bind(&CHIP);
+  bus->set_clk(&PINS.clk);
+  bus->set_mosi(&PINS.mosi);
+  bus->set_miso(&PINS.miso);
+  radio->set_cs_pin(&PINS.cs);
   M.dio0_gpio = dio0_gpio;
   esp_timer_create_args_t args{};
   args.callback = tx_timer_cb;
