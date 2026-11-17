@@ -17,7 +17,7 @@
 #include <driver/usb_serial_jtag_vfs.h>
 #endif
 #endif
-// The logger accepts USB_CDC on targets without USB OTG (C3, C6, H2), where IDF has no CDC console
+// The logger accepts USB_CDC on targets without USB OTG (C3, C6, H2, ...), where IDF has no CDC console
 #if defined(USE_LOGGER_CONSOLE) && defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
 #include <esp_private/usb_console.h>
 #endif
@@ -133,7 +133,7 @@ void Logger::pre_setup() {
 size_t Logger::console_write(const uint8_t *data, size_t len) {
   int written = 0;
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-#ifdef CONFIG_ESP_CONSOLE_USB_CDC  // keep: not set on C3/C6/H2, see the include above
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC  // keep: not set without USB OTG, see the include above
   written = esp_usb_console_write_buf(reinterpret_cast<const char *>(data), len);
 #endif
 #elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
@@ -146,7 +146,7 @@ size_t Logger::console_write(const uint8_t *data, size_t len) {
 
 bool Logger::console_read(uint8_t &byte) {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-#ifdef CONFIG_ESP_CONSOLE_USB_CDC  // keep: not set on C3/C6/H2, see the include above
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC  // keep: not set without USB OTG, see the include above
   return esp_usb_console_available_for_read() && esp_usb_console_read_buf(reinterpret_cast<char *>(&byte), 1) == 1;
 #else
   return false;
