@@ -16,7 +16,7 @@ for _ in $(seq 1 60); do
   IP=$(LC_ALL=C grep -a -o -E "IP Address: [0-9.]+" "$N-ser.txt" 2>/dev/null | tail -1 | cut -d' ' -f3)
   [ -n "$IP" ] && break; sleep 2
 done
-[ -z "$IP" ] && { echo "no IP in $N-ser.txt"; exit 1; }
+[ -z "$IP" ] && { echo "no IP in $N-ser.txt"; pkill -f "[s]erial_capture.py $P "; exit 1; }
 sleep 3
 STEP_S=2.5 $PY drive.py "$IP" "${PRE[@]}" > "$N-pre.txt" 2>&1
 STEP_S=${STEP_S:-2.5} $PY drive.py "$IP" "${STEPS[@]}" > "$N-drive.txt" 2>&1

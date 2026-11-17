@@ -15,8 +15,8 @@ for mm in dg:DG11J1-3A hi:HITACHI_HCRA31NEWH hs:HISENSE_ARG; do
     echo "== $N"
     TREE=$T bash "$S/pio_build.sh" compile "$N" "$W/$N.yaml" || continue
     TREE=$T bash "$S/pio_build.sh" upload "$N" "$W/$N.yaml" "$P" || continue
-    PY=${PY:-$T/venv/bin/python}
-    (cd "$L" && STEP_S=4 PY=$PY bash run.sh "$N" "$P" "$W/steps.sh" && $PY frames.py "$N")
+    RPY=${PY:-$T/venv/bin/python}
+    (cd "$L" && STEP_S=4 PY=$RPY bash run.sh "$N" "$P" "$W/steps.sh" && $RPY frames.py "$N")
   done
 done
 echo DONE

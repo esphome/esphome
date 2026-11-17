@@ -12,6 +12,9 @@ import struct
 import mibeacon
 from mibeacon import XB_FILL, c_rows, o, plain, t16, th
 
+HERE = (
+    Path(__file__).resolve().parent
+)  # count_all.py and run_all.sh read the outputs here
 CYCLES = 10
 KEY = bytes.fromhex("6c0d1a3e5b7f29c4a18e90d2f3b46a57")
 KEYHEX = KEY.hex()
@@ -329,7 +332,7 @@ for n, d in DEVS.items():
             exp[ent] = 0
         elif kind == "m":  # mue4094rt: motion true once, false 5 s after the last frame
             exp[ent] = 2
-Path("expected_all.json").write_text(
+HERE.joinpath("expected_all.json").write_text(
     json.dumps(exp, indent=1, sort_keys=True), encoding="utf-8"
 )
 
@@ -350,7 +353,7 @@ inline void xa_inject(size_t first, size_t last) {
 }
 """
 )
-Path("frames_all.hpp").write_text(
+HERE.joinpath("frames_all.hpp").write_text(
     HDR
     + c_rows("XA_MACS", [(m, n) for n, m in MACS.items()])
     + c_rows("XA_FRAMES", frame_rows)
@@ -410,7 +413,7 @@ out = (
     + "\nbinary_sensor:\n"
     + "".join(binary)
 )
-Path("xball_entities.yaml").write_text(out, encoding="utf-8")
+HERE.joinpath("xball_entities.yaml").write_text(out, encoding="utf-8")
 print(
     "devices", len(DEVS), "frames", len(frames), "per cycle", per, "entities", len(exp)
 )

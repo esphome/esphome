@@ -21,15 +21,16 @@ frames = []
 buf = None
 with pathlib.Path(f"{n}-ser.txt").open(encoding="utf-8", errors="replace") as fh:
     for text in fh:
-        m = re.match(r"\[(\d\d:\d\d:\d\d)\]\[I\]\[remote\.raw:(\d+)\]: ?(.*)", text)
+        m = re.match(r"\[(\d\d:\d\d:\d\d)\]\[I\]\[remote\.raw(?::\d+)?\]: ?(.*)", text)
         if not m:
             continue
-        ts, line, body = m[1], m[2], m[3]
+        ts, body = m[1], m[2]
         if body.startswith("Received Raw:"):
             buf = [ts, body[len("Received Raw:") :]]
         elif buf is not None:
             buf[1] += body
-        if buf is not None and line != "026":
+        # the raw dumper splits long frames into lines that end with a comma; the last line does not
+        if buf is not None and not body.rstrip().endswith(","):
             frames.append(
                 (
                     buf[0],

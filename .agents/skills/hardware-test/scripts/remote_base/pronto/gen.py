@@ -1,4 +1,5 @@
-"""gen.py: write gen-common.yaml with raw frames, buttons, on_pronto trigger, pronto binary sensors, heap logging."""
+"""gen.py [OUT]: write OUT (default gen-common.yaml next to this script) with raw frames, buttons, on_pronto trigger,
+pronto binary sensors and heap logging; prints each frame's length and the pronto binary sensor data."""
 
 import pathlib
 import sys
@@ -74,7 +75,12 @@ binary_sensor:
       data: "{pronto(frames["raw21a"]).strip()}"
     on_press: [{{logger.log: 'BS pronto a ON'}}]
 """)
-pathlib.Path(sys.argv[1]).write_text("\n".join(y), encoding="utf-8")
+out = (
+    pathlib.Path(sys.argv[1])
+    if len(sys.argv) > 1
+    else pathlib.Path(__file__).with_name("gen-common.yaml")
+)
+out.write_text("\n".join(y), encoding="utf-8")
 for k, v in frames.items():
     print(k, len(v), (4 + len(v)) * 5)
 print("PRONTO_A", pronto(frames["raw21a"]))
