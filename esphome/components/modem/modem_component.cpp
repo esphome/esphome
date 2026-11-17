@@ -93,7 +93,8 @@ PROGMEM_STRING_TABLE(ModemFaultStrings, "", "Modem not responding", "Configured 
 
 // Indexed by the AT+CEREG? <stat> value
 PROGMEM_STRING_TABLE(RegistrationStrings, "not searching", "registered", "searching", "denied", "unknown", "roaming",
-                     "other");
+                     "registered for SMS only", "roaming for SMS only", "emergency only",
+                     "registered, CSFB not preferred", "roaming, CSFB not preferred", "other");
 static const LogString *registration_to_str(int registration) {
   if (registration == REGISTRATION_UNSUPPORTED) {
     return LOG_STR("not supported");
@@ -876,7 +877,7 @@ ModemState ModemComponent::handle_state_connecting_() {
     const bool idle = this->idle_polls_ >= ATTACH_DIAG_EVERY;
     // A state that cannot be read or means nothing here holds the request back only for a while
     const bool unknown = registration == REGISTRATION_UNKNOWN || registration == REGISTRATION_REPORTED_UNKNOWN ||
-                         registration > REGISTRATION_ROAMING;
+                         (registration > REGISTRATION_ROAMING && !is_registered(registration));
     this->unknown_polls_ = unknown ? static_cast<uint8_t>(this->unknown_polls_ + 1) : 0;
     const bool unknown_too_long = this->unknown_polls_ >= ATTACH_UNKNOWN_POLLS;
     if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON &&

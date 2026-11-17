@@ -12,20 +12,30 @@ enum class ReplyEnd : uint8_t {
   REPLY_END_ERROR,  // an ERROR, +CME ERROR: or +CMS ERROR: line
 };
 
-// AT+CEREG? and AT+CREG? <stat> values
+// AT+CEREG? and AT+CREG? <stat> values (3GPP TS 27.007)
 static constexpr int REGISTRATION_NOT_SEARCHING = 0;
 static constexpr int REGISTRATION_HOME = 1;
 static constexpr int REGISTRATION_SEARCHING = 2;
 static constexpr int REGISTRATION_DENIED = 3;
 static constexpr int REGISTRATION_REPORTED_UNKNOWN = 4;
 static constexpr int REGISTRATION_ROAMING = 5;
+static constexpr int REGISTRATION_SMS_ONLY_HOME = 6;
+static constexpr int REGISTRATION_SMS_ONLY_ROAMING = 7;
+static constexpr int REGISTRATION_EMERGENCY_ONLY = 8;
+static constexpr int REGISTRATION_CSFB_NOT_PREFERRED_HOME = 9;
+static constexpr int REGISTRATION_CSFB_NOT_PREFERRED_ROAMING = 10;
 // Results beyond the 3GPP values
 static constexpr int REGISTRATION_UNKNOWN = -1;      // no readable answer
 static constexpr int REGISTRATION_UNSUPPORTED = -2;  // the query is not supported
 static constexpr int REGISTRATION_NO_ANSWER = -3;    // the query timed out
 
+/// Registered on a network, so the data attach can be requested. SMS only and "CSFB not preferred" limit the
+/// circuit switched side, not the packet data attach; emergency only (8) is not a registration.
 inline bool is_registered(int registration) {
-  return registration == REGISTRATION_HOME || registration == REGISTRATION_ROAMING;
+  return registration == REGISTRATION_HOME || registration == REGISTRATION_ROAMING ||
+         (registration >= REGISTRATION_SMS_ONLY_HOME && registration <= REGISTRATION_SMS_ONLY_ROAMING) ||
+         (registration >= REGISTRATION_CSFB_NOT_PREFERRED_HOME &&
+          registration <= REGISTRATION_CSFB_NOT_PREFERRED_ROAMING);
 }
 
 /// Add data to the reply in buf (size includes the terminator, len is the current length). With whole, data is
