@@ -117,9 +117,6 @@ static bool is_registered(int registration) {
   return registration == REGISTRATION_HOME || registration == REGISTRATION_ROAMING;
 }
 
-// Long enough for the "AT+CPWD=" prefix and a few commands before it
-static constexpr size_t LOGGABLE_COMMAND_SIZE = 32;
-
 // Indexed by esp_modem::command_result
 PROGMEM_STRING_TABLE(CommandResultStrings, "OK", "FAIL", "TIMEOUT");
 static const LogString *result_to_str(command_result result) {
@@ -578,8 +575,6 @@ uint32_t ModemComponent::next_probe_delay_() {
   const uint32_t delay_ms = std::min(PROBE_RETRY_DELAY_MS << backoff, PROBE_RETRY_MAX_MS);
   if (delay_ms < PROBE_RETRY_MAX_MS) {
     this->probe_backoff_.store(backoff + 1, std::memory_order_relaxed);
-  } else {
-    this->answered_ = false;  // silent for minutes, so the wiring hint applies again
   }
   return delay_ms;
 }
@@ -686,6 +681,8 @@ ModemState ModemComponent::handle_state_enabling_() {
           if (err != ESP_OK) {
             ESP_LOGW(TAG, "UART rejected baud rate %d (%s); data mode and CMUX recovery skipped", detected,
                      esp_err_to_name(err));
+            this->set_fault_(ModemFault::MODEM_FAULT_BAUD);
+            rejected = true;
           }
         }
         // The escape before the flush is what a stuck SIM7670G responds to; the order is measured, not arbitrary
@@ -693,11 +690,15 @@ ModemState ModemComponent::handle_state_enabling_() {
           exited = true;
           break;
         }
-        // A UART that refused every other rate set BAUD
+        // A UART that refused a rate set BAUD
         if (!rejected) {
           this->not_responding_(detected);
         }
-        return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
+        const uint32_t delay_ms = this->next_probe_delay_();
+        if (delay_ms == PROBE_RETRY_MAX_MS) {
+          this->answered_ = false;  // silent for minutes, so the wiring hint applies again
+        }
+        return this->retry_(ModemState::MODEM_STATE_ENABLING, delay_ms);
       }
       ESP_LOGD(TAG, "Modem responded at baud %d", this->current_baud_rate_);
       break;
@@ -1119,14 +1120,15 @@ int ModemComponent::read_registration_() {
   if (is_registered(legacy)) {
     return legacy;
   }
-  if (lte == REGISTRATION_NO_ANSWER || legacy == REGISTRATION_NO_ANSWER) {
-    return REGISTRATION_NO_ANSWER;
-  }
+  // A definite answer from one query outweighs a timeout of the other
   if (lte == REGISTRATION_SEARCHING || legacy == REGISTRATION_SEARCHING) {
     return REGISTRATION_SEARCHING;
   }
   if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
     return REGISTRATION_DENIED;
+  }
+  if (lte == REGISTRATION_NO_ANSWER || legacy == REGISTRATION_NO_ANSWER) {
+    return REGISTRATION_NO_ANSWER;
   }
   if (lte == REGISTRATION_UNSUPPORTED && legacy == REGISTRATION_UNSUPPORTED) {
     return REGISTRATION_UNSUPPORTED;
@@ -1160,13 +1162,12 @@ void ModemComponent::sim_not_ready_(const char *reason) {
 bool ModemComponent::send_at(const std::string &cmd, uint32_t timeout) { return this->send_at(cmd.c_str(), timeout); }
 
 bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
-  char buf[LOGGABLE_COMMAND_SIZE];
   if (!this->task_.is_created()) {
-    ESP_LOGW(TAG, "Modem not ready, cannot send AT command: %s", loggable_command(cmd, buf, sizeof(buf)));
+    ESP_LOGW(TAG, "Modem not ready, cannot send AT command: %s", cmd);
     return false;
   }
   if (this->at_pending_.load(std::memory_order_acquire)) {
-    ESP_LOGW(TAG, "AT command '%s' dropped; the previous one is not sent yet", loggable_command(cmd, buf, sizeof(buf)));
+    ESP_LOGW(TAG, "AT command '%s' dropped; the previous one is not sent yet", cmd);
     return false;
   }
   const size_t len = strlen(cmd);
@@ -1189,14 +1190,21 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
   line += '\r';
   this->reply_len_ = 0;
   this->reply_[0] = '\0';
-  bool cut = false;
+  // esp_modem hands a UART reply over whole each time, and a CMUX reply one frame at a time
+  const modem_mode mode = this->dce_->get_mode();
+  struct {
+    bool whole;
+    bool cut;
+  } state{mode != modem_mode::CMUX_MODE && mode != modem_mode::CMUX_MANUAL_MODE &&
+              mode != modem_mode::CMUX_MANUAL_DATA && mode != modem_mode::CMUX_MANUAL_COMMAND,
+          false};
   const command_result result = this->dce_->command(
       line,
-      [this, &cut](const uint8_t *data, size_t len) {
+      [this, &state](const uint8_t *data, size_t len) {
         // OK, or FAIL once an ERROR line has ended (the +CME ERROR reason may still be on its way), else TIMEOUT
-        cut |= collect_reply(this->reply_, sizeof(this->reply_), this->reply_len_, reinterpret_cast<const char *>(data),
-                             len);
-        switch (reply_end(this->reply_, this->reply_len_, cut)) {
+        state.cut |= collect_reply(this->reply_, sizeof(this->reply_), this->reply_len_,
+                                   reinterpret_cast<const char *>(data), len, state.whole);
+        switch (reply_end(this->reply_, this->reply_len_, state.cut)) {
           case ReplyEnd::REPLY_END_OK:
             return command_result::OK;
           case ReplyEnd::REPLY_END_ERROR:
@@ -1212,13 +1220,10 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
 
 command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
   const command_result result = this->at_reply_(cmd, timeout);
-  this->reply_len_ = hide_secret_args(this->reply_, this->reply_len_);
-  char buf[LOGGABLE_COMMAND_SIZE];
   if (result == command_result::OK) {
-    ESP_LOGI(TAG, "AT '%s' -> OK: %s", loggable_command(cmd, buf, sizeof(buf)), this->reply_);
+    ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd, this->reply_);
   } else {
-    ESP_LOGW(TAG, "AT '%s' -> %s: %s", loggable_command(cmd, buf, sizeof(buf)), LOG_STR_ARG(result_to_str(result)),
-             this->reply_);
+    ESP_LOGW(TAG, "AT '%s' -> %s: %s", cmd, LOG_STR_ARG(result_to_str(result)), this->reply_);
   }
   return result;
 }

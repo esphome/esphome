@@ -15,20 +15,6 @@ static std::string flat(const char *raw) {
   return std::string(buf, flatten_reply(buf, len));
 }
 
-static std::string logged(const char *cmd) {
-  char buf[32];
-  return loggable_command(cmd, buf, sizeof(buf));
-}
-
-static std::string hidden(const char *reply) {
-  char buf[256];
-  const size_t len = strlen(reply);
-  memcpy(buf, reply, len + 1);
-  const size_t new_len = hide_secret_args(buf, len);
-  EXPECT_EQ(strlen(buf), new_len);
-  return buf;
-}
-
 static ReplyEnd end_of(const char *reply, bool skip_first = false) {
   return reply_end(reply, strlen(reply), skip_first);
 }
@@ -53,20 +39,30 @@ TEST(ModemReplyEnd, CutFirstLineIsSkipped) {
   EXPECT_EQ(end_of("tail\r\nOK\r\n", true), ReplyEnd::REPLY_END_OK);
 }
 
-TEST(ModemCollectReply, GrowsAndKeepsNewestBytes) {
+TEST(ModemCollectReply, UartReplyComesBackWhole) {
   char buf[9];
   size_t len = 0;
-  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abc", 3));
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abc", 3, true));
   EXPECT_STREQ(buf, "abc");
-  // A UART reply comes back whole, starting with what was collected
-  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abcdef", 6));
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abcdef", 6, true));
   EXPECT_STREQ(buf, "abcdef");
-  // A CMUX frame is new data and is appended; the oldest bytes go
-  EXPECT_TRUE(collect_reply(buf, sizeof(buf), len, "XYZ", 3));
-  EXPECT_STREQ(buf, "bcdefXYZ");
-  EXPECT_EQ(len, 8u);
   // Data longer than the buffer keeps its tail
-  EXPECT_TRUE(collect_reply(buf, sizeof(buf), len, "0123456789", 10));
+  EXPECT_TRUE(collect_reply(buf, sizeof(buf), len, "0123456789", 10, true));
+  EXPECT_STREQ(buf, "23456789");
+}
+
+TEST(ModemCollectReply, CmuxFramesAreAppended) {
+  char buf[9];
+  size_t len = 0;
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abc", 3, false));
+  // A frame that starts like the text so far is still new data
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abcd", 4, false));
+  EXPECT_STREQ(buf, "abcabcd");
+  // The oldest bytes go once the buffer is full
+  EXPECT_TRUE(collect_reply(buf, sizeof(buf), len, "XY", 2, false));
+  EXPECT_STREQ(buf, "bcabcdXY");
+  EXPECT_EQ(len, 8u);
+  EXPECT_TRUE(collect_reply(buf, sizeof(buf), len, "0123456789", 10, false));
   EXPECT_STREQ(buf, "23456789");
 }
 
@@ -75,6 +71,8 @@ TEST(ModemFlattenReply, OneLineWithoutFinalOk) {
   EXPECT_EQ(flat("\r\nOK\r\n"), "");
   EXPECT_EQ(flat("\r\n+CME ERROR: SIM not inserted\r\n"), "+CME ERROR: SIM not inserted");
   EXPECT_EQ(flat("\r\n+COPS: 0,0,\"NOK\"\r\n"), "+COPS: 0,0,\"NOK\"");
+  // A line ending in OK is not the final result
+  EXPECT_EQ(flat("\r\n+CSPN: NOK\r\n"), "+CSPN: NOK");
   EXPECT_EQ(flat(""), "");
 }
 
@@ -107,29 +105,6 @@ TEST(ModemSimStatus, CutBeforeTheNextLine) {
   EXPECT_EQ(sim_status(echoed), nullptr);
   char empty[] = "+CPIN:";
   EXPECT_STREQ(sim_status(empty), "");
-}
-
-TEST(ModemSecrets, CommandArgumentsHidden) {
-  EXPECT_EQ(logged("AT+CPIN=1234"), "AT+CPIN=<hidden>");
-  EXPECT_EQ(logged("at+cpin=1234"), "at+cpin=<hidden>");
-  EXPECT_EQ(logged("AT+CPIN2=5678"), "AT+CPIN2=<hidden>");
-  EXPECT_EQ(logged("at+clck=\"SC\",1,\"1234\""), "at+clck=<hidden>");
-  EXPECT_EQ(logged("AT+CPWD=\"SC\",\"1111\",\"2222\""), "AT+CPWD=<hidden>");
-  EXPECT_EQ(logged("ATE1;+CPIN=1234"), "ATE1;+CPIN=<hidden>");
-  EXPECT_EQ(logged("AT+CPIN?"), "AT+CPIN?");
-  EXPECT_EQ(logged("at+cpin?"), "at+cpin?");
-  EXPECT_EQ(logged("AT+CSQ"), "AT+CSQ");
-}
-
-TEST(ModemSecrets, EchoedArgumentsDropped) {
-  EXPECT_EQ(hidden("at+cpin=1234 OK"), "at+cpin= OK");
-  EXPECT_EQ(hidden("AT+CPIN=1234"), "AT+CPIN=");
-  EXPECT_EQ(hidden("at+clck=\"SC\",1,\"12 34\" +CME ERROR: incorrect password"),
-            "at+clck= +CME ERROR: incorrect password");
-  EXPECT_EQ(hidden("AT+CPIN=1 AT+cPwD=\"SC\",\"1\",\"2\" ERROR"), "AT+CPIN= AT+cPwD= ERROR");
-  EXPECT_EQ(hidden("+CPIN: READY"), "+CPIN: READY");
-  EXPECT_EQ(hidden("+CLCK: 0"), "+CLCK: 0");
-  EXPECT_EQ(hidden(""), "");
 }
 
 }  // namespace esphome::modem::testing

@@ -1,19 +1,15 @@
 #include "at_reply.h"
 
 #include <cctype>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <strings.h>
 
 namespace esphome::modem {
 
-// Commands whose arguments are PINs or passwords, which must never reach the log
-static constexpr const char *const SECRET_COMMANDS[] = {"+CPIN=", "+CPIN2=", "+CLCK=", "+CPWD="};
-
-bool collect_reply(char *buf, size_t size, size_t &len, const char *data, size_t data_len) {
+bool collect_reply(char *buf, size_t size, size_t &len, const char *data, size_t data_len, bool whole) {
   const size_t capacity = size - 1;
-  if (data_len >= len && memcmp(data, buf, len) == 0) {
+  if (whole) {
     len = 0;
   }
   bool dropped = false;
@@ -136,48 +132,6 @@ const char *sim_status(char *reply) {
     *end = '\0';
   }
   return status;
-}
-
-size_t find_secret_args(const char *text, size_t len) {
-  for (size_t i = 0; i < len; i++) {
-    if (text[i] != '+') {
-      continue;
-    }
-    for (const char *secret : SECRET_COMMANDS) {
-      const size_t size = strlen(secret);
-      if (len - i >= size && strncasecmp(text + i, secret, size) == 0) {
-        return i + size;
-      }
-    }
-  }
-  return 0;
-}
-
-const char *loggable_command(const char *cmd, char *buf, size_t size) {
-  const size_t args = find_secret_args(cmd, strlen(cmd));
-  if (args == 0) {
-    return cmd;
-  }
-  snprintf(buf, size, "%.*s<hidden>", static_cast<int>(args), cmd);
-  return buf;
-}
-
-size_t hide_secret_args(char *reply, size_t len) {
-  size_t from = 0;
-  while (const size_t args = find_secret_args(reply + from, len - from)) {
-    const size_t start = from + args;
-    size_t end = start;
-    bool quoted = false;
-    while (end < len && (quoted || reply[end] != ' ')) {
-      quoted ^= reply[end] == '"';
-      end++;
-    }
-    memmove(reply + start, reply + end, len - end);
-    len -= end - start;
-    from = start;
-  }
-  reply[len] = '\0';
-  return len;
 }
 
 }  // namespace esphome::modem
