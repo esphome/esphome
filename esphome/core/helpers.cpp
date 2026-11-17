@@ -27,6 +27,16 @@ std::string progmem_string(ProgmemStr str) {
   memcpy_P(result.data(), src, result.size());
   return result;
 }
+
+// Out of line: progmem_copy_str() is forced inline, and this has many callers
+size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
+  if (pos >= size) {
+    return size;
+  }
+  char *end = progmem_copy_str(buf + pos, buf + size - 1, str);  // reserve space for null terminator
+  *end = '\0';
+  return end - buf;
+}
 #endif
 
 ESPHOME_LOG_TAG(TAG, "helpers");
