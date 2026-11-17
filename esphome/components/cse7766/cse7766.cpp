@@ -1,5 +1,6 @@
 #include "cse7766.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
@@ -51,7 +52,7 @@ void CSE7766Component::loop() {
         }
         if (index == RAW_DATA_SIZE - 1) {
           this->raw_data_index_ = 0;
-          this->status_comm_result(this->parse_data_());
+          this->status_comm_result(this->parse_data_(), LOG_STR("Chip reports an error"));
           return;
         }
         this->raw_data_index_ = index + 1;
@@ -81,12 +82,7 @@ bool CSE7766Component::check_byte_(uint8_t index, uint8_t byte) const {
 }
 
 bool CSE7766Component::parse_data_() {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  {
-    char hex_buf[format_hex_pretty_size(RAW_DATA_SIZE)];
-    ESP_LOGVV(TAG, "Raw data: %s", format_hex_pretty_to(hex_buf, this->raw_data_, RAW_DATA_SIZE));
-  }
-#endif
+  ESP_LOGVV_HEX(TAG, this->raw_data_, RAW_DATA_SIZE, RAW_DATA_SIZE, "Raw data: %s");
 
   const uint8_t header1 = this->raw_data_[0];
   if (header1 == HEADER_NOT_CALIBRATED) {

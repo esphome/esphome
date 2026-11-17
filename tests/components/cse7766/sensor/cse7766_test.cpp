@@ -27,6 +27,7 @@ constexpr uint16_t CF_PULSES = 0x0B81;
 
 constexpr uint8_t HEADER_OK = 0x55;
 constexpr uint8_t HEADER_POWER_CYCLE_EXCEEDS_RANGE = 0xF2;
+constexpr uint8_t HEADER_NOT_CALIBRATED = 0xAA;
 constexpr uint8_t ADJ_NEW_POWER = 0x71;
 constexpr uint8_t ADJ_NO_NEW_POWER = 0x61;
 
@@ -104,6 +105,25 @@ TEST_F(CSE7766Test, PowerCycleExceedsRangeReportsZero) {
   this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
   EXPECT_EQ(this->feed_(HEADER_POWER_CYCLE_EXCEEDS_RANGE, 9000000, ADJ_NO_NEW_POWER), 0.0f);
   EXPECT_EQ(this->feed_(HEADER_OK, ONE_SECOND_WAIT, ADJ_NO_NEW_POWER), 0.0f);
+}
+
+// Frames that report an error carry no measurements, so the warning stays set until a valid frame
+TEST_F(CSE7766Test, ErrorFramesKeepTheWarningUntilAValidFrame) {
+  this->feed_(HEADER_NOT_CALIBRATED, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
+  EXPECT_TRUE(this->sut_.status_has_warning());
+  // Voltage cycle, current cycle and coefficient storage faults
+  for (uint8_t header : {0xF8, 0xF4, 0xF1}) {
+    this->feed_(header, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
+    EXPECT_TRUE(this->sut_.status_has_warning());
+  }
+  this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
+  EXPECT_FALSE(this->sut_.status_has_warning());
+}
+
+// A power cycle out of range is a valid frame meaning 0 W, not an error
+TEST_F(CSE7766Test, PowerCycleExceedsRangeIsNotAWarning) {
+  this->feed_(HEADER_POWER_CYCLE_EXCEEDS_RANGE, 9000000, ADJ_NO_NEW_POWER);
+  EXPECT_FALSE(this->sut_.status_has_warning());
 }
 
 }  // namespace esphome::cse7766::testing
