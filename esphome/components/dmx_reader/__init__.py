@@ -135,4 +135,4 @@ async def to_code(config):
 
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
     #cg.add_library("someweisguy/esp_dmx", "4.1.0")
-    cg.add_library(None,None, "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",)
+    cg.add_library("esp_dmx",None, "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",)
