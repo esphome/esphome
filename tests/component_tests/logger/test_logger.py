@@ -136,72 +136,41 @@ def test_log_v2_only_on_native_toolchain(
 
 
 @pytest.mark.parametrize(
-    ("config", "port", "name", "zephyr_cdc_loop"),
+    ("config", "port", "zephyr_cdc_loop"),
     [
-        pytest.param("test_logger.yaml", "UART0", "UART0", False, id="esp8266_default"),
+        pytest.param("test_logger.yaml", "UART0", False, id="esp8266_default"),
+        pytest.param("test_logger_uart1.yaml", "UART1", False, id="esp8266_uart1"),
         pytest.param(
-            "test_logger_uart1.yaml", "UART1", "UART1", False, id="esp8266_uart1"
-        ),
-        pytest.param(
-            "test_logger_uart0_swap.yaml",
-            "UART0_SWAP",
-            "UART0_SWAP",
-            False,
-            id="esp8266_uart0_swap",
-        ),
-        # ESP8266 without serial logging never opens a port
-        pytest.param(
-            "test_logger_no_serial.yaml", "UART0", "NONE", False, id="esp8266_no_serial"
+            "test_logger_uart0_swap.yaml", "UART0_SWAP", False, id="esp8266_uart0_swap"
         ),
         pytest.param(
             "test_logger_libretiny_default.yaml",
-            "DEFAULT",
             "DEFAULT",
             False,
             id="libretiny_default",
         ),
         pytest.param(
-            "test_logger_libretiny_uart0.yaml",
-            "UART0",
-            "UART0",
-            False,
-            id="libretiny_uart0",
+            "test_logger_libretiny_uart0.yaml", "UART0", False, id="libretiny_uart0"
         ),
         pytest.param(
-            "test_logger_rp2_usb_cdc.yaml",
-            "USB_CDC",
-            "USB_CDC",
-            False,
-            id="rp2_usb_cdc",
+            "test_logger_rp2_usb_cdc.yaml", "USB_CDC", False, id="rp2_usb_cdc"
         ),
+        pytest.param("test_logger_rp2_uart0.yaml", "UART0", False, id="rp2_uart0"),
         pytest.param(
-            "test_logger_rp2_uart0.yaml", "UART0", "UART0", False, id="rp2_uart0"
-        ),
-        pytest.param(
-            "test_logger_esp32_usb_cdc.yaml",
-            "USB_CDC",
-            "USB_CDC",
-            False,
-            id="esp32_usb_cdc",
+            "test_logger_esp32_usb_cdc.yaml", "USB_CDC", False, id="esp32_usb_cdc"
         ),
         pytest.param(
             "test_logger_esp32_usb_serial_jtag.yaml",
-            "USB_SERIAL_JTAG",
             "USB_SERIAL_JTAG",
             False,
             id="esp32_usb_serial_jtag",
         ),
         pytest.param(
-            "test_logger_nrf52_usb_cdc.yaml",
-            "USB_CDC",
-            "USB_CDC",
-            True,
-            id="nrf52_usb_cdc",
+            "test_logger_nrf52_usb_cdc.yaml", "USB_CDC", True, id="nrf52_usb_cdc"
         ),
         # Zephyr polls the USB port only when it logs there
         pytest.param(
             "test_logger_nrf52_usb_cdc_no_serial.yaml",
-            "USB_CDC",
             "USB_CDC",
             False,
             id="nrf52_no_serial",
@@ -212,7 +181,6 @@ def test_uart_selection_defines(
     generate_main: Callable[[str | Path], str],
     config: str,
     port: str,
-    name: str,
     zephyr_cdc_loop: bool,
 ) -> None:
     """The chosen port is fixed at build time: one flag, its enum value and its dump_config name."""
@@ -225,8 +193,19 @@ def test_uart_selection_defines(
         str(defines["ESPHOME_LOGGER_UART_SELECTION"])
         == f"logger::UART_SELECTION_{port}"
     )
-    assert str(defines["ESPHOME_LOGGER_UART_NAME"]) == f'"{name}"'
+    assert str(defines["ESPHOME_LOGGER_UART_NAME"]) == f'"{port}"'
     assert ("USE_LOGGER_ZEPHYR_CDC_LOOP" in defines) is zephyr_cdc_loop
+
+
+def test_esp8266_without_serial_dumps_no_port(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """ESP8266 without serial logging keeps UART0 selected but never opens it."""
+    generate_main("tests/component_tests/logger/test_logger_no_serial.yaml")
+
+    defines = {d.name: d.value for d in CORE.defines}
+    assert "USE_LOGGER_UART_SELECTION_UART0" in defines
+    assert str(defines["ESPHOME_LOGGER_UART_NAME"]) == '"NONE"'
 
 
 def test_log_listener_slots_count_every_listener(
