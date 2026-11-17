@@ -1,12 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 namespace esphome::xiaomi_hhccjcy01 {
 
-class XiaomiHHCCJCY01 final : public Component, public xiaomi_ble::XiaomiDevice {
+class XiaomiHHCCJCY01 final : public xiaomi_ble::XiaomiDevice {
   SUB_SENSOR(temperature)
   SUB_SENSOR(moisture)
   SUB_SENSOR(conductivity)
@@ -14,7 +13,7 @@ class XiaomiHHCCJCY01 final : public Component, public xiaomi_ble::XiaomiDevice 
   SUB_SENSOR(battery_level)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;

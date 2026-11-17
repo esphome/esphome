@@ -5,7 +5,7 @@ namespace esphome::xiaomi_cgpr1 {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_cgpr1");
 
-void XiaomiCGPR1::dump_config() {
+void XiaomiCGPR1::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGPR1");
   this->dump_bindkey_(TAG);
   LOG_BINARY_SENSOR("  ", "Motion", this);
