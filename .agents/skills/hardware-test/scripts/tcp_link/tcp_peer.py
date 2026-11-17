@@ -13,7 +13,8 @@ timeout, reconnects and oversized-length handling can be read from the output.
   --bind ADDR         source address (client)
   --once              client: do not reconnect after a close
   --hold S            client: close after S seconds of connection (0 = keep)
-  --expect-reject     client: pass only when the peer refuses or closes the connection before sending anything
+  --expect-reject     client: pass only when the peer accepts the connection, then closes or resets it before
+                      sending anything (how an allowed_ips server rejects a source); a refused connect fails
 Exits 1 when no connection was made, or when the peer stayed connected after --oversize-after.
 """
 
@@ -202,7 +203,6 @@ def main():
                 s.connect((host, port))
             except OSError as e:
                 log("client connect failed", e)
-                RESULT["rejected"] = True
                 s.close()
                 if args.once:
                     break
@@ -234,10 +234,10 @@ def main():
             ).start()
         ls.close()
         time.sleep(0.6)
-    if args.expect_reject:
-        sys.exit(0 if RESULT["rejected"] else "FAIL the peer kept the connection")
     if not RESULT["conns"]:
         sys.exit("FAIL no connection")
+    if args.expect_reject and not RESULT["rejected"]:
+        sys.exit("FAIL the peer kept the connection")
     if args.oversize_after and not RESULT["over_closed"]:
         sys.exit("FAIL the peer did not close after the oversize header")
 
