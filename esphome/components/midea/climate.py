@@ -45,10 +45,13 @@ AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 CONF_DISPLAY_CONTROL = "display_control"
+# Hub reference of the sensor and binary_sensor platforms
+CONF_MIDEA_ID = "midea_id"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
 DisplayControl = midea_ac_ns.enum("DisplayControl", is_class=True)
+MideaEnergyFormat = midea_ac_ns.enum("MideaEnergyFormat", is_class=True)
 
 
 def templatize(value):
