@@ -13,6 +13,9 @@ ESPHOME_LOG_TAG(TAG, "spi.zephyr");
 
 // Words swapped per transceive for MSB-first 16-bit writes
 static constexpr size_t SWAP_BUFFER_WORDS = 64;
+// Applied when the active delegate is deleted, so the driver never keeps a pointer to a freed config.
+// 125 kHz is the lowest rate the SPIM driver accepts; it only ever runs with no device selected.
+static constexpr spi_config IDLE_CONFIG{.frequency = 125000, .operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8)};
 
 static spi_operation_t build_operation(SPIBitOrder bit_order, SPIMode mode) {
   spi_operation_t op = SPI_OP_MODE_MASTER | SPI_WORD_SET(8);
@@ -24,36 +27,43 @@ static spi_operation_t build_operation(SPIBitOrder bit_order, SPIMode mode) {
   return op;
 }
 
+bool SPIComponent::setup_hw_bus_() {
+  if (!device_is_ready(this->interface_)) {
+    ESP_LOGE(TAG, "SPI device is not ready");
+    return false;
+  }
+  return true;
+}
+
 // release_device and write_only are not needed here: the Zephyr driver locks the bus per transfer,
 // and a null rx buffer already skips the receive DMA
-SPIDelegate *ZephyrSPIBus::get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                                        bool release_device, bool write_only) {
+SPIDelegate *SPIComponent::new_hw_delegate_(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                            bool release_device, bool write_only) {
   return new ZephyrSPIDelegate(this, data_rate, bit_order, mode, cs_pin);  // NOLINT
 }
 
-ZephyrSPIDelegate::ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
+ZephyrSPIDelegate::ZephyrSPIDelegate(SPIComponent *bus, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
                                      GPIOPin *cs_pin)
     : SPIDelegate(data_rate, bit_order, mode, cs_pin), bus_(bus) {
   this->cfg_.frequency = data_rate;
   this->cfg_.operation = build_operation(bit_order, mode);
 }
 
-// The driver skips a config at the address it applied last, so a delegate created later in this allocation
-// would run with the old settings: hand it the bus's own config before this one goes away.
+// The driver skips a config at the address it applied last, so switch it to IDLE_CONFIG before cfg_ is freed.
 ZephyrSPIDelegate::~ZephyrSPIDelegate() {
-  if (this->bus_->active_ != this)
+  if (this->bus_->active_delegate_ != this)
     return;
-  this->bus_->active_ = nullptr;
-  spi_transceive(this->bus_->dev_, &this->bus_->idle_cfg_, nullptr, nullptr);
+  this->bus_->active_delegate_ = nullptr;
+  spi_transceive(this->bus_->interface_, &IDLE_CONFIG, nullptr, nullptr);
 }
 
 // The driver applies cfg_ (and the SCK idle level for CPOL) at the start of each transfer, so switch
 // it over with an empty transfer before CS goes low; otherwise SCK changes level while CS is active.
 void ZephyrSPIDelegate::begin_transaction() {
-  if (this->bus_->active_ != this) {
-    const int err = spi_transceive(this->bus_->dev_, &this->cfg_, nullptr, nullptr);
+  if (this->bus_->active_delegate_ != this) {
+    const int err = spi_transceive(this->bus_->interface_, &this->cfg_, nullptr, nullptr);
     if (err == 0) {
-      this->bus_->active_ = this;
+      this->bus_->active_delegate_ = this;
     } else {
       ESP_LOGE(TAG, "spi_transceive failed: %d", err);
     }
@@ -70,7 +80,7 @@ void ZephyrSPIDelegate::transceive_(const uint8_t *tx, uint8_t *rx, size_t lengt
   const spi_buf rx_buf{rx, length};
   const spi_buf_set tx_set{&tx_buf, 1};
   const spi_buf_set rx_set{&rx_buf, 1};
-  const int err = spi_transceive(this->bus_->dev_, &this->cfg_, tx != nullptr ? &tx_set : nullptr,
+  const int err = spi_transceive(this->bus_->interface_, &this->cfg_, tx != nullptr ? &tx_set : nullptr,
                                  rx != nullptr ? &rx_set : nullptr);
   if (err != 0) {
     ESP_LOGE(TAG, "spi_transceive failed: %d", err);

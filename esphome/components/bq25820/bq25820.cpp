@@ -192,10 +192,8 @@ void BQ25820Component::update() {
             this->read_byte(REG_ADC_CONTROL, adc.data());
 #endif
   // Only the write or the feed below clears the warning, so a failing one is not reported as recovered
-  if (!ok) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(ok))
     return;
-  }
   const bool watchdog = this->watchdog_enabled_();
   // ADC_EN clear: a partial write or a charger reset; WD_STAT: the watchdog expired
   if (this->rewrite_ || (adc[0] & ADC_EN) == 0 || (watchdog && (status[0] & WD_STAT) != 0)) {

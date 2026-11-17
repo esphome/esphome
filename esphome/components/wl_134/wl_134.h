@@ -15,7 +15,7 @@ class Wl134Component final : public text_sensor::TextSensor, public Component, p
 
     // from library
     RFID134_ERROR_PACKET_SIZE = 0x81,
-    RFID134_ERROR_PACKET_END_CODE_MISSMATCH,
+    RFID134_ERROR_PACKET_END_CODE_MISMATCH,
     RFID134_ERROR_PACKET_CHECKSUM,
     RFID134_ERROR_PACKET_CHECKSUM_INVERT
   };

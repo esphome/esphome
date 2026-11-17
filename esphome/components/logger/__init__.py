@@ -37,6 +37,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "logger"
 logger_ns = cg.esphome_ns.namespace("logger")
 LOG_LEVELS = {
     "NONE": cg.global_ns.ESPHOME_LOG_LEVEL_NONE,
@@ -108,8 +109,6 @@ HARDWARE_UART_TO_SERIAL = {
         UART0: cg.global_ns.Serial,
         UART0_SWAP: cg.global_ns.Serial,
         UART1: cg.global_ns.Serial1,
-        UART2: cg.global_ns.Serial2,
-        DEFAULT: cg.global_ns.Serial,
     },
     PLATFORM_RP2: {
         UART0: cg.global_ns.Serial1,
@@ -226,6 +225,17 @@ def uart_selection(value: Any) -> str:
     raise NotImplementedError
 
 
+def _nrf52_board_default_uart(config: ConfigType) -> ConfigType:
+    """Default to UART0 on nRF52 boards whose USB port is a debugger's serial bridge."""
+    if CORE.is_nrf52 and CONF_HARDWARE_UART not in config:
+        from esphome.components.nrf52.boards import BOARDS_WITH_UART_CONSOLE
+        from esphome.components.nrf52.framework import get_nrf52_board
+
+        if get_nrf52_board() in BOARDS_WITH_UART_CONSOLE:
+            return {**config, CONF_HARDWARE_UART: UART0}
+    return config
+
+
 def _zephyr_uart0_label() -> str:
     """The devicetree label of UART0."""
     from esphome.components.nrf52.const import VARIANT_CONSOLE_UART
@@ -329,6 +339,7 @@ LoggerMessageTrigger = logger_ns.class_(
 
 
 CONFIG_SCHEMA = cv.All(
+    _nrf52_board_default_uart,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Logger),
@@ -398,9 +409,10 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
-                # No USB device on the nRF54L15, and USB does not work yet on the nRF54LM20
+                nrf52_54lm20=USB_CDC,
+                # No USB device on the nRF52832 and the nRF54L15
+                nrf52_52832=UART0,
                 nrf52_54l15=UART0,
-                nrf52_54lm20=UART0,
             ): cv.All(
                 cv.only_on(
                     [
@@ -458,6 +470,26 @@ def _final_validate(config: ConfigType) -> None:
         from esphome.components.zephyr import zephyr_claim_cdc_acm
 
         zephyr_claim_cdc_acm(0, "logger", write_only=True)
+    if CORE.is_libretiny and config[CONF_BAUD_RATE] != 0:
+        _validate_libretiny_uart_pins(config[CONF_HARDWARE_UART])
+
+
+def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
+    """Reject a port with pin choices but no default; opening it hangs at boot (BW15 UART1)."""
+    from esphome.components.libretiny import get_board_pins, get_libretiny_board
+
+    if not hardware_uart.startswith("UART"):
+        return
+    board = get_libretiny_board()
+    prefix = f"SERIAL{hardware_uart[-1]}_"
+    port_pins = [pin for pin in get_board_pins() if pin.startswith(prefix)]
+    # A port the board lacks falls back to the default one at boot
+    if port_pins and f"{prefix}TX" not in port_pins:
+        raise cv.Invalid(
+            f"Board {board} has no default pins for {hardware_uart}; "
+            "choose another hardware_uart",
+            path=[CONF_HARDWARE_UART],
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -470,13 +502,10 @@ async def to_code(config: ConfigType) -> None:
     CORE.data.setdefault(DOMAIN, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
-    # Determine task log buffer size. The buffer is a direct member of Logger
-    # (no separate heap allocation).
-    task_log_buffer_size = 0
-    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
-        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
-    elif CORE.is_host:
-        task_log_buffer_size = 64  # Fixed 64 slots for host
+    # The host has a fixed 64 slots
+    task_log_buffer_size = (
+        64 if CORE.is_host else config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
+    )
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
@@ -614,7 +643,6 @@ async def _late_logger_init(config: ConfigType) -> None:
 
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
@@ -634,7 +662,10 @@ async def _late_logger_init(config: ConfigType) -> None:
             cg.add_define("USE_ESP32_LOG_V2")
             # --wrap: a strong definition collides; see logger_esp32.cpp
             cg.add_build_flag("-Wl,--wrap=esp_log_format")
-    if CORE.is_rp2 and config[CONF_HARDWARE_UART] == USB_CDC:
+    # Zephyr polls the USB port only when it logs there
+    if config.get(CONF_HARDWARE_UART) == USB_CDC and (
+        has_serial_logging or not CORE.is_nrf52
+    ):
         cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
     # Define platform support flags for components that need auto-detection
     try:
@@ -685,7 +716,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             if config[CONF_HARDWARE_UART] == UART1:
                 zephyr_add_overlay("""&uart1 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == USB_CDC:
-                cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
 
     # Register at end for safe mode
@@ -705,8 +735,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             ],
             conf,
         )
-
-    CORE.add_job(final_step)
 
 
 def validate_printf(value: ConfigType) -> ConfigType:
@@ -842,11 +870,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
     }
 )
 
-# Keys for CORE.data storage
-DOMAIN = "logger"
-KEY_LEVEL_LISTENERS = "level_listeners"
-KEY_LOG_LISTENERS = "log_listeners"
-
 
 def request_logger_level_listeners() -> None:
     """Request that logger level listeners be compiled in.
@@ -855,29 +878,13 @@ def request_logger_level_listeners() -> None:
     function during their code generation. This enables the add_level_listener()
     method and compiles in the listener vector.
     """
-    CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
+    cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
+
+
+_request_log_listener_slot = cg.slot_counter("ESPHOME_LOG_MAX_LISTENERS")
 
 
 def request_log_listener() -> None:
-    """Request a log listener slot.
-
-    Components that need to receive log messages should call this function
-    during their code generation. This increments the listener count used
-    to size the StaticVector.
-    """
-    data = CORE.data.setdefault(DOMAIN, {})
-    data[KEY_LOG_LISTENERS] = data.get(KEY_LOG_LISTENERS, 0) + 1
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def final_step() -> None:
-    """Final code generation step to configure optional logger features."""
-    domain_data = CORE.data.get(DOMAIN, {})
-    if domain_data.get(KEY_LEVEL_LISTENERS, False):
-        cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
-
-    # Only generate log listener code if any component needs it
-    log_listener_count = domain_data.get(KEY_LOG_LISTENERS, 0)
-    if log_listener_count > 0:
-        cg.add_define("USE_LOG_LISTENERS")
-        cg.add_define("ESPHOME_LOG_MAX_LISTENERS", log_listener_count)
+    """Reserve a log listener slot; call once per listener from to_code."""
+    cg.add_define("USE_LOG_LISTENERS")
+    _request_log_listener_slot()

@@ -323,12 +323,17 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+  this->status_set_warning();
+  // No lookup can start before the network is up: there is no DNS server to ask yet.
+  // Stay disconnected, and loop() calls this again.
+  if (!network::is_connected())
+    return;
+
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
 
-  this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
@@ -358,9 +363,13 @@ void MQTTClientComponent::start_dnslookup_() {
     }
     default:
     case ERR_ARG: {
-      // error
+      // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
-      break;
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+      this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+      this->connect_begin_ = millis();
+      return;
     }
   }
 
@@ -884,9 +893,7 @@ void MQTTClientComponent::disable_log_message() { this->log_message_.topic = "";
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
-void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -918,8 +925,6 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
   this->birth_message_ = std::move(message);
   this->recalculate_availability_();
 }
-
-void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,

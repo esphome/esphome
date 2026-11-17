@@ -1,0 +1,8 @@
+# https-dut.yaml plus a listener switch between 443 and 8443 every 20 s, for a soak with clients attached.
+packages:
+  dut: !include https-dut.yaml
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: id(hst).cycle();

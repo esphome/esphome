@@ -11,7 +11,12 @@ import subprocess
 import sys
 import traceback
 
-from helpers import get_all_dependencies, has_cpp_unit_tests, root_path as _root_path
+from helpers import (
+    BENCHMARK_YAML_FILENAME,
+    get_all_dependencies,
+    has_cpp_unit_tests,
+    root_path as _root_path,
+)
 import yaml
 
 # Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
@@ -49,9 +54,6 @@ EXIT_CONFIG_ERROR = 3
 EXIT_NO_EXECUTABLE = 4
 # A test folder with this name would be synced into src/esphome and swept away with the core tree
 CORE_TREE_DIR = "esphome"
-
-# Name of the per-component YAML config file in benchmark directories
-BENCHMARK_YAML_FILENAME = "benchmark.yaml"
 
 
 def hash_components(components: list[str]) -> str:

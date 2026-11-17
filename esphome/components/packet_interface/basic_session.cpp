@@ -14,7 +14,7 @@ static constexpr uint8_t PACKET_TYPE_KEEP_ALIVE = 0x01;
 static constexpr size_t KEEP_ALIVE_SIZE = 5;
 
 BasicSession::BasicSession(PacketInterface *lower)
-    : PacketInterface(remaining_packet_size(lower->get_max_packet_size(), HEADER_SIZE)), lower_(lower) {
+    : PacketInterface(packet_size(lower->get_max_packet_size())), lower_(lower) {
   this->stack_on_(lower, CAPABILITY_SESSION);
   // Data lost by a reliability layer below must be sent again, as after a restart of the peer
   if (lower->has_capability(CAPABILITY_RELIABILITY)) {

@@ -23,7 +23,7 @@ void TemplateDateTime::setup() {
       temp.apply(this);
       return;
     } else {
-      // set to inital value if loading from pref failed
+      // set to initial value if loading from pref failed
       state = this->initial_value_;
     }
   }
@@ -106,36 +106,12 @@ void TemplateDateTime::control(const datetime::DateTimeCall &call) {
 
   if (this->restore_value_) {
     datetime::DateTimeEntityRestoreState temp = {};
-    if (has_year) {
-      temp.year = *opt_year;
-    } else {
-      temp.year = this->year_;
-    }
-    if (has_month) {
-      temp.month = *opt_month;
-    } else {
-      temp.month = this->month_;
-    }
-    if (has_day) {
-      temp.day = *opt_day;
-    } else {
-      temp.day = this->day_;
-    }
-    if (has_hour) {
-      temp.hour = *opt_hour;
-    } else {
-      temp.hour = this->hour_;
-    }
-    if (has_minute) {
-      temp.minute = *opt_minute;
-    } else {
-      temp.minute = this->minute_;
-    }
-    if (has_second) {
-      temp.second = *opt_second;
-    } else {
-      temp.second = this->second_;
-    }
+    temp.year = opt_year.value_or(this->year_);
+    temp.month = opt_month.value_or(this->month_);
+    temp.day = opt_day.value_or(this->day_);
+    temp.hour = opt_hour.value_or(this->hour_);
+    temp.minute = opt_minute.value_or(this->minute_);
+    temp.second = opt_second.value_or(this->second_);
 
     this->pref_.save(&temp);
   }

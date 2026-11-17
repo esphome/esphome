@@ -257,6 +257,47 @@ WIZARD_DOMAIN_LIMITED_PLATFORMS = (
 )
 
 
+# The C++ base class of each kind of entity a wizard page can show, and the platform an API client
+# knows it by. An entity key is only unique within its platform, so the wizard sends both.
+WIZARD_ENTITY_PLATFORMS: dict[str, str] = {
+    "alarm_control_panel::AlarmControlPanel": "alarm_control_panel",
+    "binary_sensor::BinarySensor": "binary_sensor",
+    "button::Button": "button",
+    "climate::Climate": "climate",
+    "cover::Cover": "cover",
+    "datetime::DateEntity": "date",
+    "datetime::DateTimeEntity": "datetime",
+    "datetime::TimeEntity": "time",
+    "event::Event": "event",
+    "fan::Fan": "fan",
+    "infrared::Infrared": "infrared",
+    "light::LightState": "light",
+    "lock::Lock": "lock",
+    "number::Number": "number",
+    "radio_frequency::RadioFrequency": "radio_frequency",
+    "select::Select": "select",
+    "sensor::Sensor": "sensor",
+    "switch_::Switch": "switch",
+    "text::Text": "text",
+    "text_sensor::TextSensor": "text_sensor",
+    "update::UpdateEntity": "update",
+    "valve::Valve": "valve",
+    "water_heater::WaterHeater": "water_heater",
+}
+
+
+def _wizard_entity_platform(
+    config: fv.FinalValidateConfig, entity_id: ID
+) -> str | None:
+    """The platform of an entity, from the C++ class it is declared with, as some entities are not
+    declared under their platform (the sensors of gps:, for example)."""
+    declared: ID = config.get_config_for_path(config.get_path_for_id(entity_id))
+    for cls in (declared.type, *declared.type.parents):
+        if (platform := WIZARD_ENTITY_PLATFORMS.get(str(cls))) is not None:
+            return platform
+    return None
+
+
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
     """The IDs of the entities that are linked inputs of the wizard in the given api config."""
     if (wizard := api_config.get(CONF_WIZARD)) is None:
@@ -264,21 +305,6 @@ def wizard_input_ids(api_config: ConfigType) -> set[str]:
     return {
         conf[CONF_ENTITY].id for conf in _wizard_inputs(wizard) if CONF_ENTITY in conf
     }
-
-
-def _wizard_buffer_name(entity_id: ID) -> str:
-    return f"api_wizard_input_{entity_id.id}"
-
-
-def wizard_input_buffer(entity_id: ID) -> str | None:
-    """Name of the RAM buffer holding the Home Assistant entity ID of a wizard input.
-
-    Returns None when the entity is not an input of the wizard. The buffer is defined by the api
-    codegen, and the homeassistant entity of the input is given it in place of a constant.
-    """
-    if entity_id.id not in wizard_input_ids(CORE.config.get(API_DOMAIN, {})):
-        return None
-    return _wizard_buffer_name(entity_id)
 
 
 def _wizard_input_declaration(
@@ -361,7 +387,8 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
 
 
 def _validate_wizard_entity_exposed(value: ID) -> ID:
-    """Reject entities that are internal, as they are not exposed over the API, or have no name.
+    """Reject entities that are internal, as they are not exposed over the API, have no name, or
+    are of a platform the wizard does not know.
 
     The key a client knows an entity by is a hash of its name. Without a name of its own, the
     device works the name out at runtime from its friendly name, which can add the MAC address,
@@ -377,6 +404,10 @@ def _validate_wizard_entity_exposed(value: ID) -> ID:
         raise cv.Invalid(
             f"Entity '{value.id}' has no name of its own, so its key is not known "
             "when the wizard is built. Give it a name to use it in the wizard"
+        )
+    if _wizard_entity_platform(fv.full_config.get(), value) is None:
+        raise cv.Invalid(
+            f"Entity '{value.id}' is not of a platform the wizard can show"
         )
     return value
 
@@ -446,7 +477,10 @@ def _entity_document(
 ) -> ConfigType:
     """An entity of the device that the page shows, keyed as ListEntitiesResponse keys it."""
     _, declaration = _wizard_input_declaration(config, conf[CONF_ID])
-    document: ConfigType = {"key": fnv1_hash_object_id(declaration[CONF_NAME])}
+    document: ConfigType = {
+        "key": fnv1_hash_object_id(declaration[CONF_NAME]),
+        "platform": _wizard_entity_platform(config, conf[CONF_ID]),
+    }
     if (device := declaration.get(CONF_DEVICE_ID)) is not None:
         document["device_id"] = fnv1a_32bit_hash(device.id)
     if description := conf.get(CONF_DESCRIPTION):
@@ -476,7 +510,8 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
 
         {"version": 1,
          "pages": [{"title": "...", "description": "...",
-           "entities": [{"key": 123, "device_id": 456, "description": "...", "role": "..."}],
+           "entities": [{"key": 123, "platform": "sensor", "device_id": 456,
+                         "description": "...", "role": "..."}],
            "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
              "entity_filters": [{"integration": "...", "domain": ["..."],
                                  "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -487,6 +522,10 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
     - An entity key is the key ListEntitiesResponse sends for the entity: the FNV-1 hash of the
       object id made from its name (entity_helpers). device_id is the hash of the ESPHome id of
       the device it belongs to (esphome/core/config.py), and is left out for the main device.
+    - An entity platform is the platform of the entity: sensor, switch and so on, or date, time or
+      datetime for an entity of the datetime component. A key is only unique within its platform
+      and device, so a client matches an entity by platform, device_id and key together. A client
+      that does not know platform ignores it, so the version stays 1.
     - An entity role is a stable name, always <component>.<name>, that the component of the entity
       gives it with register_entity_role, so Home Assistant can recognise the entity. The user
       cannot set or change it, and no two entities of a wizard share one. A client that does not
@@ -545,12 +584,12 @@ async def to_code(wizard: ConfigType) -> None:
     entries: list[cg.RawExpression] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
-        # Every buffer starts empty, until the wizard sets it. A linked homeassistant entity uses it as its entity id.
-        buffer = _wizard_buffer_name(input_id)
         size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
-        cg.add_global(cg.RawStatement(f'static char {buffer}[{size}] = "";'))
+        buffer = cg.static_buffer(ID(input_id.id, type=WizardInput), cg.char, size)
         if CONF_ID in conf:
-            cg.new_Pvariable(input_id, cg.RawExpression(buffer))
+            cg.new_Pvariable(input_id, buffer)
+        else:
+            cg.add((await cg.get_variable(input_id)).set_entity_id(buffer))
         key = fnv1_hash(input_id.id)
         if conf[CONF_MULTIPLE]:
             entries.append(cg.RawExpression(f"{{{key}u, {buffer}, {size}}}"))

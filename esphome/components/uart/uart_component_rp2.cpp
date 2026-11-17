@@ -15,6 +15,9 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
 
+// GPIO32-47 (RP2350B) and GPIO64 (CYW43) are in no mask; a 32-bit shift by them is undefined.
+static constexpr bool pin_in_mask(uint8_t pin, uint32_t mask) { return pin < 32 && (mask & (1U << pin)) != 0; }
+
 uint16_t RP2UartComponent::get_config() {
   uint16_t config = 0;
 
@@ -81,9 +84,9 @@ void RP2UartComponent::setup() {
     if (this->tx_pin_->is_inverted()) {
       ESP_LOGD(TAG, "An inverted TX pin %u can only be used with SerialPIO", this->tx_pin_->get_pin());
     } else {
-      if (((1 << this->tx_pin_->get_pin()) & valid_tx_uart_0) != 0) {
+      if (pin_in_mask(this->tx_pin_->get_pin(), valid_tx_uart_0)) {
         tx_hw = 0;
-      } else if (((1 << this->tx_pin_->get_pin()) & valid_tx_uart_1) != 0) {
+      } else if (pin_in_mask(this->tx_pin_->get_pin(), valid_tx_uart_1)) {
         tx_hw = 1;
       } else {
         ESP_LOGD(TAG, "TX pin %u can only be used with SerialPIO", this->tx_pin_->get_pin());
@@ -95,9 +98,9 @@ void RP2UartComponent::setup() {
     if (this->rx_pin_->is_inverted()) {
       ESP_LOGD(TAG, "An inverted RX pin %u can only be used with SerialPIO", this->rx_pin_->get_pin());
     } else {
-      if (((1 << this->rx_pin_->get_pin()) & valid_rx_uart_0) != 0) {
+      if (pin_in_mask(this->rx_pin_->get_pin(), valid_rx_uart_0)) {
         rx_hw = 0;
-      } else if (((1 << this->rx_pin_->get_pin()) & valid_rx_uart_1) != 0) {
+      } else if (pin_in_mask(this->rx_pin_->get_pin(), valid_rx_uart_1)) {
         rx_hw = 1;
       } else {
         ESP_LOGD(TAG, "RX pin %u can only be used with SerialPIO", this->rx_pin_->get_pin());
@@ -145,12 +148,7 @@ void RP2UartComponent::setup() {
     this->serial_ = serial;
   } else {
     ESP_LOGV(TAG, "Using Hardware Serial");
-    SerialUART *serial;
-    if (hw_uart == 0) {
-      serial = &Serial1;
-    } else {
-      serial = &Serial2;
-    }
+    SerialUART *serial = hw_uart == 0 ? &Serial1 : &Serial2;
     if (this->tx_pin_ != nullptr)
       serial->setTX(this->tx_pin_->get_pin());
     if (this->rx_pin_ != nullptr)

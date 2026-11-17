@@ -32,6 +32,10 @@ static const uint8_t INA226_REGISTER_BUS_VOLTAGE = 0x02;
 static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
+#ifdef USE_INA226_ALERT
+static constexpr uint8_t INA226_REGISTER_MASK_ENABLE = 0x06;
+static constexpr uint8_t INA226_REGISTER_ALERT_LIMIT = 0x07;
+#endif
 
 static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156, 8244};
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
@@ -73,6 +77,12 @@ void INA226Component::setup() {
 
   if (!this->setup_check(this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)))
     return;
+
+#ifdef USE_INA226_ALERT
+  if (!this->setup_check(this->write_byte_16(INA226_REGISTER_ALERT_LIMIT, this->alert_limit_)) ||
+      !this->setup_check(this->write_byte_16(INA226_REGISTER_MASK_ENABLE, this->alert_mask_)))
+    return;
+#endif
 }
 
 void INA226Component::dump_config() {
@@ -94,15 +104,17 @@ void INA226Component::dump_config() {
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
+
+#ifdef USE_INA226_ALERT
+  ESP_LOGCONFIG(TAG, "  Alert: mask 0x%04X, limit 0x%04X", this->alert_mask_, this->alert_limit_);
+#endif
 }
 
 void INA226Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
-    if (!this->read_byte_16(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)))
       return;
-    }
     // Convert for 2's compliment and signed value (though always positive)
     float bus_voltage_v = sign_extend<16>(raw_bus_voltage);
     bus_voltage_v *= 0.00125f;
@@ -111,10 +123,8 @@ void INA226Component::update() {
 
   if (this->shunt_voltage_sensor_ != nullptr) {
     uint16_t raw_shunt_voltage;
-    if (!this->read_byte_16(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)))
       return;
-    }
     // Convert for 2's compliment and signed value
     float shunt_voltage_v = sign_extend<16>(raw_shunt_voltage);
     shunt_voltage_v *= 0.0000025f;
@@ -123,10 +133,8 @@ void INA226Component::update() {
 
   if (this->current_sensor_ != nullptr) {
     uint16_t raw_current;
-    if (!this->read_byte_16(INA226_REGISTER_CURRENT, &raw_current)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_CURRENT, &raw_current)))
       return;
-    }
     // Convert for 2's compliment and signed value
     float current_ma = sign_extend<16>(raw_current);
     current_ma *= (this->calibration_lsb_ / 1000.0f);
@@ -135,15 +143,23 @@ void INA226Component::update() {
 
   if (this->power_sensor_ != nullptr) {
     uint16_t raw_power;
-    if (!this->read_byte_16(INA226_REGISTER_POWER, &raw_power)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA226_REGISTER_POWER, &raw_power)))
       return;
-    }
     float power_mw = int16_t(raw_power) * (this->calibration_lsb_ * 25.0f / 1000.0f);
     this->power_sensor_->publish_state(power_mw / 1000.0f);
   }
 
   this->status_clear_warning();
 }
+
+#ifdef USE_INA226_ALERT
+void INA226Component::clear_alert_flag() {
+  // Reading MASK_ENABLE releases a latched alert
+  uint16_t mask_reg;
+  if (!this->read_byte_16(INA226_REGISTER_MASK_ENABLE, &mask_reg)) {
+    ESP_LOGW(TAG, "Failed to clear alert flag");
+  }
+}
+#endif
 
 }  // namespace esphome::ina226
