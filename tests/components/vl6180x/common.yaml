@@ -5,10 +5,10 @@ vl6180x:
 sensor:
   - platform: vl6180x
     vl6180x_id: vl6180x_sensor
-    range:
+    distance:
       name: VL6180X Distance
       scaler: 2
-    lux:
+    illuminance:
       name: VL6180X Illuminance
       gain: 2.5
       integration_time: 50ms

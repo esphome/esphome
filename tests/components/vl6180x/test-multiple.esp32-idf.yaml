@@ -14,11 +14,11 @@ vl6180x:
 sensor:
   - platform: vl6180x
     vl6180x_id: vl6180x_near
-    range:
+    distance:
       name: Near Distance
       scaler: 3
   - platform: vl6180x
     vl6180x_id: vl6180x_far
-    lux:
+    illuminance:
       name: Far Illuminance
       gain: 40

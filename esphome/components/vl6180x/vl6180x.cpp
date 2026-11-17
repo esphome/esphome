@@ -180,7 +180,7 @@ void VL6180XComponent::update() {
   if (this->measuring_)
     return;
   this->measuring_ = true;
-  if (this->range_sensor_ != nullptr) {
+  if (this->distance_sensor_ != nullptr) {
     this->start_range_();
   } else {
     this->start_als_();
@@ -200,8 +200,8 @@ void VL6180XComponent::read_range_() {
   uint8_t raw;
   if (!this->status_comm_check(this->read_register16(REG_RESULT_RANGE_STATUS, status, 3) == i2c::ERROR_OK) ||
       !this->status_comm_check((status[2] & 0x07) == RANGE_SAMPLE_READY) ||
-      !this->status_comm_result(this->read_byte_reg16(REG_RESULT_RANGE_VAL, &raw) &&
-                                this->write_byte_reg16(REG_SYSTEM_INTERRUPT_CLEAR, 0x07))) {
+      !this->status_comm_check(this->read_byte_reg16(REG_RESULT_RANGE_VAL, &raw) &&
+                               this->write_byte_reg16(REG_SYSTEM_INTERRUPT_CLEAR, 0x07))) {
     this->measuring_ = false;
     return;
   }
@@ -209,14 +209,16 @@ void VL6180XComponent::read_range_() {
   const uint8_t error = status[0] >> 4;
   if (error != 0) {
     ESP_LOGV(TAG, "Range error code %u", error);
-    PUBLISH_STATE(this->range_sensor_, NAN);
+    PUBLISH_STATE(this->distance_sensor_, NAN);
   } else {
-    PUBLISH_STATE(this->range_sensor_, static_cast<float>(raw * this->scaler_));
+    PUBLISH_STATE(this->distance_sensor_, static_cast<float>(raw * this->scaler_));
   }
-  if (this->lux_sensor_ != nullptr) {
+  // With illuminance configured, read_als_() clears the warning once the whole cycle has worked
+  if (this->illuminance_sensor_ != nullptr) {
     this->start_als_();
   } else {
     this->measuring_ = false;
+    this->status_clear_warning();
   }
 }
 
@@ -239,10 +241,10 @@ void VL6180XComponent::read_als_() {
   // An overflow in bright light is a reading, not a fault
   if (result[0] >> 4) {
     ESP_LOGV(TAG, "ALS error code %u", result[0] >> 4);
-    PUBLISH_STATE(this->lux_sensor_, NAN);
+    PUBLISH_STATE(this->illuminance_sensor_, NAN);
     return;
   }
-  PUBLISH_STATE(this->lux_sensor_, encode_uint16(result[2], result[3]) * this->lux_per_count_);
+  PUBLISH_STATE(this->illuminance_sensor_, encode_uint16(result[2], result[3]) * this->lux_per_count_);
 }
 
 void VL6180XComponent::dump_config() {
@@ -250,8 +252,8 @@ void VL6180XComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Range", this->range_sensor_);
-  LOG_SENSOR("  ", "Lux", this->lux_sensor_);
+  LOG_SENSOR("  ", "Distance", this->distance_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
 }  // namespace esphome::vl6180x

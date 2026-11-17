@@ -9,8 +9,8 @@
 namespace esphome::vl6180x {
 
 class VL6180XComponent final : public PollingComponent, public i2c::I2CDevice {
-  SUB_SENSOR(range)
-  SUB_SENSOR(lux)
+  SUB_SENSOR(distance)
+  SUB_SENSOR(illuminance)
 
  public:
   void setup() override;
