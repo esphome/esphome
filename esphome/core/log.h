@@ -129,7 +129,7 @@ inline void __attribute__((always_inline)) esp_log_no_args_(int level, const cha
                                                                             format __VA_OPT__(, ) __VA_ARGS__)
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define esph_log_vv(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, format, ##__VA_ARGS__)
+#define esph_log_vv(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERY_VERBOSE
 #else
@@ -137,7 +137,7 @@ inline void __attribute__((always_inline)) esp_log_no_args_(int level, const cha
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-#define esph_log_v(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERBOSE, tag, format, ##__VA_ARGS__)
+#define esph_log_v(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERBOSE, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERBOSE
 #else
@@ -145,8 +145,8 @@ inline void __attribute__((always_inline)) esp_log_no_args_(int level, const cha
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-#define esph_log_d(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_DEBUG, tag, format, ##__VA_ARGS__)
-#define esph_log_config(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_CONFIG, tag, format, ##__VA_ARGS__)
+#define esph_log_d(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_DEBUG, tag, format, __VA_ARGS__)
+#define esph_log_config(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_CONFIG, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_DEBUG
 #define ESPHOME_LOG_HAS_CONFIG
@@ -156,7 +156,7 @@ inline void __attribute__((always_inline)) esp_log_no_args_(int level, const cha
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
-#define esph_log_i(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_INFO, tag, format, ##__VA_ARGS__)
+#define esph_log_i(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_INFO, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_INFO
 #else
@@ -164,7 +164,7 @@ inline void __attribute__((always_inline)) esp_log_no_args_(int level, const cha
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-#define esph_log_w(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_WARN, tag, format, ##__VA_ARGS__)
+#define esph_log_w(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_WARN, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_WARN
 #else
@@ -172,7 +172,7 @@ inline void __attribute__((always_inline)) esp_log_no_args_(int level, const cha
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-#define esph_log_e(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_ERROR, tag, format, ##__VA_ARGS__)
+#define esph_log_e(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_ERROR, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_ERROR
 #else
