@@ -289,4 +289,14 @@ if case in ("all", "2"):
     res["c2_heap"] = (h_start, h_end)
 if case in ("all", "3"):
     res["c3"] = sum(sse_upload(f"c3#{i}") for i in range(REPS))
+# REPLY_LOST and INTERRUPTED are network losses seen on every build (ota.md): counted, not failed
+fails = []
+if "c1" in res and (res["c1"]["OK"] < REPS or res["c1"]["BAD"]):
+    fails.append("c1")
+if "c2" in res and (res["c2"] < 2 * REPS or res["c2_followup"][-1] != "OK"):
+    fails.append("c2")
+if "c3" in res and res["c3"] < REPS:
+    fails.append("c3")
+res["fails"] = fails
 p("RESULT", KIND, json.dumps(res))
+sys.exit(1 if fails else 0)
