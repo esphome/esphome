@@ -335,6 +335,7 @@
 #define USE_PACKET_INTERFACE_HDLC
 #define USE_PACKET_INTERFACE_XXTEA
 #define USE_PCA9554_PCAL
+#define USE_PCM1863_SELECT
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
