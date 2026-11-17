@@ -237,6 +237,7 @@ class ModemComponent : public Component {
   std::unique_ptr<esp_modem::DCE> dce_;
   char reply_[REPLY_SIZE + 1]{};  // task only; the last reply, null-terminated
   size_t reply_len_{0};
+  bool reply_cut_{false};  // the last reply was longer than reply_ and kept only its end
   std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
