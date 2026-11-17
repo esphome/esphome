@@ -5,7 +5,7 @@ namespace esphome::xiaomi_cgdk2 {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_cgdk2");
 
-void XiaomiCGDK2::dump_config() {
+void XiaomiCGDK2::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGDK2");
   this->dump_bindkey_(TAG);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

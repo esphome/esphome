@@ -17,7 +17,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_hhccpot002_ns = cg.esphome_ns.namespace("xiaomi_hhccpot002")
 XiaomiHHCCPOT002 = xiaomi_hhccpot002_ns.class_(
-    "XiaomiHHCCPOT002", xiaomi_ble.XiaomiDevice, cg.Component
+    "XiaomiHHCCPOT002", xiaomi_ble.XiaomiDevice
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -39,14 +39,12 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 
