@@ -9,6 +9,7 @@ namespace esphome::logger {
 
 // Space write_header() needs free. Without the tag the header takes at most 68 bytes (20 fixed, 48 for a thread name
 // of up to MAX_TAG_LENGTH); the tag gets the rest of the line's room minus that budget, so at least MAX_TAG_LENGTH
+// (on ESP8266 exactly MAX_TAG_LENGTH)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
 // Longest thread name in the header, and the shortest tag it always keeps
 static constexpr size_t MAX_TAG_LENGTH = 32;
@@ -69,8 +70,13 @@ struct LogBuffer {
     *p++ = '[';
 
     // Copy tag
+#ifdef USE_ESP8266
+    // ESP8266 has always cut tags at MAX_TAG_LENGTH, which leaves the message more of a short buffer
+    p = copy_string(p, tag, MAX_TAG_LENGTH);
+#else
     // The early return above leaves at least MAX_HEADER_SIZE, so the tag keeps MAX_TAG_LENGTH or more
     p = copy_string(p, tag, this->remaining_() - (MAX_HEADER_SIZE - MAX_TAG_LENGTH));
+#endif
 
     *p++ = ':';
 
