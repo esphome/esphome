@@ -67,7 +67,7 @@ job pcB 0 $P -I tcp_peer.py client "$E" "$PROBE_PORT" --duration 25 --once --sen
 ts client B
 sleep 25
 ts client C refused
-run pcC $P -I tcp_peer.py "${REFUSED[@]}" --duration 6 --once
+run pcC $P -I tcp_peer.py "${REFUSED[@]}" --duration 6 --once --expect-reject
 sleep 2
 ts client D oversize
 run pcD $P -I tcp_peer.py client "$E" "$PROBE_PORT" --duration 10 --once --oversize-after 2 1100

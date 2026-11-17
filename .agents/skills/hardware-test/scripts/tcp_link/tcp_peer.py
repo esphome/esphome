@@ -13,6 +13,7 @@ timeout, reconnects and oversized-length handling can be read from the output.
   --bind ADDR         source address (client)
   --once              client: do not reconnect after a close
   --hold S            client: close after S seconds of connection (0 = keep)
+  --expect-reject     client: pass only when the peer refuses or closes the connection before sending anything
 Exits 1 when no connection was made, or when the peer stayed connected after --oversize-after.
 """
 
@@ -44,7 +45,7 @@ def recv_exact(sock, n):
 
 
 # what the exit status checks: connections made, and whether the peer closed after an oversize header
-RESULT = {"conns": 0, "over_closed": False}
+RESULT = {"conns": 0, "over_closed": False, "rejected": False}
 
 
 def run_conn(sock, tag, args, first):
@@ -153,6 +154,8 @@ def run_conn(sock, tag, args, first):
     )
     if stats["over"] and reason != "duration":
         RESULT["over_closed"] = True
+    if reason != "duration" and stats["frames"] == 0:
+        RESULT["rejected"] = True  # closed by the peer before it sent anything
     with contextlib.suppress(OSError):
         sock.close()
 
@@ -170,6 +173,7 @@ def main():
     p.add_argument("--bind")
     p.add_argument("--once", action="store_true")
     p.add_argument("--hold", type=float, default=0)
+    p.add_argument("--expect-reject", action="store_true")
     args = p.parse_args()
     if args.role == "client":
         host, port = args.a, int(args.b)
@@ -183,6 +187,7 @@ def main():
                 s.connect((host, port))
             except OSError as e:
                 log("client connect failed", e)
+                RESULT["rejected"] = True
                 s.close()
                 if args.once:
                     break
@@ -214,6 +219,8 @@ def main():
             ).start()
         ls.close()
         time.sleep(0.6)
+    if args.expect_reject:
+        sys.exit(0 if RESULT["rejected"] else "FAIL the peer kept the connection")
     if not RESULT["conns"]:
         sys.exit("FAIL no connection")
     if args.oversize_after and not RESULT["over_closed"]:
