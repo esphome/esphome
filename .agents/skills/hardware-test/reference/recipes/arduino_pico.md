@@ -28,3 +28,15 @@ Scripts: `scripts/rp2_web_ble/` (README there). Used for #22671 (6.1.1 to 6.3.2)
   the EVB, the fork build on the EVB and the Pico W. HardFault in `AsyncEventSource::send` from
   `deferrable_send_state`, about one reboot every 10 to 20 s. Ten quick reboots put the board in safe mode (ping and
   OTA port 2040 only); OTA a build to recover.
+- **Never flash the W5100S EVB a build without `interrupt_pin`** unless you can reach BOOTSEL: arduino-pico then polls
+  the W5100 from an async_context timer that every lwIP call pushes back, so the esphome OTA read loop starves the
+  poller and OTA never completes (the device ACKs the hello, then never the features byte). Web and API still work.
+  The board has no USB CDC port with ESPHome firmware, so the only way back is BOOTSEL and the UF2 drive.
+- `churnflow.sh` (in `rp2_web_ble/`) repeats `churn.sh` with heap and main loop checks and reflashes by OTA when a
+  round left the board in safe mode.
+- `leakflow.sh` with `neverconn.py HOST N rst|head`: ESPAsyncWebServer 3.9.6 leaks about 175 B per `/events` client
+  that resets before the response head is ACKed (52 KB per 300); 3.12.1 stays flat.
+- `/events` churn also hangs the BK7238 main loop or drops it off the network on dev; recover with a serial reset.
+- The API has 3 sockets on these builds: connstress at concurrency 4 always shows some "dropped after hello" failures;
+  use 2 for a clean 500/500.
+- IRQ context scheduler test for #22688: `scripts/rp2_sched_lock/`, described in `scheduler.md`.

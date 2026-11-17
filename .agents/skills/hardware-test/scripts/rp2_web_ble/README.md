@@ -23,3 +23,9 @@ only print counts.
 - `H=<device ip> churn.sh TAG SECS`: `/events` connect and disconnect churn, reboots from the reported uptime, then
   the crash report through `../crash_report/peek.py`.
 - `soak.py HOST SECONDS LOG`: states, drops, uptime resets, reset reason, crash and assert lines from the API logs.
+- `churnflow.sh NAME CONFIG HOST`: upload, then rounds of `churn.sh` with the heap before, after and settled and a
+  main loop check; uploads again by OTA when a round left the board in safe mode. PASS or FAIL.
+- `leakflow.sh NAME CONFIG HOST`: rounds of 300 `/events` connects that never complete (`neverconn.py HOST N
+  rst|head`: reset right after the GET, or after reading the first bytes of the head), heap before, after and
+  settled. PASS when each round completes most GETs (head mode: with an HTTP/1.1 200 status), the board does not
+  reboot and the settled heap stays near idle.
