@@ -612,7 +612,10 @@ async def to_code(config: ConfigType) -> None:
     if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
         cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
-    zephyr_setup_preferences()
+    # The nRF54L has RRAM, which needs no page erase; ZMS is the storage Zephyr made for it
+    zephyr_setup_preferences(
+        "ZMS" if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20) else "NVS"
+    )
     zephyr_to_code(config)
 
     # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
