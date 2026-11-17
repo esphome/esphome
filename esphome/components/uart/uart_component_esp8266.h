@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "software_serial_rx_decoder.h"
+#include "software_serial_tx_frame.h"
 #include "uart_component.h"
 
 namespace esphome::uart {
@@ -26,8 +27,8 @@ class ESP8266SoftwareSerial {
 
   size_t available();
 
-  /// TX holds interrupts off for whole frames: above the edge mode limit, or while any instance's RX interrupt reads
-  /// whole bytes (it must not run between TX bits).
+  /// TX holds interrupts off for each byte up to the edge into its trailing run of 1 bits, rather than per bit: above
+  /// the per-bit lock limit, or while any instance's RX interrupt reads whole bytes (it must not run between TX edges).
   bool locks_whole_frame() const { return this->lock_frame_ || blocking_rx_count != 0; }
 
  protected:
@@ -56,6 +57,7 @@ class ESP8266SoftwareSerial {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   bool lock_frame_{false};
+  bool blocking_rx_{false};                     // this instance's RX reads whole bytes in its interrupt
   static inline uint8_t blocking_rx_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 

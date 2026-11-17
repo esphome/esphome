@@ -1,0 +1,11 @@
+# BK7238 on the station network, logs on the flashing adapter (name and credentials set by arena.sh).
+bk72xx:
+  board: generic-bk7238
+logger:
+  hardware_uart: UART1
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+packages:
+  common: !include arena-common.yaml

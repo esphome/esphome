@@ -1,0 +1,10 @@
+# Pico W on the station network with the scheduler lock packages (name set with -s name).
+rp2:
+  board: rpipicow
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+packages:
+  common: !include ../rp2_web_ble/rp-common.yaml
+  stress: !include stress.yaml
+  race: !include race.yaml

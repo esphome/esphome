@@ -11,12 +11,12 @@ from esphome.const import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
-from .. import CONF_TUYA_ID, Tuya, TuyaDatapointType, tuya_ns
+from .. import CONF_TUYA_ID, Tuya, TuyaDatapointType, register_tuya_child, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@bearpawmaxim"]
 
-TuyaSelect = tuya_ns.class_("TuyaSelect", select.Select, cg.Component)
+TuyaSelect = tuya_ns.class_("TuyaSelect", select.Select)
 
 
 def datapoint_value(value: int) -> int:
@@ -87,8 +87,7 @@ def validate_options(value: ConfigType | list) -> ConfigType | list | cv.Schema:
 
 
 CONFIG_SCHEMA = cv.All(
-    select.select_schema(TuyaSelect)
-    .extend(
+    select.select_schema(TuyaSelect).extend(
         {
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Optional(CONF_ENUM_DATAPOINT): cv.uint8_t,
@@ -97,8 +96,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_OPTIONS): validate_options,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA),
+    ),
     cv.has_exactly_one_key(
         CONF_ENUM_DATAPOINT, CONF_INT_DATAPOINT, CONF_STRING_DATAPOINT
     ),
@@ -117,11 +115,10 @@ async def to_code(config):
         options = list(options_map.values())
         mappings = list(options_map.keys())
 
-    var = await select.new_select(config, options=options)
-    await cg.register_component(var, config)
+    var = await select.new_select(config, options=options, fixed_options=True)
     if mappings:
         cg.add(var.set_select_mappings(mappings))
-    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
+    hub = await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
     if (string_datapoint := config.get(CONF_STRING_DATAPOINT, None)) is not None:
         cg.add(var.set_select_id(string_datapoint, TuyaDatapointType.STRING))
     if (enum_datapoint := config.get(CONF_ENUM_DATAPOINT, None)) is not None:
@@ -129,3 +126,4 @@ async def to_code(config):
     if (int_datapoint := config.get(CONF_INT_DATAPOINT, None)) is not None:
         cg.add(var.set_select_id(int_datapoint, TuyaDatapointType.INTEGER))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    register_tuya_child(hub, var)

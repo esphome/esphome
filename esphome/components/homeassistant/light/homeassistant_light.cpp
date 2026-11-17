@@ -25,7 +25,7 @@ namespace {
 // color mode, all handled as RGB: Home Assistant reports rgb_color for all of them and derives
 // the white channels from rgb_color itself.
 PROGMEM_STRING_TABLE(ColorModeNames, "onoff", "brightness", "white", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww");
-const uint8_t COLOR_MODES[] PROGMEM = {
+constexpr uint8_t COLOR_MODES[] PROGMEM = {
     static_cast<uint8_t>(ColorMode::ON_OFF),
     static_cast<uint8_t>(ColorMode::BRIGHTNESS),
     static_cast<uint8_t>(ColorMode::WHITE),
@@ -381,27 +381,18 @@ void HomeassistantLight::write_state(LightState *state) {
     }
     return;
   }
-  if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
+  if (!can_send_action(TAG, this->entity_id_, state)) {
     this->fall_back_();
     return;
   }
-#ifdef USE_API_WIZARD_LINKED_INPUTS
-  if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(state->get_log_name()));
-    this->fall_back_();
-    return;
-  }
-#endif
 
   // In flash on the ESP8266 and encoded from there
-  static const char SERVICE_TURN_ON[] PROGMEM = "light.turn_on";
-  static const char SERVICE_TURN_OFF[] PROGMEM = "light.turn_off";
-  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
-  static const char BRIGHTNESS_KEY[] PROGMEM = "brightness";
-  static const char WHITE_KEY[] PROGMEM = "white";
-  static const char COLOR_TEMP_KELVIN_KEY[] PROGMEM = "color_temp_kelvin";
-  static const char RGB_COLOR_KEY[] PROGMEM = "rgb_color";
+  static constexpr char SERVICE_TURN_ON[] PROGMEM = "light.turn_on";
+  static constexpr char SERVICE_TURN_OFF[] PROGMEM = "light.turn_off";
+  static constexpr char BRIGHTNESS_KEY[] PROGMEM = "brightness";
+  static constexpr char WHITE_KEY[] PROGMEM = "white";
+  static constexpr char COLOR_TEMP_KELVIN_KEY[] PROGMEM = "color_temp_kelvin";
+  static constexpr char RGB_COLOR_KEY[] PROGMEM = "rgb_color";
 
   // The request refers to these buffers until it is sent below
   char level_buf[4];       // up to 255
@@ -410,9 +401,7 @@ void HomeassistantLight::write_state(LightState *state) {
 
   api::HomeassistantActionRequest resp;
   resp.data.init(3);
-  auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
-  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
+  add_entity_id(resp, this->entity_id_);
 
   auto add_number = [&](ProgmemStringRef key, char *buf, size_t size, unsigned number) {
     auto &entry = resp.data.emplace_back();

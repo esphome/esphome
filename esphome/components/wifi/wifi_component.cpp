@@ -809,6 +809,11 @@ void WiFiComponent::start() {
   if (!this->has_sta() && this->is_dpp_active_() && this->wifi_mode_(true, {}))
     this->start_dpp_listen_(millis());
 #endif
+#ifdef USE_RTL87XX
+  // Realtek starts lwIP on the first mode change; web_server's listener blocks forever until then
+  if (!this->has_sta() && !this->has_ap())
+    this->wifi_mode_(true, {});
+#endif
 #ifdef USE_IMPROV_BLE
   if (!this->has_sta() && improv_ble::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
@@ -2191,6 +2196,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         // Even when skipping full restart, disconnect to clear driver state
         // Without this, platforms like LibreTiny may think we're still connecting
         this->wifi_disconnect_();
+        // And clear the error flag, as restart_adapter() does: COOLDOWN leads to
+        // check_connecting_finished() without start_connecting(), so a stale
+        // error would fail a connection the driver completes meanwhile.
+        this->error_from_callback_ = false;
       }
       // Clear scan flag - we're starting a new retry cycle
       // This is critical for DPP/captive portal/improv flow: when determine_next_phase_()

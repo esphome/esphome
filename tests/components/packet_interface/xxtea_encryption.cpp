@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 #include "esphome/components/packet_interface/xxtea_encryption.h"
@@ -21,12 +22,18 @@ class MockLink : public PacketInterface {
  public:
   explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
+    // Before the packet is read, as a log line in a real link would run it
+    if (this->on_send)
+      this->on_send();
     this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
+  size_t get_send_capacity() const override { return this->capacity; }
 
   std::vector<Packet> sent;
+  std::function<void()> on_send;
+  size_t capacity{SIZE_MAX};
 };
 
 static constexpr size_t ROLLING_TRAILER_SIZE = 16;
@@ -86,6 +93,16 @@ TEST_F(XxteaEncryptionTest, MaxPacketSizeAllowsForTrailerAndWords) {
   EXPECT_EQ(b.encryption->get_max_packet_size(), 60 - ROLLING_TRAILER_SIZE);
   Peer c(0x12345678, 64, false);
   EXPECT_EQ(c.encryption->get_max_packet_size(), 64 - TRAILER_SIZE);
+}
+
+// A link such as TCP can run out of room; a fragmentation layer above must see that
+TEST_F(XxteaEncryptionTest, ForwardsTheLinksSendCapacity) {
+  Peer a;
+  EXPECT_EQ(a.encryption->get_send_capacity(), SIZE_MAX);
+  a.link.capacity = 1;
+  EXPECT_EQ(a.encryption->get_send_capacity(), 1u);
+  a.link.capacity = 0;
+  EXPECT_EQ(a.encryption->get_send_capacity(), 0u);
 }
 
 static void round_trip_all_sizes(bool rolling_code, size_t trailer_size) {
@@ -265,6 +282,23 @@ TEST_F(XxteaEncryptionTest, CounterWrapStartsNewBoot) {
   a.deliver_to(b);
   // Both were accepted: the last packet of the old boot, then the first of the new one
   EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {2}}));
+}
+
+// A send made while one is still going through the layer below would overwrite the buffer it is reading
+TEST_F(XxteaEncryptionTest, NestedSendRefused) {
+  Peer a, b;
+  a.introduce(b);
+  bool nested = true;
+  int calls = 0;
+  a.link.on_send = [&]() {
+    if (calls++ == 0)
+      nested = a.send({9, 9, 9});
+  };
+  ASSERT_TRUE(a.send({1, 2, 3, 4, 5}));
+  EXPECT_FALSE(nested);
+  a.link.on_send = nullptr;
+  a.deliver_to(b);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1, 2, 3, 4, 5}}));
 }
 
 }  // namespace esphome::packet_interface::encryption_testing
