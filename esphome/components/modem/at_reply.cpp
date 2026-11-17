@@ -102,6 +102,30 @@ int registration_from_reply(const char *reply, const char *prefix) {
   return REGISTRATION_UNKNOWN;
 }
 
+int merge_registration(int lte, int legacy) {
+  // A multimode modem can be registered or still searching on one network type while the other refuses it
+  if (is_registered(lte)) {
+    return lte;
+  }
+  if (is_registered(legacy)) {
+    return legacy;
+  }
+  // A definite answer from one query outweighs a timeout of the other
+  if (lte == REGISTRATION_SEARCHING || legacy == REGISTRATION_SEARCHING) {
+    return REGISTRATION_SEARCHING;
+  }
+  if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
+    return REGISTRATION_DENIED;
+  }
+  if (lte == REGISTRATION_NO_ANSWER || legacy == REGISTRATION_NO_ANSWER) {
+    return REGISTRATION_NO_ANSWER;
+  }
+  if (lte == REGISTRATION_UNSUPPORTED && legacy == REGISTRATION_UNSUPPORTED) {
+    return REGISTRATION_UNSUPPORTED;
+  }
+  return lte >= 0 ? lte : (legacy >= 0 ? legacy : REGISTRATION_UNKNOWN);
+}
+
 bool reply_names_unsupported(const char *reply) {
   static constexpr char PREFIX[] = "+CME ERROR:";
   static constexpr char TEXT[] = "operation not supported";

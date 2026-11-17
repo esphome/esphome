@@ -12,8 +12,21 @@ enum class ReplyEnd : uint8_t {
   REPLY_END_ERROR,  // an ERROR, +CME ERROR: or +CMS ERROR: line
 };
 
-// Registration <stat> results beyond the 3GPP values
-static constexpr int REGISTRATION_UNKNOWN = -1;  // no readable answer
+// AT+CEREG? and AT+CREG? <stat> values
+static constexpr int REGISTRATION_NOT_SEARCHING = 0;
+static constexpr int REGISTRATION_HOME = 1;
+static constexpr int REGISTRATION_SEARCHING = 2;
+static constexpr int REGISTRATION_DENIED = 3;
+static constexpr int REGISTRATION_REPORTED_UNKNOWN = 4;
+static constexpr int REGISTRATION_ROAMING = 5;
+// Results beyond the 3GPP values
+static constexpr int REGISTRATION_UNKNOWN = -1;      // no readable answer
+static constexpr int REGISTRATION_UNSUPPORTED = -2;  // the query is not supported
+static constexpr int REGISTRATION_NO_ANSWER = -3;    // the query timed out
+
+inline bool is_registered(int registration) {
+  return registration == REGISTRATION_HOME || registration == REGISTRATION_ROAMING;
+}
 
 /// Add data to the reply in buf (size includes the terminator, len is the current length). With whole, data is
 /// everything received so far (UART) and replaces the reply; otherwise it is one new CMUX frame and is appended. A
@@ -30,6 +43,9 @@ size_t flatten_reply(char *reply, size_t len);
 /// The <stat> after the first comma of the "<n>,<stat>" line starting with prefix (+CREG: and friends), or
 /// REGISTRATION_UNKNOWN; a one-field line is an unsolicited notification and is skipped
 int registration_from_reply(const char *reply, const char *prefix);
+
+/// The state that tells most from the AT+CEREG? (LTE) and AT+CREG? (2G and 3G) results
+int merge_registration(int lte, int legacy);
 
 /// Whether an error reply says the command is not supported (+CME ERROR: 4 or its verbose text)
 bool reply_names_unsupported(const char *reply);

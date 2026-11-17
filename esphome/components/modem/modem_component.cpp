@@ -68,15 +68,6 @@ static constexpr uint8_t ATTACH_DIAG_EVERY = 4;
 static constexpr uint8_t ATTACH_UNKNOWN_POLLS = 15;  // about a minute of polls
 // AT+CGATT=1: SIMCom documents up to 75 s, but a SIM7080G that is not registered yet held it for 141 s
 static constexpr uint32_t ATTACH_TIMEOUT_MS = 150000;
-// AT+CEREG? <stat> values
-static constexpr int REGISTRATION_NOT_SEARCHING = 0;
-static constexpr int REGISTRATION_HOME = 1;
-static constexpr int REGISTRATION_SEARCHING = 2;
-static constexpr int REGISTRATION_DENIED = 3;
-static constexpr int REGISTRATION_REPORTED_UNKNOWN = 4;
-static constexpr int REGISTRATION_ROAMING = 5;
-static constexpr int REGISTRATION_UNSUPPORTED = -2;  // neither AT+CEREG nor AT+CREG
-static constexpr int REGISTRATION_NO_ANSWER = -3;    // a query timed out
 // SIM status polls that fail before a warning, and between repeats of it
 static constexpr uint8_t SIM_WARN_AFTER = 10;
 static constexpr uint8_t SIM_WARN_EVERY = 60;
@@ -111,10 +102,6 @@ static const LogString *registration_to_str(int registration) {
     return LOG_STR("not reported");
   }
   return RegistrationStrings::get_log_str(static_cast<uint8_t>(registration), RegistrationStrings::LAST_INDEX);
-}
-
-static bool is_registered(int registration) {
-  return registration == REGISTRATION_HOME || registration == REGISTRATION_ROAMING;
 }
 
 // Indexed by esp_modem::command_result
@@ -1121,25 +1108,7 @@ int ModemComponent::read_registration_() {
   if (is_registered(lte)) {
     return lte;
   }
-  const int legacy = this->read_stat_("AT+CREG?", "+CREG:");
-  // A multimode modem can be registered or still searching on one network type while the other refuses it
-  if (is_registered(legacy)) {
-    return legacy;
-  }
-  // A definite answer from one query outweighs a timeout of the other
-  if (lte == REGISTRATION_SEARCHING || legacy == REGISTRATION_SEARCHING) {
-    return REGISTRATION_SEARCHING;
-  }
-  if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
-    return REGISTRATION_DENIED;
-  }
-  if (lte == REGISTRATION_NO_ANSWER || legacy == REGISTRATION_NO_ANSWER) {
-    return REGISTRATION_NO_ANSWER;
-  }
-  if (lte == REGISTRATION_UNSUPPORTED && legacy == REGISTRATION_UNSUPPORTED) {
-    return REGISTRATION_UNSUPPORTED;
-  }
-  return lte >= 0 ? lte : (legacy >= 0 ? legacy : REGISTRATION_UNKNOWN);
+  return merge_registration(lte, this->read_stat_("AT+CREG?", "+CREG:"));
 }
 
 void ModemComponent::not_responding_(int baud) {
