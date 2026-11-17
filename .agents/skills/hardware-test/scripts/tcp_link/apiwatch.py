@@ -1,7 +1,8 @@
 """apiwatch.py HOST PORT SECONDS [LOGFILE] (API_KEY in the env): print every state change of a device's entities with a
 timestamp, starting with the states sent on connect (missing_state shows as 'unknown'). Used to check the tcp link's
 `connected` binary sensor reads OFF before the first connection, not unknown. With LOGFILE, the device's log lines
-(INFO and above, no colours) go there too. Exits 1 when the API connection drops during the watch."""
+(DEBUG and above, the level of the CONN and ETRX markers, no colours) go there too. Exits 1 when the API connection
+drops during the watch."""
 
 import asyncio
 import pathlib
@@ -41,7 +42,7 @@ async def main():
     if LOGFILE:
         logs = pathlib.Path(LOGFILE).open("w", encoding="utf-8", buffering=1)  # noqa: SIM115
         c.subscribe_logs(
-            lambda m: logs.write(log_text(m) + "\n"), log_level=LogLevel.LOG_LEVEL_INFO
+            lambda m: logs.write(log_text(m) + "\n"), log_level=LogLevel.LOG_LEVEL_DEBUG
         )
     await asyncio.sleep(SECS)
     if lost.is_set():

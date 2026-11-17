@@ -18,8 +18,9 @@ Files in `scripts/tcp_link/`:
   reconnect), `--oversize-after S N` sends a header of N bytes (must close), `--send 1,1022` sends checked sizes,
   `--bind ADDR` picks the source address, `--hold S` closes after S. Prints keep-alive gap min/max per connection.
 - `apiwatch.py HOST PORT SECS [LOGFILE]` (`API_KEY` from `apikey.txt`): state changes with timestamps from connect;
-  shows the `connected` sensors read False (not unknown) at boot, and writes the device's log lines to LOGFILE. The API
-  coalesces a fast off/on, so judge edges from the `CONN` log lines.
+  shows the `connected` sensors read False (not unknown) at boot, and writes the device's log lines at DEBUG and above
+  (the level of the `CONN` and `ETRX` markers) to LOGFILE. The API coalesces a fast off/on, so judge edges from the
+  `CONN` log lines.
 - `run_pair.sh host|esp32 [RUN]`: the timeline (boot states, SIGSTOP/SIGCONT of the host peer, kill -9 and restart,
   silent and oversize raw servers, one client at a time, a refused client, oversize from a client) against host build
   `tcph1` (peer `tcph2`, refused client from the LAN address; `LAN` overrides the macOS `ipconfig` guess) or the ESP32
