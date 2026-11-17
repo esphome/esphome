@@ -5,4 +5,12 @@ sensor:
     current:
       name: CSE7766 Current
     power:
-      name: CSE776 Power
+      name: CSE7766 Power
+    energy:
+      name: CSE7766 Energy
+    apparent_power:
+      name: CSE7766 Apparent Power
+    reactive_power:
+      name: CSE7766 Reactive Power
+    power_factor:
+      name: CSE7766 Power Factor

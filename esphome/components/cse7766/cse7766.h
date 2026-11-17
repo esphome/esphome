@@ -7,8 +7,6 @@
 
 namespace esphome::cse7766 {
 
-static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
-
 class CSE7766Component final : public Component, public uart::UARTDevice {
   SUB_SENSOR(voltage)
   SUB_SENSOR(current)
@@ -23,14 +21,13 @@ class CSE7766Component final : public Component, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  bool check_byte_();
-  void parse_data_();
-  uint32_t get_24_bit_uint_(uint8_t start_index) const {
-    return encode_uint24(this->raw_data_[start_index], this->raw_data_[start_index + 1],
-                         this->raw_data_[start_index + 2]);
-  }
+  static constexpr size_t RAW_DATA_SIZE = 24;
 
-  uint8_t raw_data_[CSE7766_RAW_DATA_SIZE];
+  bool check_byte_(uint8_t index, uint8_t byte) const;
+  /// Returns false when the frame reports an error instead of measurements.
+  bool parse_data_();
+
+  uint8_t raw_data_[RAW_DATA_SIZE];
   uint8_t raw_data_index_{0};
   uint16_t cf_pulses_last_{0};
   uint32_t last_transmission_{0};
