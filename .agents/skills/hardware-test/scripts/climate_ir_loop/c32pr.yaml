@@ -1,5 +1,0 @@
-substitutions:
-  name: c32pr
-packages:
-  common: !include c-common.yaml
-  board: !include esp32-ir.yaml

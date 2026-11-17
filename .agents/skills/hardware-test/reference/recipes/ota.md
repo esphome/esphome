@@ -104,13 +104,3 @@ Gotchas: an ESP-IDF image can contain `E7 02` at a 4 KiB boundary by chance; fin
 instead of "no signature block": the partition still holds the old signature sector past the new image's end.
 
 Results: https://github.com/esphome/esphome/pull/22398#issuecomment-6716330334
-
-## ESP8266 web_server OTA interruption and SSE (#22682)
-
-`scripts/web_server/async_bump/otacases.py` (README there). Facts from a D1 mini on dev and on ESPAsyncWebServer 3.12.1:
-- A cut upload logs `OTA upload interrupted; aborting`, keeps the old image and serves again within a second; the
-  next full upload works without waiting for a lock release. No heap lost per cut.
-- Uploads stop by themselves on the network about 1 in 6 to 1 in 15 (curl `000`, old image kept), and about 1 in 25
-  boots the new image while curl never gets the reply (it waits 30 to 60 s). Both builds; classify, do not fail on it.
-- At OTA reboot the device does not close `/events`: a held client sees silence, rarely a FIN. Detect by idle time.
-- Max free block drops from about 45 kB to about 37 kB after the first OTA and stays (both builds).

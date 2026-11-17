@@ -8,7 +8,6 @@ Exits 1 on a reboot, no idle heap reading, no recovery in the window, or when fe
 """
 
 import base64
-import contextlib
 import json
 import socket
 import sys
@@ -53,11 +52,6 @@ def bad_once() -> str:
             d = b""
             while b"\r\n" not in d and (r := s.recv(64)):
                 d += r
-            # drain to EOF so the device closes first (its TIME_WAIT is what this test loads), not an RST from us
-            s.settimeout(2)
-            with contextlib.suppress(TimeoutError):
-                while s.recv(512):
-                    pass
         return d.split(b" ", 2)[1].decode() if d.startswith(b"HTTP") else "closed"
     except Exception as e:  # noqa: BLE001
         return type(e).__name__

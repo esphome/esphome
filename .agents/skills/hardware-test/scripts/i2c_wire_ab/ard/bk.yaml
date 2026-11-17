@@ -1,6 +1,0 @@
-bk72xx:
-  board: xh-wb3s  # set your board
-ads1115:
-  - address: 0x48
-    id: dev
-    i2c_id: bus_hw

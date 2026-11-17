@@ -32,14 +32,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Cover positions and other restored entity state live in RTC memory by default, so they survive `erase_flash`
   and a dev build's state carries into the next build's first boot. Set `esp8266: restore_from_flash: true` on A/B
   configs that erase between builds.
-- The ROM `rijndaelKeySetupEnc` at 0x40009300 builds a correct 128-bit schedule (FIPS-197 A.1 words match) but does not
-  return the round count, so the SDK's `aes_encrypt` loops on garbage rounds and the board Soft WDT resets in
-  `rijndaelEncrypt`. Do not `--defsym` it over the libcrypto copy; a wrapper in the SDK signature (returns -1 unless
-  128 bits, calls the ROM, returns 10) passed the FIPS vectors and a WPA2 soft AP join.
-- A CH340 D1 mini can give garbage at 921600 baud; `logger: baud_rate: 460800` with `serial_capture.py --baud 460800`
-  carries long `dump: raw` frames cleanly.
-- Opening a CH340 port resets the boards that wire RTS to reset, even with `--released`; the first boot in a capture
-  can be that reset.
 
 ## ESP32 classic devkit
 
@@ -98,8 +90,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   to UART0 instead (see `recipes/light_sleep_gpio_wake.md`).
 - The Waveshare ESP32-P4-WIFI6 needs `engineering_sample: true`. Its Wi-Fi is an ESP32-C6 over SDIO through
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
-- ESP32-S3: GPIO43/44 cannot be used to cross-wire two UARTs: the UART0 IOMUX TX is lost when another UART takes the
-  pad as RX. TX17/RX16 and TX16/RX17 work. A task woken by `vTaskDelay` runs about 0.5 ms after the tick, on dev too.
 
 ## ESP32-C2 (ESP8684, 26 MHz crystal)
 
@@ -152,8 +142,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `--keep-dtr`) sees silence.
 - Powering a breakout from the Pico: use 3V3(OUT), pin 36. Pin 37 is 3V3_EN, which switches the Pico off when pulled
   low.
-- W5100S-EVB-Pico with its USB attached shows a CDC port (`2e8a:1027`) while it runs ESPHome, so `esphome upload
-  --device <that port>` (picotool) flashes it with or without `interrupt_pin`.
 
 ## BW15 kit (RTL8720CF, LibreTiny rtl87xx)
 
@@ -201,8 +189,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A config with no Wi-Fi network and no `ap:` resets about 10 s into setup when it has `web_server:` (dev too):
   `web_server` setup blocks with no interface up, and no crash record is left. VERBOSE logs show the last
   `Setup <component>` line.
-- A BW15 kit whose CH340 drops off the bus at "Initializing WIFI" on every boot (a boot loop on any image) is short of
-  USB power: use another hub port or a powered hub. Read the results over API logs between resets meanwhile.
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -254,9 +240,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   ... !=`) and the old image stays.
 - Power save: on the BK7238, `power_save_mode: light` with LibreTiny 1.14.0 gives ping times of 3 to 6 s because
   the BDK sets a listen interval of 30 beacons when `CFG_LOW_VOLTAGE_PS` is 1 (esphome#19491).
-- LibreTiny's builder adds `-D'delay(ms)=delayMilliseconds(ms)'`, so `esphome::delay` is really
-  `esphome::delayMilliseconds` on BK72xx and a YAML lambda calling `delay()` fails to compile on dev. In a header use
-  `(esphome::micros)()` to dodge the `main.cpp` function-like macros.
 
 ## BW12 and other AmebaZ boards (RTL8710BX, LibreTiny rtl87xx)
 
@@ -540,15 +523,3 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - ADS1015: `sample_rate: 8` maps to 128 SPS at `12_BITS`.
 - A bus held low (`Performing bus recovery`, no devices found) on a new breakout can be a bad header joint; reflow
   it before blaming the driver.
-
-## Harness tricks and old releases
-
-- Protected members and methods can be reached from a test header listed in `esphome: includes:` with the explicit
-  instantiation access trick (`template struct Rob<Tag, &C::member>;`), even on `final` classes; declare the robbers at
-  global scope.
-- API driven light effects that write template outputs every loop (about 5k writes/s) can lag API commands by seconds:
-  wait for the API state to show each command before reading results.
-- Building ESPHome 2025.10.x (pioarduino ESP-IDF 5.4.2) from a path under `/tmp` on macOS fails with "Multiple ways to
-  build the same target" (the /tmp to /private/tmp alias); put the yaml, build and PLATFORMIO_CORE_DIR elsewhere. Its
-  IDF penv under Python 3.14 lacks the tools: install `-r packages/framework-espidf/tools/requirements/requirements.core.txt`,
-  then pin `idf-component-manager~=2.1.0 esp-idf-kconfig~=2.5.0` (newer ones reject interface_version 3).
