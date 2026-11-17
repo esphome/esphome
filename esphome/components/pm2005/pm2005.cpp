@@ -52,10 +52,8 @@ void PM2005Component::setup() {
     this->measuring_value_index_ = 9;
   }
 
-  if (this->read(this->data_buffer_, 12) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read(this->data_buffer_, 12) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void PM2005Component::update() {

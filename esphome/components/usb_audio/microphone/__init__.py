@@ -24,11 +24,18 @@ USBAudioMicrophone = usb_audio_ns.class_(
 READ_PERIOD_MS = 20
 
 
+def _read_size(config: ConfigType) -> int:
+    """Bytes of audio in two read periods."""
+    return (
+        config[CONF_SAMPLE_RATE] * bytes_per_frame(config) * 2 * READ_PERIOD_MS // 1000
+    )
+
+
 def validate_buffer_size(config: ConfigType) -> ConfigType:
     """The driver buffer must hold the audio that arrives between two reads, with room to spare."""
-    bytes_per_second = config[CONF_SAMPLE_RATE] * bytes_per_frame(config)
-    min_size = bytes_per_second * 2 * READ_PERIOD_MS // 1000
-    return apply_buffer_size(config, min_size, f"{2 * READ_PERIOD_MS} ms of audio")
+    return apply_buffer_size(
+        config, _read_size(config), f"{2 * READ_PERIOD_MS} ms of audio"
+    )
 
 
 CONFIG_SCHEMA = cv.All(
@@ -47,7 +54,10 @@ FINAL_VALIDATE_SCHEMA = final_validate_one_per_hub("microphone")
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(
-        config[CONF_ID], stream_info(config), config[CONF_BUFFER_SIZE]
+        config[CONF_ID],
+        stream_info(config),
+        config[CONF_BUFFER_SIZE],
+        cg.static_buffer(config[CONF_ID], cg.uint8, _read_size(config)),
     )
     await cg.register_component(var, config)
     await microphone.register_microphone(var, config)

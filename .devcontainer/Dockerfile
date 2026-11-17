@@ -1,4 +1,4 @@
-ARG BUILD_BASE_VERSION=2026.06.1
+ARG BUILD_BASE_VERSION=2026.11.0
 
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base
@@ -7,6 +7,7 @@ RUN git config --system --add safe.directory "*"
 
 RUN apt update \
     && apt install -y \
+      libmbedtls-dev \
       protobuf-compiler
 
 RUN pip install uv

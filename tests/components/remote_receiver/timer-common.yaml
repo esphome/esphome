@@ -1,0 +1,23 @@
+remote_receiver:
+  id: rcvr
+  pin:
+    number: P14
+    mode: INPUT_PULLUP
+    inverted: true
+  sampling: timer
+  sample_period: 50us
+  filter: 100us
+  buffer_size: 2kb
+  dump: [nec, raw]
+  on_nec:
+    then:
+      - logger.log:
+          format: "NEC address=0x%04X command=0x%04X"
+          args: [x.address, x.command]
+
+binary_sensor:
+  - platform: remote_receiver
+    name: NEC Remote Input
+    nec:
+      address: 0xEF00
+      command: 0xFE01

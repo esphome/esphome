@@ -85,10 +85,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Extract the values
     build_src_dir = component.data.get("build", {}).get("srcDir", None)
     if not build_src_dir:
-        for d in ["src", "Src", "."]:
-            if (read_path / Path(d)).is_dir():
-                build_src_dir = d
-                break
+        # read_path always exists (checked when the library is downloaded)
+        build_src_dir = next(
+            (d for d in ("src", "Src") if (read_path / d).is_dir()), "."
+        )
 
     build_include_dir = component.data.get("build", {}).get(
         "includeDir", DEFAULT_BUILD_INCLUDE_DIR

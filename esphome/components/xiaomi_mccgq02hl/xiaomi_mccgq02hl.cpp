@@ -32,7 +32,7 @@ static constexpr uint16_t OBJ_DOOR_ALT = 0x1019;
 static constexpr uint16_t OBJ_BATTERY = 0x100A;
 static constexpr uint16_t OBJ_BATTERY_ALT = 0x4803;
 
-void XiaomiMCCGQ02HL::dump_config() {
+void XiaomiMCCGQ02HL::dump_child_config() {
   uint8_t mac[MAC_ADDRESS_SIZE];
   ble_device_base::uint64_to_mac_msb_first(this->address_, mac);
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -69,10 +69,8 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
 
     if (reading.open.has_value())
       this->publish_state(*reading.open);
-    if (reading.light.has_value() && this->light_binary_sensor_ != nullptr)
-      this->light_binary_sensor_->publish_state(*reading.light);
-    if (reading.battery_level.has_value() && this->battery_level_sensor_ != nullptr)
-      this->battery_level_sensor_->publish_state(*reading.battery_level);
+    publish_optional(this->light_binary_sensor_, reading.light);
+    publish_optional(this->battery_level_sensor_, reading.battery_level);
     success = true;
   }
   return success;

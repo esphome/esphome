@@ -3,9 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
-#ifdef USE_WIFI
+#if defined(USE_WIFI) && defined(USE_TEXT_SENSOR)
+#include "esphome/components/text_sensor/text_sensor.h"
 #include <array>
 #include <span>
 
