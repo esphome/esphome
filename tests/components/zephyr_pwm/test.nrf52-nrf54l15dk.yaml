@@ -1,14 +1,11 @@
-# nRF54L15 DK: PWM20 to PWM22 serve port 1 only
+# nRF54L15 DK: PWM20 to PWM22 serve port 1 only. P1.04 to P1.07 are the console UART
 output:
   - platform: zephyr_pwm
     id: pwm_output_1
-    pin: P1.04
-  - platform: zephyr_pwm
-    id: pwm_output_2
     pin:
-      number: P1.05
+      number: P1.15
       inverted: true
   - platform: zephyr_pwm
-    id: pwm_output_3
-    pin: P1.06
+    id: pwm_output_2
+    pin: P1.16
     frequency: 2kHz

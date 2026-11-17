@@ -42,9 +42,12 @@ def _get_variant_pwm() -> VariantPWM:
     return VARIANT_PWM.get(get_nrf52_variant(), DEFAULT_PWM)
 
 
-def _validate_pin_power_domain(config: ConfigType) -> ConfigType:
-    """Reject nRF54L pins outside the power domain of the PWM instances."""
-    if (ports := _get_variant_pwm().ports) is None:
+def _validate_variant(config: ConfigType) -> ConfigType:
+    """Reject chips without PWM, and nRF54L pins outside the power domain of the PWM instances."""
+    variant_pwm = _get_variant_pwm()
+    if not variant_pwm.labels:
+        raise cv.Invalid(f"{get_nrf52_variant()} has no PWM peripheral")
+    if (ports := variant_pwm.ports) is None:
         return config
     port, pin = divmod(config[CONF_PIN][CONF_NUMBER], 32)
     if port not in ports:
@@ -66,7 +69,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_nrf52,
-    _validate_pin_power_domain,
+    _validate_variant,
 )
 
 PWM_CHANNELS_PER_BLOCK = 4

@@ -52,6 +52,7 @@ class VariantPWM(NamedTuple):
 
 # PWM instances of the chips that do not have pwm0 to pwm3
 VARIANT_PWM = {
+    VARIANT_NRF51822: VariantPWM((), None),
     VARIANT_NRF52832: VariantPWM(("pwm0", "pwm1", "pwm2"), None),
     VARIANT_NRF54L15: VariantPWM(("pwm20", "pwm21", "pwm22"), (1,)),
     VARIANT_NRF54LM20: VariantPWM(("pwm20", "pwm21", "pwm22"), (1, 3)),
