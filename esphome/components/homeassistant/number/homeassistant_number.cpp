@@ -36,7 +36,7 @@ optional<float> HomeassistantNumber::parse_attribute_(const char *name, StringRe
   return number;
 }
 
-void HomeassistantNumber::setup() {
+void HomeassistantNumber::subscribe() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
                                                          [this](StringRef state) { this->state_changed_(state); });
 
@@ -58,8 +58,6 @@ void HomeassistantNumber::dump_config() {
   LOG_NUMBER("", "Homeassistant Number", this);
   ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_);
 }
-
-float HomeassistantNumber::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantNumber::control(float value) {
   if (!can_send_action(TAG, this->entity_id_, this))

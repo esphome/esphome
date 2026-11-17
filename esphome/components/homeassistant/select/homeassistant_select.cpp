@@ -13,7 +13,7 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
-void HomeassistantSelect::setup() {
+void HomeassistantSelect::subscribe() {
   // Subscribe to the options first: Home Assistant answers subscriptions in order, so the options are
   // known by the time the first state arrives.
   api::global_api_server->subscribe_home_assistant_state(
@@ -107,8 +107,6 @@ void HomeassistantSelect::dump_config() {
                 "  Options buffer size: %u",
                 this->entity_id_, this->max_options_, this->options_buffer_size_);
 }
-
-float HomeassistantSelect::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 void HomeassistantSelect::control(size_t index) {
   if (!can_send_action(TAG, this->entity_id_, this))

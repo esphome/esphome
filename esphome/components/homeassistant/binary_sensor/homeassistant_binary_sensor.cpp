@@ -8,7 +8,7 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.binary_sensor");
 
-void HomeassistantBinarySensor::setup() {
+void HomeassistantBinarySensor::subscribe() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
     auto val = parse_on_off(state.c_str());
     if (val != PARSE_ON && val != PARSE_OFF) {
@@ -36,6 +36,5 @@ void HomeassistantBinarySensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Attribute: '%s'", this->attribute_);
   }
 }
-float HomeassistantBinarySensor::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 }  // namespace esphome::homeassistant

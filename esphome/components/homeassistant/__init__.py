@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ATTRIBUTE, CONF_ENTITY_ID, CONF_ID, CONF_INTERNAL
@@ -13,6 +14,14 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@OttoWinter", "@esphome/core"]
 DOMAIN = "homeassistant"
 homeassistant_ns = cg.esphome_ns.namespace("homeassistant")
+
+# The API server subscribes the imported entities in its setup() and prints their dumps
+IMPORT_SUBSCRIBE = cg.HubFunction(
+    "homeassistant_subscribe", cg.void, [], define="USE_API_HOMEASSISTANT_IMPORTS"
+)
+IMPORT_DUMP = cg.HubFunction(
+    "homeassistant_dump", cg.void, [], define="USE_API_HOMEASSISTANT_IMPORTS"
+)
 
 
 def validate_entity_domain(
@@ -97,3 +106,12 @@ def setup_home_assistant_entity(
         if data.state_subscription_count == 0:
             CORE.add_job(_emit_state_subscription_count_define)
         data.state_subscription_count += state_subscription_count
+
+
+async def register_home_assistant_import(var: MockObj) -> None:
+    """Attach an imported entity to the API server, which subscribes it and prints its dump."""
+    from esphome.components.api import DOMAIN as API_DOMAIN
+
+    api = await cg.get_variable(CORE.config[API_DOMAIN][CONF_ID])
+    IMPORT_SUBSCRIBE.add(api, parent_ref(var).subscribe())
+    IMPORT_DUMP.add(api, parent_ref(var).dump_config())
