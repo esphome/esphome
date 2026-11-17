@@ -46,9 +46,8 @@ class VariantPWM(NamedTuple):
     """The PWM instances of a chip and the GPIO ports their pins may use."""
 
     labels: tuple[str, ...]  # Devicetree node labels
-    ports: (
-        tuple[int, ...] | None
-    )  # GPIO ports in the same power domain, None for any port
+    # GPIO ports in the same power domain, None for any port
+    ports: tuple[int, ...] | None
 
 
 # PWM instances of the chips that do not have pwm0 to pwm3
