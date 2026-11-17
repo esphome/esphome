@@ -29,7 +29,9 @@ COMFORT_TEMPERATURE_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=0x12): cv.one_of(0x12, 0x13, 0x14, int=True),
+            cv.Optional(CONF_ADDRESS, default=0x12): cv.one_of(
+                0x12, 0x13, 0x14, int=True
+            ),
         }
     )
     .extend(DUCO_COMPONENT_SCHEMA)
@@ -46,6 +48,7 @@ CONFIG_SCHEMA = cv.Any(
         }
     ),
 )
+
 
 async def to_code(config: ConfigType) -> None:
     for entity_config in config.get(CONF_COMFORT_TEMPERATURE, [config]):

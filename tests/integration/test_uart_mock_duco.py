@@ -142,14 +142,16 @@ async def test_uart_mock_duco(
         client.number_command(comfort_zone_1.key, 23.1)
         await waiter.wait_for("Comfort address 13 set to 231")
         await wait_for(
-            lambda: state_of(comfort_zone_1) == pytest.approx(23.1), "new zone 1 comfort"
+            lambda: state_of(comfort_zone_1) == pytest.approx(23.1),
+            "new zone 1 comfort",
         )
         assert state_of(comfort_zone_2) == pytest.approx(21.2)
 
         client.number_command(comfort_zone_2.key, 24.2)
         await waiter.wait_for("Comfort address 14 set to 242")
         await wait_for(
-            lambda: state_of(comfort_zone_2) == pytest.approx(24.2), "new zone 2 comfort"
+            lambda: state_of(comfort_zone_2) == pytest.approx(24.2),
+            "new zone 2 comfort",
         )
         assert state_of(comfort_zone_1) == pytest.approx(23.1)
         assert state_of(comfort) == pytest.approx(22.3)
