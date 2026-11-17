@@ -13,12 +13,14 @@ timeout, reconnects and oversized-length handling can be read from the output.
   --bind ADDR         source address (client)
   --once              client: do not reconnect after a close
   --hold S            client: close after S seconds of connection (0 = keep)
+Exits 1 when no connection was made, or when the peer stayed connected after --oversize-after.
 """
 
 import argparse
 import contextlib
 import socket
 import struct
+import sys
 import threading
 import time
 
@@ -41,10 +43,15 @@ def recv_exact(sock, n):
     return buf
 
 
+# what the exit status checks: connections made, and whether the peer closed after an oversize header
+RESULT = {"conns": 0, "over_closed": False}
+
+
 def run_conn(sock, tag, args, first):
     start = time.monotonic()
     stop = threading.Event()
-    stats = {"frames": 0, "ka": [], "sizes": [], "last_ka": None}
+    stats = {"frames": 0, "ka": [], "sizes": [], "last_ka": None, "over": False}
+    RESULT["conns"] += 1
 
     def sender():
         last = 0.0
@@ -62,7 +69,7 @@ def run_conn(sock, tag, args, first):
                 ):
                     sock.sendall(struct.pack("<H", int(args.oversize_after[1])))
                     log(tag, "SENT oversize header", int(args.oversize_after[1]))
-                    over_done = True
+                    over_done = stats["over"] = True
                 if not silent and not sent_sizes and args.send:
                     for seq, size in enumerate(int(x) for x in args.send.split(",")):
                         payload = bytes([seq & 0xFF, seq >> 8]) + bytes(
@@ -144,6 +151,8 @@ def run_conn(sock, tag, args, first):
         tag,
         f"CLOSE after {dur:.2f}s: {reason}; frames={stats['frames']} data={len(stats['sizes'])} {kas}",
     )
+    if stats["over"] and reason != "duration":
+        RESULT["over_closed"] = True
     with contextlib.suppress(OSError):
         sock.close()
 
@@ -205,6 +214,10 @@ def main():
             ).start()
         ls.close()
         time.sleep(0.6)
+    if not RESULT["conns"]:
+        sys.exit("FAIL no connection")
+    if args.oversize_after and not RESULT["over_closed"]:
+        sys.exit("FAIL the peer did not close after the oversize header")
 
 
 if __name__ == "__main__":

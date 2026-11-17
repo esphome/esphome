@@ -162,6 +162,8 @@ async def main():
             "fast38": (38400, 1, 20000, 135000, 50),
             "fast100": (100000, 0, 50000, 325000, 20),
         }
+        if MODE not in (*rates, "fast"):
+            sys.exit(f"unknown mode {MODE}")
         for key in [MODE] if MODE in rates else list(rates):
             sr, mod, dev, bw, poll = rates[key]
             for d in (tx, rx):
@@ -447,6 +449,8 @@ async def main():
             rx_len=-1,
             tx_len=40,
         )
+    else:
+        sys.exit(f"unknown mode {MODE}")
     for d in (tx, rx):
         warn = [line for line in d.lines if "[W]" in line or "[E]" in line]
         print(f"{d.tag} warnings/errors: {len(warn)}", *warn[:10], sep="\n  ")

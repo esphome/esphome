@@ -33,7 +33,9 @@ inline void fifo(CC1101Component *c, const uint8_t *d, size_t n) {
   c->disable();
 }
 // Datasheet 15.2.2: infinite mode with PKTLEN = n mod 256, fixed mode once fewer than 256 bytes remain.
-// Returns 0 on success, 1 on an early underflow, 2 on a timeout.
+// Returns 0 on success, 1 on an early underflow, 2 on a timeout, 3 on an underflow after the last byte in fixed length
+// mode (the switch from infinite mode came too late). A length that is a multiple of 256 stays in infinite mode and
+// ends on the underflow after its last byte.
 inline int long_tx(CC1101Component *c, const uint8_t *d, size_t n, uint32_t poll_us = 300) {
   c->set_idle();
   const uint8_t p0 = rd(c, 0x08), plen = rd(c, 0x06);
@@ -51,6 +53,8 @@ inline int long_tx(CC1101Component *c, const uint8_t *d, size_t n, uint32_t poll
     if (tb & 0x80) {
       if (w < n)
         err = 1;
+      else if (!inf)
+        err = 3;
       break;
     }
     tb &= 0x7F;

@@ -1,7 +1,8 @@
 """compare_spi.py BASE PR: compare two SX127x SPI record files (sx127x_spi_record_test.cpp or the device sim).
 
 Each file is a host record file or a device serial log with sxrec.hpp's "REC ..." lines (the log prefix is cut at
-"REC " and "REC +" continuation lines are joined).
+"REC " and "REC +" continuation lines are joined). A hardware bus log fails when its WIRE line counts differing or
+uncaptured chip select windows.
 
 Register files and FIFO bytes must match exactly. Each transaction is flattened into per-register operations with
 burst auto-increment (the FIFO address 0x00 does not move); the flattened streams must match, so the raw streams can
@@ -31,6 +32,16 @@ def lines(path: str) -> list[str]:
             else:
                 rec.append(body)
     return rec or plain
+
+
+def wire_check(path: str) -> None:
+    """A hardware bus log (rechw) must show every chip select window captured and equal to what the driver sent."""
+    text = pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
+    for m in re.finditer(
+        r"WIRE ok=(\d+) differ=(\d+) over64=\d+ no_capture=(\d+)", text
+    ):
+        if int(m[2]) or int(m[3]):
+            sys.exit(f"{path}: wire check failed: {m[0]}")
 
 
 def parse(path: str) -> dict[str, dict]:
@@ -88,6 +99,8 @@ def burst_shape(transactions: list[list[int]]) -> Counter:
 
 
 def main() -> None:
+    for path in sys.argv[1:3]:
+        wire_check(path)
     base, pr = parse(sys.argv[1]), parse(sys.argv[2])
     if base.keys() != pr.keys():
         print("only in base:", sorted(base.keys() - pr.keys()))

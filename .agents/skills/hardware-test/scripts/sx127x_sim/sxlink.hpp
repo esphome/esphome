@@ -89,7 +89,7 @@ struct Ctx {
 static int step = 0, sub = 0;
 static uint32_t next_ms = 0, t0 = 0, cnt = 0, cnt2 = 0, first_ok = 0, over0 = 0;
 static float want = NAN;
-static uint32_t fails = 0;  // values that never arrived, refused sends of valid sizes, held sends never released
+static uint32_t fails = 0;  // values that never arrived, wrong send results, held sends never released
 static sensor::Sensor *watch_s = nullptr;
 static const char *watch_name = "";
 
@@ -187,8 +187,8 @@ inline void run() {
         WAIT(30);
         return;
       }
-      if (!ok && len <= MAXP)
-        fails++;
+      if (ok != (len <= MAXP))
+        fails++;  // a valid size refused, or an oversize one accepted
       ESP_LOGI(TAG, "RES send size %u -> %s after %u refusals", len, ok ? "sent" : "refused", (unsigned) cnt);
       cnt = 0;
       sub++;
@@ -219,6 +219,8 @@ inline void run() {
         static uint8_t big[256];
         fill(big, MAXP);
         const bool ok = C.b_async(big, MAXP);
+        if (!ok)
+          fails++;  // nothing on air, so the listen before talk check below proves nothing
         ESP_LOGI(TAG, "RES peer async %u bytes -> %d airtime=%uus", MAXP, ok, (unsigned) C.mb->last_tx_air_us);
       }
       t0 = millis();
@@ -269,6 +271,8 @@ inline void run() {
         cnt++;
       }
       if (el > 5000) {
+        if (cnt2 == 0)
+          fails++;
         ESP_LOGI(TAG, "RES hold end releases=%u loop_idle_while_jammed=%d", (unsigned) cnt2, C.raw_a->is_idle());
         sxair::unjam(C.ma);
         NEXT();

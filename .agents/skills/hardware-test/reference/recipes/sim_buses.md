@@ -146,8 +146,9 @@ lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared 
   layered links talk; retry. Raw test packets start with 0xEE and carry a length-derived pattern.
 - `tx_over_signal` counts sends started while the sender showed a signal: 0 outside the hold cap phase means listen
   before talk never sent over a packet.
-- The run ends with `DONE fails=N`: values that never arrived, refused sends of valid sizes, held sends never released
-  and raw packets with a bad pattern. `AIR` lines also count FSK FIFO writes dropped when full and reads when empty
+- The run ends with `DONE fails=N`: values that never arrived, refused sends of valid sizes, accepted oversize sends, a
+  refused peer send in the listen before talk phase, held sends never released, no release in the hold cap phase and
+  raw packets with a bad pattern. `AIR` lines also count FSK FIFO writes dropped when full and reads when empty
   (`fifo_over`, `fifo_under`).
 
 ## SX127x SPI byte stream A/B (#22776)
@@ -165,5 +166,5 @@ lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared 
   keeps the tee. SPI3 as a slave sniffer (CLK 18, MOSI 23, CS 5 routed in, nominal CS GPIO14 high) captures each chip
   select window up to 64 bytes and compares it with what the driver sent ("WIRE ok/differ" line). Records print as
   "REC ..." lines; compare_spi.py reads the two device logs directly (it cuts each line at "REC " and joins the
-  "REC +" continuation lines). The host harness keeps its own register file and pins, so the copy step stays one
-  file.
+  "REC +" continuation lines) and fails a log whose WIRE line counts differing or uncaptured windows. The host
+  harness keeps its own register file and pins, so the copy step stays one file.
