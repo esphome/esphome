@@ -18,8 +18,13 @@ for _ in $(seq 1 60); do
 done
 [ -z "$IP" ] && { echo "no IP in $N-ser.txt"; pkill -f "[s]erial_capture.py $P "; exit 1; }
 sleep 3
-STEP_S=2.5 $PY drive.py "$IP" "${PRE[@]}" > "$N-pre.txt" 2>&1
-STEP_S=${STEP_S:-2.5} $PY drive.py "$IP" "${STEPS[@]}" > "$N-drive.txt" 2>&1
+STEP_S=2.5 $PY drive.py "$IP" "${PRE[@]}" > "$N-pre.txt" 2>&1; PRC=$?
+STEP_S=${STEP_S:-2.5} $PY drive.py "$IP" "${STEPS[@]}" > "$N-drive.txt" 2>&1; DRC=$?
 sleep 2; pkill -f "[s]erial_capture.py $P "; sleep 1
 echo "$N steps=$(grep -c STEP "$N-drive.txt") raw=$(LC_ALL=C grep -a -c 'Received Raw' "$N-ser.txt")" \
   "boots=$(LC_ALL=C grep -a -c 'Running through setup\|rst cause' "$N-ser.txt")"
+# a failed drive leaves a partial run: fail so frames.py and compare.py are not run on it
+if [ $PRC -ne 0 ] || [ $DRC -ne 0 ]; then
+  echo "$N drive failed: prelude rc=$PRC steps rc=$DRC (see $N-pre.txt, $N-drive.txt)"
+  exit 1
+fi

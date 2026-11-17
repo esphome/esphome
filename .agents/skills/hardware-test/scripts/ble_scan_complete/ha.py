@@ -20,7 +20,7 @@ _here = pathlib.Path(__file__).resolve().parent
 # apiconn.py: copied next to it, or the skill scripts dir
 sys.path[:0] = [str(_here), str(_here.parent)]
 
-from apiconn import connect, stop_event  # noqa: E402
+from apiconn import FATAL, connect, stop_event  # noqa: E402
 
 
 def main() -> None:
@@ -62,6 +62,9 @@ async def run(a: argparse.Namespace) -> None:
             c = await connect(a.host, tries=tries, on_stop=on_stop)
         except SystemExit as e:
             w(f"CONNECT FAILED {e}")
+            # a wrong key or a plaintext/Noise mismatch never recovers: stop instead of soaking without a client
+            if isinstance(e.__context__, FATAL):
+                raise
             await asyncio.sleep(5)
             continue
         w(f"CONNECTED session={session}")

@@ -1,4 +1,5 @@
 #pragma once
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <random>
@@ -184,31 +185,51 @@ static void rbh_generate(std::vector<RbhInput> &out) {
   }
 }
 
+static void rbh_fail(const char *what, const char *path) {
+  fprintf(stderr, "RBH_CORPUS %s: %s\n", what, path);
+  exit(1);
+}
+
+// RBH_CORPUS=<file>: replay the file when it exists, else generate a corpus and write it there. Any read, parse or
+// write error exits 1, so two builds never compare different inputs.
 static void rbh_run() {
   std::vector<RbhInput> in;
   const char *path = getenv("RBH_CORPUS");
+  errno = 0;
   FILE *f = path ? fopen(path, "rb") : nullptr;
+  if (path != nullptr && f == nullptr && errno != ENOENT)
+    rbh_fail("cannot open", path);
   if (f != nullptr) {
     char what[64];
     int mode;
     unsigned n;
-    while (fscanf(f, "%63s %d %u", what, &mode, &n) == 3) {
+    int got;
+    while ((got = fscanf(f, "%63s %d %u", what, &mode, &n)) == 3) {
+      if (mode < 0 || mode >= (int) (sizeof(RBH_MODES) / sizeof(RBH_MODES[0])))
+        rbh_fail("bad mode in", path);
       RawTimings raw(n);
-      for (auto &v : raw)
-        fscanf(f, "%d", &v);
+      for (auto &v : raw) {
+        if (fscanf(f, "%d", &v) != 1)
+          rbh_fail("truncated frame in", path);
+      }
       in.push_back({what, mode, raw});
     }
+    if (got != EOF || ferror(f) || in.empty())
+      rbh_fail("unreadable or empty", path);
     fclose(f);
   } else {
     rbh_generate(in);
-    if (path != nullptr && (f = fopen(path, "wb")) != nullptr) {
+    if (path != nullptr) {
+      if ((f = fopen(path, "wb")) == nullptr)
+        rbh_fail("cannot create", path);
       for (auto &x : in) {
         fprintf(f, "%s %d %u", x.what.c_str(), x.mode, (unsigned) x.raw.size());
         for (auto v : x.raw)
           fprintf(f, " %d", v);
         fprintf(f, "\n");
       }
-      fclose(f);
+      if (ferror(f) || fclose(f) != 0)
+        rbh_fail("write failed", path);
     }
   }
   int i = 0;

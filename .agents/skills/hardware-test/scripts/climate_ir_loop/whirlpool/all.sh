@@ -13,6 +13,8 @@ for mm in dg:DG11J1-3A hi:HITACHI_HCRA31NEWH hs:HISENSE_ARG; do
     printf 'substitutions:\n  name: %s\n  model: %s\npackages:\n  common: !include ../base.yaml\n  model: !include cl.yaml\n  board: !include ../esp8266-ir.yaml\n' \
       "$N" "${mm#*:}" > "$W/$N.yaml"
     echo "== $N"
+    # a skipped variant must not leave an older run's outputs behind for the comparison
+    rm -f "$L/$N-ser.txt" "$L/$N-pre.txt" "$L/$N-drive.txt" "$L/$N-frames.json"
     TREE=$T bash "$S/pio_build.sh" compile "$N" "$W/$N.yaml" || continue
     TREE=$T bash "$S/pio_build.sh" upload "$N" "$W/$N.yaml" "$P" || continue
     RPY=${PY:-$T/venv/bin/python}

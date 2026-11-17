@@ -90,11 +90,12 @@ void __wrap_btm_ble_timeout(void *p_tle) {
 
 void *__real_osi_alarm_new(const char *name, scan_inst_cb_t cb, void *data, uint64_t expire);
 void *__wrap_osi_alarm_new(const char *name, scan_inst_cb_t cb, void *data, uint64_t expire) {
-  // btu_start_timer's wrap records the scan entry before the real one creates its alarm
+  // btu_start_timer's wrap records the scan entry before the real one creates its alarm. Shim every alarm made for
+  // it, since Bluedroid may free and recreate it; they all use the same callback (btu_general_alarm_cb).
   portENTER_CRITICAL(&g_scan_inst_mux);
   void *scan_tle = g_scan_inst.scan_tle;
   portEXIT_CRITICAL(&g_scan_inst_mux);
-  if (data != nullptr && data == scan_tle && s_orig_cb == nullptr) {
+  if (data != nullptr && data == scan_tle) {
     s_orig_cb = cb;
     return __real_osi_alarm_new(name, scan_inst_shim, data, expire);
   }

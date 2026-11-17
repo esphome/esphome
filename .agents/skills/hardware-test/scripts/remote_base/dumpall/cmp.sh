@@ -3,7 +3,15 @@
 # with colours, timestamps and line numbers removed (../../lognorm.py). Writes db/dp/vb/vp.txt here.
 PY=${PY:-python3}; LN=$(cd "$(dirname "$0")/../.." && pwd)/lognorm.py
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-i=0; for f in "$1" "$2" "$3" "$4"; do i=$((i + 1)); "$PY" "$LN" "$f" | awk '/^INPUT /{f=1} f' > "$TMP/$i"; done
+[ $# -eq 4 ] || { echo "usage: cmp.sh BASE_DEBUG PR_DEBUG BASE_VERBOSE PR_VERBOSE"; exit 1; }
+i=0
+for f in "$1" "$2" "$3" "$4"; do
+  i=$((i + 1))
+  [ -s "$f" ] || { echo "missing or empty: $f"; exit 1; }
+  "$PY" "$LN" "$f" | awk '/^INPUT /{f=1} f' > "$TMP/$i"
+  # no INPUT line: the harness did not run, and two such files would compare as identical
+  [ -s "$TMP/$i" ] || { echo "no INPUT lines in $f"; exit 1; }
+done
 NSYM='s/^\[[DV]\]\[remote.beo4\]: Beo4: n_sym/[*][remote.beo4]: Beo4: n_sym/'
 sed -E "$NSYM" "$TMP/3" > vb.txt
 sed -E "$NSYM" "$TMP/4" > vp.txt
