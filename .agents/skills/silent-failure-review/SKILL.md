@@ -42,8 +42,8 @@ Moved code counts too: if the original had the same flaw, say so, but still repo
 changed or moved lines; unchanged callers are context. On a PR with earlier reviews, skip what they already
 raised.
 
-Before reporting a candidate, follow it to the line that proves it and quote that line. Drop it if you
-cannot confirm it.
+Before reporting a candidate, follow it to the line that proves it and quote that line. If you cannot
+confirm it, drop it or mark it as likely.
 
 ## Skip
 
@@ -57,6 +57,7 @@ One entry per finding, most severe first:
 
 - **HIGH / MEDIUM / LOW** - one-line title, `file:line`. HIGH: wrong result or lost data. MEDIUM: a
   misleading or delayed failure. LOW: affects only logs or diagnostics.
+- **Confidence:** confirmed, or likely and why it could not be confirmed.
 - **Risk:** the concrete input or state, and what the user sees.
 - **Fix:** the smallest change.
 - **Test:** the test that fails before the fix, or for on-device code, the steps to reproduce it on a board.
