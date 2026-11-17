@@ -1,8 +1,8 @@
 from typing import Any, Self
 
+from esphome.components.mipi import check_model_requirements
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_OFFSET_HEIGHT, CONF_WIDTH
-from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -15,6 +15,9 @@ def ultrachip_resolution(width: int, gates: int) -> tuple:
 class EpaperModel:
     models: dict[str, Self] = {}
 
+    # The C++ driver class; a subclass sets it for all its models, or one model passes class_name.
+    class_name: str = ""
+
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
 
@@ -25,14 +28,17 @@ class EpaperModel:
     def __init__(
         self,
         name: str,
-        class_name: str,
+        class_name: str | None = None,
         initsequence=(),
         source_files: tuple[str, ...] | None = None,
         **defaults,
     ):
+        if class_name is not None:
+            self.class_name = class_name
+        if not self.class_name:
+            raise ValueError(f"Model {name} has no class_name")
         name = name.upper()
         self.name = name
-        self.class_name = class_name
         self.initsequence = initsequence
         if source_files is not None:
             self.source_files = source_files
@@ -115,37 +121,20 @@ class EpaperModel:
         :param kwargs:
         :return:
         """
+        class_name = kwargs.pop("class_name", self.class_name)
+        source_files = kwargs.pop("source_files", self.source_files)
         initsequence = list(kwargs.pop("initsequence", self.initsequence) or ())
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
         defaults.update(kwargs)
-        model = self.__class__(name, initsequence=tuple(initsequence), **defaults)
-        # Subclass constructors do not all take these, so carry them over unless overridden
-        if "class_name" not in kwargs:
-            model.class_name = self.class_name
-        if "source_files" not in kwargs:
-            model.source_files = self.source_files
-        return model
+        return self.__class__(
+            name,
+            class_name=class_name,
+            initsequence=tuple(initsequence),
+            source_files=source_files,
+            **defaults,
+        )
 
     def check_requirements(self) -> None:
-        """
-        Raise a friendly error if any component this model requires is not configured.
-
-        This runs during schema validation (before ID references are resolved) so that a
-        model whose default pins live on a pin expander reports the missing expander clearly
-        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
-        """
-        if requirements := self.get_default("requires", set()):
-            # ``raw_config`` is populated before any component schema runs during a real
-            # validation, so presence of a required component is simply a top-level key.
-            # When it is absent (e.g. a unit test that invokes the schema directly) there
-            # is no config to check against, so skip.
-            global_config = CORE.raw_config
-            if global_config is None:
-                return
-            missing = {x for x in requirements if x not in global_config}
-            if missing:
-                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
-                raise cv.Invalid(
-                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
-                )
+        """Check that the components this model needs are configured, see check_model_requirements()."""
+        check_model_requirements(self.name, self.defaults)

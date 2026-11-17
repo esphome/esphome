@@ -37,8 +37,8 @@ namespace lockfree_internal {
 //    instructions (currently the ARMv5TE BK72xx SoCs — no LDREX/STREX, no
 //    libatomic; other LibreTiny chips such as LN882x/RTL87xx are ARMv7-M and
 //    keep std::atomic).
-//  - ESPHOME_THREAD_SINGLE: every platform on this model (ESP8266, RP2,
-//    nRF52) runs everything on one core (the chip may have more — RP2 is
+//  - ESPHOME_THREAD_SINGLE: every platform on this model (ESP8266, RP2)
+//    runs everything on one core (the chip may have more — RP2 is
 //    dual-core, but ESPHome and its interrupt producers stay on core 0), so
 //    the only possible concurrency is same-core interrupt preemption (on RP2
 //    the BTstack packet handler runs in the CYW43 async-context low-priority

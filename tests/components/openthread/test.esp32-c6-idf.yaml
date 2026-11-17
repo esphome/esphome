@@ -11,3 +11,6 @@ openthread:
   output_power: 1dBm
   core_options:
     OPENTHREAD_CONFIG_MAC_DEFAULT_MAX_FRAME_RETRIES_DIRECT: "5"
+
+ota:
+  - platform: esphome

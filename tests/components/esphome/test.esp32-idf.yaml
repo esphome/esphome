@@ -3,3 +3,10 @@ packages:
 
 esphome:
   suspend_loop: true
+  project:
+    name: esphome.test
+    version: "1.1"
+    sbom:
+      supplier: ESPHome Test
+      contact: security@example.com
+      url: https://example.com/security

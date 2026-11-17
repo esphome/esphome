@@ -1,0 +1,29 @@
+esphome:
+  name: i2cslave
+  libraries:
+    - Wire
+  includes:
+    - i2cslave.hpp
+  platformio_options:
+    board_build.f_cpu: 160000000L
+  on_boot:
+    priority: -100
+    then:
+      - lambda: i2cslave_begin();
+
+esp8266:
+  board: d1_mini
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+ota:
+  - platform: esphome
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: i2cslave_report();

@@ -79,9 +79,11 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_ID])
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_CURRENT_VOLUME_DOSED, hub.set_current_volume_dosed)
-    await sensors(CONF_LAST_VOLUME_REQUESTED, hub.set_last_volume_requested)
-    await sensors(CONF_TOTAL_VOLUME_DOSED, hub.set_total_volume_dosed)
-    await sensors(CONF_ABSOLUTE_TOTAL_VOLUME_DOSED, hub.set_absolute_total_volume_dosed)
-    await sensors(CONF_PUMP_VOLTAGE, hub.set_pump_voltage)
-    await sensors(CONF_MAX_FLOW_RATE, hub.set_max_flow_rate)
+    await sensors(CONF_CURRENT_VOLUME_DOSED, hub.set_current_volume_dosed_sensor)
+    await sensors(CONF_LAST_VOLUME_REQUESTED, hub.set_last_volume_requested_sensor)
+    await sensors(CONF_TOTAL_VOLUME_DOSED, hub.set_total_volume_dosed_sensor)
+    await sensors(
+        CONF_ABSOLUTE_TOTAL_VOLUME_DOSED, hub.set_absolute_total_volume_dosed_sensor
+    )
+    await sensors(CONF_PUMP_VOLTAGE, hub.set_pump_voltage_sensor)
+    await sensors(CONF_MAX_FLOW_RATE, hub.set_max_flow_rate_sensor)

@@ -13,7 +13,7 @@
 #include "esphome/core/static_task.h"
 
 #include <atomic>
-#include <vector>
+#include <span>
 
 namespace esphome::usb_audio {
 
@@ -22,7 +22,8 @@ class USBAudioMicrophone : public microphone::Microphone,
                            public Parented<USBAudioComponent>,
                            public USBAudioStream {
  public:
-  USBAudioMicrophone(const audio::AudioStreamInfo &stream_info, uint32_t buffer_size) : USBAudioStream(buffer_size) {
+  USBAudioMicrophone(const audio::AudioStreamInfo &stream_info, uint32_t buffer_size, std::span<uint8_t> frame)
+      : USBAudioStream(buffer_size), frame_(frame) {
     this->audio_stream_info_ = stream_info;
   }
 
@@ -57,9 +58,8 @@ class USBAudioMicrophone : public microphone::Microphone,
   void mic_task_loop_();
   void request_(uint8_t set, uint8_t clear);
 
-  // The data callback takes a std::vector, so this is reserved once in setup() and only ever resized within its
-  // capacity by the mic task.
-  std::vector<uint8_t> frame_;
+  // Sized by codegen from READ_PERIOD_MS in microphone/__init__.py.
+  std::span<uint8_t> frame_;
   // Created once in setup() and parked between streams.
   StaticTask mic_task_;
   std::atomic<uint8_t> commands_{0};

@@ -182,9 +182,17 @@ async def register_packet_transport(var: MockObj, config: ConfigType) -> set[str
     sensors = config.get(CONF_SENSORS, ())
     binary_sensors = config.get(CONF_BINARY_SENSORS, ())
     if sensors:
-        cg.add(var.set_sensor_count(len(sensors)))
+        storage = cg.static_storage(
+            config[CONF_ID], packet_transport_ns.struct("Sensor"), len(sensors)
+        )
+        cg.add(var.set_sensor_storage(storage))
     if binary_sensors:
-        cg.add(var.set_binary_sensor_count(len(binary_sensors)))
+        storage = cg.static_storage(
+            config[CONF_ID],
+            packet_transport_ns.struct("BinarySensor"),
+            len(binary_sensors),
+        )
+        cg.add(var.set_binary_sensor_storage(storage))
     for sens_conf in sensors:
         is_provider = True
         sens_id = sens_conf[CONF_ID]
@@ -205,8 +213,10 @@ async def register_packet_transport(var: MockObj, config: ConfigType) -> set[str
     return providers
 
 
-async def new_packet_transport(config: ConfigType) -> tuple[MockObj, set[str]]:
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_packet_transport(
+    config: ConfigType, *args: Any
+) -> tuple[MockObj, set[str]]:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_platform_name(config[CONF_PLATFORM]))
     providers = await register_packet_transport(var, config)
     return var, providers

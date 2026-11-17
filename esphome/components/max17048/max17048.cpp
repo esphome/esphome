@@ -8,41 +8,27 @@ namespace esphome::max17048 {
 
 ESPHOME_LOG_TAG(TAG, "max17048");
 
-static constexpr uint8_t REG_VCELL = 0x02;    // cell voltage
-static constexpr uint8_t REG_SOC = 0x04;      // state of charge
-static constexpr uint8_t REG_VERSION = 0x08;  // 0x001x
-static constexpr uint8_t REG_CRATE = 0x16;    // charge rate, signed
-
-static constexpr uint16_t VERSION_MASK = 0xFFF0;
-static constexpr uint16_t VERSION_FAMILY = 0x0010;
+static constexpr uint8_t REG_CRATE = 0x16;  // charge rate, signed
 
 static constexpr float VCELL_VOLTS_PER_LSB = 78.125e-6f;
 static constexpr float SOC_PERCENT_PER_LSB = 1.0f / 256.0f;
 static constexpr float CRATE_PERCENT_PER_HOUR_PER_LSB = 0.208f;
 
-void MAX17048Component::setup() {
-  uint16_t version;
-  if (!this->read_byte_16(REG_VERSION, &version)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-  if ((version & VERSION_MASK) != VERSION_FAMILY) {
-    ESP_LOGW(TAG, "Unexpected version 0x%04X", version);
-  }
-}
-
 void MAX17048Component::update() {
+  if (!this->ready_for_update_())
+    return;
+
   bool ok = true;
   uint16_t raw;
   if (this->battery_voltage_sensor_ != nullptr) {
-    if (this->read_byte_16(REG_VCELL, &raw)) {
+    if (this->read_byte_16(max170xx::REG_VCELL, &raw)) {
       this->battery_voltage_sensor_->publish_state(raw * VCELL_VOLTS_PER_LSB);
     } else {
       ok = false;
     }
   }
   if (this->battery_level_sensor_ != nullptr) {
-    if (this->read_byte_16(REG_SOC, &raw)) {
+    if (this->read_byte_16(max170xx::REG_SOC, &raw)) {
       this->battery_level_sensor_->publish_state(raw * SOC_PERCENT_PER_LSB);
     } else {
       ok = false;

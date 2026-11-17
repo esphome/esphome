@@ -141,6 +141,21 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_sees_pin_through_optional_pin_wrapper() -> None:
+    """A pin schema wrapped by PIN_SCHEMA_REGISTRY.optional() is still dumped as a pin."""
+    from esphome import pins
+
+    _bls.add_pin_validators()
+    schema = pins.gpio_output_pin_schema
+    expected: dict = {}
+    _bls.convert(schema, expected, "/test")
+    config_var: dict = {}
+    _bls.convert(pins.PIN_SCHEMA_REGISTRY.optional(schema), config_var, "/test")
+
+    assert expected["type"] == "pin"
+    assert config_var == expected
+
+
 def test_convert_emits_key_constraints() -> None:
     base = cv.Schema({cv.Optional("transport", default="tcp"): cv.string})
     schema = cv.All(
@@ -173,18 +188,21 @@ def test_convert_emits_key_constraints() -> None:
     ]
 
 
-def test_merge_keeps_base_and_local_constraints() -> None:
+def test_overlay_field_keeps_base_and_local_constraints() -> None:
     base = {"schema": {"constraints": [{"type": "key_requires", "keys": ["a"]}]}}
     local = {"schema": {"constraints": [{"type": "only_when", "keys": ["b"]}]}}
-    assert _bls.merge(base, local)["schema"]["constraints"] == [
+    assert _bls.overlay_field(local, base)["schema"]["constraints"] == [
         {"type": "key_requires", "keys": ["a"]},
         {"type": "only_when", "keys": ["b"]},
     ]
 
 
-def test_merge_enum_option_named_constraints() -> None:
+def test_overlay_field_enum_option_named_constraints() -> None:
     base = {"values": {"constraints": None}}
-    assert _bls.merge(base, {"values": {}}) == {"values": {"constraints": None}}
+    assert _bls.overlay_field({"key": "Optional"}, base) == {
+        "key": "Optional",
+        "values": {"constraints": None},
+    }
 
 
 def test_inline_schema_keeps_base_and_local_constraints() -> None:
@@ -339,6 +357,17 @@ def test_uart_clock_source_preserves_variant_metadata(
     assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
 
 
+def test_automation_with_one_extra_key_keeps_it(language_schema_dir: Path) -> None:
+    """A trigger whose only extra key is not trigger_id still lists that key."""
+    modbus_schema = json.loads((language_schema_dir / "modbus_client.json").read_text())
+    on_no_response = modbus_schema["modbus_client"]["schemas"]["_ACTION_BASE_SCHEMA"][
+        "schema"
+    ]["config_vars"]["on_no_response"]
+
+    assert on_no_response["type"] == "trigger"
+    assert set(on_no_response["schema"]["config_vars"]) == {"retry", "then"}
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
@@ -424,3 +453,292 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+def test_convert_typed_schema_with_an_empty_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed_schema type with no keys of its own is dumped with no config vars."""
+    types = {
+        "with_keys": cv.Schema({cv.Required("byte"): cv.hex_uint8_t}),
+        "no_keys": cv.Schema({}),
+    }
+    schema = cv.typed_schema(types, key="mode")
+    # cv.typed_schema was decorated before the script enabled extraction, so register it by hand
+    monkeypatch.setitem(
+        _bls.ejs.typed_schemas, repr(schema), ((types,), {"key": "mode"})
+    )
+    config_var: dict = {}
+    _bls.convert(schema, config_var, "/test")
+
+    assert config_var["type"] == "typed"
+    assert config_var["typed_key"] == "mode"
+    assert "byte" in config_var["types"]["with_keys"]["config_vars"]
+    assert config_var["types"]["no_keys"] == {"config_vars": {}}
+
+
+def _schema(config_vars: dict | None = None, extends: list | None = None) -> dict:
+    schema: dict = {}
+    if config_vars is not None:
+        schema["config_vars"] = config_vars
+    if extends is not None:
+        schema["extends"] = extends
+    return {"type": "schema", "schema": schema}
+
+
+def test_splice_extends_drops_the_key_when_nothing_remains() -> None:
+    node: dict = {"extends": []}
+    _bls.splice_extends(node, ["b"], "b")
+    assert node == {}
+
+
+def _shrink(monkeypatch: pytest.MonkeyPatch, output: dict) -> None:
+    monkeypatch.setattr(_bls, "output", output)
+    monkeypatch.setattr(_bls, "components", {})
+    _bls.shrink()
+
+
+def test_shrink_inlining_one_extend_keeps_the_others(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inlining a once-referenced schema keeps the target's other extends."""
+    output = {
+        "base": {"schemas": {"SHARED": _schema({"name": {"key": "Optional"}})}},
+        "mod": {
+            "schemas": {
+                "ONCE": _schema({"extra": {"key": "Optional"}}),
+                "CONFIG_SCHEMA": _schema({}, ["base.SHARED", "mod.ONCE"]),
+            }
+        },
+        "other": {"schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED"])}},
+    }
+    _shrink(monkeypatch, output)
+
+    schema = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]
+    assert schema["extends"] == ["base.SHARED"]
+    assert "extra" in schema["config_vars"]
+
+
+def test_shrink_drops_a_bare_validator_beside_config_vars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty extend next to real keys (cv.All(SCHEMA, check)) is dropped, not collapsed."""
+    output = {
+        "mod": {
+            "schemas": {
+                "check": {},
+                "CONFIG_SCHEMA": _schema(
+                    {"address": {"key": "Required"}}, ["mod.check"]
+                ),
+            }
+        },
+        "other": {"schemas": {"CONFIG_SCHEMA": _schema(None, ["mod.check"])}},
+    }
+    _shrink(monkeypatch, output)
+
+    assert output["mod"]["schemas"]["CONFIG_SCHEMA"] == _schema(
+        {"address": {"key": "Required"}}
+    )
+    assert output["other"]["schemas"]["CONFIG_SCHEMA"] == {"data_type": "check"}
+
+
+def test_shrink_inlined_schema_brings_its_own_extends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The inlined schema's extends take its place beside the target's siblings."""
+    output = {
+        "base": {
+            "schemas": {
+                "SHARED": _schema({"name": {"key": "Optional"}}),
+                "INNER": _schema({"inner": {"key": "Optional"}}),
+            }
+        },
+        "mod": {
+            "schemas": {
+                "ONCE": _schema({"extra": {"key": "Optional"}}, ["base.INNER"]),
+                "CONFIG_SCHEMA": _schema(
+                    {"local": {"key": "Optional"}}, ["base.SHARED", "mod.ONCE"]
+                ),
+            }
+        },
+        "other": {
+            "schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED", "base.INNER"])}
+        },
+    }
+    _shrink(monkeypatch, output)
+
+    schema = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]
+    assert schema["extends"] == ["base.SHARED", "base.INNER"]
+    assert set(schema["config_vars"]) == {"local", "extra"}
+
+
+def test_shrink_inlines_into_a_typed_variant(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A typed variant's top-level extends keep the sibling, the inherited base and local keys."""
+    output = {
+        "base": {
+            "schemas": {
+                "SHARED": _schema({"name": {"key": "Optional"}}),
+                "INNER": _schema({"inner": {"key": "Optional"}}),
+            }
+        },
+        "mod": {
+            "schemas": {
+                "ONCE": _schema({"extra": {"key": "Optional"}}, ["base.INNER"]),
+                "CONFIG_SCHEMA": {
+                    "type": "typed",
+                    "types": {
+                        "v1": {
+                            "config_vars": {"local": {"key": "Optional"}},
+                            "extends": ["base.SHARED", "mod.ONCE"],
+                        }
+                    },
+                },
+            }
+        },
+        "other": {
+            "schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED", "base.INNER"])}
+        },
+    }
+    _shrink(monkeypatch, output)
+
+    variant = output["mod"]["schemas"]["CONFIG_SCHEMA"]["types"]["v1"]
+    assert variant["extends"] == ["base.SHARED", "base.INNER"]
+    assert set(variant["config_vars"]) == {"local", "extra"}
+
+
+def test_shrink_spread_keeps_enum_values_beside_a_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An enum spliced beside a plain schema keeps its values; alone it is folded in."""
+    enum = {"type": "enum", "values": {"a": None}}
+    output = {
+        "base": {
+            "schemas": {"E": enum, "B": _schema({"b": {"key": "Optional"}})},
+        },
+        "mod": {
+            "schemas": {
+                "CONFIG_SCHEMA": _schema({"mode": _schema(None, ["base.E", "base.B"])})
+            }
+        },
+        "other": {
+            "schemas": {
+                "CONFIG_SCHEMA": _schema(
+                    {
+                        "mode": _schema(None, ["base.E"]),
+                        "b": _schema(None, ["base.B"]),
+                    }
+                )
+            }
+        },
+    }
+    _shrink(monkeypatch, output)
+
+    mod_vars = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]
+    other_vars = output["other"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]
+    assert mod_vars["mode"] == {**_schema(None, ["base.B"]), "values": {"a": None}}
+    assert other_vars["mode"] == enum
+
+
+def test_gree_feature_switches_extend_the_switch_schema(
+    language_schema_dir: Path,
+) -> None:
+    """Gree's closure-built feature switches export the switch schema."""
+    gree = json.loads((language_schema_dir / "gree.json").read_text())
+    config_vars = gree["gree.switch"]["schemas"]["CONFIG_SCHEMA"]["schema"][
+        "config_vars"
+    ]
+    for key in ("health", "light", "turbo", "xfan"):
+        assert config_vars[key]["schema"]["extends"] == ["switch._SWITCH_SCHEMA"]
+
+
+def test_inline_schema_merges_a_same_key_override_per_field() -> None:
+    """A local override keeps the base field's type and values, and the base is not mutated."""
+    base = {
+        "config_vars": {
+            "mode": {
+                "key": "Optional",
+                "type": "enum",
+                "values": {"a": None, "b": None},
+            }
+        }
+    }
+    node = {"config_vars": {"mode": {"default": "b"}}, "extends": ["x"]}
+    _bls.inline_schema(node, base)
+
+    assert node["config_vars"]["mode"] == {
+        "key": "Optional",
+        "type": "enum",
+        "values": {"a": None, "b": None},
+        "default": "b",
+    }
+    assert "default" not in base["config_vars"]["mode"]
+
+
+def test_inline_schema_lets_a_narrowed_enum_replace_the_base_values() -> None:
+    """An explicitly overridden values map replaces the base's instead of merging with it."""
+    base = {
+        "config_vars": {
+            "mode": {
+                "key": "Optional",
+                "type": "enum",
+                "values": {"a": None, "b": None},
+            }
+        }
+    }
+    node = {"config_vars": {"mode": {"values": {"b": None}}}}
+    _bls.inline_schema(node, base)
+
+    assert node["config_vars"]["mode"] == {
+        "key": "Optional",
+        "type": "enum",
+        "values": {"b": None},
+    }
+
+
+def test_inline_schema_overlays_nested_schema_fields() -> None:
+    """A nested schema's config vars overlay per field too."""
+    base = {
+        "config_vars": {
+            "outer": {
+                "type": "schema",
+                "schema": {
+                    "config_vars": {"inner": {"key": "Optional", "type": "boolean"}}
+                },
+            }
+        }
+    }
+    node = {
+        "config_vars": {
+            "outer": {"schema": {"config_vars": {"inner": {"default": "True"}}}}
+        }
+    }
+    _bls.inline_schema(node, base)
+
+    assert node["config_vars"]["outer"]["schema"]["config_vars"]["inner"] == {
+        "key": "Optional",
+        "type": "boolean",
+        "default": "True",
+    }
+
+
+def test_shrink_enum_collapse_reports_dropped_siblings(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Collapsing into an enum prints the sibling extends it cannot keep."""
+    output = {
+        "base": {"schemas": {"B": _schema({"b": {"key": "Optional"}})}},
+        "mod": {
+            "schemas": {
+                "E": {"type": "enum", "values": {"a": None}},
+                "CONFIG_SCHEMA": _schema({"mode": _schema(None, ["mod.E", "base.B"])}),
+            }
+        },
+        "other": {"schemas": {"CONFIG_SCHEMA": _schema({}, ["base.B"])}},
+    }
+    _shrink(monkeypatch, output)
+
+    mode = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["mode"]
+    assert mode == {"type": "enum", "values": {"a": None}}
+    assert "dropped ['base.B'] beside sibling extends at mod.schemas.CONFIG_SCHEMA" in (
+        capsys.readouterr().out
+    )

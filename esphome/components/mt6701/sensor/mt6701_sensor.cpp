@@ -10,8 +10,7 @@ void MT6701Sensor::update() {
     return;
 
   this->publish_state(this->parent_->get_angle_degrees());
-  if (this->raw_count_sensor_ != nullptr)
-    this->raw_count_sensor_->publish_state(this->parent_->get_count());
+  PUBLISH_STATE(this->raw_count_sensor_, this->parent_->get_count());
 }
 
 void MT6701Sensor::dump_config() {

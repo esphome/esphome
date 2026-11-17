@@ -10,6 +10,7 @@ import threading
 import time
 from typing import Any
 from unittest.mock import Mock, patch
+import urllib.parse
 
 from filelock import FileLock
 import pytest
@@ -979,6 +980,166 @@ def test_clone_or_update_clones_missing_repo(
         if len(call[0]) > 0 and "clone" in call[0][0]
     ]
     assert len(clone_calls) > 0
+
+
+_PRIVATE_HINT = (
+    "Could not clone https://github.com/test/repo: the repository does not exist, "
+    "or it is private and needs a username and password. Check the owner and "
+    "repository name in the source."
+)
+_CREDENTIALS_HINT = (
+    "Could not clone https://***@github.com/test/repo: the repository does not "
+    "exist, or the username and password used cannot access it. Check the owner "
+    "and repository name in the source, and the credentials."
+)
+
+
+@pytest.mark.parametrize(
+    ("url", "username", "password", "stderr", "expected"),
+    [
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Username for 'https://github.com': "
+                b"No such device or address\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Username for 'https://github.com': "
+                b"terminal prompts disabled\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"remote: Repository not found.\n"
+                b"fatal: repository 'https://github.com/test/repo/' not found\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            b"fatal: repository 'https://github.com/test/repo/' not found\n",
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            b"fatal: Authentication failed for 'https://github.com/test/repo/'\n",
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Password for 'https://user@github.com': "
+                b"terminal prompts disabled\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            "user",
+            "secret",
+            (
+                b"fatal: Authentication failed for "
+                b"'https://user:secret@github.com/test/repo/'\n"
+            ),
+            _CREDENTIALS_HINT.replace("https://***@", "https://"),
+        ),
+        (
+            "https://user:secret@github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: Authentication failed for "
+                b"'https://user:secret@github.com/test/repo/'\n"
+            ),
+            _CREDENTIALS_HINT,
+        ),
+        (
+            "git@github.com:test/repo.git",
+            None,
+            None,
+            (
+                b"ERROR: Repository not found.\n"
+                b"fatal: Could not read from remote repository.\n"
+            ),
+            (
+                "Could not clone git@github.com:test/repo.git: the repository does not "
+                "exist, or the SSH key used cannot access it. Check the owner and "
+                "repository name in the source, and the key."
+            ),
+        ),
+    ],
+)
+def test_clone_or_update_explains_missing_repository(
+    tmp_path: Path,
+    mock_subprocess_run: Mock,
+    url: str,
+    username: str | None,
+    password: str | None,
+    stderr: bytes,
+    expected: str,
+) -> None:
+    """A clone of a repository git cannot see names the URL and the likely cause."""
+    CORE.config_path = tmp_path / "test.yaml"
+    repo_dir = _compute_repo_dir(url, None, "test")
+
+    def fail_clone(cmd: list[str], **kwargs: Any) -> Mock:
+        # Leave a partial clone behind, as git does.
+        _simulate_cloned_repo(repo_dir)
+        return _git_failure(stderr)
+
+    mock_subprocess_run.side_effect = fail_clone
+
+    with pytest.raises(GitCommandError) as exc_info:
+        git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=None,
+            domain="test",
+            username=username,
+            password=password,
+        )
+
+    message = str(exc_info.value)
+    assert message.split(" Git reported: ", maxsplit=1)[0] == expected
+    assert "secret" not in message
+    assert exc_info.value.stderr == stderr.decode()
+    assert not repo_dir.exists()
+
+
+def test_clone_or_update_keeps_other_clone_errors(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Clone failures unrelated to a missing repository keep git's message."""
+    CORE.config_path = tmp_path / "test.yaml"
+    stderr = "fatal: couldn't find remote ref refs/heads/nope"
+    mock_run_git_command.side_effect = GitCommandError(
+        "couldn't find remote ref refs/heads/nope", stderr=stderr
+    )
+
+    with pytest.raises(GitCommandError) as exc_info:
+        git.clone_or_update(
+            url="https://github.com/test/repo", ref=None, refresh=None, domain="test"
+        )
+
+    assert str(exc_info.value) == "couldn't find remote ref refs/heads/nope"
 
 
 def test_clone_or_update_with_none_refresh_always_updates(
@@ -2095,6 +2256,48 @@ def test_recovery_reclone_keeps_credentials_and_cache_key(
     clone_url = clone_cmds[0][-2]
     assert clone_url == "https://user:hunter2@github.com/test/repo"
     assert clone_url.count("@") == 1
+
+
+def test_clone_credentials_with_slash_are_escaped(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A "/" in the username or password must be percent-encoded, or the
+    userinfo ends at the "/" and git reports the password in its error."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        username="team/user",
+        password="ab/cd@ef",
+    )
+
+    clone_cmds = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    assert clone_cmds
+    clone_url = clone_cmds[0][-2]
+    assert clone_url == "https://team%2Fuser:ab%2Fcd%40ef@github.com/test/repo"
+    assert urllib.parse.urlsplit(clone_url).hostname == "github.com"
+    redacted = git._redact_url_credentials(f"fatal: unable to access '{clone_url}/'")
+    assert redacted == "fatal: unable to access 'https://***@github.com/test/repo/'"
 
 
 def test_refresh_submodule_failure_recovers_then_raises(
@@ -3289,6 +3492,26 @@ def test_git_file_from_shorthand_without_ref_or_query() -> None:
     assert gf == git.GitFile("codeberg.org", "owner", "repo", "file.yaml")
 
 
+def test_git_file_from_shorthand_keeps_whole_ref() -> None:
+    gf = git.GitFile.from_shorthand("github://owner/repo/file.yaml@feat+x?full_config")
+
+    assert gf.ref == "feat+x"
+    assert gf.query == "full_config"
+
+
+@pytest.mark.parametrize(
+    "shorthand",
+    [
+        "github://owner/repo/file.yaml@main hi",
+        "github://owner/repo/my file.yaml",
+        "github://owner/repo/file.yaml?full config",
+    ],
+)
+def test_git_file_from_shorthand_rejects_trailing_text(shorthand: str) -> None:
+    with pytest.raises(ValueError, match="not in expected"):
+        git.GitFile.from_shorthand(shorthand)
+
+
 def test_git_file_from_shorthand_requires_string() -> None:
     with pytest.raises(ValueError, match="must be a string"):
         git.GitFile.from_shorthand(123)
@@ -3302,3 +3525,19 @@ def test_git_file_from_shorthand_bad_format() -> None:
 def test_git_file_from_shorthand_unknown_domain() -> None:
     with pytest.raises(ValueError, match="Unknown git domain bitbucket"):
         git.GitFile.from_shorthand("bitbucket://owner/repo/file.yaml")
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (
+            "https://user:token@github.com/o/r.git",
+            "https://github.com/o/r.git",
+        ),
+        ("https://token@gitlab.com:8443/o/r", "https://gitlab.com:8443/o/r"),
+        ("https://github.com/o/r", "https://github.com/o/r"),
+        ("git@github.com:o/r.git", "git@github.com:o/r.git"),
+    ],
+)
+def test_strip_url_credentials(url: str, expected: str) -> None:
+    assert git.strip_url_credentials(url) == expected

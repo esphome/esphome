@@ -4,17 +4,22 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_WINDOW
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
     CONF_DATA_PINS,
     CONF_FREQUENCY,
+    CONF_HEIGHT,
     CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_OFFSET_X,
+    CONF_OFFSET_Y,
     CONF_PIN,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
@@ -22,12 +27,13 @@ from esphome.const import (
     CONF_SDA,
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
+    CONF_WIDTH,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID, TimePeriod
 from esphome.core.entity_helpers import setup_entity
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -166,12 +172,27 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
 CONF_FRAME_BUFFER_LOCATION = "frame_buffer_location"
 
+# single image capture
+CONF_CAPTURE_DELAY = "capture_delay"
+CONF_ON_CAPTURE_START = "on_capture_start"
+CONF_ON_CAPTURE_END = "on_capture_end"
+
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
 CONF_ON_IMAGE = "on_image"
 
 camera_range_param = cv.int_range(min=-2, max=2)
+
+_WINDOW_VALIDATORS = {
+    CONF_OFFSET_X: cv.int_range(min=0),
+    CONF_OFFSET_Y: cv.int_range(min=0),
+    CONF_WIDTH: cv.int_range(min=1),
+    CONF_HEIGHT: cv.int_range(min=1),
+}
+WINDOW_SCHEMA = cv.Schema(
+    {cv.Required(key): validator for key, validator in _WINDOW_VALIDATORS.items()}
+)
 
 
 def validate_fb_location_(value: Any) -> MockObj:
@@ -277,6 +298,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
             ): validate_fb_location_,
+            cv.Optional(CONF_CAPTURE_DELAY, default="0s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(seconds=3)),
+            ),
+            cv.Optional(CONF_ON_CAPTURE_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CAPTURE_END): automation.validate_automation({}),
+            cv.Optional(CONF_WINDOW): WINDOW_SCHEMA,
             cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -363,6 +391,20 @@ SETTERS = {
 }
 
 
+_CAPTURE_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_START,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_END,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+)
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
     var = cg.new_Pvariable(config[CONF_ID])
@@ -388,10 +430,29 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
     cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
+    capture_delay = config[CONF_CAPTURE_DELAY].total_milliseconds
+    if capture_delay or any(
+        entry.conf_key in config for entry in _CAPTURE_CALLBACK_AUTOMATIONS
+    ):
+        cg.add_define("USE_ESP32_CAMERA_CAPTURE")
+        cg.add(var.set_capture_delay(capture_delay))
+        await automation.build_callback_automations(
+            var, config, _CAPTURE_CALLBACK_AUTOMATIONS
+        )
 
     cg.add_define("USE_CAMERA")
     if config[CONF_JPEG_QUALITY] != 0 and config[CONF_PIXEL_FORMAT] != "JPEG":
         cg.add_define("USE_ESP32_CAMERA_JPEG_CONVERSION")
+    if (window := config.get(CONF_WINDOW)) is not None:
+        cg.add_define("USE_ESP32_CAMERA_WINDOW")
+        cg.add(
+            var.set_initial_window(
+                window[CONF_OFFSET_X],
+                window[CONF_OFFSET_Y],
+                window[CONF_WIDTH],
+                window[CONF_HEIGHT],
+            )
+        )
 
     add_idf_component(name="espressif/esp32-camera", ref="2.1.7")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
@@ -410,3 +471,72 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(
             trigger, [(ESP32CameraImageData, "image")], conf
         )
+
+
+SET_WINDOW_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(ESP32Camera),
+        **{
+            cv.Required(key): cv.templatable(validator)
+            for key, validator in _WINDOW_VALIDATORS.items()
+        },
+    }
+)
+RESET_WINDOW_SCHEMA = automation.maybe_simple_id(
+    {cv.Required(CONF_ID): cv.use_id(ESP32Camera)}
+)
+_set_window_builder = automation.apply_action_builder(
+    f"{DOMAIN}.set_window",
+    SET_WINDOW_SCHEMA,
+    automation.ApplyCall(
+        "set_window({}, {}, {}, {})",
+        (
+            (CONF_OFFSET_X, cg.int_),
+            (CONF_OFFSET_Y, cg.int_),
+            (CONF_WIDTH, cg.int_),
+            (CONF_HEIGHT, cg.int_),
+        ),
+    ),
+)
+_reset_window_builder = automation.apply_action_builder(
+    f"{DOMAIN}.reset_window",
+    RESET_WINDOW_SCHEMA,
+    automation.ApplyCall("reset_window()"),
+)
+
+
+@automation.register_action(
+    f"{DOMAIN}.set_window",
+    automation.ApplyAction,
+    SET_WINDOW_SCHEMA,
+    synchronous=True,
+)
+async def set_window_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define("USE_ESP32_CAMERA_WINDOW")
+    return await _set_window_builder(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    f"{DOMAIN}.reset_window",
+    automation.ApplyAction,
+    RESET_WINDOW_SCHEMA,
+    synchronous=True,
+)
+async def reset_window_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define("USE_ESP32_CAMERA_WINDOW")
+    return await _reset_window_builder(config, action_id, template_arg, args)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"esp32_camera_window.cpp": "USE_ESP32_CAMERA_WINDOW"}
+)

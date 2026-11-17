@@ -1,0 +1,16 @@
+esphome:
+  name: gree-test
+
+esp32:
+  board: esp32dev
+
+remote_transmitter:
+  id: xmitr
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: gree
+    name: GREE YAN
+    model: yan
+    transmitter_id: xmitr

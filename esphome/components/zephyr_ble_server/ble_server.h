@@ -17,6 +17,7 @@ class BLEServer final : public Component {
   static void connected(bt_conn *conn, uint8_t err);
   static void disconnected(bt_conn *conn, uint8_t reason);
   static void auth_passkey_confirm(bt_conn *conn, unsigned int passkey);
+  void set_conn_(bt_conn *conn);
   bt_conn *conn_{};
   CallbackManager<void(uint32_t)> passkey_cb_;
 };

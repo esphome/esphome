@@ -1,0 +1,38 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: test_blec
+
+sensor:
+  - platform: ble_client
+    ble_client_id: test_blec
+    type: characteristic
+    id: notify_sensor
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1237-abcd-1234-abcd-abcd12345678"
+    on_notify:
+      - logger.log:
+          format: "Notify %.2f"
+          args: [x]
+
+text_sensor:
+  - platform: ble_client
+    ble_client_id: test_blec
+    id: notify_text
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1239-abcd-1234-abcd-abcd12345678"
+    on_notify:
+      - logger.log:
+          format: "Text notify %s"
+          args: [x.c_str()]

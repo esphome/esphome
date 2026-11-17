@@ -28,8 +28,6 @@ class TT21100Touchscreen final : public Touchscreen, public i2c::I2CDevice {
   void register_button_listener(TT21100ButtonListener *listener) { this->button_listeners_.push_back(listener); }
 
  protected:
-  void reset_();
-
   void update_touches() override;
 
   InternalGPIOPin *interrupt_pin_;

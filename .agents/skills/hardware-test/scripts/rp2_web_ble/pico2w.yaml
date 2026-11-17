@@ -1,0 +1,8 @@
+# Pico 2 W on the station network (name set with -s name).
+rp2:
+  board: rpipico2w
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+packages:
+  common: !include rp-common.yaml

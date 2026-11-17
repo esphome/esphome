@@ -1,0 +1,45 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO12
+
+display:
+  - platform: epaper_spi
+    id: epaper_display
+    model: ssd1677
+    dimensions:
+      width: 200
+      height: 200
+    cs_pin: GPIO5
+    dc_pin: GPIO21
+    busy_pin: GPIO22
+    reset_pin: GPIO25
+    pages:
+      - id: page1
+        lambda: it.fill(Color::BLACK);
+      - id: page2
+        lambda: it.fill(Color::WHITE);
+
+button:
+  - platform: template
+    id: show_page_button
+    on_press:
+      - display.page.show:
+          id: !lambda return id(page2);
+      - display.page.show: page1
+
+script:
+  - id: show_page_by_index
+    parameters:
+      index: int
+    then:
+      # The page lambda may modify its by-value argument
+      - display.page.show:
+          id: !lambda "index *= 2; return index == 0 ? id(page1) : id(page2);"
+      - display.page.show:
+          id: !lambda "return (index *= 2) == 0 ? id(page1) : id(page2);"

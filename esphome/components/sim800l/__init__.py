@@ -18,6 +18,7 @@ CONF_ON_USSD_RECEIVED = "on_ussd_received"
 CONF_ON_INCOMING_CALL = "on_incoming_call"
 CONF_ON_CALL_CONNECTED = "on_call_connected"
 CONF_ON_CALL_DISCONNECTED = "on_call_disconnected"
+CONF_ON_DTMF_RECEIVED = "on_dtmf_received"
 CONF_RECIPIENT = "recipient"
 CONF_USSD = "ussd"
 
@@ -30,6 +31,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CALL_CONNECTED): automation.validate_automation({}),
             cv.Optional(CONF_ON_CALL_DISCONNECTED): automation.validate_automation({}),
             cv.Optional(CONF_ON_USSD_RECEIVED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DTMF_RECEIVED): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -61,6 +63,11 @@ _CALLBACK_AUTOMATIONS = (
         CONF_ON_USSD_RECEIVED,
         "add_on_ussd_received_callback",
         [(cg.std_string, "ussd")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DTMF_RECEIVED,
+        "add_on_dtmf_received_callback",
+        [(cg.std_string, "key")],
     ),
 )
 

@@ -1,0 +1,39 @@
+# Add to a copy of a bluetooth_proxy config:  packages: {cp_inject: !include cp-inject.yaml}
+esphome:
+  includes:
+    - cp_inject.hpp
+
+logger:
+  level: VERBOSE
+  logs:
+    esp32_ble_tracker: DEBUG
+    bluetooth_proxy: DEBUG
+    bluetooth_connection: DEBUG
+    api: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    api.socket: DEBUG
+    scheduler: DEBUG
+    sensor: DEBUG
+    component: DEBUG
+
+button:
+  - platform: template
+    name: Inject conn param events
+    # The handlers push into a queue that takes one writer only, the Bluetooth task. Stop the scan (and keep the
+    # proxy free of real connections) so nothing else writes while the button does.
+    on_press:
+      - esp32_ble_tracker.stop_scan:
+      - wait_until:
+          condition:
+            lambda: return !esp32_ble_tracker::global_esp32_ble_tracker->scan_running();
+          timeout: 5s
+      - delay: 1s
+      - lambda: |-
+          if (esp32_ble_tracker::global_esp32_ble_tracker->scan_running()) {
+            ESP_LOGE("cpinject", "scan still running after 5 s, nothing injected");
+            return;
+          }
+          cpinject::run();
+      - esp32_ble_tracker.start_scan:
+          continuous: true

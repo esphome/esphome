@@ -164,12 +164,29 @@ binary_sensor:
     id: click_triggers
     name: "Click Triggers"
     on_click:
-      min_length: 50ms
-      max_length: 350ms
-      then:
-        - logger.log: "Clicked"
+      - min_length: 50ms
+        max_length: 350ms
+        then:
+          - logger.log: "Clicked"
+      # delay is not an inline action
+      - min_length: 1s
+        max_length: 3s
+        then:
+          - delay: 10ms
+          - logger.log: "Long clicked"
     on_double_click:
       min_length: 50ms
       max_length: 350ms
       then:
         - logger.log: "Double clicked"
+
+  - platform: template
+    id: raw_value_sensor
+    name: "Raw Value"
+    filters:
+      - invert:
+    on_raw_value:
+      then:
+        - logger.log:
+            format: "Raw value %s"
+            args: ["ONOFF(x)"]

@@ -1,0 +1,56 @@
+esphome:
+  name: test-source-entity-follow
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+
+switch:
+  - platform: template
+    id: source_switch
+    name: Source Switch
+    optimistic: true
+    restore_mode: ALWAYS_ON
+  # Publishes nothing until commanded
+  - platform: template
+    id: quiet_switch
+    name: Quiet Switch
+    optimistic: true
+    restore_mode: DISABLED
+
+number:
+  - platform: template
+    id: source_number
+    name: Source Number
+    optimistic: true
+    min_value: 0
+    max_value: 10
+    step: 0.5
+    initial_value: 4
+
+text:
+  - platform: template
+    id: source_text
+    name: Source Text
+    optimistic: true
+    mode: text
+    initial_value: hello
+
+binary_sensor:
+  - platform: switch
+    source_id: source_switch
+    name: Switch State
+  - platform: switch
+    source_id: quiet_switch
+    name: Quiet Switch State
+
+sensor:
+  - platform: number
+    source_id: source_number
+    name: Number Value
+
+text_sensor:
+  - platform: text
+    source_id: source_text
+    name: Text Value

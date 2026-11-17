@@ -18,22 +18,14 @@ class SMT100Component final : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void update() override;
 
-  void set_counts_sensor(sensor::Sensor *counts_sensor) { this->counts_sensor_ = counts_sensor; }
-  void set_permittivity_sensor(sensor::Sensor *permittivity_sensor) {
-    this->permittivity_sensor_ = permittivity_sensor;
-  }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_moisture_sensor(sensor::Sensor *moisture_sensor) { this->moisture_sensor_ = moisture_sensor; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
+  SUB_SENSOR(counts)
+  SUB_SENSOR(permittivity)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(moisture)
+  SUB_SENSOR(voltage)
 
  protected:
   LineReader<LINE_BUFFER_SIZE, '\r', '\n'> line_reader_;
-
-  sensor::Sensor *counts_sensor_{nullptr};
-  sensor::Sensor *permittivity_sensor_{nullptr};
-  sensor::Sensor *moisture_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
 
   uint32_t last_transmission_{0};
 };

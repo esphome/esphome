@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "uart_debugger.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -44,15 +45,15 @@ void UARTDebugger::store_byte_(UARTDirection direction, uint8_t byte) {
 }
 
 void UARTDebugger::trigger_after_delimiter_(uint8_t byte) {
-  if (this->after_delimiter_.empty() || !this->has_buffered_bytes_()) {
+  if (this->after_delimiter_len_ == 0 || !this->has_buffered_bytes_()) {
     return;
   }
-  if (this->after_delimiter_[this->after_delimiter_pos_] != byte) {
+  if (progmem_read_byte(this->after_delimiter_ + this->after_delimiter_pos_) != byte) {
     this->after_delimiter_pos_ = 0;
     return;
   }
   this->after_delimiter_pos_++;
-  if (this->after_delimiter_pos_ == this->after_delimiter_.size()) {
+  if (this->after_delimiter_pos_ == this->after_delimiter_len_) {
     this->fire_trigger_();
     this->after_delimiter_pos_ = 0;
   }
