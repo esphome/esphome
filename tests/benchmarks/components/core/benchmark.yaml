@@ -1,0 +1,4 @@
+# Entity domains the automation benchmarks fire and act on.
+binary_sensor:
+sensor:
+switch:
