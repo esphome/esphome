@@ -54,10 +54,10 @@ void PCM1863::setup() {
 }
 
 bool PCM1863::set_mic_gain(float mic_gain) {
-  this->mic_gain_ = clamp<float>(mic_gain, PCM1863_MIC_GAIN_MIN, PCM1863_MIC_GAIN_MAX);
   // Nothing reaches the chip after a failed setup, so report the change as not applied
   if (this->is_failed())
     return false;
+  this->mic_gain_ = clamp<float>(mic_gain, PCM1863_MIC_GAIN_MIN, PCM1863_MIC_GAIN_MAX);
   if (!this->setup_complete_)
     return true;
   return this->status_comm_result(this->configure_mic_gain_());
@@ -70,9 +70,9 @@ bool PCM1863::configure_mic_gain_() {
 }
 
 bool PCM1863::set_input(PCM1863Input input) {
-  this->input_ = input;
   if (this->is_failed())
     return false;
+  this->input_ = input;
   if (!this->setup_complete_)
     return true;
   return this->status_comm_result(this->configure_input_());
