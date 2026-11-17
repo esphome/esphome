@@ -89,6 +89,9 @@ def _options(*lines: str) -> str:
         ),
         # Without a resize the frame decodes at the camera resolution.
         ("", (640, 480), False),
+        # A rotation needs neither: the camera resolution sizes the output and
+        # the scratch buffer, here swapped to the 480x640 the rotation publishes.
+        (_options("    rotation: 90"), (480, 640), True),
     ],
 )
 def test_metadata_and_transform_size_follow_the_decoded_frame(

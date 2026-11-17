@@ -158,6 +158,16 @@ def test_crop_with_alpha_channel_is_rejected(
         _validate(set_core_config, {"crop": crop, "transparency": "alpha_channel"})
 
 
+def test_rotation_without_resize_or_crop_is_accepted(
+    set_core_config: Callable[..., None],
+) -> None:
+    # The decoded size comes from the camera resolution, which is enough to size
+    # the rotated output and its scratch buffer.
+    config = _validate_final(set_core_config, {"rotation": 90})
+    assert config["rotation"] == 90
+    assert config[camera_image._KEY_DECODED_SIZE] == (640, 480)
+
+
 def test_rotation_with_double_buffer_is_rejected(
     set_core_config: Callable[..., None],
 ) -> None:

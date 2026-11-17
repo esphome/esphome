@@ -66,12 +66,6 @@ def _validate_options(config: ConfigType) -> ConfigType:
             "'crop' and 'rotation' cannot be combined with "
             "'transparency: alpha_channel'"
         )
-    if (
-        config[CONF_ROTATION] != 0
-        and CONF_CROP not in config
-        and CONF_RESIZE not in config
-    ):
-        raise cv.Invalid("'rotation' requires 'resize' or 'crop'")
     # A crop is checked against the size the frame actually decodes to in the
     # final validation, which needs the camera resolution; with `resize` that is
     # smaller than the resize box when the aspect ratios differ.
