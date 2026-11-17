@@ -486,8 +486,9 @@ message DeviceWizardRequest {
 // a client matches an entity by platform, device_id and key together. A client that does
 // not know platform ignores it, so the version stays 1.
 // Its role, when set, is a stable name that the device's firmware gives the entity
-// (always <component>.<name>), so a client can recognise it. The user cannot change it,
-// and no two entities of a wizard share one.
+// (always <component>.<name>), so a client can recognise it. It is fixed when the firmware
+// is built, by the component or by the device's configuration, and no two entities of a
+// wizard share one.
 //
 // An input is filled in by the user with the id of a Home Assistant entity. It either
 // stands for one entity of the device's homeassistant platform (sensor, binary_sensor,

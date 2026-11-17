@@ -73,8 +73,10 @@ WIZARD_DESCRIPTION_MAX_LENGTH = 255
 WIZARD_FILTER_MAX_LENGTH = 63
 WIZARD_SUPPORTED_FEATURE_MAX_LENGTH = 127
 WIZARD_ROLE_MAX_LENGTH = 63
+_WIZARD_ROLE_PART = "[a-z0-9_]+"
+WIZARD_ROLE_NAME_PATTERN = re.compile(_WIZARD_ROLE_PART)
 # <component>.<name>, so roles of different components never clash
-_WIZARD_ROLE_PATTERN = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
+_WIZARD_ROLE_PATTERN = re.compile(rf"{_WIZARD_ROLE_PART}\.{_WIZARD_ROLE_PART}")
 
 
 @dataclass
@@ -93,7 +95,7 @@ def register_entity_role(entity_id: ID, role: str) -> None:
     """Give an entity a role, a stable name that Home Assistant recognises it by on a wizard page.
 
     For a component to call while its config is validated, so the role is known before the wizard
-    is built. The role is <component>.<name> and is not set by the user.
+    is built. The role is <component>.<name>; the component picks the name or takes it from its config.
     The wizard only sends it when the entity is on one of its pages.
     """
     if len(role) > WIZARD_ROLE_MAX_LENGTH or not _WIZARD_ROLE_PATTERN.fullmatch(role):
@@ -440,8 +442,9 @@ def _validate_unique_wizard_roles(wizard: ConfigType) -> None:
                 continue
             if (other := seen.get(role)) is not None and other != entity_id:
                 raise cv.Invalid(
-                    f"Wizard entities '{other}' and '{entity_id}' both have the role '{role}', "
-                    "so only one of them can be in the wizard",
+                    f"Wizard entities '{other}' and '{entity_id}' both have the role '{role}'. "
+                    "Keep only one of them in the wizard, or change the role of one "
+                    "if its configuration sets it",
                     path=[CONF_WIZARD],
                 )
             seen[role] = entity_id
@@ -527,9 +530,10 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
       and device, so a client matches an entity by platform, device_id and key together. A client
       that does not know platform ignores it, so the version stays 1.
     - An entity role is a stable name, always <component>.<name>, that the component of the entity
-      gives it with register_entity_role, so Home Assistant can recognise the entity. The user
-      cannot set or change it, and no two entities of a wizard share one. A client that does not
-      know role ignores it, so the version stays 1.
+      gives it with register_entity_role, so Home Assistant can recognise the entity. The name
+      is fixed by the component or, where it has an option for it, by the configuration. No two
+      entities of a wizard share a role. A client that does not know role ignores it, so the
+      version stays 1.
     - An input key is the FNV-1 hash of the ESPHome id of the input, or of the linked entity. A linked
       entity must not set entity_id, as that is a static entry kept apart from the ones the wizard sets.
     - multiple means the user may pick several entities. The client sends them in one

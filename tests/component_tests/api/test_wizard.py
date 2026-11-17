@@ -1297,8 +1297,9 @@ def test_two_entities_with_the_same_role_are_rejected(tmp_path: Path) -> None:
 
     assert config_errors(path) == [
         (
-            "Wizard entities 'sw' and 'sw2' both have the role 'example.enable', "
-            "so only one of them can be in the wizard"
+            "Wizard entities 'sw' and 'sw2' both have the role 'example.enable'. "
+            "Keep only one of them in the wizard, or change the role of one "
+            "if its configuration sets it"
         )
     ]
 
