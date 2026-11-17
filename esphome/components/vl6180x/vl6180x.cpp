@@ -171,7 +171,7 @@ bool VL6180XComponent::init_() {
          this->write_register16(REG_RANGE_SCALING, scaling, 2) == i2c::ERROR_OK &&
          this->write_byte_reg16(REG_SYSRANGE_PART_TO_PART_OFFSET, static_cast<uint8_t>(part_offset / this->scaler_)) &&
          this->write_byte_reg16(REG_SYSRANGE_CROSSTALK_VALID_HEIGHT, 20 / this->scaler_) &&
-         // SNR check, plus range ignore only at 1x where its threshold is calibrated
+         // SNR check, plus the early convergence estimate only at 1x, as in ST's API
          this->write_byte_reg16(REG_SYSRANGE_RANGE_CHECK_ENABLES, 0x10 | (this->scaler_ == 1 ? 0x01 : 0x00));
 }
 
