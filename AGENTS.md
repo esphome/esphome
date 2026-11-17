@@ -66,6 +66,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   `breaking-changes`: what is public API, deprecation patterns and migration notes.
     *   `pr-workflow`, `code-review`, `hardware-test`, `display-test`: creating PRs, reviewing them, and testing
         on real boards and panels.
+    *   `silent-failure-review`: code paths in a branch's diff that fail without telling the user, checked
+        before a PR goes up for review.
 
 *   **Formatting:**
     *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
