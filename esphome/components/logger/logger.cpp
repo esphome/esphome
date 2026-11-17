@@ -165,7 +165,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 #endif  // USE_ESP8266
 
 // Not shared with log_message_to_buffer_and_send_(): sharing it slows formatted lines
-void HOT Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf) {
+inline void HOT ESPHOME_ALWAYS_INLINE Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf) {
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
   if (!this->boot_log_done_)
     this->boot_log_capture_(level, tag, buf);
