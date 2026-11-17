@@ -5,9 +5,12 @@ test_uart_mock_ld2410 (normal mode):
   1. Happy path - valid data frame publishes correct sensor values
   2. Garbage resilience - random bytes don't crash the component
   3. Truncated frame handling - partial frame doesn't corrupt state
-  4. Buffer overflow recovery - overflow resets the parser
-  5. Post-overflow parsing - next valid frame after overflow is parsed correctly
-  6. TX logging - verifies LD2410 sends expected setup commands
+  4. Truncated frame recovery - the frame is dropped once its length is reached
+  5. Post-garbage parsing - the next valid frame is parsed correctly
+  6. Footer bytes in the values - a frame whose values spell the command footer is parsed whole
+  7. Replay after a drop - a valid frame caught inside a dropped frame's window is still parsed
+  8. Impossible counts - a length field of 0xFFF6 or 0xFFFF is dropped and the next frame is parsed
+  9. TX logging - verifies LD2410 sends expected setup commands
 
 test_uart_mock_ld2410_engineering (engineering mode):
   1. Engineering mode frames with per-gate energy data and light sensor
@@ -18,12 +21,15 @@ test_uart_mock_ld2410_engineering (engineering mode):
 
 from __future__ import annotations
 
-import asyncio
-
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -34,21 +40,8 @@ async def test_uart_mock_ld2410(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LD2410 data parsing with happy path, garbage, overflow, and recovery."""
-    loop = asyncio.get_running_loop()
-
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if "uart_mock" in line and "TX " in line:
-            tx_log_lines.append(line)
+    """Test LD2410 data parsing with happy path, garbage, a truncated frame, and recovery."""
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -74,23 +67,35 @@ async def test_uart_mock_ld2410(
             and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
             and pytest.approx(80.0) in collector.sensor_states["still_energy"]
             and pytest.approx(127.0) in collector.sensor_states["detection_distance"]
+            # Every value asserted below, so no state can still be in flight when the waiter fires
+            and pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(1.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(5.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(200.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(9.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(300.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(13.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(600.0) in collector.sensor_states["detection_distance"]
         )
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
-
-        await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -107,7 +112,7 @@ async def test_uart_mock_ld2410(
         assert collector.sensor_states["detection_distance"][0] == pytest.approx(300.0)
 
         # Wait for the recovery frame (Phase 5) to be parsed
-        # This proves the component survived garbage + truncated + overflow
+        # This proves the component survived garbage + truncated frame + filler bytes
         await wait_or_fail(
             recovery_received,
             15.0,
@@ -115,14 +120,17 @@ async def test_uart_mock_ld2410(
             sensor_states=collector.sensor_states,
         )
 
-        # Verify overflow warning was logged
-        assert overflow_seen.done(), (
-            "Expected 'Max command length exceeded' warning in logs"
+        # Verify the truncated frame was dropped with a warning
+        assert any("Invalid length" in line for line in waiter.lines), (
+            "Expected 'Invalid length' warning in logs"
         )
 
         # Verify LD2410 sent setup commands (TX logging)
         # LD2410 sends 7 commands during setup: FF (config on), A0 (version),
         # A5 (MAC), AB (distance res), AE (light), 61 (params), FE (config off)
+        tx_log_lines = [
+            line for line in waiter.lines if "uart_mock" in line and "TX " in line
+        ]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         assert "FD:FC:FB:FA" in tx_data, (
@@ -150,6 +158,27 @@ async def test_uart_mock_ld2410(
         assert collector.sensor_states["detection_distance"][
             recovery_idx
         ] == pytest.approx(127.0)
+
+        # Phase 6: the values 04 03 02 01 did not end the frame early
+        assert pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(1.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(5.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 7: the valid frame inside the dropped frame's window was replayed and parsed
+        assert pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(200.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(9.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 8: both impossible counts were dropped and the frame after them was parsed
+        assert pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(300.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(13.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(600.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True
@@ -199,12 +228,9 @@ async def test_uart_mock_ld2410_engineering(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
-
-        await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)

@@ -1,0 +1,16 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+wled:
+
+light:
+  - platform: beken_spi_led_strip
+    id: addr
+    name: Beken LED Strip
+    channel_colors: GRB
+    pin: P16
+    num_leds: 30
+    chipset: ws2812
+    effects:
+      - wled:

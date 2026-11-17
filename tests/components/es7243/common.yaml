@@ -1,0 +1,15 @@
+esphome:
+  on_boot:
+    then:
+      - audio_adc.set_mic_gain:
+          id: es7243_adc
+          mic_gain: 1db
+      - audio_adc.set_mic_gain:
+          id: es7243_adc
+          mic_gain: !lambda 'return 18;'
+
+audio_adc:
+  - platform: es7243
+    id: es7243_adc
+    i2c_id: i2c_bus
+    i2s_audio_id: i2s_audio_bus

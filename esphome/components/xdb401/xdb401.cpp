@@ -22,10 +22,8 @@ void XDB401Component::setup() {
 
   uint8_t meas_resp[1] = {};
   i2c::ErrorCode err_code = this->read_register(REG_MAKE_MEASURE, meas_resp, sizeof(meas_resp));
-  if (err_code != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("I2C communication failed"));
+  if (!this->setup_check(err_code == i2c::ERROR_OK, LOG_STR("I2C communication failed")))
     return;
-  }
 
   this->comm_err_counter_ = 0;
 }
@@ -106,10 +104,8 @@ void XDB401Component::read_measurement_() {
 
   ESP_LOGD(TAG, "Got pressure=%.1f Pa, temperature=%.2f°C", pressure, temperature);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
 
   this->comm_err_counter_ = 0;
   this->status_clear_warning();

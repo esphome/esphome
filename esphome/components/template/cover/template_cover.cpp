@@ -124,6 +124,7 @@ CoverTraits TemplateCover::get_traits() {
 Trigger<float> *TemplateCover::get_position_trigger() { return &this->position_trigger_; }
 Trigger<float> *TemplateCover::get_tilt_trigger() { return &this->tilt_trigger_; }
 void TemplateCover::stop_prev_trigger_() {
+  this->position_trigger_.stop_action();
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
     this->prev_command_trigger_ = nullptr;

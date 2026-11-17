@@ -2,10 +2,19 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::kamstrup_kmp {
 
 ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
+
+// KMP units indexed by unit code; the empty first entry doubles as the fallback for unknown codes
+PROGMEM_STRING_TABLE(KmpUnits, "", "Wh", "kWh", "MWh", "GWh", "J", "kJ", "MJ", "GJ", "Cal", "kCal", "Mcal", "Gcal",
+                     "varh", "kvarh", "Mvarh", "Gvarh", "VAh", "kVAh", "MVAh", "GVAh", "kW", "kW", "MW", "GW", "kvar",
+                     "kvar", "Mvar", "Gvar", "VA", "kVA", "MVA", "GVA", "V", "A", "kV", "kA", "C", "K", "l", "m3",
+                     "l/h", "m3/h", "m3xC", "ton", "ton/h", "h", "hh:mm:ss", "yy:mm:dd", "yyyy:mm:dd", "mm:dd", "",
+                     "bar", "RTC", "ASCII", "m3 x 10", "ton x 10", "GJ x 10", "minutes", "Bitfield", "s", "ms", "days",
+                     "RTC-Q", "Datetime");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
@@ -74,8 +83,7 @@ void KamstrupKMPComponent::send_command_(uint16_t command) {
   msg[0] = 0x3F;
   msg[1] = 0x10;
   msg[2] = 0x01;
-  msg[3] = command >> 8;
-  msg[4] = command & 0xFF;
+  put_be16(msg + 3, command);
 
   this->discard_available();
   this->send_message_(msg, msg_len);
@@ -91,9 +99,7 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
     buffer[i] = msg[i];
   }
 
-  uint16_t crc = crc16be(buffer, buffer_len - 2);
-  buffer[buffer_len - 2] = crc >> 8;
-  buffer[buffer_len - 1] = crc & 0xFF;
+  put_be16(buffer + buffer_len - 2, crc16be(buffer, buffer_len - 2));
 
   // Prepare actual TX message
   uint8_t tx_msg[20];
@@ -197,7 +203,7 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
     return;
   }
 
-  uint16_t recv_command = msg[2] << 8 | msg[3];
+  uint16_t recv_command = encode_uint16(msg[2], msg[3]);
   if (recv_command != command) {
     ESP_LOGE(TAG, "Received invalid message (invalid unexpected command received 0x%04X, expected 0x%04X)",
              recv_command, command);
@@ -237,8 +243,6 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
 }
 
 void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
-  const char *unit = unit_idx < sizeof(UNITS) / sizeof(UNITS[0]) ? UNITS[unit_idx] : "";
-
   // Standard sensors
   if (command == CMD_HEAT_ENERGY && this->heat_energy_sensor_ != nullptr) {
     this->heat_energy_sensor_->publish_state(value);
@@ -263,7 +267,8 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
     }
   }
 
-  ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value, unit);
+  ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value,
+           LOG_STR_ARG(KmpUnits::get_log_str(unit_idx, 0)));
 }
 
 }  // namespace esphome::kamstrup_kmp

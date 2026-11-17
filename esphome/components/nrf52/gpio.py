@@ -11,7 +11,8 @@ from esphome.const import (
     PLATFORM_NRF52,
 )
 
-from .const import AIN_TO_GPIO, EXTRA_ADC
+from .const import AIN_TO_GPIO, EXTRA_ADC, VARIANT_PORT_PINS
+from .framework import get_nrf52_variant
 
 ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 
@@ -42,8 +43,11 @@ def validate_gpio_pin(value):
     if value in EXTRA_ADC:
         return value
     value = _translate_pin(value)
-    if value < 0 or value > (32 + 16):
-        raise cv.Invalid(f"NRF52: Invalid pin number: {value}")
+    variant = get_nrf52_variant()
+    port_pins = VARIANT_PORT_PINS[variant]
+    port, pin = divmod(value, 32)
+    if value < 0 or port >= len(port_pins) or pin >= port_pins[port]:
+        raise cv.Invalid(f"{variant}: Invalid pin number: {value}")
     return value
 
 

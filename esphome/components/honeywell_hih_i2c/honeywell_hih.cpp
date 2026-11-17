@@ -4,6 +4,7 @@
 
 #include "honeywell_hih.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::honeywell_hih_i2c {
 
@@ -22,17 +23,15 @@ void HoneywellHIComponent::read_sensor_data_() {
     return;
   }
 
-  const uint16_t raw_humidity = (static_cast<uint16_t>(data[0] & 0x3F) << 8) | data[1];
+  const uint16_t raw_humidity = encode_uint16(data[0] & 0x3F, data[1]);
   float humidity = (static_cast<float>(raw_humidity) / MAX_COUNT) * 100;
 
-  const uint16_t raw_temperature = (static_cast<uint16_t>(data[2]) << 6) | (data[3] >> 2);
+  const uint16_t raw_temperature = encode_uint16(data[2], data[3]) >> 2;
   float temperature = (static_cast<float>(raw_temperature) / MAX_COUNT) * 165 - 40;
 
   ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
 }
 
 void HoneywellHIComponent::start_measurement_() {

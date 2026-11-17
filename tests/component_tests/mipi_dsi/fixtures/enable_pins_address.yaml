@@ -1,0 +1,38 @@
+esphome:
+  name: enable-pins-address
+
+esp32:
+  board: esp32-p4-evboard
+  framework:
+    type: esp-idf
+
+psram:
+  speed: 200MHz
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+i2c:
+  sda: GPIO7
+  scl: GPIO8
+
+pi4ioe5v6408:
+  - id: pi4ioe1
+    address: 0x43
+  - id: pi4ioe2
+    address: 0x44
+
+# Takes over the default enable pin on the hub at 0x44, given by address
+switch:
+  - platform: gpio
+    id: takeover
+    pin:
+      pi4ioe5v6408:
+        address: 0x44
+      number: 1
+
+display:
+  - platform: mipi_dsi
+    id: default_pins
+    model: TEST-ENABLE-BY-ADDRESS

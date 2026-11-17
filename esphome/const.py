@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.11.0-dev"
+__version__ = "2026.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -21,6 +21,7 @@ class Toolchain(StrEnum):
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
     SDK_NRF = "sdk-nrf"
+    ZEPHYR = "zephyr"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
     # host: the system C/C++ compiler driven by ninja (no PlatformIO)
@@ -37,9 +38,9 @@ class ErrorFormat(StrEnum):
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
-# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
-# platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
+NATIVE_TOOLCHAINS = frozenset(
+    {Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST, Toolchain.SDK_NRF}
+)
 
 
 class Platform(StrEnum):
@@ -59,6 +60,7 @@ class Platform(StrEnum):
     # Scheduled for removal in 2027.7.0.
     RP2040 = "rp2"
     RTL87XX = "rtl87xx"
+    STM32 = "stm32"
 
 
 class Framework(StrEnum):
@@ -138,6 +140,7 @@ PLATFORM_RP2 = Platform.RP2
 # scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
+PLATFORM_STM32 = Platform.STM32
 
 
 BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
@@ -267,6 +270,7 @@ CONF_CLOCK_RESOLUTION = "clock_resolution"
 CONF_CLOSE_ACTION = "close_action"
 CONF_CLOSE_DURATION = "close_duration"
 CONF_CLOSE_ENDSTOP = "close_endstop"
+CONF_CLUSTER = "cluster"
 CONF_CO2 = "co2"
 CONF_CODE = "code"
 CONF_COL = "col"
@@ -405,6 +409,7 @@ CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENCRYPTION = "encryption"
+CONF_ENDPOINT = "endpoint"
 CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
@@ -903,6 +908,7 @@ CONF_REFERENCE_VOLTAGE = "reference_voltage"
 CONF_REFRESH = "refresh"
 CONF_RELABEL = "relabel"
 CONF_REPEAT = "repeat"
+CONF_REPORT = "report"
 CONF_REPOSITORY = "repository"
 CONF_RESET = "reset"
 CONF_RESET_DURATION = "reset_duration"
@@ -980,6 +986,8 @@ CONF_SLEEP_DURATION = "sleep_duration"
 CONF_SLEEP_PIN = "sleep_pin"
 CONF_SLEEP_WHEN_DONE = "sleep_when_done"
 CONF_SONY = "sony"
+CONF_SORTING_GROUP_ID = "sorting_group_id"
+CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_SOURCE = "source"
 CONF_SOURCE_ID = "source_id"
 CONF_SPEAKER = "speaker"
@@ -1111,6 +1119,7 @@ CONF_UPDATE_ON_BOOT = "update_on_boot"
 CONF_URL = "url"
 CONF_USE_ABBREVIATIONS = "use_abbreviations"
 CONF_USE_ADDRESS = "use_address"
+CONF_USE_DEVICE_TYPE = "use_device_type"
 CONF_USE_DMA = "use_dma"
 CONF_USE_FAHRENHEIT = "use_fahrenheit"
 CONF_USERNAME = "username"
@@ -1162,6 +1171,11 @@ CONF_Y = "y"
 CONF_Y_GRID = "y_grid"
 CONF_YEAR = "year"
 CONF_ZERO = "zero"
+CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
+CONF_ZIGBEE_ID = "zigbee_id"
+CONF_ZIGBEE_NUMBER = "zigbee_number"
+CONF_ZIGBEE_SENSOR = "zigbee_sensor"
+CONF_ZIGBEE_SWITCH = "zigbee_switch"
 
 TYPE_GIT = "git"
 TYPE_LOCAL = "local"
@@ -1260,6 +1274,7 @@ UNIT_DECIBEL_MILLIWATT = "dBm"
 UNIT_DEGREE_PER_SECOND = "°/s"
 UNIT_DEGREES = "°"
 UNIT_EMPTY = ""
+UNIT_FAHRENHEIT = "°F"
 UNIT_G = "G"
 UNIT_GRAMS_PER_CUBIC_METER = "g/m³"
 UNIT_HECTOPASCAL = "hPa"

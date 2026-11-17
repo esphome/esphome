@@ -112,7 +112,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
                 icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(

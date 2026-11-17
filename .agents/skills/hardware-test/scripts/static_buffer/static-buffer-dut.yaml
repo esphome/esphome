@@ -1,0 +1,29 @@
+# cg.static_buffer probes: two sbtest instances (each fills its three buffers and checks the other's are untouched)
+# and one sbpsram buffer. On a board with PSRAM add a psram: block; the buffer then comes from psram_buffer() and
+# SBPSRAM logs external=1. Expect each SBTEST line twice ending in PASS ("SBTEST setup zero=1 aligned=1 ... PASS",
+# "SBTEST intact=1 setup_ok=1 ... PASS") and "SBPSRAM readback=1 plain=1 zeroed=1 placed=1 PASS"; FAIL means a wrong
+# readback, a buffer not zeroed or misaligned at start, an overlap, or with PSRAM a buffer in internal RAM.
+esphome:
+  name: static-buffer
+
+external_components:
+  - source:
+      type: local
+      path: .
+    components: [sbtest, sbpsram]
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+sbtest:
+  - id: sb_a
+  - id: sb_b
+
+sbpsram:
+  - id: sb_p
+    size: 4096

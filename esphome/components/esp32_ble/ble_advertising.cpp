@@ -3,31 +3,41 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_ADVERTISING
 
-#include <cstdio>
+#include <algorithm>
 #include <cstring>
+#include "esphome/components/ble_device_base/adv_payload.h"
+#include "ble.h"
 #include "ble_uuid.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
+#include <esp_bt.h>
+#endif
+
 namespace esphome::esp32_ble {
+
+using ble_device_base::AdvPayload;
+using ble_device_base::build_adv_packets;
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 
-BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
-  this->advertising_data_.set_scan_rsp = false;
-  this->advertising_data_.include_name = true;
-  this->advertising_data_.include_txpower = true;
-  this->advertising_data_.min_interval = 0;
-  this->advertising_data_.max_interval = 0;
-  this->advertising_data_.appearance = 0x00;
-  this->advertising_data_.manufacturer_len = 0;
-  this->advertising_data_.p_manufacturer_data = nullptr;
-  this->advertising_data_.service_data_len = 0;
-  this->advertising_data_.p_service_data = nullptr;
-  this->advertising_data_.service_uuid_len = 0;
-  this->advertising_data_.p_service_uuid = nullptr;
-  this->advertising_data_.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
+// The TX power Bluedroid advertised, from its BTM_BLE_ADV_TX_POWER table
+static int8_t adv_tx_power_dbm() {
+#ifdef CONFIG_IDF_TARGET_ESP32
+  static constexpr int8_t TX_POWER_DBM[] = {-12, -9, -6, -3, 0, 3, 6, 9};
+#else
+  static constexpr int8_t TX_POWER_DBM[] = {-24, -21, -18, -15, -12, -9, -6, -3, 0, 3, 6, 9, 12, 15, 18, 20};
+#endif
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
+  const size_t level = 0;  // a hosted controller; Bluedroid sends level 0 too
+#else
+  const size_t level = esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_ADV);
+#endif
+  return TX_POWER_DBM[std::min(level, std::size(TX_POWER_DBM) - 1)];
+}
 
+BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_params_.adv_int_min = 0x20;
   this->advertising_params_.adv_int_max = 0x40;
   this->advertising_params_.adv_type = ADV_TYPE_IND;
@@ -44,14 +54,9 @@ void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
 }
 
 void BLEAdvertising::set_service_data(std::span<const uint8_t> data) {
-  delete[] this->advertising_data_.p_service_data;
-  this->advertising_data_.p_service_data = nullptr;
-  this->advertising_data_.service_data_len = data.size();
-  if (!data.empty()) {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    this->advertising_data_.p_service_data = new uint8_t[data.size()];
-    memcpy(this->advertising_data_.p_service_data, data.data(), data.size());
-  }
+  // Too long to fit is the same as none
+  this->service_data_len_ = data.size() <= MAX_DATA_LEN ? data.size() : 0;
+  memcpy(this->service_data_.data(), data.data(), this->service_data_len_);
 }
 
 void BLEAdvertising::set_service_data(const std::vector<uint8_t> &data) {
@@ -59,69 +64,43 @@ void BLEAdvertising::set_service_data(const std::vector<uint8_t> &data) {
 }
 
 void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
-  delete[] this->advertising_data_.p_manufacturer_data;
-  this->advertising_data_.p_manufacturer_data = nullptr;
-  this->advertising_data_.manufacturer_len = data.size();
-  if (!data.empty()) {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    this->advertising_data_.p_manufacturer_data = new uint8_t[data.size()];
-    memcpy(this->advertising_data_.p_manufacturer_data, data.data(), data.size());
-  }
+  // Only what fits goes on air
+  this->manufacturer_data_len_ = std::min(data.size(), MAX_DATA_LEN);
+  memcpy(this->manufacturer_data_.data(), data.data(), this->manufacturer_data_len_);
 }
 
 esp_err_t BLEAdvertising::services_advertisement_() {
-  int num_services = this->advertising_uuids_.size();
-  if (num_services == 0) {
-    this->advertising_data_.service_uuid_len = 0;
-  } else {
-    this->advertising_data_.service_uuid_len = 16 * num_services;
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    this->advertising_data_.p_service_uuid = new uint8_t[this->advertising_data_.service_uuid_len];
-    uint8_t *p = this->advertising_data_.p_service_uuid;
-    for (int i = 0; i < num_services; i++) {
-      ESPBTUUID uuid = this->advertising_uuids_[i];
-      memcpy(p, uuid.as_128bit().get_uuid().uuid.uuid128, 16);
-      p += 16;
-    }
-  }
+  char name_buffer[ESP32BLE::DEVICE_NAME_BUFFER_SIZE];
+  const char *name = global_ble->device_name(name_buffer);
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets({.uuids = this->advertising_uuids_,
+                     .priority_uuid = this->priority_uuid_,
+                     .manufacturer_data = {this->manufacturer_data_.data(), this->manufacturer_data_len_},
+                     .service_data = {this->service_data_.data(), this->service_data_len_},
+                     .name = name,
+                     .name_len = strlen(name),
+                     .appearance = this->appearance_,
+                     .tx_power_dbm = adv_tx_power_dbm(),
+                     .name_in_adv = this->include_name_in_adv_},
+                    adv, rsp);
 
-  esp_err_t err;
-
-  this->advertising_data_.set_scan_rsp = false;
-  this->advertising_data_.include_name = this->include_name_in_adv_ || !this->scan_response_;
-  this->advertising_data_.include_txpower = !this->scan_response_;
-  err = esp_ble_gap_config_adv_data(&this->advertising_data_);
+  // Bluedroid copies the bytes during each call
+  esp_err_t err = esp_ble_gap_config_adv_data_raw(const_cast<uint8_t *>(adv.data()), adv.size());
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Advertising): %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_ble_gap_config_adv_data_raw failed: %s", esp_err_to_name(err));
     return err;
   }
-
-  if (this->scan_response_) {
-    memcpy(&this->scan_response_data_, &this->advertising_data_, sizeof(esp_ble_adv_data_t));
-    this->scan_response_data_.set_scan_rsp = true;
-    this->scan_response_data_.include_name = true;
-    this->scan_response_data_.include_txpower = true;
-    this->scan_response_data_.manufacturer_len = 0;
-    this->scan_response_data_.appearance = 0;
-    this->scan_response_data_.flag = 0;
-    err = esp_ble_gap_config_adv_data(&this->scan_response_data_);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gap_config_adv_data failed (Scan response): %s", esp_err_to_name(err));
-      return err;
-    }
+  err = esp_ble_gap_config_scan_rsp_data_raw(const_cast<uint8_t *>(rsp.data()), rsp.size());
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_config_scan_rsp_data_raw failed: %s", esp_err_to_name(err));
+    return err;
   }
-
-  if (this->advertising_data_.service_uuid_len > 0) {
-    delete[] this->advertising_data_.p_service_uuid;
-    this->advertising_data_.p_service_uuid = nullptr;
-  }
-
   err = esp_ble_gap_start_advertising(&this->advertising_params_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %s", esp_err_to_name(err));
     return err;
   }
-
   return ESP_OK;
 }
 
@@ -134,6 +113,7 @@ void BLEAdvertising::start() {
 }
 
 void BLEAdvertising::stop() {
+  this->start_pending_ = false;
   esp_err_t err = esp_ble_gap_stop_advertising();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_advertising failed: %d", err);
@@ -145,6 +125,11 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
+  // Send a queued start after the event drain
+  if (this->start_pending_) {
+    this->start_pending_ = false;
+    this->start();
+  }
   if (this->raw_advertisements_callbacks_.empty()) {
     return;
   }

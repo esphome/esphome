@@ -10,7 +10,7 @@ namespace esphome::wifi::testing {
 
 namespace {
 
-// Stand-in for WiFiScanResult, which does not compile on the host.
+// Stand-in for WiFiScanResult that keeps the SSID in a std::string, so a test can hold an embedded NUL.
 struct Entry {
   std::string ssid;
   int8_t rssi;

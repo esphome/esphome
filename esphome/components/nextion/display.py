@@ -10,9 +10,8 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, TimePeriod
-from esphome.types import ConfigType, TemplateArgsType
 
-from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
+from . import Nextion, nextion_ref
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
@@ -33,6 +32,7 @@ from .base_component import (
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
     CONF_STARTUP_OVERRIDE_MS,
+    CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX,
     CONF_TFT_UPLOAD_HTTP_RETRIES,
     CONF_TFT_UPLOAD_HTTP_TIMEOUT,
     CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
@@ -53,10 +53,9 @@ def AUTO_LOAD() -> list[str]:
 
 
 def _validate_tft_upload(config):
-    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config and not CORE.is_esp32:
-        raise cv.Invalid(
-            f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
-        )
+    for key in (CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT, CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX):
+        if key in config and not CORE.is_esp32:
+            raise cv.Invalid(f"{key} is only available on ESP32")
     return config
 
 
@@ -105,6 +104,9 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX): cv.int_range(
+                min=512, max=8192
+            ),
             cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES): cv.int_range(min=1, max=255),
             cv.Optional(CONF_TFT_UPLOAD_HTTP_TIMEOUT): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -136,6 +138,7 @@ CONFIG_SCHEMA = cv.All(
         (
             CONF_TFT_UPLOAD_HTTP_TIMEOUT,
             CONF_TFT_UPLOAD_HTTP_RETRIES,
+            CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX,
             CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
         ),
         CONF_TFT_URL,
@@ -244,6 +247,14 @@ async def to_code(config):
                 )
             )
 
+        # TFT upload HTTP TX buffer size (ESP32 only; unset = ESP-IDF default)
+        if CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX in config:
+            cg.add(
+                var.set_tft_upload_http_buffer_size_tx(
+                    config[CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX]
+                )
+            )
+
         # TFT upload HTTP retries (default: 5)
         if CONF_TFT_UPLOAD_HTTP_RETRIES in config:
             cg.add(
@@ -293,15 +304,8 @@ async def to_code(config):
     for entry in _CUSTOM_CALLBACK_AUTOMATIONS:
         for conf in config.get(entry.conf_key, []):
             await automation.build_callback_automation(
-                var, entry.callback_method, _owning_args(entry.args, conf), conf
+                var,
+                entry.callback_method,
+                automation.owning_args(entry.args, conf),
+                conf,
             )
-
-
-def _owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
-    """Pass std::string instead of StringRef to an automation that defers, as it keeps its arguments."""
-    if not automation.has_non_synchronous_actions(conf):
-        return args
-    return [
-        (cg.std_string if type_ is cg.StringRef else type_, name)
-        for type_, name in args
-    ]

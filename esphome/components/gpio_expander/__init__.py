@@ -22,3 +22,9 @@ def validate_interrupt_pin(value: ConfigType) -> ConfigType:
             f"Remove the '{CONF_INTERRUPT_PIN}' to fall back to polling."
         )
     return value
+
+
+# Schema of a CachedGpioExpanderComponent; to_code sets the pin with cg.add_pin().
+INTERRUPT_EXPANDER_SCHEMA = cv.COMPONENT_SCHEMA.extend(
+    {cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin}
+)

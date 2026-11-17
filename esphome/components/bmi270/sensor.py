@@ -66,9 +66,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] not in _MAGNETIC_FIELDS:
         return
-    full_config = fv.full_config.get()
-    bmi270_path = full_config.get_path_for_id(config[CONF_BMI270_ID])[:-1]
-    bmi270_config = full_config.get_config_for_path(bmi270_path)
+    bmi270_config = fv.get_declaring_config(config[CONF_BMI270_ID])
     if bmi270_config.get(CONF_AUX_DEVICE) != "BMM150":
         raise cv.Invalid(
             "This sensor requires the parent bmi270's 'aux_device' to be set to 'BMM150'",

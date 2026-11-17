@@ -110,7 +110,7 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 
   this->transfer_array(data, sizeof(data));
 
-  return ((data[1] << 8) | data[2]) >> 3;
+  return encode_uint16(data[1], data[2]) >> 3;
 }
 
 }  // namespace esphome::xpt2046

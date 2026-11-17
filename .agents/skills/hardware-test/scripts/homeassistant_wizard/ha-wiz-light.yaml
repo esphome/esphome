@@ -1,0 +1,9 @@
+# The wizard-linked light, which builds before #21908 cannot compile; run.sh leaves it out when NO_LIGHT is set.
+api:
+  wizard:
+    pages:
+      - inputs:
+          - entity: l_wiz
+
+light:
+  - {platform: homeassistant, id: l_wiz, internal: false, name: L wiz}

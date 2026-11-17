@@ -20,6 +20,10 @@ namespace esphome::deep_sleep {
 // | ESP32-C6  |      | ✓    |       | ✓           |
 // | ESP32-C61 |      | ✓    |       | ✓           |
 // | ESP32-H2  |      | ✓    |       |             |
+// | ESP32-P4  |      | ✓    | ✓     | ✓           |
+//
+// Each wakeup source below is gated on the SOC capability macro for it, so a
+// new variant gets the sources its hardware has.
 //
 // Notes:
 // - (✓) = Supported by hardware but not yet implemented in ESPHome
@@ -30,7 +34,6 @@ namespace esphome::deep_sleep {
 
 ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
   switch (esp_sleep_get_wakeup_cause()) {
     case ESP_SLEEP_WAKEUP_EXT0:
@@ -47,7 +50,6 @@ WakeupCause get_wakeup_cause() {
       return WAKEUP_CAUSE_UNKNOWN;
   }
 }
-#endif  // USE_DEEP_SLEEP_ON_WAKE
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
   if (this->wakeup_cause_to_run_duration_.has_value()) {
@@ -64,18 +66,6 @@ optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
     }
   }
   return this->run_duration_;
-}
-
-void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
-  this->wakeup_pin_mode_ = wakeup_pin_mode;
-}
-
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
-void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
-#endif
-
-void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
-  wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
 }
 
 void DeepSleepComponent::dump_config_platform_() {
@@ -121,10 +111,8 @@ void DeepSleepComponent::deep_sleep_() {
 #endif
 #endif
 
-  // Single pin wakeup (ext0) - ESP32, S2, S3 only
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+  // Single pin wakeup (ext0) - ESP32, S2, S3
+#if SOC_PM_SUPPORT_EXT0_WAKEUP
   if (this->wakeup_pin_ != nullptr) {
     const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
     if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLUP) {
@@ -140,11 +128,9 @@ void DeepSleepComponent::deep_sleep_() {
     }
     esp_sleep_enable_ext0_wakeup(gpio_pin, level);
   }
-#endif
 
-  // GPIO wakeup - C2, C3, C5, C6, C61 only
-#if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
-    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61)
+  // GPIO wakeup - C2, C3, C5, C6, C61, P4 (no variant has both ext0 and this)
+#elif SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
   if (this->wakeup_pin_ != nullptr) {
     const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
     // Make sure GPIO is in input mode, not all RTC GPIO pins are input by default
@@ -166,16 +152,14 @@ void DeepSleepComponent::deep_sleep_() {
 #endif
 
   // Multiple pin wakeup (ext1) - All except C2, C3
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
   if (this->ext1_wakeup_.has_value()) {
     esp_sleep_enable_ext1_wakeup(this->ext1_wakeup_->mask, this->ext1_wakeup_->wakeup_mode);
   }
 #endif
 
-  // Touch wakeup - ESP32, S2, S3 only
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+  // Touch wakeup - ESP32, S2, S3, P4
+#if SOC_PM_SUPPORT_TOUCH_SENSOR_WAKEUP
   if (this->touch_wakeup_.has_value() && *(this->touch_wakeup_)) {
     esp_sleep_enable_touchpad_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);

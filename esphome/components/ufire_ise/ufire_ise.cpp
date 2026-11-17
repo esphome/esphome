@@ -18,14 +18,8 @@ void UFireISEComponent::setup() {
   ESP_LOGI(TAG, "Found uFire_ise board version 0x%02X", version);
 
   // Write option for temperature adjustments
-  uint8_t config;
-  this->read_byte(REGISTER_CONFIG, &config);
-  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr) {
-    config &= ~CONFIG_TEMP_COMPENSATION;
-  } else {
-    config |= CONFIG_TEMP_COMPENSATION;
-  }
-  this->write_byte(REGISTER_CONFIG, config);
+  const bool compensate = this->temperature_sensor_ != nullptr || this->external_temperature_sensor_ != nullptr;
+  this->update_register(REGISTER_CONFIG, CONFIG_TEMP_COMPENSATION, compensate ? CONFIG_TEMP_COMPENSATION : 0);
 }
 
 void UFireISEComponent::update() {
@@ -52,13 +46,11 @@ void UFireISEComponent::update_internal_() {
     this->temperature_sensor_->publish_state(temperature);
   }
   // Get temperature from external only for adjustments
-  else if (this->temperature_sensor_external_ != nullptr) {
-    temperature = this->temperature_sensor_external_->state;
+  else if (this->external_temperature_sensor_ != nullptr) {
+    temperature = this->external_temperature_sensor_->state;
   }
 
-  if (this->ph_sensor_ != nullptr) {
-    this->ph_sensor_->publish_state(this->measure_ph_(temperature));
-  }
+  PUBLISH_STATE(this->ph_sensor_, this->measure_ph_(temperature));
 }
 
 float UFireISEComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }
@@ -145,7 +137,7 @@ void UFireISEComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PH Sensor", this->ph_sensor_);
   LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
+  LOG_SENSOR("  ", "Temperature Sensor external", this->external_temperature_sensor_);
 }
 
 }  // namespace esphome::ufire_ise

@@ -1,0 +1,114 @@
+esphome:
+  name: api-shutdown-order
+
+host:
+
+logger:
+
+api:
+
+switch:
+  - platform: template
+    id: test_switch
+    name: "Test switch"
+    optimistic: true
+
+button:
+  - platform: restart
+    id: restart_button
+    name: "Restart"
+  - platform: template
+    name: "Toggle then restart"
+    on_press:
+      - switch.toggle: test_switch
+      - button.press: restart_button
+  - platform: template
+    name: "Publish then restart"
+    on_press:
+      - lambda: |-
+          for (auto *sensor : App.get_sensors())
+            sensor->publish_state(1);
+      - button.press: restart_button
+
+sensor:
+  # More states than one batch packet holds (MAX_MESSAGES_PER_BATCH is 34)
+  - platform: template
+    name: "Burst 0"
+  - platform: template
+    name: "Burst 1"
+  - platform: template
+    name: "Burst 2"
+  - platform: template
+    name: "Burst 3"
+  - platform: template
+    name: "Burst 4"
+  - platform: template
+    name: "Burst 5"
+  - platform: template
+    name: "Burst 6"
+  - platform: template
+    name: "Burst 7"
+  - platform: template
+    name: "Burst 8"
+  - platform: template
+    name: "Burst 9"
+  - platform: template
+    name: "Burst 10"
+  - platform: template
+    name: "Burst 11"
+  - platform: template
+    name: "Burst 12"
+  - platform: template
+    name: "Burst 13"
+  - platform: template
+    name: "Burst 14"
+  - platform: template
+    name: "Burst 15"
+  - platform: template
+    name: "Burst 16"
+  - platform: template
+    name: "Burst 17"
+  - platform: template
+    name: "Burst 18"
+  - platform: template
+    name: "Burst 19"
+  - platform: template
+    name: "Burst 20"
+  - platform: template
+    name: "Burst 21"
+  - platform: template
+    name: "Burst 22"
+  - platform: template
+    name: "Burst 23"
+  - platform: template
+    name: "Burst 24"
+  - platform: template
+    name: "Burst 25"
+  - platform: template
+    name: "Burst 26"
+  - platform: template
+    name: "Burst 27"
+  - platform: template
+    name: "Burst 28"
+  - platform: template
+    name: "Burst 29"
+  - platform: template
+    name: "Burst 30"
+  - platform: template
+    name: "Burst 31"
+  - platform: template
+    name: "Burst 32"
+  - platform: template
+    name: "Burst 33"
+  - platform: template
+    name: "Burst 34"
+  - platform: template
+    name: "Burst 35"
+  - platform: template
+    name: "Burst 36"
+  - platform: template
+    name: "Burst 37"
+  - platform: template
+    name: "Burst 38"
+  - platform: template
+    name: "Burst 39"

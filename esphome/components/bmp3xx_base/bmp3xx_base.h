@@ -67,15 +67,37 @@ enum IIRFilter {
   IIR_FILTER_128 = 0x07
 };
 
+/// Output data rate (ODR) bit field in the ODR register, used in NORMAL_MODE
+enum OutputDataRate : uint8_t {
+  ODR_200_HZ = 0x00,
+  ODR_100_HZ = 0x01,
+  ODR_50_HZ = 0x02,
+  ODR_25_HZ = 0x03,
+  ODR_12_5_HZ = 0x04,
+  ODR_6_25_HZ = 0x05,
+  ODR_3_1_HZ = 0x06,
+  ODR_1_5_HZ = 0x07,
+  ODR_0_78_HZ = 0x08,
+  ODR_0_39_HZ = 0x09,
+  ODR_0_2_HZ = 0x0A,
+  ODR_0_1_HZ = 0x0B,
+  ODR_0_05_HZ = 0x0C,
+  ODR_0_02_HZ = 0x0D,
+  ODR_0_01_HZ = 0x0E,
+  ODR_0_006_HZ = 0x0F,
+  ODR_0_003_HZ = 0x10,
+  ODR_0_001_HZ = 0x11
+};
+
 /// This class implements support for the BMP3XX Temperature+Pressure sensor.
 class BMP3XXComponent : public PollingComponent {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
   /// Set the oversampling value for the temperature sensor. Default is 16x.
   void set_temperature_oversampling_config(Oversampling temperature_oversampling) {
@@ -87,11 +109,14 @@ class BMP3XXComponent : public PollingComponent {
   }
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
   void set_iir_filter_config(IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
+  /// Measure continuously in NORMAL_MODE at this rate instead of once per update in FORCED_MODE.
+  void set_output_data_rate_config(OutputDataRate output_data_rate) {
+    this->odr_.bit.odr_sel = output_data_rate;
+    this->operation_mode_ = NORMAL_MODE;
+  }
 
   /// Soft reset the sensor
   uint8_t reset();
-  /// Start continuous measurement in NORMAL_MODE
-  bool start_normal_conversion();
   /// Start a one shot measurement in FORCED_MODE
   bool start_forced_conversion();
   /// Stop the conversion and return to SLEEP_MODE
@@ -122,8 +147,6 @@ class BMP3XXComponent : public PollingComponent {
   Oversampling pressure_oversampling_{OVERSAMPLING_X16};
   IIRFilter iir_filter_{IIR_FILTER_OFF};
   OperationMode operation_mode_{FORCED_MODE};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
 
   struct {  // The BMP388 compensation trim parameters (coefficients)
     uint16_t param_T1;
@@ -216,6 +239,13 @@ class BMP3XXComponent : public PollingComponent {
     } bit;
     uint8_t reg;
   } config_ = {.reg = 0};
+  bool normal_mode_data_valid_{false};
+
+  // Write the filter, oversampling and, in NORMAL_MODE, the data rate and mode
+  bool configure_();
+  void read_and_publish_();
+  // False when the sensor lost power and fell back to sleep; its settings are then restored
+  bool check_reset_();
 
   // Bosch temperature compensation function
   float bmp388_compensate_temperature_(float uncomp_temp);

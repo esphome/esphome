@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_NOTIFY,
     CONF_SERVICE_UUID,
-    CONF_TRIGGER_ID,
     CONF_TYPE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
@@ -32,9 +31,6 @@ adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
 
 BLESensor = ble_client_ns.class_(
     "BLESensor", sensor.Sensor, cg.PollingComponent, ble_client.BLEClientNode
-)
-BLESensorNotifyTrigger = ble_client_ns.class_(
-    "BLESensorNotifyTrigger", automation.Trigger.template(cg.float_)
 )
 
 BLEClientRssiSensor = ble_client_ns.class_(
@@ -67,13 +63,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
                     cv.Optional(CONF_LAMBDA): cv.returning_lambda,
                     cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
-                    cv.Optional(CONF_ON_NOTIFY): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                BLESensorNotifyTrigger
-                            ),
-                        }
-                    ),
+                    cv.Optional(CONF_ON_NOTIFY): automation.validate_automation({}),
                 }
             ),
             TYPE_RSSI: sensor.sensor_schema(
@@ -153,10 +143,12 @@ async def characteristic_sensor_to_code(config):
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
     cg.add(var.set_enable_notify(config[CONF_NOTIFY]))
-    for conf in config.get(CONF_ON_NOTIFY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await ble_client.register_ble_node(trigger, config)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+    if on_notify := config.get(CONF_ON_NOTIFY):
+        cg.add_define("USE_BLE_SENSOR_ON_NOTIFY")
+        for conf in on_notify:
+            await automation.build_callback_automation(
+                var, "add_on_notify_callback", [(float, "x")], conf
+            )
 
 
 async def to_code(config):

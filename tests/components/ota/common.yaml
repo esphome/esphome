@@ -12,6 +12,9 @@ ota:
     on_end:
       then:
         - logger.log: "OTA end"
+    on_abort:
+      then:
+        - logger.log: "OTA abort"
     on_error:
       then:
         - logger.log:

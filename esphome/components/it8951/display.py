@@ -274,9 +274,7 @@ def _model_schema(config: ConfigType) -> cv.Schema:
             cv.Optional(CONF_UPDATE_MODE): update_mode,
             # One or more GPIOs driven high during setup to power on the panel
             # (e.g. board power-enable rails), before reset and init.
-            cv.Optional(
-                CONF_ENABLE_PIN, default=model.get_default(CONF_ENABLE_PIN, [])
-            ): cv.ensure_list(pins.gpio_output_pin_schema),
+            **display.enable_pin_schema(model, config),
             cv.Optional(CONF_RESET_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
