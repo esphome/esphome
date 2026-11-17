@@ -72,6 +72,9 @@ async def wait_mark(dev, mark, before, timeout=8.0):
 
 
 REPORTED = 0  # failures already shown on a result line
+# The dev bug repros measure a known failure, so their counts are reported but not judged
+REPROS = {"crc", "rxtx", "txback", "txrx", "txset", "nocrc64"}
+MISSED: list[str] = []  # cases whose good count missed what they expect
 
 
 def verdict(tx, rx):
@@ -114,7 +117,10 @@ async def case(
     tx_len=None,
     crc=False,
     wait=None,
+    want=None,
 ):
+    """WANT: "most" (at least 80 % good), "none" (no good packet) or "any" (not judged)."""
+    want = want or ("any" if MODE in REPROS else "most")
     nr, nt = (
         sum(1 for line in rx.lines if "CFG " in line),
         sum(1 for line in tx.lines if "CFG " in line),
@@ -145,8 +151,13 @@ async def case(
         return f"{statistics.mean(p[i] for p in good):.1f}" if good else "-"
 
     lens = sorted({int(p[0]) for p in got})
+    missed = (want == "most" and len(good) * 5 < count * 4) or (
+        want == "none" and len(good) > 0
+    )
+    if missed:
+        MISSED.append(label)
     print(
-        f"{label:34} {verdict(tx, rx)}sent={count} txerr={txerr} good={len(good)} wrong={len(got) - len(good)} lens={lens} other={other} "
+        f"{label:34} {verdict(tx, rx)}{'MISSED ' if missed else ''}sent={count} txerr={txerr} good={len(good)} wrong={len(got) - len(good)} lens={lens} other={other} "
         f"rssi={stat(4)} lqi={stat(5)} fo={stat(6)}",
         flush=True,
     )
@@ -216,6 +227,9 @@ async def main():
                         1,
                         150,
                         crc=crc,
+                        want="any"
+                        if length == 64 and crc
+                        else None,  # 0/20 on dev too, #22635
                     )
     elif MODE == "long":
         await case(tx, rx, f"{TXN}->{RXN} len=32 (runtime, long build)", 10, 32, 1, 200)
@@ -224,7 +238,9 @@ async def main():
         await rx.act("idle_rx")
         await case(tx, rx, "after set_idle+begin_rx len=100", 5, 100, 3, 300, wait=None)
         await rx.act("tx_rx")
-        await case(tx, rx, "after begin_tx+begin_rx len=300", 5, 300, 4, 300)
+        await case(
+            tx, rx, "after begin_tx+begin_rx len=300", 5, 300, 4, 300, want="any"
+        )  # dead reception on dev, #22636
     elif MODE == "r2long":
         await case(tx, rx, "burst 300 x5, no gap", 5, 300, 10, 0)
         await case(tx, rx, "burst 65 x10, no gap", 10, 65, 11, 0)
@@ -291,6 +307,7 @@ async def main():
             300,
             rx_len=-1,
             wait=5,
+            want="none",
         )
         await rx.act("wup")
         await case(tx, rx, "after wake_up, len 300", 5, 300, 45, 300, rx_len=-1)
@@ -425,6 +442,7 @@ async def main():
             200,
             rx_len=-1,
             tx_len=40,
+            want="none",
         )
         await case(
             tx,
@@ -459,6 +477,8 @@ async def main():
         sys.exit(
             f"INVALID: {tx.failed + rx.failed} failed actions or missing CFG/RATE lines"
         )
+    if MISSED:
+        sys.exit(f"MISSED: {len(MISSED)} cases below their expected count: {MISSED}")
 
 
 asyncio.run(main())

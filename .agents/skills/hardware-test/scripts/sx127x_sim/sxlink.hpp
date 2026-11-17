@@ -252,6 +252,8 @@ inline void run() {
         return;
       }
       const uint32_t end = C.mb->last_tx_end_ms;
+      if (cnt == 0 || C.ma->tx_over_signal != over0)
+        fails++;  // sent at once over the peer's packet, or over a signal: listen before talk did not hold it
       ESP_LOGI(TAG,
                "RES lbt refused=%u loop_active_while_held=%u accepted after=%ums, peer packet ended at %dms, "
                "a_received_peer=%u tx_over_signal_delta=%u",
@@ -303,6 +305,8 @@ inline void run() {
     case 12:
       if (!wait_value())
         return;
+      if (C.ma->tx_over_signal != over0)
+        fails++;  // outside the hold cap phase no send may start over a signal
       ESP_LOGI(TAG, "RES tx_over_signal_delta=%u", (unsigned) (C.ma->tx_over_signal - over0));
       ESP_LOGI(TAG, "PHASE reliability_lost");
       cnt = C.ma->tx;
