@@ -2065,6 +2065,69 @@ def test_parse_pio_platform_version(value: str, expected: str) -> None:
     assert _parse_pio_platform_version(value) == expected
 
 
+_IDF_PKG = "pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download"
+
+
+@pytest.mark.parametrize(
+    ("framework", "expected"),
+    [
+        # Platform 55.03.313 ships a compiler the plain 5.5.6 tag rejects
+        pytest.param(
+            {"type": "esp-idf", "version": "5.5.6"},
+            f"{_IDF_PKG}/v5.5.6.261115/esp-idf-v5.5.6.tar.xz",
+            id="default_platform",
+        ),
+        pytest.param(
+            {"type": "esp-idf", "version": "5.5.6", "platform_version": "55.3.312"},
+            f"{_IDF_PKG}/v5.5.6/esp-idf-v5.5.6.tar.xz",
+            id="older_platform",
+        ),
+        pytest.param(
+            {"type": "esp-idf", "version": "5.5.6", "release": "1"},
+            f"{_IDF_PKG}/v5.5.6.1/esp-idf-v5.5.6.tar.xz",
+            id="release_from_config",
+        ),
+        pytest.param(
+            {"type": "esp-idf", "version": "5.5.5"},
+            f"{_IDF_PKG}/v5.5.5/esp-idf-v5.5.5.tar.xz",
+            id="other_idf_version",
+        ),
+    ],
+)
+def test_check_pio_versions_picks_the_idf_release_for_the_platform(
+    framework: dict[str, str], expected: str
+) -> None:
+    from esphome.components.esp32 import FRAMEWORK_SCHEMA, _check_pio_versions
+
+    config = _check_pio_versions({"framework": FRAMEWORK_SCHEMA(framework)})
+
+    assert config["framework"]["source"] == expected
+
+
+@pytest.mark.parametrize(
+    ("platform", "idf", "expected"),
+    [
+        ("55.3.313", cv.Version(5, 5, 6), "261115"),
+        ("55.3.312", cv.Version(5, 5, 6), None),
+        ("55.3.313", cv.Version(5, 5, 5), None),
+        (
+            "https://github.com/pioarduino/platform-espressif32.git#develop",
+            cv.Version(5, 5, 6),
+            None,
+        ),
+    ],
+)
+def test_pio_espidf_release(
+    platform: str, idf: cv.Version, expected: str | None
+) -> None:
+    from esphome.components.esp32 import (
+        _parse_pio_platform_version,
+        _pio_espidf_release,
+    )
+
+    assert _pio_espidf_release(_parse_pio_platform_version(platform), idf) == expected
+
+
 def test_esp32_s31_gpio_validation(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,

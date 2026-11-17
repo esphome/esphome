@@ -1258,6 +1258,14 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(5, 1, 5): cv.Version(51, 3, 7),
 }
 
+# The pioarduino/esp-idf release a platform needs in place of the plain tag,
+# keyed by (platform version, ESP-IDF version). A platform can ship a newer
+# compiler than the tagged ESP-IDF accepts, which fails at configure time.
+#  - https://github.com/pioarduino/esp-idf/releases
+PLATFORM_ESP_IDF_RELEASE_LOOKUP = {
+    (cv.Version(55, 3, 313), cv.Version(5, 5, 6)): "261115",
+}
+
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
@@ -1329,28 +1337,32 @@ def _check_pio_versions(config: ConfigType) -> ConfigType:
 
     version = _resolve_framework_version(value)
 
+    if CONF_PLATFORM_VERSION not in value:
+        if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
+            platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
+        else:
+            platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+        if platform_lookup is None:
+            raise cv.Invalid(
+                "Framework version not recognized; please specify platform_version"
+            )
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
+
     if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"{ARDUINO_FRAMEWORK_PKG}@{value[CONF_SOURCE]}"
     else:
-        platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+        release = value.get(CONF_RELEASE) or _pio_espidf_release(
+            value[CONF_PLATFORM_VERSION], version
+        )
         value[CONF_SOURCE] = value.get(
-            CONF_SOURCE,
-            _format_framework_pio_espidf_version(version, value.get(CONF_RELEASE)),
+            CONF_SOURCE, _format_framework_pio_espidf_version(version, release)
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
-
-    if CONF_PLATFORM_VERSION not in value:
-        if platform_lookup is None:
-            raise cv.Invalid(
-                "Framework version not recognized; please specify platform_version"
-            )
-        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
     if value[CONF_PLATFORM_VERSION] != _parse_pio_platform_version(
         str(PLATFORM_VERSION_LOOKUP["recommended"])
@@ -1411,6 +1423,16 @@ def _parse_pio_platform_version(value):
         return f"https://github.com/pioarduino/platform-espressif32/releases/download/{release}/platform-espressif32.zip"
     except cv.Invalid:
         return value
+
+
+def _pio_espidf_release(platform_version: str, idf_ver: cv.Version) -> str | None:
+    """The pioarduino/esp-idf release this platform needs for this ESP-IDF version."""
+    for (platform, idf), release in PLATFORM_ESP_IDF_RELEASE_LOOKUP.items():
+        if idf == idf_ver and platform_version == _parse_pio_platform_version(
+            str(platform)
+        ):
+            return release
+    return None
 
 
 def _normalize_p4_engineering_sample(value: ConfigType) -> bool:
@@ -3145,9 +3167,10 @@ async def to_code(config):
             # Add IDF framework source for Arduino builds to ensure it uses the same version as
             # the ESP-IDF framework
             if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+                release = _pio_espidf_release(conf[CONF_PLATFORM_VERSION], idf_ver)
                 cg.add_platformio_option(
                     "platform_packages",
-                    [_format_framework_pio_espidf_version(idf_ver)],
+                    [_format_framework_pio_espidf_version(idf_ver, release)],
                 )
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino_libs_stub")
