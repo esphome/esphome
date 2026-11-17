@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <concepts>
 #include <span>
 #include <utility>
@@ -12,6 +13,25 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::remote_base {
+
+/// Received bytes of a protocol with a fixed maximum length, stored without the heap.
+/// Converts to std::vector, so lambdas that pass x.data to a function taking a std::vector keep working.
+template<size_t N> class RemoteBytes : public StaticVector<uint8_t, N> {
+ public:
+  using StaticVector<uint8_t, N>::StaticVector;
+  RemoteBytes(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, N>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+  uint8_t front() const { return (*this)[0]; }
+  uint8_t back() const { return (*this)[this->size() - 1]; }
+  bool operator==(const RemoteBytes &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+  // Without this a longer vector would be cut to N bytes by the conversion above and could compare equal
+  bool operator==(const std::vector<uint8_t> &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+};
 
 enum ToleranceMode : uint8_t {
   TOLERANCE_MODE_PERCENTAGE = 0,
@@ -88,6 +108,14 @@ class RemoteTransmitData {
   uint32_t carrier_frequency_{0};
 };
 
+/// The lengths that match one timing within the tolerance. A hot loop computes it once instead of at every
+/// timing; matches_mark() accepts exactly what peek_mark() does.
+struct TimingRange {
+  int32_t min;
+  int32_t max;
+  bool matches_mark(int32_t value) const { return this->min <= value && value <= this->max; }
+};
+
 class RemoteReceiveData {
  public:
   /// The timings are not copied: they must outlive this object.
@@ -110,6 +138,7 @@ class RemoteReceiveData {
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_most(uint32_t length, uint32_t offset = 0) const;
+  TimingRange timing_range(uint32_t length) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
     return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }

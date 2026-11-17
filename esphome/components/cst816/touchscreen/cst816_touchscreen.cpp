@@ -68,8 +68,8 @@ void CST816Touchscreen::update_touches() {
     return;
   }
 
-  uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
-  uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
+  uint16_t x = encode_uint16(low_nibble(data[REG_XPOS_HIGH]), data[REG_XPOS_LOW]);
+  uint16_t y = encode_uint16(low_nibble(data[REG_YPOS_HIGH]), data[REG_YPOS_LOW]);
   ESP_LOGV(TAG, "Read touch %d/%d", x, y);
   this->add_raw_touch_position_(0, x, y);
 }
