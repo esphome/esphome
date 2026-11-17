@@ -22,12 +22,14 @@ class ScanDev(Dev):
         self.lines: list[str] = []
         self.auths: set[bytes] = set()
         self.bad_checksums = 0
+        self.malformed = 0
 
     def show(self, typ: int, data: bytes, ok: bool, short: bool) -> None:
         if typ != 4:
             return
         self.bad_checksums += not ok
         if short:
+            self.malformed += 1
             self.lines.append(f"reply malformed {data.hex()} checksum_ok={ok}")
             return
         strs = strings(rpc_strings(data), raw=True)
@@ -58,10 +60,10 @@ def main() -> None:
     d.ser.close()
     pathlib.Path(o.out).write_text("\n".join(d.lines) + "\n", encoding="utf-8")
     print(
-        f"{len(d.lines)} replies; auth values: {sorted(d.auths)}; bad checksums: {d.bad_checksums}"
+        f"{len(d.lines)} replies; auth values: {sorted(d.auths)}; bad checksums: {d.bad_checksums}; malformed: {d.malformed}"
         + ("" if end else "; NO end-of-list reply within 15 s")
     )
-    sys.exit(0 if end and not d.bad_checksums else 1)
+    sys.exit(0 if end and not d.bad_checksums and not d.malformed else 1)
 
 
 if __name__ == "__main__":
