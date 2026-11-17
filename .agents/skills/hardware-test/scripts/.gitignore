@@ -46,6 +46,10 @@ tuya_sim/*.json
 remote_base/pronto/*.txt
 remote_base/pronto/gen-common.yaml
 remote_base/dumpall/dumpers.h
+remote_base/dumpall/db.txt
+remote_base/dumpall/dp.txt
+remote_base/dumpall/vb.txt
+remote_base/dumpall/vp.txt
 xiaomi_ble/*-cap.txt
 xiaomi_ble/frames_all.hpp
 xiaomi_ble/xball_entities.yaml

@@ -16,8 +16,10 @@ PRESSES=()
 for _ in $(seq "$R"); do
   for b in tx_nec tx_raw21a tx_raw21b tx_raw41 tx_raw43 tx_raw121 tx_raw245; do PRESSES+=("$b:1.5"); done
 done
-"$PY" "$S/../press.py" "$IP" "${PRESSES[@]}" soak:90 > "$S/$N-drive.txt" 2>&1
+"$PY" "$S/../press.py" "$IP" "${PRESSES[@]}" soak:90 > "$S/$N-drive.txt" 2>&1; RC=$?
 sleep 3; kill $CAP; wait $CAP 2>/dev/null
 cat "$S/$N-drive.txt"
 echo "MARK tx $(grep -a -c 'MARK tx' "$S/$N-serial.txt") triggers $(grep -a -c 'TRIG len=' "$S/$N-serial.txt")" \
   "binary sensor on_press $(grep -a -c 'BS pronto a ON' "$S/$N-serial.txt")"
+[ $RC -eq 0 ] || echo "press.py failed (rc=$RC)"
+exit $RC

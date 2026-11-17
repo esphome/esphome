@@ -12,6 +12,10 @@ pkill -f "[s]erial_capture.py $P "
 TREE=$T bash $B upload "$N" "$D/$N.yaml" "$P" || exit 1
 sleep 3
 $PY "$SC" "$P" 75 "$D/$N-cap.txt" --reset > /dev/null 2>&1
-$PY "$D/count_all.py" "$D/$N-cap.txt" | tail -2
+COUNT=$($PY "$D/count_all.py" "$D/$N-cap.txt"); RC=$?
+echo "$COUNT" | tail -2
 grep -a "IDLE" "$D/$N-cap.txt"
-echo "crash lines: $(grep -a -c 'Guru\|abort()\|Backtrace' "$D/$N-cap.txt")"
+CRASH=$(grep -a -c 'Guru\|abort()\|Backtrace' "$D/$N-cap.txt")
+echo "crash lines: $CRASH"
+[ "$CRASH" -eq 0 ] || RC=1
+exit $RC
