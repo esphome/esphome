@@ -21,7 +21,7 @@ for h in sorted(rb.glob("*_protocol.h")):
     ):
         headers.append(h.name)
     names += found
-names += ["Pronto", "RCSwitch", "ABBWelcome"]
+names += [n for n in ("Pronto", "RCSwitch", "ABBWelcome") if n not in names]
 out = ["#pragma once"]
 out += [f'#include "esphome/components/remote_base/{h}"' for h in headers]
 out += [

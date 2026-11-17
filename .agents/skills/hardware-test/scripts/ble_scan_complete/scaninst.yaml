@@ -29,7 +29,7 @@ interval:
   - interval: 30s
     then:
       - lambda: |-
-          auto &g = g_scan_inst;
+          const scan_inst_t g = scan_inst_snapshot();
           int64_t now = esp_timer_get_time();
           ESP_LOGI("scaninst", "start=%u bad=%u stop=%u timer=%u fire=%u timeout=%u cmpl_post=%u cmpl_fail=%u pid=%u ends=%u "
                    "ago_ms timer=%lld fire=%lld timeout=%lld cmpl=%lld",

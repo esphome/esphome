@@ -3,6 +3,7 @@
 # capture 75 s from a reset and count the publishes. Run python gen_all.py first.
 # env: BUILD_LOCK (optional), PY (default TREE's venv python)
 D=$(cd "$(dirname "$0")" && pwd); T=${1:?tree}; N=${2:?name}; P=${3:?port}
+[ "$N" = xball ] && { echo "NAME xball would overwrite the xball.yaml template; pick another"; exit 1; }
 export PY=${PY:-$T/venv/bin/python}
 SC=$(dirname "$D")/serial_capture.py; B=$(dirname "$D")/pio_build.sh
 { sed "s/^  name: xball$/  name: $N/" "$D/xball.yaml"; cat "$D/xball_entities.yaml"; } > "$D/$N.yaml"

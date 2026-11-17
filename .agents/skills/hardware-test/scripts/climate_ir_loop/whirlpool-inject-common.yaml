@@ -1,6 +1,10 @@
 # API actions that send whirlpool frames the sender cannot produce; add a board package and whirlpool/cl.yaml.
 packages:
   base: !include base.yaml
+remote_receiver:
+  # a short frame ends in the idle gap, which the decoder takes as the second divider only up to 9,950 us
+  # (7,960 + 25%); the 9 ms header mark must stay below idle
+  idle: 9500us
 api:
   actions:
     # A Hitachi frame the sender cannot produce: temperature nibble 15 (16 + 15 = 31 C, above the 30 C max), cool, fan low
