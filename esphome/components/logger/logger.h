@@ -188,6 +188,8 @@ class Logger final : public Component {
 #endif
 #ifdef USE_LOGGER_CONSOLE
   // Raw bytes on the console port, without log framing; request with logger.request_console()
+  // console_write() returns the bytes written: a UART write blocks until all are queued, but a USB write can stop
+  // short when the host is not reading (USB Serial/JTAG gives up after 20 ms)
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   size_t console_write(const uint8_t *data, size_t len) { return this->hw_serial_->write(data, len); }
   bool console_read(uint8_t &byte) {
@@ -198,7 +200,6 @@ class Logger final : public Component {
     return true;
   }
 #elif defined(USE_ESP32)
-  /// Blocking write; returns the bytes written.
   size_t console_write(const uint8_t *data, size_t len);
   /// Non-blocking read of one byte; false if none is waiting.
   bool console_read(uint8_t &byte);
