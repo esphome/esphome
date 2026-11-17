@@ -1,0 +1,205 @@
+#pragma once
+// TwoWire models of the cores ESPHome uses, with the cores' own buffer rules. Select with WAB_WIRE_ESP8266 or
+// WAB_WIRE_PICO before including. Bytes go on the wire through wab::wire() with ACKs from wab::slave().
+#include <cstddef>
+#include <cstdint>
+#include "wab_common.h"
+
+#if defined(WAB_WIRE_ESP8266)
+#define TwoWire TwoWire8266
+#define Wire Wire8266
+// esp8266 core 3.1.2-esphome.3 libraries/Wire: I2C_BUFFER_LENGTH 128
+class TwoWire {
+ public:
+  static constexpr size_t LEN = 128;
+  void begin(int, int) {}
+  void setClock(uint32_t) {}
+  void setClockStretchLimit(uint32_t) {}
+  void beginTransmission(uint8_t address) {
+    transmitting = 1;
+    txAddress = address;
+    txBufferIndex = 0;
+    txBufferLength = 0;
+  }
+  size_t write(uint8_t data) {
+    if (transmitting) {
+      if (txBufferLength >= LEN)
+        return 0;  // setWriteError()
+      txBuffer[txBufferIndex] = data;
+      ++txBufferIndex;
+      txBufferLength = txBufferIndex;
+    }
+    return 1;
+  }
+  size_t write(const uint8_t *data, size_t quantity) {
+    if (transmitting) {
+      for (size_t i = 0; i < quantity; ++i)
+        if (!write(data[i]))
+          return i;
+    }
+    return quantity;
+  }
+  uint8_t endTransmission(uint8_t sendStop) {
+    // twi_writeTo: 0 ok, 2 address NACK, 3 data NACK; STOP when sendStop (also after a NACK)
+    int8_t ret = 0;
+    auto &w = wab::wire();
+    auto &s = wab::slave();
+    w.start();
+    uint8_t ab = txAddress << 1;
+    bool ack = s.address(ab);
+    w.wbyte(ab, ack);
+    if (!ack) {
+      ret = 2;
+    } else {
+      for (size_t i = 0; i < txBufferLength; i++) {
+        bool a = s.data(txBuffer[i]);
+        w.wbyte(txBuffer[i], a);
+        if (!a) {
+          ret = 3;
+          break;
+        }
+      }
+    }
+    if (sendStop || ret != 0)
+      w.stop();
+    txBufferIndex = 0;
+    txBufferLength = 0;
+    transmitting = 0;
+    return ret;
+  }
+  size_t requestFrom(uint8_t address, size_t size, bool sendStop) {
+    if (size > LEN)
+      size = LEN;
+    auto &w = wab::wire();
+    auto &s = wab::slave();
+    w.start();
+    uint8_t ab = (address << 1) | 1;
+    bool ack = s.address(ab);
+    w.wbyte(ab, ack);
+    size_t read = 0;
+    if (ack) {
+      for (size_t i = 0; i < size; i++) {
+        rxBuffer[i] = s.next_read();
+        w.rbyte(rxBuffer[i], i + 1 < size);
+      }
+      read = size;
+    }
+    if (sendStop || !ack)
+      w.stop();
+    rxBufferIndex = 0;
+    rxBufferLength = read;
+    return read;
+  }
+  int read() { return rxBufferIndex < rxBufferLength ? rxBuffer[rxBufferIndex++] : -1; }
+  void wab_reset() { transmitting = 0; txBufferLength = txBufferIndex = 0; }
+
+  uint8_t transmitting{0};
+  uint8_t txAddress{0};
+  size_t txBufferIndex{0}, txBufferLength{0}, rxBufferIndex{0}, rxBufferLength{0};
+  uint8_t txBuffer[LEN]{}, rxBuffer[LEN]{};
+};
+extern TwoWire Wire;
+
+#elif defined(WAB_WIRE_PICO)
+#define TwoWire TwoWirePico
+#define Wire WirePico
+#define Wire1 Wire1Pico
+// arduino-pico 6.3.2 libraries/Wire: WIRE_BUFFER_SIZE 256, one buffer for TX and RX
+class TwoWire {
+ public:
+  static constexpr size_t LEN = 256;
+  void setSDA(int) {}
+  void setSCL(int) {}
+  void begin() {}
+  void setClock(uint32_t) {}
+  void setTimeout(uint32_t) {}
+  void beginTransmission(uint8_t addr) {
+    if (!_running || _txBegun)
+      return;  // ERROR
+    _addr = addr;
+    _buffLen = 0;
+    _buffOff = 0;
+    _txBegun = true;
+  }
+  size_t write(uint8_t ucData) {
+    if (!_running)
+      return 0;
+    if (!_txBegun || (_buffLen == int(LEN)))
+      return 0;
+    _buff[_buffLen++] = ucData;
+    return 1;
+  }
+  size_t write(const uint8_t *data, size_t quantity) {
+    for (size_t i = 0; i < quantity; ++i)
+      if (!write(data[i]))
+        return i;
+    return quantity;
+  }
+  uint8_t endTransmission(bool stopBit) {
+    if (!_running || !_txBegun)
+      return 4;
+    _txBegun = false;
+    auto &w = wab::wire();
+    auto &s = wab::slave();
+    if (!_buffLen) {
+      // _probe(): its own START, address, STOP
+      w.start();
+      uint8_t ab = _addr << 1;
+      bool ack = s.address(ab);
+      w.wbyte(ab, ack);
+      w.stop();
+      return ack ? 0 : 2;
+    }
+    // i2c_write_blocking_until: abort (with STOP) on any NACK, returns PICO_ERROR_GENERIC
+    w.start();
+    uint8_t ab = _addr << 1;
+    bool ok = s.address(ab);
+    w.wbyte(ab, ok);
+    for (int i = 0; ok && i < _buffLen; i++) {
+      ok = s.data(_buff[i]);
+      w.wbyte(_buff[i], ok);
+    }
+    if (stopBit || !ok)
+      w.stop();
+    int len = _buffLen;
+    _buffLen = 0;
+    return ok ? 0 : (len < 0 ? 4 : 4);
+  }
+  size_t requestFrom(uint8_t address, size_t quantity, bool stopBit) {
+    if (!_running || _txBegun || !quantity || (quantity > LEN))
+      return 0;
+    auto &w = wab::wire();
+    auto &s = wab::slave();
+    w.start();
+    uint8_t ab = (address << 1) | 1;
+    bool ack = s.address(ab);
+    w.wbyte(ab, ack);
+    _buffOff = 0;
+    if (!ack) {
+      w.stop();
+      _buffLen = 0;
+      return 0;
+    }
+    for (size_t i = 0; i < quantity; i++) {
+      _buff[i] = s.next_read();
+      w.rbyte(_buff[i], i + 1 < quantity);
+    }
+    if (stopBit)
+      w.stop();
+    _buffLen = quantity;
+    return quantity;
+  }
+  int read() { return _buffOff < _buffLen ? _buff[_buffOff++] : -1; }
+  void wab_reset() { _txBegun = false; _buffLen = _buffOff = 0; }
+
+  bool _running{true};
+  bool _txBegun{false};
+  uint8_t _addr{0};
+  int _buffLen{0}, _buffOff{0};
+  uint8_t _buff[LEN]{};
+};
+extern TwoWire Wire;
+extern TwoWire Wire1;
+#else
+#error "select a Wire model"
+#endif

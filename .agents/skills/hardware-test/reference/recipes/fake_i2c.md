@@ -151,3 +151,43 @@ Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_ro
 `SIG_GPIO_OUT_IDX` and back to `I2CEXT0_SDA_OUT_IDX`) wedges the ESP-IDF controller, which then needs
 `i2c_master_bus_reset()` after each glitch, and glitches timed onto writes left the VL53L0X answering 0x00 until a
 power cycle.
+
+## WeiKai WK2168 on I2C (#22759)
+
+`templates/i2c_fake/wkfake.hpp` + `wk-common.yaml`: answers 0x10 to 0x17 (`0 A1 A0 1 0 C1 C0 F`), keeps only A3..A0 of
+the register byte and builds the 6 bit address C1C0A3..A0, models the globals (a GRST write resets the channels in its
+low nibble and logs `!!!!! GRST WRITE`), per-channel SCR/LCR/FCR/baud/RFCNT/FSR and FIFOs (TX logged, RX injected with
+`inject_rx`, dropped when SCR is off), GPDIR/GPDAT with `set_input()`. It classifies each transaction W / P (1 byte
+pointer) / R / WR (repeated start); `fail_reads`, `fail_ptr` and `every_n` inject NACKs and the fake counts whether
+the next read is a retry of the same register. The hub sets up at BUS - 0.1, so the `on_boot` that swaps the bus uses
+priority 999.95, not 700. The driver polls RFCNT and FSR of every channel and GPDAT every loop: log only writes,
+changes and a `trace` window, never every read. `wk-map-check.cpp.example` is the host check that extracts
+`i2c_address()`/`i2c_register()` from both trees with awk and compares all registers. On #22759 the base build's
+GPIO writes hit GRST and reset UART channel 0.
+
+## BMI270 config upload and BMM150 aux (#22778)
+
+`bmi270fake.hpp` + `bmi270-common.yaml` + `bmi270-motion-aux.yaml`: BMI270 register file with reset values; config
+upload port (INIT_ADDR word address, INIT_DATA into 8 KB) where INTERNAL_STATUS reads 0x01 only when every byte was
+written once and FNV-1a equals `expected_fnv` (0x95BB75B5 for the current table, computed on the host from
+bmi270_config.h), else 0x02. Aux interface: AUX_DEV_ID selects the BMM150, manual mode turns AUX_WR_ADDR/AUX_RD_ADDR
+writes into BMM150 writes and 1/2/6/8 byte reads into AUX_X.., STATUS.aux_busy for two polls, auto mode mirrors the
+BMM150 data. Fault knobs: `bmm_mode` (absent, wrong chip id), `busy_stuck`, `stuck_from_aux_op` (busy stuck from the
+Nth aux transfer: 1 power-on, 2 soft reset, 3 chip id, 4 to 6 trim, 7 normal mode), `nack_at` (main-bus transaction
+N). `norm_fnv` hashes register-level effects and leaves STATUS polls out (their count depends on timing). Heap is
+sampled at INIT_CTRL=0/1 and inside each INIT_DATA burst; `-DBMI_FAKE_WRAP_MALLOC` with `-Wl,--wrap=malloc` in
+`platformio_options: build_flags` counts malloc() during the upload (works on ESP8266 and native ESP-IDF builds; the
+link fails without the wrap, so a clean link proves it applied).
+- Host side: copy `bmi270-host-harness.cpp.example` (as a `.cpp`) and the fake into `tests/components/bmi270/` of both
+  worktrees, plus a `benchmark.yaml` with `esphome: build_flags: [-DUSE_BMI270_BMM150, -DUSE_LOG_LISTENERS,
+  -DESPHOME_LOG_MAX_LISTENERS=4]` (the unit test build does not use defines.h; this is how to get a component's
+  optional code and log capture into it); the base also needs the PR's `__init__.py` manifest override.
+  `bmi270-setters.py` turns each tree's generated main.cpp (`esphome compile --only-generate`) into the setter list
+  the harness applies, so codegen changes (setters skipped at defaults) are tested as generated.
+  `bmi270-host-run.sh.example TREE NAME SETTERS [32]` runs it (32 forces the Arduino burst branch);
+  `bmi270-host-compare.py BASE.report PR.report` merges base's split INIT_ADDR writes, compares every config, fault and
+  per-step scenario, maps the NACK sweep through the merged stream and lists every log difference.
+  `bmm150-sweep.cpp.example` compares a decoder against a namespace-renamed copy of the base header bit for bit.
+- A planted one byte burst offset gave INTERNAL_STATUS 0x02 and "Config file upload failed" at both burst sizes.
+- Sensor publishes log at VERBOSE now, so log entity states from an interval lambda.
+- In zsh, `git show $H:esphome/...` applies the `:e` history modifier: write `"${H}:esphome/..."`.
