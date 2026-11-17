@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 import heapq
+import json
 from operator import itemgetter
 from pathlib import Path
 import sys
@@ -204,6 +205,39 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
             )
 
+    def _add_unnamed_constants_analysis(self, lines: list[str]) -> None:
+        """Add the unnamed constants (ESP8266 .rodata in RAM) section."""
+        self._add_section_header(lines, "Unnamed Constants in RAM (.rodata)")
+        total_size = sum(c.size for c in self._unnamed_constants)
+        lines.append(
+            f"Total: {len(self._unnamed_constants)} constant(s), {total_size:,} B. "
+            "GCC copies these into objects built from constant initializers;"
+        )
+        lines.append(
+            "PROGMEM tables, assigned fields or a user-provided constructor avoid the copy."
+        )
+        lines.append("")
+        for constant in self._unnamed_constants:
+            kind = "switch table" if constant.jump_table else "constant"
+            lines.append(
+                f"{constant.size:>6,} B {kind:<12} {constant.component} ({constant.source_file})"
+            )
+            lines.extend(
+                f"{'':>9} used by {self._demangle_symbol(function)}"
+                for function in constant.functions
+            )
+            if constant.strings:
+                # Escaped, so control characters in a literal can't disturb the terminal
+                shown = ", ".join(
+                    json.dumps(text[:40]) for text in constant.strings[:4]
+                )
+                more = ", ..." if len(constant.strings) > 4 else ""
+                lines.append(f"{'':>9} points to {shown}{more}")
+            elif constant.data and not constant.jump_table:
+                more = " ..." if constant.size > len(constant.data) else ""
+                lines.append(f"{'':>9} bytes: {constant.data.hex(' ')}{more}")
+        lines.append("")
+
     def _add_cswtch_analysis(self, lines: list[str]) -> None:
         """Add CSWTCH (GCC switch table lookup) analysis section."""
         self._add_section_header(lines, "CSWTCH Analysis (GCC Switch Table Lookups)")
@@ -393,6 +427,12 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             f"{' ':>{self.COL_RAM_DATA}} | {' ':>{self.COL_RAM_BSS}} | "
             f"{total_flash:>{self.COL_TOTAL_FLASH - 2},} B | {total_ram:>{self.COL_TOTAL_RAM - 2},} B"
         )
+
+        if self.rodata_in_ram:
+            lines.append("")
+            lines.append(
+                "ESP8266 keeps .rodata in RAM, so constants are counted in RAM (data)."
+            )
 
         # Show unattributed RAM (SDK/framework overhead)
         unattributed_bss, unattributed_data, unattributed_total = (
@@ -657,6 +697,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
 
+        if self._unnamed_constants:
+            self._add_unnamed_constants_analysis(lines)
+
         # CSWTCH (GCC switch table) analysis
         if self._cswtch_symbols:
             self._add_cswtch_analysis(lines)
@@ -738,7 +781,6 @@ def main():
     build_dir = sys.argv[1]
 
     # Load build directory
-    import json
 
     from esphome.platformio.toolchain import IDEData
 
