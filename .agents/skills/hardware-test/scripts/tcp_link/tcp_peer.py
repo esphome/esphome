@@ -51,7 +51,14 @@ RESULT = {"conns": 0, "over_closed": False, "rejected": False}
 def run_conn(sock, tag, args, first):
     start = time.monotonic()
     stop = threading.Event()
-    stats = {"frames": 0, "ka": [], "sizes": [], "last_ka": None, "over": False}
+    stats = {
+        "frames": 0,
+        "ka": [],
+        "sizes": [],
+        "last_ka": None,
+        "over": False,
+        "local_close": False,
+    }
     RESULT["conns"] += 1
 
     def sender():
@@ -90,6 +97,7 @@ def run_conn(sock, tag, args, first):
                     last = el
                 if args.hold and el >= args.hold:
                     log(tag, "HOLD over, closing")
+                    stats["local_close"] = True
                     sock.shutdown(socket.SHUT_RDWR)
                     return
             except OSError as e:
@@ -100,6 +108,7 @@ def run_conn(sock, tag, args, first):
     th = threading.Thread(target=sender, daemon=True)
     th.start()
     reason = "duration"
+    remote = False  # the peer closed or reset the connection (not a timeout or our own shutdown)
     sock.settimeout(0.5)
     while time.monotonic() - T0 < args.duration:
         try:
@@ -108,9 +117,11 @@ def run_conn(sock, tag, args, first):
             continue  # nothing of the next header has arrived yet
         except OSError as e:
             reason = f"error {e}"
+            remote = isinstance(e, (ConnectionResetError, BrokenPipeError))
             break
         if first_byte is None:
             reason = "EOF (peer closed)"
+            remote = True
             break
         # the rest of the frame is read with a long timeout, so a slow header byte is not lost
         sock.settimeout(5)
@@ -118,15 +129,18 @@ def run_conn(sock, tag, args, first):
             rest = recv_exact(sock, 1)
             if rest is None:
                 reason = "EOF in header"
+                remote = True
                 break
             (n,) = struct.unpack("<H", first_byte + rest)
             body = recv_exact(sock, n) if n else b""
         except OSError as e:
             reason = f"error in frame {e}"
+            remote = isinstance(e, (ConnectionResetError, BrokenPipeError))
             break
         sock.settimeout(0.5)
         if body is None:
             reason = "EOF in body"
+            remote = True
             break
         stats["frames"] += 1
         now = time.monotonic()
@@ -152,9 +166,10 @@ def run_conn(sock, tag, args, first):
         tag,
         f"CLOSE after {dur:.2f}s: {reason}; frames={stats['frames']} data={len(stats['sizes'])} {kas}",
     )
-    if stats["over"] and reason != "duration":
+    remote = remote and not stats["local_close"]
+    if stats["over"] and remote:
         RESULT["over_closed"] = True
-    if reason != "duration" and stats["frames"] == 0:
+    if remote and stats["frames"] == 0:
         RESULT["rejected"] = True  # closed by the peer before it sent anything
     with contextlib.suppress(OSError):
         sock.close()
