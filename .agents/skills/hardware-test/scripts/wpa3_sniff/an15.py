@@ -9,16 +9,18 @@ import sys
 BURST_GAP_US = 2_000_000
 
 b, mac = sys.argv[1], sys.argv[2].upper()
-ap = (
-    pathlib.Path(f"{b}-ap.txt")
-    .read_text(encoding="utf-8", errors="replace")
-    .splitlines()
-)
-st = (
-    pathlib.Path(f"{b}-st.txt")
-    .read_text(encoding="utf-8", errors="replace")
-    .splitlines()
-)
+paths = [pathlib.Path(f"{b}-ap.txt"), pathlib.Path(f"{b}-st.txt")]
+if missing := [str(x) for x in paths if not x.is_file()]:
+    sys.exit(f"missing capture {', '.join(missing)}")
+ap, st = (x.read_text(encoding="utf-8", errors="replace").splitlines() for x in paths)
+# zero Disassociation frames is a valid result (deep sleep sends none), but not with a dead sniffer, a station the AP
+# never saw or a station that never rebooted
+if not any("MGMT " in line for line in ap):
+    sys.exit(f"{b}: no MGMT lines in the AP capture; the sniffer did not run")
+if not any(mac in line for line in ap):
+    sys.exit(f"{b}: the AP capture never mentions {mac}; check the station MAC")
+if not any("REBOOT" in line for line in st):
+    sys.exit(f"{b}: no REBOOT line in the station capture")
 groups: list[tuple[str, str, list[tuple[int, int, int]]]] = []
 open_groups: dict[tuple[str, str], list[tuple[int, int, int]]] = {}
 for line in ap:
