@@ -165,10 +165,10 @@ struct LogBuffer {
   char *current_() { return this->data + this->pos; }
   // The body starts inside the buffer (write_header() needs MAX_HEADER_SIZE free) and the body writers keep a byte
   // for the terminator, so pos is inside the buffer here
-  void finalize_() { this->data[this->pos] = '\0'; }
-  // Write ANSI reset sequence inline ("\033[0m")
+  inline void ESPHOME_ALWAYS_INLINE finalize_() { this->data[this->pos] = '\0'; }
+  // Write ANSI reset sequence inline ("\033[0m"); forced inline, since it runs on every log line
   // Callers have checked body_room_(), which keeps space for the reset and the terminator after it
-  void write_ansi_reset_() {
+  inline void ESPHOME_ALWAYS_INLINE write_ansi_reset_() {
     char *p = this->current_();
     *p++ = '\033';
     *p++ = '[';
