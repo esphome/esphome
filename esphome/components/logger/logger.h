@@ -532,7 +532,7 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 #ifdef USE_ESP8266
                                  // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
                                  // the trigger so an automation that suspends (delay) still sees a valid tag.
-                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
+                                 buf_append_str_p(trigger->ram_tag_, sizeof(trigger->ram_tag_), 0, tag);
                                  tag = trigger->ram_tag_;
 #endif
                                  trigger->trigger(level, tag, message);
