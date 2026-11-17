@@ -1,0 +1,4 @@
+climate:
+  - platform: pioneer_wt
+    uart_id: uart_bus
+    name: Pioneer WT

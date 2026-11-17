@@ -1,0 +1,8 @@
+"""Pioneer WT series mini splits, controlled through the serial port of the WiFi module."""
+
+import esphome.codegen as cg
+
+CODEOWNERS = ["@martinsah"]
+DOMAIN = "pioneer_wt"
+
+pioneer_wt_ns = cg.esphome_ns.namespace("pioneer_wt")

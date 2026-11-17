@@ -1,0 +1,257 @@
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "esphome/components/pioneer_wt/pioneer_wt.h"
+#include "esphome/components/pioneer_wt/pioneer_wt_protocol.h"
+#include "esphome/core/application.h"
+#include "../common.h"
+
+namespace esphome::pioneer_wt::testing {
+
+namespace {
+
+using Frame = std::vector<uint8_t>;
+
+// Frames captured between a Pioneer WT indoor unit and its stock WiFi module.
+// Full status the AC sent at boot: on, heat, 77 F, indoor 21.7 C, fan auto, swing stopped, eco off.
+const char *const STATUS_DUMP = "a5010121a50000428a930c0c0001010002000009c400030000087a000500000c00000d00000e0800110800"
+                                "120400df0000c902001700001e0102270000004d014801";
+// The AC's once-a-minute "are you there?" check.
+const char *const PRESENCE_CHECK = "a50100210000000cd37d0c0c";
+
+Frame build(uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack, const Frame &payload) {
+  uint8_t frame[MAX_FRAME_SIZE];
+  const size_t len = build_frame(frame, sizeof(frame), flags, type, seq, ack, payload.data(), payload.size());
+  return Frame(frame, frame + len);
+}
+
+Frame command(uint8_t seq, const Frame &attrs) {
+  Frame payload{CLASS_COMMAND, CLASS_COMMAND};
+  payload.insert(payload.end(), attrs.begin(), attrs.end());
+  return build(FLAG_WANT_ACK, TYPE_DATA, seq, 0, payload);
+}
+
+size_t feed_all(FrameReader &reader, const Frame &bytes) {
+  size_t last = 0;
+  for (uint8_t b : bytes) {
+    if (size_t len = reader.feed(b))
+      last = len;
+  }
+  return last;
+}
+
+}  // namespace
+
+// Frames built here must match what the stock module sent, byte for byte.
+TEST(PioneerWTProtocol, BuildsCapturedCommands) {
+  EXPECT_EQ(command(0x09, {0x00, 0x01, 0x00}), from_hex("a50101210900000f4f990a0a000100"));
+  EXPECT_EQ(command(0x0b, {0x00, 0x12, 0x03}), from_hex("a50101210b00000fefbd0a0a001203"));
+  EXPECT_EQ(command(0x10, {0x02, 0x27, 0x00, 0x00, 0x00, 0x3f}), from_hex("a50101211000001238620a0a02270000003f"));
+  EXPECT_EQ(build(FLAG_WANT_ACK, TYPE_DATA, 0x01, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}),
+            from_hex("a50101210100000e4ae90b0bffff"));
+}
+
+TEST(PioneerWTProtocol, BuildsCapturedReplies) {
+  EXPECT_EQ(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0xb7, {0x80, CLASS_STATUS}), from_hex("a501012300b7000ce352800c"));
+  EXPECT_EQ(build(FLAG_NO_ACK, TYPE_REPLY, 0, 0, {0x80, CLASS_STATUS, 0x02, 0x64, 0xff, 0xff, 0xff, 0xd8}),
+            from_hex("a501002300000012c601800c0264ffffffd8"));
+}
+
+TEST(PioneerWTProtocol, PutAttrIsBigEndian) {
+  uint8_t buf[8];
+  EXPECT_EQ(put_attr(buf, 0, ATTR_SETPOINT_F, 0x4d, 4), 6u);
+  EXPECT_EQ(Frame(buf, buf + 6), from_hex("02270000004d"));
+}
+
+TEST(PioneerWTProtocol, ReaderAcceptsCapturedFrame) {
+  FrameReader reader;
+  const Frame frame = from_hex(STATUS_DUMP);
+  EXPECT_EQ(feed_all(reader, frame), frame.size());
+}
+
+TEST(PioneerWTProtocol, ReaderSkipsNoiseAndStrayHeaderBytes) {
+  FrameReader reader;
+  Frame bytes = from_hex("00ffa5a5a502");
+  const Frame frame = from_hex(PRESENCE_CHECK);
+  bytes.insert(bytes.end(), frame.begin(), frame.end());
+  EXPECT_EQ(feed_all(reader, bytes), frame.size());
+}
+
+TEST(PioneerWTProtocol, ReaderDropsBadChecksum) {
+  FrameReader reader;
+  Frame frame = from_hex(PRESENCE_CHECK);
+  frame[9] ^= 0x01;
+  EXPECT_EQ(feed_all(reader, frame), 0u);
+  // The next good frame is still accepted.
+  EXPECT_EQ(feed_all(reader, from_hex(PRESENCE_CHECK)), 12u);
+}
+
+TEST(PioneerWTProtocol, ReaderRejectsImpossibleLength) {
+  FrameReader reader;
+  EXPECT_EQ(feed_all(reader, from_hex("a501012100000005")), 0u);
+  EXPECT_EQ(feed_all(reader, from_hex(PRESENCE_CHECK)), 12u);
+}
+
+TEST(PioneerWTProtocol, AttributesOfStatusDump) {
+  const Frame frame = from_hex(STATUS_DUMP);
+  AttributeReader attrs(frame.data() + HEADER_SIZE + 2, frame.size() - HEADER_SIZE - 2);
+  std::vector<std::pair<uint16_t, uint32_t>> seen;
+  while (attrs.next())
+    seen.emplace_back(attrs.id(), attrs.value());
+  EXPECT_FALSE(attrs.stopped_on_unknown());
+  ASSERT_EQ(seen.size(), 15u);
+  EXPECT_EQ(seen[0], std::make_pair(ATTR_POWER, 1u));
+  EXPECT_EQ(seen[1], std::make_pair(ATTR_SETPOINT_C100, 2500u));
+  EXPECT_EQ(seen[2], std::make_pair(ATTR_INDOOR_TEMP_C100, 2170u));
+  EXPECT_EQ(seen[8], std::make_pair(ATTR_MODE, 4u));
+  EXPECT_EQ(seen[13], std::make_pair(ATTR_SETPOINT_F, 77u));
+}
+
+TEST(PioneerWTProtocol, AttributesWithCountPrefix) {
+  // 0038 carries a count byte: empty, then one byte of data, then the next attribute.
+  const Frame body = from_hex("00380000380122000101");
+  AttributeReader attrs(body.data(), body.size());
+  ASSERT_TRUE(attrs.next());
+  EXPECT_EQ(attrs.id(), 0x0038);
+  ASSERT_TRUE(attrs.next());
+  EXPECT_EQ(attrs.id(), 0x0038);
+  ASSERT_TRUE(attrs.next());
+  EXPECT_EQ(attrs.id(), ATTR_POWER);
+  EXPECT_EQ(attrs.value(), 1u);
+  EXPECT_FALSE(attrs.next());
+  EXPECT_FALSE(attrs.stopped_on_unknown());
+}
+
+TEST(PioneerWTProtocol, AttributesStopAtUnknownId) {
+  const Frame body = from_hex("000101abcd00001200");
+  AttributeReader attrs(body.data(), body.size());
+  ASSERT_TRUE(attrs.next());
+  EXPECT_EQ(attrs.id(), ATTR_POWER);
+  EXPECT_FALSE(attrs.next());
+  EXPECT_TRUE(attrs.stopped_on_unknown());
+  EXPECT_EQ(attrs.id(), 0xabcd);
+}
+
+TEST(PioneerWTProtocol, AttributesStopAtTruncatedValue) {
+  const Frame body = from_hex("0227000000");
+  AttributeReader attrs(body.data(), body.size());
+  EXPECT_FALSE(attrs.next());
+  EXPECT_FALSE(attrs.stopped_on_unknown());
+}
+
+class PioneerWTTest : public ::testing::Test {
+ protected:
+  void SetUp() override { this->sut_.set_uart_parent(&this->uart_); }
+
+  void loop_at_(uint32_t now) {
+    LoopBlockingGuard{nullptr, nullptr, now};
+    this->sut_.loop();
+  }
+
+  // Starts the component and acknowledges its boot request for the full status.
+  void start_() {
+    this->sut_.setup();
+    this->loop_at_(1000);
+    this->uart_.tx.clear();
+    this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x01, {0x80, CLASS_NETWORK}));
+    this->loop_at_(1010);
+  }
+
+  MockUARTComponent uart_;
+  PioneerWT sut_;
+};
+
+TEST_F(PioneerWTTest, RequestsFullStatusAtBoot) {
+  this->sut_.setup();
+  this->loop_at_(1000);
+  EXPECT_EQ(this->uart_.tx, from_hex("a50101210100000e4ae90b0bffff"));
+}
+
+TEST_F(PioneerWTTest, ResendsUntilAcknowledgedThenGivesUp) {
+  this->sut_.setup();
+  this->loop_at_(1000);
+  const Frame request = from_hex("a50101210100000e4ae90b0bffff");
+  this->loop_at_(1200);  // too soon to resend
+  EXPECT_EQ(this->uart_.tx.size(), request.size());
+  for (uint32_t t = 1500; t <= 2500; t += 500)
+    this->loop_at_(t);
+  EXPECT_EQ(this->uart_.tx.size(), request.size() * 4);
+  this->loop_at_(3000);  // fourth attempt was the last
+  this->loop_at_(3500);
+  EXPECT_EQ(this->uart_.tx.size(), request.size() * 4);
+}
+
+TEST_F(PioneerWTTest, AppliesStatusDumpAndAcknowledges) {
+  this->start_();
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1100);
+  EXPECT_EQ(this->uart_.tx, from_hex("a501012300a5000ca38b800c"));
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_HEAT);
+  EXPECT_NEAR(this->sut_.target_temperature, 25.0f, 0.01f);
+  EXPECT_NEAR(this->sut_.current_temperature, 21.7f, 0.01f);
+  ASSERT_TRUE(this->sut_.fan_mode.has_value());
+  EXPECT_EQ(*this->sut_.fan_mode, climate::CLIMATE_FAN_AUTO);
+  EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_OFF);
+}
+
+TEST_F(PioneerWTTest, AnswersPresenceCheck) {
+  this->start_();
+  this->uart_.push_rx_hex(PRESENCE_CHECK);
+  this->loop_at_(1100);
+  EXPECT_EQ(this->uart_.tx, from_hex("a5010023000000124709800c0264ffffffd0"));
+}
+
+TEST_F(PioneerWTTest, ReportsFanSpeedAndPowerOff) {
+  this->start_();
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1100);
+  // Fan speed 3, then power off.
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x05, 0x03}));
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_DATA, 0xb1, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x01, 0x00}));
+  this->loop_at_(1200);
+  EXPECT_EQ(this->sut_.get_custom_fan_mode(), "Speed 3");
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
+}
+
+TEST_F(PioneerWTTest, ModeChangeWhileOnSendsModeOnly) {
+  this->start_();
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1100);
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx, from_hex("a50101210200000f0d230a0a001201"));
+  // State follows the AC's report, not the request.
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_HEAT);
+}
+
+TEST_F(PioneerWTTest, TurnOnSendsPowerModeAndSetpoint) {
+  this->start_();
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_HEAT).set_target_temperature(20.0f).perform();
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx, from_hex("a50101210200001869400a0a000101001204022700000044"));
+}
+
+TEST_F(PioneerWTTest, OffSendsPowerOnly) {
+  this->start_();
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1100);
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx, from_hex("a50101210200000f4b220a0a000100"));
+}
+
+TEST_F(PioneerWTTest, FanSpeedSentLikeTheApp) {
+  this->start_();
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_fan_mode("Speed 3").perform();
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx, from_hex("a501012102000018ac1f0a0a022400022500000503007300"));
+}
+
+}  // namespace esphome::pioneer_wt::testing
