@@ -257,6 +257,65 @@ TEST_F(HdlcReliabilityTest, LostAckDoesNotDuplicate) {
     EXPECT_TRUE(a.send({0x01}));
 }
 
+// Runs a layer's loop until it stops asking, without delivering what it sends
+static void run_until_idle(TestHdlc &hdlc) {
+  for (int i = 0; i != 10 && !hdlc.is_idle(); i++)
+    hdlc.loop();
+}
+
+static size_t count_info(const std::vector<Frame> &frames) {
+  size_t count = 0;
+  for (const auto &frame : frames)
+    count += is_info(frame);
+  return count;
+}
+
+TEST_F(HdlcReliabilityTest, TimeoutResendsOnlyOldestFrame) {
+  Peer a, b;
+  pump(a, b);
+  for (uint8_t i = 0; i != 3; i++)
+    ASSERT_TRUE(a.send({i}));
+  pump(a, b, nullptr, [](const Frame &frame) { return is_ack(frame); });
+  ASSERT_EQ(b.received.size(), 3);
+  ASSERT_EQ(a.hdlc->outstanding_(), 3);
+  a.hdlc->on_timeout_();
+  run_until_idle(*a.hdlc);
+  EXPECT_EQ(count_info(a.link.sent), 1);
+  // The peer's answer to the duplicate acknowledges all three
+  pump(a, b);
+  EXPECT_EQ(b.received.size(), 3);
+  EXPECT_EQ(a.hdlc->outstanding_(), 0);
+}
+
+TEST_F(HdlcReliabilityTest, RestFollowOnceOldestAcknowledged) {
+  Peer a, b;
+  pump(a, b);
+  for (uint8_t i = 0; i != 3; i++)
+    ASSERT_TRUE(a.send({i}));
+  pump(a, b, [](const Frame &frame) { return is_info(frame); });
+  ASSERT_TRUE(b.received.empty());
+  a.hdlc->on_timeout_();
+  run_until_idle(*a.hdlc);
+  EXPECT_EQ(count_info(a.link.sent), 1);
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0}, {1}, {2}}));
+  EXPECT_EQ(a.hdlc->outstanding_(), 0);
+}
+
+TEST_F(HdlcReliabilityTest, NewFrameWaitsWhileOldestIsResent) {
+  Peer a, b;
+  pump(a, b);
+  ASSERT_TRUE(a.send({0}));
+  pump(a, b, [](const Frame &frame) { return is_info(frame); });
+  a.hdlc->on_timeout_();
+  run_until_idle(*a.hdlc);
+  ASSERT_TRUE(a.send({1}));
+  run_until_idle(*a.hdlc);
+  EXPECT_EQ(count_info(a.link.sent), 1);
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0}, {1}}));
+}
+
 TEST_F(HdlcReliabilityTest, QueueFull) {
   Peer a(2), b(2);
   pump(a, b);

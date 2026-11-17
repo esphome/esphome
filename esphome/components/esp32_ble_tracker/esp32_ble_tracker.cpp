@@ -485,6 +485,14 @@ void ESP32BLETracker::dump_config() {
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
   }
+#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
+  for (auto *listener : this->listeners_)
+    listener->dump_child_config();
+#endif
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  for (auto *listener : this->neutral_listeners_)
+    listener->dump_child_config();
+#endif
 }
 
 #ifdef USE_ESP32_BLE_DEVICE

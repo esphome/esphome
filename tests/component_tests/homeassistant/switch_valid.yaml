@@ -1,0 +1,14 @@
+---
+esphome:
+  name: test
+
+host:
+
+logger:
+
+api:
+
+switch:
+  - platform: homeassistant
+    entity_id: switch.porch
+    id: ha_switch
