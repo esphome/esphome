@@ -58,6 +58,13 @@ class AdvDispatcher {
                 bool raw_only, const char *log_unclaimed_tag);
   /// Fire listeners' on_scan_end and reset the per-scan discovered-log dedup.
   void on_scan_end();
+  /// Print each listener's dump_child_config(); called from the tracker's dump_config().
+  void dump_child_configs() {
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+    for (auto *listener : this->listeners_)
+      listener->dump_child_config();
+#endif
+  }
 
  protected:
   RawAdvertisementCallback raw_callback_{};
