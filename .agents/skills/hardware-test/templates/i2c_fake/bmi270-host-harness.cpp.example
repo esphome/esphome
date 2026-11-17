@@ -2,6 +2,7 @@
 // Host harness for esphome#22778. Runs BMI270Component::setup() and update_data() against bmi270fake::Bus for every
 // scenario and writes one report to $BMI_OUT: per scenario the outcome (failed, error reason, warning, magnetometer
 // ready), the log lines, the final registers, decoded values and the raw transaction stream.
+// $BMI_EXPECTED_FNV (hex, optional) overrides the fake's expected config table hash.
 // Scenarios: configs from $BMI_SETTERS (lines "name setter value", parsed from each tree's generated main.cpp),
 // aux faults, and a NACK at every main-bus transaction of the aux config.
 #include <gtest/gtest.h>
@@ -77,13 +78,12 @@ struct Result {
 static Result run(const std::string &label, const std::vector<Setter> &setters, uint8_t aux_addr, uint8_t bmm_mode,
                   bool busy_stuck, uint32_t nack_at, bool full, uint8_t stuck_from = 0) {
   auto bus = std::make_unique<bmi270fake::Bus>();
-  bus->expected_fnv = std::strtoul(std::getenv("BMI_EXPECTED_FNV"), nullptr, 16);
-  bus->bmm_addr = aux_addr;
-  bus->bmm_mode = bmm_mode;
+  if (const char *fnv = std::getenv("BMI_EXPECTED_FNV"))
+    bus->expected_fnv = std::strtoul(fnv, nullptr, 16);
+  bus->init_bmm(aux_addr, bmm_mode);
   bus->busy_stuck = busy_stuck;
   bus->nack_at = nack_at;
   bus->stuck_from_aux_op = stuck_from;
-  bus->bmm_reset_(true);
   BMI270Component imu;
   imu.set_i2c_bus(bus.get());
   imu.set_i2c_address(0x68);

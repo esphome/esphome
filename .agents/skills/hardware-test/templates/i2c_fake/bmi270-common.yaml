@@ -3,6 +3,7 @@
 esphome:
   name: ${name}
   includes:
+    - alloc_count.hpp
     - bmi270fake.hpp
   platformio_options:
     build_flags:
@@ -12,9 +13,7 @@ esphome:
     - priority: 700
       then:
         - lambda: |-
-            bmi270fake::bus.expected_fnv = 0x95BB75B5;  // FNV-1a of the 8192 byte table, computed on the host
-            bmi270fake::bus.bmm_addr = ${fake_aux_addr};
-            bmi270fake::bus.bmm_reset_(true);
+            bmi270fake::bus.init_bmm(${fake_aux_addr});
             id(imu)->set_i2c_bus(&bmi270fake::bus);
     - priority: -100
       then:

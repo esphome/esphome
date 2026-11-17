@@ -1,13 +1,17 @@
 #pragma once
 // esphome#22780 sweep for the Arduino (ESP8266, RP2040) and software (BK72xx) buses: one "SW" line per I2CDevice call
-// with rc, mallocs during the call and, where a sniffer exists (ESP8266, RP2), the decoded wire stream and its hash.
+// with rc, mallocs during the call (alloc_count.hpp) and, where a sniffer exists (ESP8266, RP2), the decoded wire
+// stream and its hash.
 #include <cstring>
 #include <functional>
 #include <string>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
+#include "alloc_count.hpp"
+#include "wiredecode.hpp"
 #ifdef USE_RP2
 #include <hardware/gpio.h>
 #include <hardware/irq.h>
@@ -34,36 +38,6 @@
 #endif
 #ifndef SWP_SCL
 #define SWP_SCL 5
-#endif
-
-// malloc counter: ESP8266 wraps malloc, RP2 wraps __malloc_lock (the core already wraps malloc), LibreTiny wraps
-// pvPortMalloc (LibreTiny already wraps malloc to it)
-static volatile bool swp_window = false;
-static volatile uint32_t swp_allocs = 0;
-#if defined(USE_RP2)
-// arduino-pico already wraps malloc and _malloc_r; count entries into newlib's heap lock instead (malloc and free
-// each take it once)
-extern "C" void __real___malloc_lock(struct _reent *r);
-extern "C" void __wrap___malloc_lock(struct _reent *r) {
-  if (swp_window)
-    swp_allocs = swp_allocs + 1;
-  __real___malloc_lock(r);
-}
-#elif defined(USE_LIBRETINY)
-extern "C" void *__real_pvPortMalloc(size_t n);
-extern "C" void *__wrap_pvPortMalloc(size_t n) {
-  if (swp_window)
-    swp_allocs = swp_allocs + 1;
-  return __real_pvPortMalloc(n);
-}
-#else
-// in IRAM: the SDK also reaches malloc where flash code cannot run
-extern "C" void *__real_malloc(size_t n);
-extern "C" void *IRAM_ATTR __wrap_malloc(size_t n) {
-  if (swp_window)
-    swp_allocs = swp_allocs + 1;
-  return __real_malloc(n);
-}
 #endif
 
 namespace swp {
@@ -115,77 +89,56 @@ static void install() {
 #endif
   ESP_LOGI(TAG, "sniffer on SDA %d SCL %d", SWP_SDA, SWP_SCL);
 }
-static std::string decode(uint8_t start, uint32_t &amb) {
-  std::string out;
-  uint8_t prev = start;
-  bool open = false, first = false, reading = false;
-  int bits = -1;
-  uint16_t sh = 0;
-  char t[8];
-  for (uint32_t i = 0; i < n; i++) {
-    uint8_t cur = buf[i];
-    bool psda = prev & 1, pscl = prev & 2, sda = cur & 1, scl = cur & 2;
-    if ((psda != sda) && (pscl != scl))
-      amb++;
-    if (pscl && scl && psda && !sda) {
-      out += open ? "Sr " : "S ";
-      open = true;
-      bits = 0;
-      sh = 0;
-      first = true;
-    } else if (pscl && scl && !psda && sda) {
-      out += "P ";
-      open = false;
-      bits = -1;
-    } else if (!pscl && scl && bits >= 0) {
-      if (bits < 8) {
-        sh = (sh << 1) | (sda ? 1 : 0);
-        bits++;
-      } else {
-        bool ack = !sda;
-        uint8_t b = sh & 0xFF;
-        if (first)
-          reading = b & 1;
-        snprintf(t, sizeof t, (!first && reading) ? "r%02X%c " : "%02X%c ", b, ack ? '+' : '-');
-        out += t;
-        first = false;
-        bits = 0;
-        sh = 0;
-      }
-    }
-    prev = cur;
-  }
-  return out;
-}
 #else
 #define SWP_SNIFF 0
 static void install() {}
 #endif
-
-static uint32_t fnv(const std::string &s) {
-  uint32_t h = 2166136261u;
-  for (unsigned char c : s)
-    h = (h ^ c) * 16777619u;
-  return h;
-}
 
 static i2c::I2CBus *bus = nullptr;
 static uint8_t data[320];
 static uint8_t rdata[40];
 static uint32_t idx = 0, nalloc = 0;
 static bool done = false, probed = false;
+#if SWP_SNIFF
+static uint8_t start = 3;  // levels when the sniffer was armed
+#endif
+
+static void arm() {
+#if SWP_SNIFF
+  n = 0;
+  ovf = 0;
+  start = levels();
+  last = start;
+  armed = true;
+#endif
+  alloc_count::count = 0;
+  alloc_count::window = true;
+}
+static void disarm() {
+  alloc_count::window = false;
+#if SWP_SNIFF
+  armed = false;
+#endif
+}
+static std::string sniffed(uint32_t &amb) {
+#if SWP_SNIFF
+  return wiredecode::decode(buf, n, start, amb);
+#else
+  return {};
+#endif
+}
 
 static bool step(i2c::I2CDevice *dev) {
   if (done)
     return false;
   if (!probed) {
     // the counter must see a malloc inside the window
-    swp_allocs = 0;
-    swp_window = true;
+    alloc_count::count = 0;
+    alloc_count::window = true;
     void *volatile p = malloc(100);
-    swp_window = false;
+    alloc_count::window = false;
     free(p);
-    ESP_LOGI(TAG, "ALLOC_PROBE %u", (unsigned) swp_allocs);
+    ESP_LOGI(TAG, "ALLOC_PROBE %u", (unsigned) alloc_count::count);
     probed = true;
   }
   const uint32_t W8 = SWP_MAXLEN8 + 1, W16 = SWP_MAXLEN16 + 1;
@@ -195,24 +148,6 @@ static bool step(i2c::I2CDevice *dev) {
     data[k] = static_cast<uint8_t>(0x11 + i + k * 7);
   memset(rdata, 0, sizeof rdata);
   i2c::ErrorCode rc;
-  uint8_t start = 3;
-  auto arm = [&] {
-#if SWP_SNIFF
-    n = 0;
-    ovf = 0;
-    start = levels();
-    last = start;
-    armed = true;
-#endif
-    swp_allocs = 0;
-    swp_window = true;
-  };
-  auto disarm = [&] {
-    swp_window = false;
-#if SWP_SNIFF
-    armed = false;
-#endif
-  };
   if (i < W8) {
     label = "wreg8 len=" + std::to_string(i);
     arm();
@@ -257,11 +192,10 @@ static bool step(i2c::I2CDevice *dev) {
     ESP_LOGI(TAG, "SWDONE cases=%u alloc_calls=%u", (unsigned) idx - 1, (unsigned) nalloc);
     return false;
   }
-  nalloc += swp_allocs != 0;
-  std::string got;
+  nalloc += alloc_count::count != 0;
   uint32_t amb = 0, events = 0, overflow = 0;
+  std::string got = sniffed(amb);
 #if SWP_SNIFF
-  got = decode(start, amb);
   events = n;
   overflow = ovf;
 #endif
@@ -269,8 +203,8 @@ static bool step(i2c::I2CDevice *dev) {
   for (int k = 0; k < 8 && label.rfind("wreg", 0) != 0 && label.rfind("probe", 0) != 0; k++)
     snprintf(rd + 3 * k, 4, "%02X ", rdata[k]);
   ESP_LOGI(TAG, "SW %s|rc=%d|alloc=%u|ev=%u|amb=%u|ovf=%u|fnv=%08X|%s|rd=%s", label.c_str(), (int) rc,
-           (unsigned) swp_allocs, (unsigned) events, (unsigned) amb, (unsigned) overflow, (unsigned) fnv(got),
-           got.substr(0, 90).c_str(), rd);
+           (unsigned) alloc_count::count, (unsigned) events, (unsigned) amb, (unsigned) overflow,
+           (unsigned) fnv1a_hash(got), got.substr(0, 90).c_str(), rd);
   App.feed_wdt();
   return true;
 }
@@ -278,20 +212,11 @@ static bool step(i2c::I2CDevice *dev) {
 // Over-long register write and what the bus does afterwards (on arduino-pico this leaves Wire stuck, dev too).
 // Each step is sniffed; the probe step shows whether a stale buffer goes out.
 static void wedge_step(const char *what, const std::function<i2c::ErrorCode()> &fn) {
-  std::string got;
   uint32_t amb = 0;
-#if SWP_SNIFF
-  n = 0;
-  ovf = 0;
-  uint8_t start = levels();
-  last = start;
-  armed = true;
-#endif
+  arm();
   auto rc = fn();
-#if SWP_SNIFF
-  armed = false;
-  got = decode(start, amb);
-#endif
+  disarm();
+  std::string got = sniffed(amb);
   ESP_LOGI(TAG, "WEDGE %s rc=%d ev=%u wire=%s", what, (int) rc, (unsigned) got.size(), got.substr(0, 120).c_str());
   App.feed_wdt();
 }

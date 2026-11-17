@@ -230,7 +230,6 @@ struct Bus final : public esphome::i2c::I2CBus {
       return esphome::i2c::ERROR_OK;
     this->n_trans++;
     const uint8_t a = address & 7, c = (a >> 1) & 3;
-    char nm[24];
     if (a & 1) {  // FIFO
       if (size) {
         char txt[48];
@@ -268,19 +267,24 @@ struct Bus final : public esphome::i2c::I2CBus {
                address, KIND[k], regbyte, regbyte & 0x0F);
     }
     this->cnt[a][regbyte & 0x3F][k]++;
-    this->name_(address, regbyte, nm, sizeof(nm));
+    char nm_buf[24];
+    // the register name is only built for the paths that log
+    auto nm = [&]() {
+      this->name_(address, regbyte, nm_buf, sizeof(nm_buf));
+      return nm_buf;
+    };
     if (k == K_P) {
       if (this->fail_ptr) {
         this->fail_ptr--;
         this->injected++;
         this->arm_retry_(address, regbyte);
-        ESP_LOGW(TAG, "#%u @%02X P  r=%02X %s INJECTED NACK", this->n_trans, address, regbyte, nm);
+        ESP_LOGW(TAG, "#%u @%02X P  r=%02X %s INJECTED NACK", this->n_trans, address, regbyte, nm());
         return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
       this->ptr[a] = regbyte;
       if (this->trace) {
         this->trace--;
-        ESP_LOGI(TAG, "#%u @%02X P  r=%02X %s", this->n_trans, address, regbyte, nm);
+        ESP_LOGI(TAG, "#%u @%02X P  r=%02X %s", this->n_trans, address, regbyte, nm());
       }
       return esphome::i2c::ERROR_OK;
     }
@@ -290,7 +294,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         this->reg_write_(address, regbyte, data[i]);
       if (this->trace)
         this->trace--;
-      ESP_LOGI(TAG, "#%u @%02X W  r=%02X %s = %02X", this->n_trans, address, regbyte, nm, data[1]);
+      ESP_LOGI(TAG, "#%u @%02X W  r=%02X %s = %02X", this->n_trans, address, regbyte, nm(), data[1]);
       return esphome::i2c::ERROR_OK;
     }
     // read phase (R or WR)
@@ -299,11 +303,12 @@ struct Bus final : public esphome::i2c::I2CBus {
       this->await_retry = false;
       if (address == this->await_addr && (regbyte == this->await_reg || k == K_R)) {
         this->retries++;
-        ESP_LOGI(TAG, "#%u @%02X %s r=%02X %s RETRY after injected NACK", this->n_trans, address, KIND[k], regbyte, nm);
+        ESP_LOGI(TAG, "#%u @%02X %s r=%02X %s RETRY after injected NACK", this->n_trans, address, KIND[k], regbyte,
+                 nm());
       } else {
         this->no_retry++;
         ESP_LOGW(TAG, "#%u @%02X %s r=%02X %s: no retry of the NACKed read", this->n_trans, address, KIND[k], regbyte,
-                 nm);
+                 nm());
       }
     }
     if (k == K_WR)
@@ -319,7 +324,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       this->injected++;
       this->arm_retry_(address, regbyte);
       memset(out, 0, out_size);
-      ESP_LOGW(TAG, "#%u @%02X %s r=%02X %s INJECTED NACK", this->n_trans, address, KIND[k], regbyte, nm);
+      ESP_LOGW(TAG, "#%u @%02X %s r=%02X %s INJECTED NACK", this->n_trans, address, KIND[k], regbyte, nm());
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
     for (size_t i = 0; i < out_size; i++)
@@ -329,9 +334,9 @@ struct Bus final : public esphome::i2c::I2CBus {
     last = out[0];
     if (this->trace) {
       this->trace--;
-      ESP_LOGI(TAG, "#%u @%02X %s r=%02X %s -> %02X", this->n_trans, address, KIND[k], regbyte, nm, out[0]);
+      ESP_LOGI(TAG, "#%u @%02X %s r=%02X %s -> %02X", this->n_trans, address, KIND[k], regbyte, nm(), out[0]);
     } else if (changed) {
-      ESP_LOGI(TAG, "#%u @%02X %s r=%02X %s -> %02X (changed)", this->n_trans, address, KIND[k], regbyte, nm, out[0]);
+      ESP_LOGI(TAG, "#%u @%02X %s r=%02X %s -> %02X (changed)", this->n_trans, address, KIND[k], regbyte, nm(), out[0]);
     }
     return esphome::i2c::ERROR_OK;
   }

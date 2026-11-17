@@ -2,15 +2,16 @@
 // Fake BMI270 (+ BMM150 behind its aux interface) on an in-firmware I2C bus (esphome#22778).
 // BMI270: register file with reset values, soft reset, config upload port (INIT_ADDR_0/1 word address, INIT_DATA
 // streaming into 8 KB), INTERNAL_STATUS 0x01 only when INIT_CTRL=1 arrives with every config byte written once and
-// the memory's FNV-1a equal to `expected_fnv` (computed on the host from bmi270_config.h), 0x02 otherwise.
+// the memory's FNV-1a equal to `expected_fnv` (default: the current table, computed on the host from
+// bmi270_config.h), 0x02 otherwise.
 // Aux interface: AUX_DEV_ID selects the BMM150 (addr << 1); in manual mode (AUX_IF_CONF bit 7) a write to
 // AUX_WR_ADDR writes AUX_WR_DATA to the BMM150 and a write to AUX_RD_ADDR reads man_rd_burst (1/2/6/8) bytes into
 // AUX_X_LSB..; either sets STATUS.aux_busy for `busy_reads` STATUS reads. In auto mode with aux enabled the AUX data
 // registers mirror the BMM150 from AUX_RD_ADDR. Modes: bmm_mode 0 ok, 1 absent (aux transfers do nothing),
 // 2 wrong chip id; busy_stuck keeps aux_busy set (stuck_from_aux_op: from the Nth aux transfer); nack_at fails main-bus
 // transaction N (1 based). `norm_fnv` hashes the register-level effect of the stream (split or merged writes hash the
-// same). Heap is sampled at INIT_CTRL=0/1 and inside every INIT_DATA burst; -DBMI_FAKE_WRAP_MALLOC with
-// -Wl,--wrap=malloc counts malloc() during the upload.
+// same). Heap is sampled at INIT_CTRL=0/1 and inside every INIT_DATA burst; -DBMI_FAKE_WRAP_MALLOC with the link flag
+// from alloc_count.hpp counts malloc() during the upload.
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -27,14 +28,7 @@
 #endif
 
 #ifdef BMI_FAKE_WRAP_MALLOC
-extern "C" void *__real_malloc(size_t size);
-inline volatile bool bmi_malloc_armed = false;
-inline volatile uint32_t bmi_malloc_count = 0;
-extern "C" void *__wrap_malloc(size_t size) {
-  if (bmi_malloc_armed)
-    bmi_malloc_count = bmi_malloc_count + 1;
-  return __real_malloc(size);
-}
+#include "alloc_count.hpp"
 #endif
 
 namespace bmi270fake {
@@ -78,7 +72,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint32_t aux_ops{0};
   uint8_t busy_reads{2}, busy_left{0};
   uint32_t nack_at{0};
-  uint32_t expected_fnv{0};
+  uint32_t expected_fnv{0x95BB75B5};  // FNV-1a of the 8192 byte table in bmi270_config.h
   uint32_t mem_fnv{0}, norm_fnv{2166136261u};
   uint32_t transactions{0}, reads{0}, writes{0}, data_writes{0}, data_bytes{0}, addr_writes{0}, rewrites{0};
   uint32_t protocol_errors{0}, loads_ok{0}, loads_bad{0}, resets{0}, aux_writes{0}, aux_reads{0}, status_reads{0};
@@ -99,6 +93,13 @@ struct Bus final : public esphome::i2c::I2CBus {
 
   Bus() {
     this->reset_();
+    this->bmm_reset_(true);
+  }
+
+  // Puts the BMM150 on `addr` with fault mode `mode` and powers it off
+  void init_bmm(uint8_t addr, uint8_t mode = 0) {
+    this->bmm_addr = addr;
+    this->bmm_mode = mode;
     this->bmm_reset_(true);
   }
 
@@ -198,12 +199,12 @@ struct Bus final : public esphome::i2c::I2CBus {
         this->bursts_heap_below_start = 0;
         this->regs[R_INTERNAL_STATUS] = 0x00;
 #ifdef BMI_FAKE_WRAP_MALLOC
-        bmi_malloc_count = 0;
-        bmi_malloc_armed = true;
+        alloc_count::count = 0;
+        alloc_count::window = true;
 #endif
       } else if (v == 0x01) {
 #ifdef BMI_FAKE_WRAP_MALLOC
-        bmi_malloc_armed = false;
+        alloc_count::window = false;
 #endif
         this->heap_end = heap_free();
         this->block_end = heap_block();
@@ -355,7 +356,7 @@ struct Bus final : public esphome::i2c::I2CBus {
              this->block_start, this->heap_end, this->block_end, this->heap_min_in_burst,
              this->bursts_heap_below_start);
 #ifdef BMI_FAKE_WRAP_MALLOC
-    ESP_LOGI(TAG, "MALLOC during upload=%u", bmi_malloc_count);
+    ESP_LOGI(TAG, "MALLOC during upload=%u", (unsigned) alloc_count::count);
 #endif
   }
 };

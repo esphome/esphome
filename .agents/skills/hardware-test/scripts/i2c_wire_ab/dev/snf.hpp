@@ -1,29 +1,22 @@
 #pragma once
 // esphome#22780 device check: GPIO interrupt sniffer on the I2C pads, a sweep of I2CDevice call shapes, and a
-// malloc counter (-Wl,--wrap=malloc). One "SN" line per case: rc, mallocs, decoded wire stream hash, match with the
-// stream the call should produce.
+// malloc counter (alloc_count.hpp, -Wl,--wrap=malloc). One "SN" line per case: rc, mallocs, decoded wire stream
+// hash, match with the stream the call should produce.
 #include <cstring>
 #include <string>
-#include <vector>
 #include <driver/gpio.h>
 #include <soc/gpio_reg.h>
 #include <esp_attr.h>
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
+#include "alloc_count.hpp"
+#include "wiredecode.hpp"
 #ifdef SNF_PDSLAVE
 // the board is its own target (pdslave.hpp); its token stream replaces the pad sniffer's decode
 #include "pdslave.hpp"
 #endif
-
-extern "C" void *__real_malloc(size_t);
-static volatile bool snf_alloc_window = false;
-static volatile uint32_t snf_allocs = 0;
-extern "C" void *__wrap_malloc(size_t n) {
-  if (snf_alloc_window)
-    snf_allocs = snf_allocs + 1;
-  return __real_malloc(n);
-}
 
 namespace snf {
 static const char *const TAG = "snf";
@@ -39,6 +32,7 @@ static volatile DRAM_ATTR uint32_t n = 0;
 static volatile DRAM_ATTR uint32_t ovf = 0;
 static volatile DRAM_ATTR uint8_t last = 3;
 static volatile DRAM_ATTR bool armed = false;
+static uint8_t start = 3;  // levels when the sniffer was armed
 
 static void IRAM_ATTR isr(void *) {
   uint32_t v = REG_READ(GPIO_IN_REG);
@@ -62,61 +56,6 @@ static void install() {
   ESP_LOGI(TAG, "sniffer on SDA %d SCL %d", SNF_SDA, SNF_SCL);
 }
 
-// Decode level states into tokens; counts transitions where both lines changed between samples
-static std::string decode(uint8_t start, uint32_t &amb) {
-  std::string out;
-  uint8_t prev = start;
-  bool open = false;
-  int bits = -1;  // -1: no frame; 0..8 bit index in the current 9-bit unit
-  uint16_t sh = 0;
-  bool first = false, reading = false;
-  char t[8];
-  for (uint32_t i = 0; i < n; i++) {
-    uint8_t cur = buf[i];
-    bool psda = prev & 1, pscl = prev & 2, sda = cur & 1, scl = cur & 2;
-    if ((psda != sda) && (pscl != scl))
-      amb++;
-    if (pscl && scl && psda && !sda) {
-      out += open ? "Sr " : "S ";
-      open = true;
-      bits = 0;
-      sh = 0;
-      first = true;
-    } else if (pscl && scl && !psda && sda) {
-      out += "P ";
-      open = false;
-      bits = -1;
-    } else if (!pscl && scl && bits >= 0) {
-      if (bits < 8) {
-        sh = (sh << 1) | (sda ? 1 : 0);
-        bits++;
-      } else {
-        bool ack = !sda;
-        uint8_t b = sh & 0xFF;
-        if (first) {
-          reading = b & 1;
-          snprintf(t, sizeof t, "%02X%c ", b, ack ? '+' : '-');
-        } else {
-          snprintf(t, sizeof t, reading ? "r%02X%c " : "%02X%c ", b, ack ? '+' : '-');
-        }
-        out += t;
-        first = false;
-        bits = 0;
-        sh = 0;
-      }
-    }
-    prev = cur;
-  }
-  return out;
-}
-
-static uint32_t fnv(const std::string &s) {
-  uint32_t h = 2166136261u;
-  for (unsigned char c : s)
-    h = (h ^ c) * 16777619u;
-  return h;
-}
-
 static i2c::I2CBus *bus = nullptr;  // the bus the device uses (hardware or the software copy)
 
 static void wb(std::string &e, uint8_t b) {
@@ -137,6 +76,25 @@ static uint8_t rdata[40];
 static uint32_t idx = 0, nok = 0, ndiff = 0, namb = 0, nalloc = 0;
 static bool done = false;
 
+static void arm() {
+  n = 0;
+  ovf = 0;
+  uint32_t v = REG_READ(GPIO_IN_REG);
+  start = ((v >> SNF_SDA) & 1) | (((v >> SNF_SCL) & 1) << 1);
+  last = start;
+  alloc_count::count = 0;
+  alloc_count::window = true;
+#ifdef SNF_PDSLAVE
+  pds::ln = 0;
+  pds::lovf = 0;
+#endif
+  armed = true;
+}
+static void disarm() {
+  armed = false;
+  alloc_count::window = false;
+}
+
 // Runs one case and returns false when the sweep is over
 static bool step(i2c::I2CDevice *dev) {
   if (done)
@@ -154,27 +112,8 @@ static bool step(i2c::I2CDevice *dev) {
   for (size_t k = 0; k < sizeof data; k++)
     data[k] = static_cast<uint8_t>(0x11 + i + k * 7);
   i2c::ErrorCode rc;
-  last = 3;
-  n = 0;
-  ovf = 0;
-  uint8_t start = 3;
-  auto arm = [&] {
-    uint32_t v = REG_READ(GPIO_IN_REG);
-    start = ((v >> SNF_SDA) & 1) | (((v >> SNF_SCL) & 1) << 1);
-    last = start;
-    snf_allocs = 0;
-    snf_alloc_window = true;
-#ifdef SNF_PDSLAVE
-    pds::ln = 0;
-    pds::lovf = 0;
-#endif
-    armed = true;
-  };
-  auto disarm = [&] {
-    armed = false;
-    snf_alloc_window = false;
-  };
-  if (i <= 300) {
+  static constexpr uint32_t W8 = 301, W16 = 301;  // write_register lengths 0..300
+  if (i < W8) {
     size_t len = i;
     label = "wreg8 len=" + std::to_string(len);
     arm();
@@ -186,8 +125,8 @@ static bool step(i2c::I2CDevice *dev) {
     for (size_t k = 0; k < len; k++)
       wb(exp, data[k]);
     exp += "P ";
-  } else if (i <= 601) {
-    size_t len = i - 301;
+  } else if (i < W8 + W16) {
+    size_t len = i - W8;
     label = "wreg16 len=" + std::to_string(len);
     arm();
     rc = dev->write_register16(0x0203, data, len);
@@ -199,10 +138,11 @@ static bool step(i2c::I2CDevice *dev) {
     for (size_t k = 0; k < len; k++)
       wb(exp, data[k]);
     exp += "P ";
-  } else if (i <= 611) {
+  } else if (i < W8 + W16 + 10) {
     static const size_t ns[] = {1, 2, 3, 4, 8};
-    size_t k = ns[(i - 602) % 5];
-    bool sixteen = (i - 602) >= 5;
+    uint32_t j = i - W8 - W16;
+    size_t k = ns[j % 5];
+    bool sixteen = j >= 5;
     label = std::string(sixteen ? "rreg16" : "rreg8") + " n=" + std::to_string(k);
     memset(rdata, 0, sizeof rdata);
     arm();
@@ -217,8 +157,8 @@ static bool step(i2c::I2CDevice *dev) {
     wb(exp, (A << 1) | 1);
     rb(exp, rdata, k);
     exp += "P ";
-  } else if (i <= 614) {
-    size_t k = i - 611;  // 1..3
+  } else if (i < W8 + W16 + 13) {
+    size_t k = i - (W8 + W16 + 10) + 1;
     label = "read n=" + std::to_string(k);
     arm();
     rc = dev->read(rdata, k);
@@ -227,9 +167,9 @@ static bool step(i2c::I2CDevice *dev) {
     wb(exp, (A << 1) | 1);
     rb(exp, rdata, k);
     exp += "P ";
-  } else if (i <= 617) {
+  } else if (i < W8 + W16 + 16) {
     static const uint8_t p1[] = {0x02};
-    size_t k = i - 614;  // 1..3
+    size_t k = i - (W8 + W16 + 13) + 1;
     label = "write1+read n=" + std::to_string(k);
     arm();
     rc = dev->write_read(p1, 1, rdata, k);
@@ -241,8 +181,8 @@ static bool step(i2c::I2CDevice *dev) {
     wb(exp, (A << 1) | 1);
     rb(exp, rdata, k);
     exp += "P ";
-  } else if (i < 618 + 112) {
-    uint8_t a = 8 + (i - 618);
+  } else if (i < W8 + W16 + 16 + 112) {
+    uint8_t a = 8 + (i - (W8 + W16 + 16));
     label = "probe " + std::to_string(a);
     arm();
     rc = bus->write_readv(a, nullptr, 0, nullptr, 0);
@@ -265,15 +205,16 @@ static bool step(i2c::I2CDevice *dev) {
   ovf = pds::lovf;
   n = pds::ln;
 #else
-  std::string got = decode(start, amb);
+  std::string got = wiredecode::decode(buf, n, start, amb);
 #endif
   bool ok = got == exp && ovf == 0;
   nok += ok;
   ndiff += !ok;
   namb += amb;
-  nalloc += snf_allocs != 0;
-  ESP_LOGI(TAG, "SN %s|rc=%d|alloc=%u|ev=%u|amb=%u|ovf=%u|fnv=%08X|%s", label.c_str(), (int) rc, (unsigned) snf_allocs,
-           (unsigned) n, (unsigned) amb, (unsigned) ovf, (unsigned) fnv(got), ok ? "OK" : "DIFF");
+  nalloc += alloc_count::count != 0;
+  ESP_LOGI(TAG, "SN %s|rc=%d|alloc=%u|ev=%u|amb=%u|ovf=%u|fnv=%08X|%s", label.c_str(), (int) rc,
+           (unsigned) alloc_count::count, (unsigned) n, (unsigned) amb, (unsigned) ovf, (unsigned) fnv1a_hash(got),
+           ok ? "OK" : "DIFF");
   if (!ok) {
     ESP_LOGI(TAG, "SNGOT %s", got.substr(0, 200).c_str());
     ESP_LOGI(TAG, "SNEXP %s", exp.substr(0, 200).c_str());

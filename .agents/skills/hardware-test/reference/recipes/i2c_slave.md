@@ -30,20 +30,22 @@ injection) are in [fake_i2c.md](fake_i2c.md).
   generated bodies are `.inc`. Explicit-instantiation member robbers must be declared at global scope. The sources are
   stored as `.cpp.example`, `.h.example` and `.hpp` so the repo's C++ lints skip them; `run.sh` copies them back.
 - Device: `dev/snf.hpp` is a GPIO interrupt sniffer on the I2C pads (an ESP32-C2 with an ADS1015: SDA 4, SCL 5,
-  `dev/c2common.yaml`) plus the same case sweep and `-Wl,--wrap=malloc`; at 10 to 20 kHz on the C2 it still drops a bit
-  in about 0.5 % of transactions (mostly at the chip's NACK), so capture three runs per build and judge with
-  `clean.py`/`maj.py`. On the software bus it is exact. `dev/pdslave.hpp` with `snf.hpp` built with `-DSNF_PDSLAVE` (`pdcommon.yaml`) turn an
-  ESP32-PICO-D4 into its own target at 0x48 on GPIO32/33 (ACKs every byte, so 300-byte writes reach the wire): exact on
-  6 of 6 captures at 25 kHz once one warm-up probe runs before the sweep (the ISR runs from flash; IRAM_ATTR on header
-  inline functions fails to link with l32r literal errors). `mksw.py` turns a tree's LibreTiny-only software bus into
-  a header so an ESP32 build can run it on real pins. The ADS1015 NACKs the third byte after the pointer, so long
-  writes on that chip end there on every build.
+  `dev/c2common.yaml`) plus the same case sweep and a malloc counter; at 10 to 20 kHz on the C2 it still drops a bit in
+  about 0.5 % of transactions (mostly at the chip's NACK), so capture three runs per build with
+  `dev/flashrun.sh NAME YAML PORT SECONDS SUFFIX` (suffix empty, 2 and 3 write NAME-ser.txt, -ser2 and -ser3) and
+  judge with `clean.py` (`--nacks` sorts each DIFF into a chip NACK or not) and `maj.py`, which also takes one or two
+  captures. On the software bus it is exact. `dev/pdslave.hpp` with `snf.hpp` built with `-DSNF_PDSLAVE`
+  (`pdcommon.yaml`) turn an ESP32-PICO-D4 into its own target at 0x48 on GPIO32/33 (ACKs every byte, so 300-byte
+  writes reach the wire): exact on 6 of 6 captures at 25 kHz once one warm-up probe runs before the sweep (the ISR
+  runs from flash; IRAM_ATTR on header inline functions fails to link with l32r literal errors). `mksw.py` turns a
+  tree's LibreTiny-only software bus into a header so an ESP32 build can run it on real pins. The ADS1015 NACKs the
+  third byte after the pointer, so long writes on that chip end there on every build.
 - `ard/swp.hpp` is the same sweep for ESP8266 (GPIO interrupt sniffer on GPIO4/5), RP2 (raw IO_IRQ_BANK0 handler) and
-  BK72xx (no sniffer), with `ard/common.yaml` plus a board file (`d1.yaml`, `pico.yaml`, `bk.yaml`). Heap counters per
-  platform: ESP8266 `-Wl,--wrap=malloc` with `__wrap_malloc` marked IRAM_ATTR (in flash it crash-loops with
-  IllegalInst at the wrapper's first instruction); arduino-pico already wraps malloc and `_malloc_r` (a second wrap is
-  a duplicate symbol), so wrap `__malloc_lock` (malloc and free each count once); LibreTiny already wraps malloc into
-  pvPortMalloc, so wrap `pvPortMalloc`. Each image checks itself with `ALLOC_PROBE 1`.
+  BK72xx (no sniffer, so `ard/ardcmp.py --reads-by-data` compares reads by their data), with `ard/common.yaml` plus a
+  board file (`d1.yaml`, `pico.yaml`, `bk.yaml`). Both sweeps share the decoder in `wiredecode.hpp` and count heap
+  calls with `templates/i2c_fake/alloc_count.hpp`, which names the link flag for each platform. Each image checks
+  itself with `ALLOC_PROBE 1`. `buildall.sh YAML...` builds the configs of either folder, each under the `name` of
+  its substitutions (the file name without one), `x-pr.yaml` from PR_TREE and the rest from BASE_TREE.
 - Facts: on a D1 mini without a target, register writes up to 128 bytes total show `S 90- P`, longer ones fail with
   rc 6 and nothing on the wire; a write+read whose address is NACKed leaves no STOP (`S 90-`), dev too.
   arduino-pico: after a register write over 256 bytes, the next empty write (a probe) sends the stale buffer to the

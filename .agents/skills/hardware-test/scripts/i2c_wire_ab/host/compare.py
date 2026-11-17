@@ -4,6 +4,9 @@ from collections import Counter, defaultdict
 import pathlib
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from snlog import first_alloc  # noqa: E402
+
 
 def load(p):
     rec, jobs = {}, {}
@@ -57,9 +60,10 @@ for bus, a in alloc.items():
     )
 # first length that allocates, per bus and shape
 for bus in per_bus:
+    ab = {c: r[1] for (x, c), r in b.items() if x == bus}
+    ap = {c: r[1] for (x, c), r in p.items() if x == bus}
     for shape in ("wreg8", "wreg16"):
-        fb = next((n for n in range(301) if b[(bus, f"{shape} len={n}")][1] > 0), None)
-        fp = next((n for n in range(301) if p[(bus, f"{shape} len={n}")][1] > 0), None)
+        fb, fp = first_alloc(ab, shape), first_alloc(ap, shape)
         print(f"  first allocating length {bus} {shape}: base {fb} pr {fp}")
 other = [
     k

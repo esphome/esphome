@@ -1,19 +1,18 @@
 // Drives every I2CDevice call shape through each bus model and writes one line per call to $WAB_OUT.
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <vector>
-#if defined(__has_feature)
-#if __has_feature(address_sanitizer)
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
 #define WAB_ASAN 1
-#endif
-#endif
-#ifdef WAB_ASAN
-#include <sanitizer/allocator_interface.h>
-#else
-#include <malloc/malloc.h>
+extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(const volatile void *, size_t),
+                                                         void (*free_hook)(const volatile void *));
 #endif
 #include "esphome/components/i2c/i2c.h"
 #include "wab_common.h"
@@ -200,7 +199,6 @@ TEST(WireAB, Record) {
           [&] { return dev.write_register16(0x0203, d.data(), d.size()); });
     }
     // scan probe over the whole range, as i2c_scan_() does
-    std::string found;
     for (uint8_t a = 8; a != 120; a++) {
       run("probe " + std::to_string(a), [&] { return b.bus->write_readv(a, nullptr, 0, nullptr, 0); });
     }

@@ -105,9 +105,12 @@ extern TwoWire Wire;
 #define Wire WirePico
 #define Wire1 Wire1Pico
 // arduino-pico 6.3.2 libraries/Wire: WIRE_BUFFER_SIZE 256, one buffer for TX and RX
+#ifndef WIRE_BUFFER_SIZE
+#define WIRE_BUFFER_SIZE 256
+#endif
 class TwoWire {
  public:
-  static constexpr size_t LEN = 256;
+  static constexpr size_t LEN = WIRE_BUFFER_SIZE;
   void setSDA(int) {}
   void setSCL(int) {}
   void begin() {}
@@ -161,9 +164,8 @@ class TwoWire {
     }
     if (stopBit || !ok)
       w.stop();
-    int len = _buffLen;
     _buffLen = 0;
-    return ok ? 0 : (len < 0 ? 4 : 4);
+    return ok ? 0 : 4;
   }
   size_t requestFrom(uint8_t address, size_t quantity, bool stopBit) {
     if (!_running || _txBegun || !quantity || (quantity > LEN))

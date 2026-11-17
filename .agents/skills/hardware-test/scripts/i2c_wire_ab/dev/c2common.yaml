@@ -2,6 +2,8 @@ esphome:
   name: ${name}
   includes:
     - ${swfile}
+    - ../../../templates/i2c_fake/alloc_count.hpp
+    - ../wiredecode.hpp
     - snf.hpp
   platformio_options:
     build_flags:

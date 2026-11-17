@@ -11,7 +11,8 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def parse(path):
-    scen, cur = {}, None
+    """Scenario name -> head, LOG, TX and other lines; also the NACK_TOTAL count."""
+    scen, cur, nack_total = {}, None, 0
     with pathlib.Path(path).open(encoding="utf-8", errors="replace") as fh:
         for line in fh:
             line = ANSI.sub("", line.rstrip("\n"))
@@ -20,7 +21,7 @@ def parse(path):
                     line.split()[1], {"head": "", "log": [], "tx": [], "other": []}
                 )
             elif line.startswith("NACK_TOTAL"):
-                continue
+                nack_total = int(line.split()[1])
             elif line.startswith("  failed="):
                 cur["head"] = re.sub(r" setup_tx=\d+", "", line.strip())
             elif line.startswith("  LOG "):
@@ -31,7 +32,7 @@ def parse(path):
                 cur["other"].append(
                     re.sub(r" (aux_w|aux_r|status_reads)=\d+", "", line.strip())
                 )
-    return scen
+    return scen, nack_total
 
 
 def merge(tx):
@@ -56,7 +57,7 @@ def merge(tx):
     return out, idx
 
 
-b, p = parse(sys.argv[1]), parse(sys.argv[2])
+(b, nack_total), (p, _) = parse(sys.argv[1]), parse(sys.argv[2])
 problems = 0
 logdiffs = {}
 for name in sorted(n for n in p if not n.startswith(("nack_", "step_"))):
@@ -65,9 +66,7 @@ for name in sorted(n for n in p if not n.startswith(("nack_", "step_"))):
     same_other = sb["other"] == sp["other"]
     line = f"{name:20s} head={'same' if same_head else 'DIFF'} regs/values/upload={'same' if same_other else 'DIFF'}"
     if sp["tx"]:
-        mb, _ = merge(
-            [t for t in sb["tx"] if not t.startswith("A ")] if False else sb["tx"]
-        )
+        mb, _ = merge(sb["tx"])
         line += f" stream base={len(sb['tx'])}->{len(mb)} pr={len(sp['tx'])} {'same' if mb == sp['tx'] else 'DIFF'}"
         if mb != sp["tx"]:
             problems += 1
@@ -82,27 +81,15 @@ for name in sorted(n for n in p if not n.startswith(("nack_", "step_"))):
         )
         logdiffs.setdefault(key, []).append(name)
 
-# NACK sweep, matched through the merged aux stream
-mb, idx = merge(b["cfg_aux"]["tx"])
-mb_main = [t for t in b["cfg_aux"]["tx"] if not t.startswith("A ")]
-# indexes counted over main-bus transactions only (the fake numbers those)
+# NACK sweep, matched through the merged aux stream; indexes count main-bus transactions only (the fake numbers those)
 main_b = [t for t in b["cfg_aux"]["tx"] if not t.startswith("A ")]
 main_p = [t for t in p["cfg_aux"]["tx"] if not t.startswith("A ")]
 mmb, midx = merge(main_b)
 assert mmb == main_p, "main streams differ"
 nack_outcomes = {}
-checked = 0
-nack_total = int(
-    [
-        line
-        for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
-        if line.startswith("NACK_TOTAL")
-    ][0].split()[1]
-)
 for i in range(nack_total):
     k = midx[i]
     sb, sp = b[f"nack_{i + 1}"], p[f"nack_{k + 1}"]
-    checked += 1
     hb = (sb["head"], tuple(sb["other"]))
     hp = (sp["head"], tuple(sp["other"]))
     if hb != hp:
@@ -119,7 +106,7 @@ for i in range(nack_total):
         key = (tuple(x for x in wb if x not in wp), tuple(x for x in wp if x not in wb))
         logdiffs.setdefault(key, []).append(f"nack_pr{k + 1}")
 print(
-    f"NACK scenarios checked: {checked} base transactions -> {len(main_p)} pr transactions"
+    f"NACK scenarios checked: {nack_total} base transactions -> {len(main_p)} pr transactions"
 )
 print("PR NACK outcome classes (head, E/W log lines): pr transaction numbers")
 for (h, w), ks in sorted(nack_outcomes.items(), key=lambda x: x[1][0]):

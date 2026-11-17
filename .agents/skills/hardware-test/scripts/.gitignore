@@ -39,5 +39,3 @@ rp2_sched_lock/*.txt
 rp2_sched_lock/*.log
 i2c_wire_ab/*/*-ser*.txt
 i2c_wire_ab/*/*-flash.log
-i2c_wire_ab/host/gen/
-i2c_wire_ab/host/stubs/
