@@ -346,9 +346,11 @@ def _check_window_fits(config: ConfigType) -> None:
     the warning is worded per case:
 
     * a window larger than the frame itself is usable on no sensor;
-    * a full-resolution window with an offset is valid on the SC sensors, which
-      count the offset in pixels of the whole sensor, and only the OV sensors
-      clamp it;
+    * a full-resolution window with an offset keeps that offset on the SC
+      sensors, which count it in pixels of the whole sensor, only while the
+      window fits their readout (1280x720 on the SC101IOT, 640x480 on the
+      SC030IOT); so a VGA window at an offset is clamped back to 0 on the
+      SC030IOT. Everything else, including the OV sensors, clamps it;
     * a window that is not the resolution is clamped by the OV sensors and
       rejected by the SC sensors, which require the size to equal it.
     """
@@ -390,7 +392,9 @@ def _check_window_fits(config: ConfigType) -> None:
             "reaches (%d,%d). The OV2640, OV3660 and OV5640 clamp such a window, "
             "which changes the crop; use a larger `resolution` to read the window "
             "as written. The SC101IOT and SC030IOT count the offset in pixels of "
-            "the whole sensor, so the window is fine there.",
+            "the whole sensor, so the window is fine there only if it fits within "
+            "that sensor's readout (1280x720 for SC101IOT, 640x480 for SC030IOT); "
+            "otherwise its offset is clamped too.",
             offset_x,
             offset_y,
             frame_width,
