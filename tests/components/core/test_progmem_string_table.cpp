@@ -70,20 +70,20 @@ TEST(ProgmemStringTable, StrstrFindsTableEntryInRamString) {
   EXPECT_EQ(ESPHOME_strstr_P(line, cool), nullptr);
 }
 
-enum class SmallMode : uint8_t { OFF, HEAT, COOL };
-enum class WideMode : uint16_t { OFF, HEAT, COOL, BIG = 0x101 };
+enum class SmallMode : uint8_t { SMALL_MODE_OFF, SMALL_MODE_HEAT, SMALL_MODE_COOL };
+enum class WideMode : uint16_t { WIDE_MODE_OFF, WIDE_MODE_HEAT, WIDE_MODE_COOL, WIDE_MODE_BIG = 0x101 };
 enum PlainMode { PLAIN_OFF, PLAIN_HEAT };
 
 TEST(ProgmemStringTable, TakesEnumsAndDefaultsToLastEntry) {
-  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(SmallMode::COOL)), "COOL");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(SmallMode::SMALL_MODE_COOL)), "COOL");
   EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(PLAIN_HEAT)), "HEAT");
   EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<SmallMode>(9))), "UNKNOWN");
-  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<SmallMode>(9), SmallMode::OFF)), "OFF");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<SmallMode>(9), SmallMode::SMALL_MODE_OFF)), "OFF");
 }
 
 TEST(ProgmemStringTable, WideAndNegativeValuesFallBack) {
-  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(WideMode::HEAT)), "HEAT");
-  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(WideMode::BIG)), "UNKNOWN");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(WideMode::WIDE_MODE_HEAT)), "HEAT");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(WideMode::WIDE_MODE_BIG)), "UNKNOWN");
   EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(-1)), "UNKNOWN");
   EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<int8_t>(-2))), "UNKNOWN");
   EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(size_t{2})), "COOL");
