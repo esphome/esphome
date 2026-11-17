@@ -146,6 +146,9 @@ lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared 
   layered links talk; retry. Raw test packets start with 0xEE and carry a length-derived pattern.
 - `tx_over_signal` counts sends started while the sender showed a signal: 0 outside the hold cap phase means listen
   before talk never sent over a packet.
+- The run ends with `DONE fails=N`: values that never arrived, refused sends of valid sizes, held sends never released
+  and raw packets with a bad pattern. `AIR` lines also count FSK FIFO writes dropped when full and reads when empty
+  (`fifo_over`, `fifo_under`).
 
 ## SX127x SPI byte stream A/B (#22776)
 

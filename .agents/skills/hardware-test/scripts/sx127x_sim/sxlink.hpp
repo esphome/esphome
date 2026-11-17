@@ -1,7 +1,7 @@
 #pragma once
 // Scenario runner for two radios joined by sxair.hpp, with packet_interface radio links on them (esphome#21110):
 // raw links (no layers) for sizes, metadata and listen before talk, reliability links and session plus rolling code
-// links carrying entity_transport sensors both ways. Called every 20 ms; logs "RES" lines and "DONE".
+// links carrying entity_transport sensors both ways. Called every 20 ms; logs "RES" lines and "DONE fails=N".
 // Define SXL_FSK for a FSK pair (63 byte packets).
 #include <cmath>
 #include "sxair.hpp"
@@ -89,6 +89,7 @@ struct Ctx {
 static int step = 0, sub = 0;
 static uint32_t next_ms = 0, t0 = 0, cnt = 0, cnt2 = 0, first_ok = 0, over0 = 0;
 static float want = NAN;
+static uint32_t fails = 0;  // values that never arrived, refused sends of valid sizes, held sends never released
 static sensor::Sensor *watch_s = nullptr;
 static const char *watch_name = "";
 
@@ -112,6 +113,7 @@ inline bool wait_value() {
     return true;
   }
   if (millis() - t0 > 15000) {
+    fails++;
     ESP_LOGI(TAG, "RES %s NOT arrived (state=%.1f) after 15 s", watch_name, watch_s->state);
     return true;
   }
@@ -185,6 +187,8 @@ inline void run() {
         WAIT(30);
         return;
       }
+      if (!ok && len <= MAXP)
+        fails++;
       ESP_LOGI(TAG, "RES send size %u -> %s after %u refusals", len, ok ? "sent" : "refused", (unsigned) cnt);
       cnt = 0;
       sub++;
@@ -198,6 +202,8 @@ inline void run() {
         return;
       }
       cnt = 0;
+      if (!ok)
+        fails++;
       ESP_LOGI(TAG, "RES send size %u B->A -> %s", MAXP, ok ? "sent" : "refused");
       NEXT();
       WAIT(900);
@@ -227,6 +233,7 @@ inline void run() {
         if (!idle_before || !C.raw_a->is_idle())
           cnt2++;  // the link's loop ran while the send was held
         if (millis() - t0 > 6000) {
+          fails++;
           ESP_LOGI(TAG, "RES lbt never released, refused=%u", (unsigned) cnt);
           NEXT();
         }
@@ -324,7 +331,8 @@ inline void run() {
       sxair::log_radio("end", C.ma);
       sxair::log_radio("end", C.mb);
       idle_report("end");
-      ESP_LOGI(TAG, "DONE");
+      // raw packets with a bad pattern count too
+      ESP_LOGI(TAG, "DONE fails=%u", (unsigned) (fails + RXA.bad + RXB.bad));
       NEXT();
       return;
     default:

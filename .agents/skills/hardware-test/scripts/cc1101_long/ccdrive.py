@@ -17,7 +17,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from apiconn import connect, log_text  # noqa: E402
 
 TXH, RXH, MODE, OUT = sys.argv[1:5]
-TXN, RXN = sys.argv[5:7] or ("TX", "RX")
+TXN, RXN = (sys.argv[5:7] + ["TX", "RX"][len(sys.argv[5:7]) :])[:2]
 out = pathlib.Path(OUT).open("w", encoding="utf-8", buffering=1)  # noqa: SIM115
 RX_RE = re.compile(
     r"RX len=(\d+) b0=(\d+) seq=(\d+) ok=(\d) rssi=(-?[\d.]+) lqi=(\d+) fo=(-?[\d.]+)"
@@ -71,6 +71,37 @@ async def wait_mark(dev, mark, before, timeout=8.0):
     return True
 
 
+REPORTED = 0  # failures already shown on a result line
+
+
+def verdict(tx, rx):
+    """INVALID when an action or an awaited log line failed since the last result line."""
+    global REPORTED
+    total = tx.failed + rx.failed
+    bad, REPORTED = total > REPORTED, total
+    return "INVALID " if bad else ""
+
+
+async def configure(dev, length, crc=False):
+    n = sum(1 for line in dev.lines if "CFG " in line)
+    await dev.act("cfg", len=length, crc=crc)
+    await wait_mark(dev, "CFG ", n)
+
+
+def sent_count(dev):
+    return sum(1 for line in dev.lines if "SENT " in line)
+
+
+async def tx_errors(tx, before):
+    """The errors= of the sender's SENT line for the last send, or ? when it never came."""
+    if not await wait_mark(tx, "SENT ", before):
+        return "?"
+    m = re.search(
+        r"SENT .* errors=(\d+)", [line for line in tx.lines if "SENT " in line][-1]
+    )
+    return m[1] if m else "?"
+
+
 async def case(
     tx,
     rx,
@@ -84,7 +115,6 @@ async def case(
     crc=False,
     wait=None,
 ):
-    failed = tx.failed + rx.failed
     nr, nt = (
         sum(1 for line in rx.lines if "CFG " in line),
         sum(1 for line in tx.lines if "CFG " in line),
@@ -101,10 +131,12 @@ async def case(
         await wait_mark(tx, "CFG ", nt)
     await asyncio.sleep(0.5)
     rx.rx.clear()
+    ns = sent_count(tx)
     await tx.act("send", count=count, len=length, b0=b0, gap_ms=gap_ms)
     await asyncio.sleep(
         wait if wait is not None else count * (gap_ms / 1000 + length / 600 + 0.15) + 2
     )
+    txerr = await tx_errors(tx, ns)
     got = [p for p in rx.rx if int(p[1]) == (b0 & 0xFF)]
     good = [p for p in got if int(p[0]) == length and p[3] == 1]
     other = len(rx.rx) - len(got)
@@ -113,9 +145,8 @@ async def case(
         return f"{statistics.mean(p[i] for p in good):.1f}" if good else "-"
 
     lens = sorted({int(p[0]) for p in got})
-    verdict = "INVALID " if tx.failed + rx.failed > failed else ""
     print(
-        f"{label:34} {verdict}sent={count} good={len(good)} wrong={len(got) - len(good)} lens={lens} other={other} "
+        f"{label:34} {verdict(tx, rx)}sent={count} txerr={txerr} good={len(good)} wrong={len(got) - len(good)} lens={lens} other={other} "
         f"rssi={stat(4)} lqi={stat(5)} fo={stat(6)}",
         flush=True,
     )
@@ -197,9 +228,10 @@ async def main():
         await case(tx, rx, "burst 65 x10, no gap", 10, 65, 11, 0)
         await case(tx, rx, "burst 1024 x3, no gap", 3, 1024, 12, 0)
         # power down in the middle of a run of 300-byte packets, wake 1 s later
-        await rx.act("cfg", len=300, crc=False)
-        await tx.act("cfg", len=64, crc=False)
+        await configure(rx, 300)
+        await configure(tx, 64)
         rx.rx.clear()
+        ns = sent_count(tx)
         await tx.act("send", count=10, len=300, b0=13, gap_ms=300)
         await asyncio.sleep(1.6)
         await rx.act("pdown")
@@ -207,8 +239,11 @@ async def main():
         await rx.act("wup")
         await asyncio.sleep(10 * 0.85 + 2)
         got = [p for p in rx.rx if int(p[1]) == 13]
+        good = sum(1 for p in got if int(p[0]) == 300 and p[3] == 1)
+        txerr = await tx_errors(tx, ns)
         print(
-            f"{'power_down mid-run, wake 1 s later':34} sent=10 good={sum(1 for p in got if int(p[0]) == 300 and p[3] == 1)} wrong={sum(1 for p in got if not (int(p[0]) == 300 and p[3] == 1))}",
+            f"{'power_down mid-run, wake 1 s later':34} {verdict(tx, rx)}sent=10 txerr={txerr} good={good} "
+            f"wrong={len(got) - good}",
             flush=True,
         )
         await case(tx, rx, "after power_down/wake_up 300", 5, 300, 14, 300, rx_len=-1)
@@ -217,8 +252,8 @@ async def main():
         await rx.act("wup")
         await case(tx, rx, "power_down/wake_up between, 1024", 3, 1024, 15, 300)
     elif MODE == "r2mid":
-        await rx.act("cfg", len=1024, crc=False)
-        await tx.act("cfg", len=64, crc=False)
+        await configure(rx, 1024)
+        await configure(tx, 64)
         await asyncio.sleep(0.5)
         await tx.act("send", count=1, len=1024, b0=40, gap_ms=0)
         await asyncio.sleep(0.6)
@@ -230,7 +265,7 @@ async def main():
         await case(
             tx, rx, "after setlen 32 mid-packet, len 32", 5, 32, 41, 200, rx_len=-1
         )
-        await rx.act("cfg", len=1024, crc=False)
+        await configure(rx, 1024)
         await tx.act("send", count=1, len=1024, b0=42, gap_ms=0)
         await asyncio.sleep(0.6)
         await rx.act("hf")

@@ -20,8 +20,11 @@ OK=1
 wait $C1 || { echo "capture failed on the D1 mini:"; cat "$L-d1.err"; OK=0; }
 wait $C2 || { echo "capture failed on the ESP32:"; cat "$L-e32.err"; OK=0; }
 [ $OK = 1 ] || exit 1
+MISSING=0
 for b in e32 d1; do
   F=$L-$b.log
+  if [ "$X" = rg ]; then STAT='STAT rg'; else STAT='STAT p2pf'; fi
+  grep -a -q "$STAT" "$F" || { echo "e32=$E d1=$B $b: NO STAT line in $F"; MISSING=1; continue; }
   if [ "$X" = rg ]; then
     echo "e32=$E d1=$B $b: $(grep -a 'STAT rg' "$F" | tail -1 | sed 's/.*STAT rg //')" \
       "status=$(grep -a PTSTATUS "$F" | awk '{print $NF}' | tr -d '\n') W=$(grep -a -c '\[W\]\|\[E\]' "$F")"
@@ -30,3 +33,4 @@ for b in e32 d1; do
       "$(grep -a 'on_receive' "$F" | tail -1 | sed 's/.*STAT //') senderr=$(grep -a -c 'sendto' "$F")"
   fi
 done
+exit $MISSING

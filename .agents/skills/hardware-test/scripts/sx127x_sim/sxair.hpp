@@ -70,6 +70,7 @@ struct Radio {
   // counters
   uint32_t tx{0}, rx_ok{0}, rx_crc{0}, rx_collision{0}, rx_left{0}, rx_too_long{0}, tx_over_signal{0}, tx_aborted{0};
   uint16_t last_tx_len{0}, last_rx_len{0};
+  uint32_t fifo_over{0}, fifo_under{0};  // FSK FIFO writes dropped when full, reads when empty
   // Both radios share one main loop, so a packet that lands while the previous one is still unread (the loop was busy
   // sending on the other radio) is held here and handed over once the driver has read the previous one. A real peer
   // reads its own radio in time; this keeps the shared loop from losing packets that two devices would not.
@@ -311,14 +312,18 @@ struct Sx127x : Radio, AirChip {
   }
 
   void ffifo_push(uint8_t v) {
-    if (fcount < 64) {
-      ffifo[(fhead + fcount) % 64] = v;
-      fcount++;
+    if (fcount == 64) {
+      fifo_over++;
+      return;
     }
+    ffifo[(fhead + fcount) % 64] = v;
+    fcount++;
   }
   uint8_t ffifo_pop() {
-    if (fcount == 0)
+    if (fcount == 0) {
+      fifo_under++;
       return 0;
+    }
     uint8_t v = ffifo[fhead];
     fhead = (fhead + 1) % 64;
     fcount--;
@@ -805,15 +810,17 @@ inline void unjam(Radio *r) {
 }
 
 inline void log_radio(const char *label, Radio *r) {
-  ESP_LOGI(TAG,
-           "AIR %s %s tx=%u last_tx_len=%u last_air=%uus rx_ok=%u rx_crc=%u rx_coll=%u rx_left=%u rx_too_long=%u "
-           "tx_over_signal=%u tx_aborted=%u on_air=%d listening=%d signal=%d dio=%d held=%u held_full=%u | dropped=%u "
-           "corrupted=%u collisions=%u | last over-signal send at %ums, signal %uus old, from %d, jam %d",
-           label, r->name, (unsigned) r->tx, r->last_tx_len, (unsigned) r->last_tx_air_us, (unsigned) r->rx_ok,
-           (unsigned) r->rx_crc, (unsigned) r->rx_collision, (unsigned) r->rx_left, (unsigned) r->rx_too_long,
-           (unsigned) r->tx_over_signal, (unsigned) r->tx_aborted, r->on_air, r->listening(), r->signal_visible(),
-           r->dio, (unsigned) r->queued, (unsigned) r->queue_full, (unsigned) AIR.dropped, (unsigned) AIR.corrupted,
-           (unsigned) AIR.collisions, (unsigned) r->over_ms, (unsigned) r->over_signal_age_us, r->over_from,
-           r->over_jam);
+  ESP_LOGI(
+      TAG,
+      "AIR %s %s tx=%u last_tx_len=%u last_air=%uus rx_ok=%u rx_crc=%u rx_coll=%u rx_left=%u rx_too_long=%u "
+      "tx_over_signal=%u tx_aborted=%u on_air=%d listening=%d signal=%d dio=%d held=%u held_full=%u | dropped=%u "
+      "corrupted=%u collisions=%u | last over-signal send at %ums, signal %uus old, from %d, jam %d | fifo_over=%u "
+      "fifo_under=%u",
+      label, r->name, (unsigned) r->tx, r->last_tx_len, (unsigned) r->last_tx_air_us, (unsigned) r->rx_ok,
+      (unsigned) r->rx_crc, (unsigned) r->rx_collision, (unsigned) r->rx_left, (unsigned) r->rx_too_long,
+      (unsigned) r->tx_over_signal, (unsigned) r->tx_aborted, r->on_air, r->listening(), r->signal_visible(), r->dio,
+      (unsigned) r->queued, (unsigned) r->queue_full, (unsigned) AIR.dropped, (unsigned) AIR.corrupted,
+      (unsigned) AIR.collisions, (unsigned) r->over_ms, (unsigned) r->over_signal_age_us, r->over_from, r->over_jam,
+      (unsigned) r->fifo_over, (unsigned) r->fifo_under);
 }
 }  // namespace sxair
