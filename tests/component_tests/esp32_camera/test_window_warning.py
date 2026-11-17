@@ -41,14 +41,14 @@ esp32_camera:
         # A window inside the frame stays quiet.
         ("QVGA", (100, 0, 200, 200), ""),
         # One pixel of overflow on the height axis, full-resolution window.
-        ("QVGA", (0, 1, 320, 240), "only if it fits within"),
+        ("QVGA", (0, 1, 320, 240), "the offset is preserved there only while"),
         # A full-resolution window with an offset keeps it on an SC101IOT, whose
         # readout is larger, but not on an SC030IOT.
-        ("320X240", (100, 0, 320, 240), "only if it fits within"),
+        ("320X240", (100, 0, 320, 240), "the offset is preserved there only while"),
         # A VGA window is the whole SC030IOT readout, so its offset is clamped to 0.
-        ("VGA", (1, 0, 640, 480), "otherwise its offset is clamped"),
+        ("VGA", (1, 0, 640, 480), "otherwise it is clamped as well"),
         # The same frame size spelled as an alias must be checked as well.
-        ("QVGA", (100, 0, 320, 240), "only if it fits within"),
+        ("QVGA", (100, 0, 320, 240), "the offset is preserved there only while"),
         # Larger than the frame itself: no sensor can use it.
         ("QVGA", (0, 0, 400, 100), "no sensor can read it out"),
         # Not the resolution and reaching past it: the SC sensors reject it.

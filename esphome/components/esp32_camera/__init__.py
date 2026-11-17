@@ -392,9 +392,9 @@ def _check_window_fits(config: ConfigType) -> None:
             "reaches (%d,%d). The OV2640, OV3660 and OV5640 clamp such a window, "
             "which changes the crop; use a larger `resolution` to read the window "
             "as written. The SC101IOT and SC030IOT count the offset in pixels of "
-            "the whole sensor, so the window is fine there only if it fits within "
-            "that sensor's readout (1280x720 for SC101IOT, 640x480 for SC030IOT); "
-            "otherwise its offset is clamped too.",
+            "the whole sensor, so the offset is preserved there only while the "
+            "window fits within that sensor's readout (1280x720 for SC101IOT, "
+            "640x480 for SC030IOT); otherwise it is clamped as well.",
             offset_x,
             offset_y,
             frame_width,
