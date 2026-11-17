@@ -17,6 +17,7 @@ CODEOWNERS = ["@dudanov"]
 CONF_DEFROST = "defrost"
 CONF_FILTER_ALERT = "filter_alert"
 CONF_FOLLOW_ME = "follow_me"
+CONF_SELF_CLEANING = "self_cleaning"
 CONF_WATER_PUMP = "water_pump"
 
 CONFIG_SCHEMA = cv.Schema(
@@ -46,6 +47,11 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:thermometer-check",
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
+        # Self clean property
+        cv.Optional(CONF_SELF_CLEANING): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_RUNNING,
+            icon="mdi:broom",
+        ),
     }
 )
 
@@ -58,3 +64,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_FILTER_ALERT, hub.set_filter_alert_binary_sensor)
     await sensors(CONF_DISPLAY, hub.set_display_binary_sensor)
     await sensors(CONF_FOLLOW_ME, hub.set_follow_me_binary_sensor)
+    await sensors(CONF_SELF_CLEANING, hub.set_self_cleaning_binary_sensor)

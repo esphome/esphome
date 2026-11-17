@@ -118,3 +118,61 @@ binary_sensor:
       name: Display
     follow_me:
       name: Follow Me Active
+    self_cleaning:
+      name: Self Cleaning
+
+switch:
+  - platform: midea
+    midea_id: midea_unit
+    purifier:
+      name: Purifier
+    fahrenheit:
+      name: Fahrenheit
+    jet_cool:
+      name: Jet Cool
+    breeze_away:
+      name: Breeze Away
+    breezeless:
+      name: Breezeless
+    out_silent:
+      name: Outdoor Silent
+    ieco:
+      name: iECO
+      ieco_number: 1
+    sound:
+      name: Sound
+
+select:
+  - platform: midea
+    midea_id: midea_unit
+    aux_heat_mode:
+      name: Aux Heat Mode
+    vertical_swing_angle:
+      name: Vertical Swing Angle
+    horizontal_swing_angle:
+      name: Horizontal Swing Angle
+    cascade:
+      name: Cascade
+    fresh_air:
+      name: Fresh Air
+    rate_select:
+      name: Rate Select
+      levels: 2
+    breeze_mode:
+      name: Breeze Mode
+    breeze_away_direction:
+      name: Breeze Away Direction
+
+number:
+  - platform: midea
+    midea_id: midea_unit
+    fan_speed:
+      name: Fan Speed
+    target_humidity:
+      name: Target Humidity
+
+button:
+  - platform: midea
+    midea_id: midea_unit
+    self_clean:
+      name: Self Clean
