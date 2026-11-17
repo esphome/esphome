@@ -276,8 +276,11 @@ def test_final_validate_checks_libretiny_uart_pins(
     ],
 )
 def test_implicit_boot_log_level_respects_global_level(
-    set_core_config, buffer_size, level, expected
-):
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    expected: str,
+) -> None:
     """The full schema supplies a usable default even when logging is disabled."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     config = CONFIG_SCHEMA({"level": level, "boot_log_buffer_size": buffer_size})
@@ -297,8 +300,12 @@ def test_implicit_boot_log_level_respects_global_level(
     ],
 )
 def test_explicit_boot_log_level_is_preserved_or_rejected(
-    set_core_config, buffer_size, level, boot_level, valid
-):
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    boot_level: str,
+    valid: bool,
+) -> None:
     """An explicit level must still fit within the compiled global level."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     config = {
@@ -313,7 +320,9 @@ def test_explicit_boot_log_level_is_preserved_or_rejected(
             CONFIG_SCHEMA(config)
 
 
-def test_default_global_and_boot_log_levels(set_core_config):
+def test_default_global_and_boot_log_levels(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """Omitting both options retains DEBUG logging and WARN boot capture."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     config = CONFIG_SCHEMA({})
