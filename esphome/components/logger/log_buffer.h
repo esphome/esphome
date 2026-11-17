@@ -116,21 +116,25 @@ struct LogBuffer {
 #endif
   // Writes a message that needs no formatting, truncated and stripped of trailing newlines as format_body() does
   void HOT write_unformatted_body(const char *text, size_t len) {
-    if (!this->full_()) {
-      const uint16_t limit = this->remaining_() - 1;  // vsnprintf() keeps the last byte for the null terminator
+    const int room = this->body_room_();
+    if (room > 0) {
+      const uint16_t limit = room - 1;  // vsnprintf() keeps the last byte for the null terminator
       const uint16_t copy_len = (len < limit) ? static_cast<uint16_t>(len) : limit;
       memcpy(this->current_(), text, copy_len);
       this->pos += copy_len;
       this->strip_trailing_newlines_();
+      this->write_ansi_reset_();
     }
     this->finalize_();
   }
   // write_unformatted_body() for a message in flash
   inline void HOT ESPHOME_ALWAYS_INLINE write_unformatted_body_p(ESPHOME_PGM_P text) {
-    if (!this->full_()) {
+    const int room = this->body_room_();
+    if (room > 0) {
       char *const start = this->current_();
-      this->pos = static_cast<uint16_t>(progmem_copy_str(start, start + this->remaining_() - 1, text) - this->data);
+      this->pos = static_cast<uint16_t>(progmem_copy_str(start, start + room - 1, text) - this->data);
       this->strip_trailing_newlines_();
+      this->write_ansi_reset_();
     }
     this->finalize_();
   }
