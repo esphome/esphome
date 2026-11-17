@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 import heapq
+import json
 from operator import itemgetter
 from pathlib import Path
 import sys
@@ -23,7 +24,7 @@ from . import (
 from .toolchain import find_elf_path, find_idedata_path, idedata_candidates
 
 if TYPE_CHECKING:
-    from . import ComponentMemory
+    from . import ComponentMemory, StringLiteral
 
 
 def _format_pstorage_name(name: str) -> str:
@@ -46,6 +47,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
+    # String literals listed per component in the RAM strings report
+    STRINGS_PER_COMPONENT: int = 10
     # Number of top symbols to show in the largest symbols report
     TOP_SYMBOLS_LIMIT: int = 30
     # Width for symbol name display in top symbols report
@@ -203,6 +206,79 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             lines.append(
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
             )
+
+    def _add_unnamed_constants_analysis(self, lines: list[str]) -> None:
+        """Add the unnamed constants (ESP8266 .rodata in RAM) section."""
+        self._add_section_header(lines, "Unnamed Constants in RAM (.rodata)")
+        total_size = sum(c.size for c in self._unnamed_constants)
+        lines.append(
+            f"Total: {len(self._unnamed_constants)} constant(s), {total_size:,} B. "
+            "GCC copies these into objects built from constant initializers;"
+        )
+        lines.append(
+            "PROGMEM tables, assigned fields or a user-provided constructor avoid the copy."
+        )
+        lines.append("")
+        for constant in self._unnamed_constants:
+            kind = "switch table" if constant.jump_table else "constant"
+            lines.append(
+                f"{constant.size:>6,} B {kind:<12} {constant.component} ({constant.source_file})"
+            )
+            lines.extend(
+                f"{'':>9} used by {self._demangle_symbol(function)}"
+                for function in constant.functions
+            )
+            if constant.strings:
+                # Escaped, so control characters in a literal can't disturb the terminal
+                shown = ", ".join(
+                    json.dumps(text[:40]) for text in constant.strings[:4]
+                )
+                more = ", ..." if len(constant.strings) > 4 else ""
+                lines.append(f"{'':>9} points to {shown}{more}")
+            elif constant.data and not constant.jump_table:
+                more = " ..." if constant.size > len(constant.data) else ""
+                lines.append(f"{'':>9} bytes: {constant.data.hex(' ')}{more}")
+        lines.append("")
+
+    def _add_string_literals_analysis(self, lines: list[str]) -> None:
+        """Add the string literals in RAM (ESP8266 .rodata) section, by component."""
+        self._add_section_header(lines, "String Literals in RAM (.rodata)")
+        total_size = sum(s.size for s in self._string_literals)
+        lines.append(
+            f"Total: {len(self._string_literals)} string(s), {total_size:,} B. "
+            "LOG_STR, ESPHOME_F or a PROGMEM table keeps a literal in flash."
+        )
+        lines.append(
+            "Only literals whose user is known are counted; one used by several components is "
+            "listed under each and charged to none."
+        )
+        lines.append("")
+        by_component: dict[str, list[StringLiteral]] = defaultdict(list)
+        for literal in self._string_literals:
+            for component in literal.users:
+                by_component[component].append(literal)
+        totals = {c: sum(s.size for s in ls) for c, ls in by_component.items()}
+        for component, literals in sorted(
+            by_component.items(), key=lambda x: (-totals[x[0]], x[0])
+        ):
+            comp_total = totals[component]
+            lines.append(f"{component} ({comp_total:,} B, {len(literals)} strings):")
+            for literal in literals[: self.STRINGS_PER_COMPONENT]:
+                text = json.dumps(literal.text)
+                if len(text) > 50:
+                    text = f'{text[:47]}..."'
+                users = sorted(
+                    self._demangle_symbol(u) for u in literal.users[component]
+                )
+                used_by = users[0][:60] + (
+                    f" (+{len(users) - 1})" if len(users) > 1 else ""
+                )
+                lines.append(f"  {literal.size:>5,} B {text:<50} {used_by}")
+            if len(literals) > self.STRINGS_PER_COMPONENT:
+                lines.append(
+                    f"  ... and {len(literals) - self.STRINGS_PER_COMPONENT} more"
+                )
+        lines.append("")
 
     def _add_cswtch_analysis(self, lines: list[str]) -> None:
         """Add CSWTCH (GCC switch table lookup) analysis section."""
@@ -393,6 +469,12 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             f"{' ':>{self.COL_RAM_DATA}} | {' ':>{self.COL_RAM_BSS}} | "
             f"{total_flash:>{self.COL_TOTAL_FLASH - 2},} B | {total_ram:>{self.COL_TOTAL_RAM - 2},} B"
         )
+
+        if self.rodata_in_ram:
+            lines.append("")
+            lines.append(
+                "ESP8266 keeps .rodata in RAM, so constants are counted in RAM (data)."
+            )
 
         # Show unattributed RAM (SDK/framework overhead)
         unattributed_bss, unattributed_data, unattributed_total = (
@@ -657,6 +739,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
 
+        if self._unnamed_constants:
+            self._add_unnamed_constants_analysis(lines)
+        if self._string_literals:
+            self._add_string_literals_analysis(lines)
+
         # CSWTCH (GCC switch table) analysis
         if self._cswtch_symbols:
             self._add_cswtch_analysis(lines)
@@ -738,7 +825,6 @@ def main():
     build_dir = sys.argv[1]
 
     # Load build directory
-    import json
 
     from esphome.platformio.toolchain import IDEData
 

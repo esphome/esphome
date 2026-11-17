@@ -2,9 +2,8 @@ from typing import NamedTuple
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import gpio_expander, i2c
 from esphome.components.const import CONF_DRIVE_STRENGTH
-from esphome.components.gpio_expander import validate_interrupt_pin
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -90,9 +89,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADDRESS): cv.i2c_address,
             cv.Optional(CONF_DEVICE): cv.one_of(*DEVICES, upper=True),
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
-            cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    ).extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA),
     _validate_hub,
 )
 

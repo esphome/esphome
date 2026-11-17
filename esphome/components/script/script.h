@@ -46,19 +46,10 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   virtual void stop() { this->stop_action(); }
 #endif
 
-  // execute this script using a tuple that contains the arguments
-  void execute_tuple(const std::tuple<Ts...> &tuple) {
-    this->execute_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
-  }
-
   // Internal function to give scripts readable names.
   void set_name(const LogString *name) { name_ = name; }
 
  protected:
-  template<size_t... S> void execute_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->execute(std::get<S>(tuple)...);
-  }
-
   // Run the action chain with this script's name published as the current source (RAII save/restore,
   // so nesting composes), so deferred work inside the script is attributed to it in blocking
   // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
@@ -250,47 +241,6 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
 
  protected:
   int max_runs_ = 0;
-};
-
-template<class S, typename... Ts> class ScriptExecuteAction;
-
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
- public:
-  ScriptExecuteAction(Script<As...> *script) : script_(script) {}
-
-  using Args = std::tuple<TemplatableFn<As, Ts...>...>;
-
-  template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
-
-  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
-
- protected:
-  // NOTE:
-  //  `eval_args_impl` functions evaluates `I`th the functions in `args` member.
-  //  and then recursively calls `eval_args_impl` for the `I+1`th arg.
-  //  if `I` = `N` all args have been stored, and nothing is done.
-
-  template<std::size_t N>
-  void eval_args_impl_(std::tuple<As...> & /*unused*/, std::integral_constant<std::size_t, N> /*unused*/,
-                       std::integral_constant<std::size_t, N> /*unused*/, Ts... /*unused*/) {}
-
-  template<std::size_t I, std::size_t N>
-  void eval_args_impl_(std::tuple<As...> &evaled_args, std::integral_constant<std::size_t, I> /*unused*/,
-                       std::integral_constant<std::size_t, N> n, Ts... x) {
-    std::get<I>(evaled_args) = std::get<I>(args_).value(x...);  // NOTE: evaluate `i`th arg, and store in tuple.
-    eval_args_impl_(evaled_args, std::integral_constant<std::size_t, I + 1>{}, n,
-                    x...);  // NOTE: recurse to next index.
-  }
-
-  std::tuple<As...> eval_args_(Ts... x) {
-    std::tuple<As...> evaled_args;
-    eval_args_impl_(evaled_args, std::integral_constant<std::size_t, 0>{}, std::tuple_size<Args>{}, x...);
-    return evaled_args;
-  }
-
-  Script<As...> *script_;
-  // Empty tuple for scripts without parameters; takes no space then
-  [[no_unique_address]] Args args_;
 };
 
 /** Wait for a script to finish before continuing.

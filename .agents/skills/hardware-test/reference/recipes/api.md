@@ -28,3 +28,53 @@ connected first, and the loop-time maxima. For the loop cost of polling, repeat 
 so after a drop every dial is closed and HA's incoming reconnect wins 11 to 33 s later; the measurable effect is the
 first dial landing in the loop the network flag flips.
 Results: https://github.com/esphome/esphome/pull/21085#issuecomment-6254742791
+
+## User defined action listing and execution without a client library (#18882)
+
+`scripts/api/rawactions.py HOST list` speaks the plaintext native API over a raw socket and decodes every
+`ListEntitiesServicesResponse` by field number (argument fields 1 name, 2 type, 3 description, 4 example, 5 optional,
+6 default_value), so new wire fields show up without waiting for the client library. `rawactions.py HOST exec ACTION
+k=v ...` sends `ExecuteServiceRequest` with `sint32` ints (field 5, not the legacy int32 field 2), fixed32 floats,
+length delimited strings and `int[]` as repeated sint32 (field 7); `ALLOW_MISSING=1` leaves arguments out on purpose
+(the device then drops the call). `templates/api-actions-dut.yaml` (D1 mini, three actions, optional variables with
+defaults) and `templates/api-actions-strings-dut.yaml` (required strings) log what arrived. String arguments are
+`StringRef`s that are not null terminated: copy them with `snprintf("%.*s", size, c_str())` into a buffer before
+logging, and do not pass `%.*s` to `logger.log`, whose validator counts it as one pattern.
+
+## store_yaml recovery over the native API (#16445)
+
+`scripts/api/syrecover.py HOST KEY OUTDIR [ORIGDIR]` (KEY `-` for plaintext) builds the client library's
+`APINoiseFrameHelper` around a stub `APIConnection` subclass (the compiled helper type checks the connection, and
+`ConnectionParams` needs every field), sends Hello, Authentication (never answered without a password) and
+`DeviceCapabilitiesRequest`, then `GetYamlRequest` (161), collects `GetYamlResponse` (162) frames by field number
+(1 data, 2 done, 3 total_size, 4 encoding) until done, requests again, decompresses with `compression.zstd` (Python 3.14, or the `zstandard` package) and
+unpacks the envelope with the tree's `unpack_envelope` (run with `PYTHONPATH` on that tree). Configs in
+`templates/store_yaml/`: entry files in `boards/`, a package one directory above them with `!secret` and an inline
+OTA password,
+so the redaction and the `..` paths are exercised. Repetitive YAML compresses into one chunk even at 22 KB; a 6 KB
+include of random base64 lines with `include_secrets: true` gives four chunks (1390 byte packets). Rough edge at
+0bd3738430: `include_secrets: true` fails the build when a package in another directory uses `!secret` and has no
+`secrets.yaml` beside it; a copy next to the package works around it.
+Results: https://github.com/esphome/esphome/pull/16445#issuecomment-6335435397
+
+## Allocations of a connecting client (ratgdo/esphome-ratgdo#705)
+
+An API client that connects allocates about 15 times on ESP32: the connection object, then the list entities and
+initial state batches growing the `DeferredBatch` vector. A log subscription adds more per line. Connect before a
+heap measurement and subscribe to logs only afterwards (`heap_alloc.md`).
+
+## Native API connect/disconnect stress (#14679, #14687, #14706)
+
+`scripts/api/connstress.py HOST [ITERATIONS] [CONCURRENCY]` (aioesphomeapi; `API_KEY` env for a noise key) opens and
+closes native API connections as fast as it can, 500 attempts with 4 at a time by default, and ends with
+`RESULT PASS` or `RESULT FAIL`. It is the test that found the raw lwIP socket heap corruption, so run it for any change to
+the socket layer, the scheduler or locking on RP2040/RP2350 and ESP8266, with a bounded serial capture on the device:
+the client only sees resets, the crash is in the log.
+
+- RP2040/RP2350 before #14687: crashed after 3 or 4 iterations (`malloc` from the lwIP accept IRQ while the main loop
+  was in `malloc`: double free in `~APIFrameHelper`, `_malloc_r` in `APIConnection()`); after: 500/500. #14679 first
+  added the lwIP locking between the lwIP callbacks and the main loop on RP2040.
+- ESP8266 before #14706: crashed within about 50 iterations (`umm_malloc_core` LoadStoreError, use after free of a
+  closed PCB's callbacks); after: 490/500, the 10 failures are connection resets from overload, which is expected there.
+- ESP32 (BSD sockets) passes 500/500 on both and is the control.
+- Compare against dev on the same board; count reboots and decode crash addresses as well as the client's failures.

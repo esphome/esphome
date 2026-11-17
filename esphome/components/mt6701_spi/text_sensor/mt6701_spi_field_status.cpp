@@ -12,12 +12,8 @@ PROGMEM_STRING_TABLE(FieldStatusStrings, "OK", "TOO_STRONG", "TOO_WEAK", "UNKNOW
 void MT6701SPIFieldStatus::update() {
   if (!this->parent_->read_encoder())
     return;
-  char text[FieldStatusStrings::MAX_LENGTH + 1];
-  ESPHOME_strncpy_P(text,
-                    reinterpret_cast<ESPHOME_PGM_P>(FieldStatusStrings::get_progmem_str(
-                        this->parent_->get_status() & 0x03, FieldStatusStrings::LAST_INDEX)),
-                    sizeof(text));
-  this->publish_state(text);
+  this->publish_state(
+      FieldStatusStrings::get_progmem_str(this->parent_->get_status() & 0x03, FieldStatusStrings::LAST_INDEX));
 }
 
 void MT6701SPIFieldStatus::dump_config() {

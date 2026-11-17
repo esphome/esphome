@@ -12,8 +12,8 @@ class MLX90614Component final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  void set_ambient_sensor(sensor::Sensor *ambient_sensor) { ambient_sensor_ = ambient_sensor; }
-  void set_object_sensor(sensor::Sensor *object_sensor) { object_sensor_ = object_sensor; }
+  SUB_SENSOR(ambient)
+  SUB_SENSOR(object)
 
   void set_emissivity(float emissivity) { emissivity_ = emissivity; }
 
@@ -23,9 +23,6 @@ class MLX90614Component final : public PollingComponent, public i2c::I2CDevice {
 
   bool write_register_(uint8_t reg, uint16_t data);
   i2c::ErrorCode read_register_(uint8_t reg, uint16_t &data);
-
-  sensor::Sensor *ambient_sensor_{nullptr};
-  sensor::Sensor *object_sensor_{nullptr};
 
   float emissivity_{NAN};
   // Remaining attempts to program the emissivity EEPROM cell, bounded to limit cell wear

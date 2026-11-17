@@ -43,7 +43,12 @@ class Image : public display::BaseImage {
   bool has_transparency() const { return this->transparency_ != TRANSPARENCY_OPAQUE; }
 
 #ifdef USE_LVGL
-  lv_image_dsc_t *get_lv_image_dsc();
+  virtual lv_image_dsc_t *get_lv_image_dsc();
+#endif
+#ifdef USE_LVGL_IMAGE
+  /// Called when an LVGL image widget is given this image. An image whose size can change keeps the widget, so it can
+  /// give the widget its source again when the size changes: the widget keeps the size it read from the descriptor.
+  virtual void add_lvgl_widget(lv_obj_t *obj) {}
 #endif
  protected:
   /// Per-pixel draw of the clipped range, rows (true) or columns (false) outer.

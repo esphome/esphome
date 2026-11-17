@@ -12,7 +12,7 @@ import asyncio
 from aioesphomeapi import BinarySensorInfo, BinarySensorState, ButtonInfo, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # The fixture sends one frame with a target, then 2 s of frames without one
@@ -41,9 +41,7 @@ async def test_uart_mock_ld2450_has_target_only(
                 if state.state and not turned_on.done():
                     turned_on.set_result(None)
 
-        helper = InitialStateHelper(entities)
-        client.subscribe_states(helper.on_state_wrapper(on_state))
-        await helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)

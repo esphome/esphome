@@ -11,13 +11,11 @@
 #include <BluetoothLock.h>
 
 #include <cstring>
-#include <new>
 
 namespace esphome::bluetooth_connection {
 
 ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
-using ble_device_base::ESPBTUUID;
 using ble_device_base::GATT_ERR_NOT_CONNECTED;
 using ble_device_base::GATT_ERR_NO_MEMORY;
 
@@ -63,14 +61,6 @@ btstack_packet_callback_registration_t RP2GattClient::hci_event_registration = {
 btstack_packet_callback_registration_t RP2GattClient::sm_event_registration = {};
 RP2GattClient *RP2GattClient::connect_owner = nullptr;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
-
-static ESPBTUUID uuid_from_btstack(uint16_t uuid16, const uint8_t uuid128[16]) {
-  if (uuid16 != 0) {
-    return ESPBTUUID::from_uint16(uuid16);
-  }
-  // BTstack structs carry the 128-bit form big-endian (printable order).
-  return ESPBTUUID::from_raw_reversed(uuid128);
-}
 
 void RP2GattClient::setup() {
   // Pre-create every pool entry so the packet handlers' allocate() calls are
@@ -301,8 +291,9 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       }
       gatt_client_service_t service;
       gatt_event_service_query_result_get_service(packet, &service);
+      // Not uuid16: BTstack stores a 32-bit base UUID there truncated to its low 16 bits
       auto &dst = this->arena_->services[this->service_count_];
-      dst.uuid = uuid_from_btstack(service.uuid16, service.uuid128);
+      dst.uuid = uuid_from_be128(service.uuid128);
       dst.start_handle = service.start_group_handle;
       dst.end_handle = service.end_group_handle;
       dst.first_characteristic = 0;
@@ -321,7 +312,7 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       gatt_client_characteristic_t characteristic;
       gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
       auto &dst = this->arena_->characteristics[this->char_count_];
-      dst.uuid = uuid_from_btstack(characteristic.uuid16, characteristic.uuid128);
+      dst.uuid = uuid_from_be128(characteristic.uuid128);
       dst.value_handle = characteristic.value_handle;
       dst.end_handle = characteristic.end_handle;
       dst.properties = static_cast<uint8_t>(characteristic.properties);
@@ -341,7 +332,7 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       gatt_client_characteristic_descriptor_t descriptor;
       gatt_event_all_characteristic_descriptors_query_result_get_characteristic_descriptor(packet, &descriptor);
       auto &dst = this->arena_->descriptors[this->desc_count_];
-      dst.uuid = uuid_from_btstack(descriptor.uuid16, descriptor.uuid128);
+      dst.uuid = uuid_from_be128(descriptor.uuid128);
       dst.handle = descriptor.handle;
       this->desc_count_++;
       break;
@@ -747,13 +738,11 @@ int RP2GattClient::discover_services() {
     // to the API client (mirrors Bluedroid's own per-connection GATT DB
     // lifetime on esp32). Checked: a fragmented heap must surface as a
     // stack error the proxy can report, not a device reset.
-    RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
-    this->arena_ = allocator.allocate(1);
+    this->arena_ = RAMAllocator<ServiceArena>(RAMAllocator<ServiceArena>::ALLOC_INTERNAL).make_unique();
     if (this->arena_ == nullptr) {
       ESP_LOGE(TAG, "[%u] Service table allocation failed", this->engine_index_);
       return ble_device_base::GATT_ERR_NO_MEMORY;
     }
-    new (this->arena_) ServiceArena();
   }
   this->service_count_ = 0;
   this->char_count_ = 0;
@@ -899,10 +888,7 @@ void RP2GattClient::release_services() {
     // Under BluetoothLock so a discovery result landing in the BTstack
     // context cannot write into the arena mid-free.
     BluetoothLock lock;
-    RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
-    this->arena_->~ServiceArena();
-    allocator.deallocate(this->arena_, 1);
-    this->arena_ = nullptr;
+    this->arena_.reset();
   }
   this->service_count_ = 0;
   this->char_count_ = 0;

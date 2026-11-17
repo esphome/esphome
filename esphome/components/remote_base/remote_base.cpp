@@ -1,4 +1,5 @@
 #include "remote_base.h"
+#include <algorithm>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -58,6 +59,10 @@ bool RemoteReceiveData::peek_space_at_most(uint32_t length, uint32_t offset) con
   return value <= 0 && -value <= hi;
 }
 
+TimingRange RemoteReceiveData::timing_range(uint32_t length) const {
+  return {std::max<int32_t>(this->lower_bound_(length), 0), this->upper_bound_(length)};
+}
+
 bool RemoteReceiveData::expect_mark(uint32_t length) {
   if (!this->peek_mark(length))
     return false;
@@ -103,8 +108,7 @@ bool RemoteReceiverBinarySensorBase::on_receive(RemoteReceiveData src) {
 #ifdef REMOTE_BASE_LISTENER_COUNT
 void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
   if (this->listeners_.size() == REMOTE_BASE_LISTENER_COUNT) {
-    ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("listener"),
-             LOG_STR_LITERAL("listener"));
+    ESP_LOGE(TAG, "No listener slot: register it from to_code() with remote_base.add_listener");
     return;
   }
   this->listeners_.push_back(listener);
@@ -112,34 +116,46 @@ void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
 #endif
 
 #ifdef REMOTE_BASE_DUMPER_COUNT
-void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
-  if (dumper->is_secondary()) {
-    if (this->secondary_dumper_ == nullptr) {
-      this->secondary_dumper_ = dumper;
-      return;
-    }
-  } else if (this->dumpers_.size() != REMOTE_BASE_DUMPER_COUNT) {
-    this->dumpers_.push_back(dumper);
-    return;
+void RemoteReceiverBase::set_dumpers(RemoteReceiverDumperBase *const *dumpers, size_t count) {
+  if (this->dumpers_.empty()) {
+    this->dumpers_.assign_static(dumpers, count);
+  } else {
+    // register_dumper() ran first from another to_code(); the YAML dumpers stay first
+    this->dumpers_.prepend_copy(dumpers, count);
   }
-  ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("dumper"),
-           LOG_STR_LITERAL("dumper"));
+}
+
+void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) { this->dumpers_.append_copy(&dumper, 1); }
+
+// Only the first secondary dumper runs; from dump_config() so it is seen however the dumpers were registered
+void RemoteReceiverBase::warn_extra_secondaries_() {
+  uint8_t secondaries = 0;
+  for (auto *dumper : this->dumpers_)
+    secondaries += dumper->is_secondary();
+  if (secondaries > 1) {
+    ESP_LOGW(TAG, "Only the first of %u secondary dumpers runs", secondaries);
+  }
 }
 #endif
 
-void RemoteReceiverBase::call_listeners_dumpers_() {
+void RemoteReceiverBase::dispatch_(const RemoteReceiveData &src) {
 #ifdef REMOTE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
-    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+    listener->on_receive(src);
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
   bool success = false;
+  RemoteReceiverDumperBase *secondary = nullptr;
   for (auto *dumper : this->dumpers_) {
-    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
+    if (dumper->is_secondary()) {
+      if (secondary == nullptr)
+        secondary = dumper;
+    } else if (dumper->dump(src)) {
       success = true;
+    }
   }
-  if (!success && this->secondary_dumper_ != nullptr)
-    this->secondary_dumper_->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+  if (!success && secondary != nullptr)
+    secondary->dump(src);
 #endif
 }
 

@@ -9,7 +9,27 @@ time:
     on_time:
       - seconds: "0,10,20,30,40,50"
         then:
-          - logger.log: "CronTrigger fired (every 10 seconds)"
+          - logger.log: "on_time fired (every 10 seconds)"
+      - cron: "0 30 7 * * MON-FRI"
+        then:
+          - logger.log: "Weekday morning"
+      - at: "22:15"
+        then:
+          - logger.log: "Evening"
+      - seconds: /15
+        minutes: 0
+        hours: 8-17
+        days_of_month: 1,15
+        months: JAN,JUL
+        then:
+          - logger.log: "Working hours twice a year"
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        days_of_month: "*/7"
+        days_of_week: SAT,SUN
+        then:
+          - logger.log: "Weekend midnight on a step date"
   - platform: sntp
     id: sntp_time
 

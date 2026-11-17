@@ -12,7 +12,11 @@ import re
 import subprocess
 import sys
 
-from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
+from esphome.build_helpers.ccache import (
+    ccache_breaks_pch,
+    effective_ccache_basedir,
+    parse_enable_env,
+)
 from esphome.const import PLATFORM_NRF52
 from esphome.helpers import write_file_if_changed
 
@@ -117,9 +121,16 @@ def pch_needs_gcc_check() -> bool:
     return sys.platform == "win32" and parse_enable_env("ESPHOME_PCH_ENABLE") is None
 
 
+def _ccache_rules_out_pch() -> bool:
+    """An old ccache, unless ``ESPHOME_PCH_ENABLE=1`` forces the pch on.
+    ESP-IDF runs the same check in CMake (build_gen.espidf)."""
+    return not pch_forced() and ccache_breaks_pch()
+
+
 def pch_usable(cxx: Sequence[Path | str]) -> bool:
-    """The knob plus the host rule; ``ESPHOME_PCH_ENABLE=1`` skips the rule."""
-    if not pch_enabled():
+    """The knob plus the ccache and host rules; ``ESPHOME_PCH_ENABLE=1``
+    skips the rules."""
+    if not pch_enabled() or _ccache_rules_out_pch():
         return False
     if not pch_needs_gcc_check():
         return True
@@ -162,7 +173,11 @@ def pch_script_enabled() -> bool:
     """Whether this PlatformIO build takes the pch script."""
     from esphome.core import CORE
 
-    return pch_enabled() and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
+    return (
+        pch_enabled()
+        and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
+        and not _ccache_rules_out_pch()
+    )
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:

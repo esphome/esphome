@@ -334,13 +334,8 @@ bool TMP102Component::set_limit_temperature_(TMP102LimitType limit, float temper
 void TMP102Component::publish_threshold_status_(uint8_t status) {
   if (this->threshold_status_text_sensor_ == nullptr)
     return;
-  char text[40];
-  ESPHOME_strncpy_P(
-      text,
-      reinterpret_cast<ESPHOME_PGM_P>(ThresholdStatusStrings::get_progmem_str(status, TMP102_THRESHOLD_STATUS_OK)),
-      sizeof(text));
-  text[sizeof(text) - 1] = '\0';
-  this->threshold_status_text_sensor_->publish_state(text);
+  this->threshold_status_text_sensor_->publish_state(
+      ThresholdStatusStrings::get_progmem_str(status, TMP102_THRESHOLD_STATUS_OK));
 }
 
 void TMP102Component::publish_threshold_rejection_(bool high, float value, float other) {

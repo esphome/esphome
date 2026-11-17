@@ -5,9 +5,15 @@ test_uart_mock_ld2410s:
      switch and config-mode end go out in order, each after the previous one is
      acknowledged, then the component logs "Setup done" and clears its warning;
      the version and parameter answers are parsed and logged
-  1b. Setting the max distance number to 7 m writes all six parameters (gate 10
+  1a. The numbers show the values read at init in their own units (gates of 0.7 m,
+     seconds, tenths of a hertz) and the response speed select shows Normal
+  1b. Setting the max distance number to 7.3 m writes all six parameters (gate 10
      plus the values read at init) inside a configuration-mode session, and the
-     number reports 7 m
+     number reports the 7 m the module got, not 7.3 m
+  1c. Selecting the Fast response speed writes speed 10 with the same values and
+     the select reports Fast
+  1d. Setting no delay to 20 s reports 20 s at once; the module rejects the write,
+     so the values are read back and every entity shows the module's own value again
   2. Presence from short frames (states 0/1 off, 2/3 on) and from a standard
      data frame
   3. Resync - a noise byte or a partial header directly before a short frame
@@ -16,6 +22,8 @@ test_uart_mock_ld2410s:
      dropped without publishing, and the short frame after each still publishes
 
 test_uart_mock_ld2410s_recovery (the mock never answers the init commands):
+  0. A number or select changed before the module answered logs that the change
+     is ignored and publishes nothing
   1. Config-mode start is resent after the acknowledgement timeout
   2. Once the retries run out, config-mode end is sent and the component warns
      that it is starting over
@@ -36,12 +44,27 @@ test_uart_mock_ld2410s_link_lost:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import re
 
-from aioesphomeapi import APIClient, ButtonInfo, EntityState, NumberInfo, NumberState
+from aioesphomeapi import (
+    APIClient,
+    ButtonInfo,
+    EntityInfo,
+    EntityState,
+    NumberInfo,
+    NumberState,
+    SelectInfo,
+    SelectState,
+)
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -61,12 +84,20 @@ INIT_TX = [
     OUTPUT_MODE_TX,
     CONFIG_END_TX,
 ]
-# All six parameters: max gate 10, min gate 0, no delay 10, both frequencies 80, speed 5
-PARAMETERS_WRITE_TX = (
-    "FD:FC:FB:FA:26:00:70:00:05:00:0A:00:00:00:0A:00:00:00:00:00:06:00:0A:00:00:00:02:00:50:00:00:00:"
-    "0C:00:50:00:00:00:0B:00:05:00:00:00:04:03:02:01"
-)
-WRITE_TX = [CONFIG_START_TX, PARAMETERS_WRITE_TX, CONFIG_END_TX]
+
+
+def _parameters_write_tx(no_delay: int, speed: int) -> str:
+    """The 0x0070 write with max gate 10, min gate 0 and both frequencies 80."""
+    values = [(0x05, 10), (0x0A, 0), (0x06, no_delay), (0x02, 80), (0x0C, 80)]
+    body = "".join(f"{key:02X}:00:{value:02X}:00:00:00:" for key, value in values)
+    return f"FD:FC:FB:FA:26:00:70:00:{body}0B:00:{speed:02X}:00:00:00:04:03:02:01"
+
+
+WRITE_TX = [CONFIG_START_TX, _parameters_write_tx(10, 5), CONFIG_END_TX]
+# The same values with response speed 10 (Fast)
+SPEED_WRITE_TX = [CONFIG_START_TX, _parameters_write_tx(10, 10), CONFIG_END_TX]
+# No delay 20 s; the fixture rejects it
+REJECTED_WRITE_TX = [CONFIG_START_TX, _parameters_write_tx(20, 10), CONFIG_END_TX]
 # Logged once the version and parameter answers are parsed
 PARSED_ANSWERS = [
     "Firmware 1.2.3",
@@ -75,6 +106,7 @@ PARSED_ANSWERS = [
 ]
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+TX_LINE = re.compile(r"uart_mock.*TX .*bytes: ")
 
 # has_target after each injection: short 2, short 0, standard frame state 2,
 # short 1, noise + short 2, short 0, partial header + short 3,
@@ -106,20 +138,25 @@ BAD_COMMAND_FRAME_HEX = "FD FC FB FA 04 00 FE 01 00 00 00 00 00 00"
 
 def _tx_frame(line: str) -> str | None:
     """Return the hex payload of a uart_mock TX log line, or None."""
-    if "uart_mock" not in line or "TX " not in line or "bytes: " not in line:
+    if not TX_LINE.search(line):
         return None
     return ANSI_ESCAPE.sub("", line.split("bytes: ", 1)[1]).strip()
 
 
-async def _start_scenario(client: APIClient, collector: SensorStateCollector) -> None:
-    """Subscribe the collector past the initial states, then start the mock scenario."""
+async def _start_scenario(
+    client: APIClient,
+    collector: SensorStateCollector,
+    on_state: Callable[[EntityState], None] | None = None,
+) -> list[EntityInfo]:
+    """Subscribe past the initial states, then start the mock scenario; returns the entities."""
     entities, _ = await client.list_entities_services()
     collector.build_key_mapping(entities)
-    initial_state_helper = InitialStateHelper(entities)
-    client.subscribe_states(initial_state_helper.on_state_wrapper(collector.on_state))
-    await initial_state_helper.wait_for_initial_states()
+    await subscribe_after_initial_states(
+        client, entities, on_state=on_state or collector.on_state
+    )
     start_btn = require_entity(entities, "start_scenario", ButtonInfo)
     client.button_command(start_btn.key)
+    return entities
 
 
 async def _wait_for_presence(
@@ -140,45 +177,34 @@ async def test_uart_mock_ld2410s(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test the LD2410S init sequence, presence parsing and receiver resync."""
-    loop = asyncio.get_running_loop()
-    tx_frames: list[str] = []
-    setup_done = loop.create_future()
-    warning_cleared = loop.create_future()
-    dropped_states: list[str] = []
-    parsed_answers: list[str] = []
-    write_done = loop.create_future()
+    waiter = LineWaiter()
+    setup_done = waiter.expect(re.compile(r"\[ld2410s.*Setup done"))
+    warning_cleared = waiter.expect("ld2410s cleared Warning flag")
 
-    def line_callback(line: str) -> None:
-        if (frame := _tx_frame(line)) is not None:
-            tx_frames.append(frame)
-            if len(tx_frames) >= 9 and not write_done.done():
-                write_done.set_result(True)
-        if "[ld2410s" in line and "Setup done" in line and not setup_done.done():
-            setup_done.set_result(True)
-        parsed_answers.extend(answer for answer in PARSED_ANSWERS if answer in line)
-        if "ld2410s cleared Warning flag" in line and not warning_cleared.done():
-            warning_cleared.set_result(True)
-        if "Dropping frame with impossible state " in line:
-            dropped_states.append(
-                ANSI_ESCAPE.sub("", line.split("state ", 1)[1]).strip()
-            )
+    def tx_frames() -> list[str]:
+        return [
+            frame for line in waiter.lines if (frame := _tx_frame(line)) is not None
+        ]
 
     collector = SensorStateCollector(
         sensor_names=["distance"], binary_sensor_names=["has_target"]
     )
-    number_states: list[float] = []
+    number_states: dict[int, list[float]] = {}
+    select_states: list[str] = []
 
     def on_state(state: EntityState) -> None:
         collector.on_state(state)
-        if isinstance(state, NumberState) and state.key == max_distance_key:
-            number_states.append(state.state)
+        if isinstance(state, NumberState):
+            number_states.setdefault(state.key, []).append(state.state)
+        if isinstance(state, SelectState):
+            select_states.append(state.state)
 
     all_presence = collector.add_waiter(
         lambda: len(collector.binary_states["has_target"]) >= len(EXPECTED_PRESENCE)
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await wait_or_fail(
@@ -188,27 +214,41 @@ async def test_uart_mock_ld2410s(
             tx_frames=tx_frames,
         )
 
-        assert tx_frames[:6] == INIT_TX
+        assert tx_frames()[:6] == INIT_TX
+        parsed_answers = [
+            answer
+            for line in waiter.lines
+            for answer in PARSED_ANSWERS
+            if answer in line
+        ]
         assert parsed_answers == PARSED_ANSWERS
 
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
         max_distance_key = require_entity(entities, "max_distance", NumberInfo).key
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
-        # The values read from the module: gate 16 and 10 s
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        # The values read from the module: gate 16, 10 s, 80 tenths of a hertz, speed 5
         no_delay_key = require_entity(entities, "no_delay", NumberInfo).key
-        initial = initial_state_helper.initial_states
+        frequency_key = require_entity(
+            entities, "status_reporting_frequency", NumberInfo
+        ).key
+        speed_key = require_entity(entities, "response_speed", SelectInfo).key
+        initial = sub.initial_states
         assert initial[max_distance_key].state == pytest.approx(11.2)
         assert initial[no_delay_key].state == pytest.approx(10)
+        assert initial[frequency_key].state == pytest.approx(8.0)
+        assert initial[speed_key].state == "Normal"
 
-        client.number_command(max_distance_key, 7.0)
-        await wait_or_fail(
-            write_done, 5.0, "Parameter write not sent", tx_frames=tx_frames
-        )
-        assert tx_frames[6:9] == WRITE_TX, tx_frames
-        assert number_states == [pytest.approx(7.0)]
+        # 7.3 m is between gates 10 and 11: gate 10 is written and 7 m reported
+        client.number_command(max_distance_key, 7.3)
+        await waiter.wait_count(TX_LINE, 9, 5.0, "Parameter write not sent")
+        assert tx_frames()[6:9] == WRITE_TX, tx_frames()
+        assert number_states[max_distance_key] == [pytest.approx(7.0)]
+
+        client.select_command(speed_key, "Fast")
+        await waiter.wait_count(TX_LINE, 12, 5.0, "Response speed write not sent")
+        assert tx_frames()[9:12] == SPEED_WRITE_TX, tx_frames()
+        assert select_states == ["Fast"]
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
@@ -217,11 +257,38 @@ async def test_uart_mock_ld2410s(
         await asyncio.sleep(0.3)
 
         assert collector.binary_states["has_target"] == EXPECTED_PRESENCE
+        dropped_states = [
+            ANSI_ESCAPE.sub("", line.split("state ", 1)[1]).strip()
+            for line in waiter.lines
+            if "Dropping frame with impossible state " in line
+        ]
         assert dropped_states == EXPECTED_DROPPED_STATES
         # A target 300 cm away, then none: the distance follows the presence
         assert collector.sensor_states["distance"][:2] == [300, 0]
         # Data frames must not restart the init sequence
-        assert len(tx_frames) == 9, tx_frames
+        assert len(tx_frames()) == 12, tx_frames()
+
+        # A rejected write leaves configuration mode and reads the module's values back
+        read_back = waiter.expect("Parameters: gates 0 to 16, no delay 10 s")
+        client.number_command(no_delay_key, 20)
+        await wait_or_fail(read_back, 5.0, "Values not read back", tx_frames=tx_frames)
+
+        async def republished() -> None:
+            while (
+                len(number_states.get(no_delay_key, ())) < 2
+                or len(number_states.get(max_distance_key, ())) < 2
+                or len(select_states) < 2
+            ):
+                await asyncio.sleep(0.01)
+
+        await wait_or_fail(republished(), 5.0, "Read-back values not published")
+        assert tx_frames()[12:15] == REJECTED_WRITE_TX, tx_frames()
+        assert number_states[no_delay_key] == [pytest.approx(20), pytest.approx(10)]
+        assert number_states[max_distance_key] == [
+            pytest.approx(7.0),
+            pytest.approx(11.2),
+        ]
+        assert select_states == ["Fast", "Normal"]
 
 
 @pytest.mark.asyncio
@@ -237,10 +304,14 @@ async def test_uart_mock_ld2410s_recovery(
     gave_up = loop.create_future()
     oversized_dropped = loop.create_future()
     footer_mismatches: list[str] = []
+    ignored_changes = 0
 
     def line_callback(line: str) -> None:
+        nonlocal ignored_changes
         if (frame := _tx_frame(line)) is not None:
             tx_frames.append((loop.time(), frame))
+        if "Parameters not read yet, change ignored" in line:
+            ignored_changes += 1
         if "No acknowledgement for command 00FF, resending" in line and not (
             resent.done()
         ):
@@ -270,12 +341,25 @@ async def test_uart_mock_ld2410s_recovery(
             >= len(EXPECTED_RECOVERY_PRESENCE)
         )
     )
+    setting_states: list[EntityState] = []
+
+    def on_state(state: EntityState) -> None:
+        collector.on_state(state)
+        if isinstance(state, (NumberState, SelectState)):
+            setting_states.append(state)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        await _start_scenario(client, collector)
+        entities = await _start_scenario(client, collector, on_state)
+        # The module never answered, so both changes are refused and nothing is published
+        client.number_command(
+            require_entity(entities, "max_distance", NumberInfo).key, 7.0
+        )
+        client.select_command(
+            require_entity(entities, "response_speed", SelectInfo).key, "Fast"
+        )
         await _wait_for_presence(collector, all_presence)
         await wait_or_fail(
             asyncio.gather(resent, gave_up),
@@ -289,6 +373,8 @@ async def test_uart_mock_ld2410s_recovery(
         # Recovery shows in the published states alone; the footer log below is
         # only a cross-check that needs the fixture's VERBOSE logger level
         assert collector.binary_states["has_target"] == EXPECTED_RECOVERY_PRESENCE
+        assert ignored_changes == 2
+        assert setting_states == []
         assert oversized_dropped.done(), "Oversized length field was not dropped"
         assert footer_mismatches == [TRUNCATED_FRAME_HEX, BAD_COMMAND_FRAME_HEX]
 

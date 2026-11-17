@@ -3,29 +3,23 @@
 
 namespace esphome::spi_led_strip {
 
-SpiLedStrip::SpiLedStrip(uint16_t num_leds) {
-  this->num_leds_ = num_leds;
-  RAMAllocator<uint8_t> allocator;
-  this->buffer_size_ = num_leds * 4 + 8;
-  this->buf_ = allocator.allocate(this->buffer_size_);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", this->buffer_size_);
-    return;
-  }
+constexpr size_t COLOR_DATA_OFFSET = 5;
 
-  this->effect_data_ = allocator.allocate(num_leds);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate effect data of size %u", num_leds);
+SpiLedStrip::SpiLedStrip(uint16_t num_leds) : num_leds_(num_leds) {}
+void SpiLedStrip::set_buffer(uint8_t *buffer) {
+  if (buffer == nullptr)
     return;
-  }
-  memset(this->buf_, 0xFF, this->buffer_size_);
-  memset(this->buf_, 0, 4);
+  this->internal_accessor_.color_data = buffer + COLOR_DATA_OFFSET;
+  this->internal_accessor_.effect_data = buffer + frame_size(this->num_leds_);
 }
 void SpiLedStrip::setup() {
-  if (this->effect_data_ == nullptr || this->buf_ == nullptr) {
-    this->mark_failed();
+  if (!this->setup_check(this->internal_accessor_.color_data != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
+  uint8_t *buf = this->internal_accessor_.color_data - COLOR_DATA_OFFSET;
+  memset(buf, 0xFF, frame_size(this->num_leds_));
+  memset(buf, 0, 4);
+  this->accessor_ = &this->internal_accessor_;
+
   this->spi_setup();
 }
 light::LightTraits SpiLedStrip::get_traits() {
@@ -47,21 +41,17 @@ void SpiLedStrip::dump_config() {
 void SpiLedStrip::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
+  uint8_t *buffer = this->internal_accessor_.color_data - COLOR_DATA_OFFSET;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   {
     char strbuf[49];  // format_hex_pretty_size(16) = 48, fits 16 bytes
-    size_t len = std::min(this->buffer_size_, (size_t) 16);
-    format_hex_pretty_to(strbuf, sizeof(strbuf), this->buf_, len, ' ');
+    size_t len = std::min(frame_size(this->num_leds_), (size_t) 16);
+    format_hex_pretty_to(strbuf, sizeof(strbuf), buffer, len, ' ');
     esph_log_v(TAG, "write_state: buf = %s", strbuf);
   }
 #endif
   this->enable();
-  this->write_array(this->buf_, this->buffer_size_);
+  this->write_array(buffer, frame_size(this->num_leds_));
   this->disable();
-}
-light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
-  size_t pos = index * 4 + 5;
-  return {this->buf_ + pos + 2,       this->buf_ + pos + 1, this->buf_ + pos + 0, nullptr,
-          this->effect_data_ + index, &this->correction_};
 }
 }  // namespace esphome::spi_led_strip

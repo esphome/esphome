@@ -88,7 +88,7 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
     the result can be parsed with `ast.literal_eval`, the parsed
     value is returned. Otherwise, the string is returned.
     This helps preserve metadata such as ESPHomeDataBase from original values
-    and mimicks how HomeAssistant deals with template evaluation and preserving
+    and mimics how HomeAssistant deals with template evaluation and preserving
     the original datatype.
     """
     head: list[Any] = list(islice(values, 2))

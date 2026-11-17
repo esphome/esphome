@@ -71,10 +71,8 @@ const LogString *deemphasis_to_str(DeemphasisMode mode) {
 void ES9038Q2MKatana::setup() {
   if (!this->check_chip_id(this, KATANA_REG_CHIP_ID, KATANA_CHIP_ID))
     return;
-  if (!this->write_byte(KATANA_REG_RESET, 0x01)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(KATANA_REG_RESET, 0x01)))
     return;
-  }
   delay(RESET_SETTLE_DELAY_MS);
 
   // MUTE_STREAM is the gate the Linux driver closes between streams; ESPHome has no such

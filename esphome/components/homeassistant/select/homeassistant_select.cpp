@@ -1,7 +1,5 @@
 #include "homeassistant_select.h"
 
-#include <cstring>
-
 #include "../homeassistant.h"
 
 #include "esphome/components/api/api_pb2.h"
@@ -15,10 +13,7 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
-void HomeassistantSelect::setup() {
-  this->options_buffer_ = std::make_unique<char[]>(this->options_buffer_size_);
-  this->option_list_ = std::make_unique<const char *[]>(this->max_options_);
-
+void HomeassistantSelect::subscribe() {
   // Subscribe to the options first: Home Assistant answers subscriptions in order, so the options are
   // known by the time the first state arrives.
   api::global_api_server->subscribe_home_assistant_state(
@@ -69,7 +64,7 @@ void HomeassistantSelect::options_changed_(StringRef options) {
   }
 
   // Second pass: the input is known to be valid and to fit, so write it out
-  char *buffer = this->options_buffer_.get();
+  char *buffer = this->options_buffer_;
   size_t offset = 0;
   size_t option_start = 0;
   size_t index = 0;
@@ -80,8 +75,8 @@ void HomeassistantSelect::options_changed_(StringRef options) {
         this->option_list_[index++] = buffer + option_start;
         option_start = offset;
       });
-  // The traits only point at the list, which this select owns; set_options() would copy it to the heap
-  this->traits.set_options_static(this->option_list_.get(), count);
+  // The traits only point at the static list; set_options() would copy it to the heap
+  this->traits.set_options_static(this->option_list_, count);
 
   // The active option may have moved to another index, or may be gone
   if (new_active.has_value()) {
@@ -113,37 +108,22 @@ void HomeassistantSelect::dump_config() {
                 this->entity_id_, this->max_options_, this->options_buffer_size_);
 }
 
-float HomeassistantSelect::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
-
 void HomeassistantSelect::control(size_t index) {
-  if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "No clients connected to API server");
+  if (!can_send_action(TAG, this->entity_id_, this))
     return;
-  }
-
-#ifdef USE_API_WIZARD_LINKED_INPUTS
-  if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
-    return;
-  }
-#endif
 
   // In flash on the ESP8266 and encoded from there
-  static const char SERVICE_SELECT[] PROGMEM = "select.select_option";
-  static const char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
-  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
-  static const char OPTION_KEY[] PROGMEM = "option";
+  static constexpr char SERVICE_SELECT[] PROGMEM = "select.select_option";
+  static constexpr char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
+  static constexpr char OPTION_KEY[] PROGMEM = "option";
 
   api::HomeassistantActionRequest resp;
-  // An input helper entity id starts with the "input_" its action name starts with
-  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_SELECT, sizeof("input_") - 1) == 0;
-  resp.service =
-      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT) : ProgmemStringRef::from_lit(SERVICE_SELECT);
+  resp.service = is_input_helper(this->entity_id_, SERVICE_INPUT_SELECT)
+                     ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT)
+                     : ProgmemStringRef::from_lit(SERVICE_SELECT);
 
   resp.data.init(2);
-  auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
-  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
+  add_entity_id(resp, this->entity_id_);
 
   auto &option = resp.data.emplace_back();
   option.key = ProgmemStringRef::from_lit(OPTION_KEY);

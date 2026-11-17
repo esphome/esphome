@@ -18,6 +18,7 @@ class I2SAudioSpeakerSPDIF : public I2SAudioSpeakerBase {
   void setup() override;
   void dump_config() override;
 
+  using I2SAudioSpeakerBase::play;
   size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) override;
 
  protected:

@@ -1,0 +1,64 @@
+uart:
+  - id: u_a
+    tx_pin:
+      number: GPIO25
+      allow_other_uses: true
+    rx_pin:
+      number: GPIO26
+      allow_other_uses: true
+    baud_rate: 9600
+  - id: u_b
+    tx_pin:
+      number: GPIO26
+      allow_other_uses: true
+    rx_pin:
+      number: GPIO25
+      allow_other_uses: true
+    baud_rate: 9600
+
+esphome:
+  on_boot:
+    priority: 1000
+    then:
+      - lambda: sim::probe.u = id(u_b);
+
+interval:
+  - interval: 10ms
+    then:
+      - lambda: sim::probe.poll();
+
+sensor:
+  - platform: dfrobot_sen0465_uart
+    id: gas
+    uart_id: u_a
+    model: SEN0466
+    alarm:
+      threshold: 35
+      type: high
+    update_interval: 5s
+    concentration:
+      name: CO Concentration
+    temperature:
+      name: CO Temperature
+
+select:
+  - platform: template
+    name: Probe Mode
+    optimistic: true
+    options: ["0 normal", "1 tail", "2 FF tail", "3 silent", "4 split", "5 wrong gas"]
+    initial_option: "0 normal"
+    set_action:
+      - lambda: |-
+          sim::probe.mode = x.c_str()[0] - '0';
+          ESP_LOGI("sim", "probe mode %d", sim::probe.mode);
+
+number:
+  - platform: template
+    name: Probe Conc
+    optimistic: true
+    min_value: 0
+    max_value: 1000
+    step: 1
+    initial_value: 25
+    set_action:
+      - lambda: sim::probe.conc = (uint16_t) x;

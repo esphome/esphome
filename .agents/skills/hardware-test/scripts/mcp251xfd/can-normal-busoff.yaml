@@ -1,0 +1,60 @@
+# NORMAL with no node acknowledging, so the controller cycles error passive and bus-off; three forced REQOP faults
+# and three chip resets, each sent while TREC shows bus-off
+substitutions:
+  name: canlb-normal
+  classic: "false"
+
+packages:
+  common: !include common-can.yaml
+
+canbus:
+  - platform: mcp251xfd
+    id: can0
+    cs_pin: GPIO32
+    interrupt_pin: GPIO33
+    can_id: 0x7FF
+    mode: NORMAL
+    clock: 20MHZ
+    bit_rate: 1000KBPS
+    data_bit_rate: 2000KBPS
+
+script:
+  - id: phases
+    then:
+      - delay: 10s
+      - repeat:
+          count: 3
+          then:
+            - wait_until:
+                condition:
+                  lambda: return canlb::busoff();
+                timeout: 30s
+            - lambda: 'if (!canlb::busoff()) ESP_LOGW("canlb", "NOTBUSOFF before fault");'
+            - lambda: 'ESP_LOGI("canlb", "FAULTINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));'
+            - lambda: canlb::force_mode(3);
+            - lambda: canlb::watch_start(0);
+            - wait_until:
+                condition:
+                  lambda: return !canlb::watching;
+                timeout: 20s
+            - delay: 3s
+      - repeat:
+          count: 3
+          then:
+            - wait_until:
+                condition:
+                  lambda: return canlb::busoff();
+                timeout: 30s
+            - lambda: 'if (!canlb::busoff()) ESP_LOGW("canlb", "NOTBUSOFF before reset");'
+            - lambda: 'ESP_LOGI("canlb", "RESETINBUSOFF TREC=%08X", (unsigned) canlb::rd32(0x034));'
+            - lambda: canlb::chip_reset();
+            - lambda: canlb::watch_start(0);
+            - wait_until:
+                condition:
+                  lambda: return !canlb::watching;
+                timeout: 20s
+            - lambda: canlb::timing("reset-after");
+            - lambda: canlb::regs("reset-after");
+            - delay: 3s
+      - lambda: canlb::report();
+      - lambda: ESP_LOGI("canlb", "PHASES DONE");

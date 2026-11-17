@@ -8,6 +8,9 @@
 
 namespace esphome::modbus::testing {
 
+// Copies a PDU so a test can compare it after the span is gone.
+inline std::vector<uint8_t> vec(std::span<const uint8_t> pdu) { return {pdu.begin(), pdu.end()}; }
+
 // A UART that discards all writes, for tests that never inspect the wire.
 class NullUART : public uart::UARTComponent {
  public:

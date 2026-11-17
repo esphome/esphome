@@ -1,0 +1,61 @@
+# Output buttons timed from their own pads (ESP8266): GPIO5 and GPIO4 are gpio outputs and edges.hpp stamps each change.
+# Each case runs 3 times: one press, a second press 250 ms in, two outputs at once, two buttons on one output.
+logger:
+  level: DEBUG
+
+output:
+  - platform: gpio
+    id: out1
+    pin: GPIO5
+  - platform: gpio
+    id: out2
+    pin: GPIO4
+
+button:
+  - platform: output
+    id: b500
+    name: b500
+    output: out1
+    duration: 500ms
+  - platform: output
+    id: b200
+    name: b200
+    output: out2
+    duration: 200ms
+  - platform: output
+    id: b1000
+    name: b1000
+    output: out1
+    duration: 1000ms
+
+script:
+  - id: run_cases
+    then:
+      - lambda: 'edges::begin();'
+      - repeat:
+          count: 3
+          then:
+            - lambda: 'edges::reset(); id(b500).press();'
+            - delay: 1500ms
+            - lambda: 'edges::report("T1 single 500ms");'
+            - lambda: 'edges::reset(); id(b500).press();'
+            - delay: 250ms
+            - lambda: 'id(b500).press();'
+            - delay: 1500ms
+            - lambda: 'edges::report("T2 repress at 250ms");'
+            - lambda: 'edges::reset(); id(b500).press(); id(b200).press();'
+            - delay: 1500ms
+            - lambda: 'edges::report("T3 two outputs");'
+            - lambda: 'edges::reset(); id(b1000).press();'
+            - delay: 300ms
+            - lambda: 'id(b500).press();'
+            - delay: 1500ms
+            - lambda: 'edges::report("T4 b1000 then b500 at 300ms");'
+      - logger.log: "DONE"
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - delay: 5s
+      - script.execute: run_cases

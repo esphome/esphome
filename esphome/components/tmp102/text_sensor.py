@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
-from . import CONF_TMP102_ID, TMP102Component, validate_unique_child
+from . import CONF_TMP102_ID, TMP102Component, unique_child
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC
@@ -17,11 +17,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return validate_unique_child(config, "text_sensor")
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = unique_child("text_sensor")
 
 
 async def to_code(config: ConfigType) -> None:

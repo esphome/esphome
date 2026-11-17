@@ -40,14 +40,10 @@ static void raw_to_marking(const uint16_t *raw, size_t words, char *out, size_t 
 void SFA40Component::setup() {
   this->write_command(SFA40_CMD_STOP_MEASUREMENT);
   this->set_timeout(25, [this]() {
-    if (!this->detect_protocol_()) {
-      this->mark_failed(LOG_STR("Protocol detection failed"));
+    if (!this->setup_check(this->detect_protocol_(), LOG_STR("Protocol detection failed")))
       return;
-    }
-    if (!this->write_command(SFA40_CMD_START_MEASUREMENT)) {
-      this->mark_failed(LOG_STR("Failed to start measurements"));
+    if (!this->setup_check(this->write_command(SFA40_CMD_START_MEASUREMENT), LOG_STR("Failed to start measurements")))
       return;
-    }
     this->initialized_ = true;
     ESP_LOGD(TAG, "Measurement started");
   });
@@ -127,13 +123,9 @@ void SFA40Component::update() {
       }
     }
 
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(clamp(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f, 0.0f, 100.0f));
-    }
+    PUBLISH_STATE(this->humidity_sensor_, clamp(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f, 0.0f, 100.0f));
 
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, 175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
 
     this->status_clear_warning();
   });

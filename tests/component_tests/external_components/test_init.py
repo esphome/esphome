@@ -3,14 +3,19 @@
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.external_components import do_external_components_pass
+from esphome.components.external_components import (
+    ExternalSource,
+    do_external_components_pass,
+    get_sources,
+)
 from esphome.const import (
     CONF_EXTERNAL_COMPONENTS,
     CONF_PATH,
+    CONF_REF,
     CONF_REFRESH,
     CONF_SOURCE,
     CONF_URL,
@@ -183,3 +188,65 @@ def test_external_components_no_override_no_log(
         do_external_components_pass(config)
 
     assert "are overriding built-in components" not in caplog.text
+
+
+def test_external_components_records_git_source(
+    tmp_path: Path,
+    mock_clone_or_update: MagicMock,
+    mock_install_meta_finder: MagicMock,
+) -> None:
+    """A git source is recorded with its URL, ref and checkout; validation runs no git."""
+    mock_clone_or_update.return_value = (tmp_path, None)
+    config = _make_config(tmp_path)
+    config[CONF_EXTERNAL_COMPONENTS][0][CONF_SOURCE][CONF_REF] = "main"
+
+    with patch("esphome.git.run_git_command") as run_git:
+        do_external_components_pass(config)
+
+    run_git.assert_not_called()
+    assert get_sources() == [
+        ExternalSource(
+            components_dir=tmp_path / "components",
+            url="https://github.com/test/components",
+            ref="main",
+            repo_dir=tmp_path,
+        )
+    ]
+
+
+def test_external_components_strips_url_credentials(
+    tmp_path: Path,
+    mock_clone_or_update: MagicMock,
+    mock_install_meta_finder: MagicMock,
+) -> None:
+    """Credentials in a git URL are not recorded, since the URL ends up in SBOMs."""
+    mock_clone_or_update.return_value = (tmp_path, None)
+    config = _make_config(tmp_path)
+    config[CONF_EXTERNAL_COMPONENTS][0][CONF_SOURCE][CONF_URL] = (
+        "https://user:ghp_secret@github.com/test/components"
+    )
+
+    do_external_components_pass(config)
+
+    assert get_sources()[0].url == "https://github.com/test/components"
+
+
+def test_external_components_records_local_source(
+    tmp_path: Path,
+    mock_install_meta_finder: MagicMock,
+) -> None:
+    """A local source is recorded without any git details."""
+    components_dir = tmp_path / "my_components"
+    (components_dir / "foo").mkdir(parents=True)
+    (components_dir / "foo" / "__init__.py").write_text("# Test component")
+
+    CORE.config_path = tmp_path / "dummy.yaml"
+    config = {
+        CONF_EXTERNAL_COMPONENTS: [
+            {CONF_SOURCE: {"type": TYPE_LOCAL, CONF_PATH: "my_components"}}
+        ]
+    }
+
+    do_external_components_pass(config)
+
+    assert get_sources() == [ExternalSource(components_dir=components_dir)]

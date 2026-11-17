@@ -24,7 +24,7 @@ class LwTx {
   // Allows changing basic tick counts from their defaults
   void lwtx_set_tick_counts(uint8_t low_count, uint8_t high_count, uint8_t trail_count, uint8_t gap_count);
 
-  // Allws multiplying the gap period for creating very large gaps
+  // Allows multiplying the gap period for creating very large gaps
   void lwtx_set_gap_multiplier(uint8_t gap_multiplier);
 
   // determines whether incoming data or should be translated from nibble data
@@ -45,7 +45,7 @@ class LwTx {
   // Allows changing basic tick counts from their defaults
   void lw_timer_start();
 
-  // Allws multiplying the gap period for creating very large gaps
+  // Allows multiplying the gap period for creating very large gaps
   void lw_timer_stop();
 
   // These set the pulse durationlws in ticks. ESP uses 330uSec base tick, else use 140uSec

@@ -1,7 +1,8 @@
 """Minimal plaintext native-api client over a raw socket.
 
 Reads only when told to, so tests control when the TCP pipe backs up toward
-the device; message types are counted and each frame is kept for inspection.
+the device; message types are counted and each frame is kept for inspection,
+and read_frame() hands them out in arrival order.
 """
 
 from __future__ import annotations
@@ -23,6 +24,19 @@ from .const import LOCALHOST
 MESSAGE_TYPE_OF = {cls: num for num, cls in api_core.MESSAGE_TYPE_TO_PROTO.items()}
 
 _READ_CHUNK = 4096
+
+# Backpressure tests pin both ends of the pipe small; only tens of KB fit in the kernel
+RECV_BUFFER_SIZE = 4096
+SERVER_SNDBUF = (
+    8192  # substituted for SERVER_SNDBUF in fixtures using sndbuf_pin_component
+)
+# Logged by the sndbuf_pin_component fixture when it pins a socket
+SNDBUF_PIN_LOG = "SO_SNDBUF pinned to"
+
+
+def pin_server_sndbuf(yaml_config: str) -> str:
+    """Substitute the pinned server send buffer size into a fixture."""
+    return yaml_config.replace("SERVER_SNDBUF", str(SERVER_SNDBUF))
 
 
 def encode_varint(value: int) -> bytes:
@@ -124,6 +138,7 @@ class RawApiClient:
     def __init__(self, port: int, recv_buffer_size: int | None = None) -> None:
         self._port = port
         self._parser = FrameParser()
+        self._read_pos = 0  # frames before this index were consumed by read_frame()
         self.bytes_received = 0
         self.frame_counts: Counter[int] = Counter()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -166,18 +181,37 @@ class RawApiClient:
         loop = asyncio.get_running_loop()
         await loop.sock_sendall(self._sock, encode_frame(msg_type, payload))
 
-    async def read_until_frame(self, msg_type: int, timeout: float = 10.0) -> None:
-        """Read until at least one frame of msg_type has been received."""
-        loop = asyncio.get_running_loop()
+    async def _recv_once(self) -> None:
+        data = await asyncio.get_running_loop().sock_recv(self._sock, _READ_CHUNK)
+        assert data, "server closed the connection unexpectedly"
+        self.bytes_received += len(data)
+        self.frame_counts.update(self._parser.feed(data))
+
+    async def read_until_frame(
+        self, msg_type: int, timeout: float = 10.0, count: int = 1
+    ) -> None:
+        """Read until at least count frames of msg_type have been received."""
 
         async def _read_loop() -> None:
-            while not self.frame_counts[msg_type]:
-                data = await loop.sock_recv(self._sock, _READ_CHUNK)
-                assert data, "server closed the connection unexpectedly"
-                self.bytes_received += len(data)
-                self.frame_counts.update(self._parser.feed(data))
+            while self.frame_counts[msg_type] < count:
+                await self._recv_once()
 
         await asyncio.wait_for(_read_loop(), timeout)
+
+    async def read_frame(self, msg_type: int, timeout: float = 10.0) -> bytes:
+        """Return the oldest unconsumed payload of msg_type, skipping earlier frames of other types."""
+        frames = self._parser.frames
+
+        async def _read_loop() -> bytes:
+            while True:
+                while self._read_pos < len(frames):
+                    frame_type, payload = frames[self._read_pos]
+                    self._read_pos += 1
+                    if frame_type == msg_type:
+                        return payload
+                await self._recv_once()
+
+        return await asyncio.wait_for(_read_loop(), timeout)
 
     def frames(self, msg_type: int) -> list[bytes]:
         """Payloads of every frame of msg_type received so far."""

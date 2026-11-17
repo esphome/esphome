@@ -887,7 +887,7 @@ void LvglComponent::setup() {
   lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
 #if LV_USE_LOG
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
-    auto next = strchr(buf, ')');
+    auto *next = strchr(buf, ')');
     if (next != nullptr)
       buf = next + 1;
     while (isspace(*buf))

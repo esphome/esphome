@@ -1,0 +1,25 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+
+remote_receiver:
+  - id: ir_receiver
+    pin: GPIO4
+  - id: rf_receiver
+    pin: GPIO5
+
+infrared:
+  - platform: ir_rf_proxy
+    id: ir_rx
+    name: "Receiver"
+    remote_receiver_id: ir_receiver
+
+# Same name as the infrared entity - should conflict, as the API identifies
+# infrared and radio_frequency entities by key alone
+radio_frequency:
+  - platform: ir_rf_proxy
+    id: rf_rx
+    name: "Receiver"
+    remote_receiver_id: rf_receiver

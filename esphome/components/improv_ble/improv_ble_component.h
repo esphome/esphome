@@ -38,6 +38,10 @@ namespace esphome::improv_ble {
 using namespace esp32_ble_server;
 
 class ImprovBLEComponent final : public Component, public improv_base::ImprovBase {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(authorizer)
+#endif
+
  public:
   ImprovBLEComponent();
   void dump_config() override;
@@ -55,9 +59,6 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
   template<typename F> void add_on_state_callback(F &&callback) {
     this->state_callback_.add(std::forward<F>(callback));
   }
-#endif
-#ifdef USE_BINARY_SENSOR
-  void set_authorizer(binary_sensor::BinarySensor *authorizer) { this->authorizer_ = authorizer; }
 #endif
 #ifdef USE_OUTPUT
   void set_status_indicator(output::BinaryOutput *status_indicator) { this->status_indicator_ = status_indicator; }
@@ -97,9 +98,6 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
   BLECharacteristic *rpc_response_{nullptr};
   BLECharacteristic *capabilities_{nullptr};
 
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *authorizer_{nullptr};
-#endif
 #ifdef USE_OUTPUT
   output::BinaryOutput *status_indicator_{nullptr};
 #endif

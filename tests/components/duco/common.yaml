@@ -1,0 +1,74 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+duco:
+  id: duco_box
+  discovery: {}
+  time:
+    time_id: sntp_time
+
+text_sensor:
+  - platform: duco
+    name: Serial Number
+  - platform: duco
+    serial_number:
+      - name: Serial Number Node 2
+        address: 2
+    version:
+      - name: Version Node 2
+        address: 2
+    error:
+      - name: Error Node 2
+        address: 2
+    uptime:
+      - name: Uptime Node 2
+        address: 2
+    node_type:
+      - name: Node 2 Type
+        address: 2
+
+select:
+  - platform: duco
+    name: Mode
+
+sensor:
+  - platform: duco
+    co2:
+      - address: 3
+        name: CO2 Bedroom
+      - address: 4
+        name: CO2 Livingroom
+    temperature:
+      - address: 3
+        name: Temperature Bedroom
+    humidity:
+      - address: 2
+        name: Humidity Bathroom
+    filter_remaining:
+      name: Filter Time Remaining
+    flow_level:
+      name: Flow Level
+      update_interval: 5s
+    time_remaining:
+      name: Mode Time Remaining
+      update_interval: 5s
+    bypass:
+      name: Bypass
+    temperature_oda:
+      name: Temperature Outdoor Air
+    temperature_sup:
+      name: Temperature Supply To Room
+    temperature_eta:
+      name: Temperature Indoor Exhaust
+    temperature_eha:
+      name: Temperature Outdoor Exhaust
+
+number:
+  - platform: duco
+    name: Comfort Temperature
+    update_interval: 10s

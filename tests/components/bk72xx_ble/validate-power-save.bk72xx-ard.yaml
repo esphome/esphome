@@ -1,5 +1,4 @@
-# A wifi power_save_mode other than NONE is forced off with a warning while
-# bk72xx_ble is configured (esphome#18592); this config must still validate.
+# A wifi power_save_mode other than NONE validates and applies alongside bk72xx_ble
 packages:
   bk72xx_ble: !include common.yaml
 

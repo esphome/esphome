@@ -6,7 +6,7 @@ namespace esphome::output {
 ESPHOME_LOG_TAG(TAG, "output.switch");
 
 void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
-void OutputSwitch::setup() { this->control(this->get_initial_state_with_restore_mode().value_or(false)); }
+void OutputSwitch::setup() { this->restore(false); }
 void OutputSwitch::write_state(bool state) {
   this->output_->set_state(state);
   this->publish_state(state);

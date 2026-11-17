@@ -21,7 +21,6 @@ xiaomi_mccgq02hl_ns = cg.esphome_ns.namespace("xiaomi_mccgq02hl")
 XiaomiMCCGQ02HL = xiaomi_mccgq02hl_ns.class_(
     "XiaomiMCCGQ02HL",
     binary_sensor.BinarySensor,
-    cg.Component,
     ble_device_base.ESPBTDeviceListener,
 )
 
@@ -46,20 +45,18 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_LIGHT, var.set_light)
+    await binary_sensors(CONF_LIGHT, var.set_light_binary_sensor)

@@ -6,7 +6,7 @@ from aioesphomeapi import connection as api_connection
 from aioesphomeapi.api_pb2 import GetTimeResponse
 import pytest
 
-from .state_utils import SensorTracker, build_key_to_entity_mapping
+from .state_utils import SensorTracker
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # 2024-01-01 00:00:00 UTC
@@ -32,7 +32,7 @@ async def test_api_get_time_response_timezone(
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
         tracker = SensorTracker(["tz_offset"])
-        tracker.key_to_sensor = build_key_to_entity_mapping(entities, ["tz_offset"])
+        tracker.map_entities(entities)
         client.subscribe_states(tracker.on_state)
 
         await tracker.await_change(tracker.expect_any("tz_offset"), "tz_offset")

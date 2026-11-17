@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import socket
 import time
 
 import pytest
 
+from .log_utils import LineWaiter
 from .types import RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -26,19 +25,11 @@ async def test_socket_wake_gate_udp(
     listen_port = hold_sock.getsockname()[1]
     config = yaml_config.replace("UDP_LISTEN_PORT_PLACEHOLDER", str(listen_port))
 
-    loop = asyncio.get_running_loop()
-    boot_done: asyncio.Future[None] = loop.create_future()
-    pong: asyncio.Future[None] = loop.create_future()
-
-    def on_log_line(line: str) -> None:
-        if "BOOT_DONE" in line and not boot_done.done():
-            boot_done.set_result(None)
-        if "PONG" in line and not pong.done():
-            pong.set_result(None)
+    waiter = LineWaiter()
 
     try:
-        async with run_compiled(config, line_callback=on_log_line):
-            await wait_or_fail(boot_done, 15.0, "BOOT_DONE never appeared")
+        async with run_compiled(config, line_callback=waiter.callback):
+            await waiter.wait_for("BOOT_DONE", timeout=15.0)
 
             # Datagrams go to the more specific bind, so release the hold before sending
             hold_sock.close()
@@ -48,7 +39,7 @@ async def test_socket_wake_gate_udp(
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as send_sock:
                 send_sock.sendto(b"PING", ("127.0.0.1", listen_port))
 
-            await wait_or_fail(pong, 5.0, "PONG never appeared")
+            await waiter.wait_for("PONG", timeout=5.0)
 
             elapsed_ms = (time.monotonic() - t_send) * 1000
             # Without the wake the receive waits for loop_interval_; 500ms leaves CI headroom
