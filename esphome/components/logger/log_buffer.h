@@ -128,9 +128,8 @@ struct LogBuffer {
   // write_unformatted_body() for a message in flash
   inline void HOT ESPHOME_ALWAYS_INLINE write_unformatted_body_p(ESPHOME_PGM_P text) {
     if (!this->full_()) {
-      char *p = this->current_();
-      p = progmem_copy_str(p, p + this->remaining_() - 1, text);
-      this->pos = static_cast<uint16_t>(p - this->data);
+      char *const start = this->current_();
+      this->pos = static_cast<uint16_t>(progmem_copy_str(start, start + this->remaining_() - 1, text) - this->data);
       this->strip_trailing_newlines_();
     }
     this->finalize_();
@@ -182,7 +181,7 @@ struct LogBuffer {
       this->pos += ANSI_RESET_LEN;
     }
   }
-  // Forced inline: the body writers also call it, and an outlined copy slows every formatted line
+  // Forced inline: an outlined copy slows every formatted line
   inline void ESPHOME_ALWAYS_INLINE strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
       this->pos--;
