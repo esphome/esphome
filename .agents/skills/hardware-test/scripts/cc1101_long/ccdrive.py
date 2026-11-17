@@ -129,7 +129,7 @@ async def case(
     wait=None,
     want=None,
 ):
-    """WANT: "most" (80 % good), "none" (no good packet) or "any" (not judged); judged cases need txerr=0."""
+    """WANT: "most" (80 % good), "none" (no packet at all) or "any" (not judged); judged cases need txerr=0."""
     want = want or ("any" if MODE in REPROS else "most")
     nr, nt = (
         sum(1 for line in rx.lines if "CFG " in line),
@@ -165,7 +165,7 @@ async def case(
     missed = want != "any" and (
         txerr != "0"
         or (want == "most" and len(good) * 5 < count * 4)
-        or (want == "none" and len(good) > 0)
+        or (want == "none" and len(got) > 0)
     )
     if missed:
         MISSED.append(label)

@@ -3,8 +3,8 @@
 Reads ETRX <link> <field>=<value>, SESS <link> 0/1, STAT, CHAOS and warning lines; ETRX lines it cannot parse are
 counted. Per link: cnt updates, gaps in the received count (a gap is a step other than +1), values never sent (flt not
 equal to the sender's formula), binary transitions, long sensor updates, session edges. Prints one block per log.
-Exits 1 on a reboot or crash during a capture (more than one boot), a value never sent, or a checked stream with bad
-payloads.
+Exits 1 on a reboot or crash during a capture (more than one boot), a value never sent, a checked stream with bad
+payloads, an ETRX line it cannot parse (other than the cut last line), no STAT line, or no counter value on any link.
 """
 
 import collections
@@ -47,7 +47,7 @@ for path in sys.argv[1:]:
                 m = re.search(r"ETRX (\S+) (\w+)=(\S+)", line)
                 if m:
                     links[m[1]][m[2]].append((t, m[3]))
-                else:
+                elif "[partial]" not in line:  # the capture cuts a line at its end
                     unparsed += 1
             elif "SESS" in line:
                 m = re.search(r"SESS (\S+) (\d)", line)
@@ -68,6 +68,12 @@ for path in sys.argv[1:]:
     print(f"== {path}  boots={boots} crashes={crashes} unparsed_etrx={unparsed}")
     if boots > 1 or crashes:
         failures.append(f"{path}: {boots} boots, {crashes} crash lines")
+    if unparsed:
+        failures.append(f"{path}: {unparsed} ETRX lines that could not be parsed")
+    if not stats:
+        failures.append(f"{path}: no STAT line")
+    if not any(d["cnt"] for d in links.values()):
+        failures.append(f"{path}: no link received a counter value")
     for c in chaos:
         print("  chaos", c)
     for name, d in sorted(links.items()):

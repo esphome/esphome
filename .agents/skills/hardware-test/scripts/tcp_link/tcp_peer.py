@@ -15,7 +15,7 @@ timeout, reconnects and oversized-length handling can be read from the output.
   --hold S            client: close after S seconds of connection (0 = keep)
   --expect-reject     client: pass only when the peer accepts the connection, then closes or resets it before
                       sending anything (how an allowed_ips server rejects a source); a refused connect fails
-Exits 1 when no connection was made, or when the peer stayed connected after --oversize-after.
+Exits 1 when no connection was made, a --send size did not go out, or the peer stayed connected after --oversize-after.
 """
 
 import argparse
@@ -46,7 +46,7 @@ def recv_exact(sock, n):
 
 
 # what the exit status checks: connections made, and whether the peer closed after an oversize header
-RESULT = {"conns": 0, "over_closed": False, "rejected": False}
+RESULT = {"conns": 0, "over_closed": False, "rejected": False, "sent_all": False}
 
 
 def run_conn(sock, tag, args, first):
@@ -87,7 +87,7 @@ def run_conn(sock, tag, args, first):
                         sock.sendall(struct.pack("<H", size) + payload[:size])
                         log(tag, "SENT size", size, "sum", sum(payload[:size]))
                         time.sleep(0.2)
-                    sent_sizes = True
+                    sent_sizes = RESULT["sent_all"] = True
                 if (
                     not silent
                     and not over_done
@@ -236,6 +236,8 @@ def main():
         time.sleep(0.6)
     if not RESULT["conns"]:
         sys.exit("FAIL no connection")
+    if args.send and not RESULT["sent_all"]:
+        sys.exit("FAIL not every --send size went out")
     if args.expect_reject and not RESULT["rejected"]:
         sys.exit("FAIL the peer kept the connection")
     if args.oversize_after and not RESULT["over_closed"]:

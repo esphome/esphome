@@ -6,6 +6,8 @@ import socket
 import sys
 import time
 
+# Not the magic of any entest stream, so a link that accepts third-party datagrams counts these as foreign
+MAGIC = b"\xa5\x5d"
 secs, hosts = float(sys.argv[1]), sys.argv[2:]
 tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -16,7 +18,7 @@ while time.time() < end:
     if time.time() >= nxt:
         for h in hosts:
             for p in (21121, 21125, 21126):
-                tx.sendto(b"\xa5\x5b" + bytes(14), (h, p))
+                tx.sendto(MAGIC + bytes(14), (h, p))
                 sent += 1
         nxt = time.time() + 1
     try:
