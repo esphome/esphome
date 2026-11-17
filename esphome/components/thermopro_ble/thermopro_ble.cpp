@@ -91,7 +91,7 @@ static void publish_if_set(sensor::Sensor *sensor, float value) {
     sensor->publish_state(value);
 }
 
-void ThermoProBLE::dump_config() {
+void ThermoProBLE::dump_child_config() {
   ESP_LOGCONFIG(TAG, "ThermoPro BLE");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);

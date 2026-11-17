@@ -37,11 +37,18 @@ struct TouchRecord {
   uint8_t z;
 };
 
-/// Decodes record `index` of a touch report.
+/// Decodes record `index` of a touch report. Each record is 5 bytes:
+/// [id:4 | event:4] [x 11..4] [y 11..4] [x 3..0 | y 3..0] [z].
+/// The first record is followed by 2 extra bytes, so later records start 2 bytes further on.
 inline TouchRecord decode_touch(const uint8_t *report, uint8_t index) {
   const uint8_t *r = report + index * 5 + (index == 0 ? 0 : 2);
-  return {static_cast<uint8_t>(r[0] >> 4), static_cast<uint8_t>(r[0] & 0x0F),
-          static_cast<uint16_t>(r[1] << 4 | r[3] >> 4), static_cast<uint16_t>(r[2] << 4 | (r[3] & 0x0F)), r[4]};
+  return {
+      .id = high_nibble(r[0]),
+      .event = low_nibble(r[0]),
+      .x = encode_uint12(r[1], high_nibble(r[3])),
+      .y = encode_uint12(r[2], low_nibble(r[3])),
+      .z = r[4],
+  };
 }
 
 class CSTTouchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {

@@ -22,7 +22,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_mhoc401_ns = cg.esphome_ns.namespace("xiaomi_mhoc401")
 XiaomiMHOC401 = xiaomi_mhoc401_ns.class_(
-    "XiaomiMHOC401", xiaomi_ble.XiaomiEncryptedDevice, cg.Component
+    "XiaomiMHOC401", xiaomi_ble.XiaomiEncryptedDevice
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -52,14 +52,12 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 

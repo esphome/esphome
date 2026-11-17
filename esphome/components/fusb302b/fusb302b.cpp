@@ -347,26 +347,23 @@ bool FUSB302B::read_message_(PdMsg &msg, bool &is_sop) {
 bool FUSB302B::send_message(const PdMsg &msg) {
   // Register address, then the TX tokens; written in one transfer without the copy write_register() makes
   uint8_t buf[1 + 4 + 1 + 2 + PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
-  size_t len = 0;
+  uint8_t *p = buf;
 
-  buf[len++] = FUSB_FIFOS;
-  buf[len++] = FUSB_TX_TOKEN_SYNC1;
-  buf[len++] = FUSB_TX_TOKEN_SYNC1;
-  buf[len++] = FUSB_TX_TOKEN_SYNC1;
-  buf[len++] = FUSB_TX_TOKEN_SYNC2;
-  buf[len++] = FUSB_TX_TOKEN_PACKSYM | (msg.num_of_obj * 4 + 2);
-  put_le16(buf + len, msg.get_coded_header());
-  len += 2;
-  for (uint8_t i = 0; i < msg.num_of_obj; i++) {
-    put_le32(buf + len, msg.data_objects[i]);
-    len += 4;
-  }
-  buf[len++] = FUSB_TX_TOKEN_JAM_CRC;
-  buf[len++] = FUSB_TX_TOKEN_EOP;
-  buf[len++] = FUSB_TX_TOKEN_TXOFF;
-  buf[len++] = FUSB_TX_TOKEN_TXON;
+  *p++ = FUSB_FIFOS;
+  *p++ = FUSB_TX_TOKEN_SYNC1;
+  *p++ = FUSB_TX_TOKEN_SYNC1;
+  *p++ = FUSB_TX_TOKEN_SYNC1;
+  *p++ = FUSB_TX_TOKEN_SYNC2;
+  *p++ = FUSB_TX_TOKEN_PACKSYM | (msg.num_of_obj * 4 + 2);
+  p = put_le16(p, msg.get_coded_header());
+  for (uint8_t i = 0; i < msg.num_of_obj; i++)
+    p = put_le32(p, msg.data_objects[i]);
+  *p++ = FUSB_TX_TOKEN_JAM_CRC;
+  *p++ = FUSB_TX_TOKEN_EOP;
+  *p++ = FUSB_TX_TOKEN_TXOFF;
+  *p++ = FUSB_TX_TOKEN_TXON;
 
-  i2c::ErrorCode err = this->write(buf, len);
+  i2c::ErrorCode err = this->write(buf, p - buf);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Sending message type %u failed (error %d)", msg.type, static_cast<int>(err));
     return false;
