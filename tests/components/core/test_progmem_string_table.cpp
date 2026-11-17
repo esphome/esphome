@@ -70,4 +70,32 @@ TEST(ProgmemStringTable, StrstrFindsTableEntryInRamString) {
   EXPECT_EQ(ESPHOME_strstr_P(line, cool), nullptr);
 }
 
+enum class SmallMode : uint8_t { OFF, HEAT, COOL };
+enum class WideMode : uint16_t { OFF, HEAT, COOL, BIG = 0x101 };
+enum PlainMode { PLAIN_OFF, PLAIN_HEAT };
+
+static const char *str(const LogString *s) { return reinterpret_cast<const char *>(s); }
+
+TEST(ProgmemStringTable, TakesEnumsAndDefaultsToLastEntry) {
+  EXPECT_STREQ(str(SmallStrings::get_log_str(SmallMode::COOL)), "COOL");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(PLAIN_HEAT)), "HEAT");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(static_cast<SmallMode>(9))), "UNKNOWN");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(static_cast<SmallMode>(9), 0)), "OFF");
+}
+
+// 0x101 must not wrap to index 1 ("HEAT"), and a negative value must not wrap to a valid index.
+TEST(ProgmemStringTable, WideAndNegativeValuesFallBack) {
+  EXPECT_STREQ(str(SmallStrings::get_log_str(WideMode::HEAT)), "HEAT");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(WideMode::BIG)), "UNKNOWN");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(0x102)), "UNKNOWN");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(-1)), "UNKNOWN");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(static_cast<int8_t>(-1))), "UNKNOWN");
+  EXPECT_STREQ(str(SmallStrings::get_log_str(size_t{2})), "COOL");
+  EXPECT_STREQ(reinterpret_cast<const char *>(SmallStrings::get_progmem_str(uint32_t{0x10002})), "UNKNOWN");
+}
+
+static_assert(progmem_table_index(WideMode::BIG, 4) == UINT8_MAX);
+static_assert(progmem_table_index(-1, 4) == UINT8_MAX);
+static_assert(progmem_table_index(uint8_t{200}, 4) == 200);  // one-byte values pass through; the lookup checks them
+
 }  // namespace esphome::core::testing

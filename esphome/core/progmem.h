@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <new>
 #include <string>
+#include <type_traits>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -122,12 +123,28 @@ inline const char *progmem_skip_strings(const char *blob, uint8_t idx) {
   return blob;
 }
 
+/// Turn an enum or integer into a PROGMEM_STRING_TABLE index. A value that does not fit in the table, including
+/// a negative or wider-than-8-bit one, gives an index past the end so the lookup returns the fallback.
+template<typename T> constexpr uint8_t progmem_table_index(T value, size_t count) {
+  if constexpr (std::is_enum_v<T>) {
+    return progmem_table_index(static_cast<std::underlying_type_t<T>>(value), count);
+  } else {
+    static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>, "index must be an integer or an enum");
+    if constexpr (sizeof(T) == 1) {
+      return static_cast<uint8_t>(value);  // every value is a valid uint8_t index; the lookup checks the range
+    } else {
+      const auto v = static_cast<std::make_unsigned_t<T>>(value);
+      return v < count ? static_cast<uint8_t>(v) : UINT8_MAX;
+    }
+  }
+}
+
 // Forward declaration for LogString (defined in log.h)
 struct LogString;
 
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
 /// Creates: Name::get_progmem_str(idx, fallback), Name::get_log_str(idx, fallback)
-/// If idx >= COUNT, returns string at fallback. Use LAST_INDEX for common patterns.
+/// idx may be any integer or enum; a value outside the table returns the string at fallback (LAST_INDEX by default).
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
     using Table = ::esphome::ProgmemStringTable<__VA_ARGS__>; \
@@ -147,11 +164,12 @@ struct LogString;
       else \
         return std::launder(::esphome::progmem_skip_strings(BLOB.data(), idx)); \
     } \
-    static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
-      return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \
+    template<typename T> static ::ProgmemStr get_progmem_str(T idx, uint8_t fallback = LAST_INDEX) { \
+      return reinterpret_cast<::ProgmemStr>(get_(::esphome::progmem_table_index(idx, COUNT), fallback)); \
     } \
-    static const ::esphome::LogString *get_log_str(uint8_t idx, uint8_t fallback) { \
-      return reinterpret_cast<const ::esphome::LogString *>(get_(idx, fallback)); \
+    template<typename T> static const ::esphome::LogString *get_log_str(T idx, uint8_t fallback = LAST_INDEX) { \
+      return reinterpret_cast<const ::esphome::LogString *>( \
+          get_(::esphome::progmem_table_index(idx, COUNT), fallback)); \
     } \
   }
 
