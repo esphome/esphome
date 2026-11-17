@@ -338,19 +338,6 @@ ARDUINO_OVERRIDDEN_IDF_COMPONENTS: dict[str, str] = {
 }
 
 
-def manifest_overrides_supported() -> bool:
-    """Whether the IDF component manager reads the manifest "overrides" field.
-
-    pioarduino pins idf-component-manager 2.4 for ESP-IDF 5, which predates it.
-    """
-    return CORE.using_toolchain_esp_idf or idf_version() >= cv.Version(6, 0, 0)
-
-
-def arduino_bundles_libsodium() -> bool:
-    """arduino-esp32's own libsodium is in the build and cannot be replaced."""
-    return CORE.using_arduino and not manifest_overrides_supported()
-
-
 # Mapping of Arduino libraries to IDF managed components they require
 # When an Arduino library is enabled via cg.add_library(), these components
 # are automatically un-stubbed from ARDUINO_EXCLUDED_IDF_COMPONENTS.
@@ -3909,7 +3896,7 @@ def _write_idf_component_yml():
     converted_by_name = {component.path.name: component for component in converted}
 
     overridden: dict[str, str] = {}
-    if CORE.using_arduino and manifest_overrides_supported():
+    if CORE.using_arduino:
         managed_components = CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {})
         overridden = {
             target: replacement

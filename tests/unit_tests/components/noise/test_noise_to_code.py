@@ -81,30 +81,12 @@ def test_to_code_esp32_idf_uses_managed_idf_components(
     assert lib_calls == []
 
 
-def test_to_code_esp32_arduino_platformio_below_idf6_uses_add_library(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The PlatformIO toolchain below IDF 6.0 cannot replace arduino-esp32's
-    libsodium, so both stay PlatformIO libraries."""
-    _setup_core(
-        Platform.ESP32, Framework.ARDUINO, Toolchain.PLATFORMIO, cv.Version(5, 5, 4)
-    )
-    idf_calls, lib_calls = _record_calls(monkeypatch)
-
-    asyncio.run(noise.to_code({}))
-
-    assert lib_calls == [
-        ("esphome/noise-c", noise.NOISE_C_VERSION),
-        ("esphome/libsodium", noise.LIBSODIUM_VERSION),
-    ]
-    assert idf_calls == []
-
-
 @pytest.mark.parametrize(
     ("toolchain", "idf_version"),
     [
         (Toolchain.ESP_IDF, cv.Version(5, 5, 4)),
         (Toolchain.ESP_IDF, cv.Version(6, 0, 0)),
+        (Toolchain.PLATFORMIO, cv.Version(5, 5, 6)),
         (Toolchain.PLATFORMIO, cv.Version(6, 0, 0)),
         (Toolchain.PLATFORMIO, cv.Version(6, 1, 0)),
     ],

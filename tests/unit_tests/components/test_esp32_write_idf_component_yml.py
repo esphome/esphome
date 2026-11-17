@@ -152,42 +152,18 @@ def test_arduino_provides_warns_for_a_bundled_library_not_enabled(
 
 
 @pytest.mark.parametrize(
-    ("framework", "toolchain", "version", "bundled"),
-    [
-        (Framework.ARDUINO, Toolchain.PLATFORMIO, cv.Version(5, 5, 5), True),
-        (Framework.ARDUINO, Toolchain.PLATFORMIO, cv.Version(6, 0, 0), False),
-        (Framework.ARDUINO, Toolchain.ESP_IDF, cv.Version(5, 5, 5), False),
-        (Framework.ESP_IDF, Toolchain.PLATFORMIO, cv.Version(5, 5, 5), False),
-    ],
-)
-def test_arduino_bundles_libsodium(
-    framework: Framework,
-    toolchain: Toolchain,
-    version: cv.Version,
-    bundled: bool,
-    tmp_path: Path,
-) -> None:
-    """Only Arduino on the PlatformIO toolchain below IDF 6.0 keeps its own libsodium."""
-    _setup_core(tmp_path)
-    CORE.toolchain = toolchain
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(framework)
-    CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
-
-    assert esp32.arduino_bundles_libsodium() is bundled
-
-
-@pytest.mark.parametrize(
-    ("version", "libsodium_managed", "overridden"),
+    ("toolchain", "version", "libsodium_managed", "overridden"),
     [
         # Nothing in the build uses libsodium, so there is nothing to replace
-        (cv.Version(5, 5, 4), False, False),
-        (cv.Version(6, 0, 0), False, False),
-        # pioarduino's component manager for IDF 5 ignores the "overrides" field
-        (cv.Version(5, 5, 4), True, False),
-        (cv.Version(6, 0, 0), True, True),
+        (Toolchain.PLATFORMIO, cv.Version(5, 5, 6), False, False),
+        (Toolchain.ESP_IDF, cv.Version(6, 0, 0), False, False),
+        (Toolchain.PLATFORMIO, cv.Version(5, 5, 6), True, True),
+        (Toolchain.PLATFORMIO, cv.Version(6, 0, 0), True, True),
+        (Toolchain.ESP_IDF, cv.Version(5, 5, 6), True, True),
     ],
 )
 def test_write_idf_component_yml_arduino_overrides_libsodium(
+    toolchain: Toolchain,
     version: cv.Version,
     libsodium_managed: bool,
     overridden: bool,
@@ -196,8 +172,9 @@ def test_write_idf_component_yml_arduino_overrides_libsodium(
     """espressif/libsodium is replaced with esphome/libsodium when the build uses it
     and is stubbed otherwise."""
     _setup_core(tmp_path)
-    CORE.toolchain = Toolchain.PLATFORMIO
+    CORE.toolchain = toolchain
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(3, 3, 13)
     CORE.data[esp32.KEY_ESP32] = {
         esp32.KEY_COMPONENTS: {},
         esp32.KEY_IDF_VERSION: version,
