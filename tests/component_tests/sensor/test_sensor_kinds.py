@@ -153,6 +153,17 @@ def _defaults(schema: cv.Schema) -> dict[str, Any]:
     }
 
 
+def test_sensor_schema_merges_every_field() -> None:
+    """A new SensorKind field must also be merged in sensor_schema() and pinned in EXPECTED."""
+    assert sensor.SensorKind.__slots__ == (
+        "unit_of_measurement",
+        "device_class",
+        "state_class",
+        "icon",
+        "accuracy_decimals",
+    )
+
+
 def test_every_preset_is_pinned() -> None:
     kinds = {
         name
