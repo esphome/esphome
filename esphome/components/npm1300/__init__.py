@@ -105,14 +105,13 @@ def _one_of_units(
     validator: Callable[[object], float],
     allowed: list[int],
     unit: str,
-    scale: float = 1000,
 ) -> Callable[[object], float]:
-    """Validate a quantity with `validator` and accept only the listed values, given in units * `scale`."""
+    """Validate a quantity with `validator` and accept only the listed values, given in thousandths of `unit`."""
 
     def validate(value: object) -> float:
         value = validator(value)
-        if round(value * scale) not in allowed:
-            options = ", ".join(f"{v / scale:g}{unit}" for v in allowed)
+        if _millis(value) not in allowed:
+            options = ", ".join(f"{v / 1000:g}{unit}" for v in allowed)
             raise cv.Invalid(f"Must be one of {options}")
         return value
 
@@ -139,15 +138,14 @@ def _stepped(
     return validate
 
 
-_THERMISTOR_RESISTANCE = _one_of_units(
-    cv.resistance, list(THERMISTOR_RESISTANCES), "kOhm", scale=0.001
-)
-
-
 def _thermistor_resistance(value: object) -> float | str:
     if isinstance(value, str) and value.lower() == THERMISTOR_NONE:
         return THERMISTOR_NONE
-    return _THERMISTOR_RESISTANCE(value)
+    value = cv.resistance(value)
+    if round(value) not in (kilohms * 1000 for kilohms in THERMISTOR_RESISTANCES):
+        options = ", ".join(f"{kilohms}kOhm" for kilohms in THERMISTOR_RESISTANCES)
+        raise cv.Invalid(f"Must be one of {options} or {THERMISTOR_NONE}")
+    return value
 
 
 def thermistor_beta(config: ConfigType) -> int:
