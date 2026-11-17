@@ -145,11 +145,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
       if (this->big_endian_) {
-        this->buffer_[pos + 0] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
-        this->buffer_[pos + 1] = static_cast<uint8_t>(rgb565 & 0xFF);
+        put_be16(this->buffer_ + pos, rgb565);
       } else {
-        this->buffer_[pos + 0] = static_cast<uint8_t>(rgb565 & 0xFF);
-        this->buffer_[pos + 1] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
+        put_le16(this->buffer_ + pos, rgb565);
       }
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         const size_t alpha_pos = pos / 2 + this->buffer_width_ * this->buffer_height_ * 2;

@@ -34,3 +34,11 @@ wave on the same pad no longer reaches the input (the pad reads 0).
 - Result on #21074 at 2ef417bd81 with peripherals powered down: the PR caught all 644 real edges (dev 66) but added
   4642 calls while the line was high, one per sleep cycle (about 16 ms), with the level read correctly. Peripherals
   on: both builds caught every edge. https://github.com/esphome/esphome/pull/21074#issuecomment-6503939850
+
+## Power lock check
+
+`power_management: esp32_power_management` with `profiling: true` and an `interval` lambda that calls
+`esp_pm_dump_locks(stdout);` prints the lock and mode tables on the USB console (not through the ESPHome logger).
+Compare lock lists between builds: `usb_serial_jtag` holds `NO_LIGHT_SLEEP` by itself. For a soak that the USB console
+must not keep awake, set `logger: hardware_uart: UART0`, dump the locks into `open_memstream()` and log the SLEEP,
+CPU_MAX and light sleep count lines, read over the API.
