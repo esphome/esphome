@@ -1,4 +1,8 @@
-"""norm.py SERIAL: config lines ([C] and indented follow-ups), lm lines, sensor/switch/fan/light/lock state lines; strip volatile bits."""
+"""norm.py SERIAL: config lines ([C] and indented follow-ups), lm lines, sensor/switch/fan/light/lock state lines.
+
+Volatile values are masked, not dropped, so a line that changes between builds still shows in the diff: addresses,
+the device name (from the Hostname line), signal, setup times, and the value of keys that change per boot or per build.
+"""
 
 import pathlib
 import re
@@ -6,10 +10,19 @@ import sys
 
 out = []
 cfg = False
-# case-insensitive only where both spellings occur; MAC, Tx, Max and the like stay case-sensitive
-VOL = re.compile(
-    r"IP Address|MAC|BSSID|Hostname|Signal|Channel|Gateway|Subnet|DNS|RSSI|Scan Results|SSID|Address:|Boot|ms\b|frag|Max|stack|Flash|Chip|CPU|MHz|Wakeup|bootloader|SDK|Core|reason|hash|Power|IDF|Mbps|Tx|Partition|Free|(?i:compile|heap|loop|up ?time|version)"
+MASKS = (
+    (re.compile(r"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b"), "<mac>"),
+    (re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b"), "<ip>"),
+    (re.compile(r"-?\d+(?:\.\d+)? ?dBm?\b.*"), "<dB>"),
+    (re.compile(r"\btook \d+ ?ms\b"), "took <t>"),
 )
+# keys whose value changes per boot, per board or per build; the key stays, the value becomes <v>
+VOLATILE_KEY = re.compile(
+    r"^((?:\w [\w.]+: )?\s*(?:Channel|Unsuccessful boot attempts|Reset reason|Wakeup cause|Free heap|Heap|"
+    r"Uptime|Compiled|Compilation time|Config hash|Build|ESPHome version|Flash size|CPU frequency|Chip):\s*)\S.*$",
+    re.IGNORECASE,
+)
+name = None
 with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as fh:
     for raw in fh:
         x = re.sub(r"^\[[0-9:.]+\]", "", raw.rstrip("\n"))
@@ -41,7 +54,13 @@ with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as fh:
             line = "    " + x.strip()
         else:
             continue
-        if VOL.search(line):
-            continue
+        if name is None and (m := re.search(r"Hostname: '?([\w-]+)'?$", line)):
+            name = m.group(1)
+        line = VOLATILE_KEY.sub(r"\1<v>", line)
+        for rx, repl in MASKS:
+            line = rx.sub(repl, line)
         out.append(line)
-print("\n".join(out))
+text = "\n".join(out)
+if name:
+    text = re.sub(rf"\b{re.escape(name)}\b", "<name>", text)
+print(text)

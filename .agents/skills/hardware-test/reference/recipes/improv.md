@@ -61,6 +61,6 @@ When posting results:
 
 `scripts/log_macros/`: `lm-common.yaml` (one entity of every common platform plus `improv_serial` and `web_server`),
 `drive.py HOST OUT` (presses the exercise button, reads API sensor states and web_server JSON) and `norm.py SERIAL`
-(keeps config dump lines, `lm` lines and state lines, strips addresses, timings and other volatile text) so two
-builds' captures diff cleanly. Recent ESPHome logs sensor states and switch, light and fan calls only at VERBOSE; at
+(keeps config dump lines, `lm` lines and state lines, and replaces addresses, the device name, signal, setup times
+and per-boot values with placeholders instead of dropping the lines) so two builds' captures diff cleanly. Recent ESPHome logs sensor states and switch, light and fan calls only at VERBOSE; at
 DEBUG a log diff sees none of them, so `lm-common.yaml` logs at VERBOSE.
