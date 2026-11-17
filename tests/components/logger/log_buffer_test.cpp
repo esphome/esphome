@@ -73,4 +73,22 @@ TEST(LogBufferTest, LineThatFitsIsUnchanged) {
   EXPECT_EQ(std::string(data, buf.pos), "hello\033[0m");
 }
 
+TEST(LogBufferTest, LongTagAndThreadNameAreCapped) {
+  // The smallest tx_buffer_size; an overlong tag or thread name must not push the header past the buffer
+  constexpr uint16_t size = 160;
+  char data[size];
+  const std::string tag(200, 't');
+  const std::string thread(200, 'n');
+  const std::string text(300, 'x');
+  LogBuffer buf{data, size};
+  buf.write_header(ESPHOME_LOG_LEVEL_DEBUG, tag.c_str(), 123, thread.c_str());
+  ASSERT_LT(buf.pos, size);
+  format_into(buf, "%s", text.c_str());
+  expect_reset_and_terminator(buf, 0);
+  const std::string line(data, buf.pos);
+  EXPECT_NE(line.find("[" + std::string(MAX_TAG_LENGTH, 't') + ":123]"), std::string::npos);
+  EXPECT_EQ(line.find(std::string(MAX_TAG_LENGTH + 1, 't')), std::string::npos);
+  EXPECT_EQ(line.find(std::string(MAX_TAG_LENGTH + 1, 'n')), std::string::npos);
+}
+
 }  // namespace esphome::logger::testing

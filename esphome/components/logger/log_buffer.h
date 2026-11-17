@@ -228,8 +228,9 @@ struct LogBuffer {
   }
   // Copies str unchecked and without its null terminator, so the caller reserves space; returns the new end
   static char *copy_string(char *p, const char *str) {
+    // Capped at MAX_TAG_LENGTH so the header stays within MAX_HEADER_SIZE and the body starts inside the buffer
 #ifdef USE_ESP8266
-    // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
+    // Tags may be in PROGMEM, so read each byte once
     for (size_t i = 0; i < MAX_TAG_LENGTH; i++) {
       const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
       if (c == '\0')
@@ -237,7 +238,7 @@ struct LogBuffer {
       *p++ = c;
     }
 #else
-    const size_t len = strlen(str);
+    const size_t len = strnlen(str, MAX_TAG_LENGTH);
     memcpy(p, str, len);  // NOLINT(bugprone-not-null-terminated-result) - the header is built piece by piece
     p += len;
 #endif
