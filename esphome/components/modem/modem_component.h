@@ -317,6 +317,7 @@ class ModemComponent : public Component {
   bool verbose_errors_{false};  // AT+CMEE=2 accepted, so a bare ERROR means a command is not supported
   bool answered_{false};        // the modem synced since boot, so its wiring and power are fine
   bool resync_{false};          // a command timed out, so CONNECTING syncs again first
+  bool apn_pending_{false};     // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif

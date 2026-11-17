@@ -1155,6 +1155,16 @@ bool random_bytes(uint8_t *data, size_t len);
 /// @name Bit manipulation
 ///@{
 
+/// The high 4 bits of a byte, e.g. high_nibble(0xA5) == 0xA.
+constexpr uint8_t high_nibble(uint8_t byte) { return byte >> 4; }
+/// The low 4 bits of a byte, e.g. low_nibble(0xA5) == 0x5.
+constexpr uint8_t low_nibble(uint8_t byte) { return byte & 0x0F; }
+
+/// Encode a 12-bit value from its high 8 and low 4 bits, e.g. encode_uint12(0x12, 0x3) == 0x123.
+/// Bits above the low 4 of \p low_bits are ignored.
+constexpr uint16_t encode_uint12(uint8_t high_bits, uint8_t low_bits) {
+  return (static_cast<uint16_t>(high_bits) << 4) | low_nibble(low_bits);
+}
 /// Encode a 16-bit value given the most and least significant byte.
 constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
   return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
@@ -1257,7 +1267,7 @@ constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
 }
 
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
-constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return high_nibble(bcd) * 10 + low_nibble(bcd); }
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
 constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
@@ -2402,6 +2412,11 @@ class LwIPLock {
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
+#ifdef USE_ESP32
+ private:
+  // Only the instance that took the core lock releases it; unused without CONFIG_LWIP_TCPIP_CORE_LOCKING
+  [[maybe_unused]] bool locked_{false};
+#endif
 #else
   // No lwIP core locking — inline no-ops (empty bodies instead of = default
   // to prevent clang-tidy unused-variable warnings at call sites)
