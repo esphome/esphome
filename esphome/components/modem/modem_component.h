@@ -299,6 +299,7 @@ class ModemComponent : public Component {
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first
+  bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif
