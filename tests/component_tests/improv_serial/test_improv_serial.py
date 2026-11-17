@@ -3,40 +3,32 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.core import CORE
 
 
-def test_logger_port_requests_console(
+@pytest.mark.parametrize(
+    ("config", "console", "uart"),
+    [
+        # Without uart_id, Improv shares the logger's port through its console API
+        pytest.param("improv_logger_port.yaml", True, False, id="logger_port"),
+        # A dedicated UART leaves the logger's console API out
+        pytest.param("improv_dedicated_uart.yaml", False, True, id="dedicated_uart"),
+        # The Zephyr logger has no console, so Improv there is a no-op
+        pytest.param("improv_nrf52.yaml", False, False, id="nrf52"),
+    ],
+)
+def test_transport_defines(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    config: str,
+    console: bool,
+    uart: bool,
 ) -> None:
-    """Without uart_id, Improv shares the logger's port through its console API."""
-    generate_main(component_config_path("improv_logger_port.yaml"))
+    """Each transport compiles in only the code it uses."""
+    generate_main(component_config_path(config))
 
     defines = {d.name for d in CORE.defines}
-    assert "USE_LOGGER_CONSOLE" in defines
-    assert "USE_IMPROV_SERIAL_UART" not in defines
-
-
-def test_dedicated_uart_skips_console(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """A dedicated UART leaves the logger's console API out."""
-    generate_main(component_config_path("improv_dedicated_uart.yaml"))
-
-    defines = {d.name for d in CORE.defines}
-    assert "USE_IMPROV_SERIAL_UART" in defines
-    assert "USE_LOGGER_CONSOLE" not in defines
-
-
-def test_nrf52_requests_nothing(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """The Zephyr logger has no console, so Improv there is a no-op."""
-    generate_main(component_config_path("improv_nrf52.yaml"))
-
-    defines = {d.name for d in CORE.defines}
-    assert "USE_LOGGER_CONSOLE" not in defines
-    assert "USE_IMPROV_SERIAL_UART" not in defines
+    assert ("USE_LOGGER_CONSOLE" in defines) is console
+    assert ("USE_IMPROV_SERIAL_UART" in defines) is uart

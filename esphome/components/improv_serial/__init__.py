@@ -71,5 +71,5 @@ async def to_code(config: ConfigType) -> None:
         await cg.add_variable(var.set_uart, uart_id)
         cg.add_define("USE_IMPROV_SERIAL_UART")
     # The Zephyr logger has no console, so Improv there stays a no-op
-    elif CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2 or CORE.is_libretiny:
+    elif not CORE.using_zephyr:
         request_console()
