@@ -1,16 +1,12 @@
-"""Sensor platform for VL6180X hubs."""
-
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAIN,
+    CONF_INTEGRATION_TIME,
     CONF_RANGE,
-    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
-    ICON_BRIGHTNESS_5,
-    ICON_RULER,
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
     UNIT_MILLIMETER,
@@ -18,19 +14,15 @@ from esphome.const import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import (
-    ALS_GAIN_FACTORS,
-    ALS_GAINS,
-    CONF_INTEGRATION_TIME,
-    CONF_SCALER,
-    CONF_VL6180X_ID,
-    DOMAIN,
-    VL6180XComponent,
-)
+from . import CONF_VL6180X_ID, DOMAIN, VL6180XComponent
 
 DEPENDENCIES = ["vl6180x"]
 
 CONF_LUX = "lux"
+CONF_SCALER = "scaler"
+
+# Gain factor to the SYSALS_ANALOGUE_GAIN code
+ALS_GAINS = {1: 6, 1.25: 5, 1.67: 4, 2.5: 3, 5: 2, 10: 1, 20: 0, 40: 7}
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -38,7 +30,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_VL6180X_ID): cv.use_id(VL6180XComponent),
             cv.Optional(CONF_RANGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETER,
-                icon=ICON_RULER,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_DISTANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -47,7 +38,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_LUX): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
-                icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -61,9 +51,6 @@ CONFIG_SCHEMA = cv.All(
                             max=cv.TimePeriod(milliseconds=512),
                         ),
                     ),
-                    cv.Optional(
-                        CONF_UPDATE_INTERVAL
-                    ): cv.positive_time_period_milliseconds,
                 }
             ),
         }
@@ -82,18 +69,12 @@ FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_VL6180X_ID])
     sensors = sensor.sub_sensors(config)
-    if range_config := config.get(CONF_RANGE):
+    if (range_config := config.get(CONF_RANGE)) is not None:
         await sensors(CONF_RANGE, hub.set_range_sensor)
-        cg.add(hub.set_scaling(range_config[CONF_SCALER]))
-    if lux_config := config.get(CONF_LUX):
+        cg.add(hub.set_scaler(range_config[CONF_SCALER]))
+    if (lux_config := config.get(CONF_LUX)) is not None:
         await sensors(CONF_LUX, hub.set_lux_sensor)
-        gain_code = lux_config[CONF_GAIN].enum_value
-        cg.add(hub.set_als_gain(gain_code, ALS_GAIN_FACTORS[gain_code]))
-        cg.add(
-            hub.set_als_integration_time(
-                lux_config[CONF_INTEGRATION_TIME].total_milliseconds
-            )
-        )
-        cg.add_optional(
-            hub.set_lux_update_interval, lux_config.get(CONF_UPDATE_INTERVAL)
-        )
+        gain = lux_config[CONF_GAIN]
+        time_ms = lux_config[CONF_INTEGRATION_TIME].total_milliseconds
+        # The datasheet scale is 0.32 lux per count at 1x gain and 100 ms
+        cg.add(hub.set_als(gain.enum_value, time_ms, 32.0 / (float(gain) * time_ms)))

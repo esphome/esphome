@@ -4,254 +4,117 @@
 #include <cmath>
 
 #include "esphome/components/vl6180x/vl6180x.h"
-#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::vl6180x::testing {
 
+// The sensor's 16-bit register map; writes and reads advance the register pointer.
 class RegisterBus final : public i2c::I2CBus {
  public:
-  i2c::ErrorCode write_readv(uint8_t, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) override {
-    if (size >= 2) {
-      this->pointer_ = (static_cast<uint16_t>(data[0]) << 8) | data[1];
-      for (size_t index = 2; index < size; index++) {
-        this->registers_[this->pointer_++] = data[index];
-      }
-    }
-    if (out_size > 0 && this->fail_reads_ > 0) {
-      this->fail_reads_--;
-      return i2c::ERROR_NOT_ACKNOWLEDGED;
-    }
-    for (size_t index = 0; index < out_size; index++) {
-      out[index] = this->registers_[this->pointer_++];
-    }
+  i2c::ErrorCode write_readv(uint8_t /*address*/, const uint8_t *data, size_t size, uint8_t *out,
+                             size_t out_size) override {
+    uint16_t pointer = encode_uint16(data[0], data[1]);
+    for (size_t i = 2; i < size; i++)
+      this->registers[pointer++] = data[i];
+    for (size_t i = 0; i < out_size; i++)
+      out[i] = this->registers[pointer++];
     return i2c::ERROR_OK;
   }
 
-  void set8(uint16_t reg, uint8_t value) { this->registers_[reg] = value; }
-  uint8_t get8(uint16_t reg) const { return this->registers_[reg]; }
-  void fail_next_read() { this->fail_reads_++; }
-
-  void set16(uint16_t reg, uint16_t value) {
-    this->registers_[reg] = static_cast<uint8_t>(value >> 8);
-    this->registers_[reg + 1] = static_cast<uint8_t>(value);
-  }
-
- private:
-  std::array<uint8_t, 0x213> registers_{};
-  uint16_t pointer_{0};
-  uint8_t fail_reads_{0};
+  std::array<uint8_t, 0x213> registers{};
 };
 
-class VL6180XComponentTest : public ::testing::Test {
- public:
-  static void clear_instances() { VL6180XComponent::all_instances().clear(); }
-  static void publish_lux(VL6180XComponent &component, uint16_t raw) { component.publish_lux_(raw); }
-  static void begin_lux_wait(VL6180XComponent &component) {
-    component.state_ = MeasurementState::MEASUREMENT_STATE_ALS_WAIT;
-    component.update();
-  }
-  static bool range_pending(const VL6180XComponent &component) { return component.range_pending_; }
-  static bool lux_pending(const VL6180XComponent &component) { return component.lux_pending_; }
-  static void set_range_pending(VL6180XComponent &component, bool pending) { component.range_pending_ = pending; }
-  static void set_state(VL6180XComponent &component, MeasurementState state) { component.state_ = state; }
-  static void finish_lux_wait(VL6180XComponent &component) { component.do_als_wait_(); }
-  static MeasurementState state(const VL6180XComponent &component) { return component.state_; }
-  static void begin_range_start(VL6180XComponent &component) {
-    component.state_ = MeasurementState::MEASUREMENT_STATE_RANGE_START;
-    component.state_deadline_ = component.now_() + 1000;
-    component.do_range_start_();
-  }
-  static void begin_als_start(VL6180XComponent &component) { component.do_als_start_(); }
-  static void initialize_bus(i2c::I2CBus *bus) { VL6180XComponent::run_init_sequence(bus); }
-  static bool initialize_sensor(VL6180XComponent &component) { return component.init_sensor_(); }
-  static void retry(VL6180XComponent &component) {
-    component.reinit_due_at_ = component.now_();
-    component.do_recovery_wait_();
-  }
-  static bool initialized(const VL6180XComponent &component) { return component.initialized_; }
-  static bool retry_limit_reached(const VL6180XComponent &component) { return component.retry_limit_reached_; }
-  static uint8_t retry_attempts(const VL6180XComponent &component) { return component.reinit_attempts_; }
-  static bool recovery_paused(const VL6180XComponent &component) { return component.recovery_pause_; }
-  static bool recovery_attempt_active(const VL6180XComponent &component) { return component.recovery_attempt_active_; }
-  static void set_retry_limit_reached(VL6180XComponent &component, bool reached) {
-    component.retry_limit_reached_ = reached;
-  }
-  static void set_consecutive_failures(VL6180XComponent &component, uint8_t failures) {
-    component.consecutive_failures_ = failures;
-  }
-  static uint32_t retry_interval(const VL6180XComponent &component) { return component.retry_interval_ms_; }
-  static uint32_t retry_due_at(const VL6180XComponent &component) { return component.reinit_due_at_; }
-  static uint32_t now(const VL6180XComponent &component) { return component.now_(); }
-  static void set_max_retries(VL6180XComponent &component, uint8_t retries) { component.set_max_retries(retries); }
-  static void publish_range(VL6180XComponent &component, uint8_t raw, uint8_t error) {
-    component.publish_range_(raw, error);
-  }
-
+class VL6180XTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    VL6180XComponentTest::clear_instances();
-    this->component_.set_i2c_bus(&this->bus_);
-    this->component_.set_i2c_address(0x29);
-    this->component_.set_lux_sensor(&this->lux_sensor_);
-    this->component_.set_range_sensor(&this->range_sensor_);
-    this->component_.set_range_status_text_sensor(&this->range_status_sensor_);
+    this->hub_.set_i2c_bus(&this->bus_);
+    this->hub_.set_i2c_address(0x29);
+    this->hub_.set_range_sensor(&this->range_);
+    this->hub_.set_lux_sensor(&this->lux_);
+    // 1x gain over 1 ms: 32 lux per count
+    this->hub_.set_als(6, 1, 32.0f);
+    this->bus_.registers[0x000] = 0xB4;  // model ID
+    this->bus_.registers[0x016] = 0x01;  // fresh out of reset
   }
 
-  void TearDown() override { VL6180XComponentTest::clear_instances(); }
+  // One update: range, then the ALS once its integration time and readout margin have passed.
+  void measure_() {
+    this->hub_.update();
+    delay(80);  // NOLINT
+    App.scheduler.call(millis());
+    delay(420);  // NOLINT
+    App.scheduler.call(millis());
+  }
 
   RegisterBus bus_;
-  VL6180XComponent component_;
-  sensor::Sensor lux_sensor_;
-  sensor::Sensor range_sensor_;
-  text_sensor::TextSensor range_status_sensor_;
+  VL6180XComponent hub_;
+  sensor::Sensor range_;
+  sensor::Sensor lux_;
 };
 
-TEST_F(VL6180XComponentTest, GainAndIntegrationTimeNormalizeLux) {
-  this->component_.set_als_gain(6, 1.0f);
-  VL6180XComponentTest::publish_lux(this->component_, 101);
-  ASSERT_TRUE(this->lux_sensor_.has_state());
-  EXPECT_NEAR(this->lux_sensor_.state, 32.32f, 0.01f);
-
-  this->component_.set_als_gain(0, 20.0f);
-  this->component_.set_als_integration_time(200);
-  VL6180XComponentTest::publish_lux(this->component_, 101);
-  EXPECT_NEAR(this->lux_sensor_.state, 0.808f, 0.01f);
+TEST_F(VL6180XTest, FreshSensorGetsTheMandatorySettingsAndTheScaler) {
+  this->bus_.registers[0x024] = 0xFA;  // factory part-to-part offset, -6 mm
+  this->hub_.set_scaler(2);
+  this->hub_.setup();
+  ASSERT_FALSE(this->hub_.is_failed());
+  EXPECT_EQ(this->bus_.registers[0x0207], 0x01);
+  EXPECT_EQ(this->bus_.registers[0x016], 0x00);
+  EXPECT_EQ(encode_uint16(this->bus_.registers[0x096], this->bus_.registers[0x097]), 127);
+  EXPECT_EQ(this->bus_.registers[0x024], 0xFD);  // -3 mm at 2x
+  EXPECT_EQ(this->bus_.registers[0x02D], 0x10);
 }
 
-TEST_F(VL6180XComponentTest, RangeStartWaitsForRangeReadyBit) {
-  // ALS-ready must not be mistaken for range-ready.
-  this->bus_.set8(0x04E, 0x01);
-  this->bus_.set8(0x04D, 0x00);
-  VL6180XComponentTest::begin_range_start(this->component_);
-  EXPECT_EQ(VL6180XComponentTest::state(this->component_), MeasurementState::MEASUREMENT_STATE_RANGE_START);
-  EXPECT_EQ(this->bus_.get8(0x018), 0);
+TEST_F(VL6180XTest, SensorThatKeptPowerRestoresTheOffsetBeforeRescaling) {
+  this->bus_.registers[0x016] = 0x00;
+  this->bus_.registers[0x024] = 0xFE;  // -2 mm, written at 3x by the last setup
+  this->bus_.registers[0x096] = 0x00;
+  this->bus_.registers[0x097] = 84;
+  this->hub_.set_scaler(2);
+  this->hub_.setup();
+  EXPECT_EQ(this->bus_.registers[0x0207], 0x00);  // the one-time settings are not written again
+  EXPECT_EQ(this->bus_.registers[0x024], 0xFD);   // -6 mm / 2
 }
 
-TEST_F(VL6180XComponentTest, ProgramsVhvCalibrationAndAlsIntegrationPeriod) {
-  this->bus_.set8(0x000, 0xB4);
-  this->component_.set_als_integration_time(250);
-  ASSERT_TRUE(VL6180XComponentTest::initialize_sensor(this->component_));
-  EXPECT_EQ(this->bus_.get8(0x031), 0xFF);
-  EXPECT_EQ(this->bus_.get8(0x02E), 0x01);
-  EXPECT_EQ(this->bus_.get8(0x040), 0x00);
-  EXPECT_EQ(this->bus_.get8(0x041), 249);
+TEST_F(VL6180XTest, WrongModelIdFailsSetup) {
+  this->bus_.registers[0x000] = 0x00;
+  this->hub_.setup();
+  EXPECT_TRUE(this->hub_.is_failed());
 }
 
-TEST_F(VL6180XComponentTest, PendingRangeRunsBeforeAnotherAlsMeasurement) {
-  VL6180XComponentTest::set_range_pending(this->component_, true);
-  VL6180XComponentTest::set_state(this->component_, MeasurementState::MEASUREMENT_STATE_ALS_START);
-  VL6180XComponentTest::begin_als_start(this->component_);
-  EXPECT_EQ(VL6180XComponentTest::state(this->component_), MeasurementState::MEASUREMENT_STATE_RANGE_START);
-  EXPECT_FALSE(VL6180XComponentTest::range_pending(this->component_));
-  EXPECT_EQ(this->bus_.get8(0x038), 0);
+TEST_F(VL6180XTest, PublishesScaledRangeAndLux) {
+  this->hub_.set_scaler(2);
+  this->hub_.setup();
+  this->bus_.registers[0x04D] = 0x01;  // no range error
+  this->bus_.registers[0x04F] = 0x24;  // range and ALS samples ready
+  this->bus_.registers[0x062] = 100;
+  this->bus_.registers[0x050] = 0x00;
+  this->bus_.registers[0x051] = 10;
+  this->measure_();
+  EXPECT_FLOAT_EQ(this->range_.state, 200.0f);
+  EXPECT_FLOAT_EQ(this->lux_.state, 320.0f);
+  EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
-TEST_F(VL6180XComponentTest, PreemptedAlsStartKeepsLuxRequestPending) {
-  VL6180XComponentTest::set_range_pending(this->component_, true);
-  VL6180XComponentTest::set_state(this->component_, MeasurementState::MEASUREMENT_STATE_ALS_START);
-  VL6180XComponentTest::begin_als_start(this->component_);
-  EXPECT_EQ(VL6180XComponentTest::state(this->component_), MeasurementState::MEASUREMENT_STATE_RANGE_START);
-  EXPECT_TRUE(VL6180XComponentTest::lux_pending(this->component_));
+TEST_F(VL6180XTest, NoTargetAndAlsOverflowPublishNanWithoutAWarning) {
+  this->hub_.setup();
+  this->bus_.registers[0x04D] = 0xB1;  // range error 11, no target
+  this->bus_.registers[0x04E] = 0x31;  // ALS error 3, overflow in bright light
+  this->bus_.registers[0x04F] = 0x24;
+  this->measure_();
+  EXPECT_TRUE(std::isnan(this->range_.state));
+  EXPECT_TRUE(std::isnan(this->lux_.state));
+  EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
-TEST_F(VL6180XComponentTest, EarlyConvergenceIsReportedAsNoTarget) {
-  VL6180XComponentTest::publish_range(this->component_, 0, 6);
-  EXPECT_EQ(this->range_status_sensor_.state, "No Target");
-}
-
-TEST_F(VL6180XComponentTest, QueuesRangeUpdateBehindActiveLuxMeasurement) {
-  VL6180XComponentTest::begin_lux_wait(this->component_);
-  ASSERT_TRUE(VL6180XComponentTest::range_pending(this->component_));
-
-  // ALS reports ready in IRQ status bits [5:3], and returns 101 raw counts.
-  this->bus_.set16(0x050, 101);
-  this->bus_.set8(0x04F, 0x20);
-  VL6180XComponentTest::finish_lux_wait(this->component_);
-  EXPECT_EQ(VL6180XComponentTest::state(this->component_), MeasurementState::MEASUREMENT_STATE_RANGE_START);
-  EXPECT_FALSE(VL6180XComponentTest::range_pending(this->component_));
-}
-
-TEST_F(VL6180XComponentTest, SecondarySensorRetriesAfterBootFailure) {
-  RegisterBus primary_bus;
-  RegisterBus secondary_bus;
-  VL6180XComponent primary;
-  VL6180XComponent secondary;
-  primary.set_i2c_bus(&primary_bus);
-  primary.set_i2c_address(0x29);
-  secondary.set_i2c_bus(&secondary_bus);
-  secondary.set_i2c_address(0x29);
-  primary.set_retry_interval(0);
-  secondary.set_retry_interval(0);
-  primary_bus.set8(0x000, 0xB4);
-  secondary_bus.set8(0x000, 0xB4);
-  secondary_bus.fail_next_read();
-  VL6180XComponent::register_instance(&primary);
-  VL6180XComponent::register_instance(&secondary);
-
-  VL6180XComponentTest::initialize_bus(&primary_bus);
-  VL6180XComponentTest::initialize_bus(&secondary_bus);
-  ASSERT_TRUE(VL6180XComponentTest::initialized(primary));
-  ASSERT_FALSE(VL6180XComponentTest::initialized(secondary));
-
-  // Retry state belongs to the failing sensor; a secondary-bus retry must not
-  // reinitialize or delay the healthy primary bus.
-  secondary_bus.fail_next_read();
-  VL6180XComponentTest::retry(secondary);
-  ASSERT_FALSE(VL6180XComponentTest::initialized(secondary));
-  EXPECT_EQ(VL6180XComponentTest::retry_attempts(secondary), 1);
-  ASSERT_TRUE(VL6180XComponentTest::initialized(primary));
-  EXPECT_EQ(VL6180XComponentTest::retry_attempts(primary), 0);
-  VL6180XComponentTest::retry(secondary);
-  ASSERT_TRUE(VL6180XComponentTest::initialized(secondary));
-  EXPECT_EQ(VL6180XComponentTest::state(secondary), MeasurementState::MEASUREMENT_STATE_IDLE);
-}
-
-TEST_F(VL6180XComponentTest, PeriodicallyRetriesAfterConfiguredRetryLimit) {
-  this->component_.set_retry_interval(0);
-  VL6180XComponentTest::set_max_retries(this->component_, 1);
-  VL6180XComponentTest::retry(this->component_);
-  ASSERT_TRUE(VL6180XComponentTest::retry_limit_reached(this->component_));
-
-  this->bus_.set8(0x000, 0xB4);
-  VL6180XComponentTest::retry(this->component_);
-  EXPECT_FALSE(VL6180XComponentTest::retry_limit_reached(this->component_));
-  EXPECT_TRUE(VL6180XComponentTest::initialized(this->component_));
-}
-
-TEST_F(VL6180XComponentTest, HoldsSiblingPauseUntilActiveMeasurementDrains) {
-  RegisterBus shared_bus;
-  VL6180XComponent recovering;
-  VL6180XComponent sibling;
-  recovering.set_i2c_bus(&shared_bus);
-  recovering.set_i2c_address(0x29);
-  sibling.set_i2c_bus(&shared_bus);
-  sibling.set_i2c_address(0x30);
-  shared_bus.set8(0x000, 0xB4);
-  VL6180XComponent::register_instance(&recovering);
-  VL6180XComponent::register_instance(&sibling);
-  VL6180XComponentTest::set_state(recovering, MeasurementState::MEASUREMENT_STATE_RECOVERY_WAIT);
-  VL6180XComponentTest::set_state(sibling, MeasurementState::MEASUREMENT_STATE_RANGE_WAIT);
-
-  VL6180XComponentTest::retry(recovering);
-  EXPECT_TRUE(VL6180XComponentTest::recovery_paused(sibling));
-  EXPECT_TRUE(VL6180XComponentTest::recovery_attempt_active(recovering));
-  EXPECT_FALSE(VL6180XComponentTest::initialized(recovering));
-
-  VL6180XComponentTest::set_state(sibling, MeasurementState::MEASUREMENT_STATE_IDLE);
-  VL6180XComponentTest::retry(recovering);
-  EXPECT_FALSE(VL6180XComponentTest::recovery_paused(sibling));
-  EXPECT_FALSE(VL6180XComponentTest::recovery_attempt_active(recovering));
-  EXPECT_TRUE(VL6180XComponentTest::initialized(recovering));
-}
-
-TEST_F(VL6180XComponentTest, RetryLimitUsesAtLeastThirtySecondBackoff) {
-  this->component_.set_retry_interval(1000);
-  VL6180XComponentTest::set_max_retries(this->component_, 1);
-  const uint32_t now = VL6180XComponentTest::now(this->component_);
-  VL6180XComponentTest::retry(this->component_);
-  ASSERT_TRUE(VL6180XComponentTest::retry_limit_reached(this->component_));
-  EXPECT_EQ(VL6180XComponentTest::retry_interval(this->component_), 1000U);
-  EXPECT_GE(VL6180XComponentTest::retry_due_at(this->component_) - now, 30000U);
+TEST_F(VL6180XTest, SampleNotReadySetsAWarning) {
+  this->hub_.setup();
+  this->bus_.registers[0x04F] = 0x00;
+  this->hub_.update();
+  delay(80);  // NOLINT
+  App.scheduler.call(millis());
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_FALSE(this->range_.has_state());
 }
 
 }  // namespace esphome::vl6180x::testing

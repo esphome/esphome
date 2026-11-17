@@ -1,7 +1,0 @@
-i2c:
-  - id: i2c_bus_a
-    sda: GPIO17
-    scl: GPIO16
-  - id: i2c_bus_b
-    sda: GPIO21
-    scl: GPIO22
