@@ -1,5 +1,6 @@
 #include "bmi270.h"
 #include "bmi270_config.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/progmem.h"
@@ -47,6 +48,8 @@ bool BMI270Component::load_config_file_() {
       return false;
 
     index += burst;
+    // 256 bursts at 50 kHz, or through an I2C multiplexer, outlast the ESP8266 soft watchdog
+    App.feed_wdt();
   }
 
   if (!this->write_byte(BMI270_REG_INIT_CTRL, BMI270_INIT_CTRL_LOAD_DONE))
