@@ -26,6 +26,9 @@ static constexpr uint32_t SW_SERIAL_TX_BIT_LOCK_MAX_BAUD = 38400;
 // Edge decoder time base: 1/16 us from the 1 MHz system timer, which keeps its rate during a
 // CpuFrequencyBoost; the cycle counter does not.
 static constexpr uint32_t RX_TICKS_PER_SECOND = 16000000;
+// A byte lock lets pending interrupts run right after an edge when the next edge is at least this far away, so their
+// delay lands inside a run of equal bits. Locks longer than about 6 bits at 57600 trip the Wi-Fi watchdog.
+static constexpr uint32_t TX_UNLOCK_MIN_RUN_CYCLES = F_CPU / 1000000 * 30;
 // Longest per-bit TX interrupt lock; the Wi-Fi interrupt handler asserts (hardware WDT) when held off about 1 ms
 static constexpr uint32_t MAX_TX_LOCK_CYCLES = F_CPU / 1000000 * 200;
 __attribute__((always_inline)) static inline uint32_t rx_now() { return micros() << 4; }
@@ -391,6 +394,19 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
 
   // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
   const uint32_t bit_time = this->bit_time_;
+  // Data bits LSB first, then the parity bit
+  uint32_t frame = data & ((1u << this->data_bits_) - 1);
+  uint32_t num_bits = this->data_bits_;
+  if (need_parity_bit) {
+    parity_bit ^= __builtin_parity(frame);
+    frame |= uint32_t(parity_bit) << num_bits++;
+  }
+  // Decided before the start bit so the timed loop only tests a bit
+  const SoftwareSerialTxFrame tx = software_serial_tx_frame(frame, num_bits, bit_time, TX_UNLOCK_MIN_RUN_CYCLES,
+                                                            this->lock_frame_ && blocking_rx_count == 0);
+  const uint32_t line = tx.line;
+  const uint32_t high_from = tx.high_from;
+  const uint32_t unlock_at = tx.unlock_at;
   std::optional<InterruptLock> frame_lock;
   if (this->locks_whole_frame())
     frame_lock.emplace();
@@ -401,19 +417,13 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     this->tx_pin_.digital_write(false);
     start = arch_get_cpu_cycle_count();
   }
-  // Data bits LSB first, then the parity bit
-  uint32_t frame = data & ((1u << this->data_bits_) - 1);
-  uint32_t num_bits = this->data_bits_;
-  if (need_parity_bit) {
-    parity_bit ^= __builtin_parity(frame);
-    frame |= uint32_t(parity_bit) << num_bits++;
-  }
-  // From the edge after the last 0 the line stays high through the stop bits
-  const uint32_t zeros = ~frame & ((1u << num_bits) - 1);
-  const uint32_t high_from = zeros == 0 ? 0 : 32 - __builtin_clz(zeros);
   uint32_t wait = bit_time;
-  for (uint32_t i = 0; i < high_from; i++)
-    this->write_bit_((frame >> i) & 1, &wait, start, bit_time);
+  for (uint32_t pos = 0; pos <= high_from; pos++) {
+    if (pos != 0)
+      this->write_bit_((line >> pos) & 1, &wait, start, bit_time);
+    if ((unlock_at >> pos) & 1)
+      frame_lock.emplace();  // drops the held lock first, so pending interrupts run
+  }
   this->write_bit_(true, &wait, start, bit_time);
   // Hold that high run with interrupts on: one that runs past it only delays the next start bit, and back-to-back
   // byte locks with no gap between them trip the Wi-Fi watchdog

@@ -90,7 +90,15 @@ __attribute__((always_inline)) inline bool is_main_loop_thread() {
   return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
 }
 __attribute__((always_inline)) inline void yield() { ::yield(); }
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B)
+// Already sleeps to a deadline (rtl8710b_micros.c)
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
+#else
+// vTaskDelay() counts the partial tick, so one more tick makes the wait at least ms
+__attribute__((always_inline)) inline void delay(uint32_t ms) {
+  vTaskDelay(ms == 0 ? 0 : (ms + portTICK_PERIOD_MS - 1) / portTICK_PERIOD_MS + 1);
+}
+#endif
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 
 // Per-variant millis() fast path — matches MillisInternal::get().

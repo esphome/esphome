@@ -154,7 +154,7 @@ static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   }
 }
 
-void BTHomeMiThermometer::dump_config() {
+void BTHomeMiThermometer::dump_child_config() {
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG, "BTHome MiThermometer");
   ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(addr_buf, this->address_));
