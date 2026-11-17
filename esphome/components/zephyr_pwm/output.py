@@ -91,7 +91,10 @@ def _get_data() -> ZephyrPWMData:
 
 
 def _allocate_blocks() -> None:
-    labels = _get_variant_pwm().labels
+    variant_pwm = _get_variant_pwm()
+    labels = variant_pwm.labels
+    # The nRF54L GPIO chapter says a peripheral cannot mix pins from different ports
+    one_port_per_block = variant_pwm.ports is not None
     pwm_blocks: list[PWMBlock] = []
     for cfg in fv.platform_entries(domain=OUTPUT_DOMAIN, platform=DOMAIN):
         pin_number = cfg[CONF_PIN][CONF_NUMBER]
@@ -102,13 +105,15 @@ def _allocate_blocks() -> None:
                 for block in pwm_blocks
                 if block.period_ns == period_ns
                 and len(block.pins) < PWM_CHANNELS_PER_BLOCK
+                and (not one_port_per_block or block.pins[0] // 32 == pin_number // 32)
             ),
             None,
         )
         if pwm_block is None:
             if len(pwm_blocks) >= len(labels):
+                same_port = " and GPIO port" if one_port_per_block else ""
                 raise cv.Invalid(
-                    f"Only {len(labels)} PWM blocks with a distinct frequency and "
+                    f"Only {len(labels)} PWM blocks with a distinct frequency{same_port} and "
                     f"{PWM_CHANNELS_PER_BLOCK} channels each are supported by {get_nrf52_variant()}"
                 )
             pwm_block = PWMBlock(
