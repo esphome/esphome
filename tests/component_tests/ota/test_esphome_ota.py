@@ -548,12 +548,22 @@ def test_web_server_ota_without_encryption_unaffected() -> None:
 
 def test_auto_load_pulls_noise_only_for_encryption() -> None:
     """A plain ota entry must never pull noise-c into the build."""
-    assert AUTO_LOAD({CONF_PORT: 3232}) == ["sha256", "socket"]
+    assert AUTO_LOAD({CONF_PORT: 3232}) == ["socket"]
     assert "noise" in AUTO_LOAD({CONF_ENCRYPTION: {}})
     # Tooling probes must get the maximal set: None from dependency
     # resolution, {} from the components-graph platform probe
     assert "noise" in AUTO_LOAD(None)
     assert "noise" in AUTO_LOAD({})
+
+
+def test_auto_load_pulls_sha256_only_for_password() -> None:
+    """Only password auth hashes with SHA256, so a plain ota entry leaves it out."""
+    assert "sha256" not in AUTO_LOAD({CONF_PORT: 3232})
+    assert "sha256" not in AUTO_LOAD({CONF_ENCRYPTION: {}})
+    assert "sha256" in AUTO_LOAD({CONF_PASSWORD: ""})
+    assert "sha256" in AUTO_LOAD({CONF_PASSWORD: "secret", CONF_ENCRYPTION: {}})
+    assert "sha256" in AUTO_LOAD(None)
+    assert "sha256" in AUTO_LOAD({})
 
 
 def test_static_encryption_key() -> None:

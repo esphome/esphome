@@ -176,8 +176,8 @@ bool SPD2010Touchscreen::read_data_() {
     // Zero strength marks a released contact.
     if (contact[4] == 0)
       continue;
-    const uint16_t x = ((contact[3] & 0xF0u) << 4u) | contact[1];
-    const uint16_t y = ((contact[3] & 0x0Fu) << 8u) | contact[2];
+    const uint16_t x = encode_uint16(high_nibble(contact[3]), contact[1]);
+    const uint16_t y = encode_uint16(low_nibble(contact[3]), contact[2]);
     this->add_raw_touch_position_(contact[0], x, y, contact[4]);
   }
   this->status_clear_warning();

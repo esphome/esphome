@@ -300,6 +300,11 @@ class APIServer final : public Component
   /// Measure again the subscriptions whose entity id is this buffer, after the wizard wrote a new id into it.
   void update_state_subscription_entity_id(const char *entity_id);
 #endif
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  // Generated: subscribes the imported Home Assistant entities, and prints their dumps
+  HUB_PUBLISHER(homeassistant_subscribe)
+  HUB_PUBLISHER(homeassistant_dump)
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }

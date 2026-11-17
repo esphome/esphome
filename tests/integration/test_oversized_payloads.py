@@ -20,6 +20,7 @@ def _crashed(waiter: LineWaiter) -> bool:
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("oversized_payload_plaintext")
 async def test_oversized_payload_plaintext(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -61,6 +62,7 @@ async def test_oversized_payload_plaintext(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("oversized_payload_plaintext")
 async def test_oversized_protobuf_message_id_plaintext(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -75,7 +77,7 @@ async def test_oversized_protobuf_message_id_plaintext(
     async with run_compiled(yaml_config, line_callback=waiter.callback):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
             # Verify basic connection works first
-            await assert_device_name(client, "oversized-protobuf-plaintext")
+            await assert_device_name(client, "oversized-plaintext")
 
             # Access the internal connection to send raw message with large ID
             frame_helper = client._connection._frame_helper
@@ -101,10 +103,11 @@ async def test_oversized_protobuf_message_id_plaintext(
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
-            await assert_device_name(client2, "oversized-protobuf-plaintext")
+            await assert_device_name(client2, "oversized-plaintext")
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("oversized_payload_noise")
 async def test_oversized_payload_noise(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -154,6 +157,7 @@ async def test_oversized_payload_noise(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("oversized_payload_noise")
 async def test_oversized_protobuf_message_id_noise(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -211,6 +215,7 @@ async def test_oversized_protobuf_message_id_noise(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("oversized_payload_noise")
 async def test_noise_corrupt_encrypted_frame(
     yaml_config: str,
     run_compiled: RunCompiledFunction,

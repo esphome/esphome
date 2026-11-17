@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <cstring>
 #include "api_connection.h"
+#include "api_connection_buffer.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -66,6 +67,10 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  if (this->homeassistant_subscribe_publisher_ != nullptr)
+    this->homeassistant_subscribe_publisher_();
+#endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
@@ -384,6 +389,10 @@ void APIServer::dump_config() {
 #endif
 #ifdef USE_API_OUTGOING_CONNECTION
   this->outgoing_conn_.dump_config();
+#endif
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  if (this->homeassistant_dump_publisher_ != nullptr)
+    this->homeassistant_dump_publisher_();
 #endif
 }
 
@@ -806,6 +815,31 @@ void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &imag
 }
 #endif
 
+// Kept out of api_connection.cpp so GCC inlines its send path as before
+void APIConnection::send_shutdown_disconnect_() {
+#ifndef USE_DEEP_SLEEP
+  // Queued states first: Home Assistant mishandles states after DisconnectRequest (#22610).
+  // Not with deep sleep: its entities stay available, and the disconnect must not wait on a slow link
+  this->flags_.state_subscription = false;
+  this->destroy_active_iterator_();
+  // process_batch_ first flushes any overflow without blocking; stop once the queue stops shrinking
+  for (size_t left = this->deferred_batch_.size(); left != 0;) {
+    this->process_batch_();
+    const size_t now_left = this->deferred_batch_.size();
+    if (now_left >= left)
+      break;
+    left = now_left;
+  }
+#endif
+  DisconnectRequest req;
+  if (!this->send_message(req)) {
+    // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout.
+    // Due at once: teardown does not advance the cached loop time the batch_delay gate reads
+    this->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
+    this->make_batch_due_now_();
+  }
+}
+
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
@@ -818,15 +852,8 @@ void APIServer::on_shutdown() {
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;
 
-  // Send disconnect requests to all connected clients
-  for (auto &c : this->active_clients()) {
-    DisconnectRequest req;
-    if (!c->send_message(req)) {
-      // If we can't send the disconnect request directly (tx_buffer full),
-      // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
-    }
-  }
+  for (auto &c : this->active_clients())
+    c->send_shutdown_disconnect_();
 }
 
 bool APIServer::teardown() {
