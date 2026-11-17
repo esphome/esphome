@@ -1,0 +1,27 @@
+# Station: deep sleeps for 5 s, 10 s after connecting, then wakes and rejoins.
+esphome:
+  name: ${name}
+
+esp32:
+  board: ${board}
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: w15pmf
+  password: !secret wd_ap_password
+  min_auth_mode: WPA2
+  power_save_mode: none
+  on_connect:
+    - lambda: ESP_LOGI("st", "JOINED after %u ms since boot", (unsigned) millis());
+    - delay: 10s
+    - lambda: ESP_LOGI("st", "REBOOT deepsleep");
+    - deep_sleep.enter:
+        id: ds
+        sleep_duration: 5s
+
+deep_sleep:
+  id: ds

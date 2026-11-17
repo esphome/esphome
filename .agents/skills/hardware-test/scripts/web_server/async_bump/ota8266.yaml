@@ -1,0 +1,60 @@
+substitutions:
+  name: ota8266-x
+  ver: a
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - lambda: ESP_LOGI("otatest", "BOOTED ver=${ver} heap=%u", (unsigned) ESP.getFreeHeap());
+esp8266:
+  board: d1_mini
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+logger:
+  level: DEBUG
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+  - platform: web_server
+web_server:
+  port: 80
+  version: 3
+debug:
+  update_interval: 5s
+interval:
+  - interval: 10s
+    then:
+      - lambda: ESP_LOGI("otatest", "alive ver=${ver} heap=%u maxblk=%u", (unsigned) ESP.getFreeHeap(), (unsigned) ESP.getMaxFreeBlockSize());
+text_sensor:
+  - platform: template
+    name: Build ver
+    lambda: return {"${ver}"};
+    update_interval: 60s
+  - platform: debug
+    reset_reason:
+      name: Reset reason
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 1s
+  - platform: debug
+    free:
+      name: Heap free
+    block:
+      name: Heap max block
+  - platform: template
+    name: Fast counter
+    update_interval: 1s
+    lambda: |-
+      static uint32_t n = 0;
+      return n++;
+switch:
+  - platform: template
+    name: Test switch
+    optimistic: true
+button:
+  - platform: restart
+    name: Restart

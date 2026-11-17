@@ -1,0 +1,246 @@
+esphome:
+  name: ${name}
+  includes:
+    - ovfwrap.hpp
+    - txt.hpp
+  build_flags:
+    - -Wl,--wrap=_ZN7esphome3api17APIOverflowBuffer11enqueue_iovEPK5iovecijj
+    - -Wl,--wrap=${drain_sym}
+    - -DOVF_DRAIN_WRAP=__wrap_${drain_sym}
+    - -DOVF_DRAIN_REAL=__real_${drain_sym}
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+packages:
+  # 60 template sensors bs0..bs59 and the BS pointer array; run gen_sensors.py once to write it
+  bs: !include putbe-sensors.yaml
+globals:
+  - id: flood_n
+    type: uint32_t
+    initial_value: "0"
+  - id: bump_n
+    type: uint32_t
+    initial_value: "0"
+  - id: tick
+    type: uint32_t
+    initial_value: "0"
+switch:
+  - platform: template
+    id: flood
+    name: Flood
+    optimistic: true
+button:
+  - platform: template
+    name: Bump
+    on_press:
+      - lambda: |-
+          id(bump_n)++;
+          ESP_LOGI("bump", "press %u", (unsigned) id(bump_n));
+          id(bump_sensor).publish_state(id(bump_n));
+interval:
+  - interval: 50ms
+    then:
+      - if:
+          condition:
+            switch.is_on: flood
+          then:
+            - lambda: |-
+                uint32_t n = ++id(flood_n);
+                for (size_t i = 0; i < BS_COUNT; i++)
+                  BS[i]->publish_state(n * 100 + i);
+                id(bt0).publish_state(make_txt(n, 0));
+                id(bt1).publish_state(make_txt(n, 1));
+                id(bt2).publish_state(make_txt(n, 2));
+                id(bt3).publish_state(make_txt(n, 3));
+                id(flood_sensor).publish_state(n);
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint32_t t = ++id(tick);
+          id(loc_count).publish_state(t);
+          id(loc_float).publish_state(12345.678f + t * 0.001f - (t % 7) * 1000.5f);
+          id(loc_bin).publish_state((t / 3) % 2 == 1);
+          id(ovf_enq).publish_state(ovf_enq_calls);
+          id(ovf_enq_b).publish_state(ovf_enq_bytes);
+          id(ovf_drain).publish_state(ovf_drain_calls);
+udp:
+  - id: udp_plain
+    port: 18611
+    addresses: ["${peer_ip}"]
+  - id: udp_full
+    port: 18612
+    addresses: ["${peer_ip}"]
+packet_interface:
+  - platform: udp
+    id: pi_plain
+    udp_id: udp_plain
+  - platform: udp
+    id: pi_full
+    udp_id: udp_full
+    addressing:
+      address: ${my_addr}
+      destination: ${peer_addr}
+    encryption:
+      key: putbe test key
+      rolling_code_enable: true
+    reliability:
+    fragmentation:
+    session:
+entity_transport:
+  - id: et_plain
+    packet_interface: pi_plain
+    update_interval: 2s
+    sensors:
+      - id: loc_count
+        broadcast_id: count
+      - id: loc_float
+        broadcast_id: flt
+    binary_sensors:
+      - id: loc_bin
+        broadcast_id: bin
+  - id: et_full
+    packet_interface: pi_full
+    sensors:
+      - id: loc_count
+        broadcast_id: count
+      - id: loc_float
+        broadcast_id: flt
+    binary_sensors:
+      - id: loc_bin
+        broadcast_id: bin
+text_sensor:
+  - platform: template
+    id: bt0
+    name: T0
+    update_interval: never
+  - platform: template
+    id: bt1
+    name: T1
+    update_interval: never
+  - platform: template
+    id: bt2
+    name: T2
+    update_interval: never
+  - platform: template
+    id: bt3
+    name: T3
+    update_interval: never
+sensor:
+  - platform: template
+    id: flood_sensor
+    name: Flood N
+    update_interval: never
+  - platform: template
+    id: bump_sensor
+    name: Bump count
+    update_interval: never
+  - platform: template
+    id: loc_count
+    name: Local count
+    update_interval: never
+  - platform: template
+    id: loc_float
+    name: Local float
+    accuracy_decimals: 3
+    update_interval: never
+  - platform: template
+    id: ovf_enq
+    name: Ovf enqueue
+    update_interval: never
+  - platform: template
+    id: ovf_enq_b
+    name: Ovf enqueue bytes
+    update_interval: never
+  - platform: template
+    id: ovf_drain
+    name: Ovf drain
+    update_interval: never
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_b_count
+    name: R plain b count
+    provider: ${peer}b
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_b_flt
+    name: R plain b flt
+    provider: ${peer}b
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_p_count
+    name: R plain p count
+    provider: ${peer}p
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_p_flt
+    name: R plain p flt
+    provider: ${peer}p
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_b_count
+    name: R full b count
+    provider: ${peer}b
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_b_flt
+    name: R full b flt
+    provider: ${peer}b
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_p_count
+    name: R full p count
+    provider: ${peer}p
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_p_flt
+    name: R full p flt
+    provider: ${peer}p
+    remote_id: flt
+    accuracy_decimals: 3
+binary_sensor:
+  - platform: template
+    id: loc_bin
+    name: Local bin
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_b_bin
+    name: R plain b bin
+    provider: ${peer}b
+    remote_id: bin
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_p_bin
+    name: R plain p bin
+    provider: ${peer}p
+    remote_id: bin
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_b_bin
+    name: R full b bin
+    provider: ${peer}b
+    remote_id: bin
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_p_bin
+    name: R full p bin
+    provider: ${peer}p
+    remote_id: bin

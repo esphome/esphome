@@ -117,3 +117,66 @@ The DUT runs `ap:` plus `captive_portal:` with no station network and logs `wifi
 Erase the flash before each run so no saved credentials skip the portal. On dev the sleep type stayed 2 after
 provisioning although the config asked for none; with #22564 it read 0 from the moment the AP started, and the
 `networks:` path still read 0.
+
+## Counting the Disassociation burst at reboot (#22715)
+
+`scripts/wpa3_sniff/`: `w15ap.yaml` is a WPA3-SAE only AP with PMF required (any ESP32, set `board:`) that also turns
+on promiscuous mode with the management filter (`sniff_inc.hpp`) and logs each assoc request, auth, disassoc and deauth
+frame with transmitter, sequence number, Retry and Protected bits. The AP's own sniffer does see retransmitted copies
+addressed to it. `st-common.yaml` reboots 10 s after connect (alternating `App.reboot()`/`safe_reboot()`),
+`stearly-common.yaml` reboots on the first loop pass after `WIFI_EVENT_STA_CONNECTED` (0.15 to 0.46 ms later, before
+the Wi-Fi component handles the event), `ds-common.yaml` deep sleeps 5 s. `run.sh BUILD TREE SECONDS` (env ST, AP)
+flashes the station and captures both; `an15.py BUILD STA_MAC` groups the copies per reboot.
+- On ESP-IDF 5.5.6 the ESP32-C6 station sends 27 to 32 protected Disassociation copies on every reboot while
+  associated (espressif/esp-idf#19443); the classic ESP32 sends 1. Use a C6 (or C3) as the station.
+- Deep sleep on dev sends no Disassociation at all; the AP finds out only when the station returns (reason 2).
+- `esp_wifi_sta_get_ap_info()` already returns OK during the SAE exchange, before association completes.
+- A capture over the C6 USB-JTAG console loses the last log line before deep sleep; count from the AP side.
+- Serial capture timestamps are quantized to about 200 ms on a CH340, too coarse to time a 100 ms shutdown wait.
+
+## Configured credentials from flash (#22757)
+
+- Flows: two `networks:` with a hidden bogus one at higher priority, then the real one; the `wifisave_hammer.sh` flow
+  with `bogus_saves: 3`, long AP SSID and password (over 18 characters, the `CompactString` inline capacity), then an
+  RTS reset and an API restart; `wifi.configure` from `on_boot` after 25 s if not connected, then a reset (prints
+  "skipped"); a lambda building `WiFiAP` from runtime `std::string` and calling `set_sta()` + `start_connecting()`.
+- The ESP-IDF API client sees `Connection reset by peer` on disconnect after a button that reconnects Wi-Fi; harmless.
+
+## ESP32 with a hidden network first never joins (#22764)
+
+- On dev an ESP32 with a hidden bogus network listed first ends every attempt on the real network at once with
+  "Unspecified" or "Auth Leave" and never joins; without `hidden: true` it joins. An ESP8266 joins either way.
+- Cause, confirmed with debug prints: after the EXPLICIT_HIDDEN probe fails, the first real attempt calls
+  `esp_wifi_disconnect()` (config changed, not associated, nothing marked expected). The hidden attempt's leave event
+  (reason 36 STA_LEAVING, shown as "Unspecified", the bogus SSID, a zero BSSID) is then charged to the real attempt.
+  Attempt 2 gets reason 36 too, and the adapter restart aborts its auth (reason 3 "Auth Leave"). This loops forever on
+  ESP-IDF 5.5.6, with the esp-idf and arduino frameworks alike.
+- ESPHome does not print numeric reasons; add one log line in the STA_DISCONNECTED handler and one before
+  `esp_wifi_set_config` to see them. `esp32: framework: log_level: INFO` shows the IDF `state: init -> auth` lines.
+- Regression check: 2025.10.5 joins the hidden-first config (no explicit hidden phase); 2026.10.2 and dev loop.
+- Soft AP outage on demand without touching the real AP: a D1 mini AP-only config with `enable_on_boot: false` and an
+  `on_boot` delay of 20 s before `wifi.enable`; an RTS reset of the D1 gives a 20+ s outage (an ESP32 station sees
+  Beacon Timeout). The ESP8266 soft AP DHCP can take about 20 s to answer after association.
+- A soft AP that still holds an ESP32 from its previous boot rejects the first association with 'Too Many
+  Associations' (dev too), and some APs reject the first auth after a reset ("Authentication Failed" about 10 ms in,
+  attempt 2 joins).
+
+## Router outages timed into the portal cooldown (#22797)
+
+`scripts/wifi_outage/`: `rtr.yaml` makes a D1 mini an AP-only test router (its own SSID and password from secrets
+`t_ssid`/`t_pw`) that logs `AP client connected/disconnected`, `AP Distribute Station IP` and a 1 s `RTR` station list.
+`dut-common.yaml` is a BK7238 DUT (one network, `ap:` with `ap_timeout: 10s`, `captive_portal:`, UART1 log, `ALIVE`
+line) with `dhcpwrap.hpp`, a `-Wl,--wrap=udp_sendto_if`/`udp_sendto_if_src` hook that counts DHCP DISCOVER, REQUEST
+and RELEASE and logs `DHCPRELEASE sent n= up=` (`up` = netif still up). `c3-common.yaml` is an ESP-IDF C3 DUT without
+AP. `outage.py DUT_PORT RTR_PORT LABEL N [--no-ap]` owns both ports: waits for 20 s of `conn=1`, holds the D1 in reset
+(RTS on EN), waits for `→ RESTARTING` after `Starting fallback AP` (or `Restarting adapter` with `--no-ap`), lets the
+router boot 1 s later and watches 40 s. `an.py LABEL...` prints per outage skip, cooldown length, driver association
+and address inside the cooldown, Connected-then-lost, held, releases after the router was back and router-side leaves.
+- The D1 router is back about 1 s after release and hands out the address in about 0.2 s, but the BK7238 only reports
+  it 7 to 8 s after associating; the 30 s portal cooldown leaves plenty of room.
+- BK7238 on dev: the Beken supplicant keeps trying after the skip branch's `WiFi.disconnect()` and joins about 5 s into
+  the cooldown on every outage; base then logs Connected and, 200 ms later, Connection lost (20/20), #22797 0/20. The
+  BK station never deauths on that teardown: the ESP8266 router logs `err already associed!` and only then the leave.
+  The release is issued with the netif already down (`up=0`), so it is not proof it hit the air.
+- Opening the D1 mini port resets it once, so the first `Connection lost` in a capture is that reset, not an outage.
+- About 2 min per outage; run blocks of 10 interleaved base/PR with a reflash between.

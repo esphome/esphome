@@ -37,3 +37,12 @@ npm1300/*-cap.err
 npm1300/*-run.log
 rp2_sched_lock/*.txt
 rp2_sched_lock/*.log
+serial_proxy/*.txt
+serial_proxy/*.log
+web_server/async_bump/*.log
+web_server/async_bump/*.txt
+web_server/async_bump/*.pcap
+web_server/async_bump/img-*.bin
+wifi_outage/*.txt
+wpa3_sniff/*.txt
+api/overflow/putbe-sensors.yaml
