@@ -887,7 +887,11 @@ _request_log_listener_slot = cg.slot_counter("ESPHOME_LOG_MAX_LISTENERS")
 
 
 def request_console() -> None:
-    """Compile in Logger::console_read() and console_write(); call from to_code."""
+    """Compile in Logger::console_read() and console_write(); call from to_code.
+
+    Both do nothing for a USB_CDC logger on ESP32 targets without USB OTG (C3, C6, H2), and Zephyr has no
+    console API.
+    """
     cg.add_define("USE_LOGGER_CONSOLE")
 
 
