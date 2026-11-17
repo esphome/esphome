@@ -6,6 +6,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -755,38 +756,14 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   this->client_connected_trigger_.trigger();
 }
 
+// Indexed by State
+PROGMEM_STRING_TABLE(StateStrings, "IDLE", "START_MICROPHONE", "STARTING_MICROPHONE", "WAIT_FOR_VAD", "WAITING_FOR_VAD",
+                     "START_PIPELINE", "STARTING_PIPELINE", "STREAMING_MICROPHONE", "STOP_MICROPHONE",
+                     "STOPPING_MICROPHONE", "AWAITING_RESPONSE", "STREAMING_RESPONSE", "RESPONSE_FINISHED", "UNKNOWN");
+
 static const LogString *voice_assistant_state_to_string(State state) {
-  switch (state) {
-    case State::IDLE:
-      return LOG_STR("IDLE");
-    case State::START_MICROPHONE:
-      return LOG_STR("START_MICROPHONE");
-    case State::STARTING_MICROPHONE:
-      return LOG_STR("STARTING_MICROPHONE");
-    case State::WAIT_FOR_VAD:
-      return LOG_STR("WAIT_FOR_VAD");
-    case State::WAITING_FOR_VAD:
-      return LOG_STR("WAITING_FOR_VAD");
-    case State::START_PIPELINE:
-      return LOG_STR("START_PIPELINE");
-    case State::STARTING_PIPELINE:
-      return LOG_STR("STARTING_PIPELINE");
-    case State::STREAMING_MICROPHONE:
-      return LOG_STR("STREAMING_MICROPHONE");
-    case State::STOP_MICROPHONE:
-      return LOG_STR("STOP_MICROPHONE");
-    case State::STOPPING_MICROPHONE:
-      return LOG_STR("STOPPING_MICROPHONE");
-    case State::AWAITING_RESPONSE:
-      return LOG_STR("AWAITING_RESPONSE");
-    case State::STREAMING_RESPONSE:
-      return LOG_STR("STREAMING_RESPONSE");
-    case State::RESPONSE_FINISHED:
-      return LOG_STR("RESPONSE_FINISHED");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-};
+  return StateStrings::get_log_str(static_cast<uint8_t>(state), StateStrings::LAST_INDEX);
+}
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 static bool is_microphone_streaming_state(State state) {

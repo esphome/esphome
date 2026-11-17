@@ -1,30 +1,16 @@
 #include "menu_item.h"
+#include "esphome/core/progmem.h"
 
 #include <cstdio>
 
 namespace esphome::display_menu_base {
 
+// Indexed by MenuItemType
+PROGMEM_STRING_TABLE(MenuItemTypeStrings, "MENU_ITEM_LABEL", "MENU_ITEM_MENU", "MENU_ITEM_BACK", "MENU_ITEM_SELECT",
+                     "MENU_ITEM_NUMBER", "MENU_ITEM_SWITCH", "MENU_ITEM_COMMAND", "MENU_ITEM_CUSTOM", "UNKNOWN");
+
 const LogString *menu_item_type_to_string(MenuItemType type) {
-  switch (type) {
-    case MenuItemType::MENU_ITEM_LABEL:
-      return LOG_STR("MENU_ITEM_LABEL");
-    case MenuItemType::MENU_ITEM_MENU:
-      return LOG_STR("MENU_ITEM_MENU");
-    case MenuItemType::MENU_ITEM_BACK:
-      return LOG_STR("MENU_ITEM_BACK");
-    case MenuItemType::MENU_ITEM_SELECT:
-      return LOG_STR("MENU_ITEM_SELECT");
-    case MenuItemType::MENU_ITEM_NUMBER:
-      return LOG_STR("MENU_ITEM_NUMBER");
-    case MenuItemType::MENU_ITEM_SWITCH:
-      return LOG_STR("MENU_ITEM_SWITCH");
-    case MenuItemType::MENU_ITEM_COMMAND:
-      return LOG_STR("MENU_ITEM_COMMAND");
-    case MenuItemType::MENU_ITEM_CUSTOM:
-      return LOG_STR("MENU_ITEM_CUSTOM");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return MenuItemTypeStrings::get_log_str(static_cast<uint8_t>(type), MenuItemTypeStrings::LAST_INDEX);
 }
 
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }

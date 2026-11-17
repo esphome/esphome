@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::remote_base {
 
@@ -222,23 +223,12 @@ optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
   return out;
 }
 
+// Indexed by IRA211Command
+PROGMEM_STRING_TABLE(IRA211CommandStrings, "UNKNOWN", "TEMP_UP", "TEMP_DOWN", "UNKNOWN", "MODE", "FAN", "POWER",
+                     "SYNC");
+
 static const LogString *command_to_string(IRA211Command command) {
-  switch (command) {
-    case IRA211Command::IRA211_COMMAND_TEMP_UP:
-      return LOG_STR("TEMP_UP");
-    case IRA211Command::IRA211_COMMAND_TEMP_DOWN:
-      return LOG_STR("TEMP_DOWN");
-    case IRA211Command::IRA211_COMMAND_MODE:
-      return LOG_STR("MODE");
-    case IRA211Command::IRA211_COMMAND_FAN:
-      return LOG_STR("FAN");
-    case IRA211Command::IRA211_COMMAND_POWER:
-      return LOG_STR("POWER");
-    case IRA211Command::IRA211_COMMAND_SYNC:
-      return LOG_STR("SYNC");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return IRA211CommandStrings::get_log_str(static_cast<uint8_t>(command), 0);
 }
 
 static const LogString *mode_to_string(IRA211Mode mode) {

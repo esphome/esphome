@@ -1,21 +1,16 @@
 #include "uln2003.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::uln2003 {
 
 ESPHOME_LOG_TAG(TAG, "uln2003.stepper");
 
+// Indexed by ULN2003StepMode
+PROGMEM_STRING_TABLE(StepModeStrings, "FULL STEP", "HALF STEP", "WAVE DRIVE", "UNKNOWN");
+
 static const LogString *step_mode_to_log_string(ULN2003StepMode mode) {
-  switch (mode) {
-    case ULN2003_STEP_MODE_FULL_STEP:
-      return LOG_STR("FULL STEP");
-    case ULN2003_STEP_MODE_HALF_STEP:
-      return LOG_STR("HALF STEP");
-    case ULN2003_STEP_MODE_WAVE_DRIVE:
-      return LOG_STR("WAVE DRIVE");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return StepModeStrings::get_log_str(static_cast<uint8_t>(mode), StepModeStrings::LAST_INDEX);
 }
 
 void ULN2003::setup() {
