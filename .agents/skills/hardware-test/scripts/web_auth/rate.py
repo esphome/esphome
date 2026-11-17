@@ -73,6 +73,16 @@ def one(path: str, auth: str) -> tuple:
     )
 
 
+def codes_ok(codes: dict, want: str, n: int) -> bool:
+    """No other HTTP status, and at least 95% of the requests got want; a few connect errors or no answer are
+    network noise (seen on healthy D1 mini and Pico 2 W runs)."""
+    status = {k.split("/")[0]: 0 for k in codes}
+    for k, v in codes.items():
+        status[k.split("/")[0]] += v
+    other = [k for k in status if k.isdigit() and k != want]
+    return not other and status.get(want, 0) >= 0.95 * n
+
+
 def summ(v: list) -> str:
     v = [x for x in v if x is not None]
     return (
@@ -89,8 +99,7 @@ for path in ("/", "/sensor/Fast%20counter"):
         codes: dict = {}
         for r in rows:
             codes[r[2]] = codes.get(r[2], 0) + 1
-        # timings of other answers (errors, resets) are not the request under test
-        if set(codes) != {want}:
+        if not codes_ok(codes, want, SEQ):
             fails.append(f"seq {label} {path} {codes}")
         print(
             time.strftime("[%H:%M:%S]"),

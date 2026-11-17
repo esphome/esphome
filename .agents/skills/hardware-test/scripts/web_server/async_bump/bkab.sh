@@ -24,7 +24,8 @@ for N in "$@"; do
   [ -s "$D/$T.pcap" ] || { echo "pcap: none written (tcpdump capture rights?)"; FAILED+=("p$k:pcap"); }
   [ -s "$D/$T-serial.log" ] ||
     { echo "serial: EMPTY capture, counts below mean nothing: $(tail -1 "$D/$T-cap.err")"; FAILED+=("p$k:capture"); }
-  CR=$(grep -a -c -E 'CRASH|Crash|abort|HardFault|Undefined' "$D/$T-serial.log")
+  # not a bare "abort": the Wi-Fi component logs "aborting connection" on a healthy boot
+  CR=$(grep -a -c -E 'CRASH|Crash|abort\(\)|HardFault|Undefined instruction' "$D/$T-serial.log")
   [ "$CR" = 0 ] || FAILED+=("p$k:crash")
   echo "serial: crash lines $CR," \
     "boots $(grep -a -c 'Log initialized' "$D/$T-serial.log")"

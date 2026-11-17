@@ -26,9 +26,9 @@ sleep 5; pkill -f "[s]erial_capture.py $P "; sleep 1
 L=$D/$N-serial.log
 CR=$(grep -a -c -E 'Panic |Exception \(|Fatal exception|HardFault|Hard Fault|CRASH|abort\(\)|Soft WDT|wdt reset|assert|Backtrace' "$L")
 [ "$CR" = 0 ] || RC=1
-BOOTS=$(grep -a -c -E 'Log initialized' "$L")
-echo "SERIAL crash lines $CR," \
-  "boots $BOOTS, port losses $(grep -a -c 'port lost' "$L"), lines $(wc -l < "$L")"
-# the web OTA and the restart press each reboot the board, so a capture with no boot saw nothing
-[ -s "$L" ] && [ "$BOOTS" -gt 0 ] || { echo "SERIAL capture empty or shows no boot: $(tail -1 "$D/$N-cap.err")"; RC=1; }
+BOOTS=$(grep -a -c -E 'Log initialized|ESPHome version .* compiled on' "$L"); LOST=$(grep -a -c 'port lost' "$L")
+echo "SERIAL crash lines $CR, boots $BOOTS, port losses $LOST, lines $(wc -l < "$L")"
+# the web OTA and the restart press each reboot the board, so a capture with no boot saw nothing; a native USB
+# port (Pico) can lose the boot banner, but then the capture shows the port going away
+[ -s "$L" ] && [ $((BOOTS + LOST)) -gt 0 ] || { echo "SERIAL capture empty or shows no boot: $(tail -1 "$D/$N-cap.err")"; RC=1; }
 exit $RC
