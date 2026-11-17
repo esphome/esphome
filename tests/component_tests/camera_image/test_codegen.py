@@ -46,35 +46,44 @@ display:
 """
 
 
+def _options(*lines: str) -> str:
+    """Join camera_image option lines for insertion into BASE."""
+    return "".join(f"{line}\n" for line in lines)
+
+
 @pytest.mark.parametrize(
     ("extra", "expected_size", "transformed"),
     [
         # resize only bounds the frame: 640x480 fitted into 320x320 is 320x240,
         # so that is both the size to report and the size the buffer holds.
-        ("    resize: 320x320\n", (320, 240), False),
+        (_options("    resize: 320x320"), (320, 240), False),
         # A rotation publishes the decoded size swapped, and needs scratch memory
         # for exactly that, not for the larger resize box.
-        ("    resize: 320x320\n    rotation: 90\n", (240, 320), True),
-        ("    resize: 320x320\n    rotation: 180\n", (320, 240), True),
+        (_options("    resize: 320x320", "    rotation: 90"), (240, 320), True),
+        (_options("    resize: 320x320", "    rotation: 180"), (320, 240), True),
         # A crop publishes the crop size, swapped by a 90 or 270 degree rotation.
         (
-            "    resize: 320x320\n"
-            "    crop:\n"
-            "      x: 10\n"
-            "      y: 10\n"
-            "      width: 100\n"
-            "      height: 80\n",
+            _options(
+                "    resize: 320x320",
+                "    crop:",
+                "      x: 10",
+                "      y: 10",
+                "      width: 100",
+                "      height: 80",
+            ),
             (100, 80),
             True,
         ),
         (
-            "    resize: 320x320\n"
-            "    crop:\n"
-            "      x: 10\n"
-            "      y: 10\n"
-            "      width: 100\n"
-            "      height: 80\n"
-            "    rotation: 270\n",
+            _options(
+                "    resize: 320x320",
+                "    crop:",
+                "      x: 10",
+                "      y: 10",
+                "      width: 100",
+                "      height: 80",
+                "    rotation: 270",
+            ),
             (80, 100),
             True,
         ),
