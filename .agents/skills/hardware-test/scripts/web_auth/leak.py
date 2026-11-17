@@ -26,6 +26,21 @@ RATE = float(sys.argv[8]) if len(sys.argv) > 8 else 0.0
 af.configure(HOST, U, P)
 
 
+def load_problem(codes: dict, sse: dict) -> str | None:
+    """Why a round's load does not count, or None: too few wrong-hash requests ran (80% of RATE x CONC_S paced,
+    1 per second unpaced), fewer than 80% of them got a 401, or the /events stream never delivered a state."""
+    total = sum(codes.values())
+    got_401 = sum(v for k, v in codes.items() if k.split("/")[0] == "401")
+    need = 0.8 * RATE * CONC if RATE > 0 else CONC
+    if total < need:
+        return f"{total} requests, expected at least {need:.0f}"
+    if got_401 < 0.8 * total:
+        return f"only {got_401} of {total} requests got a 401"
+    if not sse["opens"] or not sse["states"]:
+        return "no /events states"
+    return None
+
+
 def heap_settled() -> tuple:
     time.sleep(SETTLE)
     return af.heap(5), af.uptime(5)
@@ -35,6 +50,7 @@ h, u = heap_settled()
 print(time.strftime("[%H:%M:%S]"), f"idle heap {h} uptime {u}", flush=True)
 ups = [u]
 heaps = [h]
+load_fails = []
 for r in range(ROUNDS):
     stop = time.monotonic() + CONC
     codes: dict = {}
@@ -100,11 +116,20 @@ for r in range(ROUNDS):
     )
     ups.append(u)
     heaps.append(h)
+    if why := load_problem(codes, sse):
+        print(
+            time.strftime("[%H:%M:%S]"),
+            f"round {r}: load not applied: {why}",
+            flush=True,
+        )
+        load_fails.append(r)
 # a missing reading or an uptime that went down (a reboot) makes the heap numbers meaningless
 fails = []
 if any(x is None for x in heaps + ups):
     fails.append("missing heap or uptime reading")
 elif any(b < a for a, b in zip(ups, ups[1:], strict=False)):
     fails.append("reboot (uptime went down)")
+if load_fails:
+    fails.append(f"load not applied in rounds {load_fails}")
 print("PASS" if not fails else "FAIL: " + ", ".join(fails), flush=True)
 sys.exit(1 if fails else 0)
