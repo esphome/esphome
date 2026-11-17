@@ -39,6 +39,91 @@ binary_sensor:
       code: "01001001110100"
       channel: B
   - platform: remote_receiver
+    name: Samsung Remote Input
+    samsung:
+      data: 0xE0E040BF
+  - platform: remote_receiver
+    name: Beo4 Remote Input
+    beo4:
+      source: 0x01
+      command: 0x0C
+  - platform: remote_receiver
+    name: Brennenstuhl Remote Input
+    brennenstuhl:
+      code: 0x123456
+  - platform: remote_receiver
+    name: ByronSX Remote Input
+    byronsx:
+      address: 0x12
+  - platform: remote_receiver
+    name: CanalSat Remote Input
+    canalsat:
+      device: 0x25
+      command: 0x02
+  - platform: remote_receiver
+    name: Dish Remote Input
+    dish:
+      command: 0x10
+  - platform: remote_receiver
+    name: Dyson Remote Input
+    dyson:
+      code: 0x1200
+  - platform: remote_receiver
+    name: Gobox Remote Input
+    gobox:
+      code: 0xAA55
+  - platform: remote_receiver
+    name: JVC Remote Input
+    jvc:
+      data: 0x5583
+  - platform: remote_receiver
+    name: LG Remote Input
+    lg:
+      data: 0x20DF10EF
+  - platform: remote_receiver
+    name: Nexa Remote Input
+    nexa:
+      device: 0x1
+      group: 0
+      state: 0
+      channel: 0
+      level: 0
+  - platform: remote_receiver
+    name: Onkyo RI Remote Input
+    onkyori:
+      data: 0x123
+  - platform: remote_receiver
+    name: Pioneer Remote Input
+    pioneer:
+      rc_code_1: 0xA556
+  - platform: remote_receiver
+    name: RC5 Remote Input
+    rc5:
+      address: 0x10
+      command: 0x20
+  - platform: remote_receiver
+    name: Roomba Remote Input
+    roomba:
+      data: 0x88
+  - platform: remote_receiver
+    name: Samsung36 Remote Input
+    samsung36:
+      address: 0x0400
+      command: 0x000E00FF
+  - platform: remote_receiver
+    name: Sony Remote Input
+    sony:
+      data: 0xA90
+  - platform: remote_receiver
+    name: Toshiba AC Remote Input
+    toshiba_ac:
+      rc_code_1: 0xB24DBF4040BF
+  - platform: remote_receiver
+    name: Symphony Remote Input
+    symphony:
+      data: 0xD82
+      nbits: 12
+  - platform: remote_receiver
     name: CanalSatLD Remote Input
     canalsatld:
       device: 0x7F
@@ -122,6 +207,11 @@ binary_sensor:
   - platform: remote_receiver
     name: MagiQuest Any Wand
     magiquest: {}
+  - platform: remote_receiver
+    name: MagiQuest Wand With Magnitude
+    magiquest:
+      wand_id: 0x0F1E2D3C
+      magnitude: 0x1234
   - platform: remote_receiver
     name: Nexus Sensor
     nexus:
