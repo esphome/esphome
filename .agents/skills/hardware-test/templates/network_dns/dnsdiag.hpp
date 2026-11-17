@@ -24,7 +24,10 @@ static bool is_zero(const esp_ip_addr_t &a) {
 }
 static esp_ip_addr_t dns(esp_netif_t *n, esp_netif_dns_type_t t) {
   esp_netif_dns_info_t d{};
-  esp_netif_get_dns_info(n, t, &d);  // NULL reads lwIP's global table
+  // NULL reads lwIP's global table; a failed read is logged so it is not mistaken for an empty server
+  esp_err_t err = esp_netif_get_dns_info(n, t, &d);
+  if (err != ESP_OK)
+    ESP_LOGW(TAG, "DNS read failed on %s: %s", n ? esp_netif_get_desc(n) : "global", esp_err_to_name(err));
   return d.ip;
 }
 // label: 0 = empty, E = eth's, W = wifi's, B = both (same server), X = something else

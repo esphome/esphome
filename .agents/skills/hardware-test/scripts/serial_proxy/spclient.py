@@ -306,6 +306,12 @@ async def main() -> None:
         flush=True,
     )
     rtask = asyncio.create_task(c.reader())
+
+    def reader_done(t: asyncio.Task) -> None:
+        if not t.cancelled() and (e := t.exception()) is not None:
+            print(f"READER FAILED {type(e).__name__}: {e}", flush=True)
+
+    rtask.add_done_callback(reader_done)
     await c.acked(
         api_pb2.HelloRequest(
             client_info="spclient", api_version_major=1, api_version_minor=10
@@ -386,8 +392,10 @@ async def main() -> None:
         await asyncio.sleep(0.5)
     if isinstance(check, ReplyCheck):
         check.finish()
+    # a reader that died (closed connection, bad frame) ends the counts early; say so on the RESULT line
+    reader = "stopped" if rtask.done() else "ok"
     print(
-        f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()}",
+        f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()} reader={reader}",
         flush=True,
     )
     rtask.cancel()

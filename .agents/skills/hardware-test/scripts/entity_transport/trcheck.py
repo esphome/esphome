@@ -116,6 +116,9 @@ async def main():
                 if prior:
                     lags.append(prior[-1] - int(v))
             r["max_lag_s"] = max(lags) if lags else None
+        elif field == "flt" and not h["count"]:
+            # no sender count over the API: the floats cannot be checked, which fails the link
+            r["no_sender_counts"] = True
         elif field == "flt":
             ok_t = [
                 t
@@ -148,6 +151,7 @@ async def main():
             r["updates"] < 3
             or r.get("not_sent", 0)
             or r.get("sender_float_mismatch", 0)
+            or r.get("no_sender_counts")
         ):
             ok = False
         if "transitions" in r and r["transitions"] < 2:

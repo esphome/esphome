@@ -47,10 +47,14 @@ static void sniff_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 static void sniff_start() {
   wifi_promiscuous_filter_t flt{};
   flt.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;
-  esp_wifi_set_promiscuous_filter(&flt);
-  esp_wifi_set_promiscuous_rx_cb(sniff_cb);
+  esp_err_t e_flt = esp_wifi_set_promiscuous_filter(&flt);
+  esp_err_t e_cb = esp_wifi_set_promiscuous_rx_cb(sniff_cb);
   esp_err_t err = esp_wifi_set_promiscuous(true);
-  ESP_LOGI("wdap", "SNIFFER start: %d", err);
+  if (e_flt != ESP_OK || e_cb != ESP_OK || err != ESP_OK) {
+    ESP_LOGE("wdap", "SNIFFER start failed: filter %d callback %d enable %d", e_flt, e_cb, err);
+  } else {
+    ESP_LOGI("wdap", "SNIFFER started");
+  }
 }
 
 static void sniff_drain() {

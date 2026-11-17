@@ -136,9 +136,15 @@ async def main():
     res.update(stats)
     res["flood_n"] = fN
     res["final_states_match"] = final_ok
-    res["ovf_enqueue_delta"] = o1[0] - o0[0]
-    res["ovf_drain_delta"] = o1[1] - o0[1]
-    res["ovf_enqueue_bytes_delta"] = o1[2] - o0[2]
+    # a counter with no state (missing or NaN) gives no delta, which fails the run
+    for name, a, b in zip(
+        ("ovf_enqueue_delta", "ovf_drain_delta", "ovf_enqueue_bytes_delta"),
+        o0,
+        o1,
+        strict=True,
+    ):
+        ok_ab = all(x is not None and not math.isnan(x) for x in (a, b))
+        res[name] = b - a if ok_ab else None
     res["dropped"] = stopped["t"] is not None
     await cli.disconnect()
     res["pass"] = (
@@ -147,8 +153,8 @@ async def main():
         and res["bump_delta"] == 5
         and stats["bad_sensor"] == 0
         and stats["bad_text"] == 0
-        and res["ovf_enqueue_delta"] > 0
-        and res["ovf_drain_delta"] > 0
+        and (res["ovf_enqueue_delta"] or 0) > 0
+        and (res["ovf_drain_delta"] or 0) > 0
     )
     print(json.dumps(res))
     pathlib.Path(OUT).write_text(json.dumps(res, indent=1), encoding="utf-8")

@@ -21,10 +21,19 @@ while time.monotonic() < end:
     for p in ("/", "/metrics", "/sensor/Fast%20counter", "/light/Test%20light"):
         rest.req(p, timeout=8)
     time.sleep(4)
-state = {"n": 0, "last": None}
+state = {"n": 0, "last": None, "ended": False}
 
 
 def sse():
+    """Reader thread; an error or a device close is printed and flagged, so it never reads as a stall."""
+    try:
+        sse_read()
+    except Exception as e:  # noqa: BLE001
+        print(f"SSE FAILED {type(e).__name__}: {e}", flush=True)
+        state["ended"] = True
+
+
+def sse_read():
     s = socket.create_connection((host, 80), timeout=10)
     s.sendall(
         f"GET /events HTTP/1.1\r\nHost: {host}\r\nAccept: text/event-stream\r\n\r\n".encode()
@@ -40,6 +49,7 @@ def sse():
             continue
         if not d:
             print("closed", flush=True)
+            state["ended"] = True
             return
         buf += d
         while b"\n" in buf:
@@ -70,7 +80,10 @@ while time.monotonic() - t0 < secs:
     tot.append(n)
     lag = (rv - state["last"]) if rv is not None and state["last"] is not None else None
     print(
-        f"t={time.monotonic() - t0:4.0f}s sse fast events {n:3d}  sse last {state['last']}  rest {rv}  lag {lag}  uptime {up}",
+        f"t={time.monotonic() - t0:4.0f}s sse fast events {n:3d}  sse last {state['last']}  rest {rv}  lag {lag}  uptime {up}{'  SSE ENDED' if state['ended'] else ''}",
         flush=True,
     )
-print(f"TOTAL sse fast events {sum(tot)} in {secs:.0f}s ({sum(tot) / secs:.1f}/s)")
+print(
+    f"TOTAL sse fast events {sum(tot)} in {secs:.0f}s ({sum(tot) / secs:.1f}/s)"
+    + (" (SSE ended early)" if state["ended"] else "")
+)

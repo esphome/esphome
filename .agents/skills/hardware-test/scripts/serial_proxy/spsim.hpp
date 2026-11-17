@@ -145,7 +145,12 @@ inline void on_frame() {
       break;
     case 'B': {
       cmd[cmd_len] = 0;
-      uint32_t baud = strtoul((const char *) cmd + 1, nullptr, 10);
+      char *end = nullptr;
+      uint32_t baud = strtoul((const char *) cmd + 1, &end, 10);
+      if (baud == 0 || *end != '\0') {
+        ESP_LOGW(TAG, "bad baud command '%s'", (const char *) cmd + 1);
+        break;
+      }
       bus->flush();
       bus->set_baud_rate(baud);
       bus->load_settings(false);

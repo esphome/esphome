@@ -13,12 +13,15 @@ import sys
 
 pcap, dev = sys.argv[1], sys.argv[2]
 port = sys.argv[3] if len(sys.argv) > 3 else "80"
-out = subprocess.run(
+proc = subprocess.run(
     ["tcpdump", "-nn", "-tt", "-r", pcap, f"tcp port {port}"],
     capture_output=True,
     text=True,
     check=False,
-).stdout
+)
+if proc.returncode:
+    sys.exit(f"tcpdump failed ({proc.returncode}): {proc.stderr.strip()}")
+out = proc.stdout
 pat = re.compile(
     r"^(\d+\.\d+) IP (\S+)\.(\d+) > (\S+)\.(\d+): Flags \[([^\]]+)\].*?length (\d+)"
 )
