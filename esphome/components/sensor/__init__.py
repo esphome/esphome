@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import Any, NamedTuple
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -422,19 +422,35 @@ _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
 _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
-class SensorKind(NamedTuple):
+class SensorKind:
     """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
 
     `state_class` is always set (measurement by default). `accuracy_decimals` is only a
     default, as sensors differ; the caller's value wins. Passing any other field the kind
-    sets is an error.
+    sets is an error. A plain class, not a NamedTuple, which costs more to import.
     """
 
-    unit_of_measurement: str = cv.UNDEFINED
-    device_class: str = cv.UNDEFINED
-    state_class: str = STATE_CLASS_MEASUREMENT
-    icon: str = cv.UNDEFINED
-    accuracy_decimals: int = cv.UNDEFINED
+    __slots__ = (
+        "unit_of_measurement",
+        "device_class",
+        "state_class",
+        "icon",
+        "accuracy_decimals",
+    )
+
+    def __init__(
+        self,
+        unit_of_measurement: str = cv.UNDEFINED,
+        device_class: str = cv.UNDEFINED,
+        state_class: str = STATE_CLASS_MEASUREMENT,
+        icon: str = cv.UNDEFINED,
+        accuracy_decimals: int = cv.UNDEFINED,
+    ) -> None:
+        self.unit_of_measurement = unit_of_measurement
+        self.device_class = device_class
+        self.state_class = state_class
+        self.icon = icon
+        self.accuracy_decimals = accuracy_decimals
 
 
 TEMPERATURE = SensorKind(UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE, accuracy_decimals=1)
@@ -449,8 +465,11 @@ MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decima
 
 
 def _particulate(device_class: str) -> SensorKind:
-    return MASS_CONCENTRATION._replace(
-        device_class=device_class, icon=ICON_CHEMICAL_WEAPON
+    return SensorKind(
+        UNIT_MICROGRAMS_PER_CUBIC_METER,
+        device_class,
+        icon=ICON_CHEMICAL_WEAPON,
+        accuracy_decimals=0,
     )
 
 
@@ -502,6 +521,16 @@ LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
 RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
 
 
+def _kind_value(kind: SensorKind, name: str, value: Any) -> Any:
+    """The kind's value for `name`, or the caller's if the kind leaves it unset."""
+    preset = getattr(kind, name)
+    if preset is cv.UNDEFINED:
+        return value
+    if value is not cv.UNDEFINED:
+        raise ValueError(f"kind already sets {name}")
+    return preset
+
+
 def sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -516,17 +545,14 @@ def sensor_schema(
 ) -> cv.Schema:
     """Sensor schema; `kind` presets the unit, device class, state class, icon and decimals."""
     if kind is not cv.UNDEFINED:
-        if accuracy_decimals is not cv.UNDEFINED:
-            kind = kind._replace(accuracy_decimals=accuracy_decimals)
-        given = (unit_of_measurement, device_class, state_class, icon, cv.UNDEFINED)
-        merged = []
-        for name, preset, value in zip(kind._fields, kind, given, strict=True):
-            if preset is not cv.UNDEFINED and value is not cv.UNDEFINED:
-                raise ValueError(f"kind already sets {name}")
-            merged.append(value if preset is cv.UNDEFINED else preset)
-        unit_of_measurement, device_class, state_class, icon, accuracy_decimals = (
-            SensorKind(*merged)
+        unit_of_measurement = _kind_value(
+            kind, "unit_of_measurement", unit_of_measurement
         )
+        device_class = _kind_value(kind, "device_class", device_class)
+        state_class = _kind_value(kind, "state_class", state_class)
+        icon = _kind_value(kind, "icon", icon)
+        if accuracy_decimals is cv.UNDEFINED:
+            accuracy_decimals = kind.accuracy_decimals
 
     schema = {}
 
