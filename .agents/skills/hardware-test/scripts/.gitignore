@@ -54,5 +54,6 @@ xiaomi_ble/*-cap.txt
 xiaomi_ble/frames_all.hpp
 xiaomi_ble/xball_entities.yaml
 xiaomi_ble/expected_all.json
+xiaomi_ble/run_*.yaml
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
