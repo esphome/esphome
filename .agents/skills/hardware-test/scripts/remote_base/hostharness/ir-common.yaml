@@ -1,5 +1,7 @@
 esphome:
   name: ${name}
+  includes:
+    - rbh.hpp
 logger:
   level: DEBUG
 wifi:
@@ -25,28 +27,13 @@ remote_receiver:
   dump: [aeha, haier, mirage]
   on_aeha:
     then:
-      - lambda: |-
-          std::vector<uint8_t> v = x.data;
-          uint32_t s = 0;
-          for (auto b : x.data) s += b;
-          bool eq = (v == x.data) && (x.data == v) && !(x.data != v);
-          ESP_LOGI("loop", "ON_AEHA n=%u hex=%s sum=%u eq=%d front=%u", (unsigned) x.data.size(), format_hex(x.data).c_str(), (unsigned) s, eq ? 1 : 0, (unsigned) x.data.front());
+      - lambda: rbh_on_frame("ON_AEHA", x.data);
   on_haier:
     then:
-      - lambda: |-
-          std::vector<uint8_t> v = x.data;
-          uint32_t s = 0;
-          for (auto b : x.data) s += b;
-          bool eq = (v == x.data) && (x.data == v) && !(x.data != v);
-          ESP_LOGI("loop", "ON_HAIER n=%u hex=%s sum=%u eq=%d front=%u", (unsigned) x.data.size(), format_hex(x.data).c_str(), (unsigned) s, eq ? 1 : 0, (unsigned) x.data.front());
+      - lambda: rbh_on_frame("ON_HAIER", x.data);
   on_mirage:
     then:
-      - lambda: |-
-          std::vector<uint8_t> v = x.data;
-          uint32_t s = 0;
-          for (auto b : x.data) s += b;
-          bool eq = (v == x.data) && (x.data == v) && !(x.data != v);
-          ESP_LOGI("loop", "ON_MIRAGE n=%u hex=%s sum=%u eq=%d front=%u", (unsigned) x.data.size(), format_hex(x.data).c_str(), (unsigned) s, eq ? 1 : 0, (unsigned) x.data.front());
+      - lambda: rbh_on_frame("ON_MIRAGE", x.data);
 button:
   - platform: template
     name: TX all

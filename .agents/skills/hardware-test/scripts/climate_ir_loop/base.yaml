@@ -1,3 +1,4 @@
+# Network, API and the VERBOSE logger setup shared by the climate loopback configs.
 esphome:
   name: ${name}
 wifi:

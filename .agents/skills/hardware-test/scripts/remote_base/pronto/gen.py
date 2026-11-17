@@ -74,9 +74,7 @@ binary_sensor:
       data: "{pronto(frames["raw21a"]).strip()}"
     on_press: [{{logger.log: 'BS pronto a ON'}}]
 """)
-y.append("""remote_receiver_triggers: &x {}
-""")
-pathlib.Path(sys.argv[1]).write_text("\n".join(y[:-1]), encoding="utf-8")
+pathlib.Path(sys.argv[1]).write_text("\n".join(y), encoding="utf-8")
 for k, v in frames.items():
     print(k, len(v), (4 + len(v)) * 5)
 print("PRONTO_A", pronto(frames["raw21a"]))

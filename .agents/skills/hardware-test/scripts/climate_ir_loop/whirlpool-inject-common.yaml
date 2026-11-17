@@ -1,27 +1,7 @@
-esphome:
-  name: ${name}
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  power_save_mode: none
-logger:
-  level: VERBOSE
-  logs:
-    wifi: DEBUG
-    api: DEBUG
-    api.service: DEBUG
-    api.connection: DEBUG
-    scheduler: DEBUG
-    component: DEBUG
-    esp32.preferences: DEBUG
-    esp8266.preferences: DEBUG
-    preferences: DEBUG
-    mdns: DEBUG
-    sensor: DEBUG
-    remote_receiver: DEBUG
-    remote_transmitter: DEBUG
+# API actions that send whirlpool frames the sender cannot produce; add a board package and whirlpool/cl.yaml.
+packages:
+  base: !include base.yaml
 api:
-  reboot_timeout: 0s
   actions:
     # A Hitachi frame the sender cannot produce: temperature nibble 15 (16 + 15 = 31 C, above the 30 C max), cool, fan low
     - action: inject_t15
@@ -66,5 +46,3 @@ api:
             }
             d->mark(572);
             call.perform();
-ota:
-  - platform: esphome

@@ -1,6 +1,7 @@
 """drive.py IP STEP...: STEP is 'Name:mode=cool,t=24,fan=low,swing=vertical' or 'svc:action'; prints climate states after each."""
 
 import asyncio
+import os
 import pathlib
 import sys
 import time
@@ -65,7 +66,7 @@ async def main() -> None:
                 elif k == "preset":
                     kw["preset"] = PRESETS[v]
             c.climate_command(clim[name].key, **kw)
-        await asyncio.sleep(float(__import__("os").environ.get("STEP_S", "2.5")))
+        await asyncio.sleep(float(os.environ.get("STEP_S", "2.5")))
         show("after")
     await c.disconnect()
 

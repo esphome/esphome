@@ -41,7 +41,8 @@ tracker as scan results: everything after the radio runs as normal.
 
 - `gen_all.py` writes `frames_all.hpp`, `xball_entities.yaml` and `expected_all.json`: one device per platform
   (the 20 listener-only platforms, `xiaomi_mue4094rt`, `xiaomi_rtcgq02lm` hub, `xiaomi_body_scale`, ATC, PVVX),
-  10 cycles, every frame sent twice. Each entity logs `PUB <dev>.<key> <value>` on publish (binary sensors with
+  10 cycles, every frame sent twice. `mibeacon.py` holds the frame builders and the C++ injector that `gen.py`
+  and `gen_all.py` share. Each entity logs `PUB <dev>.<key> <value>` on publish (binary sensors with
   `trigger_on_initial_state: true`). Frame shapes that parse: long encrypted (fc 0x58) only up to 24 bytes, so
   a 7 byte `th` object needs the short 19 byte frame, which only lywsd02mmc, xmwsdj04mmc, mjyd02yla, cgpr1 and
   rtcgq02lm accept; hhccjcy10 is FD50 9 bytes and miscale v1 181D 10 bytes (no counter, the repeat publishes

@@ -80,7 +80,7 @@ its `osi_alarm_new` callback, BTC task), `btm_ble_timeout` (BTU task) and the IN
 `scaninst`; a lost completion shows where the chain stopped (timer > fire + 1, fire > timeout, timeout > cmpl_post, or
 cmpl_post above the ESPHome-side `ends / 2`). `ha.py HOST OUT SECONDS [--toggle S --jitter J]` is the Home Assistant
 stand-in (raw adverts, scanner state, set mode passive once, optional active/passive toggles). `soak.sh TAG HOST
-SECONDS [ha.py options]` (env PORT) runs a bounded serial capture plus ha.py, with the API key in `apikey.txt`.
+SECONDS [ha.py options]` (env PORT, API_KEY or else `apikey.txt`) runs a bounded serial capture plus ha.py.
 `wait.sh CAPTURE SECONDS [FROM_LINE]` blocks until a timeout, drop or unexpected-state line and prints the counters.
 - Bluedroid and IDF log lines reach the ESPHome log as tag `esp-idf` at VERBOSE (`[V][esp-idf:000][BTU_TASK]: E ...`),
   so a user capturing at INFO over the API never sees a Bluedroid error.

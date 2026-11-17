@@ -1,18 +1,20 @@
 """Drive the tuyasim scenario over the API and record every entity state (esphome#22724).
 
-usage: tuyadrive.py HOST OUT.json   (API_KEY in the env; scripts dir with apiconn.py on PYTHONPATH)
+usage: tuyadrive.py HOST OUT.json   (API_KEY in the env)
 Presses "Sim start", waits for the scripted datapoint changes, then sends switch, select, water heater, number and
 fan commands. OUT.json gets the ordered state list per entity; a summary is printed.
 """
 
 import asyncio
+from collections import Counter
 import json
 import pathlib
 import sys
 import time
 
-from aioesphomeapi import WaterHeaterMode
-from apiconn import connect
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from aioesphomeapi import WaterHeaterMode  # noqa: E402
+from apiconn import connect  # noqa: E402
 
 STEPS_WAIT = 32  # 18 steps 1.5 s apart, plus margin
 
@@ -102,12 +104,9 @@ async def main(host: str, out: str) -> None:
 
     with pathlib.Path(out).open("w", encoding="utf-8") as f:
         json.dump(events, f, indent=1)
-    counts = {}
-    for ev in events:
-        if ev["entity"] == "CMD":
-            continue
-        counts.setdefault((ev["phase"], ev["entity"]), 0)
-        counts[(ev["phase"], ev["entity"])] += 1
+    counts = Counter(
+        (ev["phase"], ev["entity"]) for ev in events if ev["entity"] != "CMD"
+    )
     for (ph, ent), n in sorted(counts.items()):
         print(f"{ph:9} {ent:20} {n}")
     print("TOTAL", sum(counts.values()))

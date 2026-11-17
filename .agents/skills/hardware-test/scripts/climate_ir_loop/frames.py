@@ -41,8 +41,6 @@ with pathlib.Path(f"{n}-ser.txt").open(encoding="utf-8", errors="replace") as fh
                 )
             )
             buf = None
-        elif buf is not None and body.startswith("Received Raw:") and False:
-            pass
 for ts, f in frames:
     owner = None
     for s in steps:

@@ -6,6 +6,7 @@
 #include <random>
 #include <vector>
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/components/remote_base/aeha_protocol.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
@@ -36,7 +37,21 @@ template<typename C> void print_state(const char *tag, int i, bool ok, C &c) {
          (double) c.target_temperature, c.fan_mode.has_value() ? (int) *c.fan_mode : -1, (int) c.swing_mode);
 }
 
-// make() returns a fresh climate; random_frame(rng, raw) fills raw with a random frame of the protocol
+// A random AEHA frame of len bytes; half start with the climate's header (set_header), 3 in 4 use its address
+template<typename Header>
+void aeha_random(std::mt19937 &rng, remote_base::RawTimings &raw, size_t len, uint16_t address, Header set_header) {
+  uint8_t d[35];
+  for (auto &b : d)
+    b = rng();
+  if (rng() % 2)
+    set_header(d);
+  remote_base::RemoteTransmitData tx;
+  remote_base::AEHAProtocol().encode(&tx, (rng() % 4) ? address : uint16_t(rng()), d, len);
+  raw = tx.get_data();
+}
+
+// make() returns a fresh climate; random_frame(rng, raw) fills raw with a random frame of the protocol, without the
+// trailing idle gap
 template<typename Make, typename Rand> void run(const char *tag, Make make, Rand random_frame) {
   std::mt19937 rng(22773);
   // Valid frames: everything the climate itself sends
@@ -91,6 +106,7 @@ template<typename Make, typename Rand> void run(const char *tag, Make make, Rand
   for (int r = 0; r < 3000; r++) {
     remote_base::RawTimings raw;
     random_frame(rng, raw);
+    raw.push_back(-20000);
     feed(raw, "rand");
   }
   fflush(stdout);

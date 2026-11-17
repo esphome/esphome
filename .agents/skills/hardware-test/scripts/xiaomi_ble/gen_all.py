@@ -1,7 +1,7 @@
 """One device per Xiaomi platform (20 listener-only platforms, the three that stay components, plus ATC/PVVX):
 writes frames_all.hpp (injected by xball.yaml), xball_entities.yaml (the platform configs, each entity logs
 "PUB <dev>.<key> <value>" on every publish) and expected_all.json (publishes per entity) for count_all.py.
-Usage: gen_all.py [S3|DEVKIT]   (only changes the comment in the yaml)
+Usage: gen_all.py
 Every frame is injected twice in a row: MiBeacon devices drop the repeat by frame counter, the FD50/181D/181A
 parsers without a counter publish it again. Binary sensors only publish on a change (trigger_on_initial_state on)."""
 
@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 import struct
 
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+import mibeacon
+from mibeacon import XB_FILL, c_rows, o, plain, t16, th
 
 CYCLES = 10
 KEY = bytes.fromhex("6c0d1a3e5b7f29c4a18e90d2f3b46a57")
@@ -20,35 +21,8 @@ def mac(i):
     return bytes.fromhex(f"A4C138001{i:03X}"[:12])
 
 
-def plain(m, pid, cnt, obj, fc=0x50):
-    hdr = bytes([fc, 0x20]) + struct.pack("<H", pid) + bytes([cnt])
-    return hdr + (m[::-1] if fc & 0x10 else b"") + obj
-
-
 def enc(m, pid, cnt, obj, short=False, fc=None):
-    """MiBeacon v4/v5 encrypted frame; long = with MAC (fc 0x58), short = without (fc 0x48)."""
-    ext = bytes([cnt, 0x00, 0x00])
-    if short:
-        hdr = bytes([fc or 0x48, 0x59]) + struct.pack("<H", pid) + bytes([cnt])
-    else:
-        hdr = (
-            bytes([fc or 0x58, 0x59]) + struct.pack("<H", pid) + bytes([cnt]) + m[::-1]
-        )
-    nonce = m[::-1] + hdr[2:5] + ext
-    ct = AESCCM(KEY, tag_length=4).encrypt(nonce, obj, b"\x11")
-    return hdr + ct[:-4] + ext + ct[-4:]
-
-
-def o(t, data):
-    return struct.pack("<H", t) + bytes([len(data)]) + data
-
-
-def t16(v):
-    return o(0x1004, struct.pack("<h", round(v * 10)))
-
-
-def th(t, h):
-    return o(0x100D, struct.pack("<hh", round(t * 10), round(h * 10)))
+    return mibeacon.enc(m, pid, cnt, obj, KEY, short, fc)
 
 
 # name: (platform, kind, yaml body, sensors {key: publishes-per-new-frame or "bin"}, frame builder k -> [(uuid, data)])
@@ -341,12 +315,10 @@ for k in range(1, CYCLES + 1):
 # Expected publishes per entity
 exp = {}
 for n, d in DEVS.items():
-    nf = len(d["build"](MACS[n], 1))
     for key, kind in d["ents"].items():
         ent = f"{n}.{key or 'main'}"
         if kind == "s":
-            per = 1 if n != "hhccjcy01" else 1
-            exp[ent] = CYCLES * per
+            exp[ent] = CYCLES
         elif kind == "r":  # no counter: the repeat publishes again
             exp[ent] = CYCLES * 2
         elif (
@@ -357,52 +329,35 @@ for n, d in DEVS.items():
             exp[ent] = 0
         elif kind == "m":  # mue4094rt: motion true once, false 5 s after the last frame
             exp[ent] = 2
-    del nf
 Path("expected_all.json").write_text(
     json.dumps(exp, indent=1, sort_keys=True), encoding="utf-8"
 )
 
-rows = [f"static const uint8_t XA_MACS[{len(MACS)}][6] = {{"]
-rows += [
-    "  {" + ",".join(f"0x{b:02X}" for b in m) + "},  // " + n for n, m in MACS.items()
+frame_rows = [
+    ((bytes([i, uuid & 0xFF, uuid >> 8, len(data)]) + data).ljust(28, b"\0"), "")
+    for i, uuid, data in frames
 ]
-rows += ["};", f"static const uint8_t XA_FRAMES[{len(frames)}][28] = {{"]
-for i, uuid, data in frames:
-    row = bytes([i, uuid & 0xFF, uuid >> 8, len(data)]) + data
-    rows.append("  {" + ",".join(f"0x{b:02X}" for b in row.ljust(28, b"\0")) + "},")
 per = len(frames) // CYCLES
-rows += [
-    "};",
-    f"static constexpr size_t XA_COUNT = {len(frames)};",
-    f"static constexpr size_t XA_PER_CYCLE = {per};",
-]
 HDR = '#pragma once\n#include <cstring>\n#include "esphome/components/esp32_ble/ble_scan_result.h"\n'
-INJECT = """
+INJECT = (
+    XB_FILL
+    + """
 inline void xa_inject(size_t first, size_t last) {
   for (size_t i = first; i < last && i < XA_COUNT; i++) {
     const uint8_t *row = XA_FRAMES[i];
-    esphome::esp32_ble::BLEScanResult r{};
-    memcpy(r.bda, XA_MACS[row[0]], 6);
-    r.ble_addr_type = 0;
-    r.rssi = -50;
-    uint8_t n = 0, len = row[3];
-    r.ble_adv[n++] = 2;
-    r.ble_adv[n++] = 0x01;
-    r.ble_adv[n++] = 0x06;
-    r.ble_adv[n++] = len + 3;
-    r.ble_adv[n++] = 0x16;
-    r.ble_adv[n++] = row[1];
-    r.ble_adv[n++] = row[2];
-    memcpy(r.ble_adv + n, row + 4, len);
-    r.adv_data_len = n + len;
-    r.scan_rsp_len = 0;
-    r.search_evt = ESP_GAP_SEARCH_INQ_RES_EVT;
-    esphome::esp32_ble_tracker::global_esp32_ble_tracker->gap_scan_event_handler(r);
+    xb_inject_one(XA_MACS[row[0]], row[1] | row[2] << 8, row + 4, row[3]);
   }
 }
 """
+)
 Path("frames_all.hpp").write_text(
-    HDR + "\n".join(rows) + "\n" + INJECT, encoding="utf-8"
+    HDR
+    + c_rows("XA_MACS", [(m, n) for n, m in MACS.items()])
+    + c_rows("XA_FRAMES", frame_rows)
+    + f"static constexpr size_t XA_COUNT = {len(frames)};\n"
+    + f"static constexpr size_t XA_PER_CYCLE = {per};\n"
+    + INJECT,
+    encoding="utf-8",
 )
 
 

@@ -14,7 +14,6 @@ TEST(Fuzz22773, HaierTundra) {
         remote_base::RemoteTransmitData tx;
         remote_base::HaierProtocol().encode(&tx, d, len);
         raw = tx.get_data();
-        raw.push_back(-20000);
       });
 }
 }  // namespace esphome::fuzz22773

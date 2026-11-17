@@ -2,18 +2,15 @@
 #include <memory>
 #include "climate_fuzz.hpp"
 #include "esphome/components/mistral_ir/mistral_ir.h"
-#include "esphome/components/remote_base/aeha_protocol.h"
 namespace esphome::fuzz22773 {
 TEST(Fuzz22773, MistralIR) {
   run("mistral", [] { return std::make_unique<mistral_ir::MistralIR>(); },
       [](std::mt19937 &rng, remote_base::RawTimings &raw) {
-        uint8_t d[35];
         size_t len = (rng() % 3 == 0) ? 2 + rng() % 34 : 12;
-        for (auto &b : d) b = rng();
-        if (rng() % 2) { d[0] = 0x56; d[2] = 0x08; }
-        remote_base::RemoteTransmitData tx;
-        remote_base::AEHAProtocol().encode(&tx, (rng() % 4) ? mistral_ir::MISTRAL_ADDRESS : uint16_t(rng()), d, len);
-        raw = tx.get_data();
+        aeha_random(rng, raw, len, mistral_ir::MISTRAL_ADDRESS, [](uint8_t *d) {
+          d[0] = 0x56;
+          d[2] = 0x08;
+        });
       });
 }
 }  // namespace esphome::fuzz22773

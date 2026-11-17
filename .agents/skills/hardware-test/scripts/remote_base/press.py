@@ -1,6 +1,7 @@
 """press.py HOST BUTTON[:SECS]...: press each button (by object id) in order, waiting SECS (default 1) after each.
 
-hostharness: `press.py HOST tx_all:14 tx_all:14 ...`; dumpall: `press.py HOST tx_all:9 tx_all:9 verbose tx_all:9 debug`.
+hostharness: `press.py HOST tx_all:14 tx_all:14 ...`; dumpall: `press.py HOST tx_all:9 tx_all:9 verbose tx_all:9 debug`;
+pronto/run.sh: every tx button ROUNDS times, then `soak:90`.
 API_KEY in the env selects Noise (see apiconn.py).
 """
 

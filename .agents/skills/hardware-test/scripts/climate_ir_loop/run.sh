@@ -1,12 +1,14 @@
 #!/bin/bash
 # run.sh NAME PORT [STEPS_FILE]: serial capture with a reset, then the prelude and steps of STEPS_FILE (default
 # steps.sh here, which sets the PRE and STEPS arrays) through drive.py; writes NAME-ser.txt, NAME-pre.txt and
-# NAME-drive.txt. env: PY, BAUD (default 115200; use 921600 for long climate frames), STEP_S (default 2.5)
+# NAME-drive.txt. env: PY, BAUD (default 115200; use 921600 for long climate frames), STEP_S (default 2.5, the wait
+# after each step; the prelude always uses 2.5 s since it is not compared)
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; P=${2:?port}; PY=${PY:-python3}
 # shellcheck source=/dev/null
 source "${3:-$D/steps.sh}"
 cd "$D" || exit 1
-for k in $(lsof -t "$P" 2>/dev/null); do kill "$k"; done; sleep 1
+pkill -f "[s]erial_capture.py $P "; sleep 1
+# a stale capture would feed the IP lookup below
 rm -f "$D/$N-ser.txt"
 nohup $PY "$S/serial_capture.py" "$P" 1000 "$D/$N-ser.txt" --reset --baud "${BAUD:-115200}" > /dev/null 2>&1 &
 IP=
@@ -18,6 +20,6 @@ done
 sleep 3
 STEP_S=2.5 $PY drive.py "$IP" "${PRE[@]}" > "$N-pre.txt" 2>&1
 STEP_S=${STEP_S:-2.5} $PY drive.py "$IP" "${STEPS[@]}" > "$N-drive.txt" 2>&1
-sleep 2; for k in $(lsof -t "$P" 2>/dev/null); do kill "$k"; done; sleep 1
+sleep 2; pkill -f "[s]erial_capture.py $P "; sleep 1
 echo "$N steps=$(grep -c STEP "$N-drive.txt") raw=$(LC_ALL=C grep -a -c 'Received Raw' "$N-ser.txt")" \
   "boots=$(LC_ALL=C grep -a -c 'Running through setup\|rst cause' "$N-ser.txt")"

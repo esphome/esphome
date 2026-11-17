@@ -55,8 +55,11 @@ async def run(a: argparse.Namespace) -> None:
     while time.monotonic() < end:
         session += 1
         stopped, on_stop = stop_event()
+        # a try takes up to 11 s (10 s timeout, 1 s pause): bound the tries by the soak time left instead of
+        # cancelling connect(), which could leave a half open client behind
+        tries = max(1, int((end - time.monotonic()) // 11))
         try:
-            c = await connect(a.host, tries=600, on_stop=on_stop)
+            c = await connect(a.host, tries=tries, on_stop=on_stop)
         except SystemExit as e:
             w(f"CONNECT FAILED {e}")
             await asyncio.sleep(5)

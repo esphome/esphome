@@ -1,3 +1,9 @@
+# One-pin IR loopback on an ESP32 devkit: transmitter and receiver share GPIO27, RMT reads its own output.
+# Override the substitutions (or `dump:`) from the including config.
+substitutions:
+  pin: GPIO27
+  rmt_symbols: "384"
+  receive_symbols: "384"
 esp32:
   board: esp32dev
   framework:
@@ -5,14 +11,14 @@ esp32:
 remote_transmitter:
   id: irtx
   pin:
-    number: GPIO27
+    number: ${pin}
     allow_other_uses: true
   carrier_duty_percent: 100%
 remote_receiver:
   id: irrx
   pin:
-    number: GPIO27
+    number: ${pin}
     allow_other_uses: true
   dump: raw
-  rmt_symbols: 384
-  receive_symbols: 384
+  rmt_symbols: ${rmt_symbols}
+  receive_symbols: ${receive_symbols}

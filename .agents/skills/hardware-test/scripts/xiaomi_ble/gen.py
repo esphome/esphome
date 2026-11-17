@@ -9,7 +9,7 @@ from pathlib import Path
 import struct
 import sys
 
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+from mibeacon import XB_FILL, c_rows, enc, plain, t16, th
 
 OTA = "--ota" in sys.argv[1:]
 CYCLES = 40
@@ -25,39 +25,22 @@ MIDX = {k: i for i, k in enumerate(MACS)}
 
 
 def mibeacon_plain(dev, pid, cnt, obj):
-    return (
-        bytes([0x50, 0x20])
-        + struct.pack("<H", pid)
-        + bytes([cnt])
-        + MAC[dev][::-1]
-        + obj
-    )
+    return plain(MAC[dev], pid, cnt, obj)
 
 
 def mibeacon_enc(dev, pid, cnt, obj, key, short, corrupt=False):
-    ext = bytes([cnt, 0x00, 0x00])
-    if short:
-        hdr = bytes([0x48, 0x59]) + struct.pack("<H", pid) + bytes([cnt])
-    else:
-        hdr = (
-            bytes([0x58, 0x58]) + struct.pack("<H", pid) + bytes([cnt]) + MAC[dev][::-1]
-        )
-    nonce = MAC[dev][::-1] + hdr[2:5] + ext
-    ct = AESCCM(key, tag_length=4).encrypt(nonce, obj, b"\x11")
-    body, tag = ct[:-4], ct[-4:]
-    if corrupt:
-        tag = bytes([tag[0] ^ 0xFF]) + tag[1:]
-    out = hdr + body + ext + tag
+    out = enc(
+        MAC[dev],
+        pid,
+        cnt,
+        obj,
+        key,
+        short,
+        version=0x59 if short else 0x58,
+        corrupt=corrupt,
+    )
     assert len(out) == (19 if short else 18 + len(obj)), len(out)
     return out
-
-
-def t16(v):  # 0x1004 temperature object
-    return bytes([0x04, 0x10, 0x02]) + struct.pack("<h", round(v * 10))
-
-
-def th(t, h):  # 0x100D temperature + humidity
-    return bytes([0x0D, 0x10, 0x04]) + struct.pack("<hh", round(t * 10), round(h * 10))
 
 
 frames = []  # (dev, kind 0 = FE95 / 1 = 181A, data, tag for the expectation)
@@ -125,47 +108,19 @@ print("pr  ", expected["pr"])
 Path("expected.json").write_text(json.dumps(expected), encoding="utf-8")
 
 
-def c_rows(name, rows):
-    out = [f"static const uint8_t {name}[{len(rows)}][{len(rows[0][0])}] = {{"]
-    out += [
-        "  {" + ",".join(f"0x{b:02X}" for b in row) + "}," + (f"  // {c}" if c else "")
-        for row, c in rows
-    ]
-    return "\n".join([*out, "};", ""])
-
-
 mac_rows = [(MAC[k], "") for k in MACS]
 frame_rows = [
     ((bytes([MIDX[d], kind, len(data)]) + data).ljust(28, b"\0"), tag)
     for d, kind, data, tag in frames
 ]
 
-INJECT = """
-inline void xb_fill(esphome::esp32_ble::BLEScanResult &r, const uint8_t *mac, bool fe95, const uint8_t *data,
-                    uint8_t len) {
-  memcpy(r.bda, mac, 6);
-  r.ble_addr_type = 0;
-  r.rssi = -50;
-  uint8_t n = 0;
-  r.ble_adv[n++] = 2;
-  r.ble_adv[n++] = 0x01;
-  r.ble_adv[n++] = 0x06;
-  r.ble_adv[n++] = len + 3;
-  r.ble_adv[n++] = 0x16;
-  r.ble_adv[n++] = fe95 ? 0x95 : 0x1A;
-  r.ble_adv[n++] = fe95 ? 0xFE : 0x18;
-  memcpy(r.ble_adv + n, data, len);
-  r.adv_data_len = n + len;
-  r.scan_rsp_len = 0;
-  r.search_evt = ESP_GAP_SEARCH_INQ_RES_EVT;
-}
-
+INJECT = (
+    XB_FILL
+    + """
 inline void xb_inject(size_t first, size_t last) {
   for (size_t i = first; i < last; i++) {
     const uint8_t *row = XB_FRAMES[i];
-    esphome::esp32_ble::BLEScanResult r{};
-    xb_fill(r, XB_MACS[row[0]], row[1] == 0, row + 3, row[2]);
-    esphome::esp32_ble_tracker::global_esp32_ble_tracker->gap_scan_event_handler(r);
+    xb_inject_one(XB_MACS[row[0]], row[1] == 0 ? 0xFE95 : 0x181A, row + 3, row[2]);
   }
 }
 
@@ -180,7 +135,7 @@ inline void xb_hex(const char *label, const std::vector<uint8_t> &v) {
 // Parse one encrypted frame with the listener directly and show whether it rewrote the shared service data.
 inline void xb_rewrite_probe(esphome::ble_device_base::ESPBTDeviceListener *listener) {
   esphome::esp32_ble::BLEScanResult r{};
-  xb_fill(r, XB_MACS[0], true, XB_PROBE, sizeof(XB_PROBE));
+  xb_fill(r, XB_MACS[0], 0xFE95, XB_PROBE, sizeof(XB_PROBE));
   esphome::ble_device_base::ESPBTDevice device;
   device.parse_scan_rst(r);
   xb_hex("before", device.get_service_datas()[0].data);
@@ -189,6 +144,7 @@ inline void xb_rewrite_probe(esphome::ble_device_base::ESPBTDeviceListener *list
   xb_hex("after ", device.get_service_datas()[0].data);
 }
 """
+)
 
 ADVERTISE = """
 // Sends where a GAP call returned an error when it was queued. Failures the controller reports later in the GAP

@@ -91,9 +91,10 @@ Notes:
 
 - `hadrive.py` also prints `<phase> SUBORDER NNN <line>` in the order the device sent the subscriptions (the SUB lines
   are sorted). `grep -v SUBORDER drive.txt` diffs the sets, `grep SUBORDER` the order.
-- Dump block order per build: `grep -a -E "\[C\]\[" boot1.txt | sed -E 's/^.*\[C\]\[([a-z_.0-9]+):[0-9]+\]: (.{0,40}).*/\1 | \2/' |
-  awk -F' [|] ' '{ if ($1!=p) {print $1 " :: " $2; p=$1} }'` prints one line per component run; strip the `:NNN`
-  line numbers before diffing dump text between builds.
+- Dump block order per build: `python3 scripts/lognorm.py boot1.txt | grep -a "^\[C\]\[" |
+  sed -E 's/^\[C\]\[([a-z_.0-9]+)\]: (.{0,40}).*/\1 | \2/' | awk -F' [|] ' '{ if ($1!=p) {print $1 " :: " $2; p=$1} }'`
+  prints one line per component run; diff dump text between builds through `lognorm.py` too, which drops the
+  `:NNN` line numbers.
 - Idle ESP8266 free heap in this config swings by 2 kB between readings; compare the steady reading (the fifth one
   after boot) per boot, which matched the heap_size change exactly (+168 B for 15 import entities on #22725).
 - The wizard light (`l_wiz`) needs #21908; a stack based before it needs it dropped on both builds (`NO_LIGHT=1`).

@@ -60,10 +60,7 @@ inline void store(const Dp &dp) {
 inline void send(uint8_t cmd, const std::vector<uint8_t> &payload) {
   std::vector<uint8_t> out{0x55, 0xAA, 0x03, cmd, uint8_t(payload.size() >> 8), uint8_t(payload.size())};
   out.insert(out.end(), payload.begin(), payload.end());
-  uint8_t sum = 0;
-  for (uint8_t x : out)
-    sum += x;
-  out.push_back(sum);
+  out.push_back(esphome::sum_bytes(out.data(), out.size()));
   bus->write_array(out.data(), out.size());
 }
 
@@ -178,10 +175,7 @@ inline void poll() {
     size_t n = (rx[4] << 8) | rx[5];
     if (rx.size() < 7 + n)
       continue;
-    uint8_t sum = 0;
-    for (size_t i = 0; i < 6 + n; i++)
-      sum += rx[i];
-    if (sum != rx[6 + n])
+    if (esphome::sum_bytes(rx.data(), 6 + n) != rx[6 + n])
       ESP_LOGW("sim", "SIM RX bad checksum");
     else
       handle(rx[3], rx.data() + 6, n);

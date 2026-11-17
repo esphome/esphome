@@ -16,8 +16,8 @@ DATAPOINT_REPORT_SYNC (the hub must ack with 0x23), a repeated value.
   `name: ${name}`, built with `pio_build.sh compile <name>` per tree.
 - `tuyadrive.py HOST OUT.json` (API_KEY env): subscribes states, presses Sim start, then sends switch, select,
   water heater (on, target, mode eco/electric, off), number and fan commands 2 s apart; prints per phase counts.
-- `run.sh NAME TREE` (env PORT, API_KEY): upload, 130 s serial capture with a reset, drive.
-- `compare.sh A B`: diffs API states, the entity dump block, the 1 s re-dump, the HUB/ENT order and the non-heartbeat
+- `run.sh NAME TREE` (env PORT, API_KEY): upload, serial capture with a reset (stopped after the drive), drive.
+- `compare.sh A B`: normalises both logs with `../lognorm.py` and diffs API states, the entity dump block, the 1 s re-dump, the HUB/ENT order and the non-heartbeat
   frames the simulator received. Heartbeats move with timing, so they are left out.
 
 Facts from the run:
@@ -26,6 +26,5 @@ Facts from the run:
 - The API coalesces states published in one loop pass: the four datapoint water heater frame gives one state.
 - A switch or select command for the value it already has sends no frame.
 - Water heater target 55 with multiplier 0.5 is sent as 110 (`15 02 0004 0000006e`); eco/electric as enum 0/2 on DP23.
-- Generate an `api_key` for `secrets.yaml` with `openssl rand -base64 32` if you have none.
 - #22724 changed only the dump order (children now print right after the hub's own lines); `setup_priority:` on a
   tuya sensor is rejected on the PR and accepted on dev.

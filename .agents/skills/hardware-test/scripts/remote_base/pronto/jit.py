@@ -1,18 +1,17 @@
-import pathlib
+"""jit.py EXT_A EXT_B: compare the on_pronto trigger frames of two extract.py outputs in order; counts identical
+frames, frames whose length differs, and the largest difference in Pronto units (timing jitter) between same-length
+frames, leaving out the header and the trailing idle."""
+
 import sys
+
+from extract import read_lines, trigger_blocks
 
 
 def frames(p):
-    out = []
-    cur = None
-    with pathlib.Path(p).open(encoding="utf-8") as fh:
-        for line in fh:
-            if line.startswith("trig: TRIG len="):
-                cur = []
-                out.append(cur)
-            elif line.startswith("trig: TRIG ") and cur is not None:
-                cur += [int(x, 16) for x in line[11:].split()]
-    return out
+    return [
+        [int(x, 16) for x in text.split()]
+        for _n, text, _i in trigger_blocks(read_lines(p))
+    ]
 
 
 a, b = frames(sys.argv[1]), frames(sys.argv[2])

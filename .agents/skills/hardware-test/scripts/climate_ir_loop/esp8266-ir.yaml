@@ -1,19 +1,23 @@
+# One-pin IR loopback on a D1 mini: transmitter and receiver share GPIO12. The receiver's setup leaves the shared pin
+# an input, so an interval drives it as an output again. Override the substitutions (or `dump:`) from the including
+# config.
+substitutions:
+  pin: "12"
 esp8266:
   board: d1_mini
 remote_transmitter:
   id: irtx
   pin:
-    number: GPIO12
+    number: ${pin}
     allow_other_uses: true
   carrier_duty_percent: 100%
 remote_receiver:
   id: irrx
   pin:
-    number: GPIO12
+    number: ${pin}
     allow_other_uses: true
   dump: raw
 interval:
-  # the receiver's setup leaves the shared pin an input; drive it so the transmitter reaches the pad
   - interval: 250ms
     then:
-      - lambda: pinMode(12, OUTPUT);
+      - lambda: pinMode(${pin}, OUTPUT);
