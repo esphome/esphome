@@ -110,6 +110,8 @@ def _esp8266_analyzer(
     analyzer.rodata_in_ram = True
     analyzer.sections[".data"] = MemorySection(".data", total_size=1000)
     analyzer._elf_symbol_names = kept
+    # String literals have their own tests
+    analyzer._attribute_string_literals = lambda *_: None
     light = str(obj_dir / LIGHT_OBJ)
     web = str(obj_dir / WEB_OBJ)
 

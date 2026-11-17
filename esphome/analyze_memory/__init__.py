@@ -1,6 +1,7 @@
 """Memory usage analyzer for ESPHome compiled binaries."""
 
 from collections import Counter, defaultdict
+from collections.abc import Container
 from dataclasses import dataclass, field
 from functools import cached_property
 import logging
@@ -93,6 +94,10 @@ _OBJ_SECTION_PATTERN = re.compile(
     r"^\s*\[\s*(\d+)\]\s+(\S+)\s+(\S+)\s+[\da-f]+\s+[\da-f]+\s+([\da-f]+)\s+[\da-f]+\s+(\S*)"
 )
 _RELOC_SECTION_PATTERN = re.compile(r"^Relocation section '\.rela(\S+)'")
+# String literal section; group 1 is the function for -fdata-sections names
+_STRING_SECTION_PATTERN = re.compile(r"^\.rodata(?:\.(.+))?\.str\d+\.\d+$")
+# Data section of one symbol; group 1 is the symbol
+_DATA_SECTION_PATTERN = re.compile(r"^\.(?:rodata|data)\.(.+)$")
 # Code section; group 1 is the function for -ffunction-sections names, after any
 # placement prefix (.text.startup.<fn>, .iram.text.<fn> for IRAM_ATTR)
 _CODE_SECTION_PATTERN = re.compile(
@@ -155,6 +160,16 @@ class UnnamedConstant:
 
 
 @dataclass
+class StringLiteral:
+    """A string literal kept in RAM (.rodata on ESP8266)."""
+
+    text: str
+    size: int  # Bytes in RAM; strings shared or merged into a longer one count once
+    # Component -> functions or objects that use it, mangled
+    users: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+
+
+@dataclass
 class ComponentMemory:
     """Tracks memory usage for a component."""
 
@@ -211,6 +226,44 @@ class _RodataSection:
         return self.size - len(self._named)
 
 
+def _parse_string_sections(output: str) -> dict[str, dict[str, tuple[str, str | None]]]:
+    """Find string literal sections in ``readelf -SW`` output.
+
+    Returns:
+        Object path -> section index -> (section name, function it is named after)
+    """
+    sections: dict[str, dict[str, tuple[str, str | None]]] = defaultdict(dict)
+    file_path = ""
+    for line in output.splitlines():
+        if line.startswith("File: "):
+            file_path = line[6:]
+        elif (match := _OBJ_SECTION_PATTERN.match(line)) is not None:
+            index, name, section_type, size_hex, flags = match.groups()
+            if (
+                section_type == "PROGBITS"
+                and "S" in flags
+                and int(size_hex, 16)
+                and (string := _STRING_SECTION_PATTERN.match(name))
+            ):
+                sections[file_path][index] = (name, string.group(1))
+    return sections
+
+
+def _ram_string_size(text: bytes, rodata: bytes, literals: Container[bytes]) -> int:
+    """Bytes a literal takes in RAM: 0 if dropped or only the tail of another literal."""
+    needle = text + b"\0"
+    start = rodata.find(needle)
+    while start != -1:
+        head = rodata.rfind(b"\0", 0, start) + 1
+        end = start + len(text)
+        # Only the tail of a longer literal of ours if one starts before it; other
+        # bytes there are data, or a literal from an object that was not scanned
+        if not any(rodata[k:end] in literals for k in range(head, start)):
+            return len(needle)
+        start = rodata.find(needle, start + 1)
+    return 0
+
+
 def _parse_hex_dumps(output: str) -> dict[str, bytearray]:
     """Collect the bytes of each ``readelf -x`` section dump by section name."""
     contents: dict[str, bytearray] = defaultdict(bytearray)
@@ -264,6 +317,12 @@ def _pointed_literal(
         return None
     end = strings.find(b"\0", start)
     return bytes(strings[start : end if end != -1 else len(strings)])
+
+
+def _section_user(section: str) -> str | None:
+    """The function or data symbol a -ffunction-sections/-fdata-sections name is for."""
+    match = _CODE_SECTION_PATTERN.match(section) or _DATA_SECTION_PATTERN.match(section)
+    return match.group(1) if match else None
 
 
 @dataclass
@@ -420,6 +479,7 @@ class MemoryAnalyzer:
         # True on ESP8266, where .rodata is RAM; it is then counted as .data
         self.rodata_in_ram = False
         self._unnamed_constants: list[UnnamedConstant] = []
+        self._string_literals: list[StringLiteral] = []
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -1434,7 +1494,13 @@ class MemoryAnalyzer:
         if len(objects) == 1:
             output = f"File: {objects[0]}\n{output}"
         self._attribute_unnamed_constants(output, obj_dir)
-        names = {n for c in self._unnamed_constants for n in c.functions}
+        self._attribute_string_literals(output, obj_dir)
+        names = {n for c in self._unnamed_constants for n in c.functions} | {
+            n
+            for literal in self._string_literals
+            for users in literal.users.values()
+            for n in users
+        }
         self._batch_demangle_symbols(sorted(names - self._demangle_cache.keys()))
 
     def _attribute_unnamed_constants(self, output: str, obj_dir: Path) -> None:
@@ -1461,6 +1527,141 @@ class MemoryAnalyzer:
                 self._charge_ram(component, constant.size)
 
         self._unnamed_constants.sort(key=lambda c: c.size, reverse=True)
+
+    def _attribute_string_literals(self, output: str, obj_dir: Path) -> None:
+        """Attribute string literals in RAM to the components whose code uses them.
+
+        The linker merges identical literals across objects, so each is counted
+        once, from the bytes it really takes in the ELF's .rodata.
+        """
+        result = run_tool([self.readelf_path, "-x", ".rodata", str(self.elf_path)])
+        rodata = _parse_hex_dumps(result.stdout).get(".rodata") if result else None
+        if not rodata:
+            _LOGGER.warning(
+                "No .rodata dump of %s, so string literals are not listed",
+                self.elf_path,
+            )
+            return
+        rodata = bytes(rodata)
+        _, definitions = _parse_unnamed_rodata(output)
+        # Literal -> component -> functions or data using it
+        users: dict[bytes, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+        for file_path, sections in _parse_string_sections(output).items():
+            component = self._source_file_to_component(
+                Path(file_path).relative_to(obj_dir).as_posix()
+            )
+            for text, found in self._scan_object_strings(file_path, sections).items():
+                kept = {
+                    user
+                    for user in found & self._elf_symbol_names
+                    if not definitions.linked_copy_unknown(file_path, [user])
+                }
+                if text and kept:
+                    users[text][component] |= kept
+
+        literals = (
+            StringLiteral(
+                text.decode("utf-8", "backslashreplace"),
+                _ram_string_size(text, rodata, users),
+                by_component,
+            )
+            for text, by_component in users.items()
+        )
+        self._string_literals = sorted(
+            (s for s in literals if s.size), key=lambda s: (-s.size, s.text)
+        )
+        for literal in self._string_literals:
+            # A literal used by several components is not charged to any of them
+            if len(literal.users) == 1:
+                self._charge_ram(next(iter(literal.users)), literal.size)
+
+    def _scan_object_strings(
+        self, file_path: str, sections: dict[str, tuple[str, str | None]]
+    ) -> dict[bytes, set[str]]:
+        """Map each string literal of one object to the functions or data using it.
+
+        Args:
+            file_path: Object file to read
+            sections: String sections by index, with the function each is named after
+        """
+        result = run_tool(
+            [self.readelf_path, "-rW"]
+            + [arg for index in sections for arg in ("-x", index)]
+            + [file_path]
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.warning(
+                "readelf failed reading strings of %s: %s",
+                file_path,
+                result.stderr.strip() if result else "not run",
+            )
+            return {}
+        contents = _parse_hex_dumps(result.stdout)
+        users: dict[bytes, set[str]] = defaultdict(set)
+        # Section -> the function it is named after, None for the shared section
+        owners = dict(sections.values())
+        for name, function in owners.items():
+            # A section named after a function holds its literals; others may use them too
+            if function:
+                for text in bytes(contents[name]).split(b"\0")[:-1]:
+                    users[text].add(function)
+
+        relocations = _parse_relocations(result.stdout)
+        # Functions using each unnamed table, for literals reached through a pointer in it
+        table_users: dict[str, set[str]] = defaultdict(set)
+        for section, _, target, _ in relocations:
+            if (
+                target.startswith(".rodata")
+                and not _STRING_SECTION_PATTERN.match(target)
+                and (function := _section_user(section))
+                and _CODE_SECTION_PATTERN.match(section)
+            ):
+                table_users[target].add(function)
+        # Other users are found from the pointers they hold
+        refs = [
+            (section, found, offset, target, addend)
+            for section, offset, target, addend in relocations
+            if target in owners
+            and (
+                found := {u} if (u := _section_user(section)) else table_users[section]
+            )
+            and found != {owners[target]}
+        ]
+        unnamed = sum(
+            1
+            for section, _, target, _ in relocations
+            if target in owners
+            and owners[target] is None
+            and not _section_user(section)
+            and not table_users[section]
+        )
+        if unnamed:
+            _LOGGER.debug(
+                "%s: %d string pointers with no named user", file_path, unnamed
+            )
+        if not refs:
+            return users
+        result = run_tool(
+            [self.readelf_path]
+            + [arg for name in sorted({r[0] for r in refs}) for arg in ("-x", name)]
+            + [file_path]
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.warning(
+                "readelf failed reading string users of %s: %s",
+                file_path,
+                result.stderr.strip() if result else "not run",
+            )
+            return users
+        referrers = _parse_hex_dumps(result.stdout)
+        for section, found, offset, target, addend in refs:
+            # A pointer that can't be read names no literal
+            text = _pointed_literal(
+                referrers.get(section, b""), offset, addend, contents[target]
+            )
+            if text is not None:
+                users[text] |= found
+        return users
 
     def _scan_object_constants(
         self,

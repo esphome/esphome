@@ -24,7 +24,7 @@ from . import (
 from .toolchain import find_elf_path, find_idedata_path, idedata_candidates
 
 if TYPE_CHECKING:
-    from . import ComponentMemory
+    from . import ComponentMemory, StringLiteral
 
 
 def _format_pstorage_name(name: str) -> str:
@@ -47,6 +47,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
+    # String literals listed per component in the RAM strings report
+    STRINGS_PER_COMPONENT: int = 10
     # Number of top symbols to show in the largest symbols report
     TOP_SYMBOLS_LIMIT: int = 30
     # Width for symbol name display in top symbols report
@@ -236,6 +238,46 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             elif constant.data and not constant.jump_table:
                 more = " ..." if constant.size > len(constant.data) else ""
                 lines.append(f"{'':>9} bytes: {constant.data.hex(' ')}{more}")
+        lines.append("")
+
+    def _add_string_literals_analysis(self, lines: list[str]) -> None:
+        """Add the string literals in RAM (ESP8266 .rodata) section, by component."""
+        self._add_section_header(lines, "String Literals in RAM (.rodata)")
+        total_size = sum(s.size for s in self._string_literals)
+        lines.append(
+            f"Total: {len(self._string_literals)} string(s), {total_size:,} B. "
+            "LOG_STR, ESPHOME_F or a PROGMEM table keeps a literal in flash."
+        )
+        lines.append(
+            "Only literals whose user is known are counted; one used by several components is "
+            "listed under each and charged to none."
+        )
+        lines.append("")
+        by_component: dict[str, list[StringLiteral]] = defaultdict(list)
+        for literal in self._string_literals:
+            for component in literal.users:
+                by_component[component].append(literal)
+        totals = {c: sum(s.size for s in ls) for c, ls in by_component.items()}
+        for component, literals in sorted(
+            by_component.items(), key=lambda x: (-totals[x[0]], x[0])
+        ):
+            comp_total = totals[component]
+            lines.append(f"{component} ({comp_total:,} B, {len(literals)} strings):")
+            for literal in literals[: self.STRINGS_PER_COMPONENT]:
+                text = json.dumps(literal.text)
+                if len(text) > 50:
+                    text = f'{text[:47]}..."'
+                users = sorted(
+                    self._demangle_symbol(u) for u in literal.users[component]
+                )
+                used_by = users[0][:60] + (
+                    f" (+{len(users) - 1})" if len(users) > 1 else ""
+                )
+                lines.append(f"  {literal.size:>5,} B {text:<50} {used_by}")
+            if len(literals) > self.STRINGS_PER_COMPONENT:
+                lines.append(
+                    f"  ... and {len(literals) - self.STRINGS_PER_COMPONENT} more"
+                )
         lines.append("")
 
     def _add_cswtch_analysis(self, lines: list[str]) -> None:
@@ -699,6 +741,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         if self._unnamed_constants:
             self._add_unnamed_constants_analysis(lines)
+        if self._string_literals:
+            self._add_string_literals_analysis(lines)
 
         # CSWTCH (GCC switch table) analysis
         if self._cswtch_symbols:
