@@ -38,7 +38,9 @@ failure depends on how a library call behaves, read that library's code too.
     case and the empty case.
 12. **Unjudged results:** a test or script that prints a result but never fails on it.
 
-Moved code counts too: if the original had the same flaw, say so, but still report it.
+Moved code counts too: if the original had the same flaw, say so, but still report it. Report only flaws in
+changed or moved lines; unchanged callers are context. On a PR with earlier reviews, skip what they already
+raised.
 
 Before reporting a candidate, follow it to the line that proves it and quote that line. Drop it if you
 cannot confirm it.
