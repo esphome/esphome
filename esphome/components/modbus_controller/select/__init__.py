@@ -103,7 +103,9 @@ async def to_code(config: ConfigType) -> None:
     )
 
     await cg.register_component(var, config)
-    await select.register_select(var, config, options=list(options_map.keys()))
+    await select.register_select(
+        var, config, options=list(options_map.keys()), fixed_options=True
+    )
 
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(parent.add_sensor_item(var))

@@ -96,7 +96,7 @@ void AHT10Component::read_data_() {
     this->restart_read_();
     return;
   }
-  if (data[1] == 0x0 && data[2] == 0x0 && (data[3] >> 4) == 0x0) {
+  if (data[1] == 0x0 && data[2] == 0x0 && high_nibble(data[3]) == 0x0) {
     // Invalid humidity (0x0)
     if (this->humidity_sensor_ == nullptr) {
       ESP_LOGV(TAG, "Invalid humidity (reading not required)");
@@ -110,7 +110,7 @@ void AHT10Component::read_data_() {
   if (this->read_count_ > 1) {
     ESP_LOGD(TAG, "Success at %ums", (unsigned) (millis() - this->start_time_));
   }
-  uint32_t raw_temperature = encode_uint24(data[3] & 0xF, data[4], data[5]);
+  uint32_t raw_temperature = encode_uint24(low_nibble(data[3]), data[4], data[5]);
   uint32_t raw_humidity = encode_uint24(data[1], data[2], data[3]) >> 4;
 
   PUBLISH_STATE(this->temperature_sensor_, ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f);

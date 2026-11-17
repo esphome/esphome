@@ -5,7 +5,7 @@ namespace esphome::xiaomi_lywsd02mmc {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_lywsd02mmc");
 
-void XiaomiLYWSD02MMC::dump_config() {
+void XiaomiLYWSD02MMC::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi LYWSD02MMC");
   this->dump_bindkey_(TAG);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
