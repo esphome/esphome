@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <strings.h>
 #include <iterator>
 
 namespace esphome::modem {
@@ -162,6 +163,12 @@ static command_result reply_result(const char *data, size_t len, bool skip_first
     line = newline + 1;
   }
   return command_result::TIMEOUT;
+}
+
+// The PIN must never reach the log
+static bool is_secret_command(const char *cmd) { return strncasecmp(cmd, "AT+CPIN=", 8) == 0; }
+static const char *loggable_command(const char *cmd) {
+  return is_secret_command(cmd) ? LOG_STR_LITERAL("AT+CPIN=<hidden>") : cmd;
 }
 
 // Puts a raw reply on one line for the log and drops the final OK
@@ -1137,6 +1144,9 @@ int ModemComponent::read_registration_() {
   const command_result lte_read = this->at_reply_("AT+CEREG?");
   const int lte =
       lte_read == command_result::OK ? registration_from_reply(this->reply_, "+CEREG:") : REGISTRATION_UNKNOWN;
+  if (lte == REGISTRATION_UNKNOWN && lte_read != command_result::TIMEOUT) {
+    ESP_LOGD(TAG, "AT+CEREG? gave no state: %s", this->reply_.c_str());
+  }
   if (is_registered(lte)) {
     return lte;
   }
@@ -1144,6 +1154,9 @@ int ModemComponent::read_registration_() {
   const command_result legacy_read = this->at_reply_("AT+CREG?");
   const int legacy =
       legacy_read == command_result::OK ? registration_from_reply(this->reply_, "+CREG:") : REGISTRATION_UNKNOWN;
+  if (legacy == REGISTRATION_UNKNOWN && legacy_read != command_result::TIMEOUT) {
+    ESP_LOGD(TAG, "AT+CREG? gave no state: %s", this->reply_.c_str());
+  }
   const bool legacy_unsupported =
       legacy_read == command_result::FAIL && this->reply_.find("+CME ERROR") == std::string::npos;
   // A multimode modem can be registered or still searching on one network type while the other refuses it
@@ -1195,11 +1208,11 @@ bool ModemComponent::send_at(const std::string &cmd, uint32_t timeout) { return 
 
 bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
   if (!this->task_.is_created()) {
-    ESP_LOGW(TAG, "Modem not ready, cannot send AT command: %s", cmd);
+    ESP_LOGW(TAG, "Modem not ready, cannot send AT command: %s", loggable_command(cmd));
     return false;
   }
   if (this->at_pending_.load(std::memory_order_acquire)) {
-    ESP_LOGW(TAG, "AT command '%s' dropped; the previous one is not sent yet", cmd);
+    ESP_LOGW(TAG, "AT command '%s' dropped; the previous one is not sent yet", loggable_command(cmd));
     return false;
   }
   const size_t len = strlen(cmd);
@@ -1252,10 +1265,17 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
 
 command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
   const command_result result = this->at_reply_(cmd, timeout);
+  // A modem with echo on sends the command back, PIN included, so its line is dropped from the reply
+  if (is_secret_command(cmd)) {
+    const size_t echo = this->reply_.find("+CPIN=");
+    if (echo != std::string::npos) {
+      this->reply_.erase(echo, this->reply_.find(' ', echo) - echo);
+    }
+  }
   if (result == command_result::OK) {
-    ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd, this->reply_.c_str());
+    ESP_LOGI(TAG, "AT '%s' -> OK: %s", loggable_command(cmd), this->reply_.c_str());
   } else {
-    ESP_LOGW(TAG, "AT '%s' -> %s: %s", cmd, LOG_STR_ARG(result_to_str(result)), this->reply_.c_str());
+    ESP_LOGW(TAG, "AT '%s' -> %s: %s", loggable_command(cmd), LOG_STR_ARG(result_to_str(result)), this->reply_.c_str());
   }
   return result;
 }
