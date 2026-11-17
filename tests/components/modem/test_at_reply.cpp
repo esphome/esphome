@@ -51,6 +51,18 @@ TEST(ModemCollectReply, UartReplyComesBackWhole) {
   EXPECT_STREQ(buf, "23456789");
 }
 
+TEST(ModemCollectReply, GatheredCmuxFramesAreNotRepeated) {
+  // With esp_modem's inflatable buffer, each CMUX frame comes with the ones before it
+  char buf[64];
+  size_t len = 0;
+  const char *first = "\r\n+CSQ: 20,99\r\n";
+  const char *both = "\r\n+CSQ: 20,99\r\n\r\nOK\r\n";
+  collect_reply(buf, sizeof(buf), len, first, strlen(first), true);
+  collect_reply(buf, sizeof(buf), len, both, strlen(both), true);
+  EXPECT_STREQ(buf, both);
+  EXPECT_EQ(reply_end(buf, len, false), ReplyEnd::REPLY_END_OK);
+}
+
 TEST(ModemCollectReply, CmuxFramesAreAppended) {
   char buf[9];
   size_t len = 0;

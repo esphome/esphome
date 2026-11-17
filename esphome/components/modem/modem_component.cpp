@@ -1190,14 +1190,19 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
   line += '\r';
   this->reply_len_ = 0;
   this->reply_[0] = '\0';
+#ifdef CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED
+  // The inflatable buffer gathers CMUX frames too, so every reply comes over whole each time
+  const bool whole = true;
+#else
   // esp_modem hands a UART reply over whole each time, and a CMUX reply one frame at a time
   const modem_mode mode = this->dce_->get_mode();
+  const bool whole = mode != modem_mode::CMUX_MODE && mode != modem_mode::CMUX_MANUAL_MODE &&
+                     mode != modem_mode::CMUX_MANUAL_DATA && mode != modem_mode::CMUX_MANUAL_COMMAND;
+#endif
   struct {
     bool whole;
     bool cut;
-  } state{mode != modem_mode::CMUX_MODE && mode != modem_mode::CMUX_MANUAL_MODE &&
-              mode != modem_mode::CMUX_MANUAL_DATA && mode != modem_mode::CMUX_MANUAL_COMMAND,
-          false};
+  } state{whole, false};
   const command_result result = this->dce_->command(
       line,
       [this, &state](const uint8_t *data, size_t len) {
