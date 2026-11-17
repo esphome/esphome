@@ -1,3 +1,5 @@
+import esphome.codegen as cg
+from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
@@ -10,3 +12,12 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         if dep not in deps:
             deps.append(dep)
     manifest.dependencies = deps
+
+    # The command queue ordering code under test is gated on
+    # USE_NEXTION_COMMAND_SPACING, which the component only defines when
+    # command_spacing is configured. Define it here so the C++ unit test build
+    # compiles those paths.
+    async def to_code_testing(config: ConfigType) -> None:
+        cg.add_define("USE_NEXTION_COMMAND_SPACING")
+
+    manifest.to_code = to_code_testing

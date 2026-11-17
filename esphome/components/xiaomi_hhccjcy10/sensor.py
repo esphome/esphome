@@ -26,7 +26,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 xiaomi_hhccjcy10_ns = cg.esphome_ns.namespace("xiaomi_hhccjcy10")
 XiaomiHHCCJCY10 = xiaomi_hhccjcy10_ns.class_(
-    "XiaomiHHCCJCY10", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiHHCCJCY10", ble_device_base.ESPBTDeviceListener
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -67,20 +67,18 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_MOISTURE, var.set_moisture)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
-    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

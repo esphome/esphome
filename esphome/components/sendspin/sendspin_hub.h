@@ -14,6 +14,9 @@
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #include "esphome/components/mdns/mdns_component.h"
 #endif
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -30,6 +33,11 @@
 #endif
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
+#endif
+#ifdef USE_SENDSPIN_SOURCE
+#include "esphome/components/microphone/microphone_source.h"
+
+#include <sendspin/source_role.h>
 #endif
 
 #include <array>
@@ -75,6 +83,7 @@ enum SendspinFeature : uint32_t {
 ///  - Handles Sendspin roles that apply to multiple child components (artwork, controller, metadata) so their events
 ///    can be fanned out. Roles specific to a single component (player) are configured by the hub but owned by the
 ///    child thereafter, since no fan-out is needed.
+///  - The source role streams a microphone. Its data callback runs on the microphone's task.
 ///
 /// The sendspin-cpp library follows this design:
 ///  - Core and role configuration are passed at client/role construction time as structs. Built in our `setup()`.
@@ -91,6 +100,9 @@ class SendspinHub final : public Component,
 #endif
 #ifdef USE_SENDSPIN_METADATA
                           public sendspin::MetadataRoleListener,
+#endif
+#ifdef USE_SENDSPIN_SOURCE
+                          public sendspin::SourceRoleListener,
 #endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
@@ -178,6 +190,9 @@ class SendspinHub final : public Component,
   /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
   /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  SUB_SWITCH(enabled)
+#endif
 
   /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
   /// access switch, before its first start. May be called before setup(). Main loop only.
@@ -285,6 +300,30 @@ class SendspinHub final : public Component,
   sendspin::PlayerRole *get_player_role();
 #endif
 
+#ifdef USE_SENDSPIN_SOURCE
+  void set_source_config(const sendspin::SourceRoleConfig &config) { this->source_config_ = config; }
+  void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
+    this->microphone_source_ = microphone_source;
+  }
+
+  /// @brief Reports whether the source has audio to offer; exposed as the sendspin.source.set_signal action.
+  ///
+  /// Absent until first set. A call before setup() is applied there. Must be called from the main loop thread.
+  void set_source_signal(bool present);
+
+  /// @brief Returns whether the source is streaming microphone audio to the server.
+  bool is_source_streaming() const { return this->source_role_ != nullptr && this->source_role_->is_streaming(); }
+
+  /// @brief Registers a callback that fires when the server opens the source stream.
+  template<typename F> void add_on_source_streaming_started_callback(F &&callback) {
+    this->source_streaming_started_callbacks_.add(std::forward<F>(callback));
+  }
+  /// @brief Registers a callback that fires when the source stream closes.
+  template<typename F> void add_on_source_streaming_stopped_callback(F &&callback) {
+    this->source_streaming_stopped_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
@@ -381,6 +420,22 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};
   sendspin::PlayerRoleConfig player_config_{};
+#endif
+
+#ifdef USE_SENDSPIN_SOURCE
+  // The server opens and closes the stream; the microphone runs only while it is open.
+  void on_streaming_started() override;
+  void on_streaming_stopped() override;
+
+  sendspin::SourceRoleConfig source_config_{};
+  sendspin::SourceRole *source_role_{nullptr};
+  microphone::MicrophoneSource *microphone_source_{nullptr};
+  // Signal set before setup(), applied once the role exists
+  bool source_signal_{false};
+
+  // Lazy: each is fed by an optional YAML automation.
+  LazyCallbackManager<void()> source_streaming_started_callbacks_{};
+  LazyCallbackManager<void()> source_streaming_stopped_callbacks_{};
 #endif
 
   // --- Core member variables ---

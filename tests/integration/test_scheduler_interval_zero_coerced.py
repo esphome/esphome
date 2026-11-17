@@ -13,13 +13,11 @@ and the device stays responsive to API calls.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -29,18 +27,10 @@ async def test_scheduler_interval_zero_coerced(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """interval=0ms must be coerced to 1ms and not starve the main loop."""
-    loop = asyncio.get_running_loop()
-    reached_50: asyncio.Future[None] = loop.create_future()
-    coerce_warning: asyncio.Future[None] = loop.create_future()
-
-    def on_log_line(line: str) -> None:
-        if "ZERO_INTERVAL_50_FIRES_REACHED" in line and not reached_50.done():
-            reached_50.set_result(None)
-        if "would spin main loop" in line and not coerce_warning.done():
-            coerce_warning.set_result(None)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # The API-client connection itself is evidence that the main loop
@@ -49,19 +39,10 @@ async def test_scheduler_interval_zero_coerced(
         await assert_device_name(client, "sched-interval-zero")
 
         # Coerce warning must fire at registration
-        await wait_or_fail(
-            coerce_warning,
-            5.0,
-            "Expected coerce warning 'would spin main loop' not seen",
-        )
+        await waiter.wait_for("would spin main loop", timeout=5.0)
 
         # The coerced 1ms interval should fire 50 times quickly — this
         # confirms the callback actually runs (not just registered) and the
         # scheduler yields back to the main loop each time.
-        await wait_or_fail(
-            reached_50,
-            5.0,
-            "Coerced interval=0→1ms did not reach 50 fires within 5s, "
-            "which would indicate either the coercion failed or the "
-            "main loop is still being starved.",
-        )
+        # A timeout means the coercion failed or the main loop is still starved.
+        await waiter.wait_for("ZERO_INTERVAL_50_FIRES_REACHED", timeout=5.0)

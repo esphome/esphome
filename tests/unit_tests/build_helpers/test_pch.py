@@ -37,6 +37,21 @@ def test_pch_enabled(value: str | None, expected: bool) -> None:
         assert pch.pch_enabled() is expected
 
 
+@pytest.mark.parametrize(("value", "expected"), [(None, False), ("1", True)])
+def test_old_ccache_rules_out_pch(value: str | None, expected: bool) -> None:
+    """An old ccache turns the pch off unless ESPHOME_PCH_ENABLE=1 forces it."""
+    env = {} if value is None else {"ESPHOME_PCH_ENABLE": value}
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "rp2040"}
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch.object(pch, "ccache_breaks_pch", return_value=True),
+        patch.object(pch.sys, "platform", "linux"),
+    ):
+        assert pch.pch_enabled()
+        assert pch.pch_usable(("g++",)) is expected
+        assert pch.pch_script_enabled() is expected
+
+
 @pytest.mark.parametrize(
     ("version", "expected"),
     [

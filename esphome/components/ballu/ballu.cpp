@@ -1,4 +1,5 @@
 #include "ballu.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ballu {
@@ -90,9 +91,7 @@ void BalluClimate::transmit_state() {
   for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
     remote_state[12] += remote_state[i];
 
-  ESP_LOGV(TAG, "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12]);
+  ESP_LOGV_HEX(TAG, remote_state, BALLU_STATE_LENGTH, BALLU_STATE_LENGTH, "Sending: %s");
 
   // Send code
   auto transmit = this->transmitter_->transmit();
@@ -136,9 +135,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  ESP_LOGV(TAG, "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12]);
+  ESP_LOGV_HEX(TAG, remote_state, BALLU_STATE_LENGTH, BALLU_STATE_LENGTH, "Received: %s");
 
   // verify header remote code
   if (remote_state[0] != 0xc3)

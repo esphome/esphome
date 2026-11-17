@@ -1,0 +1,49 @@
+esphome:
+  name: test-dim-relative-actions
+
+esp32:
+  board: esp32dev
+
+output:
+  - platform: ledc
+    id: out_a
+    pin: GPIO4
+
+light:
+  - platform: monochromatic
+    id: dim_light
+    output: out_a
+    effects:
+      - strobe:
+      - pulse:
+
+script:
+  - id: dim_plain
+    then:
+      - light.dim_relative:
+          id: dim_light
+          relative_brightness: 10%
+  - id: dim_limits
+    then:
+      - light.dim_relative:
+          id: dim_light
+          relative_brightness: -5%
+          transition_length: 250ms
+          brightness_limits:
+            min_brightness: 20%
+            max_brightness: 90%
+            limit_mode: DO_NOTHING
+  - id: dim_lambdas
+    parameters:
+      step: float
+    then:
+      - light.dim_relative:
+          id: dim_light
+          relative_brightness: !lambda "step *= 0.5f; return step;"
+          transition_length: !lambda "return step *= 100.0f;"
+  - id: effect_cycle
+    then:
+      - light.effect.next: dim_light
+      - light.effect.previous:
+          id: dim_light
+          include_none: true

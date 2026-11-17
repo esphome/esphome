@@ -33,3 +33,7 @@ switch:
     pcm5122: pcm5122_dac
     name: PCM5122 Power Down
     power_mode: powerdown
+  - platform: pcm5122
+    pcm5122: pcm5122_dac
+    name: PCM5122 Standby
+    power_mode: standby

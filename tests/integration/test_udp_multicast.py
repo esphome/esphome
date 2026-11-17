@@ -7,9 +7,9 @@ import socket
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 MULTICAST_GROUP = "239.1.2.3"
 
@@ -30,36 +30,25 @@ async def test_udp_multicast_join(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """The group is joined from the poll after setup, once, and then receives."""
-    log_lines: list[str] = []
-    joined_event = asyncio.Event()
-    receive_event = asyncio.Event()
-
-    def on_log_line(line: str) -> None:
-        log_lines.append(line)
-        if f"Joined multicast {MULTICAST_GROUP}" in line:
-            joined_event.set()
-        if "Received UDP:" in line:
-            receive_event.set()
+    waiter = LineWaiter()
 
     listen_port = _get_free_udp_port()
     config = yaml_config.replace("UDP_LISTEN_PORT_PLACEHOLDER", str(listen_port))
 
     async with (
-        run_compiled(config, line_callback=on_log_line),
+        run_compiled(config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "udp-multicast-test")
 
-        await wait_or_fail(
-            joined_event, 5.0, "Multicast group was not joined", log_lines=log_lines
-        )
+        await waiter.wait_for(f"Joined multicast {MULTICAST_GROUP}", timeout=5.0)
 
         # The poll cancels itself after the join, so a second poll period must not join again
         await asyncio.sleep(2.5)
-        join_lines = [line for line in log_lines if "Joined multicast" in line]
+        join_lines = [line for line in waiter.lines if "Joined multicast" in line]
         assert len(join_lines) == 1, f"Expected one join, got: {join_lines}"
-        assert not any("IP_ADD_MEMBERSHIP" in line for line in log_lines), (
-            f"Join reported a failure. Log: {log_lines[-20:]}"
+        assert not any("IP_ADD_MEMBERSHIP" in line for line in waiter.lines), (
+            f"Join reported a failure. Log: {waiter.lines[-20:]}"
         )
 
         send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -68,9 +57,4 @@ async def test_udp_multicast_join(
         finally:
             send_sock.close()
 
-        await wait_or_fail(
-            receive_event,
-            5.0,
-            "Multicast datagram was not received",
-            log_lines=log_lines,
-        )
+        await waiter.wait_for("Received UDP:", timeout=5.0)

@@ -34,10 +34,7 @@ DFRobotSEN0465Component = dfrobot_sen0465_base_ns.class_(
     "DFRobotSEN0465Component", cg.PollingComponent
 )
 AlarmType = dfrobot_sen0465_base_ns.enum("AlarmType", is_class=True)
-ALARM_TYPES = {
-    "LOW": AlarmType.ALARM_TYPE_LOW,
-    "HIGH": AlarmType.ALARM_TYPE_HIGH,
-}
+ALARM_TYPES = AlarmType.options("LOW", "HIGH", prefix="ALARM_TYPE_")
 
 # One piece of the temperature compensation from the DFRobot_MultiGasSensor library:
 # for low < T <= high, compensated = raw / (a * T + b) - (c * T + d)

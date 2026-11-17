@@ -17,14 +17,10 @@ void UartTcp::setup() {
   this->listener_.begin(TAG);
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
 #endif
 #ifdef USE_SENSOR
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->disconnects_sensor_, 0);
 #endif
 }
 
@@ -32,15 +28,16 @@ void UartTcp::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "UART TCP:\n"
                 "  %s: %s:%u\n"
-                "  Reconnect Interval: %" PRIu32 "ms",
+                "  Reconnect Interval: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval());
+                this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
@@ -62,9 +59,7 @@ void UartTcp::sync_link_() {
     this->discard_uart_();
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, up);
 #endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.
@@ -80,7 +75,9 @@ void UartTcp::read_socket_() {
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->paced_write_room(this->last_write_ms_);
   if (room == 0) {
+    // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
+    this->link_.note_io();
     return;
   }
   uint8_t tmp[READ_CHUNK];
@@ -142,6 +139,7 @@ void UartTcp::loop() {
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
   this->link_.flush_tx();
+  this->link_.check_idle();
 }
 
 }  // namespace esphome::uart_tcp

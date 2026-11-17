@@ -26,11 +26,14 @@ from esphome.const import (
     CONF_VERSION,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import (
+# CONF_CLUSTER, CONF_ENDPOINT, CONF_MAX_EP_NUMBER, CONF_REPORT,
+# CONF_USE_DEVICE_TYPE and REPORT are re-exported for existing consumers of
+# this package's namespace.
+from .const import (  # noqa: F401
     CONF_CLUSTER,
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
@@ -50,9 +53,9 @@ from .const import (
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_MAX_EP_NUMBER_ZEPHYR,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
+    MAX_EP_NUMBER_ZEPHYR,
 )
 from .zigbee_esp32 import (
     final_validate_esp32,
@@ -61,12 +64,6 @@ from .zigbee_esp32 import (
     validate_sensor_esp32,
     validate_switch_esp32,
     zigbee_require_vfs_select,
-)
-from .zigbee_zephyr import (
-    zephyr_binary_sensor,
-    zephyr_number,
-    zephyr_sensor,
-    zephyr_switch,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,69 +74,13 @@ DOMAIN = "zigbee"
 CONFLICTS_WITH = ["openthread"]
 
 
-def _check_report_deprecation(value: str) -> str:
-    if str(value).lower() == "coordinator":
-        _LOGGER.warning(
-            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
-        )
-    return value
-
-
-def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
-    schema = cv.Schema(
-        {
-            cv.Optional(CONF_REPORT): cv.All(
-                cv.requires_component(DOMAIN),
-                cv.requires_component(ESP32_DOMAIN),
-                _check_report_deprecation,
-                cv.enum(REPORT, lower=True),
-            ),
-            cv.Optional(CONF_ENDPOINT): cv.All(
-                cv.requires_component(DOMAIN),
-                cv.requires_component(ESP32_DOMAIN),
-                cv.int_range(1, CONF_MAX_EP_NUMBER),
-            ),
-            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-                cv.requires_component(DOMAIN),
-                cv.requires_component(ESP32_DOMAIN),
-                cv.boolean,
-            ),
-        }
-    )
-    if cluster_options:
-        schema = cv.Schema(
-            {
-                cv.OnlyWith(
-                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
-                ): cv.All(
-                    cv.requires_component(DOMAIN),
-                    cv.requires_component(ESP32_DOMAIN),
-                    cv.one_of(*cluster_options, lower=True),
-                ),
-            }
-        ).extend(schema)
-    return schema
-
-
-# set BASE_SCHEMA for CI and backwards compatibility
-BASE_SCHEMA = _get_base_schema()
-
-BINARY_SENSOR_SCHEMA = (
-    cv.Schema({})
-    .extend(_get_base_schema(["generic", "device_class"]))
-    .extend(zephyr_binary_sensor)
-)
-SENSOR_SCHEMA = (
-    cv.Schema({})
-    .extend(_get_base_schema(["generic", "device_class"]))
-    .extend(zephyr_sensor)
-)
-SWITCH_SCHEMA = (
-    cv.Schema({}).extend(_get_base_schema(["generic", "on_off"])).extend(zephyr_switch)
-)
-NUMBER_SCHEMA = (
-    cv.Schema({}).extend(_get_base_schema(["generic"])).extend(zephyr_number)
-)
+# Defined in esphome.core.entity_helpers so entity base schemas can reference
+# them without importing this package; re-exported here for existing consumers.
+BASE_SCHEMA = entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA
+BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
+SENSOR_SCHEMA = entity_helpers.ZIGBEE_SENSOR_SCHEMA
+SWITCH_SCHEMA = entity_helpers.ZIGBEE_SWITCH_SCHEMA
+NUMBER_SCHEMA = entity_helpers.ZIGBEE_NUMBER_SCHEMA
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
@@ -241,8 +182,8 @@ def validate_number_of_ep(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "Single endpoint requires ZHA or at leatst Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT use multiple endpoints"
         )
-    if count > CONF_MAX_EP_NUMBER_ZEPHYR and not CORE.testing_mode:
-        raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER_ZEPHYR}")
+    if count > MAX_EP_NUMBER_ZEPHYR and not CORE.testing_mode:
+        raise cv.Invalid(f"Maximum number of end points is {MAX_EP_NUMBER_ZEPHYR}")
 
     return config
 

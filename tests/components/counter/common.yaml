@@ -5,6 +5,9 @@ esphome:
           id: counter_sensor
           value: 100
       - counter.increment: counter_sensor
+      - counter.set_value:
+          id: counter_sensor
+          value: !lambda return 42LL;
       - counter.increment:
           id: counter_sensor
           value: -5

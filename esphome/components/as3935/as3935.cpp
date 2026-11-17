@@ -59,12 +59,10 @@ void AS3935Component::loop() {
 #endif
 #ifdef USE_SENSOR
     uint8_t distance = this->get_distance_to_storm_();
-    if (this->distance_sensor_ != nullptr)
-      this->distance_sensor_->publish_state(distance);
+    PUBLISH_STATE(this->distance_sensor_, distance);
 
     uint32_t energy = this->get_lightning_energy_();
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(energy);
+    PUBLISH_STATE(this->energy_sensor_, energy);
 #endif
   }
 }
@@ -293,10 +291,10 @@ bool AS3935Component::calibrate_oscillator() {
   // reg_val_trco &= CALIB_MASK;
   // reg_val_trco >>= 6;
   if (!reg_val_srco && !reg_val_trco) {  // Zero upon success
-    ESP_LOGI(TAG, "Calibration was succesful");
+    ESP_LOGI(TAG, "Calibration was successful");
     return true;
   } else {
-    ESP_LOGW(TAG, "Calibration was NOT succesful");
+    ESP_LOGW(TAG, "Calibration was NOT successful");
     return false;
   }
 }

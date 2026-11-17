@@ -11,10 +11,9 @@ from esphome.components.const import (
     CONF_RST_PIN,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import ID, TimePeriod
-from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY
+from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 DOMAIN = "sx126x"
 MULTI_CONF = True
@@ -49,7 +48,7 @@ CONF_WHITENING_ENABLE = "whitening_enable"
 CONF_WHITENING_INITIAL = "whitening_initial"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
-SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
+SX126x = sx126x_ns.class_("SX126x", cg.Component)
 SX126xListener = sx126x_ns.class_("SX126xListener")
 SX126xBw = sx126x_ns.enum("SX126xBw")
 SX126xPacketType = sx126x_ns.enum("SX126xPacketType")
@@ -132,10 +131,6 @@ SHAPING = {
     "GAUSSIAN_BT_1_0": SX126xPulseShape.GAUSSIAN_BT_1_0,
     "NONE": SX126xPulseShape.NO_FILTER,
 }
-
-SendPacketAction = sx126x_ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
-)
 
 
 def validate_raw_data(value: Any) -> bytes | list[int]:
@@ -222,7 +217,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RF_SWITCH): cv.boolean,
             cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
             cv.Optional(CONF_SPREADING_FACTOR, default=7): cv.int_range(min=6, max=12),
-            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.ensure_list(cv.hex_uint8_t),
+            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.All(
+                cv.ensure_list(cv.hex_uint8_t), cv.Length(max=8)
+            ),
             cv.Optional(CONF_TCXO_VOLTAGE, default="NONE"): cv.enum(TCXO_VOLTAGE),
             cv.Optional(CONF_TCXO_DELAY, default="5ms"): cv.All(
                 cv.positive_time_period_microseconds,
@@ -324,25 +321,8 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sx126x.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
 )
-async def send_packet_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "sx126x_data",
-    )
-    return var

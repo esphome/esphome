@@ -28,11 +28,28 @@ button:
           id: select_test_select
           index: !lambda return 2;
       - select.next: select_test_select
+      - select.operation:
+          id: select_test_select
+          operation: next
+          cycle: !lambda return false;
       - select.previous:
           id: select_test_select
           cycle: false
       - select.first: select_test_select
       - select.last: select_test_select
+      - select.next:
+          id: select_test_select
+          mode: NEXT
+          cycle: true
+      - select.previous:
+          id: select_test_select
+          mode: PREVIOUS
+      - select.first:
+          id: select_test_select
+          mode: FIRST
+      - select.last:
+          id: select_test_select
+          mode: LAST
       - if:
           condition:
             select.is:
@@ -99,3 +116,16 @@ button:
           auto &options = id(select_test_select).traits.get_options();
           for (size_t i = 0; i < options.size(); i++)
             ESP_LOGD("test", "%u: %s", (unsigned) i, options.at(i));
+
+script:
+  - id: select_is_with_args
+    parameters:
+      wanted: string
+    then:
+      - if:
+          condition:
+            select.is:
+              id: select_test_select
+              lambda: return current == wanted;
+          then:
+            - select.first: select_test_select

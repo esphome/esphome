@@ -27,29 +27,36 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_md5_url(const std::string &md5_url);
-  void set_md5(const std::string &md5) { this->md5_expected_ = md5; }
+  void set_md5(const std::string &md5) { this->get_request_().md5_expected = md5; }
   void set_password(const std::string &password);
   void set_url(const std::string &url);
   void set_username(const std::string &username);
 
-  std::string md5_computed() { return this->md5_computed_; }
-  std::string md5_expected() { return this->md5_expected_; }
+  std::string md5_computed() { return this->request_ != nullptr ? this->request_->md5_computed : std::string(); }
+  std::string md5_expected() { return this->request_ != nullptr ? this->request_->md5_expected : std::string(); }
 
   void flash();
 
  protected:
+  /// Allocated by the first setter, which only runs before a flash, and never freed, so a flash never loses it.
+  struct Request {
+    std::string md5_computed;
+    std::string md5_expected;
+    std::string md5_url;
+    std::string password;
+    std::string username;
+    std::string url;
+  };
+  Request &get_request_();
+
   void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container, bool abort_backend);
+  // Only reached from flash(), which returns early while request_ is null
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
   bool validate_url_(const std::string &url);
 
-  std::string md5_computed_{};
-  std::string md5_expected_{};
-  std::string md5_url_{};
-  std::string password_{};
-  std::string username_{};
-  std::string url_{};
+  std::unique_ptr<Request> request_;
   int status_ = -1;
   static const uint16_t HTTP_RECV_BUFFER = 256;  // the firmware GET chunk size
 };

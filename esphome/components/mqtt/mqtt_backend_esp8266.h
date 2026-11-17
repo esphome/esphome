@@ -5,6 +5,7 @@
 #ifdef USE_ESP8266
 
 #include <AsyncMqttClient.h>
+#include <algorithm>
 
 namespace esphome::mqtt {
 
@@ -56,9 +57,33 @@ class MQTTBackendESP8266 final : public MQTTBackend {
     return mqtt_client_.publish(topic, qos, retain, payload, length, false, 0) != 0;
   }
   using MQTTBackend::publish;
+  bool publish_tracked(const MQTTMessage &message) final {
+    // Registered on first use, which is at shutdown
+    if (!this->publish_callback_registered_) {
+      this->publish_callback_registered_ = true;
+      this->mqtt_client_.onPublish([this](uint16_t packet_id) {
+        if (packet_id == this->tracked_packet_id_)
+          this->tracked_acked_ = true;
+      });
+    }
+    this->tracked_acked_ = false;
+    uint16_t packet_id =
+        this->mqtt_client_.publish(message.topic.c_str(), std::max<uint8_t>(message.qos, 1), message.retain,
+                                   message.payload.c_str(), message.payload.length(), false, 0);
+    if (packet_id == 0)
+      return false;
+    this->tracked_packet_id_ = packet_id;
+    return true;
+  }
+  bool publish_acknowledged() const final { return this->tracked_acked_; }
 
  protected:
   AsyncMqttClient mqtt_client_;
+  // The callback only runs when the loop yields and publish() does not yield, so it cannot see the
+  // confirmation before tracked_packet_id_ is stored and a latch is enough
+  uint16_t tracked_packet_id_{0};
+  bool tracked_acked_{false};
+  bool publish_callback_registered_{false};
 };
 
 }  // namespace esphome::mqtt

@@ -1,0 +1,7 @@
+esphome:
+  name: bk72xx-lt113
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+  framework:
+    version: 1.13.0

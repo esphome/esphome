@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
     CONF_BUILD_PATH,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -30,6 +31,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     ErrorFormat,
     Toolchain,
 )
@@ -42,7 +44,7 @@ from esphome.coroutine import (  # noqa: F401
     coroutine,
     coroutine_with_priority,
 )
-from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
+from esphome.helpers import get_str_env, is_ha_addon, unique_name
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -97,6 +99,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:
@@ -402,15 +414,23 @@ class ID:
         self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
-        from esphome.config_validation import RESERVED_IDS
+        """Give an unnamed ID a unique generated name.
 
+        ``registered_ids`` is any collection of names in use; pass a set when
+        resolving many IDs so each name check is a hash lookup.
+        """
         if self.id is None:
+            from esphome.config_validation import RESERVED_IDS_SET
+
             base = str(self.type).replace("::", "_").lower()
             if base == self.type:
                 base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
-            self.id = ensure_unique_string(name, used)
+            loaded = CORE.loaded_integrations
+            self.id = unique_name(
+                name,
+                lambda c: c in registered_ids or c in RESERVED_IDS_SET or c in loaded,
+            )
         return self.id
 
     def __str__(self):
@@ -767,12 +787,23 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
+
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
 
         return None
 
@@ -993,6 +1024,10 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
+    def is_stm32(self) -> bool:
+        return self.target_platform == PLATFORM_STM32
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
@@ -1015,6 +1050,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_zephyr(self) -> bool:
+        return self.toolchain == Toolchain.ZEPHYR
 
     @property
     def using_toolchain_arduino(self):
@@ -1154,12 +1193,14 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)

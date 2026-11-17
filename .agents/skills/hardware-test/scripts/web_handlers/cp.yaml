@@ -1,0 +1,6 @@
+captive_portal:
+button:
+  - platform: template
+    name: Start portal
+    on_press:
+      - lambda: captive_portal::global_captive_portal->start();

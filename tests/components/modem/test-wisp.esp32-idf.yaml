@@ -1,0 +1,11 @@
+modem:
+  rx_pin: GPIO26
+  tx_pin: GPIO27
+  model: SIM7600
+  apn: orange
+
+wifi:
+  ap:
+    ssid: WISP AP
+    password: wisp12345678
+    ap_mode: wisp

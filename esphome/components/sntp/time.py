@@ -116,8 +116,8 @@ async def to_code(config: ConfigType) -> None:
     # Define server count at compile time
     cg.add_define("SNTP_SERVER_COUNT", len(servers))
 
-    # Pass string literals to constructor - stored in flash/rodata by compiler
-    var = cg.new_Pvariable(config[CONF_ID], servers)
+    # One string literal argument per server
+    var = cg.new_Pvariable(config[CONF_ID], *servers)
 
     await cg.register_component(var, config)
     await time_.register_time(var, config)

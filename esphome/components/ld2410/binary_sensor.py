@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CALIBRATION,
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
@@ -9,13 +10,14 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PRESENCE,
+    DEVICE_CLASS_RUNNING,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ACCOUNT,
     ICON_MOTION_SENSOR,
 )
 from esphome.types import ConfigType
 
-from . import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410Component, require_background_correction_button
 
 DEPENDENCIES = ["ld2410"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
@@ -44,7 +46,13 @@ CONFIG_SCHEMA = {
         filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_ACCOUNT,
     ),
+    cv.Optional(CONF_CALIBRATION): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_RUNNING,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
 }
+
+FINAL_VALIDATE_SCHEMA = require_background_correction_button(CONF_CALIBRATION)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -56,3 +64,4 @@ async def to_code(config: ConfigType) -> None:
     await binary_sensors(
         CONF_OUT_PIN_PRESENCE_STATUS, hub.set_out_pin_presence_status_binary_sensor
     )
+    await binary_sensors(CONF_CALIBRATION, hub.set_calibration_binary_sensor)

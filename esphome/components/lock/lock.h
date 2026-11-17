@@ -35,12 +35,12 @@ class LockTraits {
  public:
   LockTraits() = default;
 
-  bool get_supports_open() const { return this->supports_open_; }
-  void set_supports_open(bool supports_open) { this->supports_open_ = supports_open; }
-  bool get_requires_code() const { return this->requires_code_; }
-  void set_requires_code(bool requires_code) { this->requires_code_ = requires_code; }
-  bool get_assumed_state() const { return this->assumed_state_; }
-  void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+  bool get_supports_open() const { return this->flags_.supports_open; }
+  void set_supports_open(bool supports_open) { this->flags_.supports_open = supports_open; }
+  bool get_requires_code() const { return this->flags_.requires_code; }
+  void set_requires_code(bool requires_code) { this->flags_.requires_code = requires_code; }
+  bool get_assumed_state() const { return this->flags_.assumed_state; }
+  void set_assumed_state(bool assumed_state) { this->flags_.assumed_state = assumed_state; }
 
   bool supports_state(LockState state) const { return supported_states_mask_ & (1 << state); }
   void set_supported_states(std::initializer_list<LockState> states) {
@@ -54,9 +54,13 @@ class LockTraits {
   void add_supported_state(LockState state) { supported_states_mask_ |= (1 << state); }
 
  protected:
-  bool supports_open_{false};
-  bool requires_code_{false};
-  bool assumed_state_{false};
+  // Bit-packed flags to save memory (1 byte instead of 3)
+  struct LockTraitFlags {
+    uint8_t supports_open : 1;
+    uint8_t requires_code : 1;
+    uint8_t assumed_state : 1;
+    uint8_t reserved : 5;
+  } flags_{};
   uint8_t supported_states_mask_{(1 << LOCK_STATE_NONE) | (1 << LOCK_STATE_LOCKED) | (1 << LOCK_STATE_UNLOCKED)};
 };
 
@@ -176,8 +180,8 @@ class Lock : public EntityBase {
    */
   virtual void control(const LockCall &call) = 0;
 
+  Deduplicator<LockState> publish_dedup_;  // packs with state and traits ahead of the pointer members
   LazyCallbackManager<void(LockState)> state_callback_{};
-  Deduplicator<LockState> publish_dedup_;
   ESPPreferenceObject rtc_;
 };
 

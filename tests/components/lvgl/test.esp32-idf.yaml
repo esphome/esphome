@@ -4,6 +4,14 @@ packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
   lvgl: !include common.yaml
 
+wifi:
+  ssid: SSID
+  password: PASSWORD123
+
+time:
+  - platform: sntp
+    id: sntp_time
+
 sensor:
   - platform: rotary_encoder
     name: "Rotary Encoder"
@@ -75,6 +83,8 @@ lvgl:
   on_draw_end:
     - logger.log: draw ended
     - lvgl.pause:
+    - lvgl.pause:
+        show_snow: true
     - component.update: tft_display
     - delay: 60s
     - lvgl.resume:

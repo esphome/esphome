@@ -8,33 +8,48 @@
 
 #include "esphome/components/nextion/nextion.h"
 #include "esphome/components/uart/uart_component.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::nextion::testing {
 
+// Sets the loop clock the component reads through App.get_loop_component_start_time(), so spacing can be
+// stepped forward deterministically. The guard only publishes the time; it does not restore it on destruction.
+static void set_loop_time(uint32_t now) { LoopBlockingGuard clock(nullptr, LOG_STR("test"), now); }
+
 // Explicit instantiation skips access checks, which lets the test reach the queue and the response
 // handlers without making them public on the component.
 template<std::list<NextionQueue *> Nextion::*Q, void (Nextion::*N)(int), void (Nextion::*S)(const std::string &),
-         void (Nextion::*R)(NextionQueue *), bool NextionBase::*U>
+         void (Nextion::*R)(NextionQueue *), bool NextionBase::*U, bool (Nextion::*RQ)(bool), void (Nextion::*PP)()>
 struct NextionAccess {
   friend std::list<NextionQueue *> &queue(Nextion &nextion) { return nextion.*Q; }
   friend void numeric_return(Nextion &nextion, int value) { (nextion.*N)(value); }
   friend void string_return(Nextion &nextion, const std::string &value) { (nextion.*S)(value); }
   friend void release_queue_entry(Nextion &nextion, NextionQueue *entry) { (nextion.*R)(entry); }
   friend void mark_setup(Nextion &nextion) { nextion.*U = true; }
+  friend bool remove_from_q(Nextion &nextion, bool report_empty) { return (nextion.*RQ)(report_empty); }
+  friend void process_pending(Nextion &nextion) { (nextion.*PP)(); }
 };
 std::list<NextionQueue *> &queue(Nextion &nextion);
 void numeric_return(Nextion &nextion, int value);
 void string_return(Nextion &nextion, const std::string &value);
 void release_queue_entry(Nextion &nextion, NextionQueue *entry);
 void mark_setup(Nextion &nextion);
+bool remove_from_q(Nextion &nextion, bool report_empty);
+void process_pending(Nextion &nextion);
 template struct NextionAccess<&Nextion::nextion_queue_, &Nextion::set_numeric_return_, &Nextion::set_string_return_,
-                              &Nextion::release_queue_entry_, &Nextion::is_setup_>;
+                              &Nextion::release_queue_entry_, &Nextion::is_setup_, &Nextion::remove_from_q_,
+                              &Nextion::process_pending_in_queue_>;
 
 /// Accepts the commands the component writes; the display never answers
 class FakeUART : public uart::UARTComponent {
  public:
-  void write_array(const uint8_t *data, size_t len) override {}
+  /// Every byte written, so tests can check what reached the wire and in what order
+  std::string sent;
+
+  void write_array(const uint8_t *data, size_t len) override {
+    this->sent.append(reinterpret_cast<const char *>(data), len);
+  }
   bool peek_byte(uint8_t *data) override { return false; }
   bool read_array(uint8_t *data, size_t len) override { return false; }
   size_t available() override { return 0; }
@@ -108,6 +123,19 @@ class DeliverQueueResponse : public ::testing::Test {
       }
     }
     return names;
+  }
+
+  /// Commands that reached the wire, in order. send_command_() ends each with the 0xFF 0xFF 0xFF terminator.
+  std::vector<std::string> sent_commands_() {
+    std::vector<std::string> commands;
+    const std::string terminator(3, static_cast<char>(0xFF));
+    size_t start = 0;
+    size_t end = 0;
+    while ((end = this->uart_.sent.find(terminator, start)) != std::string::npos) {
+      commands.push_back(this->uart_.sent.substr(start, end - start));
+      start = end + terminator.size();
+    }
+    return commands;
   }
 
   FakeUART uart_;
@@ -238,6 +266,57 @@ TEST_F(DeliverQueueResponse, QueryNamedRawGetIsNotRawGet) {
   EXPECT_TRUE(sensor->received);
   EXPECT_EQ(sensor->int_value, 8);
   EXPECT_TRUE(this->queued_().empty());
+}
+
+// With command spacing, an unrelated ACK or error must not consume a front entry whose command is still
+// unsent: the response cannot belong to it, so remove_from_q_() leaves it queued instead of losing it.
+TEST_F(DeliverQueueResponse, AckKeepsUnsentFrontEntry) {
+  this->nextion_.set_command_spacing(50);
+  auto *unsent = this->add_query_("temp", NextionQueueType::SENSOR, false);
+
+  EXPECT_FALSE(remove_from_q(this->nextion_, false));
+
+  EXPECT_FALSE(unsent->received);
+  EXPECT_EQ(this->queued_(), std::vector<std::string>{"temp"});
+}
+
+// Once a command is waiting for spacing, a later write must not go out ahead of it, even after the spacing
+// interval has elapsed. process_pending_in_queue_() then drains the queue in the original transmit order.
+TEST_F(DeliverQueueResponse, WriteDoesNotOvertakePendingCommand) {
+  this->nextion_.set_command_spacing(50);
+
+  set_loop_time(1000);
+  this->nextion_.send_command("cmd1");  // nothing waiting, goes out now
+  this->nextion_.send_command("cmd2");  // spacing not elapsed, kept pending
+
+  set_loop_time(1100);                  // spacing elapsed
+  this->nextion_.send_command("cmd3");  // must queue behind cmd2, not overtake it
+  EXPECT_EQ(this->sent_commands_(), std::vector<std::string>{"cmd1"});
+
+  process_pending(this->nextion_);  // sends cmd2
+  set_loop_time(1200);
+  process_pending(this->nextion_);  // sends cmd3
+  EXPECT_EQ(this->sent_commands_(), (std::vector<std::string>{"cmd1", "cmd2", "cmd3"}));
+}
+
+// A GET follows the same rule: while an earlier command is still waiting, the query is kept pending and only
+// transmitted once the queue drains in order, never ahead of the command that came before it.
+TEST_F(DeliverQueueResponse, GetDoesNotOvertakePendingCommand) {
+  this->nextion_.set_command_spacing(50);
+  auto *sensor = this->components_.emplace_back(std::make_unique<MockComponent>("bri", NextionQueueType::SENSOR)).get();
+
+  set_loop_time(1000);
+  this->nextion_.send_command("cmd1");  // goes out now
+  this->nextion_.send_command("cmd2");  // kept pending by spacing
+
+  set_loop_time(1100);                      // spacing elapsed
+  this->nextion_.add_to_get_queue(sensor);  // must queue behind cmd2
+  EXPECT_EQ(this->sent_commands_(), std::vector<std::string>{"cmd1"});
+
+  process_pending(this->nextion_);  // sends cmd2
+  set_loop_time(1200);
+  process_pending(this->nextion_);  // sends "get bri"
+  EXPECT_EQ(this->sent_commands_(), (std::vector<std::string>{"cmd1", "cmd2", "get bri"}));
 }
 
 }  // namespace esphome::nextion::testing

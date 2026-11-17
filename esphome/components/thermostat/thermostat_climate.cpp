@@ -1293,18 +1293,6 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
   return something_changed;
 }
 
-void ThermostatClimate::set_custom_preset_config(const CustomPresetEntry *presets, uint8_t count) {
-  this->custom_preset_config_ = presets;
-  this->custom_preset_count_ = count;
-  // Populate Climate base class custom presets vector
-  std::vector<const char *> names;
-  names.reserve(count);
-  for (uint8_t i = 0; i < count; i++) {
-    names.push_back(this->custom_preset_entry_(i).name);
-  }
-  this->set_supported_custom_presets(names);
-}
-
 ThermostatClimate::ThermostatClimate() = default;
 
 void ThermostatClimate::set_default_preset(const char *custom_preset) {

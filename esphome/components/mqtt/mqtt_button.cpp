@@ -15,7 +15,7 @@ using namespace esphome::button;
 MQTTButtonComponent::MQTTButtonComponent(button::Button *button) : button_(button) {}
 
 void MQTTButtonComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     if (payload == "PRESS") {
       this->button_->press();
     } else {

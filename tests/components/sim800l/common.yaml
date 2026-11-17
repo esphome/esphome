@@ -10,6 +10,13 @@ esphome:
       - sim800l.disconnect
       - sim800l.send_ussd:
           ussd: test_ussd
+      - sim800l.send_sms:
+          recipient: !lambda return std::string("+15550000000");
+          message: !lambda return std::string("Lambda message");
+      - sim800l.dial:
+          recipient: !lambda return std::string("+15550000001");
+      - sim800l.send_ussd:
+          ussd: !lambda return std::string("*100#");
 
 sim800l:
   on_sms_received:
@@ -29,3 +36,21 @@ sim800l:
     - sim800l.disconnect
   on_ussd_received:
     - logger.log: "ussd_received"
+  on_dtmf_received:
+    - logger.log:
+        format: "DTMF key '%s'"
+        args: ["key.c_str()"]
+  on_call_connected:
+    - logger.log: "call connected"
+  on_call_disconnected:
+    - logger.log: "call disconnected"
+
+binary_sensor:
+  - platform: sim800l
+    registered:
+      name: SIM800L Registered
+
+sensor:
+  - platform: sim800l
+    rssi:
+      name: SIM800L RSSI

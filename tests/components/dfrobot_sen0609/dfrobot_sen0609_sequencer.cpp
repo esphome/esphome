@@ -54,6 +54,35 @@ TEST_F(SEN0609SequencerTest, ChangesMadeTogetherShareOneSave) {
   EXPECT_EQ(this->next_command_(), "");
 }
 
+// The Apply numbers pass themselves; the hub finds the setting by pointer
+TEST_F(SEN0609SequencerTest, NumberPointerFindsLaterSetting) {
+  this->boot_();
+  // Hold sensitivity sits after unregistered slots in the number array
+  this->hub_.control_number(&this->hold_sensitivity_, 3.0f);
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 3.0f);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setSensitivity 3 5");
+  this->expect_and_answer_("saveConfig");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, NumberPointerInvalidRangeKeepsState) {
+  this->boot_();
+  this->hub_.control_number(&this->min_range_, 20.0f);
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+  EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, UnregisteredNumberPointerWritesNothing) {
+  this->boot_();
+  TestNumber other;
+  this->hub_.control_number(&other, 5.0f);
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 7.0f);
+  EXPECT_EQ(this->next_command_(), "");
+}
+
 TEST_F(SEN0609SequencerTest, WriteWaitsBeforeStarting) {
   this->boot_();
   this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);

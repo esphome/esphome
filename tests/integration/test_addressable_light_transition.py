@@ -23,7 +23,7 @@ import asyncio
 from aioesphomeapi import LightInfo, SensorInfo, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -52,11 +52,9 @@ async def test_addressable_light_transition(
                 return
             samples.append((loop.time(), state.state))
 
-        # InitialStateHelper swallows the first state ESPHome sends per entity
+        # Swallow the first state ESPHome sends per entity
         # on subscribe, so on_state only sees real post-subscribe updates.
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Start transition: off -> full white over 1 second. This is the
         # scenario from the bug report, compressed in time.

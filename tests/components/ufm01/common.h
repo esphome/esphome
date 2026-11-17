@@ -20,8 +20,6 @@
 
 namespace esphome::ufm01::testing {
 
-static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
-static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
 static constexpr uint8_t PASSIVE_START_BYTE_2 = 0x64;
 static constexpr uint8_t PASSIVE_START_BYTE_2_WITH_ID = 0x96;
 static constexpr uint8_t FRAME_STOP_BYTE = 0x16;
@@ -131,7 +129,7 @@ class TestableUFM01 : public UFM01Component {
 
   StartupPhase startup_phase() const { return this->startup_phase_; }
 
-  int32_t read_index() const { return this->read_index_; }
+  int32_t read_index() const { return this->active_reader_.length(); }
 
   uint8_t passive_index() const { return this->passive_index_; }
 
@@ -165,7 +163,7 @@ class TestableUFM01 : public UFM01Component {
     this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
     this->last_valid_frame_ms_ = now();
     this->passive_read_pending_ = false;
-    this->read_index_ = 0;
+    this->active_reader_.reset();
   }
 
   void begin_active_wait_frame() {
@@ -182,7 +180,7 @@ class TestableUFM01 : public UFM01Component {
   }
 
   void reset_state() {
-    this->read_index_ = 0;
+    this->active_reader_.reset();
     this->last_valid_frame_ms_ = 0;
     this->passive_index_ = 0;
     this->passive_read_pending_ = false;

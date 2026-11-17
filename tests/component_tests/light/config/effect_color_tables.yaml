@@ -1,0 +1,44 @@
+esphome:
+  name: test-effect-color-tables
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+light:
+  - platform: fastled_clockless
+    id: strip_a
+    chipset: WS2811
+    pin: GPIO13
+    num_leds: 10
+    effects:
+      - strobe:
+          name: Strobe A
+          colors:
+            - state: true
+              duration: 500ms
+            - state: false
+              duration: 250ms
+      - addressable_color_wipe:
+          name: Wipe
+          colors:
+            - red: 100%
+              green: 0%
+              blue: 0%
+              num_leds: 2
+            - random: true
+              num_leds: 1
+  - platform: fastled_clockless
+    id: strip_b
+    chipset: WS2811
+    pin: GPIO14
+    num_leds: 10
+    effects:
+      - strobe:
+          name: Strobe B
+          colors:
+            - state: true
+              duration: 500ms
+            - state: false
+              duration: 250ms

@@ -11,7 +11,7 @@ DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.OUTPUT
 
 OpenthermOutput = generate.opentherm_ns.class_(
-    "OpenthermOutput", output.FloatOutput, cg.Component, input.OpenthermInput
+    "OpenthermOutput", output.FloatOutput, input.OpenthermInput
 )
 
 
@@ -19,7 +19,6 @@ async def new_openthermoutput(
     config: dict[str, Any], key: str, _hub: cg.MockObj
 ) -> cg.Pvariable:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await output.register_output(var, config)
     cg.add(var.set_id(cg.RawExpression(f'"{key}_{config[CONF_ID]}"')))
     input.generate_setters(var, config)
@@ -27,13 +26,9 @@ async def new_openthermoutput(
 
 
 def get_entity_validation_schema(entity: schema.InputSchema) -> cv.Schema:
-    return (
-        output.FLOAT_OUTPUT_SCHEMA.extend(
-            {cv.GenerateID(): cv.declare_id(OpenthermOutput)}
-        )
-        .extend(input.input_schema(entity))
-        .extend(cv.COMPONENT_SCHEMA)
-    )
+    return output.FLOAT_OUTPUT_SCHEMA.extend(
+        {cv.GenerateID(): cv.declare_id(OpenthermOutput)}
+    ).extend(input.input_schema(entity))
 
 
 CONFIG_SCHEMA = validate.create_component_schema(

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/api/api_connection.h"
 #include "esphome/core/component.h"
 
 namespace esphome::sndbuf_pin {
@@ -17,5 +18,14 @@ class SndbufPinComponent : public Component {
  protected:
   int buffer_size_;
 };
+
+/// The api client subscribed to logs, or nullptr. A fixture lambda cannot name the api namespace:
+/// the test harness rewrites every "api" key followed by a colon in the YAML.
+api::APIConnection *api_log_client();
+
+/// True once the api client's receive window is closed: everything sent is acknowledged and data still
+/// waits to be sent, so no acknowledgement can free send buffer space until the client reads again.
+/// Linux host only; always false elsewhere.
+bool api_peer_window_closed();
 
 }  // namespace esphome::sndbuf_pin

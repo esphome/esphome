@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -81,16 +82,13 @@ async def test_scheduler_heap_stress(
         await client.execute_service(run_stress_test_service, {})
 
         # Wait for all callbacks to execute (should be quick, but give more time for scheduling)
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except TimeoutError:
-            # Report how many we got
-            missing_ids = sorted(set(range(1000)) - executed_callbacks)
-            pytest.fail(
-                f"Stress test timed out. Only {len(executed_callbacks)} of "
-                f"1000 callbacks executed. Missing IDs: "
-                f"{missing_ids[:20]}... (total missing: {len(missing_ids)})"
-            )
+        await wait_or_fail(
+            test_complete_future,
+            10.0,
+            "Stress test did not complete",
+            executed=lambda: f"{len(executed_callbacks)} of 1000 callbacks",
+            missing_ids=lambda: sorted(set(range(1000)) - executed_callbacks),
+        )
 
         # Verify all callbacks executed
         assert len(executed_callbacks) == 1000, (
