@@ -18,31 +18,15 @@ static constexpr uint8_t SIXD_POSITION_MASK = 0x3F;  // XL..ZH, leaving out D6D_
 PROGMEM_STRING_TABLE(PowerModeStrings, "High Performance", "Low Power 1 (12-bit)", "Low Power 2", "Low Power 3",
                      "Low Power 4", "Unknown");
 
-static const LogString *power_mode_to_string(PowerMode mode) {
-  return PowerModeStrings::get_log_str(static_cast<uint8_t>(mode), PowerModeStrings::LAST_INDEX);
-}
-
 // Indexed by Range
 PROGMEM_STRING_TABLE(RangeStrings, "±2g", "±4g", "±8g", "±16g", "Unknown");
-
-static const LogString *range_to_string(Range range) {
-  return RangeStrings::get_log_str(static_cast<uint8_t>(range), RangeStrings::LAST_INDEX);
-}
 
 // Indexed by DataRate
 PROGMEM_STRING_TABLE(DataRateStrings, "Unknown", "1.6 Hz", "12.5 Hz", "25 Hz", "50 Hz", "100 Hz", "200 Hz", "400 Hz",
                      "800 Hz", "1600 Hz");
 
-static const LogString *data_rate_to_string(DataRate rate) {
-  return DataRateStrings::get_log_str(static_cast<uint8_t>(rate), 0);
-}
-
 // Indexed by FilterBandwidth
 PROGMEM_STRING_TABLE(FilterBandwidthStrings, "ODR/2", "ODR/4", "ODR/10", "ODR/20", "Unknown");
-
-static const LogString *filter_bandwidth_to_string(FilterBandwidth bw) {
-  return FilterBandwidthStrings::get_log_str(static_cast<uint8_t>(bw), FilterBandwidthStrings::LAST_INDEX);
-}
 
 void LIS2DW12Component::setup() {
   uint8_t who_am_i{0};
@@ -132,19 +116,22 @@ bool LIS2DW12Component::configure_registers_() {
 
 void LIS2DW12Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS2DW12:");
-  ESP_LOGCONFIG(TAG,
-                "  Power Mode: %s\n"
-                "  Data Rate: %s\n"
-                "  Range: %s\n"
-                "  Filter Bandwidth: %s\n"
-                "  Low Noise: %s\n"
-                "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
-                "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
-                LOG_STR_ARG(power_mode_to_string(this->power_mode_)),
-                LOG_STR_ARG(data_rate_to_string(this->data_rate_)), LOG_STR_ARG(range_to_string(this->range_)),
-                LOG_STR_ARG(filter_bandwidth_to_string(this->filter_bandwidth_)), YESNO(this->low_noise_),
-                this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->mirror_x_), YESNO(this->mirror_y_),
-                YESNO(this->mirror_z_), YESNO(this->swap_xy_));
+  ESP_LOGCONFIG(
+      TAG,
+      "  Power Mode: %s\n"
+      "  Data Rate: %s\n"
+      "  Range: %s\n"
+      "  Filter Bandwidth: %s\n"
+      "  Low Noise: %s\n"
+      "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
+      "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
+      LOG_STR_ARG(PowerModeStrings::get_log_str(static_cast<uint8_t>(this->power_mode_), PowerModeStrings::LAST_INDEX)),
+      LOG_STR_ARG(DataRateStrings::get_log_str(static_cast<uint8_t>(this->data_rate_), 0)),
+      LOG_STR_ARG(RangeStrings::get_log_str(static_cast<uint8_t>(this->range_), RangeStrings::LAST_INDEX)),
+      LOG_STR_ARG(FilterBandwidthStrings::get_log_str(static_cast<uint8_t>(this->filter_bandwidth_),
+                                                      FilterBandwidthStrings::LAST_INDEX)),
+      YESNO(this->low_noise_), this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->mirror_x_),
+      YESNO(this->mirror_y_), YESNO(this->mirror_z_), YESNO(this->swap_xy_));
   LOG_UPDATE_INTERVAL(this);
 
 #ifdef USE_BINARY_SENSOR

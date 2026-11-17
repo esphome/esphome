@@ -422,10 +422,6 @@ static uint16_t termination_voltage_mv(uint8_t code) { return code < 4 ? 3500 + 
 // Indexed by NPM1300Output
 PROGMEM_STRING_TABLE(OutputNameStrings, "BUCK1", "BUCK2", "LDO1", "LDO2");
 
-static const LogString *output_name(uint8_t index) {
-  return OutputNameStrings::get_log_str(index, OutputNameStrings::LAST_INDEX);
-}
-
 void NPM1300Component::dump_config() {
   ESP_LOGCONFIG(TAG, "nPM1300:");
   LOG_I2C_DEVICE(this);
@@ -456,7 +452,7 @@ void NPM1300Component::dump_config() {
     const NPM1300OutputConfig &output = config.outputs[i];
     if (output.voltage == NPM1300_UNSET && output.ldo_mode == NPM1300_UNSET && output.enabled == NPM1300_UNSET)
       continue;
-    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(output_name(i)));
+    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(OutputNameStrings::get_log_str(i, OutputNameStrings::LAST_INDEX)));
     if (output.voltage != NPM1300_UNSET) {
       ESP_LOGCONFIG(TAG, "    Voltage: %u mV", 1000u + output.voltage * 100u);
     }
