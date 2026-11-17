@@ -13,7 +13,7 @@ bool collect_reply(char *buf, size_t size, size_t &len, const char *data, size_t
     len = 0;
   }
   bool dropped = false;
-  if (data_len >= capacity) {
+  if (data_len > capacity) {
     memcpy(buf, data + data_len - capacity, capacity);
     len = capacity;
     dropped = true;

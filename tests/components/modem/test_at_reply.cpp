@@ -63,6 +63,22 @@ TEST(ModemCollectReply, GatheredCmuxFramesAreNotRepeated) {
   EXPECT_EQ(reply_end(buf, len, false), ReplyEnd::REPLY_END_OK);
 }
 
+TEST(ModemCollectReply, ExactlyFullIsNotCut) {
+  char buf[9];
+  size_t len = 0;
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "OK\r\nabcd", 8, true));
+  EXPECT_STREQ(buf, "OK\r\nabcd");
+  len = 0;
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "OK\r\nabcd", 8, false));
+  EXPECT_EQ(reply_end(buf, len, false), ReplyEnd::REPLY_END_OK);
+  // Filling up by appending is not a cut either, one more byte is
+  len = 0;
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "OK\r\n", 4, false));
+  EXPECT_FALSE(collect_reply(buf, sizeof(buf), len, "abcd", 4, false));
+  EXPECT_TRUE(collect_reply(buf, sizeof(buf), len, "e", 1, false));
+  EXPECT_STREQ(buf, "K\r\nabcde");
+}
+
 TEST(ModemCollectReply, CmuxFramesAreAppended) {
   char buf[9];
   size_t len = 0;
