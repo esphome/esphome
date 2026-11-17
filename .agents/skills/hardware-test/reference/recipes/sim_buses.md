@@ -148,8 +148,8 @@ lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared 
   before talk never sent over a packet.
 - The run ends with `DONE fails=N`: values that never arrived, refused sends of valid sizes, accepted oversize sends, a
   refused peer send in the listen before talk phase, held sends never released, no release in the hold cap phase and
-  raw packets with a bad pattern. `AIR` lines also count FSK FIFO writes dropped when full and reads when empty
-  (`fifo_over`, `fifo_under`).
+  raw packets with a bad pattern or that did not arrive exactly once at their size. `AIR` lines also count FSK FIFO
+  writes dropped when full and reads when empty (`fifo_over`, `fifo_under`).
 
 ## SX127x SPI byte stream A/B (#22776)
 

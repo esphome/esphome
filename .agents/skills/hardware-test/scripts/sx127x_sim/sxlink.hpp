@@ -89,6 +89,8 @@ struct Ctx {
 static int step = 0, sub = 0;
 static uint32_t next_ms = 0, t0 = 0, cnt = 0, cnt2 = 0, first_ok = 0, over0 = 0;
 static float want = NAN;
+static uint32_t raw_base = 0;  // the receiver's raw count before the last accepted raw send
+static bool raw_sent = false;
 static uint32_t fails = 0;  // values that never arrived, wrong send results, held sends never released
 static sensor::Sensor *watch_s = nullptr;
 static const char *watch_name = "";
@@ -173,6 +175,8 @@ inline void run() {
         ESP_LOGI(TAG, "RES size %u A->B rx_on_b=%u last_len=%u rssi=%.1f snr=%.2f bad=%u air_us=%u", prev,
                  (unsigned) RXB.n, RXB.last_len, RXB.rssi, RXB.snr, (unsigned) RXB.bad,
                  (unsigned) C.ma->last_tx_air_us);
+        if (raw_sent && (RXB.n != raw_base + 1 || RXB.last_len != prev))
+          fails++;  // an accepted packet that did not arrive once and whole
       }
       if (sub == NSIZES) {
         NEXT();
@@ -189,6 +193,8 @@ inline void run() {
       }
       if (ok != (len <= MAXP))
         fails++;  // a valid size refused, or an oversize one accepted
+      raw_sent = ok;
+      raw_base = RXB.n;
       ESP_LOGI(TAG, "RES send size %u -> %s after %u refusals", len, ok ? "sent" : "refused", (unsigned) cnt);
       cnt = 0;
       sub++;
@@ -204,6 +210,8 @@ inline void run() {
       cnt = 0;
       if (!ok)
         fails++;
+      raw_sent = ok;
+      raw_base = RXA.n;
       ESP_LOGI(TAG, "RES send size %u B->A -> %s", MAXP, ok ? "sent" : "refused");
       NEXT();
       WAIT(900);
@@ -212,6 +220,8 @@ inline void run() {
     case 7:
       ESP_LOGI(TAG, "RES size %u B->A rx_on_a=%u last_len=%u rssi=%.1f snr=%.2f bad=%u", MAXP, (unsigned) RXA.n,
                RXA.last_len, RXA.rssi, RXA.snr, (unsigned) RXA.bad);
+      if (raw_sent && (RXA.n != raw_base + 1 || RXA.last_len != MAXP))
+        fails++;
       idle_report("after_sizes");
       ESP_LOGI(TAG, "PHASE lbt_peer_sending");
       over0 = C.ma->tx_over_signal;
