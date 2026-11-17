@@ -1,0 +1,17 @@
+substitutions:
+  name: en32p
+  peer: en66p
+  peer_mac: AA:BB:CC:00:00:66  # the D1 mini peer's station MAC
+  my_addr: "0x0032"
+  peer_addr: "0x0066"
+  raw_max: "1470"
+  payload_max: "1470"
+  sizes: "16, 100, 249, 250, 251, 600, 1470"
+  long_id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  chaos: "true"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+packages:
+  link: !include enlink.yaml

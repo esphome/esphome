@@ -1,0 +1,270 @@
+# Shared part of a tcp packet_interface peer (esphome#21119). Each device runs:
+#   et_srv / et_cli   : entity_transport both ways over xxtea + fragmentation, one as server, one as client
+#   raw_srv / raw_cli : no layers, max_packet_size 1022, a size sweep with checked payloads both ways
+#   probe_srv         : server for the raw Python peer (allowed_ips: ${probe_allow})
+#   probe_cli         : client of the raw Python peer's server
+# substitutions: name, peer, peer_host, srv/raw/probe ports of this device, peer ports, probe_cli_port, probe_allow
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            using esphome::packet_interface::PacketBuffer;
+            using esphome::packet_interface::PacketMetaData;
+            auto check = [](const char *link, uint32_t *rx, uint32_t *bad, uint32_t *gaps, int32_t *last) {
+              return [=](const PacketBuffer &d, const PacketMetaData &) {
+                static uint8_t buf[1100];
+                size_t n = d.size();
+                d.copy_to(buf, n);
+                (*rx)++;
+                if (n < 2) { (*bad)++; ESP_LOGW("raw", "%s short packet %u", link, (unsigned) n); return; }
+                uint16_t seq = buf[0] | (buf[1] << 8);
+                bool ok = true;
+                for (size_t i = 2; i < n; i++)
+                  if (buf[i] != (uint8_t) (seq + i)) { ok = false; break; }
+                if (!ok) { (*bad)++; ESP_LOGW("raw", "%s bad payload seq=%u size=%u", link, seq, (unsigned) n); }
+                if (*last >= 0 && seq != (uint16_t) (*last + 1)) {
+                  (*gaps)++;
+                  ESP_LOGI("raw", "%s seq gap %d -> %u", link, (int) *last, seq);
+                }
+                *last = seq;
+                if (n >= 1000) ESP_LOGD("raw", "%s RX seq=%u size=%u ok=%d", link, seq, (unsigned) n, ok);
+              };
+            };
+            id(raw_srv)->add_packet_interface_listener(check("raw_srv", &id(rs_rx), &id(rs_bad), &id(rs_gap), &id(rs_last)));
+            id(raw_cli)->add_packet_interface_listener(check("raw_cli", &id(rc_rx), &id(rc_bad), &id(rc_gap), &id(rc_last)));
+            auto probe = [](const char *link) {
+              return [=](const PacketBuffer &d, const PacketMetaData &) {
+                static uint8_t buf[1100];
+                size_t n = d.size();
+                d.copy_to(buf, n);
+                uint32_t sum = 0;
+                for (size_t i = 0; i < n; i++) sum += buf[i];
+                ESP_LOGI("probe", "%s RX size=%u sum=%u", link, (unsigned) n, (unsigned) sum);
+              };
+            };
+            id(probe_srv)->add_packet_interface_listener(probe("probe_srv"));
+            id(probe_cli)->add_packet_interface_listener(probe("probe_cli"));
+    - priority: -100
+      then:
+        - delay: 20s
+        - script.execute: oversend
+
+logger:
+  level: DEBUG
+
+api:
+  port: ${api_port}
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+
+globals:
+  - {id: counter, type: int, initial_value: "0"}
+  - {id: rs_rx, type: uint32_t, initial_value: "0"}
+  - {id: rs_bad, type: uint32_t, initial_value: "0"}
+  - {id: rs_gap, type: uint32_t, initial_value: "0"}
+  - {id: rs_last, type: int32_t, initial_value: "-1"}
+  - {id: rc_rx, type: uint32_t, initial_value: "0"}
+  - {id: rc_bad, type: uint32_t, initial_value: "0"}
+  - {id: rc_gap, type: uint32_t, initial_value: "0"}
+  - {id: rc_last, type: int32_t, initial_value: "-1"}
+  - {id: rs_tx, type: uint32_t, initial_value: "0"}
+  - {id: rs_ref, type: uint32_t, initial_value: "0"}
+  - {id: rc_tx, type: uint32_t, initial_value: "0"}
+  - {id: rc_ref, type: uint32_t, initial_value: "0"}
+  - {id: rs_seq, type: uint16_t, initial_value: "0"}
+  - {id: rc_seq, type: uint16_t, initial_value: "0"}
+  - {id: sweep_idx, type: uint32_t, initial_value: "0"}
+
+packet_interface:
+  - platform: tcp
+    id: et_srv
+    role: server
+    port: ${srv_port}
+    keep_alive: 2s
+    timeout: 6s
+    reconnect_interval: 3s
+    encryption: ${et_key}
+    fragmentation:
+      max_packet_size: 2048
+    connected:
+      name: et_srv connected
+      on_state:
+        - logger.log: {format: "CONN et_srv %d", args: ["x ? 1 : 0"]}
+  - platform: tcp
+    id: et_cli
+    role: client
+    host: ${peer_host}
+    port: ${peer_srv_port}
+    keep_alive: 2s
+    timeout: 6s
+    reconnect_interval: 3s
+    encryption: ${et_key}
+    fragmentation:
+      max_packet_size: 2048
+    connected:
+      name: et_cli connected
+      on_state:
+        - logger.log: {format: "CONN et_cli %d", args: ["x ? 1 : 0"]}
+  - platform: tcp
+    id: raw_srv
+    role: server
+    port: ${raw_port}
+    keep_alive: 2s
+    timeout: 6s
+    reconnect_interval: 3s
+    connected:
+      name: raw_srv connected
+      on_state:
+        - logger.log: {format: "CONN raw_srv %d", args: ["x ? 1 : 0"]}
+  - platform: tcp
+    id: raw_cli
+    role: client
+    host: ${peer_host}
+    port: ${peer_raw_port}
+    keep_alive: 2s
+    timeout: 6s
+    reconnect_interval: 3s
+    connected:
+      name: raw_cli connected
+      on_state:
+        - logger.log: {format: "CONN raw_cli %d", args: ["x ? 1 : 0"]}
+  - platform: tcp
+    id: probe_srv
+    role: server
+    port: ${probe_port}
+    keep_alive: 2s
+    timeout: 6s
+    reconnect_interval: 3s
+    allowed_ips: ${probe_allow}
+    connected:
+      name: probe_srv connected
+      on_state:
+        - logger.log: {format: "CONN probe_srv %d", args: ["x ? 1 : 0"]}
+  - platform: tcp
+    id: probe_cli
+    role: client
+    host: ${probe_host}
+    port: ${probe_cli_port}
+    keep_alive: 2s
+    timeout: 6s
+    reconnect_interval: 3s
+    connected:
+      name: probe_cli connected
+      on_state:
+        - logger.log: {format: "CONN probe_cli %d", args: ["x ? 1 : 0"]}
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: id(counter)++;
+  - interval: 250ms
+    then:
+      - lambda: |-
+          using esphome::packet_interface::PacketBuffer;
+          static const uint16_t SIZES[] = {2, 3, 16, 64, 255, 256, 511, 512, 700, 1000, 1020, 1021, 1022};
+          static uint8_t buf[1100];
+          uint16_t size = SIZES[id(sweep_idx) % (sizeof(SIZES) / sizeof(SIZES[0]))];
+          id(sweep_idx)++;
+          auto send = [&](esphome::tcp::TcpPacketInterface *link, uint16_t &seq, uint32_t &tx, uint32_t &ref) {
+            buf[0] = seq; buf[1] = seq >> 8;
+            for (size_t i = 2; i < size; i++) buf[i] = (uint8_t) (seq + i);
+            if (link->send_to_interface(PacketBuffer(buf, size), {})) { seq++; tx++; } else { ref++; }
+          };
+          send(id(raw_srv), id(rs_seq), id(rs_tx), id(rs_ref));
+          send(id(raw_cli), id(rc_seq), id(rc_tx), id(rc_ref));
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("stat", "STAT raw_srv tx=%u ref=%u rx=%u bad=%u gap=%u | raw_cli tx=%u ref=%u rx=%u bad=%u gap=%u | cnt=%d",
+                   id(rs_tx), id(rs_ref), id(rs_rx), id(rs_bad), id(rs_gap), id(rc_tx), id(rc_ref), id(rc_rx), id(rc_bad),
+                   id(rc_gap), id(counter));
+
+script:
+  - id: oversend
+    then:
+      - lambda: |-
+          using esphome::packet_interface::PacketBuffer;
+          static uint8_t big[1023];
+          bool r = id(raw_cli)->send_to_interface(PacketBuffer(big, sizeof(big)), {});
+          ESP_LOGI("raw", "1023 byte send returned %d", r);
+
+sensor:
+  - platform: template
+    id: cnt
+    lambda: return id(counter);
+    update_interval: 1s
+  - platform: template
+    id: longa
+    lambda: return id(counter) * 0.5f;
+    update_interval: 5s
+  - platform: entity_transport
+    id: r_srv_cnt
+    entity_transport_id: ets
+    provider: ${peer}
+    remote_id: cnt
+    on_value:
+      - logger.log: {format: "ETRX et_srv cnt=%.0f", args: [x]}
+  - platform: entity_transport
+    id: r_cli_cnt
+    entity_transport_id: etc
+    provider: ${peer}
+    remote_id: cnt
+    on_value:
+      - logger.log: {format: "ETRX et_cli cnt=%.0f", args: [x]}
+  - platform: entity_transport
+    id: r_srv_long
+    entity_transport_id: ets
+    provider: ${peer}
+    remote_id: ${long_id}9
+    on_value:
+      - logger.log: {format: "ETRX et_srv long=%.1f", args: [x]}
+  - platform: entity_transport
+    id: r_cli_long
+    entity_transport_id: etc
+    provider: ${peer}
+    remote_id: ${long_id}9
+    on_value:
+      - logger.log: {format: "ETRX et_cli long=%.1f", args: [x]}
+
+binary_sensor:
+  - platform: template
+    id: bin
+    lambda: return (id(counter) / 3) % 2;
+  - platform: entity_transport
+    id: r_srv_bin
+    entity_transport_id: ets
+    provider: ${peer}
+    remote_id: bin
+    on_state:
+      - logger.log: {format: "ETRX et_srv bin=%d", args: ["x ? 1 : 0"]}
+  - platform: entity_transport
+    id: r_cli_bin
+    entity_transport_id: etc
+    provider: ${peer}
+    remote_id: bin
+    on_state:
+      - logger.log: {format: "ETRX et_cli bin=%d", args: ["x ? 1 : 0"]}
+
+entity_transport:
+  - id: ets
+    packet_interface: et_srv
+    sensors: &et_sensors
+      - cnt
+      - {id: longa, broadcast_id: "${long_id}1"}
+      - {id: longa, broadcast_id: "${long_id}2"}
+      - {id: longa, broadcast_id: "${long_id}3"}
+      - {id: longa, broadcast_id: "${long_id}4"}
+      - {id: longa, broadcast_id: "${long_id}5"}
+      - {id: longa, broadcast_id: "${long_id}6"}
+      - {id: longa, broadcast_id: "${long_id}7"}
+      - {id: longa, broadcast_id: "${long_id}8"}
+      - {id: longa, broadcast_id: "${long_id}9"}
+    binary_sensors: &et_bins
+      - bin
+  - id: etc
+    packet_interface: et_cli
+    sensors: *et_sensors
+    binary_sensors: *et_bins

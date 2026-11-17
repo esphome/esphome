@@ -1,0 +1,6 @@
+esp8266:
+  board: d1_mini
+ads1115:
+  - address: 0x48
+    id: dev
+    i2c_id: bus_hw

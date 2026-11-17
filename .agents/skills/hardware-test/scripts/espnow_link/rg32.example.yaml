@@ -1,0 +1,15 @@
+substitutions:
+  name: rg32p
+  peer_p: rg66p
+  peer_b: rg66b
+  peer_ip: 192.0.2.66  # the D1 mini peer's address
+  peer_mac: AA:BB:CC:00:00:66  # the D1 mini peer's station MAC
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+packages:
+  link: !include rglink.yaml
+espnow:
+  on_broadcast:
+    - lambda: id(e_bcb)++;

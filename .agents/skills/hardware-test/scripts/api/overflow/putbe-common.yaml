@@ -1,0 +1,601 @@
+esphome:
+  name: ${name}
+  includes:
+    - ovfwrap.hpp
+    - txt.hpp
+  build_flags:
+    - -Wl,--wrap=_ZN7esphome3api17APIOverflowBuffer11enqueue_iovEPK5iovecijj
+    - -Wl,--wrap=${drain_sym}
+    - -DOVF_DRAIN_WRAP=__wrap_${drain_sym}
+    - -DOVF_DRAIN_REAL=__real_${drain_sym}
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+globals:
+  - id: flood_n
+    type: uint32_t
+    initial_value: "0"
+  - id: bump_n
+    type: uint32_t
+    initial_value: "0"
+  - id: tick
+    type: uint32_t
+    initial_value: "0"
+switch:
+  - platform: template
+    id: flood
+    name: Flood
+    optimistic: true
+button:
+  - platform: template
+    name: Bump
+    on_press:
+      - lambda: |-
+          id(bump_n)++;
+          ESP_LOGI("bump", "press %u", (unsigned) id(bump_n));
+          id(bump_sensor).publish_state(id(bump_n));
+interval:
+  - interval: 50ms
+    then:
+      - if:
+          condition:
+            switch.is_on: flood
+          then:
+            - lambda: |-
+                uint32_t n = ++id(flood_n);
+                id(bs0).publish_state(n * 100 + 0);
+                id(bs1).publish_state(n * 100 + 1);
+                id(bs2).publish_state(n * 100 + 2);
+                id(bs3).publish_state(n * 100 + 3);
+                id(bs4).publish_state(n * 100 + 4);
+                id(bs5).publish_state(n * 100 + 5);
+                id(bs6).publish_state(n * 100 + 6);
+                id(bs7).publish_state(n * 100 + 7);
+                id(bs8).publish_state(n * 100 + 8);
+                id(bs9).publish_state(n * 100 + 9);
+                id(bs10).publish_state(n * 100 + 10);
+                id(bs11).publish_state(n * 100 + 11);
+                id(bs12).publish_state(n * 100 + 12);
+                id(bs13).publish_state(n * 100 + 13);
+                id(bs14).publish_state(n * 100 + 14);
+                id(bs15).publish_state(n * 100 + 15);
+                id(bs16).publish_state(n * 100 + 16);
+                id(bs17).publish_state(n * 100 + 17);
+                id(bs18).publish_state(n * 100 + 18);
+                id(bs19).publish_state(n * 100 + 19);
+                id(bs20).publish_state(n * 100 + 20);
+                id(bs21).publish_state(n * 100 + 21);
+                id(bs22).publish_state(n * 100 + 22);
+                id(bs23).publish_state(n * 100 + 23);
+                id(bs24).publish_state(n * 100 + 24);
+                id(bs25).publish_state(n * 100 + 25);
+                id(bs26).publish_state(n * 100 + 26);
+                id(bs27).publish_state(n * 100 + 27);
+                id(bs28).publish_state(n * 100 + 28);
+                id(bs29).publish_state(n * 100 + 29);
+                id(bs30).publish_state(n * 100 + 30);
+                id(bs31).publish_state(n * 100 + 31);
+                id(bs32).publish_state(n * 100 + 32);
+                id(bs33).publish_state(n * 100 + 33);
+                id(bs34).publish_state(n * 100 + 34);
+                id(bs35).publish_state(n * 100 + 35);
+                id(bs36).publish_state(n * 100 + 36);
+                id(bs37).publish_state(n * 100 + 37);
+                id(bs38).publish_state(n * 100 + 38);
+                id(bs39).publish_state(n * 100 + 39);
+                id(bs40).publish_state(n * 100 + 40);
+                id(bs41).publish_state(n * 100 + 41);
+                id(bs42).publish_state(n * 100 + 42);
+                id(bs43).publish_state(n * 100 + 43);
+                id(bs44).publish_state(n * 100 + 44);
+                id(bs45).publish_state(n * 100 + 45);
+                id(bs46).publish_state(n * 100 + 46);
+                id(bs47).publish_state(n * 100 + 47);
+                id(bs48).publish_state(n * 100 + 48);
+                id(bs49).publish_state(n * 100 + 49);
+                id(bs50).publish_state(n * 100 + 50);
+                id(bs51).publish_state(n * 100 + 51);
+                id(bs52).publish_state(n * 100 + 52);
+                id(bs53).publish_state(n * 100 + 53);
+                id(bs54).publish_state(n * 100 + 54);
+                id(bs55).publish_state(n * 100 + 55);
+                id(bs56).publish_state(n * 100 + 56);
+                id(bs57).publish_state(n * 100 + 57);
+                id(bs58).publish_state(n * 100 + 58);
+                id(bs59).publish_state(n * 100 + 59);
+                id(bt0).publish_state(make_txt(n, 0));
+                id(bt1).publish_state(make_txt(n, 1));
+                id(bt2).publish_state(make_txt(n, 2));
+                id(bt3).publish_state(make_txt(n, 3));
+                id(flood_sensor).publish_state(n);
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint32_t t = ++id(tick);
+          id(loc_count).publish_state(t);
+          id(loc_float).publish_state(12345.678f + t * 0.001f - (t % 7) * 1000.5f);
+          id(loc_bin).publish_state((t / 3) % 2 == 1);
+          id(ovf_enq).publish_state(ovf_enq_calls);
+          id(ovf_enq_b).publish_state(ovf_enq_bytes);
+          id(ovf_drain).publish_state(ovf_drain_calls);
+udp:
+  - id: udp_plain
+    port: 18611
+    addresses: ["${peer_ip}"]
+  - id: udp_full
+    port: 18612
+    addresses: ["${peer_ip}"]
+packet_interface:
+  - platform: udp
+    id: pi_plain
+    udp_id: udp_plain
+  - platform: udp
+    id: pi_full
+    udp_id: udp_full
+    addressing:
+      address: ${my_addr}
+      destination: ${peer_addr}
+    encryption:
+      key: putbe test key
+      rolling_code_enable: true
+    reliability:
+    fragmentation:
+    session:
+entity_transport:
+  - id: et_plain
+    packet_interface: pi_plain
+    update_interval: 2s
+    sensors:
+      - id: loc_count
+        broadcast_id: count
+      - id: loc_float
+        broadcast_id: flt
+    binary_sensors:
+      - id: loc_bin
+        broadcast_id: bin
+  - id: et_full
+    packet_interface: pi_full
+    sensors:
+      - id: loc_count
+        broadcast_id: count
+      - id: loc_float
+        broadcast_id: flt
+    binary_sensors:
+      - id: loc_bin
+        broadcast_id: bin
+text_sensor:
+  - platform: template
+    id: bt0
+    name: T0
+    update_interval: never
+  - platform: template
+    id: bt1
+    name: T1
+    update_interval: never
+  - platform: template
+    id: bt2
+    name: T2
+    update_interval: never
+  - platform: template
+    id: bt3
+    name: T3
+    update_interval: never
+sensor:
+  - platform: template
+    id: flood_sensor
+    name: Flood N
+    update_interval: never
+  - platform: template
+    id: bump_sensor
+    name: Bump count
+    update_interval: never
+  - platform: template
+    id: loc_count
+    name: Local count
+    update_interval: never
+  - platform: template
+    id: loc_float
+    name: Local float
+    accuracy_decimals: 3
+    update_interval: never
+  - platform: template
+    id: ovf_enq
+    name: Ovf enqueue
+    update_interval: never
+  - platform: template
+    id: ovf_enq_b
+    name: Ovf enqueue bytes
+    update_interval: never
+  - platform: template
+    id: ovf_drain
+    name: Ovf drain
+    update_interval: never
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_b_count
+    name: R plain b count
+    provider: ${peer}b
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_b_flt
+    name: R plain b flt
+    provider: ${peer}b
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_p_count
+    name: R plain p count
+    provider: ${peer}p
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_p_flt
+    name: R plain p flt
+    provider: ${peer}p
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_b_count
+    name: R full b count
+    provider: ${peer}b
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_b_flt
+    name: R full b flt
+    provider: ${peer}b
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_p_count
+    name: R full p count
+    provider: ${peer}p
+    remote_id: count
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_p_flt
+    name: R full p flt
+    provider: ${peer}p
+    remote_id: flt
+    accuracy_decimals: 3
+  - platform: template
+    id: bs0
+    name: S0
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs1
+    name: S1
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs2
+    name: S2
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs3
+    name: S3
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs4
+    name: S4
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs5
+    name: S5
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs6
+    name: S6
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs7
+    name: S7
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs8
+    name: S8
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs9
+    name: S9
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs10
+    name: S10
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs11
+    name: S11
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs12
+    name: S12
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs13
+    name: S13
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs14
+    name: S14
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs15
+    name: S15
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs16
+    name: S16
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs17
+    name: S17
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs18
+    name: S18
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs19
+    name: S19
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs20
+    name: S20
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs21
+    name: S21
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs22
+    name: S22
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs23
+    name: S23
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs24
+    name: S24
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs25
+    name: S25
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs26
+    name: S26
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs27
+    name: S27
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs28
+    name: S28
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs29
+    name: S29
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs30
+    name: S30
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs31
+    name: S31
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs32
+    name: S32
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs33
+    name: S33
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs34
+    name: S34
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs35
+    name: S35
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs36
+    name: S36
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs37
+    name: S37
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs38
+    name: S38
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs39
+    name: S39
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs40
+    name: S40
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs41
+    name: S41
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs42
+    name: S42
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs43
+    name: S43
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs44
+    name: S44
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs45
+    name: S45
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs46
+    name: S46
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs47
+    name: S47
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs48
+    name: S48
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs49
+    name: S49
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs50
+    name: S50
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs51
+    name: S51
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs52
+    name: S52
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs53
+    name: S53
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs54
+    name: S54
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs55
+    name: S55
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs56
+    name: S56
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs57
+    name: S57
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs58
+    name: S58
+    update_interval: never
+    accuracy_decimals: 0
+  - platform: template
+    id: bs59
+    name: S59
+    update_interval: never
+    accuracy_decimals: 0
+binary_sensor:
+  - platform: template
+    id: loc_bin
+    name: Local bin
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_b_bin
+    name: R plain b bin
+    provider: ${peer}b
+    remote_id: bin
+  - platform: entity_transport
+    entity_transport_id: et_plain
+    id: r_plain_p_bin
+    name: R plain p bin
+    provider: ${peer}p
+    remote_id: bin
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_b_bin
+    name: R full b bin
+    provider: ${peer}b
+    remote_id: bin
+  - platform: entity_transport
+    entity_transport_id: et_full
+    id: r_full_p_bin
+    name: R full p bin
+    provider: ${peer}p
+    remote_id: bin

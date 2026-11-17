@@ -1,0 +1,288 @@
+# UDP packet_interface point to point test (esphome#21120), shared part. Joins Wi-Fi; logs on serial.
+#   u1 p2p  : one unicast address (the peer) -> point to point; xxtea + reliability + session + fragmentation
+#   u2 bc   : the subnet broadcast address (ends in .255) -> addressing; bc_rel (rolling code) and bc_all ports
+#   u3 mc   : multicast -> addressing, destination broadcast
+#   u4 multi: the peer and the test host -> several addresses -> addressing, destination broadcast
+#   u5 p2pf : the peer, point_to_point: false -> accepts every sender, raw stream
+#   u6 p2pt : the subnet broadcast address, point_to_point: true -> only from that address, so the peer is dropped
+# substitutions: name, peer, peer_ip, host_ip, bcast_ip, my_addr, peer_addr, long_id
+esphome:
+  name: ${name}
+  includes:
+    - entest.hpp
+    - udtest.hpp
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            entest::UP2P.listen(id(p2p)->top());
+            entest::UBCR.listen(id(bc_rel)->top());
+            entest::UP2PF.listen(id(p2pf));
+            entest::UP2PT.listen(id(p2pt));
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  on_connect:
+    - lambda: |-
+        char b[esphome::network::IP_ADDRESS_BUFFER_SIZE];
+        ESP_LOGI("main", "WIFI IP %s", esphome::network::get_ip_addresses()[0].str_to(b));
+
+globals:
+  - {id: counter, type: int, initial_value: "0"}
+
+udp:
+  - {id: u1, port: 21121, addresses: ["${peer_ip}"]}
+  - {id: u2, port: 21122, addresses: ["${bcast_ip}"]}
+  - {id: u3, port: 21123, addresses: ["239.0.60.53"], listen_address: 239.0.60.53}
+  - {id: u4, port: 21124, addresses: ["${peer_ip}", "${host_ip}"]}
+  - {id: u5, port: 21125, addresses: ["${peer_ip}"]}
+  - {id: u6, port: 21126, addresses: ["${bcast_ip}"]}
+
+packet_interface:
+  - platform: udp
+    id: p2p
+    udp_id: u1
+    encryption: p2p key 21120
+    reliability:
+      max_queue_length: 6
+      timeout: ${rel_timeout}
+    session:
+      keep_alive: 2s
+      timeout: 8s
+      binary_sensor:
+        id: p2p_sess
+        on_state: [logger.log: {format: "SESS p2p %d", args: ["x ? 1 : 0"]}]
+    fragmentation:
+      max_packet_size: 1024
+  - platform: udp
+    id: bc
+    udp_id: u2
+    addressing:
+      address: ${my_addr}
+      peers:
+        - id: bc_rel
+          destination: ${peer_addr}
+          encryption:
+            key: bc key 21120
+            rolling_code_enable: true
+          reliability:
+            max_queue_length: 6
+            timeout: ${rel_timeout}
+          session:
+            keep_alive: 2s
+            timeout: 8s
+            binary_sensor:
+              id: bcrel_sess
+              on_state: [logger.log: {format: "SESS bc_rel %d", args: ["x ? 1 : 0"]}]
+          fragmentation:
+            max_packet_size: 1024
+        - id: bc_all
+          destination: broadcast
+  - platform: udp
+    id: mc
+    udp_id: u3
+    addressing:
+      address: ${my_addr}
+      destination: broadcast
+  - platform: udp
+    id: multi
+    udp_id: u4
+    addressing:
+      address: ${my_addr}
+      destination: broadcast
+  - platform: udp
+    id: p2pf
+    udp_id: u5
+    point_to_point: false
+  - platform: udp
+    id: p2pt
+    udp_id: u6
+    point_to_point: true
+
+interval:
+  - interval: ${tick}
+    then:
+      - lambda: id(counter)++;
+  - interval: ${stream_interval}
+    then:
+      - lambda: |-
+          static const uint16_t RSIZES[] = {12, 200, 600};
+          entest::UP2P.send(id(p2p)->top(), RSIZES[entest::UP2P.idx++ % 3]);
+          entest::UBCR.send(id(bc_rel)->top(), RSIZES[entest::UBCR.idx++ % 3]);
+          entest::UP2PF.send(id(p2pf), 100);
+          entest::UP2PT.send(id(p2pt), 100);
+  - interval: 10s
+    then:
+      - lambda: |-
+          entest::UP2P.log();
+          entest::UBCR.log();
+          entest::UP2PF.log();
+          entest::UP2PT.log();
+          ESP_LOGI("stat", "STAT cnt=%d sess=%d/%d", id(counter), id(p2p_sess).state, id(bcrel_sess).state);
+
+sensor:
+  - platform: template
+    id: cnt
+    lambda: return id(counter);
+    update_interval: 1s
+  - platform: template
+    id: flt
+    lambda: |-
+      int t = id(counter);
+      return 12345.678f + t * 0.001f - (t % 7) * 1000.5f;
+    update_interval: 1s
+    accuracy_decimals: 3
+  - platform: template
+    id: longa
+    lambda: return id(counter) * 0.5f;
+    update_interval: 5s
+  # p2p
+  - platform: entity_transport
+    id: rx1
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX p2p cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx2
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX p2p flt=%.3f", args: [x]}]
+  - platform: entity_transport
+    id: rx3
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: ${long_id}8
+    on_value: [logger.log: {format: "ETRX p2p long=%.1f", args: [x]}]
+  # bc_rel
+  - platform: entity_transport
+    id: rx4
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX bcrel cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx5
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX bcrel flt=%.3f", args: [x]}]
+  - platform: entity_transport
+    id: rx6
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: ${long_id}8
+    on_value: [logger.log: {format: "ETRX bcrel long=%.1f", args: [x]}]
+  # bc_all
+  - platform: entity_transport
+    id: rx7
+    entity_transport_id: et_bcall
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX bcall cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx8
+    entity_transport_id: et_bcall
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX bcall flt=%.3f", args: [x]}]
+
+  - platform: entity_transport
+    id: rx_mc_cnt
+    entity_transport_id: et_mc
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX mc cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx_mc_flt
+    entity_transport_id: et_mc
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX mc flt=%.3f", args: [x]}]
+  - platform: entity_transport
+    id: rx_multi_cnt
+    entity_transport_id: et_multi
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX multi cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx_multi_flt
+    entity_transport_id: et_multi
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX multi flt=%.3f", args: [x]}]
+
+binary_sensor:
+  - platform: template
+    id: bin
+    lambda: return (id(counter) / 3) % 2;
+  - platform: entity_transport
+    id: rx9
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX p2p bin=%d", args: ["x ? 1 : 0"]}]
+  - platform: entity_transport
+    id: rx10
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX bcrel bin=%d", args: ["x ? 1 : 0"]}]
+  - platform: entity_transport
+    id: rx11
+    entity_transport_id: et_bcall
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX bcall bin=%d", args: ["x ? 1 : 0"]}]
+
+  - platform: entity_transport
+    id: rx_mc_bin
+    entity_transport_id: et_mc
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX mc bin=%d", args: ["x ? 1 : 0"]}]
+  - platform: entity_transport
+    id: rx_multi_bin
+    entity_transport_id: et_multi
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX multi bin=%d", args: ["x ? 1 : 0"]}]
+
+entity_transport:
+  - id: et_p2p
+    packet_interface: p2p
+    sensors: &big_sensors
+      - cnt
+      - flt
+      - {id: longa, broadcast_id: "${long_id}1"}
+      - {id: longa, broadcast_id: "${long_id}2"}
+      - {id: longa, broadcast_id: "${long_id}3"}
+      - {id: longa, broadcast_id: "${long_id}4"}
+      - {id: longa, broadcast_id: "${long_id}5"}
+      - {id: longa, broadcast_id: "${long_id}6"}
+      - {id: longa, broadcast_id: "${long_id}7"}
+      - {id: longa, broadcast_id: "${long_id}8"}
+    binary_sensors: [bin]
+  - id: et_bcrel
+    packet_interface: bc_rel
+    sensors: *big_sensors
+    binary_sensors: [bin]
+  - id: et_bcall
+    packet_interface: bc_all
+    sensors: [cnt, flt]
+    binary_sensors: [bin]
+  - id: et_mc
+    packet_interface: mc
+    sensors: [cnt, flt]
+    binary_sensors: [bin]
+  - id: et_multi
+    packet_interface: multi
+    sensors: [cnt, flt]
+    binary_sensors: [bin]

@@ -1,0 +1,19 @@
+substitutions:
+  name: tcph1
+  peer: tcph2
+  peer_host: 127.0.0.1
+  srv_port: "46101"
+  raw_port: "46102"
+  probe_port: "46103"
+  peer_srv_port: "46201"
+  peer_raw_port: "46202"
+  probe_host: 127.0.0.1
+  probe_cli_port: "46104"
+  probe_allow: 127.0.0.0/8
+  et_key: Johnny Cash
+  api_port: "46151"
+  long_id: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+host:
+  mac_address: "62:23:45:AF:B3:01"
+packages:
+  link: !include tcplink.yaml

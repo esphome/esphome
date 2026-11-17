@@ -1,0 +1,36 @@
+# Minimal UDP A/B: one udp component sending to the peer only, a raw packet_interface link (point to point on the
+# PR, accept-all on the base) with a checked stream, and a plain udp on_receive counter.
+esphome:
+  name: ${name}
+  includes: [entest.hpp, udtest.hpp]
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: entest::UP2PF.listen(id(lnk));
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+globals:
+  - {id: onrx, type: uint32_t, initial_value: "0"}
+udp:
+  - id: u5
+    port: 21125
+    addresses: ["${peer_ip}"]
+    on_receive:
+      - lambda: id(onrx)++;
+packet_interface:
+  - platform: udp
+    id: lnk
+    udp_id: u5
+interval:
+  - interval: ${stream_interval}
+    then:
+      - lambda: entest::UP2PF.send(id(lnk), 100);
+  - interval: 10s
+    then:
+      - lambda: |-
+          entest::UP2PF.log();
+          ESP_LOGI("stat", "STAT on_receive=%u", id(onrx));

@@ -1,0 +1,38 @@
+esphome:
+  name: ${name}
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+logger:
+  baud_rate: 921600
+  level: DEBUG
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+remote_transmitter:
+  id: irtx
+  pin:
+    number: GPIO27
+    allow_other_uses: true
+  carrier_duty_percent: 100%
+remote_receiver:
+  id: irrx
+  pin:
+    number: GPIO27
+    allow_other_uses: true
+  dump: all
+  rmt_symbols: 256
+  receive_symbols: 256
+  on_pronto:
+    - lambda: |-
+        ESP_LOGI("trig", "TRIG len=%u", (unsigned) x.data.size());
+        for (size_t i = 0; i < x.data.size(); i += 200)
+          ESP_LOGI("trig", "TRIG %s", x.data.substr(i, 200).c_str());
+packages:
+  common: !include gen-common.yaml

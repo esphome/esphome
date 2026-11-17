@@ -86,3 +86,75 @@ same FakeBus approach works for any SPI chip whose reply depends on the address 
 ESP32 SPI slave cannot fake.
 The header targets the SPI API of the #22188 branch (`SPIBus` and `SPIComponent::spi_bus_`); dev has since dropped
 `SPIBus`, so on a newer tree the bus hook has to move to the new delegate creation before it builds.
+
+## SX127x fake chip (#22733)
+
+`scripts/sx127x_sim/`: `sxsim.hpp` is a fake SX1276, `sxrun.hpp` the scenario runner, `sxsim.yaml` the ESP32-PICO-D4
+config (no Wi-Fi; `sxpr.yaml` and `sxbase.yaml` are two-line wrappers setting `substitutions: flags: -DSXSIM_PR` or
+`-DSXSIM_BASE` and `packages: sim: !include sxsim.yaml`, since `-s flags -D...` is parsed as an option).
+- Hook, no private access needed on the current SPI API (`SPIBus` is gone; `register_device()` builds the delegate in
+  the client's `spi_setup()`): the bus is `interface: software`, and at on_boot 800 `set_clk/set_mosi/set_miso` on the
+  bus and `set_cs_pin` on the radio swap in fake `GPIOPin`s, so the real `SPIDelegateBitBash` clocks every bit into
+  the model (the MISO read drives the bit engine, as the PR's own gtest helper does). Works on any driver revision.
+  `InternalGPIOPin` is a final platform class alias, so rst and DIO0 cannot be faked on old drivers; rst is a real
+  pad and a RegVersion read resets the model instead. DIO0 is GPIO4 with pulldown, switched to INPUT_OUTPUT at on_boot
+  399 and driven by the model, so the rising edge interrupt really fires.
+- Send completion runs from a one-shot `esp_timer` (`M.tx_ms`), because a blocking `transmit_packet()` spins on the
+  DIO0 pad with no SPI traffic and no loop; model state is shared under a `portMUX`.
+- Faults: `M.fail_mode_writes = N` (RegOpMode writes ignored, mode reads back old), `M.tx_never`,
+  `sxsim::arm_rx_on_standby({...})` (a packet completes just as a send writes standby), `M.version`, CRC error inject.
+  The chip ignores mode requests other than standby/sleep while a send is still going out (counter `ign_tx`).
+- The FSK FIFO is one 64 byte queue for TX and RX, cleared on sleep and on entering RX, so a send that writes over a
+  waiting FSK packet transmits the received bytes (dev did that in #22733's test). LoRa TX leaves the chip in standby
+  with TX_DONE set; FSK stays in TX with PacketSent.
+- `sxrun.hpp` boot cases use `RTC_NOINIT` plus `esp_reset_reason() == ESP_RST_SW` (a flash or EN reset starts at case
+  0): 0 LoRa and FSK sequence (traces of one blocking send per modulation as `TRACE` lines, receive, rx before send, raw
+  set_mode_tx, async OK/BUSY/INVALID/timeout/cancel, actions during a send, runtime mode failure with a 6 s watch),
+  1 blocking send that never completes, 2 wrong version, 3 mode failure at setup, 4 `ALLDONE`. One 75 s capture with
+  `--reset` covers all of it. `STATE` lines print the model counters.
+- On #22733, dev lost a packet waiting at send start (LoRa) or sent it as its own (FSK), delivered a stale packet after
+  raw TX mode (LoRa) or two empty ones (FSK), and was marked failed after a blocking send timed out because RX is
+  refused while the chip is still in TX. The PR passed every case.
+
+## Two radios and a simulated air (#21110)
+
+`scripts/sx127x_sim/sxair.hpp` (models and air), `sxlink.hpp` (runner), `gen_pair.py OUTDIR` (writes `lpair` two SX127x
+LoRa, `fpair` two SX127x FSK, `xpair` SX127x plus SX126x LoRa, each with a `<name>_glue.h`). One ESP32-PICO-D4
+firmware, two software SPI buses; at on_boot 1100 (before the buses' setup at 1000) the bus pins, CS, reset and SX126x
+busy are swapped for fake pins (needs the `GPIOPin *` reset setter from #22733), so the only pads used are the interrupt
+lines GPIO4 (A) and GPIO22 (B), switched to input/output at on_boot 300. Shared real pin numbers need
+`allow_other_uses`.
+- SX126x fake: command parser on CS rise (SetPacketType, SetModulationParams, SetPacketParams, SetDioIrqParams,
+  ClrIrqStatus, WriteBuffer, SetTx/SetRx/SetStandby/SetSleep), replies per byte position for ReadRegister (version
+  string at 0x0320), ReadBuffer, GetIrqStatus, GetRxBufferStatus, GetPacketStatus; BUSY is a fake pin that is always
+  low; IRQ bits latch only when in the IRQ mask, DIO1 = irq & dio1 mask.
+- Air: airtime from the sender's own registers and commands (Semtech LoRa formula; FSK bytes at the bitrate), delivery
+  to every receiver that stayed in RX, RSSI and SNR per receiver, collisions give a CRC error, knobs `AIR.drop_next`,
+  `AIR.corrupt_next`, `jam(radio, ms or UINT32_MAX)`, `tx_never`. A receiver shows a signal while a packet is on air
+  (SX127x LoRa ModemStat, FSK IrqFlags1 sync match held until read, SX126x preamble/sync/header IRQs).
+- Gotcha: both radios share one main loop, so while one radio's blocking send runs the other cannot read its FIFO
+  and the next packet overwrites the unread one (first runs lost 12 of 53 and no HDLC link came up). The model
+  holds a packet that lands while the previous one is unread and hands it over from the 1 ms air tick once the
+  driver has read the previous one and 3 ms passed with no SPI on that radio (draining at the flag clear corrupts
+  the read in progress). A held packet must clear the receiver's signal, or listen before talk sees a phantom busy
+  radio. Counters `held` say how often it happened; say in results that this is a simulator artifact.
+- Raw links share the radios with the layered links, so a raw send can be refused by listen before talk while the
+  layered links talk; retry. Raw test packets start with 0xEE and carry a length-derived pattern.
+- `tx_over_signal` counts sends started while the sender showed a signal: 0 outside the hold cap phase means listen
+  before talk never sent over a packet.
+
+## SX127x SPI byte stream A/B (#22776)
+
+- Host: copy `scripts/sx127x_sim/sx127x_spi_record_test.cpp.example` as a `.cpp` into `tests/components/sx127x/` of
+  each tree and run `SX127X_RECORD=<file> script/cpp_unit_test.py sx127x` (the env var reaches the test binary). It
+  sweeps FSK and LoRa frequency, bitrate, deviation and preamble edges through setup, configure() and 1 byte and
+  largest sends against a register file with burst auto-increment (FIFO address fixed), and writes CASE/T/REGS/FIFO
+  records. Case labels must be unique (an index is prefixed) or the compare silently drops cases. `compare_spi.py BASE
+  PR` checks register files and FIFO exactly and compares the transactions flattened into per-register operations, so
+  only grouping may differ.
+- Device: `sxrec.hpp` with `recsw.yaml` (software bus, fake pins at on_boot 1100) or `rechw.yaml` (ESP-IDF hardware bus
+  `interface: spi2`): a tee delegate robbed into `SPIClient::delegate_` at on_boot 800 sends every byte through the
+  real SPIDelegateHw and feeds the model; the radio's own spi_setup() then logs "Device already registered" once and
+  keeps the tee. SPI3 as a slave sniffer (CLK 18, MOSI 23, CS 5 routed in, nominal CS GPIO14 high) captures each chip
+  select window up to 64 bytes and compares it with what the driver sent ("WIRE ok/differ" line). Records print as
+  "REC ..." lines; `rec_extract.py` strips the log prefix, then feed both builds to compare_spi.py.

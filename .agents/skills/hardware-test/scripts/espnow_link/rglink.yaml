@@ -1,0 +1,129 @@
+# Regression image for existing users (esphome#21120): packet_transport over UDP (multicast, xxtea, rolling code,
+# ping-pong), a plain udp listener with on_receive and udp.write to the peer, plain espnow send/broadcast actions with
+# on_receive/on_broadcast/on_sent/on_error, and packet_transport over espnow. Remote entities are declared for both
+# the base and the PR name of the peer, so one image serves all four pairings.
+# substitutions: name, peer_p, peer_b, peer_ip, peer_mac
+esphome:
+  name: ${name}
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+globals:
+  - {id: counter, type: uint32_t, initial_value: "0"}
+  - {id: u_rx, type: uint32_t, initial_value: "0"}
+  - {id: u_bad, type: uint32_t, initial_value: "0"}
+  - {id: u_gap, type: uint32_t, initial_value: "0"}
+  - {id: u_last, type: int32_t, initial_value: "-1"}
+  - {id: e_rx, type: uint32_t, initial_value: "0"}
+  - {id: e_brx, type: uint32_t, initial_value: "0"}
+  - {id: e_gap, type: uint32_t, initial_value: "0"}
+  - {id: e_last, type: int32_t, initial_value: "-1"}
+  - {id: e_bcb, type: uint32_t, initial_value: "0"}
+  - {id: e_unk, type: uint32_t, initial_value: "0"}
+  - {id: e_sent, type: uint32_t, initial_value: "0"}
+  - {id: e_err, type: uint32_t, initial_value: "0"}
+  - {id: pt_u, type: uint32_t, initial_value: "0"}
+  - {id: pt_e, type: uint32_t, initial_value: "0"}
+udp:
+  - id: udp_pt
+    port: 21130
+    listen_address: 239.0.60.53
+    addresses: ["239.0.60.53"]
+  - id: udp_plain
+    port: 21131
+    addresses: ["${peer_ip}"]
+    on_receive:
+      - lambda: |-
+          id(u_rx)++;
+          if (data.size() != 8 || data[0] != 'U') { id(u_bad)++; return; }
+          int32_t seq = data[1] | (data[2] << 8) | (data[3] << 16);
+          if (id(u_last) >= 0 && seq != id(u_last) + 1) id(u_gap)++;
+          id(u_last) = seq;
+espnow:
+  auto_add_peer: false
+  peers: ["${peer_mac}"]
+  on_receive:
+    - address: ${peer_mac}
+      then:
+        - lambda: |-
+            if (size >= 4 && data[0] == 'S') {
+              id(e_rx)++;
+              int32_t seq = data[1] | (data[2] << 8) | (data[3] << 16);
+              if (id(e_last) >= 0 && seq != id(e_last) + 1) id(e_gap)++;
+              id(e_last) = seq;
+            } else if (size >= 4 && data[0] == 'B') {
+              id(e_brx)++;
+            }
+  on_unknown_peer:
+    - lambda: id(e_unk)++;
+packet_transport:
+  - platform: udp
+    id: pt_udp
+    udp_id: udp_pt
+    update_interval: 5s
+    encryption: rg udp key
+    rolling_code_enable: true
+    ping_pong_enable: true
+    sensors: [cnt]
+    binary_sensors: [bin]
+    providers:
+      - {name: "${peer_p}", encryption: rg udp key}
+      - {name: "${peer_b}", encryption: rg udp key}
+  - platform: espnow
+    id: pt_espnow
+    peer_address: FF:FF:FF:FF:FF:FF
+    update_interval: 5s
+    encryption: {key: rg espnow key}
+    sensors: [cnt]
+    binary_sensors: [bin]
+    providers:
+      - {name: "${peer_p}", encryption: {key: rg espnow key}}
+      - {name: "${peer_b}", encryption: {key: rg espnow key}}
+interval:
+  - interval: 1s
+    then:
+      - lambda: id(counter)++;
+      - espnow.send:
+          address: ${peer_mac}
+          data: !lambda |-
+            uint32_t c = id(counter);
+            return std::vector<uint8_t>{'S', (uint8_t) c, (uint8_t) (c >> 8), (uint8_t) (c >> 16)};
+          wait_for_sent: true
+          continue_on_error: true
+          on_sent: [lambda: id(e_sent)++;]
+          on_error: [lambda: id(e_err)++;]
+      - espnow.broadcast:
+          data: !lambda |-
+            uint32_t c = id(counter);
+            return std::vector<uint8_t>{'B', (uint8_t) c, (uint8_t) (c >> 8), (uint8_t) (c >> 16)};
+      - udp.write:
+          id: udp_plain
+          data: !lambda |-
+            uint32_t c = id(counter);
+            return std::vector<uint8_t>{'U', (uint8_t) c, (uint8_t) (c >> 8), (uint8_t) (c >> 16), 1, 2, 3, 4};
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("stat", "STAT rg cnt=%u udp rx=%u bad=%u gap=%u | espnow rx=%u gap=%u brx=%u onbcast=%u unknown=%u sent=%u err=%u | pt udp=%u espnow=%u",
+                   id(counter), id(u_rx), id(u_bad), id(u_gap), id(e_rx), id(e_gap), id(e_brx), id(e_bcb), id(e_unk),
+                   id(e_sent), id(e_err), id(pt_u), id(pt_e));
+sensor:
+  - platform: template
+    id: cnt
+    lambda: return id(counter);
+    update_interval: 1s
+  - {platform: packet_transport, id: rpu_p, transport_id: pt_udp, provider: "${peer_p}", remote_id: cnt, on_value: [lambda: 'id(pt_u)++; ESP_LOGD("main", "PTRX udp cnt=%.0f", x);']}
+  - {platform: packet_transport, id: rpu_b, transport_id: pt_udp, provider: "${peer_b}", remote_id: cnt, on_value: [lambda: 'id(pt_u)++; ESP_LOGD("main", "PTRX udp cnt=%.0f", x);']}
+  - {platform: packet_transport, id: rpe_p, transport_id: pt_espnow, provider: "${peer_p}", remote_id: cnt, on_value: [lambda: 'id(pt_e)++; ESP_LOGD("main", "PTRX espnow cnt=%.0f", x);']}
+  - {platform: packet_transport, id: rpe_b, transport_id: pt_espnow, provider: "${peer_b}", remote_id: cnt, on_value: [lambda: 'id(pt_e)++; ESP_LOGD("main", "PTRX espnow cnt=%.0f", x);']}
+binary_sensor:
+  - platform: template
+    id: bin
+    lambda: return (id(counter) / 3) % 2;
+  - {platform: packet_transport, id: rbu_p, transport_id: pt_udp, provider: "${peer_p}", remote_id: bin}
+  - {platform: packet_transport, id: rbu_b, transport_id: pt_udp, provider: "${peer_b}", remote_id: bin}
+  - {platform: packet_transport, id: stu_p, transport_id: pt_udp, provider: "${peer_p}", type: status, on_state: [logger.log: {format: "PTSTATUS udp %d", args: ["x ? 1 : 0"]}]}
+  - {platform: packet_transport, id: stu_b, transport_id: pt_udp, provider: "${peer_b}", type: status, on_state: [logger.log: {format: "PTSTATUS udp %d", args: ["x ? 1 : 0"]}]}

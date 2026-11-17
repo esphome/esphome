@@ -1,0 +1,35 @@
+esphome:
+  name: ${name}
+esp32:
+  variant: esp32c3
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: VERBOSE
+  logs:
+    wifi: DEBUG
+    api: DEBUG
+    api.connection: DEBUG
+    component: DEBUG
+    scheduler: DEBUG
+    app: DEBUG
+    ota: DEBUG
+    mdns: DEBUG
+    preferences: DEBUG
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+wifi:
+  networks:
+    - ssid: !secret t_ssid
+      password: !secret t_pw
+  reboot_timeout: 0s
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          ESP_LOGI("alive", "ALIVE up=%u conn=%d", (unsigned) (millis() / 1000),
+                   (int) wifi::global_wifi_component->is_connected());

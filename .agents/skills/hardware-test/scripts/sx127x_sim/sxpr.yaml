@@ -1,0 +1,4 @@
+substitutions:
+  flags: -DSXSIM_PR
+packages:
+  sim: !include sxsim.yaml

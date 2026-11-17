@@ -1,0 +1,11 @@
+substitutions:
+  name: ur32p
+  peer: ud66p
+  peer_ip: 192.0.2.66  # the D1 mini peer's address
+  stream_interval: 500ms
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+packages:
+  link: !include urlink.yaml

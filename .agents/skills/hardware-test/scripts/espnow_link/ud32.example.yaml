@@ -1,0 +1,18 @@
+substitutions:
+  name: ud32p
+  peer: ud66p
+  peer_ip: 192.0.2.66  # the D1 mini peer's address
+  host_ip: 192.0.2.10  # the computer running udpraw.py
+  bcast_ip: 192.0.2.255  # the subnet broadcast address
+  my_addr: "0x0032"
+  peer_addr: "0x0066"
+  stream_interval: 2s
+  rel_timeout: 1s
+  tick: 5s
+  long_id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+packages:
+  link: !include udplink.yaml

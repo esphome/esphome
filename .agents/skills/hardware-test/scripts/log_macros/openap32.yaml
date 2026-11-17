@@ -1,0 +1,10 @@
+esphome:
+  name: openap32
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+wifi:
+  ap:
+    ssid: hwtest-open-ap

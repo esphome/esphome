@@ -1,0 +1,3 @@
+climate:
+  - {platform: whirlpool, id: w_tx, name: W TX, model: HITACHI_HCRA31NEWH, transmitter_id: irtx}
+  - {platform: whirlpool, id: w_rx, name: W RX, model: HITACHI_HCRA31NEWH, transmitter_id: irtx, receiver_id: irrx}

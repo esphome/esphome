@@ -36,3 +36,21 @@ tracker as scan results: everything after the radio runs as normal.
   first one it hears.
 - Each frame arrives about 4 times; the counts matched the injection run exactly apart from one radio loss, so the
   over the air comparison allows two missing publishes per tag.
+
+## Every Xiaomi platform at once (#22727)
+
+- `gen_all.py` writes `frames_all.hpp`, `xball_entities.yaml` and `expected_all.json`: one device per platform
+  (the 20 listener-only platforms, `xiaomi_mue4094rt`, `xiaomi_rtcgq02lm` hub, `xiaomi_body_scale`, ATC, PVVX),
+  10 cycles, every frame sent twice. Each entity logs `PUB <dev>.<key> <value>` on publish (binary sensors with
+  `trigger_on_initial_state: true`). Frame shapes that parse: long encrypted (fc 0x58) only up to 24 bytes, so
+  a 7 byte `th` object needs the short 19 byte frame, which only lywsd02mmc, xmwsdj04mmc, mjyd02yla, cgpr1 and
+  rtcgq02lm accept; hhccjcy10 is FD50 9 bytes and miscale v1 181D 10 bytes (no counter, the repeat publishes
+  again); mue4094rt is a plain fc 0x40 frame; body_scale an S200 0x4E16 object in a 24 byte short frame.
+  `xiaomi_mccgq02hl` publishes 9 of 10: the first frame is "closed", which equals its initial off state.
+- `xball.yaml` is an ESP32-S3 (ESP-IDF, no network, USB_SERIAL_JTAG log) that injects one cycle per second from
+  20 s and logs free heap before and after (`IDLE` lines). `run_all.sh TREE NAME PORT` builds, flashes, captures
+  and counts; `count_all.py cap1 cap2 ...` also says whether the values are identical across builds.
+- `xbsetup_priority.yaml`: `esphome config` with `setup_priority:` on a moved sensor, a moved binary sensor and
+  mue4094rt (still a component); remove one at a time, since validation stops at the first platform error.
+- On #22727: 441 publishes on the PR, its stacked base and dev, identical values; dump text identical, the PR prints
+  the 20 listener dumps after `BLE Tracker:`.

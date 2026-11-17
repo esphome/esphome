@@ -1,0 +1,45 @@
+# esphome#22776 SPI recorder, hw bus (sxrec.hpp). Build with -s name <name>.
+esphome:
+  name: ${name}
+  includes: [sxrec.hpp]
+  platformio_options:
+    build_flags: -DSXREC_HW
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: sxrec::install_hw(id(bus), id(radio), 4);
+    - priority: 300
+      then:
+        - lambda: sxrec::late_pins();
+    - priority: -100
+      then:
+        - delay: 3s
+        - lambda: sxrec::sweep(id(radio));
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  tx_buffer_size: 1024
+spi:
+  id: bus
+  interface: spi2
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+sx127x:
+  id: radio
+  cs_pin: GPIO5
+  rst_pin: GPIO21
+  dio0_pin:
+    number: GPIO4
+    mode:
+      input: true
+      pulldown: true
+  frequency: 433920000
+  modulation: LORA
+  bandwidth: 125_0kHz
+  preamble_size: 8
+  crc_enable: true
+  rx_start: true

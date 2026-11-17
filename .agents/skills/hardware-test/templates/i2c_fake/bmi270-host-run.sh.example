@@ -1,0 +1,15 @@
+#!/bin/bash
+# bmi270-host-run.sh TREE OUTNAME SETTERS [32]: host harness run; with 32, forces the 32 byte burst branch (perl, in
+# place, restored with git checkout afterwards). Writes OUT_DIR/OUTNAME and OUT_DIR/OUTNAME.log.
+# env: OUT_DIR (default ./host), PY (default TREE's venv python), PIO_CORE (default ./pio)
+T=$(cd "${1:?tree}" && pwd); N=${2:?outname}; ST=${3:?setters}; F=$T/esphome/components/bmi270/bmi270.cpp
+O=$(mkdir -p "${OUT_DIR:-host}" && cd "${OUT_DIR:-host}" && pwd); PY=${PY:-$T/venv/bin/python}
+PC=$(mkdir -p "${PIO_CORE:-pio}" && cd "${PIO_CORE:-pio}" && pwd)
+if [ "$4" = 32 ]; then
+  perl -pi -e 's{^#if defined\(USE_ARDUINO\) && !defined\(USE_ESP32\)$}{#if 1  // harness: force 32}' "$F"
+  grep -q '^#if 1  // harness' "$F" || { echo no-sed; exit 1; }
+fi
+(cd "$T" && PLATFORMIO_CORE_DIR=$PC PYTHONPATH=$T BMI_OUT=$O/$N BMI_SETTERS=$ST BMI_EXPECTED_FNV=95BB75B5 \
+  timeout 2400 $PY script/cpp_unit_test.py bmi270 > "$O/$N.log" 2>&1); echo "$N rc=$?"
+[ "$4" = 32 ] && (cd "$T" && git checkout -q esphome/components/bmi270/bmi270.cpp)
+grep -a -E '^\[  (PASSED|FAILED) |BMM150_SWEEP' "$O/$N.log"

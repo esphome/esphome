@@ -99,6 +99,9 @@ class Client(BaseClient):
         for line in out["STATE"]:
             name, _, value = line.partition(" = ")
             self.last[name] = value
+        # SUB lines are printed sorted below; SUBORDER keeps the order the device sent them
+        for i, line in enumerate(out["SUB"]):
+            print(f"  {label} SUBORDER {i:03d} {line}")
         for kind in ("SUB", "STATE", "ACTION"):
             for line in sorted(out[kind]) if kind == "SUB" else out[kind]:
                 print(f"  {label} {kind} {line}")

@@ -1,0 +1,15 @@
+substitutions:
+  name: en66p
+  peer: en32p
+  peer_mac: AA:BB:CC:00:00:32  # the ESP32 peer's station MAC
+  my_addr: "0x0066"
+  peer_addr: "0x0032"
+  raw_max: "250"
+  payload_max: "250"
+  sizes: "16, 100, 249, 250"
+  long_id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  chaos: "false"
+esp8266:
+  board: d1_mini
+packages:
+  link: !include enlink.yaml

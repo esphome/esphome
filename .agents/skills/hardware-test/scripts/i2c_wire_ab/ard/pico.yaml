@@ -1,0 +1,17 @@
+rp2040:
+  board: rpipico2w
+sensor:
+  - platform: ina226
+    id: dev
+    i2c_id: bus_hw
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    update_interval: 2s
+    bus_voltage:
+      name: vbus
+      on_value:
+        - lambda: ESP_LOGI("rd", "READ vbus %.4f", x);
+    shunt_voltage:
+      name: vshunt
+      on_value:
+        - lambda: ESP_LOGI("rd", "READ vshunt %.6f", x);
