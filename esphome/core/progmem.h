@@ -124,14 +124,20 @@ inline const char *progmem_skip_strings(const char *blob, uint8_t idx) {
 }
 
 namespace progmem_detail {
-/// Widen an enum or integer to an unsigned table index; a negative value becomes a huge one, which falls back.
+/// Widen an enum or integer to a table index; negative and out-of-range values become huge ones, which fall back.
 template<typename T> constexpr size_t table_index(T value) {
   if constexpr (std::is_enum_v<T>) {
     return table_index(static_cast<std::underlying_type_t<T>>(value));
   } else {
-    static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool> && sizeof(T) <= sizeof(size_t),
-                  "index must be an integer or an enum");
-    return static_cast<std::make_unsigned_t<T>>(value);
+    static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>, "index must be an integer or an enum");
+    if constexpr (sizeof(T) > sizeof(size_t)) {
+      const auto v = static_cast<std::make_unsigned_t<T>>(value);
+      return v > SIZE_MAX ? SIZE_MAX : static_cast<size_t>(v);
+    } else if constexpr (std::is_signed_v<T>) {
+      return static_cast<size_t>(static_cast<std::make_signed_t<size_t>>(value));  // sign-extend first
+    } else {
+      return value;
+    }
   }
 }
 }  // namespace progmem_detail

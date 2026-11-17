@@ -90,4 +90,9 @@ TEST(ProgmemStringTable, WideAndNegativeValuesFallBack) {
   EXPECT_STREQ(reinterpret_cast<const char *>(SmallStrings::get_progmem_str(uint32_t{0x10002})), "UNKNOWN");
 }
 
+static_assert(progmem_detail::table_index(int8_t{-128}) > UINT8_MAX);  // not 128, a valid index in a big table
+static_assert(progmem_detail::table_index(int16_t{-1}) > UINT8_MAX);
+static_assert(progmem_detail::table_index(int64_t{-1}) > UINT8_MAX);
+static_assert(progmem_detail::table_index(uint64_t{1}) == 1);
+
 }  // namespace esphome::core::testing
