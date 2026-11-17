@@ -17,7 +17,8 @@
 #include <driver/usb_serial_jtag_vfs.h>
 #endif
 #endif
-#if defined(USE_LOGGER_CONSOLE) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+// The logger accepts USB_CDC on targets without USB OTG (C3, C6, H2), where IDF has no CDC console
+#if defined(USE_LOGGER_CONSOLE) && defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
 #include <esp_private/usb_console.h>
 #endif
 #if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
@@ -130,19 +131,26 @@ void Logger::pre_setup() {
 
 #ifdef USE_LOGGER_CONSOLE
 size_t Logger::console_write(const uint8_t *data, size_t len) {
+  int written = 0;
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-  const int written = esp_usb_console_write_buf(reinterpret_cast<const char *>(data), len);
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC
+  written = esp_usb_console_write_buf(reinterpret_cast<const char *>(data), len);
+#endif
 #elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
-  const int written = usb_serial_jtag_write_bytes(data, len, pdMS_TO_TICKS(20));
+  written = usb_serial_jtag_write_bytes(data, len, pdMS_TO_TICKS(20));
 #else
-  const int written = uart_write_bytes(this->get_uart_num(), data, len);
+  written = uart_write_bytes(this->get_uart_num(), data, len);
 #endif
   return written > 0 ? written : 0;
 }
 
 bool Logger::console_read(uint8_t &byte) {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC
   return esp_usb_console_available_for_read() && esp_usb_console_read_buf(reinterpret_cast<char *>(&byte), 1) == 1;
+#else
+  return false;
+#endif
 #elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
   return usb_serial_jtag_read_bytes(&byte, 1, 0) > 0;
 #else
