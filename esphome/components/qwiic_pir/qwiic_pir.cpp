@@ -40,15 +40,13 @@ void QwiicPIRComponent::setup() {
 
 void QwiicPIRComponent::loop() {
   uint8_t event;
-  if (!this->status_comm_result(this->read_byte(REG_EVENT_STATUS, &event)))
+  if (!this->status_comm_check(this->read_byte(REG_EVENT_STATUS, &event)))
     return;
 
   switch (this->debounce_mode_) {
     case DebounceMode::DEBOUNCE_MODE_HYBRID:
       // The device debounces for 1 ms and ESPHome filters do the rest; any event means motion since the last loop
       this->publish_state((event & (EVENT_RAW_READING | EVENT_AVAILABLE)) != 0);
-      if (event & EVENT_AVAILABLE)
-        this->clear_events_();
       break;
     case DebounceMode::DEBOUNCE_MODE_NATIVE:
       // The device's own debounce, as in SparkFun's Example2_PrintPIRStatus; it often misses objects being removed
@@ -57,7 +55,6 @@ void QwiicPIRComponent::loop() {
           this->publish_state(true);
         if (event & EVENT_OBJECT_REMOVED)
           this->publish_state(false);
-        this->clear_events_();
       }
       break;
     case DebounceMode::DEBOUNCE_MODE_RAW:
@@ -65,6 +62,12 @@ void QwiicPIRComponent::loop() {
       this->publish_state((event & EVENT_RAW_READING) != 0);
       break;
   }
+
+  // HYBRID and NATIVE clear a handled event; the last bus step of the poll decides the warning
+  bool ok = true;
+  if (this->debounce_mode_ != DebounceMode::DEBOUNCE_MODE_RAW && (event & EVENT_AVAILABLE))
+    ok = this->write_byte(REG_EVENT_STATUS, 0x00);
+  this->status_comm_result(ok);
 }
 
 void QwiicPIRComponent::dump_config() {
@@ -77,11 +80,6 @@ void QwiicPIRComponent::dump_config() {
   }
   LOG_I2C_DEVICE(this);
   LOG_BINARY_SENSOR("  ", "Binary Sensor", this);
-}
-
-void QwiicPIRComponent::clear_events_() {
-  // The next successful read clears the warning
-  this->status_comm_check(this->write_byte(REG_EVENT_STATUS, 0x00));
 }
 
 }  // namespace esphome::qwiic_pir

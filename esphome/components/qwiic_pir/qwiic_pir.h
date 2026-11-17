@@ -30,8 +30,6 @@ class QwiicPIRComponent final : public Component, public i2c::I2CDevice, public 
   void dump_config() override;
 
  protected:
-  void clear_events_();
-
   uint16_t debounce_time_;
   DebounceMode debounce_mode_;
 };
