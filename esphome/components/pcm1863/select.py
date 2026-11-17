@@ -6,8 +6,6 @@ from esphome.types import ConfigType
 
 from .audio_adc import CONF_PCM1863_ID, PCM1863, PCM1863_INPUT_ENUM
 
-# The select reports the position of the chosen option rather than its value, so this
-# order has to stay in step with INPUT_BY_INDEX in pcm1863.cpp
 PCM1863_INPUT_OPTIONS = list(PCM1863_INPUT_ENUM)
 
 CONFIG_SCHEMA = select.select_schema(
@@ -29,6 +27,6 @@ async def to_code(config: ConfigType) -> None:
         config,
         hub.set_input_select,
         options=PCM1863_INPUT_OPTIONS,
-        apply="set_input_index(index)",
+        apply="set_input(static_cast<pcm1863::PCM1863Input>(index))",
         publish="on_success",
     )

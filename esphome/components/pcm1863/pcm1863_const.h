@@ -37,14 +37,8 @@ static constexpr uint8_t PCM1863_PCM_CFG_FMT_I2S = 0x00;
 // and bits 5:0 pick the analog input. See the PCM186x datasheet, "MUX, MIX, and
 // Polarity Input Selection".
 static constexpr uint8_t PCM1863_INPUT_SEL_RSV = 0x40;  // bit 6, always write 1
-
-static constexpr uint8_t PCM1863_INPUT_NONE = 0x00;   /* no input selected (mute) */
-static constexpr uint8_t PCM1863_INPUT_VIN1 = 0x01;   /* VINL1/VINR1, single-ended */
-static constexpr uint8_t PCM1863_INPUT_VIN2 = 0x02;   /* VINL2/VINR2, single-ended */
-static constexpr uint8_t PCM1863_INPUT_VIN3 = 0x04;   /* VINL3/VINR3, single-ended */
-static constexpr uint8_t PCM1863_INPUT_VIN4 = 0x08;   /* VINL4/VINR4, single-ended */
-static constexpr uint8_t PCM1863_INPUT_DIFF_1 = 0x10; /* differential: left VIN1P/M, right VIN2P/M */
-static constexpr uint8_t PCM1863_INPUT_DIFF_2 = 0x20; /* differential: left VIN4P/M, right VIN3P/M */
+// Bits 5:0 select one input: none, VIN1 to VIN4 single-ended (0x01 to 0x08), then the
+// differential pairs VIN1/VIN2 (0x10) and VIN4/VIN3 (0x20)
 
 // PCM1863_REG_POWER_CTRL
 // Bits 2:0 are power down, sleep and standby; all three are clear in the run state.

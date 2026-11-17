@@ -11,14 +11,15 @@
 
 namespace esphome::pcm1863 {
 
+// Positions of the select options, in the order audio_adc.py declares them
 enum PCM1863Input : uint8_t {
-  PCM1863_INPUT_SEL_NONE = PCM1863_INPUT_NONE,
-  PCM1863_INPUT_SEL_VIN1 = PCM1863_INPUT_VIN1,
-  PCM1863_INPUT_SEL_VIN2 = PCM1863_INPUT_VIN2,
-  PCM1863_INPUT_SEL_VIN3 = PCM1863_INPUT_VIN3,
-  PCM1863_INPUT_SEL_VIN4 = PCM1863_INPUT_VIN4,
-  PCM1863_INPUT_SEL_DIFF_1 = PCM1863_INPUT_DIFF_1,
-  PCM1863_INPUT_SEL_DIFF_2 = PCM1863_INPUT_DIFF_2,
+  PCM1863_INPUT_NONE,
+  PCM1863_INPUT_VIN1,
+  PCM1863_INPUT_VIN2,
+  PCM1863_INPUT_VIN3,
+  PCM1863_INPUT_VIN4,
+  PCM1863_INPUT_DIFF_1,
+  PCM1863_INPUT_DIFF_2,
 };
 
 enum PCM1863BitsPerSample : uint8_t {
@@ -44,9 +45,6 @@ class PCM1863 final : public audio_adc::AudioAdc, public Component, public i2c::
 
   /// Selects the analog input. Takes effect immediately once setup has run.
   bool set_input(PCM1863Input input);
-  /// Selects the analog input by its position in the select platform's option list.
-  bool set_input_index(size_t index);
-  PCM1863Input input() const { return this->input_; }
 
   bool set_mic_gain(float mic_gain) override;
   float mic_gain() override { return this->mic_gain_; }
@@ -56,10 +54,10 @@ class PCM1863 final : public audio_adc::AudioAdc, public Component, public i2c::
   bool configure_mic_gain_();
   bool configure_input_();
 
-  bool setup_complete_{false};
   float mic_gain_{0};
+  bool setup_complete_{false};
   PCM1863BitsPerSample bits_per_sample_{PCM1863_BITS_PER_SAMPLE_24};
-  PCM1863Input input_{PCM1863_INPUT_SEL_VIN1};
+  PCM1863Input input_{PCM1863_INPUT_VIN1};
 };
 
 }  // namespace esphome::pcm1863

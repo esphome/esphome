@@ -18,17 +18,10 @@ pcm1863_ns = cg.esphome_ns.namespace("pcm1863")
 PCM1863 = pcm1863_ns.class_("PCM1863", AudioAdc, cg.Component, i2c.I2CDevice)
 
 pcm1863_input = pcm1863_ns.enum("PCM1863Input")
-# The declaration order is the option order of the select platform, and has to stay in
-# step with INPUT_BY_INDEX in pcm1863.cpp
-PCM1863_INPUT_ENUM = {
-    "NONE": pcm1863_input.PCM1863_INPUT_SEL_NONE,
-    "VIN1": pcm1863_input.PCM1863_INPUT_SEL_VIN1,
-    "VIN2": pcm1863_input.PCM1863_INPUT_SEL_VIN2,
-    "VIN3": pcm1863_input.PCM1863_INPUT_SEL_VIN3,
-    "VIN4": pcm1863_input.PCM1863_INPUT_SEL_VIN4,
-    "DIFF_1": pcm1863_input.PCM1863_INPUT_SEL_DIFF_1,
-    "DIFF_2": pcm1863_input.PCM1863_INPUT_SEL_DIFF_2,
-}
+# The declaration order is the select option order and the C++ enum value of each input
+PCM1863_INPUT_ENUM = pcm1863_input.options(
+    "NONE", "VIN1", "VIN2", "VIN3", "VIN4", "DIFF_1", "DIFF_2", prefix="PCM1863_INPUT_"
+)
 
 pcm1863_bits_per_sample = pcm1863_ns.enum("PCM1863BitsPerSample")
 PCM1863_BITS_PER_SAMPLE_ENUM = {
