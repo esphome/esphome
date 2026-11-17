@@ -10,9 +10,7 @@ audio_adc:
   - platform: pcm1863
     i2c_id: i2c_bus
     id: pcm1863_adc
-    bits_per_sample: 24bit
     input: VIN2
-    mic_gain: 0db
 
 select:
   # Switches the analog input mux at runtime

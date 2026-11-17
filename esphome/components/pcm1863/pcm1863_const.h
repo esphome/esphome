@@ -25,11 +25,6 @@ static constexpr uint8_t PCM1863_RESET = 0xFE;
 static constexpr uint8_t PCM1863_PCM_CFG_RX_WLEN_SHIFT = 6;
 static constexpr uint8_t PCM1863_PCM_CFG_TX_WLEN_SHIFT = 2;
 
-static constexpr uint8_t PCM1863_PCM_CFG_WLEN_32 = 0x00;
-static constexpr uint8_t PCM1863_PCM_CFG_WLEN_24 = 0x01;
-static constexpr uint8_t PCM1863_PCM_CFG_WLEN_20 = 0x02;
-static constexpr uint8_t PCM1863_PCM_CFG_WLEN_16 = 0x03;
-
 static constexpr uint8_t PCM1863_PCM_CFG_FMT_I2S = 0x00;
 
 // PCM1863_REG_ADC1_INPUT_SEL_L / _R

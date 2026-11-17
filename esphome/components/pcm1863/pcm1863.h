@@ -22,11 +22,12 @@ enum PCM1863Input : uint8_t {
   PCM1863_INPUT_DIFF_2,
 };
 
+// The word length code of PCM1863_REG_PCM_CFG
 enum PCM1863BitsPerSample : uint8_t {
-  PCM1863_BITS_PER_SAMPLE_16 = 16,
-  PCM1863_BITS_PER_SAMPLE_20 = 20,
-  PCM1863_BITS_PER_SAMPLE_24 = 24,
-  PCM1863_BITS_PER_SAMPLE_32 = 32,
+  PCM1863_BITS_PER_SAMPLE_32,
+  PCM1863_BITS_PER_SAMPLE_24,
+  PCM1863_BITS_PER_SAMPLE_20,
+  PCM1863_BITS_PER_SAMPLE_16,
 };
 
 /// Texas Instruments PCM1863 stereo audio ADC for line and microphone input.

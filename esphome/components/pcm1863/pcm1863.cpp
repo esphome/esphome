@@ -3,13 +3,14 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
-#include <cinttypes>
 #include <cmath>
 
 namespace esphome::pcm1863 {
 
 ESPHOME_LOG_TAG(TAG, "pcm1863");
 
+// Indexed by PCM1863BitsPerSample
+PROGMEM_STRING_TABLE(BitsPerSampleStrings, "32", "24", "20", "16");
 PROGMEM_STRING_TABLE(InputStrings, "none", "VIN1", "VIN2", "VIN3", "VIN4", "DIFF_1", "DIFF_2");
 
 // Page select and power up: bits 2:0 clear is the run state, and the reserved bits 7:3
@@ -22,10 +23,11 @@ static constexpr i2c::I2CRegValue PCM1863_INIT[] PROGMEM = {
 void PCM1863::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PCM1863 audio ADC:\n"
-                "  Bits Per Sample: %" PRIu8 "\n"
+                "  Bits Per Sample: %s\n"
                 "  Input: %s\n"
                 "  Mic Gain: %.1f dB",
-                this->bits_per_sample_, LOG_STR_ARG(InputStrings::get_log_str(this->input_, 0)), this->mic_gain_);
+                LOG_STR_ARG(BitsPerSampleStrings::get_log_str(this->bits_per_sample_, 0)),
+                LOG_STR_ARG(InputStrings::get_log_str(this->input_, 0)), this->mic_gain_);
 #ifdef USE_PCM1863_SELECT
   LOG_SELECT("  ", "Input", this->input_select_);
 #endif
@@ -47,8 +49,7 @@ void PCM1863::setup() {
 
 #ifdef USE_PCM1863_SELECT
   // Show the input the ADC booted with, so the select does not start out blank
-  if (this->input_select_ != nullptr)
-    this->input_select_->publish_state(this->input_);
+  PUBLISH_STATE(this->input_select_, this->input_);
 #endif
 }
 
@@ -81,22 +82,7 @@ bool PCM1863::configure_input_() {
 }
 
 bool PCM1863::configure_i2s_format_() {
-  uint8_t wlen = PCM1863_PCM_CFG_WLEN_24;
-  switch (this->bits_per_sample_) {
-    case PCM1863_BITS_PER_SAMPLE_16:
-      wlen = PCM1863_PCM_CFG_WLEN_16;
-      break;
-    case PCM1863_BITS_PER_SAMPLE_20:
-      wlen = PCM1863_PCM_CFG_WLEN_20;
-      break;
-    case PCM1863_BITS_PER_SAMPLE_24:
-      wlen = PCM1863_PCM_CFG_WLEN_24;
-      break;
-    case PCM1863_BITS_PER_SAMPLE_32:
-      wlen = PCM1863_PCM_CFG_WLEN_32;
-      break;
-  }
-
+  const uint8_t wlen = this->bits_per_sample_;
   const uint8_t reg_val =
       (wlen << PCM1863_PCM_CFG_RX_WLEN_SHIFT) | (wlen << PCM1863_PCM_CFG_TX_WLEN_SHIFT) | PCM1863_PCM_CFG_FMT_I2S;
   return this->write_byte(PCM1863_REG_PCM_CFG, reg_val);
