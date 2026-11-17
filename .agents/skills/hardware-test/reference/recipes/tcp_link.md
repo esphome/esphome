@@ -25,7 +25,9 @@ Files in `scripts/tcp_link/`:
   `tcpe1` (`NAME` overrides it, found with `resolve.sh`; peer `tcph3`, refused client on `deny_srv`). Build the host
   configs here first. Ports default to the example configs (`API_PORT`, `PROBE_PORT`, `PROBE_CLI_PORT`, `DENY_PORT`).
   Logs: `<RUN>-dut.txt` (host mode), `-peer-a.txt` and `-peer-b.txt` (before and after the kill), `-api.txt`, the raw
-  peers and `-events.txt`, without ANSI colours.
+  peers and `-events.txt`, without ANSI colours. It exits 1 when a job ends with the wrong status (`apiwatch.py` fails
+  on a dropped API connection, `tcp_peer.py` on no connection or a missed close), a device log shows bad raw packets or
+  an accepted 1023 byte send, or (host mode) a size the raw clients sent never reached `probe_srv` with its sum.
 - `validation_cases.py`: writes one config per validation rule into `out-valid/`, named ok_ or bad_ by the expected
   outcome; run `esphome config` on each from the tree under test.
 

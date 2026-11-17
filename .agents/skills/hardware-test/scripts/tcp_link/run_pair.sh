@@ -1,7 +1,8 @@
 #!/bin/bash
 # run_pair.sh host|esp32 [RUN]: the tcp link timeline against one device under test (boot states, SIGSTOP/SIGCONT of
 # the host peer, kill -9 and restart, silent and oversize raw servers, one client at a time, a refused client, oversize
-# from a client). Logs go to <RUN>-*.txt (RUN defaults to the mode), with ANSI colours stripped.
+# from a client). Logs go to <RUN>-*.txt (RUN defaults to the mode), with ANSI colours stripped. Exits 1 when a job ends
+# with the wrong status, or the device logs show bad raw packets, an accepted 1023 byte send or a lost probe packet.
 #   host:  the device is host build tcph1 here, its peer tcph2; the refused client connects from the computer's LAN
 #          address (LAN, macOS `ipconfig getifaddr en0` otherwise).
 #   esp32: the device is the ESP32 board NAME (default tcpe1, found with resolve.sh), its peer host build tcph3; the
@@ -78,5 +79,29 @@ for j in "${JOBS[@]}"; do
   [ "$rc" = "$want" ] || { echo "JOB FAILED $name exit=$rc (expected $want), see $R-$name.txt"; FAIL=1; }
 done
 perl -pi -e 's/\e\[[0-9;]*m//g' "$R"-*.txt
+# The device logs: the raw streams carried no bad packet, and the 1023 byte send was refused while connected
+DEVLOGS=("$R-peer-a.txt" "$R-peer-b.txt")
+[ "$M" = host ] && DEVLOGS+=("$R-dut.txt")
+for f in "${DEVLOGS[@]}"; do
+  st=$(grep -a 'STAT raw_srv' "$f" | tail -1)
+  if [ -z "$st" ]; then
+    echo "CHECK FAILED $f: no STAT line"; FAIL=1
+  elif ! grep -Eq 'raw_srv .* bad=0 gap=.*raw_cli .* bad=0 gap=' <<< "$st"; then
+    echo "CHECK FAILED $f: bad raw packets: $st"; FAIL=1
+  fi
+  n=$(grep -a -c -E 'bad payload|short packet|oversize packet' "$f")
+  [ "$n" = 0 ] || { echo "CHECK FAILED $f: $n bad packet warnings"; FAIL=1; }
+  ! grep -a -q '1023 byte send returned 1' "$f" || { echo "CHECK FAILED $f: the 1023 byte send was accepted"; FAIL=1; }
+  grep -a -q '1023 byte send returned 0 connected=1' "$f" || echo "note $f: no 1023 byte send while connected"
+done
+# Host mode: every checked size the raw peer clients sent reached the device's probe server intact
+if [ "$M" = host ]; then
+  for f in "$R-pcA.txt" "$R-pcB.txt"; do
+    while read -r size sum; do
+      grep -a -q "probe_srv RX size=$size sum=$sum" "$R-dut.txt" ||
+        { echo "CHECK FAILED $f: size $size sum $sum never reached probe_srv"; FAIL=1; }
+    done < <(grep -a 'SENT size' "$f" | sed -E 's/.*SENT size ([0-9]+) sum ([0-9]+).*/\1 \2/')
+  done
+fi
 echo "RUN $R done failed=$FAIL"
 exit $FAIL

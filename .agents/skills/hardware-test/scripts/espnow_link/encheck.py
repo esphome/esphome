@@ -3,6 +3,8 @@
 Reads ETRX <link> <field>=<value>, SESS <link> 0/1, STAT, CHAOS and warning lines; ETRX lines it cannot parse are
 counted. Per link: cnt updates, gaps in the received count (a gap is a step other than +1), values never sent (flt not
 equal to the sender's formula), binary transitions, long sensor updates, session edges. Prints one block per log.
+Exits 1 on a reboot or crash during a capture (more than one boot), a value never sent, or a checked stream with bad
+payloads.
 """
 
 import collections
@@ -29,7 +31,10 @@ def secs(line):
     return int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3]) if m else None
 
 
+CRASH = re.compile(r"Guru Meditation|Exception \(\d+\)|abort\(\)|panic|Backtrace:")
+failures = []
 for path in sys.argv[1:]:
+    crashes = 0
     links = collections.defaultdict(
         lambda: {"cnt": [], "flt": [], "bin": [], "long": [], "sess": []}
     )
@@ -54,11 +59,15 @@ for path in sys.argv[1:]:
                 chaos.append((line[1:9], line.strip().split("CHAOS")[1]))
             if "Running through setup" in line:
                 boots += 1
+            if CRASH.search(line):
+                crashes += 1
             if re.search(r"\]\[[WE]\]", line):
                 msg = re.sub(r"^\[[^\]]*\]", "", line.strip())
                 msg = re.sub(r"\d+", "N", msg)
                 warns[msg] += 1
-    print(f"== {path}  boots={boots} unparsed_etrx={unparsed}")
+    print(f"== {path}  boots={boots} crashes={crashes} unparsed_etrx={unparsed}")
+    if boots > 1 or crashes:
+        failures.append(f"{path}: {boots} boots, {crashes} crash lines")
     for c in chaos:
         print("  chaos", c)
     for name, d in sorted(links.items()):
@@ -86,11 +95,17 @@ for path in sys.argv[1:]:
             print(f"     gap at {at}: {g[1]} -> {g[2]}")
         if bad_flt:
             print("     bad flt", bad_flt[:5])
+            failures.append(f"{path}: {name} received {len(bad_flt)} values never sent")
     last = {}
     for s in stats:
         body = s[s.find("STAT") :]
         last[body.split()[1]] = body
     for body in last.values():
         print("  " + body)
+        if (m := re.search(r" bad=(\d+)", body)) and int(m[1]):
+            failures.append(f"{path}: {body.split()[1]} bad={m[1]}")
     for w, n in warns.most_common(15):
         print(f"  W x{n}: {w[:170]}")
+for f in failures:
+    print("FAIL", f)
+sys.exit(1 if failures else 0)

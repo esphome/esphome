@@ -24,16 +24,18 @@ and its MAC or address):
   `listen_address`, peer plus test host, `point_to_point: false`, `point_to_point: true` on the broadcast). Multicast
   needs `listen_address: <group>` on the udp component or nothing is received. `udpraw.py SECS HOST...` sends a
   datagram per second to ports 21121/21125/21126 of each board from the computer and counts what the boards send to it
-  on 21124. The `tick` and `stream_interval` substitutions set the load.
+  on 21124 (exits 1 when none arrived). The `tick` and `stream_interval` substitutions set the load.
 - `pairrun.sh PREFIX E32V D1V [SECS] [RUN]`: flashes `<PREFIX>32<E32V>.yaml` on the ESP32 and `<PREFIX>66<D1V>.yaml`
   on the D1 mini (build letter p from `PR_TREE`, any other from `BASE_TREE`), captures both from a reset and prints a
-  summary per board for the prefix.
+  summary per board for the prefix. It exits 1 when a capture fails, or a board logs no STAT line, reboots during the
+  capture or logs a crash.
 - `urlink.yaml` (prefix `ur`): minimal unicast A/B (one raw link plus `on_receive`), PR against base.
 - `rglink.yaml` (prefix `rg`): existing users (packet_transport over UDP multicast and ESP-NOW, udp.write,
   espnow send and broadcast actions and triggers); remote entities for both peer names so one image serves four
   pairings.
 - `encheck.py LOG...`: per link counts, gaps and bad float values from ETRX lines, last STAT per stream, warning
-  histogram. `validation_cases.py`: writes 41 ok_/bad_ configs into `out-valid/`; run `esphome config` on each.
+  histogram; exits 1 on a reboot or crash during a capture, a value never sent or a stream with bad payloads.
+  `validation_cases.py`: writes 41 ok_/bad_ configs into `out-valid/`; run `esphome config` on each.
 
 Facts:
 - ESP-NOW v2 frames above 250 bytes from an ESP32 (IDF 5.5) arrive on an ESP8266 cut to 250 bytes, not dropped.

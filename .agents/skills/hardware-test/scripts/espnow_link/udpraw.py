@@ -1,5 +1,6 @@
 """udpraw.py SECONDS HOST [HOST...]: every second send a 16 byte datagram from this host to ports 21121, 21125 and
-21126 of each HOST, and count datagrams arriving on port 21124 (the boards' several-address link)."""
+21126 of each HOST, and count datagrams arriving on port 21124 (the boards' several-address link). Exits 1 when none
+arrived."""
 
 import socket
 import sys
@@ -25,3 +26,4 @@ while time.time() < end:
     except TimeoutError:
         pass
 print(f"sent={sent} received_on_21124={got} by_source={src}")
+sys.exit(0 if got else "FAIL nothing arrived on port 21124")

@@ -128,7 +128,7 @@ udp(
 udp("bad_udp_p2p_true_mcast", '["239.0.60.53"]', "point_to_point: true\n")
 udp("bad_udp_p2p_true_two", '["192.0.2.60", "192.0.2.61"]', "point_to_point: true\n")
 udp("ok_udp_p2p_8266", '["192.0.2.60"]', "reliability:\nsession:\n", plat=E66)
-# added for head f12e235cdd
+# peer address and all-ones broadcast cases
 en("bad_en_peer_group_mac", "peer_address: 01:22:33:44:55:66\n")
 en("bad_en_peer_zero_mac", "peer_address: 00:00:00:00:00:00\n")
 en(

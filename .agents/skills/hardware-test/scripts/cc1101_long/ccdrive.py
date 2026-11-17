@@ -2,7 +2,10 @@
 each receiver logs. Writes all log lines to OUT and prints one summary line per case.
 
 MODE: short, long, r2long, r2mid, lambda, r2lambda, fast (fast38, fast100 for one rate), and the dev bug repros crc,
-rxtx, txback, txrx, txset and nocrc64 (see recipes/cc1101.md)."""
+rxtx, txback, txrx, txset and nocrc64 (see recipes/cc1101.md).
+
+Exits 1 on a failed action, a missing CFG/RATE/SENT line or a lost API connection (INVALID), a MISSED case, or error
+lines from the radios outside the repros."""
 
 import asyncio
 import pathlib
@@ -32,10 +35,17 @@ class Dev:
         )
 
     async def start(self):
-        self.cli = await connect(self.host)
+        self.cli = await connect(self.host, on_stop=self.on_stop)
         _, svcs = await self.cli.list_entities_services()
         self.svc = {s.name: s for s in svcs}
         self.cli.subscribe_logs(self.on_log, log_level=LogLevel.LOG_LEVEL_INFO)
+
+    async def on_stop(self, expected: bool) -> None:
+        if (
+            not expected
+        ):  # a reboot or Wi-Fi drop: the rest of the run is not trustworthy
+            self.failed += 1
+            print(f"  INVALID: API connection to {self.tag} lost", flush=True)
 
     def on_log(self, m):
         line = log_text(m)
@@ -472,10 +482,14 @@ async def main():
         )
     else:
         sys.exit(f"unknown mode {MODE}")
+    errors = 0
     for d in (tx, rx):
         warn = [line for line in d.lines if "[W]" in line or "[E]" in line]
         print(f"{d.tag} warnings/errors: {len(warn)}", *warn[:10], sep="\n  ")
+        errors += sum("[E]" in line for line in warn)
         await d.cli.disconnect()
+    if errors and MODE not in REPROS:
+        sys.exit(f"FAIL: {errors} error lines from the radios")
     if tx.failed or rx.failed:
         sys.exit(
             f"INVALID: {tx.failed + rx.failed} failed actions or missing CFG/RATE lines"

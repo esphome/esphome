@@ -1,6 +1,6 @@
 """apiwatch.py HOST PORT SECONDS (API_KEY in the env): print every state change of a device's entities with a timestamp, starting
 with the states sent on connect (missing_state shows as 'unknown'). Used to check the tcp link's `connected` binary
-sensor reads OFF before the first connection, not unknown."""
+sensor reads OFF before the first connection, not unknown. Exits 1 when the API connection drops during the watch."""
 
 import asyncio
 import pathlib
@@ -15,7 +15,14 @@ T0 = time.monotonic()
 
 
 async def main():
-    c = await connect(HOST, tries=60, timeout=5, port=PORT)
+    lost = asyncio.Event()
+
+    async def on_stop(expected: bool) -> None:
+        if not expected:
+            print(f"{time.monotonic() - T0:8.3f} API connection lost", flush=True)
+            lost.set()
+
+    c = await connect(HOST, tries=60, timeout=5, port=PORT, on_stop=on_stop)
     ents, _ = await c.list_entities_services()
     names = {e.key: e.object_id for e in ents}
     last = {}
@@ -29,6 +36,8 @@ async def main():
 
     c.subscribe_states(cb)
     await asyncio.sleep(SECS)
+    if lost.is_set():
+        sys.exit("FAIL the API connection dropped")
     await c.disconnect()
 
 
