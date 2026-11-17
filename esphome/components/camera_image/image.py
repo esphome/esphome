@@ -172,6 +172,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # `resize` only bounds the frame; the decoder scales it uniformly to fit and
     # truncates, so this is the size it is actually published at, and the size a
     # crop has to fit. to_code needs it for the metadata and the rotation buffer.
+    # A `window` on an OV2640 publishes a smaller frame than the resolution, but
+    # which sensor is fitted is only known at runtime; every other sensor and a
+    # camera without a window publish the resolution.
     camera_width, camera_height = _resolution_dimensions(camera_config[CONF_RESOLUTION])
     decoded_width, decoded_height = _decoded_size(
         camera_width, camera_height, config.get(CONF_RESIZE)
