@@ -4,11 +4,11 @@
 
 namespace esphome::sml {
 
-class SmlSensor final : public SmlListener, public sensor::Sensor, public Component {
+class SmlSensor final : public SmlListener, public sensor::Sensor {
  public:
   SmlSensor(std::string server_id, std::string obis_code);
   void publish_val(const ObisInfo &obis_info) override;
-  void dump_config() override;
+  void dump_child_config() override;
 };
 
 }  // namespace esphome::sml

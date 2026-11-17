@@ -134,6 +134,7 @@ void RP2BLETracker::dump_config() {
                 this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_,
                 this->scan_active_ ? LOG_STR_LITERAL("ACTIVE") : LOG_STR_LITERAL("PASSIVE"),
                 YESNO(this->scan_continuous_));
+  this->dispatcher_.dump_child_configs();
 }
 
 // Core spec advertising report event types (BTstack headers stay out of this

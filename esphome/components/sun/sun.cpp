@@ -281,8 +281,13 @@ struct SunAtLocation {
 HorizontalCoordinate Sun::calc_coords_() {
   SunAtLocation sun{location_};
   Moment m{time_->utcnow()};
-  if (!m.dt.is_valid())
-    return HorizontalCoordinate{NAN, NAN};
+  if (!m.dt.is_valid()) {
+    // Assigned: a {NAN, NAN} literal is copied from a 16 byte constant, which is RAM on ESP8266
+    HorizontalCoordinate invalid;
+    invalid.elevation = NAN;
+    invalid.azimuth = NAN;
+    return invalid;
+  }
 
   // uncomment to print some debug output
   /*
