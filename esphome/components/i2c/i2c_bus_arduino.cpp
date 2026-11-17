@@ -183,17 +183,15 @@ void ArduinoI2CBus::recover_() {
   // Activate input and pull up resistor for the SDA pin, so it can be read during the pulses.
   pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
 
-  // Make sure that switching to output mode will make SCL low, just in
-  // case other code has setup the pin for a HIGH signal.
-  digitalWrite(this->scl_pin_, LOW);  // NOLINT
-
   delayMicroseconds(half_period_usec);
   // Spec: "If the data line (SDA) is stuck LOW, send nine clock pulses."
   // Pulse only while SDA is low: a device receiving a write ACKs every ninth pulse.
   for (auto i = 0; i < 9 && digitalRead(this->sda_pin_) == LOW; i++) {  // NOLINT
-    // Release pull up resistor and switch to output to make the signal LOW.
-    pinMode(this->scl_pin_, INPUT);   // NOLINT
-    pinMode(this->scl_pin_, OUTPUT);  // NOLINT
+    // Drive LOW. Set the level while the pin is a plain input: on RP2040 a write to an
+    // INPUT_PULLUP pin drives it, which would leave SCL low if the loop never runs.
+    pinMode(this->scl_pin_, INPUT);     // NOLINT
+    digitalWrite(this->scl_pin_, LOW);  // NOLINT
+    pinMode(this->scl_pin_, OUTPUT);    // NOLINT
     delayMicroseconds(half_period_usec);
 
     // Release output and activate pull up resistor to make the signal HIGH.
@@ -220,10 +218,6 @@ void ArduinoI2CBus::recover_() {
     }
   }
 
-  // Make sure that switching to output mode will make SDA low, for the
-  // START condition below.
-  digitalWrite(this->sda_pin_, LOW);  // NOLINT
-
   // A device still holding SDA after nine pulses cannot be freed here.
   if (digitalRead(this->sda_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
@@ -240,8 +234,9 @@ void ArduinoI2CBus::recover_() {
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);
-  pinMode(this->sda_pin_, INPUT);   // NOLINT
-  pinMode(this->sda_pin_, OUTPUT);  // NOLINT
+  pinMode(this->sda_pin_, INPUT);     // NOLINT
+  digitalWrite(this->sda_pin_, LOW);  // NOLINT
+  pinMode(this->sda_pin_, OUTPUT);    // NOLINT
 
   // From the specification:
   // "A START condition immediately followed by a STOP condition (void
