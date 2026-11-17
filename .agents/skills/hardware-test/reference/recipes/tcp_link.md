@@ -17,17 +17,19 @@ Files in `scripts/tcp_link/`:
 - `tcp_peer.py client HOST PORT | server PORT`: raw peer. `--silent-after S` stops sending (receive timeout and
   reconnect), `--oversize-after S N` sends a header of N bytes (must close), `--send 1,1022` sends checked sizes,
   `--bind ADDR` picks the source address, `--hold S` closes after S. Prints keep-alive gap min/max per connection.
-- `apiwatch.py HOST PORT SECS` (`API_KEY` from `apikey.txt`): state changes with timestamps from connect; shows the `connected` sensors
-  read False (not unknown) at boot. The API coalesces a fast off/on, so judge edges from the `CONN` log lines.
+- `apiwatch.py HOST PORT SECS [LOGFILE]` (`API_KEY` from `apikey.txt`): state changes with timestamps from connect;
+  shows the `connected` sensors read False (not unknown) at boot, and writes the device's log lines to LOGFILE. The API
+  coalesces a fast off/on, so judge edges from the `CONN` log lines.
 - `run_pair.sh host|esp32 [RUN]`: the timeline (boot states, SIGSTOP/SIGCONT of the host peer, kill -9 and restart,
   silent and oversize raw servers, one client at a time, a refused client, oversize from a client) against host build
   `tcph1` (peer `tcph2`, refused client from the LAN address; `LAN` overrides the macOS `ipconfig` guess) or the ESP32
   `tcpe1` (`NAME` overrides it, found with `resolve.sh`; peer `tcph3`, refused client on `deny_srv`). Build the host
   configs here first. Ports default to the example configs (`API_PORT`, `PROBE_PORT`, `PROBE_CLI_PORT`, `DENY_PORT`).
-  Logs: `<RUN>-dut.txt` (host mode), `-peer-a.txt` and `-peer-b.txt` (before and after the kill), `-api.txt`, the raw
-  peers and `-events.txt`, without ANSI colours. It exits 1 when a job ends with the wrong status (`apiwatch.py` fails
-  on a dropped API connection, `tcp_peer.py` on no connection or a missed close), a device log shows bad raw packets or
-  an accepted 1023 byte send, or (host mode) a size the raw clients sent never reached `probe_srv` with its sum.
+  Logs: `<RUN>-dut.txt` (the host build's output, or the board's log over the API in esp32 mode), `-peer-a.txt` and
+  `-peer-b.txt` (before and after the kill), `-api.txt`, the raw peers and `-events.txt`, without ANSI colours. It
+  exits 1 when a job ends with the wrong status (`apiwatch.py` fails on a dropped API connection, `tcp_peer.py` on no
+  connection or a missed close), any device log (the device under test's included) shows bad raw packets or an
+  accepted 1023 byte send, or a size the raw clients sent never reached the device's `probe_srv` with its sum.
 - `validation_cases.py`: writes one config per validation rule into `out-valid/`, named ok_ or bad_ by the expected
   outcome; run `esphome config` on each from the tree under test.
 

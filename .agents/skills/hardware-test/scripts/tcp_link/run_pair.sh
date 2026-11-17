@@ -6,7 +6,7 @@
 #   host:  the device is host build tcph1 here, its peer tcph2; the refused client connects from the computer's LAN
 #          address (LAN, macOS `ipconfig getifaddr en0` otherwise).
 #   esp32: the device is the ESP32 board NAME (default tcpe1, found with resolve.sh), its peer host build tcph3; the
-#          refused client connects to its deny_srv.
+#          refused client connects to its deny_srv. The board's log is taken over the API into <RUN>-dut.txt.
 # Build the host configs here first. env: API_KEY (apikey.txt otherwise), PY, and the ports of the example configs:
 # API_PORT, PROBE_PORT, PROBE_CLI_PORT, DENY_PORT.
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); cd "$D" || exit 1; B=$D/.esphome/build; P=python3
@@ -45,7 +45,9 @@ if [ "$M" = host ]; then
   job dut 124 timeout 140 "$B/tcph1/.pioenvs/tcph1/program"
   ts start tcph1
 fi
-job api 0 ${PY:-python3} apiwatch.py "$E" "$API_PORT" $WATCH
+# The board's own log comes over the API in esp32 mode; a host build logs to its stdout
+DUTLOG=(); [ "$M" = esp32 ] && DUTLOG=("$R-dut.txt")
+job api 0 ${PY:-python3} apiwatch.py "$E" "$API_PORT" $WATCH "${DUTLOG[@]}"
 job ps-silent 0 $P -I tcp_peer.py server "$PROBE_CLI_PORT" --duration $SILENT --silent-after 8
 ts api and silent server
 sleep $WARM
@@ -79,10 +81,9 @@ for j in "${JOBS[@]}"; do
   [ "$rc" = "$want" ] || { echo "JOB FAILED $name exit=$rc (expected $want), see $R-$name.txt"; FAIL=1; }
 done
 perl -pi -e 's/\e\[[0-9;]*m//g' "$R"-*.txt
-# The device logs: the raw streams carried no bad packet, and the 1023 byte send was refused while connected
-DEVLOGS=("$R-peer-a.txt" "$R-peer-b.txt")
-[ "$M" = host ] && DEVLOGS+=("$R-dut.txt")
-for f in "${DEVLOGS[@]}"; do
+# Every device log, the device under test's first: the raw streams carried no bad packet, and the 1023 byte send was
+# refused while connected
+for f in "$R-dut.txt" "$R-peer-a.txt" "$R-peer-b.txt"; do
   st=$(grep -a 'STAT raw_srv' "$f" | tail -1)
   if [ -z "$st" ]; then
     echo "CHECK FAILED $f: no STAT line"; FAIL=1
@@ -94,14 +95,12 @@ for f in "${DEVLOGS[@]}"; do
   ! grep -a -q '1023 byte send returned 1' "$f" || { echo "CHECK FAILED $f: the 1023 byte send was accepted"; FAIL=1; }
   grep -a -q '1023 byte send returned 0 connected=1' "$f" || echo "note $f: no 1023 byte send while connected"
 done
-# Host mode: every checked size the raw peer clients sent reached the device's probe server intact
-if [ "$M" = host ]; then
-  for f in "$R-pcA.txt" "$R-pcB.txt"; do
-    while read -r size sum; do
-      grep -a -q "probe_srv RX size=$size sum=$sum" "$R-dut.txt" ||
-        { echo "CHECK FAILED $f: size $size sum $sum never reached probe_srv"; FAIL=1; }
-    done < <(grep -a 'SENT size' "$f" | sed -E 's/.*SENT size ([0-9]+) sum ([0-9]+).*/\1 \2/')
-  done
-fi
+# Every checked size the raw peer clients sent reached the device's probe server intact
+for f in "$R-pcA.txt" "$R-pcB.txt"; do
+  while read -r size sum; do
+    grep -a -q "probe_srv RX size=$size sum=$sum" "$R-dut.txt" ||
+      { echo "CHECK FAILED $f: size $size sum $sum never reached probe_srv"; FAIL=1; }
+  done < <(grep -a 'SENT size' "$f" | sed -E 's/.*SENT size ([0-9]+) sum ([0-9]+).*/\1 \2/')
+done
 echo "RUN $R done failed=$FAIL"
 exit $FAIL
