@@ -1,6 +1,7 @@
 #include "sy6970.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sy6970 {
 
