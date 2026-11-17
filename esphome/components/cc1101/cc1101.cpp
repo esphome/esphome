@@ -507,12 +507,10 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
-  // Async serial TX only; switching a packet mode radio over would leave it unable to receive packets
   if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
     ESP_LOGW(TAG, "begin_tx is for async serial mode; use send_packet in packet mode");
     return;
   }
-  this->wake_up();
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
