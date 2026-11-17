@@ -5,6 +5,7 @@
 # env: PY, BUILD_LOCK (optional)
 W=$(cd "$(dirname "$0")" && pwd); L=$(dirname "$W"); S=$(dirname "$L"); P=${1:?port}
 export PIO_CORE=${PIO_CORE:-$W/pio}
+FAILED=()
 for mm in dg:DG11J1-3A hi:HITACHI_HCRA31NEWH hs:HISENSE_ARG; do
   m=${mm%%:*}
   for v in base pr; do
@@ -15,10 +16,14 @@ for mm in dg:DG11J1-3A hi:HITACHI_HCRA31NEWH hs:HISENSE_ARG; do
     echo "== $N"
     # a skipped variant must not leave an older run's outputs behind for the comparison
     rm -f "$L/$N-ser.txt" "$L/$N-pre.txt" "$L/$N-drive.txt" "$L/$N-frames.json"
-    TREE=$T bash "$S/pio_build.sh" compile "$N" "$W/$N.yaml" || continue
-    TREE=$T bash "$S/pio_build.sh" upload "$N" "$W/$N.yaml" "$P" || continue
+    TREE=$T bash "$S/pio_build.sh" compile "$N" "$W/$N.yaml" || { FAILED+=("$N:compile"); continue; }
+    TREE=$T bash "$S/pio_build.sh" upload "$N" "$W/$N.yaml" "$P" || { FAILED+=("$N:upload"); continue; }
     RPY=${PY:-$T/venv/bin/python}
-    (cd "$L" && STEP_S=4 PY=$RPY bash run.sh "$N" "$P" "$W/steps.sh" && $RPY frames.py "$N")
+    (cd "$L" && STEP_S=4 PY=$RPY bash run.sh "$N" "$P" "$W/steps.sh" && $RPY frames.py "$N") || FAILED+=("$N:run")
   done
 done
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo "DONE with ${#FAILED[@]} failed variant(s): ${FAILED[*]}"
+  exit 1
+fi
 echo DONE

@@ -15,7 +15,11 @@ TOL = int(args[2]) if len(args) > 2 else 0
 
 
 def load(name):
-    return json.loads(pathlib.Path(f"{name}-frames.json").read_text(encoding="utf-8"))
+    steps = json.loads(pathlib.Path(f"{name}-frames.json").read_text(encoding="utf-8"))
+    # an empty run must not compare as equal to another empty run
+    if not steps or not any(s["frames"] for s in steps):
+        sys.exit(f"{name}-frames.json has no steps or no frames")
+    return steps
 
 
 def same_timing(u, v):
