@@ -155,17 +155,8 @@ struct LogBuffer {
     *p++ = ' ';
     this->pos = static_cast<uint16_t>(p - this->data);
   }
-  void write_body(const char *text, uint16_t text_length) {
-    const int room = this->body_room_();
-    if (room > 0) {
-      const uint16_t copy_len = (text_length < room - 1) ? text_length : room - 1;
-      memcpy(this->current_(), text, copy_len);
-      this->pos += copy_len;
-      this->strip_trailing_newlines_();  // The cut can land right after a newline in the text
-      this->write_ansi_reset_();
-    }
-    this->finalize_();
-  }
+  // Same as write_unformatted_body(); kept for the replay and task log buffer callers
+  void write_body(const char *text, uint16_t text_length) { this->write_unformatted_body(text, text_length); }
 
  private:
   uint16_t remaining_() const { return this->size - this->pos; }
@@ -175,7 +166,7 @@ struct LogBuffer {
   // The body starts inside the buffer (write_header() needs MAX_HEADER_SIZE free) and the body writers keep a byte
   // for the terminator, so pos is inside the buffer here
   void finalize_() { this->data[this->pos] = '\0'; }
-  // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
+  // Write ANSI reset sequence inline ("\033[0m")
   // Callers have checked body_room_(), which keeps space for the reset and the terminator after it
   void write_ansi_reset_() {
     char *p = this->current_();
