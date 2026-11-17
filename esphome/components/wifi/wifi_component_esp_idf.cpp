@@ -41,11 +41,13 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
-#ifdef USE_WIFI_LEASE_CACHE
+#if USE_NETWORK_IPV6 || defined(USE_WIFI_LEASE_CACHE)
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
-#include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
-#include "lwip/dhcp.h"
 #include "lwip/netif.h"
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+#include <esp_rtc_time.h>  // esp_rtc_get_time_us() -- RTC-domain clock for lease age
+#include "lwip/dhcp.h"
 #endif
 
 #include "esphome/core/application.h"
@@ -819,7 +821,7 @@ void WiFiComponent::save_lease_settings_() {
     return;
 
 #ifdef USE_WIFI_MANUAL_IP
-  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value())
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip())
     return;
 #endif
 
@@ -1098,8 +1100,23 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = true;
 #if USE_NETWORK_IPV6
     // Start SLAAC on association, not after a DHCPv4 lease that may never arrive.
-    if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
+    // Not esp_netif_create_ip6_linklocal(): it returns ESP_FAIL while the netif is down, and this queued event
+    // can be handled before esp-netif's own STA_CONNECTED handler brings the netif up. lwIP accepts the
+    // address on a down netif and starts DAD and router solicitation once it comes up.
+    if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
+      if (esp_err_t err = esp_netif_tcpip_exec(
+              [](void *ctx) -> esp_err_t {
+                netif_create_ip6_linklocal_address(static_cast<struct netif *>(ctx), 1);
+                return ESP_OK;
+              },
+              netif);
+          err != ESP_OK) {
+        ESP_LOGW(TAG, "IPv6 link-local not created: %s", esp_err_to_name(err));
+      } else {
+        ESP_LOGD(TAG, "IPv6 link-local address created");
+      }
+    } else {
+      ESP_LOGW(TAG, "No lwIP netif, IPv6 link-local not created");
     }
 #endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
@@ -1125,7 +1142,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     bool static_ip = false;
 #ifdef USE_WIFI_MANUAL_IP
     const WiFiAP *config = this->get_selected_sta_();
-    static_ip = config && config->get_manual_ip().has_value();
+    static_ip = config && config->has_manual_ip();
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
     static_ip = static_ip || this->applied_cached_lease_;
@@ -1141,10 +1158,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     }
-    const bool expected_disconnect =
-        s_expected_disconnect.consume_disconnect(it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE);
+    const ExpectedLeave expected = s_expected_disconnect.consume_disconnect(
+        it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE || it.reason == WIFI_REASON_STA_LEAVING);
+    const bool expected_disconnect = expected != ExpectedLeave::EXPECTED_LEAVE_NONE;
     if (expected_disconnect) {
-      ESP_LOGD(TAG, "Expected disconnect from previous AP");
+      ESP_LOGD(TAG, "Expected leave of the previous %s",
+               expected == ExpectedLeave::EXPECTED_LEAVE_AP ? LOG_STR_LITERAL("AP") : LOG_STR_LITERAL("attempt"));
     } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);
@@ -1164,7 +1183,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    this->notify_disconnect_state_listeners_();
+    // An attempt that never associated ended no session listeners know of
+    if (expected != ExpectedLeave::EXPECTED_LEAVE_ATTEMPT)
+      this->notify_disconnect_state_listeners_();
 #endif
 
 #if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
@@ -1617,6 +1638,21 @@ bool WiFiComponent::wifi_dpp_start_listen_() {
 
 void WiFiComponent::wifi_dpp_stop_listen_() { esp_supp_dpp_stop_listen(); }
 #endif
+
+void WiFiComponent::on_powerdown() {
+  // Leave the AP before esp_restart() or deep sleep stops Wi-Fi. esp_wifi_stop() while associated
+  // makes the ESP32 retransmit its Disassociation up to the retry limit although the AP ACKs it
+  // (32 copies with protected management frames), which some APs handle badly.
+  // Upstream bug: https://github.com/espressif/esp-idf/issues/19443 - remove this once it is fixed
+  // in the ESP-IDF versions we support.
+  // Ask the driver: s_sta_connected lags until the main loop has handled the connect event.
+  wifi_ap_record_t ap_info;
+  if (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  esp_wifi_disconnect();
+  delay(100);  // NOLINT: once per reboot or deep sleep, lets the disassociation go out
+}
 
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 

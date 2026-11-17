@@ -1,6 +1,7 @@
 #include "max31865.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <cmath>
 #include <cinttypes>
 
@@ -184,7 +185,7 @@ uint16_t MAX31865Sensor::read_register_16_(uint8_t reg) {
   const uint8_t msb(this->read_byte());
   const uint8_t lsb(this->read_byte());
   this->disable();
-  const uint16_t value((msb << 8) | lsb);
+  const uint16_t value = encode_uint16(msb, lsb);
   ESP_LOGVV(TAG, "read_register_16_ 0x%02X: 0x%04X", reg, value);
   return value;
 }

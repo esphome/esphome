@@ -44,17 +44,17 @@ i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pr
   }
 
   // extract top 6 bits of first byte and all bits of second byte for pressure
-  raw_pressure = ((response[0] & 0x3F) << 8) | response[1];
+  raw_pressure = encode_uint16(response[0] & 0x3F, response[1]);
 
   // extract all bytes of 3rd byte and top 3 bits of fourth byte for temperature
-  raw_temperature = (response[2] << 3) | ((response[3] & 0xE0) >> 5);
+  raw_temperature = encode_uint16(response[2], response[3]) >> 5;
 
   return i2c::ERROR_OK;
 }
 
 inline float convert_temperature(uint16_t raw_temperature) {
   /*
-   * Correspondance with Amphenol confirmed the appropriate equation for computing temperature is:
+   * Correspondence with Amphenol confirmed the appropriate equation for computing temperature is:
    * T (°C) =(((((Th*8)+Tl)/2048)*200)-50), where Th is the high (third) byte and Tl is the low (fourth) byte.
    *
    * Tl is actually the upper 3 bits of the fourth data byte; the first 5 (LSBs) must be masked out.

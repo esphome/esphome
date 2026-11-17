@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import key_provider
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
@@ -16,9 +16,6 @@ MULTI_CONF = True
 matrix_keypad_ns = cg.esphome_ns.namespace("matrix_keypad")
 MatrixKeypad = matrix_keypad_ns.class_(
     "MatrixKeypad", key_provider.KeyProvider, cg.Component
-)
-MatrixKeyTrigger = matrix_keypad_ns.class_(
-    "MatrixKeyTrigger", automation.Trigger.template(cg.uint8)
 )
 
 CONF_KEYPAD_ID = "keypad_id"
@@ -39,6 +36,12 @@ def check_keys(obj: ConfigType) -> ConfigType:
     return obj
 
 
+_AUTOMATION_LISTS = (
+    automation.AutomationList(
+        CONF_ON_KEY, "MATRIX_KEYPAD_ON_KEY_COUNT", [(cg.uint8, "x")]
+    ),
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -55,11 +58,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEBOUNCE_TIME, default=1): cv.int_range(min=1, max=100),
             cv.Optional(CONF_HAS_DIODES): cv.boolean,
             cv.Optional(CONF_HAS_PULLDOWNS): cv.boolean,
-            cv.Optional(CONF_ON_KEY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MatrixKeyTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_KEY): automation.validate_automation(),
         }
     ),
     check_keys,
@@ -87,7 +86,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_debounce_time(config[CONF_DEBOUNCE_TIME]))
     cg.add_optional(var.set_has_diodes, config.get(CONF_HAS_DIODES))
     cg.add_optional(var.set_has_pulldowns, config.get(CONF_HAS_PULLDOWNS))
-    for conf in config.get(CONF_ON_KEY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_key_trigger(trigger))
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
+    await automation.build_automation_lists(var, config, _AUTOMATION_LISTS)

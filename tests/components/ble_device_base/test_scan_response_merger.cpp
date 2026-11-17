@@ -41,7 +41,9 @@ class CountingListener : public ESPBTDeviceListener {
     this->parsed++;
     return true;  // claimed: keeps the discovered log quiet
   }
+  void dump_child_config() override { this->dumped++; }
   int parsed{0};
+  int dumped{0};
 };
 
 class ScanResponseMergerTest : public ::testing::Test {
@@ -187,6 +189,14 @@ TEST_F(ScanResponseMergerTest, PartialBindIsTreatedAsUnbound) {
   partial.stash_adv(MAC_A, -40, 0, data.data(), data.size(), 0);
   partial.flush();  // dropped, not dispatched through half a binding
   EXPECT_TRUE(this->raw_.frames.empty());
+}
+
+TEST_F(ScanResponseMergerTest, DumpChildConfigsReachesEveryListener) {
+  CountingListener second;
+  this->dispatcher_.register_listener(&second);
+  this->dispatcher_.dump_child_configs();
+  EXPECT_EQ(this->listener_.dumped, 1);
+  EXPECT_EQ(second.dumped, 1);
 }
 
 }  // namespace

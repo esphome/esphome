@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import copy
 import inspect
 import json
 import os
@@ -561,34 +562,77 @@ def get_arr_path_schema(path):
     return s
 
 
-def merge(source, destination):
-    """
-    run me with nosetests --with-doctest file.py
-
-    >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
-    >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
-    >>> merge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
-    True
-    """
-    for key, value in source.items():
-        if isinstance(value, dict):
-            # get node or create one
-            node = destination.setdefault(key, {})
-            merge(value, node)
-        elif key == "constraints" and isinstance(value, list):
-            destination[key] = value + destination.get(key, [])
-        else:
-            destination[key] = value
-
-    return destination
-
-
 def inline_schema(node: dict, base: dict) -> None:
-    """Copy *base* into *node*, keeping the key constraints of both."""
+    """Copy *base* into *node*, keeping the key constraints and config vars of both."""
     local = node.get("constraints", [])
+    local_vars = node.get(S_CONFIG_VARS)
     node |= base
     if local:
         node["constraints"] = base.get("constraints", []) + local
+    if local_vars:
+        node[S_CONFIG_VARS] = copy.deepcopy(
+            overlay_config_vars(local_vars, base.get(S_CONFIG_VARS, {}))
+        )
+
+
+def overlay_field(local: dict, base: dict) -> dict:
+    """Overlay the field descriptor *local* on *base*, the one it inherits.
+
+    Only the schema structure recurses (a nested ``schema`` and its ``config_vars``,
+    whose key constraints are kept from both); any other value *local* sets, such
+    as a narrowed ``values`` map or its own ``id_type``, replaces the base's.
+    """
+    merged = base | local
+    local_schema, base_schema = local.get(S_SCHEMA), base.get(S_SCHEMA)
+    if isinstance(local_schema, dict) and isinstance(base_schema, dict):
+        schema = base_schema | local_schema
+        if S_CONFIG_VARS in local_schema and S_CONFIG_VARS in base_schema:
+            schema[S_CONFIG_VARS] = overlay_config_vars(
+                local_schema[S_CONFIG_VARS], base_schema[S_CONFIG_VARS]
+            )
+        if "constraints" in local_schema and "constraints" in base_schema:
+            schema["constraints"] = (
+                base_schema["constraints"] + local_schema["constraints"]
+            )
+        merged[S_SCHEMA] = schema
+    return merged
+
+
+def overlay_config_vars(local: dict, base: dict) -> dict:
+    """Overlay *local* field descriptors on *base*'s, one field at a time."""
+    return base | {
+        name: overlay_field(field, base[name])
+        if isinstance(base.get(name), dict)
+        else field
+        for name, field in local.items()
+    }
+
+
+def splice_extends(node: dict, extends: list, name: str) -> None:
+    """Set *node*'s extends to *extends*, with *name* replaced by the extends *node* inherited from it.
+
+    >>> node = {"extends": ["d", "a"]}
+    >>> splice_extends(node, ["a", "b", "c"], "b")
+    >>> node
+    {'extends': ['a', 'd', 'c']}
+    """
+    inherited = node.pop(S_EXTENDS, [])
+    idx = extends.index(name)
+    added = [e for e in inherited if e not in extends]
+    if spliced := extends[:idx] + added + extends[idx + 1 :]:
+        node[S_EXTENDS] = spliced
+
+
+SIMPLE_TYPES = ("enum", "registry", "integer", "string")
+
+
+def drop_extend(node: dict, name: str) -> None:
+    """Remove *name* from *node*'s extends, dropping the key when it empties."""
+    # Rebuilt, not mutated: inlined nodes can share one extends list
+    if extends := [e for e in node[S_EXTENDS] if e != name]:
+        node[S_EXTENDS] = extends
+    else:
+        node.pop(S_EXTENDS)
 
 
 def is_platform_schema(schema_name):
@@ -631,19 +675,30 @@ def shrink():
                 # key_s.pop(S_EXTENDS)
                 pass_again = True
                 if S_SCHEMA in arr_s:
-                    if S_EXTENDS in arr_s[S_SCHEMA]:
-                        arr_s[S_SCHEMA].pop(S_EXTENDS)
-                    else:
+                    extends = arr_s[S_SCHEMA].pop(S_EXTENDS, None)
+                    if extends is None:
                         print("expected extends here!" + x)
-                    arr_s = merge(key_s, arr_s)
+                    merged = overlay_field(arr_s, key_s)
+                    # The inlined schema decides the type (an enum or typed collapse)
+                    merged[S_TYPE] = key_s.get(S_TYPE, merged.get(S_TYPE))
+                    arr_s.clear()
+                    arr_s.update(copy.deepcopy(merged))
+                    if extends:
+                        splice_extends(arr_s[S_SCHEMA], extends, x)
                     # Only key constraints survive the collapse
-                    if arr_s[S_TYPE] in ["enum", "typed"] and (
-                        constraints := arr_s.pop(S_SCHEMA).get("constraints")
-                    ):
-                        arr_s[S_SCHEMA] = {"constraints": constraints}
+                    if arr_s[S_TYPE] in ["enum", "typed"]:
+                        collapsed = arr_s.pop(S_SCHEMA)
+                        if siblings := collapsed.get(S_EXTENDS):
+                            print(
+                                f"dropped {siblings} beside sibling extends at "
+                                + ".".join(paths[0])
+                            )
+                        if constraints := collapsed.get("constraints"):
+                            arr_s[S_SCHEMA] = {"constraints": constraints}
                 else:
-                    arr_s.pop(S_EXTENDS)
+                    extends = arr_s.pop(S_EXTENDS)
                     inline_schema(arr_s, key_s[S_SCHEMA])
+                    splice_extends(arr_s, extends, x)
 
     # simple types should be spread on each component,
     # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
@@ -651,7 +706,7 @@ def shrink():
     # then are all simple types, integer and strings
     for x, paths in referenced_schemas.items():
         key_s = get_str_path_schema(x)
-        if key_s and key_s.get(S_TYPE) in ["enum", "registry", "integer", "string"]:
+        if key_s and key_s.get(S_TYPE) in SIMPLE_TYPES:
             if key_s[S_TYPE] == "registry":
                 print("Spreading registry: " + x)
             for target in paths:
@@ -659,7 +714,23 @@ def shrink():
                 if S_SCHEMA not in target_s:
                     print("skipping simple spread for " + ".".join(target))
                     continue
-                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
+                extends = target_s[S_SCHEMA][S_EXTENDS]
+                assert x in extends
+                if len(extends) > 1:
+                    # Spliced beside sibling extends (cv.Any(A, B)): keep the siblings
+                    drop_extend(target_s[S_SCHEMA], x)
+                    if any(
+                        get_str_path_schema(e).get(S_TYPE) in SIMPLE_TYPES
+                        for e in target_s[S_SCHEMA].get(S_EXTENDS, [])
+                    ):
+                        continue
+                    if key_s[S_TYPE] == "enum" and "values" not in target_s:
+                        target_s["values"] = key_s["values"]
+                    else:
+                        print(
+                            f"dropped {x} beside sibling extends at " + ".".join(target)
+                        )
+                    continue
                 target_s.pop(S_SCHEMA)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
@@ -671,9 +742,15 @@ def shrink():
                 target_s = get_arr_path_schema(target)
                 if S_SCHEMA not in target_s:
                     # an empty schema like speaker.SPEAKER_SCHEMA
-                    target_s[S_EXTENDS].remove(x)
+                    drop_extend(target_s, x)
                     continue
-                assert x in target_s[S_SCHEMA][S_EXTENDS]
+                target_schema = target_s[S_SCHEMA]
+                extends = target_schema[S_EXTENDS]
+                assert x in extends
+                if target_schema.get(S_CONFIG_VARS) or len(extends) > 1:
+                    # A bare validator beside real keys (cv.All(SCHEMA, check)) adds nothing
+                    drop_extend(target_schema, x)
+                    continue
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
@@ -841,7 +918,7 @@ def build_schema():
 def is_convertible_schema(schema):
     if schema is None:
         return False
-    if isinstance(schema, (cv.Schema, cv.All, cv.Any)):
+    if isinstance(schema, (cv.Schema, vol.All, vol.Any)):
         return True
     if repr(schema) in ejs.hidden_schemas:
         return True
@@ -926,7 +1003,7 @@ def convert(schema, config_var, path):
         convert(schema.inner, config_var, f"{path}/sensitive")
         return
 
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         i = 0
         for inner in schema.validators:
             i = i + 1
@@ -1009,13 +1086,9 @@ def convert(schema, config_var, path):
             config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
-            extra_schema = None
             config_var[S_TYPE] = "trigger"
-            if ejs.extended_schemas[repr(data)][0] == automation.AUTOMATION_SCHEMA:
-                extra_schema = ejs.extended_schemas[repr(data)][1]
-            if (
-                extra_schema is not None and len(extra_schema) > 1
-            ):  # usually only trigger_id here
+            entry = ejs.extended_schemas[repr(data)]
+            if entry[0] == automation.AUTOMATION_SCHEMA and (extra_schema := entry[1]):
                 config = convert_config(extra_schema, path + "/extra")
                 if "schema" in config:
                     automation_schema = config["schema"]
@@ -1109,7 +1182,8 @@ def convert(schema, config_var, path):
             config_var["typed_key"] = typed_schema[1].get("key", CONF_TYPE)
         for schema_key, schema_type in typed_schema[0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
-            types[schema_key] = config["schema"]
+            # A type with no keys of its own converts to nothing.
+            types[schema_key] = config.get("schema", {S_CONFIG_VARS: {}})
 
     elif DUMP_UNKNOWN and S_TYPE not in config_var:
         config_var["unknown"] = repr_schema

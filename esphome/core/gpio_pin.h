@@ -94,8 +94,50 @@ class GPIOPin {
 #endif
 };
 
-/// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
+// The one platform pin class, which alone builds an ISRInternalGPIOPin from itself in to_isr()
+#if defined(USE_ESP32)
+namespace esp32 {
+class ESP32InternalGPIOPin;
+}
+#elif defined(USE_ESP8266)
+namespace esp8266 {
+class ESP8266GPIOPin;
+}
+#elif defined(USE_LIBRETINY)
+namespace libretiny {
+class ArduinoInternalGPIOPin;
+}
+#elif defined(USE_RP2)
+namespace rp2 {
+class RP2GPIOPin;
+}
+#elif defined(USE_HOST)
+namespace host {
+class HostGPIOPin;
+}
+#elif defined(USE_ZEPHYR)
+namespace zephyr {
+class ZephyrGPIOPin;
+}
+#endif
+
+/// ISR-safe handle to an internal pin (no virtual calls); every handle points at the pin itself and shares its state.
+/// Get one from pin->to_isr().
 class ISRInternalGPIOPin {
+#if defined(USE_ESP32)
+  friend class esp32::ESP32InternalGPIOPin;
+#elif defined(USE_ESP8266)
+  friend class esp8266::ESP8266GPIOPin;
+#elif defined(USE_LIBRETINY)
+  friend class libretiny::ArduinoInternalGPIOPin;
+#elif defined(USE_RP2)
+  friend class rp2::RP2GPIOPin;
+#elif defined(USE_HOST)
+  friend class host::HostGPIOPin;
+#elif defined(USE_ZEPHYR)
+  friend class zephyr::ZephyrGPIOPin;
+#endif
+
  public:
   ISRInternalGPIOPin() = default;
   ISRInternalGPIOPin(void *arg) : arg_(arg) {}
@@ -105,6 +147,11 @@ class ISRInternalGPIOPin {
   void pin_mode(gpio::Flags flags);
 
  protected:
+  // Only to_isr() builds a handle from a pin, since it also prepares the pin (the RTC IO number on ESP32).
+  template<std::derived_from<GPIOPin> T>
+  explicit ISRInternalGPIOPin(const T *pin)
+      : arg_(const_cast<T *>(pin)) {}  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+
   void *arg_{nullptr};
 };
 

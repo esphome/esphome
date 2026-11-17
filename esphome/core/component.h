@@ -185,10 +185,12 @@ class Component {
    */
   virtual bool teardown() { return true; }
 
-  /** Called after teardown is complete to power down hardware.
+  /** Called last before a reboot or deep sleep to power down hardware.
    *
-   * This is called after all components have finished their teardown process,
+   * On a safe shutdown this is called after all components have finished their teardown process,
    * making it safe to power down hardware like ethernet PHY.
+   * On a forced reboot (Application::reboot()) it is called right after on_shutdown() with no
+   * teardown, so implementations must not assume teardown() has run.
    */
   virtual void on_powerdown() {}
 
@@ -225,6 +227,17 @@ class Component {
   void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
+  }
+
+  /// Marks the component failed with `message` (default "Communication failed") unless `ok`; returns `ok`.
+  /// For any setup() check: `if (!this->setup_check(this->write_byte(...))) return;`. Inlined so the failure
+  /// branches still merge.
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok) { return this->setup_check(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL)); }
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok, const LogString *message) {
+    if (ok)
+      return true;
+    this->mark_failed(message);
+    return false;
   }
 
   /** Disable this component's loop. The loop() method will no longer be called.
@@ -286,9 +299,17 @@ class Component {
   void status_set_warning(const LogString *message);
 
   /// Clears the warning when `ok`, else sets it with `message` (default "Communication failed"); returns `ok`.
-  /// Replaces the `if (!read()) { status_set_warning(...); return; } status_clear_warning();` pattern.
+  /// For the last (or only) bus step; earlier steps of a multi-step poll use status_comm_check().
   bool status_comm_result(bool ok);
   bool status_comm_result(bool ok, const LogString *message);
+  /// Sets the warning ("Communication failed") when not `ok` but never clears it; returns `ok`. For earlier steps of
+  /// a poll, where a clear would log a clear/set pair each time a later step fails; the last step must use
+  /// status_comm_result() so the warning clears.
+  bool status_comm_check(bool ok) {
+    if (!ok)
+      this->status_comm_check_slow_path_();
+    return ok;
+  }
 
   void status_set_error();  // Set error flag without message
   void status_set_error(const LogString *message);
@@ -490,6 +511,7 @@ class Component {
   bool cancel_defer(uint32_t id);       // NOLINT
 
   void status_clear_warning_slow_path_();
+  void status_comm_check_slow_path_();
   void status_clear_error_slow_path_();
 
   // Ordered for optimal packing on 32-bit systems (8 bytes total with vtable)

@@ -171,9 +171,12 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
+  friend class HeadAckedEventSourceResponse;  // ESPAsyncWebServer 3.12.1 workaround, remove with it
+
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
+  void add_client_(WebServer *ws, AsyncClient *client);  // ESPAsyncWebServer 3.12.1 workaround, remove with it
 
  public:
   /// Returns true if there are event sources remaining (including pending cleanup).
@@ -249,22 +252,6 @@ class WebServer final : public Component, public AsyncWebHandler {
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
-
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  /** Set the origins that browsers are allowed to make cross-origin requests from.
-   *
-   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
-   * are always allowed. Requests whose `Origin` matches the address the device is served on
-   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
-   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
-   * the requesting page's `Origin` header (e.g. "https://example.com").
-   *
-   * This list is also used to authorize Private Network Access requests when that feature is enabled.
-   *
-   * @param origins nullptr-terminated table of allowed origins; must outlive the server.
-   */
-  void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
-#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -539,7 +526,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
-  std::map<EntityBase *, SortingComponents> sorting_entitys_;
+  std::map<EntityBase *, SortingComponents> sorting_entities_;
   std::map<uint64_t, SortingGroup> sorting_groups_;
 #endif
 
@@ -643,16 +630,6 @@ class WebServer final : public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
-  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
-  const char *const *allowed_origins_{nullptr};
-#endif
-
-  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
-  /// request was sent to) and requests without an Origin header are always allowed; any other
-  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
-  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR

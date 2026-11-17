@@ -15,7 +15,7 @@ import pytest
 
 from esphome.storage_json import StorageJSON
 
-PLATFORMS = ["esp32", "esp8266", "rp2", "libretiny", "nrf52"]
+PLATFORMS = ["esp32", "esp8266", "rp2", "libretiny", "nrf52", "host"]
 
 
 def _download_types(platform: str, storage: StorageJSON) -> list[dict[str, Any]]:
