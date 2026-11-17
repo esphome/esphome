@@ -31,7 +31,11 @@ static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
-class ZigbeeAttribute;
+class ZigbeeAttributeInterface {
+ public:
+  virtual void on_value(ezb_zcl_attribute_t attribute) = 0;
+  virtual void report() = 0;
+};
 
 class ZigbeeComponent final : public Component {
  public:
@@ -48,8 +52,8 @@ class ZigbeeComponent final : public Component {
   bool register_device();
 
   template<typename T>
-  void add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                uint8_t max_size, T value);
+  void add_attr(ZigbeeAttributeInterface *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+                uint16_t attr_id, uint8_t max_size, T value);
 
   template<typename T>
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size, T value);
@@ -90,14 +94,17 @@ class ZigbeeComponent final : public Component {
   ezb_nwk_device_type_t device_role_ = EZB_NWK_DEVICE_TYPE_ROUTER;
 #endif
   void update_basic_cluster_(ezb_af_ep_desc_t ep_desc);
+  void on_parent_link_failure_();
+  void end_parent_link_failures_(uint8_t seq);
+  void reset_parent_link_failures_();
   template<typename T>
-  void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                 T *value_p);
+  void add_attr_(ZigbeeAttributeInterface *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+                 uint16_t attr_id, T *value_p);
   void handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
-  std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
+  std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttributeInterface *> attributes_;
   ezb_af_device_desc_t dev_desc_ = ezb_af_create_device_desc();
   CallbackManager<void(bool)> join_cb_{};
   template<typename... Args> friend void enqueue_zb_event(Args... args);
@@ -115,6 +122,12 @@ class ZigbeeComponent final : public Component {
   std::atomic<bool> joined_ = false;
   std::atomic<bool> join_pending_ = false;
   std::atomic<bool> factory_new_ = false;
+  // Current series of parent link failures, only used with the Zigbee stack lock held
+  uint32_t first_link_failure_ms_{0};
+  uint32_t last_link_failure_ms_{0};
+  uint32_t saved_keep_alive_{0};
+  uint8_t link_failures_{0};
+  uint8_t link_failure_seq_{0};
 };
 
 template<typename T>
@@ -124,7 +137,7 @@ void ZigbeeComponent::add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t
 }
 
 template<typename T>
-void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+void ZigbeeComponent::add_attr(ZigbeeAttributeInterface *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                                uint16_t attr_id, uint8_t max_size, T value) {
   // The size byte of the zcl_str must be set to the maximum value,
   // even though the initial string may be shorter.
@@ -142,7 +155,7 @@ void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint1
 }
 
 template<typename T>
-void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+void ZigbeeComponent::add_attr_(ZigbeeAttributeInterface *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                                 uint16_t attr_id, T *value_p) {
   ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
   if (ep_desc == NULL) {

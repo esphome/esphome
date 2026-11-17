@@ -19,3 +19,9 @@ button:
               elevation: !lambda return 10.0;
           then:
             - logger.log: High sun
+      - if:
+          condition:
+            sun.is_below_horizon:
+              elevation: !lambda return -12.0;
+          then:
+            - logger.log: Deep night

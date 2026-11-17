@@ -1,0 +1,35 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x10
+          values: [0x1234, 0xABCD]
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x20
+          values: [0x1234, 0xABCD]
+          read_address: 0x30
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x40
+          values: [true, false, true, true, false, false, true, false, true]
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x50
+          values: [true, false, true, true, false, false, true, false, true]
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x60
+          values: !lambda return {1};
+
+esp32:
+  board: esp32dev
+
+uart:
+  tx_pin: 17
+  rx_pin: 16
+  baud_rate: 9600
+
+modbus:

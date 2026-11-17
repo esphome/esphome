@@ -47,10 +47,8 @@ void FilterLifetime::publish_values_() {
   const float max_minutes = this->max_lifetime_minutes_;
   const float remaining_minutes = std::max(0.0f, max_minutes - runtime_minutes);
   this->publish_state(100.0f * remaining_minutes / max_minutes);
-  if (this->runtime_hours_sensor_ != nullptr)
-    this->runtime_hours_sensor_->publish_state(runtime_minutes / 60.0f);
-  if (this->remaining_days_sensor_ != nullptr)
-    this->remaining_days_sensor_->publish_state(remaining_minutes / MINUTES_PER_DAY);
+  PUBLISH_STATE(this->runtime_hours_sensor_, runtime_minutes / 60.0f);
+  PUBLISH_STATE(this->remaining_days_sensor_, remaining_minutes / MINUTES_PER_DAY);
 }
 
 void FilterLifetime::on_shutdown() { this->pref_.save(&this->runtime_seconds_); }
@@ -66,8 +64,8 @@ void FilterLifetime::reset_filter() {
 bool FilterLifetime::get_is_on_() {
 #ifdef USE_BINARY_SENSOR
   // Reads false until the sensor first publishes, so nothing accumulates before then.
-  if (this->is_on_sensor_ != nullptr)
-    return this->is_on_sensor_->state;
+  if (this->is_on_binary_sensor_ != nullptr)
+    return this->is_on_binary_sensor_->state;
 #endif
   if (this->is_on_lambda_ != nullptr)
     return this->is_on_lambda_();
@@ -90,8 +88,8 @@ void FilterLifetime::dump_config() {
                 this->max_lifetime_minutes_, this->max_lifetime_minutes_ / MINUTES_PER_DAY,
                 this->runtime_seconds_ / 3600.0f);
 #ifdef USE_BINARY_SENSOR
-  if (this->is_on_sensor_ != nullptr) {
-    LOG_BINARY_SENSOR("  ", "Is-on sensor", this->is_on_sensor_);
+  if (this->is_on_binary_sensor_ != nullptr) {
+    LOG_BINARY_SENSOR("  ", "Is-on sensor", this->is_on_binary_sensor_);
   } else
 #endif
   {

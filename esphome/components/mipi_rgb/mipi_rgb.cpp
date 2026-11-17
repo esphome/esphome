@@ -33,24 +33,17 @@ void MipiRgb::setup_enables_() {
     }
     delay(10);
   }
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
-  }
+  pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
 }
 
 #ifdef USE_SPI
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
-  this->common_setup_();
+  this->write_init_sequence_();
   if (this->is_failed())
     return;
-  this->write_init_sequence_();
+  this->common_setup_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
@@ -114,7 +107,7 @@ void MipiRgbSpi::write_init_sequence_() {
         delay(10);
     }
   }
-  // this->spi_teardown();  // SPI not needed after this
+  this->spi_teardown();
   delay(10);
 }
 
@@ -154,21 +147,9 @@ void MipiRgb::common_setup_() {
   }
   config.data_width = data_pin_count;
   config.disp_gpio_num = GPIO_NUM_NC;
-  if (this->hsync_pin_) {
-    config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
-  } else {
-    config.hsync_gpio_num = GPIO_NUM_NC;
-  }
-  if (this->vsync_pin_) {
-    config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
-  } else {
-    config.vsync_gpio_num = GPIO_NUM_NC;
-  }
-  if (this->de_pin_) {
-    config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
-  } else {
-    config.de_gpio_num = GPIO_NUM_NC;
-  }
+  config.hsync_gpio_num = this->hsync_pin_ ? static_cast<gpio_num_t>(this->hsync_pin_->get_pin()) : GPIO_NUM_NC;
+  config.vsync_gpio_num = this->vsync_pin_ ? static_cast<gpio_num_t>(this->vsync_pin_->get_pin()) : GPIO_NUM_NC;
+  config.de_gpio_num = this->de_pin_ ? static_cast<gpio_num_t>(this->de_pin_->get_pin()) : GPIO_NUM_NC;
   config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err == ESP_OK)

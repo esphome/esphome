@@ -38,4 +38,4 @@ async def to_code(config: ConfigType) -> None:
     var = await number.new_number(config, min_value=0, max_value=0, step=0)
     await cg.register_component(var, config)
 
-    await cg.add_variable(var.set_source, config[CONF_SOURCE_ID])
+    await cg.add_variable(var.set_source_number, config[CONF_SOURCE_ID])

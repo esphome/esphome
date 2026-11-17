@@ -1,5 +1,6 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::daikin_brc {
@@ -22,9 +23,12 @@ void DaikinBrcClimate::control(const climate::ClimateCall &call) {
 }
 
 void DaikinBrcClimate::transmit_state() {
-  uint8_t remote_state[DAIKIN_BRC_TRANSMIT_FRAME_SIZE] = {0x11, 0xDA, 0x17, 0x18, 0x04, 0x00, 0x1E, 0x11,
-                                                          0xDA, 0x17, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                                          0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
+  // In flash: an initialized local array is copied from a RAM constant on ESP8266
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[DAIKIN_BRC_TRANSMIT_FRAME_SIZE] PROGMEM = {
+      0x11, 0xDA, 0x17, 0x18, 0x04, 0x00, 0x1E, 0x11, 0xDA, 0x17, 0x18,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
+  uint8_t remote_state[sizeof(REMOTE_STATE_TEMPLATE)];
+  progmem_memcpy(remote_state, REMOTE_STATE_TEMPLATE, sizeof(remote_state));
 
   // The low 3 bits of the frame header byte address the indoor unit, in the preamble and the state frame
   remote_state[3] |= this->sub_unit_;
@@ -151,8 +155,8 @@ uint8_t DaikinBrcClimate::temperature_() {
       uint8_t temperature;
       // Temperature in remote is in F
       if (this->fahrenheit_) {
-        temperature = (uint8_t) roundf(
-            clamp<float>(((this->target_temperature * 1.8f) + 32), DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
+        temperature = (uint8_t) roundf(clamp<float>(celsius_to_fahrenheit(this->target_temperature),
+                                                    DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
       } else {
         temperature = ((uint8_t) roundf(this->target_temperature) - 9) << 1;
       }

@@ -62,8 +62,9 @@ def test_write_idf_component_yml_passes_managed_components(
     converted.get_sanitized_name.return_value = "esphome/other-lib"
     converted.path = tmp_path / "pio_components" / "other-lib"
 
-    def fake_generate_idf_components(libraries, managed=None):
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
         captured["managed"] = managed
+        captured["provides"] = provides
         return [converted]
 
     monkeypatch.setattr(esp32, "generate_idf_components", fake_generate_idf_components)
@@ -71,6 +72,8 @@ def test_write_idf_component_yml_passes_managed_components(
     esp32._write_idf_component_yml()
 
     assert captured["managed"] == {"esphome/noise-c"}
+    # ESP-IDF bundles no Arduino libraries, so every name may be fetched
+    assert captured["provides"] is None
     # The managed component itself is still written into the manifest deps
     # directly (from KEY_COMPONENTS), just not converted a second time.
     yml_path = tmp_path / "src" / "idf_component.yml"
@@ -93,7 +96,7 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
 
     captured: dict[str, set[str] | None] = {}
 
-    def fake_generate_idf_components(libraries, managed=None):
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
         captured["managed"] = managed
         return []
 
@@ -104,41 +107,69 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
     assert captured["managed"] == set()
 
 
-@pytest.mark.parametrize(
-    ("version", "libsodium_stubbed"),
-    [
-        (cv.Version(5, 5, 4), True),
-        (cv.Version(5, 99, 99), True),
-        (cv.Version(6, 0, 0), False),
-        (cv.Version(6, 1, 0), False),
-    ],
-)
-def test_arduino_excluded_idf_components_depends_on_idf_version(
-    version: cv.Version, libsodium_stubbed: bool
+def test_write_idf_component_yml_marks_arduino_bundled_libraries_provided(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """espressif/libsodium is stubbed below IDF 6.0 only; unmapped entries always."""
+    """Under Arduino the converter is told which names the core bundles, so a
+    manifest dependency on Wire or SPI is never fetched from the registry."""
+    _setup_core(tmp_path)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(3, 3, 12)
+    CORE.data[esp32.KEY_ESP32] = {
+        esp32.KEY_COMPONENTS: {},
+        esp32.KEY_IDF_VERSION: cv.Version(5, 5, 4),
+        esp32.KEY_ARDUINO_LIBRARIES: {"Wire", "SPI"},
+    }
+
+    captured: dict[str, object] = {}
+
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
+        captured["provides"] = provides
+        return []
+
+    monkeypatch.setattr(esp32, "generate_idf_components", fake_generate_idf_components)
+
+    esp32._write_idf_component_yml()
+
+    provides = captured["provides"]
+    assert provides("Wire") and provides("SPI")
+    assert not provides("Adafruit BusIO")
+
+
+def test_arduino_provides_warns_for_a_bundled_library_not_enabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A manifest dependency on a bundled Arduino library is never fetched, but
+    the library still has to be enabled, so an unenabled one is called out."""
     CORE.reset()
-    CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
-
-    excluded = esp32.arduino_excluded_idf_components()
-
-    assert ("espressif__libsodium" in excluded) is libsodium_stubbed
-    assert "espressif__cbor" in excluded
+    CORE.data[esp32.KEY_ESP32] = {esp32.KEY_ARDUINO_LIBRARIES: {"Wire"}}
+    assert esp32._arduino_provides("Wire")
+    assert "Wire" not in caplog.text
+    assert esp32._arduino_provides("SPI")
+    assert "Arduino library SPI, which is not enabled" in caplog.text
+    assert not esp32._arduino_provides("Adafruit BusIO")
 
 
 @pytest.mark.parametrize(
-    ("framework", "version", "bundled"),
+    ("framework", "toolchain", "version", "bundled"),
     [
-        (Framework.ARDUINO, cv.Version(5, 5, 5), True),
-        (Framework.ARDUINO, cv.Version(6, 0, 0), False),
-        (Framework.ESP_IDF, cv.Version(5, 5, 5), False),
+        (Framework.ARDUINO, Toolchain.PLATFORMIO, cv.Version(5, 5, 5), True),
+        (Framework.ARDUINO, Toolchain.PLATFORMIO, cv.Version(6, 0, 0), False),
+        (Framework.ARDUINO, Toolchain.ESP_IDF, cv.Version(5, 5, 5), False),
+        (Framework.ESP_IDF, Toolchain.PLATFORMIO, cv.Version(5, 5, 5), False),
     ],
 )
 def test_arduino_bundles_libsodium(
-    framework: Framework, version: cv.Version, bundled: bool, tmp_path: Path
+    framework: Framework,
+    toolchain: Toolchain,
+    version: cv.Version,
+    bundled: bool,
+    tmp_path: Path,
 ) -> None:
-    """Only Arduino below IDF 6.0 brings its own libsodium."""
+    """Only Arduino on the PlatformIO toolchain below IDF 6.0 keeps its own libsodium."""
     _setup_core(tmp_path)
+    CORE.toolchain = toolchain
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(framework)
     CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
 
@@ -146,15 +177,24 @@ def test_arduino_bundles_libsodium(
 
 
 @pytest.mark.parametrize(
-    ("version", "libsodium_stubbed"),
-    [(cv.Version(5, 5, 4), True), (cv.Version(6, 0, 0), False)],
+    ("version", "libsodium_managed", "overridden"),
+    [
+        # Nothing in the build uses libsodium, so there is nothing to replace
+        (cv.Version(5, 5, 4), False, False),
+        (cv.Version(6, 0, 0), False, False),
+        # pioarduino's component manager for IDF 5 ignores the "overrides" field
+        (cv.Version(5, 5, 4), True, False),
+        (cv.Version(6, 0, 0), True, True),
+    ],
 )
-def test_write_idf_component_yml_arduino_stubs_follow_idf_version(
+def test_write_idf_component_yml_arduino_overrides_libsodium(
     version: cv.Version,
-    libsodium_stubbed: bool,
+    libsodium_managed: bool,
+    overridden: bool,
     tmp_path: Path,
 ) -> None:
-    """The manifest stubs follow the IDF version: espressif/libsodium below 6.0 only."""
+    """espressif/libsodium is replaced with esphome/libsodium when the build uses it
+    and is stubbed otherwise."""
     _setup_core(tmp_path)
     CORE.toolchain = Toolchain.PLATFORMIO
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
@@ -163,18 +203,32 @@ def test_write_idf_component_yml_arduino_stubs_follow_idf_version(
         esp32.KEY_IDF_VERSION: version,
         esp32.KEY_ARDUINO_LIBRARIES: set(),
     }
+    if libsodium_managed:
+        esp32.add_idf_component(name="esphome/libsodium", ref="1.10021.12")
 
     esp32._write_idf_component_yml()
 
-    contents = (tmp_path / "src" / "idf_component.yml").read_text(encoding="utf-8")
-    assert ("espressif/libsodium" in contents) is libsodium_stubbed
-    assert "espressif/cbor" in contents
+    manifest = yaml.safe_load(
+        (tmp_path / "src" / "idf_component.yml").read_text(encoding="utf-8")
+    )
+    assert ("espressif/libsodium" in manifest["dependencies"]) is not overridden
+    assert "espressif/cbor" in manifest["dependencies"]
     stub_dir = (
         tmp_path
         / "component_stubs"
         / esp32._idf_component_stub_name("espressif__libsodium")
     )
-    assert stub_dir.is_dir() is libsodium_stubbed
+    assert stub_dir.is_dir() is not overridden
+    if overridden:
+        assert manifest["overrides"] == [
+            {
+                "espressif/libsodium": {
+                    "with": {"esphome/libsodium": {"version": "1.10021.12"}}
+                }
+            }
+        ]
+    else:
+        assert "overrides" not in manifest
 
 
 def test_write_idf_component_yml_stub_yields_to_converted_library_of_same_name(
@@ -200,7 +254,9 @@ def test_write_idf_component_yml_stub_yields_to_converted_library_of_same_name(
     converted.get_sanitized_name.return_value = "esphome/libsodium"
     converted.path = tmp_path / "pio_components" / "esphome" / "libsodium"
     monkeypatch.setattr(
-        esp32, "generate_idf_components", lambda libraries, managed=None: [converted]
+        esp32,
+        "generate_idf_components",
+        lambda libraries, managed=None, provides=None: [converted],
     )
 
     esp32._write_idf_component_yml()

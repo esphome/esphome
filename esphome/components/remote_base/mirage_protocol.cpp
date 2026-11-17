@@ -16,15 +16,16 @@ constexpr uint32_t BIT_ONE_SPACE_US = 1592;
 constexpr uint32_t BIT_ZERO_SPACE_US = 545;
 
 constexpr unsigned int MIRAGE_IR_PACKET_BIT_SIZE = 120;
-// Max data bytes in packet (excluding checksum)
-constexpr size_t MIRAGE_MAX_DATA_BYTES = (MIRAGE_IR_PACKET_BIT_SIZE / 8);
+// Bytes in a packet, including the checksum
+constexpr size_t MIRAGE_PACKET_BYTES = (MIRAGE_IR_PACKET_BIT_SIZE / 8);
+static_assert(MIRAGE_DATA_BYTES == MIRAGE_PACKET_BYTES - 1);
 
 void MirageProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t len) {
   // data may be a PROGMEM table, so log a RAM copy
-  uint8_t log_buf[MIRAGE_MAX_DATA_BYTES];
-  const size_t log_len = std::min(len, MIRAGE_MAX_DATA_BYTES);
+  uint8_t log_buf[MIRAGE_PACKET_BYTES];
+  const size_t log_len = std::min(len, MIRAGE_PACKET_BYTES);
   progmem_memcpy(log_buf, data, log_len);
-  char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
+  char hex_buf[format_hex_pretty_size(MIRAGE_PACKET_BYTES)];
   ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, log_buf, log_len));
   dst->set_carrier_frequency(38000);
   dst->reserve(5 + ((len + 1) * 2));
@@ -88,7 +89,7 @@ optional<MirageData> MirageProtocol::decode(RemoteReceiveData src) {
 }
 
 void MirageProtocol::dump(const MirageData &data) {
-  char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
+  char hex_buf[format_hex_pretty_size(MIRAGE_DATA_BYTES)];
   ESP_LOGI(TAG, "Received Mirage: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
 }
 

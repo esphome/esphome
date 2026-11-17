@@ -7,7 +7,12 @@ import re
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -32,26 +37,23 @@ async def test_uart_mock_ld2420_config_exit(
     expected_sends: int,
 ) -> None:
     """Test both energy reports arrive after the last config exit, and a failed exit is still sent 3 times."""
-    exit_sends: list[int] = []
+    waiter = LineWaiter()
 
-    def line_callback(line: str) -> None:
-        if match := EXIT_SENT.search(line):
-            exit_sends.append(int(match[1]))
+    def exit_sends() -> list[int]:
+        return [int(m[1]) for line in waiter.lines if (m := EXIT_SENT.search(line))]
 
     collector = SensorStateCollector(sensor_names=["moving_distance"])
     yaml_config = yaml_config.replace("EXIT_REPLY_MODE", str(mode))
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
-        await initial_state_helper.wait_for_initial_states()
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
@@ -72,4 +74,4 @@ async def test_uart_mock_ld2420_config_exit(
             [100.0, 101.0]
         )
         # A failed exit is resent and then given up; it is never treated as answered
-        assert exit_sends == list(range(1, expected_sends + 1))
+        assert exit_sends() == list(range(1, expected_sends + 1))

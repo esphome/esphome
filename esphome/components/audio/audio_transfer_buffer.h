@@ -23,7 +23,7 @@ class AudioSinkCallback {
 
 class AudioTransferBuffer {
   /*
-   * @brief Class that facilitates tranferring data between a buffer and an audio source or sink.
+   * @brief Class that facilitates transferring data between a buffer and an audio source or sink.
    * The transfer buffer is a typical C array that temporarily holds data for processing in other audio components.
    * Both sink and source transfer buffers can use a ring buffer as the sink/source.
    *   - The ring buffer is stored in a shared_ptr, so destroying the transfer buffer object will release ownership.
@@ -52,13 +52,13 @@ class AudioTransferBuffer {
   /// @brief Returns the transfer buffers allocated bytes
   size_t capacity() const { return this->buffer_size_; }
 
-  /// @brief Returns the transfer buffer's currrently free bytes available to write
+  /// @brief Returns the transfer buffer's currently free bytes available to write
   size_t free() const;
 
   /// @brief Clears data in the transfer buffer and, if possible, the source/sink.
   virtual void clear_buffered_data();
 
-  /// @brief Tests if there is any data in the tranfer buffer or the source/sink.
+  /// @brief Tests if there is any data in the transfer buffer or the source/sink.
   /// @return True if there is data, false otherwise.
   virtual bool has_buffered_data() const;
 

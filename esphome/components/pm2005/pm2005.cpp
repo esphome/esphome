@@ -52,10 +52,8 @@ void PM2005Component::setup() {
     this->measuring_value_index_ = 9;
   }
 
-  if (this->read(this->data_buffer_, 12) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read(this->data_buffer_, 12) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void PM2005Component::update() {
@@ -86,15 +84,9 @@ void PM2005Component::update() {
   ESP_LOGD(TAG, "PM1.0: %d, PM2.5: %d, PM10: %d, Measuring mode: %s.", pm1, pm25, pm10,
            LOG_STR_ARG(pm2005_get_measuring_mode_string(sensor_measuring_mode)));
 
-  if (this->pm_1_0_sensor_ != nullptr) {
-    this->pm_1_0_sensor_->publish_state(pm1);
-  }
-  if (this->pm_2_5_sensor_ != nullptr) {
-    this->pm_2_5_sensor_->publish_state(pm25);
-  }
-  if (this->pm_10_0_sensor_ != nullptr) {
-    this->pm_10_0_sensor_->publish_state(pm10);
-  }
+  PUBLISH_STATE(this->pm_1_0_sensor_, pm1);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm25);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm10);
 
   this->status_clear_warning();
 }

@@ -16,7 +16,7 @@ using namespace esphome::lock;
 MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : lock_(a_lock) {}
 
 void MQTTLockComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("LOCK")) == 0) {
       this->lock_->lock();
     } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("UNLOCK")) == 0) {

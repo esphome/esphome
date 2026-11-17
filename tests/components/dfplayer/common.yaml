@@ -27,6 +27,12 @@ esphome:
       - dfplayer.set_volume: !lambda "return id(dfplayer_test).is_playing() ? 10 : 5;"
       - dfplayer.set_eq: ROCK
       - dfplayer.set_eq: !lambda "return id(dfplayer_test).is_playing() ? dfplayer::JAZZ : dfplayer::BASS;"
+      - dfplayer.play_mp3:
+          file: 7
+      - dfplayer.set_volume:
+          volume: 12
+      - dfplayer.set_eq:
+          eq_preset: CLASSIC
       - dfplayer.play_next
       - dfplayer.play_previous
       - dfplayer.reset

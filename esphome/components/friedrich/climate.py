@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
-from esphome.const import CONF_MODEL, CONF_SENSOR
+from esphome.const import CONF_MODEL, CONF_SENSOR, UNIT_FAHRENHEIT
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
@@ -13,7 +13,10 @@ FriedrichClimate = friedrich_ns.class_("FriedrichClimate", climate_ir.ClimateIR)
 Model = friedrich_ns.enum("Model", is_class=True)
 MODELS = Model.options("MW12Y3H", prefix="MODEL_")
 
-CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(FriedrichClimate).extend(
+# The unit reports in Fahrenheit (traits() in friedrich.cpp), so visual temperatures are kept in it
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(
+    FriedrichClimate, fixed_temperature_unit=UNIT_FAHRENHEIT
+).extend(
     {
         cv.Optional(CONF_MODEL, default="MW12Y3H"): cv.enum(MODELS, upper=True),
         # The unit works in Fahrenheit, so a Celsius temperature sensor cannot feed it

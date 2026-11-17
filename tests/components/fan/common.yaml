@@ -112,6 +112,13 @@ button:
           speed: 3
           direction: FORWARD
   - platform: template
+    name: "Fan Lambda Oscillating + Direction"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: !lambda return true;
+          direction: !lambda return fan::FanDirection::REVERSE;
+  - platform: template
     name: "Fan Lambda Speed"
     on_press:
       - fan.turn_on:

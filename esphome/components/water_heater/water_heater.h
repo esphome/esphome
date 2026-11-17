@@ -252,13 +252,7 @@ class WaterHeater : public EntityBase {
   /// Set the state flags. Should only be called from control().
   void set_state_(uint32_t state) { this->state_ = state; }
   /// Set or clear a state flag. Should only be called from control().
-  void set_state_flag_(uint32_t flag, bool value) {
-    if (value) {
-      this->state_ |= flag;
-    } else {
-      this->state_ &= ~flag;
-    }
-  }
+  void set_state_flag_(uint32_t flag, bool value) { assign_bits(this->state_, flag, value); }
 
   WaterHeaterMode mode_{WATER_HEATER_MODE_OFF};
   float current_temperature_{NAN};

@@ -1,0 +1,44 @@
+# Shared trigger block, included under the tracker key.
+on_ble_service_data_advertise:
+  - service_uuid: 181C
+    then:
+      - lambda: rx::hit(1, x);
+  - mac_address: C4:C1:38:00:00:21
+    service_uuid: 181C
+    then:
+      - lambda: rx::hit(2, x);
+  - mac_address: C4:C1:38:00:00:22
+    service_uuid: 181C
+    then:
+      - lambda: rx::hit(3, x);
+  - mac_address: C4:C1:38:00:00:22
+    service_uuid: "12345678"
+    then:
+      - lambda: rx::hit(4, x);
+  - mac_address: C4:C1:38:00:00:23
+    service_uuid: 12345678-9ABC-DEF0-1122-334455667788
+    then:
+      - lambda: rx::hit(5, x);
+  - mac_address: C4:C1:38:00:00:21
+    service_uuid: 181C
+    then:
+      - lambda: rx::hit(8, x);
+  - mac_address: 00:00:00:00:00:00
+    service_uuid: 181C
+    then:
+      - lambda: rx::hit(9, x);
+  - service_uuid: 12345678-9ABC-DEF0-1122-334455667788
+    then:
+      - lambda: rx::hit(10, x);
+on_ble_manufacturer_data_advertise:
+  - mac_address: C4:C1:38:00:00:21
+    manufacturer_id: 02E5
+    then:
+      - lambda: rx::hit(6, x);
+  - manufacturer_id: 181C
+    then:
+      - lambda: rx::hit(7, x);
+  - mac_address: C4:C1:38:00:00:22
+    manufacturer_id: 02E5
+    then:
+      - lambda: rx::hit(11, x);

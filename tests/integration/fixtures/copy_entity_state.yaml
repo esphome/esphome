@@ -1,0 +1,84 @@
+esphome:
+  name: test-copy-entity-state
+  on_boot:
+    # Before the copies' setup
+    - priority: 800
+      then:
+        - sensor.template.publish:
+            id: early_sensor
+            state: 1.5
+        - binary_sensor.template.publish:
+            id: early_binary
+            state: true
+        - text_sensor.template.publish:
+            id: early_text
+            state: early
+    # After the copies' setup
+    - priority: -100
+      then:
+        - sensor.template.publish:
+            id: late_sensor
+            state: 2.5
+        - text_sensor.template.publish:
+            id: late_text
+            state: late
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+
+sensor:
+  - platform: template
+    id: early_sensor
+    update_interval: never
+  - platform: template
+    id: late_sensor
+    update_interval: never
+  - platform: copy
+    source_id: early_sensor
+    name: Copy Early Sensor
+  - platform: copy
+    source_id: late_sensor
+    name: Copy Late Sensor
+
+binary_sensor:
+  - platform: template
+    id: early_binary
+  - platform: copy
+    source_id: early_binary
+    name: Copy Early Binary
+
+text_sensor:
+  - platform: template
+    id: early_text
+    update_interval: never
+  - platform: template
+    id: late_text
+    update_interval: never
+  - platform: copy
+    source_id: early_text
+    name: Copy Early Text
+  - platform: copy
+    source_id: late_text
+    name: Copy Late Text
+
+button:
+  - platform: template
+    name: Update Sources
+    on_press:
+      - sensor.template.publish:
+          id: early_sensor
+          state: 3.5
+      - sensor.template.publish:
+          id: late_sensor
+          state: 7.25
+      - binary_sensor.template.publish:
+          id: early_binary
+          state: false
+      - text_sensor.template.publish:
+          id: early_text
+          state: changed
+      - text_sensor.template.publish:
+          id: late_text
+          state: updated

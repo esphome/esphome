@@ -16,7 +16,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_LD2410S_ID, LD2410SComponent, Parameter, ld2410s_ns
+from . import CONF_LD2410S_ID, LD2410SComponent, Parameter
 
 DEPENDENCIES = ["ld2410s"]
 
@@ -26,9 +26,8 @@ CONF_MIN_DISTANCE = "min_distance"
 CONF_NO_DELAY = "no_delay"
 CONF_STATUS_REPORTING_FREQUENCY = "status_reporting_frequency"
 
-LD2410SNumber = ld2410s_ns.class_("LD2410SNumber", number.Number)
-
-# The module counts distances in 0.7 m gates and frequencies in tenths of a hertz
+# The module counts distances in 0.7 m gates and frequencies in tenths of a hertz;
+# PARAMETER_SCALES in ld2410s.cpp converts with the same factors
 GATE_WIDTH_M = 0.7
 FREQUENCY_SCALE = 0.1
 _DISTANCE_RANGE = {"min_value": 0, "max_value": 16 * GATE_WIDTH_M, "step": GATE_WIDTH_M}
@@ -37,7 +36,7 @@ _FREQUENCY_RANGE = {"min_value": 0.5, "max_value": 8, "step": 0.5}
 
 def _number_schema(device_class: str, unit: str, icon: str) -> cv.Schema:
     return number.number_schema(
-        LD2410SNumber,
+        number.ApplyNumber,
         device_class=device_class,
         entity_category=ENTITY_CATEGORY_CONFIG,
         unit_of_measurement=unit,
@@ -72,22 +71,19 @@ async def to_code(config: ConfigType) -> None:
     await numbers(
         CONF_MAX_DISTANCE,
         partial(hub.set_number, Parameter.PARAMETER_MAX_DISTANCE),
-        Parameter.PARAMETER_MAX_DISTANCE,
-        GATE_WIDTH_M,
+        apply="control_number(entity, value)",
         **_DISTANCE_RANGE,
     )
     await numbers(
         CONF_MIN_DISTANCE,
         partial(hub.set_number, Parameter.PARAMETER_MIN_DISTANCE),
-        Parameter.PARAMETER_MIN_DISTANCE,
-        GATE_WIDTH_M,
+        apply="control_number(entity, value)",
         **_DISTANCE_RANGE,
     )
     await numbers(
         CONF_NO_DELAY,
         partial(hub.set_number, Parameter.PARAMETER_NO_DELAY),
-        Parameter.PARAMETER_NO_DELAY,
-        1,
+        apply="control_number(entity, value)",
         min_value=1,
         max_value=120,
         step=1,
@@ -95,14 +91,12 @@ async def to_code(config: ConfigType) -> None:
     await numbers(
         CONF_STATUS_REPORTING_FREQUENCY,
         partial(hub.set_number, Parameter.PARAMETER_STATUS_FREQUENCY),
-        Parameter.PARAMETER_STATUS_FREQUENCY,
-        FREQUENCY_SCALE,
+        apply="control_number(entity, value)",
         **_FREQUENCY_RANGE,
     )
     await numbers(
         CONF_DISTANCE_REPORTING_FREQUENCY,
         partial(hub.set_number, Parameter.PARAMETER_DISTANCE_FREQUENCY),
-        Parameter.PARAMETER_DISTANCE_FREQUENCY,
-        FREQUENCY_SCALE,
+        apply="control_number(entity, value)",
         **_FREQUENCY_RANGE,
     )

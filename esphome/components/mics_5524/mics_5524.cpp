@@ -167,13 +167,10 @@ void MiCS5524Component::publish_ratio_(float ratio) {
 }
 
 void MiCS5524Component::publish_diagnostics_(float voltage, float ratio, float rs) {
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->ratio_sensor_ != nullptr)
-    this->ratio_sensor_->publish_state(ratio);
+  PUBLISH_STATE(this->voltage_sensor_, voltage);
+  PUBLISH_STATE(this->ratio_sensor_, ratio);
   // Validation rejects `rs_sensor:` under the vendor model.
-  if (this->rs_sensor_ != nullptr)
-    this->rs_sensor_->publish_state(rs);
+  PUBLISH_STATE(this->rs_sensor_, rs);
 }
 
 void MiCS5524Component::update() {

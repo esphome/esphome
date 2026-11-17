@@ -14,11 +14,16 @@ namespace esphome::switch_ {
  public: \
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
-// bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
+// bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled.
+// bit4: restore from flash. bit5: restore from RTC memory (neither: platform default).
+// Code generation ors the storage bit into the restore mode passed to set_restore_mode().
 constexpr int RESTORE_MODE_ON_MASK = 0x01;
 constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
 constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
 constexpr int RESTORE_MODE_DISABLED_MASK = 0x08;
+constexpr int RESTORE_MODE_STORAGE_FLASH_MASK = 0x10;
+constexpr int RESTORE_MODE_STORAGE_RTC_MASK = 0x20;
+constexpr int RESTORE_MODE_STORAGE_MASK = RESTORE_MODE_STORAGE_FLASH_MASK | RESTORE_MODE_STORAGE_RTC_MASK;
 
 enum SwitchRestoreMode : uint8_t {
   SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
@@ -109,6 +114,13 @@ class Switch : public EntityBase {
    * state.
    */
   optional<bool> get_initial_state_with_restore_mode();
+  /// get_initial_state_with_restore_mode() with inverted applied: the level write_state() takes.
+  optional<bool> get_initial_write_state();
+
+  /// Drive the switch to the state its restore mode yields, through control(), so inversion and
+  /// write_state() apply; a disabled restore mode drives \p when_disabled, or nothing without one.
+  void restore();
+  void restore(bool when_disabled);
 
   /** Return whether this switch uses an assumed state - i.e. if both the ON/OFF actions should be displayed in Home
    * Assistant because the real state is unknown.
@@ -139,9 +151,9 @@ class Switch : public EntityBase {
   LazyCallbackManager<void(bool)> state_callback_{};
 
   // Small types grouped together
-  Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)
+  Deduplicator<bool> publish_dedup_;  // 3 bytes (bool has_value_ + bool value_unknown_ + bool last_value_)
   bool inverted_{false};              // 1 byte
-  // Total: 3 bytes, 1 byte padding
+  // Total: 4 bytes, no padding
 };
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))

@@ -1,0 +1,26 @@
+# Two sensors on the one fake: A with default oversampling, B with oversampling NONE on pressure and humidity.
+sensor:
+  - platform: bme280_i2c
+    address: 0x76
+    update_interval: 5s
+    temperature:
+      name: AT
+      accuracy_decimals: 3
+    pressure:
+      name: AP
+      accuracy_decimals: 3
+    humidity:
+      name: AH
+      accuracy_decimals: 3
+  - platform: bme280_i2c
+    address: 0x76
+    update_interval: 5s
+    temperature:
+      name: BT
+      accuracy_decimals: 3
+    pressure:
+      name: BP
+      oversampling: NONE
+    humidity:
+      name: BH
+      oversampling: NONE
