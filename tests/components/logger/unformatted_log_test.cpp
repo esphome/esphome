@@ -106,6 +106,15 @@ TEST_F(UnformattedLoggerTest, FormatExpressionIsEvaluatedOnce) {
   EXPECT_NE(this->lines_[0].message.find("]: first"), std::string::npos) << this->lines_[0].message;
 }
 
+TEST_F(UnformattedLoggerTest, TemporaryFormatOutlivesTheCall) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+  ESP_LOGW(PLAIN_TAG, std::string(80, 'x').c_str());
+#pragma GCC diagnostic pop
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_NE(this->lines_[0].message.find("]: " + std::string(80, 'x')), std::string::npos) << this->lines_[0].message;
+}
+
 TEST_F(UnformattedLoggerTest, LevelIsStillFiltered) {
   this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
   ESP_LOGI(PLAIN_TAG, "hidden");
