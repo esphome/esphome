@@ -1,16 +1,17 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/select/select.h"
 
 namespace esphome::tuya {
 
-class TuyaSelect final : public select::Select, public Component {
+class TuyaSelect final : public select::Select {
  public:
-  void setup() override;
-  void dump_config() override;
+  // Called from generated code before setup, after the datapoint setters
+  void register_listeners();
+  // Called from the hub's dump_config()
+  void dump_child_config();
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
