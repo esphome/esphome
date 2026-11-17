@@ -38,6 +38,8 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class ZephyrSDK:
+    """A framework distribution (Zephyr, NCS, etc.), not the Zephyr SDK toolchain."""
+
     default_version: str
     min_version: cv.Version
 
