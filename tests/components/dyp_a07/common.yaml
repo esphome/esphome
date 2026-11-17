@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a07
+    id: dyp_a07_sensor
+    name: DYP A07 Distance
+    model: A07
+    mode: AUTO

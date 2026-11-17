@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a02
+    id: dyp_a02_sensor
+    name: DYP A02 Distance
+    model: A02
+    mode: AUTO

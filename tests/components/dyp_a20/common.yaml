@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a20
+    id: dyp_a20_sensor
+    name: DYP A20 Distance
+    model: A20
+    mode: AUTO

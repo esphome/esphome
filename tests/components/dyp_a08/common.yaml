@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a08
+    id: dyp_a08_sensor
+    name: DYP A08A Distance
+    model: A08A
+    mode: AUTO

@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a25
+    id: dyp_a25_sensor
+    name: DYP A25 Distance
+    model: A25
+    mode: AUTO

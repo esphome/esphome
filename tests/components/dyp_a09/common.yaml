@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a09
+    id: dyp_a09_sensor
+    name: DYP A09A Distance
+    model: A09A
+    mode: AUTO

@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a12
+    id: dyp_a12_sensor
+    name: DYP A12A Distance
+    model: A12A
+    mode: AUTO

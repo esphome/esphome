@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a22
+    id: dyp_a22_sensor
+    name: DYP A22 Distance
+    model: A22
+    mode: AUTO

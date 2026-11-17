@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a11
+    id: dyp_a11_sensor
+    name: DYP A11A Distance
+    model: A11A
+    mode: AUTO

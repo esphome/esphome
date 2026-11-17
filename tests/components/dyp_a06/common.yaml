@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a06
+    id: dyp_a06_sensor
+    name: DYP A06B Distance
+    model: A06B
+    mode: AUTO
