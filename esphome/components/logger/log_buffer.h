@@ -7,9 +7,10 @@
 
 namespace esphome::logger {
 
-// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
+// Space write_header() needs free. Without the tag the header takes at most 68 bytes (20 fixed, 48 for a thread name
+// of up to MAX_TAG_LENGTH); the tag gets the rest of the line's room minus that budget, so at least MAX_TAG_LENGTH
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
-// Longest tag the header budget allows
+// Longest thread name in the header, and the shortest tag it always keeps
 static constexpr size_t MAX_TAG_LENGTH = 32;
 
 // ANSI color code last digit (30-38 range, store only last digit to save RAM on ESP8266)
@@ -42,15 +43,8 @@ struct LogBuffer {
   // Replaces the null terminator with a newline for console output.
   // Must be called after notify_listeners_() since listeners need null-terminated strings.
   // Console output uses length-based writes (buf.pos), so null terminator is not needed.
-  void terminate_with_newline() {
-    if (this->pos < this->size) {
-      this->data[this->pos++] = '\n';
-    } else if (this->size > 0) {
-      // Buffer was full - replace last char with newline to ensure it's visible
-      this->data[this->size - 1] = '\n';
-      this->pos = this->size;
-    }
-  }
+  // The body writers keep the terminator's byte inside the buffer, so the newline always fits
+  void terminate_with_newline() { this->data[this->pos++] = '\n'; }
   void HOT write_header(uint8_t level, const char *tag, int line, const char *thread_name) {
     // Early return if insufficient space - intentionally don't update pos to prevent partial writes
     if (this->pos + MAX_HEADER_SIZE > this->size)
@@ -75,7 +69,8 @@ struct LogBuffer {
     *p++ = '[';
 
     // Copy tag
-    p = copy_string(p, tag);
+    // The early return above leaves at least MAX_HEADER_SIZE, so the tag keeps MAX_TAG_LENGTH or more
+    p = copy_string(p, tag, this->remaining_() - (MAX_HEADER_SIZE - MAX_TAG_LENGTH));
 
     *p++ = ':';
 
@@ -93,7 +88,7 @@ struct LogBuffer {
     if (thread_name != nullptr) {
       p = write_ansi_color(p, 1);  // Bold red for thread name
       *p++ = '[';
-      p = copy_string(p, thread_name);
+      p = copy_string(p, thread_name, MAX_TAG_LENGTH);
       *p++ = ']';
       p = write_ansi_color(p, level);  // Restore original color
     }
@@ -227,18 +222,18 @@ struct LogBuffer {
     return p;
   }
   // Copies str unchecked and without its null terminator, so the caller reserves space; returns the new end
-  static char *copy_string(char *p, const char *str) {
-    // Capped at MAX_TAG_LENGTH so the header stays within MAX_HEADER_SIZE and the body starts inside the buffer
+  // Copies at most max_len bytes, so the header stays within MAX_HEADER_SIZE and the body starts inside the buffer
+  static char *copy_string(char *p, const char *str, size_t max_len) {
 #ifdef USE_ESP8266
     // Tags may be in PROGMEM, so read each byte once
-    for (size_t i = 0; i < MAX_TAG_LENGTH; i++) {
+    for (size_t i = 0; i < max_len; i++) {
       const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
       if (c == '\0')
         break;
       *p++ = c;
     }
 #else
-    const size_t len = strnlen(str, MAX_TAG_LENGTH);
+    const size_t len = strnlen(str, max_len);
     memcpy(p, str, len);  // NOLINT(bugprone-not-null-terminated-result) - the header is built piece by piece
     p += len;
 #endif

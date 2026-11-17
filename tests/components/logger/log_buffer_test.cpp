@@ -73,21 +73,31 @@ TEST(LogBufferTest, LineThatFitsIsUnchanged) {
   EXPECT_EQ(std::string(data, buf.pos), "hello\033[0m");
 }
 
-TEST(LogBufferTest, LongTagAndThreadNameAreCapped) {
-  // The smallest tx_buffer_size; an overlong tag or thread name must not push the header past the buffer
-  constexpr uint16_t size = 160;
-  char data[size];
-  const std::string tag(200, 't');
-  const std::string thread(200, 'n');
-  const std::string text(300, 'x');
-  LogBuffer buf{data, size};
+static std::string header_line(uint16_t size, const std::string &tag, const std::string &thread) {
+  std::string data(size, '#');
+  const std::string text(600, 'x');
+  LogBuffer buf{data.data(), size};
   buf.write_header(ESPHOME_LOG_LEVEL_DEBUG, tag.c_str(), 123, thread.c_str());
-  ASSERT_LT(buf.pos, size);
+  EXPECT_LT(buf.pos, size);
   format_into(buf, "%s", text.c_str());
   expect_reset_and_terminator(buf, 0);
-  const std::string line(data, buf.pos);
-  EXPECT_NE(line.find("[" + std::string(MAX_TAG_LENGTH, 't') + ":123]"), std::string::npos);
-  EXPECT_EQ(line.find(std::string(MAX_TAG_LENGTH + 1, 't')), std::string::npos);
+  return data.substr(0, buf.pos);
+}
+
+TEST(LogBufferTest, LongTagIsKeptWhenItFits) {
+  const std::string tag(200, 't');
+  const std::string line = header_line(512, tag, "main");
+  EXPECT_NE(line.find("[" + tag + ":123]"), std::string::npos);
+}
+
+TEST(LogBufferTest, LongTagAndThreadNameAreCutToTheRoomLeft) {
+  // The smallest tx_buffer_size; an overlong tag or thread name must not push the header past the buffer
+  constexpr uint16_t size = 160;
+  constexpr size_t tag_room = size - (MAX_HEADER_SIZE - MAX_TAG_LENGTH);
+  const std::string line = header_line(size, std::string(200, 't'), std::string(200, 'n'));
+  EXPECT_NE(line.find("[" + std::string(tag_room, 't') + ":123]"), std::string::npos);
+  EXPECT_EQ(line.find(std::string(tag_room + 1, 't')), std::string::npos);
+  EXPECT_NE(line.find(std::string(MAX_TAG_LENGTH, 'n')), std::string::npos);
   EXPECT_EQ(line.find(std::string(MAX_TAG_LENGTH + 1, 'n')), std::string::npos);
 }
 
