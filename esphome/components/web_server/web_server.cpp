@@ -220,6 +220,34 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
+// BEGIN ESPAsyncWebServer 3.12.1 workaround: remove once a release containing upstream commit
+// 880c97068abb0f0e63f803cd3c0cac84fa5cd7bb is out and we bump to it.
+// 3.12.1 creates the SSE client before the head is ACKed and credits the head's ACK to its first queued messages,
+// dropping or truncating them. Create the client once the head is ACKed instead, as 3.9.6 did.
+class HeadAckedEventSourceResponse final : public AsyncEventSourceResponse {
+ public:
+  HeadAckedEventSourceResponse(DeferredUpdateEventSourceList *list, WebServer *ws)
+      : AsyncEventSourceResponse(nullptr), list_(list), ws_(ws) {}
+  void _respond(AsyncWebServerRequest *request) override {
+    String head;
+    this->_assembleHead(head, request->version());
+    request->client()->write(head.c_str(), this->_headLength);
+  }
+  // Every ACK until clientRelease() is the head's, and clientRelease() unhooks this. _state must stay
+  // RESPONSE_SETUP: past RESPONSE_WAIT_ACK the request would close its released (null) client after this returns.
+  size_t _ack(AsyncWebServerRequest *request, size_t len, uint32_t time) override {
+    this->_ackedLength += len;
+    if (this->_ackedLength >= this->_headLength)
+      this->list_->add_client_(this->ws_, request->clientRelease());
+    return 0;
+  }
+
+ private:
+  DeferredUpdateEventSourceList *list_;
+  WebServer *ws_;
+};
+// END ESPAsyncWebServer 3.12.1 workaround
+
 // helper for allowing only unique entries in the queue
 void __attribute__((flatten)) DeferredUpdateEventSource::deq_push_back_with_dedup_(
     void *source, message_generator_t *message_generator) {
@@ -328,7 +356,13 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t
   }
 }
 
+// BEGIN ESPAsyncWebServer 3.12.1 workaround (see HeadAckedEventSourceResponse): once removed, add_new_client creates
+// the source as add_client_ does and ends with es->handleRequest(request); add_client_ goes away.
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
+  request->send(new HeadAckedEventSourceResponse(this, ws));  // NOLINT
+}
+
+void DeferredUpdateEventSourceList::add_client_(WebServer *ws, AsyncClient *client) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
@@ -336,9 +370,10 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 
   es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
 
-  es->handleRequest(request);
+  new AsyncEventSourceClient(client, es);  // NOLINT: owned by es
   ws->enable_loop_soon_any_context();
 }
+// END ESPAsyncWebServer 3.12.1 workaround
 
 void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
   WebServer *ws = source->web_server_;
@@ -529,62 +564,23 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #endif
 
-// Read a request header value portably across the Arduino and ESP-IDF web servers.
-// Returns an empty string when the header is absent (only allocates when a value is present).
-static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
-#ifdef USE_ESP32
-  // ESP32 (Arduino and ESP-IDF) uses the web_server_idf backend.
-  optional<std::string> value = request->get_header(name);
-  return value.has_value() ? std::move(*value) : std::string();
-#else
-  // ESP8266, RP2040 and LibreTiny use the Arduino ESPAsyncWebServer backend.
-  const AsyncWebHeader *header = request->getHeader(name);
-  return header != nullptr ? std::string(header->value().c_str()) : std::string();
-#endif
-}
-
-bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin) {
-  // No Origin header: not a browser cross-origin request (e.g. curl, native API client). Allow.
-  if (origin.empty())
-    return true;
-
-  // Same-origin: the Origin authority (scheme stripped) matches the Host the request was sent to.
-  // This covers the device's own IP, mDNS name, or DNS name without knowing any at compile time.
-  const size_t scheme_sep = origin.find("://");
-  if (scheme_sep != std::string::npos) {
-    const std::string host = get_request_header(request, "Host");
-    // Compare by hand: compare(pos, ...) carries an out_of_range throw path that can never fire here
-    const size_t authority = scheme_sep + 3;
-    if (!host.empty() && origin.size() - authority == host.size() &&
-        memcmp(origin.data() + authority, host.data(), host.size()) == 0)
-      return true;
-  }
-
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  // Otherwise the origin must be explicitly allowed via configuration.
-  for (const char *const *it = this->allowed_origins_; *it != nullptr; it++) {
-    const char *allowed_origin = *it;
-    // A single "*" entry allows any origin.
-    if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
-      return true;
-    if (origin == allowed_origin)
-      return true;
-  }
-#endif
-  return false;
-}
-
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-  const std::string origin = get_request_header(request, "Origin");
-  if (!this->is_request_origin_allowed_(request, origin)) {
-    request->send(403);
-    return;
-  }
-
+  // WebServerBase's middleware already rejected an origin that is not allowed.
+#ifdef USE_ESP32
+  char origin_buf[web_server_base::MAX_ORIGIN_LENGTH + 1];
+  const size_t origin_len = request->get_header_to("Origin", origin_buf);
+  // Only an allow-any-origin build lets through an Origin too long for the buffer; it gets "*" instead
+  const bool has_origin = origin_len != 0 && origin_len != SIZE_MAX;
+  const char *origin = origin_buf;
+#else
+  const AsyncWebHeader *origin_header = request->getHeader("Origin");
+  const bool has_origin = origin_header != nullptr && origin_header->value().length() != 0;
+  const char *origin = has_origin ? origin_header->value().c_str() : nullptr;
+#endif
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
-  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), has_origin ? origin : "*");
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -2430,19 +2426,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  // Private Network Access preflight carries a cross-origin Origin by design; its handler does the
-  // origin check itself, so let it run before the general enforcement below.
   if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
     this->handle_pna_cors_request(request);
     return;
   }
 #endif
-
-  // Reject cross-origin browser requests unless the origin is explicitly allowed.
-  if (!this->is_request_origin_allowed_(request, get_request_header(request, "Origin"))) {
-    request->send(403);
-    return;
-  }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == ESPHOME_F("/events")) {
@@ -2595,10 +2583,10 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.contains(entity)) {
-    root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
-      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entitys_[entity].group_id].name);
+  if (this->sorting_entities_.contains(entity)) {
+    root[ESPHOME_F("sorting_weight")] = this->sorting_entities_[entity].weight;
+    if (this->sorting_groups_.contains(this->sorting_entities_[entity].group_id)) {
+      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entities_[entity].group_id].name);
     }
   }
 #endif
@@ -2606,7 +2594,7 @@ void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 
 #ifdef USE_WEBSERVER_SORTING
 void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
-  this->sorting_entitys_[entity] = SortingComponents{weight, group};
+  this->sorting_entities_[entity] = SortingComponents{weight, group};
 }
 
 void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {

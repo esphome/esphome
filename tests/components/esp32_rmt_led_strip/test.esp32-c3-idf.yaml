@@ -1,6 +1,7 @@
 substitutions:
   pin1: GPIO3
   pin2: GPIO4
+  rmt_symbols: "48"
 
 packages:
   common: !include common.yaml

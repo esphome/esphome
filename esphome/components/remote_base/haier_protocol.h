@@ -5,8 +5,11 @@
 
 namespace esphome::remote_base {
 
+/// The longest Haier frame carries 13 data bytes; the short one carries 8
+static constexpr size_t HAIER_MAX_DATA_BYTES = 13;
+
 struct HaierData {
-  std::vector<uint8_t> data;
+  RemoteBytes<HAIER_MAX_DATA_BYTES> data;
 
   bool operator==(const HaierData &rhs) const { return data == rhs.data; }
 };

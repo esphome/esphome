@@ -8,21 +8,13 @@ namespace esphome::uptime {
 
 ESPHOME_LOG_TAG(TAG, "uptime.sensor");
 
-static size_t append_flash_str(char *buf, size_t buf_size, size_t pos, const char *str) {
-#ifdef USE_ESP8266
-  return buf_append_str_p(buf, buf_size, pos, str);
-#else
-  return buf_append_str(buf, buf_size, pos, str);
-#endif
-}
-
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {
   if (pos > 0) {
-    pos = append_flash_str(buf, buf_size, pos, separator);
+    pos = buf_append_str_p(buf, buf_size, pos, separator);
   }
   pos = buf_append_printf(buf, buf_size, pos, "%u", value);
-  pos = append_flash_str(buf, buf_size, pos, label);
+  pos = buf_append_str_p(buf, buf_size, pos, label);
 }
 
 void UptimeTextSensor::setup() { this->update(); }

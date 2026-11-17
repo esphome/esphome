@@ -15,10 +15,8 @@ void MPR121Component::setup() {
   // soft reset device
   this->write_byte(MPR121_SOFTRESET, 0x63);
   this->set_timeout(100, [this]() {
-    if (!this->write_byte(MPR121_ECR, 0x0)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->setup_check(this->write_byte(MPR121_ECR, 0x0)))
       return;
-    }
     // set touch sensitivity for all 12 channels
     for (auto *channel : this->channels_) {
       channel->setup();

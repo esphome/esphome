@@ -47,11 +47,12 @@ class TestHdlc : public HdlcReliability {
 };
 
 struct Peer {
-  explicit Peer(uint8_t queue_length = 4) {
-    this->hdlc = std::make_unique<TestHdlc>(&this->link);
-    this->hdlc->set_max_queue_length(queue_length);
+  explicit Peer(uint8_t queue_length = 4, bool run_setup = true)
+      : tx_slots(HdlcReliability::send_queue_size(this->link.get_max_packet_size(), queue_length)) {
+    this->hdlc = std::make_unique<TestHdlc>(&this->link, this->tx_slots.data(), queue_length);
     this->hdlc->set_max_retries(3);
-    this->hdlc->setup();
+    if (run_setup)
+      this->hdlc->setup();
     this->hdlc->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->hdlc->add_on_session_state_callback([this](bool connected) { this->states.push_back(connected); });
@@ -64,6 +65,7 @@ struct Peer {
   bool send(const Frame &data) { return this->hdlc->send_to_interface(PacketBuffer(data), {}); }
 
   MockLink link;
+  std::vector<uint8_t> tx_slots;
   std::unique_ptr<TestHdlc> hdlc;
   std::vector<Frame> received;
   std::vector<bool> states;
@@ -179,6 +181,16 @@ TEST_F(HdlcReliabilityTest, QueuedBeforeConnectIsSentAfter) {
   EXPECT_EQ(b.received, (std::vector<Frame>{{0x01}, {0x02}}));
 }
 
+TEST_F(HdlcReliabilityTest, QueuedBeforeSetupIsSentOnce) {
+  Peer a(4, false), b;
+  ASSERT_TRUE(a.send({0x01}));
+  EXPECT_EQ(a.hdlc->get_send_capacity(), 3);
+  a.hdlc->setup();
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0x01}}));
+  EXPECT_EQ(a.hdlc->get_send_capacity(), 4);
+}
+
 TEST_F(HdlcReliabilityTest, DeliversInOrderBothWays) {
   Peer a, b;
   pump(a, b);
@@ -245,6 +257,65 @@ TEST_F(HdlcReliabilityTest, LostAckDoesNotDuplicate) {
     EXPECT_TRUE(a.send({0x01}));
 }
 
+// Runs a layer's loop until it stops asking, without delivering what it sends
+static void run_until_idle(TestHdlc &hdlc) {
+  for (int i = 0; i != 10 && !hdlc.is_idle(); i++)
+    hdlc.loop();
+}
+
+static size_t count_info(const std::vector<Frame> &frames) {
+  size_t count = 0;
+  for (const auto &frame : frames)
+    count += is_info(frame);
+  return count;
+}
+
+TEST_F(HdlcReliabilityTest, TimeoutResendsOnlyOldestFrame) {
+  Peer a, b;
+  pump(a, b);
+  for (uint8_t i = 0; i != 3; i++)
+    ASSERT_TRUE(a.send({i}));
+  pump(a, b, nullptr, [](const Frame &frame) { return is_ack(frame); });
+  ASSERT_EQ(b.received.size(), 3);
+  ASSERT_EQ(a.hdlc->outstanding_(), 3);
+  a.hdlc->on_timeout_();
+  run_until_idle(*a.hdlc);
+  EXPECT_EQ(count_info(a.link.sent), 1);
+  // The peer's answer to the duplicate acknowledges all three
+  pump(a, b);
+  EXPECT_EQ(b.received.size(), 3);
+  EXPECT_EQ(a.hdlc->outstanding_(), 0);
+}
+
+TEST_F(HdlcReliabilityTest, RestFollowOnceOldestAcknowledged) {
+  Peer a, b;
+  pump(a, b);
+  for (uint8_t i = 0; i != 3; i++)
+    ASSERT_TRUE(a.send({i}));
+  pump(a, b, [](const Frame &frame) { return is_info(frame); });
+  ASSERT_TRUE(b.received.empty());
+  a.hdlc->on_timeout_();
+  run_until_idle(*a.hdlc);
+  EXPECT_EQ(count_info(a.link.sent), 1);
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0}, {1}, {2}}));
+  EXPECT_EQ(a.hdlc->outstanding_(), 0);
+}
+
+TEST_F(HdlcReliabilityTest, NewFrameWaitsWhileOldestIsResent) {
+  Peer a, b;
+  pump(a, b);
+  ASSERT_TRUE(a.send({0}));
+  pump(a, b, [](const Frame &frame) { return is_info(frame); });
+  a.hdlc->on_timeout_();
+  run_until_idle(*a.hdlc);
+  ASSERT_TRUE(a.send({1}));
+  run_until_idle(*a.hdlc);
+  EXPECT_EQ(count_info(a.link.sent), 1);
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0}, {1}}));
+}
+
 TEST_F(HdlcReliabilityTest, QueueFull) {
   Peer a(2), b(2);
   pump(a, b);
@@ -256,6 +327,18 @@ TEST_F(HdlcReliabilityTest, QueueFull) {
 TEST_F(HdlcReliabilityTest, OversizedPacketRejected) {
   Peer a;
   EXPECT_FALSE(a.send(Frame(a.hdlc->get_max_packet_size() + 1)));
+}
+
+// Frames are sent again without the caller's metadata, so a chosen destination is refused, not quietly dropped
+TEST_F(HdlcReliabilityTest, ChosenDestinationRefused) {
+  Peer a, b;
+  pump(a, b);
+  Frame packet{0x10};
+  PacketMetaData meta_data;
+  meta_data.destination_address = 3;
+  EXPECT_FALSE(a.hdlc->send_to_interface(PacketBuffer(packet), meta_data));
+  pump(a, b);
+  EXPECT_TRUE(b.received.empty());
 }
 
 TEST_F(HdlcReliabilityTest, CrcErrorDropped) {
@@ -408,7 +491,7 @@ TEST_F(HdlcReliabilityTest, OversizedFrameDropped) {
 
 TEST_F(HdlcReliabilityTest, LinkTooSmallFailsSetup) {
   MockLink link(HdlcReliability::FRAME_OVERHEAD);
-  TestHdlc hdlc(&link);
+  TestHdlc hdlc(&link, nullptr, 4);
   EXPECT_EQ(hdlc.get_max_packet_size(), 0);
   hdlc.setup();
   EXPECT_TRUE(hdlc.is_failed());

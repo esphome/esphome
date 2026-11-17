@@ -26,8 +26,18 @@ AUTO_LOAD = ["ble_device_base"]
 
 thermopro_ble_ns = cg.esphome_ns.namespace("thermopro_ble")
 ThermoProBLE = thermopro_ble_ns.class_(
-    "ThermoProBLE", ble_device_base.ESPBTDeviceListener, cg.Component
+    "ThermoProBLE", ble_device_base.ESPBTDeviceListener
 )
+
+
+def _temperature_schema() -> cv.Schema:
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("thermopro_ble"),
@@ -35,18 +45,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ThermoProBLE),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_EXTERNAL_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
+            cv.Optional(CONF_EXTERNAL_TEMPERATURE): _temperature_schema(),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
@@ -68,16 +68,12 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
-
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    var = await ble_device_base.new_ble_device(config, config[CONF_MAC_ADDRESS].as_hex)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

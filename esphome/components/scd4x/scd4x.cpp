@@ -6,41 +6,39 @@ namespace esphome::scd4x {
 
 ESPHOME_LOG_TAG(TAG, "scd4x");
 
-static const uint16_t SCD41_ID = 0x1408;
-static const uint16_t SCD40_ID = 0x440;
-static const uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
-static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
-static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
-static const uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
-static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
-static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
-static const uint16_t SCD4X_CMD_START_LOW_POWER_CONTINUOUS_MEASUREMENTS = 0x21ac;
-static const uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT = 0x219d;  // SCD41 only
-static const uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT_RHT_ONLY = 0x2196;
-static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0xe4b8;
-static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0xec05;
-static const uint16_t SCD4X_CMD_PERFORM_FORCED_CALIBRATION = 0x362f;
-static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x3f86;
-static const uint16_t SCD4X_CMD_FACTORY_RESET = 0x3632;
-static const uint16_t SCD4X_CMD_GET_FEATURESET = 0x202f;
-static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
+static constexpr uint16_t SCD41_ID = 0x1408;
+static constexpr uint16_t SCD40_ID = 0x440;
+static constexpr uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
+static constexpr uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
+static constexpr uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
+static constexpr uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
+static constexpr uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
+static constexpr uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET = 0x243a;
+static constexpr uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
+static constexpr uint16_t SCD4X_CMD_START_LOW_POWER_CONTINUOUS_MEASUREMENTS = 0x21ac;
+static constexpr uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT = 0x219d;  // SCD41 only
+static constexpr uint16_t SCD4X_CMD_START_LOW_POWER_SINGLE_SHOT_RHT_ONLY = 0x2196;
+static constexpr uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0xe4b8;
+static constexpr uint16_t SCD4X_CMD_READ_MEASUREMENT = 0xec05;
+static constexpr uint16_t SCD4X_CMD_PERFORM_FORCED_CALIBRATION = 0x362f;
+static constexpr uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x3f86;
+static constexpr uint16_t SCD4X_CMD_FACTORY_RESET = 0x3632;
+static constexpr uint16_t SCD4X_CMD_GET_FEATURESET = 0x202f;
+static constexpr float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
 
 void SCD4XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     this->status_clear_error();
-    if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
-      this->mark_failed(LOG_STR("Failed to stop measurements"));
+    if (!this->setup_check(this->write_command(SCD4X_CMD_STOP_MEASUREMENTS), LOG_STR("Failed to stop measurements")))
       return;
-    }
     // According to the SCD4x datasheet the sensor will only respond to other commands after waiting 500 ms after
     // issuing the stop_periodic_measurement command
     this->set_timeout(500, [this]() {
       uint16_t raw_serial_number[3];
-      if (!this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1)) {
-        this->mark_failed(LOG_STR("Unable to read serial number"));
+      if (!this->setup_check(this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1),
+                             LOG_STR("Unable to read serial number")))
         return;
-      }
       ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
@@ -52,20 +50,24 @@ void SCD4XComponent::setup() {
 
       // If pressure compensation available use it, else use altitude
       if (this->ambient_pressure_) {
-        if (!this->update_ambient_pressure_compensation_(this->ambient_pressure_)) {
-          this->mark_failed(LOG_STR("Error setting ambient pressure compensation"));
+        if (!this->setup_check(this->update_ambient_pressure_compensation_(this->ambient_pressure_),
+                               LOG_STR("Error setting ambient pressure compensation")))
           return;
-        }
       } else {
-        if (!this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_)) {
-          this->mark_failed(LOG_STR("Error setting altitude compensation"));
+        if (!this->setup_check(this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_),
+                               LOG_STR("Error setting altitude compensation")))
           return;
-        }
       }
 
-      if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0)) {
-        this->mark_failed(LOG_STR("Error setting automatic self calibration"));
+      if (!this->setup_check(this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0),
+                             LOG_STR("Error setting automatic self calibration")))
         return;
+
+      // Not every sensor firmware knows this command, so a failure only warns and keeps the default of 400 ppm.
+      if (this->asc_target_ != 0 &&
+          !this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION_TARGET, this->asc_target_)) {
+        ESP_LOGW(TAG, "Error setting automatic self calibration target");
+        this->asc_target_ = 0;  // dump_config shows only a target the sensor took
       }
 
       this->initialized_ = true;
@@ -104,6 +106,9 @@ void SCD4XComponent::dump_config() {
                 "  Measurement mode: %s\n"
                 "  Temperature offset: %.2f °C",
                 ONOFF(this->enable_asc_), measurement_mode_str, this->temperature_offset_);
+  if (this->asc_target_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Automatic self calibration target: %u ppm", this->asc_target_);
+  }
   if (this->ambient_pressure_source_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
                   LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
@@ -146,10 +151,8 @@ void SCD4XComponent::update() {
   }
   this->set_timeout(wait_time, [this]() {
     // Check if data is ready
-    if (!this->write_command(SCD4X_CMD_GET_DATA_READY_STATUS)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_command(SCD4X_CMD_GET_DATA_READY_STATUS)))
       return;
-    }
 
     uint16_t raw_read_status;
 
@@ -166,10 +169,8 @@ void SCD4XComponent::update() {
     }
     // Read off sensor data
     uint16_t raw_data[3];
-    if (!this->read_data(raw_data, 3)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 3)))
       return;
-    }
     PUBLISH_STATE(this->co2_sensor_, raw_data[0]);
 
     if (this->temperature_sensor_ != nullptr) {
@@ -180,7 +181,6 @@ void SCD4XComponent::update() {
       const float humidity = (100.0f * raw_data[2]) / (1 << 16);
       this->humidity_sensor_->publish_state(humidity);
     }
-    this->status_clear_warning();
   });  // set_timeout
 }
 

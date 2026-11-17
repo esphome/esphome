@@ -30,7 +30,7 @@ void Alpha3::extract_publish_sensor_value_(const uint8_t *response, int16_t leng
   // offset inside current response packet
   auto rel_offset = value_offset - response_offset;
   if (rel_offset <= -value_length)
-    return;  // aready passed the value completly
+    return;  // already passed the value completely
   if (rel_offset >= length)
     return;  // value not in this packet
 
@@ -86,9 +86,9 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
     extract_publish_sensor_value(GENI_RESPONSE_MOTOR_SPEED_OFFSET, this->speed_sensor_, 1.0F);
     extract_publish_sensor_value(GENI_RESPONSE_VOLTAGE_AC_OFFSET, this->voltage_sensor_, 1.0F);
   } else {
-    ESP_LOGW(TAG, "unkown GENI response Type %d %d %d %d %d %d %d %d", this->response_type_[0], this->response_type_[1],
-             this->response_type_[2], this->response_type_[3], this->response_type_[4], this->response_type_[5],
-             this->response_type_[6], this->response_type_[7]);
+    ESP_LOGW(TAG, "unknown GENI response Type %d %d %d %d %d %d %d %d", this->response_type_[0],
+             this->response_type_[1], this->response_type_[2], this->response_type_[3], this->response_type_[4],
+             this->response_type_[5], this->response_type_[6], this->response_type_[7]);
   }
   this->response_offset_ += length;
 }

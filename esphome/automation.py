@@ -3,8 +3,11 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 import logging
 import math
+import re
 import string
 from typing import Any
+
+import voluptuous as vol
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -44,6 +47,9 @@ CONF_CHOOSE = "choose"
 CONF_CHOICE_ID = "choice_id"
 
 
+_BYTE_VECTOR = cg.std_vector.template(cg.uint8)
+
+
 def progmem_bytes(name: str, data: bytes | list[int]) -> MockObj:
     """Shared PROGMEM table for constant bytes; equal payloads share one, empty is nullptr."""
     if not data:
@@ -59,10 +65,11 @@ async def templatable_bytes(
     set_template: MockObj,
     set_static: MockObj,
     table_name: str,
+    return_type: MockObj = _BYTE_VECTOR,
 ) -> None:
     """Set a TemplatableBytes: a lambda via set_template, constant bytes via set_static."""
     if cg.is_template(value):
-        fn = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+        fn = await cg.templatable(value, args, return_type)
         cg.add(set_template(fn))
     else:
         cg.add(set_static(*_static_bytes(table_name, value)))
@@ -452,6 +459,13 @@ def _names_parent(text: str) -> bool:
     return any(f == "parent" for _, f, _, _ in string.Formatter().parse(text))
 
 
+def _lambda_type(type_: Any, parent: str | None) -> Any:
+    """Raw C++ type text becomes an expression with ``{parent}`` filled in."""
+    if isinstance(type_, str):
+        return cg.RawExpression(type_.format(parent=parent))
+    return type_
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
@@ -538,6 +552,12 @@ IN_RANGE_CHECK = ApplyCall(
 )
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
+ValueRange = cg.esphome_ns.struct("ValueRange")
+# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+_VALUE_RANGE_BOUNDS = ApplyCall(
+    "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
+)
+
 
 @dataclass(frozen=True)
 class ApplyBytes:
@@ -581,7 +601,7 @@ def _dict_schema(schema: Any) -> Any:
         return cv.Schema(schema)
     if isinstance(getattr(schema, "schema", None), dict):
         return schema
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         inner = schema.validators
     else:
         inner = (
@@ -611,6 +631,13 @@ def _check_key_in_schema(
         schema = schema.schema[markers[part]]
 
 
+def _check_call_keys(
+    name: str, schema: Any, members: list[tuple[Any, Any, Any]]
+) -> None:
+    for conf_key, _, _ in members:
+        _check_key_in_schema(name, schema, conf_key)
+
+
 def parent_ref(var: MockObj) -> MockObj:
     """``var`` named from global scope, so a trigger argument cannot shadow it.
 
@@ -623,34 +650,34 @@ async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
     return str(parent_ref(await cg.get_variable(config[id_key])))
 
 
-def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
-    # The generated function's parameters: a reference keeps its spelling, so a mutable
-    # one stays mutable; a value is taken by const reference, so a std::string is never copied.
-    return [
-        (
-            (
-                t
-                if str(cg.safe_exp(t)).rstrip().endswith("&")
-                else cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &")
-            ),
-            arg,
-        )
-        for t, arg in args
-    ]
+def _is_reference(type_: SafeExpType) -> bool:
+    return str(cg.safe_exp(type_)).rstrip().endswith("&")
+
+
+def _apply_param_type(type_: SafeExpType) -> SafeExpType:
+    # A reference keeps its spelling; a value is taken by const reference, so it is never copied.
+    if _is_reference(type_):
+        return type_
+    return cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(type_)}> &")
+
+
+def _apply_params(args: TemplateArgsType) -> TemplateArgsType:
+    """The generated function's parameters."""
+    return [(_apply_param_type(t), arg) for t, arg in args]
 
 
 def _apply_function(
     id_: ID,
     return_type: SafeExpType,
     template_arg: cg.TemplateArguments,
-    lambda_args: TemplateArgsType,
+    args: TemplateArgsType,
     statements: list[str],
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
 
     def emit() -> MockObj:
-        fn = apply_static_function(id_, return_type, lambda_args, statements)
+        fn = apply_static_function(id_, return_type, _apply_params(args), statements)
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
     return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
@@ -667,9 +694,7 @@ def apply_statements_action(
     Use it when the statements do not fit ``register_apply_action``. Generated names should
     start with ``esphome__`` so a trigger argument cannot shadow them.
     """
-    return _apply_function(
-        action_id, cg.void, template_arg, _apply_lambda_args(args), statements
-    )
+    return _apply_function(action_id, cg.void, template_arg, args, statements)
 
 
 def apply_static_function(
@@ -677,24 +702,92 @@ def apply_static_function(
     return_type: SafeExpType,
     params: TemplateArgsType,
     statements: list[str],
+    share: bool = False,
+    suffix: str = "fn",
 ) -> MockObj:
-    """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
+    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one."""
+    return cg.shared_static_function(
+        _apply_function_name(id_, suffix), return_type, params, statements, share=share
+    )
 
 
-async def _render_values(
+def _apply_function_name(id_: ID, suffix: str = "fn") -> str:
+    return f"esphome__{id_.id}__{suffix}"
+
+
+# Comments, raw strings, strings and char literals; a ' after a digit is a digit separator.
+_CPP_NOISE = re.compile(
+    r"//[^\n]*|/\*.*?\*/"
+    r'|\b(?:u8|u|U|L)?R"([^()\\\s]{0,16})\(.*?\)\1"'
+    r'|"(?:\\.|[^"\\\n])*"'
+    r"|(?<!\w)'(?:\\.[^'\\\n]{0,8}|[^'\\\n])'",
+    re.DOTALL,
+)
+
+
+def _cpp_code_only(text: str) -> str:
+    return _CPP_NOISE.sub(" ", text)
+
+
+def _names_arg(code: str, name: str) -> bool:
+    """Whether ``code`` (with noise removed) names ``name`` other than as a member."""
+    return re.search(rf"(?<!\.)(?<!->)(?<!::)\b{re.escape(name)}\b", code) is not None
+
+
+def _has_top_level_comma(code: str) -> bool:
+    depth = 0
+    for ch in code:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            return True
+    return False
+
+
+async def call_user_lambda(
+    value: Lambda, args: TemplateArgsType, return_type: SafeExpType
+) -> Expression:
+    """Call a config lambda in an apply function's statements; a value arg its body names is a copy it may modify.
+
+    The other args are the function's const references (``register_apply_action``, ``apply_statements_action``),
+    so a body that names none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
+    name check counts a use: a needless copy is only a cost, a missed one fails to compile.
+    The result is safe as an argument or initializer; parenthesize it before using it as an operand.
+    """
+    code = _cpp_code_only(value.value)
+    by_value = {
+        name for t, name in args if not _is_reference(t) and _names_arg(code, name)
+    }
+    params = [
+        (t if name in by_value else _apply_param_type(t), name) for t, name in args
+    ]
+    inner = await cg.process_lambda(value, params, return_type=return_type)
+    if by_value:
+        return immediate_lambda_call(inner)
+    expr = call_lambda(inner)
+    # An uncast `a, b` would split into two arguments or end an initializer early
+    if isinstance(expr, cg.RawExpression) and _has_top_level_comma(
+        _cpp_code_only(str(expr))
+    ):
+        return cg.RawExpression(f"({expr})")
+    return expr
+
+
+async def _render_call(
     name: str,
     target: str,
     members: list[tuple[Any, Any, Any]],
     values: list[Any],
     config: ConfigType,
     parent: str | None,
-    lambda_args: TemplateArgsType,
+    args: TemplateArgsType,
     compare: bool = False,
-) -> list[str]:
-    """Render the argument text of one statement; every key must be present.
+) -> str:
+    """Render ``target`` with its config values filled in; every key must be present.
 
-    ``compare``: an inlined lambda expression is parenthesized so it binds as a whole
+    ``compare``: a reduced lambda expression is parenthesized so it binds as a whole
     beside an operator.
     """
     if any(value is None for value in values):
@@ -703,10 +796,7 @@ async def _render_values(
     exprs: list[str] = []
     for (_, type_, const_fn), value in zip(members, values, strict=True):
         if isinstance(value, Lambda):
-            if isinstance(type_, str):
-                type_ = cg.RawExpression(type_.format(parent=parent))
-            inner = await cg.process_lambda(value, lambda_args, return_type=type_)
-            expr = call_lambda(inner)
+            expr = await call_user_lambda(value, args, _lambda_type(type_, parent))
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -716,7 +806,7 @@ async def _render_values(
             exprs.append(const_fn(config, value))
         else:
             exprs.append(str(cg.safe_exp(value)))
-    return exprs
+    return target.format(*exprs, parent=parent)
 
 
 def _apply_values(config: ConfigType, members: list[tuple[Any, Any, Any]]) -> list[Any]:
@@ -767,8 +857,7 @@ def apply_action_builder(
             continue
         c = f if isinstance(f, ApplyCall) else f.call()
         members = _default_std_string(c.members, flash_string)
-        for conf_key, _, _ in members:
-            _check_key_in_schema(name, schema, conf_key)
+        _check_call_keys(name, schema, members)
         statements_spec.append((c.target, members))
     # Named like the generated function, so it cannot clash with an SDK symbol
     table_name = f"esphome__{name.replace('.', '_')}__bytes"
@@ -780,7 +869,6 @@ def apply_action_builder(
         args: TemplateArgsType,
     ) -> MockObj:
         parent = await _apply_parent(config, id_key)
-        lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
         for spec in statements_spec:
@@ -795,19 +883,17 @@ def apply_action_builder(
             values = _apply_values(config, members)
             if not _apply_call_active(members, values):
                 continue
-            exprs = await _render_values(
-                name, target, members, values, config, parent, lambda_args
+            rendered = await _render_call(
+                name, target, members, values, config, parent, args
             )
-            statements.append(f"{receiver}{target.format(*exprs, parent=parent)};")
+            statements.append(f"{receiver}{rendered};")
         if call:
             statements = [
                 f"auto apply_call = {parent}->{call}();",
                 *statements,
                 "apply_call.perform();",
             ]
-        return _apply_function(
-            action_id, cg.void, template_arg, lambda_args, statements
-        )
+        return _apply_function(action_id, cg.void, template_arg, args, statements)
 
     return builder
 
@@ -820,11 +906,7 @@ async def _render_bytes(
     args: TemplateArgsType,
     table_name: str,
 ) -> list[str]:
-    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined.
-
-    The payload lambda keeps the automation's own argument types, as ``TemplatableBytes``
-    gave it, and is always called, so a body that modifies an argument still compiles.
-    """
+    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined."""
     value = _config_lookup(config, spec.conf_key)
     if value is None:
         return []
@@ -834,11 +916,7 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        inner = await cg.process_lambda(
-            value, args, return_type=cg.std_vector.template(cg.uint8)
-        )
-        # Never reduced into the outer function, whose own parameters are const
-        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
+        call = await call_user_lambda(value, args, _BYTE_VECTOR)
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",
@@ -873,20 +951,37 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
     return not members or any(value is not None for value in values)
 
 
-async def _render_check(
-    name: str,
-    target: str,
-    members: list[tuple[Any, Any, Any]],
-    values: list[Any],
-    config: ConfigType,
-    parent: str | None,
-    lambda_args: TemplateArgsType,
-) -> str:
-    """Render a boolean check with ``values`` compared against config."""
-    exprs = await _render_values(
-        name, target, members, values, config, parent, lambda_args, compare=True
+async def new_value_range_trigger(
+    trigger_id: ID, parent: MockObj, config: ConfigType
+) -> MockObj:
+    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+
+    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
+    the const ``x`` is a backstop if bounds are ever inlined again.
+    """
+    trigger = cg.new_Pvariable(
+        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
     )
-    return target.format(*exprs, parent=parent)
+    config = {**IN_RANGE_DEFAULTS, **config}
+    members = _VALUE_RANGE_BOUNDS.members
+    bounds = await _render_call(
+        "on_value_range",
+        _VALUE_RANGE_BOUNDS.target,
+        members,
+        _apply_values(config, members),
+        config,
+        None,
+        [(cg.float_, "x")],
+    )
+    # The trigger above already names this function, so it must keep this exact name
+    cg.static_function(
+        _apply_function_name(trigger_id),
+        ValueRange,
+        [(cg.RawExpression("const float"), "x")],
+        [f"return {bounds};"],
+    )
+    return trigger
 
 
 def register_apply_condition(
@@ -909,8 +1004,7 @@ def register_apply_condition(
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = _default_std_string(call.members, flash_compare)
     _check_key_in_schema(name, schema, id_key)
-    for conf_key, _, _ in members:
-        _check_key_in_schema(name, schema, conf_key)
+    _check_call_keys(name, schema, members)
 
     async def builder(
         config: ConfigType,
@@ -921,20 +1015,119 @@ def register_apply_condition(
         if defaults:
             config = {**defaults, **config}
         parent = await _apply_parent(config, id_key)
-        lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)
-        check = await _render_check(
-            name, call.target, members, values, config, parent, lambda_args
+        check = await _render_call(
+            name, call.target, members, values, config, parent, args, compare=True
         )
         return _apply_function(
             condition_id,
             cg.bool_,
             template_arg,
-            lambda_args,
+            args,
             [f"return {parent}->{check};"],
         )
 
     register_condition(name, ApplyCondition, schema)(builder)
+
+
+# The key of a filter whose schema is a single value rather than a mapping
+WHOLE_CONFIG: tuple[str, ...] = ()
+
+
+def _apply_calls(name: str, statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+    if not statements:
+        # A non-void function with no statement would never return
+        raise ValueError(f"{name}: a filter needs at least one statement")
+    return [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
+
+
+async def _apply_value_function(
+    filter_id: ID, index: int, value: Lambda, type_: SafeExpType
+) -> cg.RawExpression:
+    """A value lambda as its own function, called from the filter's function; inlined there,
+    its ids would be shadowed by the filter's parameters, such as an id ``x``."""
+    lambda_ = await cg.process_lambda(value, [], return_type=type_)
+    fn = apply_static_function(
+        filter_id, type_, [], lambda_.body_lines, suffix=f"value{index}"
+    )
+    return cg.RawExpression(f"{fn}()")
+
+
+@dataclass(frozen=True)
+class ApplyFilterDomain:
+    """How one entity domain declares filters that are one generated function.
+
+    ``filter_class`` is the domain's ``ApplyFilter``, templated on the function, whose
+    ``params`` and ``return_type`` follow what that class passes and expects.
+    """
+
+    registry: Registry
+    filter_class: MockObjClass
+    return_type: SafeExpType
+    params: tuple[tuple[Any, str], ...]
+
+    def new(self, filter_id: ID, statements: list[str], share: bool = False) -> MockObj:
+        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements`` taking ``params``."""
+        id_ = filter_id.copy()
+        id_.type = self.filter_class
+        fn = apply_static_function(
+            id_, self.return_type, list(self.params), statements, share=share
+        )
+        return cg.new_Pvariable(id_, cg.TemplateArguments(fn))
+
+    async def build(
+        self,
+        name: str,
+        config: Any,
+        filter_id: ID,
+        *statements: str | ApplyCall,
+        schema: Any,
+    ) -> MockObj:
+        """Declare filter ``name`` as the function of ``statements`` over ``config``.
+
+        Value lambdas become their own functions; a statement whose keys are all absent is skipped,
+        except the last; ``schema`` checks the statement keys, so a typo is not a skipped statement.
+        """
+        calls = _apply_calls(name, statements)
+        for c in calls:
+            _check_call_keys(name, schema, c.members)
+        body: list[str] = []
+        lambdas = 0
+        for index, c in enumerate(calls):
+            values = _apply_values(config, c.members)
+            if not _apply_call_active(c.members, values):
+                if index == len(calls) - 1:
+                    raise ValueError(
+                        f"{name}: the last statement is skipped, so the function may not return"
+                    )
+                continue
+            members = list(c.members)
+            for i, ((key, type_, _), value) in enumerate(
+                zip(members, values, strict=True)
+            ):
+                if isinstance(value, Lambda):
+                    type_ = _lambda_type(type_, None)
+                    # The call is already the argument text, so no const_fn applies
+                    members[i] = (key, type_, None)
+                    values[i] = await _apply_value_function(
+                        filter_id, lambdas, value, type_
+                    )
+                    lambdas += 1
+            body.append(
+                await _render_call(
+                    name, c.target, members, values, config, None, [], compare=True
+                )
+            )
+        return self.new(filter_id, body, share=not lambdas)
+
+    def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
+        """Register filter ``name`` as the function of ``statements``; see ``build``."""
+        calls = _apply_calls(name, statements)
+
+        async def builder(config: Any, filter_id: ID) -> MockObj:
+            return await self.build(name, config, filter_id, *calls, schema=schema)
+
+        self.registry.register(name, self.filter_class, schema)(builder)
 
 
 def validate_potentially_and_condition(value):
@@ -1718,7 +1911,7 @@ def _emit_inline_run(
         cg.void,
         [
             (cg.RawExpression("const int &"), _RUNNING_PARAM),
-            *_apply_lambda_args(args),
+            *_apply_params(args),
         ],
         statements,
     )
@@ -1926,7 +2119,7 @@ def _direct_function(
         return None
     statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
-        plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
+        plan[0][0].id_, cg.void, _apply_params(args), statements
     )
 
 
@@ -1982,27 +2175,27 @@ async def _trigger_callback(
 ) -> LambdaExpression:
     if (target := _direct_function(plan, args, config)) is None:
         target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
-    lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
     if call is not None:
         members = call.members
         values = _apply_values(config, members)
         if _apply_call_active(members, values):
-            check = await _render_check(
+            check = await _render_call(
                 "trigger filter",
                 call.target,
                 members,
                 values,
                 config,
                 None if parent is None else str(parent_ref(parent)),
-                lambda_args,
+                params,
+                compare=True,
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
         forward = [name for _, name in params]
     statements.append(f"{target}({', '.join(map(str, forward))});")
     return LambdaExpression(
-        ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
+        ["\n".join(statements)], _apply_params(params), capture="", return_type=cg.void
     )
 
 

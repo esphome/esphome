@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <concepts>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -12,12 +14,33 @@
 
 namespace esphome::remote_base {
 
+/// Received bytes of a protocol with a fixed maximum length, stored without the heap.
+/// Converts to std::vector, so lambdas that pass x.data to a function taking a std::vector keep working.
+template<size_t N> class RemoteBytes : public StaticVector<uint8_t, N> {
+ public:
+  using StaticVector<uint8_t, N>::StaticVector;
+  RemoteBytes(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, N>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+  uint8_t front() const { return (*this)[0]; }
+  uint8_t back() const { return (*this)[this->size() - 1]; }
+  bool operator==(const RemoteBytes &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+  // Without this a longer vector would be cut to N bytes by the conversion above and could compare equal
+  bool operator==(const std::vector<uint8_t> &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+};
+
 enum ToleranceMode : uint8_t {
   TOLERANCE_MODE_PERCENTAGE = 0,
   TOLERANCE_MODE_TIME = 1,
 };
 
 using RawTimings = std::vector<int32_t>;
+/// A received frame's timings, viewed in whatever buffer the receiver keeps them.
+using RawTimingsView = std::span<const int32_t>;
 
 enum class BitOrder : uint8_t {
   BIT_ORDER_LSB_FIRST,
@@ -85,12 +108,25 @@ class RemoteTransmitData {
   uint32_t carrier_frequency_{0};
 };
 
+/// The lengths that match one timing within the tolerance. A hot loop computes it once instead of at every
+/// timing; matches_mark() accepts exactly what peek_mark() does.
+struct TimingRange {
+  int32_t min;
+  int32_t max;
+  bool matches_mark(int32_t value) const { return this->min <= value && value <= this->max; }
+};
+
 class RemoteReceiveData {
  public:
-  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+  /// The timings are not copied: they must outlive this object.
+  explicit RemoteReceiveData(RawTimingsView data, uint32_t tolerance, ToleranceMode tolerance_mode)
       : data_(data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
+  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), vector_(&data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
-  const RawTimings &get_raw_data() const { return this->data_; }
+  RawTimingsView get_raw_data() const { return this->data_; }
+  /// The timings as a vector when they were given as one, else nullptr.
+  const RawTimings *get_raw_vector() const { return this->vector_; }
   uint32_t get_index() const { return index_; }
   int32_t operator[](uint32_t index) const { return this->data_[index]; }
   int32_t size() const { return this->data_.size(); }
@@ -102,6 +138,7 @@ class RemoteReceiveData {
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_most(uint32_t length, uint32_t offset = 0) const;
+  TimingRange timing_range(uint32_t length) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
     return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }
@@ -178,7 +215,8 @@ class RemoteReceiveData {
     return 0;
   }
 
-  const RawTimings &data_;
+  RawTimingsView data_;
+  const RawTimings *vector_{nullptr};
   uint32_t index_;
   uint32_t tolerance_;
   ToleranceMode tolerance_mode_;
@@ -364,7 +402,17 @@ class RemoteReceiverBase : public RemoteComponentBase {
 #ifdef REMOTE_BASE_DUMPER_COUNT
   void warn_extra_secondaries_();
 #endif
-  void call_listeners_dumpers_();
+  void call_listeners_dumpers_() {
+    this->dispatch_(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+  }
+  /// Dispatch a frame held in the receiver's own buffer, without copying it into temp_.
+  void call_listeners_dumpers_(RawTimingsView data) {
+    this->dispatch_(RemoteReceiveData(data, this->tolerance_, this->tolerance_mode_));
+  }
+  /// A vector goes through call_listeners_dumpers_() (temp_), which on_raw passes on without a copy.
+  void call_listeners_dumpers_(const RawTimings &data) = delete;
+  /// Each listener and dumper gets its own copy of src, starting at index 0.
+  void dispatch_(const RemoteReceiveData &src);
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
   StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
