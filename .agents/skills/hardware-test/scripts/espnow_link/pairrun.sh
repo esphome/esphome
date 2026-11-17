@@ -12,9 +12,14 @@ tree() { if [ "$1" = p ]; then echo "${PR_TREE:?set PR_TREE}"; else echo "${BASE
 P1=${PORT_D1:?set PORT_D1}; P2=${PORT_E32:?set PORT_E32}; PY=${PY:-$(tree p)/venv/bin/python}
 TREE=$(tree "$B") bash "$S/pio_build.sh" upload "${X}66$B" "${X}66$B.yaml" "$P1" || exit 1
 TREE=$(tree "$E") bash "$S/pio_build.sh" upload "${X}32$E" "${X}32$E.yaml" "$P2" || exit 1
-$PY "$S/serial_capture.py" "$P1" "$SECS" "$L-d1.log" --reset > /dev/null 2>&1 &
-$PY "$S/serial_capture.py" "$P2" "$SECS" "$L-e32.log" --reset > /dev/null 2>&1 &
-wait
+$PY "$S/serial_capture.py" "$P1" "$SECS" "$L-d1.log" --reset > "$L-d1.err" 2>&1 &
+C1=$!
+$PY "$S/serial_capture.py" "$P2" "$SECS" "$L-e32.log" --reset > "$L-e32.err" 2>&1 &
+C2=$!
+OK=1
+wait $C1 || { echo "capture failed on the D1 mini:"; cat "$L-d1.err"; OK=0; }
+wait $C2 || { echo "capture failed on the ESP32:"; cat "$L-e32.err"; OK=0; }
+[ $OK = 1 ] || exit 1
 for b in e32 d1; do
   F=$L-$b.log
   if [ "$X" = rg ]; then

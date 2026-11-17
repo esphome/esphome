@@ -40,7 +40,7 @@ def parse(path: str) -> dict[str, dict]:
         if line.startswith("CASE "):
             if line[5:] in cases:
                 sys.exit(f"{path}: case {line[5:]!r} appears twice")
-            cur = {"T": [], "REGS": "", "FIFO": ""}
+            cur = {"T": [], "REGS": None, "FIFO": None, "END": False}
             cases[line[5:]] = cur
         elif cur is None:
             continue
@@ -50,8 +50,18 @@ def parse(path: str) -> dict[str, dict]:
             cur["REGS"] = line[4:].strip()
         elif line.startswith("FIFO"):
             cur["FIFO"] = line[4:].strip()
+        elif line == "END":
+            cur["END"] = True
     if not cases:
         sys.exit(f"{path}: no CASE records")
+    if partial := [
+        n
+        for n, c in cases.items()
+        if c["REGS"] is None or c["FIFO"] is None or not c["END"]
+    ]:
+        sys.exit(
+            f"{path}: {len(partial)} cases without REGS, FIFO or END, first {partial[0]!r}"
+        )
     return cases
 
 
