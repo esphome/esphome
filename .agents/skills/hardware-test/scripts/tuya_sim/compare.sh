@@ -2,7 +2,8 @@
 # compare.sh A B: diff two run.sh results (NAME prefixes) in this directory: API states, entity dump block, the
 # re-dump 1 s after init, hub trigger vs entity publish order, and the command frames the simulator received.
 # Timestamps (with or without milliseconds) and line numbers are removed with ../lognorm.py.
-# Exits 1 when an input is missing or empty or a part extracts nothing, so two failed runs never compare as identical.
+# Exits 1 when an input is missing or empty or a part extracts nothing, so two failed runs never compare as identical,
+# and 2 when a part differs.
 cd "$(dirname "$0")" || exit 1; A=${1:?name}; B=${2:?name}; PY=${PY:-python3}
 for f in $A-states.json $A-log.txt $B-states.json $B-log.txt; do
   [ -s "$f" ] || { echo "missing or empty: $f"; exit 1; }
@@ -23,6 +24,6 @@ bad=0
 for k in states ent redump ord rx; do
   if [ ! -s $A-$k.txt ] || [ ! -s $B-$k.txt ]; then echo "$k: EMPTY in $A or $B"; bad=1
   elif diff -q $A-$k.txt $B-$k.txt > /dev/null; then echo "$k: identical ($(wc -l < $A-$k.txt) lines)"
-  else echo "$k: DIFFERS"; fi
+  else echo "$k: DIFFERS"; [ $bad -eq 0 ] && bad=2; fi
 done
 exit $bad

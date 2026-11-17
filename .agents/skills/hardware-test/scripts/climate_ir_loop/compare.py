@@ -52,6 +52,7 @@ def flat(a, b):
                 print("frame", i, "item", j, u, v)
                 bad += 1
     print(f"items {items} over_tol {bad} max_dev_within_tol {mx}")
+    return bad == 0
 
 
 def per_step(a, b):
@@ -86,6 +87,8 @@ def per_step(a, b):
         f"steps {len(a)}/{len(b)} frames_equal {same_f} rx_states_equal {same_s} "
         f"total_frames {sum(len(s['frames']) for s in a)}/{sum(len(s['frames']) for s in b)} max_dev_us {maxdev}"
     )
+    return same_f == len(a) and same_s == len(a)
 
 
-(flat if FLAT else per_step)(load(args[0]), load(args[1]))
+if not (flat if FLAT else per_step)(load(args[0]), load(args[1])):
+    sys.exit(1)

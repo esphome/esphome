@@ -32,3 +32,5 @@ for n, t, i in trigger_blocks(lines):
         bad += 1
         print("MISSING dump after a trigger of", n)
 print(f"{ok + bad} trigger frames, {ok} consistent, {bad} not")
+if bad or not ok:
+    sys.exit(1)

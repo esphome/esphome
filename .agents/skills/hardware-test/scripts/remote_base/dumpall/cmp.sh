@@ -1,6 +1,6 @@
 #!/bin/bash
 # cmp.sh BASE_DEBUG PR_DEBUG BASE_VERBOSE PR_VERBOSE: compare host harness outputs from the first INPUT line on,
-# with colours, timestamps and line numbers removed (../../lognorm.py). Writes db/dp/vb/vp.txt here.
+# with colours, timestamps and line numbers removed (../../lognorm.py). Writes db/dp/vb/vp.txt to the current directory.
 PY=${PY:-python3}; LN=$(cd "$(dirname "$0")/../.." && pwd)/lognorm.py
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 [ $# -eq 4 ] || { echo "usage: cmp.sh BASE_DEBUG PR_DEBUG BASE_VERBOSE PR_VERBOSE"; exit 1; }

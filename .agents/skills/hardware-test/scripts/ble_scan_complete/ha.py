@@ -52,6 +52,7 @@ async def run(a: argparse.Namespace) -> None:
         )
 
     session = 0
+    connected = False
     while time.monotonic() < end:
         session += 1
         stopped, on_stop = stop_event()
@@ -68,6 +69,7 @@ async def run(a: argparse.Namespace) -> None:
             await asyncio.sleep(5)
             continue
         w(f"CONNECTED session={session}")
+        connected = True
         adv = [0]
         macs: set[int] = set()
 
@@ -119,6 +121,8 @@ async def run(a: argparse.Namespace) -> None:
         unsub_state()
         await c.disconnect()
     w("DONE")
+    if not connected:
+        sys.exit("no API connection during the whole soak")
 
 
 if __name__ == "__main__":

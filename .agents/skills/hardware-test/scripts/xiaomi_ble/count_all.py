@@ -13,6 +13,7 @@ exp = json.loads(
 )
 PUB = re.compile(r"PUB (\S+) (\S+)")
 results = {}
+failed = False
 for cap in sys.argv[1:]:
     vals = collections.defaultdict(list)
     for line in Path(cap).read_text(encoding="utf-8", errors="replace").splitlines():
@@ -27,6 +28,7 @@ for cap in sys.argv[1:]:
         bad += not ok
         dig = hashlib.sha1(" ".join(vals.get(ent, [])).encode()).hexdigest()[:8]
         print(f"  {ent:26} want {want!s:>3} got {got:3} {dig} {'ok' if ok else 'DIFF'}")
+    failed |= bad > 0
     print(
         f"  total publishes {sum(len(v) for v in vals.values())}, entities with a mismatch: {bad}"
     )
@@ -34,3 +36,6 @@ if len(results) > 1:
     caps = list(results)
     same = all(results[c] == results[caps[0]] for c in caps[1:])
     print("values identical across captures:", same)
+    failed |= not same
+if failed:
+    sys.exit(1)
