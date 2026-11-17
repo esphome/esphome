@@ -74,7 +74,7 @@ static uint8_t IRAM_ATTR terminate_until_acked(uint8_t link_id, uint8_t acked) {
 // Recheck on every ESP-IDF bump: add the new build once both functions are confirmed unchanged, or drop the patch once
 // espressif/esp-idf#19189 is fixed.
 static const char *const TERMINATE_PATCH_CONTROLLER_BUILDS[] = {
-    "51d9dfd",  // ESP-IDF 5.5.5-5.5.6, Arduino 3.3.10-3.3.12
+    "51d9dfd",  // ESP-IDF 5.5.5-5.5.6, Arduino 3.3.10-3.3.13
     "b7de11e",  // ESP-IDF 5.5.4, Arduino 3.3.8-3.3.9: both functions identical to 51d9dfd's
 };
 

@@ -1181,14 +1181,15 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 12),
-    "latest": cv.Version(3, 3, 12),
-    "dev": cv.Version(3, 3, 12),
+    "recommended": cv.Version(3, 3, 13),
+    "latest": cv.Version(3, 3, 13),
+    "dev": cv.Version(3, 3, 13),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 13): cv.Version(55, 3, 313),
     cv.Version(3, 3, 12): cv.Version(55, 3, 312),
     cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
@@ -1214,6 +1215,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 13): cv.Version(5, 5, 6),
     cv.Version(3, 3, 12): cv.Version(5, 5, 6),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
@@ -1250,7 +1252,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(5, 5, 6): cv.Version(55, 3, 312),
+    cv.Version(5, 5, 6): cv.Version(55, 3, 313),
     cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
@@ -1272,8 +1274,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 312),
-    "latest": cv.Version(55, 3, 312),
+    "recommended": cv.Version(55, 3, 313),
+    "latest": cv.Version(55, 3, 313),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
