@@ -167,6 +167,11 @@ inline std::string tokens() {
         break;
       case 4:
       case 6: {
+        if (i + 2 >= ln) {  // byte record cut off by a full log
+          s += "? ";
+          i = ln;
+          break;
+        }
         uint8_t b = lg[i + 1], a = lg[i + 2];
         snprintf(t, sizeof t, lg[i] == 6 ? "r%02X%c " : "%02X%c ", b, a ? '+' : '-');
         i += 2;
