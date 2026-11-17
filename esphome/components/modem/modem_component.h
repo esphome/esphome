@@ -310,9 +310,10 @@ class ModemComponent : public Component {
   uint8_t poll_mode_{NETWORK_MODE_NONE};  // raw AT+CNSMOD answer
 #endif
   bool connect_timeout_armed_{false};
-  bool modem_synced_{false};  // a modem that never answered has nothing to tear down
-  bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
-  bool resync_{false};        // a command timed out, so CONNECTING syncs again first
+  bool modem_synced_{false};    // a modem that never answered has nothing to tear down
+  bool verbose_errors_{false};  // AT+CMEE=2 accepted, so a bare ERROR means a command is not supported
+  bool answered_{false};        // the modem synced since boot, so its wiring and power are fine
+  bool resync_{false};          // a command timed out, so CONNECTING syncs again first
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif

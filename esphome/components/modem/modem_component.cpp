@@ -788,7 +788,10 @@ ModemState ModemComponent::handle_state_enabling_() {
     ESP_LOGW(TAG, "Failed to disable command echo");
   }
   // Verbose +CME ERROR text, so a failed command or a missing SIM says why; a modem without it keeps plain ERROR
-  this->dce_->config_mobile_termination_error(2);
+  this->verbose_errors_ = this->dce_->config_mobile_termination_error(2) == command_result::OK;
+  if (!this->verbose_errors_) {
+    ESP_LOGW(TAG, "Modem refused verbose errors (AT+CMEE=2)");
+  }
 
   int radio_state = 0;
   if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
@@ -912,6 +915,7 @@ ModemState ModemComponent::handle_state_connecting_() {
   if (!attached) {
     const int registration = this->read_registration_();
     if (this->resync_) {
+      ESP_LOGW(TAG, "No answer to the registration queries");
       this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
@@ -1130,7 +1134,8 @@ int ModemComponent::read_registration_() {
   if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
     return REGISTRATION_DENIED;
   }
-  if (lte_unsupported && legacy_unsupported) {
+  // Without verbose errors a temporary failure is a bare ERROR too, so it proves nothing
+  if (this->verbose_errors_ && lte_unsupported && legacy_unsupported) {
     return REGISTRATION_UNSUPPORTED;
   }
   if (lte_read == command_result::TIMEOUT && legacy_read == command_result::TIMEOUT) {
