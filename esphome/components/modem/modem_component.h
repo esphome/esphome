@@ -211,6 +211,7 @@ class ModemComponent : public Component {
   bool flush_cmux_();
   void request_resync_();
   int read_registration_();
+  bool unsupported_reply_(esp_modem::command_result result) const;
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
   void dump_connect_params_();
@@ -303,8 +304,9 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
-  uint8_t idle_polls_{0};  // polls in a row that reported "not searching"
-  uint8_t sim_polls_{0};   // failed SIM status reads in this attempt
+  uint8_t idle_polls_{0};     // polls in a row that reported "not searching"
+  uint8_t unknown_polls_{0};  // polls in a row with no usable registration state
+  uint8_t sim_polls_{0};      // failed SIM status reads in this attempt
 #ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
   uint8_t poll_ber_{CSQ_UNKNOWN};

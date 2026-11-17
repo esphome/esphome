@@ -15,8 +15,10 @@
 #include <esp_netif_ppp.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cinttypes>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <strings.h>
@@ -66,6 +68,7 @@ static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
 // The attachment is polled every 4 s; the signal and operator queries only every 4th poll
 static constexpr uint32_t ATTACH_POLL_MS = 4000;
 static constexpr uint8_t ATTACH_DIAG_EVERY = 4;
+static constexpr uint8_t ATTACH_UNKNOWN_POLLS = 15;  // about a minute of polls
 // AT+CGATT=1 once registered; SIMCom documents up to 75 s
 static constexpr uint32_t ATTACH_TIMEOUT_MS = 75000;
 // AT+CEREG? <stat> values
@@ -165,10 +168,50 @@ static command_result reply_result(const char *data, size_t len, bool skip_first
   return command_result::TIMEOUT;
 }
 
-// The PIN must never reach the log
-static bool is_secret_command(const char *cmd) { return strncasecmp(cmd, "AT+CPIN=", 8) == 0; }
-static const char *loggable_command(const char *cmd) {
-  return is_secret_command(cmd) ? LOG_STR_LITERAL("AT+CPIN=<hidden>") : cmd;
+// Commands whose arguments are PINs or passwords, which must never reach the log
+static constexpr const char *const SECRET_COMMANDS[] = {"+CPIN=", "+CPIN2=", "+CLCK=", "+CPWD="};
+static constexpr size_t LOGGABLE_COMMAND_SIZE = 32;
+
+// Offset just past the '=' of the first secret command in text, in any case, or 0 when there is none
+static size_t find_secret_args(const char *text, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (text[i] != '+') {
+      continue;
+    }
+    for (const char *secret : SECRET_COMMANDS) {
+      const size_t size = strlen(secret);
+      if (len - i >= size && strncasecmp(text + i, secret, size) == 0) {
+        return i + size;
+      }
+    }
+  }
+  return 0;
+}
+
+// The command with the arguments of a secret command hidden
+static const char *loggable_command(const char *cmd, char (&buf)[LOGGABLE_COMMAND_SIZE]) {
+  const size_t args = find_secret_args(cmd, strlen(cmd));
+  if (args == 0) {
+    return cmd;
+  }
+  snprintf(buf, sizeof(buf), "%.*s<hidden>", static_cast<int>(args), cmd);
+  return buf;
+}
+
+// Drops the arguments of every secret command a modem with echo on sent back in a flattened reply
+static void hide_secret_args(std::string &reply) {
+  size_t from = 0;
+  while (const size_t args = find_secret_args(reply.data() + from, reply.size() - from)) {
+    const size_t start = from + args;
+    size_t end = start;
+    bool quoted = false;
+    while (end < reply.size() && (quoted || reply[end] != ' ')) {
+      quoted ^= reply[end] == '"';
+      end++;
+    }
+    reply.erase(start, end - start);
+    from = start;
+  }
 }
 
 // Puts a raw reply on one line for the log and drops the final OK
@@ -932,6 +975,7 @@ ModemState ModemComponent::handle_state_connecting_() {
     this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;
     this->attach_polls_ = 0;
     this->idle_polls_ = 0;
+    this->unknown_polls_ = 0;
   }
 
   int attached = 0;
@@ -953,8 +997,19 @@ ModemState ModemComponent::handle_state_connecting_() {
     // any other or unreadable state starts the count again.
     this->idle_polls_ = registration == REGISTRATION_NOT_SEARCHING ? static_cast<uint8_t>(this->idle_polls_ + 1) : 0;
     const bool idle = this->idle_polls_ >= ATTACH_DIAG_EVERY;
+    // A state that cannot be read or means nothing here holds the request back only for a while
+    const bool unknown = !is_registered(registration) && registration != REGISTRATION_SEARCHING &&
+                         registration != REGISTRATION_DENIED && registration != REGISTRATION_NOT_SEARCHING &&
+                         registration != REGISTRATION_UNSUPPORTED;
+    this->unknown_polls_ = unknown ? static_cast<uint8_t>(this->unknown_polls_ + 1) : 0;
+    const bool unknown_too_long = this->unknown_polls_ >= ATTACH_UNKNOWN_POLLS;
     if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON &&
-        (is_registered(registration) || registration == REGISTRATION_UNSUPPORTED || idle)) {
+        (is_registered(registration) || registration == REGISTRATION_UNSUPPORTED || idle || unknown_too_long)) {
+      if (unknown_too_long) {
+        ESP_LOGI(TAG, "Registration state %d (%s) for %u polls; requesting the network attachment anyway", registration,
+                 LOG_STR_ARG(registration_to_str(registration)), this->unknown_polls_);
+        this->unknown_polls_ = 0;
+      }
       // Before registration some modems hold the AT channel for minutes on this (SIM7080G: up to 141 s) and
       // drop every command meanwhile; LTE attaches with the registration anyway
       const command_result attach = this->at_reply_("AT+CGATT=1", ATTACH_TIMEOUT_MS);
@@ -975,6 +1030,10 @@ ModemState ModemComponent::handle_state_connecting_() {
       this->dce_->get_network_system_mode(mode);
       ESP_LOGW(TAG, "Modem not attached yet: registration %d (%s), network type %d, CSQ %d, BER %d", registration,
                LOG_STR_ARG(registration_to_str(registration)), mode, rssi, ber);
+      if (unknown) {
+        ESP_LOGW(TAG, "Network attachment request held back while the registration state is unknown (%u of %u polls)",
+                 this->unknown_polls_, ATTACH_UNKNOWN_POLLS);
+      }
       if (registration == REGISTRATION_DENIED) {
         // The modem's reason tells a rejected APN (ESM failure) from a SIM the network does not serve
         const command_result reason_read = this->at_reply_("AT+CEER");
@@ -1150,15 +1209,14 @@ int ModemComponent::read_registration_() {
   if (is_registered(lte)) {
     return lte;
   }
-  const bool lte_unsupported = lte_read == command_result::FAIL && this->reply_.find("+CME ERROR") == std::string::npos;
+  const bool lte_unsupported = this->unsupported_reply_(lte_read);
   const command_result legacy_read = this->at_reply_("AT+CREG?");
   const int legacy =
       legacy_read == command_result::OK ? registration_from_reply(this->reply_, "+CREG:") : REGISTRATION_UNKNOWN;
   if (legacy == REGISTRATION_UNKNOWN && legacy_read != command_result::TIMEOUT) {
     ESP_LOGD(TAG, "AT+CREG? gave no state: %s", this->reply_.c_str());
   }
-  const bool legacy_unsupported =
-      legacy_read == command_result::FAIL && this->reply_.find("+CME ERROR") == std::string::npos;
+  const bool legacy_unsupported = this->unsupported_reply_(legacy_read);
   // A multimode modem can be registered or still searching on one network type while the other refuses it
   if (is_registered(legacy)) {
     return legacy;
@@ -1174,11 +1232,27 @@ int ModemComponent::read_registration_() {
   if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
     return REGISTRATION_DENIED;
   }
-  // Without verbose errors a temporary failure is a bare ERROR too, so it proves nothing
-  if (this->verbose_errors_ && lte_unsupported && legacy_unsupported) {
+  if (lte_unsupported && legacy_unsupported) {
     return REGISTRATION_UNSUPPORTED;
   }
   return lte != REGISTRATION_UNKNOWN ? lte : legacy;
+}
+
+// Whether a failed query says the command is not supported. Without verbose errors a temporary failure is a bare
+// ERROR too, so only an error that names it (+CME ERROR: 4) counts then.
+bool ModemComponent::unsupported_reply_(command_result result) const {
+  if (result != command_result::FAIL) {
+    return false;
+  }
+  const size_t error = this->reply_.find("+CME ERROR:");
+  if (error == std::string::npos) {
+    return this->verbose_errors_;
+  }
+  const char *code = this->reply_.c_str() + error + 11;
+  while (*code == ' ') {
+    code++;
+  }
+  return strncasecmp(code, "operation not supported", 23) == 0 || (code[0] == '4' && !isdigit(code[1]));
 }
 
 void ModemComponent::not_responding_(int baud) {
@@ -1207,12 +1281,13 @@ void ModemComponent::sim_not_ready_(const char *reason) {
 bool ModemComponent::send_at(const std::string &cmd, uint32_t timeout) { return this->send_at(cmd.c_str(), timeout); }
 
 bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
+  char buf[LOGGABLE_COMMAND_SIZE];
   if (!this->task_.is_created()) {
-    ESP_LOGW(TAG, "Modem not ready, cannot send AT command: %s", loggable_command(cmd));
+    ESP_LOGW(TAG, "Modem not ready, cannot send AT command: %s", loggable_command(cmd, buf));
     return false;
   }
   if (this->at_pending_.load(std::memory_order_acquire)) {
-    ESP_LOGW(TAG, "AT command '%s' dropped; the previous one is not sent yet", loggable_command(cmd));
+    ESP_LOGW(TAG, "AT command '%s' dropped; the previous one is not sent yet", loggable_command(cmd, buf));
     return false;
   }
   const size_t len = strlen(cmd);
@@ -1265,17 +1340,13 @@ command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
 
 command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
   const command_result result = this->at_reply_(cmd, timeout);
-  // A modem with echo on sends the command back, PIN included, so its line is dropped from the reply
-  if (is_secret_command(cmd)) {
-    const size_t echo = this->reply_.find("+CPIN=");
-    if (echo != std::string::npos) {
-      this->reply_.erase(echo, this->reply_.find(' ', echo) - echo);
-    }
-  }
+  hide_secret_args(this->reply_);
+  char buf[LOGGABLE_COMMAND_SIZE];
   if (result == command_result::OK) {
-    ESP_LOGI(TAG, "AT '%s' -> OK: %s", loggable_command(cmd), this->reply_.c_str());
+    ESP_LOGI(TAG, "AT '%s' -> OK: %s", loggable_command(cmd, buf), this->reply_.c_str());
   } else {
-    ESP_LOGW(TAG, "AT '%s' -> %s: %s", loggable_command(cmd), LOG_STR_ARG(result_to_str(result)), this->reply_.c_str());
+    ESP_LOGW(TAG, "AT '%s' -> %s: %s", loggable_command(cmd, buf), LOG_STR_ARG(result_to_str(result)),
+             this->reply_.c_str());
   }
   return result;
 }
