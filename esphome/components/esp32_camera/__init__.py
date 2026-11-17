@@ -96,7 +96,6 @@ FRAME_SIZES = {
     "2560X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
     "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
-
 ESP32CameraPixelFormat = esp32_camera_ns.enum("ESP32CameraPixelFormat")
 PIXEL_FORMATS = ESP32CameraPixelFormat.options(
     "RGB565",
