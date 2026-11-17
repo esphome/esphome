@@ -12,6 +12,7 @@ namespace esphome::esp32_can {
 enum CanMode : uint8_t {
   CAN_MODE_NORMAL = 0,
   CAN_MODE_LISTEN_ONLY = 1,
+  CAN_MODE_NO_ACK = 2,
 };
 
 class ESP32Can final : public canbus::Canbus {
@@ -24,16 +25,21 @@ class ESP32Can final : public canbus::Canbus {
   void set_tx_enqueue_timeout_ms(uint32_t tx_enqueue_timeout_ms) {
     this->tx_enqueue_timeout_ticks_ = pdMS_TO_TICKS(tx_enqueue_timeout_ms);
   }
-  ESP32Can(){};
+  canbus::CanStatus get_status() override;
+  ESP32Can() {};
 
  protected:
   bool setup_internal() override;
+  canbus::CanEventFlags get_events() override;
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
+  void handle_bus_off_recovery_();
 
   int rx_{-1};
   int tx_{-1};
   CanMode mode_{CAN_MODE_NORMAL};
+  bool recovery_pending_{false};
+  bool restart_pending_{false};
   TickType_t tx_enqueue_timeout_ticks_{};
   optional<uint32_t> tx_queue_len_{};
   optional<uint32_t> rx_queue_len_{};

@@ -1,0 +1,4 @@
+packages:
+  tcp_uart: !include common.yaml
+
+wifi: !remove

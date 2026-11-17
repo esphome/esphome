@@ -112,6 +112,10 @@ class ESP32BLE final : public Component {
   void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
   float get_setup_priority() const override;
   void set_name(const char *name) { this->name_ = name; }
+  // BLE device names are limited to 20 characters
+  static constexpr size_t DEVICE_NAME_BUFFER_SIZE = 21;
+  /// The device name; written to `buffer` unless the configured name is used as is.
+  const char *device_name(char *buffer) const;
 
 #ifdef USE_ESP32_BLE_ADVERTISING
   /** Request advertising on behalf of a component.
@@ -131,6 +135,9 @@ class ESP32BLE final : public Component {
   void advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name);
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
+  /// Keep `uuid` and the service data alone in the advertising packet; applies on the next refresh.
+  void advertising_set_priority_uuid(ESPBTUUID uuid);
+  void advertising_clear_priority_uuid();
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 #endif
 
@@ -174,6 +181,9 @@ class ESP32BLE final : public Component {
   // Other non-ACTIVE states (e.g. OFF, DISABLED) are currently treated as no-ops.
   void __attribute__((noinline)) loop_handle_state_transition_not_active_();
 
+  uint8_t *conn_param_failed_slot_(const uint8_t *bda);
+  void forget_conn_param_failure_(const uint8_t *bda);
+
   bool ble_setup_();
   bool ble_dismantle_();
   void request_state_(bool enable);
@@ -185,9 +195,18 @@ class ESP32BLE final : public Component {
     }
     this->ble_events_.get_and_reset_dropped_count();
   }
-  bool ble_pre_setup_();
+  ESPHOME_ALWAYS_INLINE void advertising_loop_() {
+#ifdef USE_ESP32_BLE_ADVERTISING
+    if (this->advertising_ != nullptr)
+      this->advertising_->loop();
+#endif
+  }
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
+  void advertising_cancel_start_() {
+    if (this->advertising_ != nullptr)
+      this->advertising_->cancel_start();
+  }
 #endif
 
   // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop
@@ -235,16 +254,18 @@ class ESP32BLE final : public Component {
 #ifdef USE_ESP32_BLE_ADVERTISING
   BLEAdvertising *advertising_{};  // 4 bytes (pointer)
 #endif
-  const char *name_{nullptr};                 // 4 bytes (pointer to string literal in flash)
-  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
-  uint32_t advertising_cycle_time_{};         // 4 bytes
+  const char *name_{nullptr};          // 4 bytes (pointer to string literal in flash)
+  uint32_t advertising_cycle_time_{};  // 4 bytes
 
   // 2-byte aligned members
   uint16_t appearance_{0};  // 2 bytes
 
   // 1-byte aligned members (grouped together to minimize padding)
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};          // 1 byte (uint8_t typedef)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
+  // Peers already warned about a failed conn param update, one per connection; all-zero is free
+  esp_bd_addr_t conn_param_failed_bdas_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
 #ifdef USE_ESP32_BLE_ADVERTISING
   uint8_t advertising_ref_count_{0};  // 1 byte, number of components requesting advertising
 #endif
@@ -259,27 +280,6 @@ class ESP32BLE final : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
-
-template<typename... Ts> class BLEEnabledCondition final : public Condition<Ts...> {
- public:
-  bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
-};
-
-template<typename... Ts> class BLEEnableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override {
-    if (global_ble != nullptr)
-      global_ble->enable();
-  }
-};
-
-template<typename... Ts> class BLEDisableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override {
-    if (global_ble != nullptr)
-      global_ble->disable();
-  }
-};
 
 }  // namespace esphome::esp32_ble
 

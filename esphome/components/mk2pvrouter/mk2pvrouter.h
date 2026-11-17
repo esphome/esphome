@@ -33,7 +33,7 @@ class Mk2PVRouterListener {
 };
 
 // Reads frames via UART, validates their CRC, and publishes tag/value pairs to listeners.
-class Mk2PVRouter final : public Component, public uart::UARTDevice {
+class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
 #ifdef MK2PVROUTER_LISTENER_COUNT
   void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
@@ -57,12 +57,12 @@ class Mk2PVRouter final : public Component, public uart::UARTDevice {
   State state_{State::WAITING_FOR_START};
   char tag_[MAX_TAG_SIZE];
   char val_[MAX_VAL_SIZE];
-  char buf_[MAX_BUF_SIZE];  // Large buffer last to reduce padding
+  uint8_t buf_[MAX_BUF_SIZE];  // Large buffer last to reduce padding
 
   bool read_chars_until_(bool drop, uint8_t c);
-  uint8_t calculate_crc_(const char *grp, size_t grp_len);
-  bool check_crc_(const char *grp, const char *grp_end);
-  void process_group_(const char *grp, const char *grp_end);
+  uint8_t calculate_crc_(const uint8_t *grp, size_t grp_len);
+  bool check_crc_(const uint8_t *grp, const uint8_t *grp_end);
+  void process_group_(const uint8_t *grp, const uint8_t *grp_end);
   void publish_value_(const char *tag, const char *val);
 };
 }  // namespace esphome::mk2pvrouter

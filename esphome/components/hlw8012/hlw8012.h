@@ -24,6 +24,11 @@ enum HLW8012SensorModels {
 #endif
 
 class HLW8012Component final : public PollingComponent {
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(power)
+  SUB_SENSOR(energy)
+
  public:
   HLW8012Component()
       : cf_store_(*pulse_counter::get_storage(USE_PCNT)), cf1_store_(*pulse_counter::get_storage(USE_PCNT)) {}
@@ -42,10 +47,6 @@ class HLW8012Component final : public PollingComponent {
   void set_sel_pin(GPIOPin *sel_pin) { sel_pin_ = sel_pin; }
   void set_cf_pin(InternalGPIOPin *cf_pin) { cf_pin_ = cf_pin; }
   void set_cf1_pin(InternalGPIOPin *cf1_pin) { cf1_pin_ = cf1_pin; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
-  void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
 
  protected:
   uint32_t nth_value_{0};
@@ -61,10 +62,6 @@ class HLW8012Component final : public PollingComponent {
   pulse_counter::PulseCounterStorageBase &cf_store_;
   InternalGPIOPin *cf1_pin_;
   pulse_counter::PulseCounterStorageBase &cf1_store_;
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *energy_sensor_{nullptr};
 
   float voltage_multiplier_{0.0f};
   float current_multiplier_{0.0f};

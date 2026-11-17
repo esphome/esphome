@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -6,6 +7,47 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::core::testing {
+
+// --- truncate_name_to() ---
+
+TEST(TruncateNameTo, NameThatFitsIsCopied) {
+  char buffer[21];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 7), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, NameOfExactlyTheLimitIsCopied) {
+  char buffer[8];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 0), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, CutsTheEndWithoutASuffix) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-here";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 0), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-device-n");
+}
+
+TEST(TruncateNameTo, KeepsTheSuffixAndRemovesTheMiddle) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-d-a1b2c3");
+}
+
+TEST(TruncateNameTo, SuffixLongerThanTheBufferIsCut) {
+  char buffer[5];
+  const char *name = "name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 4u);
+  EXPECT_STREQ(buffer, "b2c3");
+}
+
+TEST(TruncateNameTo, ZeroBufferSize) {
+  char buffer[1] = {'x'};
+  EXPECT_EQ(truncate_name_to(buffer, 0, "name", 4, 0), 0u);
+  EXPECT_EQ(buffer[0], 'x');
+}
 
 // --- format_hex_to() ---
 
@@ -125,6 +167,7 @@ TEST(SmallPow10, Zero) { EXPECT_EQ(small_pow10(0), 1u); }
 TEST(SmallPow10, One) { EXPECT_EQ(small_pow10(1), 10u); }
 TEST(SmallPow10, Two) { EXPECT_EQ(small_pow10(2), 100u); }
 TEST(SmallPow10, Three) { EXPECT_EQ(small_pow10(3), 1000u); }
+TEST(SmallPow10, Four) { EXPECT_EQ(small_pow10(4), 10000u); }
 
 // --- frac_to_str_unchecked() ---
 
@@ -215,6 +258,42 @@ TEST(BufAppendSepStr, Truncation) {
   EXPECT_EQ(end - buf, 7);
 }
 
+// --- buf_append_str_p() ---
+
+TEST(BufAppendStrP, AppendsAndTruncates) {
+  static const char UNIT[] PROGMEM = "days";
+  char buf[8] = "";
+  size_t pos = buf_append_printf(buf, sizeof(buf), 0, "%u", 12u);
+  pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
+  EXPECT_STREQ(buf, "12days");
+  EXPECT_EQ(pos, 6u);
+  pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
+  EXPECT_STREQ(buf, "12daysd");
+  EXPECT_EQ(pos, 7u);
+}
+
+// --- progmem_copy_str() ---
+
+TEST(ProgmemCopyStr, CopiesUpToTheNullOrTheEndAtEveryAlignment) {
+  static constexpr char TEXT[] = "0123456789abcdefghij";
+  constexpr size_t len = sizeof(TEXT) - 1;
+  for (size_t offset = 0; offset < 4; offset++) {
+    // Reads whole aligned words, so the source is a zero padded copy
+    alignas(4) char src[32] = {};
+    memcpy(src + offset, TEXT, sizeof(TEXT));
+    for (size_t room = 0; room <= len + 2; room++) {
+      SCOPED_TRACE(::testing::Message() << "offset " << offset << " room " << room);
+      char dst[32];
+      memset(dst, '#', sizeof(dst));
+      const char *const end = progmem_copy_str(dst, dst + room, src + offset);
+      const size_t copied = std::min(room, len);
+      EXPECT_EQ(end, dst + copied);
+      EXPECT_EQ(memcmp(dst, TEXT, copied), 0);
+      EXPECT_EQ(dst[copied], '#');  // No terminator written
+    }
+  }
+}
+
 // --- base64 encode/decode ---
 
 static const char BASE64_ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -279,6 +358,27 @@ TEST(Base64, Rfc4648Vectors) {
     EXPECT_EQ(len, strlen(v.plain));
     EXPECT_EQ(memcmp(buf, v.plain, len), 0);
   }
+}
+
+TEST(Base64, DecodeTruncatesToBuffer) {
+  uint8_t buf[4];
+  size_t len = base64_decode(std::string("Zm9vYmFy"), buf, sizeof(buf));
+  EXPECT_EQ(len, 4u);
+  EXPECT_EQ(memcmp(buf, "foob", 4), 0);
+}
+
+TEST(Base64, DecodeStopsAtNonAlphabetChar) {
+  uint8_t buf[8];
+  EXPECT_EQ(base64_decode(std::string("Zm9v!Zm9v"), buf, sizeof(buf)), 3u);
+  EXPECT_EQ(memcmp(buf, "foo", 3), 0);
+  EXPECT_EQ(base64_decode(std::string("Zm9v Zm9v"), buf, sizeof(buf)), 3u);
+  EXPECT_EQ(base64_decode(std::string("Zm9v\xC3Zm9v"), buf, sizeof(buf)), 3u);
+}
+
+TEST(Base64, DecodeDropsPartialGroup) {
+  uint8_t buf[8];
+  EXPECT_EQ(base64_decode(std::string("Z"), buf, sizeof(buf)), 0u);
+  EXPECT_EQ(base64_decode(std::string("Zm9vY"), buf, sizeof(buf)), 3u);
 }
 
 // --- step_to_accuracy_decimals() ---
@@ -367,6 +467,36 @@ TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   EXPECT_EQ(v.size(), 1u);
 }
 
+// --- StaticFixedVector ---
+
+namespace {
+struct Counted {
+  static inline int live = 0;
+  int v;
+  explicit Counted(int v) : v(v) { live++; }
+  Counted(const Counted &other) : v(other.v) { live++; }
+  ~Counted() { live--; }
+};
+}  // namespace
+
+TEST(StaticFixedVector, UsesStorageAndDestroysWithoutFreeing) {
+  alignas(Counted) static unsigned char raw[sizeof(Counted) * 2];
+  {
+    StaticFixedVector<Counted> v;
+    v.init(std::span<Counted>(reinterpret_cast<Counted *>(raw), 2));
+    EXPECT_EQ(v.capacity(), 2u);
+    EXPECT_NE(v.emplace_back(1), nullptr);
+    v.push_back(Counted(2));
+    v.push_back(Counted(3));  // beyond capacity, ignored
+    EXPECT_EQ(v.emplace_back(4), nullptr);
+    EXPECT_EQ(v.size(), 2u);
+    EXPECT_EQ(static_cast<void *>(v.begin()), static_cast<void *>(raw));
+    EXPECT_EQ(v[1].v, 2);
+    EXPECT_EQ(Counted::live, 2);
+  }  // a free() of the static array would crash or trip ASan here
+  EXPECT_EQ(Counted::live, 0);
+}
+
 // --- RAMAllocator::make_unique() ---
 
 namespace {
@@ -403,6 +533,17 @@ TEST(RAMAllocatorMakeUnique, ValueInitializesLikeMakeUnique) {
   ASSERT_NE(p, nullptr);
   // Under ASan fresh blocks are filled with 0xbe, so this holds even when the dirtied block is not reused
   EXPECT_TRUE(std::all_of(std::begin(p->words), std::end(p->words), [](uint32_t w) { return w == 0; }));
+}
+
+TEST(PsramBuffer, ZeroedAndRejectsOverflow) {
+  uint32_t *buffer = psram_buffer<uint32_t>(4);
+  ASSERT_NE(buffer, nullptr);
+  for (size_t i = 0; i < 4; i++)
+    EXPECT_EQ(buffer[i], 0u);
+  buffer[3] = 0xFFFFFFFF;  // all four elements are in the allocation
+  RAMAllocator<uint32_t>().deallocate(buffer, 4);
+  EXPECT_EQ(psram_buffer<uint32_t>(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
+  EXPECT_EQ(psram_buffer<uint32_t>(0), nullptr);
 }
 
 TEST(RAMAllocatorMakeUnique, ArrayFormRejectsOverflowAndZero) {

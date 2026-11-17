@@ -2,3 +2,7 @@ climate:
   - platform: toshiba
     name: Toshiba Climate
     transmitter_id: xmitr
+  - platform: toshiba
+    name: RAS-B10N3KV2 Climate
+    model: RAS-B10N3KV2
+    transmitter_id: xmitr

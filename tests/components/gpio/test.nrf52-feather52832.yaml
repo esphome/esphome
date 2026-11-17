@@ -1,0 +1,22 @@
+# Adafruit Feather nRF52832: red and blue LEDs on P0.17 and P0.19, DFU pin on P0.20
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: P0.20
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: gpio_dfu_pin
+    use_interrupt: true
+    interrupt_type: ANY
+
+output:
+  - platform: gpio
+    pin: P0.17
+    id: gpio_red_led
+
+switch:
+  - platform: gpio
+    pin: P0.19
+    id: gpio_blue_led

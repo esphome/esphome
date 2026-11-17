@@ -1,0 +1,12 @@
+# capture, stop_capture and is_capturing on the external microphone.
+button:
+  - platform: template
+    name: Microphone Capture
+    on_press:
+      - if:
+          condition:
+            microphone.is_capturing: mic_id_external
+          then:
+            - microphone.stop_capture: mic_id_external
+          else:
+            - microphone.capture: mic_id_external

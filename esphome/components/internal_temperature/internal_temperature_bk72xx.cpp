@@ -9,7 +9,7 @@ uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
 
 namespace esphome::internal_temperature {
 
-static const char *const TAG = "internal_temperature";
+ESPHOME_LOG_TAG(TAG, "internal_temperature");
 
 void InternalTemperatureSensor::update() {
   float temperature = NAN;

@@ -3,6 +3,7 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -10,12 +11,15 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
+from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@PolarGoose"]
+DOMAIN = "dsmr"
 
 MULTI_CONF = True
 
@@ -85,13 +89,21 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
     cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
-    cg.add_library("esphome/dsmr_parser", "1.9.0")
+    cg.add_library("esphome/dsmr_parser", "1.11.0")
+
+    # On the host the AES-GCM backend comes from the system mbedtls
+    if CORE.is_host:
+        if IS_MACOS:
+            # macOS needs special handling for Homebrew mbedtls
+            cg.add_build_flag("-I/opt/homebrew/opt/mbedtls/include")
+            cg.add_build_flag("-L/opt/homebrew/opt/mbedtls/lib")
+        cg.add_build_flag("-lmbedcrypto")
 
 
 def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
-    for uart_conf in full_config["uart"]:
+    for uart_conf in full_config[UART_DOMAIN]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             rx_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
             if rx_buffer_size < 1500:

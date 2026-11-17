@@ -3,7 +3,13 @@ import esphome.codegen as cg
 # Re-exported for the many esp32-side users; defined in esphome.const
 # and esphome.espidf so the upload/logs fast path can use them without
 # importing this package.
-from esphome.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION, KEY_VARIANT  # noqa: F401  # pylint: disable=unused-import
+from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_EXTRA_TARGETS,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
 
 # Back compat for external components only; in-tree callers import it
 # from esphome.espidf directly.
@@ -20,9 +26,11 @@ KEY_REFRESH = "refresh"
 KEY_PATH = "path"
 KEY_SUBMODULES = "submodules"
 KEY_EXTRA_BUILD_FILES = "extra_build_files"
+KEY_SRC_CMAKE = "src_cmake"
 KEY_CERT_BUNDLE = "cert_bundle"
 KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
 KEY_NETWORK_SDKCONFIG = "network_sdkconfig"
+KEY_MBEDTLS_SDKCONFIG = "mbedtls_sdkconfig"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32C2 = "ESP32C2"

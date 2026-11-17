@@ -5,9 +5,9 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.text_sensor";
+ESPHOME_LOG_TAG(TAG, "homeassistant.text_sensor");
 
-void HomeassistantTextSensor::setup() {
+void HomeassistantTextSensor::subscribe() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
     if (this->attribute_ != nullptr) {
       ESP_LOGD(TAG, "'%s::%s': Got attribute state '%s'", this->entity_id_, this->attribute_, state.c_str());
@@ -24,5 +24,4 @@ void HomeassistantTextSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Attribute: '%s'", this->attribute_);
   }
 }
-float HomeassistantTextSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 }  // namespace esphome::homeassistant

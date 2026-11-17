@@ -5,7 +5,7 @@
 
 namespace esphome::i2c_device {
 
-static const char *const TAG = "i2c_device";
+ESPHOME_LOG_TAG(TAG, "i2c_device");
 
 void I2CDeviceComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "I2CDevice");

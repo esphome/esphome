@@ -8,10 +8,10 @@
 
 #include <strings.h>
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #ifdef USE_ESP32
@@ -29,13 +29,13 @@ std::string progmem_string(ProgmemStr str) {
 }
 #endif
 
-static const char *const TAG = "helpers";
+ESPHOME_LOG_TAG(TAG, "helpers");
 
 __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
                                                             size_t elem_size) {
   ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
   uint16_t new_cap = size + 1;
-  auto *new_data = ::operator new(new_cap *elem_size);
+  auto *new_data = ::operator new(new_cap * elem_size);
   if (data) {
     __builtin_memcpy(new_data, data, size * elem_size);
     ::operator delete(data);
@@ -61,6 +61,15 @@ static const uint16_t CRC16_1021_BE_LUT_L[] = {0x0000, 0x1021, 0x2042, 0x3063, 0
                                                0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef};
 static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0x48c4, 0x5af5, 0x6ca6, 0x7e97,
                                                0x9188, 0x83b9, 0xb5ea, 0xa7db, 0xd94c, 0xcb7d, 0xfd2e, 0xef1f};
+#endif
+
+#if !defined(USE_ESP32) && !defined(USE_LIBRETINY)
+// Nybble-at-a-time CRC-32: 64 bytes of table instead of the usual 1 KiB, at
+// roughly half the byte-table speed. PROGMEM keeps it out of RAM on ESP8266.
+static const uint32_t CRC32_NYBBLE_TABLE[16] PROGMEM = {
+    0x00000000, 0x1DB71064, 0x3B6E20C8, 0x26D930AC, 0x76DC4190, 0x6B6B51F4, 0x4DB26158, 0x5005713C,
+    0xEDB88320, 0xF00F9344, 0xD6D6A3E8, 0xCB61B38C, 0x9B64C2B0, 0x86D3D2D4, 0xA00AE278, 0xBDBDF21C,
+};
 #endif
 
 // Mathematics
@@ -165,6 +174,18 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   return refout ? (crc ^ 0xffff) : crc;
 }
 
+#if !defined(USE_ESP32) && !defined(USE_LIBRETINY)
+uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) {
+  crc = ~crc;
+  while (len--) {
+    crc ^= *data++;
+    crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
+    crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
+  }
+  return ~crc;
+}
+#endif
+
 // FNV-1 hash - deprecated, use fnv1a_hash() for new code
 uint32_t fnv1_hash(const char *str) {
   uint32_t hash = FNV1_OFFSET_BASIS;
@@ -262,7 +283,6 @@ bool str_contains_ignore_case_p(const char *haystack, PGM_P needle) {
 }
 #endif  // USE_ESP8266
 
-// str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
     return buffer;
@@ -274,8 +294,6 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   buffer[i] = '\0';
   return buffer;
 }
-
-// str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
 
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len) {
@@ -297,7 +315,78 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   return total_len;
 }
 
+size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, size_t keep_suffix_len) {
+  if (buffer_size == 0) {
+    return 0;
+  }
+  const size_t max_len = buffer_size - 1;
+  if (name_len <= max_len) {
+    memcpy(buffer, name, name_len);
+    buffer[name_len] = '\0';
+    return name_len;
+  }
+  if (keep_suffix_len > max_len) {
+    keep_suffix_len = max_len;
+  }
+  const size_t head_len = max_len - keep_suffix_len;
+  memcpy(buffer, name, head_len);
+  memcpy(buffer + head_len, name + name_len - keep_suffix_len, keep_suffix_len);
+  buffer[max_len] = '\0';
+  return max_len;
+}
+
 // Parsing & formatting
+
+// A plain decimal converts exactly with one division: the digits accumulate
+// into an integer that stays below 2^24 and the fraction's scale is a power of
+// ten up to 1e9 (2^9 * 5^9), so both convert to float exactly and IEEE division
+// rounds the quotient correctly, the same result strtof produces.
+static constexpr uint32_t PARSE_FLOAT_MANTISSA_LIMIT = 1000000;  // one more digit stays below 2^24
+static constexpr uint32_t PARSE_FLOAT_MAX_FRACTION_DIGITS = 9;
+
+optional<float> parse_float(const char *str) {
+  const char *p = str;
+  const bool negative = *p == '-';
+  if (negative || *p == '+')
+    p++;
+  const char *digits = p;
+  const char *dot = nullptr;
+  uint32_t mantissa = 0;
+  for (;; p++) {
+    const uint32_t d = static_cast<unsigned char>(*p) - '0';
+    if (d > 9) {
+      if (*p == '.' && dot == nullptr) {
+        dot = p;
+        continue;
+      }
+      break;
+    }
+    if (mantissa >= PARSE_FLOAT_MANTISSA_LIMIT)
+      break;
+    mantissa = mantissa * 10 + d;
+  }
+  const uint32_t fraction_digits = dot != nullptr ? p - dot - 1 : 0;
+  const bool any_digit = p - digits > (dot != nullptr ? 1 : 0);
+  if (*p == '\0' && any_digit && fraction_digits <= PARSE_FLOAT_MAX_FRACTION_DIGITS) {
+    // The mantissa is exact in a float, so the sign goes on before the one rounding step
+    float value = static_cast<float>(mantissa);
+    if (negative)
+      value = -value;
+    if (fraction_digits != 0) {
+      uint32_t scale = 10;
+      for (uint32_t i = 1; i < fraction_digits; i++)
+        scale *= 10;
+      value /= static_cast<float>(scale);
+    }
+    return value;
+  }
+  // Exponents, hex, inf, nan, leading whitespace and longer inputs take the libc path.
+  char *end = nullptr;
+  const float value = ::strtof(str, &end);
+  if (end == str || *end != '\0' || value == HUGE_VALF)
+    return {};
+  return value;
+}
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   size_t chars = std::min(length, 2 * count);
@@ -309,8 +398,6 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   }
   return chars;
 }
-
-// format_mac_address_pretty moved to alloc_helpers.cpp
 
 // Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
 // When separator is set, it is written unconditionally after each byte and the last
@@ -429,8 +516,6 @@ const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool s
   return buf.data();
 }
 
-// format_hex (std::string returning overloads) moved to alloc_helpers.cpp
-
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
 }
@@ -466,8 +551,6 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *dat
   return buffer;
 }
 
-// format_hex_pretty (all std::string returning overloads) moved to alloc_helpers.cpp
-
 char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
   if (buffer_size == 0) {
     return buffer;
@@ -488,8 +571,6 @@ char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   buffer[bytes_to_format * 8] = '\0';
   return buffer;
 }
-
-// format_bin moved to alloc_helpers.cpp
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("on")) == 0)
@@ -538,9 +619,7 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
   }
 }
 
-// value_accuracy_to_string moved to alloc_helpers.cpp
-
-// Fast float-to-string for accuracy_decimals 0-3 (covers virtually all sensor usage).
+// Fast float-to-string for accuracy_decimals 0-4 (covers sensors and small PID coefficients).
 // Avoids snprintf("%.*f") which pulls in heavy float formatting machinery.
 // Caller must guarantee value is finite and |value| * mult fits in uint32_t.
 static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy_decimals, uint32_t mult) {
@@ -567,9 +646,9 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
 
-  // Fast path for accuracy 0-3, finite values whose scaled magnitude fits in uint32_t.
-  // For 3 decimals that's |value| < ~4.29e6; larger totals fall through to snprintf.
-  if (accuracy_decimals <= 3 && std::isfinite(value)) {
+  // Fast path for accuracy 0-4, finite values whose scaled magnitude fits in uint32_t.
+  // For 4 decimals that's |value| < ~4.29e5; larger totals fall through to snprintf.
+  if (accuracy_decimals <= 4 && std::isfinite(value)) {
     const uint32_t mult = small_pow10(accuracy_decimals);
     if (std::fabs(value) < static_cast<float>(UINT32_MAX) / mult) {
       return value_accuracy_to_buf_fast(buf.data(), value, accuracy_decimals, mult);
@@ -621,15 +700,11 @@ int8_t step_to_accuracy_decimals(float step) {
   return decimals;
 }
 
-// Map a base64/base64url character to its 6-bit value (0-63) arithmetically.
-// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
-// Supports both standard base64 (+/) and base64url (-_) alphabets.
-// NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
-// This is safe because is_base64() is ALWAYS checked before calling this function,
-// preventing invalid characters from ever reaching here. The base64_decode function
-// stops processing at the first invalid character due to the is_base64() check in its
-// while loop condition, making this edge case harmless in practice.
-static inline uint8_t base64_find_char(char c) {
+static constexpr uint8_t INVALID_BASE64_CHAR = 0xFF;
+
+// 6-bit value of a base64 or base64url char, or INVALID_BASE64_CHAR.
+// No lookup table: .rodata lives in DRAM on ESP8266.
+static constexpr uint8_t base64_char_value(uint8_t c) {
   if (c >= 'A' && c <= 'Z')
     return c - 'A';
   if (c >= 'a' && c <= 'z')
@@ -641,74 +716,35 @@ static inline uint8_t base64_find_char(char c) {
     return 62;
   if (c == '/' || c == '_')
     return 63;
-  return 0;
+  return INVALID_BASE64_CHAR;
 }
-
-// Check if character is valid base64 or base64url
-static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
-
-// base64_encode (both overloads) moved to alloc_helpers.cpp
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
-// Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
-static inline bool base64_decode_quad(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
-  for (int i = 0; i < 4; i++)
-    char_array_4[i] = base64_find_char(char_array_4[i]);
-
-  uint8_t char_array_3[3];
-  char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-  char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-  char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-  bool truncated = false;
-  for (int j = 0; j < count; j++) {
-    if (out < buf_len) {
-      buf[out++] = char_array_3[j];
-    } else {
-      truncated = true;
-    }
-  }
-  return truncated;
-}
-
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
-  size_t in_len = encoded_len;
-  int i = 0;
-  size_t in = 0;
   size_t out = 0;
-  uint8_t char_array_4[4];
-  bool truncated = false;
-
-  // SAFETY: The loop condition checks is_base64() before processing each character.
-  // This ensures base64_find_char() is only called on valid base64 characters,
-  // preventing the edge case where invalid chars would return 0 (same as 'A').
-  while (in_len-- && (encoded_data[in] != '=') && is_base64(encoded_data[in])) {
-    char_array_4[i++] = encoded_data[in];
-    in++;
-    if (i == 4) {
-      truncated |= base64_decode_quad(char_array_4, 3, buf, buf_len, out);
-      i = 0;
+  uint32_t accum = 0;
+  uint32_t bits = 0;
+  // Stops at '=' or any non-alphabet char; leftover bits of a partial group are dropped.
+  for (size_t in = 0; in < encoded_len; in++) {
+    uint8_t value = base64_char_value(encoded_data[in]);
+    if (value == INVALID_BASE64_CHAR)
+      break;
+    accum = (accum << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      if (out == buf_len) {
+        ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+        return out;
+      }
+      buf[out++] = static_cast<uint8_t>(accum >> bits);
     }
   }
-
-  if (i) {
-    for (int j = i; j < 4; j++)
-      char_array_4[j] = 0;
-
-    truncated |= base64_decode_quad(char_array_4, i - 1, buf, buf_len, out);
-  }
-
-  if (truncated) {
-    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
-  }
-
   return out;
 }
-
-// base64_decode (vector-returning overload) moved to alloc_helpers.cpp
 
 /// Decode base64/base64url string directly into vector of little-endian int32 values
 /// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
@@ -767,11 +803,7 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
     hue = int(fmodf((60.0f * ((red - green) / delta)) + 240.0f, 360.0f));
   }
 
-  if (max_color_value == 0) {
-    saturation = 0;
-  } else {
-    saturation = delta / max_color_value;
-  }
+  saturation = max_color_value == 0 ? 0 : delta / max_color_value;
 
   value = max_color_value;
 }
@@ -829,8 +861,6 @@ void HighFrequencyLoopRequester::stop() {
   num_requests--;
   this->started_ = false;
 }
-
-// get_mac_address, get_mac_address_pretty moved to alloc_helpers.cpp
 
 void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
   uint8_t mac[MAC_ADDRESS_SIZE];

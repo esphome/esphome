@@ -25,19 +25,17 @@ CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 # allow benchmarks to compile on the host platform.
 STUBS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "stubs"
 
-PLATFORMIO_OPTIONS = {
-    "build_flags": [
-        "-Os",  # match firmware optimization level (detects inlining regressions)
-        "-g",  # debug symbols for profiling
-        "-ffunction-sections",  # required for dead-code stripping with -Os
-        "-fdata-sections",  # required for dead-code stripping with -Os
-        "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
-        f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
-    ],
-    # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
-    # library dependency from nested includes.
-    "lib_ldf_mode": "deep+",
-}
+HELPERS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "helpers"
+
+BUILD_FLAGS = [
+    "-Os",  # match firmware optimization level (detects inlining regressions)
+    "-g",  # debug symbols for profiling
+    "-ffunction-sections",  # required for dead-code stripping with -Os
+    "-fdata-sections",  # required for dead-code stripping with -Os
+    "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
+    f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
+    f"-I{HELPERS_DIR}",  # shared test doubles such as fake_uart.h
+]
 
 
 def run_benchmarks(selected_components: list[str], build_only: bool = False) -> int:
@@ -46,7 +44,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     # containing {"lib_path": "/path/to/google_benchmark"}.
     lib_config_json = os.environ.get("BENCHMARK_LIB_CONFIG")
 
-    pio_options = PLATFORMIO_OPTIONS
+    build_flags = BUILD_FLAGS
     if lib_config_json:
         lib_config = json.loads(lib_config_json)
         benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
@@ -61,10 +59,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
             "-DCODSPEED_ANALYSIS",
             f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
         ]
-        pio_options = {
-            **PLATFORMIO_OPTIONS,
-            "build_flags": PLATFORMIO_OPTIONS["build_flags"] + codspeed_flags,
-        }
+        build_flags = BUILD_FLAGS + codspeed_flags
     else:
         benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
 
@@ -77,7 +72,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         config_prefix="cppbench",
         friendly_name="CPP Benchmarks",
         libraries=benchmark_lib,
-        platformio_options=pio_options,
+        build_flags=build_flags,
         main_entry="main.cpp",
         label="benchmarks",
         build_only=build_only,

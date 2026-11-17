@@ -26,9 +26,9 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
+
+CONF_AUTOMATIC_SELF_CALIBRATION_TARGET = "automatic_self_calibration_target"
 
 CODEOWNERS = ["@sjtrny", "@martgras"]
 DEPENDENCIES = ["i2c"]
@@ -39,21 +39,35 @@ SCD4XComponent = scd4x_ns.class_(
     "SCD4XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 MeasurementMode = scd4x_ns.enum("MEASUREMENT_MODE")
-MEASUREMENT_MODE_OPTIONS = {
-    "periodic": MeasurementMode.PERIODIC,
-    "low_power_periodic": MeasurementMode.LOW_POWER_PERIODIC,
-    "single_shot": MeasurementMode.SINGLE_SHOT,
-    "single_shot_rht_only": MeasurementMode.SINGLE_SHOT_RHT_ONLY,
-}
-
-
-# Actions
-PerformForcedCalibrationAction = scd4x_ns.class_(
-    "PerformForcedCalibrationAction", automation.Action
+MEASUREMENT_MODE_OPTIONS = MeasurementMode.options(
+    "periodic", "low_power_periodic", "single_shot", "single_shot_rht_only"
 )
-FactoryResetAction = scd4x_ns.class_("FactoryResetAction", automation.Action)
 
-CONFIG_SCHEMA = (
+
+def pressure_hpa(value: str | float) -> float:
+    """Pressure in hPa. A bare number is hPa, matching what the C++ sends to the sensor."""
+    try:
+        return cv.float_(value)
+    except cv.Invalid:
+        pass
+    return cv.pressure(value) * 1000  # bar, mbar, mBar
+
+
+def validate_asc_target(config: ConfigType) -> ConfigType:
+    """The target only applies while automatic self calibration runs."""
+    if (
+        CONF_AUTOMATIC_SELF_CALIBRATION_TARGET in config
+        and not config[CONF_AUTOMATIC_SELF_CALIBRATION]
+    ):
+        raise cv.Invalid(
+            f"{CONF_AUTOMATIC_SELF_CALIBRATION_TARGET} requires "
+            f"{CONF_AUTOMATIC_SELF_CALIBRATION}: true",
+            path=[CONF_AUTOMATIC_SELF_CALIBRATION_TARGET],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SCD4XComponent),
@@ -79,11 +93,16 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
+            cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION_TARGET): cv.int_range(
+                min=400, max=1000
+            ),
             cv.Optional(CONF_ALTITUDE_COMPENSATION, default="0m"): cv.All(
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.All(
+                pressure_hpa, cv.Any(cv.float_range(min=700, max=1200), 0)
+            ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
@@ -94,7 +113,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x62))
+    .extend(i2c.i2c_device_schema(0x62)),
+    validate_asc_target,
 )
 
 SENSOR_MAP = {
@@ -105,6 +125,7 @@ SENSOR_MAP = {
 
 SETTING_MAP = {
     CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibration",
+    CONF_AUTOMATIC_SELF_CALIBRATION_TARGET: "set_automatic_self_calibration_target",
     CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
     CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
     CONF_TEMPERATURE_OFFSET: "set_temperature_offset",
@@ -112,9 +133,7 @@ SETTING_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     for key, funcName in SETTING_MAP.items():
         if key in config:
@@ -125,9 +144,10 @@ async def to_code(config: ConfigType) -> None:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
-        cg.add(var.set_ambient_pressure_source(sens))
+    await cg.add_variable(
+        var.set_ambient_pressure_source_sensor,
+        config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+    )
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 
@@ -140,23 +160,11 @@ SCD4X_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "scd4x.perform_forced_calibration",
-    PerformForcedCalibrationAction,
     SCD4X_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "perform_forced_calibration", cg.uint16),
 )
-async def scd4x_frc_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template_))
-    return var
 
 
 SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
@@ -166,18 +174,8 @@ SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "scd4x.factory_reset",
-    FactoryResetAction,
     SCD4X_RESET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("factory_reset()"),
 )
-async def scd4x_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

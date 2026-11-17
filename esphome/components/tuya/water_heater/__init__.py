@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SUPPORTED_MODES, CONF_SWITCH_DATAPOINT
 from esphome.types import ConfigType
 
-from .. import CONF_TUYA_ID, Tuya, tuya_ns
+from .. import CONF_TUYA_ID, Tuya, register_tuya_child, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@iago-veiga"]
@@ -35,9 +35,7 @@ MODE_VALUES = {
     CONF_GAS_VALUE: "set_gas_value",
 }
 
-TuyaWaterHeater = tuya_ns.class_(
-    "TuyaWaterHeater", water_heater.WaterHeater, cg.Component
-)
+TuyaWaterHeater = tuya_ns.class_("TuyaWaterHeater", water_heater.WaterHeater)
 
 
 def _validate(config: ConfigType) -> ConfigType:
@@ -55,8 +53,7 @@ def _validate(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    water_heater.water_heater_schema(TuyaWaterHeater)
-    .extend(
+    water_heater.water_heater_schema(TuyaWaterHeater).extend(
         {
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Required(CONF_SWITCH_DATAPOINT): cv.uint8_t,
@@ -79,18 +76,15 @@ CONFIG_SCHEMA = cv.All(
                 water_heater.validate_water_heater_mode
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA),
+    ),
     _validate,
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = await water_heater.new_water_heater(config)
-    await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    hub = await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
 
@@ -116,5 +110,5 @@ async def to_code(config: ConfigType) -> None:
             if (value := config.get(key)) is not None:
                 cg.add(getattr(var, setter)(value))
 
-    if (supported_modes := config.get(CONF_SUPPORTED_MODES)) is not None:
-        cg.add(var.set_supported_modes(supported_modes))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
+    register_tuya_child(hub, var)

@@ -1,0 +1,1 @@
+DOMAIN = "sht4x"

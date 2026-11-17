@@ -10,8 +10,7 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver";
-static constexpr uint32_t DEFAULT_BUFFER_SLOTS = 4;
+ESPHOME_LOG_TAG(TAG, "remote_receiver");
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
   RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;
@@ -107,12 +106,6 @@ void RemoteReceiverComponent::setup() {
   this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
   this->store_.filter_symbols = this->filter_symbols_;
   this->store_.receive_size = this->receive_symbols_ * sizeof(rmt_symbol_word_t);
-  // one slot per pending rmt_receive; two are the floor (one filling while one is decoded), and
-  // the default of four covers a few frames queued across a stalled loop pass
-  const uint32_t slot_size = event_size + this->store_.receive_size;
-  this->store_.buffer_size =
-      this->buffer_size_ != 0 ? std::max(slot_size * 2, this->buffer_size_) : slot_size * DEFAULT_BUFFER_SLOTS;
-  this->store_.buffer = new uint8_t[this->store_.buffer_size];
   error = rmt_receive(this->channel_, (uint8_t *) this->store_.buffer + event_size, this->store_.receive_size,
                       &this->store_.config);
   if (error != ESP_OK) {
@@ -140,6 +133,9 @@ void RemoteReceiverComponent::dump_config() {
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
       this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  this->warn_extra_secondaries_();
+#endif
 }
 
 void RemoteReceiverComponent::loop() {

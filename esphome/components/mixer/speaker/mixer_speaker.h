@@ -30,7 +30,7 @@ namespace esphome::mixer_speaker {
  *    the number of channels required for the output speaker.
  *  - In queue mode, the audio sent to the SourceSpeakers can have different sample rates.
  *  - In non-queue mode, the audio sent to the SourceSpeakers must have the same sample rates.
- *  - SourceSpeaker has an internal ring buffer. It also allocates a shared_ptr for an AudioTranserBuffer object.
+ *  - SourceSpeaker has an internal ring buffer. It also allocates a shared_ptr for an AudioTransferBuffer object.
  *  - Audio Data Flow:
  *      - Audio data played on a SourceSpeaker first writes to its internal ring buffer.
  *      - MixerSpeaker task temporarily takes shared ownership of each SourceSpeaker's AudioTransferBuffer.
@@ -107,12 +107,12 @@ class SourceSpeaker final : public speaker::Speaker, public Component {
   bool stop_gracefully_{false};
 
   bool pause_state_{false};
+  std::atomic<bool> has_contributed_{false};  // Tracks if source has contributed during this session
 
   esp_audio_libs::gain::GainRamp ducking_ramp_;
 
   std::atomic<uint32_t> pending_playback_frames_{0};
   std::atomic<uint32_t> playback_delay_frames_{0};  // Frames in output pipeline when this source started contributing
-  std::atomic<bool> has_contributed_{false};        // Tracks if source has contributed during this session
 
   EventGroupHandle_t event_group_{nullptr};
   uint32_t stopping_start_ms_{0};
@@ -124,7 +124,7 @@ class MixerSpeaker final : public Component {
   void setup() override;
   void loop() override;
 
-  void init_source_speakers(size_t count) { this->source_speakers_.init(count); }
+  void set_source_speaker_storage(std::span<SourceSpeaker *> storage) { this->source_speakers_.init(storage); }
   void add_source_speaker(SourceSpeaker *source_speaker) { this->source_speakers_.push_back(source_speaker); }
 
   /// @brief Starts the mixer task. Called by a source speaker giving the current audio stream information
@@ -151,7 +151,7 @@ class MixerSpeaker final : public Component {
 
   EventGroupHandle_t event_group_{nullptr};
 
-  FixedVector<SourceSpeaker *> source_speakers_;
+  StaticFixedVector<SourceSpeaker *> source_speakers_;
   speaker::Speaker *output_speaker_{nullptr};
 
   uint8_t output_bits_per_sample_;

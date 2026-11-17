@@ -141,3 +141,126 @@ def test_shell_token_windows_branch_uses_argv_rule() -> None:
     with patch.object(os, "name", "nt"):
         assert ninja_helper.shell_token("a b") == '"a b"'
         assert ninja_helper.shell_token("", force=True) == '""'
+
+
+@pytest.mark.parametrize("char", ["|", "\n", "\r"])
+def test_escape_rejects_what_ninja_cannot_express(char: str) -> None:
+    with pytest.raises(EsphomeError, match="a ninja build file cannot express"):
+        ninja_helper.escape(f"src/a{char}b.cpp")
+
+
+def test_escape_keeps_a_hash() -> None:
+    """A # is only a comment at the start of a ninja line."""
+    assert ninja_helper.escape("src/a#b c.cpp") == "src/a#b$ c.cpp"
+
+
+def test_absolute_tool_anchors_a_relative_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Anchor the path: ninja runs from the build directory."""
+    monkeypatch.chdir(tmp_path)
+    assert Path(ninja_helper.absolute_tool("bin/ninja")) == tmp_path / "bin" / "ninja"
+
+
+def test_find_ninja_returns_an_absolute_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    with (
+        patch("shutil.which", return_value="bin/ninja"),
+        patch.object(ninja_helper, "_ninja_runs", return_value=True),
+    ):
+        assert ninja_helper.find_ninja() == tmp_path / "bin" / "ninja"
+
+
+@pytest.fixture
+def compdb_dir(tmp_path: Path) -> Path:
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / "build.ninja").write_text("rule x\n")
+    return build_dir
+
+
+def test_refresh_compile_commands_regenerates_when_stale(compdb_dir: Path) -> None:
+    ninja = Path("ninja")
+    compdb = compdb_dir / "compile_commands.json"
+    stamp = compdb_dir / ".compile_commands.stamp"
+    with patch.object(ninja_helper, "write_compile_commands") as write:
+        # A rewritten manifest always regenerates
+        ninja_helper.refresh_compile_commands(ninja, compdb_dir, {}, True)
+        assert write.call_count == 1
+        assert stamp.is_file()
+        # No compile DB yet
+        ninja_helper.refresh_compile_commands(ninja, compdb_dir, {}, False)
+        assert write.call_count == 2
+        compdb.write_text("[]")
+        # Fresh stamp: nothing to do
+        ninja_helper.refresh_compile_commands(ninja, compdb_dir, {}, False)
+        assert write.call_count == 2
+        # A manifest newer than the stamp (interrupted previous run)
+        os.utime(stamp, (1, 1))
+        ninja_helper.refresh_compile_commands(ninja, compdb_dir, {}, False)
+        assert write.call_count == 3
+        # A missing stamp regenerates too
+        stamp.unlink()
+        ninja_helper.refresh_compile_commands(ninja, compdb_dir, {}, False)
+        assert write.call_count == 4
+
+
+def _completed(rc: int = 0, stdout: str = "", stderr: str = "") -> MagicMock:
+    return MagicMock(returncode=rc, stdout=stdout, stderr=stderr)
+
+
+def test_write_compile_commands_success(compdb_dir: Path) -> None:
+    entries = '[{"file": "a.cpp", "command": "g++ -c a.cpp"}]'
+    with patch("subprocess.run", return_value=_completed(stdout=entries)) as run:
+        ninja_helper.write_compile_commands(Path("ninja"), compdb_dir, {"A": "1"})
+    assert (compdb_dir / "compile_commands.json").read_text() == entries
+    # Every compile rule, so preprocessed assembly reaches the database too
+    assert run.call_args.args[0] == [
+        "ninja",
+        "-C",
+        str(compdb_dir),
+        "-t",
+        "compdb",
+        "c",
+        "cxx",
+        "aspp",
+        "asm",
+    ]
+    assert run.call_args.kwargs["env"] == {"A": "1"}
+
+
+@pytest.mark.parametrize(
+    ("result", "message"),
+    [
+        (_completed(rc=1, stderr="boom"), "Could not generate compile_commands.json"),
+        # A parse failure names its cause, not the rule-name story
+        (_completed(stdout="not json"), "unparsable compile database.*not json"),
+        (_completed(stdout="[]"), "empty compile database"),
+    ],
+)
+def test_write_compile_commands_failures_drop_stale_db(
+    compdb_dir: Path, result: MagicMock, message: str
+) -> None:
+    compdb = compdb_dir / "compile_commands.json"
+    compdb.write_text("[stale]")
+    with (
+        patch("subprocess.run", return_value=result),
+        pytest.raises(EsphomeError, match=message),
+    ):
+        ninja_helper.write_compile_commands(Path("ninja"), compdb_dir, {})
+    assert not compdb.exists()
+
+
+def test_write_compile_commands_keeps_the_mtime_of_an_unchanged_db(
+    compdb_dir: Path,
+) -> None:
+    """The idedata cache is keyed on the DB's mtime."""
+    entries = '[{"file": "a.cpp", "command": "g++ -c a.cpp"}]'
+    compdb = compdb_dir / "compile_commands.json"
+    compdb.write_text(entries)
+    os.utime(compdb, (1000, 1000))
+    with patch("subprocess.run", return_value=_completed(stdout=entries)):
+        ninja_helper.write_compile_commands(Path("ninja"), compdb_dir, {})
+    assert compdb.stat().st_mtime == 1000

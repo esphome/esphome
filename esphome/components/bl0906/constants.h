@@ -33,7 +33,7 @@ static const float BL0906_KI = 12875 * 1 * (5.1 + 5.1) * 1000 / 2000 / 1.097;
 static const float BL0906_KP = 40.4125 * ((5.1 + 5.1) * 1000 / 2000) * 1 * 100 * 1 * 1000 / 1.097 / 1.097 /
                                (20000 + 20000 + 20000 + 20000 + 20000);
 
-static const uint8_t USR_WRPROT_WITABLE[6] = {0xCA, 0x9E, 0x55, 0x55, 0x00, 0xB7};
+static const uint8_t USR_WRPROT_WRITABLE[6] = {0xCA, 0x9E, 0x55, 0x55, 0x00, 0xB7};
 static const uint8_t USR_WRPROT_ONLYREAD[6] = {0xCA, 0x9E, 0x00, 0x00, 0x00, 0x61};
 
 static const uint8_t BL0906_READ_COMMAND = 0x35;
@@ -111,10 +111,9 @@ static const uint8_t BL0906_USR_WRPROT = 0x9E;
 // Reset Register
 static const uint8_t BL0906_SOFT_RESET = 0x9F;
 
-const uint8_t BL0906_INIT[2][6] = {
-    // Reset to default
-    {BL0906_WRITE_COMMAND, BL0906_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x52},
-    // Enable User Operation Write
-    {BL0906_WRITE_COMMAND, BL0906_USR_WRPROT, 0x55, 0x55, 0x00, 0xB7}};
+const uint8_t BL0906_INIT[2][6] = {// Reset to default
+                                   {BL0906_WRITE_COMMAND, BL0906_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x52},
+                                   // Enable User Operation Write
+                                   {BL0906_WRITE_COMMAND, BL0906_USR_WRPROT, 0x55, 0x55, 0x00, 0xB7}};
 
 }  // namespace esphome::bl0906

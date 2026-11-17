@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+DOMAIN = "async_tcp"
 
 
 def AUTO_LOAD() -> list[str]:
@@ -34,15 +35,23 @@ async def to_code(config: ConfigType) -> None:
         add_idf_component(name="esp32async/asynctcp", ref="3.4.91")
     elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
-        cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
+        cg.add_library("ESP32Async/AsyncTCP", "3.5.0")
+        # AsyncTCP 3.5.0 debug logs call xPortGetCoreID(), which LibreTiny (single core) lacks; they are compiled
+        # in by LibreTiny's debug level or CONFIG_ASYNC_TCP_DEBUG, so the call always expands to int(), which is 0
+        # (a function-like -D does not survive PlatformIO's build flags)
+        cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
     elif CORE.is_rp2:
-        # https://github.com/ayushsharma82/RPAsyncTCP
-        # RPAsyncTCP is a drop-in replacement for AsyncTCP_RP2040W with better
-        # ESPAsyncWebServer compatibility
-        cg.add_library("ayushsharma82/RPAsyncTCP", "1.3.2")
+        # https://github.com/esphome-libs/RPAsyncTCP, a fork of ayushsharma82/RPAsyncTCP
+        # 1.3.2 that counts queued bytes before lwIP can send and ACK them, so
+        # canSend() does not stay false and SSE streams do not stall (wired Ethernet)
+        cg.add_library(
+            "RPAsyncTCP",
+            "1.3.2",
+            "https://github.com/esphome-libs/RPAsyncTCP#1.3.2-esphome.1",
+        )
     # Other platforms (host, etc) use socket-based implementation
 
 

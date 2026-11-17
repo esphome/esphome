@@ -2,8 +2,12 @@ from . import EpaperModel
 
 
 class WaveshareB(EpaperModel):
-    def __init__(self, name, **defaults):
-        super().__init__(name, "EpaperWaveshareB", **defaults)
+    class_name = "EpaperWaveshareB"
+    source_files = (
+        "epaper_spi_bwr.cpp",
+        "epaper_waveshare_b.cpp",
+        "epaper_weact_3c.cpp",
+    )
 
     def get_init_sequence(self, config):
         _, height = self.get_dimensions(config)
@@ -23,4 +27,12 @@ WaveshareB(
     height=250,
     data_rate="10MHz",
     minimum_update_interval="1s",
+)
+
+WaveshareB(
+    "waveshare-2.66in-b",
+    width=152,
+    height=296,
+    data_rate="10MHz",
+    minimum_update_interval="15s",
 )

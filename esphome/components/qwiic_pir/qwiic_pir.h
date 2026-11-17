@@ -2,7 +2,7 @@
  * Adds support for Qwiic PIR motion sensors that communicate over an I2C bus.
  * These sensors use Sharp PIR motion sensors to detect motion. A firmware running on an ATTiny84 translates the digital
  * output to I2C communications.
- * ATTiny84 firmware: https://github.com/sparkfun/Qwiic_PIR (acccessed July 2023)
+ * ATTiny84 firmware: https://github.com/sparkfun/Qwiic_PIR (accessed July 2023)
  * SparkFun's Arduino library: https://github.com/sparkfun/SparkFun_Qwiic_PIR_Arduino_Library (accessed July 2023)
  */
 
@@ -43,12 +43,6 @@ class QwiicPIRComponent final : public Component, public i2c::I2CDevice, public 
   uint16_t debounce_time_{};
 
   DebounceMode debounce_mode_{};
-
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-  } error_code_{NONE};
 
   union {
     struct {

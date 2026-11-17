@@ -4,7 +4,7 @@
 
 namespace esphome::status_led {
 
-static const char *const TAG = "status_led";
+ESPHOME_LOG_TAG(TAG, "status_led");
 
 static constexpr uint32_t ERROR_PERIOD_MS = 250;
 static constexpr uint32_t ERROR_ON_MS = 150;

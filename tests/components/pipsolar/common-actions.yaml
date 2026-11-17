@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: Pipsolar Set Level
+    on_press:
+      - output.pipsolar.set_level:
+          id: inverter0_battery_recharge_voltage_out
+          value: !lambda return 49.0;

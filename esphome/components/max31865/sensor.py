@@ -21,10 +21,7 @@ MAX31865Sensor = max31865_ns.class_(
 )
 
 MAX31865ConfigFilter = max31865_ns.enum("MAX31865ConfigFilter")
-FILTER = {
-    "50HZ": MAX31865ConfigFilter.FILTER_50HZ,
-    "60HZ": MAX31865ConfigFilter.FILTER_60HZ,
-}
+FILTER = MAX31865ConfigFilter.options("50HZ", "60HZ", prefix="FILTER_")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

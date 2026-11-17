@@ -1,0 +1,281 @@
+"""Tests for the native (non-PlatformIO) toolchain config validation."""
+
+from __future__ import annotations
+
+from collections.abc import Generator
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
+
+from esphome.components import esp8266
+from esphome.components.esp8266 import (
+    ARDUINO_FRAMEWORK_SCHEMA,
+    _resolve_board,
+    _resolve_toolchain,
+    _validate_native_toolchain,
+    _warn_platformio_toolchain,
+)
+from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_PLATFORM_VERSION,
+    CONF_SOURCE,
+    CONF_TOOLCHAIN,
+    CONF_VERSION,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP8266,
+    Toolchain,
+)
+from esphome.core import CORE, EsphomeError
+from esphome.types import ConfigType
+
+
+@pytest.fixture(autouse=True)
+def _arduino_toolchain() -> Generator[None]:
+    # The suite-wide reset_core fixture clears both after each test; the
+    # shared backend resolver reads the platform as well as the toolchain,
+    # and the decode-tool cache lives in CORE.data
+    CORE.toolchain = Toolchain.ARDUINO
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
+    yield
+
+
+def _config(
+    board: str = "nodemcuv2",
+    version: str = "3.1.2",
+    source: str | None = None,
+    platform_version: str | None = None,
+) -> ConfigType:
+    framework: dict[str, str] = {CONF_VERSION: version}
+    if source is not None:
+        framework[CONF_SOURCE] = source
+    if platform_version is not None:
+        framework[CONF_PLATFORM_VERSION] = platform_version
+    # The real schema fills the source/platform_version defaults, so these
+    # tests validate against what config validation actually emits
+    return {
+        CONF_FRAMEWORK: ARDUINO_FRAMEWORK_SCHEMA(framework),
+        CONF_BOARD: board,
+    }
+
+
+def test_valid_config_passes() -> None:
+    config = _config()
+    assert _validate_native_toolchain(config) is config
+
+
+def test_platformio_toolchain_skips_checks() -> None:
+    # 3.0.2 is pio-legal (>= the global 3.0.0 floor) but has no native build;
+    # the bogus board only the native path checks
+    CORE.toolchain = Toolchain.PLATFORMIO
+    config = _config(board="not_a_board", version="3.0.2")
+    assert _validate_native_toolchain(config) is config
+
+
+def test_version_without_build_rejected() -> None:
+    """Only the core versions built in esphome-libs/arduino-esp8266 work."""
+    with pytest.raises(
+        cv.Invalid, match=r"3\.1\.1.*available: 3\.1\.2.*platformio"
+    ) as excinfo:
+        _validate_native_toolchain(_config(version="3.1.1"))
+    assert excinfo.value.path == [CONF_FRAMEWORK, CONF_VERSION]
+
+
+def test_built_version_accepted() -> None:
+    _validate_native_toolchain(_config(version="3.1.2"))
+
+
+def test_custom_platform_version_warns_and_is_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _config(platform_version="platformio/espressif8266@4.0.1")
+    _validate_native_toolchain(config)
+    assert "'platform_version' is ignored" in caplog.text
+    assert CONF_PLATFORM_VERSION not in config[CONF_FRAMEWORK]
+
+
+def test_default_platform_version_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _config()
+    _validate_native_toolchain(config)
+    assert "'platform_version' is ignored" not in caplog.text
+    assert CONF_PLATFORM_VERSION not in config[CONF_FRAMEWORK]
+
+
+def test_custom_source_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="custom framework source"):
+        _validate_native_toolchain(
+            _config(source="https://github.com/esp8266/Arduino.git")
+        )
+
+
+def test_unsupported_board_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="not supported by"):
+        _validate_native_toolchain(_config(board="not_a_board"))
+
+
+def test_known_board_passes_unchanged() -> None:
+    config = {CONF_BOARD: "esp01_1m"}
+    assert _resolve_board(config) is config
+
+
+@pytest.mark.parametrize(
+    ("board", "expected"),
+    [("ESP01-1M", "esp01_1m"), ("SPARKFUNBLYNK", "sparkfunBlynk")],
+)
+def test_misspelled_board_normalized(
+    board: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    assert _resolve_board({CONF_BOARD: board})[CONF_BOARD] == expected
+    assert f"using '{expected}'" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("board", "expected_board", "expected_toolchain"),
+    [
+        ("esp01-1m", "esp01_1m", Toolchain.ARDUINO),
+        ("my_custom_board", "my_custom_board", Toolchain.PLATFORMIO),
+    ],
+)
+def test_config_schema_resolves_board_before_toolchain(
+    board: str,
+    expected_board: str,
+    expected_toolchain: Toolchain,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The full chain normalizes or falls back, and warns once."""
+    CORE.toolchain = None
+    config = esp8266.CONFIG_SCHEMA({CONF_BOARD: board})
+    assert config[CONF_BOARD] == expected_board
+    assert CORE.data[KEY_ESP8266][KEY_BOARD] == expected_board
+    assert CORE.toolchain == expected_toolchain
+    assert len(caplog.records) == 1
+
+
+@pytest.mark.parametrize(
+    ("cli_toolchain", "yaml"),
+    [(Toolchain.ARDUINO, {}), (None, {CONF_TOOLCHAIN: Toolchain.ARDUINO})],
+)
+def test_unknown_board_keeps_explicit_toolchain(
+    cli_toolchain: Toolchain | None, yaml: ConfigType
+) -> None:
+    """A CLI or YAML toolchain is not overridden."""
+    CORE.toolchain = cli_toolchain
+    config = {CONF_BOARD: "my_custom_board", **yaml}
+    assert _resolve_board(config) is config
+
+
+def test_yaml_toolchain_key_resolves() -> None:
+    """The documented `toolchain: arduino` YAML key selects the native path."""
+    CORE.toolchain = None
+    _resolve_toolchain({CONF_TOOLCHAIN: Toolchain.ARDUINO})
+    assert CORE.toolchain == Toolchain.ARDUINO
+    assert CORE.using_toolchain_arduino
+
+
+@pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        (None, Toolchain.ARDUINO),
+        # An explicit `toolchain:` still wins over the default
+        (Toolchain.PLATFORMIO, Toolchain.PLATFORMIO),
+        (Toolchain.ARDUINO, Toolchain.ARDUINO),
+    ],
+)
+def test_default_toolchain_is_arduino(
+    config_toolchain: Toolchain | None, expected: Toolchain
+) -> None:
+    CORE.toolchain = None
+    config = {} if config_toolchain is None else {CONF_TOOLCHAIN: config_toolchain}
+    _resolve_toolchain(config)
+    assert CORE.toolchain == expected
+
+
+def test_decode_pc_native_missing_tools_warns_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A stack dump of many addresses produces one missing-tool warning."""
+
+    with (
+        patch(
+            "esphome.arduino8266.toolchain.get_addr2line_path",
+            return_value=tmp_path / "missing-addr2line",
+        ),
+        patch(
+            "esphome.arduino8266.toolchain.get_elf_path",
+            return_value=tmp_path / "missing.elf",
+        ),
+    ):
+        esp8266._decode_pc({}, "40201234")
+        esp8266._decode_pc({}, "40201238")
+    assert caplog.text.count("Cannot decode crash addresses") == 1
+
+
+def test_decode_pc_platformio_missing_tools_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The PlatformIO branch reports a missing addr2line/ELF at the same
+    warning level as the native one; raw undecoded addresses with no
+    stated reason are undiagnosable at default log level."""
+
+    CORE.toolchain = Toolchain.PLATFORMIO
+    idedata = SimpleNamespace(addr2line_path=None, firmware_elf_path=None)
+    with patch("esphome.platformio.toolchain.get_idedata", return_value=idedata):
+        esp8266._decode_pc({}, "40201234")
+        esp8266._decode_pc({}, "40201238")
+    assert caplog.text.count("Cannot decode crash addresses") == 1
+
+
+def test_resolve_toolchain_rejects_unsupported() -> None:
+    """ESP8266 rejects a CLI toolchain it cannot serve, like every platform."""
+
+    CORE.toolchain = Toolchain.SDK_NRF
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'sdk-nrf'"):
+        _resolve_toolchain({})
+
+
+def test_run_compile_platformio_falls_through() -> None:
+    """Under toolchain: platformio the hook returns False without touching
+    the native backend; this is what keeps existing users on PlatformIO."""
+    CORE.toolchain = Toolchain.PLATFORMIO
+    with patch("esphome.arduino8266.toolchain.run_compile") as mock_native:
+        assert esp8266.run_compile(SimpleNamespace(), {}) is False
+    mock_native.assert_not_called()
+
+
+def test_run_compile_arduino_failure_raises() -> None:
+    """A non-zero native build fails by name instead of returning success."""
+    CORE.verbose = False
+    with (
+        patch("esphome.arduino8266.toolchain.run_compile", return_value=1),
+        pytest.raises(EsphomeError, match="native build failed"),
+    ):
+        esp8266.run_compile(SimpleNamespace(), {})
+
+
+def test_copy_files_native_skips_platformio_scripts(tmp_path: Path) -> None:
+    """The native build writes no PlatformIO extra scripts."""
+    CORE.build_path = tmp_path
+    esp8266.copy_files()
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "warns"),
+    [(Toolchain.PLATFORMIO, True), (Toolchain.ARDUINO, False)],
+)
+def test_platformio_toolchain_deprecation_warning(
+    toolchain: Toolchain, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    CORE.toolchain = toolchain
+    config = _config()
+    assert _warn_platformio_toolchain(config) is config
+    assert (
+        "deprecated and will be removed in ESPHome 2027.4.0" in caplog.text
+    ) is warns

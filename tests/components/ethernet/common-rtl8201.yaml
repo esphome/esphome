@@ -7,6 +7,12 @@ ethernet:
     mode: CLK_EXT_IN
   phy_addr: 0
   power_pin: 33
+  phy_registers:
+    - address: 0x10
+      value: 0x1FFA
+      page_id: 0x07
+    - address: 0x19
+      value: 0x0006
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1

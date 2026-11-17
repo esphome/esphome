@@ -1,0 +1,5 @@
+climate:
+  - platform: whirlpool
+    name: Whirlpool DG11J1-91 Climate
+    model: DG11J1-91
+    transmitter_id: xmitr

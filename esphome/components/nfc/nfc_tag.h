@@ -42,9 +42,10 @@ class NfcTag {
   }
 
   NfcTagUid &get_uid() { return this->uid_; };
-  const std::string &get_tag_type() { return this->tag_type_; };
-  bool has_ndef_message() { return this->ndef_message_ != nullptr; };
-  const std::shared_ptr<NdefMessage> &get_ndef_message() { return this->ndef_message_; };
+  const NfcTagUid &get_uid() const { return this->uid_; };
+  const std::string &get_tag_type() const { return this->tag_type_; };
+  bool has_ndef_message() const { return this->ndef_message_ != nullptr; };
+  const std::shared_ptr<NdefMessage> &get_ndef_message() const { return this->ndef_message_; };
   void set_ndef_message(std::unique_ptr<NdefMessage> ndef_message) { this->ndef_message_ = std::move(ndef_message); };
 
  protected:

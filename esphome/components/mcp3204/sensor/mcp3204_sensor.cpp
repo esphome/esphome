@@ -4,7 +4,7 @@
 
 namespace esphome::mcp3204 {
 
-static const char *const TAG = "mcp3204.sensor";
+ESPHOME_LOG_TAG(TAG, "mcp3204.sensor");
 
 void MCP3204Sensor::dump_config() {
   LOG_SENSOR("", "MCP3204 Sensor", this);

@@ -1,0 +1,36 @@
+packages:
+  zigbee: !include common_esp32.yaml
+
+sensor:
+  - platform: template
+    name: "humidity_sensor"
+    unit_of_measurement: "%"
+    device_class: humidity
+    cluster: device_class
+    endpoint: 2
+    use_device_type: false
+  - platform: template
+    name: "pm25_sensor"
+    unit_of_measurement: 'µg/m³'
+    device_class: pm25
+    cluster: device_class
+  - platform: template
+    name: "co2_sensor"
+    unit_of_measurement: ppm
+    device_class: carbon_dioxide
+    cluster: device_class
+  - platform: template
+    name: "pressure_sensor2"
+    unit_of_measurement: hPa
+    device_class: pressure
+    cluster: device_class
+  - platform: template
+    name: "flow_sensor2"
+    unit_of_measurement: m³/h
+    device_class: volume_flow_rate
+    cluster: device_class
+  - platform: template
+    name: "atmospheric_pressure_sensor"
+    unit_of_measurement: hPa
+    device_class: atmospheric_pressure
+    cluster: device_class

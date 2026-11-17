@@ -1,0 +1,135 @@
+#include "homeassistant_select.h"
+
+#include "../homeassistant.h"
+
+#include "esphome/components/api/api_pb2.h"
+#include "esphome/components/api/api_server.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include "esphome/core/string_ref.h"
+
+namespace esphome::homeassistant {
+
+ESPHOME_LOG_TAG(TAG, "homeassistant.select");
+
+void HomeassistantSelect::subscribe() {
+  // Subscribe to the options first: Home Assistant answers subscriptions in order, so the options are
+  // known by the time the first state arrives.
+  api::global_api_server->subscribe_home_assistant_state(
+      this->entity_id_, "options", [this](StringRef options) { this->options_changed_(options); });
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
+                                                         [this](StringRef state) { this->state_changed_(state); });
+}
+
+void HomeassistantSelect::options_changed_(StringRef options) {
+  // First pass: validate and measure the new options, and look for the active option among them, before
+  // anything is overwritten. A list that does not fit leaves the current options in place.
+  const char *active = this->has_state() ? this->option_at(this->active_index_) : nullptr;
+  size_t count = 0;
+  size_t bytes = 0;
+  size_t match_len = 0;
+  bool matching = active != nullptr;
+  optional<size_t> new_active;
+  bool valid = parse_python_list(
+      options,
+      [&](char c) {
+        bytes++;
+        if (matching && active[match_len] == c) {
+          match_len++;
+        } else {
+          matching = false;
+        }
+      },
+      [&]() {
+        bytes++;  // NUL terminator
+        if (matching && active[match_len] == '\0' && !new_active.has_value())
+          new_active = count;
+        count++;
+        match_len = 0;
+        matching = active != nullptr;
+      });
+  if (!valid) {
+    ESP_LOGW(TAG, "'%s': Can't parse options %s", this->entity_id_, options.c_str());
+    return;
+  }
+  if (count > this->max_options_) {
+    ESP_LOGE(TAG, "'%s': %zu options exceed max_options (%u)", this->entity_id_, count, this->max_options_);
+    return;
+  }
+  if (bytes > this->options_buffer_size_) {
+    ESP_LOGE(TAG, "'%s': Options need %zu bytes, more than options_buffer_size (%u)", this->entity_id_, bytes,
+             this->options_buffer_size_);
+    return;
+  }
+
+  // Second pass: the input is known to be valid and to fit, so write it out
+  char *buffer = this->options_buffer_;
+  size_t offset = 0;
+  size_t option_start = 0;
+  size_t index = 0;
+  parse_python_list(
+      options, [&](char c) { buffer[offset++] = c; },
+      [&]() {
+        buffer[offset++] = '\0';
+        this->option_list_[index++] = buffer + option_start;
+        option_start = offset;
+      });
+  // The traits only point at the static list; set_options() would copy it to the heap
+  this->traits.set_options_static(this->option_list_, count);
+
+  // The active option may have moved to another index, or may be gone
+  if (new_active.has_value()) {
+    this->active_index_ = *new_active;
+  } else {
+    this->set_has_state(false);
+  }
+  ESP_LOGD(TAG, "'%s': Got %zu options", this->entity_id_, count);
+}
+
+void HomeassistantSelect::state_changed_(StringRef state) {
+  auto index = this->index_of(state.c_str(), state.size());
+  if (!index.has_value()) {
+    ESP_LOGW(TAG, "'%s': State '%s' is not one of the options", this->entity_id_, state.c_str());
+    return;
+  }
+  if (this->has_state() && this->active_index_ == *index)
+    return;
+  ESP_LOGD(TAG, "'%s': Got state '%s'", this->entity_id_, state.c_str());
+  this->publish_state(*index);
+}
+
+void HomeassistantSelect::dump_config() {
+  LOG_SELECT("", "Homeassistant Select", this);
+  ESP_LOGCONFIG(TAG,
+                "  Entity ID: '%s'\n"
+                "  Max options: %u\n"
+                "  Options buffer size: %u",
+                this->entity_id_, this->max_options_, this->options_buffer_size_);
+}
+
+void HomeassistantSelect::control(size_t index) {
+  if (!can_send_action(TAG, this->entity_id_, this))
+    return;
+
+  // In flash on the ESP8266 and encoded from there
+  static constexpr char SERVICE_SELECT[] PROGMEM = "select.select_option";
+  static constexpr char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
+  static constexpr char OPTION_KEY[] PROGMEM = "option";
+
+  api::HomeassistantActionRequest resp;
+  resp.service = is_input_helper(this->entity_id_, SERVICE_INPUT_SELECT)
+                     ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT)
+                     : ProgmemStringRef::from_lit(SERVICE_SELECT);
+
+  resp.data.init(2);
+  add_entity_id(resp, this->entity_id_);
+
+  auto &option = resp.data.emplace_back();
+  option.key = ProgmemStringRef::from_lit(OPTION_KEY);
+  option.value = ProgmemStringRef(StringRef(this->option_at(index)));
+
+  api::global_api_server->send_homeassistant_action(resp);
+}
+
+}  // namespace esphome::homeassistant

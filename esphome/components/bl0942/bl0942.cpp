@@ -1,4 +1,5 @@
 #include "bl0942.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -6,7 +7,7 @@
 
 namespace esphome::bl0942 {
 
-static const char *const TAG = "bl0942";
+ESPHOME_LOG_TAG(TAG, "bl0942");
 
 static const uint8_t BL0942_READ_COMMAND = 0x58;
 static const uint8_t BL0942_FULL_PACKET = 0xAA;
@@ -70,13 +71,10 @@ void BL0942::loop() {
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
-  uint8_t checksum = BL0942_READ_COMMAND | this->address_;
   // Whole package but checksum
-  uint8_t *raw = (uint8_t *) data;
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum =
+      sum_bytes(reinterpret_cast<const uint8_t *>(data), sizeof(*data) - 1, BL0942_READ_COMMAND | this->address_) ^
+      0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "BL0942 invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }
@@ -92,26 +90,19 @@ void BL0942::write_reg_(uint8_t reg, uint32_t val) {
   pkt[2] = (val & 0xff);
   pkt[3] = (val >> 8) & 0xff;
   pkt[4] = (val >> 16) & 0xff;
-  pkt[5] = (pkt[0] + pkt[1] + pkt[2] + pkt[3] + pkt[4]) ^ 0xff;
+  pkt[5] = sum_bytes(pkt, 5) ^ 0xFF;
   this->write_array(pkt, 6);
   delay(1);
 }
 
 int BL0942::read_reg_(uint8_t reg) {
-  union {
-    uint8_t b[4];
-    uint32_le_t le32;
-  } resp;
+  uint8_t resp[4];
 
   this->write_byte(BL0942_READ_COMMAND | this->address_);
   this->write_byte(reg);
   this->flush();
-  if (this->read_array(resp.b, 4) &&
-      resp.b[3] ==
-          (uint8_t) ((BL0942_READ_COMMAND + this->address_ + reg + resp.b[0] + resp.b[1] + resp.b[2]) ^ 0xff)) {
-    resp.b[3] = 0;
-    return resp.le32;
-  }
+  if (this->read_array(resp, 4) && resp[3] == (sum_bytes(resp, 3, BL0942_READ_COMMAND + this->address_ + reg) ^ 0xFF))
+    return encode_uint24(resp[2], resp[1], resp[0]);
   return -1;
 }
 
@@ -170,21 +161,11 @@ void BL0942::received_package_(DataPacket *data) {
   float total_energy_consumption = cf_cnt / energy_reference_;
   float frequency = data->frequency != 0 ? 1000000.0f / data->frequency : NAN;
 
-  if (voltage_sensor_ != nullptr) {
-    voltage_sensor_->publish_state(v_rms);
-  }
-  if (current_sensor_ != nullptr) {
-    current_sensor_->publish_state(i_rms);
-  }
-  if (power_sensor_ != nullptr) {
-    power_sensor_->publish_state(watt);
-  }
-  if (energy_sensor_ != nullptr) {
-    energy_sensor_->publish_state(total_energy_consumption);
-  }
-  if (frequency_sensor_ != nullptr) {
-    frequency_sensor_->publish_state(frequency);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, v_rms);
+  PUBLISH_STATE(this->current_sensor_, i_rms);
+  PUBLISH_STATE(this->power_sensor_, watt);
+  PUBLISH_STATE(this->energy_sensor_, total_energy_consumption);
+  PUBLISH_STATE(this->frequency_sensor_, frequency);
   this->status_clear_warning();
   ESP_LOGV(TAG, "BL0942: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, frequency %fHz, status 0x%08X", v_rms, i_rms,
            watt, cf_cnt, total_energy_consumption, frequency, data->status);

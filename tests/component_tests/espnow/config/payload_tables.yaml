@@ -1,0 +1,22 @@
+---
+esphome:
+  name: test
+  on_boot:
+    then:
+      - espnow.send:
+          address: 11:22:33:44:55:66
+          data: [0x01, 0x02, 0x03]
+      - espnow.broadcast:
+          data: [0x01, 0x02, 0x03]
+      - espnow.broadcast: "OK"
+      - espnow.broadcast:
+          data: !lambda return {0x09};
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: test
+  password: password1
+
+espnow:

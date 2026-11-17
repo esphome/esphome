@@ -16,6 +16,10 @@ using t_http_codes = enum {
   HTTP_CODE_NOT_FOUND = 404,
 };
 
+/// Largest download read(). A read() blocks until it has every byte it asked for, so this bounds how long one loop
+/// pass waits on a slow link.
+static constexpr size_t READ_CHUNK = 1460;
+
 /**
  * @brief Download an image from a given URL, and decode it using the specified decoder.
  * The image will then be stored in a buffer, so that it can be re-displayed without the
@@ -43,6 +47,11 @@ class OnlineImage final : public PollingComponent,
               bool is_big_endian = false);
 
   void update() override;
+  /** Download now when `update` is true (the `update` flag of `online_image.set_url`). */
+  void update_if(bool update) {
+    if (update)
+      this->update();
+  }
   void loop() override;
 
   /** Set the URL to download the image from. */
@@ -65,8 +74,16 @@ class OnlineImage final : public PollingComponent,
    */
   void release();
 
+  /// Called when the server has accepted the request and the image starts to download
+  template<typename F> void add_on_download_started_callback(F &&callback) {
+    this->download_started_callback_.add(std::forward<F>(callback));
+  }
   template<typename F> void add_on_finished_callback(F &&callback) {
     this->download_finished_callback_.add(std::forward<F>(callback));
+  }
+  /// Called with the percentage downloaded (NAN when the server did not send the size) and the bytes read so far
+  template<typename F> void add_on_progress_callback(F &&callback) {
+    this->download_progress_callback_.add(std::forward<F>(callback));
   }
   template<typename F> void add_on_error_callback(F &&callback) {
     this->download_error_callback_.add(std::forward<F>(callback));
@@ -75,12 +92,21 @@ class OnlineImage final : public PollingComponent,
  protected:
   bool validate_url_(const std::string &url);
   void end_connection_();
+  void finish_download_();
+  /// loop() for a JPEG that is decoded as it downloads
+  void loop_stream_();
+  void fail_download_();
+  /// Reports download progress, at most every PROGRESS_INTERVAL_MS unless force is set
+  void report_progress_(bool force);
 
   CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
+  LazyCallbackManager<void()> download_started_callback_{};
+  LazyCallbackManager<void(float, size_t)> download_progress_callback_{};
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
   DownloadBuffer download_buffer_;
+  DownloadSource source_{download_buffer_};
   /**
    * This is the *initial* size of the download buffer, not the current size.
    * The download buffer can be resized at runtime; the download_buffer_initial_size_
@@ -102,31 +128,10 @@ class OnlineImage final : public PollingComponent,
   std::string last_modified_;
 
   uint32_t start_time_{0};
-};
-
-template<typename... Ts> class OnlineImageSetUrlAction final : public Action<Ts...> {
- public:
-  OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, url)
-  TEMPLATABLE_VALUE(bool, update)
-  void play(const Ts &...x) override {
-    this->parent_->set_url(this->url_.value(x...));
-    if (this->update_.value(x...)) {
-      this->parent_->update();
-    }
-  }
-
- protected:
-  OnlineImage *parent_;
-};
-
-template<typename... Ts> class OnlineImageReleaseAction final : public Action<Ts...> {
- public:
-  OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->release(); }
-
- protected:
-  OnlineImage *parent_;
+  uint32_t last_data_time_{0};
+  uint32_t last_progress_time_{0};
+  bool streaming_{false};       // The decoder reads the download itself, as it arrives
+  bool stream_started_{false};  // The decoder has read the headers
 };
 
 }  // namespace esphome::online_image

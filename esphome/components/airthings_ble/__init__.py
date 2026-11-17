@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]
 CODEOWNERS = ["@jeromelaban"]
+DOMAIN = "airthings_ble"
 
 airthings_ble_ns = cg.esphome_ns.namespace("airthings_ble")
 AirthingsListener = airthings_ble_ns.class_(

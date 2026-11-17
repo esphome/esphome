@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_HEIGHT,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_POSITION,
     CONF_WIDTH,
     CONF_X,
@@ -75,21 +74,6 @@ def _validate_position(config: dict) -> dict:
     raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
 
-def _validate_headless(config: ConfigType) -> ConfigType:
-    if not config[CONF_HEADLESS]:
-        return config
-    if CONF_WINDOW_OPTIONS in config:
-        raise cv.Invalid(
-            f"'{CONF_WINDOW_OPTIONS}' has no effect when '{CONF_HEADLESS}' is set - there is no window"
-        )
-    if CONF_SNAPSHOT_KEY in config:
-        raise cv.Invalid(
-            f"'{CONF_SNAPSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
-            f"there is no keyboard. Use the 'snapshot.take' action instead"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         cv.Schema(
@@ -124,7 +108,13 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
-    _validate_headless,
+    cv.only_when(CONF_WINDOW_OPTIONS, CONF_HEADLESS, False),
+    cv.only_when(
+        CONF_SNAPSHOT_KEY,
+        CONF_HEADLESS,
+        False,
+        hint="There is no keyboard; use the 'snapshot.take' action instead",
+    ),
     cv.only_on(PLATFORM_HOST),
 )
 
@@ -158,8 +148,7 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await register_snapshot(var, config)
     cg.add(var.set_headless(config[CONF_HEADLESS]))
-    if (key := config.get(CONF_SNAPSHOT_KEY)) is not None:
-        cg.add(var.set_snapshot_key(key))
+    cg.add_optional(var.set_snapshot_key, config.get(CONF_SNAPSHOT_KEY))
 
     dimensions = config[CONF_DIMENSIONS]
     if isinstance(dimensions, dict):
@@ -189,8 +178,4 @@ async def to_code(config: ConfigType) -> None:
             else:
                 cg.add(var.set_position(position[CONF_X], position[CONF_Y]))
 
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

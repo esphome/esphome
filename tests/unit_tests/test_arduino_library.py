@@ -846,15 +846,14 @@ def test_library_info_dot_a_linkage_malformed_raises(tmp_path: Path) -> None:
 def test_bundled_library_properties_depends_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The library.properties depends= spelling reaches the visibility
-    warning too; the shared parser returns it raw."""
+    """The library.properties depends= spelling is a dependency list too, so a
+    bundled manifest using it gets the same visibility warning."""
     framework = _make_framework(tmp_path)
     wire = framework / "libraries" / "Wire"
     (wire / "library.properties").write_text("name=Wire\nversion=1.0\ndepends=SPI\n")
     _add_library("Wire", None)
-    caplog.set_level("INFO")
     _resolve(framework)
-    assert "Library Wire declares dependencies via library.properties" in caplog.text
+    assert "Bundled library Wire declares dependencies" in caplog.text
 
 
 def test_bundled_library_extra_script_raises(tmp_path: Path) -> None:
@@ -1160,3 +1159,29 @@ def test_versionless_dependency_with_provider_stays_quiet(
         libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
     assert "has no version to resolve" not in caplog.text
+
+
+def test_resolve_libraries_without_framework_is_all_external() -> None:
+    """The host build has no core tree: nothing is bundled, the framework
+    check is skipped, and every name reaches the converter."""
+    _add_library("Wire", None)
+    _add_library("lvgl/lvgl", "9.5.0")
+
+    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
+        assert backend.platform == "native"
+        assert backend.framework is None
+        assert backend.cache_key == "host"
+        assert backend.provides("Wire") is False
+        return []
+
+    with patch.object(component, "convert_libraries", side_effect=fake_convert) as mock:
+        libs = component.resolve_libraries(
+            None,
+            pio_platform="native",
+            board_mcu="host",
+            cache_key="host",
+            framework=None,
+        )
+    assert libs == []
+    (libraries, _backend), _ = mock.call_args
+    assert [lib.name for lib in libraries] == ["Wire", "lvgl/lvgl"]

@@ -31,22 +31,4 @@ class NexaProtocol : public RemoteProtocol<NexaData> {
 
 DECLARE_REMOTE_PROTOCOL(Nexa)
 
-template<typename... Ts> class NexaAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, device)
-  TEMPLATABLE_VALUE(uint8_t, group)
-  TEMPLATABLE_VALUE(uint8_t, state)
-  TEMPLATABLE_VALUE(uint8_t, channel)
-  TEMPLATABLE_VALUE(uint8_t, level)
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    NexaData data{};
-    data.device = this->device_.value(x...);
-    data.group = this->group_.value(x...);
-    data.state = this->state_.value(x...);
-    data.channel = this->channel_.value(x...);
-    data.level = this->level_.value(x...);
-    NexaProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

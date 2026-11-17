@@ -1,0 +1,11 @@
+esphome:
+  name: api-empty-message-test
+host:
+api:
+logger:
+  level: DEBUG
+
+switch:
+  - platform: template
+    name: "Empty Message Switch"
+    optimistic: true

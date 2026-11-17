@@ -3,7 +3,6 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     CONF_VARIANT,
     DEVICE_CLASS_HUMIDITY,
@@ -20,10 +19,7 @@ aht10_ns = cg.esphome_ns.namespace("aht10")
 AHT10Component = aht10_ns.class_("AHT10Component", cg.PollingComponent, i2c.I2CDevice)
 
 AHT10Variant = aht10_ns.enum("AHT10Variant")
-AHT10_VARIANTS = {
-    "AHT10": AHT10Variant.AHT10,
-    "AHT20": AHT10Variant.AHT20,
-}
+AHT10_VARIANTS = AHT10Variant.options("AHT10", "AHT20")
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -52,15 +48,9 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_variant(config[CONF_VARIANT]))
 
-    if temperature := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature)
-        cg.add(var.set_temperature_sensor(sens))
-
-    if humidity := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity)
-        cg.add(var.set_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)

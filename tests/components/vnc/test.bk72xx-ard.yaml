@@ -1,0 +1,7 @@
+packages:
+  test_display: !include ../../test_build_components/common/test_display/test_display.yaml
+  vnc: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1

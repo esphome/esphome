@@ -1,1 +1,8 @@
-<<: !include common.yaml
+packages:
+  wifi: !include wifi.yaml
+  ota: !include common.yaml
+
+# Final validation merges this into the common block
+ota:
+  - platform: esphome
+    allow_partition_access: true

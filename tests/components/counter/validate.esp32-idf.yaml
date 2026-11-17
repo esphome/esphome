@@ -1,0 +1,12 @@
+packages:
+  counter: !include common.yaml
+
+esphome:
+  on_shutdown:
+    then:
+      - counter.set_value:
+          id: counter_no_restore
+          value: -9223372036854775807
+      - counter.increment:
+          id: counter_no_restore
+          value: 9223372036854775807

@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.espidf.size_summary import print_summary
+from esphome.espidf.size_summary import (
+    _find_app_partition_size,
+    _parse_size,
+    print_summary,
+)
 
 
 def _write_size_json(tmp_path: Path, data: dict) -> Path:
@@ -317,3 +321,51 @@ def test_print_summary_skips_flash_on_bad_input(
         for r in caplog.records
     )
     assert warned == with_partitions
+
+
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        pytest.param("", 0, id="empty"),
+        pytest.param("  ", 0, id="blank"),
+        pytest.param("0x10000", 0x10000, id="hex"),
+        pytest.param("0X10", 0x10, id="hex_upper"),
+        pytest.param("1M", 1024 * 1024, id="mebibyte"),
+        pytest.param("512k", 512 * 1024, id="kibibyte_lower"),
+        pytest.param("4096", 4096, id="decimal"),
+    ],
+)
+def test_parse_size(token: str, expected: int) -> None:
+    """Partition sizes accept hex, K/M suffixes, decimals and blanks."""
+    assert _parse_size(token) == expected
+
+
+def test_find_app_partition_size_skips_unrelated_rows(tmp_path: Path) -> None:
+    """Comments, blank lines, short rows and non-app rows are passed over."""
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(
+        "# name, type, subtype, offset, size, flags\n"
+        "\n"
+        "short, app, factory\n"
+        "nvs, data, nvs, 0x9000, 0x6000,\n"
+        "app0, app, ota_0, 0x10000, 1M,\n"
+    )
+    assert _find_app_partition_size(partitions) == 1024 * 1024
+
+
+def test_find_app_partition_size_without_app_partition_raises(tmp_path: Path) -> None:
+    """A table with no app+factory or app+ota_0 row is rejected."""
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("nvs, data, nvs, 0x9000, 0x6000,\n")
+    with pytest.raises(ValueError, match="No app\\+factory or app\\+ota_0"):
+        _find_app_partition_size(partitions)
+
+
+def test_print_summary_skips_unparseable_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A truncated size json prints nothing instead of raising."""
+    size_json = tmp_path / "esp_idf_size.json"
+    size_json.write_text("{not json")
+    print_summary(size_json, _write_partitions(tmp_path), tmp_path / "firmware.elf")
+    assert capsys.readouterr().out == ""

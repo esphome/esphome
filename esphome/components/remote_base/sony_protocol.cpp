@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.sony";
+ESPHOME_LOG_TAG(TAG, "remote.sony");
 
 static constexpr uint32_t HEADER_HIGH_US = 2400;
 static constexpr uint32_t HEADER_LOW_US = 600;

@@ -1,0 +1,4 @@
+packages:
+  wizard: !include common-wizard.yaml
+
+network:

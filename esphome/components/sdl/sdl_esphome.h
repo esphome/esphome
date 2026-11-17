@@ -13,7 +13,7 @@
 
 namespace esphome::sdl {
 
-constexpr static const char *const TAG = "sdl";
+ESPHOME_LOG_TAG(TAG, "sdl");
 
 class Sdl final : public display::Display, public snapshot::Snapshot {
  public:
@@ -21,8 +21,6 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   void update() override;
   void loop() override;
   void setup() override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
   void process_key(uint32_t keycode, bool down);
   void set_dimensions(uint16_t width, uint16_t height) {
@@ -42,7 +40,7 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
   template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
-    if (!this->key_callbacks_.count(keycode)) {
+    if (!this->key_callbacks_.contains(keycode)) {
       this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
     }
     this->key_callbacks_[keycode].add(std::forward<F>(callback));
@@ -53,6 +51,9 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   bool mouse_down{};
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void redraw_(SDL_Rect &rect);
@@ -66,7 +67,7 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   bool capture_bgr(uint8_t *dest, size_t row_stride) override;
   void handle_event_(const SDL_Event &event);
   /// The display owning the given window, or nullptr if it is not one of ours.
-  static Sdl *instance_for_window_(uint32_t window_id);
+  static Sdl *instance_for_window(uint32_t window_id);
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};

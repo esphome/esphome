@@ -2,7 +2,7 @@
 
 #include <optional>
 
-#include "esphome/components/runtime_image/runtime_image.h"
+#include "esphome/components/runtime_image/image_format.h"
 
 namespace esphome::runtime_image::testing {
 

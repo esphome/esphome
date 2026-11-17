@@ -3,15 +3,7 @@
 
 namespace esphome::sm2235 {
 
-static const char *const TAG = "sm2235";
-
-void SM2235::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(true);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(true);
-  this->pwm_amounts_.resize(5, 0);
-}
+ESPHOME_LOG_TAG(TAG, "sm2235");
 
 void SM2235::dump_config() {
   ESP_LOGCONFIG(TAG,

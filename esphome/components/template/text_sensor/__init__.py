@@ -1,7 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import text_sensor
-from esphome.components.text_sensor import TextSensorPublishAction
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE_CLASS, CONF_ID, CONF_LAMBDA, CONF_STATE
 
@@ -38,20 +37,13 @@ async def to_code(config):
         cg.add(var.set_template(template_))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "text_sensor.template.publish",
-    TextSensorPublishAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
             cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_STATE, "publish_state", cg.std_string),
 )
-async def text_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.std_string)
-    cg.add(var.set_state(template_))
-    return var

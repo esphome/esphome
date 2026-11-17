@@ -23,5 +23,4 @@ CONFIG_SCHEMA = transport_schema(SX126xTransport).extend(
 
 async def to_code(config: ConfigType) -> None:
     var, _ = await new_packet_transport(config)
-    sx126x = await cg.get_variable(config[CONF_SX126X_ID])
-    cg.add(var.set_parent(sx126x))
+    await cg.register_parented(var, config[CONF_SX126X_ID])

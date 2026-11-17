@@ -1,0 +1,147 @@
+esphome:
+  name: uart-mock-ld2410-query-ack
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2410's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Synthetic query parameters ACKs (command 0x61), built from the layout the component parses.
+# They are not device captures. Layout (38 bytes):
+#   [0-3] header, [4-5] length 28, [6-7] 61 01, [8-9] 00 00, [10] AA, [11] gate count,
+#   [12] max move gate, [13] max still gate, [14-22] move thresholds, [23-31] still thresholds,
+#   [32-33] timeout (low, high), [34-37] footer
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  auto_start: false
+  injections:
+    # Ordinary normal mode data frame, as in uart_mock_ld2410.yaml Phase 1
+    # Moving 100cm energy 50, still 120cm energy 25, detection 300cm
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x0D, 0x00,
+          0x02, 0xAA,
+          0x03,
+          0x64, 0x00,
+          0x32,
+          0x78, 0x00,
+          0x19,
+          0x2C, 0x01,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Seed: a whole ACK, so every byte the next ACK is read from holds a known value
+    # Max gates 8/8, move 50 50 40 30 20 15 15 15 15, still 0 0 40 40 40 40 15 15 15, timeout 5
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x1C, 0x00, 0x61, 0x01, 0x00, 0x00,
+          0xAA, 0x08, 0x08, 0x08,
+          0x32, 0x32, 0x28, 0x1E, 0x14, 0x0F, 0x0F, 0x0F, 0x0F,
+          0x00, 0x00, 0x28, 0x28, 0x28, 0x28, 0x0F, 0x0F, 0x0F,
+          0x05, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Version answer cut after two bytes, so the footer sits where the version would be
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0xA0, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x07, 0x02,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # A whole version answer: firmware type 1, version 2.07.22062416
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x0C, 0x00, 0xA0, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x07, 0x02, 0x16, 0x24, 0x06, 0x22,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Move thresholds of gates 0 to 3 are the footer bytes 04 03 02 01
+    # Max gates 6/5, move 4 3 2 1 60 45 46 47 48, still 20 to 28, timeout 300
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x1C, 0x00, 0x61, 0x01, 0x00, 0x00,
+          0xAA, 0x08, 0x06, 0x05,
+          0x04, 0x03, 0x02, 0x01, 0x3C, 0x2D, 0x2E, 0x2F, 0x30,
+          0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C,
+          0x2C, 0x01,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2410:
+  id: ld2410_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    moving_distance:
+      name: "Moving Distance"
+    still_distance:
+      name: "Still Distance"
+    moving_energy:
+      name: "Moving Energy"
+    still_energy:
+      name: "Still Energy"
+    detection_distance:
+      name: "Detection Distance"
+
+number:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    timeout:
+      name: "Timeout"
+    max_move_distance_gate:
+      name: "Max Move Distance Gate"
+    max_still_distance_gate:
+      name: "Max Still Distance Gate"
+    g0:
+      move_threshold:
+        name: "G0 Move Threshold"
+      still_threshold:
+        name: "G0 Still Threshold"
+    g4:
+      move_threshold:
+        name: "G4 Move Threshold"
+      still_threshold:
+        name: "G4 Still Threshold"
+    g8:
+      move_threshold:
+        name: "G8 Move Threshold"
+      still_threshold:
+        name: "G8 Still Threshold"
+
+text_sensor:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    version:
+      name: "Version"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'

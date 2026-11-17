@@ -250,10 +250,8 @@ async def to_code(config: ConfigType) -> None:
     await light.register_light(var, config)
     await uart.register_uart_device(var, config)
 
-    nrst_pin = await cg.gpio_pin_expression(config[CONF_NRST_PIN])
-    cg.add(var.set_nrst_pin(nrst_pin))
-    boot0_pin = await cg.gpio_pin_expression(config[CONF_BOOT0_PIN])
-    cg.add(var.set_boot0_pin(boot0_pin))
+    await cg.add_pin(var.set_nrst_pin, config[CONF_NRST_PIN])
+    await cg.add_pin(var.set_boot0_pin, config[CONF_BOOT0_PIN])
 
     cg.add(var.set_leading_edge(config[CONF_LEADING_EDGE]))
     cg.add(var.set_warmup_brightness(config[CONF_WARMUP_BRIGHTNESS]))

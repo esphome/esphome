@@ -3,7 +3,7 @@
 
 namespace esphome::tt21100 {
 
-static const char *const TAG = "tt21100";
+ESPHOME_LOG_TAG(TAG, "tt21100");
 
 static const uint8_t MAX_BUTTONS = 4;
 static const uint8_t MAX_TOUCH_POINTS = 5;
@@ -54,10 +54,7 @@ void TT21100Touchscreen::setup() {
   }
 
   // Perform reset if necessary
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_();
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 10, .high_after_ms = 10});
 
   // Update display dimensions if they were updated during display setup
   if (this->display_ != nullptr) {
@@ -119,15 +116,6 @@ void TT21100Touchscreen::update_touches() {
         this->add_raw_touch_position_(touch->tip, touch->x, touch->y, touch->pressure);
       }
     }
-  }
-}
-
-void TT21100Touchscreen::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-    delay(10);
   }
 }
 

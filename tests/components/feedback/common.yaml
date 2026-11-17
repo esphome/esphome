@@ -37,3 +37,16 @@ cover:
       - logger.log: Close Action
     stop_action:
       - logger.log: Stop Action
+  # Time-only cover with overshoot next to one without: the define is global, so both paths compile
+  - platform: feedback
+    name: Feedback Cover Plain
+    id: feedback_plain
+    open_duration: 10s
+    close_duration: 10s
+    overshoot_duration: 2s
+    open_action:
+      - logger.log: Plain Open
+    close_action:
+      - logger.log: Plain Close
+    stop_action:
+      - logger.log: Plain Stop

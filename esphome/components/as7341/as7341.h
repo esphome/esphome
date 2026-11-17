@@ -118,7 +118,6 @@ class AS7341Component final : public PollingComponent, public i2c::I2CDevice {
   bool write_register_bit(uint8_t address, bool value, uint8_t bit_position);
   bool set_register_bit(uint8_t address, uint8_t bit_position);
   bool clear_register_bit(uint8_t address, uint8_t bit_position);
-  uint16_t swap_bytes(uint16_t data);
 
  protected:
   sensor::Sensor *f1_{nullptr};

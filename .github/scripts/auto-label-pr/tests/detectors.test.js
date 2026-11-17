@@ -1,6 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  detectApiProto,
   detectMergeBranch,
   detectNewPlatforms,
   detectNewComponents,
@@ -376,6 +377,27 @@ describe('detectRequirements', () => {
 });
 
 // ---------------------------------------------------------------------------
+// detectApiProto
+// ---------------------------------------------------------------------------
+
+describe('detectApiProto', () => {
+  it('labels a PR that changes api.proto', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api.proto', 'esphome/components/api/api_pb2.cpp']);
+    assert.deepEqual(Array.from(labels), ['api.proto']);
+  });
+
+  it('labels a PR that changes only api_options.proto', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api_options.proto']);
+    assert.deepEqual(Array.from(labels), ['api.proto']);
+  });
+
+  it('ignores the generated protocol files and other components', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api_pb2.cpp', 'esphome/components/uart/api.proto']);
+    assert.equal(labels.size, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // MANAGED_LABELS
 // ---------------------------------------------------------------------------
 
@@ -386,6 +408,10 @@ describe('MANAGED_LABELS', () => {
 
   it('includes needs-developer-docs so the workflow syncs it', () => {
     assert.ok(MANAGED_LABELS.includes('needs-developer-docs'));
+  });
+
+  it('includes api.proto so the workflow removes it when the file drops out of the diff', () => {
+    assert.ok(MANAGED_LABELS.includes('api.proto'));
   });
 });
 

@@ -13,6 +13,20 @@ namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 
+static constexpr uint8_t SIO_SET_MODEM_CTRL = 0x01;
+static constexpr uint8_t SIO_SET_FLOW_CTRL = 0x02;
+// The high byte of wIndex selects the flow control mode, the low byte the channel
+static constexpr uint16_t SIO_DISABLE_FLOW_CTRL = 0x0000;
+static constexpr uint16_t SIO_RTS_CTS_HS = 0x0100;
+static constexpr uint16_t SIO_XON_XOFF_HS = 0x0400;
+// wValue carries the XOFF and XON characters, which the termios defaults fix as DC3 and DC1
+static constexpr uint16_t SIO_XON_XOFF_CHARS = 0x1311;
+// The high byte selects which lines the low byte changes
+static constexpr uint16_t SIO_SET_DTR_MASK = 0x0100;
+static constexpr uint16_t SIO_SET_RTS_MASK = 0x0200;
+static constexpr uint16_t SIO_DTR_HIGH = 0x0001;
+static constexpr uint16_t SIO_RTS_HIGH = 0x0002;
+
 // FTDI chip family identifiers. These map to USB device bcdDevice values
 // and determine how baudrate divisors and clock sources are calculated.
 enum FtdiChipType {
@@ -56,11 +70,7 @@ static int ftdi_to_clkbits_am(int baudrate, uint32_t *encoded_divisor) {
       }
     }
     baud_estimate = (24000000 + (try_divisor / 2)) / try_divisor;
-    if (baud_estimate < baudrate) {
-      baud_diff = baudrate - baud_estimate;
-    } else {
-      baud_diff = baud_estimate - baudrate;
-    }
+    baud_diff = baud_estimate < baudrate ? baudrate - baud_estimate : baud_estimate - baudrate;
     if (i == 0 || baud_diff < best_baud_diff) {
       best_divisor = try_divisor;
       best_baud = baud_estimate;
@@ -94,19 +104,11 @@ static int ftdi_to_clkbits(int baudrate, unsigned int clk, int clk_div, uint32_t
     best_baud = clk / (2 * clk_div);
   } else {
     divisor = clk * 16 / clk_div / baudrate;
-    if (divisor & 1) {
-      best_divisor = divisor / 2 + 1;
-    } else {
-      best_divisor = divisor / 2;
-    }
+    best_divisor = divisor & 1 ? divisor / 2 + 1 : divisor / 2;
     if (best_divisor > 0x20000)
       best_divisor = 0x1ffff;
     best_baud = clk * 16 / clk_div / best_divisor;
-    if (best_baud & 1) {
-      best_baud = best_baud / 2 + 1;
-    } else {
-      best_baud = best_baud / 2;
-    }
+    best_baud = best_baud & 1 ? best_baud / 2 + 1 : best_baud / 2;
     *encoded_divisor = (best_divisor >> 3) | (FRAC_CODE[best_divisor & 0x7] << 14);
   }
   return best_baud;
@@ -217,6 +219,7 @@ static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t i
   }
 
   eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+  eps.bulk_interface_class = intf_desc->bInterfaceClass;
   return eps;
 }
 
@@ -362,48 +365,43 @@ bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, b
     }
     case 2: {  // set line properties (data bits / parity / stop bits)
       uint16_t value = channel->data_bits_;
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_NONE:
-          value |= (0x00 << 8);
-          break;
-        case UART_CONFIG_PARITY_ODD:
-          value |= (0x01 << 8);
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          value |= (0x02 << 8);
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          value |= (0x03 << 8);
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          value |= (0x04 << 8);
-          break;
-      }
-      switch (channel->stop_bits_) {
-        default:  // 1 bit
-          value |= (0x00 << 11);
-          break;
-        case UART_CONFIG_STOP_BITS_1_5:
-          value |= (0x01 << 11);
-          break;
-        case UART_CONFIG_STOP_BITS_2:
-          value |= (0x02 << 11);
-          break;
-      }
+      value |= static_cast<uint8_t>(channel->line_parity_()) << 8;
+      value |= static_cast<uint8_t>(channel->line_stop_bits_()) << 11;
       value |= (0x00 << 14);
       this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
                              channel->cdc_dev_.bulk_interface_number + 1);
       return true;
     }
-    case 3:  // set modem control DTR+RTS (init only)
+    case 3: {  // set flow control, re-applied on every settings change
+      uint16_t mode = SIO_DISABLE_FLOW_CTRL;
+      uint16_t value = 0;
+      if (channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS) {
+        mode = SIO_RTS_CTS_HS;
+      } else if (channel->flow_control_ == uart::UART_FLOW_CONTROL_XON_XOFF) {
+        mode = SIO_XON_XOFF_HS;
+        value = SIO_XON_XOFF_CHARS;
+      }
+      ESP_LOGD(TAG, "SIO_SET_FLOW_CTRL: mode=0x%04X", mode);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, SIO_SET_FLOW_CTRL, value,
+                             mode | (channel->cdc_dev_.bulk_interface_number + 1));
+      return true;
+    }
+    case 4:  // set modem control DTR+RTS (init only)
       if (reload)
         return false;
-      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
-                             channel->cdc_dev_.bulk_interface_number + 1);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
+}
+
+void USBUartTypeFT23XX::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value =
+      SIO_SET_DTR_MASK | SIO_SET_RTS_MASK | (channel->dtr_ ? SIO_DTR_HIGH : 0) | (channel->rts_ ? SIO_RTS_HIGH : 0);
+  ESP_LOGD(TAG, "SIO_SET_MODEM_CTRL: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, SIO_SET_MODEM_CTRL, value,
+                         channel->cdc_dev_.bulk_interface_number + 1);
 }
 
 }  // namespace esphome::usb_uart

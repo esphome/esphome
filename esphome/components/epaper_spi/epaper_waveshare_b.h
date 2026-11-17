@@ -9,11 +9,12 @@ namespace esphome::epaper_spi {
  */
 class EpaperWaveshareB : public EPaperWeAct3C {
  public:
-  using EPaperWeAct3C::EPaperWeAct3C;
+  EpaperWaveshareB(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
+                   size_t init_sequence_length)
+      : EPaperWeAct3C(name, width, height, init_sequence, init_sequence_length, /*invert_red=*/true) {}
 
  protected:
   bool reset() override;
-  uint8_t transform_red_byte(uint8_t byte) const override { return static_cast<uint8_t>(~byte); }
 };
 
 }  // namespace esphome::epaper_spi

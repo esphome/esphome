@@ -1,5 +1,6 @@
 import abc
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import inspect
 import math
 import re
@@ -8,8 +9,10 @@ from typing import Any
 from esphome.core import (
     CORE,
     ID,
+    LINE_DIRECTIVE_RESET,
     Define,
     EnumValue,
+    EsphomeError,
     HexInt,
     Lambda,
     Library,
@@ -19,7 +22,12 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.helpers import (
+    cpp_string_escape,
+    indent,
+    indent_all_but_first_and_last,
+    unique_name,
+)
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
@@ -208,14 +216,24 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        if self.source is not None:
-            cpp += f"{self.source.as_line_directive}\n"
-        cpp += f"{self.content}\n}}"
+        cpp += "".join(f"{line}\n" for line in self.body_lines)
+        cpp += "}"
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
         return "".join(str(part) for part in self.parts)
+
+    @property
+    def body_lines(self) -> list[str]:
+        """The body with its source line mark, as the statements of a function."""
+        lines = [self.content]
+        if self.source is not None:
+            lines.insert(0, self.source.as_line_directive)
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if any("#line " in line for line in lines):
+            lines.append(LINE_DIRECTIVE_RESET)
+        return lines
 
 
 # pylint: disable=abstract-method
@@ -262,6 +280,13 @@ class FlashStringLiteral(Literal):
 
     def __str__(self) -> str:
         return f"ESPHOME_F({cpp_string_escape(self.string)})"
+
+
+def progmem_string(value: str) -> Expression:
+    """A ``std::string`` argument from a literal that stays in flash on ESP8266."""
+    if CORE.is_esp8266:
+        return RawExpression(f"progmem_string({FlashStringLiteral(value)})")
+    return safe_exp(value)
 
 
 class IntLiteral(Literal):
@@ -313,6 +338,8 @@ class FloatLiteral(Literal):
     def __str__(self):
         if math.isnan(self.f):
             return "NAN"
+        if math.isinf(self.f):
+            return "INFINITY" if self.f > 0 else "-INFINITY"
         return f"{self.f}f"
 
 
@@ -435,13 +462,20 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ()
+    __slots__ = ("constexpr", "align")
 
-    def __init__(self, type_, name, rhs):
+    def __init__(
+        self, type_, name, rhs, constexpr: bool = True, align: int | None = None
+    ):
         super().__init__(type_, "", name, rhs)
+        self.constexpr = constexpr
+        self.align = align
 
     def __str__(self):
-        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        prefix = "" if self.align is None else f"alignas({self.align}) "
+        if self.constexpr:
+            return f"{prefix}static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"{prefix}ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -454,13 +488,174 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
-def progmem_array(id_, rhs) -> "MockObj":
+def progmem_array(id_, rhs, *, align: int | None = None) -> "MockObj":
+    """Emit a ``static constexpr`` PROGMEM array and return a reference to it.
+
+    ``align`` prefixes the declaration with ``alignas(align)``. Without it the array
+    only gets its element type's alignment (1 byte for a byte array), so data read
+    through a cast, such as a flatbuffer model buffer, needs this to stay aligned.
+    """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
+    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, align=align)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
+
+
+_CONFIG_ID_NAMES = "config_id_names"
+
+
+def unique_global_id(name: str, type_: "MockObjClass") -> ID:
+    """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS_SET
+
+    # The config is final during code generation, so its ids are collected once per run.
+    if (config_ids := CORE.data.get(_CONFIG_ID_NAMES)) is None:
+        config_ids = CORE.data[_CONFIG_ID_NAMES] = {
+            str(i) for i, _ in iter_ids(CORE.config)
+        }
+    unique = unique_name(
+        name,
+        lambda c: (
+            c in config_ids
+            or c in RESERVED_IDS_SET
+            or c in CORE.loaded_integrations
+            or ID(c) in CORE.variables
+        ),
+    )
+    return ID(unique, is_declaration=True, type=type_)
+
+
+class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
+    __slots__ = ()
+
+    def __str__(self):
+        return f"const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+
+
+def extern_progmem_array(
+    qualified_name: str, type_: "MockObjClass", rhs: SafeExpType
+) -> "MockObj":
+    """Emit an externally linked PROGMEM table that a component declares extern and reads itself."""
+    CORE.add_global(
+        ExternProgmemAssignmentExpression(type_, qualified_name, safe_exp(rhs))
+    )
+    return MockObj(qualified_name, ".")
+
+
+def shared_progmem_array(
+    name: str,
+    type_: "MockObjClass",
+    rhs: SafeExpType,
+    *,
+    share: bool = True,
+    constexpr: bool = True,
+) -> "MockObj":
+    """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
+
+    The array is ``static constexpr`` by default, so elements must be constant expressions and
+    lambdas must be captureless. Its name is made unique against every config id and variable.
+    ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
+    ``constexpr=False`` is for tables of generated object pointers: each top level variable
+    element must pass ``is_static_pointer`` or ``EsphomeError`` is raised.
+    """
+    arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
+    rhs = safe_exp(rhs)
+    if not constexpr and isinstance(rhs, ArrayInitializer):
+        for arg in rhs.args:
+            if isinstance(arg, MockObj) and not is_static_pointer(arg):
+                raise EsphomeError(
+                    f"'{arg}' must be created with cg.new_Pvariable so its address is known "
+                    "at compile time"
+                )
+    key = f"{type_} {rhs} {constexpr}"
+    if share and (array := arrays.get(key)) is not None:
+        return array
+    id_ = unique_global_id(name, type_)
+    # After the user includes, so a lambda in the table can use what their headers declare.
+    CORE.add_global_after_includes(
+        ProgmemAssignmentExpression(type_, id_, rhs, constexpr)
+    )
+    array = MockObj(id_, ".")
+    CORE.register_variable(id_, array)
+    if share:
+        arrays[key] = array
+    return array
+
+
+def shared_progmem_string(value: str) -> Expression:
+    """Return a string that stays in flash: one shared PROGMEM array per text on ESP8266.
+
+    Other platforms keep string literals in flash already, so they get the plain literal.
+    """
+    from esphome.cpp_types import char
+
+    text = StringLiteral(value)
+    if CORE.is_esp8266:
+        return shared_progmem_array("progmem_str", char, text)
+    return text
+
+
+def _owned_static_name(owner: ID, suffix: str, type_: "MockObjClass") -> tuple[ID, str]:
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    base = unique_global_id(f"{owner.id}_{suffix}", type_)
+    return base, _pstorage_name(owner.type, base)
+
+
+def static_buffer(
+    owner: ID,
+    type_: "MockObjClass",
+    size: "int | str | Expression",
+    *,
+    psram: bool = False,
+    align: int | None = None,
+) -> "MockObj":
+    """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
+
+    Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
+    ``size`` may be a C++ constant expression. With ``psram=True`` a build with PSRAM enabled
+    gets a ``psram_buffer<type_>(size)`` call instead, which allocates each time it is
+    evaluated, so pass the result once; it is nullptr if the allocation fails.
+    ``align`` prefixes the declaration with ``alignas(align)``.
+    """
+    if psram and align is not None and align > 4:
+        raise EsphomeError(
+            "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
+        )
+    base, name = _owned_static_name(owner, "buffer", type_)
+    # Same condition as the USE_PSRAM define: psram is configured and not disabled
+    if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
+        return MockObj(f"psram_buffer<{type_}>({size})", ".")
+    prefix = "" if align is None else f"alignas({align}) "
+    CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
+    buffer = MockObj(name, ".")
+    CORE.register_variable(base, buffer)
+    return buffer
+
+
+def static_storage(
+    owner: ID, type_: "MockObjClass", count: "int | str | Expression"
+) -> "MockObj":
+    """Emit raw aligned file-scope storage for ``count`` ``type_`` objects and return a ``std::span<type_>``.
+
+    For ``StaticFixedVector::init()``, which constructs the elements in place and never frees it.
+    """
+    if isinstance(count, int) and count == 0:
+        return MockObj(f"std::span<{type_}>()", ".")
+    base, name = _owned_static_name(owner, "storage", type_)
+    CORE.add_global(
+        RawStatement(
+            f"alignas({type_}) static unsigned char {name}[sizeof({type_}) * ({count})];"
+        )
+    )
+    storage = MockObj(
+        f"std::span<{type_}>(reinterpret_cast<{type_} *>({name}), {count})", "."
+    )
+    CORE.register_variable(base, storage)
+    return storage
 
 
 def static_const_array(id_, rhs) -> "MockObj":
@@ -565,6 +760,11 @@ def new_variable(
     return obj
 
 
+def _pstorage_name(type_: Any, name: Any) -> str:
+    """``<component>__<name>__pstorage``, the static storage name ``esphome analyze-memory`` attributes."""
+    return f"{_extract_component_ns(str(type_))}__{name}__pstorage"
+
+
 def _extract_component_ns(type_str: str) -> str:
     """Extract the component namespace from a fully-qualified C++ type string.
 
@@ -622,9 +822,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         if call_expr.template_args is not None:
             actual_type = f"{actual_type}{call_expr.template_args}"
         pointer_type = id_.type
-        # Extract component namespace from type for memory analysis attribution
-        component_ns = _extract_component_ns(str(actual_type))
-        storage_name = f"{component_ns}__{id_.id}__pstorage"
+        storage_name = _pstorage_name(actual_type, id_.id)
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
@@ -644,6 +842,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
+        CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
@@ -651,6 +850,20 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
 
     CORE.register_variable(id_, obj)
     return obj
+
+
+_STATIC_POINTER_IDS = "static_pointer_ids"
+
+
+def is_static_pointer(obj: SafeExpType) -> bool:
+    """True if ``obj`` is a Pvariable whose object was placement constructed in static storage.
+
+    Its pointer is then an address known at compile time and may appear in a ``constexpr=False``
+    PROGMEM table; a pointer assigned in ``setup()`` may not.
+    """
+    return isinstance(obj, MockObj) and str(obj.base) in CORE.data.get(
+        _STATIC_POINTER_IDS, ()
+    )
 
 
 def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
@@ -670,6 +883,77 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     return Pvariable(id_, rhs)
 
 
+def static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+) -> RawExpression:
+    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
+    expression naming it, for use as a template argument or a function pointer.
+
+    The declaration goes with the other globals, so a template argument can name the function
+    at once; the body goes after the user includes, where every id and everything those
+    headers declare is in scope.
+    """
+    signature = (
+        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    )
+    add_global(RawStatement(f"{signature};"))
+    add_global_after_includes(
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
+    )
+    return RawExpression(name)
+
+
+@dataclass
+class SharedStaticFunctions:
+    """Functions emitted by ``shared_static_function``, by signature and body."""
+
+    functions: dict[tuple[str, str, str], RawExpression] = field(default_factory=dict)
+
+
+def shared_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+    *,
+    share: bool = True,
+) -> RawExpression:
+    """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
+
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
+    """
+    if not share:
+        return _new_static_function(name, return_type, parameters, body)
+    data: SharedStaticFunctions = CORE.data.setdefault(
+        "shared_static_function", SharedStaticFunctions()
+    )
+    key = (
+        str(safe_exp(return_type)),
+        str(ParameterListExpression(*parameters)),
+        "\n".join(map(str, body)),
+    )
+    if (fn := data.functions.get(key)) is None:
+        fn = data.functions[key] = _new_static_function(
+            name, return_type, parameters, body
+        )
+    return fn
+
+
+def _new_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+) -> RawExpression:
+    id_ = unique_global_id(name, None)
+    fn = static_function(id_.id, return_type, parameters, body)
+    CORE.register_variable(id_, fn)
+    return fn
+
+
 def add(expression: Expression | Statement, prepend: bool = False):
     """Add an expression to the codegen section.
 
@@ -682,6 +966,13 @@ def add(expression: Expression | Statement, prepend: bool = False):
 def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
     CORE.add_global(expression, prepend)
+
+
+def add_global_after_includes(expression: SafeExpType | Statement):
+    """Add a global after the user's ``includes:`` headers, for generated code whose
+    lambdas may use what those headers declare.
+    """
+    CORE.add_global_after_includes(expression)
 
 
 def add_library(name: str, version: str | None, repository: str | None = None):
@@ -819,8 +1110,7 @@ async def process_lambda(
         parts[i * 3 + 2] = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-        location = value.esp_range.start_mark
-        location.line += value.content_offset
+        location = value.content_start
     else:
         location = None
     return LambdaExpression(parts, parameters, capture, return_type, location)
@@ -1139,6 +1429,9 @@ class MockObj(Expression):
         return MockObj(op)
 
 
+_ENUM_NON_ALNUM = re.compile(r"[^A-Za-z0-9]")
+
+
 class MockObjEnum(MockObj):
     def __init__(self, *args, **kwargs):
         self._enum = kwargs.pop("enum")
@@ -1158,6 +1451,17 @@ class MockObjEnum(MockObj):
     def __repr__(self):
         return f"MockObj<{str(self.base)}>"
 
+    def options(self, *names: str, prefix: str = "") -> dict[str, "MockObj"]:
+        """Map option names to prefix + NAME enumerators (non-alphanumerics become "_"), for cv.enum."""
+        enumerators = {
+            name: prefix + _ENUM_NON_ALNUM.sub("_", name).upper() for name in names
+        }
+        if len(set(enumerators.values())) != len(names):
+            raise ValueError(f"Option names must map to distinct enumerators: {names}")
+        return {
+            name: getattr(self, enumerator) for name, enumerator in enumerators.items()
+        }
+
 
 class MockObjClass(MockObj):
     def __init__(self, *args, **kwargs):
@@ -1171,10 +1475,24 @@ class MockObjClass(MockObj):
             # pylint: disable=protected-access
             self._parents += paren._parents
 
+    @property
+    def parents(self) -> list["MockObjClass"]:
+        """Every ancestor class: each direct parent followed by its own parents."""
+        return self._parents
+
     def inherits_from(self, other: "MockObjClass") -> bool:
-        if str(self) == str(other):
+        other_name = str(other)
+        if str(self) == other_name:
             return True
-        return any(str(parent) == str(other) for parent in self._parents)
+        return any(str(parent) == other_name for parent in self._parents)
+
+    def const_ref(self) -> MockObj:
+        """``const T &``, for a parameter that takes this type by reference."""
+        return self.operator("const").operator("ref")
+
+    def static_(self, name: str) -> MockObj:
+        """The static member ``Class::name``; call it for ``Class::name(args)``."""
+        return MockObj(f"{self.base}::{name}", "::")
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
@@ -1205,6 +1523,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
     This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
     """
@@ -1212,7 +1531,13 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
     # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
-    if re.match(r"^return\b", expr) and expr.endswith(";") and expr.count(";") == 1:
+    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    if (
+        re.match(r"^return\b", expr)
+        and expr.endswith(";")
+        and expr.count(";") == 1
+        and not expr[6:].lstrip().startswith("{")
+    ):
         expr = RawExpression(expr[6:-1].strip())
         # Don't cast if the return type is a class
         if isinstance(lamb.return_type, MockObjClass):

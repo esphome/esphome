@@ -49,63 +49,83 @@ esphome:
     - id: device_1
       name: "Device 1"
       area_id: area_1
+      relation: via
     - id: device_2
       name: "Device 2"
       area_id: area_2
+      relation: via
     - id: device_3
       name: "Device 3"
       area_id: area_3
+      relation: via
     - id: device_4
       name: "Device 4"
       area_id: area_4
+      relation: via
     - id: device_5
       name: "Device 5"
       area_id: area_5
+      relation: via
     - id: device_6
       name: "Device 6"
       area_id: area_6
+      relation: via
     - id: device_7
       name: "Device 7"
       area_id: area_7
+      relation: via
     - id: device_8
       name: "Device 8"
       area_id: area_8
+      relation: via
     - id: device_9
       name: "Device 9"
       area_id: area_9
+      relation: via
     - id: device_10
       name: "Device 10"
       area_id: area_10
+      relation: via
     - id: device_11
       name: "Device 11"
       area_id: area_11
+      relation: via
     - id: device_12
       name: "Device 12"
       area_id: area_12
+      relation: via
     - id: device_13
       name: "Device 13"
       area_id: area_13
+      relation: via
     - id: device_14
       name: "Device 14"
       area_id: area_14
+      relation: via
     - id: device_15
       name: "Device 15"
       area_id: area_15
+      relation: via
     - id: device_16
       name: "Device 16"
       area_id: area_16
+      relation: via
     - id: device_17
       name: "Device 17"
       area_id: area_17
+      relation: via
     - id: device_18
       name: "Device 18"
       area_id: area_18
+      relation: via
     - id: device_19
       name: "Device 19"
       area_id: area_19
+      relation: via
     - id: device_20
       name: "Device 20"
       area_id: area_20
+      relation: via
 
 api:
   encryption:

@@ -7,6 +7,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kahrendt"]
+DOMAIN = "media_source"
 
 AUTO_LOAD = ["audio"]
 

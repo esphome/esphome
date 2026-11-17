@@ -2,6 +2,8 @@
 
 #ifdef USE_HOST
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "uart_component.h"
@@ -10,7 +12,7 @@ namespace esphome::uart {
 
 class HostUartComponent final : public UARTComponent, public Component {
  public:
-  virtual ~HostUartComponent();
+  ~HostUartComponent();
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -19,10 +21,15 @@ class HostUartComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   UARTFlushResult flush() override;
-  void set_name(std::string port_name) { port_name_ = port_name; };
+  /// Drive DTR/RTS. Returns false when the port is closed or the ioctl fails.
+  bool set_modem_control(bool dtr, bool rts);
+  bool get_dtr() const;
+  bool get_rts() const;
+  void set_name(std::string port_name) { this->port_name_ = std::move(port_name); }
 
  protected:
   void update_error_(const std::string &error);
+  int get_modem_bits_() const;
   void check_logger_conflict() override {}
   std::string port_name_;
   std::string first_error_;

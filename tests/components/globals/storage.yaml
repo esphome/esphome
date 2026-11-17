@@ -1,0 +1,16 @@
+globals:
+  - id: glob_rtc_int
+    type: int
+    restore_value: true
+    storage: rtc
+    initial_value: "0"
+  - id: glob_rtc_string
+    type: std::string
+    restore_value: true
+    storage: rtc
+    max_restore_data_length: 15
+  - id: glob_flash_float
+    type: float
+    restore_value: true
+    storage: flash
+    initial_value: "0.0f"

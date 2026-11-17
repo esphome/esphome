@@ -39,6 +39,4 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_threshold(config[CONF_THRESHOLD]))
 
-    if CONF_INTERRUPT_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-        cg.add(var.set_irq_pin(pin))
+    await cg.add_pin(var.set_irq_pin, config.get(CONF_INTERRUPT_PIN))

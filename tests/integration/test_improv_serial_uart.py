@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Improv serial framing (improv_serial_component.h)
@@ -79,7 +80,7 @@ async def test_improv_serial_uart(
         api_client_connected() as client,
     ):
         _entities, services = await client.list_entities_services()
-        inject = next(s for s in services if s.name == "uart_inject")
+        inject = require_service(services, "uart_inject")
 
         # 1. Get Current State: expect the complete current-state frame reporting
         # AUTHORIZED (0x02), checksum and newline included

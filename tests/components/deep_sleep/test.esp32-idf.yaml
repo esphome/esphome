@@ -1,5 +1,27 @@
 substitutions:
   wakeup_pin: GPIO4
 
-<<: !include common.yaml
-<<: !include common-esp32-all.yaml
+packages:
+  deep_sleep: !include common.yaml
+  deep_sleep_esp32: !include common-esp32-all.yaml
+
+power_supply:
+  - id: power_supply_ds_esp32
+    pin:
+      number: GPIO5
+      hold_state: true
+
+output:
+  - platform: gpio
+    pin:
+      number: GPIO22
+      hold_state: true
+    id: gpio_output_ds_esp32
+    power_supply: power_supply_ds_esp32
+
+switch:
+  - platform: gpio
+    pin:
+      number: GPIO23
+      hold_state: true
+    id: gpio_switch_ds_esp32

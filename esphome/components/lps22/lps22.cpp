@@ -1,8 +1,9 @@
 #include "lps22.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::lps22 {
 
-static constexpr const char *const TAG = "lps22";
+ESPHOME_LOG_TAG(TAG, "lps22");
 
 static constexpr uint8_t WHO_AM_I = 0x0F;
 static constexpr uint8_t LPS22HB_ID = 0xB1;
@@ -41,10 +42,8 @@ void LPS22Component::dump_config() {
 static constexpr uint32_t INTERVAL_READ = 0;
 
 void LPS22Component::update() {
-  uint8_t value = 0x00;
-  this->read_register(CTRL_REG2, &value, 1);
-  value |= CTRL_REG2_ONE_SHOT_MASK;
-  this->write_register(CTRL_REG2, &value, 1);
+  if (!this->status_comm_result(this->update_register(CTRL_REG2, CTRL_REG2_ONE_SHOT_MASK, CTRL_REG2_ONE_SHOT_MASK)))
+    return;
   this->read_attempts_remaining_ = READ_ATTEMPTS;
   this->set_interval(INTERVAL_READ, READ_INTERVAL, [this]() { this->try_read_(); });
 }
@@ -65,7 +64,7 @@ void LPS22Component::try_read_() {
   if (this->temperature_sensor_ != nullptr) {
     uint8_t t_buf[2]{0};
     this->read_register(TEMP_L, t_buf, 2);
-    int16_t encoded = static_cast<int16_t>(encode_uint16(t_buf[1], t_buf[0]));
+    int16_t encoded = encode_value_le<int16_t>(t_buf);
     float temp = TEMPERATURE_SCALE * static_cast<float>(encoded);
     this->temperature_sensor_->publish_state(temp);
   }

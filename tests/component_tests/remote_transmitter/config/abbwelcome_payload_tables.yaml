@@ -1,0 +1,36 @@
+---
+esphome:
+  name: test
+  on_boot:
+    then:
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x01
+          data: [0x10, 0x20, 0x30]
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x02
+          data: [0x10, 0x20, 0x30]
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x03
+          data: []
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x04
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x05
+          data: !lambda return {0x09};
+
+esp32:
+  board: esp32dev
+
+remote_transmitter:
+  pin: 4
+  carrier_duty_percent: 100%

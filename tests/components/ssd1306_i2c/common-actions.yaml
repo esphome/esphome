@@ -1,0 +1,16 @@
+button:
+  - platform: template
+    name: Page check
+    on_press:
+      - if:
+          condition:
+            display.is_displaying_page: ssd1306_i2c_page1
+          then:
+            - logger.log: On page 1
+      - if:
+          condition:
+            display.is_displaying_page:
+              id: ssd1306_i2c_ssd1306_i2c_display
+              page_id: ssd1306_i2c_page2
+          then:
+            - logger.log: On page 2

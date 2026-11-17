@@ -5,6 +5,7 @@
 #include "preprocessor_settings.h"
 #include "model_data.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
 #include <memory>
@@ -19,11 +20,13 @@ static const uint32_t STREAMING_MODEL_VARIABLE_ARENA_SIZE = 1024;
 
 struct DetectionEvent {
   std::string *wake_word;
+  const std::string *id{nullptr};
   bool detected;
   bool partially_detection;  // Set if the most recent probability exceed the threshold, but the sliding window average
                              // hasn't yet
   uint8_t max_probability;
   uint8_t average_probability;
+  uint8_t probability_cutoff{0};
   bool blocked_by_vad = false;
 };
 
@@ -39,7 +42,7 @@ class StreamingModel {
   // Performs inference on the given features.
   //  - If the model is enabled but not loaded, it will load it
   //  - If the model is disabled but loaded, it will unload it
-  // Returns true if sucessful or false if there is an error
+  // Returns true if successful or false if there is an error
   bool perform_streaming_inference(const int8_t features[PREPROCESSOR_FEATURE_SIZE]);
 
   /// @brief Sets all recent_streaming_probabilities to 0 and resets the ignore window count
@@ -96,6 +99,10 @@ class StreamingModel {
   std::vector<uint8_t> recent_streaming_probabilities_;
 
   const uint8_t *model_start_{nullptr};
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  size_t model_size_{0};
+  RAMUniquePtr<uint8_t[]> model_copy_;
+#endif
   uint8_t *tensor_arena_{nullptr};
   uint8_t *var_arena_{nullptr};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
@@ -108,21 +115,22 @@ class WakeWordModel final : public StreamingModel {
   /// @brief Constructs a wake word model object with compile-time model data
   /// @param id (std::string) identifier for this model
   /// @param model_start (const uint8_t *) pointer to the start of the model's TFLite FlatBuffer
-  /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
+  /// @param model_size (size_t) size of the compiled-in model data
+  /// @param default_probability_cutoff (uint8_t) probability cutoff for accepting the wake word has been said
   /// @param sliding_window_average_size (size_t) the length of the sliding window computing the mean rolling
   ///                                    probability
   /// @param wake_word (std::string) Friendly name of the wake word
   /// @param tensor_arena_size (size_t) Size in bytes for allocating the tensor arena
   /// @param default_enabled (bool) If true, it will be enabled by default on first boot
   /// @param internal_only (bool) If true, the model will not be exposed to HomeAssistant as an available model
-  WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
-                size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
-                bool default_enabled, bool internal_only);
+  WakeWordModel(const std::string &id, const uint8_t *model_start, size_t model_size,
+                uint8_t default_probability_cutoff, size_t sliding_window_average_size, const std::string &wake_word,
+                size_t tensor_arena_size, bool default_enabled, bool internal_only);
 
   /// @brief Constructs a wake word model object with a runtime-downloaded model
   /// @param id (std::string) identifier for this model
   /// @param model_data (std::shared_ptr<ModelData>) owning handle to the downloaded model buffer; must be valid
-  /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
+  /// @param default_probability_cutoff (uint8_t) probability cutoff for accepting the wake word has been said
   /// @param sliding_window_average_size (size_t) the length of the sliding window computing the mean rolling
   ///                                    probability
   /// @param wake_word (std::string) Friendly name of the wake word
@@ -173,8 +181,8 @@ class WakeWordModel final : public StreamingModel {
 
 class VADModel final : public StreamingModel {
  public:
-  VADModel(const uint8_t *model_start, uint8_t default_probability_cutoff, size_t sliding_window_size,
-           size_t tensor_arena_size);
+  VADModel(const uint8_t *model_start, size_t model_size, uint8_t default_probability_cutoff,
+           size_t sliding_window_size, size_t tensor_arena_size);
 
   void log_model_config() override;
 

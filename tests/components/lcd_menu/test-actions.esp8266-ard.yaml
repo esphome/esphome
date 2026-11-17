@@ -1,0 +1,11 @@
+substitutions:
+  d0_pin: GPIO0
+  d1_pin: GPIO2
+  d2_pin: GPIO14
+  d3_pin: GPIO15
+  enable_pin: GPIO16
+  rs_pin: GPIO5
+
+packages:
+  lcd_menu: !include common.yaml
+  actions: !include common-actions.yaml

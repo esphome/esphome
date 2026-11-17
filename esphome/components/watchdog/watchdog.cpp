@@ -16,7 +16,7 @@
 
 namespace esphome::watchdog {
 
-static const char *const TAG = "http_request.watchdog";
+ESPHOME_LOG_TAG(TAG, "http_request.watchdog");
 
 WatchdogManager::WatchdogManager(uint32_t timeout_ms) : timeout_ms_(timeout_ms) {
   if (timeout_ms == 0) {

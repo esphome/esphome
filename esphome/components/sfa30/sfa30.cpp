@@ -3,7 +3,7 @@
 
 namespace esphome::sfa30 {
 
-static const char *const TAG = "sfa30";
+ESPHOME_LOG_TAG(TAG, "sfa30");
 
 static const uint16_t SFA30_CMD_GET_DEVICE_MARKING = 0xD060;
 static const uint16_t SFA30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0006;
@@ -12,12 +12,9 @@ static const uint16_t SFA30_CMD_READ_MEASUREMENT = 0x0327;
 void SFA30Component::setup() {
   // Serial Number identification
   uint16_t raw_device_marking[16];
-  if (!this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5)) {
-    ESP_LOGE(TAG, "Failed to read device marking");
-    this->error_code_ = DEVICE_MARKING_READ_FAILED;
-    this->mark_failed();
+  if (!this->setup_check(this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5),
+                         LOG_STR("Unable to read device marking")))
     return;
-  }
 
   for (size_t i = 0; i < 16; i++) {
     this->device_marking_[i * 2] = static_cast<char>(raw_device_marking[i] >> 8);
@@ -25,30 +22,14 @@ void SFA30Component::setup() {
   }
   ESP_LOGD(TAG, "Device Marking: '%s'", this->device_marking_);
 
-  if (!this->write_command(SFA30_CMD_START_CONTINUOUS_MEASUREMENTS)) {
-    ESP_LOGE(TAG, "Error starting measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
+  if (!this->setup_check(this->write_command(SFA30_CMD_START_CONTINUOUS_MEASUREMENTS),
+                         LOG_STR("Error starting measurements")))
     return;
-  }
 }
 
 void SFA30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "sfa30:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case DEVICE_MARKING_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read device marking!");
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement initialization failed!");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error!");
-        break;
-    }
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Device Marking: '%s'", this->device_marking_);
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
@@ -71,20 +52,9 @@ void SFA30Component::update() {
       return;
     }
 
-    if (this->formaldehyde_sensor_ != nullptr) {
-      const float formaldehyde = static_cast<int16_t>(raw_data[0]) / 5.0f;
-      this->formaldehyde_sensor_->publish_state(formaldehyde);
-    }
-
-    if (this->humidity_sensor_ != nullptr) {
-      const float humidity = static_cast<int16_t>(raw_data[1]) / 100.0f;
-      this->humidity_sensor_->publish_state(humidity);
-    }
-
-    if (this->temperature_sensor_ != nullptr) {
-      const float temperature = static_cast<int16_t>(raw_data[2]) / 200.0f;
-      this->temperature_sensor_->publish_state(temperature);
-    }
+    PUBLISH_STATE(this->formaldehyde_sensor_, static_cast<int16_t>(raw_data[0]) / 5.0f);
+    PUBLISH_STATE(this->humidity_sensor_, static_cast<int16_t>(raw_data[1]) / 100.0f);
+    PUBLISH_STATE(this->temperature_sensor_, static_cast<int16_t>(raw_data[2]) / 200.0f);
 
     this->status_clear_warning();
   });

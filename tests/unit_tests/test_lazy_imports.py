@@ -19,6 +19,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 # Modules that must only load for the commands that actually use them
 # (compile/config validation, shell completion), never from a bare
 # ``import esphome.__main__``.
@@ -34,7 +36,12 @@ HEAVY_MODULES = (
 
 # Everything the storage fast path must keep out of sys.modules; the
 # existence guard and the leak check must watch the same list.
-FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
+FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + (
+    "esphome.components.esp32",
+    # A native backend module resolves artifact paths on this path; its
+    # framework half pulls in the whole package-download stack
+    "esphome.platformio.registry",
+)
 
 # Heavy only for modules that must not know about the API transport;
 # in the existence guard so a rename can't silently no-op its check.
@@ -85,6 +92,22 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
         check=True,
     )
     return result.stdout.strip()
+
+
+def test_main_module_does_not_query_the_os_version() -> None:
+    """``import esphome.__main__`` must not call ``platform.uname()`` (or ``system()``, which uses it).
+
+    On Windows they query WMI and fall back to running ``ver`` (importing
+    subprocess) when that fails, so the stdlib leak check below went flaky.
+    """
+    check = (
+        "import platform\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('platform queried at import time')\n"
+        "platform.uname = fail\n"
+        "import esphome.__main__"
+    )
+    subprocess.run([sys.executable, "-c", check], check=True)
 
 
 def test_main_module_does_not_import_heavy_modules() -> None:
@@ -175,6 +198,29 @@ def test_esptool_upload_fast_path_does_not_import_heavy_modules(
     )
 
 
+def test_native_upload_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+    probe_env: dict[str, str],
+) -> None:
+    """The native-toolchain serial upload dispatches through a
+    toolchain-keyed backend table; resolving the flash image must not drag
+    in the esp32 or esp8266 component package or the validation stack.
+    """
+    leaked = _leaked_from_fixture(
+        fixture_path,
+        probe_env,
+        "native_upload_fast_path.py",
+        # The cache-hit modules guard the espidf toolchain import chain:
+        # a top-level yaml import there would tax every upload subprocess.
+        extra=("esphome.components.esp8266", *CACHE_HIT_HEAVY_MODULES),
+    )
+    assert not leaked, (
+        f"native upload_using_esptool pulls in heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing a platform "
+        "component package executes its codegen module by design."
+    )
+
+
 def test_api_client_does_not_import_heavy_modules() -> None:
     """``esphome.api_client`` is on the logs fast path and must stay light.
 
@@ -187,6 +233,70 @@ def test_api_client_does_not_import_heavy_modules() -> None:
         f"esphome.api_client imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
+    )
+
+
+# Packages a domain needs for its own schema; cheap and never an integration
+_ENTITY_COMPONENT_DEPENDENCIES = {
+    "infrared": ("esphome.components.ir_rf_base",),
+    "light": ("esphome.components.power_supply", "esphome.components.const.css_colors"),
+    "radio_frequency": ("esphome.components.ir_rf_base",),
+}
+
+
+def _entity_components() -> list[str]:
+    """Every platform component that registers entities, found from source."""
+    components = Path(__file__).parents[2] / "esphome" / "components"
+    return sorted(
+        init.parent.name
+        for init in components.glob("*/__init__.py")
+        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text(encoding="utf-8"))
+        and ("setup_entity(" in text or "queue_entity_register(" in text)
+    )
+
+
+def test_entity_component_tables_match_discovery() -> None:
+    """Catch stale table entries and a discovery that silently finds nothing."""
+    found = set(_entity_components())
+    stale = _ENTITY_COMPONENT_DEPENDENCIES.keys() - found
+    assert not stale, f"not discovered as entity components: {sorted(stale)}"
+
+
+@pytest.mark.parametrize("component", _entity_components())
+def test_entity_component_does_not_import_integrations(component: str) -> None:
+    """An entity component must not drag in its optional integrations.
+
+    The mqtt/web_server/zigbee schema fragments live in
+    ``esphome.core.entity_helpers``; the integration packages (and the
+    esp32/logger chains mqtt and zigbee pull in) must only load when the
+    user's config actually uses them.
+    """
+    own = f"esphome.components.{component}"
+    allowed = (
+        "esphome.components",
+        own,
+        "esphome.components.const",
+        *_ENTITY_COMPONENT_DEPENDENCIES.get(component, ()),
+    )
+    check = (
+        f"import sys; import {own}; "
+        f"leaked = [m for m in sys.modules "
+        f"if m.startswith('esphome.components') and m not in {allowed!r} "
+        f"and not m.startswith('{own}.')]; "
+        "print(','.join(leaked))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"esphome.components.{component} imports integration packages at "
+        f"top level: {leaked}. Keep the shared schema fragments in "
+        "esphome.core.entity_helpers and import the integration inside "
+        "to_code instead."
     )
 
 

@@ -1,0 +1,28 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+external_components:
+  - source:
+      type: local
+      path: ../external_components
+
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO12
+  miso_pin: GPIO13
+
+display:
+  - platform: epaper_spi
+    model: ssd1677
+    dimensions:
+      width: 200
+      height: 200
+    cs_pin: GPIO5
+    dc_pin: GPIO21
+    busy_pin: GPIO22
+    reset_pin: GPIO25
+
+fake_display_writer:

@@ -5,16 +5,12 @@
 
 namespace esphome::st7123 {
 
-static const char *const TAG = "st7123.touchscreen";
+ESPHOME_LOG_TAG(TAG, "st7123.touchscreen");
 
 void ST7123Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);  // TP_RESX is active low, assert for at least tRSTW (2ms)
-    delay(5);
-    this->reset_pin_->digital_write(true);
+    // TP_RESX is active low, assert for at least tRSTW (2ms)
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     // The controller needs up to 20ms to initialize after reset before it can be accessed.
     this->setup_time_ = millis() + 30;
   }
@@ -27,7 +23,7 @@ void ST7123Touchscreen::update() {
       return;
 
     uint8_t status;
-    if (this->read_register16(ST7123_REG_STATUS, &status, 1) != i2c::ERROR_OK) {
+    if (!this->read_byte_reg16(ST7123_REG_STATUS, &status)) {
       this->mark_failed(LOG_STR("Failed to read status register"));  // will stop updates
       return;
     }
@@ -44,8 +40,7 @@ void ST7123Touchscreen::update() {
     ESP_LOGD(TAG, "Status is %X", status);
 
     uint8_t data;
-    if (this->read_register16(ST7123_REG_MAX_TOUCHES, &data, 1) == i2c::ERROR_OK && data != 0 &&
-        data <= ST7123_MAX_TOUCHES) {
+    if (this->read_byte_reg16(ST7123_REG_MAX_TOUCHES, &data) && data != 0 && data <= ST7123_MAX_TOUCHES) {
       this->max_touches_ = data;
     }
 
@@ -73,12 +68,10 @@ void ST7123Touchscreen::update_touches() {
   // Reading from this register also clears the INT pin so the controller can report the next frame.
   uint8_t data[(ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO) + ST7123_MAX_TOUCHES * ST7123_TOUCH_STRIDE];
   const size_t len = (ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO) + this->max_touches_ * ST7123_TOUCH_STRIDE;
-  if (this->read_register16(ST7123_REG_ADV_TOUCH_INFO, data, len) != i2c::ERROR_OK) {
+  if (!this->status_comm_result(this->read_register16(ST7123_REG_ADV_TOUCH_INFO, data, len) == i2c::ERROR_OK)) {
     this->skip_update_ = true;
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
 
   const uint8_t *points = data + (ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO);
   for (uint8_t i = 0; i != this->max_touches_; i++) {

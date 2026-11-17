@@ -1,0 +1,12 @@
+# Config only: a user supplied SPI interface on dedicated pins exercises the
+# interface option in validation.
+ethernet:
+  type: W5500
+  interface: spi3
+  clk_pin: 19
+  mosi_pin: 21
+  miso_pin: 17
+  cs_pin: 18
+  interrupt_pin: 36
+  reset_pin: 12
+  clock_speed: 10Mhz

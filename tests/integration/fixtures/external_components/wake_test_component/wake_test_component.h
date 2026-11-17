@@ -18,6 +18,10 @@ class WakeTestComponent : public Component {
   // loop_interval_ has been raised high enough to gate it off otherwise.
   void start_async_wake();
 
+  // Spawn a detached thread that inserts a timeout (or a defer when delay_ms
+  // is 0) while the main loop sleeps, and report how soon it ran.
+  void start_async_timeout(uint32_t delay_ms);
+
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:

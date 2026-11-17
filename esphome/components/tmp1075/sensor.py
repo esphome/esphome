@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
@@ -31,17 +32,13 @@ POLARITY = {
 }
 
 EAlertFunction = tmp1075_ns.enum("EAlertFunction")
-ALERT_FUNCTION = {
-    "COMPARATOR": EAlertFunction.ALERT_COMPARATOR,
-    "INTERRUPT": EAlertFunction.ALERT_INTERRUPT,
-}
+ALERT_FUNCTION = EAlertFunction.options("COMPARATOR", "INTERRUPT", prefix="ALERT_")
 
 CONF_ALERT = "alert"
 CONF_LIMIT_LOW = "limit_low"
 CONF_LIMIT_HIGH = "limit_high"
 CONF_FAULT_COUNT = "fault_count"
 CONF_POLARITY = "polarity"
-CONF_CONVERSION_RATE = "conversion_rate"
 CONF_FUNCTION = "function"
 
 CONFIG_SCHEMA = (
@@ -77,8 +74,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_CONVERSION_RATE in config:
-        cg.add(var.set_conversion_rate(config[CONF_CONVERSION_RATE]))
+    cg.add_optional(var.set_conversion_rate, config.get(CONF_CONVERSION_RATE))
 
     alert = config[CONF_ALERT]
     if CONF_LIMIT_LOW in alert:

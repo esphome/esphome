@@ -1,10 +1,15 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "uart_transport.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart_transport";
+ESPHOME_LOG_TAG(TAG, "uart_transport");
+
+static constexpr uint16_t MAX_PACKET_SIZE = 508;
+static constexpr uint8_t FLAG_BYTE = 0x7E;
+static constexpr uint8_t CONTROL_BYTE = 0x7D;
 
 void UARTTransport::loop() {
   PacketTransport::loop();
@@ -19,7 +24,7 @@ void UARTTransport::loop() {
       if (this->rx_started_ && this->receive_buffer_.size() > 6) {
         auto len = this->receive_buffer_.size();
         auto crc = crc16(this->receive_buffer_.data(), len - 2);
-        if (crc != (this->receive_buffer_[len - 2] | (this->receive_buffer_[len - 1] << 8))) {
+        if (crc != encode_value_le<uint16_t>(this->receive_buffer_.data() + len - 2)) {
           ESP_LOGD(TAG, "CRC mismatch, discarding packet");
           this->rx_started_ = false;
           this->receive_buffer_.clear();
@@ -78,4 +83,5 @@ void UARTTransport::send_packet(const std::vector<uint8_t> &buf) const {
   this->parent_->write_byte(FLAG_BYTE);
 }
 
+size_t UARTTransport::get_max_packet_size() { return MAX_PACKET_SIZE; }
 }  // namespace esphome::uart

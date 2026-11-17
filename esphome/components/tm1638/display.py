@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_DIO_PIN,
     CONF_ID,
     CONF_INTENSITY,
-    CONF_LAMBDA,
     CONF_STB_PIN,
 )
 from esphome.types import ConfigType
@@ -19,6 +18,15 @@ CONF_TM1638_ID = "tm1638_id"
 tm1638_ns = cg.esphome_ns.namespace("tm1638")
 TM1638Component = tm1638_ns.class_("TM1638Component", cg.PollingComponent)
 TM1638ComponentRef = TM1638Component.operator("ref")
+
+# Publishes the key binary sensors from the key bitmask read on each loop
+KEYS_PUBLISHER = cg.HubFunction(
+    "keys",
+    cg.void,
+    [(cg.uint8, "keys")],
+    define="USE_TM1638_KEYS_PUBLISHER",
+)
+KEYS = KEYS_PUBLISHER.param("keys")
 
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
@@ -36,20 +44,10 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
-    clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
-    cg.add(var.set_clk_pin(clk))
-
-    dio = await cg.gpio_pin_expression(config[CONF_DIO_PIN])
-    cg.add(var.set_dio_pin(dio))
-
-    stb = await cg.gpio_pin_expression(config[CONF_STB_PIN])
-    cg.add(var.set_stb_pin(stb))
+    await cg.add_pin(var.set_clk_pin, config[CONF_CLK_PIN])
+    await cg.add_pin(var.set_dio_pin, config[CONF_DIO_PIN])
+    await cg.add_pin(var.set_stb_pin, config[CONF_STB_PIN])
 
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(TM1638ComponentRef, "it")], return_type=cg.void
-        )
-
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, TM1638ComponentRef)

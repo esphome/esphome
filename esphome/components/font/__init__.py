@@ -41,6 +41,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "font"
 MULTI_CONF = True
+AUTO_LOAD = ["unicode"]
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 
@@ -611,7 +612,14 @@ class GlyphInfo:
         self.height = height
 
 
-def glyph_to_glyphinfo(glyph, font, size, bpp):
+def glyph_to_glyphinfo(glyph, font, size, bpp, crop: bool = True):
+    """Render a glyph and pack its bitmap at the given bits per pixel.
+
+    With ``crop``, blank rows and columns around the set pixels are dropped and the
+    offsets adjusted to match. Bitmap fonts (BDF/PCF) render every glyph as a whole
+    character cell, so this keeps their empty space out of flash. A blank glyph keeps
+    its offsets and stores no pixels.
+    """
     # Convert to 32 bit unicode codepoint
     glyph = ord(glyph)
     scale = 256 // (1 << bpp)
@@ -631,19 +639,36 @@ def glyph_to_glyphinfo(glyph, font, size, bpp):
     height = font.glyph.bitmap.rows
     buffer = font.glyph.bitmap.buffer
     pitch = font.glyph.bitmap.pitch
-    glyph_data = [0] * ((height * width * bpp + 7) // 8)
     src_mode = font.glyph.bitmap.pixel_mode
+    if src_mode == ft_pixel_mode_mono:
+        rows = [
+            [
+                (1 << bpp) - 1 if buffer[y * pitch + x // 8] & (1 << (7 - x % 8)) else 0
+                for x in range(width)
+            ]
+            for y in range(height)
+        ]
+    else:
+        rows = [
+            [buffer[y * pitch + x] // scale for x in range(width)]
+            for y in range(height)
+        ]
+    left = 0
+    top = 0
+    if crop and width * height > 1:
+        used_rows = [y for y, row in enumerate(rows) if any(row)]
+        used_cols = [x for x in range(width) if any(row[x] for row in rows)]
+        if used_rows:
+            left = used_cols[0]
+            top = used_rows[0]
+            width = used_cols[-1] + 1 - left
+            height = used_rows[-1] + 1 - top
+        else:
+            width = height = 0
+    glyph_data = [0] * ((height * width * bpp + 7) // 8)
     pos = 0
-    for y in range(height):
-        for x in range(width):
-            if src_mode == ft_pixel_mode_mono:
-                pixel = (
-                    (1 << bpp) - 1
-                    if buffer[y * pitch + x // 8] & (1 << (7 - x % 8))
-                    else 0
-                )
-            else:
-                pixel = buffer[y * pitch + x] // scale
+    for row in rows[top : top + height]:
+        for pixel in row[left : left + width]:
             for bit_num in range(bpp):
                 if pixel & (1 << (bpp - bit_num - 1)):
                     glyph_data[pos // 8] |= 0x80 >> (pos % 8)
@@ -662,8 +687,8 @@ def glyph_to_glyphinfo(glyph, font, size, bpp):
         glyph,
         glyph_data,
         pt_to_px(font.glyph.metrics.horiAdvance),
-        font.glyph.bitmap_left,
-        ascender - font.glyph.bitmap_top,
+        font.glyph.bitmap_left + left,
+        ascender - font.glyph.bitmap_top + top,
         width,
         height,
     )
@@ -726,14 +751,15 @@ async def to_code(config):
         )
     ]
 
-    glyphs = cg.static_const_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
+    # constexpr Glyph table in flash; on ESP8266 static_const_array would place it in RAM.
+    glyphs = cg.progmem_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
 
     font_height = pt_to_px(base_font.size.height)
     ascender = pt_to_px(base_font.size.ascender)
     descender = abs(pt_to_px(base_font.size.descender))
-    g = glyph_to_glyphinfo("x", base_font, size, bpp)
+    g = glyph_to_glyphinfo("x", base_font, size, bpp, crop=False)
     xheight = g.height if len(g.bitmap_data) > 1 else 0
-    g = glyph_to_glyphinfo("X", base_font, size, bpp)
+    g = glyph_to_glyphinfo("X", base_font, size, bpp, crop=False)
     capheight = g.height if len(g.bitmap_data) > 1 else 0
     if font_height == 0:
         if not base_font.is_scalable:

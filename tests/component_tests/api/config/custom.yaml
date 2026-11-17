@@ -13,3 +13,4 @@ api:
   port: 6054
   reboot_timeout: 0s
   batch_delay: 0ms
+  listen_backlog: 2

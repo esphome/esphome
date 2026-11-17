@@ -1,19 +1,18 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::mhz19 {
 
-enum MHZ19ABCLogic {
+enum MHZ19ABCLogic : uint8_t {
   MHZ19_ABC_NONE = 0,
   MHZ19_ABC_ENABLED,
   MHZ19_ABC_DISABLED,
 };
 
-enum MHZ19DetectionRange {
+enum MHZ19DetectionRange : uint8_t {
   MHZ19_DETECTION_RANGE_DEFAULT = 0,
   MHZ19_DETECTION_RANGE_0_2000PPM,
   MHZ19_DETECTION_RANGE_0_5000PPM,
@@ -21,6 +20,9 @@ enum MHZ19DetectionRange {
 };
 
 class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(co2)
+
  public:
   void setup() override;
   void update() override;
@@ -31,8 +33,6 @@ class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
   void abc_disable();
   void range_set(MHZ19DetectionRange detection_range);
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_abc_enabled(bool abc_enabled) { abc_boot_logic_ = abc_enabled ? MHZ19_ABC_ENABLED : MHZ19_ABC_DISABLED; }
   void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
   void set_detection_range(MHZ19DetectionRange detection_range) { detection_range_ = detection_range; }
@@ -40,36 +40,10 @@ class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
  protected:
   bool mhz19_write_command_(const uint8_t *command, uint8_t *response);
 
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *co2_sensor_{nullptr};
-  MHZ19ABCLogic abc_boot_logic_{MHZ19_ABC_NONE};
-
   uint32_t warmup_seconds_;
-
+  MHZ19ABCLogic abc_boot_logic_{MHZ19_ABC_NONE};
   MHZ19DetectionRange detection_range_{MHZ19_DETECTION_RANGE_DEFAULT};
-};
-
-template<typename... Ts> class MHZ19CalibrateZeroAction final : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_zero(); }
-};
-
-template<typename... Ts> class MHZ19ABCEnableAction final : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->abc_enable(); }
-};
-
-template<typename... Ts> class MHZ19ABCDisableAction final : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->abc_disable(); }
-};
-
-template<typename... Ts>
-class MHZ19DetectionRangeSetAction final : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  TEMPLATABLE_VALUE(MHZ19DetectionRange, detection_range)
-
-  void play(const Ts &...x) override { this->parent_->range_set(this->detection_range_.value(x...)); }
+  bool warmup_complete_{false};
 };
 
 }  // namespace esphome::mhz19

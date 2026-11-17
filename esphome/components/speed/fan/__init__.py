@@ -26,7 +26,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SPEED): cv.invalid(
                 "Configuring individual speeds is deprecated."
             ),
-            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+            cv.Optional(CONF_SPEED_COUNT, default=100): fan.validate_speed_count,
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
     )
@@ -38,16 +38,8 @@ async def to_code(config: ConfigType) -> None:
     var = await fan.new_fan(config, config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
 
-    output_ = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_output(output_))
+    await cg.add_variable(var.set_output, config[CONF_OUTPUT])
+    await cg.add_variable(var.set_oscillating, config.get(CONF_OSCILLATION_OUTPUT))
+    await cg.add_variable(var.set_direction, config.get(CONF_DIRECTION_OUTPUT))
 
-    if CONF_OSCILLATION_OUTPUT in config:
-        oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
-        cg.add(var.set_oscillating(oscillation_output))
-
-    if CONF_DIRECTION_OUTPUT in config:
-        direction_output = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
-        cg.add(var.set_direction(direction_output))
-
-    if CONF_PRESET_MODES in config:
-        cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))

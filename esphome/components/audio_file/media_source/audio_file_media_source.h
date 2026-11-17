@@ -46,7 +46,7 @@ class AudioFileMediaSource final : public Component,
  protected:
   std::unique_ptr<micro_decoder::DecoderSource> decoder_;
   audio::AudioStreamInfo stream_info_;
-  audio::AudioFile *current_file_{nullptr};
+  const audio::AudioFile *current_file_{nullptr};
 
   // Written from the main loop in handle_command(), read from the decoder task in
   // on_audio_write(). Must be atomic to avoid a data race.

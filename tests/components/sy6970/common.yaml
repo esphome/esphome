@@ -9,6 +9,7 @@ sy6970:
   precharge_current: 128
   charge_enabled: true
   enable_adc: true
+  i2c_watchdog_timeout: 80S
   update_interval: 5s
 
 sensor:

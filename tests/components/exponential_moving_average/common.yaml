@@ -1,0 +1,25 @@
+sensor:
+  - platform: template
+    id: ema_source
+    name: EMA Source
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    lambda: return 21.5;
+    update_interval: 10s
+  - platform: exponential_moving_average
+    id: ema_alpha
+    name: EMA Alpha
+    sensor: ema_source
+    alpha: 0.2
+  - platform: exponential_moving_average
+    name: EMA Time Constant
+    sensor: ema_source
+    time_constant: 5min
+    time_weighting: previous
+    restore: false
+
+button:
+  - platform: template
+    name: EMA Reset
+    on_press:
+      - sensor.exponential_moving_average.reset: ema_alpha

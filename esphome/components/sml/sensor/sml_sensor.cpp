@@ -4,7 +4,7 @@
 
 namespace esphome::sml {
 
-static const char *const TAG = "sml_sensor";
+ESPHOME_LOG_TAG(TAG, "sml_sensor");
 
 SmlSensor::SmlSensor(std::string server_id, std::string obis_code)
     : SmlListener(std::move(server_id), std::move(obis_code)) {}
@@ -28,7 +28,7 @@ void SmlSensor::publish_val(const ObisInfo &obis_info) {
   }
 }
 
-void SmlSensor::dump_config() {
+void SmlSensor::dump_child_config() {
   LOG_SENSOR("", "SML", this);
   if (!this->server_id.empty()) {
     ESP_LOGCONFIG(TAG, "  Server ID: %s", this->server_id.c_str());

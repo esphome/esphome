@@ -1,39 +1,11 @@
+import functools
+import logging
 import re
 from typing import Any
 
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
 import esphome.codegen as cg
-from esphome.components.esp32 import (
-    VARIANT_ESP32,
-    VARIANT_ESP32C2,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32C5,
-    VARIANT_ESP32C6,
-    VARIANT_ESP32C61,
-    VARIANT_ESP32H2,
-    VARIANT_ESP32H4,
-    VARIANT_ESP32H21,
-    VARIANT_ESP32P4,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-    VARIANT_ESP32S31,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-    require_usb_serial_jtag_secondary,
-    require_vfs_termios,
-)
-from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
-from esphome.components.libretiny.const import (
-    COMPONENT_BK72XX,
-    COMPONENT_LN882X,
-    COMPONENT_RTL87XX,
-)
-from esphome.components.zephyr import (
-    zephyr_add_cdc_acm,
-    zephyr_add_overlay,
-    zephyr_add_prj_conf,
-)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -44,7 +16,6 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
@@ -63,7 +34,10 @@ from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "logger"
 logger_ns = cg.esphome_ns.namespace("logger")
 LOG_LEVELS = {
     "NONE": cg.global_ns.ESPHOME_LOG_LEVEL_NONE,
@@ -103,36 +77,18 @@ USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
 
+CONF_BOOT_LOG_BUFFER_SIZE = "boot_log_buffer_size"
+CONF_BOOT_LOG_LEVEL = "boot_log_level"
+CONF_BOOT_LOGS = "boot_logs"
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
+CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 CONF_WAIT_FOR_CDC = "wait_for_cdc"
 CONF_EARLY_MESSAGE = "early_message"
 
-UART_SELECTION_ESP32 = {
-    VARIANT_ESP32: [UART0, UART1, UART2],
-    VARIANT_ESP32C2: [UART0, UART1],
-    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
-    VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
-    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-}
-
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
-
-UART_SELECTION_LIBRETINY = {
-    COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
-    COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
-    COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
-}
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -153,8 +109,6 @@ HARDWARE_UART_TO_SERIAL = {
         UART0: cg.global_ns.Serial,
         UART0_SWAP: cg.global_ns.Serial,
         UART1: cg.global_ns.Serial1,
-        UART2: cg.global_ns.Serial2,
-        DEFAULT: cg.global_ns.Serial,
     },
     PLATFORM_RP2: {
         UART0: cg.global_ns.Serial1,
@@ -166,41 +120,172 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
+@functools.cache
+def _uart_selection_esp32() -> dict[str, list[str]]:
+    from esphome.components.esp32 import (
+        VARIANT_ESP32,
+        VARIANT_ESP32C2,
+        VARIANT_ESP32C3,
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32C61,
+        VARIANT_ESP32H2,
+        VARIANT_ESP32H4,
+        VARIANT_ESP32H21,
+        VARIANT_ESP32P4,
+        VARIANT_ESP32S2,
+        VARIANT_ESP32S3,
+        VARIANT_ESP32S31,
+    )
+
+    return {
+        VARIANT_ESP32: [UART0, UART1, UART2],
+        VARIANT_ESP32C2: [UART0, UART1],
+        VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
+        VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+        VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    }
+
+
+@functools.cache
+def _uart_selection_libretiny() -> dict[str, list[str]]:
+    from esphome.components.libretiny.const import (
+        COMPONENT_BK72XX,
+        COMPONENT_LN882X,
+        COMPONENT_RTL87XX,
+    )
+
+    return {
+        COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+        COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
+        COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
+    }
+
+
+# These tables are introspected by external tooling (esphome/device-builder);
+# built on access so the platform packages stay out of module import.
+_LAZY_UART_SELECTION_TABLES = {
+    "UART_SELECTION_ESP32": _uart_selection_esp32,
+    "UART_SELECTION_LIBRETINY": _uart_selection_libretiny,
+}
+
+
+def __getattr__(name: str) -> dict[str, list[str]]:
+    if (table := _LAZY_UART_SELECTION_TABLES.get(name)) is not None:
+        return table()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return [*globals(), *_LAZY_UART_SELECTION_TABLES]
+
+
 def uart_selection(value: Any) -> str:
     if CORE.is_esp32:
+        from esphome.components.esp32 import get_esp32_variant
+
+        uart_selection_esp32 = _uart_selection_esp32()
         variant = get_esp32_variant()
-        if variant in UART_SELECTION_ESP32:
-            return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
+        if variant in uart_selection_esp32:
+            return cv.one_of(*uart_selection_esp32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
     if CORE.is_rp2:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     if CORE.is_libretiny:
+        from esphome.components.libretiny import (
+            get_libretiny_component,
+            get_libretiny_family,
+        )
+
+        uart_selection_libretiny = _uart_selection_libretiny()
         family = get_libretiny_family()
-        if family in UART_SELECTION_LIBRETINY:
-            return cv.one_of(*UART_SELECTION_LIBRETINY[family], upper=True)(value)
+        if family in uart_selection_libretiny:
+            return cv.one_of(*uart_selection_libretiny[family], upper=True)(value)
         component = get_libretiny_component()
-        if component in UART_SELECTION_LIBRETINY:
-            return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
+        if component in uart_selection_libretiny:
+            return cv.one_of(*uart_selection_libretiny[component], upper=True)(value)
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
+        from esphome.components.nrf52.const import VARIANTS_WITHOUT_USB
+        from esphome.components.nrf52.framework import get_nrf52_variant
+
+        if get_nrf52_variant() in VARIANTS_WITHOUT_USB:
+            return cv.one_of(UART0, upper=True)(value)
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
 
 
+def _nrf52_board_default_uart(config: ConfigType) -> ConfigType:
+    """Default to UART0 on nRF52 boards whose USB port is a debugger's serial bridge."""
+    if CORE.is_nrf52 and CONF_HARDWARE_UART not in config:
+        from esphome.components.nrf52.boards import BOARDS_WITH_UART_CONSOLE
+        from esphome.components.nrf52.framework import get_nrf52_board
+
+        if get_nrf52_board() in BOARDS_WITH_UART_CONSOLE:
+            return {**config, CONF_HARDWARE_UART: UART0}
+    return config
+
+
+def _zephyr_uart0_label() -> str:
+    """The devicetree label of UART0."""
+    from esphome.components.nrf52.const import VARIANT_CONSOLE_UART
+    from esphome.components.nrf52.framework import get_nrf52_variant
+
+    return VARIANT_CONSOLE_UART.get(get_nrf52_variant(), "uart0")
+
+
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
+    # A level more verbose than the global one is compiled out, so it could never log or be captured
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
-    for tag, level in config.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+    for key in (CONF_LOGS, CONF_BOOT_LOGS):
+        for tag, level in config.get(key, {}).items():
+            if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+                errs.append(
+                    cv.Invalid(
+                        f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                        [key, tag],
+                    )
+                )
+    # Capture runs after the per-tag filter, so a boot level above the tag's own level keeps nothing
+    tag_levels = config.get(CONF_LOGS, {})
+    for tag, level in config.get(CONF_BOOT_LOGS, {}).items():
+        tag_level = tag_levels.get(tag)
+        if tag_level is not None and LOG_LEVEL_SEVERITY.index(
+            level
+        ) > LOG_LEVEL_SEVERITY.index(tag_level):
             errs.append(
                 cv.Invalid(
-                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
-                    [CONF_LOGS, tag],
+                    f"The boot log level for {tag} ({level}) must not be less severe than its log level ({tag_level})",
+                    [CONF_BOOT_LOGS, tag],
                 )
             )
+    boot_level = config[CONF_BOOT_LOG_LEVEL]
+    if LOG_LEVEL_SEVERITY.index(boot_level) > global_level_index:
+        errs.append(
+            cv.Invalid(
+                f"The boot log level ({boot_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_BOOT_LOG_LEVEL],
+            )
+        )
+    if config[CONF_BOOT_LOGS] and config[CONF_BOOT_LOG_BUFFER_SIZE] == 0:
+        errs.append(
+            cv.Invalid(
+                "boot_logs has no effect without boot_log_buffer_size",
+                [CONF_BOOT_LOGS],
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
     return config
@@ -219,6 +304,27 @@ def validate_initial_no_higher_than_global(config: ConfigType) -> ConfigType:
     return config
 
 
+def warn_ram_log_strings(config: ConfigType) -> ConfigType:
+    # Remove before 2027.4.0
+    if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH) is False:
+        _LOGGER.warning(
+            "'%s: false' is ignored and will be rejected in 2027.4.0. Log format strings "
+            "always stay in flash now; copying them into RAM gave no speed gain and the "
+            "lost RAM caused crashes. Remove the option",
+            CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH,
+        )
+    return config
+
+
+def validate_task_log_buffer_alignment(value: int) -> int:
+    # ESP-IDF rejects a no-split ring buffer whose size is not a multiple of 4
+    if CORE.is_esp32 and value % 4:
+        raise cv.Invalid(
+            f"{CONF_TASK_LOG_BUFFER_SIZE} must be a multiple of 4 on ESP32"
+        )
+    return value
+
+
 def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
@@ -232,8 +338,8 @@ LoggerMessageTrigger = logger_ns.class_(
 )
 
 
-CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONFIG_SCHEMA = cv.All(
+    _nrf52_board_default_uart,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Logger),
@@ -242,6 +348,19 @@ CONFIG_SCHEMA = cv.All(
                 cv.validate_bytes, cv.int_range(min=160, max=65535)
             ),
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
+            cv.Optional(CONF_BOOT_LOG_BUFFER_SIZE, default=0): cv.All(
+                cv.validate_bytes,
+                cv.Any(
+                    cv.int_(0),  # Disabled
+                    cv.int_range(min=512, max=16384),
+                ),
+            ),
+            cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
+            cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
+                {
+                    cv.string: is_log_level,
+                }
+            ),
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -267,6 +386,7 @@ CONFIG_SCHEMA = cv.All(
                         max=32768,  # Max: Depends on message sizes, typically ~300 messages with default size
                     ),
                 ),
+                validate_task_log_buffer_alignment,
             ),
             cv.SplitDefault(
                 CONF_HARDWARE_UART,
@@ -289,6 +409,10 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                nrf52_54lm20=USB_CDC,
+                # No USB device on the nRF52832 and the nRF54L15
+                nrf52_52832=UART0,
+                nrf52_54l15=UART0,
             ): cv.All(
                 cv.only_on(
                     [
@@ -332,23 +456,56 @@ CONFIG_SCHEMA = cv.All(
     validate_local_no_higher_than_global,
     validate_initial_no_higher_than_global,
     validate_wait_for_cdc,
+    warn_ram_log_strings,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    # Serial logging over USB CDC writes to CDC ACM port 0 with uart_poll_out()
+    if (
+        CORE.is_nrf52
+        and config[CONF_BAUD_RATE] != 0
+        and config.get(CONF_HARDWARE_UART) == USB_CDC
+    ):
+        from esphome.components.zephyr import zephyr_claim_cdc_acm
+
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+    if CORE.is_libretiny and config[CONF_BAUD_RATE] != 0:
+        _validate_libretiny_uart_pins(config[CONF_HARDWARE_UART])
+
+
+def _validate_libretiny_uart_pins(hardware_uart: str) -> None:
+    """Reject a port with pin choices but no default; opening it hangs at boot (BW15 UART1)."""
+    from esphome.components.libretiny import get_board_pins, get_libretiny_board
+
+    if not hardware_uart.startswith("UART"):
+        return
+    board = get_libretiny_board()
+    prefix = f"SERIAL{hardware_uart[-1]}_"
+    port_pins = [pin for pin in get_board_pins() if pin.startswith(prefix)]
+    # A port the board lacks falls back to the default one at boot
+    if port_pins and f"{prefix}TX" not in port_pins:
+        raise cv.Invalid(
+            f"Board {board} has no default pins for {hardware_uart}; "
+            "choose another hardware_uart",
+            path=[CONF_HARDWARE_UART],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.EARLY_INIT)
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
-    CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
+    CORE.data.setdefault(DOMAIN, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
-    # Determine task log buffer size. The buffer is a direct member of Logger
-    # (no separate heap allocation).
-    task_log_buffer_size = 0
-    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
-        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
-    elif CORE.is_host:
-        task_log_buffer_size = 64  # Fixed 64 slots for host
+    # The host has a fixed 64 slots
+    task_log_buffer_size = (
+        64 if CORE.is_host else config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
+    )
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
@@ -356,6 +513,29 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_ID],
         baud_rate,
     )
+    # Boot log buffer: early lines kept for the logger.replay_boot_logs action
+    if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
+        boot_level = config[CONF_BOOT_LOG_LEVEL]
+        boot_logs_config = config[CONF_BOOT_LOGS]
+        # The most verbose level any tag keeps, so lines above it skip the per-tag lookup
+        max_level = max(
+            [boot_level, *boot_logs_config.values()], key=LOG_LEVEL_SEVERITY.index
+        )
+        cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
+        cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", boot_log_buffer_size)
+        # Define values must be hashable, so the level expressions go in as raw text
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_LEVEL",
+            cg.RawExpression(str(LOG_LEVELS[boot_level])),
+        )
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL",
+            cg.RawExpression(str(LOG_LEVELS[max_level])),
+        )
+        if boot_logs_config:
+            cg.add_define("USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS")
+            for tag, log_level in boot_logs_config.items():
+                cg.add(log.set_boot_log_level(tag, LOG_LEVELS[log_level]))
     if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
     # set_uart_selection() must be called before pre_setup() because
@@ -387,6 +567,8 @@ async def _late_logger_init(config: ConfigType) -> None:
     level = config[CONF_LEVEL]
     baud_rate: int = config[CONF_BAUD_RATE]
     if CORE.using_zephyr:
+        from esphome.components.zephyr import zephyr_add_prj_conf
+
         task_log_buffer_size = config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
         if task_log_buffer_size > 0:
             zephyr_add_prj_conf("MPSC_PBUF", True)
@@ -450,16 +632,41 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_build_flag("-DCORE_DEBUG_LEVEL=5")
     if CORE.is_esp32 and is_at_least_very_verbose:
         cg.add_build_flag("-DENABLE_I2C_DEBUG_BUFFER")
-    if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
-        cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
-
     if CORE.is_esp32:
+        from esphome.components.esp32 import (
+            VARIANT_ESP32C2,
+            VARIANT_ESP32S2,
+            add_idf_sdkconfig_option,
+            get_esp32_variant,
+            idf_version,
+        )
+
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+        # Log V2 formats centrally in esp_log() (~4KB flash, ~180B RAM). 6.1
+        # adds CONSTRAINED_ENV_SAFE=n, keeping early/DRAM logs on
+        # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
+        # S2/C2 have a ROM vprintf, so IDF forces CONSTRAINED_ENV_SAFE=1 and
+        # cache-off DRAM logs would reach the flash-resident wrapper; keep V1.
+        if (
+            CORE.using_toolchain_esp_idf
+            and idf_version() >= cv.Version(6, 1, 0)
+            and get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32S2)
+        ):
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
+            add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
+            cg.add_define("USE_ESP32_LOG_V2")
+            # --wrap: a strong definition collides; see logger_esp32.cpp
+            cg.add_build_flag("-Wl,--wrap=esp_log_format")
+    # Zephyr polls the USB port only when it logs there
+    if config.get(CONF_HARDWARE_UART) == USB_CDC and (
+        has_serial_logging or not CORE.is_nrf52
+    ):
+        cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
@@ -471,6 +678,11 @@ async def _late_logger_init(config: ConfigType) -> None:
             and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG
             and has_serial_logging
         ):
+            from esphome.components.esp32 import (
+                require_usb_serial_jtag_secondary,
+                require_vfs_termios,
+            )
+
             require_usb_serial_jtag_secondary()
             require_vfs_termios()
     except cv.Invalid:
@@ -487,18 +699,24 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.is_nrf52:
+        from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
+
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
+        cg.add_define(
+            "ESPHOME_LOGGER_UART0_NODE", cg.RawExpression(_zephyr_uart0_label())
+        )
         if has_serial_logging:
+            zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
-                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+                zephyr_add_overlay(
+                    f"""&{_zephyr_uart0_label()} {{ status = "okay";}};"""
+                )
             if config[CONF_HARDWARE_UART] == UART1:
                 zephyr_add_overlay("""&uart1 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == USB_CDC:
-                cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
-                zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
@@ -517,8 +735,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             ],
             conf,
         )
-
-    CORE.add_job(final_step)
 
 
 def validate_printf(value: ConfigType) -> ConfigType:
@@ -612,6 +828,19 @@ async def logger_set_level_to_code(
     )
 
 
+automation.register_apply_action(
+    "logger.replay_boot_logs",
+    automation.maybe_conf(
+        CONF_LOGGER_ID,
+        {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
+        },
+    ),
+    automation.ApplyCall("replay_boot_logs()"),
+    id_key=CONF_LOGGER_ID,
+)
+
+
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "logger_esp32.cpp": {
@@ -641,11 +870,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
     }
 )
 
-# Keys for CORE.data storage
-DOMAIN = "logger"
-KEY_LEVEL_LISTENERS = "level_listeners"
-KEY_LOG_LISTENERS = "log_listeners"
-
 
 def request_logger_level_listeners() -> None:
     """Request that logger level listeners be compiled in.
@@ -654,29 +878,13 @@ def request_logger_level_listeners() -> None:
     function during their code generation. This enables the add_level_listener()
     method and compiles in the listener vector.
     """
-    CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
+    cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
+
+
+_request_log_listener_slot = cg.slot_counter("ESPHOME_LOG_MAX_LISTENERS")
 
 
 def request_log_listener() -> None:
-    """Request a log listener slot.
-
-    Components that need to receive log messages should call this function
-    during their code generation. This increments the listener count used
-    to size the StaticVector.
-    """
-    data = CORE.data.setdefault(DOMAIN, {})
-    data[KEY_LOG_LISTENERS] = data.get(KEY_LOG_LISTENERS, 0) + 1
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def final_step() -> None:
-    """Final code generation step to configure optional logger features."""
-    domain_data = CORE.data.get(DOMAIN, {})
-    if domain_data.get(KEY_LEVEL_LISTENERS, False):
-        cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
-
-    # Only generate log listener code if any component needs it
-    log_listener_count = domain_data.get(KEY_LOG_LISTENERS, 0)
-    if log_listener_count > 0:
-        cg.add_define("USE_LOG_LISTENERS")
-        cg.add_define("ESPHOME_LOG_MAX_LISTENERS", log_listener_count)
+    """Reserve a log listener slot; call once per listener from to_code."""
+    cg.add_define("USE_LOG_LISTENERS")
+    _request_log_listener_slot()

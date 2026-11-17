@@ -4,7 +4,7 @@
 
 namespace esphome::adc128s102 {
 
-static const char *const TAG = "adc128s102.sensor";
+ESPHOME_LOG_TAG(TAG, "adc128s102.sensor");
 
 ADC128S102Sensor::ADC128S102Sensor(uint8_t channel) : channel_(channel) {}
 

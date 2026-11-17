@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.4bpp";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.4bpp");
 
 void EPaper4bpp::fill(Color color) {
   // If clipping is active, fall back to base implementation
@@ -18,16 +18,7 @@ void EPaper4bpp::fill(Color color) {
   // We store 2 pixels per byte
   this->buffer_.fill(pixel_color + (pixel_color << 4));
 
-  // Whole buffer just changed; mark the entire canvas dirty.
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
-}
-
-void EPaper4bpp::clear() {
-  // clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
+  this->mark_all_drawn_();
 }
 
 void HOT EPaper4bpp::draw_pixel_at(int x, int y, Color color) {

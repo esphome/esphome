@@ -1,0 +1,6 @@
+packages:
+  wizard: !include common-wizard.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1

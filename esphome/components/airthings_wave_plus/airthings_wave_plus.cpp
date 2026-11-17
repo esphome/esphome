@@ -4,7 +4,7 @@
 
 namespace esphome::airthings_wave_plus {
 
-static const char *const TAG = "airthings_wave_plus";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_plus");
 
 void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   auto *value = (WavePlusReadings *) raw_value;
@@ -13,9 +13,7 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
     ESP_LOGD(TAG, "version = %d", value->version);
 
     if (value->version == 1) {
-      if (this->humidity_sensor_ != nullptr) {
-        this->humidity_sensor_->publish_state(value->humidity / 2.0f);
-      }
+      PUBLISH_STATE(this->humidity_sensor_, value->humidity / 2.0f);
 
       if ((this->radon_sensor_ != nullptr) && this->is_valid_radon_value_(value->radon)) {
         this->radon_sensor_->publish_state(value->radon);
@@ -25,13 +23,9 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
         this->radon_long_term_sensor_->publish_state(value->radon_lt);
       }
 
-      if (this->temperature_sensor_ != nullptr) {
-        this->temperature_sensor_->publish_state(value->temperature / 100.0f);
-      }
+      PUBLISH_STATE(this->temperature_sensor_, value->temperature / 100.0f);
 
-      if (this->pressure_sensor_ != nullptr) {
-        this->pressure_sensor_->publish_state(value->pressure / 50.0f);
-      }
+      PUBLISH_STATE(this->pressure_sensor_, value->pressure / 50.0f);
 
       if ((this->co2_sensor_ != nullptr) && this->is_valid_co2_value_(value->co2)) {
         this->co2_sensor_->publish_state(value->co2);
@@ -41,9 +35,7 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
         this->tvoc_sensor_->publish_state(value->voc);
       }
 
-      if (this->illuminance_sensor_ != nullptr) {
-        this->illuminance_sensor_->publish_state(value->ambientLight);
-      }
+      PUBLISH_STATE(this->illuminance_sensor_, value->ambientLight);
     } else {
       ESP_LOGE(TAG, "Invalid payload version (%d != 1, newer version or not a Wave Plus?)", value->version);
     }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include "esphome/core/log.h"
 
 namespace esphome::runtime_image {
 
@@ -25,5 +26,7 @@ enum ImageFormat {
 const char *get_mime_type_for_format(ImageFormat format);
 /// Case-insensitive substring match of known media types; nullopt if none found
 std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type);
+/// Human-readable name for a format; "UNKNOWN" if not recognized
+const LogString *get_format_name(ImageFormat format);
 
 }  // namespace esphome::runtime_image

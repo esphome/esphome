@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+api:
+
+text:
+  - platform: homeassistant
+    id: ha_text
+    name: HA text
+    entity_id: text.example
+  - platform: homeassistant
+    id: ha_input_text
+    name: HA input_text
+    entity_id: input_text.example

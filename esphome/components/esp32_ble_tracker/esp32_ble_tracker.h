@@ -33,18 +33,18 @@ namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
 
-using adv_data_t = ble_device_base::adv_data_t;
+using ble_device_base::adv_data_t;
 
 #ifdef USE_ESP32_BLE_UUID
-using ServiceData = ble_device_base::ServiceData;
+using ble_device_base::ServiceData;
 #endif
 
 #ifdef USE_ESP32_BLE_DEVICE
 // The advertisement device types are owned by the platform-neutral
 // ble_device_base layer; re-exported here (esp32 only) for backward
 // compatibility. ESPBTDevice::parse_scan_rst() (esp32-only) adapts BLEScanResult.
-using ESPBLEiBeacon = ble_device_base::ESPBLEiBeacon;
-using ESPBTDevice = ble_device_base::ESPBTDevice;
+using ble_device_base::ESPBLEiBeacon;
+using ble_device_base::ESPBTDevice;
 #endif  // USE_ESP32_BLE_DEVICE
 
 class ESP32BLETracker;
@@ -82,12 +82,12 @@ struct ClientStateCounts {
 
 // The client connection state types are owned by the platform-neutral
 // ble_device_base layer; re-exported here for backward compatibility.
-using ClientState = ble_device_base::ClientState;
-using ConnectionType = ble_device_base::ConnectionType;
+using ble_device_base::ClientState;
+using ble_device_base::ConnectionType;
 using ble_device_base::client_state_to_string;
 
 // Neutral scanner lifecycle re-exported for backward compatibility.
-using ScannerState = ble_device_base::ScannerState;
+using ble_device_base::ScannerState;
 
 /// Base class for BLE GATT clients that connect to remote devices.
 ///
@@ -172,7 +172,7 @@ class ESP32BLETracker final : public Component,
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+#ifdef USE_ESP32_BLE_TRACKER_SHORT_SCAN_WINDOW
   void set_connection_scan_window(uint32_t scan_window) { connection_scan_window_ = scan_window; }
 #endif
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
@@ -218,6 +218,12 @@ class ESP32BLETracker final : public Component,
 #endif
 
   void start_scan();
+  // For the start_scan action: in any other state the state machine returns to IDLE on its own
+  // and loop() restarts scanning when scan_continuous_ is set, so only an idle scanner starts here.
+  void start_scan_if_idle() {
+    if (this->scanner_state_ == ScannerState::IDLE)
+      this->start_scan();
+  }
   void stop_scan();
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
@@ -322,13 +328,15 @@ class ESP32BLETracker final : public Component,
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  /// Window used while a GATT connection is active; set by the user, or
-  /// defaulted when the window was raised to full duty (0 = no fallback).
+#ifdef USE_ESP32_BLE_TRACKER_SHORT_SCAN_WINDOW
+  /// Window used while a GATT connection or the wifi AP is active; set by the
+  /// user, or defaulted when the window was raised to full duty (0 = none).
   uint32_t connection_scan_window_{0};
-  /// The window to scan at for the given number of active GATT connections.
+  /// The window to scan at for the given number of active GATT connections
+  /// and the last seen AP state.
   uint32_t desired_scan_window_(uint8_t active) const {
-    return (this->connection_scan_window_ != 0 && active > 0) ? this->connection_scan_window_ : this->scan_window_;
+    return (this->connection_scan_window_ != 0 && (active > 0 || this->ap_active_)) ? this->connection_scan_window_
+                                                                                    : this->scan_window_;
   }
 #endif
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
@@ -356,9 +364,11 @@ class ESP32BLETracker final : public Component,
 #endif
   bool ble_was_disabled_ : 1 {true};
   bool parse_advertisements_ : 1 {false};
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+#ifdef USE_ESP32_BLE_TRACKER_SHORT_SCAN_WINDOW
   /// Suppress the window-change restart's on_scan_end sweeps (stop and start).
   bool skip_next_scan_end_ : 1 {false};
+  /// Last seen wifi AP state, polled by loop(); stays false without an AP.
+  bool ap_active_ : 1 {false};
 #endif
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_ : 1 {false};

@@ -4,7 +4,7 @@
 
 namespace esphome::stepper {
 
-static const char *const TAG = "stepper";
+ESPHOME_LOG_TAG(TAG, "stepper");
 
 void Stepper::calculate_speed_(uint32_t now) {
   // delta t since last calculation in seconds

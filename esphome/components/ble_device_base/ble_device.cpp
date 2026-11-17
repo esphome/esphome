@@ -16,7 +16,7 @@
 
 namespace esphome::ble_device_base {
 
-static const char *const TAG = "ble_device_base";
+ESPHOME_LOG_TAG(TAG, "ble_device_base");
 
 // Longest advertisement payload worth hex-dumping at VERY_VERBOSE
 // (legacy advertising: 31-byte adv + 31-byte scan response).
@@ -26,21 +26,21 @@ static constexpr size_t BLE_ADV_MAX_LOG_BYTES = 62;
 // ESPBTUUID
 // ---------------------------------------------------------------------------
 
-ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
+ESPBTUUID ESPBTUUID::from_uint16_runtime(uint16_t uuid) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID16;
   ret.uuid_.uuid16 = uuid;
   return ret;
 }
 
-ESPBTUUID ESPBTUUID::from_uint32(uint32_t uuid) {
+ESPBTUUID ESPBTUUID::from_uint32_runtime(uint32_t uuid) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID32;
   ret.uuid_.uuid32 = uuid;
   return ret;
 }
 
-ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
+ESPBTUUID ESPBTUUID::from_raw_runtime(const uint8_t *data) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID128;
   memcpy(ret.uuid_.uuid128, data, 16);
@@ -232,6 +232,14 @@ void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
   const size_t len = (this->type_ == Type::UUID32) ? 4 : 2;
   for (size_t i = 0; i < len; i++)
     out[12 + i] = (value >> (i * 8)) & 0xFF;
+}
+
+const adv_data_t *find_adv_data(const std::vector<ServiceData> &datas, const ESPBTUUID &uuid) {
+  for (const auto &entry : datas) {
+    if (entry.uuid == uuid)
+      return &entry.data;
+  }
+  return nullptr;
 }
 
 bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
@@ -493,13 +501,13 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0x19:  // Appearance
         if (ad_data_len >= 2)
-          this->appearance_ = static_cast<uint16_t>(ad_data[0]) | (static_cast<uint16_t>(ad_data[1]) << 8);
+          this->appearance_ = encode_value_le<uint16_t>(ad_data);
         break;
 
       case 0x02:  // Incomplete List of 16-bit Service UUIDs
       case 0x03:  // Complete List of 16-bit Service UUIDs
         for (uint8_t i = 0; (i + 1) < ad_data_len; i += 2) {
-          uint16_t uuid = (static_cast<uint16_t>(ad_data[i + 1]) << 8) | ad_data[i];
+          uint16_t uuid = encode_value_le<uint16_t>(&ad_data[i]);
           this->service_uuids_.push_back(ESPBTUUID::from_uint16(uuid));
         }
         break;
@@ -507,9 +515,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
       case 0x04:  // Incomplete List of 32-bit Service UUIDs
       case 0x05:  // Complete List of 32-bit Service UUIDs
         for (uint8_t i = 0; (i + 3) < ad_data_len; i += 4) {
-          uint32_t uuid = (static_cast<uint32_t>(ad_data[i + 3]) << 24) |
-                          (static_cast<uint32_t>(ad_data[i + 2]) << 16) | (static_cast<uint32_t>(ad_data[i + 1]) << 8) |
-                          ad_data[i];
+          uint32_t uuid = encode_value_le<uint32_t>(&ad_data[i]);
           this->service_uuids_.push_back(ESPBTUUID::from_uint32(uuid));
         }
         break;
@@ -522,7 +528,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0xFF:  // Manufacturer Specific Data
         if (ad_data_len >= 2) {
-          uint16_t company_id = (static_cast<uint16_t>(ad_data[1]) << 8) | ad_data[0];
+          uint16_t company_id = encode_value_le<uint16_t>(ad_data);
           ServiceData sd;
           sd.uuid = ESPBTUUID::from_uint16(company_id);
           sd.data.assign(ad_data + 2, ad_data + ad_data_len);
@@ -532,7 +538,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0x16:  // Service Data — 16-bit UUID
         if (ad_data_len >= 2) {
-          uint16_t uuid = (static_cast<uint16_t>(ad_data[1]) << 8) | ad_data[0];
+          uint16_t uuid = encode_value_le<uint16_t>(ad_data);
           ServiceData sd;
           sd.uuid = ESPBTUUID::from_uint16(uuid);
           sd.data.assign(ad_data + 2, ad_data + ad_data_len);
@@ -542,8 +548,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0x20:  // Service Data — 32-bit UUID
         if (ad_data_len >= 4) {
-          uint32_t uuid = (static_cast<uint32_t>(ad_data[3]) << 24) | (static_cast<uint32_t>(ad_data[2]) << 16) |
-                          (static_cast<uint32_t>(ad_data[1]) << 8) | ad_data[0];
+          uint32_t uuid = encode_value_le<uint32_t>(ad_data);
           ServiceData sd;
           sd.uuid = ESPBTUUID::from_uint32(uuid);
           sd.data.assign(ad_data + 4, ad_data + ad_data_len);

@@ -1,7 +1,7 @@
 #include "ds2484.h"
 
 namespace esphome::ds2484 {
-static const char *const TAG = "ds2484.onewire";
+ESPHOME_LOG_TAG(TAG, "ds2484.onewire");
 
 void DS2484OneWireBus::setup() {
   this->reset_device();

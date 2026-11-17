@@ -11,7 +11,10 @@ import re
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Expected pattern for log messages from threads
 # Format: THREADn_MSGnnn_LEVEL_MESSAGE_WITH_DATA_xxxxxxxx
@@ -43,42 +46,29 @@ async def test_host_logger_thread_safety(
     3. Verifies no lines are corrupted (partially written or interleaved)
     4. Verifies all expected messages were received
     """
-    collected_lines: list[str] = []
-    test_complete_event = asyncio.Event()
-
-    def line_callback(line: str) -> None:
-        """Collect log lines and detect test completion."""
-        collected_lines.append(line)
-        if "RACE_TEST_COMPLETE" in line:
-            test_complete_event.set()
+    waiter = LineWaiter()
 
     # Run the test binary and collect output
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify connection works
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "host-logger-thread-test"
+        await assert_device_name(client, "host-logger-thread-test")
 
-        # Get the button entity - find by name
         entities, _ = await client.list_entities_services()
-        button_entities = [e for e in entities if e.name == "Start Thread Race Test"]
-        assert button_entities, "Could not find Start Thread Race Test button"
-        button_key = button_entities[0].key
+        button_key = require_entity(entities, "start_thread_race_test", exact=True).key
 
         # Press the button to start the thread race test
         client.button_command(button_key)
 
         # Wait for test to complete (with timeout)
-        try:
-            await asyncio.wait_for(test_complete_event.wait(), timeout=30.0)
-        except TimeoutError:
-            pytest.fail(
-                "Test did not complete within timeout. "
-                f"Collected {len(collected_lines)} lines."
-            )
+        await wait_or_fail(
+            waiter.wait_for("RACE_TEST_COMPLETE", timeout=40.0),
+            30.0,
+            "Test did not complete within timeout",
+            collected_lines=waiter.lines,
+        )
 
         # Give a bit more time for any remaining buffered messages
         await asyncio.sleep(0.5)
@@ -90,7 +80,7 @@ async def test_host_logger_thread_safety(
     test_completed = False
     reported_total = 0
 
-    for line in collected_lines:
+    for line in waiter.lines:
         # Check for test start
         start_match = TEST_START_PATTERN.search(line)
         if start_match:

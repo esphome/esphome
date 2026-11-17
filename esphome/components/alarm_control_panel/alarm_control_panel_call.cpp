@@ -6,7 +6,7 @@
 
 namespace esphome::alarm_control_panel {
 
-static const char *const TAG = "alarm_control_panel";
+ESPHOME_LOG_TAG(TAG, "alarm_control_panel");
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 

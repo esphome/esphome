@@ -1,0 +1,47 @@
+esphome:
+  name: template-time-test
+host:
+api:
+logger:
+
+time:
+  - platform: template
+    id: fixed_time
+    lambda: |-
+      return 1700000000;
+
+  # Derived from another time source, as when offsetting a real clock.
+  - platform: template
+    id: offset_time
+    lambda: |-
+      return id(fixed_time).timestamp_now() + 3600;
+
+  # A lambda that gives no value reports an invalid time.
+  - platform: template
+    id: empty_time
+    lambda: |-
+      return {};
+
+text_sensor:
+  # Timestamps are exposed as text (rather than a 32-bit float sensor state,
+  # which cannot represent a UNIX epoch exactly) so the exact value can be checked.
+  - platform: template
+    name: "Fixed Timestamp"
+    id: fixed_timestamp
+    update_interval: 100ms
+    lambda: |-
+      return std::to_string(id(fixed_time).now().timestamp);
+
+  - platform: template
+    name: "Offset Timestamp"
+    id: offset_timestamp
+    update_interval: 100ms
+    lambda: |-
+      return std::to_string(id(offset_time).now().timestamp);
+
+  - platform: template
+    name: "Empty Time Valid"
+    id: empty_time_valid
+    update_interval: 100ms
+    lambda: |-
+      return std::string(id(empty_time).now().is_valid() ? "valid" : "invalid");

@@ -6,7 +6,7 @@
 
 namespace esphome::display {
 
-static const char *const TAG = "display";
+ESPHOME_LOG_TAG(TAG, "display");
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   RAMAllocator<uint8_t> allocator;

@@ -1,0 +1,153 @@
+esphome:
+  name: uart-mock-ufm01
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+  actions:
+    - action: clear_accumulated_flow
+      then:
+        - ufm01.clear_accumulated_flow: ufm01_dev
+        - lambda: |-
+            id(clear_count) += 1;
+            id(clear_completions).publish_state(id(clear_count));
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ufm01's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 2400
+  port: /dev/null
+
+globals:
+  # The simulated meter streams active frames only after SET_ACTIVE_MODE
+  - id: streaming
+    type: bool
+    initial_value: "false"
+  # Set by CLEAR_ACCUMULATED_FLOW; later frames report zero accumulated flow
+  - id: cleared
+    type: bool
+    initial_value: "false"
+  - id: clear_count
+    type: int
+    initial_value: "0"
+
+# Simulated UFM-01: every command is one 7 byte write
+uart_mock:
+  id: mock_uart
+  baud_rate: 2400
+  parity: EVEN
+  on_tx:
+    - then:
+        - lambda: |-
+            if (id(silent).state || data.size() != 7) {
+              return;
+            }
+            static const std::vector<uint8_t> ACK = {0xE5};
+            switch (data[3]) {
+              case 0x5D:  // RESET_DEVICE
+                id(streaming) = false;
+                id(mock_uart).inject_to_rx_buffer(ACK);
+                break;
+              case 0x5C:  // SET_ACTIVE_MODE (00) or SET_PASSIVE_MODE (01)
+                id(streaming) = data[4] == 0x00;
+                id(mock_uart).inject_to_rx_buffer(ACK);
+                break;
+              case 0x5A:  // CLEAR_ACCUMULATED_FLOW
+                id(cleared) = true;
+                id(mock_uart).inject_to_rx_buffer(ACK);
+                break;
+              case 0x5B:  // READ_SENSOR_DATA without meter ID
+                if (data[4] != 0x0F) {
+                  break;
+                }
+                id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{
+                    0x3C, 0x64,                                // start
+                    0x0A, 0x78, 0x56, 0x02, 0x00, 0x00, 0x00,  // accumulated flow 25.678 L
+                    0x0B, 0x00, 0x67, 0x05, 0x00, 0x00,        // flow 0.567 m3/h
+                    0x0D, 0x25, 0x19, 0x00,                    // temperature 19.25 C
+                    0x00, 0x00,                                // ST1, ST2
+                    0x3C, 0x16,                                // checksum, stop
+                });
+                break;
+              case 0x5E:  // GET_SOFTWARE_VERSION: ACK, version 23380315 (BCD, low byte first), checksum, stop
+                id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{0xE5, 0x15, 0x03, 0x38, 0x23, 0x73, 0x16});
+                break;
+            }
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: "return id(streaming) && !id(silent).state;"
+          then:
+            - lambda: |-
+                // Meter ID 2307140001 (BCD, low byte first), flow 1.2345 m3/h, temperature 23.5 C
+                std::vector<uint8_t> frame{
+                    0x3C, 0x32,                                // start
+                    0x01, 0x00, 0x14, 0x07, 0x23, 0x01,        // meter ID, reserved
+                    0x0A, 0x45, 0x23, 0x01, 0x00, 0x00, 0x00,  // accumulated flow 12.345 L
+                    0x0B, 0x50, 0x34, 0x12, 0x00, 0x00,        // flow
+                    0x0C, 0x00, 0x00,                          // reserved section
+                    0x0D, 0x50, 0x23, 0x00,                    // temperature
+                    0x00, 0x00,                                // ST1, ST2
+                    0x4E, 0x16,                                // checksum, stop
+                };
+                if (id(cleared)) {
+                  // Accumulated flow 0 m3: unit flag 0x1A, zero digits, checksum follows
+                  frame[8] = 0x1A;
+                  std::fill(frame.begin() + 9, frame.begin() + 15, 0x00);
+                  frame[30] = 0xF5;
+                }
+                id(mock_uart).inject_to_rx_buffer(frame);
+
+ufm01:
+  id: ufm01_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ufm01
+    accumulated_flow:
+      name: "Accumulated Flow"
+    flow:
+      name: "Flow"
+    temperature:
+      name: "Temperature"
+  - platform: template
+    id: clear_completions
+    name: "Clear Completions"
+    update_interval: never
+
+text_sensor:
+  - platform: ufm01
+    meter_id:
+      name: "Meter ID"
+    software_version:
+      name: "Software Version"
+
+switch:
+  # The meter stops streaming and answers nothing
+  - platform: template
+    id: silent
+    name: "Silent"
+    optimistic: true
+    turn_on_action:
+      - lambda: "id(streaming) = false;"
+
+button:
+  # The stream stops while the meter still answers commands
+  - platform: template
+    name: "Pause Stream"
+    on_press:
+      - lambda: "id(streaming) = false;"
+  - platform: template
+    name: "Resume Stream"
+    on_press:
+      - lambda: "id(streaming) = true;"

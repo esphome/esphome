@@ -7,7 +7,7 @@ from esphome.const import CONF_UID
 from esphome.core import HexInt
 from esphome.types import ConfigType
 
-from . import CONF_PN532_ID, PN532, pn532_ns
+from . import CONF_PN532_ID, PN532, pn532_ns, register_tag
 
 DEPENDENCIES = ["pn532"]
 
@@ -46,6 +46,6 @@ async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_PN532_ID])
-    cg.add(hub.register_tag(var))
+    cg.add(register_tag(hub, var))
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split("-")]
     cg.add(var.set_uid(addr))

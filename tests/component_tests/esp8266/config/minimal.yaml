@@ -1,0 +1,5 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini

@@ -1,0 +1,5 @@
+esphome:
+  name: test
+
+ln882x:
+  board: generic-ln882h

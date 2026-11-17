@@ -4,7 +4,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 
 #include <vector>
 
@@ -35,28 +34,6 @@ class LightWaveRF final : public PollingComponent {
   InternalGPIOPin *pin_rx_;
   LwRx lwrx_;
   LwTx lwtx_;
-};
-
-template<typename... Ts> class SendRawAction final : public Action<Ts...> {
- public:
-  SendRawAction(LightWaveRF *parent) : parent_(parent){};
-  TEMPLATABLE_VALUE(int, repeat);
-  TEMPLATABLE_VALUE(int, inverted);
-  TEMPLATABLE_VALUE(int, pulse_length);
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, code);
-  void set_code(std::initializer_list<uint8_t> data) { this->code_ = std::vector<uint8_t>(data); }
-
-  void play(const Ts &...x) {
-    int repeats = this->repeat_.value(x...);
-    int inverted = this->inverted_.value(x...);
-    int pulse_length = this->pulse_length_.value(x...);
-    std::vector<uint8_t> msg = this->code_.value(x...);
-
-    this->parent_->send_rx(msg, repeats, inverted, pulse_length);
-  }
-
- protected:
-  LightWaveRF *parent_;
 };
 
 #endif

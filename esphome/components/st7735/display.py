@@ -92,8 +92,10 @@ async def setup_st7735(var: MockObj, config: ConfigType) -> None:
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
     LOGGER.warning(
-        "The 'st7735' component is deprecated, it is recommended to use 'mipi_spi' instead."
+        "The 'st7735' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'mipi_spi' instead."
     )
     var = cg.new_Pvariable(
         config[CONF_ID],

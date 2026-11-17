@@ -19,6 +19,19 @@ esphome:
       - rtttl.play: 'test_only_o:o=5:c'
       - rtttl.play: 'test_only_b:b=100:c'
       - rtttl.play: 'test_empty::c'
+      # Long form with an explicit id, a lambda song, and the is_playing condition
+      - rtttl.play:
+          id: rtttl_player
+          rtttl: 'test_long_form:d=8,o=5,b=100:c'
+      - rtttl.play:
+          rtttl: !lambda return std::string("test_lambda:d=8,o=5,b=100:c");
+      - if:
+          condition:
+            rtttl.is_playing:
+              id: rtttl_player
+          then:
+            - rtttl.stop:
+                id: rtttl_player
 
 output:
   - platform: ${output_platform}
@@ -28,6 +41,7 @@ output:
     max_power: 0.5
 
 rtttl:
+  id: rtttl_player
   output: rtttl_output
   on_finished_playback:
     - then:

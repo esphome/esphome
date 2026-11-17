@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::xl9535 {
 
@@ -26,29 +27,18 @@ class XL9535Component final : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
-};
-
-class XL9535GPIOPin final : public GPIOPin {
- public:
-  void set_parent(XL9535Component *parent) { this->parent_ = parent; }
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
-  void setup() override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
 
  protected:
-  XL9535Component *parent_;
+  bool load_outputs_();
 
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  // Output port 0 and 1 registers, read once so a pin write is a single I2C write
+  uint8_t output_[2]{};
+  // A pin can be written before setup(), e.g. a software SPI clock set up at BUS priority
+  bool outputs_loaded_{false};
 };
 
+using XL9535GPIOPin = gpio_expander::ExpanderGPIOPin<XL9535Component>;
+
 }  // namespace esphome::xl9535
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::xl9535::XL9535Component);

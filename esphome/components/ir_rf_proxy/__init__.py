@@ -3,6 +3,7 @@
 import esphome.codegen as cg
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "ir_rf_proxy"
 
 # Namespace and constants exported for infrared.py platform
 ir_rf_proxy_ns = cg.esphome_ns.namespace("ir_rf_proxy")

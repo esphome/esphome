@@ -33,12 +33,7 @@ ModbusTextSensor = modbus_controller_ns.class_(
 
 RawEncoding_ns = modbus_controller_ns.namespace("RawEncoding")
 RawEncoding = RawEncoding_ns.enum("RawEncoding")
-RAW_ENCODING = {
-    "NONE": RawEncoding.NONE,
-    "HEXBYTES": RawEncoding.HEXBYTES,
-    "COMMA": RawEncoding.COMMA,
-    "ANSI": RawEncoding.ANSI,
-}
+RAW_ENCODING = RawEncoding.options("NONE", "HEXBYTES", "COMMA", "ANSI")
 
 CONFIG_SCHEMA = cv.All(
     text_sensor.text_sensor_schema()

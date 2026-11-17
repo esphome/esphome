@@ -4,6 +4,7 @@
 
 #include <c_types.h>
 #include <core_esp8266_features.h>
+#include <coredecls.h>
 #include <cstdint>
 #include <pgmspace.h>
 
@@ -39,6 +40,9 @@ void delay_microseconds_safe(uint32_t us);
 /// ESP8266 wake path is context-agnostic (wake_loop_impl uses esp_schedule
 /// which is ISR-safe) so this helper is unused on this platform.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
+
+/// SDK SYS callbacks and interrupt handlers cannot yield, so they are not the loop context.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return can_yield(); }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }

@@ -20,7 +20,7 @@ namespace esphome::opentherm {
 
 using std::string;
 
-static const char *const TAG = "opentherm";
+ESPHOME_LOG_TAG(TAG, "opentherm");
 
 #ifdef ESP8266
 OpenTherm *OpenTherm::instance = nullptr;
@@ -298,7 +298,7 @@ void OpenTherm::report_and_reset_timer_error() {
     return;
   }
 
-  ESP_LOGE(TAG, "Error occured while manipulating timer (%s): %s", this->timer_error_to_str(this->timer_error_type_),
+  ESP_LOGE(TAG, "Error occurred while manipulating timer (%s): %s", this->timer_error_to_str(this->timer_error_type_),
            esp_err_to_name(this->timer_error_));
 
   this->timer_error_ = ESP_OK;

@@ -56,8 +56,8 @@ climate:
         default_target_temperature_high: 22°C
 
 button:
-  # Exercise the climate.control: action so ControlAction templates get
-  # build coverage. Various field combinations are tested.
+  # Exercise the climate.control: action so the register_apply_action codegen
+  # gets build coverage. Various field combinations are tested.
   - platform: template
     name: "Climate Control Mode"
     on_press:
@@ -84,6 +84,51 @@ button:
       - climate.control:
           id: climate_test_thermostat
           mode: "OFF"
+  - platform: template
+    name: "Climate Control Fan Preset Swing"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          fan_mode: AUTO
+          preset: HOME
+          swing_mode: VERTICAL
+          target_humidity: 45
+          target_temperature: 21°C
+  - platform: template
+    name: "Climate Control Enum Lambdas"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          mode: !lambda return climate::CLIMATE_MODE_HEAT;
+          fan_mode: !lambda return climate::CLIMATE_FAN_LOW;
+          preset: !lambda return climate::CLIMATE_PRESET_ECO;
+          swing_mode: !lambda return climate::CLIMATE_SWING_OFF;
+          target_temperature_low: !lambda return 18.5;
+          target_humidity: !lambda return 50;
+  # Custom strings take the (const char *, size_t) overload; the byte length of
+  # the non-ASCII value is computed at codegen time.
+  - platform: template
+    name: "Climate Control Custom Strings"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          custom_fan_mode: "Über"
+          custom_preset: Default
+  - platform: template
+    name: "Climate Control Custom Lambdas"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          custom_fan_mode: !lambda return "quiet";
+          custom_preset: !lambda return "Default";
+  # Inlined lambdas returning a StringRef, the shape an api action string variable takes (issue #21327)
+  - platform: template
+    name: "Climate Control StringRef Lambdas"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          custom_fan_mode: !lambda return id(climate_test_thermostat).get_custom_fan_mode();
+          custom_preset: !lambda return id(climate_test_thermostat).get_custom_preset();
 
 # Exercise climate.control inside a trigger with non-empty Ts (number on_value
 # passes float).

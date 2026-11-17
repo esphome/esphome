@@ -21,17 +21,4 @@ class ToshibaAcProtocol : public RemoteProtocol<ToshibaAcData> {
 
 DECLARE_REMOTE_PROTOCOL(ToshibaAc)
 
-template<typename... Ts> class ToshibaAcAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint64_t, rc_code_1)
-  TEMPLATABLE_VALUE(uint64_t, rc_code_2)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    ToshibaAcData data{};
-    data.rc_code_1 = this->rc_code_1_.value(x...);
-    data.rc_code_2 = this->rc_code_2_.value(x...);
-    ToshibaAcProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

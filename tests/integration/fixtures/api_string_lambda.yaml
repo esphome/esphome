@@ -37,7 +37,7 @@ api:
             args: [input_number]
 
         # Test that int lambdas still work correctly with to_string
-        # The TemplatableStringValue should automatically convert int to string
+        # Home Assistant action lambdas convert an int result to a string
         - homeassistant.event:
             event: esphome.test_int_lambda
             data:
@@ -54,7 +54,7 @@ api:
             args: [input_float]
 
         # Test that float lambdas still work correctly with to_string
-        # The TemplatableStringValue should automatically convert float to string
+        # Home Assistant action lambdas convert a float result to a string
         - homeassistant.event:
             event: esphome.test_float_lambda
             data:

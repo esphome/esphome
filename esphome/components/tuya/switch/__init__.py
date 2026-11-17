@@ -3,30 +3,25 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_SWITCH_DATAPOINT
 
-from .. import CONF_TUYA_ID, Tuya, tuya_ns
+from .. import CONF_TUYA_ID, Tuya, register_tuya_child, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]
 
-TuyaSwitch = tuya_ns.class_("TuyaSwitch", switch.Switch, cg.Component)
+TuyaSwitch = tuya_ns.class_("TuyaSwitch", switch.Switch)
 
-CONFIG_SCHEMA = (
-    switch.switch_schema(TuyaSwitch)
-    .extend(
-        {
-            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-            cv.Required(CONF_SWITCH_DATAPOINT): cv.uint8_t,
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = switch.switch_schema(TuyaSwitch).extend(
+    {
+        cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+        cv.Required(CONF_SWITCH_DATAPOINT): cv.uint8_t,
+    }
 )
 
 
 async def to_code(config):
     var = await switch.new_switch(config)
-    await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    hub = await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
+    register_tuya_child(hub, var)

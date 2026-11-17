@@ -4,6 +4,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/components/ble_device_base/ble_device.h"
@@ -11,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #ifdef USE_ESP32
 #include <esp_err.h>
@@ -124,10 +126,8 @@ inline void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, const ble_devic
   if (uuid.type() == ESPBTUUID::Type::UUID128) {
     const uint8_t *u = uuid.uuid128();
     // out[0] = bytes 8-15 (big-endian), out[1] = bytes 0-7 (big-endian)
-    out[0] = ((uint64_t) u[15] << 56) | ((uint64_t) u[14] << 48) | ((uint64_t) u[13] << 40) | ((uint64_t) u[12] << 32) |
-             ((uint64_t) u[11] << 24) | ((uint64_t) u[10] << 16) | ((uint64_t) u[9] << 8) | ((uint64_t) u[8]);
-    out[1] = ((uint64_t) u[7] << 56) | ((uint64_t) u[6] << 48) | ((uint64_t) u[5] << 40) | ((uint64_t) u[4] << 32) |
-             ((uint64_t) u[3] << 24) | ((uint64_t) u[2] << 16) | ((uint64_t) u[1] << 8) | ((uint64_t) u[0]);
+    out[0] = encode_value_le<uint64_t>(&u[8]);
+    out[1] = encode_value_le<uint64_t>(u);
     return;
   }
   // 16/32-bit UUID inserted into the Bluetooth base UUID:
@@ -135,6 +135,18 @@ inline void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, const ble_devic
   uint32_t value = uuid.type() == ESPBTUUID::Type::UUID16 ? uuid.uuid16() : uuid.uuid32();
   out[0] = ((uint64_t) value << 32) | 0x00001000ULL;  // Base UUID bytes 8-11
   out[1] = 0x800000805F9B34FBULL;                     // Base UUID bytes 0-7
+}
+
+/// A 128-bit UUID in big-endian (printable) order, as its 16 or 32-bit form when it is on the Bluetooth base UUID.
+inline ble_device_base::ESPBTUUID uuid_from_be128(const uint8_t *uuid128) {
+  using ble_device_base::ESPBTUUID;
+  // 0000xxxx-0000-1000-8000-00805F9B34FB without its first 4 bytes
+  static constexpr uint8_t BASE_UUID_TAIL[12] = {0x00, 0x00, 0x10, 0x00, 0x80, 0x00,
+                                                 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB};
+  if (memcmp(uuid128 + 4, BASE_UUID_TAIL, sizeof(BASE_UUID_TAIL)) != 0)
+    return ESPBTUUID::from_raw_reversed(uuid128);
+  const uint32_t value = encode_uint32(uuid128[0], uuid128[1], uuid128[2], uuid128[3]);
+  return value <= UINT16_MAX ? ESPBTUUID::from_uint16(value) : ESPBTUUID::from_uint32(value);
 }
 
 /// Fill the UUID in the appropriate wire format based on client support and

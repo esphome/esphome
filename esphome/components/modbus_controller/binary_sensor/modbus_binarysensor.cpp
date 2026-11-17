@@ -3,7 +3,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "modbus_controller.binary_sensor");
 
 void ModbusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Modbus Controller Binary Sensor", this); }
 

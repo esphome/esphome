@@ -77,8 +77,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     # OPEN
-    bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-    cg.add(var.set_open_sensor(bin))
+    await cg.add_variable(var.set_open_sensor, config[CONF_OPEN_SENSOR])
     cg.add(
         var.set_open_moving_current_threshold(
             config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]
@@ -97,8 +96,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     # CLOSE
-    bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-    cg.add(var.set_close_sensor(bin))
+    await cg.add_variable(var.set_close_sensor, config[CONF_CLOSE_SENSOR])
     cg.add(
         var.set_close_moving_current_threshold(
             config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]
@@ -119,8 +117,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
-    if (max_duration := config.get(CONF_MAX_DURATION)) is not None:
-        cg.add(var.set_max_duration(max_duration))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))
     cg.add(var.set_malfunction_detection(config[CONF_MALFUNCTION_DETECTION]))
     if malfunction_action := config.get(CONF_MALFUNCTION_ACTION):
         await automation.build_automation(

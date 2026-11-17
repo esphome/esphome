@@ -1,0 +1,74 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+espectre:
+  id: espectre_hub
+
+binary_sensor:
+  - platform: espectre
+    espectre_id: espectre_hub
+    motion:
+      name: Motion
+    calibrating:
+      name: Calibrating
+
+sensor:
+  - platform: espectre
+    espectre_id: espectre_hub
+    movement:
+      name: Movement score
+    diagnostics:
+      id: espectre_diagnostics
+      update_interval: 10s
+      generator_rate:
+        name: Generator Rate
+      traffic_tx_rate:
+        name: Traffic TX Rate
+      traffic_rx_rate:
+        name: Traffic RX Rate
+      csi_callback_rate:
+        name: CSI Callback Rate
+      csi_accepted_rate:
+        name: CSI Accepted Rate
+      csi_missing_slot_rate:
+        name: CSI Missing Slot Rate
+      csi_excess_rate:
+        name: CSI Excess Rate
+      csi_occupancy:
+        name: CSI Temporal Occupancy
+
+number:
+  - platform: espectre
+    espectre_id: espectre_hub
+    threshold:
+      name: Threshold
+    motion_on_hits:
+      name: Motion On Hits
+    motion_off_hits:
+      name: Motion Off Hits
+
+select:
+  - platform: espectre
+    espectre_id: espectre_hub
+    traffic_generator_mode:
+      name: CSI Traffic Source
+    detection_algorithm:
+      name: Detection Profile
+    csi_sample_spacing:
+      name: CSI Packet Spacing
+
+switch:
+  - platform: espectre
+    espectre_id: espectre_hub
+    sensing:
+      name: Sensing Enabled
+
+button:
+  - platform: espectre
+    espectre_id: espectre_hub
+    name: Recalibrate
+  - platform: template
+    name: Refresh Diagnostics
+    on_press:
+      - component.update: espectre_diagnostics

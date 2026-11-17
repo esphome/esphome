@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from .bmp_utils import capture_when_drawn
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
@@ -37,7 +38,7 @@ async def test_sdl_headless_screenshot(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
-        service = next(s for s in services if s.name == "take_screenshot")
+        service = require_service(services, "take_screenshot")
 
         async def take(name: str) -> None:
             await client.execute_service(service, {"name": name})

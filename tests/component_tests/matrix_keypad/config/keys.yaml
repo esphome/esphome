@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+matrix_keypad:
+  - id: keypad_a
+    rows:
+      - pin: 12
+      - pin: 13
+    columns:
+      - pin: 14
+      - pin: 15
+    keys: "1234"
+  - id: keypad_b
+    rows:
+      - pin: 4
+      - pin: 5
+    columns:
+      - pin: 0
+      - pin: 2
+    keys: "1234"

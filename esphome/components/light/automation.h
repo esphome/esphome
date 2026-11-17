@@ -8,64 +8,16 @@ namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
-template<bool HasTransitionLength, typename... Ts> class ToggleAction final : public Action<Ts...> {
- public:
-  explicit ToggleAction(LightState *state) : state_(state) {}
-
-  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
-    this->transition_length_ = value;
-  }
-
-  void play(const Ts &...x) override {
-    auto call = this->state_->toggle();
-    if constexpr (HasTransitionLength) {
-      call.set_transition_length(this->transition_length_.optional_value(x...));
-    }
-    call.perform();
-  }
-
- protected:
-  LightState *state_;
-  struct NoTransition {};
-  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
-      transition_length_{};
-};
-
-// All configured fields are baked into a single stateless lambda whose
-// constants live in flash. The action only stores one function pointer
-// plus one parent pointer, regardless of how many fields the user set.
-// Trigger args are forwarded to the apply function so user lambdas
-// (e.g. `brightness: !lambda "return x;"`) keep working.
-//
-// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
-// the codegen can emit a matching parameter list for both the apply lambda
-// and any inner field lambdas without producing invalid C++ source text
-// (e.g. `const T & &` if Ts already carries a reference, or `const const
-// T &` if Ts already carries a const). This keeps trigger args no-copy
-// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
-template<typename... Ts> class LightControlAction final : public Action<Ts...> {
- public:
-  using ApplyFn = void (*)(LightState *, LightCall &, const std::remove_cvref_t<Ts> &...);
-  LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-    this->apply_(this->parent_, call, x...);
-    call.perform();
-  }
-
- protected:
-  LightState *parent_;
-  ApplyFn apply_;
-};
-
 template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final : public Action<Ts...> {
  public:
   explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, relative_brightness)
 
-  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+  template<typename V>
+  void set_transition_length(V value)
+    requires(HasTransitionLength)
+  {
     this->transition_length_ = value;
   }
 
@@ -145,23 +97,6 @@ template<bool Forward, typename... Ts> class LightEffectCycleAction final : publ
   bool include_none_{false};
 };
 
-template<typename... Ts> class LightIsOnCondition final : public Condition<Ts...> {
- public:
-  explicit LightIsOnCondition(LightState *state) : state_(state) {}
-  bool check(const Ts &...x) override { return this->state_->current_values.is_on(); }
-
- protected:
-  LightState *state_;
-};
-template<typename... Ts> class LightIsOffCondition final : public Condition<Ts...> {
- public:
-  explicit LightIsOffCondition(LightState *state) : state_(state) {}
-  bool check(const Ts &...x) override { return !this->state_->current_values.is_on(); }
-
- protected:
-  LightState *state_;
-};
-
 class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:
   explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
@@ -230,13 +165,14 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     auto *out = (AddressableLight *) this->parent_->get_output();
-    int32_t range_from = interpret_index(this->range_from_.value_or(x..., 0), out->size());
-    if (range_from < 0 || range_from >= out->size())
+    const int32_t size = out->size();
+    int32_t range_from = interpret_index(this->range_from_.value_or(x..., 0), size);
+    if (range_from < 0 || range_from >= size)
       range_from = 0;
 
-    int32_t range_to = interpret_index(this->range_to_.value_or(x..., out->size() - 1) + 1, out->size());
-    if (range_to < 0 || range_to >= out->size())
-      range_to = out->size();
+    int32_t range_to = interpret_index(this->range_to_.value_or(x..., size - 1) + 1, size);
+    if (range_to < 0 || range_to >= size)
+      range_to = size;
 
     uint8_t color_brightness =
         to_uint8_scale(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
@@ -254,6 +190,8 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
 
  protected:
   LightState *parent_;
+
+  static inline int32_t interpret_index(int32_t index, int32_t size) { return index < 0 ? index + size : index; }
 
   // Historically, this action required uint8_t (0-255) for RGBW values from lambdas. Keep compatibility.
   static inline uint8_t to_uint8_compat(float value, const char *field) {

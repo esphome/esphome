@@ -1,16 +1,21 @@
+import sys
+
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
+    CONF_USE_ADDRESS,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_HOST,
     ThreadModel,
+    Toolchain,
 )
-from esphome.core import CORE
-from esphome.platformio.toolchain import copy_ccache_script
+from esphome.core import CORE, EsphomeError
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from .const import KEY_HOST
@@ -20,6 +25,7 @@ from .gpio import host_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
+DOMAIN = "host"
 IS_TARGET_PLATFORM = True
 
 
@@ -35,10 +41,14 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         }
     ),
-    cv.require_platformio_toolchain("host"),
+    # The host builds with the machine's own compiler through ninja; there
+    # is no PlatformIO backend, so a CLI --toolchain must name this one
+    cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
     set_core_data,
+    network.require_ipv4(PLATFORM_HOST),
 )
 
 
@@ -48,16 +58,39 @@ async def to_code(config: ConfigType) -> None:
     # The prefs file finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
-    cg.add_build_flag("-std=gnu++20")
+    cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_define("ESPHOME_VARIANT", "HOST")
     cg.add_define(ThreadModel.MULTI_ATOMICS)
-    cg.add_platformio_option("platform", "platformio/native")
-    cg.add_platformio_option("lib_ldf_mode", "off")
-    cg.add_platformio_option("lib_compat_mode", "strict")
-    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
 
 
-# Called by writer.py
-def copy_files() -> None:
-    copy_ccache_script()
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
+    """Download entries for a built host program; same contract as
+    ``esp32.get_download_types`` (title / description / file / download)."""
+    if storage_json.firmware_bin_path is None:
+        return []
+    return [
+        {
+            "title": "Executable",
+            "description": "Native program for the machine this was built on; "
+            "copy it to the host and run it.",
+            "file": "program",
+            "download": storage_json.name,
+        }
+    ]
+
+
+# Called by __main__.compile_program; True means this platform built the
+# program itself instead of falling through to the PlatformIO toolchain.
+def run_compile(args: object, config: ConfigType) -> bool:
+    from esphome.host import toolchain
+
+    if sys.platform == "win32":
+        # Here, not in validation: `esphome config` must keep working
+        raise EsphomeError(
+            "The host platform uses POSIX interfaces and does not build on "
+            "Windows; use WSL or a Linux or macOS machine"
+        )
+    if toolchain.run_compile(config, CORE.verbose) != 0:
+        raise EsphomeError("Host build failed")
+    return True

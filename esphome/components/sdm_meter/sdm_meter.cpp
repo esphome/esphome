@@ -6,7 +6,7 @@ namespace esphome::sdm_meter {
 
 namespace helpers = modbus::helpers;
 
-static const char *const TAG = "sdm_meter";
+ESPHOME_LOG_TAG(TAG, "sdm_meter");
 
 static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 80 x 16-bit registers (40 float values)
 

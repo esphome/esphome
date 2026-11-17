@@ -1,0 +1,4 @@
+# No pin anywhere in the config: the pin class methods deep_sleep calls must still link
+deep_sleep:
+  run_duration: 10s
+  sleep_duration: 50s

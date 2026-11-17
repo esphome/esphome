@@ -4,7 +4,7 @@
 
 namespace esphome::st7789v {
 
-static const char *const TAG = "st7789v";
+ESPHOME_LOG_TAG(TAG, "st7789v");
 #ifdef USE_ESP32
 static constexpr size_t TEMP_BUFFER_SIZE = 1024;
 #else
@@ -182,8 +182,7 @@ void ST7789V::write_display_data() {
     for (size_t line = 0; line < this->get_buffer_length_(); line += width) {
       for (size_t index = 0; index < width; ++index) {
         auto color = display::ColorUtil::color_to_565(
-            display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
-                                         display::ColorBitness::COLOR_BITNESS_332, true));
+            display::ColorUtil::to_color(this->buffer_[index + line], display::ColorBitness::COLOR_BITNESS_332, true));
         temp_buffer[temp_index++] = (uint8_t) (color >> 8);
         temp_buffer[temp_index++] = (uint8_t) color;
         if (temp_index == TEMP_BUFFER_SIZE) {

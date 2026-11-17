@@ -5,7 +5,7 @@ namespace esphome::template_ {
 
 using namespace esphome::valve;
 
-static const char *const TAG = "template.valve";
+ESPHOME_LOG_TAG(TAG, "template.valve");
 
 TemplateValve::TemplateValve() = default;
 

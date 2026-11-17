@@ -1,0 +1,50 @@
+# ESP32 (an S3 here) central: -s server <the address server.yaml logs>. Connects, drops the link 300 ms later,
+# and auto_connect reconnects as soon as the server advertises again.
+substitutions:
+  # placeholder so `esphome logs` validates; build and upload with -s server <address>
+  server: 00:00:00:00:00:00
+
+esphome:
+  name: zbsloop
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+esp32_ble_tracker:
+
+globals:
+  - id: connects
+    type: int
+    initial_value: "0"
+
+ble_client:
+  - mac_address: ${server}
+    id: cli
+    on_connect:
+      - lambda: 'id(connects)++; ESP_LOGI("loop", "CONNECT %d", id(connects));'
+      - delay: 300ms
+      - ble_client.disconnect: cli
+    on_disconnect:
+      - logger.log: "DISCONNECT"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: 'ESP_LOGI("loop", "connects so far %d", id(connects));'

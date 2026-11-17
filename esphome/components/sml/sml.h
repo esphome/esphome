@@ -14,7 +14,9 @@ class SmlListener {
   std::string server_id;
   std::string obis_code;
   SmlListener(std::string server_id, std::string obis_code);
-  virtual void publish_val(const ObisInfo &obis_info){};
+  virtual void publish_val(const ObisInfo &obis_info) {};
+  // Called from the hub's dump_config()
+  virtual void dump_child_config() {}
 };
 
 class Sml final : public Component, public uart::UARTDevice {

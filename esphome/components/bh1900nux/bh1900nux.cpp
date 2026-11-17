@@ -1,9 +1,10 @@
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "bh1900nux.h"
 
 namespace esphome::bh1900nux {
 
-static const char *const TAG = "bh1900nux.sensor";
+ESPHOME_LOG_TAG(TAG, "bh1900nux.sensor");
 
 // I2C Registers
 static const uint8_t TEMPERATURE_REG = 0x00;
@@ -21,10 +22,8 @@ void BH1900NUXSensor::setup() {
   // Initialize I2C device
   i2c::ErrorCode result_code =
       this->write_register(SOFT_RESET_REG, &SOFT_RESET_PAYLOAD, 1);  // Software Reset to check communication
-  if (result_code != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(result_code == i2c::ERROR_OK))
     return;
-  }
 }
 
 void BH1900NUXSensor::update() {
@@ -36,7 +35,7 @@ void BH1900NUXSensor::update() {
 
   // Combined raw value, unsigned and unaligned 16 bit
   // Temperature is represented in just 12 bits, shift needed
-  int16_t raw_temperature_register_value = encode_uint16(temperature_raw[0], temperature_raw[1]);
+  int16_t raw_temperature_register_value = encode_value<int16_t>(temperature_raw);
   raw_temperature_register_value >>= 4;
   float temperature_value = raw_temperature_register_value * SENSOR_RESOLUTION;  // Apply sensor resolution
 

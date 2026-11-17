@@ -19,8 +19,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    sim800l_component = await cg.get_variable(config[CONF_SIM800L_ID])
+    hub = await cg.get_variable(config[CONF_SIM800L_ID])
 
-    if CONF_REGISTERED in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_REGISTERED])
-        cg.add(sim800l_component.set_registered_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_REGISTERED, hub.set_registered_binary_sensor)

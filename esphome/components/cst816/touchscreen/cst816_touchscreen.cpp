@@ -52,12 +52,7 @@ void CST816Touchscreen::continue_setup_() {
 
 void CST816Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     this->set_timeout(30, [this] { this->continue_setup_(); });
   } else {
     this->continue_setup_();
@@ -66,17 +61,15 @@ void CST816Touchscreen::setup() {
 
 void CST816Touchscreen::update_touches() {
   uint8_t data[13];
-  if (!this->read_bytes(REG_STATUS, data, sizeof data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(REG_STATUS, data, sizeof data)))
     return;
-  }
   uint8_t num_of_touches = data[REG_TOUCH_NUM] & 3;
   if (num_of_touches == 0) {
     return;
   }
 
-  uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
-  uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
+  uint16_t x = encode_uint16(low_nibble(data[REG_XPOS_HIGH]), data[REG_XPOS_LOW]);
+  uint16_t y = encode_uint16(low_nibble(data[REG_YPOS_HIGH]), data[REG_YPOS_LOW]);
   ESP_LOGV(TAG, "Read touch %d/%d", x, y);
   this->add_raw_touch_position_(0, x, y);
 }

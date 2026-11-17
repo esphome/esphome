@@ -19,11 +19,20 @@ enum PixooModel : uint8_t {
   PIXOO_64 = 64,
 };
 
+static constexpr size_t PACKET_STATIC_LEN = 5;  // header + tail
+
 class Pixoo : public display::Display,
               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                     spi::DATA_RATE_8MHZ> {
  public:
-  explicit Pixoo(PixooModel model) : model_(model) {}
+  // frame_buffer holds frame_size(model) bytes, word-aligned for the SPI DMA transfer.
+  Pixoo(PixooModel model, uint8_t *frame_buffer) : model_(model), frame_buffer_(frame_buffer) {}
+
+  // RGB888 image bytes.
+  static constexpr size_t data_size(PixooModel model) { return static_cast<size_t>(model) * model * 3; }
+  // Full SPI frame: a DATA packet (header + RGB888 + tail), then a DMA-chunk-sized UNUSED packet so the
+  // LED board completes its final DMA block.
+  static constexpr size_t frame_size(PixooModel model) { return data_size(model) + PACKET_STATIC_LEN + DMA_CHUNK; }
 
   void setup() override;
   void update() override;
@@ -38,10 +47,11 @@ class Pixoo : public display::Display,
 
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   int get_width_internal() override { return static_cast<int>(this->model_); }
   int get_height_internal() override { return static_cast<int>(this->model_); }
 
@@ -53,11 +63,8 @@ class Pixoo : public display::Display,
 
   PixooModel model_;
 
-  size_t data_size_{0};   // RGB888 image bytes: model^2 * 3
-  size_t frame_size_{0};  // full SPI frame: DATA packet + trailing UNUSED packet
-
   split_buffer::SplitBuffer buffer_{};
-  uint8_t *frame_buffer_{nullptr};
+  uint8_t *frame_buffer_;
   uint8_t cmd_buffer_[DMA_CHUNK]{};
 };
 

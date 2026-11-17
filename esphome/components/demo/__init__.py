@@ -18,6 +18,7 @@ from esphome.components import (
     text_sensor,
     valve,
 )
+from esphome.components.const import CONF_BUTTONS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -76,6 +77,7 @@ AUTO_LOAD = [
     "text_sensor",
     "valve",
 ]
+DOMAIN = "demo"
 
 demo_ns = cg.esphome_ns.namespace("demo")
 DemoAlarmControlPanel = demo_ns.class_(
@@ -166,7 +168,6 @@ VALVE_TYPES = {
 
 
 CONF_ALARM_CONTROL_PANELS = "alarm_control_panels"
-CONF_BUTTONS = "buttons"
 CONF_CLIMATES = "climates"
 CONF_COVERS = "covers"
 CONF_DATETIMES = "datetimes"
@@ -604,7 +605,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_SELECTS]:
-        var = await select.new_select(conf, options=conf[CONF_OPTIONS])
+        var = await select.new_select(
+            conf, options=conf[CONF_OPTIONS], fixed_options=True
+        )
         await cg.register_component(var, conf)
 
     for conf in config[CONF_SENSORS]:

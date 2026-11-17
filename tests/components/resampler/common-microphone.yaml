@@ -1,0 +1,29 @@
+microphone:
+  - platform: i2s_audio
+    id: resampler_i2s_mic_id
+    i2s_audio_id: i2s_audio_bus
+    adc_type: external
+    i2s_din_pin: ${din_pin}
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    channel: stereo
+  - platform: resampler
+    id: resampler_mic_id
+    microphone:
+      microphone: resampler_i2s_mic_id
+      channels: 0
+      bits_per_sample: 16
+    sample_rate: 16000
+    on_data:
+      - logger.log:
+          format: "Received %u bytes"
+          args: [x.size()]
+  - platform: resampler
+    id: resampler_mic_stereo_id
+    microphone:
+      microphone: resampler_i2s_mic_id
+      channels: [0, 1]
+      bits_per_sample: 32
+    sample_rate: 44100
+    filters: 32
+    taps: 32

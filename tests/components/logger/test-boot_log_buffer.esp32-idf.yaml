@@ -1,0 +1,14 @@
+esphome:
+  on_boot:
+    then:
+      - logger.log:
+          level: warn
+          format: "Early boot warning for replay"
+      - logger.replay_boot_logs: logger_id
+
+logger:
+  id: logger_id
+  boot_log_buffer_size: 2kB
+  boot_log_level: INFO
+  boot_logs:
+    wifi: DEBUG

@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from esphome.automation import ACTION_REGISTRY
-from esphome.components.lvgl.defines import set_widgets_completed
 from esphome.components.lvgl.lvcode import LvContext
 from esphome.components.lvgl.schemas import container_schema
 from esphome.components.lvgl.trigger import generate_triggers
@@ -111,7 +110,10 @@ async def test_percent_column_width_uses_the_dynamic_helper(setup_core) -> None:
     """
     await _create_table({"id": "table_pct", "columns": [{"width": "40%"}]})
     statements = _statements()
-    assert any("table_pct->init_column_pct(1)" in s for s in statements)
+    assert any("table_pct->set_column_pct_storage(" in s for s in statements)
+    assert any(
+        "sizeof(LvTableType::ColumnPct) * (1)" in str(s) for s in CORE.global_statements
+    )
     assert any("table_pct->add_column_width_pct(0, 40)" in s for s in statements)
     assert not any(
         "lv_table_set_column_width(table_pct->obj, 0" in s for s in statements
@@ -151,7 +153,6 @@ async def test_selected_cell_omitted_entirely_when_not_configured(
 @pytest.mark.asyncio
 async def test_cell_update_action_writes_only_the_given_fields(setup_core) -> None:
     await _create_table({"id": "table_update", "rows": [["a", "b"], ["c", "d"]]})
-    set_widgets_completed(True)
     # Only inspect statements emitted by the action below, not by creation.
     before = len(_statements())
 
@@ -194,7 +195,6 @@ async def test_on_value_registers_a_value_changed_event_callback(setup_core) -> 
     parent = MockObj("parent_obj")
     async with LvContext():
         await widget_to_code(config, table_spec, parent)
-        set_widgets_completed(True)
         await generate_triggers()
 
     statements = _statements()

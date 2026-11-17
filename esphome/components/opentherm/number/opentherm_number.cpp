@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm {
 
-static const char *const TAG = "opentherm.number";
+ESPHOME_LOG_TAG(TAG, "opentherm.number");
 
 void OpenthermNumber::control(float value) {
   this->publish_state(value);
@@ -18,11 +18,7 @@ void OpenthermNumber::setup() {
   } else {
     this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
-      if (!std::isnan(this->initial_value_)) {
-        value = this->initial_value_;
-      } else {
-        value = this->traits.get_min_value();
-      }
+      value = !std::isnan(this->initial_value_) ? this->initial_value_ : this->traits.get_min_value();
     }
   }
   this->publish_state(value);

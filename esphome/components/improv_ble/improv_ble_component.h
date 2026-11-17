@@ -38,6 +38,10 @@ namespace esphome::improv_ble {
 using namespace esp32_ble_server;
 
 class ImprovBLEComponent final : public Component, public improv_base::ImprovBase {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(authorizer)
+#endif
+
  public:
   ImprovBLEComponent();
   void dump_config() override;
@@ -56,9 +60,6 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
     this->state_callback_.add(std::forward<F>(callback));
   }
 #endif
-#ifdef USE_BINARY_SENSOR
-  void set_authorizer(binary_sensor::BinarySensor *authorizer) { this->authorizer_ = authorizer; }
-#endif
 #ifdef USE_OUTPUT
   void set_status_indicator(output::BinaryOutput *status_indicator) { this->status_indicator_ = status_indicator; }
 #endif
@@ -72,9 +73,6 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
   improv::Error get_improv_error_state() const { return this->error_state_; }
 
  protected:
-  bool should_start_{false};
-  bool setup_complete_{false};
-
   uint32_t identify_start_{0};
   uint32_t identify_duration_;
   uint32_t authorized_start_{0};
@@ -84,6 +82,14 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
 
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
+  // Single byte fields here fill the alignment gap between connecting_sta_ and the next pointer
+  improv::State state_{improv::STATE_STOPPED};
+  improv::Error error_state_{improv::ERROR_NONE};
+  bool should_start_{false};
+  bool setup_complete_{false};
+  bool status_indicator_state_{false};
+  bool advertising_device_name_{false};
+  bool advertising_requested_{false};
 
   BLEService *service_{nullptr};
   BLECharacteristic *status_{nullptr};
@@ -92,23 +98,15 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
   BLECharacteristic *rpc_response_{nullptr};
   BLECharacteristic *capabilities_{nullptr};
 
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *authorizer_{nullptr};
-#endif
 #ifdef USE_OUTPUT
   output::BinaryOutput *status_indicator_{nullptr};
 #endif
 
-  improv::State state_{improv::STATE_STOPPED};
-  improv::Error error_state_{improv::ERROR_NONE};
 #ifdef USE_IMPROV_BLE_STATE_CALLBACK
   CallbackManager<void(improv::State, improv::Error)> state_callback_{};
 #endif
 
-  bool status_indicator_state_{false};
   uint32_t last_name_adv_time_{0};
-  bool advertising_device_name_{false};
-  bool advertising_requested_{false};
   void set_status_indicator_state_(bool state);
   void update_advertising_type_();
   void request_advertising_();

@@ -1,0 +1,9 @@
+substitutions:
+  i2s_din_pin: GPIO34
+  i2s_din_pin2: GPIO35
+  i2s_dout_pin: GPIO32
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  voice_assistant: !include common-idf.yaml
+  actions: !include common-actions.yaml

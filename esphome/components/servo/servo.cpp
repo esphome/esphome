@@ -5,7 +5,7 @@
 
 namespace esphome::servo {
 
-static const char *const TAG = "servo";
+ESPHOME_LOG_TAG(TAG, "servo");
 
 uint32_t global_servo_id = 1911044085ULL;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

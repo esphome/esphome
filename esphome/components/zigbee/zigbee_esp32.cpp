@@ -2,13 +2,15 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
+#include <algorithm>
+#include <cstdint>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_check.h"
-#include "nvs_flash.h"
 #include "zigbee_attribute_esp32.h"
 #include "zigbee_esp32.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "zigbee_helpers_esp32.h"
 #ifdef USE_WIFI
@@ -17,7 +19,19 @@
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee";
+ESPHOME_LOG_TAG(TAG, "zigbee");
+
+static constexpr uint32_t COMMISSIONING_RETRY_TIMEOUT_ID = 0;
+static constexpr uint32_t PARENT_LINK_TIMEOUT_ID = 1;
+static constexpr uint32_t PARENT_LINK_RETRY_TIMEOUT_ID = 2;
+
+// Since esp-zigbee-lib 2.0.5 every lost poll or transmission raises PARENT_LINK_FAILURE, even during a short radio
+// outage such as a BLE scan. After a failure the device polls at least every 3 s. It rejoins only after failures in
+// 4 polls that span at least 6 s; failures less than two thirds of a polling interval apart (poll retries, fast
+// polls) count once. Two intervals without a counted failure mean that a poll got through.
+static constexpr uint8_t PARENT_LINK_MISSED_POLLS = 4;
+static constexpr uint32_t PARENT_LINK_POLL_INTERVAL_MS = 3000;
+static constexpr uint32_t PARENT_LINK_MIN_SPAN_MS = 6000;
 
 static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -47,10 +61,16 @@ void ZigbeeComponent::factory_reset() {
   esp_zigbee_lock_release();
 }
 
+void ZigbeeComponent::report() {
+  for (const auto &[_, attribute] : this->attributes_) {
+    attribute->report();
+  }
+}
+
 void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode) {
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    global_zigbee->set_timeout("zb_init", 100, [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
-    App.wake_loop_threadsafe();
+    global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 100,
+                               [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
     return;
   }
   if (ezb_bdb_start_top_level_commissioning(mode) != EZB_ERR_NONE) {
@@ -86,10 +106,9 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         }
       } else {
         ESP_LOGW(TAG, "The %s failed with status(0x%02x), please retry", ezb_app_signal_to_string(signal_type), status);
-        global_zigbee->set_timeout("zb_init", 1000, []() {
+        global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 1000, []() {
           ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_INITIALIZATION);
         });
-        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_BDB_SIGNAL_STEERING: {
@@ -107,15 +126,14 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         ESP_LOGD(TAG, "Failed to join network with status(0x%02x)", status);
         if (steering_retry_count < 10) {
           steering_retry_count++;
-          global_zigbee->set_timeout("zb_init", 1000, []() {
+          global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 1000, []() {
             ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
           });
         } else {
-          global_zigbee->set_timeout("zb_init", 600 * 1000, []() {
+          global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 600 * 1000, []() {
             ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
           });
         }
-        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_ZDO_SIGNAL_LEAVE: {
@@ -125,24 +143,16 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         esp_zigbee_factory_reset();  // triggers a reboot
       }
       global_zigbee->joined_ = false;
+      // For a leave asked for by the network: failures before it must not count after the rejoin
+      global_zigbee->reset_parent_link_failures_();
     } break;
     case EZB_NWK_SIGNAL_NETWORK_STATUS: {
       const ezb_nwk_signal_network_status_params_t *network_status_params =
           (const ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
       if (network_status_params->status == EZB_NWK_NETWORK_STATUS_PARENT_LINK_FAILURE) {
-        global_zigbee->joined_ = false;
-        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
-        ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
-            .dst_nwk_addr = ezb_nwk_get_short_address(),
-            .field =
-                {
-                    .remove_children = false,
-                    .rejoin = true,
-                },
-        };
-        // Send leave request to the network to rejoin
-        // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
-        ezb_zdo_nwk_mgmt_leave_req(&leave_req);
+        if (global_zigbee->joined_) {  // else not joined yet, or a rejoin is running
+          global_zigbee->on_parent_link_failure_();
+        }
       } else {
         ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
       }
@@ -154,6 +164,118 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
   return true;
 }
 
+// Runs on the Zigbee task with the stack lock held
+void ZigbeeComponent::on_parent_link_failure_() {
+  const uint32_t now = millis();
+  if (this->link_failures_ == 0) {
+    // Poll faster for now, so that a lost parent is noticed soon also with a long polling interval
+    this->saved_keep_alive_ = ezb_nwk_get_keepalive_interval();
+    if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS) {
+      ezb_nwk_set_keepalive_interval(PARENT_LINK_POLL_INTERVAL_MS);
+    }
+  }
+  // The polling interval during the series
+  const uint32_t interval = std::min(this->saved_keep_alive_, PARENT_LINK_POLL_INTERVAL_MS);
+  if (this->link_failures_ > 0) {
+    if (now - this->last_link_failure_ms_ >= 2 * interval) {
+      // The series has ended, but its timeout has not run yet: start a new one, keep the saved interval
+      this->link_failures_ = 0;
+    } else if (now - this->last_link_failure_ms_ < 2 * interval / 3) {
+      ESP_LOGV(TAG, "Parent link failure (same poll)");
+      return;
+    }
+  }
+  if (this->link_failures_ == 0) {
+    this->first_link_failure_ms_ = now;
+  }
+  this->last_link_failure_ms_ = now;
+  this->link_failure_seq_++;
+  if (this->link_failures_ < UINT8_MAX) {
+    this->link_failures_++;
+  }
+  if (this->link_failures_ < PARENT_LINK_MISSED_POLLS || now - this->first_link_failure_ms_ < PARENT_LINK_MIN_SPAN_MS) {
+    ESP_LOGD(TAG, "Parent link failure %u", this->link_failures_);
+    // The stack does not report a poll that got through, so the series ends when no failure follows
+    const uint8_t seq = this->link_failure_seq_;
+    this->set_timeout(PARENT_LINK_TIMEOUT_ID, 2 * interval, [this, seq]() { this->end_parent_link_failures_(seq); });
+    return;
+  }
+  ESP_LOGW(TAG, "Parent link failed in %u polls, attempting rejoin", this->link_failures_);
+  this->cancel_timeout(PARENT_LINK_TIMEOUT_ID);
+  this->reset_parent_link_failures_();
+  this->joined_ = false;
+  ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
+      .dst_nwk_addr = ezb_nwk_get_short_address(),
+      .field =
+          {
+              .remove_children = false,
+              .rejoin = true,
+          },
+  };
+  // Send leave request to the network to rejoin
+  // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
+  if (ezb_zdo_nwk_mgmt_leave_req(&leave_req) != EZB_ERR_NONE) {
+    ESP_LOGW(TAG, "Leave request for rejoin failed");
+    this->joined_ = true;  // still joined, so later failures can start a rejoin again
+  }
+}
+
+// Runs on the main loop when no failure was counted for two poll intervals
+void ZigbeeComponent::end_parent_link_failures_(uint8_t seq) {
+  if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
+    // Retry with its own id, so that it cannot replace the timeout of a newer failure
+    this->set_timeout(PARENT_LINK_RETRY_TIMEOUT_ID, 100, [this, seq]() { this->end_parent_link_failures_(seq); });
+    return;
+  }
+  // A newer failure has set its own timeout, which ends the series instead
+  const uint8_t failures = seq == this->link_failure_seq_ ? this->link_failures_ : 0;
+  if (failures > 0) {
+    this->reset_parent_link_failures_();
+  }
+  esp_zigbee_lock_release();
+  if (failures > 0) {  // after the release: the main task writes log lines out at once
+    ESP_LOGD(TAG, "Parent link failures ended (%u)", failures);
+  }
+}
+
+// Ends the current series, if any. Needs the stack lock
+void ZigbeeComponent::reset_parent_link_failures_() {
+  if (this->link_failures_ == 0) {
+    return;  // no series: the saved interval is stale
+  }
+  this->link_failures_ = 0;
+  // Put the polling interval back, unless something else changed it in the meantime
+  if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS &&
+      ezb_nwk_get_keepalive_interval() == PARENT_LINK_POLL_INTERVAL_MS) {
+    ezb_nwk_set_keepalive_interval(this->saved_keep_alive_);
+  }
+}
+
+void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
+  event->load_set_attr_value_event(info, attribute);
+}
+
+template<typename... Args> void enqueue_zb_event(Args... args) {
+  // Allocate an event from the pool
+  ZBEvent *event = global_zigbee->zb_event_pool_.allocate();
+  if (event == nullptr) {
+    // No events available - queue is full or we're out of memory
+    global_zigbee->zb_events_.increment_dropped_count();
+    return;
+  }
+
+  // Load new event data (replaces previous event)
+  load_zb_event(event, args...);
+
+  // Push the event to the queue
+  global_zigbee->zb_events_.push(event);
+  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
+  global_zigbee->enable_loop_soon_any_context();
+}
+
+// Explicit template instantiations for the friend function
+template void enqueue_zb_event(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
+
 static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_RETURN_ON_FALSE(message, , TAG, "Empty message");
   ESP_RETURN_ON_FALSE(message->info.status == EZB_ZCL_STATUS_SUCCESS, , TAG, "Received message: error status(%d)",
@@ -161,6 +283,7 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_LOGD(TAG, "ZCL SetAttributeValue message for endpoint(%d) cluster(0x%04x) %s with status(0x%02x)",
            message->info.dst_ep, message->info.cluster_id,
            message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? "server" : "client", message->info.status);
+  enqueue_zb_event(message->info, message->in.attribute);
 }
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {
@@ -180,14 +303,16 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
   }
 }
 
+void ZigbeeComponent::handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
+  auto it = this->attributes_.find({info.dst_ep, info.cluster_id, info.cluster_role, attribute.id});
+  if (it != this->attributes_.end()) {
+    it->second->on_value(attribute);
+  }
+}
+
 void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, uint16_t device_id) {
-  ezb_af_ep_config_t config = {
-      .ep_id = endpoint_id,
-      .app_profile_id = EZB_AF_HA_PROFILE_ID,
-      .app_device_id = device_id,
-      .app_device_version = 0,
-  };
-  ezb_af_ep_desc_t ep_desc = ezb_af_create_endpoint_desc(&config);
+  ezb_af_ep_desc_t ep_desc =
+      esphome_zb_zha_default_ep_desc_create(endpoint_id, device_id, this->basic_cluster_data_.power_source);
   if (ezb_af_device_add_endpoint_desc(this->dev_desc_, ep_desc) != EZB_ERR_NONE) {
     ESP_LOGE(TAG, "Could not create endpoint %u", endpoint_id);
   }
@@ -210,7 +335,8 @@ void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   ESP_LOGD(TAG, "Endpoint %u: Added cluster 0x%04X with role %u", endpoint_id, cluster_id, role);
 }
 
-void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source) {
+void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, const char *location,
+                                        const char *sw_build_id, uint8_t power_source, uint8_t app_version) {
   char date_buf[16];
   time_t time_val = App.get_build_time();
   struct tm *timeinfo = localtime(&time_val);
@@ -219,7 +345,10 @@ void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufactu
       .model = get_zcl_string(model, 31),
       .manufacturer = get_zcl_string(manufacturer, 31),
       .date = get_zcl_string(date_buf, 15),
+      .location = get_zcl_string(location, 15),
+      .sw_build_id = get_zcl_string(sw_build_id, 15),
       .power_source = power_source,
+      .app_version = app_version,
   };
 }
 
@@ -232,13 +361,23 @@ void ZigbeeComponent::update_basic_cluster_(ezb_af_ep_desc_t ep_desc) {
         .power_source = this->basic_cluster_data_.power_source,
     };
     cluster_desc = ezb_zcl_basic_create_cluster_desc(&basic_cluster_cfg, EZB_ZCL_CLUSTER_SERVER);
+    ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
   }
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
                                       this->basic_cluster_data_.manufacturer);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID,
                                       this->basic_cluster_data_.model);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data_.date);
-  ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_APPLICATION_VERSION_ID,
+                                      &(this->basic_cluster_data_.app_version));
+  uint8_t stack_version = 0;
+  uint8_t hw_version = 0;
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_STACK_VERSION_ID, &stack_version);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_HW_VERSION_ID, &hw_version);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID,
+                                      this->basic_cluster_data_.location);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_SW_BUILD_ID_ID,
+                                      this->basic_cluster_data_.sw_build_id);
 }
 
 bool ZigbeeComponent::register_device() {
@@ -272,7 +411,9 @@ static void ezb_task(void *pv_parameters) {
   vTaskDelete(NULL);
 }
 
-ZigbeeComponent::ZigbeeComponent() {
+void ZigbeeComponent::setup() {
+  global_zigbee = this;
+
   esp_zigbee_platform_config_t platform_config = {
       .storage_partition_name = "nvs",
       .radio_config = EZB_DEFAULT_RADIO_CONFIG(),
@@ -289,7 +430,7 @@ ZigbeeComponent::ZigbeeComponent() {
 #else
   esp_zigbee_zed_config_s zb_zed_cfg = {
       .ed_timeout = EZB_NWK_ED_TIMEOUT_64MIN,
-      .keep_alive = ED_KEEP_ALIVE,
+      .keep_alive = this->keep_alive_,
   };
   device_config.zed_config = zb_zed_cfg;
 #endif
@@ -299,11 +440,7 @@ ZigbeeComponent::ZigbeeComponent() {
     this->mark_failed();
     return;
   }
-  this->dev_desc_ = ezb_af_create_device_desc();
-}
 
-void ZigbeeComponent::setup() {
-  global_zigbee = this;
 #ifdef USE_WIFI
   if (esp_coex_wifi_i154_enable() != ESP_OK) {
     this->mark_failed();
@@ -313,6 +450,8 @@ void ZigbeeComponent::setup() {
 
 #ifdef CONFIG_ZB_ZCZR
   ezb_bdb_set_router_rejoin_required(true);
+#else
+  ezb_nwk_set_rx_on_when_idle(!this->sleepy_);  // if sleepy, disable RX when idle
 #endif
 
   ezb_aps_secur_enable_distributed_security(false);
@@ -347,6 +486,30 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::loop() {
+  // Process all pending events
+  ZBEvent *event = this->zb_events_.pop();
+  while (event != nullptr) {
+    // Handle the event
+    switch (event->callback_id_) {
+      case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
+        this->handle_attribute_(event->event_.set_attr.info, event->event_.set_attr.attribute);
+        break;
+      default:
+        ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%x", static_cast<unsigned>(event->callback_id_));
+        break;
+    }
+
+    // Free the event back to the pool
+    this->zb_event_pool_.release(event);
+    // Get the next event
+    event = this->zb_events_.pop();
+  }
+  // Log dropped events periodically
+  uint16_t dropped = this->zb_events_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u Zigbee events due to buffer overflow", dropped);
+  }
+
   if (!this->start_reported_ && this->started_) {
     this->start_cb_.call();
     this->start_reported_ = true;
@@ -359,28 +522,35 @@ void ZigbeeComponent::loop() {
 }
 
 void ZigbeeComponent::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Zigbee\n"
+                "  Model: %.*s\n"
+                "  Manufacturer: %.*s\n"
+#ifdef CONFIG_ZB_ZCZR
+                "  Router: %s\n"
+#else
+                "  Sleepy end device: %s\n"
+                "  Poll interval: %" PRIu32 " ms\n"
+#endif
+                "  App Version: %u",
+                this->basic_cluster_data_.model[0], reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
+                this->basic_cluster_data_.manufacturer[0],
+                reinterpret_cast<const char *>(this->basic_cluster_data_.manufacturer + 1),
+#ifdef CONFIG_ZB_ZCZR
+                YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER),
+#else
+                YESNO(this->sleepy_), this->keep_alive_,
+#endif
+                this->basic_cluster_data_.app_version);
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     ESP_LOGCONFIG(TAG,
-                  "Zigbee\n"
-                  "  Model: %.*s\n"
-                  "  Router: %s\n"
                   "  Device is joined to the network: %s\n"
                   "  Current channel: %d\n"
                   "  Short addr: 0x%04X\n"
                   "  Short pan id: 0x%04X",
-                  this->basic_cluster_data_.model[0],
-                  reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
-                  YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER), YESNO(ezb_bdb_dev_joined()),
-                  ezb_nwk_get_current_channel(), ezb_nwk_get_short_address(), ezb_nwk_get_panid());
+                  YESNO(ezb_bdb_dev_joined()), ezb_nwk_get_current_channel(), ezb_nwk_get_short_address(),
+                  ezb_nwk_get_panid());
     esp_zigbee_lock_release();
-  } else {
-    ESP_LOGCONFIG(TAG,
-                  "Zigbee\n"
-                  "  Model: %.*s\n"
-                  "  Router: %s\n",
-                  this->basic_cluster_data_.model[0],
-                  reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
-                  YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER));
   }
 }
 }  // namespace esphome::zigbee

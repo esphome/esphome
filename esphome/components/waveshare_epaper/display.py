@@ -1,3 +1,5 @@
+import logging
+
 from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
@@ -16,6 +18,8 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
+
+LOGGER = logging.getLogger(__name__)
 
 waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
 WaveshareEPaperBase = waveshare_epaper_ns.class_(
@@ -229,6 +233,11 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
+    LOGGER.warning(
+        "The 'waveshare_epaper' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'epaper_spi' instead."
+    )
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
