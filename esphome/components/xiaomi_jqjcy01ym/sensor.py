@@ -22,9 +22,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_jqjcy01ym_ns = cg.esphome_ns.namespace("xiaomi_jqjcy01ym")
-XiaomiJQJCY01YM = xiaomi_jqjcy01ym_ns.class_(
-    "XiaomiJQJCY01YM", xiaomi_ble.XiaomiDevice, cg.Component
-)
+XiaomiJQJCY01YM = xiaomi_jqjcy01ym_ns.class_("XiaomiJQJCY01YM", xiaomi_ble.XiaomiDevice)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("xiaomi_jqjcy01ym"),
@@ -58,14 +56,12 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 

@@ -1,0 +1,36 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+packet_interface:
+  - platform: tcp
+    id: tcp_client_link
+    host: 192.168.1.50
+    port: 6060
+    keep_alive: 5s
+    encryption: Johnny Cash
+    fragmentation:
+      max_packet_size: 2048
+    connected:
+      name: TCP link connected
+  - platform: tcp
+    id: tcp_server_link
+    role: server
+    port: 6061
+    allowed_ips:
+      - 192.168.1.0/24
+
+sensor:
+  - platform: template
+    id: tcp_sensor
+    lambda: return 1.0;
+
+packet_transport:
+  - platform: packet_interface
+    packet_interface: tcp_client_link
+    sensors:
+      - tcp_sensor
+  - platform: packet_interface
+    packet_interface: tcp_server_link
+    sensors:
+      - tcp_sensor

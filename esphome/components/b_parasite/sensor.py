@@ -26,9 +26,7 @@ CODEOWNERS = ["@rbaron"]
 AUTO_LOAD = ["ble_device_base"]
 
 b_parasite_ns = cg.esphome_ns.namespace("b_parasite")
-BParasite = b_parasite_ns.class_(
-    "BParasite", ble_device_base.ESPBTDeviceListener, cg.Component
-)
+BParasite = b_parasite_ns.class_("BParasite", ble_device_base.ESPBTDeviceListener)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("b_parasite"),
@@ -68,14 +66,12 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 

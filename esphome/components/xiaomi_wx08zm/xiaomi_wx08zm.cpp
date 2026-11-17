@@ -5,7 +5,7 @@ namespace esphome::xiaomi_wx08zm {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_wx08zm");
 
-void XiaomiWX08ZM::dump_config() {
+void XiaomiWX08ZM::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi WX08ZM");
   LOG_BINARY_SENSOR("  ", "Mosquito Repellent", this);
   LOG_SENSOR("  ", "Tablet Resource", this->tablet_sensor_);

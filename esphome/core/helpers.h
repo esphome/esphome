@@ -1155,6 +1155,16 @@ bool random_bytes(uint8_t *data, size_t len);
 /// @name Bit manipulation
 ///@{
 
+/// The high 4 bits of a byte, e.g. high_nibble(0xA5) == 0xA.
+constexpr uint8_t high_nibble(uint8_t byte) { return byte >> 4; }
+/// The low 4 bits of a byte, e.g. low_nibble(0xA5) == 0x5.
+constexpr uint8_t low_nibble(uint8_t byte) { return byte & 0x0F; }
+
+/// Encode a 12-bit value from its high 8 and low 4 bits, e.g. encode_uint12(0x12, 0x3) == 0x123.
+/// Bits above the low 4 of \p low_bits are ignored.
+constexpr uint16_t encode_uint12(uint8_t high_bits, uint8_t low_bits) {
+  return (static_cast<uint16_t>(high_bits) << 4) | low_nibble(low_bits);
+}
 /// Encode a 16-bit value given the most and least significant byte.
 constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
   return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
@@ -1257,7 +1267,7 @@ constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
 }
 
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
-constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return high_nibble(bcd) * 10 + low_nibble(bcd); }
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
 constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
@@ -1462,6 +1472,42 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
+/// Copy a PROGMEM string to `dst`, stopping at its null terminator or at `end`, and return the new end of `dst`.
+/// No terminator is written. Flash only allows aligned 32-bit loads on ESP8266, so `src` is read a whole word at a
+/// time, including the bytes after its null in the last word; `src` must be readable up to the end of that word.
+inline char *ESPHOME_ALWAYS_INLINE progmem_copy_str(char *dst, const char *end, const char *src) {
+  const uint32_t offset = reinterpret_cast<uintptr_t>(src) & 3;
+  const uint32_t *word = reinterpret_cast<const uint32_t *>(src - offset);
+  uint32_t bytes = *word++;
+  // Enters the loop at the first byte of src; after that each word runs its four steps without another dispatch, and
+  // one step per byte keeps each a single extract
+  switch (offset) {
+    for (;;) {
+      bytes = *word++;
+      [[fallthrough]];
+      case 0:
+        if (dst >= end || static_cast<char>(bytes) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes);
+        [[fallthrough]];
+      case 1:
+        if (dst >= end || static_cast<char>(bytes >> 8) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 8);
+        [[fallthrough]];
+      case 2:
+        if (dst >= end || static_cast<char>(bytes >> 16) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 16);
+        [[fallthrough]];
+      default:
+        if (dst >= end || static_cast<char>(bytes >> 24) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 24);
+    }
+  }
+}
+
 #ifdef USE_ESP8266
 /// Safely append a PROGMEM string to buffer, returning new position (capped at size).
 /// ESP8266 internal implementation — prefer the `buf_append_str` macro which wraps
@@ -1508,6 +1554,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
   pos += len;
   buf[pos] = '\0';
   return pos;
+}
+/// Append a string that is in PROGMEM on ESP8266; on other platforms flash is readable like RAM.
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, const char *str) {
+  return buf_append_str(buf, size, pos, str);
 }
 #endif
 
@@ -2398,6 +2448,11 @@ class LwIPLock {
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
+#ifdef USE_ESP32
+ private:
+  // Only the instance that took the core lock releases it; unused without CONFIG_LWIP_TCPIP_CORE_LOCKING
+  [[maybe_unused]] bool locked_{false};
+#endif
 #else
   // No lwIP core locking — inline no-ops (empty bodies instead of = default
   // to prevent clang-tidy unused-variable warnings at call sites)
