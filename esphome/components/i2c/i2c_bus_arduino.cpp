@@ -180,20 +180,24 @@ void ArduinoI2CBus::recover_() {
     return;
   }
 
+  // Activate input and pull up resistor for the SDA pin, so we can read
+  // whether SDA is released before each clock pulse.
+  pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
+
   // From the specification:
   // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
   //  device that held the bus LOW should release it sometime within
   //  those nine clocks."
-  // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck. Actual checks on
-  // the SDA line status will be done after the clock pulses.
+  // Stop as soon as SDA is released: a device that is receiving a write
+  // treats the extra pulses as data and holds SDA LOW to acknowledge
+  // every ninth one, so a fixed count can end in that acknowledge.
 
   // Make sure that switching to output mode will make SCL low, just in
   // case other code has setup the pin for a HIGH signal.
   digitalWrite(this->scl_pin_, LOW);  // NOLINT
 
   delayMicroseconds(half_period_usec);
-  for (auto i = 0; i < 9; i++) {
+  for (auto i = 0; i < 9 && digitalRead(this->sda_pin_) == LOW; i++) {  // NOLINT
     // Release pull up resistor and switch to output to make the signal LOW.
     pinMode(this->scl_pin_, INPUT);   // NOLINT
     pinMode(this->scl_pin_, OUTPUT);  // NOLINT
@@ -223,10 +227,9 @@ void ArduinoI2CBus::recover_() {
     }
   }
 
-  // Activate input and pull resistor for the SDA pin, so we can verify
-  // that SDA is pulled HIGH in the following step.
-  pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
-  digitalWrite(this->sda_pin_, LOW);      // NOLINT
+  // Make sure that switching to output mode will make SDA low, for the
+  // START condition below.
+  digitalWrite(this->sda_pin_, LOW);  // NOLINT
 
   // By now, any stuck device ought to have sent all remaining bits of its
   // transaction, meaning that it should have freed up the SDA line, resulting

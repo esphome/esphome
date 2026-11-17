@@ -350,10 +350,10 @@ void IDFI2CBus::recover_() {
   // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
   //  device that held the bus LOW should release it sometime within
   //  those nine clocks."
-  // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck. Actual checks on
-  // the SDA line status will be done after the clock pulses.
-  for (auto i = 0; i < 9; i++) {
+  // Stop as soon as SDA is released: a device that is receiving a write
+  // treats the extra pulses as data and holds SDA LOW to acknowledge
+  // every ninth one, so a fixed count can end in that acknowledge.
+  for (auto i = 0; i < 9 && gpio_get_level(sda_pin) == 0; i++) {
     gpio_set_level(scl_pin, 0);
     delayMicroseconds(half_period_usec);
     gpio_set_level(scl_pin, 1);
