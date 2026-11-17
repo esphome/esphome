@@ -44,16 +44,17 @@ def _get_framework_path(sdk: ZephyrSDK, version: str) -> Path:
     return get_zephyr_tools_path() / "frameworks" / f"{sdk.workspace_prefix}-{version}"
 
 
-def check_and_install(sdk: ZephyrSDK, version: str, hals: frozenset[str]) -> None:
-    """Install the workspace with the vendor ``hals`` the build needs; a workspace
-    only gains HALs, since the variants of one version share it."""
+def check_and_install(sdk: ZephyrSDK, version: str, projects: frozenset[str]) -> None:
+    """Install the workspace with the ``projects`` the build needs beyond the SDK's
+    required ones; a workspace only gains projects, since the builds of one version
+    share it."""
     framework_path = _get_framework_path(sdk, version)
     with install_lock(get_zephyr_tools_path(), framework_path.name):
-        _check_and_install(sdk, version, framework_path, hals)
+        _check_and_install(sdk, version, framework_path, projects)
 
 
 def _check_and_install(
-    sdk: ZephyrSDK, version: str, framework_path: Path, hals: frozenset[str]
+    sdk: ZephyrSDK, version: str, framework_path: Path, projects: frozenset[str]
 ) -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
@@ -63,15 +64,13 @@ def _check_and_install(
 
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    projects = set(hals | sdk.source.required)
+    wanted = set(projects | sdk.source.required)
     if not sentinel.exists() or not zephyr_reqs.exists():
-        install_framework(
-            env_python_path, framework_path, sdk.source, version, projects
-        )
+        install_framework(env_python_path, framework_path, sdk.source, version, wanted)
         sentinel.touch()
     else:
         fetch_missing_west_projects(
-            env_python_path, framework_path, sdk.source, version, projects
+            env_python_path, framework_path, sdk.source, version, wanted
         )
     # Every run: existing installs need these too, and they are no-ops once applied
     patch_gen_defines_dts_path(framework_path)

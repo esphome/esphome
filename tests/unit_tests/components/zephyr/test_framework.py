@@ -73,19 +73,19 @@ def _west_call(run: MagicMock, subcommand: str) -> list[str]:
     return cmd[cmd.index(subcommand) :]
 
 
-def _mark_installed(workspace: Path, hals: frozenset[str] = HALS) -> None:
+def _mark_installed(workspace: Path, projects: frozenset[str] = HALS) -> None:
     (workspace / ".west").mkdir(parents=True, exist_ok=True)
     (workspace / ".west" / "config").touch()
     (workspace / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
     (workspace / "zephyr" / "scripts" / "requirements.txt").touch()
     (workspace / ".west_projects").write_text(
-        "\n".join(sorted(hals | ZEPHYR_MAINLINE.source.required)), encoding="utf-8"
+        "\n".join(sorted(projects | ZEPHYR_MAINLINE.source.required)), encoding="utf-8"
     )
     (workspace / ".ready").touch()
 
 
-def _check_and_install(hals: frozenset[str] = HALS) -> None:
-    framework.check_and_install(ZEPHYR_MAINLINE, VERSION, hals)
+def _check_and_install(projects: frozenset[str] = HALS) -> None:
+    framework.check_and_install(ZEPHYR_MAINLINE, VERSION, projects)
 
 
 def test_check_and_install_builds_the_venv(
