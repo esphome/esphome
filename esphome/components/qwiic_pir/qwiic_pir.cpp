@@ -1,4 +1,5 @@
 #include "qwiic_pir.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -8,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "qwiic_pir");
 
 static constexpr uint8_t REG_CHIP_ID = 0x00;
 static constexpr uint8_t REG_EVENT_STATUS = 0x03;
-static constexpr uint8_t REG_DEBOUNCE_TIME = 0x05;  // milliseconds, 16 bits
+static constexpr uint8_t REG_DEBOUNCE_TIME = 0x05;  // milliseconds, 16 bits little endian
 
 static constexpr uint8_t DEVICE_ID = 0x72;
 
@@ -25,7 +26,9 @@ void QwiicPIRComponent::setup() {
   if (!this->check_chip_id(this, REG_CHIP_ID, DEVICE_ID))
     return;
 
-  if (!this->setup_check(this->write_byte_16(REG_DEBOUNCE_TIME, this->debounce_time_),
+  uint8_t debounce[2];
+  put_le16(debounce, this->debounce_time_);
+  if (!this->setup_check(this->write_register(REG_DEBOUNCE_TIME, debounce, 2) == i2c::ERROR_OK,
                          LOG_STR("Failed to configure debounce time")))
     return;
 
