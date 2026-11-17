@@ -272,6 +272,18 @@ async def configure(c: Client, baud: int) -> None:
     )
 
 
+def data_verdict(check, mode: str, requests: int) -> str:
+    """Reply mode must deliver every reply intact and in order. Stream mode and the ASH tap lose bytes over Wi-Fi on
+    every build (serial_proxy.md), so they are only judged on getting data at all."""
+    if check.received == 0:
+        return "loss:nothing-received"
+    if mode != "reply":
+        return "not-judged"
+    if check.broken or check.out_of_order or check.complete != requests:
+        return f"loss:{check.complete}/{requests}-complete"
+    return "ok"
+
+
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("host")
@@ -398,13 +410,14 @@ async def main() -> int:
     # a reader that died (closed connection, bad frame) ends the counts early; say so on the RESULT line
     reader = "stopped" if rtask.done() else "ok"
     setup = "failed:" + ",".join(c.setup_failed) if c.setup_failed else "ok"
+    data = data_verdict(check, a.mode, requests)
     print(
-        f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()} reader={reader} setup={setup}",
+        f"RESULT mode={a.mode} baud={a.baud} requests={requests} {check.summary()} reader={reader} setup={setup} data={data}",
         flush=True,
     )
     rtask.cancel()
     c.sock.close()
-    return 1 if c.setup_failed or reader != "ok" else 0
+    return 1 if c.setup_failed or reader != "ok" or data.startswith("loss") else 0
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ import sys
 BURST_GAP_US = 2_000_000
 
 b, mac = sys.argv[1], sys.argv[2].upper()
+if not re.fullmatch(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}", mac):
+    sys.exit(f"STA_MAC must look like AA:BB:CC:DD:EE:FF, got {mac!r}")
 paths = [pathlib.Path(f"{b}-ap.txt"), pathlib.Path(f"{b}-st.txt")]
 if missing := [str(x) for x in paths if not x.is_file()]:
     sys.exit(f"missing capture {', '.join(missing)}")
@@ -51,9 +53,19 @@ joins = [
     int(m.group(1)) for line in st if (m := re.search(r"JOINED after (\d+) ms", line))
 ]
 disc = sum("Disconnecting before powerdown" in line for line in st)
-crashes = sum(
-    bool(re.search(r"Guru|panic|abort\(\)|Backtrace|WDT", line)) for line in st
+# the stations reboot on purpose (SW_CPU, deep sleep) and log warnings while they rejoin; error lines, crash
+# markers and any other reset reason (watchdog, panic, brownout) are device trouble on either side
+CRASH = re.compile(r"\[E\]\[|Guru|panic|abort\(\)|Backtrace|WDT|Brownout")
+OK_RESET = re.compile(
+    r"rst:0x[0-9a-f]+ \((?:SW_CPU(?:_RESET)?|POWERON(?:_RESET)?|DEEPSLEEP(?:_RESET)?|DSLEEP)\)"
 )
+bad_lines = [
+    f"{side}: {line.strip()}"
+    for side, lines in (("ap", ap), ("st", st))
+    for line in lines
+    if CRASH.search(line) or ("rst:" in line and not OK_RESET.search(line))
+]
+crashes = len(bad_lines)
 copies = []
 for kind, seq, g in groups:
     t = [x[0] for x in g]
@@ -67,3 +79,6 @@ print(
     f"disassoc frames {len(groups)} copies {copies}, AP leave reasons {leaves}, "
     f"'Disconnecting before powerdown' {disc}, joins ms {joins}, crash lines {crashes}"
 )
+for line in bad_lines[:20]:
+    print("  BAD", line[:160])
+sys.exit(1 if bad_lines else 0)
