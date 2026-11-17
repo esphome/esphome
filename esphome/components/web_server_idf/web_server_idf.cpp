@@ -45,6 +45,9 @@ namespace esphome::web_server_idf {
 #ifndef HTTPD_401
 #define HTTPD_401 "401 Unauthorized"
 #endif
+#ifndef HTTPD_403
+#define HTTPD_403 "403 Forbidden"
+#endif
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
 #endif
@@ -76,6 +79,13 @@ DefaultHeaders default_headers_instance;
 }  // namespace
 
 DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
+
+void DefaultHeaders::apply_(httpd_req_t *req, uint8_t skip_mask) const {
+  for (size_t i = 0; i < this->headers_.size(); i++) {
+    if (!(skip_mask & (1U << i)))
+      httpd_resp_set_hdr(req, this->headers_[i].name, this->headers_[i].value);
+  }
+}
 
 namespace {
 // Non-blocking send function to prevent watchdog timeouts when TCP buffers are full
@@ -152,6 +162,7 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.stack_size = 4512;
   config.server_port = this->port_;
+  config.max_open_sockets = WEB_SERVER_MAX_OPEN_SOCKETS;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
   // When max sockets is reached, the oldest connection is closed to make room for new ones.
@@ -326,6 +337,10 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
+size_t AsyncWebServerRequest::get_header_to(const char *name, std::span<char> buf) const {
+  return request_get_header_to(*this, name, buf);
+}
+
 StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
   const char *uri = this->req_->uri;
   const char *query_start = strchr(uri, '?');
@@ -361,6 +376,9 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
     case 401:
       status = HTTPD_401;
       break;
+    case 403:
+      status = HTTPD_403;
+      break;
     case 404:
       status = HTTPD_404;
       break;
@@ -381,12 +399,18 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(*this, header.name, header.value);
-  }
+  // A response object sends the defaults in send(), after its own headers, so one it set itself can
+  // replace a default of the same name (httpd_resp_set_hdr only appends).
+  if (rsp == nullptr)
+    DefaultHeaders::Instance().apply_(*this);
 
   delete this->rsp_;
   this->rsp_ = rsp;
+}
+
+void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
+  DefaultHeaders::Instance().apply_(*this, response->replaced_defaults_);
+  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
 
 #ifdef USE_WEBSERVER_AUTH
@@ -679,6 +703,11 @@ std::string AsyncWebServerRequest::arg(const char *name) {
 }
 
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
+  const auto &defaults = DefaultHeaders::Instance().headers_;
+  for (size_t i = 0; i < defaults.size(); i++) {
+    if (str_equals_case_insensitive(name, defaults[i].name))
+      this->replaced_defaults_ |= 1U << i;
+  }
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
@@ -819,9 +848,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, header.name, header.value);
-  }
+  DefaultHeaders::Instance().apply_(req);
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
 

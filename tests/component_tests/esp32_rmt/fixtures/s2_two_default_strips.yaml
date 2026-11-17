@@ -1,0 +1,23 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32s2
+  framework:
+    type: esp-idf
+
+light:
+  # Internal status LED bus and an external NeoPixel port, both left at the default rmt_symbols
+  - platform: esp32_rmt_led_strip
+    name: Status LEDs
+    internal: true
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO1
+    num_leds: 5
+  - platform: esp32_rmt_led_strip
+    name: NeoPixel Port
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO42
+    num_leds: 32

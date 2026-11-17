@@ -60,9 +60,7 @@ void RenogyInverterBle::read_register_(uint16_t start_register, uint16_t word_co
                              static_cast<uint8_t>(start_register),
                              static_cast<uint8_t>(word_count >> 8),
                              static_cast<uint8_t>(word_count)};
-  const uint16_t crc = crc16(req.data(), 6);
-  req[6] = crc & 0xFF;  // Modbus sends the CRC low byte first
-  req[7] = crc >> 8;
+  put_le16(req.data() + 6, crc16(req.data(), 6));  // Modbus sends the CRC low byte first
 
   this->frame_len_ = 0;
   const esp_err_t status =

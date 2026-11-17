@@ -19,7 +19,7 @@ static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 // ENS210 chip constants
 static const uint8_t ENS210_BOOTING_MS = 2;  // Booting time in ms (also after reset, or going to high power)
-static const uint8_t ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS =
+static const uint8_t ENS210_SINGLE_MEASUREMENT_CONVERSION_TIME_MS =
     130;                                        // Conversion time in ms for single shot T/H measurement
 static const uint16_t ENS210_PART_ID = 0x0210;  // The expected part id of the ENS210
 
@@ -146,7 +146,7 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASUREMENT_CONVERSION_TIME_MS), [this]() {
     int temperature_data, temperature_status, humidity_data, humidity_status;
     uint8_t data[6];
     uint32_t h_val_data, t_val_data;

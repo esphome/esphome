@@ -71,18 +71,8 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 
   LogMessage &msg = this->slots_[slot_index];
 
-  // Fill in the message header
-  msg.level = level;
-  msg.tag = tag;
-  msg.line = line;
-
-  // Store the thread name now to avoid crashes if thread exits before processing
-  if (thread_name != nullptr) {
-    strncpy(msg.thread_name, thread_name, sizeof(msg.thread_name) - 1);
-    msg.thread_name[sizeof(msg.thread_name) - 1] = '\0';
-  } else {
-    msg.thread_name[0] = '\0';
-  }
+  // Copied now; the thread may exit before processing
+  fill_task_log_header(&msg, level, tag, line, thread_name);
 
   // Format the message text
   int ret = vsnprintf(msg.text, sizeof(msg.text), format, args);
@@ -94,10 +84,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     msg.text_length = static_cast<uint16_t>(std::min(static_cast<size_t>(ret), sizeof(msg.text) - 1));
   }
 
-  // Remove trailing newlines
-  while (msg.text_length > 0 && msg.text[msg.text_length - 1] == '\n') {
-    msg.text_length--;
-  }
+  msg.text_length = trim_trailing_newlines(msg.text, msg.text_length);
   msg.text[msg.text_length] = '\0';
 
   // Commit the slot

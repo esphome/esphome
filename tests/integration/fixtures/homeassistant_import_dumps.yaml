@@ -1,0 +1,43 @@
+esphome:
+  name: ha-import-dumps
+
+host:
+api:
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: homeassistant
+    name: Outside Temperature
+    entity_id: sensor.outside
+    attribute: temperature
+
+binary_sensor:
+  - platform: homeassistant
+    name: Motion
+    entity_id: binary_sensor.motion
+
+text_sensor:
+  - platform: homeassistant
+    name: Status
+    entity_id: sensor.status
+
+switch:
+  - platform: homeassistant
+    name: Relay
+    entity_id: switch.relay
+
+select:
+  - platform: homeassistant
+    name: Mode
+    entity_id: select.mode
+
+number:
+  - platform: homeassistant
+    name: Target
+    entity_id: number.target
+
+text:
+  - platform: homeassistant
+    name: Note
+    entity_id: text.note

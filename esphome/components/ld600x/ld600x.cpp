@@ -1,6 +1,7 @@
 #include "ld600x.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include <algorithm>
@@ -174,23 +175,8 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 #endif
 
 void LD600XComponent::setup() {
-  // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
-  bool point_cloud_configured = false;
-#ifdef USE_SENSOR
-  point_cloud_configured = point_cloud_configured || this->point_count_sensor_.has_sensor();
-#endif
-#ifdef USE_SWITCH
-  point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
-#endif
-  const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  // One allocation for the component lifetime; the parser reuses it for every payload.
-  RAMAllocator<uint8_t> allocator;
-  uint8_t *buffer = allocator.allocate(capacity);
-  if (buffer == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
+  if (!this->setup_check(this->parser_.has_buffer(), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
-  this->parser_.init(buffer, capacity);
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;
@@ -941,7 +927,7 @@ void LD600XComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t l
 
 bool LD600XComponent::send_control_command_(uint32_t command) {
   uint8_t data[4];
-  write_u32_le(data, command);
+  put_le32(data, command);
   return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
@@ -971,7 +957,7 @@ bool LD600XComponent::queue_u32_setting_(uint16_t type, float value) {
     return false;
   }
   uint8_t data[4];
-  write_u32_le(data, static_cast<uint32_t>(value));
+  put_le32(data, static_cast<uint32_t>(value));
   return this->queue_command_(type, data, sizeof(data));
 }
 #endif
@@ -1143,7 +1129,7 @@ bool LD600XComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desi
     return false;
   }
   uint8_t data[AREA_CONFIG_LEN];
-  write_u32_le(data, static_cast<uint32_t>(area_id));
+  put_le32(data, static_cast<uint32_t>(area_id));
   write_f32_le(data + 4, desired.x_min);
   write_f32_le(data + 8, desired.x_max);
   write_f32_le(data + 12, desired.y_min);

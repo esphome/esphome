@@ -205,6 +205,18 @@ file does, and it is the authority when they disagree. The most useful starting 
         static constexpr uint32_t READ_TIMEOUT_ID = 0;
         this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
         ```
+    *   **Scheduler lambdas capture at most 8 bytes:** `set_timeout`, `set_interval` and `defer` store the lambda
+        in a `std::function`, which keeps it inline only when it is at most 8 bytes on 32-bit targets and trivially
+        copyable; anything else is a heap allocation each time it is scheduled, which matters for retries, re-armed
+        timeouts and `defer` on a hot path. `[this]` plus one 4-byte value fits. `[this]` plus two 4-byte values,
+        `[this]` plus a member function pointer (8 bytes), a `std::string` or a `std::function` do not: keep that
+        state in members and capture `[this]`, or capture a small index instead.
+        ```cpp
+        // Bad - 12 bytes on 32-bit, allocates on every retry
+        this->set_timeout(RETRY_ID, 10, [this, configure = config.configure]() { (this->*configure)(); });
+        // Good - 8 bytes, the pointer is looked up when the timeout runs
+        this->set_timeout(RETRY_ID, 10, [this, feature]() { this->run_configure_(feature); });
+        ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
         component that wants `DATA` should simply leave it alone.
@@ -227,12 +239,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
         `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
-        the helper's arguments instead of writing a loop. 7-byte BCD RTC calendars use `time::decode_bcd_calendar<LAYOUT>`
-        and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`, `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
+        the helper's arguments instead of writing a loop. `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an
+        integer into a byte buffer and return the pointer past it. 7-byte BCD RTC calendars use
+        `time::decode_bcd_calendar<LAYOUT>` and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`,
+        `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
-        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; in `setup()`,
+        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
+        poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
@@ -250,7 +265,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         (`cg.add_define("USE_SELEC_METER_EM4M")`), so the other models' builds leave it out; the runtime model check
         stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
-        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+        sets `status_set_warning()` and the next success of the last step clears it; writes skip work when
+        `is_failed()`.
     *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
         `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
         passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
@@ -360,8 +376,23 @@ file does, and it is the authority when they disagree. The most useful starting 
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
-    7.  **Comments:** When commenting on GitHub PRs or issues, don't tag contributors, especially bots. Avoid referring to list items (e.g. from reviews) with the form #nn - this will be interpreted by GitHub as a reference to issue or PR nn. Keep comments short and exclude irrelevant details, backstories, restatement of previous comments and anything that is already obvious to the reader.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Changes to shared code (`esphome/core/`, entity platform components such as `esphome/components/sensor/` or `esphome/components/text_sensor/`, buses, shared constants in `esphome/components/const/`, codegen) go in their own PR, never inside a component PR, unless the shared change must update several components at once to avoid breaking them; a component's own `USE_*` lines in `esphome/core/defines.h` are fine. Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
+    7.  **Fixes for a release branch:** a fix that should ship in a beta or patch release goes to `dev` like any other
+        PR, with the milestone of that release; the release manager cherry-picks the squash-merge commit of each PR in
+        the milestone onto `beta` or `release`.
+        Test the cherry-pick of the PR's whole change onto that branch. If it conflicts, make one commit on top of that
+        branch with the whole PR and the conflicts resolved, push it to a branch of your fork, and declare it in the PR
+        body with one block per branch:
+        ````markdown
+        ```release-cherry-pick
+        branch: release
+        commit: <full 40-character SHA>
+        ```
+        ````
+        `branch` is `release` for patch releases and `beta` for beta releases. A malformed block is ignored, and the
+        merge commit is picked instead. Use the block, not a commit mentioned in prose. Keep that branch until the release
+        is out, and make a new commit and update the block if the PR changes afterwards or the commit no longer applies.
+    8.  **Comments:** When commenting on GitHub PRs or issues, don't tag contributors, especially bots. Avoid referring to list items (e.g. from reviews) with the form #nn - this will be interpreted by GitHub as a reference to issue or PR nn. Keep comments short and exclude irrelevant details, backstories, restatement of previous comments and anything that is already obvious to the reader.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome.io` repository.
@@ -377,9 +408,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         **Heap allocation after `setup()` should be avoided unless absolutely unavoidable.** ESP devices run for
         months with small shared heaps, and repeated allocations fragment them until a large allocation fails; we
         have seen field crashes caused by this. ESPHome treats runtime heap allocation as a long-term reliability
-        bug, not a performance issue. Prefer `std::array`, `StaticVector` (sized with `cg.slot_counter()` for
-        registration lists), `FixedVector` and `StringRef` over growing `std::vector`, `std::map`, `std::deque`
-        and `std::string`. The `embedded-memory` skill has the full container guidelines.
+        bug, not a performance issue. Prefer `std::array`, `StaticVector` (a hub's child list is one
+        `SLOT_LIST` line sized by `cg.slot_list()`; `cg.slot_counter()` when the C++ side registers itself),
+        `FixedVector` and `StringRef` over growing `std::vector`, `std::map`, `std::deque` and `std::string`.
+        The `embedded-memory` skill has the full container guidelines.
 
     *   **State Management:** keep code generation state in `CORE.data`, namespaced under the component's
         `DOMAIN` in a `@dataclass`, never in module-level mutable globals (see the `component-codegen` skill).
@@ -397,6 +429,14 @@ file does, and it is the authority when they disagree. The most useful starting 
     members of `esphome/core/` and base classes are public API. Aim for a 6-month deprecation window
     (`ESPDEPRECATED` in C++, `cv.rename_key(..., removed_in=...)` for config keys) and document the migration
     path in the PR description. The `breaking-changes` skill has the full policy, checklist and patterns.
+
+*   **The YAML language is frozen** until ESPHome configurations move to yaml.rocks
+    ([esphome/backlog#201](https://github.com/esphome/backlog/issues/201)). Do not add YAML tags beyond the existing
+    `!include`, `!include_dir_*`, `!secret`, `!env_var`, `!lambda`, `!literal`, `!extend` and `!remove`, new
+    `packages:` or `substitutions:` behaviour (including new Jinja globals or filters), or new ways to merge,
+    override or remove parts of a configuration.
+    Bug fixes to the existing features are still accepted. A component's own configuration options are not part of
+    this freeze.
 
 ## 9. English Language
 
