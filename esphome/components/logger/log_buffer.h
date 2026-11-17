@@ -157,10 +157,16 @@ struct LogBuffer {
     *p++ = ' ';
     this->pos = static_cast<uint16_t>(p - this->data);
   }
-  // Same as write_unformatted_body(); one out-of-line copy shared by the boot replay and the task log buffer
+  // Same as write_unformatted_body(), for the boot replay and the task log buffer
+#ifdef USE_ESP8266
+  // No task log buffer here, so the boot replay is the only caller and takes it inline
+  void write_body(const char *text, uint16_t text_length) { this->write_unformatted_body(text, text_length); }
+#else
+  // One out-of-line copy shared by both callers
   void __attribute__((noinline)) write_body(const char *text, uint16_t text_length) {
     this->write_unformatted_body(text, text_length);
   }
+#endif
 
  private:
   uint16_t remaining_() const { return this->size - this->pos; }
