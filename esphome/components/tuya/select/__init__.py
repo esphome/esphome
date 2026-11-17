@@ -115,7 +115,7 @@ async def to_code(config):
         options = list(options_map.values())
         mappings = list(options_map.keys())
 
-    var = await select.new_select(config, options=options)
+    var = await select.new_select(config, options=options, fixed_options=True)
     if mappings:
         cg.add(var.set_select_mappings(mappings))
     hub = await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
