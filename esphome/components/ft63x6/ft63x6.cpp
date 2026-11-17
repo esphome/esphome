@@ -90,31 +90,31 @@ void FT63X6Touchscreen::update_touches() {
   }
 }
 
-uint8_t FT63X6Touchscreen::read_touch_number_() { return this->read_byte_(FT63X6_ADDR_TD_STATUS) & 0x0F; }
+uint8_t FT63X6Touchscreen::read_touch_number_() { return low_nibble(this->read_byte_(FT63X6_ADDR_TD_STATUS)); }
 // Touch 1 functions
 uint16_t FT63X6Touchscreen::read_touch_x_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + 1 + (touch * 6));
-  return encode_uint16(read_buf[0] & 0x0f, read_buf[1]);
+  return encode_uint16(low_nibble(read_buf[0]), read_buf[1]);
 }
 uint16_t FT63X6Touchscreen::read_touch_y_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + 1 + (touch * 6));
-  return encode_uint16(read_buf[0] & 0x0f, read_buf[1]);
+  return encode_uint16(low_nibble(read_buf[0]), read_buf[1]);
 }
 uint8_t FT63X6Touchscreen::read_touch_event_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6)) >> 6;
 }
 uint8_t FT63X6Touchscreen::read_touch_id_(uint8_t touch) {
-  return this->read_byte_(FT63X6_ADDR_TOUCH1_ID + (touch * 6)) >> 4;
+  return high_nibble(this->read_byte_(FT63X6_ADDR_TOUCH1_ID + (touch * 6)));
 }
 uint8_t FT63X6Touchscreen::read_touch_weight_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_WEIGHT + (touch * 6));
 }
 uint8_t FT63X6Touchscreen::read_touch_misc_(uint8_t touch) {
-  return this->read_byte_(FT63X6_ADDR_TOUCH1_MISC + (touch * 6)) >> 4;
+  return high_nibble(this->read_byte_(FT63X6_ADDR_TOUCH1_MISC + (touch * 6)));
 }
 
 uint8_t FT63X6Touchscreen::read_byte_(uint8_t addr) {

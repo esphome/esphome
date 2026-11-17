@@ -39,8 +39,8 @@ void AXS15231Touchscreen::update_touches() {
   this->status_clear_warning();
   if (data[0] != 0 || data[1] == 0)  // no touches
     return;
-  uint16_t x = encode_uint16(data[2] & 0xF, data[3]);
-  uint16_t y = encode_uint16(data[4] & 0xF, data[5]);
+  uint16_t x = encode_uint16(low_nibble(data[2]), data[3]);
+  uint16_t y = encode_uint16(low_nibble(data[4]), data[5]);
   this->add_raw_touch_position_(0, x, y);
 }
 

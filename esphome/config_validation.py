@@ -1497,12 +1497,11 @@ class BindKeyValidator(SensitiveValidator):
         if any(len(part) != 2 for part in parts):
             raise Invalid(f"{self._name} must be format XX")
         for part in parts:
-            try:
-                parts_int.append(int(part, 16))
-            except ValueError:
-                raise Invalid(
-                    f"{self._name} must be hex values from 00 to FF"
-                ) from None
+            # int() also accepts surrounding whitespace and a +/- sign, which
+            # would silently validate a key different from the one typed
+            if not re.fullmatch(r"[0-9A-Fa-f]{2}", part):
+                raise Invalid(f"{self._name} must be hex values from 00 to FF")
+            parts_int.append(int(part, 16))
 
         return "".join(f"{part:02X}" for part in parts_int)
 

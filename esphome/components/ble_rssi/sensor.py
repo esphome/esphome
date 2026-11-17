@@ -16,7 +16,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 ble_rssi_ns = cg.esphome_ns.namespace("ble_rssi")
 BLERSSISensor = ble_rssi_ns.class_(
-    "BLERSSISensor", sensor.Sensor, cg.Component, ble_device_base.ESPBTDeviceListener
+    "BLERSSISensor", sensor.Sensor, ble_device_base.ESPBTDeviceListener
 )
 
 
@@ -41,7 +41,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_UUID): ble_device_base.bt_uuid,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(ble_device_base.BLE_DEVICE_SCHEMA),
     cv.has_exactly_one_key(
         CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
@@ -52,7 +51,6 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     if mac_address := config.get(CONF_MAC_ADDRESS):
