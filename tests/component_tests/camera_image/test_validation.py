@@ -123,6 +123,33 @@ def test_crop_at_decoded_height_is_accepted(
     _validate_final(set_core_config, {"resize": "320x320", "crop": crop})
 
 
+def test_decoded_size_without_resize_is_the_camera_resolution(
+    set_core_config: Callable[..., None],
+) -> None:
+    config = _validate_final(set_core_config, resolution="640X480")
+    assert config[camera_image._KEY_DECODED_SIZE] == (640, 480)
+
+
+def test_decoded_size_with_resize_is_the_fitted_frame(
+    set_core_config: Callable[..., None],
+) -> None:
+    # 640x480 fitted uniformly into 320x320 leaves the 320x240 frame that is
+    # published and that the metadata and rotation buffer have to use.
+    config = _validate_final(
+        set_core_config, {"resize": "320x320"}, resolution="640X480"
+    )
+    assert config[camera_image._KEY_DECODED_SIZE] == (320, 240)
+
+
+def test_decoded_size_keeps_the_aspect_ratio_when_the_box_matches(
+    set_core_config: Callable[..., None],
+) -> None:
+    config = _validate_final(
+        set_core_config, {"resize": "320x240"}, resolution="640X480"
+    )
+    assert config[camera_image._KEY_DECODED_SIZE] == (320, 240)
+
+
 def test_crop_with_alpha_channel_is_rejected(
     set_core_config: Callable[..., None],
 ) -> None:

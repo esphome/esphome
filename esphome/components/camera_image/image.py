@@ -32,6 +32,10 @@ CONF_CAMERA_ID = "camera_id"
 CONF_CROP = "crop"
 CONF_ON_IMAGE = "on_image"
 
+# The size the frame decodes to, recorded by the final validation where the
+# camera's resolution is known, and read back by to_code.
+_KEY_DECODED_SIZE = "_decoded_size"
+
 _CROP_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_X): cv.int_range(min=0, max=8192),
@@ -165,16 +169,16 @@ def _final_validate(config: ConfigType) -> ConfigType:
             path=[CONF_CAMERA_ID],
         )
 
-    # The crop has to fit the size the frame decodes to. With a resize that is
-    # the resize box only when the aspect ratios match; otherwise the uniform
-    # scale makes one side smaller.
+    # `resize` only bounds the frame; the decoder scales it uniformly to fit and
+    # truncates, so this is the size it is actually published at, and the size a
+    # crop has to fit. to_code needs it for the metadata and the rotation buffer.
+    camera_width, camera_height = _resolution_dimensions(camera_config[CONF_RESOLUTION])
+    decoded_width, decoded_height = _decoded_size(
+        camera_width, camera_height, config.get(CONF_RESIZE)
+    )
+    config[_KEY_DECODED_SIZE] = (decoded_width, decoded_height)
+
     if CONF_CROP in config:
-        camera_width, camera_height = _resolution_dimensions(
-            camera_config[CONF_RESOLUTION]
-        )
-        decoded_width, decoded_height = _decoded_size(
-            camera_width, camera_height, config.get(CONF_RESIZE)
-        )
         crop = config[CONF_CROP]
         if (
             crop[CONF_X] + crop[CONF_WIDTH] > decoded_width
@@ -206,18 +210,21 @@ async def to_code(config: ConfigType) -> None:
 
     settings = await runtime_image.process_runtime_image_config(config)
 
-    metadata_width = settings.width
-    metadata_height = settings.height
+    # Publish and allocate for the size the frame actually comes out at: the
+    # crop, or the decoded frame `resize` fits it to, and after a 90 or 270
+    # degree rotation those dimensions swapped.
     if CONF_CROP in config:
-        metadata_width = config[CONF_CROP][CONF_WIDTH]
-        metadata_height = config[CONF_CROP][CONF_HEIGHT]
+        output_width = config[CONF_CROP][CONF_WIDTH]
+        output_height = config[CONF_CROP][CONF_HEIGHT]
+    else:
+        output_width, output_height = config[_KEY_DECODED_SIZE]
     if config[CONF_ROTATION] in (90, 270):
-        metadata_width, metadata_height = metadata_height, metadata_width
+        output_width, output_height = output_height, output_width
 
     add_metadata(
         config[CONF_ID],
-        metadata_width,
-        metadata_height,
+        output_width,
+        output_height,
         config[CONF_TYPE],
         config[CONF_TRANSPARENCY],
     )
@@ -249,6 +256,6 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_ROTATION]:
         cg.add(var.set_rotation(config[CONF_ROTATION]))
     if CONF_CROP in config or config[CONF_ROTATION] != 0:
-        cg.add(var.set_transform_size(metadata_width, metadata_height))
+        cg.add(var.set_transform_size(output_width, output_height))
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
