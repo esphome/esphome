@@ -70,6 +70,10 @@ void APIServer::setup() {
 #if defined(USE_API_HOMEASSISTANT_STATES) && defined(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT)
   this->state_subs_.reserve(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT);
 #endif
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  if (this->homeassistant_subscribe_publisher_ != nullptr)
+    this->homeassistant_subscribe_publisher_();
+#endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
@@ -388,6 +392,10 @@ void APIServer::dump_config() {
 #endif
 #ifdef USE_API_OUTGOING_CONNECTION
   this->outgoing_conn_.dump_config();
+#endif
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  if (this->homeassistant_dump_publisher_ != nullptr)
+    this->homeassistant_dump_publisher_();
 #endif
 }
 
