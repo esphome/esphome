@@ -205,8 +205,16 @@ void VL6180XComponent::read_range_() {
     this->measuring_ = false;
     return;
   }
-  // No target, out of range or a self-test fault
   const uint8_t error = status[0] >> 4;
+  // Codes 1 to 5 are self-test faults (VCSEL or PLL); a fault keeps the warning until a whole cycle works
+  if (error >= 1 && error <= 5) {
+    ESP_LOGW(TAG, "Range self-test fault %u", error);
+    PUBLISH_STATE(this->distance_sensor_, NAN);
+    this->status_set_warning();
+    this->measuring_ = false;
+    return;
+  }
+  // Other codes mean no target or out of range
   if (error != 0) {
     ESP_LOGV(TAG, "Range error code %u", error);
     PUBLISH_STATE(this->distance_sensor_, NAN);

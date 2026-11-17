@@ -107,6 +107,16 @@ TEST_F(VL6180XTest, NoTargetAndAlsOverflowPublishNanWithoutAWarning) {
   EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
+TEST_F(VL6180XTest, SelfTestFaultSetsAWarningThatTheLightReadDoesNotClear) {
+  this->hub_.setup();
+  this->bus_.registers[0x04D] = 0x31;  // range error 3, VCSEL watchdog test
+  this->bus_.registers[0x04F] = 0x24;
+  this->measure_();
+  EXPECT_TRUE(std::isnan(this->range_.state));
+  EXPECT_FALSE(this->lux_.has_state());  // the light reading is skipped for that cycle
+  EXPECT_TRUE(this->hub_.status_has_warning());
+}
+
 TEST_F(VL6180XTest, SampleNotReadySetsAWarning) {
   this->hub_.setup();
   this->bus_.registers[0x04F] = 0x00;
