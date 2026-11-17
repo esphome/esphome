@@ -94,5 +94,9 @@ static_assert(progmem_detail::table_index(int8_t{-128}) > UINT8_MAX);  // not 12
 static_assert(progmem_detail::table_index(int16_t{-1}) > UINT8_MAX);
 static_assert(progmem_detail::table_index(int64_t{-1}) > UINT8_MAX);
 static_assert(progmem_detail::table_index(uint64_t{1}) == 1);
+// A 32-bit index type: 0x1'0000'0001 must clamp, not truncate to the valid index 1
+static_assert(progmem_detail::table_index<uint32_t>(uint64_t{0x1'0000'0001}) == UINT32_MAX);
+static_assert(progmem_detail::table_index<uint32_t>(int64_t{-1}) == UINT32_MAX);
+static_assert(progmem_detail::table_index<uint32_t>(int16_t{-2}) > UINT8_MAX);
 
 }  // namespace esphome::core::testing

@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <new>
 #include <string>
 #include <type_traits>
@@ -124,17 +125,18 @@ inline const char *progmem_skip_strings(const char *blob, uint8_t idx) {
 }
 
 namespace progmem_detail {
-/// Widen an enum or integer to a table index; negative and out-of-range values become huge ones, which fall back.
-template<typename T> constexpr size_t table_index(T value) {
+/// Widen an enum or integer to a table index of type D; negative and out-of-range values become huge ones, which
+/// fall back. D is a parameter only so the host tests can check the 64-to-32-bit clamp.
+template<typename D = size_t, typename T> constexpr D table_index(T value) {
   if constexpr (std::is_enum_v<T>) {
-    return table_index(static_cast<std::underlying_type_t<T>>(value));
+    return table_index<D>(static_cast<std::underlying_type_t<T>>(value));
   } else {
     static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>, "index must be an integer or an enum");
-    if constexpr (sizeof(T) > sizeof(size_t)) {
+    if constexpr (sizeof(T) > sizeof(D)) {
       const auto v = static_cast<std::make_unsigned_t<T>>(value);
-      return v > SIZE_MAX ? SIZE_MAX : static_cast<size_t>(v);
+      return v > std::numeric_limits<D>::max() ? std::numeric_limits<D>::max() : static_cast<D>(v);
     } else if constexpr (std::is_signed_v<T>) {
-      return static_cast<size_t>(static_cast<std::make_signed_t<size_t>>(value));  // sign-extend first
+      return static_cast<D>(static_cast<std::make_signed_t<D>>(value));  // sign-extend first
     } else {
       return value;
     }
