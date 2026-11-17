@@ -119,7 +119,7 @@ async def case(
     wait=None,
     want=None,
 ):
-    """WANT: "most" (at least 80 % good), "none" (no good packet) or "any" (not judged)."""
+    """WANT: "most" (80 % good), "none" (no good packet) or "any" (not judged); judged cases need txerr=0."""
     want = want or ("any" if MODE in REPROS else "most")
     nr, nt = (
         sum(1 for line in rx.lines if "CFG " in line),
@@ -151,8 +151,11 @@ async def case(
         return f"{statistics.mean(p[i] for p in good):.1f}" if good else "-"
 
     lens = sorted({int(p[0]) for p in got})
-    missed = (want == "most" and len(good) * 5 < count * 4) or (
-        want == "none" and len(good) > 0
+    # a judged case also needs every packet to have gone out: "nothing arrived" proves nothing otherwise
+    missed = want != "any" and (
+        txerr != "0"
+        or (want == "most" and len(good) * 5 < count * 4)
+        or (want == "none" and len(good) > 0)
     )
     if missed:
         MISSED.append(label)
