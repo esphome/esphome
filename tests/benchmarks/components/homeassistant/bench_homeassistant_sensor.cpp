@@ -19,7 +19,7 @@ static constexpr int kInnerIterations = 2000;
 
 // Each benchmark gets its own API server so subscriptions from one do not
 // stay in the list scanned by the next. The constructor installs itself as
-// global_api_server, which is what HomeassistantSensor::setup() subscribes to.
+// global_api_server, which is what HomeassistantSensor::subscribe() uses.
 class ScopedApiServer {
  public:
   ScopedApiServer() : previous_(api::global_api_server) {}
@@ -72,7 +72,7 @@ static void HomeassistantSensor_StateResponse(benchmark::State &state) {
 
   HomeassistantSensor sensor;
   sensor.set_entity_id("sensor.power");
-  sensor.setup();
+  sensor.subscribe();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -95,7 +95,7 @@ static void HomeassistantSensor_StateResponse_Integer(benchmark::State &state) {
 
   HomeassistantSensor sensor;
   sensor.set_entity_id("sensor.power");
-  sensor.setup();
+  sensor.subscribe();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -118,7 +118,7 @@ static void HomeassistantSensor_StateResponse_Attribute(benchmark::State &state)
   HomeassistantSensor sensor;
   sensor.set_entity_id("climate.living_room");
   sensor.set_attribute("current_temperature");
-  sensor.setup();
+  sensor.subscribe();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -151,7 +151,7 @@ static void HomeassistantSensor_StateResponse_ManySubscriptions(benchmark::State
   HomeassistantSensor sensors[kSensorCount];
   for (int i = 0; i < kSensorCount; i++) {
     sensors[i].set_entity_id(ENTITY_IDS[i]);
-    sensors[i].setup();
+    sensors[i].subscribe();
   }
   const Messages msgs = make_messages(ENTITY_IDS[kSensorCount - 1], nullptr, NUMERIC_STATES);
 
@@ -179,7 +179,7 @@ static void HomeassistantSensor_StateResponse_Unavailable(benchmark::State &stat
 
   HomeassistantSensor sensor;
   sensor.set_entity_id("sensor.power");
-  sensor.setup();
+  sensor.subscribe();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {

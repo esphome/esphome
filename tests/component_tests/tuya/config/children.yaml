@@ -1,0 +1,64 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+uart:
+  - id: uart_bus
+    tx_pin: GPIO16
+    rx_pin: GPIO17
+    baud_rate: 9600
+
+tuya:
+  id: tuya_hub
+  on_datapoint_update:
+    - sensor_datapoint: 1
+      then:
+        - logger.log: "Datapoint 1 updated"
+    # References an entity, so the hub's to_code waits for it before registering this listener
+    - sensor_datapoint: 2
+      then:
+        - lambda: 'ESP_LOGD("test", "%f", id(tuya_sensor).state);'
+
+sensor:
+  - platform: tuya
+    id: tuya_sensor
+    sensor_datapoint: 1
+
+select:
+  - platform: tuya
+    id: tuya_select
+    enum_datapoint: 42
+    options:
+      0: Low
+      1: High
+
+fan:
+  - platform: tuya
+    id: tuya_fan
+    switch_datapoint: 3
+
+binary_sensor:
+  - platform: tuya
+    id: tuya_binary_sensor
+    sensor_datapoint: 5
+
+text_sensor:
+  - platform: tuya
+    id: tuya_text_sensor
+    sensor_datapoint: 6
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 7
+
+water_heater:
+  - platform: tuya
+    id: tuya_water_heater
+    switch_datapoint: 8
+    current_temperature_datapoint: 9

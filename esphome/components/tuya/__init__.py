@@ -1,9 +1,10 @@
 from esphome import automation, pins
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR_DATAPOINT, CONF_TIME_ID
-from esphome.core import CORE, AutoLoad
+from esphome.core import CORE, AutoLoad, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -56,6 +57,20 @@ DATAPOINT_TYPES = {
 
 
 CONF_TUYA_ID = "tuya_id"
+
+# The hub's dump_config prints each child's dump
+DUMP_PUBLISHER = cg.HubFunction("dump", cg.void, [], define="USE_TUYA_DUMP_PUBLISHER")
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _register_listeners(var: MockObj) -> None:
+    cg.add(var.register_listeners())
+
+
+def register_tuya_child(hub: MockObj, var: MockObj) -> None:
+    """Register the datapoint listeners of ``var`` after all other code, so the hub's own listeners come first."""
+    CORE.add_job(_register_listeners, var)
+    DUMP_PUBLISHER.add(hub, parent_ref(var).dump_child_config())
 
 
 def _validate_time_options(config: ConfigType) -> ConfigType:

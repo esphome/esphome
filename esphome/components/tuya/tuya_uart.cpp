@@ -57,6 +57,12 @@ void TuyaUART::loop() {
 }
 
 void TuyaUART::dump_config() {
+  this->dump_mcu_config_();
+  this->dump_children_();
+}
+
+// Also logged again once the MCU reports its datapoints
+void TuyaUART::dump_mcu_config_() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
     if (this->init_failed_) {
@@ -266,7 +272,7 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
     case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_config(); });
+        this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_mcu_config_(); });
         this->mark_initialized_();
       }
       this->handle_datapoints_(buffer, len);

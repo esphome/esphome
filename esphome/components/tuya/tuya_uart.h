@@ -69,6 +69,7 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
 #endif
 
  protected:
+  void dump_mcu_config_();
   void handle_char_(uint8_t c);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   bool validate_message_();

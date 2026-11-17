@@ -46,6 +46,8 @@ enum SX127xReg : uint8_t {
   REG_PAYLOAD_LENGTH_LSB = 0x32,
   REG_FIFO_THRESH = 0x35,
   REG_IMAGE_CAL = 0x3B,
+  REG_IRQ_FLAGS_1 = 0x3E,
+  REG_IRQ_FLAGS2 = 0x3F,
   // LoRa registers
   REG_FIFO_ADDR_PTR = 0x0D,
   REG_FIFO_TX_BASE_ADDR = 0x0E,
@@ -260,6 +262,22 @@ enum SX127xIrqFlags : uint8_t {
   CAD_DETECTED = 0x01,
 };
 
+enum SX127xIrqFlags1 : uint8_t {
+  IRQ_FLAGS_1_PREAMBLE_DETECT = 0x02,
+  IRQ_FLAGS_1_SYNC_ADDRESS_MATCH = 0x01,
+};
+
+enum SX127xModemStat : uint8_t {
+  MODEM_STAT_SIGNAL_DETECTED = 0x01,
+  MODEM_STAT_SIGNAL_SYNCHRONIZED = 0x02,
+  MODEM_STAT_HEADER_VALID = 0x08,
+};
+
+enum SX127xIrqFlags2 : uint8_t {
+  PACKET_SENT = 0x08,
+  PAYLOAD_READY = 0x04,
+};
+
 enum SX127xModemCfg1 : uint8_t {
   BW_7_8 = 0x00,
   BW_10_4 = 0x10,
@@ -281,7 +299,7 @@ enum SX127xModemCfg1 : uint8_t {
 
 enum SX127xModemCfg2 : uint8_t {
   SPREADING_FACTOR_SHIFT = 4,
-  TX_CONTINOUS_MODE = 0x08,
+  TX_CONTINUOUS_MODE = 0x08,
   RX_PAYLOAD_CRC_ON = 0x04,
   RX_PAYLOAD_CRC_OFF = 0x00,
 };
