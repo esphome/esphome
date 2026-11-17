@@ -212,7 +212,10 @@ async def _cdc_acm_to_code() -> None:
     _cdc_acm_add_ports()
 
 
-def zephyr_setup_preferences(storage: Literal["NVS", "ZMS"] = "NVS") -> None:
+PreferenceStorage = Literal["NVS", "ZMS"]
+
+
+def zephyr_setup_preferences(storage: PreferenceStorage = "NVS") -> None:
     """Store preferences through the settings subsystem.
 
     `storage` picks the Zephyr storage backend: NVS for flash, ZMS for RRAM and MRAM.
