@@ -366,8 +366,9 @@ void Appliance::queue_group_query_(MideaGroup group) {
   const uint8_t id = GROUP_IDS[static_cast<uint8_t>(group)];
   ESP_LOGV(Constants::TAG, "Enqueuing a GET_GROUP_DATA(0x41) request for group %u", id);
   GroupQueryData data(id);
-  this->m_queueRequest(FrameType::DEVICE_QUERY, std::move(data),
-                       [this, group](FrameData data) -> ResponseStatus { return this->read_group_(group, data); });
+  this->m_queueRequest(
+      FrameType::DEVICE_QUERY, std::move(data),
+      [this, group](const FrameData &data) -> ResponseStatus { return this->read_group_(group, data); });
 }
 
 /* ############### */
