@@ -303,7 +303,8 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
-  uint8_t sim_polls_{0};  // failed SIM status reads in this attempt
+  uint8_t idle_polls_{0};  // polls in a row that reported "not searching"
+  uint8_t sim_polls_{0};   // failed SIM status reads in this attempt
 #ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
   uint8_t poll_ber_{CSQ_UNKNOWN};

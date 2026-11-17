@@ -924,6 +924,7 @@ ModemState ModemComponent::handle_state_connecting_() {
     }
     this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;
     this->attach_polls_ = 0;
+    this->idle_polls_ = 0;
   }
 
   int attached = 0;
@@ -940,11 +941,11 @@ ModemState ModemComponent::handle_state_connecting_() {
       this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
-    // A modem that has not even searched for a few polls (attachment switched off) gets the request too; right
-    // after CFUN=1 it briefly reports not searching, which is when the request would hold the AT channel
-    // A state that stays unreadable is treated the same way
-    const bool idle = (registration == REGISTRATION_NOT_SEARCHING || registration == REGISTRATION_UNKNOWN) &&
-                      this->attach_polls_ >= ATTACH_DIAG_EVERY;
+    // A modem that has reported "not searching" for a few polls in a row (attachment switched off) gets the request
+    // too. Right after CFUN=1 it briefly reports not searching, which is when the request would hold the AT channel;
+    // any other or unreadable state starts the count again.
+    this->idle_polls_ = registration == REGISTRATION_NOT_SEARCHING ? static_cast<uint8_t>(this->idle_polls_ + 1) : 0;
+    const bool idle = this->idle_polls_ >= ATTACH_DIAG_EVERY;
     if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON &&
         (is_registered(registration) || registration == REGISTRATION_UNSUPPORTED || idle)) {
       // Before registration some modems hold the AT channel for minutes on this (SIM7080G: up to 141 s) and
@@ -970,14 +971,14 @@ ModemState ModemComponent::handle_state_connecting_() {
       if (registration == REGISTRATION_DENIED) {
         // The modem's reason tells a rejected APN (ESM failure) from a SIM the network does not serve
         const command_result reason_read = this->at_reply_("AT+CEER");
+        const char *prefix = reason_read == command_result::FAIL ? LOG_STR_LITERAL("AT+CEER failed: ") : "";
         const char *reason = reason_read == command_result::TIMEOUT ? LOG_STR_LITERAL("no answer to AT+CEER")
-                             : reason_read == command_result::FAIL  ? LOG_STR_LITERAL("AT+CEER failed")
                              : this->reply_.empty()                 ? LOG_STR_LITERAL("no reason given")
                                                                     : this->reply_.c_str();
         ESP_LOGW(TAG,
-                 "The network refused registration (%s); check the APN and that the SIM's plan covers this modem's "
-                 "network types",
-                 reason);
+                 "The network refused registration (%s%s); check the APN and that the SIM's plan covers this "
+                 "modem's network types",
+                 prefix, reason);
       }
       this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;  // request the attachment again
     }
