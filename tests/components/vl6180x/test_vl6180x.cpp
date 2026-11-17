@@ -117,6 +117,28 @@ TEST_F(VL6180XTest, SampleNotReadySetsAWarning) {
   EXPECT_FALSE(this->range_.has_state());
 }
 
+TEST_F(VL6180XTest, FailedLightReadKeepsTheWarningUntilAWholeCycleWorks) {
+  this->hub_.setup();
+  this->bus_.registers[0x04D] = 0x01;
+  this->bus_.registers[0x062] = 50;
+  this->bus_.registers[0x04F] = 0x04;  // range sample ready, ALS sample not
+  this->measure_();
+  EXPECT_FLOAT_EQ(this->range_.state, 50.0f);
+  EXPECT_FALSE(this->lux_.has_state());
+  EXPECT_TRUE(this->hub_.status_has_warning());
+
+  this->bus_.registers[0x04F] = 0x24;
+  this->bus_.registers[0x051] = 1;
+  this->hub_.update();
+  delay(80);  // NOLINT
+  App.scheduler.call(millis());
+  EXPECT_TRUE(this->hub_.status_has_warning());  // a good distance alone does not clear it
+  delay(420);                                    // NOLINT
+  App.scheduler.call(millis());
+  EXPECT_FLOAT_EQ(this->lux_.state, 32.0f);
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
 class FakePin final : public GPIOPin {
  public:
   void setup() override {}
