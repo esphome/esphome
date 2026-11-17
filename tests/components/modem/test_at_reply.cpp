@@ -32,6 +32,17 @@ TEST(ModemReplyEnd, OnlyCompleteFinalLinesCount) {
   EXPECT_EQ(end_of("\r\n+CME ERROR: 10"), ReplyEnd::REPLY_END_NONE);
 }
 
+TEST(ModemReplyEnd, ErrorWithoutItsReason) {
+  // esp_modem drops the CMUX frame ": SIM not inserted" because it holds no line end
+  char buf[64];
+  size_t len = 0;
+  collect_reply(buf, sizeof(buf), len, "\r\n+CME ERROR", 12, false);
+  EXPECT_EQ(reply_end(buf, len, false), ReplyEnd::REPLY_END_NONE);
+  collect_reply(buf, sizeof(buf), len, "\r\n", 2, false);
+  EXPECT_EQ(reply_end(buf, len, false), ReplyEnd::REPLY_END_ERROR);
+  EXPECT_EQ(end_of("\r\n+CMS ERROR\r\n"), ReplyEnd::REPLY_END_ERROR);
+}
+
 TEST(ModemReplyEnd, CutFirstLineIsSkipped) {
   // The tail of "...OK" from a longer line must not count as a result
   EXPECT_EQ(end_of("OK\r\nmore text\r\n", true), ReplyEnd::REPLY_END_NONE);

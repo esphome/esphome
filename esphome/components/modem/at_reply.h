@@ -43,7 +43,8 @@ inline bool is_registered(int registration) {
 /// reply longer than the buffer keeps its newest bytes, where the final line is. Returns true when bytes were dropped.
 bool collect_reply(char *buf, size_t size, size_t &len, const char *data, size_t data_len, bool whole);
 
-/// How the reply ends. Only a complete final result line counts, so ERROR inside a payload line does not. With
+/// How the reply ends. Only a complete final result line counts, so ERROR inside a payload line does not; a +CME ERROR
+/// line counts even without its reason, which a dropped CMUX frame can take away. With
 /// skip_first, the first line is a cut-off fragment and is ignored.
 ReplyEnd reply_end(const char *data, size_t len, bool skip_first);
 

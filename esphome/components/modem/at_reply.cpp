@@ -50,8 +50,9 @@ ReplyEnd reply_end(const char *data, size_t len, bool skip_first) {
     if (size == 2 && memcmp(line, "OK", 2) == 0) {
       return ReplyEnd::REPLY_END_OK;
     }
-    if ((size == 5 && memcmp(line, "ERROR", 5) == 0) || (size >= 11 && memcmp(line, "+CME ERROR:", 11) == 0) ||
-        (size >= 11 && memcmp(line, "+CMS ERROR:", 11) == 0)) {
+    // esp_modem drops a CMUX frame without a line end, so the ": <reason>" part may be missing
+    if ((size == 5 && memcmp(line, "ERROR", 5) == 0) || (size >= 10 && memcmp(line, "+CME ERROR", 10) == 0) ||
+        (size >= 10 && memcmp(line, "+CMS ERROR", 10) == 0)) {
       return ReplyEnd::REPLY_END_ERROR;
     }
     line = newline + 1;
