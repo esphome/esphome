@@ -366,6 +366,8 @@ void MQTTClientComponent::start_dnslookup_() {
       // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
       this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+      this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
       this->connect_begin_ = millis();
       return;
     }
