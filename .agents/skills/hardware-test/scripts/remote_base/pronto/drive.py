@@ -1,9 +1,13 @@
 """drive.py HOST ROUNDS [soak]: press each tx button ROUNDS times in a fixed order, then optionally soak."""
 
 import asyncio
+import pathlib
 import sys
 
-from aioesphomeapi import APIClient, BinarySensorInfo, ButtonInfo
+from aioesphomeapi import BinarySensorInfo, ButtonInfo
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+from apiconn import connect  # noqa: E402
 
 HOST, ROUNDS = sys.argv[1], int(sys.argv[2])
 ORDER = [
@@ -18,8 +22,7 @@ ORDER = [
 
 
 async def main():
-    c = APIClient(HOST, 6053, None)
-    await c.connect(login=True)
+    c = await connect(HOST)
     ents, _ = await c.list_entities_services()
     b = {e.name: e for e in ents if isinstance(e, ButtonInfo)}
     bs = {e.key: e.name for e in ents if isinstance(e, BinarySensorInfo)}

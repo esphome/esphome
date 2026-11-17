@@ -8,11 +8,13 @@ import statistics
 import sys
 import time
 
-from aioesphomeapi import APIClient, LogLevel
+from aioesphomeapi import LogLevel
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from apiconn import connect  # noqa: E402
 
 TXH, RXH, MODE, OUT = sys.argv[1:5]
 TXN, RXN = (sys.argv[5:7] + ["TX", "RX"])[:2] if len(sys.argv) >= 7 else ("TX", "RX")
-KEY = pathlib.Path(".apikey").read_text(encoding="utf-8").strip()
 out = pathlib.Path(OUT).open("w", encoding="utf-8", buffering=1)  # noqa: SIM115
 RX_RE = re.compile(
     r"RX len=(\d+) b0=(\d+) seq=(\d+) ok=(\d) rssi=(-?[\d.]+) lqi=(\d+) fo=(-?[\d.]+)"
@@ -24,8 +26,7 @@ class Dev:
         self.host, self.tag, self.rx, self.lines = host, tag, [], []
 
     async def start(self):
-        self.cli = APIClient(self.host, 6053, None, noise_psk=KEY)
-        await self.cli.connect(login=True)
+        self.cli = await connect(self.host)
         _, svcs = await self.cli.list_entities_services()
         self.svc = {s.name: s for s in svcs}
         self.cli.subscribe_logs(self.on_log, log_level=LogLevel.LOG_LEVEL_INFO)

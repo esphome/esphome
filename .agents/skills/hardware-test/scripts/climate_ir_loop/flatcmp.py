@@ -23,6 +23,9 @@ mx = 0
 bad = 0
 items = 0
 print("frames", len(fa), len(fb))
+if len(fa) != len(fb):
+    print("DIFF frame counts differ (a lost or extra transmission)")
+    bad += 1
 for i, (p, q) in enumerate(zip(fa, fb, strict=False)):
     if len(p) != len(q):
         print("frame", i, "length", len(p), len(q))

@@ -5,7 +5,7 @@ ts() { echo "$(date +%T) $*" >> $R-events.txt; }
 : > $R-events.txt
 (exec timeout 140 $B/tcph1/.pioenvs/tcph1/program > $R-h1.txt 2>&1 < /dev/null) & H1=$!
 ts start h1
-(exec ${PY:-python3} apiwatch.py 127.0.0.1 46151 135 > $R-api1.txt 2>&1) &
+(API_KEY=${API_KEY:-$(cat apikey.txt)} exec ${PY:-python3} apiwatch.py 127.0.0.1 46151 135 > $R-api1.txt 2>&1) &
 (exec $P -I tcp_peer.py server 46104 --duration 58 --silent-after 8 > $R-ps-silent.txt 2>&1) &
 sleep 8
 (exec $B/tcph2/.pioenvs/tcph2/program > $R-h2a.txt 2>&1 < /dev/null) & H2=$!

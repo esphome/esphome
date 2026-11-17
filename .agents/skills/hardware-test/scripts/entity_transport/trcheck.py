@@ -9,7 +9,8 @@ import struct
 import sys
 import time
 
-from aioesphomeapi import APIClient, APIConnectionError
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from apiconn import connect  # noqa: E402
 
 D1, D1V, E32, E32V, SECS, OUT = (
     sys.argv[1],
@@ -19,7 +20,6 @@ D1, D1V, E32, E32V, SECS, OUT = (
     float(sys.argv[5]),
     sys.argv[6],
 )
-KEY = pathlib.Path(".apikey").read_text(encoding="utf-8").strip()
 
 
 def f32(v):
@@ -31,14 +31,7 @@ def expect(t):  # 12345.678f + t * 0.001f - (t % 7) * 1000.5f in single precisio
 
 
 async def conn(host):
-    c = APIClient(host, 6053, None, noise_psk=KEY)
-    for _ in range(30):
-        try:
-            await asyncio.wait_for(c.connect(login=True), 10)
-            return c
-        except (OSError, APIConnectionError):
-            await asyncio.sleep(1)
-    sys.exit(f"no connection to {host}")
+    return await connect(host)
 
 
 async def main():

@@ -1,10 +1,12 @@
+"""devinfo.py HOST...: name, MAC, model and build of each device (API_KEY in the env for Noise)."""
+
 import asyncio
-import pathlib
+import os
 import sys
 
 from aioesphomeapi import APIClient, APIConnectionError
 
-KEY = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").strip()
+KEY = os.environ.get("API_KEY") or None
 
 
 async def one(h):
@@ -19,7 +21,7 @@ async def one(h):
 
 
 async def main():
-    await asyncio.gather(*(one(h) for h in sys.argv[2:]))
+    await asyncio.gather(*(one(h) for h in sys.argv[1:]))
 
 
 asyncio.run(main())

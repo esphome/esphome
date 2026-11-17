@@ -31,6 +31,9 @@ while i < len(lines):
             else:
                 bad += 1
                 print("MISMATCH", n, len(t), len(d))
+        else:
+            bad += 1
+            print("MISSING dump after a trigger of", n)
         continue
     i += 1
 print(f"{ok + bad} trigger frames, {ok} consistent, {bad} not")

@@ -1,7 +1,7 @@
 #!/bin/bash
 # run.sh TREE OUTFILE: copy the harness into TREE's tests/components/i2c, generate the extracted bus bodies, run the
 # unit test and remove the harness again. env: PY (default TREE's venv python)
-T=$(cd "${1:?tree}" && pwd); O=${2:?out}
+T=$(cd "${1:?tree}" && pwd); O=$(cd "$(dirname "${2:?out}")" && pwd)/$(basename "$2")
 H=$(cd "$(dirname "$0")" && pwd); PY=${PY:-$T/venv/bin/python}
 D=$T/tests/components/i2c
 # The sources are stored as .cpp.example, .h.example and .hpp so the repo's C++ lints skip them; copy them back.

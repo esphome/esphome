@@ -1,4 +1,4 @@
-"""Test only: pulls remote_base with every protocol source into a host build."""
+"""Test only: pulls remote_base with every protocol source into a host build (hostharness and dumpall)."""
 
 from esphome.components import remote_base
 import esphome.config_validation as cv

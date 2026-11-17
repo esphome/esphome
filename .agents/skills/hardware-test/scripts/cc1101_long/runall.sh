@@ -5,6 +5,7 @@
 # env: TREE, PY
 D=$(cd "$(dirname "$0")" && pwd); cd "$D" || exit 1; A=${1:?a mac}; B=${2:?b mac}
 PY=${PY:-${TREE:?set TREE}/venv/bin/python}
+export API_KEY=${API_KEY:-$(cat apikey.txt)}
 drive() { # TXNAME RXNAME MODE TXLABEL RXLABEL
   echo "--- $3 TX=$1 RX=$2"
   timeout 1200 $PY ccdrive.py "$1.local" "$2.local" "$3" "$2-$3.log" "$4" "$5" 2>&1 |

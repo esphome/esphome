@@ -108,8 +108,6 @@ class ReplyCheck:
                     break
                 p = buf.find(0xA5, p + 1)
             if found is None:
-                if not final and len(buf) < REPLY_SIZE * 8:
-                    return
                 if not final:
                     return
                 self.broken += 1

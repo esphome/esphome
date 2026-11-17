@@ -17,7 +17,7 @@ Files in `scripts/tcp_link/`:
 - `tcp_peer.py client HOST PORT | server PORT`: raw peer. `--silent-after S` stops sending (receive timeout and
   reconnect), `--oversize-after S N` sends a header of N bytes (must close), `--send 1,1022` sends checked sizes,
   `--bind ADDR` picks the source address, `--hold S` closes after S. Prints keep-alive gap min/max per connection.
-- `apiwatch.py HOST PORT SECS [KEYFILE]`: state changes with timestamps from connect; shows the `connected` sensors
+- `apiwatch.py HOST PORT SECS` (`API_KEY` from `apikey.txt`): state changes with timestamps from connect; shows the `connected` sensors
   read False (not unknown) at boot. The API coalesces a fast off/on, so judge edges from the `CONN` log lines.
 - `run_host_pair.sh RUN`: the host to host timeline (boot states, SIGSTOP/SIGCONT of the peer, kill -9 and restart,
   silent and oversize raw servers, one client at a time, refused source, oversize from a client). Build the host

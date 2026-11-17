@@ -532,16 +532,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   is safe to toggle. BUCK1 and LDO2 are not described anywhere; leave them alone.
 - nPM1300 power-on state: BUCK2 on at 3.3 V, BUCK1 off, LDO1 and LDO2 off in load switch mode (enabling one as is
   passes VINLDO straight through), charger off, VBUS limit 100 mA, NTC select 10 k. Flows: `recipes/npm1300.md`.
-- nPM1300 charger registers with the reset-value defaults (32 mA, 3.6 V, 10 %, 2.9 V, 1000 mA; #22769): 0x0308/09 =
-  08/00, 0x030A/0B = CF/01, 0x030C = 0x030D = 02, 0x030E = 0x030F = 00. BCHGDISABLESET (0x0306) reads back 0x02 when
-  the NTC check is off (`thermistor_resistance: none`, ADCNTCRSEL 0x050A = 0) and 0x00 with 10k.
-- No cell, charger on: BCHGCHARGESTATUS 0x05 (bit 0 plus trickle), VBAT about 3.61 V with VTERM 3.6 V (4.23 V with
-  4.2 V), 0.02 V with the charger off. NTCSTATUS (0x0332) and DIETEMPSTATUS (0x0333) read 00 throughout, so the NTC
-  hot and cold states cannot be reached on this board. BCHGERRREASON stays 00 across on/off toggles.
-- A bare `charger:` key fails validation ("expected a dictionary"); use `charger: {}`. `esphome compile
-  --only-generate` with a private PLATFORMIO_CORE_DIR is enough to check the generated NPM1300Config initializer
-  without a board; a fresh private PlatformIO dir builds four nRF54 configs in about 10 min. A capture started before
-  the flash holds the old firmware first; cut at the last `Log initialized`.
 
 ## I2C and SPI breakouts
 

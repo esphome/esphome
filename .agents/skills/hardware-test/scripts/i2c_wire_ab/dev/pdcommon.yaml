@@ -2,10 +2,11 @@ esphome:
   name: ${name}
   includes:
     - pdslave.hpp
-    - snfpd.hpp
+    - snf.hpp
   platformio_options:
     build_flags:
       - -Wl,--wrap=malloc
+      - -DSNF_PDSLAVE
   on_boot:
     - priority: 700
       then:

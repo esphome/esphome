@@ -3,7 +3,7 @@
 D=$(cd "$(dirname "$0")" && pwd); cd "$D" || exit 1; B=$D/.esphome/build; P=python3; R=e; E=$(cat .eip);
 ts() { echo "$(date +%T) $*" >> $R-events.txt; }
 : > $R-events.txt
-(exec ${PY:-python3} apiwatch.py $E 6053 200 > $R-apiE.txt 2>&1) &
+(API_KEY=${API_KEY:-$(cat apikey.txt)} exec ${PY:-python3} apiwatch.py $E 6053 200 > $R-apiE.txt 2>&1) &
 (exec $P -I tcp_peer.py server 46504 --duration 50 --silent-after 8 > $R-ps-silent.txt 2>&1) &
 ts api+silent server
 sleep 10

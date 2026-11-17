@@ -10,11 +10,13 @@ import socket
 import sys
 import time
 
-from aioesphomeapi import APIClient, APIConnectionError, SensorState, TextSensorState
+from aioesphomeapi import SensorState, TextSensorState
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 import aioesphomeapi.connection as conn_mod
+from apiconn import connect  # noqa: E402
 
 HOST, OUT = sys.argv[1], sys.argv[2]
-KEY = pathlib.Path(".apikey").read_text(encoding="utf-8").strip()
 TL = 800
 
 
@@ -55,16 +57,7 @@ async def main():
         stopped["t"] = time.monotonic()
         stopped["expected"] = expected
 
-    cli = APIClient(HOST, 6053, None, noise_psk=KEY)
-    for _ in range(30):
-        try:
-            await asyncio.wait_for(cli.connect(on_stop=on_stop, login=True), 10)
-            break
-        except (OSError, APIConnectionError) as e:
-            last = e
-            await asyncio.sleep(1)
-    else:
-        sys.exit(f"connect failed: {last}")
+    cli = await connect(HOST, on_stop=on_stop)
     info = await cli.device_info()
     res["device"] = info.name
     res["version"] = info.esphome_version

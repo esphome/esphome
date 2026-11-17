@@ -178,7 +178,6 @@ def cut_upload(frac, tag):
         p(f"{tag} send error {type(e).__name__} at {sent}")
     time.sleep(0.5)
     s.close()
-    time.monotonic()
     # serving right after the cut
     g = get("/", 8)[0]
     ev = events_ok()

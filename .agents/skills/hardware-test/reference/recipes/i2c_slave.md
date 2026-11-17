@@ -32,7 +32,7 @@ injection) are in [fake_i2c.md](fake_i2c.md).
 - Device: `dev/snf.hpp` is a GPIO interrupt sniffer on the I2C pads (an ESP32-C2 with an ADS1015: SDA 4, SCL 5,
   `dev/c2common.yaml`) plus the same case sweep and `-Wl,--wrap=malloc`; at 10 to 20 kHz on the C2 it still drops a bit
   in about 0.5 % of transactions (mostly at the chip's NACK), so capture three runs per build and judge with
-  `clean.py`/`maj.py`. On the software bus it is exact. `dev/pdslave.hpp` + `snfpd.hpp` (`pdcommon.yaml`) turn an
+  `clean.py`/`maj.py`. On the software bus it is exact. `dev/pdslave.hpp` with `snf.hpp` built with `-DSNF_PDSLAVE` (`pdcommon.yaml`) turn an
   ESP32-PICO-D4 into its own target at 0x48 on GPIO32/33 (ACKs every byte, so 300-byte writes reach the wire): exact on
   6 of 6 captures at 25 kHz once one warm-up probe runs before the sweep (the ISR runs from flash; IRAM_ATTR on header
   inline functions fails to link with l32r literal errors). `mksw.py` turns a tree's LibreTiny-only software bus into

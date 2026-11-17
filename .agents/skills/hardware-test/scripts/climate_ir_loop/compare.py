@@ -7,6 +7,9 @@ import sys
 a = json.loads(pathlib.Path(f"{sys.argv[1]}-frames.json").read_text(encoding="utf-8"))
 b = json.loads(pathlib.Path(f"{sys.argv[2]}-frames.json").read_text(encoding="utf-8"))
 tol = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+if len(a) != len(b):
+    print(f"DIFF step counts {len(a)} vs {len(b)} (an interrupted run?)")
+    sys.exit(1)
 same_f = same_s = 0
 maxdev = 0
 for x, y in zip(a, b, strict=False):

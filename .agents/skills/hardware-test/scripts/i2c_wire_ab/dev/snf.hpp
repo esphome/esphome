@@ -11,6 +11,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
+#ifdef SNF_PDSLAVE
+// the board is its own target (pdslave.hpp); its token stream replaces the pad sniffer's decode
+#include "pdslave.hpp"
+#endif
 
 extern "C" void *__real_malloc(size_t);
 static volatile bool snf_alloc_window = false;
@@ -139,6 +143,13 @@ static bool step(i2c::I2CDevice *dev) {
     return false;
   const uint8_t A = 0x48;
   std::string label, exp;
+#ifdef SNF_PDSLAVE
+  if (idx == 0) {
+    // warm the target ISR (it runs from flash) so the first case is not lost to a cache miss
+    bus->write_readv(0x48, nullptr, 0, nullptr, 0);
+    delay(5);
+  }
+#endif
   uint32_t i = idx++;
   for (size_t k = 0; k < sizeof data; k++)
     data[k] = static_cast<uint8_t>(0x11 + i + k * 7);
@@ -153,6 +164,10 @@ static bool step(i2c::I2CDevice *dev) {
     last = start;
     snf_allocs = 0;
     snf_alloc_window = true;
+#ifdef SNF_PDSLAVE
+    pds::ln = 0;
+    pds::lovf = 0;
+#endif
     armed = true;
   };
   auto disarm = [&] {
@@ -244,7 +259,14 @@ static bool step(i2c::I2CDevice *dev) {
     return false;
   }
   uint32_t amb = 0;
+#ifdef SNF_PDSLAVE
+  delayMicroseconds(500);
+  std::string got = pds::tokens();
+  ovf = pds::lovf;
+  n = pds::ln;
+#else
   std::string got = decode(start, amb);
+#endif
   bool ok = got == exp && ovf == 0;
   nok += ok;
   ndiff += !ok;

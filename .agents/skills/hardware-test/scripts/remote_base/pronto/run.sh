@@ -2,7 +2,7 @@
 # run.sh NAME TREE YAML PORT BAUD ROUNDS: flash NAME, capture serial, drive the buttons and the soak
 S=$(cd "$(dirname "$0")" && pwd); K=$(dirname "$(dirname "$S")"); N=$1; T=$2; Y=$3; P=$4; B=$5; R=$6
 PY=${PY:-$T/venv/bin/python}
-pkill -f "[s]erial_capture.py $P"
+pkill -f "[s]erial_capture.py $P "
 TREE=$T PIO_CORE=${PIO_CORE:-$S/pio} bash "$K/pio_build.sh" upload "$N" "$Y" "$P" || exit 1
 rm -f $S/$N-serial.txt
 $PY "$K/serial_capture.py" "$P" 260 $S/$N-serial.txt --baud $B --reset > /dev/null 2>&1 & CAP=$!

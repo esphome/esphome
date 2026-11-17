@@ -85,10 +85,10 @@ the client only sees resets, the crash is in the log.
 counts calls and bytes; the `try_drain` symbol differs per platform (`...6socket11LWIPRawImplE` on ESP8266,
 `...6socket13BSDSocketImplE` on ESP32 IDF), so pass it as a substitution and check `nm` shows both `__wrap_` symbols
 (a wrong name silently drops the wrapper). ESP-IDF builds keep `nm` in the IDF tools cache
-(`xtensa-esp-elf/*/xtensa-esp-elf/bin/`), not under the PlatformIO directory. `putbe-common.yaml` (60 sensors, four
+(`xtensa-esp-elf/*/xtensa-esp-elf/bin/`), not under the PlatformIO directory. `putbe-common.yaml` (60 sensors from `putbe-sensors.yaml`, which `gen_sensors.py` writes; four
 800 char text sensors flooded every 50 ms, counters as sensors, plus two udp `entity_transport` links) and
 `apitest.py HOST OUT` (2 KB receive buffer, 3 x 6 s `pause_reading`, validates every burst state and the final states;
-key in `.apikey`). Result on #22771: 82 to 159 enqueues per run on a D1 mini and an ESP32, no drops.
+`API_KEY` in the env). Result on #22771: 82 to 159 enqueues per run on a D1 mini and an ESP32, no drops.
 
 `scripts/entity_transport/trcheck.py` compares remote entity values with the sender's published ones over the API on
 both boards; it accepts late updates and checks floats by the formula the sender uses, so only values the sender never

@@ -1,3 +1,0 @@
-climate:
-  - {platform: whirlpool, id: w_tx, name: W TX, model: HISENSE_ARG, transmitter_id: irtx}
-  - {platform: whirlpool, id: w_rx, name: W RX, model: HISENSE_ARG, transmitter_id: irtx, receiver_id: irrx}

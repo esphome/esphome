@@ -12,5 +12,5 @@ logger:
 external_components:
   - source:
       type: local
-      path: ext
+      path: ../ext
 rbtest:

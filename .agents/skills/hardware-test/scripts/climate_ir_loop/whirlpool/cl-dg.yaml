@@ -1,3 +1,0 @@
-climate:
-  - {platform: whirlpool, id: w_tx, name: W TX, model: DG11J1-3A, transmitter_id: irtx}
-  - {platform: whirlpool, id: w_rx, name: W RX, model: DG11J1-3A, transmitter_id: irtx, receiver_id: irrx}

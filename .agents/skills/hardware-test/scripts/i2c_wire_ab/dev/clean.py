@@ -20,7 +20,10 @@ def verdicts(p):
             continue
         got = lines[i + 1].split("SNGOT ")[1].split()
         exp = lines[i + 2].split("SNEXP ")[1].split()
-        j = next((j for j, t in enumerate(got) if t.endswith("-")), None)
+        j = next(
+            (j for j, t in enumerate(got) if t.endswith("-") and not t.startswith("r")),
+            None,
+        )
         out[k] = (
             rc,
             j is not None

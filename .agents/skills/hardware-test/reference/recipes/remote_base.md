@@ -101,8 +101,8 @@ only the last line sees "Failed to upload" first, so rerun before blaming the bu
 
 - whirlpool logs every frame at VERBOSE (`Sending:` and `Received:` hex), so on the D1 mini compare those bytes line by
   line instead of raw timings. One image per model (DG11J1-3A, HITACHI_HCRA31NEWH, HISENSE_ARG; "Hisense ARG" is a
-  whirlpool model, not its own component). `scripts/climate_ir_loop/whirlpool/`: `wc.yaml` (common), `cl-*.yaml` (one
-  per model), `steps.sh`, and `all.sh PORT BASE_TREE PR_TREE`, which builds and runs base then PR per model so the
+  whirlpool model, not its own component). `scripts/climate_ir_loop/whirlpool/`: `wc.yaml` (common), `cl.yaml` (the model
+  as a substitution), `steps.sh`, and `all.sh PORT BASE_TREE PR_TREE`, which builds and runs base then PR per model so the
   board ends on a PR build.
 - The HISENSE_ARG receiver reports fan medium for fan_only while the sender says auto (dev too).
 
@@ -123,8 +123,8 @@ only the last line sees "Failed to upload" first, so rerun before blaming the bu
 
 ## Protocol decode A/B on the host, climate fuzz, AEHA/Haier/Mirage loopback (#22773)
 
-- `scripts/remote_base/hostharness/`: a `host:` config (`rbhost.yaml`) with a local `rbtest` component (AUTO_LOAD
-  remote_base, `request_protocol()` for the protocols) and `rbh.hpp` called from `on_boot`; it encodes, mutates, decodes
+- `scripts/remote_base/hostharness/`: a `host:` config (`rbhost.yaml`) with the local `rbtest` component in
+  `scripts/remote_base/ext/` (AUTO_LOAD remote_base, `request_protocol()` for every protocol source) and `rbh.hpp` called from `on_boot`; it encodes, mutates, decodes
   and dumps, then `exit(0)`. Run the `program` binary and compare stdout with timestamps and `:line` stripped. The Haier
   and Mirage decoders want one more item after the last mark (the receiver's idle gap): append `-20000` to transmitter
   timings or every clean frame fails.
@@ -135,22 +135,22 @@ only the last line sees "Failed to upload" first, so rerun before blaming the bu
   not `#pragma once`, for a header copied to several test dirs.
 - Lambda idiom checks: compile `void f(AEHAData x) { ... }` snippets with `-fsyntax-only -I<host build>/src` and
   `#include "esphome.h"` (format_hex lives in alloc_helpers.h).
-- Loopback config `ir-common.yaml` (AEHA 2 to 35 bytes, Haier, Mirage from an API button, `press.py`). An ESP32-PICO-D4
+- Loopback config `ir-common.yaml` (AEHA 2 to 35 bytes, Haier, Mirage from an API button, `../press.py HOST tx_all:14 ...`). An ESP32-PICO-D4
   on GPIO27 never decodes 34 or 35 byte AEHA, even with `rmt_symbols: 384`, `buffer_size: 8kb` (dev too); a D1 mini on
   GPIO12 decodes all of them.
 
 ## Every dumper over a saved corpus, on the host (#22814)
 
-`scripts/remote_base/dumpall/`: the `rbtest` component requests every `_PROTOCOL_STEMS` source; `rbh.hpp` needs a
+`scripts/remote_base/dumpall/`: the same `rbtest` component requests every `_PROTOCOL_STEMS` source; `rbh.hpp` needs a
 `dumpers.h` generated from the `DECLARE_REMOTE_PROTOCOL(...)` lines of the tree (plus Pronto, RCSwitch, ABBWelcome;
 Raw only when nothing matched). Encoders that randomise (Cardin S438 picks a random seed) make two builds see
 different inputs: run once with `RBH_CORPUS=<file>` to write the corpus, then replay that file on both builds.
 Merge back-to-back marks or spaces before decoding (Drayton never decodes otherwise). Nudging a quarter of all
 timings to the tolerance edges proves nothing (the frame fails elsewhere): put only the sync mark at lo-1, lo, hi,
 hi+1 and keep the rest exact; that variant caught a planted `< max` in 1,000 decodes per protocol.
-`cmp.sh` compares the DEBUG and VERBOSE outputs (`rbhost-DEBUG.yaml`, `rbhost-VERBOSE.yaml`) with timestamps and line
-numbers removed.
-- Loopback with `dump: all` (`ir-common.yaml`, `drive.py`): Beo4 never decodes on one pin (needs its carrier) and
+`cmp.sh` compares the DEBUG and VERBOSE outputs (`rbhost.yaml` built with `-s level DEBUG` and `-s level VERBOSE`)
+with timestamps and line numbers removed.
+- Loopback with `dump: all` (`ir-common.yaml`, `../press.py HOST tx_all:9 tx_all:9 verbose tx_all:9 debug`): Beo4 never decodes on one pin (needs its carrier) and
   Drayton's channel/command form has no checksum; compare decoded lines, raw and Pronto timings jitter between runs.
 - `cc-common.yaml`: an ESP32-C3 with a CC1101 in async OOK at 433.92 MHz, GDO0 into remote_receiver, for the RF
   dumpers on real air (a quiet band gives only a few Pronto dumps a minute and no protocol hits).

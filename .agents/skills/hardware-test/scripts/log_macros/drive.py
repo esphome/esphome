@@ -7,14 +7,16 @@ import sys
 import urllib.parse
 import urllib.request
 
-from aioesphomeapi import APIClient, ButtonInfo, SensorInfo
+from aioesphomeapi import ButtonInfo, SensorInfo
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from apiconn import connect  # noqa: E402
 
 HOST, OUT = sys.argv[1], sys.argv[2]
 
 
 async def main():
-    c = APIClient(HOST, 6053, None)
-    await c.connect(login=True)
+    c = await connect(HOST)
     ents, _ = await c.list_entities_services()
     b = {e.name: e for e in ents if isinstance(e, ButtonInfo)}
     sens = {e.key: e for e in ents if isinstance(e, SensorInfo)}

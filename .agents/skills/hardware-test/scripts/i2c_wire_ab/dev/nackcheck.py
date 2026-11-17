@@ -16,7 +16,10 @@ for p in sys.argv[1:]:
             continue
         got = lines[i + 1].split("SNGOT ")[1].split()
         exp = lines[i + 2].split("SNEXP ")[1].split()
-        k = next((j for j, t in enumerate(got) if t.endswith("-")), None)
+        k = next(
+            (j for j, t in enumerate(got) if t.endswith("-") and not t.startswith("r")),
+            None,
+        )
         ok = (
             k is not None
             and got[:k] == exp[:k]

@@ -37,7 +37,6 @@ npm1300/*-cap.err
 npm1300/*-run.log
 rp2_sched_lock/*.txt
 rp2_sched_lock/*.log
-.apikey
 .eip
 climate_ir_loop/*-*.txt
 climate_ir_loop/*-frames.json
@@ -70,3 +69,4 @@ xiaomi_ble/xball_entities.yaml
 xiaomi_ble/expected_all.json
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
+api/overflow/putbe-sensors.yaml
