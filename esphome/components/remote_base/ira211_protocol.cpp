@@ -227,10 +227,6 @@ optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
 PROGMEM_STRING_TABLE(IRA211CommandStrings, "UNKNOWN", "TEMP_UP", "TEMP_DOWN", "UNKNOWN", "MODE", "FAN", "POWER",
                      "SYNC");
 
-static const LogString *command_to_string(IRA211Command command) {
-  return IRA211CommandStrings::get_log_str(static_cast<uint8_t>(command), 0);
-}
-
 static const LogString *mode_to_string(IRA211Mode mode) {
   switch (mode) {
     case IRA211Mode::IRA211_MODE_PROTECTION:
@@ -264,7 +260,7 @@ void IRA211Protocol::dump(const IRA211Data &data) {
   const uint8_t fields = layout.has_value() ? layout->fields : 0;
   const unsigned whole = data.half_degrees / 2;
   const unsigned tenths = (data.half_degrees & 1) ? 5 : 0;
-  const auto *command = LOG_STR_ARG(command_to_string(data.command));
+  const auto *command = LOG_STR_ARG(IRA211CommandStrings::get_log_str(static_cast<uint8_t>(data.command), 0));
   if (fields == (FIELD_TEMPERATURE | FIELD_MODE | FIELD_FAN)) {
     ESP_LOGI(TAG, "Received IRA211: command=%s, temperature=%u.%uC, mode=%s, fan=%s", command, whole, tenths,
              LOG_STR_ARG(mode_to_string(data.mode)), LOG_STR_ARG(fan_to_string(data.fan)));
