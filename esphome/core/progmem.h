@@ -77,8 +77,8 @@ template<size_t N> struct FixedString {
 ///
 /// Example:
 ///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
-///   ProgmemStr str = MyStrings::get_progmem_str(idx, MyStrings::LAST_INDEX);  // For ArduinoJson
-///   const LogString *log_str = MyStrings::get_log_str(idx, MyStrings::LAST_INDEX);  // For logging
+///   ProgmemStr str = MyStrings::get_progmem_str(idx);  // For ArduinoJson
+///   const LogString *log_str = MyStrings::get_log_str(idx);  // For logging
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
@@ -123,28 +123,26 @@ inline const char *progmem_skip_strings(const char *blob, uint8_t idx) {
   return blob;
 }
 
-/// Turn an enum or integer into a PROGMEM_STRING_TABLE index. A value that does not fit in the table, including
-/// a negative or wider-than-8-bit one, gives an index past the end so the lookup returns the fallback.
-template<typename T> constexpr uint8_t progmem_table_index(T value, size_t count) {
+namespace progmem_detail {
+/// Widen an enum or integer to an unsigned table index; a negative value becomes a huge one, which falls back.
+template<typename T> constexpr size_t table_index(T value) {
   if constexpr (std::is_enum_v<T>) {
-    return progmem_table_index(static_cast<std::underlying_type_t<T>>(value), count);
+    return table_index(static_cast<std::underlying_type_t<T>>(value));
   } else {
-    static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>, "index must be an integer or an enum");
-    if constexpr (sizeof(T) == 1) {
-      return static_cast<uint8_t>(value);  // every value is a valid uint8_t index; the lookup checks the range
-    } else {
-      const auto v = static_cast<std::make_unsigned_t<T>>(value);
-      return v < count ? static_cast<uint8_t>(v) : UINT8_MAX;
-    }
+    static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool> && sizeof(T) <= sizeof(size_t),
+                  "index must be an integer or an enum");
+    return static_cast<std::make_unsigned_t<T>>(value);
   }
 }
+}  // namespace progmem_detail
 
 // Forward declaration for LogString (defined in log.h)
 struct LogString;
 
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
 /// Creates: Name::get_progmem_str(idx, fallback), Name::get_log_str(idx, fallback)
-/// idx may be any integer or enum; a value outside the table returns the string at fallback (LAST_INDEX by default).
+/// idx and fallback may be any integer or enum; an idx outside the table returns the string at fallback,
+/// LAST_INDEX by default.
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
     using Table = ::esphome::ProgmemStringTable<__VA_ARGS__>; \
@@ -154,7 +152,7 @@ struct LogString;
     static constexpr size_t MAX_LENGTH = Table::MAX_LENGTH; \
     static constexpr auto BLOB ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_blob(); \
     static constexpr auto OFFSETS ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_offsets(); \
-    static const char *get_(uint8_t idx, uint8_t fallback) { \
+    static const char *get_(size_t idx, uint8_t fallback) { \
       if (idx >= COUNT) \
         idx = fallback; \
       /* std::launder is used here to prevent the inter-procedural analysis that */ \
@@ -162,14 +160,18 @@ struct LogString;
       if constexpr (Table::INDEXED) \
         return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
       else \
-        return std::launder(::esphome::progmem_skip_strings(BLOB.data(), idx)); \
+        return std::launder(::esphome::progmem_skip_strings(BLOB.data(), static_cast<uint8_t>(idx))); \
     } \
-    template<typename T> static ::ProgmemStr get_progmem_str(T idx, uint8_t fallback = LAST_INDEX) { \
-      return reinterpret_cast<::ProgmemStr>(get_(::esphome::progmem_table_index(idx, COUNT), fallback)); \
+    template<typename T, typename F = uint8_t> static ::ProgmemStr get_progmem_str(T idx, F fallback = LAST_INDEX) { \
+      return reinterpret_cast<::ProgmemStr>( \
+          get_(::esphome::progmem_detail::table_index(idx), \
+               static_cast<uint8_t>(::esphome::progmem_detail::table_index(fallback)))); \
     } \
-    template<typename T> static const ::esphome::LogString *get_log_str(T idx, uint8_t fallback = LAST_INDEX) { \
+    template<typename T, typename F = uint8_t> \
+    static const ::esphome::LogString *get_log_str(T idx, F fallback = LAST_INDEX) { \
       return reinterpret_cast<const ::esphome::LogString *>( \
-          get_(::esphome::progmem_table_index(idx, COUNT), fallback)); \
+          get_(::esphome::progmem_detail::table_index(idx), \
+               static_cast<uint8_t>(::esphome::progmem_detail::table_index(fallback)))); \
     } \
   }
 
