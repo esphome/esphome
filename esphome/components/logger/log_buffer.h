@@ -172,7 +172,8 @@ struct LogBuffer {
   // Room for the body and its null terminator with the color reset behind it; 0 or less when there is none
   int body_room_() const { return this->remaining_() - ANSI_RESET_LEN; }
   char *current_() { return this->data + this->pos; }
-  // The body writers leave room for the terminator, so pos is always inside the buffer here
+  // The body starts inside the buffer (write_header() needs MAX_HEADER_SIZE free) and the body writers keep a byte
+  // for the terminator, so pos is inside the buffer here
   void finalize_() { this->data[this->pos] = '\0'; }
   // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
   // Callers have checked body_room_(), which keeps space for the reset and the terminator after it
