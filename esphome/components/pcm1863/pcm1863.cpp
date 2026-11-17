@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "pcm1863");
 
 // Indexed by PCM1863BitsPerSample
 PROGMEM_STRING_TABLE(BitsPerSampleStrings, "32", "24", "20", "16");
-PROGMEM_STRING_TABLE(InputStrings, "none", "VIN1", "VIN2", "VIN3", "VIN4", "DIFF_1", "DIFF_2");
+PROGMEM_STRING_TABLE(InputStrings, "NONE", "VIN1", "VIN2", "VIN3", "VIN4", "DIFF_1", "DIFF_2");
 
 // Page select and power up: bits 2:0 clear is the run state, and the reserved bits 7:3
 // must be written as 0b01110 or the analog section stops
