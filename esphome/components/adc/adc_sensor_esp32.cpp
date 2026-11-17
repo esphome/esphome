@@ -14,10 +14,6 @@ adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 // Indexed by adc_atten_t
 PROGMEM_STRING_TABLE(AttenuationStrings, "0 dB", "2.5 dB", "6 dB", "12 dB", "Unknown Attenuation");
 
-const LogString *attenuation_to_str(adc_atten_t attenuation) {
-  return AttenuationStrings::get_log_str(static_cast<uint8_t>(attenuation), AttenuationStrings::LAST_INDEX);
-}
-
 const LogString *adc_unit_to_str(adc_unit_t unit) {
   switch (unit) {
     case ADC_UNIT_1:
@@ -133,8 +129,10 @@ void ADCSensor::dump_config() {
                 "    Calibration:  %s\n"
                 "    Overall Init: %s",
                 this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
-                LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
+                this->autorange_ ? "Auto"
+                                 : LOG_STR_ARG(AttenuationStrings::get_log_str(static_cast<uint8_t>(this->attenuation_),
+                                                                               AttenuationStrings::LAST_INDEX)),
+                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
                 this->setup_flags_.handle_init_complete ? "OK" : "FAILED",
                 this->setup_flags_.config_complete ? "OK" : "FAILED", calibration_status,
                 this->setup_flags_.init_complete ? "OK" : "FAILED");
