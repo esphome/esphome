@@ -68,7 +68,7 @@ void CST3240Touchscreen::update_touches() {
     return;
   }
 
-  const uint8_t count = data[cstxxx::FINGER_COUNT_IDX] & 0x0F;
+  const uint8_t count = low_nibble(data[cstxxx::FINGER_COUNT_IDX]);
   if (count <= CST3240_MAX_TOUCHES) {
     for (uint8_t i = 0; i < count; i++) {
       auto touch = cstxxx::decode_touch(data, i);

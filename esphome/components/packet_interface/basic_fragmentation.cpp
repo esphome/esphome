@@ -88,8 +88,12 @@ bool BasicFragmentation::send_(const PacketBuffer &data, const PacketMetaData &m
     header[1] = index | (index + 1 == fragments ? LAST_FRAGMENT : 0);
     PacketBuffer body(this->tx_buffer_, length);
     if (!this->lower_->send_to_interface(PacketBuffer(header, HEADER_SIZE, &body, nullptr, 0), meta_data)) {
-      // The peer drops the part already sent when the next packet starts
-      ESP_LOGV(TAG, "%s: Fragment %zu of %zu not accepted", this->name_, index, fragments);
+      if (index == 0) {
+        ESP_LOGV(TAG, "%s: Fragment 0 of %zu not accepted", this->name_, fragments);
+      } else {
+        // The peer drops the part already sent when the next packet starts
+        ESP_LOGW(TAG, "%s: Packet cut short, fragment %zu of %zu not accepted", this->name_, index, fragments);
+      }
       return false;
     }
   }

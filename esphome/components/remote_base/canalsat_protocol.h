@@ -15,7 +15,7 @@ struct CanalSatData {
   }
 };
 
-struct CanalSatLDData : public CanalSatData {};
+using CanalSatLDData = CanalSatData;
 
 class CanalSatBaseProtocol : public RemoteProtocol<CanalSatData> {
  public:

@@ -13,7 +13,7 @@ static const uint16_t MANUFACTURER_ID = 0x000D;
 // Maximum bytes to log in very verbose hex output
 static constexpr size_t MOPEKA_MAX_LOG_BYTES = 32;
 
-void MopekaStdCheck::dump_config() {
+void MopekaStdCheck::dump_child_config() {
   ESP_LOGCONFIG(TAG,
                 "Mopeka Std Check\n"
                 "  Propane Butane mix: %.0f%%\n"

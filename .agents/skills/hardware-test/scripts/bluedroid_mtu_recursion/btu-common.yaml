@@ -1,0 +1,75 @@
+# Central for the Bluedroid queued MTU recursion repro (esphome#17954). Every connection: wait 1.5 s, then
+# suspend BTU_TASK, local disconnect, 4 reads + 1 MTU request (or execute write with exec_write: "true") in one
+# batch, resume. ble_client reconnects.
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK: y
+
+logger:
+  level: DEBUG
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+
+globals:
+  - {id: rounds, type: int, initial_value: "0"}
+  - {id: chr_handle, type: uint16_t, initial_value: "0"}
+
+ble_client:
+  - mac_address: ${peer_mac}
+    id: srv
+    on_connect:
+      - logger.log: {format: "CLI connected", level: INFO}
+      # Runs inside SEARCH_CMPL, before ble_client releases the GATT cache (it has no other nodes)
+      - lambda: |-
+          esp_bt_uuid_t uuid = esp32_ble_tracker::ESPBTUUID::from_raw("5ec10001-0000-1000-8000-00805f9b34fb").get_uuid();
+          esp_gattc_char_elem_t elem;
+          uint16_t count = 1;
+          id(chr_handle) = 0;
+          if (esp_ble_gattc_get_char_by_uuid(id(srv)->get_gattc_if(), id(srv)->get_conn_id(), 1, 0xFFFF, uuid, &elem,
+                                             &count) == ESP_GATT_OK && count > 0)
+            id(chr_handle) = elem.char_handle;
+      - delay: 1500ms
+      - lambda: |-
+          if (!id(srv)->connected()) return;
+          esp_gatt_if_t gattc_if = id(srv)->get_gattc_if();
+          uint16_t conn_id = id(srv)->get_conn_id();
+          uint16_t handle = id(chr_handle);
+          if (handle == 0) {
+            ESP_LOGW("btu", "ROUND skipped, no characteristic");
+            return;
+          }
+          int n = ++id(rounds);
+          ESP_LOGI("btu", "ROUND %d start conn_id=%u handle=0x%04x", n, conn_id, handle);
+          TaskHandle_t btu = xTaskGetHandle("BTU_TASK");
+          if (btu == nullptr) {
+            // vTaskSuspend(nullptr) would suspend this task forever
+            ESP_LOGE("btu", "ROUND %d aborted, no BTU_TASK", n);
+            return;
+          }
+          vTaskSuspend(btu);
+          // a rejected disconnect leaves the link up, so the queued calls never take the failing send path
+          esp_err_t err = esp_ble_gap_disconnect(id(srv)->get_remote_bda());
+          for (int i = 0; i < 4; i++) {
+            esp_err_t e = esp_ble_gattc_read_char(gattc_if, conn_id, handle, ESP_GATT_AUTH_REQ_NONE);
+            if (e != ESP_OK)
+              err = e;
+          }
+          esp_err_t e = ${exec_write} ? esp_ble_gattc_execute_write(gattc_if, conn_id, true)
+                                      : esp_ble_gattc_send_mtu_req(gattc_if, conn_id);
+          if (e != ESP_OK)
+            err = e;
+          delay(30);
+          vTaskResume(btu);
+          // a round whose calls were rejected never reached the BTU queue, so it tests nothing
+          if (err != ESP_OK) {
+            ESP_LOGW("btu", "ROUND %d not queued: %s", n, esp_err_to_name(err));
+          } else {
+            ESP_LOGI("btu", "ROUND %d fired", n);
+          }
+    on_disconnect:
+      - logger.log: {format: "CLI disconnected", level: INFO}
