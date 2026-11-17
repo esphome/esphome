@@ -70,6 +70,7 @@ static constexpr uint32_t ATTACH_TIMEOUT_MS = 75000;
 // AT+CEREG? <stat> values
 static constexpr int REGISTRATION_NOT_SEARCHING = 0;
 static constexpr int REGISTRATION_HOME = 1;
+static constexpr int REGISTRATION_SEARCHING = 2;
 static constexpr int REGISTRATION_DENIED = 3;
 static constexpr int REGISTRATION_ROAMING = 5;
 static constexpr int REGISTRATION_UNKNOWN = -1;      // no readable answer
@@ -778,7 +779,9 @@ ModemState ModemComponent::handle_state_enabling_() {
   }
   // The modem answers AT, so it is in command mode. A failed data mode exit leaves esp_modem's UART side in data mode,
   // from where its later switch to CMUX fails at once, so its mode is set to match; this sends nothing to the modem.
-  this->dce_->set_mode(modem_mode::RESUME_COMMAND_MODE);
+  if (!this->dce_->set_mode(modem_mode::RESUME_COMMAND_MODE)) {
+    ESP_LOGW(TAG, "esp_modem refused command mode; the switch to PPP may fail");
+  }
   this->probe_backoff_.store(0, std::memory_order_relaxed);
   // esp_modem keeps the last line before OK as the reply, which can be the echoed command
   if (this->dce_->set_echo(false) != command_result::OK) {
@@ -1104,29 +1107,36 @@ void ModemComponent::request_resync_() {
 // AT+CEREG covers LTE; on 2G and 3G the network registration is in AT+CREG, and AT+CGATT=1 is answered quickly once
 // it is set. Returns the <stat> that tells most, -1 when neither query was answered, or REGISTRATION_UNSUPPORTED.
 int ModemComponent::read_registration_() {
-  int lte = -1;
-  const command_result lte_read = this->dce_->get_network_registration_state(lte);
+  // A bare ERROR means the command is not supported; a +CME ERROR is a temporary failure
+  const command_result lte_read = this->at_reply_("AT+CEREG?");
+  const int lte =
+      lte_read == command_result::OK ? registration_from_reply(this->reply_, "+CEREG:") : REGISTRATION_UNKNOWN;
   if (is_registered(lte)) {
     return lte;
   }
+  const bool lte_unsupported = lte_read == command_result::FAIL && this->reply_.find("+CME ERROR") == std::string::npos;
   const command_result legacy_read = this->at_reply_("AT+CREG?");
-  const int legacy = legacy_read == command_result::OK ? registration_from_reply(this->reply_, "+CREG:") : -1;
-  // A multimode modem can be denied on LTE and registered on 2G or 3G
+  const int legacy =
+      legacy_read == command_result::OK ? registration_from_reply(this->reply_, "+CREG:") : REGISTRATION_UNKNOWN;
+  const bool legacy_unsupported =
+      legacy_read == command_result::FAIL && this->reply_.find("+CME ERROR") == std::string::npos;
+  // A multimode modem can be registered or still searching on one network type while the other refuses it
   if (is_registered(legacy)) {
     return legacy;
+  }
+  if (lte == REGISTRATION_SEARCHING || legacy == REGISTRATION_SEARCHING) {
+    return REGISTRATION_SEARCHING;
   }
   if (lte == REGISTRATION_DENIED || legacy == REGISTRATION_DENIED) {
     return REGISTRATION_DENIED;
   }
-  // A bare ERROR means the command is not supported; a +CME ERROR is a temporary failure
-  if (lte_read == command_result::FAIL && legacy_read == command_result::FAIL &&
-      this->reply_.find("+CME ERROR") == std::string::npos) {
+  if (lte_unsupported && legacy_unsupported) {
     return REGISTRATION_UNSUPPORTED;
   }
   if (lte_read == command_result::TIMEOUT && legacy_read == command_result::TIMEOUT) {
     this->request_resync_();
   }
-  return lte >= 0 ? lte : legacy;  // REGISTRATION_UNKNOWN when neither is readable
+  return lte != REGISTRATION_UNKNOWN ? lte : legacy;
 }
 
 void ModemComponent::not_responding_(int baud) {
