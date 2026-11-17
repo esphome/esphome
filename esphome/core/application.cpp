@@ -294,6 +294,8 @@ void Application::reboot() {
   for (auto &component : std::ranges::reverse_view(this->components_)) {
     component->on_shutdown();
   }
+  // No teardown on a forced reboot, but still power hardware down (Wi-Fi leaves the AP)
+  this->run_powerdown_hooks();
   arch_restart();
 }
 void Application::safe_reboot() {

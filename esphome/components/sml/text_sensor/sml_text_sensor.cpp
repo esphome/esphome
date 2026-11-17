@@ -48,7 +48,7 @@ void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
   }
 }
 
-void SmlTextSensor::dump_config() {
+void SmlTextSensor::dump_child_config() {
   LOG_TEXT_SENSOR("", "SML", this);
   if (!this->server_id.empty()) {
     ESP_LOGCONFIG(TAG, "  Server ID: %s", this->server_id.c_str());

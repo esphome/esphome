@@ -36,13 +36,8 @@ void setup_with_restore(BaseTemplateSelect *sel_comp, ESPPreferenceObject &pref,
 }
 
 void update_lambda(BaseTemplateSelect *sel_comp, const optional<std::string> &val) {
-  if (val.has_value()) {
-    if (!sel_comp->has_option(*val)) {
-      ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
-      return;
-    }
+  if (val.has_value())
     sel_comp->publish_state(*val);
-  }
 }
 
 }  // namespace esphome::template_
