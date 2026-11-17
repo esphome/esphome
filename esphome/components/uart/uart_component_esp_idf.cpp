@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
+#include <algorithm>
 #include <cinttypes>
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -40,9 +41,18 @@ static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
 }
 
-// RX thresholds stay this many bytes below the hardware FIFO size (128 bytes, 16 on the LP UART).
+// Hardware FIFO size of a UART: 128 bytes, 16 on the LP UART.
+static constexpr size_t hw_fifo_len(uart_port_t uart_num) {
+#if (SOC_UART_LP_NUM >= 1)
+  return (uart_num < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN;
+#else
+  return SOC_UART_FIFO_LEN;
+#endif
+}
+
+// RX thresholds stay this many bytes below the hardware FIFO size.
 static constexpr uint8_t RX_FIFO_HEADROOM = 6;
-static constexpr size_t max_rx_threshold(uart_port_t uart_num) { return UART_HW_FIFO_LEN(uart_num) - RX_FIFO_HEADROOM; }
+static constexpr size_t max_rx_threshold(uart_port_t uart_num) { return hw_fifo_len(uart_num) - RX_FIFO_HEADROOM; }
 
 // clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
 static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
@@ -158,11 +168,7 @@ void IDFUARTComponent::setup() {
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
 
-#if (SOC_UART_LP_NUM >= 1)
-  size_t fifo_len = ((this->uart_num_ < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN);
-#else
-  size_t fifo_len = SOC_UART_FIFO_LEN;
-#endif
+  size_t fifo_len = hw_fifo_len(this->uart_num_);
   if (this->rx_buffer_size_ <= fifo_len) {
     ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
     this->rx_buffer_size_ = fifo_len * 2;
