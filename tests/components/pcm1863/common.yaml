@@ -1,9 +1,14 @@
 esphome:
   on_boot:
     then:
-      - audio_adc.set_mic_gain: 0db
-      - audio_adc.set_mic_gain: !lambda 'return 4;'
       - audio_adc.set_mic_gain:
+          id: pcm1863_adc
+          mic_gain: 0db
+      - audio_adc.set_mic_gain:
+          id: pcm1863_adc
+          mic_gain: !lambda 'return 4;'
+      - audio_adc.set_mic_gain:
+          id: pcm1863_adc
           mic_gain: 6db
 
 audio_adc:
