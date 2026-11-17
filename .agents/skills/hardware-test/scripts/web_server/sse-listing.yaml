@@ -1,0 +1,141 @@
+# Per-session /events listing check (sse_listing.py): ESP32 ESP-IDF, web_server version 3, 19 entities in 3 sorting
+# groups, internal heap logged every 5 s. Substitution: name (set with -s name).
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+web_server:
+  version: 3
+  sorting_groups:
+    - id: grp_env
+      name: "Environment"
+      sorting_weight: 10
+    - id: grp_ctl
+      name: "Controls"
+      sorting_weight: 20
+    - id: grp_diag
+      name: "Diagnostics"
+      sorting_weight: 30
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("heap", "free=%u min=%u largest=%u",
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+
+sensor:
+  - platform: template
+    name: "Temp A"
+    lambda: return 20.0 + (millis() % 1000) / 100.0;
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_env, sorting_weight: 1}
+  - platform: template
+    name: "Temp B"
+    lambda: return 21.0 + (millis() % 997) / 100.0;
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_env, sorting_weight: 2}
+  - platform: template
+    name: "Humidity A"
+    lambda: return 40.0 + (millis() % 991) / 50.0;
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_env, sorting_weight: 3}
+  - platform: template
+    name: "Humidity B"
+    lambda: return 45.0 + (millis() % 983) / 50.0;
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_env, sorting_weight: 4}
+  - platform: template
+    name: "Pressure"
+    lambda: return 1000.0 + (millis() % 977) / 10.0;
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_env, sorting_weight: 5}
+  - platform: template
+    name: "Counter"
+    lambda: return millis() / 1000;
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_diag, sorting_weight: 1}
+  - platform: template
+    name: "Free Heap"
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_diag, sorting_weight: 2}
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 1s
+    web_server: {sorting_group_id: grp_diag, sorting_weight: 3}
+
+switch:
+  - platform: template
+    name: "Relay 1"
+    optimistic: true
+    web_server: {sorting_group_id: grp_ctl, sorting_weight: 1}
+  - platform: template
+    name: "Relay 2"
+    optimistic: true
+    web_server: {sorting_group_id: grp_ctl, sorting_weight: 2}
+  - platform: template
+    name: "Relay 3"
+    optimistic: true
+  - platform: template
+    name: "Relay 4"
+    optimistic: true
+
+number:
+  - platform: template
+    name: "Setpoint"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 50
+    web_server: {sorting_group_id: grp_ctl, sorting_weight: 3}
+
+select:
+  - platform: template
+    name: "Mode"
+    optimistic: true
+    options: ["Off", "Low", "High"]
+    initial_option: "Low"
+    web_server: {sorting_group_id: grp_ctl, sorting_weight: 4}
+
+text_sensor:
+  - platform: template
+    name: "Status"
+    lambda: return {"ok"};
+    update_interval: 5s
+    web_server: {sorting_group_id: grp_diag, sorting_weight: 4}
+  - platform: template
+    name: "Label"
+    lambda: return {"bench"};
+    update_interval: 60s
+
+binary_sensor:
+  - platform: template
+    name: "Toggle Bit"
+    lambda: return (millis() / 2000) % 2;
+  - platform: template
+    name: "Always On"
+    lambda: return true;
+
+button:
+  - platform: restart
+    name: "Restart"
+    web_server: {sorting_group_id: grp_diag, sorting_weight: 5}
