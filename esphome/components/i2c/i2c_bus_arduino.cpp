@@ -102,6 +102,14 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
 
   uint8_t status = 0;
   if (write_count != 0 || read_count == 0) {
+#ifdef USE_RP2
+    // arduino-pico leaves a transmission open when a write overflows its buffer, and every later
+    // beginTransmission() is then ignored, so refuse the write before starting it
+    if (write_count > WIRE_BUFFER_SIZE) {
+      ESP_LOGVV(TAG, "TX of %zu bytes exceeds the %u byte Wire buffer", write_count, WIRE_BUFFER_SIZE);
+      return ERROR_TOO_LARGE;
+    }
+#endif
     this->wire_->beginTransmission(address);
     size_t ret = this->wire_->write(write_buffer, write_count);
     if (ret != write_count) {
