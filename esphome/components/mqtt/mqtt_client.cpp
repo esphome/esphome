@@ -323,12 +323,17 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+  this->status_set_warning();
+  // No lookup can start before the network is up: there is no DNS server to ask yet.
+  // Stay disconnected, and loop() calls this again.
+  if (!network::is_connected())
+    return;
+
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
 
-  this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
@@ -358,9 +363,13 @@ void MQTTClientComponent::start_dnslookup_() {
     }
     default:
     case ERR_ARG: {
-      // error
+      // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
-      break;
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+      this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+      this->connect_begin_ = millis();
+      return;
     }
   }
 
