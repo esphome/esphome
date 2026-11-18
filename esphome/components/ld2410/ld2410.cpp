@@ -232,10 +232,7 @@ void LD2410Component::restart_and_read_all_info() {
 
 void LD2410Component::loop() {
   this->read_available<MAX_LINE_LENGTH>([this](uint8_t c) {
-    const uint8_t *frame = this->reader_.feed(c);
-    while (frame != nullptr) {
-      frame = this->handle_frame_(frame, this->reader_.frame_length()) ? this->reader_.next() : this->reader_.resync();
-    }
+    this->reader_.feed(c, [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); });
   });
 }
 
