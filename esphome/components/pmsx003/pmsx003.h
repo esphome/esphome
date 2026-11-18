@@ -1,11 +1,17 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::pmsx003 {
+
+static constexpr uint8_t START_CHARACTER_1 = 0x42;
+static constexpr uint8_t START_CHARACTER_2 = 0x4D;
+// PMS5003ST: 36 byte payload after the 2 start and 2 length bytes
+static constexpr uint8_t MAX_FRAME_SIZE = 40;
 
 enum class Type : uint8_t {
   PMS1003 = 0,
@@ -67,19 +73,16 @@ class PMSX003Component final : public uart::UARTDevice, public Component {
   SUB_SENSOR(humidity)
 
  protected:
-  optional<bool> check_byte_();
-  void parse_data_();
+  void handle_frames_(const uint8_t *frame, uint32_t now);
+  bool check_frame_(const uint8_t *frame, size_t total_size);
+  void parse_data_(const uint8_t *frame);
   bool check_payload_length_(uint16_t payload_length);
   void send_command_(Command cmd, uint16_t data);
-  uint16_t get_16_bit_uint_(uint8_t start_index) const {
-    return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
-  }
 
   Type type_;
   State state_{State::IDLE};
   bool initialised_{false};
-  uint8_t data_[64];
-  uint8_t data_index_{0};
+  LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU16BE<2, 4>, START_CHARACTER_1, START_CHARACTER_2>> reader_;
   uint32_t fan_on_time_{0};
   uint32_t last_update_{0};
   uint32_t last_transmission_{0};
