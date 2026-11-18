@@ -246,7 +246,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         `time::decode_bcd_calendar<LAYOUT>` and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`,
         `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
-        `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
+        `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`, frames that give their own length
+        with `LengthFrameReader<N, LEN_POS, LEN_ADD, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
         `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
         poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,

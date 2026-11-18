@@ -140,4 +140,93 @@ TEST(FrameReaderTest, SixteenBitIndex) {
   EXPECT_EQ(frames[0][299], 0x42);
 }
 
+// Feeds bytes and collects every completed frame of a LengthFrameReader.
+template<size_t N, size_t P, size_t A, uint8_t... H>
+static Frames feed_all(LengthFrameReader<N, P, A, H...> &reader, const Bytes &input) {
+  Frames frames;
+  for (uint8_t c : input) {
+    const uint8_t *frame = reader.feed(c);
+    if (frame != nullptr) {
+      EXPECT_EQ(reader.length(), 0u);
+      frames.emplace_back(frame, frame + reader.frame_length());
+    }
+  }
+  return frames;
+}
+
+static_assert(sizeof(LengthFrameReader<255, 7, 0, 0xA5, 0x01>) == 256);
+static_assert(sizeof(LengthFrameReader<300, 2, 3, 0xAA>) == 302);
+
+TEST(LengthFrameReaderTest, FramesOfDifferentLengths) {
+  // Length byte at 2 holds the whole frame length
+  LengthFrameReader<8, 2, 0, 0xA5> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x01, 0x04, 0x10, 0xA5, 0x02, 0x06, 0x20, 0x21, 0x22}),
+            (Frames{{0xA5, 0x01, 0x04, 0x10}, {0xA5, 0x02, 0x06, 0x20, 0x21, 0x22}}));
+}
+
+TEST(LengthFrameReaderTest, LengthCountsPayloadOnly) {
+  // Length byte at 1 counts the payload; header, length byte and a checksum byte add 3
+  LengthFrameReader<8, 1, 3, 0xAA> reader;
+  EXPECT_EQ(feed_all(reader, {0x00, 0xAA, 0x02, 0x11, 0x22, 0x33}), (Frames{{0xAA, 0x02, 0x11, 0x22, 0x33}}));
+}
+
+TEST(LengthFrameReaderTest, FrameEndingAtLengthByte) {
+  LengthFrameReader<8, 2, 0, 0xA5, 0x01> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x01, 0x03}), (Frames{{0xA5, 0x01, 0x03}}));
+}
+
+TEST(LengthFrameReaderTest, BadLengthRealignsAfterFirstByte) {
+  LengthFrameReader<8, 2, 0, 0xA5> reader;
+  // 0x02 ends the frame before its length byte and 0x09 is longer than 8: neither is a frame.
+  // The second A5 inside the bad one starts the real frame.
+  EXPECT_EQ(feed_all(reader, {0xA5, 0xA5, 0x02, 0xA5, 0x00, 0x09, 0xA5, 0x00, 0x04, 0x01}),
+            (Frames{{0xA5, 0x00, 0x04, 0x01}}));
+}
+
+TEST(LengthFrameReaderTest, LengthByteCanStartHeader) {
+  LengthFrameReader<8, 1, 0, 0x05> reader;
+  // Length 0x00 is too short; the real frame follows
+  EXPECT_EQ(feed_all(reader, {0x05, 0x00, 0x05, 0x03, 0x07}), (Frames{{0x05, 0x03, 0x07}}));
+}
+
+TEST(LengthFrameReaderTest, MultiByteHeaderMismatchRestarts) {
+  LengthFrameReader<8, 2, 0, 0xA5, 0x01> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0xA5, 0x01, 0x04, 0x09}), (Frames{{0xA5, 0x01, 0x04, 0x09}}));
+}
+
+TEST(LengthFrameReaderTest, LengthTracksPartialFrame) {
+  LengthFrameReader<8, 2, 0, 0xA5> reader;
+  reader.feed(0xA5);
+  reader.feed(0x00);
+  reader.feed(0x05);
+  EXPECT_EQ(reader.length(), 3u);
+  reader.reset();
+  EXPECT_EQ(reader.length(), 0u);
+  EXPECT_EQ(feed_all(reader, {0x01, 0xA5, 0x00, 0x03}), (Frames{{0xA5, 0x00, 0x03}}));
+}
+
+TEST(LengthFrameReaderTest, ResyncFindsHeaderInRejectedFrame) {
+  LengthFrameReader<8, 1, 0, 0xA5> reader;
+  // The A5 taken as a header was payload; the real frame starts at the second A5
+  const uint8_t *frame = nullptr;
+  for (uint8_t c : {0xA5, 0x05, 0x00, 0xA5, 0x04}) {
+    frame = reader.feed(c);
+  }
+  ASSERT_NE(frame, nullptr);
+  EXPECT_EQ(reader.frame_length(), 5u);
+  reader.resync();
+  EXPECT_EQ(reader.length(), 2u);
+  EXPECT_EQ(feed_all(reader, {0x10, 0x20}), (Frames{{0xA5, 0x04, 0x10, 0x20}}));
+}
+
+TEST(LengthFrameReaderTest, SixteenBitIndex) {
+  LengthFrameReader<300, 1, 45, 0xAA> reader;
+  Bytes input{0x00, 0xAA, 0xFF};
+  input.resize(input.size() + 298, 0x42);
+  Frames frames = feed_all(reader, input);
+  ASSERT_EQ(frames.size(), 1u);
+  EXPECT_EQ(frames[0].size(), 300u);
+  EXPECT_EQ(frames[0][299], 0x42);
+}
+
 }  // namespace esphome::core::testing
