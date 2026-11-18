@@ -8,7 +8,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-#include <array>
+#include "esphome/core/frame_reader.h"
 
 namespace esphome::shelly_dimmer {
 
@@ -19,6 +19,7 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
 
  private:
   static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
+  static constexpr uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
 
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
@@ -54,8 +55,8 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
 
   // Frame parser state.
   uint8_t seq_{0};
-  std::array<uint8_t, SHELLY_DIMMER_BUFFER_SIZE> buffer_;
-  uint8_t buffer_pos_{0};
+  // Start byte, seq, cmd, payload length, payload, two checksum bytes, end byte
+  LengthFrameReader<SHELLY_DIMMER_BUFFER_SIZE, 3, 7, SHELLY_DIMMER_PROTO_START_BYTE> reader_;
 
   // Firmware version.
   uint8_t version_major_;
@@ -92,16 +93,11 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
   /// Frames a given command payload.
   size_t frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *payload, size_t len);
 
-  /// Handles a single byte as part of a protocol frame.
-  ///
-  /// Returns -1 on failure, 0 when finished and 1 when more bytes needed.
-  int handle_byte_(uint8_t c);
-
   /// Reads a response frame.
   bool read_frame_();
 
   /// Handles a complete frame.
-  bool handle_frame_();
+  bool handle_frame_(const uint8_t *frame);
 
   /// Reset STM32 with the BOOT0 pin set to the given value.
   void reset_(bool boot0);

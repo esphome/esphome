@@ -26,7 +26,6 @@ constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
 constexpr uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
 
 // Protocol framing.
-constexpr uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
 constexpr uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
 
 // Supported commands.
@@ -308,78 +307,26 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   return p - data;
 }
 
-int ShellyDimmer::handle_byte_(uint8_t c) {
-  const uint8_t pos = this->buffer_pos_;
-
-  if (pos == 0) {
-    // Must be start byte.
-    return c == SHELLY_DIMMER_PROTO_START_BYTE ? 1 : -1;
-  } else if (pos < 4) {
-    // Header.
-    return 1;
-  }
-
-  // Decode payload length from header.
-  const uint8_t payload_len = this->buffer_[3];
-  if ((4 + payload_len + 3) > SHELLY_DIMMER_BUFFER_SIZE) {
-    return -1;
-  }
-
-  if (pos < 4 + payload_len + 1) {
-    // Payload.
-    return 1;
-  }
-
-  if (pos == 4 + payload_len + 1) {
-    // Verify checksum.
-    const uint16_t csum = encode_uint16(this->buffer_[pos - 1], c);
-    const uint16_t csum_verify = shelly_dimmer_checksum(&this->buffer_[1], 3 + payload_len);
-    if (csum != csum_verify) {
-      return -1;
-    }
-    return 1;
-  }
-
-  if (pos == 4 + payload_len + 2) {
-    // Must be end byte.
-    return c == SHELLY_DIMMER_PROTO_END_BYTE ? 0 : -1;
-  }
-  return -1;
-}
-
 bool ShellyDimmer::read_frame_() {
   while (this->available()) {
     const uint8_t c = this->read();
-    this->buffer_[this->buffer_pos_] = c;
-
-    ESP_LOGV(TAG, "Read byte: 0x%02x (pos %d)", c, this->buffer_pos_);
-
-    switch (this->handle_byte_(c)) {
-      case 0: {
-        // Frame successfully received.
-        this->handle_frame_();
-        this->buffer_pos_ = 0;
+    ESP_LOGV(TAG, "Read byte: 0x%02x", c);
+    for (const uint8_t *frame = this->reader_.feed(c); frame != nullptr; frame = this->reader_.resync()) {
+      const size_t len = this->reader_.frame_length();
+      if (frame[len - 1] == SHELLY_DIMMER_PROTO_END_BYTE &&
+          encode_uint16(frame[len - 3], frame[len - 2]) == shelly_dimmer_checksum(frame + 1, len - 4)) {
+        this->handle_frame_(frame);
         return true;
-      }
-      case -1: {
-        // Failure.
-        this->buffer_pos_ = 0;
-        break;
-      }
-      case 1: {
-        // Need more data.
-        this->buffer_pos_++;
-        break;
       }
     }
   }
   return false;
 }
 
-bool ShellyDimmer::handle_frame_() {
-  const uint8_t seq = this->buffer_[1];
-  const uint8_t cmd = this->buffer_[2];
-  const uint8_t payload_len = this->buffer_[3];
+bool ShellyDimmer::handle_frame_(const uint8_t *frame) {
+  const uint8_t seq = frame[1];
+  const uint8_t cmd = frame[2];
+  const uint8_t payload_len = frame[3];
 
   ESP_LOGD(TAG, "Got frame: 0x%02x", cmd);
 
@@ -389,7 +336,7 @@ bool ShellyDimmer::handle_frame_() {
     return false;
   }
 
-  const uint8_t *payload = &this->buffer_[4];
+  const uint8_t *payload = frame + 4;
 
   // Handle response.
   switch (cmd) {
