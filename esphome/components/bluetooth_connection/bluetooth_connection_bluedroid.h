@@ -103,6 +103,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void cancel_pending_open_();
   void set_idle_();
   void set_disconnecting_();
+  void release_coex_priority_();
   esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
@@ -137,10 +138,12 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // esp_ble_gattc_cancel_open() was accepted; CANCEL_OPEN_EVT or OPEN_EVT ends
   // the attempt, so the scheduled teardown can no longer be cancelled.
   bool cancel_open_sent_ : 1 {false};
+  // Holds a coex_ble_priority_acquire() until discovery ends or the link closes.
+  bool coex_held_ : 1 {false};
   // Search issued at OPEN_EVT overlaps the MTU exchange; discover_services()
   // completes from it. Reset by set_idle_().
-  static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 4), "search_state_ bitfield too narrow");
-  SearchState search_state_ : 4 {SearchState::NONE};
+  static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 3), "search_state_ bitfield too narrow");
+  SearchState search_state_ : 3 {SearchState::NONE};
   // esp_gatt_status_t of the completed search, held until claimed.
   uint8_t search_status_{0};
 };
