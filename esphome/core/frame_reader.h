@@ -5,11 +5,11 @@
 #include <cstring>
 #include <type_traits>
 
-// One out of line copy of replay_(): GCC would otherwise add a specialised clone of it
+// Out of line, one copy: the frame readers' rare paths call each other, and GCC would add specialised clones
 #if defined(__clang__)
-#define ESPHOME_FRAME_READER_REPLAY __attribute__((noinline))
+#define ESPHOME_FRAME_READER_COLD __attribute__((noinline))
 #else
-#define ESPHOME_FRAME_READER_REPLAY __attribute__((noinline, noclone))
+#define ESPHOME_FRAME_READER_COLD __attribute__((noinline, noclone))
 #endif
 
 namespace esphome {
@@ -68,7 +68,7 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
  protected:
   // Start over and feed buf_[1..last] again; never completes a frame as last < N, so it returns nullptr, which lets
   // feed() end in a tail call. Out of line, as feed() and replay_() call each other.
-  const uint8_t *ESPHOME_FRAME_READER_REPLAY replay_(size_t last) {
+  const uint8_t *ESPHOME_FRAME_READER_COLD replay_(size_t last) {
     this->pos_ = 0;
     for (size_t i = 1; i <= last; i++) {
       this->feed(this->buf_[i]);
@@ -131,25 +131,22 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
  public:
   /// Feed one byte; returns the completed frame, header included, valid until the next call, or nullptr.
   /// frame_length() gives its length.
-  const uint8_t *feed(uint8_t c) {
+  inline const uint8_t *__attribute__((always_inline)) feed(uint8_t c) {
+    // Most bytes are in the middle of a frame: no header or length to check and not the last byte
     const pos_t pos = this->pos_;
-    if (pos == 0) {
-      this->held_end_ = 0;
-      const bool header = ((c == FORMATS::FIRST) || ...);
-      if (header) {
-        this->buf_[0] = c;
-        this->pos_ = 1;
-      }
-      return nullptr;
-    }
+    bool middle;
     if constexpr (sizeof...(FORMATS) == 1) {
-      return this->feed_as_<FORMATS...>(pos, c);
+      middle = this->in_middle_<FORMATS...>(pos);
     } else {
       const uint8_t first = this->buf_[0];
-      const uint8_t *frame = nullptr;
-      (void) ((first == FORMATS::FIRST && ((frame = this->feed_as_<FORMATS>(pos, c)), true)) || ...);
-      return frame;
+      middle = ((first == FORMATS::FIRST && this->in_middle_<FORMATS>(pos)) || ...);
     }
+    if (middle) {
+      this->buf_[pos] = c;
+      this->pos_ = pos + 1;
+      return nullptr;
+    }
+    return this->feed_edge_(c);
   }
 
   /// Length of the frame feed(), resync() or next() returned; valid until the next call on the reader.
@@ -195,6 +192,33 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   }
 
  protected:
+  template<class F> bool in_middle_(pos_t pos) const {
+    constexpr size_t from = F::Length::KNOWN_AT > F::HEADER_LEN ? F::Length::KNOWN_AT : F::HEADER_LEN;
+    return pos >= from && pos + 1u < F::Length::get(this->buf_);
+  }
+
+  // A header byte, the byte that completes the length, the last byte of a frame, or a byte between frames
+  const uint8_t *ESPHOME_FRAME_READER_COLD feed_edge_(uint8_t c) {
+    const pos_t pos = this->pos_;
+    if (pos == 0) {
+      this->held_end_ = 0;
+      const bool header = ((c == FORMATS::FIRST) || ...);
+      if (header) {
+        this->buf_[0] = c;
+        this->pos_ = 1;
+      }
+      return nullptr;
+    }
+    if constexpr (sizeof...(FORMATS) == 1) {
+      return this->feed_as_<FORMATS...>(pos, c);
+    } else {
+      const uint8_t first = this->buf_[0];
+      const uint8_t *frame = nullptr;
+      (void) ((first == FORMATS::FIRST && ((frame = this->feed_as_<FORMATS>(pos, c)), true)) || ...);
+      return frame;
+    }
+  }
+
   template<class F> const uint8_t *feed_as_(pos_t pos, uint8_t c) {
     if (pos < F::HEADER_LEN && c != F::header_byte(pos)) {
       // A later byte of the broken header, or c, may start the real one
@@ -219,7 +243,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   // Start over and feed buf_[from..to) again; writes stay behind the read position. On a completed frame, moves the
   // bytes not fed yet right behind it, for next() and resync(), and returns it. Out of line, as feed() and replay_()
   // call each other.
-  const uint8_t *ESPHOME_FRAME_READER_REPLAY replay_(size_t from, size_t to) {
+  const uint8_t *ESPHOME_FRAME_READER_COLD replay_(size_t from, size_t to) {
     this->pos_ = 0;
     this->held_end_ = 0;
     for (size_t i = from; i < to; i++) {
