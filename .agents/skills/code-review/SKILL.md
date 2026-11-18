@@ -20,6 +20,9 @@ flagging in a review; read the matching skill for the detail behind any item.
 Only raise findings that the diff actually introduces or changes. Do not ask for
 drive-by cleanup of pre-existing code the PR did not touch.
 
+For error paths that fail without telling the user (early returns, swallowed
+errors, ignored results), the `silent-failure-review` skill has its own checklist.
+
 ## Scope: shared code does not ride a component PR
 
 Check the file list first. A PR titled for one component (`[ld2450] ...`) must

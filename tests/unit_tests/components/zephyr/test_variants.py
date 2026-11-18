@@ -221,9 +221,10 @@ def test_version_other_than_the_default_warns(
     assert "not the recommended one (4.5.0)" in caplog.text
 
 
-def test_version_that_is_not_a_number_is_rejected() -> None:
-    with pytest.raises(cv.Invalid, match="'v4.5.0' is not a version number") as err:
-        resolve_framework_version(_VARIANT, "chip1", _config("v4.5.0"), "chip1 support")
+@pytest.mark.parametrize("version", ["v4.5.0", "4.5.0-rc1a"])
+def test_version_that_is_not_a_number_is_rejected(version: str) -> None:
+    with pytest.raises(cv.Invalid, match=f"'{version}' is not a version number") as err:
+        resolve_framework_version(_VARIANT, "chip1", _config(version), "chip1 support")
     assert err.value.path == [CONF_FRAMEWORK, CONF_VERSION]
 
 
