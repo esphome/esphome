@@ -48,7 +48,7 @@ def test_port_with_pin_choices_is_routed(
             "bw15",
             "",
             "  tx_pin: PA03",
-            "UART1 of board bw15 has no default pins",
+            "UART1 of board bw15 has no default RX pin, so it needs rx_pin",
             id="pin_choices_tx_only",
         ),
         pytest.param(
@@ -64,6 +64,15 @@ def test_port_with_pin_choices_is_routed(
             "  tx_pin: PA03\n  rx_pin: PA02",
             "needs LibreTiny 1.12.0 or later",
             id="old_libretiny",
+        ),
+        # UART1 TX has a default pin on this board; only RX has choices
+        pytest.param("wbru", "", "  rx_pin: PA02", None, id="default_tx_rx_only"),
+        pytest.param(
+            "wbru",
+            "",
+            "  tx_pin: PA03",
+            "UART1 of board wbru has no default RX pin, so it needs rx_pin",
+            id="default_tx_tx_only",
         ),
         # RTL8710B falls back to SoftwareSerial
         pytest.param(
@@ -103,7 +112,7 @@ def test_hardware_uarts_of_a_board_with_pin_choices(tmp_path: Path) -> None:
     CORE.config_path = path
     config.validate_config(yaml_util.load_yaml(path), {})
     assert get_hardware_uarts() == [
-        HardwareUart(0, (14,), (13,), False),
-        HardwareUart(1, (1, 3), (0, 2), True),
-        HardwareUart(2, (16,), (15,), False),
+        HardwareUart(0, (14,), (13,), False, False),
+        HardwareUart(1, (1, 3), (0, 2), True, True),
+        HardwareUart(2, (16,), (15,), False, False),
     ]

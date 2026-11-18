@@ -196,8 +196,14 @@ class HardwareUart:
     port: int
     tx_pins: tuple[int, ...]
     rx_pins: tuple[int, ...]
-    # The board lists pin choices instead of default pins, so the pins are passed when the UART starts
-    pin_choices: bool
+    # The board lists pin choices instead of a default pin for this direction
+    tx_pin_choices: bool
+    rx_pin_choices: bool
+
+    @property
+    def pin_choices(self) -> bool:
+        """True when the pins must be passed when the UART starts."""
+        return self.tx_pin_choices or self.rx_pin_choices
 
 
 def get_hardware_uarts() -> list[HardwareUart]:
@@ -205,19 +211,25 @@ def get_hardware_uarts() -> list[HardwareUart]:
     board_pins = get_board_pins()
     uarts = []
     for port in range(3):
-        roles: dict[str, list[int]] = {"TX": [], "RX": []}
-        pin_choices = False
-        for role, pins in roles.items():
+        pins: dict[str, list[int]] = {"TX": [], "RX": []}
+        choices: dict[str, bool] = {"TX": False, "RX": False}
+        for role, role_pins in pins.items():
             name = f"SERIAL{port}_{role}"
             for key, pin in board_pins.items():
                 if key == name:
-                    pins.append(pin)
+                    role_pins.append(pin)
                 elif key.startswith(f"{name}_"):
-                    pins.append(pin)
-                    pin_choices = True
-        if roles["TX"] or roles["RX"]:
+                    role_pins.append(pin)
+                    choices[role] = True
+        if pins["TX"] or pins["RX"]:
             uarts.append(
-                HardwareUart(port, tuple(roles["TX"]), tuple(roles["RX"]), pin_choices)
+                HardwareUart(
+                    port,
+                    tuple(pins["TX"]),
+                    tuple(pins["RX"]),
+                    choices["TX"],
+                    choices["RX"],
+                )
             )
     return uarts
 

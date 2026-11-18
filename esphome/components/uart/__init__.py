@@ -383,11 +383,15 @@ def _validate_libretiny_pins(config: ConfigType) -> None:
         )
     if not uart.pin_choices:
         return
-    # LibreTiny opens such a port on an invalid pin when one is left out, which hangs at boot
-    if CONF_TX_PIN not in config or CONF_RX_PIN not in config:
-        raise cv.Invalid(
-            f"UART{uart.port} of board {board} has no default pins, so it needs both tx_pin and rx_pin"
-        )
+    # A left-out direction with no default pin is opened on an invalid pin, which hangs at boot
+    for key, role, choices in (
+        (CONF_TX_PIN, "TX", uart.tx_pin_choices),
+        (CONF_RX_PIN, "RX", uart.rx_pin_choices),
+    ):
+        if choices and key not in config:
+            raise cv.Invalid(
+                f"UART{uart.port} of board {board} has no default {role} pin, so it needs {key}"
+            )
     if not can_choose_uart_pins():
         raise cv.Invalid(
             f"Choosing the pins of UART{uart.port} on board {board} needs LibreTiny 1.12.0 or later"
