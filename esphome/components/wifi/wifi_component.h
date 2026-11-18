@@ -471,6 +471,9 @@ class WiFiPowerSaveListener {
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
 static constexpr uint32_t AP_DEAUTH_RETRY_TIMEOUT_ID = 2;
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+static constexpr uint32_t IPV6_RECOUNT_TIMEOUT_ID = 3;
+#endif
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
@@ -1116,9 +1119,9 @@ class WiFiComponent final : public Component {
   // so no happens-before relationship with other memory needs to be established.
   std::atomic<uint8_t> roaming_suppression_count_{0};
 #endif
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   uint8_t num_ipv6_addresses_{0};
-#endif /* USE_NETWORK_IPV6 */
+#endif
   bool error_from_callback_{false};
 #if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
   bool scan_driver_filtered_{false};
