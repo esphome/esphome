@@ -10,9 +10,11 @@ Report only. Do not edit files.
 ## Scope
 
 The diff of the checked-out branch against its base. Fetch the base first (`git fetch upstream dev`, or
-`git fetch origin dev` when there is no `upstream` remote), then run `git diff $(git merge-base upstream/dev HEAD)`
-(or `origin/dev`); a stale base pulls in commits the branch only merged. The diff includes uncommitted changes
-but not untracked files, so also read in full every file `git status --porcelain` lists as `??`.
+`git fetch origin dev` when there is no `upstream` remote); a stale base pulls in commits the branch only merged.
+Then run `git merge-base upstream/dev HEAD` (or `origin/dev`) on its own. If it fails or prints nothing (often a
+shallow clone; `git fetch --unshallow` fixes that), say the review could not run and stop; never report "no
+findings" then. Diff against that commit with `git diff <base>`. The diff includes uncommitted changes but not
+untracked files, so also read in full every file `git status --porcelain` lists as `??`.
 Use another branch only if the user names one. If neither remote exists, say so and stop. Read each changed
 function in full, and its callers, not just the hunks. When a failure depends on how a library call behaves,
 read that library's code too.
