@@ -123,8 +123,17 @@ async def to_code(config):
         cg.add(var.set_rts_pin(config[CONF_RTS_PIN]))
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
 
-    cg.add_library(
-        "esp_dmx",
-        None,
-        "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",
-    )
+    # IDF-component: behoudt CMakeLists REQUIRES (o.a. esp_driver_gptimer)
+    if CORE.using_esp_idf:
+        add_idf_component(
+            name="esp_dmx",
+            repo="https://github.com/KoenBreeman/esp_dmx.git",
+            ref="fix/cmake-esp-driver-gptimer",
+        )
+    else:
+        # Arduino-framework: PlatformIO library
+        cg.add_library(
+            "esp_dmx",
+            None,
+            "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",
+        )
