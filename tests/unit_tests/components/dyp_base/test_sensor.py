@@ -4,14 +4,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.const import CONF_OUTPUT_MODE
 from esphome.components.dyp_a13 import sensor as dyp_a13_sensor
 from esphome.components.dyp_base import (
     CONF_BLIND_ZONE,
-    CONF_OUTPUT_MODE_PIN,
+    CONF_FILTER_MODE,
+    CONF_FILTER_MODE_PIN,
     CONF_PUBLISH_MODE,
+    FILTER_MODES,
     MODES,
-    OUTPUT_MODES,
     PUBLISH_MODES,
     DYPModel,
     dyp_sensor_schema,
@@ -25,8 +25,8 @@ from esphome.const import (
     CONF_TRIGGER_PIN,
 )
 
-NO_OUTPUT_MODE_SCHEMA = dyp_sensor_schema(
-    {"NO_OUT": DYPModel("25cm", "800cm", mode="AUTO", supports_rx_mode_select=False)}
+NO_FILTER_MODE_SCHEMA = dyp_sensor_schema(
+    {"NO_FILT": DYPModel("25cm", "800cm", mode="AUTO", supports_rx_mode_select=False)}
 )
 
 
@@ -73,8 +73,8 @@ def test_unknown_model_raises_cv_invalid() -> None:
             "extra keys not allowed",
         ),
         (
-            NO_OUTPUT_MODE_SCHEMA,
-            {CONF_MODEL: "NO_OUT", "name": "Test", CONF_OUTPUT_MODE: "PROCESSED"},
+            NO_FILTER_MODE_SCHEMA,
+            {CONF_MODEL: "NO_FILT", "name": "Test", CONF_FILTER_MODE: "PROCESSED"},
             "extra keys not allowed",
         ),
         (
@@ -92,9 +92,9 @@ def test_unknown_model_raises_cv_invalid() -> None:
             {
                 CONF_MODEL: "A13NYUW",
                 "name": "Test",
-                CONF_OUTPUT_MODE: "REALTIME",
+                CONF_FILTER_MODE: "REALTIME",
             },
-            "'output_mode' requires 'output_mode_pin' to be configured",
+            "'filter_mode' requires 'filter_mode_pin' to be configured",
         ),
         (
             dyp_a13_sensor.CONFIG_SCHEMA,
@@ -102,9 +102,9 @@ def test_unknown_model_raises_cv_invalid() -> None:
                 CONF_MODEL: "A13",
                 "name": "Test",
                 CONF_MODE: "CONTROLLED",
-                CONF_OUTPUT_MODE_PIN: 4,
+                CONF_FILTER_MODE_PIN: 4,
             },
-            "'output_mode' and 'output_mode_pin' are only allowed when 'mode' is 'AUTO'",
+            "'filter_mode' and 'filter_mode_pin' are only allowed when 'mode' is 'AUTO'",
         ),
         (
             dyp_a13_sensor.CONFIG_SCHEMA,
@@ -151,7 +151,7 @@ def test_invalid_user_configs(
 
 
 @pytest.mark.asyncio
-async def test_codegen_auto_mode_with_output_mode_pin() -> None:
+async def test_codegen_auto_mode_with_filter_mode_pin() -> None:
     mock_var = MagicMock()
     mock_pin = MagicMock()
     config: dict[str, Any] = {
@@ -160,8 +160,8 @@ async def test_codegen_auto_mode_with_output_mode_pin() -> None:
         CONF_BLIND_ZONE: 0.25,
         CONF_MAX_RANGE: 2.0,
         CONF_PUBLISH_MODE: PUBLISH_MODES["IMMEDIATE"],
-        CONF_OUTPUT_MODE: OUTPUT_MODES["REALTIME"],
-        CONF_OUTPUT_MODE_PIN: {"number": 4},
+        CONF_FILTER_MODE: FILTER_MODES["REALTIME"],
+        CONF_FILTER_MODE_PIN: {"number": 4},
     }
     with (
         patch(

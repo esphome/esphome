@@ -5,7 +5,6 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.components.const import CONF_OUTPUT_MODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_RANGE,
@@ -25,7 +24,8 @@ DEPENDENCIES = ["uart"]
 DOMAIN = "dyp_base"
 
 CONF_BLIND_ZONE = "blind_zone"
-CONF_OUTPUT_MODE_PIN = "output_mode_pin"
+CONF_FILTER_MODE = "filter_mode"
+CONF_FILTER_MODE_PIN = "filter_mode_pin"
 CONF_PUBLISH_MODE = "publish_mode"
 
 dyp_base_ns = cg.esphome_ns.namespace("dyp_base")
@@ -33,11 +33,11 @@ DYPSensor = dyp_base_ns.class_(
     "DYPSensor", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
 )
 DYPMode = dyp_base_ns.enum("DYPMode", is_class=True)
-DYPOutputMode = dyp_base_ns.enum("DYPOutputMode", is_class=True)
+DYPFilterMode = dyp_base_ns.enum("DYPFilterMode", is_class=True)
 DYPPublishMode = dyp_base_ns.enum("DYPPublishMode", is_class=True)
 
 MODES = DYPMode.options("CONTROLLED", "AUTO", prefix="DYP_MODE_")
-OUTPUT_MODES = DYPOutputMode.options("PROCESSED", "REALTIME", prefix="DYP_OUTPUT_MODE_")
+FILTER_MODES = DYPFilterMode.options("PROCESSED", "REALTIME", prefix="DYP_FILTER_MODE_")
 PUBLISH_MODES = DYPPublishMode.options(
     "INTERVAL", "IMMEDIATE", prefix="DYP_PUBLISH_MODE_"
 )
@@ -63,17 +63,17 @@ def _validate_model_config(model: DYPModel) -> Callable[[ConfigType], ConfigType
         if is_auto and CONF_TRIGGER_PIN in config:
             raise cv.Invalid("`trigger_pin` is not allowed when `mode` is 'AUTO'.")
         if not is_auto and (
-            CONF_OUTPUT_MODE in config or CONF_OUTPUT_MODE_PIN in config
+            CONF_FILTER_MODE in config or CONF_FILTER_MODE_PIN in config
         ):
             raise cv.Invalid(
-                "'output_mode' and 'output_mode_pin' are only allowed when 'mode' is 'AUTO'."
+                "'filter_mode' and 'filter_mode_pin' are only allowed when 'mode' is 'AUTO'."
             )
-        if CONF_OUTPUT_MODE in config and CONF_OUTPUT_MODE_PIN not in config:
+        if CONF_FILTER_MODE in config and CONF_FILTER_MODE_PIN not in config:
             raise cv.Invalid(
-                "'output_mode' requires 'output_mode_pin' to be configured."
+                "'filter_mode' requires 'filter_mode_pin' to be configured."
             )
-        if CONF_OUTPUT_MODE_PIN in config and CONF_OUTPUT_MODE not in config:
-            config[CONF_OUTPUT_MODE] = cv.enum(OUTPUT_MODES, upper=True)("PROCESSED")
+        if CONF_FILTER_MODE_PIN in config and CONF_FILTER_MODE not in config:
+            config[CONF_FILTER_MODE] = cv.enum(FILTER_MODES, upper=True)("PROCESSED")
         if config[CONF_BLIND_ZONE] >= config[CONF_MAX_RANGE]:
             raise cv.Invalid("'blind_zone' must be less than 'max_range'.")
         return config
@@ -96,8 +96,8 @@ def _model_schema(model: DYPModel) -> cv.Schema:
             PUBLISH_MODES, upper=True
         )
         if model.supports_rx_mode_select:
-            extra[cv.Optional(CONF_OUTPUT_MODE)] = cv.enum(OUTPUT_MODES, upper=True)
-            extra[cv.Optional(CONF_OUTPUT_MODE_PIN)] = pins.gpio_output_pin_schema
+            extra[cv.Optional(CONF_FILTER_MODE)] = cv.enum(FILTER_MODES, upper=True)
+            extra[cv.Optional(CONF_FILTER_MODE_PIN)] = pins.gpio_output_pin_schema
     elif model.mode == "CONTROLLED":
         extra[cv.Optional(CONF_TRIGGER_PIN)] = pins.gpio_output_pin_schema
     elif model.mode == "AUTO":
@@ -105,8 +105,8 @@ def _model_schema(model: DYPModel) -> cv.Schema:
             PUBLISH_MODES, upper=True
         )
         if model.supports_rx_mode_select:
-            extra[cv.Optional(CONF_OUTPUT_MODE)] = cv.enum(OUTPUT_MODES, upper=True)
-            extra[cv.Optional(CONF_OUTPUT_MODE_PIN)] = pins.gpio_output_pin_schema
+            extra[cv.Optional(CONF_FILTER_MODE)] = cv.enum(FILTER_MODES, upper=True)
+            extra[cv.Optional(CONF_FILTER_MODE_PIN)] = pins.gpio_output_pin_schema
 
     base_schema = (
         sensor.sensor_schema(
@@ -166,6 +166,6 @@ async def to_code_base(config: ConfigType) -> None:
     cg.add(var.set_blind_zone(config[CONF_BLIND_ZONE]))
     cg.add(var.set_max_range(config[CONF_MAX_RANGE]))
     cg.add_optional(var.set_publish_mode, config.get(CONF_PUBLISH_MODE))
-    cg.add_optional(var.set_output_mode, config.get(CONF_OUTPUT_MODE))
+    cg.add_optional(var.set_filter_mode, config.get(CONF_FILTER_MODE))
     await cg.add_pin(var.set_trigger_pin, config.get(CONF_TRIGGER_PIN))
-    await cg.add_pin(var.set_output_mode_pin, config.get(CONF_OUTPUT_MODE_PIN))
+    await cg.add_pin(var.set_filter_mode_pin, config.get(CONF_FILTER_MODE_PIN))
