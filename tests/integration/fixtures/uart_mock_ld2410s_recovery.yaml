@@ -29,7 +29,7 @@ uart_mock:
     - delay: 100ms
       inject_rx: [0x6E, 0x02, 0x2C, 0x01, 0x62]
     # Standard header with a 255 byte length field (over the 96 byte buffer), three payload bytes,
-    # then a short frame, state 0 -> frame dropped, presence off
+    # then a short frame, state 0: the length is skipped and the short frame still parses -> presence off
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0xFF, 0x00, 0x01, 0x02, 0x03, 0x6E, 0x00, 0x00, 0x00, 0x62]
     # Standard frame declaring 5 payload bytes but carrying 3, then a short frame, state 2: the short

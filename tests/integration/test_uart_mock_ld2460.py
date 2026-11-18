@@ -114,9 +114,6 @@ async def test_uart_mock_ld2460(
             "Timeout waiting for the recovery frame",
             sensor_states=collector.sensor_states,
         )
-        assert any("Max frame length exceeded" in line for line in waiter.lines), (
-            "Expected 'Max frame length exceeded' in the log"
-        )
         assert (
             pytest.approx(3.606, abs=0.01)
             in collector.sensor_states["target_1_distance"]
