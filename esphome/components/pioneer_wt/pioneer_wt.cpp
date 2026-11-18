@@ -19,7 +19,6 @@ static constexpr uint8_t MAX_ATTEMPTS = 4;
 static constexpr uint32_t STATUS_REFRESH_MS = 5 * 60 * 1000;
 // Until the first full status has arrived, ask again this often.
 static constexpr uint32_t STATUS_RETRY_MS = 30 * 1000;
-// A frame arrives in one burst; after a pause this long a partly received frame is dropped.
 static constexpr float MIN_TEMPERATURE_C = 16.0f;
 static constexpr float MAX_TEMPERATURE_C = 31.0f;
 
