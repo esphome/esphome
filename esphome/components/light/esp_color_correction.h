@@ -40,11 +40,8 @@ class ESPColorCorrection {
 #endif
   void set_gamma_table(const uint16_t *table) { this->gamma_table_ = table; }
 
-  inline Color color_correct(Color color) const ESPHOME_ALWAYS_INLINE {
-    // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
-    return Color(this->color_correct_red(color.red), this->color_correct_green(color.green),
-                 this->color_correct_blue(color.blue), this->color_correct_white(color.white));
-  }
+  /// corrected = (uncorrected * max_brightness * local_brightness) ^ gamma, keeping a lit pixel lit
+  Color color_correct(Color color) const;
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
     return this->color_correct_channel(COLOR_CHANNEL_R, red);
   }
@@ -90,6 +87,8 @@ class ESPColorCorrection {
 #endif
     return res;
   }
+  /// Forward gamma as the table's 16-bit level
+  uint16_t gamma_level_(uint8_t value) const;
   /// Forward gamma: read uint16 PROGMEM table, convert to uint8
   uint8_t gamma_correct_(uint8_t value) const;
   /// Reverse gamma and limit for one stored level

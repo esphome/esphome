@@ -12,6 +12,37 @@ uint8_t ESPColorCorrection::gamma_correct_(uint8_t value) const {
   return result;
 }
 
+uint16_t ESPColorCorrection::gamma_level_(uint8_t value) const {
+  if (this->gamma_table_ == nullptr)
+    return value * 257;
+  return progmem_read_uint16(&this->gamma_table_[value]);
+}
+
+Color ESPColorCorrection::color_correct(Color color) const {
+  // The largest 16-bit level that still rounds to an 8-bit 0
+  static constexpr uint16_t MAX_DARK_LEVEL = 128;
+  uint8_t scaled[4];
+  uint8_t max_scaled = 0;
+  for (uint8_t i = 0; i < 4; i++) {
+    scaled[i] = esp_scale8_twice(color[i], this->max_brightness_[i], this->local_brightness_);
+    max_scaled = std::max(max_scaled, scaled[i]);
+  }
+  Color res;
+  if (max_scaled != 0 && this->gamma_level_(max_scaled) <= MAX_DARK_LEVEL) {
+    // Every channel would round to 0: stretch the strongest to full scale and round the others against
+    // it. Lighting each non-zero channel would turn a dim red with a trace of green into yellow, and
+    // the table is too coarse this low to compare its levels directly.
+    for (uint8_t i = 0; i < 4; i++)
+      res[i] = this->gamma_level_(scaled[i] * 255 / max_scaled) >= 0x8000 ? 1 : 0;
+  } else {
+    for (uint8_t i = 0; i < 4; i++)
+      res[i] = (this->gamma_level_(scaled[i]) + 128) / 257;
+  }
+  for (uint8_t i = 0; i < 4; i++)
+    res[i] = this->limit_(res[i]);
+  return res;
+}
+
 uint8_t ESPColorCorrection::gamma_uncorrect_(uint8_t value) const {
   if (this->gamma_table_ == nullptr)
     return value;
