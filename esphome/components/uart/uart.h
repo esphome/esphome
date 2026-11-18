@@ -90,6 +90,19 @@ class UARTDevice {
         count);
   }
 
+  /// For loop(): feed the waiting bytes to a LengthFrameReader and set last_rx to now. On a pass with nothing waiting,
+  /// gap_ms after last_rx, flush the partial frame, which a corrupt length can hold open with whole frames behind it.
+  /// Only an idle pass flushes, as after a slow loop the rest of a frame may already be waiting.
+  template<size_t N = 64, typename R, typename F>
+  void read_frames(R &reader, F &&handle, uint32_t now, uint32_t &last_rx, uint32_t gap_ms) {
+    if (const size_t count = this->available()) {
+      last_rx = now;
+      this->read_available<N>([&reader, &handle](uint8_t c) { reader.feed(c, handle); }, count);
+    } else if (reader.length() != 0 && now - last_rx >= gap_ms) {
+      reader.flush(handle);
+    }
+  }
+
   /// Read and drop every byte waiting in the receive buffer.
   void discard_available();
 
