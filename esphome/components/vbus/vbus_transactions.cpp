@@ -107,6 +107,11 @@ void VBusTransactions::loop() {
   }
 }
 
+void VBusTransactions::cancel() {
+  if (this->is_busy())
+    this->finish_(TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+}
+
 void VBusTransactions::on_shutdown() {
   this->stopped_ = true;
   this->phase_ = Phase::PHASE_IDLE;

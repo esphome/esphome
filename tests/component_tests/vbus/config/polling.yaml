@@ -31,6 +31,10 @@ button:
   - platform: template
     name: Queued
     on_press:
+      - vbus.suspend_polling:
+          id: test_bus
+      - vbus.resume_polling:
+          id: test_bus
       - vbus.queue_read:
           id: test_bus
           value_id: 2

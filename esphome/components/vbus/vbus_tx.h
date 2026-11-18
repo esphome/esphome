@@ -36,6 +36,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   }
   bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true);
   void release_bus(uint32_t grant_id);
+  void cancel_bus() { this->stop_(); }
 
   void observe_rx(size_t available);
   void observe_byte(uint8_t byte);
