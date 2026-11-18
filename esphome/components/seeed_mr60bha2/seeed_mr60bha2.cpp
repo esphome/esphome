@@ -63,14 +63,13 @@ static bool frame_valid(const uint8_t *frame, size_t len) {
 }
 
 void MR60BHA2Component::loop() {
-  this->read_available([this](uint8_t b) {
-    this->reader_.feed(b, [this](const uint8_t *frame, size_t len) {
-      if (!frame_valid(frame, len))
-        return false;
-      this->handle_frame_(frame, len);
-      return true;
-    });
-  });
+  auto handler = [this](const uint8_t *frame, size_t len) {
+    if (!frame_valid(frame, len))
+      return false;
+    this->handle_frame_(frame, len);
+    return true;
+  };
+  this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
 }
 
 void MR60BHA2Component::handle_frame_(const uint8_t *frame, size_t len) {

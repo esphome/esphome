@@ -230,7 +230,8 @@ void LD2450Component::loop() {
   if (count != 0) {
     this->bytes_since_frame_ = true;
   }
-  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); }, count);
+  auto handler = this->frame_handler_();
+  this->read_available<MAX_LINE_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
   this->check_link_();
 }
 
@@ -824,10 +825,6 @@ void LD2450Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
     default:
       break;
   }
-}
-
-void LD2450Component::readline_(uint8_t c) {
-  this->reader_.feed(c, [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); });
 }
 
 // Handles the frame when its footer is in place; returns false otherwise

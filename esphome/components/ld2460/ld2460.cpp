@@ -51,7 +51,8 @@ void LD2460Component::dump_config() {
 }
 
 void LD2460Component::loop() {
-  this->read_available<MAX_FRAME_LENGTH>([this](uint8_t b) { this->readline_(b); });
+  auto handler = this->frame_handler_();
+  this->read_available<MAX_FRAME_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
 }
 
 void LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_len) {
@@ -122,10 +123,6 @@ void LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_
 #endif
 
   this->data_callback_.call();
-}
-
-void LD2460Component::readline_(uint8_t readch) {
-  this->reader_.feed(readch, [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); });
 }
 
 // Handles the frame when its footer is in place; returns false otherwise

@@ -43,7 +43,10 @@ class LD2460Component : public Component, public uart::UARTDevice {
   void send_query_();
   void handle_periodic_data_(const uint8_t *data, uint8_t packet_len);
   void handle_ack_(const uint8_t *data, uint8_t len);
-  void readline_(uint8_t readch);
+  auto frame_handler_() {
+    return [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  }
+  void readline_(uint8_t c) { this->reader_.feed(c, this->frame_handler_()); }
   bool handle_frame_(const uint8_t *frame, uint8_t len);
 
 #ifdef USE_SENSOR

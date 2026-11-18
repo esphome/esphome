@@ -227,9 +227,8 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  this->read_available<MAX_LINE_LENGTH>([this](uint8_t c) {
-    this->reader_.feed(c, [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); });
-  });
+  auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  this->read_available<MAX_LINE_LENGTH>([this, &handler](uint8_t c) { this->reader_.feed(c, handler); });
 }
 
 void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {

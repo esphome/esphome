@@ -56,10 +56,11 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  this->read_available([this](uint8_t b) {
+  if (const size_t count = this->available()) {
     this->last_rx_char_timestamp_ = App.get_loop_component_start_time();
-    this->reader_.feed(b, this->frame_handler_());
-  });
+    auto handler = this->frame_handler_();
+    this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
+  }
   process_command_queue_();
 }
 

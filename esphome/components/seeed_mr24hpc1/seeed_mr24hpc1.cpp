@@ -120,14 +120,13 @@ static bool frame_valid(const uint8_t *data, size_t len) {
 
 // main loop
 void MR24HPC1Component::loop() {
-  this->read_available([this](uint8_t b) {
-    this->reader_.feed(b, [this](const uint8_t *frame, size_t len) {
-      if (!frame_valid(frame, len))
-        return false;
-      this->r24_parse_data_frame_(frame, len);
-      return true;
-    });
-  });
+  auto handler = [this](const uint8_t *frame, size_t len) {
+    if (!frame_valid(frame, len))
+      return false;
+    this->r24_parse_data_frame_(frame, len);
+    return true;
+  };
+  this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) &&
       (this->sg_start_query_data_ > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) && (!this->check_dev_inf_sign_)) {
