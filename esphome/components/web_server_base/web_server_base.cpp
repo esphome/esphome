@@ -147,6 +147,9 @@ void WebServerBase::add_handler_without_auth(AsyncWebHandler *handler) {
 
 void WebServerBase::create_server_() {
   this->server_ = new AsyncWebServer(this->port_);
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  this->server_->set_ssl_credentials(this->ssl_certificate_, this->ssl_private_key_);
+#endif
   // All content is controlled and created by user - so allowing all origins is fine here.
   // NOTE: Currently 1 header. If more are added, update in __init__.py:
   //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)

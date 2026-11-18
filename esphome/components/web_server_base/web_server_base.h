@@ -144,9 +144,23 @@ class WebServerBase final {
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  /// PEM certificate and key for HTTPS. Not copied: they must stay valid. Set them, like the port, before init().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+    if (this->server_ != nullptr)
+      this->server_->set_ssl_credentials(certificate, private_key);  // used at the next init()
+  }
+#endif
+
  protected:
   void create_server_();
 
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+#endif
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
   AsyncWebServer *server_{nullptr};
