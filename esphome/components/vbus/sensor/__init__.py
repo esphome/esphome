@@ -679,6 +679,11 @@ def final_validate(config: ConfigType) -> None:
     polling = full.get_config_for_path(
         full.get_path_for_id(config[CONF_POLLING_ID])[:-1]
     )
+    if CONF_VALUE_IDS not in polling:
+        raise cv.Invalid(
+            "P2 sensors require a generic polling component, not a controller scheduler",
+            path=[CONF_POLLING_ID],
+        )
     if config[CONF_VALUE_ID] not in polling[CONF_VALUE_IDS]:
         raise cv.Invalid(
             "P2 sensor value_id must be registered in this polling component's value_ids"

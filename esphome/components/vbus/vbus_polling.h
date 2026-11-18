@@ -14,6 +14,10 @@ class VBusPolling final : public PollingComponent {
  public:
   VBusPolling(VBusTransactions *transactions, VBusTransmitter *transmitter)
       : transactions_(transactions), transmitter_(transmitter) {}
+#ifdef USE_VBUS_CS_PLUS
+  VBusPolling(VBusTransactions *transactions, VBusTransmitter *transmitter, bool automatic)
+      : transactions_(transactions), transmitter_(transmitter), automatic_(automatic) {}
+#endif
   void setup() override;
   void update() override;
   void loop() override;
@@ -21,6 +25,24 @@ class VBusPolling final : public PollingComponent {
   void on_shutdown() override;
   void suspend();
   void resume();
+  bool is_suspended() const { return this->suspended_; }
+  bool accepts_manual_requests() const {
+#ifdef USE_VBUS_CS_PLUS
+    return this->automatic_;
+#else
+    return true;
+#endif
+  }
+#ifdef USE_VBUS_CS_PLUS
+  void clear_pending_reads();
+  void resume_group();
+  template<typename F> void add_on_group_end_callback(F &&callback) {
+    this->group_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_suspended_callback(F &&callback) {
+    this->suspended_callback_.add(std::forward<F>(callback));
+  }
+#endif
   void set_batch_size(uint8_t size) { this->batch_size_ = size; }
   void register_value(uint16_t value_id, bool rx_only);
   bool queue_read(uint16_t value_id);
@@ -49,7 +71,7 @@ class VBusPolling final : public PollingComponent {
   Value *find_value_(uint16_t value_id);
   bool pending_() const;
   void on_result_(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, TransactionStatus status);
-  void release_();
+  void release_(bool group_end = false);
 
   VBusTransactions *transactions_;
   VBusTransmitter *transmitter_;
@@ -65,8 +87,16 @@ class VBusPolling final : public PollingComponent {
   bool waiting_{false};
   bool stopped_{false};
   bool suspended_{false};
+#ifdef USE_VBUS_CS_PLUS
+  bool automatic_{true};
+  bool held_{false};
+#endif
   CallbackManager<void(uint16_t, uint32_t)> value_callback_;
   CallbackManager<void(uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus)> result_callback_;
+#ifdef USE_VBUS_CS_PLUS
+  CallbackManager<void(bool)> suspended_callback_;
+  CallbackManager<void()> group_callback_;
+#endif
 };
 
 }  // namespace esphome::vbus

@@ -1,0 +1,30 @@
+esphome:
+  name: vbus-controller-codegen
+host:
+logger:
+uart:
+  id: test_uart
+  port: /dev/null
+  baud_rate: 9600
+vbus:
+  id: controller_bus
+  uart_id: test_uart
+  transmit:
+    destination: 0x2211
+    transactions:
+      controller:
+        id: solar_controller
+        model: deltasol_cs_plus
+        on_snapshot:
+          - delay: 10ms
+          - lambda: ESP_LOGI("snapshot", "%u", id(solar_controller).completed_scans());
+button:
+  - platform: template
+    name: Refresh Controller
+    on_press:
+      - vbus.scan_controller:
+          id: solar_controller
+      - vbus.suspend_polling:
+          id: controller_bus
+      - vbus.resume_polling:
+          id: controller_bus

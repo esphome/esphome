@@ -22,6 +22,11 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   void set_destination(uint16_t destination) { this->destination_ = destination; }
   uint16_t get_source() const { return this->source_; }
   uint16_t get_destination() const { return this->destination_; }
+#ifdef USE_VBUS_CS_PLUS
+  uint32_t get_release_count() const { return this->release_count_; }
+  uint32_t get_read_count() const { return this->read_count_; }
+  uint32_t get_last_release_duration() const { return this->last_release_duration_; }
+#endif
   void set_lease_duration(uint32_t duration) { this->lease_duration_ms_ = duration; }
   template<typename F> void add_on_bus_grant_callback(F &&callback) {
     this->grant_callback_.add(std::forward<F>(callback));
@@ -63,6 +68,11 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   uint16_t sent_value_id_{0};
   uint32_t sent_value_{0};
   uint32_t grant_id_{0};
+#ifdef USE_VBUS_CS_PLUS
+  uint32_t release_count_{0};
+  uint32_t read_count_{0};
+  uint32_t last_release_duration_{0};
+#endif
   size_t rx_unread_{0};
   bool observed_{false};
   bool rx_fresh_{false};
