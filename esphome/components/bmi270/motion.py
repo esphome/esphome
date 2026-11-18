@@ -17,6 +17,14 @@ DEPENDENCIES = ["i2c"]
 CONF_AUX_ADDRESS = "aux_address"
 CONF_AUX_DEVICE = "aux_device"
 
+# to_code skips the setters at these values, so each must match its member default in bmi270.h
+DEFAULT_ACCELEROMETER_RANGE = "4G"
+DEFAULT_ACCELEROMETER_ODR = "100HZ"
+DEFAULT_GYROSCOPE_RANGE = "2000DPS"
+DEFAULT_GYROSCOPE_ODR = "200HZ"
+# The BMM150's fixed address
+DEFAULT_AUX_ADDRESS = 0x10
+
 #  Enum proxies (must match the C++ enum values exactly)
 BMI270AuxDevice = bmi270_ns.enum("BMI270AuxDevice")
 BMI270AccelRange = bmi270_ns.enum("BMI270AccelRange")
@@ -57,50 +65,49 @@ GYRO_ODR_OPTIONS = {
     "3200HZ": BMI270GyroODR.BMI270_GYRO_ODR_3200,
 }
 
-#  Top-level CONFIG_SCHEMA
 CONFIG_SCHEMA = (
     motion_schema(BMI270Component, has_accel=True, has_gyro=True)
     .extend(
         {
-            cv.Optional(CONF_ACCELEROMETER_RANGE, default="4G"): cv.enum(
-                ACCEL_RANGE_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_ACCELEROMETER_ODR, default="100HZ"): cv.enum(
-                ACCEL_ODR_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_GYROSCOPE_RANGE, default="2000DPS"): cv.enum(
+            cv.Optional(
+                CONF_ACCELEROMETER_RANGE, default=DEFAULT_ACCELEROMETER_RANGE
+            ): cv.enum(ACCEL_RANGE_OPTIONS, upper=True),
+            cv.Optional(
+                CONF_ACCELEROMETER_ODR, default=DEFAULT_ACCELEROMETER_ODR
+            ): cv.enum(ACCEL_ODR_OPTIONS, upper=True),
+            cv.Optional(CONF_GYROSCOPE_RANGE, default=DEFAULT_GYROSCOPE_RANGE): cv.enum(
                 GYRO_RANGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_GYROSCOPE_ODR, default="200HZ"): cv.enum(
+            cv.Optional(CONF_GYROSCOPE_ODR, default=DEFAULT_GYROSCOPE_ODR): cv.enum(
                 GYRO_ODR_OPTIONS, upper=True
             ),
-            # Optional device wired to the BMI270's aux interface (not the main I2C bus).
-            # Defaults to NONE so existing configs/boards are unaffected.
             cv.Optional(CONF_AUX_DEVICE, default="NONE"): cv.one_of(
                 "NONE", "BMM150", upper=True
             ),
-            # Default matches the BMM150's fixed I2C address; irrelevant when aux_device is NONE.
-            cv.Optional(CONF_AUX_ADDRESS, default=0x10): cv.i2c_address,
+            cv.Optional(CONF_AUX_ADDRESS, default=DEFAULT_AUX_ADDRESS): cv.i2c_address,
         }
     )
     .extend(i2c.i2c_device_schema(0x68))
 )
 
 
-#  Code generation
 async def to_code(config: ConfigType) -> None:
     var = await new_motion_component(config)
     await i2c.register_i2c_device(var, config)
 
-    # Accelerometer sensors
-    # Hardware configuration
-    cg.add(var.set_accel_range(config[CONF_ACCELEROMETER_RANGE]))
-    cg.add(var.set_accel_odr(config[CONF_ACCELEROMETER_ODR]))
-    cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
-    cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
+    # The C++ members already hold the schema defaults
+    for key, default, setter in (
+        (CONF_ACCELEROMETER_RANGE, DEFAULT_ACCELEROMETER_RANGE, var.set_accel_range),
+        (CONF_ACCELEROMETER_ODR, DEFAULT_ACCELEROMETER_ODR, var.set_accel_odr),
+        (CONF_GYROSCOPE_RANGE, DEFAULT_GYROSCOPE_RANGE, var.set_gyro_range),
+        (CONF_GYROSCOPE_ODR, DEFAULT_GYROSCOPE_ODR, var.set_gyro_odr),
+    ):
+        if config[key] != default:
+            cg.add(setter(config[key]))
     # The aux interface code only compiles when some instance has a BMM150; the
     # instance still records its own device, as another one may have none
     if config[CONF_AUX_DEVICE] == "BMM150":
         cg.add_define("USE_BMI270_BMM150")
         cg.add(var.set_aux_device(BMI270AuxDevice.BMI270_AUX_DEVICE_BMM150))
-        cg.add(var.set_aux_device_address(config[CONF_AUX_ADDRESS]))
+        if (address := config[CONF_AUX_ADDRESS]) != DEFAULT_AUX_ADDRESS:
+            cg.add(var.set_aux_device_address(address))
