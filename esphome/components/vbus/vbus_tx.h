@@ -30,6 +30,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   bool request_bus();
   bool has_bus() const;
   bool owns_bus(uint32_t grant_id) const;
+  bool has_time(uint32_t grant_id, uint32_t duration) const;
   bool ready_to_send(uint32_t grant_id) const {
     return grant_id == this->grant_id_ && this->has_bus() && this->can_send_();
   }

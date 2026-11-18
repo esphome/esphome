@@ -16,6 +16,16 @@ static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
 #ifdef USE_VBUS_TX
+bool VBus::request_bus() {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Bus request rejected: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transmitter_ != nullptr && this->transmitter_->request_bus();
+}
+
 bool VBus::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply) {
 #ifdef USE_VBUS_TRANSACTIONS
   if (this->transactions_ != nullptr && this->transactions_->is_busy()) {
@@ -23,8 +33,47 @@ bool VBus::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id,
     return false;
   }
 #endif
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Datagram not sent: polling owns the bus");
+    return false;
+  }
+#endif
   return this->transmitter_ != nullptr &&
          this->transmitter_->send_datagram(grant_id, command, value_id, value, expect_reply);
+}
+
+void VBus::release_bus(uint32_t grant_id) {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Bus release rejected: polling owns the bus");
+    return;
+  }
+#endif
+  if (this->transmitter_ != nullptr)
+    this->transmitter_->release_bus(grant_id);
+}
+#endif
+
+#ifdef USE_VBUS_TRANSACTIONS
+bool VBus::read_value(uint32_t grant_id, uint16_t value_id) {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Read rejected: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transactions_ != nullptr && this->transactions_->read_value(grant_id, value_id);
+}
+
+bool VBus::write_value(uint32_t grant_id, uint16_t value_id, uint32_t value, uint16_t command) {
+#ifdef USE_VBUS_POLLING
+  if (this->polling_ != nullptr) {
+    ESP_LOGW(TAG, "Write rejected: polling owns the bus");
+    return false;
+  }
+#endif
+  return this->transactions_ != nullptr && this->transactions_->write_value(grant_id, value_id, value, command);
 }
 #endif
 
