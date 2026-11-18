@@ -472,6 +472,10 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity))
 
 
+async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
+    """Placeholder: lights are not exposed over Zigbee yet."""
+
+
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(
     cv.All(
         cv.Schema(

@@ -75,10 +75,10 @@ async def test_setup_passes_light_state_to_zigbee_hook(
     config = configured_light()
     light_state = cg.MockObj("light_state")
     output = cg.MockObj("light_output")
-    hook = AsyncMock()
+    hook = AsyncMock(wraps=zigbee.zigbee_esp32.add_light)
 
     with (
-        patch("esphome.components.light.lazy_load_setup", hook),
+        patch("esphome.components.zigbee.zigbee_esp32.add_light", hook),
         patch(
             "esphome.components.light.entity_helpers.setup_entity_integrations",
             new_callable=AsyncMock,
@@ -86,4 +86,4 @@ async def test_setup_passes_light_state_to_zigbee_hook(
     ):
         await setup_light_core_(light_state, config, output)
 
-    hook.assert_awaited_once_with("zigbee", "setup_light", light_state, config)
+    hook.assert_awaited_once_with(light_state, config)
