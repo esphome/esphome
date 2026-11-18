@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
@@ -87,6 +88,12 @@ static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x0
 inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
+
+// Command and periodic data frames: the header, a little-endian payload length, the payload, then the footer
+template<uint8_t... HEADER>
+using LengthFrameFormat = FrameFormat<FrameLengthU16LE<HEADER_FOOTER_SIZE, 2 * HEADER_FOOTER_SIZE + 2>, HEADER...>;
+using CmdFrameFormat = LengthFrameFormat<0xFD, 0xFC, 0xFB, 0xFA>;
+using DataFrameFormat = LengthFrameFormat<0xF4, 0xF3, 0xF2, 0xF1>;
 
 // Whole command frame length, or 0 until the count arrives; 32 bit so 0xFFFF cannot wrap to 0
 inline uint32_t cmd_frame_length(const uint8_t *buffer, uint8_t count) {
