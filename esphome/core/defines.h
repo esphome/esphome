@@ -241,6 +241,7 @@
 #define REMOTE_BASE_DUMPER_COUNT 1
 #define REMOTE_BASE_LISTENER_COUNT 1
 #define SX1509_ON_KEY_COUNT 1
+#define VL6180X_ENABLE_PIN_COUNT 2
 #define WIEGAND_ON_KEY_COUNT 1
 #define WIEGAND_ON_RAW_COUNT 1
 #define WIEGAND_ON_TAG_COUNT 1
@@ -334,6 +335,7 @@
 #define USE_PACKET_INTERFACE_HDLC
 #define USE_PACKET_INTERFACE_XXTEA
 #define USE_PCA9554_PCAL
+#define USE_PCM1863_SELECT
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences

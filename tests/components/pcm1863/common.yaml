@@ -1,0 +1,24 @@
+esphome:
+  on_boot:
+    then:
+      - audio_adc.set_mic_gain:
+          id: pcm1863_adc
+          mic_gain: 0db
+      - audio_adc.set_mic_gain:
+          id: pcm1863_adc
+          mic_gain: !lambda 'return 4;'
+      - audio_adc.set_mic_gain:
+          id: pcm1863_adc
+          mic_gain: 6db
+
+audio_adc:
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_adc
+    input: VIN2
+
+select:
+  # Switches the analog input mux at runtime
+  - platform: pcm1863
+    pcm1863_id: pcm1863_adc
+    name: Line Input
