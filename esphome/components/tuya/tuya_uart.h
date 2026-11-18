@@ -7,6 +7,7 @@
 #include "tuya.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/frame_reader.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"

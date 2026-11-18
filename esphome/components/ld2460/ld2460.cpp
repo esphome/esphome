@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 

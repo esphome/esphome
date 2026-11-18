@@ -101,11 +101,14 @@ void TuyaFrameLength::warn_too_long(size_t len) {
 }
 
 bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
+  // Like a partial frame, a frame being handled holds queued commands back, also while its log lines run callbacks
+  this->handling_frame_ = true;
   // Last byte: sum of all bytes before it, header included, modulo 256
   const uint8_t rx_checksum = frame[len - 1];
   const uint8_t calc_checksum = sum_bytes(frame, len - 1);
   if (rx_checksum != calc_checksum) {
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
+    this->handling_frame_ = false;
     return false;
   }
   const uint8_t version = frame[2];
@@ -117,8 +120,6 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
   ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
            format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
 #endif
-  // Like a partial frame, a frame being handled holds queued commands back
-  this->handling_frame_ = true;
   this->handle_command_(command, version, message_data, length);
   this->handling_frame_ = false;
   return true;
