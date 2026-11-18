@@ -18,8 +18,8 @@ namespace esphome::seeed_mr60bha2 {
 static constexpr uint8_t FRAME_HEADER_BUFFER = 0x01;
 // Header, id, length and type bytes, header checksum, then the data and its checksum
 static constexpr uint8_t FRAME_OVERHEAD = 9;
-// Point cloud frames carry 4 bytes plus 16 per target; this holds 15 targets, the others at most 8 data bytes
-static constexpr uint8_t FRAME_MAX_SIZE = 255;
+// A point cloud frame is 13 bytes plus 16 per target and only its count is read; 128 holds up to 7 targets
+static constexpr uint8_t FRAME_MAX_SIZE = 128;
 static const uint16_t BREATH_RATE_TYPE_BUFFER = 0x0A14;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
 static const uint16_t HEART_RATE_TYPE_BUFFER = 0x0A15;
