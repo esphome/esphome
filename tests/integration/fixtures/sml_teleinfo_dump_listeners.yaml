@@ -1,0 +1,48 @@
+esphome:
+  name: sml-teleinfo-dump-listeners
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  - id: sml_uart
+    baud_rate: 9600
+    port: /dev/null
+  - id: teleinfo_uart
+    baud_rate: 9600
+    port: /dev/null
+    data_bits: 7
+    parity: EVEN
+
+sml:
+  uart_id: sml_uart
+
+teleinfo:
+  uart_id: teleinfo_uart
+  update_interval: 1h
+
+sensor:
+  - platform: sml
+    name: Total Energy
+    server_id: 0123456789abcdef
+    obis_code: "1-0:1.8.0"
+  - platform: sml
+    name: Active Power
+    obis_code: "1-0:16.7.0"
+  - platform: teleinfo
+    name: Energy Index
+    tag_name: EAST
+  - platform: teleinfo
+    name: Current
+    tag_name: IRMS1
+
+text_sensor:
+  - platform: sml
+    name: Manufacturer
+    obis_code: "129-129:199.130.3"
+    format: text
+  - platform: teleinfo
+    name: Meter Address
+    tag_name: ADSC

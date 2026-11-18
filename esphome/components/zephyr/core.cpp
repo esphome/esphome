@@ -20,7 +20,12 @@ void Mutex::lock() { k_mutex_lock(static_cast<k_mutex *>(this->handle_), K_FOREV
 bool Mutex::try_lock() { return k_mutex_lock(static_cast<k_mutex *>(this->handle_), K_NO_WAIT) == 0; }
 void Mutex::unlock() { k_mutex_unlock(static_cast<k_mutex *>(this->handle_)); }
 
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = irq_lock(); }
+IRAM_ATTR InterruptLock::InterruptLock() {
+#ifdef USE_ZEPHYR_DWT_MICROS
+  micros();  // Unlocked, so it catches up any sleep before timestamps are taken under the lock
+#endif
+  state_ = irq_lock();
+}
 IRAM_ATTR InterruptLock::~InterruptLock() { irq_unlock(state_); }
 
 // Zephyr LwIPLock is defined inline as a no-op in helpers.h
@@ -32,12 +37,9 @@ bool random_bytes(uint8_t *data, size_t len) {
 
 #ifdef USE_NRF52
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
-  mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
-  mac[2] = NRF_FICR->DEVICEADDR[0] >> 24;
-  mac[3] = NRF_FICR->DEVICEADDR[0] >> 16;
-  mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
-  mac[5] = NRF_FICR->DEVICEADDR[0];
+  // The top two bits of a random static address are set
+  put_be16(mac, NRF_FICR->DEVICEADDR[1] | 0xC000);
+  put_be32(mac + 2, NRF_FICR->DEVICEADDR[0]);
 }
 #endif
 }  // namespace esphome
