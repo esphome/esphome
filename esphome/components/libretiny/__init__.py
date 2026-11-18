@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
@@ -186,6 +187,49 @@ def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
 def get_board_pins() -> dict[str, int]:
     """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
     return lookup_board_pins(get_libretiny_board())
+
+
+@dataclass(frozen=True)
+class HardwareUart:
+    """A hardware UART of the configured board and the pin numbers it can use."""
+
+    port: int
+    tx_pins: tuple[int, ...]
+    rx_pins: tuple[int, ...]
+    # The board lists pin choices instead of default pins, so the pins are passed when the UART starts
+    pin_choices: bool
+
+
+def get_hardware_uarts() -> list[HardwareUart]:
+    """Hardware UARTs of the configured board; empty for a board without pin data."""
+    board_pins = get_board_pins()
+    uarts = []
+    for port in range(3):
+        roles: dict[str, list[int]] = {"TX": [], "RX": []}
+        pin_choices = False
+        for role, pins in roles.items():
+            name = f"SERIAL{port}_{role}"
+            for key, pin in board_pins.items():
+                if key == name:
+                    pins.append(pin)
+                elif key.startswith(f"{name}_"):
+                    pins.append(pin)
+                    pin_choices = True
+        if roles["TX"] or roles["RX"]:
+            uarts.append(
+                HardwareUart(port, tuple(roles["TX"]), tuple(roles["RX"]), pin_choices)
+            )
+    return uarts
+
+
+def has_software_serial() -> bool:
+    """True when the family's Arduino core has SoftwareSerial (LT_ARD_HAS_SOFTSERIAL)."""
+    return get_libretiny_family() == FAMILY_RTL8710B
+
+
+def can_choose_uart_pins() -> bool:
+    """True when SerialClass::begin() takes the pins, which LibreTiny added in 1.12.0."""
+    return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(1, 12, 0)
 
 
 def only_on_family(*, supported=None, unsupported=None):

@@ -89,3 +89,21 @@ def test_pins_are_checked_against_the_board(
         assert errors == []
     else:
         assert any(error in err for err in errors), errors
+
+
+def test_hardware_uarts_of_a_board_with_pin_choices(tmp_path: Path) -> None:
+    """The libretiny component reports each UART's pins and whether they are choices."""
+    from esphome.components.libretiny import HardwareUart, get_hardware_uarts
+
+    path = tmp_path / "uart.yaml"
+    path.write_text(
+        CONFIG.format(board="bw15", framework="", pins="  tx_pin: PA14"),
+        encoding="utf-8",
+    )
+    CORE.config_path = path
+    config.validate_config(yaml_util.load_yaml(path), {})
+    assert get_hardware_uarts() == [
+        HardwareUart(0, (14,), (13,), False),
+        HardwareUart(1, (1, 3), (0, 2), True),
+        HardwareUart(2, (16,), (15,), False),
+    ]
