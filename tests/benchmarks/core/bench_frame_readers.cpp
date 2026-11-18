@@ -106,16 +106,17 @@ static void LengthFrameReader_MixedFrames(benchmark::State &state) {
   const uint8_t *bytes = LENGTH_FRAMES;
   uint32_t frames = 0;
 
+  auto handle = [&frames](const uint8_t *frame, size_t /*len*/) {
+    benchmark::DoNotOptimize(frame);
+    frames++;
+    return true;
+  };
+
   for (auto _ : state) {
     benchmark::DoNotOptimize(bytes);
     for (int i = 0; i < kInnerIterations; i++) {
-      for (size_t j = 0; j < sizeof(LENGTH_FRAMES); j++) {
-        const uint8_t *frame = reader.feed(bytes[j]);
-        if (frame == nullptr)
-          continue;
-        benchmark::DoNotOptimize(frame);
-        frames++;
-      }
+      for (size_t j = 0; j < sizeof(LENGTH_FRAMES); j++)
+        reader.feed(bytes[j], handle);
     }
     benchmark::DoNotOptimize(frames);
   }
