@@ -1158,10 +1158,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     }
-    const bool expected_disconnect =
-        s_expected_disconnect.consume_disconnect(it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE);
+    const ExpectedLeave expected = s_expected_disconnect.consume_disconnect(
+        it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE || it.reason == WIFI_REASON_STA_LEAVING);
+    const bool expected_disconnect = expected != ExpectedLeave::EXPECTED_LEAVE_NONE;
     if (expected_disconnect) {
-      ESP_LOGD(TAG, "Expected disconnect from previous AP");
+      ESP_LOGD(TAG, "Expected leave of the previous %s",
+               expected == ExpectedLeave::EXPECTED_LEAVE_AP ? LOG_STR_LITERAL("AP") : LOG_STR_LITERAL("attempt"));
     } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);
@@ -1181,7 +1183,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    this->notify_disconnect_state_listeners_();
+    // An attempt that never associated ended no session listeners know of
+    if (expected != ExpectedLeave::EXPECTED_LEAVE_ATTEMPT)
+      this->notify_disconnect_state_listeners_();
 #endif
 
 #if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
@@ -1634,6 +1638,21 @@ bool WiFiComponent::wifi_dpp_start_listen_() {
 
 void WiFiComponent::wifi_dpp_stop_listen_() { esp_supp_dpp_stop_listen(); }
 #endif
+
+void WiFiComponent::on_powerdown() {
+  // Leave the AP before esp_restart() or deep sleep stops Wi-Fi. esp_wifi_stop() while associated
+  // makes the ESP32 retransmit its Disassociation up to the retry limit although the AP ACKs it
+  // (32 copies with protected management frames), which some APs handle badly.
+  // Upstream bug: https://github.com/espressif/esp-idf/issues/19443 - remove this once it is fixed
+  // in the ESP-IDF versions we support.
+  // Ask the driver: s_sta_connected lags until the main loop has handled the connect event.
+  wifi_ap_record_t ap_info;
+  if (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  esp_wifi_disconnect();
+  delay(100);  // NOLINT: once per reboot or deep sleep, lets the disassociation go out
+}
 
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 

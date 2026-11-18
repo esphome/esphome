@@ -53,7 +53,7 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
 }
 
 ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<17> buffer_alloc(len + 1);  // Most I2C writes are <= 16 bytes
+  SmallBufferWithHeapFallback<19> buffer_alloc(len + 1);  // Up to 18 data bytes stay on the stack
   uint8_t *buffer = buffer_alloc.get();
 
   buffer[0] = a_register;
@@ -62,7 +62,7 @@ ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, siz
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
+  SmallBufferWithHeapFallback<20> buffer_alloc(len + 2);  // Up to 18 data bytes stay on the stack
   uint8_t *buffer = buffer_alloc.get();
 
   put_be16(buffer, a_register);

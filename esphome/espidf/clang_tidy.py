@@ -264,17 +264,13 @@ def _convert_pio_libs(
 
     Libraries the manifest already provides as managed components are skipped, as
     in the real esp32 build; converting them too would give IDF the same requirement
-    twice. Arduino below IDF 6.0 has them rule-gated off, so there they convert.
+    twice.
     """
-    from esphome.components.esp32 import (
-        ARDUINO_DISABLED_LIBRARIES,
-        arduino_bundles_libsodium,
-    )
+    from esphome.components.esp32 import ARDUINO_DISABLED_LIBRARIES
     from esphome.espidf.component import generate_idf_components
 
     libraries = _parse_lib_deps(platformio_ini, framework)
-    # Same rule as noise._use_managed_components and the manifest
-    managed = set() if arduino_bundles_libsodium() else _esphome_manifest_deps()
+    managed = _esphome_manifest_deps()
     deps: dict[str, dict[str, str]] = {}
     # As in the real esp32 build, a dependency on an Arduino-bundled library is
     # left to arduino-esp32 instead of being fetched from the registry
@@ -293,25 +289,26 @@ def _arduino_excluded_stubs(
 ) -> dict[str, dict]:
     """Stub the arduino-bundled IDF components ESPHome doesn't use.
 
-    arduino-esp32 declares deps (libsodium, RainMaker, modbus, ...) that ESPHome
-    replaces with its own library (noise-c) or doesn't use; point each at an
-    empty override_path component so the IDF manager doesn't resolve/download
-    them. Mirrors esp32's ``_write_idf_component_yml``.
+    arduino-esp32 declares deps (RainMaker, modbus, ...) that ESPHome doesn't
+    use; point each at an empty override_path component so the IDF manager
+    doesn't resolve/download them. Mirrors esp32's ``_write_idf_component_yml``.
 
     Components ESPHome's own idf_component.yml provides (e.g. lan867x for
     ethernet) are NOT stubbed -- those are real deps we need, and arduino-esp32
-    resolves to the same component rather than conflicting.
+    resolves to the same component rather than conflicting. Neither is one the
+    manifest replaces through its "overrides" field (espressif/libsodium).
 
     ``converted`` is the manifest block from ``_convert_pio_libs``. IDF names a
     component after its directory and a later registration of the same name
     replaces the earlier one, so a stub beside a converted library of the same
-    name (``espressif/libsodium`` vs ``esphome/libsodium``) would win or lose on
-    path order; such a stub points at the converted library instead.
+    name would win or lose on path order; such a stub points at the converted
+    library instead.
     """
     from esphome.components.esp32 import (
+        ARDUINO_EXCLUDED_IDF_COMPONENTS,
+        ARDUINO_OVERRIDDEN_IDF_COMPONENTS,
         _idf_component_dep_name,
         _idf_component_stub_name,
-        arduino_excluded_idf_components,
     )
 
     esphome_deps = _esphome_manifest_deps()
@@ -323,9 +320,12 @@ def _arduino_excluded_stubs(
     stubs_dir = work_dir / "component_stubs"
     stubs_dir.mkdir(parents=True, exist_ok=True)
     deps: dict[str, dict] = {}
-    for component in sorted(arduino_excluded_idf_components()):
-        if _idf_component_dep_name(component) in esphome_deps:
+    for component in sorted(ARDUINO_EXCLUDED_IDF_COMPONENTS):
+        dep_name = _idf_component_dep_name(component)
+        if dep_name in esphome_deps:
             continue  # ESPHome needs this one for real (don't stub it away)
+        if ARDUINO_OVERRIDDEN_IDF_COMPONENTS.get(dep_name) in esphome_deps:
+            continue  # Replaced through the manifest "overrides" field
         stub_name = _idf_component_stub_name(component)
         if (path := converted_paths.get(stub_name)) is not None:
             deps[_idf_component_dep_name(component)] = {
@@ -432,8 +432,8 @@ def _generate_compile_commands(
     converted = _convert_pio_libs(platformio_ini, settings.target_framework)
     extra_deps.update(converted)
     if settings.target_framework == "arduino":
-        # Stub the arduino-bundled components ESPHome doesn't use (avoids the
-        # libsodium clash with noise-c and ~26 unused heavy downloads).
+        # Stub the arduino-bundled components ESPHome doesn't use (avoids ~26
+        # unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
 
     # Phase 1: discover the components available for this target.
