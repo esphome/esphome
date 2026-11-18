@@ -372,10 +372,11 @@ TEST_F(PioneerWTTest, FullQueueDropsOldestCommand) {
   this->start_();
   this->uart_.tx.clear();
   // Five commands with no acknowledgement; the queue holds four.
-  for (uint8_t speed = 1; speed <= 5; speed++)
+  for (uint8_t i = 1; i <= 5; i++) {
     this->sut_.make_call()
-        .set_swing_mode(speed % 2 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF)
+        .set_swing_mode(i % 2 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF)
         .perform();
+  }
   this->loop_at_(1200);
   // The first command (seq 2) was dropped, so the second (seq 3, swing off) goes out first.
   EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x11, SWING_OFF}));
