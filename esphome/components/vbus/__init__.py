@@ -703,7 +703,7 @@ def validate_setting_controller(config: ConfigType) -> ConfigType:
     return config
 
 
-def setting_entity_defaults(config: ConfigType) -> ConfigType:
+def setting_entity_defaults(config: ConfigType, *, clock: bool = False) -> ConfigType:
     if (
         isinstance(config, dict)
         and CONF_NAME not in config
@@ -714,7 +714,7 @@ def setting_entity_defaults(config: ConfigType) -> ConfigType:
         parameter = parameter.lower()
         name = parameter.replace("min_", "minimum_").replace("max_", "maximum_")
         config[CONF_NAME] = name.replace("_", " ").capitalize()
-        if (
+        if not clock and (
             parameter == "system_time"
             or "_start_time" in parameter
             or "_end_time" in parameter

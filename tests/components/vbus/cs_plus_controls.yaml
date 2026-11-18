@@ -1,0 +1,27 @@
+vbus:
+  controller:
+    model: deltasol_cs_plus
+    update_interval: 15min
+    adaptive_polling:
+      context_update_interval: 5min
+    writes: direct
+
+number:
+  - platform: vbus
+    min_pump_speed_1:
+      name: Minimum pump speed
+
+select:
+  - platform: vbus
+    display_language:
+      name: Display language
+
+datetime:
+  - platform: vbus
+    parameter: system_time
+    name: Controller clock
+
+text_sensor:
+  - platform: vbus
+    last_write_result:
+      name: Last write result
