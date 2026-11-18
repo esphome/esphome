@@ -1,0 +1,29 @@
+esphome:
+  name: vbus-tx-codegen
+host:
+logger:
+uart:
+  id: test_uart
+  port: /dev/null
+  baud_rate: 9600
+vbus:
+  id: test_bus
+  uart_id: test_uart
+  transmit:
+    destination: 0x2211
+    on_bus_grant:
+      - vbus.send_datagram:
+          id: test_bus
+          grant_id: !lambda return grant_id;
+          command: 0x0300
+          value_id: !lambda return 2;
+      - delay: 50ms
+      - vbus.release_bus:
+          id: test_bus
+          grant_id: !lambda return grant_id;
+button:
+  - platform: template
+    name: Read
+    on_press:
+      - vbus.request_bus:
+          id: test_bus

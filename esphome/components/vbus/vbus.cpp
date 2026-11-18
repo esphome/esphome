@@ -32,6 +32,10 @@ static bool checksum(const uint8_t *data, int start, int count) {
 void VBus::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   const size_t available = this->available();
+#ifdef USE_VBUS_TX
+  if (this->transmitter_ != nullptr)
+    this->transmitter_->observe_rx(available);
+#endif
   if (available == 0) {
     // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
     if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
@@ -43,6 +47,10 @@ void VBus::loop() {
 
   auto on_byte = [this, now](uint8_t c) {
     this->last_rx_ms_ = now;
+#ifdef USE_VBUS_TX
+    if (this->transmitter_ != nullptr)
+      this->transmitter_->observe_byte(c);
+#endif
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
@@ -64,6 +72,10 @@ void VBus::loop() {
         this->source_ = encode_value_le<uint16_t>(this->buffer_.data() + 2);
         this->dest_ = encode_value_le<uint16_t>(this->buffer_.data());
         this->command_ = encode_value_le<uint16_t>(this->buffer_.data() + 5);
+#ifdef USE_VBUS_TX
+        if (this->transmitter_ != nullptr)
+          this->transmitter_->on_header(this->protocol_, this->source_, this->dest_);
+#endif
       }
       if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
         this->state_ = 0;
@@ -78,6 +90,10 @@ void VBus::loop() {
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = encode_value_le<uint16_t>(this->buffer_.data() + 7);
         uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
+#ifdef USE_VBUS_TX
+        if (this->transmitter_ != nullptr)
+          this->transmitter_->on_datagram(this->command_, this->source_, this->dest_, id, value);
+#endif
         ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
 #ifdef USE_VBUS_DATAGRAM
@@ -133,6 +149,13 @@ void VBus::loop() {
       return;
     }
   };
+#ifdef USE_VBUS_TX
+  // Keep queued bytes visible to bus-grant and collision checks.
+  if (this->transmitter_ != nullptr) {
+    this->read_available<1>(on_byte, available);
+    return;
+  }
+#endif
   this->read_available(on_byte, available);
 }
 

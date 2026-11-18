@@ -1,0 +1,107 @@
+esphome:
+  name: uart-mock-vbus-tx-test
+host:
+api:
+logger:
+  level: DEBUG
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+uart:
+  baud_rate: 9600
+  port: /dev/null
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  auto_start: false
+  responses:
+    - expect_tx: [0xAA, 0x11, 0x22, 0x20, 0x00, 0x20, 0x00, 0x03,
+                  0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07]
+      inject_rx: [0xAA, 0x20, 0x00, 0x11, 0x22, 0x20, 0x00, 0x01,
+                  0x02, 0x00, 0x7B, 0x00, 0x00, 0x00, 0x00, 0x0E]
+      delay: 25ms
+    - expect_tx: [0xAA, 0x11, 0x22, 0x20, 0x00, 0x20, 0x00, 0x06,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06]
+      inject_rx: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01,
+                  0x01, 0x2A, 0x01, 0x02, 0x03, 0x04, 0x00, 0x75]
+      delay: 25ms
+  on_tx:
+    - lambda: |-
+        ESP_LOGI("vbus.tx_test", "wire=%s", format_hex_pretty(data).c_str());
+vbus:
+  id: bus
+  uart_id: mock_uart
+  on_datagram:
+    - lambda: |-
+        if (command == 0x0100 && source == 0x2211 && destination == 0x0020 && value_id == 2)
+          ESP_LOGI("vbus.reply_test", "value=%" PRIu32, value);
+  transmit:
+    destination: 0x2211
+    on_bus_grant:
+      - then:
+          - logger.log: "VBus test grant acquired"
+          - vbus.send_datagram:
+              id: bus
+              grant_id: !lambda return grant_id;
+              command: 0x0300
+              value_id: 2
+          - if:
+              condition:
+                lambda: return grant_id == 1;
+              then:
+                - delay: 80ms
+              else:
+                - delay: 300ms
+          - vbus.release_bus:
+              id: bus
+              grant_id: !lambda return grant_id;
+      # The first delayed callback fires during the second lease. It must not
+      # send a write or release that newer lease with its old captured token.
+      - then:
+          - delay: 650ms
+          - vbus.send_datagram:
+              id: bus
+              grant_id: !lambda return grant_id;
+              command: 0x0200
+              value_id: 2
+              value: 1
+          - vbus.release_bus:
+              id: bus
+              grant_id: !lambda return grant_id;
+sensor:
+  - platform: vbus
+    model: custom
+    vbus_id: bus
+    source: 0x2211
+    dest: 0x0010
+    command: 0x0100
+    sensors:
+      - name: VBus RX Test
+        lambda: return x[0];
+        on_value:
+          - lambda: ESP_LOGI("vbus.rx_test", "P1=%.0f", x);
+button:
+  - platform: template
+    name: Start Scenario
+    on_press:
+      - lambda: id(mock_uart).start_scenario();
+      - vbus.request_bus:
+          id: bus
+      # A bad checksum must not acquire the bus or send a request.
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x00, 0x00, 0x11, 0x22, 0x20, 0x00, 0x05,
+                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x26]
+      - delay: 250ms
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x00, 0x00, 0x11, 0x22, 0x20, 0x00, 0x05,
+                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27]
+      - delay: 600ms
+      - vbus.request_bus:
+          id: bus
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x00, 0x00, 0x11, 0x22, 0x20, 0x00, 0x05,
+                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27]
