@@ -304,7 +304,7 @@ TEST(LengthFrameReaderTest, ResyncPartialFrameAfterSilence) {
   EXPECT_EQ(reader.length(), 0u);
 }
 
-TEST(LengthFrameReaderTest, ResyncWhileIdleIsHarmless) {
+TEST(LengthFrameReaderTest, ResyncWithNothingHeldDoesNothing) {
   LengthFrameReader<8, Small> reader;
   EXPECT_EQ(reader.resync(), nullptr);
   // A handled frame, then noise: nothing is held any more
@@ -314,6 +314,22 @@ TEST(LengthFrameReaderTest, ResyncWhileIdleIsHarmless) {
   EXPECT_EQ(feed_all(reader, {0xA5, 0x09}), Frames{});
   EXPECT_EQ(reader.resync(), nullptr);
   EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01}), (Frames{{0xA5, 0x03, 0x01}}));
+}
+
+TEST(LengthFrameReaderTest, IdleAfterAcceptedFrameFindsNothingInIt) {
+  LengthFrameReader<16, Small> reader;
+  Frames seen;
+  auto handle = [&seen](const uint8_t *frame, size_t len) {
+    seen.emplace_back(frame, frame + len);
+    return true;
+  };
+  // An accepted frame whose payload looks like a frame of its own
+  for (uint8_t c : {0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02})
+    reader.feed(c, handle);
+  EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
+  EXPECT_EQ(reader.resync(), nullptr);
+  reader.flush(handle);
+  EXPECT_EQ(seen.size(), 1u);
 }
 
 TEST(LengthFrameReaderTest, HandlerRejectionRecoversFramesInside) {
