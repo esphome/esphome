@@ -2,6 +2,8 @@
 
 #include "esphome/components/i2s_audio/microphone/capture_time.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 
 namespace esphome::i2s_audio::testing {
@@ -12,6 +14,38 @@ static constexpr uint32_t BUFFER_BYTES = 512;
 static constexpr int64_t BUFFER_US = 16000;
 static constexpr uint32_t DESC_NUM = 4;
 static constexpr int64_t NEWEST_US = 10000000;
+
+TEST(I2SCaptureStart, DiscardsQueuedAndInFlightAudioBeforePublishing) {
+  // Three completed descriptors and one still being filled at start. The marker tone ends mid-descriptor.
+  constexpr size_t bytes_per_descriptor = 8;
+  std::array<uint8_t, 5 * bytes_per_descriptor> audio{};
+  std::fill_n(audio.begin(), 3 * bytes_per_descriptor + 2, 0x7f);
+  audio[4 * bytes_per_descriptor] = 0x42;  // First sample in the next complete descriptor
+  size_t cursor = 0;
+  size_t reads = 0;
+  const size_t discarded = discard_capture_backlog(
+      4, bytes_per_descriptor,
+      [&](size_t requested) -> size_t {
+        if (reads++ == 0)
+          return 0;  // A timeout must not advance the capture boundary
+        const size_t count = std::min<size_t>(requested, 3);
+        cursor += count;
+        return count;
+      },
+      [] { return false; });
+  ASSERT_EQ(discarded, 4 * bytes_per_descriptor);
+  ASSERT_EQ(cursor, discarded);
+  EXPECT_EQ(audio[cursor], 0x42);
+  EXPECT_EQ(std::find(audio.begin() + cursor, audio.end(), 0x7f), audio.end());
+}
+
+TEST(I2SCaptureStart, StopInterruptsTheDrainEvenWithoutAnExternalClock) {
+  size_t reads = 0;
+  const size_t discarded =
+      discard_capture_backlog(4, 8, [&](size_t) -> size_t { return ++reads == 1 ? 2 : 0; }, [&] { return reads == 3; });
+  EXPECT_EQ(discarded, 2u);
+  EXPECT_EQ(reads, 3u);
+}
 
 TEST(I2SCaptureTime, CountsBackFromTheNewestBuffer) {
   // Buffers 1 to 3 received, 1 read before, reading 2; 3 is the newest

@@ -26,6 +26,9 @@ class Router final : public Component, public speaker::Speaker {
   void finish() override;
 
   bool has_buffered_data() const override;
+  bool supports_audio_stream(const audio::AudioStreamInfo &stream_info) const override {
+    return this->get_active_output()->supports_audio_stream(stream_info);
+  }
 
   void set_pause_state(bool pause_state) override;
   bool get_pause_state() const override { return this->cached_pause_; }
@@ -41,7 +44,7 @@ class Router final : public Component, public speaker::Speaker {
   void add_output(speaker::Speaker *spk) { this->outputs_.push_back(spk); }
 
   /// Switch the active output to the given speaker. Must be one of the configured outputs.
-  /// Returns false if `target` is not in the output list.
+  /// Returns false for an unknown target or one that cannot play the current stream.
   bool switch_to_output(speaker::Speaker *target);
 
   // Always valid: active_output_idx_ stays within [0, outputs_.size()) and at least

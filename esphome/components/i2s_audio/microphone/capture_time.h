@@ -3,9 +3,23 @@
 #include "esphome/components/audio/audio.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 
 namespace esphome::i2s_audio {
+
+/// Drop the RX ring once when capture starts on a bus that ran through idle. ESP-IDF queues up to
+/// dma_desc_num - 1 completed buffers; the descriptor being filled can also contain pre-start samples.
+/// Read through one full ring even if a timed read returns only part of the requested data.
+template<typename Read, typename StopRequested>
+size_t discard_capture_backlog(uint32_t dma_desc_num, size_t dma_buffer_bytes, Read &&read, StopRequested &&stop) {
+  const size_t ring_bytes = dma_desc_num * dma_buffer_bytes;
+  size_t discarded = 0;
+  while (discarded < ring_bytes && !stop()) {
+    discarded += read(std::min(dma_buffer_bytes, ring_bytes - discarded));
+  }
+  return discarded;
+}
 
 /// @brief Returns when the first frame of a read was captured, counted back from the newest DMA buffer, or 0 when
 /// the time is unknown

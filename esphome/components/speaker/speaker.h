@@ -65,6 +65,9 @@ class Speaker {
 
   virtual bool has_buffered_data() const = 0;
 
+  /// @brief Whether this stream can reach the output, including any format conversion.
+  virtual bool supports_audio_stream(const audio::AudioStreamInfo &stream_info) const { return true; }
+
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 

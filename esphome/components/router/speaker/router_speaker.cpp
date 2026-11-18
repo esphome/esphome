@@ -201,18 +201,24 @@ bool Router::switch_to_output(speaker::Speaker *target) {
     return true;
   }
 
+  const bool was_active = (this->state_ == speaker::STATE_STARTING || this->state_ == speaker::STATE_RUNNING);
+  const bool switch_pending = this->pending_start_prev_idx_.load(std::memory_order_relaxed) >= 0;
+  if ((was_active || switch_pending) && !target->supports_audio_stream(this->audio_stream_info_)) {
+    ESP_LOGW(TAG, "Switch target does not support the current audio format");
+    return false;
+  }
+
   // A switch is already in flight: pending_start_prev_idx_ is still releasing the
   // shared bus and the current active output's start() is still deferred (it never
   // started). Just redirect which output we start once the bus frees. Leave the bus
   // holder (pending_start_prev_idx_), the in-flight frame counter (loop() still owes one
   // synthetic credit for the bus holder's in-flight frames), and state_ alone, and
   // don't stop the current active output, which never started.
-  if (this->pending_start_prev_idx_.load(std::memory_order_relaxed) >= 0) {
+  if (switch_pending) {
     this->active_output_idx_.store(new_idx, std::memory_order_relaxed);
     return true;
   }
 
-  const bool was_active = (this->state_ == speaker::STATE_STARTING || this->state_ == speaker::STATE_RUNNING);
   const int8_t old_idx = this->active_output_idx_.load(std::memory_order_relaxed);
 
   if (was_active) {

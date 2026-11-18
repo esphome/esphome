@@ -1,0 +1,41 @@
+esphome:
+  name: review
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+wifi:
+  ssid: review-test
+  password: review-test-password
+i2s_audio:
+  id: bus
+  i2s_bclk_pin: GPIO5
+  i2s_lrclk_pin: GPIO4
+  full_duplex: true
+  keep_alive: true
+microphone:
+  - platform: i2s_audio
+    id: mic
+    i2s_audio_id: bus
+    adc_type: external
+    i2s_din_pin: GPIO16
+    channel: right
+    bits_per_sample: 16bit
+    sample_rate: 48000
+speaker:
+  - platform: i2s_audio
+    id: output
+    i2s_audio_id: bus
+    dac_type: external
+    i2s_dout_pin: GPIO17
+    channel: mono
+    bits_per_sample: 16bit
+    sample_rate: 48000
+media_player:
+  - platform: speaker
+    name: Review
+    announcement_pipeline:
+      speaker: output
+      format: FLAC
+      sample_rate: 48000
+      num_channels: 1

@@ -338,6 +338,16 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
     xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+    if (this_microphone->parent_->get_keep_alive()) {
+      samples.resize(dma_buffer_bytes);
+      this_microphone->dma_bytes_read_ += discard_capture_backlog(
+          this_microphone->dma_desc_num_, dma_buffer_bytes,
+          [&](size_t size) { return this_microphone->read_(samples.data(), size, 2 * read_duration_ms); },
+          [&]() { return xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP; });
+    }
+#endif
+
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
       if (this_microphone->has_data_callbacks_()) {
         const uint32_t drops_before_read = this_microphone->dma_buffers_dropped_.load(std::memory_order_relaxed);
