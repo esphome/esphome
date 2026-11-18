@@ -25,6 +25,12 @@ class ControlData {
       this->even_[5] = PWR_ECO;
   }
 
+  /// The display flag shares the power byte; it is only sent with an on command
+  void set_display(bool on) {
+    if (!on && this->even_[5] != PWR_OFF)
+      this->even_[5] |= DISPLAY_OFF;
+  }
+
   /// Write the fan and swing positions, which share bytes, then the checksums
   void finalize();
   const PDPioneerData &odd() const { return this->odd_; }
@@ -37,7 +43,8 @@ class ControlData {
   }
   /// Empty for a mode byte this remote does not use
   static optional<ClimateMode> get_mode(const PDPioneerData &even);
-  static bool get_eco(const PDPioneerData &even) { return even[5] == PWR_ECO; }
+  static bool get_eco(const PDPioneerData &even) { return (even[5] & ~DISPLAY_OFF) == PWR_ECO; }
+  static bool get_display(const PDPioneerData &even) { return (even[5] & DISPLAY_OFF) == 0; }
   static ClimateFanMode get_fan_mode(const PDPioneerData &even);
   /// Only the odd burst carries horizontal swing; the even burst carries vertical swing
   static bool get_horizontal_swing(const PDPioneerData &odd) { return (odd[7] & SWING_HORIZONTAL) == SWING_HORIZONTAL; }
@@ -53,6 +60,8 @@ class ControlData {
   static constexpr uint8_t PWR_ON = 0x24;
   static constexpr uint8_t PWR_ECO = 0x25;
   static constexpr uint8_t PWR_OFF = 0xA0;
+  /// Set on even position 5, next to PWR_ON or PWR_ECO, to turn the unit's display off
+  static constexpr uint8_t DISPLAY_OFF = 0x40;
 
   static constexpr uint8_t SWING_VERTICAL = 0x08;
   static constexpr uint8_t SWING_HORIZONTAL = 0x90;

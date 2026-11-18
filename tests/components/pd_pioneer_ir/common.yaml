@@ -4,3 +4,8 @@ climate:
     transmitter_id: xmitr
     receiver_id: rcvr
     use_fahrenheit: true
+
+switch:
+  - platform: pd_pioneer_ir
+    display:
+      name: Pioneer AC Display

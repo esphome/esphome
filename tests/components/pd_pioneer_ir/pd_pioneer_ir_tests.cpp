@@ -366,4 +366,44 @@ TEST(PDPioneerIR, StaticCodeIsSentWithItsChecksum) {
   EXPECT_EQ(decode(dst.get_data()), even_frame(0x24, 0x03, 0x07, 0x05, 0x80));
 }
 
+// Even bursts captured from the remote's display button: 0x64 with the display off, 0x24 with it on
+TEST(PDPioneerIR, DisplayOffSetsItsFlagOnTheNextCommand) {
+  Fixture f;
+  f.command(climate::CLIMATE_MODE_HEAT, 20.0f, climate::CLIMATE_FAN_HIGH);
+  const size_t sent = f.transmitter.frames.size();
+  f.climate.set_display_on(false);
+  EXPECT_EQ(f.transmitter.frames.size(), sent + 2);
+  EXPECT_EQ(f.last_pair().second, even_frame(0x64, 0x01, 0x0B, 0x05, 0x80));
+  f.command(climate::CLIMATE_MODE_HEAT, 20.0f, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_OFF,
+            climate::CLIMATE_PRESET_ECO);
+  EXPECT_EQ(f.last_pair().second, even_frame(0x65, 0x01, 0x0B, 0x05, 0x80));
+  f.climate.set_display_on(true);
+  EXPECT_EQ(f.last_pair().second, even_frame(0x25, 0x01, 0x0B, 0x05, 0x80));
+}
+
+TEST(PDPioneerIR, DisplayChangeWhileOffSendsNothing) {
+  Fixture f;
+  f.command(climate::CLIMATE_MODE_OFF, 20.0f, climate::CLIMATE_FAN_HIGH);
+  const size_t sent = f.transmitter.frames.size();
+  f.climate.set_display_on(false);
+  EXPECT_EQ(f.transmitter.frames.size(), sent);
+  // The off command never carries the flag; the next on command does
+  f.command(climate::CLIMATE_MODE_OFF, 20.0f, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(f.last_pair().second, even_frame(0xA0, 0x01, 0x0C, 0x05, 0x80));
+  f.command(climate::CLIMATE_MODE_COOL, 24.0f, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(f.last_pair().second, even_frame(0x64, 0x03, 0x07, 0x05, 0x80));
+}
+
+TEST(PDPioneerIR, ReceivedDisplayFlagKeepsModeAndEco) {
+  Fixture f;
+  EXPECT_TRUE(f.receive(even_frame(0x64, 0x01, 0x0B, 0x05, 0x84)));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
+  EXPECT_TRUE(f.receive(even_frame(0x65, 0x01, 0x0B, 0x05, 0x84)));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_ECO);
+  // The display stays off in what is sent next
+  f.command(climate::CLIMATE_MODE_HEAT, 20.0f, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(f.last_pair().second, even_frame(0x64, 0x01, 0x0B, 0x05, 0x80));
+}
+
 }  // namespace esphome::pd_pioneer_ir::testing
