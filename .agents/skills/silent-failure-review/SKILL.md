@@ -11,7 +11,8 @@ Report only. Do not edit files.
 
 The diff of the checked-out branch against its base. Fetch the base first (`git fetch upstream dev`, or
 `git fetch origin dev` when there is no `upstream` remote), then run `git diff $(git merge-base upstream/dev HEAD)`
-(or `origin/dev`); a stale base pulls in commits the branch only merged. The diff includes uncommitted changes.
+(or `origin/dev`); a stale base pulls in commits the branch only merged. The diff includes uncommitted changes
+but not untracked files, so also read in full every file `git status --porcelain` lists as `??`.
 Use another branch only if the user names one. If neither remote exists, say so and stop. Read each changed
 function in full, and its callers, not just the hunks. When a failure depends on how a library call behaves,
 read that library's code too.
@@ -41,9 +42,9 @@ read that library's code too.
 12. **Unjudged results:** a test or script that prints a result but never fails on it.
 
 Moved code counts too: if the original had the same flaw, say so, but still report it. Report only flaws in
-changed or moved lines; unchanged callers are context. If the branch has an open PR, read its reviews
-(`gh pr view <n> --comments` and `gh api --paginate repos/esphome/esphome/pulls/<n>/comments`)
-and skip what they already raised.
+changed or moved lines; unchanged callers are context. If the branch has an open PR (`gh pr view --json number`
+finds it), read its reviews (`gh pr view <n> --comments` and
+`gh api --paginate repos/esphome/esphome/pulls/<n>/comments`) and skip what they already raised.
 
 Before reporting a candidate, follow it to the line that proves it and quote that line. If you cannot
 confirm it, drop it or mark it as likely.
