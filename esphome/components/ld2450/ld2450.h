@@ -202,11 +202,11 @@ class LD2450Component : public Component, public uart::UARTDevice {
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
-  void handle_periodic_data_();
-  void handle_ack_data_();
-  bool handle_frame_(uint8_t frame_len);
-  void process_zone_();
-  void readline_(int readch);
+  void handle_periodic_data_(const uint8_t *frame);
+  void handle_ack_data_(const uint8_t *frame, uint8_t len);
+  bool handle_frame_(const uint8_t *frame, uint8_t len);
+  void process_zone_(const uint8_t *frame);
+  void readline_(uint8_t c);
   void get_version_();
   void get_mac_();
   void query_target_tracking_mode_();
@@ -239,10 +239,11 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t link_timeout_ms_{0};
   uint32_t last_frame_ms_{0};     // last valid periodic frame; until the first one, when setup() ran
   uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
-  uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
-  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
+  // Periodic frames: header, three targets of 8 bytes, footer; they carry no length
+  LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, FrameFormat<FrameFixedLength<30>, 0xAA, 0xFF, 0x03, 0x00>>
+      reader_;
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};

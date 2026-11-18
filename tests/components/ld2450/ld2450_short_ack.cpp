@@ -39,13 +39,13 @@ class LD2450ShortAckTest : public ::testing::Test {
 
 TEST_F(LD2450ShortAckTest, ShortVersionAckDoesNotChangeTheVersion) {
   this->ld2450_.feed(make_short_version_ack());
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   for (uint8_t byte : this->ld2450_.version_) {
     EXPECT_EQ(byte, 0);
   }
 
   this->ld2450_.feed(make_version_ack());
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   EXPECT_EQ(std::memcmp(this->ld2450_.version_, VERSION_BYTES, sizeof(VERSION_BYTES)), 0);
 }
 
@@ -56,7 +56,7 @@ TEST_F(LD2450ShortAckTest, ShortTargetModeAckDoesNotChangeTheSwitch) {
   multi_target.publish_state(true);
 
   this->ld2450_.feed(make_short_target_mode_ack());
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   EXPECT_TRUE(multi_target.state);
 
   this->ld2450_.feed(make_target_mode_ack(0x01));

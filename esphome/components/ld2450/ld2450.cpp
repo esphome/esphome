@@ -78,7 +78,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
 // 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
-static constexpr uint8_t PERIODIC_FRAME_SIZE = 30;  // header, three targets of 8 bytes, footer
 
 static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t) value * 1000; };
 
@@ -102,19 +101,6 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
     speed = -speed;
   }
   return speed * 10;  // mm/s
-}
-
-// Length of the frame that opens the buffer: periodic frames are fixed size, command frames carry their
-// payload length after the header. readline_ only buffers a valid header, so its first byte names it.
-// Returns 0 while the length field has not arrived yet.
-static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
-  if (len < HEADER_FOOTER_SIZE) {
-    return 0;
-  }
-  if (buffer[0] == DATA_FRAME_HEADER[0]) {
-    return PERIODIC_FRAME_SIZE;
-  }
-  return ld24xx::cmd_frame_length(buffer, len);
 }
 
 void LD2450Component::setup() {
@@ -447,14 +433,14 @@ bool LD2450Component::get_timeout_status_(uint32_t check_millis) {
 }
 
 // Extract, store and publish zone details LD2450 buffer
-void LD2450Component::process_zone_() {
+void LD2450Component::process_zone_(const uint8_t *frame) {
   uint8_t index, start;
   for (index = 0; index < MAX_ZONES; index++) {
     start = 12 + index * 8;
-    this->zone_config_[index].x1 = encode_value_le<int16_t>(&this->buffer_data_[start]);
-    this->zone_config_[index].y1 = encode_value_le<int16_t>(&this->buffer_data_[start + 2]);
-    this->zone_config_[index].x2 = encode_value_le<int16_t>(&this->buffer_data_[start + 4]);
-    this->zone_config_[index].y2 = encode_value_le<int16_t>(&this->buffer_data_[start + 6]);
+    this->zone_config_[index].x1 = encode_value_le<int16_t>(&frame[start]);
+    this->zone_config_[index].y1 = encode_value_le<int16_t>(&frame[start + 2]);
+    this->zone_config_[index].x2 = encode_value_le<int16_t>(&frame[start + 4]);
+    this->zone_config_[index].y2 = encode_value_le<int16_t>(&frame[start + 6]);
 #ifdef USE_NUMBER
     // only one null check as all coordinates are required for a single zone
     if (this->zone_numbers_[index].x1 != nullptr) {
@@ -528,7 +514,7 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 // LD2450 Radar data message:
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
-void LD2450Component::handle_periodic_data_() {
+void LD2450Component::handle_periodic_data_(const uint8_t *frame) {
   int16_t target_count = 0;
   int16_t still_target_count = 0;
   int16_t moving_target_count = 0;
@@ -550,18 +536,18 @@ void LD2450Component::handle_periodic_data_() {
     start = TARGET_X + index * 8;
     is_moving = false;
     // tx and ty are used for further calculations, so always need to be populated
-    tx = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    tx = ld2450::decode_coordinate(frame[start], frame[start + 1]);
     // Y
     start = TARGET_Y + index * 8;
-    ty = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    ty = ld2450::decode_coordinate(frame[start], frame[start + 1]);
 #ifdef USE_SENSOR
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
-    res = encode_value_le<uint16_t>(&this->buffer_data_[start]);
+    res = encode_value_le<uint16_t>(&frame[start]);
 #endif
     // SPEED
     start = TARGET_SPEED + index * 8;
-    ts = ld2450::decode_speed(this->buffer_data_[start], this->buffer_data_[start + 1]);
+    ts = ld2450::decode_speed(frame[start], frame[start + 1]);
     if (ts) {
       is_moving = true;
       moving_target_count++;
@@ -716,18 +702,18 @@ void LD2450Component::handle_periodic_data_() {
   this->data_callback_.call();
 }
 
-void LD2450Component::handle_ack_data_() {
-  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
-  if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
+void LD2450Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
+  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", frame[COMMAND]);
+  if (frame[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Invalid status");
     return;
   }
-  if (this->buffer_data_[8] || this->buffer_data_[9]) {
-    ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
+  if (frame[8] || frame[9]) {
+    ESP_LOGW(TAG, "Invalid command: %02X, %02X", frame[8], frame[9]);
     return;
   }
 
-  switch (this->buffer_data_[COMMAND]) {
+  switch (frame[COMMAND]) {
     case CMD_ENABLE_CONF:
       ESP_LOGV(TAG, "Enable conf");
       break;
@@ -747,10 +733,10 @@ void LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
-      if (this->buffer_pos_ < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
+      if (len < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
         break;  // too short to hold a version
       }
-      std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
+      std::memcpy(this->version_, &frame[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
       ESP_LOGV(TAG, "Firmware version: %s", version_s);
@@ -761,11 +747,11 @@ void LD2450Component::handle_ack_data_() {
     }
 
     case CMD_QUERY_MAC_ADDRESS: {
-      if (this->buffer_pos_ < 20) {
+      if (len < 20) {
         break;  // too short to hold a MAC address
       }
 
-      this->bluetooth_on_ = ld24xx::store_mac(&this->buffer_data_[10], this->mac_address_);
+      this->bluetooth_on_ = ld24xx::store_mac(&frame[10], this->mac_address_);
 
       char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
@@ -798,21 +784,21 @@ void LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_TARGET_MODE:
-      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+      if (len < 11 + HEADER_FOOTER_SIZE) {
         break;  // too short to hold the mode
       }
       ESP_LOGV(TAG, "Query target tracking mode");
 #ifdef USE_SWITCH
-      PUBLISH_STATE(this->multi_target_switch_, this->buffer_data_[10] == 0x02);
+      PUBLISH_STATE(this->multi_target_switch_, frame[10] == 0x02);
 #endif
       break;
 
     case CMD_QUERY_ZONE:
-      if (this->buffer_pos_ < ZONE_ACK_FRAME_SIZE) {
+      if (len < ZONE_ACK_FRAME_SIZE) {
         break;  // too short to hold the zones
       }
       ESP_LOGV(TAG, "Query zone conf");
-      this->zone_type_ = this->buffer_data_[10];
+      this->zone_type_ = frame[10];
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
@@ -820,16 +806,16 @@ void LD2450Component::handle_ack_data_() {
         ESP_LOGV(TAG, "Change zone type to: %.*s", (int) zone.size(), zone.c_str());
       }
 #endif
-      if (this->buffer_data_[10] == 0x00) {
+      if (frame[10] == 0x00) {
         ESP_LOGV(TAG, "Zone: Disabled");
       }
-      if (this->buffer_data_[10] == 0x01) {
+      if (frame[10] == 0x01) {
         ESP_LOGV(TAG, "Zone: Area detection");
       }
-      if (this->buffer_data_[10] == 0x02) {
+      if (frame[10] == 0x02) {
         ESP_LOGV(TAG, "Zone: Area filter");
       }
-      this->process_zone_();
+      this->process_zone_(frame);
       break;
 
     case CMD_SET_ZONE:
@@ -842,40 +828,33 @@ void LD2450Component::handle_ack_data_() {
   }
 }
 
-// Read LD2450 buffer data
-void LD2450Component::readline_(int readch) {
-  if (readch < 0) {
-    return;  // No data available
+void LD2450Component::readline_(uint8_t c) {
+  const uint8_t *frame = this->reader_.feed(c);
+  while (frame != nullptr) {
+    frame = this->handle_frame_(frame, this->reader_.frame_length()) ? this->reader_.next() : this->reader_.resync();
   }
-  ld24xx::feed_frame_byte(
-      this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld2450::frame_length,
-      [this](uint8_t frame_len) { return this->handle_frame_(frame_len); },
-      [this]() {
-        if (this->invalid_frames_ < UINT16_MAX) {
-          this->invalid_frames_++;
-        }
-        ESP_LOGW(TAG, "Invalid header/footer");
-      });
 }
 
-// Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
-bool LD2450Component::handle_frame_(uint8_t frame_len) {
-  this->buffer_pos_ = frame_len;  // the handlers take the frame length from here
-  const uint8_t *end = &this->buffer_data_[frame_len];
-  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
-    if (end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1]) {
-      return false;
+// Handles the frame when its footer is in place; returns false otherwise
+bool LD2450Component::handle_frame_(const uint8_t *frame, uint8_t len) {
+  const uint8_t *end = &frame[len];
+  const bool periodic = frame[0] == DATA_FRAME_HEADER[0];
+  if (periodic ? end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1]
+               : !ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
+    if (this->invalid_frames_ < UINT16_MAX) {
+      this->invalid_frames_++;
     }
-    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
-    this->on_valid_frame_();
-    this->handle_periodic_data_();
-    return true;
-  }
-  if (!ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
+    ESP_LOGW(TAG, "Invalid header/footer");
     return false;
   }
-  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-  this->handle_ack_data_();
+  if (periodic) {
+    ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+    this->on_valid_frame_();
+    this->handle_periodic_data_(frame);
+  } else {
+    ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+    this->handle_ack_data_(frame, len);
+  }
   return true;
 }
 

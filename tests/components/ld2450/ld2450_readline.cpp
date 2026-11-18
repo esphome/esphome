@@ -7,7 +7,7 @@ class LD2450ReadlineTest : public ::testing::Test {
   void SetUp() override {
     this->ld2450_.set_uart_parent(&this->mock_uart_);
     // Ensure clean state
-    ASSERT_EQ(this->ld2450_.buffer_pos_, 0);
+    ASSERT_EQ(this->ld2450_.reader_.length(), 0u);
   }
 
   MockUARTComponent mock_uart_;
@@ -20,20 +20,20 @@ TEST_F(LD2450ReadlineTest, ValidPeriodicFrame) {
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
   // After a complete valid frame, buffer should be reset
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, ValidCommandAckFrame) {
   auto frame = make_ack_frame();
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, BackToBackPeriodicFrames) {
   auto frame = make_periodic_frame();
   for (int i = 0; i < 5; i++) {
     this->ld2450_.feed(frame);
-    EXPECT_EQ(this->ld2450_.buffer_pos_, 0) << "Frame " << i << " not processed";
+    EXPECT_EQ(this->ld2450_.reader_.length(), 0u) << "Frame " << i << " not processed";
   }
 }
 
@@ -41,11 +41,11 @@ TEST_F(LD2450ReadlineTest, BackToBackMixedFrames) {
   auto periodic = make_periodic_frame();
   auto ack = make_ack_frame();
   this->ld2450_.feed(periodic);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   this->ld2450_.feed(ack);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   this->ld2450_.feed(periodic);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 // --- Garbage then valid frame tests ---
@@ -54,12 +54,12 @@ TEST_F(LD2450ReadlineTest, GarbageThenValidFrame) {
   // Garbage bytes never open the buffer; a valid frame that follows is parsed as usual.
   std::vector<uint8_t> garbage = {0x01, 0x02, 0x03, 0x42, 0x99};
   this->ld2450_.feed(garbage);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
   // Footer from the valid frame resyncs the parser
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 // --- Footer-based resynchronization tests ---
@@ -69,22 +69,22 @@ TEST_F(LD2450ReadlineTest, FooterInGarbageResyncs) {
   // a buffer reset, allowing the next frame to be parsed cleanly.
   std::vector<uint8_t> garbage_with_footer = {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC};
   this->ld2450_.feed(garbage_with_footer);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);  // Footer reset the buffer
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);  // Footer reset the buffer
 
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, CmdFooterInGarbageResyncs) {
   // Garbage containing a command frame footer (04 03 02 01) also resyncs.
   std::vector<uint8_t> garbage_with_footer = {0x10, 0x20, 0x30, 0x40, 0x04, 0x03, 0x02, 0x01};
   this->ld2450_.feed(garbage_with_footer);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 // --- Overflow recovery tests ---
@@ -94,8 +94,8 @@ TEST_F(LD2450ReadlineTest, OverflowResetsBuffer) {
   // MAX_LINE_LENGTH is 45, usable is 44. The 45th byte triggers overflow.
   std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
   this->ld2450_.feed(overflow_data);
-  // After overflow, buffer_pos_ resets to 0 (via the < 4 early return path)
-  EXPECT_LT(this->ld2450_.buffer_pos_, 4);
+  // Bytes that never start a header are not buffered
+  EXPECT_LT(this->ld2450_.reader_.length(), 4u);
 }
 
 TEST_F(LD2450ReadlineTest, OverflowThenValidFrame) {
@@ -105,7 +105,7 @@ TEST_F(LD2450ReadlineTest, OverflowThenValidFrame) {
 
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, BufferLargeEnoughForDesyncedFooter) {
@@ -120,7 +120,7 @@ TEST_F(LD2450ReadlineTest, BufferLargeEnoughForDesyncedFooter) {
 
   this->ld2450_.feed(mid_frame);
   // The footer from the frame should have triggered a reset
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, SimulatedRestartThenFrames) {
@@ -134,11 +134,11 @@ TEST_F(LD2450ReadlineTest, SimulatedRestartThenFrames) {
   restart_noise.insert(restart_noise.end(), frame.begin(), frame.end());
 
   this->ld2450_.feed(restart_noise);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   // Subsequent frames should work normally
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 // --- Frame payloads that look like footers ---
@@ -154,13 +154,13 @@ TEST_F(LD2450ReadlineTest, CmdFooterBytesInPeriodicPayloadDoNotEndTheFrame) {
   frame[7] = 0x01;
   this->ld2450_.feed(frame);
   EXPECT_EQ(frames, 1);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   // The parser is still in step: the next frames are handled as usual
   this->ld2450_.feed(make_ack_frame());
   this->ld2450_.feed(make_periodic_frame());
   EXPECT_EQ(frames, 2);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, BogusLengthFieldResyncsOnTheNextHeader) {
@@ -172,7 +172,7 @@ TEST_F(LD2450ReadlineTest, BogusLengthFieldResyncsOnTheNextHeader) {
   stream.insert(stream.end(), frame.begin(), frame.end());
   this->ld2450_.feed(stream);
   EXPECT_EQ(frames, 1);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, LargestLengthFieldDoesNotWrapToIncomplete) {
@@ -185,7 +185,7 @@ TEST_F(LD2450ReadlineTest, LargestLengthFieldDoesNotWrapToIncomplete) {
   stream.insert(stream.end(), frame.begin(), frame.end());
   this->ld2450_.feed(stream);
   EXPECT_EQ(frames, 1);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, MixedHeaderPrefixNeverOpensAFrame) {
@@ -195,16 +195,16 @@ TEST_F(LD2450ReadlineTest, MixedHeaderPrefixNeverOpensAFrame) {
   // picks the command header, so the periodic bytes do not continue it and the buffer restarts on AA
   std::vector<uint8_t> stream = {0xFD, 0xFF, 0x03, 0x00};
   this->ld2450_.feed(stream);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   // The reverse mix is rejected the same way
   this->ld2450_.feed({0xAA, 0xFC, 0xFB, 0xFA});
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   // A real frame right after is still parsed
   this->ld2450_.feed(make_periodic_frame());
   EXPECT_EQ(frames, 1);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 }  // namespace esphome::ld2450::testing
