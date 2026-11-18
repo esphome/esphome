@@ -40,8 +40,12 @@ Frame command(uint8_t seq, const Frame &attrs) {
 size_t feed_all(PacketReader &reader, const Frame &bytes) {
   size_t last = 0;
   for (uint8_t b : bytes) {
-    for (const uint8_t *frame = reader.feed(b); frame != nullptr; frame = reader.next())
-      last = reader.frame_length();
+    reader.feed(b, [&last](const uint8_t *frame, size_t len) {
+      if (!packet_valid(frame, len))
+        return false;
+      last = len;
+      return true;
+    });
   }
   return last;
 }
@@ -82,9 +86,8 @@ TEST(PioneerWTProtocol, ReaderDropsBadChecksum) {
   PacketReader reader;
   Frame frame = from_hex(PRESENCE_CHECK);
   frame[9] ^= 0x01;
+  EXPECT_FALSE(packet_valid(frame.data(), frame.size()));
   EXPECT_EQ(feed_all(reader, frame), 0u);
-  EXPECT_TRUE(reader.take_checksum_error());
-  EXPECT_FALSE(reader.take_checksum_error());
   // The next good frame is still accepted.
   EXPECT_EQ(feed_all(reader, from_hex(PRESENCE_CHECK)), 12u);
 }

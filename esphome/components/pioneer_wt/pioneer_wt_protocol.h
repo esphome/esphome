@@ -48,32 +48,14 @@ static constexpr uint8_t SWING_OFF = 0x08;
 /// CRC-16/XMODEM over a whole frame, skipping the two checksum bytes at offset 8.
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
-/// Collects bytes from the serial line into complete frames with a valid checksum.
-class PacketReader final
-    : protected LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU8<LEN_POS>, FRAME_START_1, FRAME_START_2>> {
- public:
-  /// Feeds one byte. Returns a complete, valid frame, or nullptr; frame_length() gives its length.
-  const uint8_t *feed(uint8_t byte) { return this->check_(LengthFrameReader::feed(byte)); }
-  /// After handling a frame: returns the next valid one that a corrupt frame held back, or nullptr.
-  const uint8_t *next() { return this->check_(LengthFrameReader::next()); }
-  /// For a partial frame that went quiet: looks for a frame in it, which a corrupt length can hold back. Call while
-  /// length() is not 0, and take further frames with next().
-  const uint8_t *flush() { return this->check_(this->resync()); }
-  using LengthFrameReader::frame_length;
-  using LengthFrameReader::length;
-  /// True once after a complete frame was dropped for a wrong checksum.
-  bool take_checksum_error() {
-    const bool error = this->checksum_error_;
-    this->checksum_error_ = false;
-    return error;
-  }
+/// Collects bytes from the serial line into frames; packet_valid() checks them.
+using PacketReader =
+    LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU8<LEN_POS>, FRAME_START_1, FRAME_START_2>>;
 
- protected:
-  /// Returns frame, or the next frame found after it, that passes the checks; nullptr if none does.
-  const uint8_t *check_(const uint8_t *frame);
-
-  bool checksum_error_{false};
-};
+/// True when the frame is long enough to hold its checksum and the checksum matches.
+inline bool packet_valid(const uint8_t *frame, size_t len) {
+  return len >= HEADER_SIZE && frame_crc(frame, len) == encode_uint16(frame[8], frame[9]);
+}
 
 /// Walks the attribute list in a status body. Stops at the first ID whose size is unknown.
 class AttributeReader final {

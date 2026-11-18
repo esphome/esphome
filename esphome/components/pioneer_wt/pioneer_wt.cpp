@@ -68,23 +68,22 @@ climate::ClimateTraits PioneerWT::traits() {
 
 void PioneerWT::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  auto handle = [this](const uint8_t *frame, size_t len) {
+    if (!packet_valid(frame, len)) {
+      if (len >= HEADER_SIZE) {
+        ESP_LOGD(TAG, "Dropped a frame with a wrong checksum");
+      }
+      return false;
+    }
+    this->handle_frame_(frame, len);
+    return true;
+  };
   if (const size_t count = this->available()) {
     this->last_rx_ = now;
-    this->read_available(
-        [this](uint8_t byte) {
-          for (const uint8_t *frame = this->reader_.feed(byte); frame != nullptr; frame = this->reader_.next())
-            this->handle_frame_(frame, this->reader_.frame_length());
-        },
-        count);
-    if (this->reader_.take_checksum_error()) {
-      ESP_LOGD(TAG, "Dropped a frame with a wrong checksum");
-    }
+    this->read_available([this, &handle](uint8_t byte) { this->reader_.feed(byte, handle); }, count);
   } else if (this->reader_.length() != 0 && now - this->last_rx_ >= RX_GAP_MS) {
     // Only on an idle pass: after a slow loop the rest of the frame may already be buffered.
-    while (this->reader_.length() != 0) {
-      for (const uint8_t *frame = this->reader_.flush(); frame != nullptr; frame = this->reader_.next())
-        this->handle_frame_(frame, this->reader_.frame_length());
-    }
+    this->reader_.flush(handle);
   }
   if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
     this->send_pending_();

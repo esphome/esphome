@@ -11,19 +11,6 @@ uint16_t frame_crc(const uint8_t *frame, size_t len) {
   return crc16be(frame + HEADER_SIZE, len - HEADER_SIZE, head);
 }
 
-const uint8_t *PacketReader::check_(const uint8_t *frame) {
-  for (; frame != nullptr; frame = this->resync()) {
-    const size_t len = this->frame_length();
-    // Too short to hold the checksum
-    if (len < HEADER_SIZE)
-      continue;
-    if (frame_crc(frame, len) == encode_uint16(frame[8], frame[9]))
-      return frame;
-    this->checksum_error_ = true;
-  }
-  return nullptr;
-}
-
 enum class AttrKind : uint8_t {
   ATTR_KIND_UNKNOWN,
   ATTR_KIND_ONE_BYTE,
