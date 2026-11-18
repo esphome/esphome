@@ -83,6 +83,9 @@ class PartitionLightOutput final : public light::AddressableLight {
 
     void set(int32_t index, Color color) override {
       light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      // A white level the LED cannot show must not count as the pixel's strongest channel
+      if (!color_view.has_white_internal())  // NOLINT
+        color.white = 0;
       color_view.set_raw(this->parent_->get_color_correction_(color_view)->color_correct(color));
     }
     void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
@@ -96,6 +99,10 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
     void set_effect_data(int32_t index, uint8_t value) override {
       this->parent_->get_color_view_(index).set_effect_data(value);
+    }
+
+    bool has_white_internal(int32_t index) const override {  // NOLINT
+      return this->parent_->get_color_view_(index).has_white_internal();
     }
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
