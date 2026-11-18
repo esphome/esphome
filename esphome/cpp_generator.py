@@ -1,5 +1,6 @@
 import abc
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import inspect
 import math
 import re
@@ -23,9 +24,9 @@ from esphome.core import (
 )
 from esphome.helpers import (
     cpp_string_escape,
-    ensure_unique_string,
     indent,
     indent_all_but_first_and_last,
+    unique_name,
 )
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
@@ -215,18 +216,24 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        body = f"{self.content}\n"
-        if self.source is not None:
-            body = f"{self.source.as_line_directive}\n{body}"
-        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
-        if "#line " in body:
-            body += f"{LINE_DIRECTIVE_RESET}\n"
-        cpp += f"{body}}}"
+        cpp += "".join(f"{line}\n" for line in self.body_lines)
+        cpp += "}"
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
         return "".join(str(part) for part in self.parts)
+
+    @property
+    def body_lines(self) -> list[str]:
+        """The body with its source line mark, as the statements of a function."""
+        lines = [self.content]
+        if self.source is not None:
+            lines.insert(0, self.source.as_line_directive)
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if any("#line " in line for line in lines):
+            lines.append(LINE_DIRECTIVE_RESET)
+        return lines
 
 
 # pylint: disable=abstract-method
@@ -455,16 +462,20 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ("constexpr",)
+    __slots__ = ("constexpr", "align")
 
-    def __init__(self, type_, name, rhs, constexpr: bool = True):
+    def __init__(
+        self, type_, name, rhs, constexpr: bool = True, align: int | None = None
+    ):
         super().__init__(type_, "", name, rhs)
         self.constexpr = constexpr
+        self.align = align
 
     def __str__(self):
+        prefix = "" if self.align is None else f"alignas({self.align}) "
         if self.constexpr:
-            return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
-        return f"ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
+            return f"{prefix}static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"{prefix}ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -477,24 +488,44 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
-def progmem_array(id_, rhs) -> "MockObj":
+def progmem_array(id_, rhs, *, align: int | None = None) -> "MockObj":
+    """Emit a ``static constexpr`` PROGMEM array and return a reference to it.
+
+    ``align`` prefixes the declaration with ``alignas(align)``. Without it the array
+    only gets its element type's alignment (1 byte for a byte array), so data read
+    through a cast, such as a flatbuffer model buffer, needs this to stay aligned.
+    """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
+    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, align=align)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
 
+_CONFIG_ID_NAMES = "config_id_names"
+
+
 def unique_global_id(name: str, type_: "MockObjClass") -> ID:
     """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
     from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
+    from esphome.config_validation import RESERVED_IDS_SET
 
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    # The config is final during code generation, so its ids are collected once per run.
+    if (config_ids := CORE.data.get(_CONFIG_ID_NAMES)) is None:
+        config_ids = CORE.data[_CONFIG_ID_NAMES] = {
+            str(i) for i, _ in iter_ids(CORE.config)
+        }
+    unique = unique_name(
+        name,
+        lambda c: (
+            c in config_ids
+            or c in RESERVED_IDS_SET
+            or c in CORE.loaded_integrations
+            or ID(c) in CORE.variables
+        ),
+    )
+    return ID(unique, is_declaration=True, type=type_)
 
 
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
@@ -873,6 +904,54 @@ def static_function(
         RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
+
+
+@dataclass
+class SharedStaticFunctions:
+    """Functions emitted by ``shared_static_function``, by signature and body."""
+
+    functions: dict[tuple[str, str, str], RawExpression] = field(default_factory=dict)
+
+
+def shared_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+    *,
+    share: bool = True,
+) -> RawExpression:
+    """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
+
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
+    """
+    if not share:
+        return _new_static_function(name, return_type, parameters, body)
+    data: SharedStaticFunctions = CORE.data.setdefault(
+        "shared_static_function", SharedStaticFunctions()
+    )
+    key = (
+        str(safe_exp(return_type)),
+        str(ParameterListExpression(*parameters)),
+        "\n".join(map(str, body)),
+    )
+    if (fn := data.functions.get(key)) is None:
+        fn = data.functions[key] = _new_static_function(
+            name, return_type, parameters, body
+        )
+    return fn
+
+
+def _new_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+) -> RawExpression:
+    id_ = unique_global_id(name, None)
+    fn = static_function(id_.id, return_type, parameters, body)
+    CORE.register_variable(id_, fn)
+    return fn
 
 
 def add(expression: Expression | Statement, prepend: bool = False):
@@ -1402,9 +1481,10 @@ class MockObjClass(MockObj):
         return self._parents
 
     def inherits_from(self, other: "MockObjClass") -> bool:
-        if str(self) == str(other):
+        other_name = str(other)
+        if str(self) == other_name:
             return True
-        return any(str(parent) == str(other) for parent in self._parents)
+        return any(str(parent) == other_name for parent in self._parents)
 
     def const_ref(self) -> MockObj:
         """``const T &``, for a parameter that takes this type by reference."""

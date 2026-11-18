@@ -10,6 +10,7 @@ import functools
 import os.path
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 
@@ -552,7 +553,7 @@ def lint_conf_matches(fname, match):
     )
 
 
-CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 with codecs.open("esphome/const.py", "r", encoding="utf-8") as const_f_handle:
     constants_content = const_f_handle.read()
 with codecs.open(
@@ -598,7 +599,7 @@ def lint_conf_from_const_py(fname, match):
     return err
 
 
-UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 UNIT_CONSTANTS = [
     m.group(1) for m in re.finditer(UNIT_RE, constants_content, re.MULTILINE)
 ]
@@ -878,6 +879,84 @@ def lint_unit_constants_usage():
             "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
+
+
+def _git_output(*args: str) -> str | None:
+    """Run a git command and return its stdout, or None if it fails."""
+    proc = subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=False, close_fds=False
+    )
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def _base_commit() -> str | None:
+    """Return the commit that holds the base branch, or None when there is none.
+
+    In a GitHub pull request run, HEAD is the test merge commit and its first parent is
+    the tip of the target branch (the checkout needs fetch-depth 2 for it). Elsewhere,
+    such as pre-commit or a local run, use the merge base of HEAD with dev, found the same
+    way as helpers.changed_files(). Without a dev remote ref there is nothing to compare
+    against, so the caller skips the check.
+    """
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+        if (out := _git_output("rev-parse", "--verify", "-q", "HEAD^1")) is None:
+            print(
+                "WARNING: HEAD has no parent commit; cannot find new constants "
+                "(the checkout needs fetch-depth: 2)",
+                file=sys.stderr,
+            )
+            return None
+        return out.strip()
+    remotes = ["upstream", "origin", *(_git_output("remote") or "").split()]
+    for remote in remotes:
+        if out := _git_output("merge-base", f"refs/remotes/{remote}/dev", "HEAD"):
+            return out.strip()
+    return None
+
+
+def _constants_defined_at(commit: str) -> set[str]:
+    """Return the names of all CONF_/UNIT_ definitions in Python files at a commit."""
+    out = _git_output(
+        "grep",
+        "-h",
+        "-o",
+        "-E",
+        r"^(CONF|UNIT)_[A-Za-z0-9_]+[[:space:]]*(:[^=]*)?=",
+        commit,
+        "--",
+        "*.py",
+    )
+    # git grep exits 1 when nothing matches, which is an empty set and not an error.
+    # Each line is the name followed by an optional annotation and "=".
+    return {re.match(r"\w+", line)[0] for line in (out or "").splitlines()}
+
+
+@lint_post_check
+def lint_new_constant_in_multiple_files() -> list[str]:
+    """Reject a constant that this change adds, brand new, in two or more files.
+
+    Constants that already exist on the base branch are left to the 3+ files checks
+    above, which a workflow can fix by moving them. Skipped when no base commit is known.
+    """
+    candidates: dict[str, list[str]] = {}
+    for name, uses in (*CONSTANTS_USES.items(), *UNIT_CONSTANTS_USES.items()):
+        files = sorted({str(u) for u in uses if fnmatch.fnmatch(str(u), "esphome/*")})
+        if len(files) >= 2:
+            candidates[name] = files
+    if not candidates or (base := _base_commit()) is None:
+        return []
+    existing = _constants_defined_at(base)
+    return [
+        f"New constant {highlight(name)} is defined in {len(files)} files "
+        f"({', '.join(files)}). Define it once and import it everywhere else: in "
+        "esphome/const.py if core code uses it, otherwise in "
+        "esphome/components/const/__init__.py, or in one component that the others "
+        "import it from."
+        for name, files in sorted(candidates.items())
+        if name not in existing
+    ]
 
 
 # Maximum allowed CONF_ constants in esphome/const.py.

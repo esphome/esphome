@@ -60,6 +60,7 @@ class Platform(StrEnum):
     # Scheduled for removal in 2027.7.0.
     RP2040 = "rp2"
     RTL87XX = "rtl87xx"
+    STM32 = "stm32"
 
 
 class Framework(StrEnum):
@@ -139,6 +140,7 @@ PLATFORM_RP2 = Platform.RP2
 # scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
+PLATFORM_STM32 = Platform.STM32
 
 
 BUNDLE_EXTENSION = ".esphomebundle.tar.gz"

@@ -23,7 +23,7 @@ void TemplateTime::setup() {
       temp.apply(this);
       return;
     } else {
-      // set to inital value if loading from pref failed
+      // set to initial value if loading from pref failed
       state = this->initial_value_;
     }
   }

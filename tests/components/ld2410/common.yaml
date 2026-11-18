@@ -170,8 +170,8 @@ text_sensor:
   - platform: ld2410
     id: ld2410_textsensor
     version:
-      name: presenece sensor version
+      name: presence sensor version
     mac_address:
-      name: presenece sensor mac address
+      name: presence sensor mac address
     calibration_result:
-      name: presenece sensor calibration result
+      name: presence sensor calibration result

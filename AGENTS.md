@@ -66,6 +66,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   `breaking-changes`: what is public API, deprecation patterns and migration notes.
     *   `pr-workflow`, `code-review`, `hardware-test`, `display-test`: creating PRs, reviewing them, and testing
         on real boards and panels.
+    *   `silent-failure-review`: code paths in a branch's diff that fail without telling the user, checked
+        before a PR goes up for review.
 
 *   **Formatting:**
     *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
@@ -245,6 +247,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
+        `update_register16`, `read_byte_reg16` and `write_byte_reg16` for 16-bit register addresses,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
         `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
         poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
@@ -309,6 +312,27 @@ file does, and it is the authority when they disagree. The most useful starting 
           text::Text *source_{nullptr};
         };
         ```
+    *   **No state that copies other state:** a flag that mirrors a timer, a `has_x_` bool beside `x_`, or an enum
+        that can be worked out from fields already stored is a second source of truth. Use the source:
+        `pending = this->cancel_timeout(ID)`, an unset value of `NAN` or an out-of-range sentinel.
+    *   **No dead guards:** do not check what the caller or core already guarantees: a member that codegen always
+        sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
+        `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
+        value is cast from bus data).
+    *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
+        as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
+    *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
+        factors, thresholds, checksums) is done in `to_code` and passed as a plain value, not done in C++ at
+        boot.
+    *   **One table for both directions:** a value that is encoded and decoded through the same mapping uses one
+        `static constexpr` (`PROGMEM` on ESP8266) table of `{value, code}` pairs, not two `switch` ladders.
+    *   **Logging:** follow https://developers.esphome.io/architecture/logging/ for log levels and `dump_config()`.
+        In short: a reading is logged with `ESP_LOGV`, not `ESP_LOGD` on every update; `setup()` logs no
+        "Setting up" or "initialized" line (core logs setup); `dump_config()` combines related lines into one
+        `ESP_LOGCONFIG` call, within the 512-byte log buffer.
+    *   **Leaf classes are `final`:** a component or entity class nothing derives from is declared `final`.
+    *   **No copies within the PR:** two functions, branches or platform files that differ in a constant or two
+        become one helper, loop or table; helpers, includes and imports nothing uses are deleted.
 
 *   **Component Code Generation:** every component's `__init__.py` defines `DOMAIN` (its own name, checked by
     CI). Hub entities go in platform files (`sensor.py`, ...) that take the hub's id, not under the hub's own
@@ -355,7 +379,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         `script/test_build_components -c <component>`. Never define buses directly in test YAML: include the
         shared packages from `tests/test_build_components/common/` with dict-style `packages:`. Test file naming,
         `validate.*.yaml` config-only tests, CI grouping, C++ unit tests and integration tests are in the
-        `component-tests` skill.
+        `component-tests` skill. Tests that differ only in their inputs are one `pytest.mark.parametrize` test
+        or a table-driven gtest.
 
 *   **Debugging and Troubleshooting:**
     *   **Debug Tools:**
@@ -429,6 +454,14 @@ file does, and it is the authority when they disagree. The most useful starting 
     members of `esphome/core/` and base classes are public API. Aim for a 6-month deprecation window
     (`ESPDEPRECATED` in C++, `cv.rename_key(..., removed_in=...)` for config keys) and document the migration
     path in the PR description. The `breaking-changes` skill has the full policy, checklist and patterns.
+
+*   **The YAML language is frozen** until ESPHome configurations move to yaml.rocks
+    ([esphome/backlog#201](https://github.com/esphome/backlog/issues/201)). Do not add YAML tags beyond the existing
+    `!include`, `!include_dir_*`, `!secret`, `!env_var`, `!lambda`, `!literal`, `!extend` and `!remove`, new
+    `packages:` or `substitutions:` behaviour (including new Jinja globals or filters), or new ways to merge,
+    override or remove parts of a configuration.
+    Bug fixes to the existing features are still accepted. A component's own configuration options are not part of
+    this freeze.
 
 ## 9. English Language
 

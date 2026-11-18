@@ -160,8 +160,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    if proces_std_dev := config.get(CONF_PROCESS_STD_DEV):
-        cg.add(var.set_process_std_dev(proces_std_dev))
+    if process_std_dev := config.get(CONF_PROCESS_STD_DEV):
+        cg.add(var.set_process_std_dev(process_std_dev))
 
     if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
         storage = cg.static_storage(
@@ -170,6 +170,11 @@ async def to_code(config: ConfigType) -> None:
             len(config[CONF_SOURCES]),
         )
         cg.add(var.set_source_storage(storage))
+    else:
+        storage = cg.static_storage(
+            config[CONF_ID], sensor.Sensor.operator("ptr"), len(config[CONF_SOURCES])
+        )
+        cg.add(var.set_sensor_storage(storage))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
