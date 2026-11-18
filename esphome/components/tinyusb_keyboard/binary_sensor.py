@@ -24,6 +24,7 @@ CONFIG_SCHEMA = {
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_TINYUSB_KEYBOARD_ID])
+    cg.add_define("USE_TINYUSB_KEYBOARD_LED_STATE")
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CAPSLOCK, hub.set_capslock_binary_sensor)
     await binary_sensors(CONF_NUMLOCK, hub.set_numlock_binary_sensor)

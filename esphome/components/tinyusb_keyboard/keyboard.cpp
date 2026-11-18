@@ -10,13 +10,15 @@ ESPHOME_LOG_TAG(TAG, "tinyusb_keyboard");
 
 void TinyUSBKeyboard::dump_config() { ESP_LOGCONFIG(TAG, "TinyUSB Keyboard"); }
 
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
 void TinyUSBKeyboard::set_led_state(uint8_t led_state) {
-  if (led_state == this->led_state_) {
-    return;
-  }
+  // The host's first report after enumeration is usually all locks off; publish it so the sensors
+  // show a known state instead of staying unknown until a lock key is toggled.
   this->led_state_ = led_state;
   this->led_pending_ = true;
-  this->enable_loop();
+  // set_led_state() runs on the TinyUSB task; enable_loop_soon_any_context() is safe from any task,
+  // while enable_loop() would touch the main loop's component partition.
+  this->enable_loop_soon_any_context();
 }
 
 void TinyUSBKeyboard::publish_led_state_() {
@@ -25,14 +27,11 @@ void TinyUSBKeyboard::publish_led_state_() {
   }
   this->led_pending_ = false;
   uint8_t led = this->led_state_;
-  if (led == this->last_led_state_) {
-    return;
-  }
-  this->last_led_state_ = led;
   PUBLISH_STATE(this->capslock_binary_sensor_, (led & 0x02) != 0);
   PUBLISH_STATE(this->numlock_binary_sensor_, (led & 0x01) != 0);
   PUBLISH_STATE(this->scrolllock_binary_sensor_, (led & 0x04) != 0);
 }
+#endif
 
 void TinyUSBKeyboard::set_keyboard_(uint8_t keycode, uint8_t modifiers) {
   this->keycode_ = keycode;
@@ -54,6 +53,10 @@ void TinyUSBKeyboard::flush_() {
     this->keyboard_pending_ = false;
     this->consumer_pending_ = false;
     this->wakeup_requested_ = false;
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+    this->last_led_state_ = 0xFF;
+    this->led_pending_ = false;
+#endif
     this->disable_loop();
     return;
   }
@@ -83,7 +86,12 @@ void TinyUSBKeyboard::flush_() {
       tud_hid_report(REPORT_ID_CONSUMER, &this->usage_, sizeof(this->usage_))) {
     this->consumer_pending_ = false;
   }
-  if (this->keyboard_pending_ || this->consumer_pending_ || this->led_pending_) {
+  if (this->keyboard_pending_ || this->consumer_pending_ ||
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+      this->led_pending_) {
+#else
+      false) {
+#endif
     this->enable_loop();
   } else {
     this->disable_loop();
@@ -92,7 +100,9 @@ void TinyUSBKeyboard::flush_() {
 
 void TinyUSBKeyboard::loop() {
   this->flush_();
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
   this->publish_led_state_();
+#endif
 }
 
 TinyUSBKeyboard *global_tinyusb_keyboard = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -118,7 +128,9 @@ void tud_hid_set_report_cb(uint8_t /*instance*/, uint8_t report_id, hid_report_t
       bufsize < 1 || esphome::tinyusb_keyboard::global_tinyusb_keyboard == nullptr) {
     return;
   }
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
   esphome::tinyusb_keyboard::global_tinyusb_keyboard->set_led_state(buffer[0]);
+#endif
 }
 }
 

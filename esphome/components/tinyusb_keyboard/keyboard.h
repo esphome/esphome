@@ -5,7 +5,9 @@
 
 #include "esphome/core/component.h"
 
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 #include "tusb.h"
 // tusb.h only pulls the HID class in when CFG_TUD_HID is set, which the static analysis build does not do
@@ -54,20 +56,24 @@ class TinyUSBKeyboard final : public Component {
   void press_media(uint16_t usage) { this->set_consumer_(usage); }
   void release_media() { this->set_consumer_(0); }
 
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
   /// Called by the TinyUSB stack when the host sets a report (for example the keyboard LED state).
   void set_led_state(uint8_t led_state);
 
   SUB_BINARY_SENSOR(capslock)
   SUB_BINARY_SENSOR(numlock)
   SUB_BINARY_SENSOR(scrolllock)
+#endif
 
  protected:
   void set_keyboard_(uint8_t keycode, uint8_t modifiers);
   void set_consumer_(uint16_t usage);
   /// Sends whatever changed; a report the endpoint cannot take yet is retried from loop()
   void flush_();
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
   /// Publish the latched keyboard LED state to the configured binary sensors.
   void publish_led_state_();
+#endif
 
   // The wanted state of each report, resent until the endpoint accepts it so a release is never lost.
   // Only the latest state is kept, so consecutive key actions need a short delay between them.
@@ -79,9 +85,11 @@ class TinyUSBKeyboard final : public Component {
   bool wakeup_requested_{false};
 
   // LED state reported by the host via Set_Report (bit 0: Num Lock, bit 1: Caps Lock, bit 2: Scroll Lock).
-  uint8_t led_state_{0};
-  uint8_t last_led_state_{0};
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+  volatile uint8_t led_state_{0};
+  volatile uint8_t last_led_state_{0xFF};
   bool led_pending_{false};
+#endif
 };
 
 }  // namespace esphome::tinyusb_keyboard
