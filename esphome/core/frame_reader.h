@@ -30,8 +30,10 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
     pos_t pos = this->pos_;
     if (pos < HEADER_LEN && c != frame_reader_detail::header_byte<HEADER...>(pos)) {
       // A later byte of the broken header, or c, may start the real one
-      this->buf_[pos] = c;
-      this->replay_(pos);
+      if (pos != 0) {
+        this->buf_[pos] = c;
+        this->replay_(pos);
+      }
       return nullptr;
     }
     this->buf_[pos++] = c;
@@ -54,8 +56,9 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   void resync() { this->replay_(N - 1); }
 
  protected:
-  // Start over and feed buf_[1..last] again; never completes a frame as last < N
-  void replay_(size_t last) {
+  // Start over and feed buf_[1..last] again; never completes a frame as last < N. Kept out of line so feed() can be
+  // inlined into the caller's byte loop.
+  void __attribute__((noinline)) replay_(size_t last) {
     this->pos_ = 0;
     for (size_t i = 1; i <= last; i++) {
       this->feed(this->buf_[i]);
@@ -82,8 +85,10 @@ template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class Leng
   const uint8_t *feed(uint8_t c) {
     pos_t pos = this->pos_;
     if (pos < HEADER_LEN && c != frame_reader_detail::header_byte<HEADER...>(pos)) {
-      this->buf_[pos] = c;
-      this->replay_(pos);
+      if (pos != 0) {
+        this->buf_[pos] = c;
+        this->replay_(pos);
+      }
       return nullptr;
     }
     this->buf_[pos++] = c;
@@ -119,8 +124,9 @@ template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class Leng
   const uint8_t *resync() { return this->replay_((this->pos_ != 0 ? this->pos_ : this->frame_length()) - 1); }
 
  protected:
-  // Start over and feed buf_[1..last] again, stopping at a completed frame; writes stay behind the read position
-  const uint8_t *replay_(size_t last) {
+  // Start over and feed buf_[1..last] again, stopping at a completed frame; writes stay behind the read position.
+  // Kept out of line so feed() can be inlined into the caller's byte loop.
+  const uint8_t *__attribute__((noinline)) replay_(size_t last) {
     this->pos_ = 0;
     for (size_t i = 1; i <= last; i++) {
       if (this->feed(this->buf_[i]) != nullptr)
