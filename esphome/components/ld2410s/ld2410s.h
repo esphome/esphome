@@ -81,7 +81,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #endif
 
  protected:
-  /// Returns false for a frame to search again: a wrong footer or impossible data.
+  /// Returns false for a wrong footer or impossible data.
   bool handle_frame_(const uint8_t *frame, uint8_t len);
   /// Returns false for a data frame whose state byte is impossible, so it counts as dropped.
   bool handle_data_frame_(const uint8_t *payload, uint16_t len, bool standard);

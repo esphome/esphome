@@ -241,7 +241,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
   uint32_t link_timeout_ms_{0};
   uint32_t last_frame_ms_{0};     // last valid periodic frame; until the first one, when setup() ran
-  uint32_t last_rx_{0};           // last pass that read bytes; equal to last_frame_ms_ until a byte comes after it
+  uint32_t last_rx_{0};           // last pass that read bytes
   uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};

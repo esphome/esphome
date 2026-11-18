@@ -101,7 +101,7 @@ void TuyaFrameLength::warn_too_long(size_t len) {
 }
 
 bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
-  // Like a partial frame, a frame being handled holds queued commands back, also while its log lines run callbacks
+  // Holds queued commands back while the frame is handled, log lines included
   this->handling_frame_ = true;
   // Last byte: sum of all bytes before it, header included, modulo 256
   const uint8_t rx_checksum = frame[len - 1];
