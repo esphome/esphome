@@ -12,9 +12,9 @@ ESPHOME_LOG_TAG(TAG, "ld2410s");
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 static constexpr uint8_t SHORT_DATA_FRAME_FOOTER = 0x62;
-static constexpr uint8_t LONG_HEADER_SIZE = 4;
-static constexpr uint8_t LENGTH_FIELD_SIZE = 2;
-static constexpr uint8_t LONG_PAYLOAD_POS = LONG_HEADER_SIZE + LENGTH_FIELD_SIZE;
+using ld24xx::HEADER_FOOTER_SIZE;
+// After the header and the two byte length
+static constexpr uint8_t LONG_PAYLOAD_POS = HEADER_FOOTER_SIZE + 2;
 
 static constexpr uint16_t CMD_CONFIRMATION = 0x0100;  // set in the command word of an acknowledgement
 static constexpr uint16_t CONFIG_MODE_START_CMD = 0x00FF;
@@ -208,7 +208,7 @@ void LD2410SComponent::run_sequence_(uint32_t now) {
 
 void LD2410SComponent::send_command_(uint16_t command) {
   uint8_t frame[CMD_FRAME_MAX_SIZE];
-  progmem_memcpy(frame, CMD_FRAME_HEADER, LONG_HEADER_SIZE);
+  progmem_memcpy(frame, CMD_FRAME_HEADER, HEADER_FOOTER_SIZE);
   uint8_t pos = LONG_PAYLOAD_POS;
   put_le16(frame + pos, command);
   pos += 2;
@@ -237,30 +237,24 @@ void LD2410SComponent::send_command_(uint16_t command) {
     default:
       break;
   }
-  put_le16(frame + LONG_HEADER_SIZE, pos - LONG_PAYLOAD_POS);  // payload length
+  put_le16(frame + HEADER_FOOTER_SIZE, pos - LONG_PAYLOAD_POS);  // payload length
   progmem_memcpy(&frame[pos], CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
   pos += sizeof(CMD_FRAME_FOOTER);
   this->write_array(frame, pos);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(CMD_FRAME_MAX_SIZE)];
-  ESP_LOGVV(TAG, "> %s", format_hex_pretty_to(hex_buf, frame, pos, ' '));
-#endif
+  ESP_LOGVV_HEX(TAG, frame, pos, CMD_FRAME_MAX_SIZE, "> %s");
 }
 
 bool LD2410SComponent::handle_frame_(const uint8_t *frame, uint8_t len) {
   const uint8_t type = frame[0];
   const bool short_frame = type == ShortDataFrameFormat::FIRST;
   if (short_frame ? frame[len - 1] != SHORT_DATA_FRAME_FOOTER : !ld24xx::has_footer(frame, len)) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(RX_BUFFER_SIZE)];
-    ESP_LOGV(TAG, "Footer does not match header: %s", format_hex_pretty_to(hex_buf, frame, len, ' '));
-#endif
+    ESP_LOGV_HEX(TAG, frame, len, RX_BUFFER_SIZE, "Footer does not match header: %s");
     this->count_dropped_frame_();
     return false;
   }
   const uint8_t payload_pos = short_frame ? 1 : LONG_PAYLOAD_POS;
   const uint8_t *payload = &frame[payload_pos];
-  const uint16_t payload_len = len - payload_pos - (short_frame ? 1 : ld24xx::HEADER_FOOTER_SIZE);
+  const uint16_t payload_len = len - payload_pos - (short_frame ? 1 : HEADER_FOOTER_SIZE);
   if (type == ld24xx::CmdFrameFormat::FIRST) {
     this->handle_command_ack_(payload, payload_len);
   } else if (!this->handle_data_frame_(payload, payload_len, type == ld24xx::DataFrameFormat::FIRST)) {
