@@ -1,9 +1,9 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::pioneer_wt {
@@ -46,15 +46,17 @@ static constexpr uint8_t SWING_OFF = 0x08;
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
 /// Collects bytes from the serial line into complete frames with a valid checksum.
-class PacketReader final {
+class PacketReader final : protected LengthFrameReader<MAX_FRAME_SIZE, 7, 0, 0xA5, 0x01> {
+  using Frames = LengthFrameReader<MAX_FRAME_SIZE, 7, 0, 0xA5, 0x01>;
+
  public:
   /// Feeds one byte. Returns the frame length once a complete, valid frame is in frame().
   size_t feed(uint8_t byte);
-  const uint8_t *frame() const { return this->buf_.data(); }
+  const uint8_t *frame() const { return this->buf_; }
   /// True while part of a frame has been collected.
-  bool partial() const { return this->pos_ != 0; }
+  bool partial() const { return this->length() != 0; }
   /// Drops a partly collected frame, so the next byte can start a new one.
-  void reset() { this->pos_ = 0; }
+  using Frames::reset;
   /// True once after a complete frame was dropped for a wrong checksum.
   bool take_checksum_error() {
     const bool error = this->checksum_error_;
@@ -63,8 +65,6 @@ class PacketReader final {
   }
 
  protected:
-  std::array<uint8_t, MAX_FRAME_SIZE> buf_{};
-  uint8_t pos_{0};
   bool checksum_error_{false};
 };
 

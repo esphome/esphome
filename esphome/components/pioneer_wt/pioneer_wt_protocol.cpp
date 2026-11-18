@@ -12,28 +12,16 @@ uint16_t frame_crc(const uint8_t *frame, size_t len) {
 }
 
 size_t PacketReader::feed(uint8_t byte) {
-  if (this->pos_ == 0 && byte != 0xA5)
-    return 0;
-  if (this->pos_ == 1 && byte != 0x01) {
-    this->pos_ = byte == 0xA5 ? 1 : 0;
-    return 0;
-  }
-  this->buf_[this->pos_++] = byte;
-  if (this->pos_ < 8)
-    return 0;
-  const uint8_t len = this->buf_[7];
-  if (len < HEADER_SIZE) {
-    this->pos_ = 0;
-    return 0;
-  }
-  if (this->pos_ < len)
-    return 0;
-  this->pos_ = 0;
-  if (frame_crc(this->buf_.data(), len) != encode_uint16(this->buf_[8], this->buf_[9])) {
+  for (const uint8_t *frame = Frames::feed(byte); frame != nullptr; frame = this->resync()) {
+    const size_t len = this->frame_length();
+    // Shorter than the header, the checksum would be read past the frame
+    if (len < HEADER_SIZE)
+      continue;
+    if (frame_crc(frame, len) == encode_uint16(frame[8], frame[9]))
+      return len;
     this->checksum_error_ = true;
-    return 0;
   }
-  return len;
+  return 0;
 }
 
 enum class AttrKind : uint8_t {
