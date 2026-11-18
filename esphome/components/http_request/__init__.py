@@ -77,6 +77,9 @@ def validate_ssl_verification(config: ConfigType) -> ConfigType:
     if CORE.is_rp2 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
 
+    if CORE.is_libretiny and config[CONF_VERIFY_SSL]:
+        error_message = "ESPHome does not support certificate verification on LibreTiny"
+
     if (
         CORE.is_esp8266
         and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]
@@ -125,7 +128,7 @@ def _declare_request_class(value: Any) -> ID:
         return cv.declare_id(HttpRequestHost)(value)
     if CORE.is_esp32:
         return cv.declare_id(HttpRequestIDF)(value)
-    if CORE.is_esp8266 or CORE.is_rp2:
+    if CORE.is_esp8266 or CORE.is_rp2 or CORE.is_libretiny:
         return cv.declare_id(HttpRequestArduino)(value)
     return NotImplementedError
 
@@ -178,6 +181,8 @@ CONFIG_SCHEMA = cv.All(
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
         rp2_arduino=cv.Version(0, 0, 0),
+        rtl87xx_arduino=cv.Version(0, 0, 0),
+        ln882x_arduino=cv.Version(0, 0, 0),
         host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
