@@ -215,8 +215,9 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (auto &entry : this->services_) {
-    entry.service->gatts_event_handler(event, gatts_if, param);
+  // Indexed: a handler (an on_write lambda) can create a service, and push_back may move the vector.
+  for (size_t i = 0; i < this->services_.size(); i++) {
+    this->services_[i].service->gatts_event_handler(event, gatts_if, param);
   }
 }
 
