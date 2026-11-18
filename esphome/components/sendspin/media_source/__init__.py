@@ -98,7 +98,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=5000)),
             ),
-            cv.Optional(CONF_STATIC_DELAY_ADJUSTABLE, default=False): cv.boolean,
+            cv.Optional(CONF_STATIC_DELAY_ADJUSTABLE, default=True): cv.boolean,
             cv.Optional(CONF_FIXED_DELAY, default="0us"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
