@@ -10,3 +10,15 @@ cover:
     close_action:
       - logger.log: close_action
     close_duration: 4.5min
+  - platform: time_based
+    name: Time Based Cover Rerun
+    id: time_based_cover_rerun
+    rerun_action_while_moving: true
+    stop_action:
+      - logger.log: stop_action
+    open_action:
+      - logger.log: open_action
+    open_duration: 30s
+    close_action:
+      - logger.log: close_action
+    close_duration: 30s

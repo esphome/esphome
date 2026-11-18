@@ -21,6 +21,7 @@ class TimeBasedCover final : public cover::Cover, public Component {
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_manual_control(bool value) { this->manual_control_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
+  void set_rerun_action_while_moving(bool value) { this->rerun_action_while_moving_ = value; }
   cover::CoverOperation get_last_operation() const { return this->last_operation_; }
 
  protected:
@@ -46,6 +47,7 @@ class TimeBasedCover final : public cover::Cover, public Component {
   bool has_built_in_endstop_{false};
   bool manual_control_{false};
   bool assumed_state_{false};
+  bool rerun_action_while_moving_{false};
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
