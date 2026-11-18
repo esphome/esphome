@@ -13,7 +13,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["duco"]
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 
 CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 
