@@ -18,6 +18,20 @@ TEST(LogTagTest, HeaderContainsTagAndLine) {
   EXPECT_NE(header.find("[D][test.tag:042]"), std::string::npos) << header;
 }
 
+TEST(LogTagTest, HeaderWithThreadNameAndFourDigitLine) {
+  char data[256];
+  LogBuffer buf{data, sizeof(data)};
+  buf.write_header(5, TEST_TAG, 1234, "task");
+  EXPECT_EQ(std::string(data, buf.pos), "\033[0;36m[D][test.tag:1234]\033[1;31m[task]\033[0;36m: ");
+}
+
+TEST(LogTagTest, HeaderWithoutLevelHasNoColor) {
+  char data[256];
+  LogBuffer buf{data, sizeof(data)};
+  buf.write_header(0, TEST_TAG, 7, nullptr);
+  EXPECT_EQ(std::string(data, buf.pos), "[][test.tag:007]: ");
+}
+
 TEST(LogTagTest, PerTagLevelLookupMatchesByContent) {
   std::map<const char *, uint8_t, CStrCompare> levels{{"api", 1}, {"sensor", 2}, {"wifi", 3}};
   // Copies, so a match must compare content rather than pointers

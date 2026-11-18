@@ -1,6 +1,7 @@
 #include "gsl3670_touchscreen.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::gsl3670 {
 
@@ -66,10 +67,11 @@ void GSL3670Touchscreen::update_touches() {
 
   // Build gsl_touch_info exactly as the Seeed driver does
   for (uint8_t j = 0; j != finger_num; j++) {
-    // buf[(j+1)*4 + 0..3]:  byte0=y_lo, byte1=y_hi, byte2=x_lo, byte3=id|x_hi
-    auto x = (uint16_t) (((buf[(j + 1) * 4 + 3] & 0x0f) << 8) | buf[(j + 1) * 4 + 2]);
-    auto y = (uint16_t) ((buf[(j + 1) * 4 + 1] << 8) | buf[(j + 1) * 4 + 0]);
-    auto id = (buf[(j + 1) * 4 + 3] >> 4) & 0x0f;
+    // Record: y_lo, y_hi, x_lo, then the id (high nibble) and the top 4 bits of X (low nibble)
+    const uint8_t *record = &buf[(j + 1) * 4];
+    auto x = encode_uint16(low_nibble(record[3]), record[2]);
+    auto y = encode_uint16(record[1], record[0]);
+    auto id = high_nibble(record[3]);
     ESP_LOGV(TAG, "Touch id=%u, x=%u y=%u", id, x, y);
     if (x <= 8192 && y <= 8192)
       this->add_raw_touch_position_(id, x, y);

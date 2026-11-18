@@ -5,7 +5,7 @@ namespace esphome::xiaomi_jqjcy01ym {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_jqjcy01ym");
 
-void XiaomiJQJCY01YM::dump_config() {
+void XiaomiJQJCY01YM::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi JQJCY01YM");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

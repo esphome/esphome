@@ -12,18 +12,15 @@
 
 namespace esphome::bmi270 {
 
-//  Register map
 static constexpr uint8_t BMI270_REG_CHIP_ID = 0x00;
-static constexpr uint8_t BMI270_REG_ERR_REG = 0x02;
 static constexpr uint8_t BMI270_REG_STATUS = 0x03;
 static constexpr uint8_t BMI270_REG_DATA_8 = 0x0C;   // ACC_X LSB
 static constexpr uint8_t BMI270_REG_DATA_14 = 0x12;  // GYR_X LSB
 static constexpr uint8_t BMI270_REG_TEMP_0 = 0x22;
-static constexpr uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-endian ish)
+static constexpr uint8_t BMI270_REG_TEMP_MSB = 0x23;
 
-static constexpr uint8_t REG_READ_LEN =
-    BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 +
-    1;  // 0x23 - 0x0C + 1 = 0x18 bytes total for accel(6) + gyro(6) + temp(2) + padding(4)
+// Accel, gyro, 10 unused bytes, then temperature: 0x0C to 0x23
+static constexpr uint8_t REG_READ_LEN = BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 + 1;
 
 static constexpr uint8_t BMI270_REG_PWR_CONF = 0x7C;
 static constexpr uint8_t BMI270_REG_PWR_CTRL = 0x7D;
@@ -80,7 +77,6 @@ static constexpr uint8_t BMI270_AUX_IF_CONF_RD_BURST_8 = 0x03;      // bits 1:0 
 static constexpr uint8_t BMI270_AUX_DATA_LEN = 8;
 static_assert(BMI270_REG_AUX_X_LSB + BMI270_AUX_DATA_LEN == BMI270_REG_DATA_8, "aux data must precede accel data");
 
-//  Accelerometer range options
 enum BMI270AccelRange : uint8_t {
   BMI270_ACCEL_RANGE_2G = 0x00,
   BMI270_ACCEL_RANGE_4G = 0x01,
@@ -88,7 +84,6 @@ enum BMI270AccelRange : uint8_t {
   BMI270_ACCEL_RANGE_16G = 0x03,
 };
 
-//  Accelerometer ODR options
 enum BMI270AccelODR : uint8_t {
   BMI270_ACCEL_ODR_12_5 = 0x05,
   BMI270_ACCEL_ODR_25 = 0x06,
@@ -100,7 +95,6 @@ enum BMI270AccelODR : uint8_t {
   BMI270_ACCEL_ODR_1600 = 0x0C,
 };
 
-// Gyroscope range options
 enum BMI270GyroRange : uint8_t {
   BMI270_GYRO_RANGE_2000 = 0x00,
   BMI270_GYRO_RANGE_1000 = 0x01,
@@ -109,7 +103,6 @@ enum BMI270GyroRange : uint8_t {
   BMI270_GYRO_RANGE_125 = 0x04,
 };
 
-// Gyroscope ODR options
 enum BMI270GyroODR : uint8_t {
   BMI270_GYRO_ODR_25 = 0x06,
   BMI270_GYRO_ODR_50 = 0x07,
@@ -130,14 +123,11 @@ enum BMI270AuxDevice : uint8_t {
 };
 #endif
 
-// Main component class
 class BMI270Component final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
-  // Lifecycle
   void setup() override;
   void dump_config() override;
 
-  // Configuration setters
   void set_accel_range(BMI270AccelRange r) { this->accel_range_ = r; }
   void set_accel_odr(BMI270AccelODR o) { this->accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { this->gyro_range_ = r; }
@@ -153,21 +143,15 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   bool update_data(motion::MotionData &data) override;
   bool load_config_file_();
 #ifdef USE_BMI270_BMM150
-  // Brings up the BMM150 over the BMI270's aux interface. Optional: on failure this only
-  // disables magnetometer reporting, it does not fail the whole component (accel/gyro still work).
-  bool setup_magnetometer_();
-  // Blocking poll of the aux-transaction-busy bit; aux transaction time depends on the
-  // attached device, so this is bounded by retries/timeout rather than a fixed delay.
-  bool wait_for_aux_idle_(uint32_t timeout_ms);
-  // Manual-mode aux read of 8 bytes starting at `reg` on the aux device.
+  // Returns the step that failed, or nullptr once the BMM150 is running
+  const LogString *setup_magnetometer_();
+  // Polls the aux busy bit, as the aux transaction time depends on the attached device
+  bool wait_for_aux_idle_();
+  // Manual-mode aux read of 8 bytes starting at `reg` on the aux device
   bool read_aux_block_(uint8_t reg, uint8_t *buf);
-  // Manual-mode aux write of one byte to `reg` on the aux device.
   bool write_aux_register_(uint8_t reg, uint8_t value);
-  // Reads the BMM150 factory trim values used to compensate its samples.
-  bool read_magnetometer_trim_();
 #endif
 
-  // Config
   BMI270AccelRange accel_range_{BMI270_ACCEL_RANGE_4G};
   BMI270AccelODR accel_odr_{BMI270_ACCEL_ODR_100};
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};
