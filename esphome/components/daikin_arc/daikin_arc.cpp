@@ -4,6 +4,8 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_arc {
 
@@ -22,7 +24,10 @@ void DaikinArcClimate::setup() {
 }
 
 void DaikinArcClimate::transmit_query_() {
-  uint8_t remote_header[8] = {0x11, 0xDA, 0x27, 0x00, 0x84, 0x87, 0x20, 0x00};
+  // In flash: an initialized local array is copied from a RAM constant on ESP8266
+  static constexpr uint8_t REMOTE_HEADER_TEMPLATE[8] PROGMEM = {0x11, 0xDA, 0x27, 0x00, 0x84, 0x87, 0x20, 0x00};
+  uint8_t remote_header[sizeof(REMOTE_HEADER_TEMPLATE)];
+  progmem_memcpy(remote_header, REMOTE_HEADER_TEMPLATE, sizeof(remote_header));
 
   // Calculate checksum
   for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {
@@ -49,11 +54,13 @@ void DaikinArcClimate::transmit_query_() {
 void DaikinArcClimate::transmit_state() {
   // 0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
   // 0x42, 0x49, 0x05, 0xA2,
-  uint8_t remote_header[20] = {0x11, 0xDA, 0x27, 0x00, 0x02, 0xd0, 0x02, 0x03, 0x80, 0x03, 0x82, 0x30, 0x41, 0x1f, 0x82,
-                               0xf4,
-                               /*                                                      とつど */
-                               /*                                                       0x13 */
-                               0x00, 0x24, 0x00, 0x00};
+  static constexpr uint8_t REMOTE_HEADER_TEMPLATE[20] PROGMEM = {
+      0x11, 0xDA, 0x27, 0x00, 0x02, 0xd0, 0x02, 0x03, 0x80, 0x03, 0x82, 0x30, 0x41, 0x1f, 0x82, 0xf4,
+      /*                                                      とつど */
+      /*                                                       0x13 */
+      0x00, 0x24, 0x00, 0x00};
+  uint8_t remote_header[sizeof(REMOTE_HEADER_TEMPLATE)];
+  progmem_memcpy(remote_header, REMOTE_HEADER_TEMPLATE, sizeof(remote_header));
 
   // 05    0 [1:3]MODE   1 [OFF TMR] [ON TMR] Power
   // 06-07 TEMP
@@ -67,7 +74,7 @@ void DaikinArcClimate::transmit_state() {
   // 16    [0:3] 8  00 [6:7] SENSOR WIND = 11 / NORMAL = 00
   // 17    24
 
-  uint8_t remote_state[19] = {
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[DAIKIN_STATE_FRAME_SIZE] PROGMEM = {
       0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x0a, 0xC4,
       /*                               MODE  TEMP  HUMD  FANH  FANL
          パワフル音声応答     */
@@ -80,6 +87,8 @@ void DaikinArcClimate::transmit_state() {
       /* ON 0x83           */
       /* OF 0x80           */
   };
+  uint8_t remote_state[sizeof(REMOTE_STATE_TEMPLATE)];
+  progmem_memcpy(remote_state, REMOTE_STATE_TEMPLATE, sizeof(remote_state));
 
   remote_state[5] = this->operation_mode_() | 0x08;
   remote_state[6] = this->temperature_();
@@ -89,9 +98,7 @@ void DaikinArcClimate::transmit_state() {
     remote_header[9] |= 0x10;
     this->last_humidity_ = remote_state[7];
   }
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[8] = fan_speed >> 8;
-  remote_state[9] = fan_speed & 0xff;
+  put_be16(remote_state + 8, this->fan_speed_());
 
   // Calculate checksum
   for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {

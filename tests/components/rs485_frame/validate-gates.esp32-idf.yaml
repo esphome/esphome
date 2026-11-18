@@ -1,0 +1,36 @@
+## Config-only validation of the sniffer_only and fixed_delay hubs, each on its own UART.
+
+packages:
+  uart_2x: !include ../../test_build_components/common/uart_2x/esp32-idf.yaml
+
+rs485_frame:
+  # Sniffer-only hub: exempt from the frame_trigger gate.frame_type requirement. crc: type none.
+  - id: sniffer_hub
+    uart_id: uart_bus
+    sniffer_only: true
+    # double escape mode validated config-only here (no byte: key permitted).
+    framing:
+      escape:
+        mode: double
+    crc:
+      type: none
+    tx:
+      gate:
+        mode: idle_gap
+
+  # fixed_delay gate mode (no gate.frame_type needed).
+  - id: idle_hub
+    uart_id: uart_bus_2
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum8
+    command_format:
+      preamble: [0x00, 0x01, 0x80]
+      value_element_bytes: 1
+    tx:
+      gate:
+        mode: fixed_delay
+        interval: 250ms

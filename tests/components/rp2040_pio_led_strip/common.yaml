@@ -16,3 +16,30 @@ light:
     bit0_low: 1.2us
     bit1_high: .69us
     bit1_low: .4us
+  # Same chipset as the first strip, on the other PIO
+  - platform: rp2040_pio_led_strip
+    id: led_strip_ws2812_pio1
+    pin: 6
+    num_leds: 60
+    pio: 1
+    channel_colors: GRB
+    chipset: WS2812
+  # Custom timings that differ from the first custom strip
+  - platform: rp2040_pio_led_strip
+    id: led_strip_custom_timings_2
+    pin: 7
+    num_leds: 60
+    pio: 0
+    channel_colors: GRB
+    bit0_high: .4us
+    bit0_low: .85us
+    bit1_high: .8us
+    bit1_low: .45us
+  # Same chipset and PIO as the first strip, so it reuses the loaded program
+  - platform: rp2040_pio_led_strip
+    id: led_strip_ws2812_pio0_second
+    pin: 8
+    num_leds: 60
+    pio: 0
+    channel_colors: GRB
+    chipset: WS2812

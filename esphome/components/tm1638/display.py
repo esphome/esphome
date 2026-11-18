@@ -19,6 +19,15 @@ tm1638_ns = cg.esphome_ns.namespace("tm1638")
 TM1638Component = tm1638_ns.class_("TM1638Component", cg.PollingComponent)
 TM1638ComponentRef = TM1638Component.operator("ref")
 
+# Publishes the key binary sensors from the key bitmask read on each loop
+KEYS_PUBLISHER = cg.HubFunction(
+    "keys",
+    cg.void,
+    [(cg.uint8, "keys")],
+    define="USE_TM1638_KEYS_PUBLISHER",
+)
+KEYS = KEYS_PUBLISHER.param("keys")
+
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
     {

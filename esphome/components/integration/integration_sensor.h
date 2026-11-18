@@ -23,10 +23,11 @@ enum IntegrationMethod {
 };
 
 class IntegrationSensor final : public sensor::Sensor, public Component {
+  SUB_SENSOR(source)
+
  public:
   void setup() override;
   void dump_config() override;
-  void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_time(IntegrationSensorTime time) { time_ = time; }
   void set_method(IntegrationMethod method) { method_ = method; }
   void set_restore(bool restore) { restore_ = restore; }
@@ -60,7 +61,6 @@ class IntegrationSensor final : public sensor::Sensor, public Component {
     }
   }
 
-  sensor::Sensor *sensor_;
   IntegrationSensorTime time_;
   IntegrationMethod method_;
   bool restore_;

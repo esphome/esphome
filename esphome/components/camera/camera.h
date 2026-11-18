@@ -78,7 +78,7 @@ class CameraImageReader {
   virtual ~CameraImageReader() {}
 };
 
-/// Specification of a caputured camera image.
+/// Specification of a captured camera image.
 /// This struct defines the format and size details for images captured
 /// or processed by a camera component.
 struct CameraImageSpec {

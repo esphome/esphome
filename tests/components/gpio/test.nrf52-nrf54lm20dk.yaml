@@ -1,0 +1,35 @@
+# nRF54LM20 DK: LEDs and buttons on port 1 above P1.15, which only exists on nRF54LM20
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: P1.26
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: gpio_button0
+    use_interrupt: true
+    interrupt_type: ANY
+
+  - platform: gpio
+    pin:
+      number: P0.05
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: gpio_button3
+
+output:
+  - platform: gpio
+    pin: P1.22
+    id: gpio_led0
+
+switch:
+  - platform: gpio
+    pin: P1.25
+    id: gpio_led1
+
+  - platform: gpio
+    pin: P1.28
+    id: gpio_led3

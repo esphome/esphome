@@ -63,6 +63,15 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
                                                0x9188, 0x83b9, 0xb5ea, 0xa7db, 0xd94c, 0xcb7d, 0xfd2e, 0xef1f};
 #endif
 
+#if !defined(USE_ESP32) && !defined(USE_LIBRETINY)
+// Nybble-at-a-time CRC-32: 64 bytes of table instead of the usual 1 KiB, at
+// roughly half the byte-table speed. PROGMEM keeps it out of RAM on ESP8266.
+static const uint32_t CRC32_NYBBLE_TABLE[16] PROGMEM = {
+    0x00000000, 0x1DB71064, 0x3B6E20C8, 0x26D930AC, 0x76DC4190, 0x6B6B51F4, 0x4DB26158, 0x5005713C,
+    0xEDB88320, 0xF00F9344, 0xD6D6A3E8, 0xCB61B38C, 0x9B64C2B0, 0x86D3D2D4, 0xA00AE278, 0xBDBDF21C,
+};
+#endif
+
 // Mathematics
 
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc, uint8_t poly, bool msb_first) {
@@ -164,6 +173,18 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   }
   return refout ? (crc ^ 0xffff) : crc;
 }
+
+#if !defined(USE_ESP32) && !defined(USE_LIBRETINY)
+uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len) {
+  crc = ~crc;
+  while (len--) {
+    crc ^= *data++;
+    crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
+    crc = (crc >> 4) ^ CRC32_NYBBLE_TABLE[crc & 0x0F];
+  }
+  return ~crc;
+}
+#endif
 
 // FNV-1 hash - deprecated, use fnv1a_hash() for new code
 uint32_t fnv1_hash(const char *str) {
@@ -782,11 +803,7 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
     hue = int(fmodf((60.0f * ((red - green) / delta)) + 240.0f, 360.0f));
   }
 
-  if (max_color_value == 0) {
-    saturation = 0;
-  } else {
-    saturation = delta / max_color_value;
-  }
+  saturation = max_color_value == 0 ? 0 : delta / max_color_value;
 
   value = max_color_value;
 }

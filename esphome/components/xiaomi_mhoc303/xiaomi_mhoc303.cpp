@@ -5,7 +5,7 @@ namespace esphome::xiaomi_mhoc303 {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_mhoc303");
 
-void XiaomiMHOC303::dump_config() {
+void XiaomiMHOC303::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MHOC303");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

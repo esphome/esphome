@@ -12,7 +12,7 @@ class Smartair2Climate final : public HaierClimateBase {
   Smartair2Climate &operator=(const Smartair2Climate &) = delete;
   ~Smartair2Climate();
   void dump_config() override;
-  void set_alternative_swing_control(bool swing_control);
+  void set_alternative_swing_control(bool swing_control) { this->use_alternative_swing_control_ = swing_control; }
 
  protected:
   void set_handlers() override;

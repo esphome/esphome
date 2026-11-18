@@ -4,3 +4,4 @@ packages:
 espectre:
   csi_capture_profile: lltf
   traffic_generator_mode: wifi_raw
+  traffic_generator_target_mac: "AA:BB:CC:DD:EE:02"
