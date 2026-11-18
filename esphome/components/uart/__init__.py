@@ -52,6 +52,8 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_UART_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_HOST,
     PlatformFramework,
 )
@@ -333,6 +335,88 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _libretiny_port_pins(board_pins: dict[str, int], port: int, role: str) -> list[int]:
+    """Pins a LibreTiny board can route one role (TX or RX) of a hardware UART to."""
+    name = f"SERIAL{port}_{role}"
+    return [
+        pin
+        for key, pin in board_pins.items()
+        if key == name or key.startswith(f"{name}_")
+    ]
+
+
+def _libretiny_hardware_port(config: ConfigType) -> int | None:
+    """Hardware UART the board can route the configured pins to; None if none can or the board is unknown."""
+    from esphome.components.libretiny import get_board_pins
+
+    board_pins = get_board_pins()
+    tx = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+    rx = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+    for port in range(3):
+        tx_pins = _libretiny_port_pins(board_pins, port, "TX")
+        rx_pins = _libretiny_port_pins(board_pins, port, "RX")
+        if (tx_pins or rx_pins) and tx in (None, *tx_pins) and rx in (None, *rx_pins):
+            return port
+    return None
+
+
+def _libretiny_has_pin_choices(port: int) -> bool:
+    """True when the port lists pin choices instead of default pins, so its pins are passed to begin()."""
+    from esphome.components.libretiny import get_board_pins
+
+    prefixes = (f"SERIAL{port}_TX_", f"SERIAL{port}_RX_")
+    return any(key.startswith(prefixes) for key in get_board_pins())
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CORE.is_libretiny:
+        _validate_libretiny_pins(config)
+
+
+def _validate_libretiny_pins(config: ConfigType) -> None:
+    from esphome.components.libretiny import (
+        get_board_pins,
+        get_libretiny_board,
+        get_libretiny_family,
+    )
+    from esphome.components.libretiny.const import FAMILY_RTL8710B
+
+    board_pins = get_board_pins()
+    # A board without pin data is matched against its default pins at boot
+    if not board_pins:
+        return
+    board = get_libretiny_board()
+    port = _libretiny_hardware_port(config)
+    if port is None:
+        # Only RTL8710B has SoftwareSerial to fall back to
+        if get_libretiny_family() == FAMILY_RTL8710B:
+            return
+        choices = []
+        for n in range(3):
+            tx = "/".join(map(str, _libretiny_port_pins(board_pins, n, "TX")))
+            rx = "/".join(map(str, _libretiny_port_pins(board_pins, n, "RX")))
+            if tx or rx:
+                choices.append(f"UART{n}: TX={tx or 'none'}, RX={rx or 'none'}")
+        raise cv.Invalid(
+            f"Board {board} has no hardware UART on these pins. Pin numbers per UART: "
+            + "; ".join(choices)
+        )
+    if not _libretiny_has_pin_choices(port):
+        return
+    # LibreTiny opens such a port on an invalid pin when one is left out, which hangs at boot
+    if CONF_TX_PIN not in config or CONF_RX_PIN not in config:
+        raise cv.Invalid(
+            f"UART{port} of board {board} has no default pins, so it needs both tx_pin and rx_pin"
+        )
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(1, 12, 0):
+        raise cv.Invalid(
+            f"Choosing the pins of UART{port} on board {board} needs LibreTiny 1.12.0 or later"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def debug_to_code(config, parent):
     trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
     await cg.register_component(trigger, config)
@@ -425,6 +509,11 @@ async def to_code(config):
         if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
             enable_serial1()
             cg.add_define("USE_ESP8266_UART_SERIAL1")
+
+    if CORE.is_libretiny and (port := _libretiny_hardware_port(config)) is not None:
+        cg.add(var.set_hardware_port(port))
+        if _libretiny_has_pin_choices(port):
+            cg.add_define("USE_UART_LIBRETINY_PIN_ROUTING")
 
     CORE.add_job(final_step)
 

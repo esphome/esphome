@@ -4,9 +4,6 @@ uart:
     tx_pin: PA03
     rx_pin: PA02
     baud_rate: 9600
-    data_bits: 8
-    parity: NONE
-    stop_bits: 1
 
 switch:
   - platform: uart

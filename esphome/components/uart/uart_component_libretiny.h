@@ -25,6 +25,8 @@ class LibreTinyUARTComponent final : public UARTComponent, public Component {
   UARTFlushResult flush() override;
 
   uint16_t get_config();
+  /// Hardware port codegen picked from the board's pin lists.
+  void set_hardware_port(int8_t port) { this->hardware_idx_ = port; }
 
   HardwareSerial *get_hw_serial() { return this->serial_; }
   int8_t get_hw_serial_number() { return this->hardware_idx_; }

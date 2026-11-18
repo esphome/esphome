@@ -20,84 +20,46 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
 
-// A board with more than one pin choice for a UART lists them all in PINS_SERIALn_RX/TX and leaves
-// PIN_SERIALn_RX/TX as PIN_INVALID, so match against the list when the board has one.
-#if LT_HW_UART0
-#ifdef PINS_SERIAL0_RX
-static constexpr pin_size_t SERIAL0_RX_PINS[] = PINS_SERIAL0_RX;
-#else
-static constexpr pin_size_t SERIAL0_RX_PINS[] = {PIN_SERIAL0_RX};
-#endif
-#ifdef PINS_SERIAL0_TX
-static constexpr pin_size_t SERIAL0_TX_PINS[] = PINS_SERIAL0_TX;
-#else
-static constexpr pin_size_t SERIAL0_TX_PINS[] = {PIN_SERIAL0_TX};
-#endif
-#endif
-#if LT_HW_UART1
-#ifdef PINS_SERIAL1_RX
-static constexpr pin_size_t SERIAL1_RX_PINS[] = PINS_SERIAL1_RX;
-#else
-static constexpr pin_size_t SERIAL1_RX_PINS[] = {PIN_SERIAL1_RX};
-#endif
-#ifdef PINS_SERIAL1_TX
-static constexpr pin_size_t SERIAL1_TX_PINS[] = PINS_SERIAL1_TX;
-#else
-static constexpr pin_size_t SERIAL1_TX_PINS[] = {PIN_SERIAL1_TX};
-#endif
-#endif
-#if LT_HW_UART2
-#ifdef PINS_SERIAL2_RX
-static constexpr pin_size_t SERIAL2_RX_PINS[] = PINS_SERIAL2_RX;
-#else
-static constexpr pin_size_t SERIAL2_RX_PINS[] = {PIN_SERIAL2_RX};
-#endif
-#ifdef PINS_SERIAL2_TX
-static constexpr pin_size_t SERIAL2_TX_PINS[] = PINS_SERIAL2_TX;
-#else
-static constexpr pin_size_t SERIAL2_TX_PINS[] = {PIN_SERIAL2_TX};
-#endif
-#endif
-
-// True when the pin is unused (-1) or one of the pins the UART can be routed to.
-template<size_t N> static bool uart_pin_matches(int16_t pin, const pin_size_t (&pins)[N]) {
-  if (pin == -1)
-    return true;
-  for (pin_size_t p : pins) {
-    if (p != PIN_INVALID && p == pin)
-      return true;
-  }
-  return false;
-}
-
-#if !LT_ARD_HAS_SOFTSERIAL
-// Writes the usable pins as "11/14", or "none" when the board has no pin for this role.
-template<size_t N> static void format_uart_pins(char *buf, size_t size, const pin_size_t (&pins)[N]) {
-  size_t pos = 0;
-  buf[0] = '\0';
-  for (pin_size_t p : pins) {
-    if (p == PIN_INVALID || pos >= size)
-      continue;
-    pos += snprintf(buf + pos, size - pos, pos == 0 ? "%u" : "/%u", p);
-  }
-  if (pos == 0)
-    snprintf(buf, size, "none");
-}
-
-template<size_t T, size_t R>
-static void log_uart_pins(uint8_t port, const pin_size_t (&tx_pins)[T], const pin_size_t (&rx_pins)[R]) {
-  char tx[16];
-  char rx[16];
-  format_uart_pins(tx, sizeof(tx), tx_pins);
-  format_uart_pins(rx, sizeof(rx), rx_pins);
-  ESP_LOGE(TAG, "    UART%u: TX=%s, RX=%s", port, tx, rx);
-}
-#endif
-
 static const char *const UART_TYPE[] = {
     "hardware",
     "software",
 };
+
+// Port whose default pins match, for a board codegen has no pin data for; PIN_INVALID means not configured.
+static int8_t default_port(pin_size_t tx, pin_size_t rx) {
+#if LT_HW_UART0
+  if ((tx == PIN_INVALID || tx == PIN_SERIAL0_TX) && (rx == PIN_INVALID || rx == PIN_SERIAL0_RX))
+    return 0;
+#endif
+#if LT_HW_UART1
+  if ((tx == PIN_INVALID || tx == PIN_SERIAL1_TX) && (rx == PIN_INVALID || rx == PIN_SERIAL1_RX))
+    return 1;
+#endif
+#if LT_HW_UART2
+  if ((tx == PIN_INVALID || tx == PIN_SERIAL2_TX) && (rx == PIN_INVALID || rx == PIN_SERIAL2_RX))
+    return 2;
+#endif
+  return -1;
+}
+
+static SerialClass *hardware_serial(int8_t port) {
+  switch (port) {
+#if LT_HW_UART0
+    case 0:
+      return &Serial0;
+#endif
+#if LT_HW_UART1
+    case 1:
+      return &Serial1;
+#endif
+#if LT_HW_UART2
+    case 2:
+      return &Serial2;
+#endif
+    default:
+      return nullptr;
+  }
+}
 
 uint16_t LibreTinyUARTComponent::get_config() {
   uint16_t config = 0;
@@ -123,8 +85,8 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  int16_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
-  int16_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
+  const pin_size_t tx_pin = this->tx_pin_ == nullptr ? PIN_INVALID : this->tx_pin_->get_pin();
+  const pin_size_t rx_pin = this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin();
 
   auto should_fallback_to_software_serial = [&]() -> bool {
     auto has_flags = [](InternalGPIOPin *pin, const gpio::Flags mask) -> bool {
@@ -144,66 +106,48 @@ void LibreTinyUARTComponent::setup() {
     return false;
   };
 
-  if (false) {  // NOLINT(readability-simplify-boolean-expr)
-    return;
-  }
-#if LT_HW_UART0
-  else if (uart_pin_matches(tx_pin, SERIAL0_TX_PINS) && uart_pin_matches(rx_pin, SERIAL0_RX_PINS) &&
-           !should_fallback_to_software_serial()) {
-    this->serial_ = &Serial0;
-    this->hardware_idx_ = 0;
-  }
-#endif
-#if LT_HW_UART1
-  else if (uart_pin_matches(tx_pin, SERIAL1_TX_PINS) && uart_pin_matches(rx_pin, SERIAL1_RX_PINS) &&
-           !should_fallback_to_software_serial()) {
-    this->serial_ = &Serial1;
-    this->hardware_idx_ = 1;
-  }
-#endif
-#if LT_HW_UART2
-  else if (uart_pin_matches(tx_pin, SERIAL2_TX_PINS) && uart_pin_matches(rx_pin, SERIAL2_RX_PINS) &&
-           !should_fallback_to_software_serial()) {
-    this->serial_ = &Serial2;
-    this->hardware_idx_ = 2;
-  }
-#endif
-  else {
-#if LT_ARD_HAS_SOFTSERIAL
-    if (this->rx_pin_) {
-      this->rx_pin_->setup();
-    }
-    if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-      this->tx_pin_->setup();
-    }
-    bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
-    bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
-    this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
-#else
-    this->serial_ = &Serial;
-    ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
-#if LT_HW_UART0
-    log_uart_pins(0, SERIAL0_TX_PINS, SERIAL0_RX_PINS);
-#endif
-#if LT_HW_UART1
-    log_uart_pins(1, SERIAL1_TX_PINS, SERIAL1_RX_PINS);
-#endif
-#if LT_HW_UART2
-    log_uart_pins(2, SERIAL2_TX_PINS, SERIAL2_RX_PINS);
-#endif
-    this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
-    return;
-#endif
-  }
-
-  if (this->hardware_idx_ >= 0) {
+  // Codegen picks the port from the board's pin lists; a board it has no pin data for matches the defaults here.
+  if (this->hardware_idx_ < 0)
+    this->hardware_idx_ = default_port(tx_pin, rx_pin);
+  SerialClass *hardware = should_fallback_to_software_serial() ? nullptr : hardware_serial(this->hardware_idx_);
+  if (hardware != nullptr) {
+    this->serial_ = hardware;
     libretiny::ensure_serial_handle(this->hardware_idx_);
-    // Pass the pins so a UART with several pin choices is routed to the configured ones.
-    auto *hw = static_cast<SerialClass *>(this->serial_);
-    hw->begin(this->baud_rate_, get_config(), rx_pin == -1 ? PIN_INVALID : rx_pin, tx_pin == -1 ? PIN_INVALID : tx_pin);
-  } else {
-    this->serial_->begin(this->baud_rate_, get_config());
+#ifdef USE_UART_LIBRETINY_PIN_ROUTING
+    // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen)
+    hardware->begin(this->baud_rate_, this->get_config(), rx_pin, tx_pin);
+#else
+    hardware->begin(this->baud_rate_, this->get_config());
+#endif
+    return;
   }
+  this->hardware_idx_ = -1;
+
+#if LT_ARD_HAS_SOFTSERIAL
+  if (this->rx_pin_) {
+    this->rx_pin_->setup();
+  }
+  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+    this->tx_pin_->setup();
+  }
+  bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
+  bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
+  this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
+  this->serial_->begin(this->baud_rate_, this->get_config());
+#else
+  this->serial_ = &Serial;
+  ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
+#if LT_HW_UART0
+  ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL0_TX, PIN_SERIAL0_RX);
+#endif
+#if LT_HW_UART1
+  ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL1_TX, PIN_SERIAL1_RX);
+#endif
+#if LT_HW_UART2
+  ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
+#endif
+  this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
+#endif
 }
 
 void LibreTinyUARTComponent::dump_config() {
