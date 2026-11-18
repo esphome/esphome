@@ -9,6 +9,8 @@
 #include <esp_hosted.h>
 #include <esp_hosted_host_fw_ver.h>
 #include <esp_ota_ops.h>
+#include <esp_system.h>
+#include <esp_wifi.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 #include "esphome/components/http_request/http_request.h"
@@ -498,21 +500,11 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  // End OTA and activate new firmware
   esp_err_t end_err = ota_end_guarded();
   if (end_err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(end_err));
     this->state_ = prev_state;
     this->status_set_error(LOG_STR("Failed to end OTA"));
-    this->publish_state();
-    return;
-  }
-
-  esp_err_t activate_err = esp_hosted_slave_ota_activate();  // NOLINT
-  if (activate_err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(activate_err));
-    this->state_ = prev_state;
-    this->status_set_error(LOG_STR("Failed to activate OTA"));
     this->publish_state();
     return;
   }
@@ -529,9 +521,21 @@ void Esp32HostedUpdate::perform(bool force) {
   esp_ota_mark_app_valid_cancel_rollback();
 #endif
 
-  // Schedule a restart to ensure everything is in sync
+  // Give the state publish time to reach the API clients, then restart both sides
   ESP_LOGI(TAG, "Restarting in 1 second");
-  this->set_timeout(1000, []() { App.safe_reboot(); });
+  this->set_timeout(1000, []() {
+    // Shut the host down while the coprocessor still answers; activate makes it
+    // reboot itself 500 ms later
+    App.safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
+    esp_err_t err = esp_hosted_slave_ota_activate();  // NOLINT
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(err));
+    }
+    // esp_wifi_remote registers esp_wifi_stop with esp_restart; that RPC to the
+    // rebooting coprocessor blocks until the task watchdog fires
+    esp_unregister_shutdown_handler(reinterpret_cast<shutdown_handler_t>(esp_wifi_stop));
+    arch_restart();
+  });
 }
 
 }  // namespace esphome::esp32_hosted

@@ -8,8 +8,6 @@ from esphome.const import (
     CONF_MOVE_THRESHOLD,
     CONF_STILL_THRESHOLD,
     CONF_TIMEOUT,
-    DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_CONFIG,
     ICON_LIGHTBULB,
     ICON_MOTION_SENSOR,
@@ -33,19 +31,16 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_LIGHTBULB,
         ),
         cv.Optional(CONF_MAX_DISTANCE_GATE): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Optional(CONF_MIN_DISTANCE_GATE): number.number_schema(
             number.ApplyNumber,
-            device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),

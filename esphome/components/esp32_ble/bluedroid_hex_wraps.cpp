@@ -1,4 +1,5 @@
-// Linker wraps for the only two sscanf callers in Bluedroid, so newlib's scanf engine (~16 KB) is not linked.
+// Linker wraps for the only two sscanf callers in Bluedroid, so the C library's scanf engine is not linked
+// (~16 KB with newlib, ~4 KB with picolibc).
 // Same parsing as espressif/esp-idf#19235; drop once ESPHome uses an ESP-IDF release that contains it.
 
 #include "esphome/core/defines.h"
@@ -13,6 +14,8 @@
 #if defined(USE_ESP32_BLE_BLUEDROID_HEADERS) && __has_include("btc/btc_config.h")
 #define ESPHOME_BLUEDROID_DRIFT_CHECKS
 #include <type_traits>
+// stack/bt_types.h redefines PACKED from esphome/core/helpers.h; nothing below uses it.
+#undef PACKED
 extern "C" {
 #include "btc/btc_config.h"
 #include "device/bdaddr.h"

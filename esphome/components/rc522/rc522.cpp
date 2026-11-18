@@ -416,7 +416,7 @@ RC522::StatusCode RC522::await_transceive_() {
   // Tell about collisions
   if (valid_bits_local) {
     ESP_LOGW(TAG, "only %d valid bits received, tag distance to high? Error code is 0x%x", valid_bits_local,
-             error_reg_value);  // TODO: is this always due to collissions?
+             error_reg_value);  // TODO: is this always due to collisions?
     return STATUS_ERROR;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE

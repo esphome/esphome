@@ -26,21 +26,21 @@ static constexpr size_t BLE_ADV_MAX_LOG_BYTES = 62;
 // ESPBTUUID
 // ---------------------------------------------------------------------------
 
-ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
+ESPBTUUID ESPBTUUID::from_uint16_runtime(uint16_t uuid) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID16;
   ret.uuid_.uuid16 = uuid;
   return ret;
 }
 
-ESPBTUUID ESPBTUUID::from_uint32(uint32_t uuid) {
+ESPBTUUID ESPBTUUID::from_uint32_runtime(uint32_t uuid) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID32;
   ret.uuid_.uuid32 = uuid;
   return ret;
 }
 
-ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
+ESPBTUUID ESPBTUUID::from_raw_runtime(const uint8_t *data) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID128;
   memcpy(ret.uuid_.uuid128, data, 16);
@@ -232,6 +232,14 @@ void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
   const size_t len = (this->type_ == Type::UUID32) ? 4 : 2;
   for (size_t i = 0; i < len; i++)
     out[12 + i] = (value >> (i * 8)) & 0xFF;
+}
+
+const adv_data_t *find_adv_data(const std::vector<ServiceData> &datas, const ESPBTUUID &uuid) {
+  for (const auto &entry : datas) {
+    if (entry.uuid == uuid)
+      return &entry.data;
+  }
+  return nullptr;
 }
 
 bool ESPBTUUID::operator==(const ESPBTUUID &other) const {

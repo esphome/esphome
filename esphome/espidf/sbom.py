@@ -18,7 +18,6 @@ from pathlib import Path
 import re
 from typing import Any, NamedTuple
 from urllib.parse import urlparse
-from urllib.request import url2pathname
 
 from esphome import loader, yaml_util
 from esphome.components.external_components import ExternalSource, get_sources
@@ -201,6 +200,8 @@ def _esphome_vcs() -> _Source | None:
     if commit:
         return _Source(strip_url_credentials(url), commit)
     if "dir_info" in info and url.startswith("file:"):
+        from urllib.request import url2pathname
+
         # An editable or local install may be a fork or a patched clone
         if (
             source := _checkout_vcs(Path(url2pathname(urlparse(url).path)))

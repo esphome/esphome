@@ -220,6 +220,34 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
+// BEGIN ESPAsyncWebServer 3.12.1 workaround: remove once a release containing upstream commit
+// 880c97068abb0f0e63f803cd3c0cac84fa5cd7bb is out and we bump to it.
+// 3.12.1 creates the SSE client before the head is ACKed and credits the head's ACK to its first queued messages,
+// dropping or truncating them. Create the client once the head is ACKed instead, as 3.9.6 did.
+class HeadAckedEventSourceResponse final : public AsyncEventSourceResponse {
+ public:
+  HeadAckedEventSourceResponse(DeferredUpdateEventSourceList *list, WebServer *ws)
+      : AsyncEventSourceResponse(nullptr), list_(list), ws_(ws) {}
+  void _respond(AsyncWebServerRequest *request) override {
+    String head;
+    this->_assembleHead(head, request->version());
+    request->client()->write(head.c_str(), this->_headLength);
+  }
+  // Every ACK until clientRelease() is the head's, and clientRelease() unhooks this. _state must stay
+  // RESPONSE_SETUP: past RESPONSE_WAIT_ACK the request would close its released (null) client after this returns.
+  size_t _ack(AsyncWebServerRequest *request, size_t len, uint32_t time) override {
+    this->_ackedLength += len;
+    if (this->_ackedLength >= this->_headLength)
+      this->list_->add_client_(this->ws_, request->clientRelease());
+    return 0;
+  }
+
+ private:
+  DeferredUpdateEventSourceList *list_;
+  WebServer *ws_;
+};
+// END ESPAsyncWebServer 3.12.1 workaround
+
 // helper for allowing only unique entries in the queue
 void __attribute__((flatten)) DeferredUpdateEventSource::deq_push_back_with_dedup_(
     void *source, message_generator_t *message_generator) {
@@ -328,7 +356,13 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t
   }
 }
 
+// BEGIN ESPAsyncWebServer 3.12.1 workaround (see HeadAckedEventSourceResponse): once removed, add_new_client creates
+// the source as add_client_ does and ends with es->handleRequest(request); add_client_ goes away.
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
+  request->send(new HeadAckedEventSourceResponse(this, ws));  // NOLINT
+}
+
+void DeferredUpdateEventSourceList::add_client_(WebServer *ws, AsyncClient *client) {
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
@@ -336,9 +370,10 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 
   es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
 
-  es->handleRequest(request);
+  new AsyncEventSourceClient(client, es);  // NOLINT: owned by es
   ws->enable_loop_soon_any_context();
 }
+// END ESPAsyncWebServer 3.12.1 workaround
 
 void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
   WebServer *ws = source->web_server_;
@@ -2548,10 +2583,10 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.contains(entity)) {
-    root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
-      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entitys_[entity].group_id].name);
+  if (this->sorting_entities_.contains(entity)) {
+    root[ESPHOME_F("sorting_weight")] = this->sorting_entities_[entity].weight;
+    if (this->sorting_groups_.contains(this->sorting_entities_[entity].group_id)) {
+      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entities_[entity].group_id].name);
     }
   }
 #endif
@@ -2559,7 +2594,7 @@ void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 
 #ifdef USE_WEBSERVER_SORTING
 void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
-  this->sorting_entitys_[entity] = SortingComponents{weight, group};
+  this->sorting_entities_[entity] = SortingComponents{weight, group};
 }
 
 void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {

@@ -26,10 +26,7 @@ WiFiScanResult make_result(const char *ssid, const bssid_t &bssid) {
 
 class WiFiRetryPhaseTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    host_hooks = HostHooks{};
-    this->wifi_.init_sta(4);
-  }
+  void SetUp() override { host_hooks = HostHooks{}; }
   // The constructor points the global at this instance, which the other components' tests must not see
   void TearDown() override { global_wifi_component = this->previous_global_; }
 

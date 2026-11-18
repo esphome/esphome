@@ -163,6 +163,8 @@ CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_AP_START = "on_ap_start"
+CONF_ON_AP_STOP = "on_ap_stop"
 CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
@@ -755,6 +757,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
+            cv.Optional(CONF_ON_AP_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_AP_STOP): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -765,6 +769,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires((CONF_ON_AP_START, CONF_ON_AP_STOP), CONF_AP),
     cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
     cv.key_requires(CONF_PASSWORD, CONF_SSID),
     cv.key_requires(
@@ -857,10 +862,10 @@ async def to_code(config):
             manual_ip_entries.append(entry)
         return manual_ip_entries.index(entry)
 
-    # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
+    # set_sta() stores one network at run time even when none is configured
+    cg.add_define("WIFI_NETWORK_COUNT", max(1, len(networks)))
     if networks:
-        cg.add(var.init_sta(len(networks)))
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
             cg.add_define("USE_WIFI_MULTI_SSID")
@@ -1088,6 +1093,14 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     await cg.past_safe_mode()
+
+    for conf_key, define, setter in (
+        (CONF_ON_AP_START, "USE_WIFI_AP_START_TRIGGER", var.set_on_ap_start),
+        (CONF_ON_AP_STOP, "USE_WIFI_AP_STOP_TRIGGER", var.set_on_ap_stop),
+    ):
+        if (conf := config.get(conf_key)) is not None:
+            cg.add_define(define)
+            cg.add(setter(await automation.build_trigger_callback([], conf, params=[])))
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_WIFI_CONNECT_TRIGGER")
