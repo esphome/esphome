@@ -79,7 +79,8 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 };
 
 /// Length rules for FrameFormat: the frame length is known once KNOWN_AT bytes are collected, and get() returns it
-/// for the whole frame, header included. A component can pass its own type with these two members.
+/// for the whole frame, header included. A component can pass its own type with these two members; its get() can
+/// return 0 to reject a header it can already tell is broken (a header checksum, an unknown type).
 /// One length byte at POS; ADD is added to give the whole frame length.
 template<size_t POS, size_t ADD = 0> struct FrameLengthU8 {
   static constexpr size_t KNOWN_AT = POS + 1;
@@ -101,6 +102,12 @@ template<size_t LEN> struct FrameFixedLength {
   static constexpr size_t KNOWN_AT = 1;
   static constexpr size_t get(const uint8_t * /*buf*/) { return LEN; }
 };
+
+namespace frame_reader_detail {
+// The length of a FrameFixedLength rule, 0 for every other rule
+template<class LENGTH> constexpr size_t fixed_length = 0;
+template<size_t LEN> constexpr size_t fixed_length<FrameFixedLength<LEN>> = LEN;
+}  // namespace frame_reader_detail
 
 /// One frame type for LengthFrameReader: frames that start with the header bytes HEADER... and whose length follows
 /// LENGTH, one of the FrameLength types above.
@@ -140,15 +147,16 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   }
   static_assert(distinct_first(), "Each FrameFormat needs a different first header byte");
   static_assert(((FORMATS::MIN_LEN <= N) && ...), "N must hold the header and length field of every FrameFormat");
-  // A fixed length rule (KNOWN_AT 1) ignores its argument, so its length is known here
-  static_assert(((FORMATS::Length::KNOWN_AT != 1 ||
-                  (FORMATS::Length::get(nullptr) >= FORMATS::MIN_LEN && FORMATS::Length::get(nullptr) <= N)) &&
+  static_assert(((frame_reader_detail::fixed_length<typename FORMATS::Length> == 0 ||
+                  (frame_reader_detail::fixed_length<typename FORMATS::Length> >= FORMATS::MIN_LEN &&
+                   frame_reader_detail::fixed_length<typename FORMATS::Length> <= N)) &&
                  ...),
                 "A fixed length must hold the header and fit in N");
 
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
   /// (handle returns false) is searched for frames inside it and after it, which go to handle the same way.
+  /// handle returns false when the bytes are not a real frame (checksum, footer, structure), true once it is used.
   /// handle must not feed this reader again: the frame and the bytes held behind it live in its buffer.
   template<class F> void __attribute__((always_inline)) feed(uint8_t c, F &&handle) {
     // Most bytes are in the middle of a frame whose length is known, and not its last byte
@@ -156,8 +164,8 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
     if (pos + 1u < this->end_) {
       this->buf_[pos] = c;
       this->pos_ = pos + 1;
-    } else if (const uint8_t *frame = this->feed_edge_(c)) {
-      this->drain_(frame, handle);
+    } else if (const size_t len = this->feed_edge_(c)) {
+      this->drain_(len, handle);
     }
   }
 
@@ -172,50 +180,37 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   size_t length() const { return this->pos_; }
 
  protected:
-  // Length of the frame just returned
-  size_t frame_length_() const {
-    if constexpr (sizeof...(FORMATS) == 1) {
-      return (FORMATS::Length::get(this->buf_), ...);
-    } else {
-      const uint8_t first = this->buf_[0];
-      size_t len = 0;
-      (void) ((first == FORMATS::FIRST && ((len = FORMATS::Length::get(this->buf_)), true)) || ...);
-      return len;
+  // Hands each frame, len bytes at buf_, to handle; nothing is collected while a frame is held, so a handled frame
+  // goes on after its end and a rejected one from its second byte, over the bytes held behind it
+  template<class F> void ESPHOME_FRAME_READER_COLD drain_(size_t len, F &handle) {
+    while (len != 0) {
+      len = this->replay_(handle(this->buf_, len) ? len : 1, this->held_end_);
     }
   }
 
-  // Hands each frame to handle; nothing is collected while a frame is held, so a handled frame goes on after its end
-  // and a rejected one from its second byte, over the bytes held behind it
-  template<class F> void ESPHOME_FRAME_READER_COLD drain_(const uint8_t *frame, F &handle) {
-    while (frame != nullptr) {
-      const size_t len = this->frame_length_();
-      frame = this->replay_(handle(frame, len) ? len : 1, this->held_end_);
-    }
-  }
-
-  // A header byte, the bytes up to the length, the last byte of a frame, or a byte between frames
-  const uint8_t *ESPHOME_FRAME_READER_COLD feed_edge_(uint8_t c) {
+  // A header byte, the bytes up to the length, the last byte of a frame, or a byte between frames; returns the length
+  // of a completed frame, at buf_, or 0
+  size_t ESPHOME_FRAME_READER_COLD feed_edge_(uint8_t c) {
     const pos_t pos = this->pos_;
     if (pos == 0) {
-      this->held_end_ = 0;
       const bool header = ((c == FORMATS::FIRST) || ...);
       if (header) {
         this->buf_[0] = c;
         this->pos_ = 1;
       }
-      return nullptr;
+      return 0;
     }
     if constexpr (sizeof...(FORMATS) == 1) {
       return this->feed_as_<FORMATS...>(pos, c);
     } else {
       const uint8_t first = this->buf_[0];
-      const uint8_t *frame = nullptr;
-      (void) ((first == FORMATS::FIRST && ((frame = this->feed_as_<FORMATS>(pos, c)), true)) || ...);
-      return frame;
+      size_t len = 0;
+      (void) ((first == FORMATS::FIRST && ((len = this->feed_as_<FORMATS>(pos, c)), true)) || ...);
+      return len;
     }
   }
 
-  template<class F> const uint8_t *feed_as_(pos_t pos, uint8_t c) {
+  template<class F> size_t feed_as_(pos_t pos, uint8_t c) {
     if (pos < F::HEADER_LEN && c != F::header_byte(pos)) {
       // A later byte of the broken header, or c, may start the real one
       this->buf_[pos] = c;
@@ -232,36 +227,36 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
       this->pos_ = 0;
       this->end_ = 0;
       this->held_end_ = pos;
-      return this->buf_;
+      return pos;
     }
     this->pos_ = pos;
-    return nullptr;
+    return 0;
   }
 
   // Start over and feed buf_[from..to) again; writes stay behind the read position. On a completed frame, moves the
-  // bytes not fed yet right behind it, for drain_(), and returns it.
-  const uint8_t *ESPHOME_FRAME_READER_COLD replay_(size_t from, size_t to) {
+  // bytes not fed yet right behind it, for drain_(), and returns its length; 0 otherwise.
+  size_t ESPHOME_FRAME_READER_COLD replay_(size_t from, size_t to) {
     this->pos_ = 0;
     this->end_ = 0;
-    this->held_end_ = 0;
     for (size_t i = from; i < to; i++) {
-      if (this->feed_edge_(this->buf_[i]) == nullptr)
+      const size_t len = this->feed_edge_(this->buf_[i]);
+      if (len == 0)
         continue;
       // A nested replay may already have put bytes of its own behind the frame
       const size_t held = this->held_end_;
       const size_t rest = to - i - 1;
       std::memmove(this->buf_ + held, this->buf_ + i + 1, rest);
       this->held_end_ = held + rest;
-      return this->buf_;
+      return len;
     }
-    return nullptr;
+    return 0;
   }
 
   // Before buf_, so they stay within a short load offset of the reader when N is large
   pos_t pos_{0};
   // Length of the frame being collected once its length is known; 0 otherwise
   pos_t end_{0};
-  // While a frame is held: end of the frame plus the bytes after it that are not fed yet; 0 otherwise
+  // While a frame is held: end of the frame plus the bytes after it that are not fed yet; set when a frame completes
   pos_t held_end_{0};
   uint8_t buf_[N];
 };

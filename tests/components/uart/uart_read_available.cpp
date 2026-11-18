@@ -193,8 +193,9 @@ TEST(UARTReadFramesTest, FeedsTheReaderAndStampsTheTime) {
     return true;
   };
   uint32_t last_rx = 0;
-  dev.read_frames(reader, handle, 500, last_rx, 100);
+  EXPECT_EQ(dev.read_frames(reader, handle, 500, last_rx), 3u);
   EXPECT_EQ(last_rx, 500u);
+  EXPECT_EQ(dev.read_frames(reader, handle, 600, last_rx), 0u);
   EXPECT_EQ(frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x01, 0x07}}));
 }
 
