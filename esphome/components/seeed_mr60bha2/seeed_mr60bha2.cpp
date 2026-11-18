@@ -1,5 +1,6 @@
 #include "seeed_mr60bha2.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -42,7 +43,15 @@ static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_
   return static_cast<uint8_t>(~xor_bytes(data, len)) == expected_checksum;
 }
 
+static bool is_known_type(uint16_t type) {
+  return type == BREATH_RATE_TYPE_BUFFER || type == HEART_RATE_TYPE_BUFFER || type == DISTANCE_TYPE_BUFFER ||
+         type == PEOPLE_EXIST_TYPE_BUFFER || type == PRINT_CLOUD_BUFFER;
+}
+
+// An unknown type or a bad header checksum gives no length, so the header is dropped at once
 size_t TinyFrameLength::get(const uint8_t *buf) {
+  if (!is_known_type(encode_uint16(buf[5], buf[6])))
+    return 0;
   if (!validate_checksum(buf, 7, buf[7])) {
     ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[7]);
     ESP_LOGV_HEX(TAG, buf, 8, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
@@ -51,14 +60,8 @@ size_t TinyFrameLength::get(const uint8_t *buf) {
   return encode_uint16(buf[3], buf[4]) + FRAME_OVERHEAD;
 }
 
-// The reader checks the header; the type and the data checksum are checked here
+// The reader checks the type and the header; the data checksum is checked here
 static bool frame_valid(const uint8_t *frame, size_t len) {
-  const uint16_t frame_type = encode_uint16(frame[5], frame[6]);
-  if (frame_type != BREATH_RATE_TYPE_BUFFER && frame_type != HEART_RATE_TYPE_BUFFER &&
-      frame_type != DISTANCE_TYPE_BUFFER && frame_type != PEOPLE_EXIST_TYPE_BUFFER &&
-      frame_type != PRINT_CLOUD_BUFFER) {
-    return false;
-  }
   if (!validate_checksum(frame + 8, len - FRAME_OVERHEAD, frame[len - 1])) {
     ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", frame[len - 1]);
     ESP_LOGV_HEX(TAG, frame, len - 1, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
@@ -67,6 +70,9 @@ static bool frame_valid(const uint8_t *frame, size_t len) {
   return true;
 }
 
+// A partial frame left this long without a byte is given up
+static constexpr uint32_t RX_GAP_MS = 100;
+
 void MR60BHA2Component::loop() {
   auto handler = [this](const uint8_t *frame, size_t len) {
     if (!frame_valid(frame, len))
@@ -74,7 +80,7 @@ void MR60BHA2Component::loop() {
     this->handle_frame_(frame, len);
     return true;
   };
-  this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
+  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_, RX_GAP_MS);
 }
 
 void MR60BHA2Component::handle_frame_(const uint8_t *frame, size_t len) {

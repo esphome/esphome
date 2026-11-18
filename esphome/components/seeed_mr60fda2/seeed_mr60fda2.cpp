@@ -1,6 +1,7 @@
 #include "seeed_mr60fda2.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -53,7 +54,15 @@ static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_
   return calculate_checksum(data, len) == expected_checksum;
 }
 
+static bool is_known_type(uint16_t type) {
+  return type == IS_FALL_TYPE_BUFFER || type == PEOPLE_EXIST_TYPE_BUFFER || type == RESULT_INSTALL_HEIGHT ||
+         type == RESULT_PARAMETERS || type == RESULT_HEIGHT_THRESHOLD || type == RESULT_SENSITIVITY;
+}
+
+// An unknown type or a bad header checksum gives no length, so the header is dropped at once
 size_t TinyFrameLength::get(const uint8_t *buf) {
+  if (!is_known_type(encode_uint16(buf[5], buf[6])))
+    return 0;
   if (!validate_checksum(buf, LEN_TO_HEAD_CKSUM - 1, buf[LEN_TO_HEAD_CKSUM - 1])) {
     ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[LEN_TO_HEAD_CKSUM - 1]);
     ESP_LOGV_HEX(TAG, buf, LEN_TO_HEAD_CKSUM, MR60FDA2_MAX_LOG_BYTES, "CURRENT_FRAME: %s");
@@ -62,16 +71,11 @@ size_t TinyFrameLength::get(const uint8_t *buf) {
   return encode_uint16(buf[3], buf[4]) + LEN_TO_DATA_FRAME;
 }
 
-static bool is_known_type(uint16_t type) {
-  return type == IS_FALL_TYPE_BUFFER || type == PEOPLE_EXIST_TYPE_BUFFER || type == RESULT_INSTALL_HEIGHT ||
-         type == RESULT_PARAMETERS || type == RESULT_HEIGHT_THRESHOLD || type == RESULT_SENSITIVITY;
-}
-
-// The reader caps the data at DATA_BUF_MAX_SIZE bytes and checks the header; the 1 byte minimum, type, the 12 data
+// The reader caps the data at DATA_BUF_MAX_SIZE bytes and checks the type and header; the 1 byte minimum, the 12 data
 // bytes a parameter reply is read for and the data checksum are checked here
 static bool frame_valid(const uint8_t *frame, size_t len) {
-  const uint16_t type = encode_uint16(frame[5], frame[6]);
-  if (len <= LEN_TO_DATA_FRAME || !is_known_type(type) || (type == RESULT_PARAMETERS && len - LEN_TO_DATA_FRAME < 12))
+  if (len <= LEN_TO_DATA_FRAME ||
+      (encode_uint16(frame[5], frame[6]) == RESULT_PARAMETERS && len - LEN_TO_DATA_FRAME < 12))
     return false;
   if (!validate_checksum(frame + LEN_TO_HEAD_CKSUM, len - LEN_TO_DATA_FRAME, frame[len - 1])) {
     ESP_LOGD(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", frame[len - 1]);
@@ -81,6 +85,9 @@ static bool frame_valid(const uint8_t *frame, size_t len) {
   return true;
 }
 
+// A partial frame left this long without a byte is given up
+static constexpr uint32_t RX_GAP_MS = 100;
+
 void MR60FDA2Component::loop() {
   auto handler = [this](const uint8_t *frame, size_t len) {
     if (!frame_valid(frame, len))
@@ -88,7 +95,7 @@ void MR60FDA2Component::loop() {
     this->process_frame_(frame);
     return true;
   };
-  this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
+  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_, RX_GAP_MS);
 }
 
 #ifdef USE_SELECT
