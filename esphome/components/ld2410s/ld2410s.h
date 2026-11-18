@@ -114,6 +114,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   const uint16_t *sequence_{nullptr};  // PROGMEM; null while nothing is being sent
   uint32_t next_send_at_{0};
   uint32_t last_frame_at_{0};
+  uint32_t last_rx_{0};
 #ifdef USE_LD2410S_PARAMETERS
   uint8_t parameters_[PARAMETER_COUNT]{};  // all fit a byte: gates, seconds, tenths of a hertz, speed
 #endif

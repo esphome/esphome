@@ -119,17 +119,7 @@ void AirtonSerialClimate::setup() {
 void AirtonSerialClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto accept = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  bool received = false;
-  this->read_available([this, &received, &accept](uint8_t byte) {
-    received = true;
-    this->rx_reader_.feed(byte, accept);
-  });
-  if (received) {
-    this->last_rx_ms_ = now;
-  } else if (this->rx_reader_.length() > 0 && now - this->last_rx_ms_ >= FRAME_GAP_MS) {
-    // A corrupt length can hold back complete frames behind it; look for them in what is buffered.
-    this->rx_reader_.flush(accept);
-  }
+  this->read_frames(this->rx_reader_, accept, now, this->last_rx_ms_, FRAME_GAP_MS);
 }
 
 bool AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {

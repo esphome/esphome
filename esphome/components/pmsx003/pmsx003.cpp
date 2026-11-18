@@ -103,17 +103,7 @@ void PMSX003Component::loop() {
     }
     return true;
   };
-  if (this->reader_.length() > 0 && now - this->last_transmission_ >= RX_IDLE_TIMEOUT_MS) {
-    // last transmission too long ago; look for a frame in what arrived, then start over
-    this->reader_.flush(handle);
-  }
-
-  const size_t avail = this->available();
-  if (avail == 0)
-    return;
-
-  this->last_transmission_ = now;
-  this->read_available([this, &handle](uint8_t byte) { this->reader_.feed(byte, handle); }, avail);
+  this->read_frames(this->reader_, handle, now, this->last_transmission_, RX_IDLE_TIMEOUT_MS);
 }
 
 bool PMSX003Component::check_frame_(const uint8_t *frame, size_t total_size) {

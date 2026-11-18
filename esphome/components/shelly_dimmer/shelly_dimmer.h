@@ -101,7 +101,7 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
   size_t frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *payload, size_t len);
 
   /// Reads a response frame.
-  bool read_frame_();
+  bool read_frame_(uint32_t now, uint32_t &last_rx);
 
   /// Handles a complete frame.
   bool handle_frame_(const uint8_t *frame);

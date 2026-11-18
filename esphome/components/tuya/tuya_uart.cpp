@@ -55,11 +55,8 @@ void TuyaUART::setup() {
 }
 
 void TuyaUART::loop() {
-  if (const size_t count = this->available()) {
-    this->last_rx_char_timestamp_ = App.get_loop_component_start_time();
-    auto handler = this->frame_handler_();
-    this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
-  }
+  this->read_frames(this->reader_, this->frame_handler_(), App.get_loop_component_start_time(),
+                    this->last_rx_char_timestamp_, RECEIVE_TIMEOUT);
   process_command_queue_();
 }
 
@@ -455,11 +452,6 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
 void TuyaUART::process_command_queue_() {
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
-
-  // A partial frame left too long without a byte may hide a whole frame behind a broken start
-  if (this->reader_.length() > 0 && now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
-    this->reader_.flush(this->frame_handler_());
-  }
 
   if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
     this->expected_response_.reset();

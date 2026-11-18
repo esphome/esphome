@@ -56,13 +56,7 @@ void LD2460Component::dump_config() {
 void LD2460Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  if (const size_t count = this->available()) {
-    this->last_rx_ = now;
-    this->read_available<MAX_FRAME_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
-  } else if (this->reader_.length() != 0 && now - this->last_rx_ >= RX_GAP_MS) {
-    // A corrupt length can hold a whole frame back until more bytes come
-    this->reader_.flush(handler);
-  }
+  this->read_frames<MAX_FRAME_LENGTH>(this->reader_, handler, now, this->last_rx_, RX_GAP_MS);
 }
 
 bool LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_len) {

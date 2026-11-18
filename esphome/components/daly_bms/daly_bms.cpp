@@ -47,13 +47,9 @@ void DalyBmsComponent::update() {
 
 void DalyBmsComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  const size_t avail = this->available();
   auto handle = [this](const uint8_t *frame, size_t /*len*/) { return this->handle_frame_(frame); };
-  if (this->reader_.length() > 0 && (now - this->last_transmission_ >= DALY_RX_IDLE_TIMEOUT_MS)) {
-    ESP_LOGW(TAG, "Last transmission too long ago, giving up on the partial frame");
-    this->reader_.flush(handle);
-  }
-  if (this->response_complete_() && this->reader_.length() == 0 && avail == 0 &&
+  this->read_frames(this->reader_, handle, now, this->last_transmission_, DALY_RX_IDLE_TIMEOUT_MS);
+  if (this->response_complete_() && this->reader_.length() == 0 &&
       (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) && !this->trigger_next_) {
     // response complete and nothing more on the line -> trigger next request without waiting for the timeout
     this->last_transmission_ = now;
@@ -64,9 +60,6 @@ void DalyBmsComponent::loop() {
     this->last_transmission_ = now;
     this->trigger_next_ = true;
   }
-  if (avail > 0)
-    this->last_transmission_ = now;
-  this->read_available([this, &handle](uint8_t c) { this->reader_.feed(c, handle); }, avail);
 
   if (!this->trigger_next_)
     return;
@@ -126,8 +119,8 @@ void DalyBmsComponent::request_data_(uint8_t data_id) {
 }
 
 bool DalyBmsComponent::handle_frame_(const uint8_t *frame) {
-  // Only BMS responses (address 0x01) carry data; an echoed request is skipped like noise
-  if (frame[1] != 0x01)
+  // Only BMS responses (address 0x01) with their 8 data bytes carry data; an echoed request is skipped like noise
+  if (frame[1] != 0x01 || frame[3] != 8)
     return false;
   if (sum_bytes(frame, DALY_FRAME_SIZE - 1) != frame[DALY_FRAME_SIZE - 1]) {
     ESP_LOGW(TAG, "Checksum-Error on Packet %x", frame[4]);

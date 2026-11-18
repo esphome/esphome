@@ -101,15 +101,7 @@ void APC1Component::loop() {
   }
 
   auto handle = [this](const uint8_t *frame, size_t len) { return this->parse_frame_(frame, len); };
-  if (this->reader_.length() > 0 && now - this->last_transmission_ > APC1_RX_IDLE_TIMEOUT_MS) {
-    ESP_LOGV(TAG, "Timed out waiting for data, looking for frames in the partial one");
-    this->reader_.flush(handle);
-  }
-
-  this->read_available([this, now, &handle](uint8_t byte) {
-    this->last_transmission_ = now;
-    this->reader_.feed(byte, handle);
-  });
+  this->read_frames(this->reader_, handle, now, this->last_transmission_, APC1_RX_IDLE_TIMEOUT_MS);
 }
 
 bool APC1Component::parse_frame_(const uint8_t *frame, uint8_t total_len) {

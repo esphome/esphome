@@ -21,6 +21,8 @@ namespace {
 ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
+// A partial frame left this long without a byte is given up, so a stray header cannot hide the reply
+constexpr uint8_t SHELLY_DIMMER_RX_GAP = 20;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
 constexpr uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
 
@@ -268,8 +270,9 @@ bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint
 
     ESP_LOGD(TAG, "Command sent, waiting for reply");
     const uint32_t tx_time = millis();
-    while (millis() - tx_time < SHELLY_DIMMER_ACK_TIMEOUT) {
-      if (this->read_frame_()) {
+    uint32_t last_rx = tx_time;
+    for (uint32_t now = tx_time; now - tx_time < SHELLY_DIMMER_ACK_TIMEOUT; now = millis()) {
+      if (this->read_frame_(now, last_rx)) {
         return true;
       }
       delay(1);
@@ -298,7 +301,7 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   return p - data;
 }
 
-bool ShellyDimmer::read_frame_() {
+bool ShellyDimmer::read_frame_(uint32_t now, uint32_t &last_rx) {
   bool received = false;
   auto handler = [this, &received](const uint8_t *frame, size_t len) {
     // The checksum covers seq, cmd, length and payload
@@ -310,11 +313,7 @@ bool ShellyDimmer::read_frame_() {
     received = true;
     return true;
   };
-  while (!received && this->available()) {
-    const uint8_t c = this->read();
-    ESP_LOGV(TAG, "Read byte: 0x%02x", c);
-    this->reader_.feed(c, handler);
-  }
+  this->read_frames(this->reader_, handler, now, last_rx, SHELLY_DIMMER_RX_GAP);
   return received;
 }
 

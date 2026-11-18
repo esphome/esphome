@@ -78,13 +78,7 @@ void PioneerWT::loop() {
     this->handle_frame_(frame, len);
     return true;
   };
-  if (const size_t count = this->available()) {
-    this->last_rx_ = now;
-    this->read_available([this, &handle](uint8_t byte) { this->reader_.feed(byte, handle); }, count);
-  } else if (this->reader_.length() != 0 && now - this->last_rx_ >= RX_GAP_MS) {
-    // Only on an idle pass: after a slow loop the rest of the frame may already be buffered.
-    this->reader_.flush(handle);
-  }
+  this->read_frames(this->reader_, handle, now, this->last_rx_, RX_GAP_MS);
   if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
     this->send_pending_();
   // The target temperature only arrives in a full status, so it tells whether one has been received.
