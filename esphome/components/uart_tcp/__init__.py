@@ -8,14 +8,7 @@ from esphome.components.const import (
 )
 from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DEBUG,
-    CONF_DUMMY_RECEIVER,
-    CONF_ID,
-    CONF_PORT,
-    CONF_UART_ID,
-)
-from esphome.core import CORE
+from esphome.const import CONF_ID, CONF_PORT, CONF_TIMEOUT, CONF_UART_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -39,6 +32,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -58,43 +52,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
-    debug = uart_conf.get(CONF_DEBUG)
-    if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
-        raise cv.Invalid(
-            "dummy_receiver reads this UART and drops the bytes uart_tcp should forward.",
-            [CONF_DEBUG, CONF_DUMMY_RECEIVER],
-        )
-    return uart_conf
-
-
 def _final_validate(config: ConfigType) -> ConfigType:
     # A second reader would split the bytes with this one, and every connect
     # discards what the other reader has not read yet.
-    full_config = fv.full_config.get()
-    data = full_config.data.setdefault(DOMAIN, {})
-    uart_id = str(config[CONF_UART_ID])
-    used = data.setdefault(CONF_UART_ID, set())
-    if uart_id in used:
-        raise cv.Invalid(
-            f"The UART '{uart_id}' is already used by another 'uart_tcp' entry. "
-            "Each uart_tcp needs its own UART.",
-            [CONF_UART_ID],
-        )
-    used.add(uart_id)
-    # Grouped CI builds share one bus between components, like uart's pin check.
-    # Bare `id:` references (a uart.write action) and lambdas are not caught.
-    if not CORE.testing_mode:
-        for domain, domain_conf in full_config.items():
-            if domain != DOMAIN and uart.subtree_references_uart(domain_conf, uart_id):
-                raise cv.Invalid(
-                    f"The UART '{uart_id}' is also used by '{domain}'. "
-                    "uart_tcp requires exclusive use of that UART.",
-                    [CONF_UART_ID],
-                )
-    fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_UART_ID])
+    uart.claim_exclusive(config, DOMAIN)
 
     if config[CONF_ROLE] == "server":
+        full_config = fv.full_config.get()
+        data = full_config.data.setdefault(DOMAIN, {})
         # Two listeners on one port cannot both serve it. Only uart_tcp and
         # tcp_uart servers are compared here, not other listeners such as api.
         port = config[CONF_PORT]
@@ -112,7 +77,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(socket.final_validate_idle_timeout, _final_validate)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -127,4 +92,6 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
+    if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
+        cg.add(var.set_idle_timeout(timeout))
     cg.add_optional(var.set_host, config.get(CONF_HOST))

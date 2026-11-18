@@ -56,7 +56,6 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -205,6 +204,11 @@ PSRAM_XIP_VARIANTS = {
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
 
+# Variants whose ROM exports sscanf for the newlib format in use
+# (esp32c6.rom.newlib-normal.ld). The ESP32-C2 ROM only has it in the nano
+# format, which ESPHome turns off.
+ROM_SSCANF_VARIANTS = {VARIANT_ESP32C6}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -231,15 +235,15 @@ COMPILER_OPTIMIZATIONS = {
 #
 # Note: excluding a component only removes it from the initial build set.
 # ESP-IDF's requirement expansion adds an excluded component back when any
-# component still in the build REQUIRES it (e.g. espressif/mdns pulls
-# "console" back in, esp_http_client pulls "tcp_transport" back in), so
+# component still in the build REQUIRES it (e.g. esp_http_client pulls
+# "tcp_transport" back in), so
 # exclusions here are safe for such components and simply become no-ops in
 # builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "app_trace",  # CPU trace/SystemView support - unused by ESPHome
     "bt",  # Bluetooth stack - re-included by request_bluetooth(); its REQUIRES pulls the WiFi stack back
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
-    "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
+    "console",  # Console REPL - unused by ESPHome; espressif/mdns needs it only for its CLI, which mdns disables
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp-tls",  # TLS wrapper - re-included by request_tls()
     "esp_adc",  # ADC driver - only needed by adc component
@@ -326,32 +330,25 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
 
-# Entries arduino-esp32 only declares below the given IDF version; stubbing one past
-# it clashes with ESPHome's own managed component of the same short name.
-ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
-    "espressif__libsodium": cv.Version(6, 0, 0),
+# arduino-esp32 dependencies that ESPHome replaces with its own component when a
+# build uses it, through the manifest "overrides" field. IDF cannot hold two
+# components of the same short name, so a stub would clash with the replacement.
+ARDUINO_OVERRIDDEN_IDF_COMPONENTS: dict[str, str] = {
+    "espressif/libsodium": "esphome/libsodium",
 }
 
 
+def manifest_overrides_supported() -> bool:
+    """Whether the IDF component manager reads the manifest "overrides" field.
+
+    pioarduino pins idf-component-manager 2.4 for ESP-IDF 5, which predates it.
+    """
+    return CORE.using_toolchain_esp_idf or idf_version() >= cv.Version(6, 0, 0)
+
+
 def arduino_bundles_libsodium() -> bool:
-    """arduino-esp32 ships its own libsodium below IDF 6.0."""
-    return (
-        CORE.using_arduino
-        and idf_version()
-        < ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF["espressif__libsodium"]
-    )
-
-
-def arduino_excluded_idf_components() -> set[str]:
-    """The arduino-bundled components to stub for this build's IDF version."""
-    version = idf_version()
-    return {
-        component
-        for component in ARDUINO_EXCLUDED_IDF_COMPONENTS
-        if (max_version := ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF.get(component))
-        is None
-        or version < max_version
-    }
+    """arduino-esp32's own libsodium is in the build and cannot be replaced."""
+    return CORE.using_arduino and not manifest_overrides_supported()
 
 
 # Mapping of Arduino libraries to IDF managed components they require
@@ -2530,7 +2527,22 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
-def _configure_lwip_max_sockets(conf: dict) -> None:
+def get_user_lwip_max_sockets() -> int | None:
+    """CONFIG_LWIP_MAX_SOCKETS from the user's sdkconfig_options, or None when unset.
+
+    A value that is not a number reads as 0.
+    """
+    user_max_sockets = CORE.config[DOMAIN][CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS].get(
+        "CONFIG_LWIP_MAX_SOCKETS"
+    )
+    if user_max_sockets is None:
+        return None
+    with contextlib.suppress(ValueError, TypeError):
+        return int(user_max_sockets)
+    return 0
+
+
+def _configure_lwip_max_sockets() -> None:
     """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
 
     Socket component tracks consumer needs via consume_sockets() called during config validation.
@@ -2539,8 +2551,7 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     """
     from esphome.components.socket import get_socket_counts
 
-    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
-    user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
+    user_max_sockets = get_user_lwip_max_sockets()
 
     # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
     # types (TCP clients, TCP listeners, and UDP). Include all three counts.
@@ -2550,21 +2561,17 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
         _LOGGER.info(
-            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %d",
             user_max_sockets,
         )
 
-        user_sockets_int = 0
-        with contextlib.suppress(ValueError, TypeError):
-            user_sockets_int = int(user_max_sockets)
-
-        if user_sockets_int < total_sockets:
+        if user_max_sockets < total_sockets:
             _LOGGER.warning(
                 "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
                 "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
                 "experience socket exhaustion errors. Consider increasing to "
                 "at least %d.",
-                user_sockets_int,
+                user_max_sockets,
                 total_sockets,
                 sc.tcp,
                 sc.udp,
@@ -2988,6 +2995,7 @@ async def _finalize_arduino_aware_flags():
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 
@@ -3322,7 +3330,7 @@ async def to_code(config):
         # Kconfig range is [1,63]; 0 gets clamped to the default.
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 1)
 
-    _configure_lwip_max_sockets(conf)
+    _configure_lwip_max_sockets()
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
@@ -3398,9 +3406,17 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
-    # Enable OTA rollback support
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    # ESP-IDF 6.2 enables app rollback by default with automatic confirmation at
+    # startup and renamed the confirm-by-app option, so there the explicit off is needed
+    rollback = advanced[CONF_ENABLE_OTA_ROLLBACK]
+    if idf_version() >= cv.Version(6, 2, 0):
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", rollback)
+        add_idf_sdkconfig_option(
+            "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", rollback
+        )
+    elif rollback:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+    if rollback:
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into
@@ -3890,6 +3906,15 @@ def _write_idf_component_yml():
     # on path order. Such a stub points at the converted library instead.
     converted_by_name = {component.path.name: component for component in converted}
 
+    overridden: dict[str, str] = {}
+    if CORE.using_arduino and manifest_overrides_supported():
+        managed_components = CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {})
+        overridden = {
+            target: replacement
+            for target, replacement in ARDUINO_OVERRIDDEN_IDF_COMPONENTS.items()
+            if replacement in managed_components
+        }
+
     # For Arduino builds, override unused managed components from the Arduino framework
     # by pointing them to empty stub directories using override_path
     # This prevents the IDF component manager from downloading the real components
@@ -3903,7 +3928,9 @@ def _write_idf_component_yml():
         }
 
         # Only stub components that are not required by any enabled Arduino library
-        components_to_stub = arduino_excluded_idf_components() - required_idf_components
+        components_to_stub = (
+            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
+        )
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
@@ -3915,6 +3942,8 @@ def _write_idf_component_yml():
         for component_name in sorted(components_to_stub):
             stub_name = _idf_component_stub_name(component_name)
             stub_path = stubs_dir / stub_name
+            if _idf_component_dep_name(component_name) in overridden:
+                continue
             if (component := converted_by_name.get(stub_name)) is not None:
                 if stub_path.exists():
                     rmtree(stub_path)
@@ -3982,7 +4011,13 @@ def _write_idf_component_yml():
                 dependency["path"] = component[KEY_PATH]
             dependencies[name] = dependency
 
-    contents = yaml_util.dump({"dependencies": dependencies}) if dependencies else ""
+    manifest: dict[str, Any] = {"dependencies": dependencies}
+    if overridden:
+        manifest["overrides"] = [
+            {target: {"with": {replacement: dependencies[replacement]}}}
+            for target, replacement in overridden.items()
+        ]
+    contents = yaml_util.dump(manifest) if dependencies else ""
     if write_file_if_changed(yml_path, contents):
         dependencies_lock = CORE.relative_build_path("dependencies.lock")
         if dependencies_lock.is_file():
@@ -4009,6 +4044,9 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    # Imported here: sbom loads git and urllib helpers that config validation does not need
+    from esphome.espidf import sbom
+
     sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in

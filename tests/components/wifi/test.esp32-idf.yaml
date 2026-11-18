@@ -34,6 +34,10 @@ wifi:
       static_ip: 192.168.4.1
       gateway: 192.168.4.1
       subnet: 255.255.255.0
+  on_ap_start:
+    - logger.log: "WiFi AP started!"
+  on_ap_stop:
+    - logger.log: "WiFi AP stopped!"
 
 captive_portal:
 

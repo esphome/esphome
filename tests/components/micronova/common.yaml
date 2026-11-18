@@ -36,7 +36,7 @@ sensor:
     memory_address_sensor:
       memory_location: 0x20
       memory_address: 0x7d
-      name: Adres sensor
+      name: Address sensor
 
 switch:
   - platform: micronova

@@ -1,0 +1,161 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes:
+    - sxfake.hpp
+  on_boot:
+    - priority: 1000
+      then:
+        - lambda: |-
+            id(sx_a)->set_i2c_bus(&sxfake::bus);
+            id(sx_b)->set_i2c_bus(&sxfake::bus);
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: false
+
+sx1509:
+  - id: sx_a
+    address: 0x3E
+  - id: sx_b
+    address: 0x3F
+
+output:
+  - platform: sx1509
+    id: plain
+    sx1509_id: sx_a
+    pin: 5
+  - platform: sx1509
+    id: inv
+    sx1509_id: sx_a
+    pin: 7
+    inverted: true
+  - platform: sx1509
+    id: ranged
+    sx1509_id: sx_a
+    pin: 9
+    min_power: 0.1
+    max_power: 0.8
+  - platform: sx1509
+    id: ranged_zero
+    sx1509_id: sx_a
+    pin: 10
+    min_power: 0.2
+    max_power: 0.9
+    zero_means_zero: true
+  - platform: sx1509
+    id: inv_ranged
+    sx1509_id: sx_b
+    pin: 2
+    inverted: true
+    min_power: 0.15
+    max_power: 0.5
+  - platform: sx1509
+    id: b_plain
+    sx1509_id: sx_b
+    pin: 14
+
+switch:
+  - platform: gpio
+    name: SX Digital
+    id: digital
+    pin:
+      sx1509: sx_a
+      number: 12
+      mode:
+        output: true
+
+sensor:
+  - platform: template
+    name: Write Count
+    id: wcount
+    lambda: return sxfake::bus.n;
+    update_interval: never
+
+button:
+  - platform: template
+    name: Boot Log
+    on_press:
+      - lambda: |-
+          ESP_LOGI("sxfake", "BOOT writes %u", (unsigned) sxfake::bus.n);
+          sxfake::bus.dump_log(0);
+          sxfake::bus.dump_regs();
+          id(wcount).update();
+  - platform: template
+    name: All Half
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE All Half");
+          for (output::FloatOutput *o : std::initializer_list<output::FloatOutput *>{id(plain), id(inv), id(ranged), id(ranged_zero), id(inv_ranged), id(b_plain)}) o->set_level(0.5f);
+          sxfake::bus.dump_log(from);
+          id(wcount).update();
+  - platform: template
+    name: All On
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE All On");
+          for (output::FloatOutput *o : std::initializer_list<output::FloatOutput *>{id(plain), id(inv), id(ranged), id(ranged_zero), id(inv_ranged), id(b_plain)}) o->turn_on();
+          sxfake::bus.dump_log(from);
+          id(wcount).update();
+  - platform: template
+    name: All Off
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE All Off");
+          for (output::FloatOutput *o : std::initializer_list<output::FloatOutput *>{id(plain), id(inv), id(ranged), id(ranged_zero), id(inv_ranged), id(b_plain)}) o->turn_off();
+          sxfake::bus.dump_log(from);
+          id(wcount).update();
+  - platform: template
+    name: All Tiny
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE All Tiny");
+          for (output::FloatOutput *o : std::initializer_list<output::FloatOutput *>{id(plain), id(inv), id(ranged), id(ranged_zero), id(inv_ranged), id(b_plain)}) o->set_level(0.002f);
+          sxfake::bus.dump_log(from);
+          id(wcount).update();
+  - platform: template
+    name: All Sweep
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE All Sweep");
+          for (int i = 0; i <= 20; i += 5) for (output::FloatOutput *o : std::initializer_list<output::FloatOutput *>{id(plain), id(inv), id(ranged), id(ranged_zero), id(inv_ranged), id(b_plain)}) o->set_level(i / 20.0f);
+          sxfake::bus.dump_log(from);
+          id(wcount).update();
+  - platform: template
+    name: Digital Toggle
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE Digital Toggle");
+          id(digital).toggle();
+          sxfake::bus.dump_log(from);
+          id(wcount).update();
+  - platform: template
+    name: Dump
+    on_press:
+      - lambda: |-
+          uint16_t from = sxfake::bus.n;
+          ESP_LOGI("sxfake", "CASE Dump");
+          sxfake::bus.dump_regs();
+          sxfake::bus.dump_log(from);
+          id(wcount).update();

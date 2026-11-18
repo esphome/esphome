@@ -1,0 +1,7 @@
+esphome:
+  name: vbus-rx-only-codegen
+host:
+uart:
+  baud_rate: 9600
+  port: /dev/null
+vbus:

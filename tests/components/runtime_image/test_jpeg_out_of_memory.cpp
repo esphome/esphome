@@ -21,6 +21,10 @@ class StatelessJpegDecoder : public JpegDecoder {
 // The ~18 KB of JPEGDEC state lives in its own allocation, so it can come from PSRAM
 TEST(JpegOutOfMemory, DecoderStateIsAllocatedSeparately) { EXPECT_LT(sizeof(JpegDecoder), sizeof(JPEGDEC) / 4); }
 
+// The coefficient buffer of a progressive image comes from JPEG_MALLOC, fixed when JPEGDEC is built, so these tests
+// cannot make it fail. JPEGDEC's prog_test.cpp covers it: without room for every coefficient the image is drawn
+// from the DC only, and without room for even that decodeBegin() fails with JPEG_ERROR_MEMORY.
+
 TEST(JpegOutOfMemory, MissingStateFailsWithoutStartingASession) {
   RuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);
   StatelessJpegDecoder decoder(&img);

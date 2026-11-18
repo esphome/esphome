@@ -96,7 +96,7 @@ class FloatOutput : public BinaryOutput {
    *
    * Implemented only by components which can set the output PWM frequency.
    *
-   * @param frequence The new frequency.
+   * @param frequency The new frequency.
    */
   virtual void update_frequency(float frequency) {}
 

@@ -22,7 +22,14 @@ def test_constant_payloads_share_progmem_tables(
         ["{0x01, 0x02, 0x03}", "{0x4F, 0x4E}", "{0x04}"]
     )
     assert f"shared_switch->set_data_on({shared}, 3);" in main_cpp
-    assert f"shared_button->set_data({shared}, 3);" in main_cpp
+    # The button is an ApplyButton whose generated function writes the table from flash
+    fn = re.search(r"new\(shared_button\) button::ApplyButton<(\w+)>\(\);", main_cpp)
+    assert fn is not None
+    assert re.search(
+        rf"static void {fn.group(1)}\(button::Button \* entity\) \{{\n"
+        rf"  ::\w+->write_array_progmem\({shared}, 3\);\n\}}",
+        main_cpp,
+    )
     assert f"->write_array(::{shared}, 3);" in main_cpp
     assert "->write_array(nullptr, 0);" in main_cpp
     assert "->write_array(esphome__bytes.data(), esphome__bytes.size());" in main_cpp

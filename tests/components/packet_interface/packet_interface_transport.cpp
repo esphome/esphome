@@ -3,7 +3,6 @@
 #include <cstring>
 #include <vector>
 #include "esphome/components/packet_interface/packet_transport/packet_interface_transport.h"
-#include "esphome/core/application.h"
 
 namespace esphome::packet_interface::transport_testing {
 
@@ -48,21 +47,11 @@ static Packet ping_packet(const char *hostname, uint32_t key) {
   return packet;
 }
 
-// Each test replaces App with a fresh one, which the transport's setup() reads the device name from
 class PacketInterfaceTransportTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    App.~Application();
-    new (&App) Application();
-    static char name[] = "bridge-tests";
-    static char friendly_name[] = "";
-    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     this->bridge_.set_encryption_key(std::vector<uint8_t>(32, 0xAA));
     this->bridge_.setup();
-  }
-  void TearDown() override {
-    App.~Application();
-    new (&App) Application();  // later tests and the test listener use App
   }
 
   FakeInterface link_;

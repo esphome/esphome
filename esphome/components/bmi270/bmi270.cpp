@@ -82,59 +82,44 @@ void BMI270Component::setup() {
     return;
 
   // 2. Soft-reset via CMD register (0x7E = 0xB6)
-  if (!this->write_byte(BMI270_REG_CMD, BMI270_CMD_SOFT_RESET)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(BMI270_REG_CMD, BMI270_CMD_SOFT_RESET)))
     return;
-  }
   delay(20);
 
   // 4. Upload the configuration blob
-  if (!load_config_file_()) {
-    this->mark_failed(LOG_STR("Config file upload failed"));
+  if (!this->setup_check(load_config_file_(), LOG_STR("Config file upload failed")))
     return;
-  }
   ESP_LOGD(TAG, "Config blob uploaded ✓");
 
   // 5. Configure accelerometer
   // ACC_CONF: ODR | BWP(0x2 = normal avg4) | perf_mode(1)
   uint8_t acc_conf =
       (uint8_t) (accel_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) | BMI270_ACC_CONF_PERF_MODE;
-  if (!this->write_byte(BMI270_REG_ACC_CONF, acc_conf)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(BMI270_REG_ACC_CONF, acc_conf)))
     return;
-  }
-  if (!this->write_byte(BMI270_REG_ACC_RANGE, (uint8_t) accel_range_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(BMI270_REG_ACC_RANGE, (uint8_t) accel_range_)))
     return;
-  }
 
   // 6. Configure gyroscope
   // GYR_CONF: ODR | BWP(0x2 = normal) | noise_perf(1) | filter_perf(1)
   uint8_t gyr_conf = (uint8_t) (gyro_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) |
                      BMI270_GYR_CONF_NOISE_PERF | BMI270_GYR_CONF_FILTER_PERF;
-  if (!this->write_byte(BMI270_REG_GYR_CONF, gyr_conf)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(BMI270_REG_GYR_CONF, gyr_conf)))
     return;
-  }
-  if (!this->write_byte(BMI270_REG_GYR_RANGE, (uint8_t) gyro_range_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(BMI270_REG_GYR_RANGE, (uint8_t) gyro_range_)))
     return;
-  }
 
   // 7. Enable accelerometer, gyroscope, and temperature sensor
   //    PWR_CTRL bits: temp_en[3] | gyr_en[2] | acc_en[1]
-  if (!this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU)))
     return;
-  }
   delay(5);
 
   // 8. Re-enable advanced power save (optional; keeps current low between reads)
   // Disabled here for simplicity – leave in performance mode
-  if (!this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)) {  // bit1 = fifo_self_wakeup
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // bit1 = fifo_self_wakeup
+  if (!this->setup_check(this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)))
     return;
-  }
 
   // 9. Optionally bring up whatever is wired to the aux interface.
   // This is entirely additive: it is off by default, and failure only disables

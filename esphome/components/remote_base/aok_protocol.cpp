@@ -44,11 +44,13 @@ void AOKProtocol::encode(RemoteTransmitData *dst, const AOKData &data) {
 optional<AOKData> AOKProtocol::decode(RemoteReceiveData src) {
   // A buffer can hold noise and several repeats of a frame, so look for the first good one. After any
   // failure the loop restarts at the next timing, or where the failed frame stopped.
+  const TimingRange start = src.timing_range(START_HIGH_US);
   while (src.is_valid()) {
-    if (!src.expect_pulse_with_gap(START_HIGH_US, LONG_US)) {
+    if (!start.matches_mark(src.peek()) || !src.peek_space_at_least(LONG_US, 1)) {
       src.advance();
       continue;
     }
+    src.advance(2);
 
     uint64_t frame = 0;
     uint8_t bits = 0;
