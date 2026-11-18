@@ -369,7 +369,6 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
 
 def test_storage_json_from_esphome_core_nrf52(setup_core: Path) -> None:
     """Test from_esphome_core captures the framework version on nRF52."""
-    from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 
     mock_core = MagicMock()
     mock_core.name = "nrf_device"
@@ -380,7 +379,7 @@ def test_storage_json_from_esphome_core_nrf52(setup_core: Path) -> None:
     mock_core.target_platform = "nrf52"
     mock_core.is_esp32 = False
     mock_core.is_nrf52 = True
-    mock_core.data = {KEY_CORE: {KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2)}}
+    mock_core.framework_version = cv.Version(2, 9, 2)
     mock_core.build_path = "/build/nrf_device"
     mock_core.firmware_bin = "/build/nrf_device/firmware.bin"
     mock_core.loaded_integrations = set()

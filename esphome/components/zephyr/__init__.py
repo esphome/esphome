@@ -5,7 +5,7 @@ from typing import Literal, NamedTuple, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import CONF_BOARD
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -281,7 +281,7 @@ def zephyr_use_usb_device_next() -> bool:
     The new stack (device_next) is used from nRF Connect SDK 3.4.1, where the
     legacy stack is deprecated. Older SDKs keep the legacy stack.
     """
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     return CORE.is_nrf52 and framework_ver >= cv.Version(3, 4, 1)
 
 

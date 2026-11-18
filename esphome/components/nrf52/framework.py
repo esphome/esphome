@@ -24,7 +24,6 @@ from esphome.components.zephyr.sdk_install import (
     sdk_toolchain_path,
 )
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     create_venv,
@@ -48,7 +47,7 @@ _TOOLCHAIN_VERSIONS = (TOOLCHAIN_VERSION, _TOOLCHAIN_VERSION_NCS_3_4_0)
 
 def _uses_sdk_ng_1_toolchain() -> bool:
     """True when the framework needs Zephyr SDK 1.0+."""
-    return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0)
+    return CORE.framework_version >= cv.Version(3, 4, 0)
 
 
 def _get_toolchain_version() -> str:
@@ -97,7 +96,7 @@ def toolchain_tool(name: str) -> Path:
 
 
 def _get_version_str() -> str:
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     return f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
 
 
@@ -390,7 +389,7 @@ def include_west_project(name: str) -> None:
 
 def bluetooth_west_projects() -> tuple[str, ...]:
     """Bluetooth's crypto: TinyCrypt up to SDK 3.1, PSA (mbedtls, Oberon) from 3.2."""
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 2, 0):
+    if CORE.framework_version >= cv.Version(3, 2, 0):
         return ("mbedtls", "oberon-psa-crypto")
     return ("tinycrypt",)
 
@@ -398,7 +397,7 @@ def bluetooth_west_projects() -> tuple[str, ...]:
 def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
+    if CORE.framework_version >= cv.Version(3, 1, 0):
         projects.add("cmsis_6")
     # Sysbuild builds the MCUboot image with any bootloader
     if CORE.data.get(KEY_ZEPHYR, {}).get(KEY_SYSBUILD):
@@ -580,7 +579,7 @@ def _check_and_install(version: str) -> None:
     projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
-        framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+        framework_ver = CORE.framework_version
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
