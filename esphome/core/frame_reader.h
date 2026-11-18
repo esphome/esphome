@@ -139,6 +139,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
     return true;
   }
   static_assert(distinct_first(), "Each FrameFormat needs a different first header byte");
+  static_assert(((FORMATS::MIN_LEN <= N) && ...), "N must hold the header and length field of every FrameFormat");
 
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
