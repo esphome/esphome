@@ -78,12 +78,12 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   // all frames of the response to the last request are in
   bool response_complete_() const;
   /// Returns false for a frame that is not a BMS response or fails the checksum
-  bool handle_frame_(const uint8_t *frame, size_t len);
+  bool handle_frame_(const uint8_t *frame);
 
   uint8_t addr_;
 
   // A5, address, data ID, length 8, 8 data bytes, sum8; every request and response has 8 data bytes
-  LengthFrameReader<DALY_FRAME_SIZE, FrameFormat<FrameLengthU8<3, 5>, 0xA5>> reader_;
+  LengthFrameReader<DALY_FRAME_SIZE, FrameFormat<FrameFixedLength<DALY_FRAME_SIZE>, 0xA5>> reader_;
   uint32_t last_transmission_{0};
   bool trigger_next_{false};
   // update() asked for a request cycle; it starts once no cycle is running. The first one runs at boot.
