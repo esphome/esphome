@@ -69,8 +69,6 @@ climate::ClimateTraits PioneerWT::traits() {
 void PioneerWT::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (const size_t count = this->available()) {
-    if (this->reader_.partial() && now - this->last_rx_ >= RX_GAP_MS)
-      this->reader_.reset();
     this->last_rx_ = now;
     this->read_available(
         [this](uint8_t byte) {
@@ -81,6 +79,9 @@ void PioneerWT::loop() {
     if (this->reader_.take_checksum_error()) {
       ESP_LOGD(TAG, "Dropped a frame with a wrong checksum");
     }
+  } else if (this->reader_.partial() && now - this->last_rx_ >= RX_GAP_MS) {
+    // Only on an idle pass: after a slow loop the rest of the frame may already be buffered.
+    this->reader_.reset();
   }
   if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
     this->send_pending_();
@@ -282,7 +283,7 @@ void PioneerWT::request_status_() {
 void PioneerWT::queue_command_(uint8_t msg_class, const uint8_t *body, size_t len) {
   if (this->queue_.size() == TX_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full; dropping the oldest command");
-    this->pop_command_();
+    this->drop_command_();
   }
   PendingCommand pending{msg_class, this->next_seq_++, static_cast<uint8_t>(len), {}};
   std::memcpy(pending.body.data(), body, len);
@@ -296,12 +297,18 @@ void PioneerWT::pop_command_() {
   this->attempts_ = 0;
 }
 
+void PioneerWT::drop_command_() {
+  this->pop_command_();
+  // A dropped command may have carried a power change; go back to what the AC last reported.
+  this->power_wanted_ = this->power_;
+}
+
 void PioneerWT::send_pending_() {
   const PendingCommand &pending = this->queue_.front();
   if (this->attempts_ >= MAX_ATTEMPTS) {
     const uint8_t seq = pending.seq;
-    // Pop first: the warning log can run automations that queue another command.
-    this->pop_command_();
+    // Drop first: the warning log can run automations that queue another command.
+    this->drop_command_();
     ESP_LOGD(TAG, "No acknowledgement for command seq %02X; giving up", seq);
     this->status_set_warning(LOG_STR("No acknowledgement"));
     return;

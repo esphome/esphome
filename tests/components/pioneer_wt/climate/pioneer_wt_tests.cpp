@@ -333,9 +333,34 @@ TEST_F(PioneerWTTest, DropsPartialFrameAfterPause) {
   // A cut-off header that claims 255 bytes would otherwise swallow the frames that follow.
   this->uart_.push_rx_hex("a5010121000000ff");
   this->loop_at_(1100);
+  this->loop_at_(1300);  // idle pass after the gap
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(2000);
   EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
+}
+
+TEST_F(PioneerWTTest, KeepsPartialFrameAfterSlowLoop) {
+  this->start_();
+  const std::string check = PRESENCE_CHECK;
+  this->uart_.push_rx_hex(check.substr(0, 10));
+  this->loop_at_(1100);
+  // The loop was busy; the rest of the frame is already waiting when it runs again.
+  this->uart_.push_rx_hex(check.substr(10));
+  this->loop_at_(1500);
+  EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
+}
+
+TEST_F(PioneerWTTest, FailedPowerOnIsSentAgainWithTheNextMode) {
+  this->start_();  // no status yet: the AC is off
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_HEAT).perform();
+  for (uint32_t t = 1100; t <= 2600; t += 500)
+    this->loop_at_(t);   // four attempts, no acknowledgement
+  this->loop_at_(3100);  // given up
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(3200);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
 }
 
 TEST_F(PioneerWTTest, ModeAfterQueuedOffTurnsBackOn) {

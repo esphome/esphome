@@ -48,6 +48,8 @@ class PioneerWT final : public climate::Climate, public uart::UARTDevice, public
   void send_pending_();
   /// Removes the command at the head of the queue.
   void pop_command_();
+  /// Removes the head command without an acknowledgement.
+  void drop_command_();
   /// Queues a command that sets one on/off attribute.
   void send_setting_(uint16_t attr, bool on);
   void request_status_();
