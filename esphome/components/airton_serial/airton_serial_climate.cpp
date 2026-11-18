@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <iterator>
 
 #include "esphome/core/application.h"
@@ -14,8 +13,6 @@ namespace esphome::airton_serial {
 
 ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
 
-static constexpr uint8_t SYNC_BYTE = 0x7A;
-static constexpr uint8_t LENGTH_POS = 4;
 static constexpr uint8_t OPCODE_POS = 7;
 static constexpr uint8_t MIN_FRAME_LEN = OPCODE_POS + 1 + 2;  // Up to the opcode, then the CRC
 // A partial frame left this long without a new byte is not a frame start.
@@ -124,51 +121,28 @@ void AirtonSerialClimate::loop() {
   bool received = false;
   this->read_available([this, &received](uint8_t byte) {
     received = true;
-    this->handle_byte_(byte);
+    if (const uint8_t *frame = this->rx_reader_.feed(byte))
+      this->accept_(frame);
   });
   if (received) {
     this->last_rx_ms_ = now;
-  } else if (this->rx_pos_ > 0 && now - this->last_rx_ms_ >= FRAME_GAP_MS) {
+  } else if (this->rx_reader_.length() > 0 && now - this->last_rx_ms_ >= FRAME_GAP_MS) {
     // A corrupt length can hold back complete frames behind it; look for them in what is buffered.
-    while (this->rx_pos_ > 0)
-      this->drop_first_byte_();
+    while (this->rx_reader_.length() > 0)
+      this->accept_(this->rx_reader_.resync());
   }
 }
 
-void AirtonSerialClimate::handle_byte_(uint8_t byte) {
-  // Bytes are checked as they arrive, so rx_pos_ stays below the longest frame length.
-  this->rx_buffer_[this->rx_pos_++] = byte;
-  this->scan_buffer_();
-}
-
-void AirtonSerialClimate::drop_first_byte_() {
-  this->rx_pos_--;
-  std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + 1, this->rx_pos_);
-  this->scan_buffer_();
-}
-
-void AirtonSerialClimate::scan_buffer_() {
-  const uint8_t *buf = this->rx_buffer_.data();
-  while (this->rx_pos_ > 0) {
-    uint8_t drop = 1;
-    if (buf[0] == SYNC_BYTE && (this->rx_pos_ < 2 || buf[1] == SYNC_BYTE)) {
-      if (this->rx_pos_ <= LENGTH_POS)
-        return;
-      const uint8_t len = buf[LENGTH_POS];
-      if (len >= MIN_FRAME_LEN && len <= MAX_FRAME_LEN) {
-        if (this->rx_pos_ < len)
-          return;
-        if (crc16(buf, len - 2) == encode_uint16(buf[len - 2], buf[len - 1])) {
-          this->handle_frame_(buf, len);
-          drop = len;
-        } else {
-          ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
-        }
-      }
+void AirtonSerialClimate::accept_(const uint8_t *frame) {
+  for (; frame != nullptr; frame = this->rx_reader_.resync()) {
+    const uint8_t len = this->rx_reader_.frame_length();
+    if (len < MIN_FRAME_LEN)
+      continue;
+    if (crc16(frame, len - 2) == encode_uint16(frame[len - 2], frame[len - 1])) {
+      this->handle_frame_(frame, len);
+      return;
     }
-    // Not a frame start, or a bad frame: look for the next start after its first byte.
-    this->rx_pos_ -= drop;
-    std::memmove(this->rx_buffer_.data(), buf + drop, this->rx_pos_);
+    ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
   }
 }
 
