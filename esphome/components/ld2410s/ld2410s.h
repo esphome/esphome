@@ -81,11 +81,11 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #endif
 
  protected:
-  /// Returns false for a wrong footer or impossible data.
+  /// Returns false for bytes that are not a real frame.
   bool handle_frame_(const uint8_t *frame, uint8_t len);
   /// Returns false for a data frame whose state byte is impossible, so it counts as dropped.
   bool handle_data_frame_(const uint8_t *payload, uint16_t len, bool standard);
-  void handle_command_ack_(const uint8_t *payload, uint16_t len);
+  bool handle_command_ack_(const uint8_t *payload, uint16_t len);
 #ifdef USE_LD2410S_PARAMETERS
   bool handle_parameters_(const uint8_t *values, uint16_t len);
 #endif

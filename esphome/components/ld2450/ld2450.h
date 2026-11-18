@@ -206,7 +206,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
   void handle_periodic_data_(const uint8_t *frame);
-  void handle_ack_data_(const uint8_t *frame, uint8_t len);
+  bool handle_ack_data_(const uint8_t *frame, uint8_t len);
   bool handle_frame_(const uint8_t *frame, uint8_t len);
   void process_zone_(const uint8_t *frame);
   void get_version_();
@@ -220,7 +220,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool get_timeout_status_(uint32_t check_millis);
   void open_link_grace_();
   void check_link_();
-  bool bytes_since_frame_() const { return this->last_rx_ != this->last_frame_ms_ || this->reader_.length() != 0; }
+  bool bytes_since_frame_() const {
+    return static_cast<int32_t>(this->last_rx_ - this->last_frame_ms_) > 0 || this->reader_.length() != 0;
+  }
   void on_valid_frame_();
   void on_link_lost_(uint32_t silent_ms, bool was_up);
   void on_link_up_(bool restored);

@@ -260,11 +260,11 @@ void LD2412Component::send_command_(uint8_t command, const uint8_t *command_valu
   delay(20);  // NOLINT
 }
 
-void LD2412Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
+bool LD2412Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
   // 4 frame header bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame footer bytes
   // data header=0xAA, data footer=0x55, crc=0x00
   if (len < 12 || frame[7] != HEADER || frame[len - 6] != FOOTER) {
-    return;
+    return false;
   }
   /*
     Data Type: 7th
@@ -273,7 +273,7 @@ void LD2412Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
   */
   bool engineering_mode = frame[DATA_TYPES] == 0x01;
   if (len < PERIODIC_FRAME_MIN) {
-    return;  // too short to hold the values
+    return false;  // too short to hold the values
   }
 #ifdef USE_SWITCH
   PUBLISH_STATE(this->engineering_mode_switch_, engineering_mode);
@@ -354,6 +354,7 @@ void LD2412Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
     this->query_dynamic_background_correction_();
     this->set_config_mode_(false);
   }
+  return true;
 }
 
 #ifdef USE_NUMBER
@@ -373,15 +374,15 @@ static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
 static constexpr uint32_t BASIC_CONF_TIMEOUT_ID = 2;
 static constexpr uint32_t QUERY_TIMEOUT_MS = 2000;
 
-void LD2412Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
+bool LD2412Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", frame[COMMAND]);
   if (frame[COMMAND_STATUS] != 0x01) {
     ESP_LOGW(TAG, "Invalid status");
-    return;
+    return false;
   }
   if (frame[8] || frame[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", frame[8], frame[9]);
-    return;
+    return true;
   }
 
   switch (frame[COMMAND]) {
@@ -499,7 +500,7 @@ void LD2412Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
       if (len != GATE_SENS_ACK_SIZE) {
         // A length this driver does not know
         ESP_LOGW(TAG, "Dropping gate threshold answer of %u bytes", len);
-        return;
+        return true;
       }
       const bool motion = frame[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
       GateThresholds &group = this->gate_thresholds_(motion);
@@ -563,6 +564,7 @@ void LD2412Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
     default:
       break;
   }
+  return true;
 }
 
 // Handles the frame when its footer is in place; returns false otherwise
@@ -573,12 +575,10 @@ bool LD2412Component::handle_frame_(const uint8_t *frame, uint8_t len) {
   }
   if (frame[0] == ld24xx::DataFrameFormat::FIRST) {
     ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
-    this->handle_periodic_data_(frame, len);
-  } else {
-    ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    this->handle_ack_data_(frame, len);
+    return this->handle_periodic_data_(frame, len);
   }
-  return true;
+  ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  return this->handle_ack_data_(frame, len);
 }
 
 void LD2412Component::set_config_mode_(bool enable) {

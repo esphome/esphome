@@ -695,15 +695,15 @@ void LD2450Component::handle_periodic_data_(const uint8_t *frame) {
   this->data_callback_.call();
 }
 
-void LD2450Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
+bool LD2450Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", frame[COMMAND]);
   if (frame[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Invalid status");
-    return;
+    return false;
   }
   if (frame[8] || frame[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", frame[8], frame[9]);
-    return;
+    return true;
   }
 
   switch (frame[COMMAND]) {
@@ -819,6 +819,7 @@ void LD2450Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
     default:
       break;
   }
+  return true;
 }
 
 // Handles the frame when its footer is in place; returns false otherwise
@@ -837,11 +838,10 @@ bool LD2450Component::handle_frame_(const uint8_t *frame, uint8_t len) {
     ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->on_valid_frame_();
     this->handle_periodic_data_(frame);
-  } else {
-    ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    this->handle_ack_data_(frame, len);
+    return true;
   }
-  return true;
+  ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  return this->handle_ack_data_(frame, len);
 }
 
 // Set Config Mode - Pre-requisite sending commands

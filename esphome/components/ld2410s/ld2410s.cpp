@@ -254,14 +254,14 @@ bool LD2410SComponent::handle_frame_(const uint8_t *frame, uint8_t len) {
   const uint8_t *payload = &frame[payload_pos];
   const uint16_t payload_len = len - payload_pos - (short_frame ? 1 : HEADER_FOOTER_SIZE);
   if (type == ld24xx::CmdFrameFormat::FIRST) {
-    this->handle_command_ack_(payload, payload_len);
-  } else if (!this->handle_data_frame_(payload, payload_len, type == ld24xx::DataFrameFormat::FIRST)) {
+    return this->handle_command_ack_(payload, payload_len);
+  }
+  if (!this->handle_data_frame_(payload, payload_len, type == ld24xx::DataFrameFormat::FIRST)) {
     this->count_dropped_frame_();
     return false;
-  } else {
-    this->last_frame_at_ = App.get_loop_component_start_time();
-    this->dropped_frames_ = 0;
   }
+  this->last_frame_at_ = App.get_loop_component_start_time();
+  this->dropped_frames_ = 0;
   return true;
 }
 
@@ -290,21 +290,21 @@ bool LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len, 
   return true;
 }
 
-void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {
+bool LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {
   if (len < 4) {
     ESP_LOGV(TAG, "Acknowledgement too short (%u bytes)", len);
-    return;
+    return false;
   }
   const uint16_t command_word = encode_uint16(payload[1], payload[0]);
   const uint16_t ack = encode_uint16(payload[3], payload[2]);
   if (!this->awaiting_ack_) {
     ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
-    return;
+    return true;
   }
   const uint16_t command = this->current_command_();
   if (command_word != (command | CMD_CONFIRMATION)) {
     ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
-    return;
+    return true;
   }
 #ifdef USE_LD2410S_PARAMETERS
   if (ack != 0 && command == PARAMETERS_WRITE_CMD) {
@@ -313,29 +313,29 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     ESP_LOGW(TAG, "Module rejected the parameters, ack %04X", ack);
     this->send_command_(CONFIG_MODE_END_CMD);
     this->restart_init_(App.get_loop_component_start_time() + COMMAND_GAP_MS);
-    return;
+    return true;
   }
 #endif
   if (ack != 0) {
     // Leave the command pending so the timeout resends it
     ESP_LOGW(TAG, "Module rejected command %04X, ack %04X", command, ack);
-    return;
+    return true;
   }
   // A short answer leaves the read pending the same way, so init cannot finish without the values
 #ifdef USE_LD2410S_PARAMETERS
   if (command == PARAMETERS_READ_CMD && !this->handle_parameters_(&payload[4], len - 4))
-    return;
+    return false;
 #endif
 #ifdef USE_LD2410S_VERSION
   if (command == VERSION_READ_CMD && !this->handle_version_(&payload[4], len - 4))
-    return;
+    return false;
 #endif
   this->awaiting_ack_ = false;
   this->step_timeouts_ = 0;
   const uint32_t now = App.get_loop_component_start_time();
   this->next_send_at_ = now + COMMAND_GAP_MS;
   if (++this->step_ < this->sequence_len_) {
-    return;
+    return true;
   }
   const bool was_init = this->sequence_ == INIT_SEQUENCE;
   this->sequence_ = nullptr;
@@ -345,6 +345,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     this->last_frame_at_ = now;
     this->status_clear_warning();
   }
+  return true;
 }
 
 #ifdef USE_LD2410S_PARAMETERS

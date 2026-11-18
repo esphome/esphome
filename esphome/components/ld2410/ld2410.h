@@ -146,8 +146,8 @@ class LD2410Component final : public Component, public uart::UARTDevice {
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
-  void handle_periodic_data_(const uint8_t *frame, uint8_t len);
-  void handle_ack_data_(const uint8_t *frame, uint8_t len);
+  bool handle_periodic_data_(const uint8_t *frame, uint8_t len);
+  bool handle_ack_data_(const uint8_t *frame, uint8_t len);
   bool handle_frame_(const uint8_t *frame, uint8_t len);
   void query_parameters_();
   void get_version_();

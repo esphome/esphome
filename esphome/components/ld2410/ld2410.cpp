@@ -1,5 +1,7 @@
 #include "ld2410.h"
 
+#include <algorithm>
+
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -255,11 +257,11 @@ void LD2410Component::send_command_(uint8_t command, const uint8_t *command_valu
   }
 }
 
-void LD2410Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
+bool LD2410Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
   // 4 frame header bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame footer bytes
   // data header=0xAA, data footer=0x55, crc=0x00
   if (len < 12 || frame[7] != HEADER || frame[len - 6] != FOOTER || frame[len - 5] != CHECK) {
-    return;
+    return false;
   }
   /*
     Data Type: 7th
@@ -268,7 +270,7 @@ void LD2410Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
   */
   bool engineering_mode = frame[DATA_TYPES] == 0x01;
   if (len < (engineering_mode ? ENGINEERING_FRAME_MIN : PERIODIC_FRAME_MIN)) {
-    return;  // too short to hold the values
+    return false;  // too short to hold the values
   }
 #ifdef USE_SWITCH
   PUBLISH_STATE(this->engineering_mode_switch_, engineering_mode);
@@ -347,6 +349,7 @@ void LD2410Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->out_pin_presence_status_binary_sensor_, engineering_mode ? frame[OUT_PIN_SENSOR] == 0x01 : false);
 #endif
+  return true;
 }
 
 #ifdef USE_NUMBER
@@ -357,11 +360,11 @@ void set_number_value(number::Number *n, float value) {
 }
 #endif
 
-void LD2410Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
+bool LD2410Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", frame[COMMAND]);
   if (frame[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Invalid status");
-    return;
+    return false;
   }
   if (frame[8] || frame[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", frame[8], frame[9]);
@@ -371,7 +374,7 @@ void LD2410Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
       this->finish_background_correction_(BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED);
     }
 #endif
-    return;
+    return true;
   }
 
   switch (frame[COMMAND]) {
@@ -504,7 +507,7 @@ void LD2410Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
         break;  // too short to hold the parameters
       }
       if (frame[10] != HEADER)
-        return;  // value head=0xAA
+        return true;  // value head=0xAA
 #ifdef USE_NUMBER
       /*
         Moving distance range: 13th byte
@@ -534,6 +537,7 @@ void LD2410Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
     default:
       break;
   }
+  return true;
 }
 
 // Handles the frame when its footer is in place; returns false otherwise
@@ -544,12 +548,10 @@ bool LD2410Component::handle_frame_(const uint8_t *frame, uint8_t len) {
   }
   if (frame[0] == ld24xx::DataFrameFormat::FIRST) {
     ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
-    this->handle_periodic_data_(frame, len);
-  } else {
-    ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    this->handle_ack_data_(frame, len);
+    return this->handle_periodic_data_(frame, len);
   }
-  return true;
+  ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  return this->handle_ack_data_(frame, len);
 }
 
 void LD2410Component::set_config_mode_(bool enable) {
