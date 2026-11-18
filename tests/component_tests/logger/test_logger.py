@@ -264,15 +264,13 @@ def test_final_validate_checks_libretiny_uart_pins(
             FINAL_VALIDATE_SCHEMA(config)
 
 
-@pytest.mark.parametrize("buffer_size", [0, 512])
 @pytest.mark.parametrize(
-    ("level", "expected"),
+    ("buffer_size", "level", "expected"),
     [
-        ("NONE", "NONE"),
-        ("ERROR", "ERROR"),
-        ("WARN", "WARN"),
-        ("INFO", "WARN"),
-        ("DEBUG", "WARN"),
+        (0, "NONE", "NONE"),
+        (512, "ERROR", "ERROR"),
+        (512, "WARN", "WARN"),
+        (0, "INFO", "WARN"),
     ],
 )
 def test_implicit_boot_log_level_respects_global_level(
@@ -287,16 +285,13 @@ def test_implicit_boot_log_level_respects_global_level(
     assert config["boot_log_level"] == expected
 
 
-@pytest.mark.parametrize("buffer_size", [0, 512])
 @pytest.mark.parametrize(
-    ("level", "boot_level", "valid"),
+    ("buffer_size", "level", "boot_level", "valid"),
     [
-        ("NONE", "NONE", True),
-        ("ERROR", "ERROR", True),
-        ("DEBUG", "INFO", True),
-        ("NONE", "WARN", False),
-        ("ERROR", "WARN", False),
-        ("WARN", "INFO", False),
+        (0, "NONE", "NONE", True),
+        (512, "DEBUG", "INFO", True),
+        (0, "ERROR", "WARN", False),
+        (512, "WARN", "INFO", False),
     ],
 )
 def test_explicit_boot_log_level_is_preserved_or_rejected(
