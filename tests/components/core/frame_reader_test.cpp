@@ -184,9 +184,9 @@ TEST(LengthFrameReaderTest, BadLengthRealignsAfterFirstByte) {
 }
 
 TEST(LengthFrameReaderTest, LengthByteCanStartHeader) {
-  LengthFrameReader<8, 1, 0, 0x05> reader;
-  // Length 0x00 is too short; the real frame follows
-  EXPECT_EQ(feed_all(reader, {0x05, 0x00, 0x05, 0x03, 0x07}), (Frames{{0x05, 0x03, 0x07}}));
+  LengthFrameReader<8, 1, 0, 0x09> reader;
+  // Length 9 is longer than 8, so the length byte becomes the next header
+  EXPECT_EQ(feed_all(reader, {0x09, 0x09, 0x03, 0x07}), (Frames{{0x09, 0x03, 0x07}}));
 }
 
 TEST(LengthFrameReaderTest, MultiByteHeaderMismatchRestarts) {
@@ -214,9 +214,35 @@ TEST(LengthFrameReaderTest, ResyncFindsHeaderInRejectedFrame) {
   }
   ASSERT_NE(frame, nullptr);
   EXPECT_EQ(reader.frame_length(), 5u);
-  reader.resync();
+  EXPECT_EQ(reader.resync(), nullptr);
   EXPECT_EQ(reader.length(), 2u);
   EXPECT_EQ(feed_all(reader, {0x10, 0x20}), (Frames{{0xA5, 0x04, 0x10, 0x20}}));
+}
+
+TEST(LengthFrameReaderTest, ResyncReturnsFrameInsideRejectedOne) {
+  LengthFrameReader<8, 1, 0, 0xA5> reader;
+  // A bad checksum rejects the 6 byte frame; a complete 3 byte frame sits inside it
+  const uint8_t *frame = nullptr;
+  for (uint8_t c : {0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}) {
+    frame = reader.feed(c);
+  }
+  ASSERT_NE(frame, nullptr);
+  frame = reader.resync();
+  ASSERT_NE(frame, nullptr);
+  EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x03, 0x01}));
+}
+
+TEST(LengthFrameReaderTest, ResyncPartialFrameAfterSilence) {
+  LengthFrameReader<16, 1, 0, 0xA5> reader;
+  // A corrupt length of 15 holds back a complete frame behind it until the caller gives up on the partial one
+  for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02}) {
+    EXPECT_EQ(reader.feed(c), nullptr);
+  }
+  EXPECT_EQ(reader.length(), 6u);
+  const uint8_t *frame = reader.resync();
+  ASSERT_NE(frame, nullptr);
+  EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x04, 0x01, 0x02}));
+  EXPECT_EQ(reader.length(), 0u);
 }
 
 TEST(LengthFrameReaderTest, SixteenBitIndex) {

@@ -68,8 +68,8 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 
 /// Collects binary frames that start with the header bytes HEADER... and give their own length: the byte at LEN_POS,
 /// plus LEN_ADD, is the length of the whole frame, header included. A length that ends the frame before the length
-/// byte, or is longer than N, is not a frame: the reader looks for a header after its first byte. Checksums are left
-/// to the caller.
+/// byte, or is longer than N, is not a frame: the reader looks for a header after its first byte. Checksums, and a
+/// minimum length that covers them, are left to the caller.
 template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class LengthFrameReader {
   using pos_t = std::conditional_t<(N <= 0xFF), uint8_t, uint16_t>;
   static constexpr size_t HEADER_LEN = sizeof...(HEADER);
@@ -87,23 +87,23 @@ template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class Leng
       return nullptr;
     }
     this->buf_[pos++] = c;
-    if (pos == LEN_POS + 1) {
+    if (pos > LEN_POS) {
       const size_t len = this->frame_length();
-      if (len <= LEN_POS || len > N) {
+      if (pos == LEN_POS + 1 && (len <= LEN_POS || len > N)) {
         // Never completes a frame: a frame is longer than the LEN_POS bytes replayed
         this->replay_(LEN_POS);
         return nullptr;
       }
-    }
-    if (pos > LEN_POS && pos == this->frame_length()) {
-      this->pos_ = 0;
-      return this->buf_;
+      if (pos == len) {
+        this->pos_ = 0;
+        return this->buf_;
+      }
     }
     this->pos_ = pos;
     return nullptr;
   }
 
-  /// Length of the frame feed() returned; only valid until the next call.
+  /// Length given by the length byte; for the frame feed() returned, valid until the next call.
   size_t frame_length() const { return this->buf_[LEN_POS] + LEN_ADD; }
 
   /// Number of bytes of the partial frame; 0 after a frame is returned and while looking for a header.
@@ -112,17 +112,21 @@ template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class Leng
   /// Forget the partial frame and look for a header from the next byte.
   void reset() { this->pos_ = 0; }
 
-  /// For a frame the caller rejected (bad checksum): drop its first byte and realign on a header in the rest.
-  /// Call only right after feed() returned that frame. A shorter frame lying wholly inside the rejected one is lost.
-  void resync() { this->replay_(this->frame_length() - 1); }
+  /// For a frame the caller rejected (too short for its checksum, or a bad one), or a partial frame left too long
+  /// without a byte: drop its first byte and realign on a header in the rest. Call right after feed() returned that
+  /// frame, or while length() is not 0. Returns a complete frame found in the rest, like feed(), dropping the bytes
+  /// after it; call again if that frame is rejected too.
+  const uint8_t *resync() { return this->replay_((this->pos_ != 0 ? this->pos_ : this->frame_length()) - 1); }
 
  protected:
-  // Start over and feed buf_[1..last] again; writes stay behind the read position
-  void replay_(size_t last) {
+  // Start over and feed buf_[1..last] again, stopping at a completed frame; writes stay behind the read position
+  const uint8_t *replay_(size_t last) {
     this->pos_ = 0;
     for (size_t i = 1; i <= last; i++) {
-      this->feed(this->buf_[i]);
+      if (this->feed(this->buf_[i]) != nullptr)
+        return this->buf_;
     }
+    return nullptr;
   }
 
   uint8_t buf_[N];
