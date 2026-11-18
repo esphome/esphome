@@ -1,0 +1,15 @@
+esphome:
+  name: libretiny-pin-choices
+
+rtl87xx:
+  board: bw15
+
+uart:
+  - id: routed_uart
+    tx_pin: PA03
+    rx_pin: PA02
+    baud_rate: 9600
+  - id: default_uart
+    tx_pin: PA14
+    rx_pin: PA13
+    baud_rate: 9600
