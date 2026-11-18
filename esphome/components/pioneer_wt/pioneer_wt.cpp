@@ -126,7 +126,7 @@ void PioneerWT::handle_frame_(const uint8_t *frame, size_t len) {
     return;
   }
   this->handle_status_(payload + 2, payload_len - 2);
-  // Only a full status counts, so the boot request is repeated until one arrives.
+  // Reports count only once a full status has arrived, so the boot request is repeated until one does.
   if (!std::isnan(this->target_temperature))
     this->last_status_ = App.get_loop_component_start_time();
 }

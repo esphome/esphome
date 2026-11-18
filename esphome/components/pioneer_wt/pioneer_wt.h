@@ -66,7 +66,7 @@ class PioneerWT final : public climate::Climate, public uart::UARTDevice, public
   };
 
   uint32_t last_send_{0};
-  // Time of the last full status, or of the last request for one
+  // Time of the last status report (counted once a full one has arrived), or of the last request for one
   uint32_t last_status_{0};
   uint32_t last_rx_{0};
   PacketReader reader_;
