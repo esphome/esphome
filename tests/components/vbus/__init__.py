@@ -10,6 +10,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
         request_log_listener()
         cg.add_define("USE_VBUS_CS_PLUS")
+        cg.add_define("USE_VBUS_CS_PLUS_WRITE")
         if hasattr(vbus, "CONF_ON_DATAGRAM"):
             cg.add_define("USE_VBUS_DATAGRAM")
         if hasattr(vbus, "CONF_TRANSMIT"):

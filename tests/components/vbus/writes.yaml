@@ -1,0 +1,23 @@
+vbus:
+  id: write_bus
+  transmit:
+    destination: 0x2211
+    transactions:
+      controller:
+        id: writable_controller
+        model: deltasol_cs_plus
+        writes:
+          require_write_arm: false
+          on_setting_result:
+            - lambda: ESP_LOGI("setting", "%u %u", value_id, unsigned(status));
+button:
+  - platform: template
+    name: Set Language
+    on_press:
+      - vbus.arm_writes:
+          id: writable_controller
+          enabled: true
+      - vbus.set_setting:
+          id: writable_controller
+          value_id: 55
+          value: 4
