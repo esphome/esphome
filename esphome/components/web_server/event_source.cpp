@@ -30,6 +30,15 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_WEBSERVER_SSL
+  // Event streams send from the main loop straight to the socket, which would bypass TLS.
+  // Only an HTTPS server has a global transport context.
+  httpd_req_t *req = *request;
+  if (httpd_get_global_transport_ctx(req->handle) != nullptr) {
+    httpd_resp_send_err(req, HTTPD_501_METHOD_NOT_IMPLEMENTED, "Event streams are not supported over HTTPS");
+    return;
+  }
+#endif
   // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
