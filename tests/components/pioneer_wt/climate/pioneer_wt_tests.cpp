@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
 #include "esphome/components/pioneer_wt/pioneer_wt.h"
 #include "esphome/components/pioneer_wt/pioneer_wt_protocol.h"
 #include "esphome/core/application.h"
@@ -21,11 +17,18 @@ const char *const STATUS_DUMP = "a5010121a50000428a930c0c0001010002000009c400030
                                 "120400df0000c902001700001e0102270000004d014801";
 // The AC's once-a-minute "are you there?" check.
 const char *const PRESENCE_CHECK = "a50100210000000cd37d0c0c";
+const char *const PRESENCE_REPLY = "a5010023000000124709800c0264ffffffd0";
 
+// payload starts with the two class bytes.
 Frame build(uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack, const Frame &payload) {
   uint8_t frame[MAX_FRAME_SIZE];
-  const size_t len = build_frame(frame, sizeof(frame), flags, type, seq, ack, payload.data(), payload.size());
+  const size_t len =
+      build_frame(frame, flags, type, seq, ack, payload[0], payload[1], payload.data() + 2, payload.size() - 2);
   return Frame(frame, frame + len);
+}
+
+Frame status_request(uint8_t seq) {
+  return build(FLAG_WANT_ACK, TYPE_DATA, seq, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff});
 }
 
 Frame command(uint8_t seq, const Frame &attrs) {
@@ -34,7 +37,7 @@ Frame command(uint8_t seq, const Frame &attrs) {
   return build(FLAG_WANT_ACK, TYPE_DATA, seq, 0, payload);
 }
 
-size_t feed_all(FrameReader &reader, const Frame &bytes) {
+size_t feed_all(PacketReader &reader, const Frame &bytes) {
   size_t last = 0;
   for (uint8_t b : bytes) {
     if (size_t len = reader.feed(b))
@@ -52,8 +55,7 @@ TEST(PioneerWTProtocol, BuildsCapturedCommands) {
   EXPECT_EQ(command(0x29, {0x00, 0x1e, 0x00}), from_hex("a50101212900000ffb280a0a001e00"));
   EXPECT_EQ(command(0x2b, {0x00, 0x25, 0x00}), from_hex("a50101212b00000fe4200a0a002500"));
   EXPECT_EQ(command(0x10, {0x02, 0x27, 0x00, 0x00, 0x00, 0x3f}), from_hex("a50101211000001238620a0a02270000003f"));
-  EXPECT_EQ(build(FLAG_WANT_ACK, TYPE_DATA, 0x01, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}),
-            from_hex("a50101210100000e4ae90b0bffff"));
+  EXPECT_EQ(status_request(0x01), from_hex("a50101210100000e4ae90b0bffff"));
 }
 
 TEST(PioneerWTProtocol, BuildsCapturedReplies) {
@@ -62,20 +64,14 @@ TEST(PioneerWTProtocol, BuildsCapturedReplies) {
             from_hex("a501002300000012c601800c0264ffffffd8"));
 }
 
-TEST(PioneerWTProtocol, PutAttrIsBigEndian) {
-  uint8_t buf[8];
-  EXPECT_EQ(put_attr(buf, 0, ATTR_SETPOINT_F, 0x4d, 4), 6u);
-  EXPECT_EQ(Frame(buf, buf + 6), from_hex("02270000004d"));
-}
-
 TEST(PioneerWTProtocol, ReaderAcceptsCapturedFrame) {
-  FrameReader reader;
+  PacketReader reader;
   const Frame frame = from_hex(STATUS_DUMP);
   EXPECT_EQ(feed_all(reader, frame), frame.size());
 }
 
 TEST(PioneerWTProtocol, ReaderSkipsNoiseAndStrayHeaderBytes) {
-  FrameReader reader;
+  PacketReader reader;
   Frame bytes = from_hex("00ffa5a5a502");
   const Frame frame = from_hex(PRESENCE_CHECK);
   bytes.insert(bytes.end(), frame.begin(), frame.end());
@@ -83,16 +79,18 @@ TEST(PioneerWTProtocol, ReaderSkipsNoiseAndStrayHeaderBytes) {
 }
 
 TEST(PioneerWTProtocol, ReaderDropsBadChecksum) {
-  FrameReader reader;
+  PacketReader reader;
   Frame frame = from_hex(PRESENCE_CHECK);
   frame[9] ^= 0x01;
   EXPECT_EQ(feed_all(reader, frame), 0u);
+  EXPECT_TRUE(reader.take_checksum_error());
+  EXPECT_FALSE(reader.take_checksum_error());
   // The next good frame is still accepted.
   EXPECT_EQ(feed_all(reader, from_hex(PRESENCE_CHECK)), 12u);
 }
 
 TEST(PioneerWTProtocol, ReaderRejectsImpossibleLength) {
-  FrameReader reader;
+  PacketReader reader;
   EXPECT_EQ(feed_all(reader, from_hex("a501012100000005")), 0u);
   EXPECT_EQ(feed_all(reader, from_hex(PRESENCE_CHECK)), 12u);
 }
@@ -137,28 +135,14 @@ TEST(PioneerWTProtocol, AttributesStopAtUnknownId) {
   EXPECT_EQ(attrs.id(), 0xabcd);
 }
 
+// A cut-off frame, not an unknown ID: a four-byte value with three bytes, and 0147 with one of its two length bytes.
 TEST(PioneerWTProtocol, AttributesStopAtTruncatedValue) {
-  const Frame body = from_hex("0227000000");
-  AttributeReader attrs(body.data(), body.size());
-  EXPECT_FALSE(attrs.next());
-  EXPECT_FALSE(attrs.stopped_on_unknown());
-}
-
-TEST(PioneerWTProtocol, AttributesStopAtTruncatedLengthPrefix) {
-  // 0147 carries two length bytes; only one arrived. That is a cut-off frame, not an unknown ID.
-  const Frame body = from_hex("014700");
-  AttributeReader attrs(body.data(), body.size());
-  EXPECT_FALSE(attrs.next());
-  EXPECT_FALSE(attrs.stopped_on_unknown());
-}
-
-TEST(PioneerWTProtocol, ReaderReportsChecksumErrorOnce) {
-  FrameReader reader;
-  Frame frame = from_hex(PRESENCE_CHECK);
-  frame[9] ^= 0x01;
-  feed_all(reader, frame);
-  EXPECT_TRUE(reader.take_checksum_error());
-  EXPECT_FALSE(reader.take_checksum_error());
+  for (const char *hex : {"0227000000", "014700"}) {
+    const Frame body = from_hex(hex);
+    AttributeReader attrs(body.data(), body.size());
+    EXPECT_FALSE(attrs.next()) << hex;
+    EXPECT_FALSE(attrs.stopped_on_unknown()) << hex;
+  }
 }
 
 class PioneerWTTest : public ::testing::Test {
@@ -179,20 +163,30 @@ class PioneerWTTest : public ::testing::Test {
     this->loop_at_(1010);
   }
 
+  // Starts the component, applies the captured full status and clears what was sent so far.
+  void start_with_status_() {
+    this->start_();
+    this->uart_.push_rx_hex(STATUS_DUMP);
+    this->loop_at_(1100);
+    this->uart_.tx.clear();
+  }
+
+  // Lets the boot request for the full status run out of attempts.
+  void exhaust_boot_request_() {
+    this->sut_.setup();
+    for (uint32_t t = 1000; t <= 4000; t += 500)
+      this->loop_at_(t);
+  }
+
   MockUARTComponent uart_;
   PioneerWT sut_;
 };
 
-TEST_F(PioneerWTTest, RequestsFullStatusAtBoot) {
-  this->sut_.setup();
-  this->loop_at_(1000);
-  EXPECT_EQ(this->uart_.tx, from_hex("a50101210100000e4ae90b0bffff"));
-}
-
 TEST_F(PioneerWTTest, ResendsUntilAcknowledgedThenGivesUp) {
   this->sut_.setup();
   this->loop_at_(1000);
-  const Frame request = from_hex("a50101210100000e4ae90b0bffff");
+  const Frame request = status_request(0x01);
+  EXPECT_EQ(this->uart_.tx, request);
   this->loop_at_(1200);  // too soon to resend
   EXPECT_EQ(this->uart_.tx.size(), request.size());
   for (uint32_t t = 1500; t <= 2500; t += 500)
@@ -220,7 +214,19 @@ TEST_F(PioneerWTTest, AnswersPresenceCheck) {
   this->start_();
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(1100);
-  EXPECT_EQ(this->uart_.tx, from_hex("a5010023000000124709800c0264ffffffd0"));
+  EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
+}
+
+TEST_F(PioneerWTTest, PublishesOnlyWhenTheReportChangesSomething) {
+  this->start_with_status_();
+  int published = 0;
+  this->sut_.add_on_state_callback([&published](climate::Climate & /*climate*/) { published++; });
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1200);
+  EXPECT_EQ(published, 0);
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x05, 0x03}));
+  this->loop_at_(1300);
+  EXPECT_EQ(published, 1);
 }
 
 TEST_F(PioneerWTTest, ReportsFanSpeedAndPowerOff) {
@@ -236,10 +242,7 @@ TEST_F(PioneerWTTest, ReportsFanSpeedAndPowerOff) {
 }
 
 TEST_F(PioneerWTTest, ModeChangeWhileOnSendsModeOnly) {
-  this->start_();
-  this->uart_.push_rx_hex(STATUS_DUMP);
-  this->loop_at_(1100);
-  this->uart_.tx.clear();
+  this->start_with_status_();
   this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
   this->loop_at_(1200);
   EXPECT_EQ(this->uart_.tx, from_hex("a50101210200000f0d230a0a001201"));
@@ -256,10 +259,7 @@ TEST_F(PioneerWTTest, TurnOnSendsPowerModeAndSetpoint) {
 }
 
 TEST_F(PioneerWTTest, OffSendsPowerOnly) {
-  this->start_();
-  this->uart_.push_rx_hex(STATUS_DUMP);
-  this->loop_at_(1100);
-  this->uart_.tx.clear();
+  this->start_with_status_();
   this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
   this->loop_at_(1200);
   EXPECT_EQ(this->uart_.tx, from_hex("a50101210200000f4b220a0a000100"));
@@ -288,9 +288,7 @@ TEST_F(PioneerWTTest, DisplayAndBeeperCommands) {
 
 // The request for the full status at boot can be lost when the AC powers up at the same time.
 TEST_F(PioneerWTTest, AsksAgainUntilFullStatusArrives) {
-  this->sut_.setup();
-  for (uint32_t t = 1000; t <= 4000; t += 500)
-    this->loop_at_(t);  // four attempts, then the request is dropped
+  this->exhaust_boot_request_();
   // The AC is alive: it sends its presence check and a small report, but never the full status.
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->uart_.push_rx(build(FLAG_NO_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x05, 0x03}));
@@ -300,7 +298,7 @@ TEST_F(PioneerWTTest, AsksAgainUntilFullStatusArrives) {
   EXPECT_TRUE(this->uart_.tx.empty());
   this->loop_at_(30000);
   this->loop_at_(30010);
-  EXPECT_EQ(this->uart_.tx, build(FLAG_WANT_ACK, TYPE_DATA, 0x02, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}));
+  EXPECT_EQ(this->uart_.tx, status_request(0x02));
 }
 
 TEST_F(PioneerWTTest, PresenceCheckDoesNotCountAsStatus) {
@@ -315,13 +313,11 @@ TEST_F(PioneerWTTest, PresenceCheckDoesNotCountAsStatus) {
   this->uart_.tx.clear();
   this->loop_at_(301100);
   this->loop_at_(301110);
-  EXPECT_EQ(this->uart_.tx, build(FLAG_WANT_ACK, TYPE_DATA, 0x02, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}));
+  EXPECT_EQ(this->uart_.tx, status_request(0x02));
 }
 
 TEST_F(PioneerWTTest, WarningStaysUntilAcknowledgement) {
-  this->sut_.setup();
-  for (uint32_t t = 1000; t <= 4000; t += 500)
-    this->loop_at_(t);
+  this->exhaust_boot_request_();
   EXPECT_TRUE(this->sut_.status_has_warning());
   // Sending the next command does not prove the link works.
   this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
@@ -339,14 +335,11 @@ TEST_F(PioneerWTTest, DropsPartialFrameAfterPause) {
   this->loop_at_(1100);
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(2000);
-  EXPECT_EQ(this->uart_.tx, from_hex("a5010023000000124709800c0264ffffffd0"));
+  EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
 }
 
 TEST_F(PioneerWTTest, ModeAfterQueuedOffTurnsBackOn) {
-  this->start_();
-  this->uart_.push_rx_hex(STATUS_DUMP);
-  this->loop_at_(1100);
-  this->uart_.tx.clear();
+  this->start_with_status_();
   // Both calls are made before the AC reports that it is off.
   this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
   this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
@@ -355,7 +348,6 @@ TEST_F(PioneerWTTest, ModeAfterQueuedOffTurnsBackOn) {
   this->uart_.tx.clear();
   this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
   this->loop_at_(1300);
-  this->loop_at_(1310);
   EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
 }
 

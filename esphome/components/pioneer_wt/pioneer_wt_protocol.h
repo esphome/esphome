@@ -4,13 +4,14 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::pioneer_wt {
 
 // Frame layout: A5 01 | flags | type | seq | ack | 00 | len | crc_hi crc_lo | class class | body
 static constexpr size_t HEADER_SIZE = 10;
-static constexpr size_t MAX_FRAME_SIZE = 256;
-static constexpr size_t MAX_BODY_SIZE = 32;
-static constexpr size_t TX_QUEUE_SIZE = 4;
+// The length byte counts the whole frame.
+static constexpr size_t MAX_FRAME_SIZE = 255;
 
 static constexpr uint8_t FLAG_NO_ACK = 0x00;
 static constexpr uint8_t FLAG_WANT_ACK = 0x01;
@@ -20,6 +21,8 @@ static constexpr uint8_t TYPE_REPLY = 0x23;
 static constexpr uint8_t CLASS_COMMAND = 0x0A;
 static constexpr uint8_t CLASS_NETWORK = 0x0B;
 static constexpr uint8_t CLASS_STATUS = 0x0C;
+// First class byte of a reply
+static constexpr uint8_t CLASS_REPLY = 0x80;
 
 // Attribute IDs
 static constexpr uint16_t ATTR_POWER = 0x0001;
@@ -36,20 +39,14 @@ static constexpr uint16_t ATTR_FAN_EXTRA_1 = 0x0224;
 static constexpr uint16_t ATTR_FAN_EXTRA_2 = 0x0225;
 static constexpr uint16_t ATTR_SETPOINT_F = 0x0227;
 
-// Values of ATTR_MODE: 0 auto, 1 cool, 2 dry, 3 fan, 4 heat
-static constexpr uint8_t MODE_AUTO = 0;
-static constexpr uint8_t MODE_COUNT = 5;
-
 static constexpr uint8_t SWING_ON = 0x01;
 static constexpr uint8_t SWING_OFF = 0x08;
-
-static constexpr uint8_t FAN_SPEED_COUNT = 7;
 
 /// CRC-16/XMODEM over a whole frame, skipping the two checksum bytes at offset 8.
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
 /// Collects bytes from the serial line into complete frames with a valid checksum.
-class FrameReader {
+class PacketReader final {
  public:
   /// Feeds one byte. Returns the frame length once a complete, valid frame is in frame().
   size_t feed(uint8_t byte);
@@ -67,12 +64,12 @@ class FrameReader {
 
  protected:
   std::array<uint8_t, MAX_FRAME_SIZE> buf_{};
-  size_t pos_{0};
+  uint8_t pos_{0};
   bool checksum_error_{false};
 };
 
 /// Walks the attribute list in a status body. Stops at the first ID whose size is unknown.
-class AttributeReader {
+class AttributeReader final {
  public:
   AttributeReader(const uint8_t *data, size_t len) : data_(data), len_(len) {}
   /// Moves to the next attribute. Returns false at the end of the body or at an unknown ID.
@@ -86,15 +83,20 @@ class AttributeReader {
   const uint8_t *data_;
   size_t len_;
   size_t pos_{0};
-  uint16_t id_{0};
   uint32_t value_{0};
+  uint16_t id_{0};
   bool unknown_{false};
 };
 
-/// Builds a frame into out. payload is everything after the checksum. Returns the frame length, or 0 if it won't fit.
-size_t build_frame(uint8_t *out, size_t out_size, uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack,
-                   const uint8_t *payload, size_t len);
-/// Appends one attribute (2-byte ID, then a big-endian value of size bytes) at pos. Returns the new end.
-size_t put_attr(uint8_t *buf, size_t pos, uint16_t id, uint32_t value, uint8_t size);
+/// Builds a frame into out, which must hold HEADER_SIZE + 2 + len bytes. Returns the frame length.
+size_t build_frame(uint8_t *out, uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack, uint8_t class_1,
+                   uint8_t class_2, const uint8_t *body, size_t len);
+
+/// Writes a one-byte attribute (2-byte ID, then the value) at p. Returns the new end.
+inline uint8_t *put_attr(uint8_t *p, uint16_t id, uint8_t value) {
+  p = put_be16(p, id);
+  *p++ = value;
+  return p;
+}
 
 }  // namespace esphome::pioneer_wt

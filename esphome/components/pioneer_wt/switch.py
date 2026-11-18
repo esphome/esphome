@@ -7,26 +7,24 @@ from esphome.types import ConfigType
 from . import CONF_PIONEER_WT_ID
 from .climate import PioneerWT
 
-DEPENDENCIES = ["climate"]
-
 ICON_LED_ON = "mdi:led-on"
 ICON_VOLUME_HIGH = "mdi:volume-high"
+
+
+def _switch_schema(icon: str) -> cv.Schema:
+    return switch.switch_schema(
+        switch.ApplySwitch,
+        icon=icon,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        default_restore_mode="DISABLED",
+    )
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_PIONEER_WT_ID): cv.use_id(PioneerWT),
-        cv.Optional(CONF_DISPLAY): switch.switch_schema(
-            switch.ApplySwitch,
-            icon=ICON_LED_ON,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            default_restore_mode="DISABLED",
-        ),
-        cv.Optional(CONF_BEEPER): switch.switch_schema(
-            switch.ApplySwitch,
-            icon=ICON_VOLUME_HIGH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            default_restore_mode="DISABLED",
-        ),
+        cv.Optional(CONF_DISPLAY): _switch_schema(ICON_LED_ON),
+        cv.Optional(CONF_BEEPER): _switch_schema(ICON_VOLUME_HIGH),
     }
 )
 
