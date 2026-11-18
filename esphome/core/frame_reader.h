@@ -58,7 +58,7 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
  protected:
   // Start over and feed buf_[1..last] again; never completes a frame as last < N. Kept out of line so feed() can be
   // inlined into the caller's byte loop.
-  void __attribute__((noinline)) replay_(size_t last) {
+  void __attribute__((noinline, noclone)) replay_(size_t last) {
     this->pos_ = 0;
     for (size_t i = 1; i <= last; i++) {
       this->feed(this->buf_[i]);
@@ -132,7 +132,7 @@ template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class Leng
  protected:
   // Start over and feed buf_[1..last] again, stopping at a completed frame; writes stay behind the read position.
   // Kept out of line so feed() can be inlined into the caller's byte loop.
-  const uint8_t *__attribute__((noinline)) replay_(size_t last) {
+  const uint8_t *__attribute__((noinline, noclone)) replay_(size_t last) {
     this->pos_ = 0;
     for (size_t i = 1; i <= last; i++) {
       if (this->feed(this->buf_[i]) != nullptr)
