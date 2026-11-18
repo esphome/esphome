@@ -44,6 +44,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
   void handle_periodic_data_(const uint8_t *data, uint8_t packet_len);
   void handle_ack_(const uint8_t *data, uint8_t len);
   void readline_(uint8_t readch);
+  bool handle_frame_(const uint8_t *frame, uint8_t len);
 
 #ifdef USE_SENSOR
   // INT16_MIN marks a slot with no published coordinates, so the next report always publishes

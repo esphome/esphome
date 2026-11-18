@@ -139,21 +139,20 @@ void LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_
 }
 
 void LD2460Component::readline_(uint8_t readch) {
-  const uint8_t *frame = this->reader_.feed(readch);
-  while (frame != nullptr) {
-    const uint8_t len = this->reader_.frame_length();
-    if (!has_footer(frame, len)) {
-      frame = this->reader_.resync();
-      continue;
-    }
-    ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
-    if (frame[0] == DATA_FRAME_FIRST) {
-      this->handle_periodic_data_(frame, len);
-    } else {
-      this->handle_ack_(frame, len);
-    }
-    frame = this->reader_.next();
+  this->reader_.feed(readch, [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); });
+}
+
+// Handles the frame when its footer is in place; returns false otherwise
+bool LD2460Component::handle_frame_(const uint8_t *frame, uint8_t len) {
+  if (!has_footer(frame, len))
+    return false;
+  ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
+  if (frame[0] == DATA_FRAME_FIRST) {
+    this->handle_periodic_data_(frame, len);
+  } else {
+    this->handle_ack_(frame, len);
   }
+  return true;
 }
 
 void LD2460Component::handle_ack_(const uint8_t *data, uint8_t len) {
