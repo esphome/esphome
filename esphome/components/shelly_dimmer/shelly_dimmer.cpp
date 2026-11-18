@@ -300,19 +300,20 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
 
 bool ShellyDimmer::read_frame_() {
   bool received = false;
+  auto handler = [this, &received](const uint8_t *frame, size_t len) {
+    // The checksum covers seq, cmd, length and payload
+    if (frame[len - 1] != SHELLY_DIMMER_PROTO_END_BYTE ||
+        encode_uint16(frame[len - 3], frame[len - 2]) != sum16_bytes(frame + 1, len - 4)) {
+      return false;
+    }
+    this->handle_frame_(frame);
+    received = true;
+    return true;
+  };
   while (!received && this->available()) {
     const uint8_t c = this->read();
     ESP_LOGV(TAG, "Read byte: 0x%02x", c);
-    this->reader_.feed(c, [this, &received](const uint8_t *frame, size_t len) {
-      // The checksum covers seq, cmd, length and payload
-      if (frame[len - 1] != SHELLY_DIMMER_PROTO_END_BYTE ||
-          encode_uint16(frame[len - 3], frame[len - 2]) != sum16_bytes(frame + 1, len - 4)) {
-        return false;
-      }
-      this->handle_frame_(frame);
-      received = true;
-      return true;
-    });
+    this->reader_.feed(c, handler);
   }
   return received;
 }
