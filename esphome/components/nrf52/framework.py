@@ -579,8 +579,7 @@ def _check_and_install(version: str) -> None:
     projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
-        framework_ver = CORE.framework_version
-        if framework_ver < cv.Version(2, 9, 2):
+        if CORE.framework_version < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
     else:

@@ -4084,9 +4084,8 @@ def _write_sdkconfig():
     # version switch that happens to leave the option set unchanged still
     # bumps this file's content -- which is what has_outdated_files()
     # uses to decide whether to reconfigure.
-    framework_version = CORE.framework_version
     contents = (
-        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        f"# ESPHOME_IDF_VERSION={CORE.framework_version}\n"
         + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
