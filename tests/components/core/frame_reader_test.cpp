@@ -219,6 +219,27 @@ TEST(LengthFrameReaderTest, BrokenHeaderRealigns) {
   EXPECT_EQ(feed_all(reader, input), (Frames{data}));
 }
 
+TEST(LengthFrameReaderTest, BrokenHeaderHoldsAShorterFrameOfAnotherFormat) {
+  // FD FC FB then 77 breaks the command header; its replay finds a whole 2 byte FC frame and keeps the 77 behind it
+  LengthFrameReader<32, LdCmd, FrameFormat<FrameFixedLength<2>, 0xFC>> reader;
+  EXPECT_EQ(feed_all(reader, {0xFD, 0xFC, 0xFB, 0x77}), (Frames{{0xFC, 0xFB}}));
+  EXPECT_EQ(reader.length(), 0u);
+  // The held 77 was noise, so the next frame is found normally
+  EXPECT_EQ(feed_all(reader, {0xFC, 0x01}), (Frames{{0xFC, 0x01}}));
+}
+
+TEST(LengthFrameReaderTest, RejectedFrameHoldsFramesOfBothFormats) {
+  LengthFrameReader<32, LdShort, Small> reader;
+  // A rejected 12 byte A5 frame holds a whole short frame, a whole A5 frame and the start of another
+  auto reject_12 = [](const Bytes &frame) { return frame.size() == 12; };
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x0C, 0x6E, 0x01, 0x02, 0x03, 0x62, 0xA5, 0x03, 0x09, 0xA5, 0x05}, reject_12),
+            (Frames{{0xA5, 0x0C, 0x6E, 0x01, 0x02, 0x03, 0x62, 0xA5, 0x03, 0x09, 0xA5, 0x05},
+                    {0x6E, 0x01, 0x02, 0x03, 0x62},
+                    {0xA5, 0x03, 0x09}}));
+  EXPECT_EQ(reader.length(), 2u);
+  EXPECT_EQ(feed_all(reader, {0x11, 0x22, 0x33}), (Frames{{0xA5, 0x05, 0x11, 0x22, 0x33}}));
+}
+
 TEST(LengthFrameReaderTest, BadLengthRealignsAfterFirstByte) {
   LengthFrameReader<8, Small> reader;
   // 0x01 ends the frame before its length byte and 0x09 is longer than 8: neither is a frame.
