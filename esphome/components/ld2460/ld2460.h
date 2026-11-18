@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
 
@@ -8,7 +9,7 @@
 
 namespace esphome::ld2460 {
 
-static constexpr uint8_t MAX_LINE_LENGTH = 32;  // Longest frame is a 5-target data frame of 31 bytes
+static constexpr uint8_t MAX_FRAME_LENGTH = 31;  // A 5-target data frame
 static constexpr uint8_t MAX_TARGETS = 5;
 
 enum class InstallationMode : uint8_t {
@@ -40,9 +41,8 @@ class LD2460Component : public Component, public uart::UARTDevice {
 
  protected:
   void send_query_();
-  bool align_to_header_(const uint8_t *header);
-  void handle_periodic_data_();
-  void handle_ack_();
+  void handle_periodic_data_(const uint8_t *data, uint8_t packet_len);
+  void handle_ack_(const uint8_t *data, uint8_t len);
   void readline_(uint8_t readch);
 
 #ifdef USE_SENSOR
@@ -56,8 +56,10 @@ class LD2460Component : public Component, public uart::UARTDevice {
 #endif
 
   LazyCallbackManager<void()> data_callback_;
-  uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t buffer_pos_{0};
+  // Header, command (1), length (2, little endian, counting the whole frame), payload, footer
+  LengthFrameReader<MAX_FRAME_LENGTH, FrameFormat<FrameLengthU16LE<5>, 0xF4, 0xF3, 0xF2, 0xF1>,
+                    FrameFormat<FrameLengthU16LE<5>, 0xFD, 0xFC, 0xFB, 0xFA>>
+      reader_;
   // The angle formula depends on how the module is mounted, so it is read from the module at boot
   InstallationMode installation_mode_{InstallationMode::INSTALLATION_MODE_SIDE};
   // Queries sent so far; 0 once the module answered. Data frames resend up to MAX_QUERY_ATTEMPTS.

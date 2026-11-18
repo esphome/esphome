@@ -55,7 +55,7 @@ TEST_F(LD2460ReadlineTest, FooterBytesInsideGarbage) {
 }
 
 TEST_F(LD2460ReadlineTest, OverflowThenValidFrame) {
-  this->ld2460_.feed(std::vector<uint8_t>(MAX_LINE_LENGTH + 8, 0x11));
+  this->ld2460_.feed(std::vector<uint8_t>(MAX_FRAME_LENGTH + 8, 0x11));
   // The frame right after the overflow lands behind leftover bytes; the header resync skips them
   this->ld2460_.feed(make_periodic_frame());
   EXPECT_FLOAT_EQ(this->count_.state, 1);
@@ -152,6 +152,22 @@ TEST_F(LD2460ReadlineTest, HeaderBytesInsidePayload) {
   EXPECT_FLOAT_EQ(this->count_.state, 1);
   EXPECT_NEAR(this->x_[0].state, -308.4f, 0.01f);
   EXPECT_NEAR(this->y_[0].state, -359.8f, 0.01f);
+}
+
+TEST_F(LD2460ReadlineTest, FooterBytesInsidePayload) {
+  // The target bytes F8 F7 F6 F5 repeat the data footer; the length field still ends the frame
+  this->ld2460_.feed(make_periodic_frame({{static_cast<int16_t>(0xF7F8), static_cast<int16_t>(0xF5F6)}, {10, 20}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 2);
+  EXPECT_NEAR(this->x_[1].state, 1.0f, 0.001f);
+}
+
+TEST_F(LD2460ReadlineTest, LengthTooLongFrameInside) {
+  // A header whose length runs past the next frame; that frame is found inside it
+  this->ld2460_.feed({0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x1F, 0x00});
+  this->ld2460_.feed(make_ack_frame(2));
+  this->ld2460_.feed(make_periodic_frame());
+  EXPECT_FLOAT_EQ(this->count_.state, 1);
+  EXPECT_NEAR(this->angle_[0].state, 56.89f, 0.05f);
 }
 
 TEST_F(LD2460ReadlineTest, PartialTargetRejected) {
