@@ -97,6 +97,7 @@ template<size_t POS, size_t ADD = 0> struct FrameLengthU16LE {
 };
 /// A frame type that always has LEN bytes.
 template<size_t LEN> struct FrameFixedLength {
+  static_assert(LEN >= 2, "A fixed length frame has at least 2 bytes");
   static constexpr size_t KNOWN_AT = 1;
   static constexpr size_t get(const uint8_t * /*buf*/) { return LEN; }
 };
