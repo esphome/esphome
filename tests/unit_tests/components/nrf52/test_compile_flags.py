@@ -1,8 +1,10 @@
 """The compile flags the zephyr platform adds reach the app target."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
+from esphome.components import nrf52
 from esphome.components.lvgl import lv_conf_path_flag
 from esphome.components.zephyr import (
     build_zephyr,
@@ -15,7 +17,17 @@ from esphome.components.zephyr.const import (
     KEY_BOOTLOADER,
     KEY_PRJ_CONF,
 )
-from esphome.const import CONF_BOARD
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ADVANCED,
+    CONF_BOARD,
+    CONF_ENABLE_OTA_ROLLBACK,
+    CONF_FRAMEWORK,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
+    Toolchain,
+)
 from esphome.core import CORE
 
 
@@ -104,13 +116,23 @@ def test_build_flags_are_split_and_quoted(tmp_path: Path) -> None:
     ) in text
 
 
-def test_shared_base_leaves_fpu_and_entropy_to_the_platform() -> None:
-    """Chips without an FPU or an RNG build on the shared base too; nrf52 sets both."""
+def test_nrf52_sets_fpu_and_entropy() -> None:
+    """The shared base leaves both to the platform; random_bytes() needs the entropy driver."""
+    CORE.toolchain = Toolchain.SDK_NRF
     CORE.config = {}
-    zephyr_set_core_data({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT})
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_FRAMEWORK: "zephyr",
+        KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2),
+    }
+    config = {
+        CONF_BOARD: "xiao_ble",
+        KEY_BOOTLOADER: BOOTLOADER_MCUBOOT,
+        CONF_FRAMEWORK: {CONF_ADVANCED: {CONF_ENABLE_OTA_ROLLBACK: False}},
+    }
+    zephyr_set_core_data(config)
 
-    zephyr_to_code({})
+    asyncio.run(nrf52.to_code(config))
 
     prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
-    assert "CONFIG_FPU" not in prj_conf
-    assert "CONFIG_ENTROPY_GENERATOR" not in prj_conf
+    assert prj_conf["CONFIG_FPU"] == (True, True)
+    assert prj_conf["CONFIG_ENTROPY_GENERATOR"] == (True, True)
