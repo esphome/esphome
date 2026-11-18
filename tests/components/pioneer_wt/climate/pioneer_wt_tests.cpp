@@ -241,6 +241,17 @@ TEST_F(PioneerWTTest, ReportsFanSpeedAndPowerOff) {
   EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
 }
 
+TEST_F(PioneerWTTest, IgnoresUnknownModeAndFanSpeed) {
+  this->start_with_status_();
+  // Mode 5 and fan speed 8 are past the ends of the tables.
+  this->uart_.push_rx(
+      build(FLAG_WANT_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x12, 0x05, 0x00, 0x05, 0x08}));
+  this->loop_at_(1200);
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_HEAT);
+  ASSERT_TRUE(this->sut_.fan_mode.has_value());
+  EXPECT_EQ(*this->sut_.fan_mode, climate::CLIMATE_FAN_AUTO);
+}
+
 TEST_F(PioneerWTTest, ModeChangeWhileOnSendsModeOnly) {
   this->start_with_status_();
   this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
