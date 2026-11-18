@@ -48,13 +48,13 @@ static constexpr uint8_t SWING_OFF = 0x08;
 /// CRC-16/XMODEM over a whole frame, skipping the two checksum bytes at offset 8.
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
-/// Collects bytes from the serial line into frames; packet_valid() checks them.
+/// Collects bytes from the serial line into frames; checksum_valid() checks them.
 using PacketReader =
     LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU8<LEN_POS>, FRAME_START_1, FRAME_START_2>>;
 
-/// True when the frame is long enough to hold its checksum and the checksum matches.
-inline bool packet_valid(const uint8_t *frame, size_t len) {
-  return len >= HEADER_SIZE && frame_crc(frame, len) == encode_uint16(frame[8], frame[9]);
+/// True when the checksum matches; the frame must hold at least HEADER_SIZE bytes.
+inline bool checksum_valid(const uint8_t *frame, size_t len) {
+  return frame_crc(frame, len) == encode_uint16(frame[8], frame[9]);
 }
 
 /// Walks the attribute list in a status body. Stops at the first ID whose size is unknown.
