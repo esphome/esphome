@@ -208,10 +208,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void handle_ack_data_(const uint8_t *frame, uint8_t len);
   bool handle_frame_(const uint8_t *frame, uint8_t len);
   void process_zone_(const uint8_t *frame);
-  auto frame_handler_() {
-    return [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  }
-  void readline_(uint8_t c) { this->reader_.feed(c, this->frame_handler_()); }
   void get_version_();
   void get_mac_();
   void query_target_tracking_mode_();

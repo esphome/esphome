@@ -71,8 +71,7 @@ static constexpr uint8_t CMD_SET_ZONE = 0xC2;
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
-// Periodic data frame footer
-static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
+static constexpr uint8_t PERIODIC_FRAME_FOOTER[2] = {0x55, 0xCC};
 // Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
 // 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
@@ -230,7 +229,7 @@ void LD2450Component::loop() {
   if (count != 0) {
     this->bytes_since_frame_ = true;
   }
-  auto handler = this->frame_handler_();
+  auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
   this->read_available<MAX_LINE_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
   this->check_link_();
 }
@@ -831,7 +830,8 @@ void LD2450Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
 bool LD2450Component::handle_frame_(const uint8_t *frame, uint8_t len) {
   const uint8_t *end = &frame[len];
   const bool periodic = frame[0] == PeriodicFrameFormat::FIRST;
-  if (periodic ? end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1] : !ld24xx::has_footer(frame, len)) {
+  if (periodic ? end[-2] != PERIODIC_FRAME_FOOTER[0] || end[-1] != PERIODIC_FRAME_FOOTER[1]
+               : !ld24xx::has_footer(frame, len)) {
     if (this->invalid_frames_ < UINT16_MAX) {
       this->invalid_frames_++;
     }
