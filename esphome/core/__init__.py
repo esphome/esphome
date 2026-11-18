@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     NATIVE_TOOLCHAINS,
@@ -1034,6 +1035,11 @@ class EsphomeCore:
     @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def framework_version(self) -> Version:
+        """The version of the target platform's framework, set by the platform component."""
+        return self.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
     @property
     def using_arduino(self):

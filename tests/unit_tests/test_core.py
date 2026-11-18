@@ -582,6 +582,13 @@ class TestEsphomeCore:
 
         assert t == other
 
+    def test_framework_version(self, target) -> None:
+        target.data[const.KEY_CORE] = {
+            const.KEY_FRAMEWORK_VERSION: core.Version(1, 12, 0)
+        }
+        assert target.framework_version == core.Version(1, 12, 0)
+        assert target.framework_version >= core.Version(1, 11, 0)
+
     def test_address__none(self, target):
         target.config = {}
         assert target.address is None
