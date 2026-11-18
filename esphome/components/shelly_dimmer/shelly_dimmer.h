@@ -20,6 +20,10 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
  private:
   static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
   static constexpr uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
+  static constexpr uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
+  // Start byte, seq, cmd, payload length, payload, two checksum bytes, end byte
+  static constexpr size_t SHELLY_DIMMER_PROTO_LEN_POS = 3;
+  static constexpr size_t SHELLY_DIMMER_PROTO_OVERHEAD = 7;
 
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
@@ -55,8 +59,10 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
 
   // Frame parser state.
   uint8_t seq_{0};
-  // Start byte, seq, cmd, payload length, payload, two checksum bytes, end byte
-  LengthFrameReader<SHELLY_DIMMER_BUFFER_SIZE, 3, 7, SHELLY_DIMMER_PROTO_START_BYTE> reader_;
+  LengthFrameReader<SHELLY_DIMMER_BUFFER_SIZE,
+                    FrameFormat<FrameLengthU8<SHELLY_DIMMER_PROTO_LEN_POS, SHELLY_DIMMER_PROTO_OVERHEAD>,
+                                SHELLY_DIMMER_PROTO_START_BYTE>>
+      reader_;
 
   // Firmware version.
   uint8_t version_major_;

@@ -134,15 +134,17 @@ void AirtonSerialClimate::loop() {
 }
 
 void AirtonSerialClimate::accept_(const uint8_t *frame) {
-  for (; frame != nullptr; frame = this->rx_reader_.resync()) {
+  while (frame != nullptr) {
     const uint8_t len = this->rx_reader_.frame_length();
-    if (len < MIN_FRAME_LEN)
-      continue;
-    if (crc16(frame, len - 2) == encode_uint16(frame[len - 2], frame[len - 1])) {
+    if (len >= MIN_FRAME_LEN && crc16(frame, len - 2) == encode_uint16(frame[len - 2], frame[len - 1])) {
       this->handle_frame_(frame, len);
-      return;
+      frame = this->rx_reader_.next();
+      continue;
     }
-    ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
+    if (len >= MIN_FRAME_LEN) {
+      ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
+    }
+    frame = this->rx_reader_.resync();
   }
 }
 

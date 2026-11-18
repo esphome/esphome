@@ -69,7 +69,7 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   void handle_ac_(const uint8_t *data);
   void publish_settings_();
 
-  LengthFrameReader<MAX_FRAME_LEN, LENGTH_POS, 0, SYNC_BYTE, SYNC_BYTE> rx_reader_;
+  LengthFrameReader<MAX_FRAME_LEN, FrameFormat<FrameLengthU8<LENGTH_POS>, SYNC_BYTE, SYNC_BYTE>> rx_reader_;
   uint8_t flags_{FLAG_DISPLAY};
   bool state_received_{false};
   uint8_t swing_{0};      // Raw swing byte

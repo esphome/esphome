@@ -10,6 +10,8 @@ namespace esphome::pioneer_wt {
 
 // Frame layout: A5 01 | flags | type | seq | ack | 00 | len | crc_hi crc_lo | class class | body
 static constexpr size_t HEADER_SIZE = 10;
+static constexpr uint8_t FRAME_START_1 = 0xA5;
+static constexpr uint8_t FRAME_START_2 = 0x01;
 // The length byte counts the whole frame.
 static constexpr size_t LEN_POS = 7;
 static constexpr size_t MAX_FRAME_SIZE = 255;
@@ -47,19 +49,18 @@ static constexpr uint8_t SWING_OFF = 0x08;
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
 /// Collects bytes from the serial line into complete frames with a valid checksum.
-class PacketReader final : protected LengthFrameReader<MAX_FRAME_SIZE, LEN_POS, 0, 0xA5, 0x01> {
+class PacketReader final
+    : protected LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU8<LEN_POS>, FRAME_START_1, FRAME_START_2>> {
  public:
-  /// Feeds one byte. Returns the frame length once a complete, valid frame is in frame().
-  size_t feed(uint8_t byte) {
-    const uint8_t *frame = LengthFrameReader::feed(byte);
-    return frame != nullptr ? this->accept_(frame) : 0;
-  }
-  const uint8_t *frame() const { return this->buf_; }
-  /// True while part of a frame has been collected.
-  bool partial() const { return this->length() != 0; }
-  /// For a partial frame that went quiet: drops its first byte and looks for a frame in the rest, which a corrupt
-  /// length can hold back. Returns its length like feed(); call while partial().
-  size_t flush();
+  /// Feeds one byte. Returns a complete, valid frame, or nullptr; frame_length() gives its length.
+  const uint8_t *feed(uint8_t byte) { return this->check_(LengthFrameReader::feed(byte)); }
+  /// After handling a frame: returns the next valid one that a corrupt frame held back, or nullptr.
+  const uint8_t *next() { return this->check_(LengthFrameReader::next()); }
+  /// For a partial frame that went quiet: looks for a frame in it, which a corrupt length can hold back. Call while
+  /// length() is not 0, and take further frames with next().
+  const uint8_t *flush() { return this->check_(this->resync()); }
+  using LengthFrameReader::frame_length;
+  using LengthFrameReader::length;
   /// True once after a complete frame was dropped for a wrong checksum.
   bool take_checksum_error() {
     const bool error = this->checksum_error_;
@@ -68,8 +69,8 @@ class PacketReader final : protected LengthFrameReader<MAX_FRAME_SIZE, LEN_POS, 
   }
 
  protected:
-  /// Returns the length of frame, or of a frame found after it, that passes the checks; 0 if none does.
-  size_t accept_(const uint8_t *frame);
+  /// Returns frame, or the next frame found after it, that passes the checks; nullptr if none does.
+  const uint8_t *check_(const uint8_t *frame);
 
   bool checksum_error_{false};
 };

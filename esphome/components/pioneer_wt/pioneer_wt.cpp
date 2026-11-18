@@ -72,18 +72,18 @@ void PioneerWT::loop() {
     this->last_rx_ = now;
     this->read_available(
         [this](uint8_t byte) {
-          if (const size_t len = this->reader_.feed(byte))
-            this->handle_frame_(this->reader_.frame(), len);
+          for (const uint8_t *frame = this->reader_.feed(byte); frame != nullptr; frame = this->reader_.next())
+            this->handle_frame_(frame, this->reader_.frame_length());
         },
         count);
     if (this->reader_.take_checksum_error()) {
       ESP_LOGD(TAG, "Dropped a frame with a wrong checksum");
     }
-  } else if (this->reader_.partial() && now - this->last_rx_ >= RX_GAP_MS) {
+  } else if (this->reader_.length() != 0 && now - this->last_rx_ >= RX_GAP_MS) {
     // Only on an idle pass: after a slow loop the rest of the frame may already be buffered.
-    while (this->reader_.partial()) {
-      if (const size_t len = this->reader_.flush())
-        this->handle_frame_(this->reader_.frame(), len);
+    while (this->reader_.length() != 0) {
+      for (const uint8_t *frame = this->reader_.flush(); frame != nullptr; frame = this->reader_.next())
+        this->handle_frame_(frame, this->reader_.frame_length());
     }
   }
   if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)

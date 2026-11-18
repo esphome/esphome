@@ -11,19 +11,17 @@ uint16_t frame_crc(const uint8_t *frame, size_t len) {
   return crc16be(frame + HEADER_SIZE, len - HEADER_SIZE, head);
 }
 
-size_t PacketReader::flush() { return this->accept_(this->resync()); }
-
-size_t PacketReader::accept_(const uint8_t *frame) {
+const uint8_t *PacketReader::check_(const uint8_t *frame) {
   for (; frame != nullptr; frame = this->resync()) {
     const size_t len = this->frame_length();
     // Too short to hold the checksum
     if (len < HEADER_SIZE)
       continue;
     if (frame_crc(frame, len) == encode_uint16(frame[8], frame[9]))
-      return len;
+      return frame;
     this->checksum_error_ = true;
   }
-  return 0;
+  return nullptr;
 }
 
 enum class AttrKind : uint8_t {
@@ -118,8 +116,8 @@ bool AttributeReader::next() {
 size_t build_frame(uint8_t *out, uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack, uint8_t class_1,
                    uint8_t class_2, const uint8_t *body, size_t len) {
   const size_t total = HEADER_SIZE + 2 + len;
-  out[0] = 0xA5;
-  out[1] = 0x01;
+  out[0] = FRAME_START_1;
+  out[1] = FRAME_START_2;
   out[2] = flags;
   out[3] = type;
   out[4] = seq;

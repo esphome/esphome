@@ -40,8 +40,8 @@ Frame command(uint8_t seq, const Frame &attrs) {
 size_t feed_all(PacketReader &reader, const Frame &bytes) {
   size_t last = 0;
   for (uint8_t b : bytes) {
-    if (size_t len = reader.feed(b))
-      last = len;
+    for (const uint8_t *frame = reader.feed(b); frame != nullptr; frame = reader.next())
+      last = reader.frame_length();
   }
   return last;
 }
@@ -339,9 +339,9 @@ TEST_F(PioneerWTTest, WarningStaysUntilAcknowledgement) {
   EXPECT_FALSE(this->sut_.status_has_warning());
 }
 
-TEST_F(PioneerWTTest, DropsPartialFrameAfterPause) {
+TEST_F(PioneerWTTest, ReleasesPartialFrameAfterPause) {
   this->start_();
-  // A cut-off header that claims 255 bytes would otherwise swallow the frames that follow.
+  // A cut-off header that claims 255 bytes is given up after the pause, so it does not swallow the frames that follow.
   this->uart_.push_rx_hex("a5010121000000ff");
   this->loop_at_(1100);
   this->loop_at_(1300);  // idle pass after the gap

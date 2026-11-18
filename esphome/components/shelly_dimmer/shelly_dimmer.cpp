@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
-#include <numeric>
 
 namespace {
 
@@ -24,9 +23,6 @@ ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
 constexpr uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
-
-// Protocol framing.
-constexpr uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
 
 // Supported commands.
 constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH = 0x01;
@@ -56,11 +52,6 @@ template<typename T, size_t N> constexpr size_t size(const T (& /*unused*/)[N]) 
 }  // Anonymous namespace
 
 namespace esphome::shelly_dimmer {
-
-/// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
-uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
-  return std::accumulate<decltype(buf), uint16_t>(buf, buf + len, 0);
-}
 
 bool ShellyDimmer::is_running_configured_version() const {
   return this->version_major_ == USE_SHD_FIRMWARE_MAJOR_VERSION &&
@@ -302,7 +293,7 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   }
 
   // Checksum over the sequence, command, length and payload bytes
-  p = put_be16(p, shelly_dimmer_checksum(data + 1, 3 + len));
+  p = put_be16(p, sum16_bytes(data + 1, 3 + len));
   *p++ = SHELLY_DIMMER_PROTO_END_BYTE;
   return p - data;
 }
@@ -313,8 +304,9 @@ bool ShellyDimmer::read_frame_() {
     ESP_LOGV(TAG, "Read byte: 0x%02x", c);
     for (const uint8_t *frame = this->reader_.feed(c); frame != nullptr; frame = this->reader_.resync()) {
       const size_t len = this->reader_.frame_length();
+      // The checksum covers seq, cmd, length and payload
       if (frame[len - 1] == SHELLY_DIMMER_PROTO_END_BYTE &&
-          encode_uint16(frame[len - 3], frame[len - 2]) == shelly_dimmer_checksum(frame + 1, len - 4)) {
+          encode_uint16(frame[len - 3], frame[len - 2]) == sum16_bytes(frame + 1, 3 + frame[3])) {
         this->handle_frame_(frame);
         return true;
       }
