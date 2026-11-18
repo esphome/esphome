@@ -11,10 +11,14 @@ uint16_t frame_crc(const uint8_t *frame, size_t len) {
   return crc16be(frame + HEADER_SIZE, len - HEADER_SIZE, head);
 }
 
-size_t PacketReader::feed(uint8_t byte) {
-  for (const uint8_t *frame = Frames::feed(byte); frame != nullptr; frame = this->resync()) {
+size_t PacketReader::feed(uint8_t byte) { return this->accept_(LengthFrameReader::feed(byte)); }
+
+size_t PacketReader::flush() { return this->accept_(this->resync()); }
+
+size_t PacketReader::accept_(const uint8_t *frame) {
+  for (; frame != nullptr; frame = this->resync()) {
     const size_t len = this->frame_length();
-    // Shorter than the header, the checksum would be read past the frame
+    // Too short to hold the checksum
     if (len < HEADER_SIZE)
       continue;
     if (frame_crc(frame, len) == encode_uint16(frame[8], frame[9]))
@@ -123,7 +127,7 @@ size_t build_frame(uint8_t *out, uint8_t flags, uint8_t type, uint8_t seq, uint8
   out[4] = seq;
   out[5] = ack;
   out[6] = 0x00;
-  out[7] = total;
+  out[LEN_POS] = total;
   out[HEADER_SIZE] = class_1;
   out[HEADER_SIZE + 1] = class_2;
   if (len)

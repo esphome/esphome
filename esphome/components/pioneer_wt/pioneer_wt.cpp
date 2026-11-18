@@ -81,7 +81,10 @@ void PioneerWT::loop() {
     }
   } else if (this->reader_.partial() && now - this->last_rx_ >= RX_GAP_MS) {
     // Only on an idle pass: after a slow loop the rest of the frame may already be buffered.
-    this->reader_.reset();
+    while (this->reader_.partial()) {
+      if (const size_t len = this->reader_.flush())
+        this->handle_frame_(this->reader_.frame(), len);
+    }
   }
   if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
     this->send_pending_();

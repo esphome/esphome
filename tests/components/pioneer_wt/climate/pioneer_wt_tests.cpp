@@ -350,6 +350,19 @@ TEST_F(PioneerWTTest, DropsPartialFrameAfterPause) {
   EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
 }
 
+TEST_F(PioneerWTTest, FindsFrameHeldBackByCorruptLength) {
+  this->start_();
+  // A header that claims 255 bytes, then a complete frame that is held back behind it until the pause
+  Frame bytes = from_hex("a5010121000000ff");
+  const Frame check = from_hex(PRESENCE_CHECK);
+  bytes.insert(bytes.end(), check.begin(), check.end());
+  this->uart_.push_rx(bytes);
+  this->loop_at_(1100);
+  EXPECT_TRUE(this->uart_.tx.empty());
+  this->loop_at_(1300);  // idle pass after the gap
+  EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
+}
+
 TEST_F(PioneerWTTest, KeepsPartialFrameAfterSlowLoop) {
   this->start_();
   const std::string check = PRESENCE_CHECK;
