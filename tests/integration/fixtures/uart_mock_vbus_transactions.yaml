@@ -1,0 +1,98 @@
+esphome:
+  name: uart-mock-vbus-transactions
+host:
+api:
+logger:
+  level: DEBUG
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+uart:
+  baud_rate: 9600
+  port: /dev/null
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  auto_start: false
+  responses:
+    - expect_tx: [0xAA, 0x11, 0x22, 0x20, 0, 0x20, 0, 3, 1, 0, 0, 0, 0, 0, 0, 8]
+      inject_rx: [0xAA, 0x20, 0, 0x11, 0x22, 0x20, 0, 1, 1, 0, 123, 0, 0, 0, 0, 15]
+      delay: 25ms
+    - expect_tx: [0xAA, 0x11, 0x22, 0x20, 0, 0x20, 0, 2, 2, 0, 0x48, 1, 0, 0, 4, 0x3B]
+      inject_rx: [0xAA, 0x20, 0, 0x11, 0x22, 0x20, 0, 1, 2, 0, 0x48, 1, 0, 0, 4, 0x3C]
+      delay: 25ms
+    - expect_tx: [0xAA, 0x11, 0x22, 0x20, 0, 0x20, 0, 3, 2, 0, 0, 0, 0, 0, 0, 7]
+      inject_rx: [0xAA, 0x20, 0, 0x11, 0x22, 0x20, 0, 1, 2, 0, 0x48, 1, 0, 0, 4, 0x3C]
+      delay: 25ms
+    - expect_tx: [0xAA, 0x11, 0x22, 0x20, 0, 0x20, 0, 6, 0, 0, 0, 0, 0, 0, 0, 6]
+      inject_rx: [0xAA, 0x10, 0, 0x11, 0x22, 0x10, 0, 1, 1, 0x2A, 1, 2, 3, 4, 0, 0x75]
+      delay: 25ms
+  on_tx:
+    - lambda: ESP_LOGI("vbus.wire_test", "%s", format_hex_pretty(data).c_str());
+vbus:
+  id: bus
+  uart_id: mock_uart
+  transmit:
+    destination: 0x2211
+    transactions:
+      on_result:
+        - lambda: |-
+            ESP_LOGI("vbus.result_test", "%u %u %u %u", command, value_id, value, static_cast<unsigned>(status));
+            if (command == 0x0300 && status == vbus::TransactionStatus::TRANSACTION_STATUS_SUCCESS) {
+              id(bus).write_value(grant_id, 2, 456);
+            } else {
+              id(bus).release_bus(grant_id);
+            }
+        - delay: 150ms
+        - lambda: |-
+            ESP_LOGI("vbus.delayed_test", "%u %u %u %u", command, value_id, value, static_cast<unsigned>(status));
+    on_bus_grant:
+      - if:
+          condition:
+            lambda: return grant_id == 1;
+          then:
+            - vbus.read_value:
+                id: bus
+                grant_id: !lambda return grant_id;
+                value_id: 1
+          else:
+            - vbus.write_value:
+                id: bus
+                grant_id: !lambda return grant_id;
+                value_id: 4
+                value: 789
+sensor:
+  - platform: vbus
+    model: custom
+    vbus_id: bus
+    source: 0x2211
+    dest: 0x0010
+    command: 0x0100
+    sensors:
+      - name: Transaction RX Test
+        lambda: return x[0];
+        on_value:
+          - lambda: ESP_LOGI("vbus.rx_test", "P1=%.0f", x);
+button:
+  - platform: template
+    name: Start Scenario
+    on_press:
+      - lambda: id(mock_uart).start_scenario();
+      - vbus.request_bus:
+          id: bus
+      - delay: 100ms
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0, 0, 0x11, 0x22, 0x20, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0x27]
+      - delay: 700ms
+      - vbus.request_bus:
+          id: bus
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0, 0, 0x11, 0x22, 0x20, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0x27]
+      # This ACK arrives after timeout: it must not start a verification read.
+      - delay: 275ms
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x20, 0, 0x11, 0x22, 0x20, 0, 1, 4, 0, 0x15, 3, 0, 0, 0, 0x6F]

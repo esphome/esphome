@@ -15,6 +15,19 @@ static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
+#ifdef USE_VBUS_TX
+bool VBus::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply) {
+#ifdef USE_VBUS_TRANSACTIONS
+  if (this->transactions_ != nullptr && this->transactions_->is_busy()) {
+    ESP_LOGW(TAG, "Datagram not sent: transaction in progress");
+    return false;
+  }
+#endif
+  return this->transmitter_ != nullptr &&
+         this->transmitter_->send_datagram(grant_id, command, value_id, value, expect_reply);
+}
+#endif
+
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   for (int i = 0; i < count; i++, septet >>= 1) {
     if (septet & 1)
