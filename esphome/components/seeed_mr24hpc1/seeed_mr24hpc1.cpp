@@ -107,18 +107,11 @@ void MR24HPC1Component::update_() {
 // Frames are at least 10 bytes, so the three trailing bytes can always be left out
 static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_bytes(data, len - 3); }
 
-// Check that the check digit is correct
-static int get_frame_check_status(const uint8_t *data, size_t len) {
-  uint8_t crc_sum = get_frame_crc_sum(data, len);
-  uint8_t verified = data[len - 3];
-  return (verified == crc_sum) ? 1 : 0;
-}
-
 // The reader caps the data at 32 bytes; the 1 byte minimum, footer and sum are checked here
 static bool frame_valid(const uint8_t *data, size_t len) {
   if (len < 10 || data[len - 2] != FRAME_TAIL1_VALUE || data[len - 1] != FRAME_TAIL2_VALUE)
     return false;
-  if (!get_frame_check_status(data, len)) {
+  if (data[len - 3] != get_frame_crc_sum(data, len)) {
     ESP_LOGD(TAG, "frame check failure!");
     return false;
   }
@@ -128,12 +121,12 @@ static bool frame_valid(const uint8_t *data, size_t len) {
 // main loop
 void MR24HPC1Component::loop() {
   this->read_available([this](uint8_t b) {
-    const uint8_t *frame = this->reader_.feed(b);
-    while (frame != nullptr) {
-      const size_t len = this->reader_.frame_length();
-      frame = frame_valid(frame, len) ? (this->r24_parse_data_frame_(frame, len), this->reader_.next())
-                                      : this->reader_.resync();
-    }
+    this->reader_.feed(b, [this](const uint8_t *frame, size_t len) {
+      if (!frame_valid(frame, len))
+        return false;
+      this->r24_parse_data_frame_(frame, len);
+      return true;
+    });
   });
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) &&
