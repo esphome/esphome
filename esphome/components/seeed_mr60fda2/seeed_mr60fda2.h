@@ -28,6 +28,13 @@ static constexpr uint8_t LEN_TO_DATA_FRAME = 9;
 static constexpr uint8_t FRAME_BUF_MAX_SIZE = DATA_BUF_MAX_SIZE + LEN_TO_DATA_FRAME;
 
 static constexpr uint8_t FRAME_HEADER_BUFFER = 0x01;
+
+/// 01, id (2), data length (2, high byte first), type (2), header checksum, data, data checksum. A header that fails
+/// its checksum gives no length, so the reader drops it at once instead of waiting for a length it cannot trust.
+struct TinyFrameLength {
+  static constexpr size_t KNOWN_AT = 8;
+  static size_t get(const uint8_t *buf);
+};
 static const uint16_t IS_FALL_TYPE_BUFFER = 0x0E02;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
 static const uint16_t RESULT_INSTALL_HEIGHT = 0x0E04;
@@ -52,9 +59,7 @@ class MR60FDA2Component final : public Component,
 #endif
 
  protected:
-  // 01, id (2), data length (2, high byte first), type (2), header checksum, data, data checksum
-  LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<FrameLengthU16BE<3, LEN_TO_DATA_FRAME>, FRAME_HEADER_BUFFER>>
-      reader_;
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<TinyFrameLength, FRAME_HEADER_BUFFER>> reader_;
 
   void process_frame_(const uint8_t *frame);
 

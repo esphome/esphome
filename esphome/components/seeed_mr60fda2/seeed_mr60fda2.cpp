@@ -53,20 +53,26 @@ static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_
   return calculate_checksum(data, len) == expected_checksum;
 }
 
+size_t TinyFrameLength::get(const uint8_t *buf) {
+  if (!validate_checksum(buf, LEN_TO_HEAD_CKSUM - 1, buf[LEN_TO_HEAD_CKSUM - 1])) {
+    ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[LEN_TO_HEAD_CKSUM - 1]);
+    ESP_LOGV_HEX(TAG, buf, LEN_TO_HEAD_CKSUM, MR60FDA2_MAX_LOG_BYTES, "CURRENT_FRAME: %s");
+    return 0;
+  }
+  return encode_uint16(buf[3], buf[4]) + LEN_TO_DATA_FRAME;
+}
+
 static bool is_known_type(uint16_t type) {
   return type == IS_FALL_TYPE_BUFFER || type == PEOPLE_EXIST_TYPE_BUFFER || type == RESULT_INSTALL_HEIGHT ||
          type == RESULT_PARAMETERS || type == RESULT_HEIGHT_THRESHOLD || type == RESULT_SENSITIVITY;
 }
 
-// The reader caps the data at DATA_BUF_MAX_SIZE bytes; the 1 byte minimum, type and checksums are checked here
+// The reader caps the data at DATA_BUF_MAX_SIZE bytes and checks the header; the 1 byte minimum, type, the 12 data
+// bytes a parameter reply is read for and the data checksum are checked here
 static bool frame_valid(const uint8_t *frame, size_t len) {
-  if (len <= LEN_TO_DATA_FRAME || !is_known_type(encode_uint16(frame[5], frame[6])))
+  const uint16_t type = encode_uint16(frame[5], frame[6]);
+  if (len <= LEN_TO_DATA_FRAME || !is_known_type(type) || (type == RESULT_PARAMETERS && len - LEN_TO_DATA_FRAME < 12))
     return false;
-  if (!validate_checksum(frame, LEN_TO_HEAD_CKSUM - 1, frame[LEN_TO_HEAD_CKSUM - 1])) {
-    ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", frame[LEN_TO_HEAD_CKSUM - 1]);
-    ESP_LOGV_HEX(TAG, frame, LEN_TO_HEAD_CKSUM, MR60FDA2_MAX_LOG_BYTES, "CURRENT_FRAME: %s");
-    return false;
-  }
   if (!validate_checksum(frame + LEN_TO_HEAD_CKSUM, len - LEN_TO_DATA_FRAME, frame[len - 1])) {
     ESP_LOGD(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", frame[len - 1]);
     ESP_LOGV_HEX(TAG, frame, len, MR60FDA2_MAX_LOG_BYTES, "GET CURRENT_FRAME: %s");
