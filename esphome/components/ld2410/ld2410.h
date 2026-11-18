@@ -161,10 +161,10 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void publish_calibration_result_(BgCorrectionResult result);
 #endif
 
+  uint32_t last_rx_{0};
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
   uint8_t out_pin_level_ = 0;
-  uint32_t last_rx_{0};
   LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, ld24xx::DataFrameFormat> reader_;
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
