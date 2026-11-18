@@ -37,7 +37,10 @@ __attribute__((always_inline)) inline bool is_main_loop_thread() {
   return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
 }
 __attribute__((always_inline)) inline void yield() { vPortYield(); }
-__attribute__((always_inline)) inline void delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
+// vTaskDelay() counts the partial tick, so one more tick makes the wait at least ms
+__attribute__((always_inline)) inline void delay(uint32_t ms) {
+  vTaskDelay(ms == 0 ? 0 : (ms + portTICK_PERIOD_MS - 1) / portTICK_PERIOD_MS + 1);
+}
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(esp_timer_get_time()); }
 uint32_t millis();
 __attribute__((always_inline)) inline uint64_t millis_64() {

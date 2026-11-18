@@ -168,23 +168,46 @@ def test_log_v2_only_on_native_toolchain(
 
 
 @pytest.mark.parametrize(
-    ("config", "usb_cdc"),
+    ("config", "expected"),
     [
-        pytest.param("test_logger_rp2_usb_cdc.yaml", True, id="usb_cdc"),
-        pytest.param("test_logger_rp2_uart0.yaml", False, id="uart0"),
+        pytest.param("test_logger_rp2_usb_cdc.yaml", {"USB_CDC"}, id="rp2_usb_cdc"),
+        pytest.param("test_logger_rp2_uart0.yaml", set(), id="rp2_uart0"),
+        pytest.param("test_logger_esp32_usb_cdc.yaml", {"USB_CDC"}, id="esp32_usb_cdc"),
+        pytest.param(
+            "test_logger_esp32_usb_serial_jtag.yaml",
+            {"USB_SERIAL_JTAG"},
+            id="esp32_usb_serial_jtag",
+        ),
+        pytest.param("test_logger_nrf52_usb_cdc.yaml", {"USB_CDC"}, id="nrf52_usb_cdc"),
+        # Zephyr polls the USB port only when it logs there
+        pytest.param(
+            "test_logger_nrf52_usb_cdc_no_serial.yaml", set(), id="nrf52_no_serial"
+        ),
     ],
 )
-def test_rp2_usb_cdc_selection_define(
+def test_uart_selection_defines(
     generate_main: Callable[[str | Path], str],
     config: str,
-    usb_cdc: bool,
+    expected: set[str],
 ) -> None:
-    """The USB CDC crash replay only compiles in when the logger uses USB CDC."""
+    """USB ports get a selection define, which gates their port code and crash replay."""
     generate_main(f"tests/component_tests/logger/{config}")
 
+    prefix = "USE_LOGGER_UART_SELECTION_"
+    assert {
+        d.name.removeprefix(prefix) for d in CORE.defines if d.name.startswith(prefix)
+    } == expected
+
+
+def test_log_listener_slots_count_every_listener(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Two on_message triggers and the API each take a slot."""
+    generate_main("tests/component_tests/logger/test_logger_listeners.yaml")
+
     assert (
-        "USE_LOGGER_UART_SELECTION_USB_CDC" in {d.name for d in CORE.defines}
-    ) is usb_cdc
+        str({d.name: d.value for d in CORE.defines}["ESPHOME_LOG_MAX_LISTENERS"]) == "3"
+    )
 
 
 @pytest.mark.parametrize(

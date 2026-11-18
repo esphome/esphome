@@ -95,6 +95,9 @@ class Tuya final : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
+#ifdef USE_TUYA_DUMP_PUBLISHER
+  HUB_PUBLISHER(dump)
+#endif
   template<typename F> void register_listener(uint8_t datapoint_id, F &&func) {
     this->register_listener_(datapoint_id, Callback<void(const TuyaDatapoint &)>::create(std::forward<F>(func)));
   }
@@ -127,6 +130,7 @@ class Tuya final : public Component, public uart::UARTDevice {
 
  protected:
   void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
+  void dump_mcu_config_();
   void handle_char_(uint8_t c);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
