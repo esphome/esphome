@@ -27,6 +27,11 @@ from esphome.components.zephyr import (
     zephyr_setup_preferences,
     zephyr_to_code,
 )
+from esphome.components.zephyr.build_zephyr import (
+    clean_changed_build,
+    generate_cmake_lists,
+    west_build_command,
+)
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOARD,
@@ -63,15 +68,8 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
-from esphome.framework_helpers import (
-    cmake_escape,
-    get_cmake_compile_flags,
-    get_cmake_link_flags,
-    lex_cmake_build_flags,
-    quote_cmake_args,
-    run_command_ok,
-)
-from esphome.helpers import rmtree, write_file_if_changed
+from esphome.framework_helpers import run_command_ok
+from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -621,6 +619,9 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_setup_preferences(_preferences_storage(variant))
     zephyr_to_code(config)
+    zephyr_add_prj_conf("FPU", True)
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
+    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
     if CORE.testing_mode and variant not in VARIANTS_NRF54L:
@@ -1256,38 +1257,6 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-# GCC only loads a precompiled header ahead of every other forced header, and
-# Zephyr forces two with -imacros. They hold macros only, so the C++ sources
-# of the app get them through the precompiled header.
-_PCH_CMAKE_LINES = [
-    "",
-    "# ESPHome precompiled header",
-    "get_property(esphome_options TARGET zephyr_interface",
-    "    PROPERTY INTERFACE_COMPILE_OPTIONS)",
-    "set(esphome_kept_options)",
-    "set(esphome_pch_headers)",
-    "foreach(option IN LISTS esphome_options)",
-    '  if(option MATCHES "imacros> ([^>]+)")',
-    '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
-    "    list(APPEND esphome_kept_options",
-    '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
-    "  else()",
-    '    list(APPEND esphome_kept_options "${option}")',
-    "  endif()",
-    "endforeach()",
-    "if(NOT esphome_pch_headers)",
-    '  message(FATAL_ERROR "ESPHome: the headers Zephyr forces were not found, so "',
-    '      "the precompiled header would not load (set ESPHOME_PCH_ENABLE=0)")',
-    "endif()",
-    "set_property(TARGET zephyr_interface",
-    '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
-    *(
-        f'list(APPEND esphome_pch_headers "${{CMAKE_CURRENT_LIST_DIR}}/../src/{header}")'
-        for header in pch.PCH_DEFAULT_HEADERS
-    ),
-    'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
-    "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
-]
 # Where CMake puts the .gch of the app, below its binary dir
 _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
@@ -1322,81 +1291,6 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
 
 def _pch_usable() -> bool:
     return pch.pch_usable((toolchain_tool("g++"),))
-
-
-def _generate_cmake_lists(pch_on: bool) -> bool:
-    """Write the project CMakeLists.txt, returning True if it changed."""
-    entries = lex_cmake_build_flags("nRF52")
-    compile_flags = get_cmake_compile_flags(entries)
-    link_flags = get_cmake_link_flags(entries)
-
-    # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
-    # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
-    # before find_package(Zephyr) so the modules are picked up). Only
-    # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import DEFINES_VAR, generate_zephyr_modules
-
-    module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
-    defines = [flag for flag in compile_flags if flag.startswith("-D")]
-    options = [flag for flag in compile_flags if not flag.startswith("-D")]
-
-    lines = [
-        "cmake_minimum_required(VERSION 3.20.0)",
-        "",
-        'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
-        "",
-    ]
-
-    if module_dirs:
-        modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
-        lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
-        if defines:
-            escaped = ";".join(cmake_escape(flag) for flag in defines)
-            lines += [f'set({DEFINES_VAR} "{escaped}")', ""]
-
-    lines += [
-        "find_package(Zephyr REQUIRED)",
-        "",
-        f"project({CORE.name})",
-        "",
-        'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../src/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/../src/*.c")',
-        "",
-        "target_sources(app PRIVATE ${APP_SOURCES})",
-        'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
-    ]
-
-    if defines:
-        lines += [
-            "",
-            "target_compile_options(app PRIVATE",
-            *[f"  {arg}" for arg in quote_cmake_args(defines)],
-            ")",
-        ]
-    if options:
-        # A target's own options come before the ones it inherits from zephyr_interface, and the
-        # compiler keeps the last of two opposing warning flags. Source options come after both.
-        lines += [
-            "",
-            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
-            f'  COMPILE_OPTIONS "{";".join(cmake_escape(flag) for flag in options)}"',
-            ")",
-        ]
-
-    if pch_on:
-        lines += _PCH_CMAKE_LINES
-
-    if link_flags:
-        lines += [
-            "",
-            "zephyr_ld_options(",
-            *[f"  {arg}" for arg in quote_cmake_args(link_flags)],
-            ")",
-        ]
-
-    return write_file_if_changed(
-        CORE.relative_build_path("zephyr", "CMakeLists.txt"),
-        "\n".join(lines) + "\n",
-    )
 
 
 def _copy_if_exists(src: Path, dst: Path) -> None:
@@ -1472,26 +1366,6 @@ def _check_mcuboot_swap_limit(build_dir: Path, image: Path) -> None:
     _LOGGER.info("Application image: %d of %d bytes MCUboot can swap in", size, limit)
 
 
-def _west_build_command(
-    python_executable: Path, board: str, build_dir: Path, source_dir: Path
-) -> list[str]:
-    return [
-        str(python_executable),
-        "-m",
-        "west",
-        "build",
-        "--pristine=auto",
-        "-b",
-        board,
-        "-d",
-        str(build_dir),
-        str(source_dir),
-        "--",
-        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
-        "-DCMAKE_BUILD_TYPE=MinSizeRel",
-    ]
-
-
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         # The actual build is done by PlatformIO (the caller falls through to
@@ -1513,22 +1387,13 @@ def run_compile(args, config: ConfigType) -> bool:
     env = get_build_env(ccache)
 
     pch_on = _pch_usable()
-    cmake_lists_changed = _generate_cmake_lists(pch_on)
+    cmake_lists_changed = generate_cmake_lists("nRF52", pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
 
-    # A missing CMake cache (dropped by zephyr's copy_files() on config
-    # change) or a changed CMakeLists.txt requires a pristine build: Zephyr
-    # caches Kconfig/devicetree state that survives a plain cmake re-run.
-    # West can't do the wipe — its pristine modes only recognize a build dir
-    # by reading ZEPHYR_BASE from the very cache that was dropped.
-    if (
-        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
-    ) and build_dir.is_dir():
-        _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
-        rmtree(build_dir)
+    clean_changed_build(build_dir, cmake_lists_changed)
 
     # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
     # build so it is never packaged or offered for download.
@@ -1539,7 +1404,7 @@ def run_compile(args, config: ConfigType) -> bool:
         pch.log_pch_in_use()
         _write_pch_checksum(build_dir, source_dir)
 
-    west_cmd = _west_build_command(
+    west_cmd = west_build_command(
         paths["python_executable"], board, build_dir, source_dir
     )
 

@@ -7,8 +7,8 @@ from pathlib import Path
 import re
 import sys
 
-from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
+from esphome.components.zephyr.build_zephyr import add_ccache_env
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 from esphome.components.zephyr.framework_helpers import (
     ensure_venv,
@@ -134,25 +134,7 @@ def get_build_env(ccache: str | None) -> dict:
     # non-root builds failed to locate the SDK with it, while
     # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
     env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(_get_toolchain_version()))
-    if ccache is None:
-        # Zephyr wraps compiles with any ccache it finds; unmanaged it
-        # must not cache (a sysbuild image never sees USE_CCACHE=0).
-        env.setdefault("CCACHE_DISABLE", "1")
-    else:
-        env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
-        # Drop only the per build map entry (posix, CMake's spelling);
-        # its from side covers no compiled sources. A spaced path cannot
-        # survive ccache's space split list, so it stays hashed.
-        source_dir = CORE.relative_build_path("zephyr").as_posix()
-        if any(ch.isspace() for ch in source_dir):
-            _LOGGER.debug(
-                "Whitespace in %s; the per build map stays hashed", source_dir
-            )
-        else:
-            device_map = f"-fmacro-prefix-map={source_dir}=CMAKE_SOURCE_DIR"
-            env["CCACHE_IGNOREOPTIONS"] = (
-                f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
-            )
+    add_ccache_env(env, ccache, SDK_NRF_TOOLS_CACHE)
     return env
 
 

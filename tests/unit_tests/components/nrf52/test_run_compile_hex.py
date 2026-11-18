@@ -27,7 +27,7 @@ def build_dir(tmp_path: Path) -> Path:
 def run_cmd(tmp_path: Path) -> Iterator[Mock]:
     with (
         patch.object(nrf52, "check_and_install"),
-        patch.object(nrf52, "_generate_cmake_lists", return_value=False),
+        patch.object(nrf52, "generate_cmake_lists", return_value=False),
         patch.object(
             nrf52,
             "get_build_paths",

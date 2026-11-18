@@ -3,9 +3,19 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from esphome.components import nrf52
 from esphome.components.lvgl import lv_conf_path_flag
-from esphome.components.zephyr import zephyr_to_code
+from esphome.components.zephyr import (
+    build_zephyr,
+    zephyr_data,
+    zephyr_set_core_data,
+    zephyr_to_code,
+)
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_PRJ_CONF,
+)
+from esphome.const import CONF_BOARD
 from esphome.core import CORE
 
 
@@ -23,9 +33,9 @@ def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
             "esphome.components.zephyr.library.generate_zephyr_modules",
             return_value=[],
         ),
-        patch.object(nrf52, "get_cmake_link_flags", return_value=[]),
+        patch.object(build_zephyr, "get_cmake_link_flags", return_value=[]),
     ):
-        nrf52._generate_cmake_lists(False)
+        build_zephyr.generate_cmake_lists("nRF52", False)
     text = (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
     # The define may sit in the target options, which come before the ones inherited from
     # zephyr_interface; the warning flag must not, or Zephyr's -Wdouble-promotion would win
@@ -53,9 +63,9 @@ def test_project_flags_reach_the_libraries(tmp_path: Path) -> None:
             "esphome.components.zephyr.library.generate_zephyr_modules",
             return_value=[tmp_path / "lvgl"],
         ),
-        patch.object(nrf52, "get_cmake_link_flags", return_value=[]),
+        patch.object(build_zephyr, "get_cmake_link_flags", return_value=[]),
     ):
-        nrf52._generate_cmake_lists(False)
+        build_zephyr.generate_cmake_lists("nRF52", False)
     text = (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
     # Set before find_package(Zephyr), which builds the library modules
     before = text.split("find_package(Zephyr REQUIRED)", 1)[0]
@@ -80,7 +90,7 @@ def test_build_flags_are_split_and_quoted(tmp_path: Path) -> None:
         "esphome.components.zephyr.library.generate_zephyr_modules",
         return_value=[],
     ):
-        nrf52._generate_cmake_lists(False)
+        build_zephyr.generate_cmake_lists("nRF52", False)
     text = (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
     assert (
         'target_compile_options(app PRIVATE\n  "-DSTR=\\"hi\\""\n  "-DSP=a b"\n)'
@@ -92,3 +102,15 @@ def test_build_flags_are_split_and_quoted(tmp_path: Path) -> None:
         '  "-Wl,--start-group,-lfoo,--end-group"\n'
         ")"
     ) in text
+
+
+def test_shared_base_leaves_fpu_and_entropy_to_the_platform() -> None:
+    """Chips without an FPU or an RNG build on the shared base too; nrf52 sets both."""
+    CORE.config = {}
+    zephyr_set_core_data({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT})
+
+    zephyr_to_code({})
+
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
+    assert "CONFIG_FPU" not in prj_conf
+    assert "CONFIG_ENTROPY_GENERATOR" not in prj_conf

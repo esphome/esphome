@@ -9,6 +9,7 @@ from esphome.build_helpers import pch
 from esphome.components import nrf52
 from esphome.components.nrf52 import framework
 from esphome.components.nrf52.toolchain import get_elf_path
+from esphome.components.zephyr import build_zephyr
 from esphome.components.zephyr.const import KEY_BOARD, KEY_SYSBUILD
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -26,10 +27,10 @@ def _generate_cmake(tmp_path: Path, pch_on: bool = True) -> str:
             "esphome.components.zephyr.library.generate_zephyr_modules",
             return_value=[],
         ),
-        patch.object(nrf52, "get_cmake_compile_flags", return_value=["-Os"]),
-        patch.object(nrf52, "get_cmake_link_flags", return_value=[]),
+        patch.object(build_zephyr, "get_cmake_compile_flags", return_value=["-Os"]),
+        patch.object(build_zephyr, "get_cmake_link_flags", return_value=[]),
     ):
-        nrf52._generate_cmake_lists(pch_on)
+        build_zephyr.generate_cmake_lists("nRF52", pch_on)
     return (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
 
 
@@ -174,7 +175,7 @@ def run_cmd(tmp_path: Path) -> Mock:
     with (
         patch.dict("os.environ", {}, clear=True),
         patch.object(nrf52, "check_and_install"),
-        patch.object(nrf52, "_generate_cmake_lists", return_value=False),
+        patch.object(nrf52, "generate_cmake_lists", return_value=False),
         patch.object(
             nrf52,
             "get_build_paths",

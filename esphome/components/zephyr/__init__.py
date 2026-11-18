@@ -193,10 +193,7 @@ def zephyr_to_code(config: ConfigType) -> None:
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     # c++ support
-    zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
-    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
