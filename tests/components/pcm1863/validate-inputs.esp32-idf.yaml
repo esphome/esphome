@@ -1,0 +1,46 @@
+# Every analog input the PCM1863 mux can select, and every supported word length
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+audio_adc:
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_vin1
+    address: 0x4A
+    input: VIN1
+    bits_per_sample: 16bit
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_vin2
+    address: 0x4B
+    input: VIN2
+    bits_per_sample: 20bit
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_vin3
+    address: 0x4C
+    input: VIN3
+    bits_per_sample: 32bit
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_vin4
+    address: 0x4D
+    input: vin4
+    mic_gain: -12db
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_diff1
+    address: 0x4E
+    input: DIFF_1
+    mic_gain: 40db
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_diff2
+    address: 0x4F
+    input: DIFF_2
+    mic_gain: 20db
+  - platform: pcm1863
+    i2c_id: i2c_bus
+    id: pcm1863_none
+    address: 0x50
+    input: none

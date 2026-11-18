@@ -2,3 +2,7 @@ packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 <<: !include common.yaml
+
+# IPv6 with an IP sensor: compiles the IPv6 event handler's listener notification
+network:
+  enable_ipv6: true
