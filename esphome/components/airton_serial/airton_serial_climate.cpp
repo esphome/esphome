@@ -118,7 +118,7 @@ void AirtonSerialClimate::setup() {
 
 void AirtonSerialClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  auto accept = [this](const uint8_t *frame, size_t len) { return this->accept_frame_(frame, len); };
+  auto accept = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
   bool received = false;
   this->read_available([this, &received, &accept](uint8_t byte) {
     received = true;
@@ -132,18 +132,13 @@ void AirtonSerialClimate::loop() {
   }
 }
 
-bool AirtonSerialClimate::accept_frame_(const uint8_t *frame, size_t len) {
+bool AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   if (len < MIN_FRAME_LEN)
     return false;
-  if (crc16(frame, len - 2) != encode_uint16(frame[len - 2], frame[len - 1])) {
+  if (crc16(data, len - 2) != encode_uint16(data[len - 2], data[len - 1])) {
     ESP_LOGW(TAG, "Bad CRC on %u-byte frame", static_cast<unsigned>(len));
     return false;
   }
-  this->handle_frame_(frame, len);
-  return true;
-}
-
-void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   const uint8_t opcode = data[OPCODE_POS];
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   if (opcode == OP_A3_STATE || opcode == OP_AC_POLL) {
@@ -152,7 +147,7 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   }
 #endif
   if (data[3] != ADDR_MODULE)
-    return;
+    return true;
   if (data[2] == ADDR_BOARD) {
     if (len == 34 && opcode == OP_A3_STATE) {
       this->handle_a3_(data);
@@ -162,6 +157,7 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   } else if (data[2] == ADDR_DISPLAY && len == 13 && opcode == OP_A4_ACK) {
     ESP_LOGD(TAG, "A4 acknowledgement from display");
   }
+  return true;
 }
 
 void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
