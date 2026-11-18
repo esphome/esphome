@@ -94,10 +94,18 @@ void PMSX003Component::loop() {
     }
   }
 
+  auto handle = [this, now](const uint8_t *frame, size_t len) {
+    if (!this->check_frame_(frame, len))
+      return false;
+    if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
+      this->parse_data_(frame);
+      this->last_update_ = now;
+    }
+    return true;
+  };
   if (this->reader_.length() > 0 && now - this->last_transmission_ >= RX_IDLE_TIMEOUT_MS) {
     // last transmission too long ago; look for a frame in what arrived, then start over
-    while (this->reader_.length() > 0)
-      this->handle_frames_(this->reader_.resync(), now);
+    this->reader_.flush(handle);
   }
 
   const size_t avail = this->available();
@@ -105,27 +113,7 @@ void PMSX003Component::loop() {
     return;
 
   this->last_transmission_ = now;
-  this->read_available(
-      [this, now](uint8_t byte) {
-        const uint8_t *frame = this->reader_.feed(byte);
-        if (frame != nullptr)
-          this->handle_frames_(frame, now);
-      },
-      avail);
-}
-
-void PMSX003Component::handle_frames_(const uint8_t *frame, uint32_t now) {
-  while (frame != nullptr) {
-    if (!this->check_frame_(frame, this->reader_.frame_length())) {
-      frame = this->reader_.resync();
-      continue;
-    }
-    if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
-      this->parse_data_(frame);
-      this->last_update_ = now;
-    }
-    frame = this->reader_.next();
-  }
+  this->read_available([this, &handle](uint8_t byte) { this->reader_.feed(byte, handle); }, avail);
 }
 
 bool PMSX003Component::check_frame_(const uint8_t *frame, size_t total_size) {

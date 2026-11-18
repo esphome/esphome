@@ -73,7 +73,6 @@ class PMSX003Component final : public uart::UARTDevice, public Component {
   SUB_SENSOR(humidity)
 
  protected:
-  void handle_frames_(const uint8_t *frame, uint32_t now);
   bool check_frame_(const uint8_t *frame, size_t total_size);
   void parse_data_(const uint8_t *frame);
   bool check_payload_length_(uint16_t payload_length);
