@@ -323,4 +323,21 @@ TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
 }
 
+// A custom rule known at the first byte that reads the buffer: the header byte itself gives the length
+struct FirstByteLength {
+  static constexpr size_t KNOWN_AT = 1;
+  static constexpr size_t get(const uint8_t *buf) { return buf[0]; }
+};
+
+TEST(LengthFrameReaderTest, CustomRuleKnownAtTheFirstByte) {
+  LengthFrameReader<8, FrameFormat<FirstByteLength, 0x03>> reader;
+  std::vector<std::vector<uint8_t>> frames;
+  for (uint8_t c : {0x03, 0x01, 0x02, 0x03}) {
+    reader.feed(c, [&frames](const uint8_t *f, size_t len) {
+      frames.emplace_back(f, f + len);
+      return true;
+    });
+  }
+  EXPECT_EQ(frames, (std::vector<std::vector<uint8_t>>{{0x03, 0x01, 0x02}}));
+}
 }  // namespace esphome::core::testing
