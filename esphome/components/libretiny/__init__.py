@@ -241,7 +241,7 @@ def has_software_serial() -> bool:
 
 def can_choose_uart_pins() -> bool:
     """True when SerialClass::begin() takes the pins, which LibreTiny added in 1.12.0."""
-    return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(1, 12, 0)
+    return CORE.framework_version >= cv.Version(1, 12, 0)
 
 
 def only_on_family(*, supported=None, unsupported=None):
@@ -643,7 +643,7 @@ async def component_to_code(config):
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
     # LibreTiny before 1.14.0 breaks under SCons 4.11 without this script; see the script
-    version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    version = CORE.framework_version
     if (version.major, version.minor, version.patch) < (1, 14, 0):
         cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
