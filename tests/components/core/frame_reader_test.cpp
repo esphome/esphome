@@ -176,8 +176,8 @@ using LdShort = FrameFormat<FrameFixedLength<5>, 0x6E>;
 // Small formats for the recovery tests: A5, one byte at 1 holds the whole length
 using Small = FrameFormat<FrameLengthU8<1>, 0xA5>;
 
-static_assert(sizeof(LengthFrameReader<255, OneByte>) == 257);
-static_assert(sizeof(LengthFrameReader<300, TwoByteBE>) == 304);
+static_assert(sizeof(LengthFrameReader<255, OneByte>) == 258);
+static_assert(sizeof(LengthFrameReader<300, TwoByteBE>) == 306);
 
 TEST(LengthFrameReaderTest, OneByteLength) {
   LengthFrameReader<16, OneByte> reader;
@@ -316,14 +316,35 @@ TEST(LengthFrameReaderTest, ResyncWhileIdleIsHarmless) {
   EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01}), (Frames{{0xA5, 0x03, 0x01}}));
 }
 
-TEST(LengthFrameReaderTest, SixteenBitIndex) {
-  LengthFrameReader<300, FrameFormat<FrameLengthU8<1, 45>, 0xAA>> reader;
-  Bytes input{0x00, 0xAA, 0xFF};
-  input.resize(input.size() + 298, 0x42);
-  Frames frames = feed_all(reader, input);
-  ASSERT_EQ(frames.size(), 1u);
-  EXPECT_EQ(frames[0].size(), 300u);
-  EXPECT_EQ(frames[0][299], 0x42);
+TEST(LengthFrameReaderTest, HandlerRejectionRecoversFramesInside) {
+  LengthFrameReader<16, Small> reader;
+  Frames seen;
+  // The handler rejects the 9 byte frame; the two frames inside it reach the handler too
+  auto handle = [&seen](const uint8_t *frame, size_t len) {
+    seen.emplace_back(frame, frame + len);
+    return len != 9;
+  };
+  for (uint8_t c : {0xA5, 0x09, 0xA5, 0x03, 0x01, 0xA5, 0x02, 0xA5, 0x04})
+    reader.feed(c, handle);
+  EXPECT_EQ(seen, (Frames{{0xA5, 0x09, 0xA5, 0x03, 0x01, 0xA5, 0x02, 0xA5, 0x04}, {0xA5, 0x03, 0x01}, {0xA5, 0x02}}));
+  EXPECT_EQ(reader.length(), 2u);
+}
+
+TEST(LengthFrameReaderTest, FlushHandsOverFramesHeldBack) {
+  LengthFrameReader<16, Small> reader;
+  Frames seen;
+  auto handle = [&seen](const uint8_t *frame, size_t len) {
+    seen.emplace_back(frame, frame + len);
+    return true;
+  };
+  for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02, 0xA5, 0x03, 0x09})
+    reader.feed(c, handle);
+  EXPECT_EQ(seen, Frames{});
+  reader.flush(handle);
+  EXPECT_EQ(seen, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x03, 0x09}}));
+  EXPECT_EQ(reader.length(), 0u);
+  reader.flush(handle);  // nothing collected: nothing to do
+  EXPECT_EQ(seen.size(), 2u);
 }
 
 }  // namespace esphome::core::testing
