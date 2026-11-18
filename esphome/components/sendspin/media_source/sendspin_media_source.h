@@ -61,7 +61,7 @@ class SendspinMediaSource final : public SendspinChild,
 
   bool cached_muted_{false};
   bool pending_start_{false};
-  bool static_delay_adjustable_{false};
+  bool static_delay_adjustable_{true};
 };
 
 }  // namespace esphome::sendspin_
