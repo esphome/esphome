@@ -102,7 +102,7 @@ BENCHMARK(FrameReader_UltrasonicNoisy);
 // --- LengthFrameReader: frames of different lengths among noise ---
 
 static void LengthFrameReader_MixedFrames(benchmark::State &state) {
-  LengthFrameReader<255, 7, 0, 0xA5, 0x01> reader;
+  LengthFrameReader<255, FrameFormat<FrameLengthU8<7>, 0xA5, 0x01>> reader;
   const uint8_t *bytes = LENGTH_FRAMES;
   uint32_t frames = 0;
 

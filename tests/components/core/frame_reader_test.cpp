@@ -140,78 +140,119 @@ TEST(FrameReaderTest, SixteenBitIndex) {
   EXPECT_EQ(frames[0][299], 0x42);
 }
 
-// Feeds bytes and collects every completed frame of a LengthFrameReader.
-template<size_t N, size_t P, size_t A, uint8_t... H>
-static Frames feed_all(LengthFrameReader<N, P, A, H...> &reader, const Bytes &input) {
+// Feeds bytes and collects every completed frame of a LengthFrameReader, taking each one with next().
+template<size_t N, class... F> static Frames feed_all(LengthFrameReader<N, F...> &reader, const Bytes &input) {
   Frames frames;
   for (uint8_t c : input) {
-    const uint8_t *frame = reader.feed(c);
-    if (frame != nullptr) {
-      EXPECT_EQ(reader.length(), 0u);
+    for (const uint8_t *frame = reader.feed(c); frame != nullptr; frame = reader.next())
       frames.emplace_back(frame, frame + reader.frame_length());
-    }
   }
   return frames;
 }
 
-static_assert(sizeof(LengthFrameReader<255, 7, 0, 0xA5, 0x01>) == 256);
-static_assert(sizeof(LengthFrameReader<300, 2, 3, 0xAA>) == 302);
-
-TEST(LengthFrameReaderTest, FramesOfDifferentLengths) {
-  // Length byte at 2 holds the whole frame length
-  LengthFrameReader<8, 2, 0, 0xA5> reader;
-  EXPECT_EQ(feed_all(reader, {0xA5, 0x01, 0x04, 0x10, 0xA5, 0x02, 0x06, 0x20, 0x21, 0x22}),
-            (Frames{{0xA5, 0x01, 0x04, 0x10}, {0xA5, 0x02, 0x06, 0x20, 0x21, 0x22}}));
+// Feeds bytes and returns the last frame feed() completed, or nullptr.
+template<size_t N, class... F> static const uint8_t *feed_last(LengthFrameReader<N, F...> &reader, const Bytes &input) {
+  const uint8_t *last = nullptr;
+  for (uint8_t c : input) {
+    if (const uint8_t *frame = reader.feed(c))
+      last = frame;
+  }
+  return last;
 }
 
-TEST(LengthFrameReaderTest, LengthCountsPayloadOnly) {
-  // Length byte at 1 counts the payload; header, length byte and a checksum byte add 3
-  LengthFrameReader<8, 1, 3, 0xAA> reader;
-  EXPECT_EQ(feed_all(reader, {0x00, 0xAA, 0x02, 0x11, 0x22, 0x33}), (Frames{{0xAA, 0x02, 0x11, 0x22, 0x33}}));
+template<size_t N, class... F> static Bytes held(const LengthFrameReader<N, F...> &reader, const uint8_t *frame) {
+  return Bytes(frame, frame + reader.frame_length());
 }
 
-TEST(LengthFrameReaderTest, FrameEndingAtLengthByte) {
-  LengthFrameReader<8, 2, 0, 0xA5, 0x01> reader;
-  EXPECT_EQ(feed_all(reader, {0xA5, 0x01, 0x03}), (Frames{{0xA5, 0x01, 0x03}}));
+// pioneer_wt: A5 01, one byte at 7 holds the whole length
+using OneByte = FrameFormat<FrameLengthU8<7>, 0xA5, 0x01>;
+// tuya: 55 AA, payload length big-endian at 4, header, length and checksum add 7
+using TwoByteBE = FrameFormat<FrameLengthU16BE<4, 7>, 0x55, 0xAA>;
+// ld24xx command and data frames: payload length little-endian at 4, header, length and footer add 10
+using LdCmd = FrameFormat<FrameLengthU16LE<4, 10>, 0xFD, 0xFC, 0xFB, 0xFA>;
+using LdData = FrameFormat<FrameLengthU16LE<4, 10>, 0xF4, 0xF3, 0xF2, 0xF1>;
+// ld2410s short frame: 6E, always 5 bytes
+using LdShort = FrameFormat<FrameFixedLength<5>, 0x6E>;
+// Small formats for the recovery tests: A5, one byte at 1 holds the whole length
+using Small = FrameFormat<FrameLengthU8<1>, 0xA5>;
+
+static_assert(sizeof(LengthFrameReader<255, OneByte>) == 257);
+static_assert(sizeof(LengthFrameReader<300, TwoByteBE>) == 304);
+
+TEST(LengthFrameReaderTest, OneByteLength) {
+  LengthFrameReader<16, OneByte> reader;
+  EXPECT_EQ(feed_all(reader, {0x00, 0xA5, 0x01, 0x10, 0x11, 0x12, 0x13, 0x00, 0x09, 0x42}),
+            (Frames{{0xA5, 0x01, 0x10, 0x11, 0x12, 0x13, 0x00, 0x09, 0x42}}));
+}
+
+TEST(LengthFrameReaderTest, TwoByteBigEndianPayloadLength) {
+  LengthFrameReader<300, TwoByteBE> reader;
+  // Payload of 0x0102 = 258 bytes: 265 in all
+  Bytes input{0x55, 0xAA, 0x03, 0x07, 0x01, 0x02};
+  input.resize(265, 0x33);
+  Frames frames = feed_all(reader, input);
+  ASSERT_EQ(frames.size(), 1u);
+  EXPECT_EQ(frames[0].size(), 265u);
+  // Too long for N: not a frame
+  EXPECT_EQ(feed_all(reader, {0x55, 0xAA, 0x03, 0x07, 0x01, 0x30}), Frames{});
+  EXPECT_EQ(reader.length(), 0u);
+}
+
+TEST(LengthFrameReaderTest, TwoFormatsPickedByFirstByte) {
+  LengthFrameReader<32, LdCmd, LdData> reader;
+  const Bytes cmd{0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA0, 0x01, 0x04, 0x03, 0x02, 0x01};
+  const Bytes data{0xF4, 0xF3, 0xF2, 0xF1, 0x01, 0x00, 0x55, 0xF8, 0xF7, 0xF6, 0xF5};
+  Bytes input{0x00};
+  input.insert(input.end(), data.begin(), data.end());
+  input.insert(input.end(), cmd.begin(), cmd.end());
+  EXPECT_EQ(feed_all(reader, input), (Frames{data, cmd}));
+}
+
+TEST(LengthFrameReaderTest, FixedAndLengthFormatsTogether) {
+  LengthFrameReader<32, LdShort, LdData> reader;
+  const Bytes small{0x6E, 0x01, 0x02, 0x03, 0x62};
+  const Bytes data{0xF4, 0xF3, 0xF2, 0xF1, 0x00, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};
+  Bytes input = small;
+  input.insert(input.end(), data.begin(), data.end());
+  input.insert(input.end(), small.begin(), small.end());
+  EXPECT_EQ(feed_all(reader, input), (Frames{small, data, small}));
+}
+
+TEST(LengthFrameReaderTest, BrokenHeaderRealigns) {
+  LengthFrameReader<32, LdCmd, LdData> reader;
+  // FD FC then F4 breaks the command header and starts a data header
+  const Bytes data{0xF4, 0xF3, 0xF2, 0xF1, 0x00, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};
+  Bytes input{0xFD, 0xFC};
+  input.insert(input.end(), data.begin(), data.end());
+  EXPECT_EQ(feed_all(reader, input), (Frames{data}));
 }
 
 TEST(LengthFrameReaderTest, BadLengthRealignsAfterFirstByte) {
-  LengthFrameReader<8, 2, 0, 0xA5> reader;
-  // 0x02 ends the frame before its length byte and 0x09 is longer than 8: neither is a frame.
+  LengthFrameReader<8, Small> reader;
+  // 0x01 ends the frame before its length byte and 0x09 is longer than 8: neither is a frame.
   // The second A5 inside the bad one starts the real frame.
-  EXPECT_EQ(feed_all(reader, {0xA5, 0xA5, 0x02, 0xA5, 0x00, 0x09, 0xA5, 0x00, 0x04, 0x01}),
-            (Frames{{0xA5, 0x00, 0x04, 0x01}}));
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x01, 0xA5, 0x09, 0xA5, 0x04, 0x01, 0x02}), (Frames{{0xA5, 0x04, 0x01, 0x02}}));
 }
 
 TEST(LengthFrameReaderTest, LengthByteCanStartHeader) {
-  LengthFrameReader<8, 1, 0, 0x09> reader;
+  LengthFrameReader<8, FrameFormat<FrameLengthU8<1>, 0x09>> reader;
   // Length 9 is longer than 8, so the length byte becomes the next header
   EXPECT_EQ(feed_all(reader, {0x09, 0x09, 0x03, 0x07}), (Frames{{0x09, 0x03, 0x07}}));
 }
 
-TEST(LengthFrameReaderTest, MultiByteHeaderMismatchRestarts) {
-  LengthFrameReader<8, 2, 0, 0xA5, 0x01> reader;
-  EXPECT_EQ(feed_all(reader, {0xA5, 0xA5, 0x01, 0x04, 0x09}), (Frames{{0xA5, 0x01, 0x04, 0x09}}));
-}
-
 TEST(LengthFrameReaderTest, LengthTracksPartialFrame) {
-  LengthFrameReader<8, 2, 0, 0xA5> reader;
-  reader.feed(0xA5);
-  reader.feed(0x00);
-  reader.feed(0x05);
-  EXPECT_EQ(reader.length(), 3u);
+  LengthFrameReader<8, Small> reader;
+  feed_all(reader, {0xA5, 0x05});
+  EXPECT_EQ(reader.length(), 2u);
   reader.reset();
   EXPECT_EQ(reader.length(), 0u);
-  EXPECT_EQ(feed_all(reader, {0x01, 0xA5, 0x00, 0x03}), (Frames{{0xA5, 0x00, 0x03}}));
+  EXPECT_EQ(feed_all(reader, {0x01, 0xA5, 0x03, 0x07}), (Frames{{0xA5, 0x03, 0x07}}));
 }
 
 TEST(LengthFrameReaderTest, ResyncFindsHeaderInRejectedFrame) {
-  LengthFrameReader<8, 1, 0, 0xA5> reader;
+  LengthFrameReader<8, Small> reader;
   // The A5 taken as a header was payload; the real frame starts at the second A5
-  const uint8_t *frame = nullptr;
-  for (uint8_t c : {0xA5, 0x05, 0x00, 0xA5, 0x04}) {
-    frame = reader.feed(c);
-  }
+  const uint8_t *frame = feed_last(reader, {0xA5, 0x05, 0x00, 0xA5, 0x04});
   ASSERT_NE(frame, nullptr);
   EXPECT_EQ(reader.frame_length(), 5u);
   EXPECT_EQ(reader.resync(), nullptr);
@@ -219,62 +260,64 @@ TEST(LengthFrameReaderTest, ResyncFindsHeaderInRejectedFrame) {
   EXPECT_EQ(feed_all(reader, {0x10, 0x20}), (Frames{{0xA5, 0x04, 0x10, 0x20}}));
 }
 
-TEST(LengthFrameReaderTest, ResyncReturnsFrameInsideRejectedOne) {
-  LengthFrameReader<8, 1, 0, 0xA5> reader;
-  // A bad checksum rejects the 6 byte frame; a complete 3 byte frame sits inside it
-  const uint8_t *frame = nullptr;
-  for (uint8_t c : {0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}) {
-    frame = reader.feed(c);
-  }
+TEST(LengthFrameReaderTest, ResyncReturnsEveryFrameInsideRejectedOne) {
+  LengthFrameReader<16, Small> reader;
+  // A bad checksum rejects the 9 byte frame; two complete frames sit inside it, and a partial one after them
+  const uint8_t *frame = feed_last(reader, {0xA5, 0x09, 0xA5, 0x03, 0x01, 0xA5, 0x02, 0xA5, 0x04});
   ASSERT_NE(frame, nullptr);
   frame = reader.resync();
   ASSERT_NE(frame, nullptr);
-  EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x03, 0x01}));
+  EXPECT_EQ(held(reader, frame), (Bytes{0xA5, 0x03, 0x01}));
+  frame = reader.next();
+  ASSERT_NE(frame, nullptr);
+  EXPECT_EQ(held(reader, frame), (Bytes{0xA5, 0x02}));
+  EXPECT_EQ(reader.next(), nullptr);
+  EXPECT_EQ(reader.length(), 2u);
+  EXPECT_EQ(feed_all(reader, {0x01, 0x02}), (Frames{{0xA5, 0x04, 0x01, 0x02}}));
 }
 
 TEST(LengthFrameReaderTest, ResyncAgainAfterRecoveredFrameIsRejected) {
-  LengthFrameReader<16, 1, 0, 0xA5> reader;
-  // The 9 byte frame holds a 4 byte candidate, which holds a 3 byte one
-  const uint8_t *frame = nullptr;
-  for (uint8_t c : {0xA5, 0x09, 0xA5, 0x04, 0xA5, 0x03, 0x01, 0x02, 0x03}) {
-    frame = reader.feed(c);
-  }
+  LengthFrameReader<16, Small> reader;
+  // The 9 byte frame holds a 4 byte candidate, which holds a 3 byte one, followed by two more bytes
+  const uint8_t *frame = feed_last(reader, {0xA5, 0x09, 0xA5, 0x04, 0xA5, 0x03, 0x01, 0x02, 0x03});
   ASSERT_NE(frame, nullptr);
   frame = reader.resync();
   ASSERT_NE(frame, nullptr);
-  EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x04, 0xA5, 0x03}));
-  // The bytes after the recovered frame were dropped, so the inner one is left partial
-  EXPECT_EQ(reader.resync(), nullptr);
-  EXPECT_EQ(reader.length(), 2u);
-  EXPECT_EQ(feed_all(reader, {0x01}), (Frames{{0xA5, 0x03, 0x01}}));
+  EXPECT_EQ(held(reader, frame), (Bytes{0xA5, 0x04, 0xA5, 0x03}));
+  // Rejected too: the 3 byte frame inside it comes back, and the bytes after the 4 byte one are kept
+  frame = reader.resync();
+  ASSERT_NE(frame, nullptr);
+  EXPECT_EQ(held(reader, frame), (Bytes{0xA5, 0x03, 0x01}));
+  EXPECT_EQ(reader.next(), nullptr);
+  EXPECT_EQ(reader.length(), 0u);
+}
+
+TEST(LengthFrameReaderTest, ResyncPartialFrameAfterSilence) {
+  LengthFrameReader<16, Small> reader;
+  // A corrupt length of 15 holds back two complete frames until the caller gives up on the partial one
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02, 0xA5, 0x03, 0x09}), Frames{});
+  EXPECT_EQ(reader.length(), 9u);
+  Frames found;
+  for (const uint8_t *frame = reader.resync(); frame != nullptr; frame = reader.next())
+    found.push_back(held(reader, frame));
+  EXPECT_EQ(found, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x03, 0x09}}));
+  EXPECT_EQ(reader.length(), 0u);
 }
 
 TEST(LengthFrameReaderTest, ResyncWhileIdleIsHarmless) {
-  LengthFrameReader<8, 1, 0, 0xA5> reader;
-  // A rejected length of 9 stays in the buffer with nothing collected
-  EXPECT_EQ(feed_all(reader, {0xA5, 0x09}), Frames{});
-  EXPECT_EQ(reader.length(), 0u);
+  LengthFrameReader<8, Small> reader;
   EXPECT_EQ(reader.resync(), nullptr);
-  reader.reset();
+  // A handled frame, then noise: nothing is held any more
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01, 0x00}), (Frames{{0xA5, 0x03, 0x01}}));
+  EXPECT_EQ(reader.resync(), nullptr);
+  // A rejected length leaves nothing collected
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x09}), Frames{});
   EXPECT_EQ(reader.resync(), nullptr);
   EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01}), (Frames{{0xA5, 0x03, 0x01}}));
 }
 
-TEST(LengthFrameReaderTest, ResyncPartialFrameAfterSilence) {
-  LengthFrameReader<16, 1, 0, 0xA5> reader;
-  // A corrupt length of 15 holds back a complete frame behind it until the caller gives up on the partial one
-  for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02}) {
-    EXPECT_EQ(reader.feed(c), nullptr);
-  }
-  EXPECT_EQ(reader.length(), 6u);
-  const uint8_t *frame = reader.resync();
-  ASSERT_NE(frame, nullptr);
-  EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x04, 0x01, 0x02}));
-  EXPECT_EQ(reader.length(), 0u);
-}
-
 TEST(LengthFrameReaderTest, SixteenBitIndex) {
-  LengthFrameReader<300, 1, 45, 0xAA> reader;
+  LengthFrameReader<300, FrameFormat<FrameLengthU8<1, 45>, 0xAA>> reader;
   Bytes input{0x00, 0xAA, 0xFF};
   input.resize(input.size() + 298, 0x42);
   Frames frames = feed_all(reader, input);
