@@ -7,8 +7,8 @@ substitutions:
   dmx_rx_pin: GPIO16
   # Leave unset / empty to omit RTS (no driver enable pin)
 
-dmx_reader:
-  id: dmx
+dmx:
+  id: dmx_bus
   uart_num: ${dmx_uart_num}
   tx_pin: ${dmx_tx_pin}
   rx_pin: ${dmx_rx_pin}
@@ -27,16 +27,20 @@ number:
     initial_value: 1
     restore_value: true
 
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel: 10
+    name: "DMX Out 10"
 # Sensors: one dynamic + one fixed channel
 sensor:
-  - platform: dmx_reader
-    dmx_reader_id: dmx
+  - platform: dmx
+    dmx_id: dmx_bus
     channel_id: selected_channel
     name: "DMX Value"
     id: dmx_value
 
-  - platform: dmx_reader
-    dmx_reader_id: dmx
+  - platform: dmx
+    dmx_id: dmx_bus
     channel: 1
     name: "DMX Channel 1 (fixed)"
     id: dmx_channel_1

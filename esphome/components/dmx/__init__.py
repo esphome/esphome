@@ -12,61 +12,54 @@ from esphome.const import (
 )
 import esphome.final_validate as fv
 
-AUTO_LOAD = ["sensor", "number"]
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
+CONF_DMX_ID = "dmx_id"
 DEPENDENCIES = ["esp32"]
-DOMAIN = "dmx_reader"
+DOMAIN = "dmx"
 
-# Hardware UART names used by the logger component
 _LOGGER_HW_UART_TO_NUM = {
     "UART0": 0,
     "UART1": 1,
     "UART2": 2,
 }
 
-dmx_reader_ns = cg.esphome_ns.namespace("dmx_reader")
-DMXReader = dmx_reader_ns.class_("DMXReader", cg.Component)
+dmx_ns = cg.esphome_ns.namespace("dmx")
+DMXComponent = dmx_ns.class_("DMXComponent", cg.Component)
 
 register_channel_sensor = cg.slot_list(
-    "DMX_READER_STATIC_SENSOR_COUNT",
+    "DMX_STATIC_SENSOR_COUNT",
     "register_channel_sensor",
     DOMAIN,
 )
 register_dynamic_channel_sensor = cg.slot_list(
-    "DMX_READER_DYNAMIC_SENSOR_COUNT",
+    "DMX_DYNAMIC_SENSOR_COUNT",
     "register_dynamic_channel_sensor",
     DOMAIN,
 )
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(DMXReader),
+        cv.GenerateID(): cv.declare_id(DMXComponent),
         cv.Required(CONF_TX_PIN): pins.internal_gpio_pin_number,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_pin_number,
         cv.Optional(CONF_RTS_PIN): pins.internal_gpio_pin_number,
-        # Default 2: on classic ESP32, logger owns UART0 and the first uart: bus gets UART1
         cv.Optional(CONF_UART_NUM, default=2): cv.int_range(min=0, max=2),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 def _logger_hardware_uart_num(full_config) -> int | None:
-    """Return the hardware UART number the logger uses, or None if none."""
     logger_conf = full_config.get(CONF_LOGGER)
     if not logger_conf:
         return None
     if logger_conf.get(CONF_BAUD_RATE, 115200) == 0:
-        return None  # serial logging disabled
+        return None
     hw = logger_conf.get(CONF_HARDWARE_UART, "UART0")
-    return _LOGGER_HW_UART_TO_NUM.get(hw)  # USB_* → None
+    return _LOGGER_HW_UART_TO_NUM.get(hw)
 
 
 def _uart_component_assigned_ports(full_config, logger_uart: int | None) -> set[int]:
-    """
-    Mirror IDFUARTComponent::setup() assignment order:
-    start at 0, skip logger's hardware UART, assign one port per uart: entry.
-    """
     used: set[int] = set()
     next_num = 0
     if logger_uart is not None and logger_uart == next_num:
@@ -76,7 +69,6 @@ def _uart_component_assigned_ports(full_config, logger_uart: int | None) -> set[
     if not uart_conf:
         return used
 
-    # uart: can be a single dict or a list
     entries = uart_conf if isinstance(uart_conf, list) else [uart_conf]
     for _ in entries:
         if logger_uart is not None and next_num == logger_uart:
@@ -108,15 +100,13 @@ def _final_validate(config):
             [CONF_UART_NUM],
         )
 
-    # Multiple dmx_reader instances must not share a port
-    claimed = full_config.data.setdefault("dmx_reader_uart_ports", set())
+    claimed = full_config.data.setdefault("dmx_uart_ports", set())
     if uart_num in claimed:
         raise cv.Invalid(
-            f"uart_num: {uart_num} is already used by another dmx_reader instance.",
+            f"uart_num: {uart_num} is already used by another dmx instance.",
             [CONF_UART_NUM],
         )
     claimed.add(uart_num)
-
     return config
 
 
@@ -129,10 +119,12 @@ async def to_code(config):
 
     cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
     cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
-
     if CONF_RTS_PIN in config:
         cg.add(var.set_rts_pin(config[CONF_RTS_PIN]))
-
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
-    #cg.add_library("someweisguy/esp_dmx", "4.1.0")
-    cg.add_library("esp_dmx",None, "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",)
+
+    cg.add_library(
+        "esp_dmx",
+        None,
+        "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",
+    )
