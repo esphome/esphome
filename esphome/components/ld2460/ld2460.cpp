@@ -1,5 +1,6 @@
 #include "ld2460.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
@@ -53,18 +54,25 @@ void LD2460Component::dump_config() {
 }
 
 void LD2460Component::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_available<MAX_FRAME_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
+  if (const size_t count = this->available()) {
+    this->last_rx_ = now;
+    this->read_available<MAX_FRAME_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
+  } else if (this->reader_.length() != 0 && now - this->last_rx_ >= RX_GAP_MS) {
+    // A corrupt length can hold a whole frame back until more bytes come
+    this->reader_.flush(handler);
+  }
 }
 
-void LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_len) {
+bool LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_len) {
   if (data[4] != CMD_REPORT_DATA) {
     ESP_LOGW(TAG, "Invalid periodic data header");
-    return;
+    return false;
   }
   if ((packet_len - MIN_FRAME_LENGTH) % 4 != 0) {
     ESP_LOGW(TAG, "Periodic packet length %u is not a whole number of targets", packet_len);
-    return;
+    return false;
   }
 
   if (this->query_attempts_ != 0) {
@@ -125,35 +133,33 @@ void LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_
 #endif
 
   this->data_callback_.call();
+  return true;
 }
 
-// Handles the frame when its footer is in place; returns false otherwise
+// Handles the frame when its footer and structure are in place; returns false otherwise
 bool LD2460Component::handle_frame_(const uint8_t *frame, uint8_t len) {
   if (len < MIN_FRAME_LENGTH || !ld24xx::has_footer(frame, len))
     return false;
   ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
-  if (frame[0] == ld24xx::DataFrameFormat::FIRST) {
-    this->handle_periodic_data_(frame, len);
-  } else {
-    this->handle_ack_(frame, len);
-  }
-  return true;
+  if (frame[0] == ld24xx::DataFrameFormat::FIRST)
+    return this->handle_periodic_data_(frame, len);
+  return this->handle_ack_(frame, len);
 }
 
-void LD2460Component::handle_ack_(const uint8_t *data, uint8_t len) {
+bool LD2460Component::handle_ack_(const uint8_t *data, uint8_t len) {
   if (len != ACK_FRAME_LENGTH) {
     ESP_LOGW(TAG, "Dropping malformed command frame");
-    return;
+    return false;
   }
   if (data[4] != CMD_QUERY_INSTALLATION_MODE) {
     ESP_LOGD(TAG, "Ignoring reply to command 0x%02X", data[4]);
-    return;
+    return true;
   }
   const uint8_t mode = data[7];
   if (mode != static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_SIDE) &&
       mode != static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_TOP)) {
     ESP_LOGW(TAG, "Unexpected installation mode %u", mode);
-    return;
+    return true;
   }
   this->installation_mode_ = static_cast<InstallationMode>(mode);
   this->query_attempts_ = 0;
@@ -166,6 +172,7 @@ void LD2460Component::handle_ack_(const uint8_t *data, uint8_t len) {
     t.last_x = INT16_MIN;
   }
 #endif
+  return true;
 }
 
 }  // namespace esphome::ld2460

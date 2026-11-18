@@ -11,6 +11,8 @@ namespace esphome::ld2460 {
 
 static constexpr uint8_t MAX_FRAME_LENGTH = 31;  // A 5-target data frame
 static constexpr uint8_t MAX_TARGETS = 5;
+// A partial frame left this long without a byte is given up, and the frames it held back are handled
+static constexpr uint32_t RX_GAP_MS = 100;
 
 enum class InstallationMode : uint8_t {
   INSTALLATION_MODE_SIDE = 1,
@@ -41,8 +43,8 @@ class LD2460Component : public Component, public uart::UARTDevice {
 
  protected:
   void send_query_();
-  void handle_periodic_data_(const uint8_t *data, uint8_t packet_len);
-  void handle_ack_(const uint8_t *data, uint8_t len);
+  bool handle_periodic_data_(const uint8_t *data, uint8_t packet_len);
+  bool handle_ack_(const uint8_t *data, uint8_t len);
   bool handle_frame_(const uint8_t *frame, uint8_t len);
 
 #ifdef USE_SENSOR
@@ -61,6 +63,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
       reader_;
   // The angle formula depends on how the module is mounted, so it is read from the module at boot
   InstallationMode installation_mode_{InstallationMode::INSTALLATION_MODE_SIDE};
+  uint32_t last_rx_{0};
   // Queries sent so far; 0 once the module answered. Data frames resend up to MAX_QUERY_ATTEMPTS.
   uint8_t query_attempts_{1};
 };

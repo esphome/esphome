@@ -7,6 +7,7 @@
 #include "esphome/components/ld2460/ld2460.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart_component.h"
+#include "esphome/core/application.h"
 
 namespace esphome::ld2460::testing {
 
@@ -40,6 +41,12 @@ class TestableLD2460 : public LD2460Component {
     rx.insert(rx.end(), data.begin(), data.end());
     this->loop();
   }
+  // One pass of loop() at the given loop time, with whatever bytes are waiting
+  void loop_at(uint32_t now) {
+    LoopBlockingGuard{nullptr, nullptr, now};
+    this->loop();
+  }
+  InstallationMode installation_mode() const { return this->installation_mode_; }
 };
 
 struct Point {

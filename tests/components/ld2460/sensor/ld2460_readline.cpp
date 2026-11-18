@@ -235,4 +235,17 @@ TEST_F(LD2460ReadlineTest, HeaderLikeGarbageThenMaxTargets) {
   EXPECT_NEAR(this->x_[0].state, 1.1f, 0.001f);
 }
 
+TEST_F(LD2460ReadlineTest, AckBehindCorruptLengthIsHandledAfterSilence) {
+  // A command header claiming 31 bytes, then a whole installation mode ACK, then nothing
+  std::vector<uint8_t> bytes{0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x1F, 0x00};
+  const auto ack = make_ack_frame(2);
+  bytes.insert(bytes.end(), ack.begin(), ack.end());
+  auto &rx = this->mock_uart_.rx;
+  rx.insert(rx.end(), bytes.begin(), bytes.end());
+  this->ld2460_.loop_at(1000);
+  EXPECT_EQ(this->ld2460_.installation_mode(), InstallationMode::INSTALLATION_MODE_SIDE);
+  this->ld2460_.loop_at(1000 + RX_GAP_MS);
+  EXPECT_EQ(this->ld2460_.installation_mode(), InstallationMode::INSTALLATION_MODE_TOP);
+}
+
 }  // namespace esphome::ld2460::testing
