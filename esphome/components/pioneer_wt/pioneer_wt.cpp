@@ -102,6 +102,8 @@ void PioneerWT::handle_frame_(const uint8_t *frame, size_t len) {
 
   if (type == TYPE_REPLY) {
     if (!this->queue_.empty() && this->queue_.front().seq == ack) {
+      if (this->queue_.front().power != POWER_UNCHANGED)
+        this->acked_power_ = this->queue_.front().power;
       // Pop first: the warning log can run automations that queue another command.
       this->pop_command_();
       this->status_clear_warning();
@@ -137,6 +139,7 @@ void PioneerWT::handle_status_(const uint8_t *body, size_t len) {
     switch (attrs.id()) {
       case ATTR_POWER:
         this->power_ = v != 0;
+        this->acked_power_ = POWER_UNCHANGED;
         break;
       case ATTR_MODE:
         if (v < std::size(CLIMATE_MODES)) {
@@ -297,7 +300,8 @@ void PioneerWT::pop_command_() {
 }
 
 bool PioneerWT::wanted_power_(bool skip_head) const {
-  bool power = this->power_;
+  // An acknowledged power change counts until the AC reports the power
+  bool power = this->acked_power_ == POWER_UNCHANGED ? this->power_ : this->acked_power_;
   for (const PendingCommand &pending : this->queue_) {
     if (skip_head) {
       skip_head = false;

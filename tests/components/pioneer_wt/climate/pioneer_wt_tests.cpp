@@ -454,6 +454,19 @@ TEST_F(PioneerWTTest, PowerOnDroppedForRoomIsSentAgain) {
             command(0x06, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
 }
 
+TEST_F(PioneerWTTest, AcknowledgedOffCountsBeforeItsReport) {
+  this->start_with_status_();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
+  this->loop_at_(1200);
+  // The off is acknowledged, but the AC has not reported the power yet.
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
+  this->loop_at_(1300);
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(1400);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
+}
+
 TEST_F(PioneerWTTest, ClampsTargetTemperature) {
   this->start_();
   this->uart_.tx.clear();

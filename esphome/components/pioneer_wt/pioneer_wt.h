@@ -76,6 +76,8 @@ class PioneerWT final : public climate::Climate, public uart::UARTDevice, public
   uint8_t next_seq_{1};
   // Power the AC last reported
   bool power_{false};
+  // Power set by an acknowledged command, until the next power report: 0, 1 or POWER_UNCHANGED
+  int8_t acked_power_{POWER_UNCHANGED};
   // Value of ATTR_MODE: 0 auto, 1 cool, 2 dry, 3 fan, 4 heat
   uint8_t ac_mode_{0};
 };
