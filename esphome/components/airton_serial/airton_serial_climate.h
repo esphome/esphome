@@ -63,7 +63,7 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   bool can_send_command_();
   void send_command_();
   void write_frame_(uint8_t *frame, size_t len);
-  void accept_(const uint8_t *frame);
+  bool accept_frame_(const uint8_t *frame, size_t len);
   void handle_frame_(const uint8_t *data, size_t len);
   void handle_a3_(const uint8_t *data);
   void handle_ac_(const uint8_t *data);

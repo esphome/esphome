@@ -118,34 +118,29 @@ void AirtonSerialClimate::setup() {
 
 void AirtonSerialClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  auto accept = [this](const uint8_t *frame, size_t len) { return this->accept_frame_(frame, len); };
   bool received = false;
-  this->read_available([this, &received](uint8_t byte) {
+  this->read_available([this, &received, &accept](uint8_t byte) {
     received = true;
-    if (const uint8_t *frame = this->rx_reader_.feed(byte))
-      this->accept_(frame);
+    this->rx_reader_.feed(byte, accept);
   });
   if (received) {
     this->last_rx_ms_ = now;
   } else if (this->rx_reader_.length() > 0 && now - this->last_rx_ms_ >= FRAME_GAP_MS) {
     // A corrupt length can hold back complete frames behind it; look for them in what is buffered.
-    while (this->rx_reader_.length() > 0)
-      this->accept_(this->rx_reader_.resync());
+    this->rx_reader_.flush(accept);
   }
 }
 
-void AirtonSerialClimate::accept_(const uint8_t *frame) {
-  while (frame != nullptr) {
-    const uint8_t len = this->rx_reader_.frame_length();
-    if (len >= MIN_FRAME_LEN && crc16(frame, len - 2) == encode_uint16(frame[len - 2], frame[len - 1])) {
-      this->handle_frame_(frame, len);
-      frame = this->rx_reader_.next();
-      continue;
-    }
-    if (len >= MIN_FRAME_LEN) {
-      ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
-    }
-    frame = this->rx_reader_.resync();
+bool AirtonSerialClimate::accept_frame_(const uint8_t *frame, size_t len) {
+  if (len < MIN_FRAME_LEN)
+    return false;
+  if (crc16(frame, len - 2) != encode_uint16(frame[len - 2], frame[len - 1])) {
+    ESP_LOGW(TAG, "Bad CRC on %u-byte frame", static_cast<unsigned>(len));
+    return false;
   }
+  this->handle_frame_(frame, len);
+  return true;
 }
 
 void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
