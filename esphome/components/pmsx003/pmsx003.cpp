@@ -176,14 +176,10 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
 }
 
 void PMSX003Component::parse_data_(const uint8_t *frame) {
-  const auto get_16_bit_uint = [frame](uint8_t start_index) {
-    return encode_uint16(frame[start_index], frame[start_index + 1]);
-  };
-
   // PM mass concentrations
-  const uint16_t pm_1_0_std_concentration = get_16_bit_uint(4);
-  const uint16_t pm_2_5_std_concentration = get_16_bit_uint(6);
-  const uint16_t pm_10_0_std_concentration = get_16_bit_uint(8);
+  const uint16_t pm_1_0_std_concentration = encode_value<uint16_t>(frame + 4);
+  const uint16_t pm_2_5_std_concentration = encode_value<uint16_t>(frame + 6);
+  const uint16_t pm_10_0_std_concentration = encode_value<uint16_t>(frame + 8);
 
   PUBLISH_STATE(this->pm_1_0_std_sensor_, pm_1_0_std_concentration);
   PUBLISH_STATE(this->pm_2_5_std_sensor_, pm_2_5_std_concentration);
@@ -199,9 +195,9 @@ void PMSX003Component::parse_data_(const uint8_t *frame) {
   const uint8_t pc_offset = is_luftmy ? 10 : 16;
 
   if (!is_luftmy) {
-    const uint16_t pm_1_0_concentration = get_16_bit_uint(10);
-    const uint16_t pm_2_5_concentration = get_16_bit_uint(12);
-    const uint16_t pm_10_0_concentration = get_16_bit_uint(14);
+    const uint16_t pm_1_0_concentration = encode_value<uint16_t>(frame + 10);
+    const uint16_t pm_2_5_concentration = encode_value<uint16_t>(frame + 12);
+    const uint16_t pm_10_0_concentration = encode_value<uint16_t>(frame + 14);
 
     ESP_LOGD(TAG, "Got PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 Concentration: %u µg/m³",
              pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration);
@@ -212,10 +208,10 @@ void PMSX003Component::parse_data_(const uint8_t *frame) {
   }
 
   // Particle counts at pc_offset: >0.3, >0.5, >1.0, >2.5µm
-  const uint16_t pm_particles_03um = get_16_bit_uint(pc_offset);
-  const uint16_t pm_particles_05um = get_16_bit_uint(pc_offset + 2);
-  const uint16_t pm_particles_10um = get_16_bit_uint(pc_offset + 4);
-  const uint16_t pm_particles_25um = get_16_bit_uint(pc_offset + 6);
+  const uint16_t pm_particles_03um = encode_value<uint16_t>(frame + pc_offset);
+  const uint16_t pm_particles_05um = encode_value<uint16_t>(frame + pc_offset + 2);
+  const uint16_t pm_particles_10um = encode_value<uint16_t>(frame + pc_offset + 4);
+  const uint16_t pm_particles_25um = encode_value<uint16_t>(frame + pc_offset + 6);
 
   PUBLISH_STATE(this->pm_particles_03um_sensor_, pm_particles_03um);
   PUBLISH_STATE(this->pm_particles_05um_sensor_, pm_particles_05um);
@@ -228,8 +224,8 @@ void PMSX003Component::parse_data_(const uint8_t *frame) {
 
   // PMS5003T uses pc_offset+8 and pc_offset+10 for temperature/humidity, not particle counts
   if (this->type_ != Type::PMS5003T) {
-    const uint16_t pm_particles_50um = get_16_bit_uint(pc_offset + 8);
-    const uint16_t pm_particles_100um = get_16_bit_uint(pc_offset + 10);
+    const uint16_t pm_particles_50um = encode_value<uint16_t>(frame + pc_offset + 8);
+    const uint16_t pm_particles_100um = encode_value<uint16_t>(frame + pc_offset + 10);
 
     ESP_LOGD(TAG, "Got PM5.0 Particles: %u Count/0.1L, PM10.0 Particles: %u Count/0.1L", pm_particles_50um,
              pm_particles_100um);
@@ -240,7 +236,7 @@ void PMSX003Component::parse_data_(const uint8_t *frame) {
 
   // Formaldehyde
   if (this->type_ == Type::PMS5003S || this->type_ == Type::PMS5003ST) {
-    const uint16_t formaldehyde = get_16_bit_uint(28);
+    const uint16_t formaldehyde = encode_value<uint16_t>(frame + 28);
 
     ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
 
@@ -251,8 +247,8 @@ void PMSX003Component::parse_data_(const uint8_t *frame) {
   if (this->type_ == Type::PMS5003T || this->type_ == Type::PMS5003ST) {
     const uint8_t temperature_offset = (this->type_ == Type::PMS5003T) ? 24 : 30;
 
-    const float temperature = static_cast<int16_t>(get_16_bit_uint(temperature_offset)) / 10.0f;
-    const float humidity = get_16_bit_uint(temperature_offset + 2) / 10.0f;
+    const float temperature = encode_value<int16_t>(frame + temperature_offset) / 10.0f;
+    const float humidity = encode_value<uint16_t>(frame + temperature_offset + 2) / 10.0f;
 
     ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
 
