@@ -1,4 +1,5 @@
 #include "dyp_base.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
@@ -6,6 +7,8 @@
 namespace esphome::dyp_base {
 
 ESPHOME_LOG_TAG(TAG, "dyp_base.sensor");
+
+static constexpr uint32_t FRAME_TIMEOUT_MS = 50;
 
 void DYPSensor::set_mode(DYPMode mode) { this->mode_ = mode; }
 void DYPSensor::set_trigger_pin(GPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
@@ -57,6 +60,7 @@ void DYPSensor::dump_config() {
 void DYPSensor::update() {
   if (this->mode_ == DYPMode::DYP_MODE_CONTROLLED) {
     ESP_LOGV(TAG, "Triggering measurement.");
+    this->reader_.reset();
     if (this->trigger_pin_ != nullptr) {
       this->trigger_pin_->digital_write(false);
       delay(2);
@@ -71,7 +75,13 @@ void DYPSensor::update() {
 }
 
 void DYPSensor::loop() {
-  this->read_available([this](uint8_t byte) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->reader_.length() > 0 && now - this->last_rx_time_ > FRAME_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Discarding incomplete frame after timeout");
+    this->reader_.reset();
+  }
+  this->read_available([this, now](uint8_t byte) {
+    this->last_rx_time_ = now;
     if (const uint8_t *frame = this->reader_.feed(byte)) {
       this->process_frame_(frame);
     }

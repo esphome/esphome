@@ -6,6 +6,7 @@
 
 #include "common.h"
 #include "esphome/components/dyp_base/dyp_base.h"
+#include "esphome/core/application.h"
 
 namespace esphome::dyp_base::testing {
 
@@ -19,6 +20,7 @@ std::vector<uint8_t> frame(uint16_t mm) {
 class DYPSensorTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    LoopBlockingGuard guard{&this->sut_, nullptr, 0};
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.set_mode(DYPMode::DYP_MODE_AUTO);
     this->sut_.set_publish_mode(DYPPublishMode::DYP_PUBLISH_MODE_IMMEDIATE);
@@ -27,7 +29,8 @@ class DYPSensorTest : public ::testing::Test {
     this->sut_.add_on_state_callback([this](float state) { this->published_.push_back(state); });
   }
 
-  void feed_(const std::vector<uint8_t> &bytes) {
+  void feed_(const std::vector<uint8_t> &bytes, uint32_t now_ms = 0) {
+    LoopBlockingGuard guard{&this->sut_, nullptr, now_ms};
     this->uart_.rx.insert(this->uart_.rx.end(), bytes.begin(), bytes.end());
     this->sut_.loop();
   }
@@ -61,6 +64,32 @@ TEST_F(DYPSensorTest, StrayHeaderByteResyncsAndRecoversFollowingFrame) {
   this->feed_(f);
   ASSERT_EQ(this->published_.size(), 1u);
   EXPECT_FLOAT_EQ(this->published_[0], 1.0f);
+}
+
+TEST_F(DYPSensorTest, TruncatedFrameTimesOutBeforeNextFrameInAutoMode) {
+  // Truncated 3-byte frame {0xFF, 0x01, 0xFF}: if not expired before the next frame's
+  // 0xFF header arrives, {0xFF, 0x01, 0xFF, 0xFF} would have a valid checksum and
+  // falsely publish 0.511 m while dropping the following 1.500 m frame.
+  this->feed_({0xFF, 0x01, 0xFF}, 10);
+  EXPECT_TRUE(this->published_.empty());
+
+  this->feed_(frame(1500), 100);
+  ASSERT_EQ(this->published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->published_[0], 1.5f);
+}
+
+TEST_F(DYPSensorTest, ControlledModeResetsTruncatedFrameOnUpdate) {
+  this->sut_.set_mode(DYPMode::DYP_MODE_CONTROLLED);
+  this->sut_.update();
+  this->feed_({0xFF, 0x01, 0xFF}, 10);
+  EXPECT_TRUE(this->published_.empty());
+
+  // Next update() triggers a new measurement and discards the stale partial frame
+  // even before FRAME_TIMEOUT_MS elapses.
+  this->sut_.update();
+  this->feed_(frame(1500), 20);
+  ASSERT_EQ(this->published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->published_[0], 1.5f);
 }
 
 TEST_F(DYPSensorTest, BlindZonePublishesNanInImmediateMode) {

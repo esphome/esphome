@@ -51,6 +51,7 @@ class DYPSensor : public sensor::Sensor, public PollingComponent, public uart::U
   GPIOPin *output_mode_pin_{nullptr};
   DYPPublishMode publish_mode_{DYPPublishMode::DYP_PUBLISH_MODE_INTERVAL};
   FrameReader<4, 0xFF> reader_;
+  uint32_t last_rx_time_{0};
   float last_distance_m_{NAN};
 };
 

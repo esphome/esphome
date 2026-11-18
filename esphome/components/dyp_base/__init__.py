@@ -74,15 +74,20 @@ def _validate_model_config(model: DYPModel) -> Callable[[ConfigType], ConfigType
             )
         if CONF_OUTPUT_MODE_PIN in config and CONF_OUTPUT_MODE not in config:
             config[CONF_OUTPUT_MODE] = cv.enum(OUTPUT_MODES, upper=True)("PROCESSED")
+        if config[CONF_BLIND_ZONE] >= config[CONF_MAX_RANGE]:
+            raise cv.Invalid("'blind_zone' must be less than 'max_range'.")
         return config
 
     return _validator
 
 
+_DISTANCE_SCHEMA = cv.All(cv.distance, cv.Range(min=0.0, max=65.535))
+
+
 def _model_schema(model: DYPModel) -> cv.Schema:
     extra: dict[Any, Any] = {
-        cv.Optional(CONF_BLIND_ZONE, default=model.blind_zone): cv.distance,
-        cv.Optional(CONF_MAX_RANGE, default=model.max_range): cv.distance,
+        cv.Optional(CONF_BLIND_ZONE, default=model.blind_zone): _DISTANCE_SCHEMA,
+        cv.Optional(CONF_MAX_RANGE, default=model.max_range): _DISTANCE_SCHEMA,
     }
     if model.mode is None:
         extra[cv.Optional(CONF_MODE, default="AUTO")] = cv.enum(MODES, upper=True)

@@ -106,6 +106,34 @@ def test_unknown_model_raises_cv_invalid() -> None:
             },
             "'output_mode' and 'output_mode_pin' are only allowed when 'mode' is 'AUTO'",
         ),
+        (
+            dyp_a13_sensor.CONFIG_SCHEMA,
+            {
+                CONF_MODEL: "A13NYTW",
+                "name": "Test",
+                CONF_BLIND_ZONE: "-0.1m",
+            },
+            "value must be at least 0.0",
+        ),
+        (
+            dyp_a13_sensor.CONFIG_SCHEMA,
+            {
+                CONF_MODEL: "A13NYTW",
+                "name": "Test",
+                CONF_MAX_RANGE: "100m",
+            },
+            "value must be at most 65.535",
+        ),
+        (
+            dyp_a13_sensor.CONFIG_SCHEMA,
+            {
+                CONF_MODEL: "A13NYTW",
+                "name": "Test",
+                CONF_BLIND_ZONE: "3m",
+                CONF_MAX_RANGE: "2m",
+            },
+            "'blind_zone' must be less than 'max_range'",
+        ),
     ],
 )
 def test_invalid_user_configs(
