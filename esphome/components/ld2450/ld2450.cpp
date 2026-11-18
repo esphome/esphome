@@ -103,6 +103,7 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
 void LD2450Component::setup() {
   // The first frame is due link_timeout after the boot restart's grace window
   this->last_frame_ms_ = App.get_loop_component_start_time();
+  this->last_rx_ = this->last_frame_ms_;
   this->link_deadline_ms_ = this->last_frame_ms_ + this->link_timeout_ms_;
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr) {
@@ -224,13 +225,8 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  // Before reading, so a frame in this pass resets it
-  const size_t count = this->available();
-  if (count != 0) {
-    this->bytes_since_frame_ = true;
-  }
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_available<MAX_LINE_LENGTH>([this, &handler](uint8_t b) { this->reader_.feed(b, handler); }, count);
+  this->read_frames<MAX_LINE_LENGTH>(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_);
   this->check_link_();
 }
 
@@ -273,7 +269,6 @@ void LD2450Component::on_valid_frame_() {
     this->link_deadline_ms_ = later_ms(window, due);
   }
   this->last_frame_ms_ = now;
-  this->bytes_since_frame_ = false;
   this->invalid_frames_ = 0;
   if (previous != LinkState::LINK_STATE_UP) {
     this->link_state_ = LinkState::LINK_STATE_UP;
@@ -307,7 +302,7 @@ void LD2450Component::publish_target_unknown_(uint8_t target) {
 // Live values become unknown; settings and diagnostics keep theirs
 void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
   ESP_LOGW(TAG, "Radar link lost: no valid frame for %" PRIu32 " ms (%s, %u invalid frames)", silent_ms,
-           this->bytes_since_frame_ ? LOG_STR_LITERAL("bytes received") : LOG_STR_LITERAL("no bytes received"),
+           this->bytes_since_frame_() ? LOG_STR_LITERAL("bytes received") : LOG_STR_LITERAL("no bytes received"),
            static_cast<unsigned>(this->invalid_frames_));
   this->status_set_warning();
 #ifdef USE_BINARY_SENSOR

@@ -231,7 +231,7 @@ void LD2412Component::restart_and_read_all_info() {
 
 void LD2412Component::loop() {
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_available<MAX_LINE_LENGTH>([this, &handler](uint8_t c) { this->reader_.feed(c, handler); });
+  this->read_frames<MAX_LINE_LENGTH>(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_);
 }
 
 void LD2412Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {

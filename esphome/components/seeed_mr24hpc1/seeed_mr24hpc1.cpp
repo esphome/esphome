@@ -1,6 +1,7 @@
 #include "seeed_mr24hpc1.h"
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -126,7 +127,7 @@ void MR24HPC1Component::loop() {
     this->r24_parse_data_frame_(frame, len);
     return true;
   };
-  this->read_available([this, &handler](uint8_t b) { this->reader_.feed(b, handler); });
+  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_);
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWITCH_OFF) &&
       (this->sg_start_query_data_ > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) && (!this->check_dev_inf_sign_)) {

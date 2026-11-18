@@ -124,6 +124,7 @@ class MR24HPC1Component final : public Component,
   char c_firmware_version_[PRODUCT_BUF_MAX_SIZE + 1];
   uint8_t s_output_info_switch_flag_;
   // 53 59, control, command, data length (high byte first), data, sum, 54 43
+  uint32_t last_rx_{0};
   LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<FrameLengthU16BE<4, 9>, FRAME_HEADER1_VALUE, FRAME_HEADER2_VALUE>>
       reader_;
   int sg_start_query_data_;

@@ -168,6 +168,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   uint8_t min_gate_ = 1;
   uint8_t max_gate_ = TOTAL_GATES;
   uint8_t out_pin_level_ = 1;
+  uint32_t last_rx_{0};
   LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, ld24xx::DataFrameFormat> reader_;
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};

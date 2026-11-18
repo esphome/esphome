@@ -220,6 +220,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool get_timeout_status_(uint32_t check_millis);
   void open_link_grace_();
   void check_link_();
+  bool bytes_since_frame_() const { return this->last_rx_ != this->last_frame_ms_ || this->reader_.length() != 0; }
   void on_valid_frame_();
   void on_link_lost_(uint32_t silent_ms, bool was_up);
   void on_link_up_(bool restored);
@@ -240,6 +241,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
   uint32_t link_timeout_ms_{0};
   uint32_t last_frame_ms_{0};     // last valid periodic frame; until the first one, when setup() ran
+  uint32_t last_rx_{0};           // last pass that read bytes; equal to last_frame_ms_ until a byte comes after it
   uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
@@ -247,8 +249,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};
-  bool bytes_since_frame_{false};  // any bytes since the last valid frame
-  uint16_t invalid_frames_{0};     // since the last valid frame, saturating
+  uint16_t invalid_frames_{0};  // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR

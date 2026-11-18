@@ -89,11 +89,11 @@ TEST_P(LD2450LinkTest, AckFramesDoNotKeepTheLinkAlive) {
 
 TEST_P(LD2450LinkTest, InvalidInputIsCountedButDoesNotKeepTheLinkAlive) {
   this->frame_(0);
-  EXPECT_FALSE(this->ld2450_.bytes_since_frame_);
+  EXPECT_FALSE(this->ld2450_.bytes_since_frame_());
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
   // Bytes that never start a header are skipped by the parser, so only the frames with a bad footer are counted
   this->pass_(300, {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC});
-  EXPECT_TRUE(this->ld2450_.bytes_since_frame_);
+  EXPECT_TRUE(this->ld2450_.bytes_since_frame_());
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
   auto bad_footer = make_periodic_frame();
   bad_footer[bad_footer.size() - 1] = 0xAB;
@@ -102,7 +102,7 @@ TEST_P(LD2450LinkTest, InvalidInputIsCountedButDoesNotKeepTheLinkAlive) {
   EXPECT_EQ(this->ld2450_.invalid_frames_, 2u);
   EXPECT_EQ(this->lost_at_(501, 2 * LINK_TIMEOUT_MS), LINK_TIMEOUT_MS);
   this->frame_(LINK_TIMEOUT_MS + 100);
-  EXPECT_FALSE(this->ld2450_.bytes_since_frame_);
+  EXPECT_FALSE(this->ld2450_.bytes_since_frame_());
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
 }
 
