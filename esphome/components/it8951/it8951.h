@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <utility>
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
@@ -103,6 +102,7 @@ class IT8951Display : public Display,
   // --- Config setters (called from generated code) ---
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   void set_busy_pin(GPIOPin *pin) { this->busy_pin_ = pin; }
+  // GPIOs driven high during setup to power on the panel.
   SLOT_LIST(GPIOPin, enable_pins_, register_enable_pin, IT8951_ENABLE_PIN_COUNT)
   void set_reset_duration(uint32_t ms) { this->reset_duration_ = ms; }
   void set_full_update_every(uint8_t n) {
@@ -280,7 +280,6 @@ class IT8951Display : public Display,
   UpdateMode default_update_mode_{UPDATE_MODE_NONE};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
-  // GPIOs driven high during setup to power on the panel (empty if unused).
 
   // Dirty region (pixel coordinates of bounding box of changes since last update)
   uint16_t x_low_{0}, y_low_{0}, x_high_{0}, y_high_{0};
