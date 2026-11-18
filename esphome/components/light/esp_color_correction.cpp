@@ -18,27 +18,34 @@ uint16_t ESPColorCorrection::gamma_level_(uint8_t value) const {
   return progmem_read_uint16(&this->gamma_table_[value]);
 }
 
-uint8_t ESPColorCorrection::gamma_round_(uint8_t value) const { return (this->gamma_level_(value) + 128) / 257; }
+uint8_t ESPColorCorrection::gamma_round_(uint8_t value) const {
+  if (this->gamma_table_ == nullptr)
+    return value;
+  return (progmem_read_uint16(&this->gamma_table_[value]) + 128) / 257;
+}
 
 // Lighting every non-zero channel instead would turn a dim red with a trace of green into yellow
 Color ESPColorCorrection::correct_dark_pixel_(Color color) const {
-  // Kept unshifted: the 8-bit results are too coarse to compare channels at the lowest brightness
-  uint32_t products[4];
-  uint32_t max_product = 0;
+  // Compared without the local brightness, which is the same for every channel: the scaled 8-bit
+  // values are too coarse to compare at the lowest brightness
+  uint16_t strengths[4];
+  uint16_t max_strength = 0;
+  bool lit = false;
   for (uint8_t i = 0; i < 4; i++) {
-    products[i] = uint32_t(color[i]) * (1 + this->max_brightness_[i]) * (1 + this->local_brightness_);
-    max_product = std::max(max_product, products[i]);
+    strengths[i] = color[i] * this->max_brightness_[i];
+    max_strength = std::max(max_strength, strengths[i]);
+    lit |= esp_scale8_twice(color[i], this->max_brightness_[i], this->local_brightness_) != 0;
   }
   Color res;
-  if ((max_product >> 16) == 0)
+  if (!lit)
     return res;
   // Stretch the strongest channel to full scale and round the others against it; the table is too
-  // coarse to compare its lowest levels. products[i] * 255 fits: a product is at most 255 * 256 * 256.
+  // coarse to compare its lowest levels
   for (uint8_t i = 0; i < 4; i++) {
-    if (products[i] == max_product) {
+    if (strengths[i] == max_strength) {
       res[i] = 1;
-    } else if (products[i] != 0) {
-      res[i] = this->gamma_level_(products[i] * 255 / max_product) >= 0x8000 ? 1 : 0;
+    } else if (strengths[i] != 0) {
+      res[i] = this->gamma_level_(strengths[i] * 255 / max_strength) >= 0x8000 ? 1 : 0;
     }
   }
   return res;

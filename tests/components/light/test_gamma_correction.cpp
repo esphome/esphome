@@ -96,6 +96,13 @@ TEST(GammaCorrection, DimPixelKeepsSimilarChannels) {
   EXPECT_EQ(fixture.correction.color_correct(Color(255, 250, 250, 0)), Color(1, 1, 1, 0));
 }
 
+// A channel that color_correct sets to 0% stays dark even when it is the strongest in the pixel.
+TEST(GammaCorrection, DimPixelLeavesDisabledChannelDark) {
+  GammaFixture fixture(2.8);
+  fixture.correction.set_max_brightness(Color(255, 0, 255, 255));
+  EXPECT_EQ(fixture.correction.color_correct(Color(1, 255, 0, 0)), Color(1, 0, 0, 0));
+}
+
 // A strip without white drops the white level before the pixel is rounded, so it cannot outrank red.
 TEST(GammaCorrection, UnusedWhiteDoesNotDarkenRgbStrip) {
   GammaFixture fixture(2.8);

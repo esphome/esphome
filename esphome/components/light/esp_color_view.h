@@ -36,6 +36,10 @@ class ESPColorAccessor {
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
   virtual const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
 #endif
+#ifdef USE_LIGHT_PARTITION
+  // For internal use only: whether the LED at `index` stores a white level.
+  virtual bool has_white_internal(int32_t index) const { return true; }
+#endif
 };
 
 /// Color accessor that is completely at peace with the void of nothingness.
@@ -77,6 +81,10 @@ class BufferColorAccessor : public ESPColorAccessor {
     this->channel_colors.set_channel(this->color_data, index, channel, raw_value);
   }
   void set_effect_data(int32_t index, uint8_t value) override { this->effect_data[index] = value; }
+
+#ifdef USE_LIGHT_PARTITION
+  bool has_white_internal(int32_t index) const override { return this->channel_colors.has_white(); }
+#endif
 
   /// Allocate a zeroed block of buffer_bytes() plus `extra_bytes` for the caller, which start at
   /// `effect_data + num_leds`, and pass it to set_buffer(). Returns false if it failed.
@@ -277,6 +285,10 @@ class ESPColorView final : public ESPColorSettable {
   const ESPColorCorrection *get_color_correction_internal() const {
     return this->accessor_->get_color_correction_internal(this->index_);
   }
+#endif
+#ifdef USE_LIGHT_PARTITION
+  // This method is for internal use only.
+  bool has_white_internal() const { return this->accessor_->has_white_internal(this->index_); }
 #endif
 
  protected:
