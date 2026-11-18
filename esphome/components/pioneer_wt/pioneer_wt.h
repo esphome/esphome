@@ -44,20 +44,24 @@ class PioneerWT final : public climate::Climate, public uart::UARTDevice, public
   void write_frame_(uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack, uint8_t class_1, uint8_t class_2,
                     const uint8_t *body, size_t len);
   /// Queues a data frame that the AC must acknowledge; it is resent until it is.
-  void queue_command_(uint8_t msg_class, const uint8_t *body, size_t len);
+  void queue_command_(uint8_t msg_class, const uint8_t *body, size_t len, int8_t power = POWER_UNCHANGED);
   void send_pending_();
   /// Removes the command at the head of the queue.
   void pop_command_();
-  /// Removes the head command without an acknowledgement.
-  void drop_command_();
+  /// Power once the queued commands are applied; skip_head leaves out a head about to be dropped.
+  bool wanted_power_(bool skip_head) const;
   /// Queues a command that sets one on/off attribute.
   void send_setting_(uint16_t attr, bool on);
   void request_status_();
+
+  static constexpr int8_t POWER_UNCHANGED = -1;
 
   struct PendingCommand {
     uint8_t msg_class;
     uint8_t seq;
     uint8_t len;
+    // Power the command sets: 0, 1 or POWER_UNCHANGED
+    int8_t power;
     std::array<uint8_t, MAX_BODY_SIZE> body;
   };
 
@@ -70,9 +74,8 @@ class PioneerWT final : public climate::Climate, public uart::UARTDevice, public
   // Send attempts of the command at the head of the queue
   uint8_t attempts_{0};
   uint8_t next_seq_{1};
+  // Power the AC last reported
   bool power_{false};
-  // Power after the commands still waiting to be sent; power_ is what the AC last reported.
-  bool power_wanted_{false};
   // Value of ATTR_MODE: 0 auto, 1 cool, 2 dry, 3 fan, 4 heat
   uint8_t ac_mode_{0};
 };

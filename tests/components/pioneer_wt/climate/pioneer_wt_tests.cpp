@@ -408,6 +408,52 @@ TEST_F(PioneerWTTest, ReportsEcoAndSwing) {
   EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 }
 
+TEST_F(PioneerWTTest, RemoteOffWhileASettingIsQueuedIsFollowed) {
+  this->start_with_status_();
+  this->sut_.set_display_on(false);
+  // The handheld remote turns the AC off while the display command waits for its acknowledgement.
+  this->uart_.push_rx(build(FLAG_NO_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x01, 0x00}));
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
+  this->loop_at_(1200);
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(1300);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
+}
+
+TEST_F(PioneerWTTest, DroppingAnotherCommandKeepsAQueuedOff) {
+  this->start_with_status_();
+  this->sut_.set_display_on(false);
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
+  // The display command gets no acknowledgement and is dropped; the off is still queued.
+  for (uint32_t t = 1200; t <= 2700; t += 500)
+    this->loop_at_(t);
+  this->loop_at_(3200);
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->uart_.tx.clear();
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x03, {0x80, CLASS_COMMAND}));
+  this->loop_at_(3300);
+  EXPECT_EQ(this->uart_.tx, command(0x04, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
+}
+
+TEST_F(PioneerWTTest, PowerOnDroppedForRoomIsSentAgain) {
+  this->start_();  // no status yet: the AC is off
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_HEAT).perform();
+  for (uint8_t i = 0; i < 3; i++)
+    this->sut_.set_display_on(i % 2);
+  this->uart_.tx.clear();
+  // The queue is full; the power on at its head makes room for this call.
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(1100);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x1e, 0x00}));
+  for (uint8_t seq = 0x03; seq <= 0x05; seq++) {
+    this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, seq, {0x80, CLASS_COMMAND}));
+    this->loop_at_(1100 + seq * 100);
+  }
+  EXPECT_EQ(Frame(this->uart_.tx.end() - 18, this->uart_.tx.end()),
+            command(0x06, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
+}
+
 TEST_F(PioneerWTTest, ClampsTargetTemperature) {
   this->start_();
   this->uart_.tx.clear();

@@ -137,9 +137,6 @@ void PioneerWT::handle_status_(const uint8_t *body, size_t len) {
     switch (attrs.id()) {
       case ATTR_POWER:
         this->power_ = v != 0;
-        // A queued command may still change the power; keep that intent until the queue drains.
-        if (this->queue_.empty())
-          this->power_wanted_ = this->power_;
         break;
       case ATTR_MODE:
         if (v < std::size(CLIMATE_MODES)) {
@@ -205,12 +202,13 @@ void PioneerWT::handle_status_(const uint8_t *body, size_t len) {
 void PioneerWT::control(const climate::ClimateCall &call) {
   uint8_t body[MAX_BODY_SIZE];
   uint8_t *p = body;
+  int8_t power = POWER_UNCHANGED;
 
   if (call.get_mode().has_value()) {
     const auto mode = *call.get_mode();
     if (mode == climate::CLIMATE_MODE_OFF) {
+      power = 0;
       p = put_attr(p, ATTR_POWER, 0);
-      this->power_wanted_ = false;
     } else {
       uint8_t ac_mode = 0;
       for (size_t i = 0; i < std::size(CLIMATE_MODES); i++) {
@@ -219,10 +217,11 @@ void PioneerWT::control(const climate::ClimateCall &call) {
           break;
         }
       }
-      // An "off" that is still waiting to be sent counts, so the AC is turned back on after it.
-      if (!this->power_wanted_)
+      // Queued commands count: an "off" still waiting to be sent is followed by a power on.
+      if (!this->wanted_power_(this->queue_.size() == TX_QUEUE_SIZE)) {
+        power = 1;
         p = put_attr(p, ATTR_POWER, 1);
-      this->power_wanted_ = true;
+      }
       p = put_attr(p, ATTR_MODE, ac_mode);
     }
   }
@@ -263,7 +262,7 @@ void PioneerWT::control(const climate::ClimateCall &call) {
     p = put_attr(p, ATTR_ECO, *call.get_preset() == climate::CLIMATE_PRESET_ECO);
 
   if (p != body)
-    this->queue_command_(CLASS_COMMAND, body, p - body);
+    this->queue_command_(CLASS_COMMAND, body, p - body, power);
   // State is published when the AC reports the new values back.
 }
 
@@ -280,12 +279,12 @@ void PioneerWT::request_status_() {
   this->last_status_ = App.get_loop_component_start_time();
 }
 
-void PioneerWT::queue_command_(uint8_t msg_class, const uint8_t *body, size_t len) {
+void PioneerWT::queue_command_(uint8_t msg_class, const uint8_t *body, size_t len, int8_t power) {
   if (this->queue_.size() == TX_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full; dropping the oldest command");
-    this->drop_command_();
+    this->pop_command_();
   }
-  PendingCommand pending{msg_class, this->next_seq_++, static_cast<uint8_t>(len), {}};
+  PendingCommand pending{msg_class, this->next_seq_++, static_cast<uint8_t>(len), power, {}};
   std::memcpy(pending.body.data(), body, len);
   this->queue_.push(pending);
   if (this->next_seq_ == 0)
@@ -297,18 +296,25 @@ void PioneerWT::pop_command_() {
   this->attempts_ = 0;
 }
 
-void PioneerWT::drop_command_() {
-  this->pop_command_();
-  // A dropped command may have carried a power change; go back to what the AC last reported.
-  this->power_wanted_ = this->power_;
+bool PioneerWT::wanted_power_(bool skip_head) const {
+  bool power = this->power_;
+  for (const PendingCommand &pending : this->queue_) {
+    if (skip_head) {
+      skip_head = false;
+      continue;
+    }
+    if (pending.power != POWER_UNCHANGED)
+      power = pending.power;
+  }
+  return power;
 }
 
 void PioneerWT::send_pending_() {
   const PendingCommand &pending = this->queue_.front();
   if (this->attempts_ >= MAX_ATTEMPTS) {
     const uint8_t seq = pending.seq;
-    // Drop first: the warning log can run automations that queue another command.
-    this->drop_command_();
+    // Pop first: the warning log can run automations that queue another command.
+    this->pop_command_();
     ESP_LOGD(TAG, "No acknowledgement for command seq %02X; giving up", seq);
     this->status_set_warning(LOG_STR("No acknowledgement"));
     return;
