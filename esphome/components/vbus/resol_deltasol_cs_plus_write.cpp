@@ -132,6 +132,10 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
   this->disable_loop();
   if (status == SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS ||
       status == SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED) {
+#ifdef USE_VBUS_CS_PLUS_ADAPTIVE
+    if (this->context_update_interval_ != 0)
+      this->finish_adaptive_write_();
+#endif
     const auto position = cs_plus::setting_position(index);
     if (position.has_value()) {
       this->snapshot_[*position] = this->write_value_;
@@ -139,7 +143,11 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
     }
     if (status == SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS) {
       ++this->writes_verified_;
-      if (spec.has_value() && spec->enum_mask != 0) {
+      if (spec.has_value() && spec->enum_mask != 0
+#ifdef USE_VBUS_CS_PLUS_ADAPTIVE
+          && this->context_update_interval_ == 0
+#endif
+      ) {
         this->has_snapshot_ = false;
         this->context_refresh_pending_ = true;
       }
@@ -148,6 +156,9 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
   } else {
     this->write_uncertain_ = status == SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN;
     if (this->write_uncertain_) {
+#ifdef USE_VBUS_CS_PLUS_ADAPTIVE
+      this->partial_refresh_pending_ = false;
+#endif
       this->has_snapshot_ = false;
       this->context_refresh_pending_ = true;
     }
