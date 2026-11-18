@@ -25,8 +25,8 @@ static constexpr float MIN_TEMPERATURE_C = 16.0f;
 static constexpr float MAX_TEMPERATURE_C = 31.0f;
 
 static constexpr uint8_t FAN_SPEED_COUNT = 7;
-static constexpr const char *const FAN_SPEED_NAMES[FAN_SPEED_COUNT] = {"Speed 1", "Speed 2", "Speed 3", "Speed 4",
-                                                                       "Speed 5", "Speed 6", "Speed 7"};
+static constexpr const char *const FAN_SPEED_NAMES[FAN_SPEED_COUNT] PROGMEM = {
+    "Speed 1", "Speed 2", "Speed 3", "Speed 4", "Speed 5", "Speed 6", "Speed 7"};
 
 // Reply to the AC's once-a-minute check, as the stock module sends it. The last body byte is the
 // WiFi signal in dBm; a fixed -48 is enough for the AC.
@@ -42,6 +42,12 @@ static constexpr uint8_t CLIMATE_MODES[] PROGMEM = {
 void PioneerWT::setup() {
   this->set_supported_custom_fan_modes_static(FAN_SPEED_NAMES, FAN_SPEED_COUNT);
   this->request_status_();
+#ifdef USE_SWITCH
+  if (this->display_switch_ != nullptr)
+    this->display_switch_->restore();
+  if (this->beeper_switch_ != nullptr)
+    this->beeper_switch_->restore();
+#endif
 }
 
 climate::ClimateTraits PioneerWT::traits() {
@@ -95,8 +101,9 @@ void PioneerWT::handle_frame_(const uint8_t *frame, size_t len) {
 
   if (type == TYPE_REPLY) {
     if (!this->queue_.empty() && this->queue_.front().seq == ack) {
-      this->status_clear_warning();
+      // Pop first: the warning log can run automations that queue another command.
       this->pop_command_();
+      this->status_clear_warning();
       this->last_send_ = 0;  // send the next one right away
     }
     return;
@@ -128,7 +135,10 @@ void PioneerWT::handle_status_(const uint8_t *body, size_t len) {
     const uint32_t v = attrs.value();
     switch (attrs.id()) {
       case ATTR_POWER:
-        this->power_ = this->power_wanted_ = v != 0;
+        this->power_ = v != 0;
+        // A queued command may still change the power; keep that intent until the queue drains.
+        if (this->queue_.empty())
+          this->power_wanted_ = this->power_;
         break;
       case ATTR_MODE:
         if (v < std::size(CLIMATE_MODES)) {
@@ -289,9 +299,11 @@ void PioneerWT::pop_command_() {
 void PioneerWT::send_pending_() {
   const PendingCommand &pending = this->queue_.front();
   if (this->attempts_ >= MAX_ATTEMPTS) {
-    ESP_LOGD(TAG, "No acknowledgement for command seq %02X; giving up", pending.seq);
-    this->status_set_warning(LOG_STR("No acknowledgement"));
+    const uint8_t seq = pending.seq;
+    // Pop first: the warning log can run automations that queue another command.
     this->pop_command_();
+    ESP_LOGD(TAG, "No acknowledgement for command seq %02X; giving up", seq);
+    this->status_set_warning(LOG_STR("No acknowledgement"));
     return;
   }
   this->attempts_++;

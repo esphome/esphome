@@ -351,6 +351,38 @@ TEST_F(PioneerWTTest, ModeAfterQueuedOffTurnsBackOn) {
   EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
 }
 
+TEST_F(PioneerWTTest, ReportOnDuringQueuedOffKeepsTheOff) {
+  this->start_with_status_();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
+  // A report sent before the AC got the off must not make the next mode change skip the power on.
+  this->uart_.push_rx(build(FLAG_NO_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x01, 0x01}));
+  this->loop_at_(1200);
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->uart_.tx.clear();
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
+  this->loop_at_(1300);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
+}
+
+TEST_F(PioneerWTTest, EcoAndAutoFanCommand) {
+  this->start_();
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_fan_mode(climate::CLIMATE_FAN_AUTO).set_preset(climate::CLIMATE_PRESET_ECO).perform();
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx,
+            command(0x02, {0x02, 0x24, 0x00, 0x02, 0x25, 0x00, 0x00, 0x05, 0x00, 0x00, 0x73, 0x01, 0x00, 0x13, 0x01}));
+}
+
+TEST_F(PioneerWTTest, ReportsEcoAndSwing) {
+  this->start_with_status_();
+  this->uart_.push_rx(
+      build(FLAG_NO_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x13, 0x01, 0x00, 0x11, SWING_ON}));
+  this->loop_at_(1200);
+  ASSERT_TRUE(this->sut_.preset.has_value());
+  EXPECT_EQ(*this->sut_.preset, climate::CLIMATE_PRESET_ECO);
+  EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+}
+
 TEST_F(PioneerWTTest, ClampsTargetTemperature) {
   this->start_();
   this->uart_.tx.clear();
