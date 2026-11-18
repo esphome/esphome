@@ -50,7 +50,10 @@ uint16_t frame_crc(const uint8_t *frame, size_t len);
 class PacketReader final : protected LengthFrameReader<MAX_FRAME_SIZE, LEN_POS, 0, 0xA5, 0x01> {
  public:
   /// Feeds one byte. Returns the frame length once a complete, valid frame is in frame().
-  size_t feed(uint8_t byte);
+  size_t feed(uint8_t byte) {
+    const uint8_t *frame = LengthFrameReader::feed(byte);
+    return frame != nullptr ? this->accept_(frame) : 0;
+  }
   const uint8_t *frame() const { return this->buf_; }
   /// True while part of a frame has been collected.
   bool partial() const { return this->length() != 0; }

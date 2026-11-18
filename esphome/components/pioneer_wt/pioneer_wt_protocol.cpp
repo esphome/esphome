@@ -11,8 +11,6 @@ uint16_t frame_crc(const uint8_t *frame, size_t len) {
   return crc16be(frame + HEADER_SIZE, len - HEADER_SIZE, head);
 }
 
-size_t PacketReader::feed(uint8_t byte) { return this->accept_(LengthFrameReader::feed(byte)); }
-
 size_t PacketReader::flush() { return this->accept_(this->resync()); }
 
 size_t PacketReader::accept_(const uint8_t *frame) {
