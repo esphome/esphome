@@ -95,6 +95,14 @@ def test_get_platform_components_skips_pycache(tmp_path: Path) -> None:
     assert result == []
 
 
+def test_get_platform_components_skips_external_components(tmp_path: Path) -> None:
+    (tmp_path / "tuya" / "components" / "fake_tuya_transport").mkdir(parents=True)
+
+    result = build_helpers.get_platform_components(["tuya"], tmp_path)
+
+    assert result == []
+
+
 def test_get_platform_components_raises_for_invalid_domain(tmp_path: Path) -> None:
     (tmp_path / "bthome" / "notadomain").mkdir(parents=True)
 
