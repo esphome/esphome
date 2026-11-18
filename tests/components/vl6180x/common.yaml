@@ -1,0 +1,14 @@
+vl6180x:
+  - id: vl6180x_sensor
+    i2c_id: i2c_bus
+
+sensor:
+  - platform: vl6180x
+    vl6180x_id: vl6180x_sensor
+    distance:
+      name: VL6180X Distance
+      scaler: 2
+    illuminance:
+      name: VL6180X Illuminance
+      gain: 2.5
+      integration_time: 50ms
