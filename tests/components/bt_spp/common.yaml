@@ -1,0 +1,55 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+bt_spp:
+  id: bt_spp_obd
+  mac_address: "00:11:22:33:44:55"
+  pin: "1234"
+  name: esphome-obd
+  reconnect_interval: 15s
+  rx_buffer_size: 1024
+  tx_buffer_size: 128
+  enable_on_boot: false
+  debug:
+    direction: BOTH
+
+binary_sensor:
+  - platform: bt_spp
+    bt_spp_id: bt_spp_obd
+    connected:
+      name: OBD Adapter Connected
+
+# bt_spp is a UART: any UART device or action can use it.
+button:
+  - platform: uart
+    uart_id: bt_spp_obd
+    name: OBD Reset
+    data: "ATZ\r"
+  - platform: template
+    name: OBD Connect
+    on_press:
+      - bt_spp.connect: bt_spp_obd
+  - platform: template
+    name: OBD Disconnect
+    on_press:
+      - bt_spp.disconnect:
+          id: bt_spp_obd
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            bt_spp.is_connected: bt_spp_obd
+          then:
+            - uart.write:
+                id: bt_spp_obd
+                data: "ATRV\r"
+      - lambda: |-
+          uint8_t byte;
+          while (id(bt_spp_obd).available() && id(bt_spp_obd).read_byte(&byte)) {
+            ESP_LOGD("test", "Received 0x%02X", byte);
+          }
+          id(bt_spp_obd).load_settings();
+          id(bt_spp_obd).load_settings(false);

@@ -1,0 +1,5 @@
+# A fixed RFCOMM channel skips the SDP query; no PIN, name or WiFi.
+bt_spp:
+  id: bt_spp_fixed
+  mac_address: "AA:BB:CC:DD:EE:FF"
+  channel: 1
