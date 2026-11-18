@@ -3,30 +3,25 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR_DATAPOINT
 
-from .. import CONF_TUYA_ID, Tuya, tuya_ns
+from .. import CONF_TUYA_ID, Tuya, register_tuya_child, tuya_ns
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@dentra"]
 
-TuyaTextSensor = tuya_ns.class_("TuyaTextSensor", text_sensor.TextSensor, cg.Component)
+TuyaTextSensor = tuya_ns.class_("TuyaTextSensor", text_sensor.TextSensor)
 
-CONFIG_SCHEMA = (
-    text_sensor.text_sensor_schema()
-    .extend(
-        {
-            cv.GenerateID(): cv.declare_id(TuyaTextSensor),
-            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-            cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(TuyaTextSensor).extend(
+    {
+        cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+        cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
+    }
 )
 
 
 async def to_code(config):
     var = await text_sensor.new_text_sensor(config)
-    await cg.register_component(var, config)
 
-    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
+    hub = await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_sensor_id(config[CONF_SENSOR_DATAPOINT]))
+    register_tuya_child(hub, var)

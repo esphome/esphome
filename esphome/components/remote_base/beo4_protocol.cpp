@@ -82,7 +82,7 @@ optional<Beo4Data> Beo4Protocol::decode(RemoteReceiveData src) {
     int32_t jc = 0;
     uint32_t pre_bit = 0;
     uint32_t cnt_bit = 0;
-    ESP_LOGD(TAG, "Beo4: n_sym=%" PRId32, n_sym);
+    ESP_LOGV(TAG, "Beo4: n_sym=%" PRId32, n_sym);
     for (jc = 0, ic = 0; ic < (n_sym - 1); ic += 2, jc++) {
       int32_t pulse_width = src[ic] - src[ic + 1];
       // suppress TSOP7000 (dummy pulses)
