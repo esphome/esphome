@@ -661,6 +661,12 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is False
 
+    def test_is_stm32(self, target: core.EsphomeCore) -> None:
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "stm32"}
+
+        assert target.is_stm32 is True
+        assert target.is_nrf52 is False
+
     def test_is_rp2040_deprecated_alias_matches_is_rp2(self, target, caplog):
         """``is_rp2040`` is kept as a deprecation shim that returns whatever
         ``is_rp2`` returns; both must agree across platform values. A

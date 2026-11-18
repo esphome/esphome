@@ -107,6 +107,7 @@ ISOLATED_COMPONENTS = {
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "brizlabs_led_string": "Takes SPI2_HOST for itself, which the shared spi: test bus also uses",
 }
 
 

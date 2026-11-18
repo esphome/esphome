@@ -46,10 +46,13 @@ class XxteaEncryption : public PacketInterface {
   void setup() override;
   void dump_config() override;
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
+  // One encrypted packet per packet, so a fragmentation layer above sees the link's room
+  size_t get_send_capacity() const override { return this->lower_->get_send_capacity(); }
 
   void set_key(std::initializer_list<uint32_t> key);
 
  protected:
+  bool send_(const PacketBuffer &data, const PacketMetaData &meta_data);
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);
   bool accept_counter_(uint32_t boot, uint32_t counter);
   void next_boot_();

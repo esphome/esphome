@@ -53,9 +53,19 @@ class MockInterface : public packet_interface::PacketInterface {
   size_t budget{SIZE_MAX};  // packets accepted before refusing, like a full queue
 };
 
-class TestTransport : public EntityTransport {
+struct BufferHolder {
+  explicit BufferHolder(size_t size) : buffer(size) {}
+  std::vector<uint8_t> buffer;
+};
+
+// The transport with a buffer of the size that code generation gives it
+class TestTransport : private BufferHolder, public EntityTransport {
  public:
-  using EntityTransport::EntityTransport;
+  explicit TestTransport(packet_interface::PacketInterface *interface)
+      : BufferHolder(interface->get_max_packet_size()),
+        EntityTransport(interface, this->buffer.data(), this->buffer.size()) {}
+  TestTransport(packet_interface::PacketInterface *interface, uint8_t *buffer, size_t buffer_size)
+      : BufferHolder(0), EntityTransport(interface, buffer, buffer_size) {}
   uint32_t get_dictionary_id() const { return this->dictionary_id_; }
   uint32_t get_update_interval() const { return this->update_interval_ms_; }
   using EntityTransport::clear_remote_states_;
@@ -570,6 +580,21 @@ TEST_F(EntityTransportTest, PacketTooSmallForIdsFailsSetup) {
   auto sender = this->make_sender_(&small_link);
   EXPECT_TRUE(sender->is_failed());
   EXPECT_FALSE(this->make_sender_()->is_failed());
+}
+
+// With PSRAM, the buffer is allocated at boot and can be missing
+TEST_F(EntityTransportTest, MissingBufferFailsSetup) {
+  TestTransport transport(&this->link_a_, nullptr, 64);
+  transport.setup();
+  EXPECT_TRUE(transport.is_failed());
+}
+
+// A buffer sized from layers that the C++ layers do not match must not be overrun
+TEST_F(EntityTransportTest, SmallBufferFailsSetup) {
+  uint8_t buffer[63];
+  TestTransport transport(&this->link_a_, buffer, sizeof(buffer));
+  transport.setup();
+  EXPECT_TRUE(transport.is_failed());
 }
 
 }  // namespace esphome::entity_transport::testing

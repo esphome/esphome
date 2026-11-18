@@ -48,4 +48,5 @@ async def to_code(config: ConfigType) -> None:
                 constexpr=False,
             )
             cg.add(var.set_interlock(table, len(group)))
-        cg.add(var.set_interlock_wait_time(config[CONF_INTERLOCK_WAIT_TIME]))
+        if wait_time := config[CONF_INTERLOCK_WAIT_TIME].total_milliseconds:
+            cg.add(var.set_interlock_wait_time(wait_time))
