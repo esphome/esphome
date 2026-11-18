@@ -18,6 +18,7 @@ on:
       - ready_for_review
     branches:
       - dev
+      - copilot-review-test-base
 
 permissions: {}
 
