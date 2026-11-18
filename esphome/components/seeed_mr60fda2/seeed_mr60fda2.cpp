@@ -77,11 +77,12 @@ static bool frame_valid(const uint8_t *frame, size_t len) {
 
 void MR60FDA2Component::loop() {
   this->read_available([this](uint8_t b) {
-    const uint8_t *frame = this->reader_.feed(b);
-    while (frame != nullptr) {
-      frame = frame_valid(frame, this->reader_.frame_length()) ? (this->process_frame_(frame), this->reader_.next())
-                                                               : this->reader_.resync();
-    }
+    this->reader_.feed(b, [this](const uint8_t *frame, size_t len) {
+      if (!frame_valid(frame, len))
+        return false;
+      this->process_frame_(frame);
+      return true;
+    });
   });
 }
 
