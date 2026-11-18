@@ -144,6 +144,23 @@ TEST(PioneerWTProtocol, AttributesStopAtTruncatedValue) {
   EXPECT_FALSE(attrs.stopped_on_unknown());
 }
 
+TEST(PioneerWTProtocol, AttributesStopAtTruncatedLengthPrefix) {
+  // 0147 carries two length bytes; only one arrived. That is a cut-off frame, not an unknown ID.
+  const Frame body = from_hex("014700");
+  AttributeReader attrs(body.data(), body.size());
+  EXPECT_FALSE(attrs.next());
+  EXPECT_FALSE(attrs.stopped_on_unknown());
+}
+
+TEST(PioneerWTProtocol, ReaderReportsChecksumErrorOnce) {
+  FrameReader reader;
+  Frame frame = from_hex(PRESENCE_CHECK);
+  frame[9] ^= 0x01;
+  feed_all(reader, frame);
+  EXPECT_TRUE(reader.take_checksum_error());
+  EXPECT_FALSE(reader.take_checksum_error());
+}
+
 class PioneerWTTest : public ::testing::Test {
  protected:
   void SetUp() override { this->sut_.set_uart_parent(&this->uart_); }
@@ -267,6 +284,101 @@ TEST_F(PioneerWTTest, DisplayAndBeeperCommands) {
   this->sut_.set_beeper_on(true);
   this->loop_at_(1300);
   EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x25, 0x01}));
+}
+
+// The request for the full status at boot can be lost when the AC powers up at the same time.
+TEST_F(PioneerWTTest, AsksAgainUntilFullStatusArrives) {
+  this->sut_.setup();
+  for (uint32_t t = 1000; t <= 4000; t += 500)
+    this->loop_at_(t);  // four attempts, then the request is dropped
+  // The AC is alive: it sends its presence check and a small report, but never the full status.
+  this->uart_.push_rx_hex(PRESENCE_CHECK);
+  this->uart_.push_rx(build(FLAG_NO_ACK, TYPE_DATA, 0xb0, 0, {CLASS_STATUS, CLASS_STATUS, 0x00, 0x05, 0x03}));
+  this->loop_at_(20000);
+  this->uart_.tx.clear();
+  this->loop_at_(29000);
+  EXPECT_TRUE(this->uart_.tx.empty());
+  this->loop_at_(30000);
+  this->loop_at_(30010);
+  EXPECT_EQ(this->uart_.tx, build(FLAG_WANT_ACK, TYPE_DATA, 0x02, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}));
+}
+
+TEST_F(PioneerWTTest, PresenceCheckDoesNotCountAsStatus) {
+  this->start_();
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1100);
+  // Presence checks keep arriving, but no status for five minutes.
+  for (uint32_t t = 60000; t <= 300000; t += 60000) {
+    this->uart_.push_rx_hex(PRESENCE_CHECK);
+    this->loop_at_(t);
+  }
+  this->uart_.tx.clear();
+  this->loop_at_(301100);
+  this->loop_at_(301110);
+  EXPECT_EQ(this->uart_.tx, build(FLAG_WANT_ACK, TYPE_DATA, 0x02, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}));
+}
+
+TEST_F(PioneerWTTest, WarningStaysUntilAcknowledgement) {
+  this->sut_.setup();
+  for (uint32_t t = 1000; t <= 4000; t += 500)
+    this->loop_at_(t);
+  EXPECT_TRUE(this->sut_.status_has_warning());
+  // Sending the next command does not prove the link works.
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(5000);
+  EXPECT_TRUE(this->sut_.status_has_warning());
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
+  this->loop_at_(5100);
+  EXPECT_FALSE(this->sut_.status_has_warning());
+}
+
+TEST_F(PioneerWTTest, DropsPartialFrameAfterPause) {
+  this->start_();
+  // A cut-off header that claims 255 bytes would otherwise swallow the frames that follow.
+  this->uart_.push_rx_hex("a5010121000000ff");
+  this->loop_at_(1100);
+  this->uart_.push_rx_hex(PRESENCE_CHECK);
+  this->loop_at_(2000);
+  EXPECT_EQ(this->uart_.tx, from_hex("a5010023000000124709800c0264ffffffd0"));
+}
+
+TEST_F(PioneerWTTest, ModeAfterQueuedOffTurnsBackOn) {
+  this->start_();
+  this->uart_.push_rx_hex(STATUS_DUMP);
+  this->loop_at_(1100);
+  this->uart_.tx.clear();
+  // Both calls are made before the AC reports that it is off.
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx, command(0x02, {0x00, 0x01, 0x00}));
+  this->uart_.tx.clear();
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
+  this->loop_at_(1300);
+  this->loop_at_(1310);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x01, 0x01, 0x00, 0x12, 0x01}));
+}
+
+TEST_F(PioneerWTTest, ClampsTargetTemperature) {
+  this->start_();
+  this->uart_.tx.clear();
+  this->sut_.make_call().set_target_temperature(-20.0f).perform();
+  this->loop_at_(1200);
+  // 16 C is 60.8 F, sent as 61 F.
+  EXPECT_EQ(this->uart_.tx, command(0x02, {0x02, 0x27, 0x00, 0x00, 0x00, 0x3d}));
+}
+
+TEST_F(PioneerWTTest, FullQueueDropsOldestCommand) {
+  this->start_();
+  this->uart_.tx.clear();
+  // Five commands with no acknowledgement; the queue holds four.
+  for (uint8_t speed = 1; speed <= 5; speed++)
+    this->sut_.make_call()
+        .set_swing_mode(speed % 2 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF)
+        .perform();
+  this->loop_at_(1200);
+  // The first command (seq 2) was dropped, so the second (seq 3, swing off) goes out first.
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x11, SWING_OFF}));
 }
 
 }  // namespace esphome::pioneer_wt::testing

@@ -59,7 +59,11 @@ class PioneerWT : public climate::Climate, public uart::UARTDevice, public Compo
   uint8_t next_seq_{1};
   uint32_t last_send_{0};
   uint32_t last_status_{0};
+  uint32_t last_request_{0};
+  uint32_t last_rx_{0};
   bool power_{false};
+  // Power after the commands still waiting to be sent; power_ is what the AC last reported.
+  bool power_wanted_{false};
   uint8_t ac_mode_{MODE_AUTO};
 };
 

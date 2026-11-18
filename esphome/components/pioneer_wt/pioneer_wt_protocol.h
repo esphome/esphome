@@ -36,11 +36,9 @@ static constexpr uint16_t ATTR_FAN_EXTRA_1 = 0x0224;
 static constexpr uint16_t ATTR_FAN_EXTRA_2 = 0x0225;
 static constexpr uint16_t ATTR_SETPOINT_F = 0x0227;
 
+// Values of ATTR_MODE: 0 auto, 1 cool, 2 dry, 3 fan, 4 heat
 static constexpr uint8_t MODE_AUTO = 0;
-static constexpr uint8_t MODE_COOL = 1;
-static constexpr uint8_t MODE_DRY = 2;
-static constexpr uint8_t MODE_FAN = 3;
-static constexpr uint8_t MODE_HEAT = 4;
+static constexpr uint8_t MODE_COUNT = 5;
 
 static constexpr uint8_t SWING_ON = 0x01;
 static constexpr uint8_t SWING_OFF = 0x08;
@@ -56,10 +54,21 @@ class FrameReader {
   /// Feeds one byte. Returns the frame length once a complete, valid frame is in frame().
   size_t feed(uint8_t byte);
   const uint8_t *frame() const { return this->buf_.data(); }
+  /// True while part of a frame has been collected.
+  bool partial() const { return this->pos_ != 0; }
+  /// Drops a partly collected frame, so the next byte can start a new one.
+  void reset() { this->pos_ = 0; }
+  /// True once after a complete frame was dropped for a wrong checksum.
+  bool take_checksum_error() {
+    const bool error = this->checksum_error_;
+    this->checksum_error_ = false;
+    return error;
+  }
 
  protected:
   std::array<uint8_t, MAX_FRAME_SIZE> buf_{};
   size_t pos_{0};
+  bool checksum_error_{false};
 };
 
 /// Walks the attribute list in a status body. Stops at the first ID whose size is unknown.

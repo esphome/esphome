@@ -1,7 +1,9 @@
 #include "pioneer_wt_protocol.h"
 
 #include <cstring>
+#include <iterator>
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::pioneer_wt {
@@ -30,99 +32,69 @@ size_t FrameReader::feed(uint8_t byte) {
   if (this->pos_ < len)
     return 0;
   this->pos_ = 0;
-  const uint16_t expected = (static_cast<uint16_t>(this->buf_[8]) << 8) | this->buf_[9];
-  if (frame_crc(this->buf_.data(), len) != expected)
+  if (frame_crc(this->buf_.data(), len) != encode_uint16(this->buf_[8], this->buf_[9])) {
+    this->checksum_error_ = true;
     return 0;
+  }
   return len;
 }
 
-static int value_size(uint16_t id) {
-  switch (id) {
-    case 0x0002:
-    case 0x0003:
-    case 0x003D:
-    case 0x0041:
-    case 0x0042:
-    case 0x005C:
-    case 0x0060:
-    case 0x0064:
-    case 0x0065:
-    case 0x0072:
-    case 0x0095:
-    case 0x00BD:
-    case 0x00BE:
-    case 0x00BF:
-    case 0x00C0:
-    case 0x0221:
-    case 0x0222:
-    case 0x0227:
-      return 4;
-    case 0x0001:
-    case 0x0005:
-    case 0x000C:
-    case 0x000D:
-    case 0x000E:
-    case 0x0011:
-    case 0x0012:
-    case 0x0013:
-    case 0x0017:
-    case 0x001E:
-    case 0x0022:
-    case 0x0025:
-    case 0x0026:
-    case 0x0027:
-    case 0x002D:
-    case 0x0035:
-    case 0x005E:
-    case 0x0073:
-    case 0x0074:
-    case 0x00A4:
-    case 0x00C9:
-    case 0x00DF:
-    case 0x0148:
-    case 0x015E:
-    case 0x0173:
-    case 0x0224:
-    case 0x0225:
-      return 1;
-    case 0x0147:
-    case 0x0223:
-    case 0x00FA:
-    case 0x00FB:
-      return -2;  // two length bytes, then that many bytes
-    case 0x0038:
-    case 0x0039:
-      return -1;  // one count byte, then that many bytes
-    default:
-      return 0;
+// The reader must know how every attribute is stored to step over the ones it does not use.
+// The IDs are grouped by storage.
+static const uint16_t ONE_BYTE_IDS[] PROGMEM = {
+    0x0001, 0x0005, 0x000C, 0x000D, 0x000E, 0x0011, 0x0012, 0x0013, 0x0017, 0x001E, 0x0022, 0x0025, 0x0026, 0x0027,
+    0x002D, 0x0035, 0x005E, 0x0073, 0x0074, 0x00A4, 0x00C9, 0x00DF, 0x0148, 0x015E, 0x0173, 0x0224, 0x0225,
+};
+static const uint16_t FOUR_BYTE_IDS[] PROGMEM = {
+    0x0002, 0x0003, 0x003D, 0x0041, 0x0042, 0x005C, 0x0060, 0x0064, 0x0065,
+    0x0072, 0x0095, 0x00BD, 0x00BE, 0x00BF, 0x00C0, 0x0221, 0x0222, 0x0227,
+};
+// One count byte, then that many bytes
+static const uint16_t COUNT_PREFIXED_IDS[] PROGMEM = {0x0038, 0x0039};
+// Two length bytes, then that many bytes
+static const uint16_t LENGTH_PREFIXED_IDS[] PROGMEM = {0x00FA, 0x00FB, 0x0147, 0x0223};
+
+static bool contains(const uint16_t *ids, size_t count, uint16_t id) {
+  for (size_t i = 0; i < count; i++) {
+    if (progmem_read_uint16(&ids[i]) == id)
+      return true;
   }
+  return false;
 }
 
 bool AttributeReader::next() {
   if (this->pos_ + 2 > this->len_)
     return false;
-  const uint16_t id = (static_cast<uint16_t>(this->data_[this->pos_]) << 8) | this->data_[this->pos_ + 1];
-  const int size = value_size(id);
+  const uint16_t id = encode_uint16(this->data_[this->pos_], this->data_[this->pos_ + 1]);
   size_t start = this->pos_ + 2;
   size_t value_len;
-  if (size > 0) {
-    value_len = size;
-  } else if (size == -1 && start < this->len_) {
-    value_len = this->data_[start];
-    start += 1;
-  } else if (size == -2 && start + 1 < this->len_) {
-    value_len = (static_cast<size_t>(this->data_[start]) << 8) | this->data_[start + 1];
-    start += 2;
+  bool is_number = true;
+  if (contains(ONE_BYTE_IDS, std::size(ONE_BYTE_IDS), id)) {
+    value_len = 1;
+  } else if (contains(FOUR_BYTE_IDS, std::size(FOUR_BYTE_IDS), id)) {
+    value_len = 4;
   } else {
-    this->id_ = id;
-    this->unknown_ = true;
-    return false;
+    is_number = false;
+    size_t prefix;
+    if (contains(COUNT_PREFIXED_IDS, std::size(COUNT_PREFIXED_IDS), id)) {
+      prefix = 1;
+    } else if (contains(LENGTH_PREFIXED_IDS, std::size(LENGTH_PREFIXED_IDS), id)) {
+      prefix = 2;
+    } else {
+      this->id_ = id;
+      this->unknown_ = true;
+      return false;
+    }
+    if (start + prefix > this->len_)
+      return false;
+    value_len = prefix == 1 ? this->data_[start] : encode_uint16(this->data_[start], this->data_[start + 1]);
+    start += prefix;
   }
   if (start + value_len > this->len_)
     return false;
   this->id_ = id;
   this->value_ = 0;
-  if (size > 0) {
+  if (is_number) {
     for (size_t i = 0; i < value_len; i++)
       this->value_ = (this->value_ << 8) | this->data_[start + i];
   }
@@ -144,18 +116,15 @@ size_t build_frame(uint8_t *out, size_t out_size, uint8_t flags, uint8_t type, u
   out[6] = 0x00;
   out[7] = total;
   std::memcpy(out + HEADER_SIZE, payload, len);
-  const uint16_t crc = frame_crc(out, total);
-  out[8] = crc >> 8;
-  out[9] = crc & 0xFF;
+  put_be16(out + 8, frame_crc(out, total));
   return total;
 }
 
 size_t put_attr(uint8_t *buf, size_t pos, uint16_t id, uint32_t value, uint8_t size) {
-  buf[pos++] = id >> 8;
-  buf[pos++] = id & 0xFF;
+  uint8_t *end = put_be16(buf + pos, id);
   for (int8_t i = size - 1; i >= 0; i--)
-    buf[pos++] = (value >> (8 * i)) & 0xFF;
-  return pos;
+    *end++ = (value >> (8 * i)) & 0xFF;
+  return end - buf;
 }
 
 }  // namespace esphome::pioneer_wt
