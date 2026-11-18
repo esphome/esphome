@@ -417,8 +417,8 @@ def _merge_cluster_attributes(
                 attributes_to_add.append((existing_attributes, incoming_attribute))
             elif (
                 existing_attribute != incoming_attribute
-                or CONF_ID in existing_attribute
-                or CONF_ID in incoming_attribute
+                or existing_attribute.get(CONF_ID) is not None
+                or incoming_attribute.get(CONF_ID) is not None
             ):
                 return (
                     cluster_id,

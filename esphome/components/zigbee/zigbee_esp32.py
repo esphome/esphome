@@ -250,6 +250,13 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "'cluster: power_config' only supports 'battery' or 'voltage' device_class."
             )
+        allowed_units = ["%"] if dev_class == DEVICE_CLASS_BATTERY else ["V", "mV"]
+        if unit is not None and unit not in allowed_units:
+            raise cv.Invalid(
+                f"'cluster: power_config' with device class '{dev_class}' requires "
+                f"unit_of_measurement to be one of {', '.join(allowed_units)}.",
+                path=[CONF_UNIT_OF_MEASUREMENT],
+            )
         cl = {CONF_ID: "POWER_CONFIG", ROLE: "SERVER"}
         if dev_class == DEVICE_CLASS_BATTERY:
             cl[CONF_ATTRIBUTES] = [
@@ -261,8 +268,6 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                 }
             ]
         elif dev_class == DEVICE_CLASS_VOLTAGE:
-            if unit is not None:
-                cv.one_of("V", "mV")(unit)
             cl[CONF_ATTRIBUTES] = [
                 {
                     CONF_ATTRIBUTE_ID: 0x0020,
