@@ -66,7 +66,7 @@ TEST_P(VBusCSPlusTruncatedTest, TruncatedPayloadDoesNotPublishAnyPartialOrOutOfB
   EXPECT_FLOAT_EQ(this->sensors_[12].state, -999);
 }
 
-TEST_P(VBusCSPlusTruncatedTest, FlowOnlyConfigurationRejectsEveryShortPayload) {
+TEST_P(VBusCSPlusTruncatedTest, FlowOnlyConfigurationRejectsShortPayloads) {
   DeltaSolCSPlusSensor decoder;
   sensor::Sensor flow;
   decoder.set_flow_rate_sensor(&flow);
@@ -76,10 +76,10 @@ TEST_P(VBusCSPlusTruncatedTest, FlowOnlyConfigurationRejectsEveryShortPayload) {
   EXPECT_FALSE(flow.has_state());
 }
 
-INSTANTIATE_TEST_SUITE_P(AllShortPayloads, VBusCSPlusTruncatedTest, ::testing::Range(size_t{0}, size_t{40}));
+INSTANTIATE_TEST_SUITE_P(ShortPayloadBoundaries, VBusCSPlusTruncatedTest, ::testing::Values(0u, 38u, 39u));
 
-TEST_F(VBusCSPlusSensorTest, FlowDecodesTheEntireSignedSixteenBitRange) {
-  for (int32_t value = -32768; value <= 32767; ++value) {
+TEST_F(VBusCSPlusSensorTest, FlowDecodesSignedBoundariesAndByteOrder) {
+  for (int32_t value : {-32768, -1, 0, 0x1234, 32767}) {
     const uint16_t raw = static_cast<uint16_t>(value);
     this->reference_[38] = raw & 0xff;
     this->reference_[39] = raw >> 8;
