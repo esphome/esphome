@@ -149,6 +149,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
   /// (handle returns false) is searched for frames inside it and after it, which go to handle the same way.
+  /// handle must not feed this reader again: the frame and the bytes held behind it live in its buffer.
   template<class F> void __attribute__((always_inline)) feed(uint8_t c, F &&handle) {
     // Most bytes are in the middle of a frame whose length is known, and not its last byte
     const pos_t pos = this->pos_;
@@ -161,7 +162,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   }
 
   /// For a partial frame left too long without a byte, which a corrupt length can cause: give up on it, and pass the
-  /// frames it held back to handle.
+  /// frames it held back to handle. A UART component gets this from UARTDevice::read_frames().
   template<class F> void flush(F &&handle) {
     while (this->pos_ != 0)
       this->drain_(this->replay_(1, this->pos_), handle);
